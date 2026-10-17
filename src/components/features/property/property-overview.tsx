@@ -39,6 +39,7 @@ import { MetricDelta } from '#/components/ui/metric-delta'
 import { RatingFigure } from '#/components/ui/rating-figure'
 import type { GoogleBindingState } from './property-lifecycle-model'
 import { overviewRatingMissing } from './overview-rating-missing'
+import { replyTimeMissing } from './reply-time-missing'
 
 export interface PropertyOverviewProps {
   /**
@@ -171,24 +172,31 @@ function reviewsTile(
 }
 
 function replyTile(pulse: DashboardData, propertyId: string) {
-  const { replyRate, avgReplyHours } = pulse.replyPerformance
+  const { replyRate } = pulse.replyPerformance
   const hadReviews = pulse.kpis.reviews.value > 0
 
   return (
     <OverviewTile
       label="Reply rate"
       value={hadReviews ? `${replyRate}%` : null}
-      context={
-        !hadReviews
-          ? 'No reviews needed a reply in the last 30 days.'
-          : avgReplyHours === null
-            ? 'in the last 30 days · nothing replied to yet'
-            : `in the last 30 days · typically within ${formatReplyTime(avgReplyHours)}`
-      }
+      context={replyTileContext(hadReviews, pulse.replyPerformance)}
       link={{ to: '/properties/$propertyId/ratings', params: { propertyId } }}
       linkLabel="Reply rate — open Ratings"
     />
   )
+}
+
+function replyTileContext(
+  hadReviews: boolean,
+  replyPerformance: DashboardData['replyPerformance'],
+): string {
+  const missing = replyTimeMissing(hadReviews, replyPerformance)
+  if (missing === 'no_reviews') return 'No reviews needed a reply in the last 30 days.'
+  if (missing === 'no_replies') return 'in the last 30 days · nothing replied to yet'
+  const { avgReplyHours } = replyPerformance
+  return avgReplyHours === null
+    ? 'in the last 30 days'
+    : `in the last 30 days · typically within ${formatReplyTime(avgReplyHours)}`
 }
 
 function formatReplyTime(hours: number): string {

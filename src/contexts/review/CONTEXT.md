@@ -41,6 +41,19 @@ is not the identity or history authority.
   summary's one scan also counts one range (last Property-local week) and gives
   its star sum only from ten reviews (`GOOGLE_RATING_RANGE_MIN_COUNT`; a smaller
   minimum is refused).
+- Reporting's reply rate, average reply time and recent reviews' reply status
+  read `ReviewServingStats` (`infrastructure/serving-stats.ts`). A review is
+  replied, once, when its Google reply observation head is `live` or RepKey
+  published a reply: a reply written on Google exists only as an observation.
+  Its reply time is the reply's `published_at` (when RepKey confirmed it on
+  Google, which moves with an edit sent from RepKey), else the time Google
+  reports for the reply (`provider_updated_at`, its last edit), never when
+  RepKey read Google; a replied review with neither counts for the rate only.
+  These reads take the head's state and Google's time, never reply text, so
+  only the review's eligibility gates them. The Inbox reads the reply text
+  through `createEligibleGoogleReplyReads`, which also drops an observation
+  whose own content clock lapsed; the two can disagree once a reply has not
+  changed for the cache window.
 
 ## Model
 
