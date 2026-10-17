@@ -615,6 +615,15 @@
 // 307,515 B on the PG-04 head: -15 B, all in the entry's preload map (chunk
 // names). The stylesheet is unchanged. Rebased onto PG-01..PG-03 (main
 // 51a871831, 307,533 B) it measured 307,540 B: +7 B. 160 B spare.
+//
+// 2026-10-17 (Monthly portal goal, PG-06: Portal's goal-readiness facts): no
+// raise. The read is server-only (a Portal domain rule, the publication
+// repository and a member on Portal's public API, whose type it reaches by a
+// type-only import); no client module imports anything new. A fresh production
+// build on the PR head measured 307,530 B (75 js + 1 css), the D-3 figure its
+// base main 2c9fb2a0e carries (only CI scripts changed after D-3): +0 B;
+// vendor-charts 91,003 B (lazy). 170 B spare under 307,700; the ceiling for the
+// whole portal-goal build is 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
