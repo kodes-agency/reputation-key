@@ -108,8 +108,9 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
 7. **No pace word while fewer than 5 were expected (P-6).** `goalPace` gains a
    state after the quiet days: a month is not judged while
    target × elapsed days < 5 × days in the month. It is one rule for the card,
-   the Overview chip and the Properties list. The Google rating goal's pace
-   (`rating-goal-pace.ts`) is not touched.
+   the Overview chip and the Properties list. The Google rating goal's pace and
+   its own below-pace rule (`rating-goal-pace.ts`, `rating-goal-status.ts`) are
+   not touched.
 8. **A month-start check-in, on the page only.** On local days 1 to 7 the card
    and the Overview slot offer "Use N" (the recommendation, when it differs from
    the current number), "Keep" and "Other number". It is never a notice and never
@@ -147,7 +148,13 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
     from Portal scans). No number of one goal is derived from the other. The
     shared surfaces split (P-7): the Active/History tabs move inside the Google
     section, and the "Goals" notification row becomes "Google rating goal" and
-    "Portal goals" (ADR 0046 note, with that change).
+    "Portal goals" (ADR 0046 note, with that change). Two things stay shared:
+    `goal.use` stays one switch (Consequences), and "below pace" stays a word
+    both goals use over two separate rules, `goalPace` with the P-6 guard here
+    (decision 7) and the Google rating goal's own (`rating-goal-status.ts`).
+14. **The results table has its own page.** The monthly results table of Portal
+    goals moves off the Goals page to its own page, `/goals/portal-results`,
+    which also lists the ended Portal goals.
 
 ## Guardrails
 
@@ -160,7 +167,7 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
 - **No staff goal.** No subject is a person or a team. Nothing ranks or rewards
   people or Portals, and nothing sorts Portals by count (`docs/BETA.md` §3;
   ADR 0049 rule 2 as amended 2026-10-17). `employment_decision_eligible` stays
-  `false`.
+  `false`. A one-Portal Property is covered under Consequences.
 - **Google-free.** The goal reads only its own first-party measures. No Google,
   AI, click or named-mention fact reaches it, and it reads nothing of the Google
   rating goal.
@@ -181,16 +188,25 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
 - **The basis is thin at first.** Two weeks of a few ratings is a shaky number,
   and seasons lag by about a month. The check-ins correct both; nothing raises a
   number on its own.
+- **On a one-Portal Property the Property goal is, in effect, that Portal's
+  goal**, and every beta Property with a Portal has exactly one today
+  (`docs/plan/monthly-portal-goal.md`, Risks). Where one person runs that
+  Portal, the number can still read as theirs. That is accepted: the subject is
+  the Property, not a person or a team, so it is not a staff goal under ADR 0049
+  rule 2 as amended; the Portal's count is a fact, with no target or pace of its
+  own; the goal is shown to managers only; and the ask-every-guest and
+  spot-not-person lines stand.
 - **Goal counts can differ a little from Portal Results.** Goals count from
-  2026-08-01 on their own versions; Results count private ratings from
-  2026-08-08 and show an average from 5 ratings.
+  2026-08-01 on their own versions; Results count scans and private ratings
+  from 2026-08-08 and show an average from 5 ratings
+  (`portal-results-thresholds.ts`).
 - **Gaming is not detected.** Staff can scan their own code or rate on a shared
   device. The ask-every-guest line, the spot-not-person line and the absence of
   per-Portal targets are the controls.
 - **A same-second race can give a Property two goals** (two managers on
   different measures). There is no lock. The read-only beta check after each UI
-  deploy counts Properties with more than one; an extra goal shows under "More
-  portal goals" and the owner decides which to stop.
+  deploy counts Properties with more than one, and the owner decides which to
+  stop.
 - **`goal.use` stays one switch** for both goals (ADR 0067; open question 8 of
   the Google rating goal plan).
 

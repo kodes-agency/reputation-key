@@ -134,10 +134,10 @@ For a Portal p and measure m: W is the 28 whole Property-local days ending yeste
 - **Two weeks of a few ratings is a shaky basis.** Whether it gives a steady number is unknown without data; the first check-ins correct it.
 - **Seasons are ignored.** The number lags a season change by about a month.
 - **The go-live day biases the rate down** by up to 1/14, because a partial day counts as a live day.
-- **Goal counts can differ a little from Results counts.** Goals count from Aug 1 on their own versions; Results count private ratings from Aug 8 and show an average from 5 ratings.
+- **Goal counts can differ a little from Results counts.** Goals count from Aug 1 on their own versions; Results count scans and private ratings from Aug 8 and show an average from 5 ratings.
 - **Gaming is not detected.** Staff can scan their own code or rate on a shared device ("Start over" starts a new visit).
 - **On a one-Portal Property, the Property goal is that Portal's goal.** Every beta Property with a Portal has exactly one. The counts are facts, the spot-not-person line stands, and nothing targets the Portal.
-- **A same-second race can give a Property two goals** (two managers on different measures). No lock; the beta check after each UI deploy counts them, an extra shows in "More portal goals", and the owner decides which to stop.
+- **A same-second race can give a Property two goals** (two managers on different measures). No lock; the beta check after each UI deploy counts them, and the owner decides which to stop.
 - **Late readings.** A check-in on the 1st can miss readings of the previous month's last day that arrive within the 24 hours the measure allows. Accepted (ADR 0068 decision 8).
 - **Results arrive about 25 hours after month end.** Day 1 shows "so far".
 - **Bundle.** 170 B of first-paint headroom on 2026-10-17 (307,530 of 307,700 B). One owner ceiling for the whole build (O-1), asked once at the first PR that crosses it, likely PG-13.
@@ -161,7 +161,7 @@ For a Portal p and measure m: W is the 28 whole Property-local days ending yeste
 
 ## As built
 
-Each PR replaces its own "Not recorded yet" when it lands.
+Each PR replaces its own "Not recorded yet" when it lands. PG-01 and PG-02 merge before this page does, so the next PR to land after this page (PG-04) fills in theirs.
 
 ### PG-01 — Wording and first-visit clean-up
 

@@ -84,6 +84,9 @@ What stands:
   the `gbp.review_solicitation_gamification` row) is unchanged.
 - `gbp.review_solicitation_gamification` stays `permanently_denied`.
 - The 2026-10-14 exception for the Property Google rating goal is unchanged.
+- A goal that is neither a staff goal nor a Goal Program is governed by its own
+  decision. Today that is only the Property Google rating goal, and the
+  conditions of the 2026-10-14 amendment still bind it.
 
 It matches the Google Business Profile Access Disclosure as published, which
 excludes Google review solicitation, ratings and review volume from competitive

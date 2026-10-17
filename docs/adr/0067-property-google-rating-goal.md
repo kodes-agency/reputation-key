@@ -8,8 +8,8 @@ date: 2026-10-14
 Amends [ADR 0031](0031-google-source-content-and-ai-processing-boundary.md)
 (review-derived staff goals), [ADR 0041](0041-governed-metric-registry.md) (Google
 facts and Goals) and [ADR 0049](0049-beta-local-acceptance.md) (rule 2, since
-narrowed to staff goals by its amendment of 2026-10-17), each by a dated note
-that points here; `docs/BETA.md` §2, §3 and §10; and version 2.1 of the
+2026-10-17 about staff goals, workforce recognition and Goal Programs; its
+amendment of that date), each by a dated note that points here; `docs/BETA.md` §2, §3 and §10; and version 2.1 of the
 Google Business Profile Access Disclosure and of the Closed Beta Participation
 Agreement. The plan is `docs/plan/google-rating-goal.md`.
 
@@ -25,8 +25,9 @@ Programs do not use Google review completion, rating or volume. `docs/BETA.md` �
 allows exactly three Goal measures, all first-party Portal facts. ADR 0031 denies
 review-derived staff goals, badges and leaderboards; ADR 0041 keeps
 Google-derived analytics out of Goals unless a metric version allows it; ADR 0049
-rule 2 says no Google fact may drive Goals or workforce recognition (narrowed
-to staff goals on 2026-10-17, ADR 0049's amendment of that date); and
+rule 2 says no Google fact may drive Goals or workforce recognition (since
+2026-10-17: staff goals, workforce recognition and Goal Programs; ADR 0049's
+amendment of that date); and
 `gbp.review_solicitation_gamification` is `permanently_denied`. RepKey's own
 disposition of the Google response of 2026-07-14 (its executable policy row,
 `denied_by_separate_policy`) states the rule: review clicks, request scans,
