@@ -63,7 +63,7 @@ function acknowledgement(html: string): string {
 function listedProperties(html: string): readonly string[] {
   const list = html.match(/<ul data-slot="consent-checkbox-list"[^>]*>(.*?)<\/ul>/u)
   return [...(list?.[1] ?? '').matchAll(/<li[^>]*>(.*?)<\/li>/gu)].map((item) =>
-    textOf(item[1]),
+    textOf(item[1] ?? ''),
   )
 }
 
