@@ -161,6 +161,9 @@ its receipts and settlements could never be written.
 
 ## Amended 2026-09-22 — goal results are the Recognition category, shown as "Goals"
 
+(Split in two on 2026-10-17: goal results moved to `portal_goals`, shown as
+"Portal goals"; see "Portal goals get their own row" below.)
+
 `goal.completed` and `goal.result_revised` are live and classified `recognition`,
 but the category had been left out of settings, filters and row mute as
 "post-core history". People could not mute the only positive notices in the
@@ -1104,6 +1107,9 @@ less than a duplicate costs.
 
 ## Amended 2026-10-14 — the Property Google rating goal's five change notices are Goals
 
+(Since 2026-10-17 they are the category's only types, and the row is shown as
+"Google rating goal"; see "Portal goals get their own row" below.)
+
 ADR 0067 (decision 6) gives a Property's Google rating goal five notices and
 says they ship with this amendment. They report changes only:
 
@@ -1306,6 +1312,41 @@ Rolling deploy: web first (it renders rows with and without the new fields),
 then the worker (it writes them). A row written before carries no figures and
 renders the fallback sentence; stored rows are never rewritten.
 
+## Amended 2026-10-17 — Portal goals get their own row
+
+The owner split what the two goals shared (P-7): one "Goals" row meant that
+muting the Google rating goal's changes also silenced a portal goal's monthly
+result, and the other way round.
+
+1. **Two categories.** `recognition` keeps its name in the model, because
+   stored rows, preferences and unsubscribe scopes carry it, and keeps the
+   five `goal.rating_*` types. It is shown as **Google rating goal**
+   ("Changes to your Google rating goal."). The new `portal_goals` takes
+   `goal.completed` and `goal.result_revised` and is shown as **Portal goals**
+   ("Monthly results of your portal goals."). Each is a Property settings row
+   (Google rating goal first), a feed filter and a Mute action of its own, in
+   the app on by default and by email opt-in.
+2. **Daily email for both.** Goal email stays a daily digest only (amended
+   2026-09-22) on both rows: the constructor refuses an immediate row and
+   delivery sends a stored immediate row in the digest.
+3. **The old answer carries over** (migration 0063, data only). Every
+   `recognition` answer is copied to `portal_goals`: the Property rows and the
+   person's defaults, on and off alike, both channels. So are the one-click
+   unsubscribe scopes kept for sent mail, with their date, so an old "Goals"
+   email's link stops both rows it offered and lapses when it would have. An
+   unsubscribe never covers less than the email offered; the copy errs toward
+   fewer emails, never more. An answer already stored under `portal_goals` is
+   kept.
+4. **No row is rewritten.** Stored notices and queued emails keep the category
+   they were written with: an old web server asserts a notice's category when
+   it reads one (`notification-row.mapper.ts`), so a rewrite would break its
+   bell during a rolling deploy. For the same reason the split is
+   forward-only: once the new worker writes `portal_goals` notices, an old web
+   cannot read them. A `goal.completed` notice written before the split stays
+   under `recognition`; the beta had no portal goal, so none exists. A link
+   bookmarked with `?filter=recognition` opens Needs you, like every filter the
+   page no longer offers.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
@@ -1316,7 +1357,8 @@ renders the fallback sentence; stored rows are never rewritten.
   change or purge-pending notice is a second email. A request raised again
   after its notice was settled is a new row and a new email (amended
   2026-09-28).
-- Recognition email requires explicit opt-in and arrives in the daily digest.
+- Recognition email requires explicit opt-in and arrives in the daily digest;
+  so does Portal goals email (amended 2026-10-17).
 - Provider/capability admission remains the outbound activation authority for
   every optional message. Mandatory account/security mail is admitted by the
   core mandatory capability instead, so a tenant allowlist cannot silence it

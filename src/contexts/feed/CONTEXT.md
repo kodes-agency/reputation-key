@@ -338,8 +338,12 @@ Can't reach notice), and a keep goal dropped below. Reporting decides them and w
 each is told once; `notification.on-rating-goal-transitioned`
 (`infrastructure/rating-goal-notice-consumers.ts`) only fans each fact out to
 the Property's responsible managers, AccountAdmins as the fallback, under a
-`responsible_scope` audience. They are `recognition` ("Goals") in name only:
-change notices about a Property figure, never workforce recognition. The fact
+`responsible_scope` audience. They are `recognition` ("Google rating goal") in
+name only: change notices about a Property figure, never workforce
+recognition. A Monthly portal goal's results are `portal_goals` ("Portal
+goals"), a row of their own, so muting one goal never mutes the other; migration
+0063 gave it every "Goals" answer and unsubscribe scope (ADR 0046, amended
+2026-10-17). Stored notices keep their category. The fact
 carries the figures the copy states and Feed reads nothing from Reporting for
 them: the tenths Google shows for the Property now and before and the goal's
 target, the goal's mode and pace, and the recent pace of new reviews, admitted
