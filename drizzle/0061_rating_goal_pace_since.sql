@@ -23,9 +23,13 @@
 -- switch between keep and climb also writes), else `created_at`.
 --
 -- Purely additive: old web and worker code names its columns in every
--- statement, so it never reads these. For the minutes of the release an old
--- web server's change of pace leaves `pace_since` where it was, and the goal is
--- judged from the earlier pace start until the next change. Roll forward, never
+-- statement, so it never reads these. The new code selects them, so this runs
+-- before any new process (web's preDeploy; deploy web, then the worker, never
+-- the worker first). A change of pace made through an old web server after
+-- this ran and before the new web is healthy leaves `pace_since` where it was,
+-- and that goal stays judged from the earlier pace start until its next
+-- change; the post-deploy heal (PLAN-D §5.1) re-runs the backfill below only
+-- where the change log is newer. Roll forward, never
 -- back: the down step is `ALTER TABLE property_rating_goals DROP COLUMN
 -- recap_answered_week, DROP COLUMN pace_since` and the 0061 row out of
 -- drizzle.__drizzle_migrations.
