@@ -7,7 +7,7 @@
 // guard (no pace while fewer than 5 are expected by today) decides, so this
 // walks a grid of small and ordinary months through each of them.
 
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import { goalPace, goalsBehindPaceByProperty } from '../domain/goal-pace'
@@ -204,9 +204,13 @@ const label = (verdict: Verdicts) =>
   `${verdict.metric} ${verdict.value} of ${verdict.target} on ${verdict.month} ${verdict.day}`
 
 describe('goal pace parity', () => {
-  it('list, chip and Properties list agree on every small month', async () => {
-    const verdicts = await everyVerdict()
+  let verdicts: readonly Verdicts[] = []
 
+  beforeAll(async () => {
+    verdicts = await everyVerdict()
+  })
+
+  it('list, chip and Properties list agree on every small month', () => {
     const disagreements = verdicts.flatMap((verdict) => {
       const behind = verdict.pace === 'behind'
       const judged = behind || verdict.pace === 'on_pace'
@@ -223,8 +227,7 @@ describe('goal pace parity', () => {
     expect(disagreements).toEqual([])
   })
 
-  it('agrees on the months the guard decides, not only where nothing is judged', async () => {
-    const verdicts = await everyVerdict()
+  it('agrees on the months the guard decides, not only where nothing is judged', () => {
     const find = (month: string, target: number, day: number, value: number) =>
       verdicts.find(
         (verdict) =>
@@ -246,8 +249,11 @@ describe('goal pace parity', () => {
     // 4 a month is never judged, even on its last day with nothing counted.
     expect(
       verdicts
-        .filter((verdict) => verdict.target === 4)
-        .every((verdict) => verdict.list === null && verdict.byProperty === 0),
-    ).toBe(true)
+        .filter(
+          (verdict) =>
+            verdict.target === 4 && (verdict.list !== null || verdict.byProperty !== 0),
+        )
+        .map(label),
+    ).toEqual([])
   })
 })
