@@ -1,5 +1,4 @@
-// What a Goals row says under an active goal about the month so far, and who
-// the goal is for.
+// What a Goals row says under an active goal about the month so far.
 //
 // It is the live month to date and never the month's result, so it counts and
 // does not judge: "64 of 120 so far", never "on track". The one thing it may
@@ -9,12 +8,10 @@
 // pace, that note; an average gets its figure against the target and no pace;
 // a goal with several subjects gets how many are below pace. A figure that
 // cannot be read says so and is never a zero, and an average too thin to show
-// asks for more ratings. The quiet line names who a goal is for, never a count
-// of subjects. Today counts as a day left. Pure.
+// asks for more ratings. Today counts as a day left. Pure.
 import type {
   GoalListProgress,
   GoalMetric,
-  GoalSubject,
 } from '#/contexts/reporting/application/public-api'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalFigure, goalSoFarNote } from './goal-so-far'
@@ -127,43 +124,6 @@ export function goalLiveShape(
   if (row.status !== 'active' || row.subjectCount < 1) return null
   const bar = row.subjectCount === 1 && row.metric !== 'portal_rating_average'
   return bar ? 'line_and_bar' : 'line'
-}
-
-const SUBJECT_ORDER: Readonly<Record<GoalSubject['kind'], number>> = {
-  property: 0,
-  portal_group: 1,
-  portal: 2,
-}
-
-/**
- * Who a goal is for, by name: "Reception", the property's name or "Rooms
- * (group)" for one; "Reception and Spa" for two; "Reception and 2 more" for
- * three or more. The property comes first, then groups, then portals, each in
- * name order. Null for a goal with no subject. `nameOf` gives a subject's own
- * name.
- */
-export function goalListSubjectText(
-  subjects: readonly GoalSubject[],
-  nameOf: (subject: GoalSubject) => string,
-): string | null {
-  const names = subjects
-    .map((subject) => ({
-      kind: subject.kind,
-      name:
-        subject.kind === 'portal_group' ? `${nameOf(subject)} (group)` : nameOf(subject),
-    }))
-    .sort(
-      (left, right) =>
-        SUBJECT_ORDER[left.kind] - SUBJECT_ORDER[right.kind] ||
-        left.name.localeCompare(right.name),
-    )
-    .map(({ name }) => name)
-  const [first, second] = names
-  if (first === undefined) return null
-  if (second === undefined) return first
-  return names.length === 2
-    ? `${first} and ${second}`
-    : `${first} and ${names.length - 1} more`
 }
 
 /**

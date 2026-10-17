@@ -1,8 +1,7 @@
-// The words a Goals row uses for who a goal is for and for the days left in
-// its month: names, never a count of subjects, and today counted as a day left.
+// Who a goal is for, by name: never a count of subjects.
 import { describe, expect, it } from 'vitest'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
-import { daysLeftWords, goalListSubjectText } from './goal-live-view'
+import { goalListSubjectText } from './goal-assignment-subject-label'
 
 describe('who a row says its goal is for', () => {
   const property: GoalSubject = { kind: 'property', propertyId: 'property-1' }
@@ -52,20 +51,5 @@ describe('who a row says its goal is for', () => {
 
   it('never counts subjects', () => {
     expect(goalListSubjectText([reception], nameOf)).not.toMatch(/subject/u)
-  })
-})
-
-describe('the days left in a month', () => {
-  it('counts today as a day left: 9 on Nov 22', () => {
-    // Nov 22 of a 30-day month: 8 whole days begin after today.
-    expect(daysLeftWords(8)).toBe('9 days left')
-  })
-
-  it('the last day says last day', () => {
-    expect(daysLeftWords(0)).toBe('last day')
-  })
-
-  it('says 2 days left the day before the last', () => {
-    expect(daysLeftWords(1)).toBe('2 days left')
   })
 })

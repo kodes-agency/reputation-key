@@ -40,16 +40,15 @@ import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { GOAL_STATUS } from '#/components/goals/goal-status'
 import { goalMetricLabel } from '#/components/goals/goal-metric-label'
-import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
+import {
+  goalAssignmentSubjectLabel,
+  goalListSubjectText,
+} from '#/components/goals/goal-assignment-subject-label'
 import { goalListTarget } from '#/components/goals/goal-month-target-view'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import { GoalLiveLine, GoalLiveLinePending } from '#/components/goals/goal-live-line'
-import {
-  goalListSubjectText,
-  goalListSummary,
-  goalLiveShape,
-} from '#/components/goals/goal-live-view'
+import { goalListSummary, goalLiveShape } from '#/components/goals/goal-live-view'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { formatShortDate } from '#/lib/format'

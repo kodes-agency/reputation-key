@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
-import { goalListSummary, goalLiveShape, goalLiveView } from './goal-live-view'
+import {
+  daysLeftWords,
+  goalListSummary,
+  goalLiveShape,
+  goalLiveView,
+} from './goal-live-view'
 
 const goal = (patch: Partial<GoalListProgress> = {}): GoalListProgress => ({
   programId: 'program-1',
@@ -220,6 +225,21 @@ describe('the live line of a goal with several subjects', () => {
     expect(
       goalLiveView(several({ metric: 'portal_rating_average', belowPace: null }))?.text,
     ).toBe('3 subjects')
+  })
+})
+
+describe('the days left in a month', () => {
+  it('counts today as a day left: 9 on Nov 22', () => {
+    // Nov 22 of a 30-day month: 8 whole days begin after today.
+    expect(daysLeftWords(8)).toBe('9 days left')
+  })
+
+  it('the last day says last day', () => {
+    expect(daysLeftWords(0)).toBe('last day')
+  })
+
+  it('says 2 days left the day before the last', () => {
+    expect(daysLeftWords(1)).toBe('2 days left')
   })
 })
 
