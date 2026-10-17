@@ -30,6 +30,21 @@ function screenshotAttachments(data: BetaFeedbackInput): FeedbackAttachment[] {
   ]
 }
 
+/**
+ * What a report carries besides its text, as tags triage can search by.
+ * `feedback_attachment` and its retention predate screenshots and describe the
+ * masked layout alone, which stays first-party and expires in 30 days; they
+ * keep that meaning so saved searches still match. A screenshot gets its own
+ * tag and no retention tag: it is a file of this event, kept with the report.
+ */
+function attachmentTags(data: BetaFeedbackInput) {
+  return {
+    feedback_attachment: data.maskedLayout ? 'masked_layout_v1' : 'none',
+    feedback_attachment_retention: data.maskedLayout ? 'expires_30d' : 'not_applicable',
+    feedback_screenshot: data.screenshot ? 'attached' : 'none',
+  } as const
+}
+
 /** Server-only Sentry delivery seam; never enters the browser module graph. */
 export const deliverBetaFeedback: BetaFeedbackDelivery = (input) => {
   const providerReference = captureObservabilityFeedback({
@@ -55,10 +70,7 @@ export const deliverBetaFeedback: BetaFeedbackDelivery = (input) => {
       feedback_role: input.actor.role,
       feedback_reference: input.reference,
       feedback_client_error: input.data.clientErrorEventId ?? 'none',
-      feedback_attachment: input.data.maskedLayout ? 'masked_layout_v1' : 'none',
-      feedback_attachment_retention: input.data.maskedLayout
-        ? 'expires_30d'
-        : 'not_applicable',
+      ...attachmentTags(input.data),
       feedback_triage_state: 'new',
       feedback_triage_owner: 'beta_support',
       feedback_triage_severity: 'unclassified',

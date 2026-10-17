@@ -180,6 +180,7 @@ describe('submit beta feedback server function', () => {
         feedback_client_error: 'none',
         feedback_attachment: 'none',
         feedback_attachment_retention: 'not_applicable',
+        feedback_screenshot: 'none',
         feedback_triage_state: 'new',
         feedback_triage_owner: 'beta_support',
         feedback_triage_severity: 'unclassified',

@@ -62,8 +62,11 @@ const ALLOWED_EVENT_TAGS: Readonly<Record<string, true>> = {
   feedback_viewport: true,
   feedback_role: true,
   feedback_reference: true,
+  // The masked layout's presence and first-party expiry (names kept from
+  // before screenshots), then whether a screenshot file rides with the report.
   feedback_attachment: true,
   feedback_attachment_retention: true,
+  feedback_screenshot: true,
   feedback_triage_state: true,
   feedback_triage_owner: true,
   feedback_triage_severity: true,

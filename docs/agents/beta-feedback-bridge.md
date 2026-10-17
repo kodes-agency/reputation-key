@@ -114,8 +114,13 @@ to Sentry as an attachment of the feedback event, through the capture hint,
 so the scope clearing and the `attachments` scrub above stay as they are.
 Open it from the feedback event in Sentry, whose text carries a
 `Screenshot: attached (type, size)` line; the triage table and the GitHub issue
-never hold it. There is no screenshot tag: the scrubber's tag allowlist ships
-in the first-paint bundle too, and the line says the same.
+never hold it. Find the reports that carry one by `feedback_screenshot:attached`
+(`none` otherwise). `feedback_attachment` and `feedback_attachment_retention`
+still describe the masked layout alone, so a report with only a screenshot
+reads `feedback_attachment:none`. There is no screenshot retention tag: the
+file is kept with the event. The scrubber's tag allowlist loads with the
+browser SDK rather than in first paint, so the extra key costs first paint
+nothing.
 
 ## Telling the reporter
 
