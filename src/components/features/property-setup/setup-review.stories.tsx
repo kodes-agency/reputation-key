@@ -85,17 +85,18 @@ export const TwentyFourPropertiesConsent: Story = {
     const acknowledgement = canvas.getByRole('checkbox', {
       name: 'I have read this notice and agree to this data use on behalf of my organization for these 24 properties:',
     })
-    // The list is the box's description, read ahead of its line of help.
-    await expect(acknowledgement).toHaveAttribute(
-      'aria-describedby',
-      'setup-ai-acknowledgement-details setup-ai-acknowledgement-description',
+    const names = TWENTY_FOUR.map(({ propertyName }) => propertyName)
+    // The names are the box's description, one comma between each, read ahead
+    // of its line of help; browsing reads the drawn list as a list.
+    await expect(acknowledgement).toHaveAccessibleDescription(
+      `${names.join(', ')}. Required to enable AI features. RepKey records who agreed and the notice version they read.`,
     )
     const listed = within(
-      canvasElement.querySelector<HTMLElement>('#setup-ai-acknowledgement-details')!,
+      canvasElement.querySelector<HTMLElement>('[data-slot="consent-checkbox-list"]')!,
     )
       .getAllByRole('listitem')
       .map((item) => item.textContent)
-    await expect(listed).toEqual(TWENTY_FOUR.map(({ propertyName }) => propertyName))
+    await expect(listed).toEqual(names)
     const cta = canvas.getByRole('button', { name: 'Enable AI features' })
     await userEvent.click(acknowledgement)
     await expect(cta).toBeEnabled()

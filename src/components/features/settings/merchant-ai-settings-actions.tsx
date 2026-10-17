@@ -72,8 +72,10 @@ export function MerchantAiSettingsActions({
         <FormActions>
           <ConfirmationDialog
             trigger={<Button disabled={!canEnable}>Enable AI features</Button>}
+            // The title asks the notice's call to action, which names no
+            // property; the description says which one, as turning off does.
             title={`${enableCallToAction}?`}
-            description="You confirm the data-handling notice above and authorize review analysis, editable reply drafting, and de-identified property trends for this property."
+            description={`You confirm the data-handling notice above and authorize review analysis, editable reply drafting, and de-identified property trends for ${propertyName}.`}
             cancelLabel="Cancel"
             confirmLabel="Confirm & enable"
             pendingLabel="Enabling…"

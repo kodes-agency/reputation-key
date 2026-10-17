@@ -14,8 +14,24 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui
 import { cn } from '#/lib/utils'
 import { describedByOf, descriptionIdOf, errorIdOf } from './form-field-frame'
 
-/** The id of what the sentence lists, which the checkbox names first in `aria-describedby`. */
-const detailsIdOf = (id: string): string => `${id}-details`
+/** The id of the hidden sentence that reads the list out, first in `aria-describedby`. */
+const listedIdOf = (id: string): string => `${id}-listed`
+
+/** From this many entries the list runs in two columns from `sm` up. */
+const LIST_IN_COLUMNS_FROM = 7
+
+/** One entry of what the sentence lists: a stable key and the words drawn. */
+type ListedEntry = Readonly<{ key: string; label: string }>
+
+/**
+ * The list as one sentence: "Hotel A, Cafe B." A description flattens a list
+ * into its words with nothing between them, so a listener could not tell where
+ * one name ends; the commas and the full stop say it.
+ */
+function listedSentence(listed: readonly ListedEntry[]): string {
+  const joined = listed.map(({ label }) => label).join(', ')
+  return /[.!?]$/u.test(joined) ? joined : `${joined}.`
+}
 
 type Props = Readonly<{
   id: string
@@ -26,9 +42,10 @@ type Props = Readonly<{
   /**
    * What a sentence ending in a list names, such as every Property one consent
    * covers. A label holds phrasing content only, so the list is drawn under the
-   * sentence, inside the frame, and read first in the checkbox's description.
+   * sentence, inside the frame, where browsing reads it as a list. The checkbox's
+   * description starts with the same names as one comma-separated sentence.
    */
-  details?: ReactNode
+  listed?: readonly ListedEntry[]
   /** A line under the sentence: what recording the answer means. */
   description?: ReactNode
   /** Why the box has to be ticked, once the person has tried to go on without it. */
@@ -44,7 +61,7 @@ export function ConsentCheckbox({
   checked,
   onCheckedChange,
   children,
-  details,
+  listed = [],
   description,
   error,
   disabled = false,
@@ -53,8 +70,9 @@ export function ConsentCheckbox({
   className,
 }: Props) {
   const invalid = Boolean(error)
+  const hasList = listed.length > 0
   const describedBy =
-    [details ? detailsIdOf(id) : undefined, describedByOf(id, description, invalid)]
+    [hasList ? listedIdOf(id) : undefined, describedByOf(id, description, invalid)]
       .filter(Boolean)
       .join(' ') || undefined
   return (
@@ -80,10 +98,26 @@ export function ConsentCheckbox({
         <FieldLabel htmlFor={id} className="min-w-0 wrap-anywhere">
           {children}
         </FieldLabel>
-        {details ? (
-          <div id={detailsIdOf(id)} className="min-w-0">
-            {details}
-          </div>
+        {hasList ? (
+          <>
+            <ul
+              data-slot="consent-checkbox-list"
+              className={cn(
+                'min-w-0 list-disc text-sm',
+                listed.length >= LIST_IN_COLUMNS_FROM && 'gap-x-8 sm:columns-2',
+              )}
+            >
+              {listed.map((entry) => (
+                <li key={entry.key} className="ml-5 break-inside-avoid wrap-anywhere">
+                  {entry.label}
+                </li>
+              ))}
+            </ul>
+            {/* Not drawn: a description still reads a hidden element it names. */}
+            <span id={listedIdOf(id)} hidden>
+              {listedSentence(listed)}
+            </span>
+          </>
         ) : null}
         {description ? (
           <FieldDescription id={descriptionIdOf(id)}>{description}</FieldDescription>

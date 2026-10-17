@@ -1001,6 +1001,52 @@ release that counts every settled sequence is deployed.
 Record the counts and the Organization and Property identifiers; never review
 content.
 
+**A consent recorded while an older worker ran (2026-10-17).** The release
+that serves `merchant-ai-notice-2026-10-17.v1` moves web before the worker
+(`pnpm ops deploy-ci-images`). A worker built before it admits only
+`merchant-ai-notice-2026-09-15.v1`, so until it stops, about 30 seconds after
+the new worker is healthy, it settles every review of a Property consented
+under the new notice as not analysable (`policy_disabled`), the
+first-enablement replay included. Nothing reopens that code, and the
+coverage counts still add up, so neither alert fires. While that deploy runs,
+nobody enables AI or finishes an import's AI step. Note when the command
+finishes. Then list every Review Analysis consent recorded under the new notice
+up to one minute after that moment whose epoch is still the head's, with how
+many of the Property's reviews were settled at that epoch by then:
+
+```sql
+WITH cutoff AS (
+  SELECT TIMESTAMPTZ '<when the deploy command finished>' + INTERVAL '1 minute' AS at
+)
+SELECT evidence.organization_id, evidence.property_id, evidence.occurred_at,
+       head.review_analysis_epoch,
+       (SELECT count(*)
+        FROM ai_property_aggregate_settlements AS settlement
+        WHERE settlement.organization_id = head.organization_id
+          AND settlement.property_id = head.property_id
+          AND settlement.source_epoch = head.authorized_source_epoch
+          AND settlement.review_analysis_epoch = head.review_analysis_epoch
+          AND settlement.settled_at < cutoff.at) AS settled_in_window
+FROM merchant_ai_consent_evidence AS evidence
+CROSS JOIN cutoff
+JOIN merchant_ai_enablement AS head
+  ON head.organization_id = evidence.organization_id
+ AND head.property_id = evidence.property_id
+ AND head.review_analysis_epoch = evidence.review_analysis_epoch
+WHERE evidence.notice_version = 'merchant-ai-notice-2026-10-17.v1'
+  AND evidence.state = 'enabled'
+  AND 'review_analysis' = ANY(evidence.capabilities)
+  AND evidence.occurred_at < cutoff.at
+ORDER BY evidence.occurred_at;
+```
+
+No rows, or only rows with `settled_in_window` at zero, is the expected answer
+and nothing is left to do. A row above zero is a Property whose history the old
+worker settled: its AccountAdmin turns AI off for it and enables it again in its
+AI settings, which advances every epoch, and the first-enablement replay
+analyses the history on the new worker. Do not insert or rewrite settlements.
+Record the identifiers, epochs and counts only.
+
 **Verification:** For every enabled Property, the current-epoch settlement
 count exactly equals `head_sequence - analysis_start_sequence`, the count
 continues to advance when new review-analysis events arrive, and no actionable

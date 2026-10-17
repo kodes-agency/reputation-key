@@ -12,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
-import { cn } from '#/lib/utils'
 import type { SetupMember } from './property-setup-contract'
 import {
   aiEnabledProperties,
@@ -79,9 +78,6 @@ function aiCell(
   return facts?.aiDecided ? 'Already decided' : SKIPPED
 }
 
-/** From this many properties the acknowledged list runs in two columns. */
-const LIST_IN_COLUMNS_FROM = 7
-
 /**
  * The one acknowledgement of a consent ceremony, naming every property it
  * covers: one in its sentence, several as a list under it. The call to action
@@ -107,24 +103,13 @@ function AiAcknowledgement({
       disabled={saving}
       onCheckedChange={onAcknowledgedChange}
       description="Required to enable AI features. RepKey records who agreed and the notice version they read."
-      details={
-        several ? (
-          <ul
-            className={cn(
-              'list-disc text-sm',
-              properties.length >= LIST_IN_COLUMNS_FROM && 'gap-x-8 sm:columns-2',
-            )}
-          >
-            {properties.map((property) => (
-              <li
-                key={property.propertyId}
-                className="ml-5 break-inside-avoid wrap-anywhere"
-              >
-                {property.propertyName}
-              </li>
-            ))}
-          </ul>
-        ) : undefined
+      listed={
+        several
+          ? properties.map((property) => ({
+              key: property.propertyId,
+              label: property.propertyName,
+            }))
+          : undefined
       }
     >
       {several

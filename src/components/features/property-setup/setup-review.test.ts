@@ -61,9 +61,17 @@ function acknowledgement(html: string): string {
 }
 
 function listedProperties(html: string): readonly string[] {
-  const list = html.match(/<div id="setup-ai-acknowledgement-details"[^>]*>(.*?)<\/div>/u)
+  const list = html.match(/<ul data-slot="consent-checkbox-list"[^>]*>(.*?)<\/ul>/u)
   return [...(list?.[1] ?? '').matchAll(/<li[^>]*>(.*?)<\/li>/gu)].map((item) =>
     textOf(item[1]),
+  )
+}
+
+/** What the checkbox's description reads of the list: one sentence. */
+function spokenList(html: string): string {
+  return textOf(
+    html.match(/<span id="setup-ai-acknowledgement-listed"[^>]*>(.*?)<\/span>/u)?.[1] ??
+      '',
   )
 }
 
@@ -75,7 +83,8 @@ describe('SetupReview consent', () => {
     expect(acknowledgement(html)).toBe(
       'I have read this notice and agree to this data use for Harbour Inn on behalf of my organization.',
     )
-    expect(html).not.toContain('setup-ai-acknowledgement-details')
+    expect(html).not.toContain('setup-ai-acknowledgement-listed')
+    expect(html).not.toContain('consent-checkbox-list')
   })
 
   it('lists every Property the consent covers under the acknowledgement, in order', () => {
@@ -90,10 +99,12 @@ describe('SetupReview consent', () => {
       'I have read this notice and agree to this data use on behalf of my organization for these 24 properties:',
     )
     expect(listedProperties(html)).toEqual(names)
-    // The list is the checkbox's description, ahead of its line of help.
+    // The names are the checkbox's description, ahead of its line of help, and
+    // a listener hears where each one ends.
     expect(html).toContain(
-      'aria-describedby="setup-ai-acknowledgement-details setup-ai-acknowledgement-description"',
+      'aria-describedby="setup-ai-acknowledgement-listed setup-ai-acknowledgement-description"',
     )
+    expect(spokenList(html)).toBe(`${names.join(', ')}.`)
   })
 
   it('lets a long name wrap rather than widen the page', () => {

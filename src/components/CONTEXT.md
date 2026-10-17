@@ -692,9 +692,11 @@ One list of words for what every page repeats.
 - **On and off.** A feature turns "on" and "off" ("Turn on AI analysis", "Turn off AI
   features"). The AI data-use consent is the exception: its call to action is the
   versioned notice's own words, "Enable AI features", so that dialog says Enable and
-  "Confirm & enable". It names no property, however many the consent covers; the
-  acknowledgement above it names every one, as a list under its sentence when there
-  are several (`ConsentCheckbox` `details`).
+  "Confirm & enable". The call to action names no property, however many the consent
+  covers; the acknowledgement above it names every one, as a list under its sentence
+  when there are several (`ConsentCheckbox` `listed`, which the checkbox's description
+  reads as one comma-separated sentence), and the settings confirmation names its
+  property in its description, as turning off does in its title.
 - **Back** is "Back to <place>" (the back control above), the place being the
   sidebar's name for it in lower case ("Back to portals"). The Import page is "Import Google properties" in its title and
   trail; the actions that lead to it say "Import from Google".

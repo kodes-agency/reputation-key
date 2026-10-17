@@ -172,7 +172,7 @@ export const AwaitingConsent: Story = {
     ).toHaveAccessibleName(
       `I have read this notice and agree to this data use for ${property.name} on behalf of my organization.`,
     )
-    await consentToAi(canvasElement)
+    await consentToAi(canvasElement, property.name)
     await waitFor(() => expect(enableAction).toHaveBeenCalledOnce())
     // Consent names the notice that was on screen, not a password.
     expect(enableAction.mock.calls[0]?.[0].data.acknowledgement).toEqual(SERVED_NOTICE)
@@ -192,7 +192,7 @@ export const ConsentRefused: Story = {
   play: async ({ canvasElement }) => {
     refusedEnableAction.mockClear()
     const canvas = within(canvasElement)
-    await consentToAi(canvasElement)
+    await consentToAi(canvasElement, property.name)
     await waitFor(() => expect(refusedEnableAction).toHaveBeenCalledOnce())
     const page = within(canvasElement.ownerDocument.body)
     expect(await page.findByText(NOTICE_CHANGED)).toBeVisible()

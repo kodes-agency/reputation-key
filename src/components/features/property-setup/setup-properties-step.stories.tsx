@@ -109,7 +109,7 @@ export const ThreePropertiesOneCeremony: Story = {
       name: 'I have read this notice and agree to this data use on behalf of my organization for these 3 properties:',
     })
     await expect(acknowledgement).toHaveAccessibleDescription(
-      /Hotel Berlin Mitte.*Casa Lisboa.*Athens Rooms.*Required to enable AI features/,
+      /^Hotel Berlin Mitte, Casa Lisboa, Athens Rooms\. Required to enable AI features/,
     )
     await userEvent.click(acknowledgement)
     await userEvent.click(cta)
@@ -177,7 +177,7 @@ export const PerPropertyOverrides: Story = {
     })
     // The property answered "not now" is not in the consent.
     await expect(acknowledgement).toHaveAccessibleDescription(
-      /^Hotel Berlin Mitte\s*Casa Lisboa\s*Required/,
+      /^Hotel Berlin Mitte, Casa Lisboa\. Required/,
     )
     await userEvent.click(acknowledgement)
     await userEvent.click(canvas.getByRole('button', { name: 'Enable AI features' }))
