@@ -172,6 +172,7 @@ describe('Google rating reads for the rating goal', () => {
       mostRecent: { count: 2, sum: 9 },
       countsSince: [3, 1],
       totalsSince: null,
+      rangeTotals: null,
     })
   })
 
@@ -265,6 +266,7 @@ describe('Google rating reads for the rating goal', () => {
         mostRecent: none,
         countsSince: [0],
         totalsSince: null,
+        rangeTotals: null,
       },
     )
     await expect(reads().getYearlyTotals(OTHER_ORG, PROPERTY)).resolves.toEqual([])

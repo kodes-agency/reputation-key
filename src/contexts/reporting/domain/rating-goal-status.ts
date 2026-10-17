@@ -8,11 +8,14 @@
 //                       and their average does not clear the target's
 //                       threshold (round 2, 2026-10-15; it replaced "Can't
 //                       reach at this mix", which judged the recent mix)
-//   getting_started     the goal is younger than 14 days
+//   getting_started     the goal's pace is younger than 14 days
 //   on_pace             reviews in the pace window at 90% of the chosen pace
 //   below_pace          otherwise
-// The pace window is the last 28 days once the goal is 28 days old, before
-// that the days since it was set (only judged from day 14). A keep goal holds
+// The pace is judged from when it came into force (`paceSince`, round 5, owner
+// answer Q3): the set, or the latest change of the pace, after which the goal
+// is getting started again for 14 days. The pace window is the last 28 days
+// once the pace is 28 days old, before that the days since it started (only
+// judged from day 14). A keep goal holds
 // while Google shows the kept tenth, and waits for Google the same way.
 // There is no deadline and no "missed".
 //
@@ -71,20 +74,39 @@ export function googleIsWaiting(
   )
 }
 
-/** The window a goal's pace is judged on, or null while it is getting started. */
-export function statusPaceWindow(goalCreatedAt: Date, now: Date): PaceWindow | null {
-  const age = ageMs(goalCreatedAt, now)
+/**
+ * The window a goal's pace is judged on, from when the pace came into force,
+ * or null while it is getting started.
+ */
+export function statusPaceWindow(paceSince: Date, now: Date): PaceWindow | null {
+  const age = ageMs(paceSince, now)
   if (age < GETTING_STARTED_DAYS * DAY_MS) return null
   const start =
     age >= FULL_PACE_WINDOW_DAYS * DAY_MS
       ? new Date(now.getTime() - FULL_PACE_WINDOW_DAYS * DAY_MS)
-      : goalCreatedAt
+      : paceSince
   return { start, end: now }
 }
 
-/** The simple card forecasts at the actual pace once the goal is 28 days old. */
-export const forecastPaceBasis = (goalCreatedAt: Date, now: Date): 'chosen' | 'actual' =>
-  ageMs(goalCreatedAt, now) >= FULL_PACE_WINDOW_DAYS * DAY_MS ? 'actual' : 'chosen'
+/** The simple card forecasts at the actual pace once the pace is 28 days old (Q8). */
+export const forecastPaceBasis = (paceSince: Date, now: Date): 'chosen' | 'actual' =>
+  ageMs(paceSince, now) >= FULL_PACE_WINDOW_DAYS * DAY_MS ? 'actual' : 'chosen'
+
+/**
+ * Getting started again because a manager changed the pace (Q3): the pace is
+ * younger than 14 days and the goal is not. A goal's own first 14 days are no
+ * restart, even when its pace changed in them.
+ */
+export function restartsAfterPaceChange(
+  goal: Readonly<{ createdAt: Date; paceSince: Date }>,
+  now: Date,
+): boolean {
+  const gettingStarted = GETTING_STARTED_DAYS * DAY_MS
+  return (
+    ageMs(goal.paceSince, now) < gettingStarted &&
+    ageMs(goal.createdAt, now) >= gettingStarted
+  )
+}
 
 /**
  * reviews / weeks(window) ≥ 90% × chosen, with the chosen pace in tenths a
@@ -175,7 +197,8 @@ export type ClimbStatusInput = Readonly<{
   targetTenths: number
   /** Reviews created since the goal was set, and their stars. */
   sinceSet: RatingTotals
-  goalCreatedAt: Date
+  /** When the goal's pace came into force: the set, or its latest change. */
+  paceSince: Date
   now: Date
   /** The goal's pace in tenths of a review a week. */
   chosenTenthsPerWeek: number
@@ -187,7 +210,7 @@ export function climbStatus(input: ClimbStatusInput): RatingGoalStatus {
   if (input.waiting) return 'waiting_for_google'
   if (input.displayedTenths >= input.targetTenths) return 'reached'
   if (reviewsTooLow(input.sinceSet, input.targetTenths)) return 'reviews_too_low'
-  const window = statusPaceWindow(input.goalCreatedAt, input.now)
+  const window = statusPaceWindow(input.paceSince, input.now)
   if (window === null || input.reviewsInPaceWindow === null) return 'getting_started'
   return isOnPace(input.reviewsInPaceWindow, window, input.chosenTenthsPerWeek)
     ? 'on_pace'

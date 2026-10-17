@@ -92,11 +92,13 @@ The first that holds wins. (Amended 2026-10-15: "New reviews too low" replaces "
 | Waiting for Google  | no Google numbers, numbers older than 24 hours, or Google disconnected                                | neutral; numbers "as of"    |
 | Reached             | Google shows the target                                                                               | celebrate; moves to History |
 | New reviews too low | at least 10 Google reviews since the goal was set, averaging at or below the target's threshold       | amber                       |
-| Getting started     | the first 14 days                                                                                     | neutral                     |
-| On pace             | reviews in the last 28 days (since the goal was set, before day 28) at 90% of the chosen pace or more | green                       |
+| Getting started     | the first 14 days of the pace (from the set, or its latest change)                                    | neutral                     |
+| On pace             | reviews in the last 28 days (since the pace started, before day 28) at 90% of the chosen pace or more | green                       |
 | Below pace          | otherwise                                                                                             | amber                       |
 
 A keep goal is Holding while Google shows the kept tenth and Dropped below when it does not; it waits for Google the same way.
+
+(Amended 2026-10-17, round 5 D-3, owner answer Q3: a new pace is judged from its change, so the goal is getting started again for 14 days after a manager changes the pace; see "Round 5: the Monday check-in".)
 
 ## Setting a goal
 
@@ -250,6 +252,23 @@ The second PR (D-2) makes the detail page mock D3. As built:
 - **Retired** (V7): the exact-average bar, the tiles, the weekly bars, the star mix since the set, the best case, the separate change log. The page's actions gain "Open Portals".
 - **Reads**: two aggregate reads from Review, the exact average at each week's end (worked out inside Review, the week sums kept there) and Google's own number over time from the snapshot facts; the change log returns each field's first change, so "set the goal: 4.1 at 1 a day" holds however long the log grows (ADR 0067, round 5, tracking detail).
 
+The third PR (D-2b) adds the two per-review rows the owner approved (Q2 (a), 2026-10-16; ADR 0067 and 0031, amended 2026-10-17). As built:
+
+- **This week** says the stars: "1 new review, 4★", "2 new reviews, both 5★", "3 new reviews, all 5★", "3 new reviews, average 4.7★" (Review's star distribution since this Property-local Monday; the average a tenth, half up, worked out on the server).
+- **Low reviews since the set**: "2★ review · set you back about 5 new reviews" in the list by date, with an "Open in the inbox" link to `/properties/$propertyId/reviews?itemId=` (its own block beside the words, under them on a phone, 44 px). Review names up to 25 current Google reviews since the set below the goal's threshold and at most 4★ (`getLowReviews`: id, stars, creation time); the page shows the newest ten that set the goal back about one new review or more, or, while new reviews are too low for any count to reach the goal, the newest ten with no setback ("1★ review"). A keep goal, a goal the read found reached or ended and a goal without Google's numbers read none.
+- **The setback** is measured today against the goal: the un-ceiled count the goal needs now less the same with that review taken off Google's count and star sum and off the totals since the set, the average the goal assumes worked out again (`domain/rating-goal-setback.ts`). Early in a goal one review can read "about 50" (the plan counts as 15 reviews): shown as computed (Q6 (a)).
+- **No review id in the browser**: the use case returns the rows with Review's ids (`RatingGoalDetailRead`); the server function asks the policy for `inbox.read` on the Property and makes one `getReviewInboxItemIds` lookup, then sends each row's Inbox item id or null (`server/rating-goal-inbox-links.server.ts`). A viewer the policy refuses the Inbox reads the rows without links. Nothing is stored, exported or logged.
+
+## Round 5: the Monday check-in (2026-10-17)
+
+The fourth PR (D-3, built on D-2 beside D-2b, needing nothing of it) adds the check-in of mock D4 and the pace anchor the owner asked for (Q3, Q4). As built:
+
+- **A new pace starts afresh** (Q3): after "Change plan" or the check-in's Raise or Ease the goal is getting started again for 2 weeks, its pace judged only from the change (the window from the change until it is 4 weeks long), and the card's time uses the chosen pace until the new pace is 28 days old. "Just set", the reviews since the set and the planned average blended with them keep the set. The fresh start keeps the status the goal had: leaving it tells Below pace only when the goal was not below pace before ("… since the pace changed; the plan is 2 a day."). Notice volume, 24 goals with a pace change at week 6 over 26 weeks: raise 23 → 27 (four goals on pace before a raise, once each), ease 22 → 23 (one goal eased to about its own pace, its shorter window crossing 90% once more), unchanged 20 → 20.
+- **The check-in** (Q4), above the card on the Goals page and the Property Overview, Monday 00:00 to Sunday 24:00 of the Property's week, until a manager answers it, for a climbing goal getting started, on pace or below pace (not too low, not waiting for Google, not while Google lags on the goal), a whole week after the set, to people who may change the goal. "Last week" · "8 new Google reviews, 1 more than planned." ("12 new Google reviews at 4.6★, 5 more than planned." from ten reviews; "8 new Google reviews last week." after a pace change during it; "No new Google reviews last week. The plan was 7.") · "Your plan is 1 a day, about 7 a week. Keep it for this week, or change it." · Keep 1 a day / Raise to 2 a day / Ease to 3 a week (the ladder 1 a week, 3 a week, 1 … 50 a day; no Raise at 50 a day, no Ease at 1 a week) · "Nothing changes unless you choose." Toasts: "Kept 1 a day for this week." / "Pace changed to 2 a day. Getting started again for 2 weeks." A closed check-in: "This week’s check-in has closed. Reload to see the latest."
+- **Never a notice**: no bell row, no email (Q11 stands). Keep is remembered for every manager and moves no version (another manager's open form stays valid); a change of the pace this week answers it too.
+- **Stored** (migration 0061): `pace_since` and `recap_answered_week` (see Data and storage). **Read**: last week's count, with its star sum only from ten reviews, in the card's one summary scan; no new query, no new read, nothing in first paint (307,530 B against 307,518 B on D-2b).
+- **Deviations** (PLAN-D §6, §15): "Last week" with no date (V10); "Ease to {pace}" (V10, V19); the average only from ten reviews (V15); hidden while too low, waiting or lagging, the count alone after a mid-week change (V20); on the Overview inside the goal's slot under the attention band (V16); the average a tenth ("at 4.6★"), sent as one.
+
 ## Access
 
 AccountAdmins and PropertyManagers with access to the Property, under `goal.read`, `goal.create`, `goal.update` and `goal.cancel` and the capability `goal.use`, through the same execution policy as the Goal Program server functions. `goal.use` is one switch shared with the Goal Programs (open question 8). Members never. The guardrails are in ADR 0067.
@@ -293,6 +312,7 @@ AccountAdmins and PropertyManagers with access to the Property, under `goal.read
   COMMIT;
   ```
 
+- Stored (round 5 D-3, migration 0061): when a climb goal's pace came into force (`pace_since`, NOT NULL; backfilled from the latest logged pace change, else `created_at`; a set writes `created_at`, a change of the pace the change's instant; the DEFAULT `now()` serves only an old web's inserts during the rolling deploy) and the Monday whose check-in a manager kept (`recap_answered_week`, a date, NULL until one does). Both exported with the goal. Additive: the down step is dropping both columns and 0061's journal row. Read: last Property-local week's count, and its star sum only from ten reviews, in the summary's one scan.
 - Stored (PR 4, migration 0058; 0057 is PR 5's): a manager's "Not now" for a Property's goal (`property_rating_goal_deferrals`, who and when, one row per Property), so the setup strip's "Set a Google rating goal" step counts as decided. It sets, changes and blocks no goal. Exported and purged with the Goal records, and gone with its Property.
 
 ## Pull requests

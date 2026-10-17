@@ -121,6 +121,20 @@ metric authority.
   likely band from the card's own arrival, a line for each tenth and Google's own moves,
   in whole days from today and thousandths; the pace in the four weeks before the goal;
   and what the goal was set with, from each field's first logged change.
+  A goal's pace is judged from when it came into force (`pace_since`, migration 0061,
+  round 5 D-3, owner answer Q3): the set, or the latest change of the pace, after which
+  the goal is getting started again for 14 days and its window runs from the change;
+  the card's time uses the chosen pace until the pace is 28 days old. The card read
+  also carries the Monday check-in while it is due (`domain/rating-goal-recap.ts`,
+  `application/rating-goal-recap-views.ts`, Q4): from Monday to Sunday of the
+  Property's week, for a climbing goal getting started, on pace or below pace, last
+  week's count (its average only from ten reviews: Review gives no window sum under
+  ten), the plan's reviews a week when last week had one plan, and the paces Raise and
+  Ease move to (1 a week, 3 a week, 1 … 50 a day). Keep (`keepRatingGoalPace`,
+  goal.update) stores the week it answers (`recap_answered_week`) for every manager,
+  with no version and no change-log row, and refuses a closed check-in
+  (`recap_closed`); a change of the pace this week answers it too. It is a card on the
+  page, never a notice.
   The setup (rounds 3 and 4, 2026-10-16) is one screen worked out on the page from the
   setup read's exact inputs (`application/rating-goal-setup-plan.ts`, `workOutRatingGoal`,
   client-safe, never throwing on what a manager typed): the planned average is automatic
@@ -145,7 +159,12 @@ metric authority.
   binding epoch; also since a goal was set, per calendar year, per calendar month with ten
   reviews and per local date, counts only; for the detail, the exact average at each
   local week's end, which Review works out with the week sums kept inside, and Google's
-  own number over time from Review's verified snapshot facts); Google's own numbers
+  own number over time from Review's verified snapshot facts; and, by the owner's two
+  per-review exceptions for the detail (ADR 0067, 2026-10-17), the low reviews since the
+  set, below the threshold and at most 4★ (from the most stars that still set the goal
+  back half a review, `lowReviewReadBelow`), and this week's star split, read live and kept
+  nowhere: the server function turns the review ids into Inbox item ids after the policy
+  allows `inbox.read`, so the browser never sees one); Google's own numbers
   come from the Current on Google snapshot. A goal may be set only on an active Property with at least ten Google
   reviews (Google's count decides that first, current or not) and current numbers; a
   reading waits for Google while its numbers are not current, show no tenth or give no
@@ -179,7 +198,9 @@ metric authority.
   under its name by migration 0059). Reached replaces the tenth gained, a keep goal's drop
   replaces the tenth lost, an ended goal tells nobody, and a status the goal was set in or
   that a manager's change of plan put it in (a plan change clears the known status) is
-  stored without a notice. The
+  stored without a notice; a change of the pace alone keeps it, and the fresh start after
+  it never stores one, so leaving that start tells Below pace only when the goal was not
+  below before the change ("since the pace changed", round 5 D-3, Q3). The
   evaluation write is one transaction that also compares the tenth, known status and
   notice times it read, and writes one identifier-only `goal.rating_goal.transitioned`
   fact per notice, so the same change is told once whichever evaluation stores it first.

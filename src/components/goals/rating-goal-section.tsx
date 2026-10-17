@@ -1,6 +1,6 @@
 // The Google section of the Goals page, first on it and apart from the Portal
 // goals below (no shared numbers, ADR 0067). It shows one of: the simple card of
-// the active goal; a goal reached, or ended by something other than a manager,
+// the active goal (with the Monday check-in above it while one is due); a goal reached, or ended by something other than a manager,
 // while it is news (from the read that found it, or from History when the
 // snapshot consumer got there first); or, with no goal, the door into the
 // wizard or the reason there is none. A read that is on its way keeps the
@@ -13,10 +13,13 @@ import type {
 import { RegionError } from '#/components/ui/region-error'
 import { SectionTitle } from '#/components/ui/section-title'
 import { Skeleton } from '#/components/ui/skeleton'
-import { RatingGoalCard } from './rating-goal-card'
 import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import { RatingGoalEmpty } from './rating-goal-empty'
 import { RatingGoalOutcome } from './rating-goal-outcome'
+import {
+  RatingGoalCardWithRecap,
+  type RatingGoalRecapCommands,
+} from './rating-goal-recap'
 import {
   outcomeFromCard,
   recentOutcome,
@@ -45,6 +48,8 @@ type Props = Readonly<{
   /** The few-reviews state links to the Portals, or to a first one. */
   hasPortals: boolean
   onStart: (intent: RatingGoalWizardIntent) => void
+  /** The Monday check-in's commands, from the page (E30). */
+  recap?: RatingGoalRecapCommands
 }>
 
 /**
@@ -110,11 +115,12 @@ export function RatingGoalSection(props: Props) {
   if (card.data === undefined) return <Pending />
   if (card.data !== null && card.data.state === 'active') {
     return (
-      <RatingGoalCard
+      <RatingGoalCardWithRecap
         card={card.data}
         propertyId={propertyId}
         timezone={timezone}
         now={now}
+        recap={props.recap}
       />
     )
   }

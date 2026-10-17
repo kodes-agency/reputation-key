@@ -9,7 +9,11 @@
 //     was set when an evaluation asks for them;
 //   - the Property's time zone, lifecycle state, binding epoch and binding.
 
-import type { ReviewGoogleRatingReads } from '#/contexts/review/application/public-api'
+import type {
+  GoogleRatingRange,
+  GoogleRatingRangeTotals,
+  ReviewGoogleRatingReads,
+} from '#/contexts/review/application/public-api'
 import {
   organizationId as toOrganizationId,
   propertyId as toPropertyId,
@@ -73,6 +77,8 @@ export type RatingGoalReading = Readonly<{
   extraCounts: readonly number[]
   /** Reviews created since `totalsSince` and their stars; null when it was not asked. */
   sinceSet: RatingTotals | null
+  /** Reviews created in `range`, their star sum only from its minimum; null when it was not asked. */
+  range: GoogleRatingRangeTotals | null
 }>
 
 /** What a read asks for beyond the numbers every read takes. */
@@ -81,13 +87,15 @@ export type RatingGoalReadRequest = Readonly<{
   countSince?: (facts: RatingGoalPropertyFacts) => readonly Date[]
   /** The instant a goal was set: the totals of the reviews created since. */
   totalsSince?: Date
+  /** One range, from the Property's facts (last week): its count, and its sum from ten. */
+  range?: (facts: RatingGoalPropertyFacts) => GoogleRatingRange
 }>
 
 /**
  * Reads the numbers for one Property at `now`. Null when the Property does
  * not exist in the Organization. The request asks, in the same read, for
- * more windowed counts (this week, a goal's pace window) and for the totals
- * since a goal was set.
+ * more windowed counts (this week, a goal's pace window), for the totals
+ * since a goal was set and for last week's (its sum only from ten reviews).
  */
 export async function readRatingGoalInputs(
   deps: RatingGoalReadDeps,
@@ -110,6 +118,7 @@ export async function readRatingGoalInputs(
         ...(request.countSince?.(facts) ?? []),
       ],
       ...(request.totalsSince === undefined ? {} : { totalsSince: request.totalsSince }),
+      ...(request.range === undefined ? {} : { rangeTotals: request.range(facts) }),
     }),
   ])
   const google: GoogleNumbers | null = snapshot
@@ -146,6 +155,7 @@ export async function readRatingGoalInputs(
     reviewsLast90Days: summary.mixWindow.count,
     extraCounts: summary.countsSince.slice(1),
     sinceSet: summary.totalsSince,
+    range: summary.rangeTotals,
   }
 }
 

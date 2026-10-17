@@ -428,6 +428,13 @@
       "when": 1794100000000,
       "tag": "0060_rating_goal_pace_tenths",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794200000000,
+      "tag": "0061_rating_goal_pace_since",
+      "breakpoints": true
     }
   ]
 }

@@ -32,12 +32,20 @@ type Overrides = Readonly<{
   outcome?: 'continues' | 'reached' | 'ended'
   pace?: RatingGoalNoticeInput['pace']
   paceTenthsPerWeek?: number
+  /** When the goal was set; 40 days ago unless given. */
+  createdAt?: Date
+  /** When the goal's pace came into force; the set's instant unless a change moved it. */
+  paceSince?: Date
 }>
+
+const SET_AT = daysAgo(40)
 
 /** A climb goal for 4.5 at 11 a week (110 tenths), 40 days old, Google showing 4.3. */
 const decide = (overrides: Overrides = {}) =>
   decideRatingGoalNotices({
     goal: {
+      createdAt: overrides.createdAt ?? SET_AT,
+      paceSince: overrides.paceSince ?? overrides.createdAt ?? SET_AT,
       mode: overrides.mode ?? 'climb',
       targetTenths: overrides.targetTenths ?? 45,
       paceTenthsPerWeek:
@@ -371,6 +379,89 @@ describe('entered New reviews too low', () => {
       'google_rating_changed',
       'entered_reviews_too_low',
     ])
+  })
+})
+
+describe('a fresh start after a pace change (Q3)', () => {
+  // The goal is 40 days old; a manager changed its pace 5 or 20 days ago.
+  const changed = (days: number) => ({ paceSince: daysAgo(days) })
+
+  it('keeps the status known before the change while the goal starts again', () => {
+    expect(
+      decide({
+        ...changed(5),
+        previous: { status: 'on_pace', knownStatus: 'on_pace' },
+        status: 'getting_started',
+        pace: null,
+      }),
+    ).toEqual({
+      notices: [],
+      knownStatus: 'on_pace',
+      belowPaceNoticedAt: null,
+      tooLowNoticedAt: null,
+    })
+  })
+
+  it('tells nothing when the goal leaves the fresh start below pace as it was before', () => {
+    expect(
+      transitions({
+        ...changed(14),
+        previous: {
+          status: 'getting_started',
+          knownStatus: 'below_pace',
+          belowPaceNoticedAt: daysAgo(30),
+        },
+        status: 'below_pace',
+        pace: { reviews: 10, window: { start: daysAgo(14), end: NOW } },
+      }),
+    ).toEqual([])
+  })
+
+  it('tells below pace once, since the pace changed, when it was on pace before', () => {
+    const [notice] = decide({
+      ...changed(14),
+      previous: { status: 'getting_started', knownStatus: 'on_pace' },
+      status: 'below_pace',
+      pace: { reviews: 10, window: { start: daysAgo(14), end: NOW } },
+    }).notices
+
+    expect(notice).toMatchObject({
+      transition: 'entered_below_pace',
+      recentPaceTenths: 50,
+      paceWindow: 'since_pace_change',
+    })
+  })
+
+  it('says the last four weeks once the new pace is four weeks old', () => {
+    const [notice] = decide({
+      ...changed(28),
+      status: 'below_pace',
+      pace: { reviews: 26, window: { start: daysAgo(28), end: NOW } },
+    }).notices
+
+    expect(notice).toMatchObject({ paceWindow: 'last_4_weeks' })
+  })
+
+  it('still counts the reviews of a pace set within a minute of the goal since the set', () => {
+    const [notice] = decide({
+      paceSince: new Date(SET_AT.getTime() + 30 * 1000),
+      previous: { status: 'getting_started', knownStatus: 'getting_started' },
+      status: 'below_pace',
+      pace: { reviews: 10, window: { start: daysAgo(20), end: NOW } },
+    }).notices
+
+    expect(notice).toMatchObject({ paceWindow: 'since_set' })
+  })
+
+  it('leaves a new goal’s own first 14 days as they were', () => {
+    expect(
+      decide({
+        createdAt: daysAgo(5),
+        previous: { status: 'getting_started', knownStatus: null },
+        status: 'getting_started',
+        pace: null,
+      }).knownStatus,
+    ).toBe('getting_started')
   })
 })
 

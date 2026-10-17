@@ -9,12 +9,14 @@
 // it there, or to the Google section's heading when that is gone (the empty
 // state's "Set goal" is the card by the time the wizard closes).
 import { lazy, Suspense, useRef, useState, type ReactNode } from 'react'
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { RATING_GOAL_HEADING_ID } from '#/components/goals/rating-goal-card-header'
+import type { RatingGoalRecapCommands } from '#/components/goals/rating-goal-recap'
 import type { RegionRead } from '#/components/goals/rating-goal-section'
 import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wizard-view'
+import { dashboardKeys, goalKeys, propertyKeys } from '#/shared/queries/query-keys'
 import {
   ratingGoalCardQuery,
   ratingGoalCommands,
@@ -126,4 +128,26 @@ export function useRatingGoalWizard(
       </Suspense>
     )
   return { start, wizard, setup }
+}
+
+/**
+ * The Monday check-in's commands, the same on the Goals page and the Overview
+ * (E30): Keep, a change of pace for Raise and Ease, and, once answered, the
+ * goal read again with what moves with its pace (the Property's setup step,
+ * its Properties list cell), as the detail page's change does.
+ */
+export function useRatingGoalRecapCommands(propertyId: string): RatingGoalRecapCommands {
+  const queryClient = useQueryClient()
+  return {
+    keepPaceFn: ratingGoalCommands.keepRatingGoalPace,
+    changeRatingGoalFn: ratingGoalCommands.changeRatingGoal,
+    onAnswered: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: goalKeys.ratingGoal(propertyId) }),
+        queryClient.invalidateQueries({ queryKey: propertyKeys.setup(propertyId) }),
+        queryClient.invalidateQueries({ queryKey: propertyKeys.setupSummaries() }),
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.fleets() }),
+      ])
+    },
+  }
 }

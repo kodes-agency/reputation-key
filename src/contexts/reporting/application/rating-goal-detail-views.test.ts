@@ -306,6 +306,8 @@ describe('what moved you', () => {
       setBy: 'manager-1',
       initialTargetTenths: 41,
       initialPaceTenthsPerWeek: 50,
+      thisWeek: { count: 0, allStars: null, averageTenths: null },
+      lowReviews: [],
     })
   })
 })

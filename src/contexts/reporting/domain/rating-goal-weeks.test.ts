@@ -4,6 +4,7 @@ import {
   chartWeeks,
   dayOfInstant,
   daysFromToday,
+  previousWeekStartInstant,
   propertyWeekday,
   shiftDateKey,
   weekStartInstant,
@@ -103,5 +104,21 @@ describe('the days of the detail chart', () => {
       '2026-10-19',
       '2026-10-26',
     ])
+  })
+})
+
+describe('last Property-local week (the Monday check-in)', () => {
+  it('starts at midnight on the Monday before this week’s, across the clocks going back', () => {
+    // Tuesday 27 Oct 2026 in Sofia (UTC+2): last week began Monday 19 Oct at UTC+3.
+    expect(previousWeekStartInstant(new Date('2026-10-27T09:00:00.000Z'), SOFIA)).toEqual(
+      new Date('2026-10-18T21:00:00.000Z'),
+    )
+  })
+
+  it('starts at midnight across the clocks going forward', () => {
+    // Monday 30 Mar 2026, 00:30 in Sofia (UTC+3): last week began 23 Mar at UTC+2.
+    expect(previousWeekStartInstant(new Date('2026-03-29T21:30:00.000Z'), SOFIA)).toEqual(
+      new Date('2026-03-22T22:00:00.000Z'),
+    )
   })
 })

@@ -109,6 +109,8 @@ export const DETAIL_HARBORLINE: RatingGoalDetailView = {
     setBy: 'user-ana',
     initialTargetTenths: 41,
     initialPaceTenthsPerWeek: 70,
+    thisWeek: { count: 2, allStars: 5, averageTenths: 50 },
+    lowReviews: [],
   },
 }
 

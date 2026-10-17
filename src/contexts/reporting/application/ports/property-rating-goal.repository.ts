@@ -33,13 +33,21 @@ export type RatingGoalPropertyFactsReader = Readonly<{
 }>
 
 /**
- * A goal as it is set: active, version 1. Its `lastEvaluation` is what the
- * set saw (the tenth Google showed, the status it starts in), so the first
- * evaluation can tell a tenth gained or lost since then from a first reading.
+ * A goal as it is set: active, version 1, its pace in force from its
+ * `createdAt` (the insert writes it explicitly) and no check-in answered. Its
+ * `lastEvaluation` is what the set saw (the tenth Google showed, the status it
+ * starts in), so the first evaluation can tell a tenth gained or lost since
+ * then from a first reading.
  */
 export type NewPropertyRatingGoal = Omit<
   PropertyRatingGoal,
-  'state' | 'endedReason' | 'reachedAt' | 'endedAt' | 'version'
+  | 'state'
+  | 'endedReason'
+  | 'reachedAt'
+  | 'endedAt'
+  | 'version'
+  | 'paceSince'
+  | 'recapAnsweredWeek'
 >
 
 export type RatingGoalPlanChange = Readonly<{
@@ -51,6 +59,10 @@ export type RatingGoalPlanChange = Readonly<{
   /** One row per changed field, with ids and who/when filled in. */
   changes: readonly RatingGoalChange[]
   changedAt: Date
+  /** When the plan's pace came into force: `changedAt` when the pace moves (paceSinceAfter). */
+  paceSince: Date
+  /** Forget the known status (changeForgetsKnownStatus): every change but one of the pace alone. */
+  forgetsKnownStatus: boolean
 }>
 
 export type RatingGoalManagerEnd = Readonly<{
@@ -131,6 +143,15 @@ export type RatingGoalChangeLog = Readonly<{
   firstPerField: readonly RatingGoalChange[]
 }>
 
+/** A manager's Keep in the Monday check-in: the week it answers, by its Monday. */
+export type RatingGoalRecapAnswer = Readonly<{
+  organizationId: string
+  propertyId: string
+  goalId: string
+  /** Last week's Monday, `YYYY-MM-DD`. */
+  weekStart: string
+}>
+
 /** A manager's "Not now" for a Property's rating goal. */
 export type RatingGoalNotNow = Readonly<{
   organizationId: string
@@ -167,6 +188,12 @@ export type PropertyRatingGoalRepository = Readonly<{
   /** `active_exists` when the Property already has an active goal. */
   insert(goal: NewPropertyRatingGoal): Promise<'inserted' | 'active_exists'>
   changePlan(change: RatingGoalPlanChange): Promise<RatingGoalWriteResult>
+  /**
+   * Records that a manager kept the pace for the week (the Monday check-in):
+   * on an active goal, never moving its version or logging a change, never
+   * back to an earlier week. False when the goal is not active.
+   */
+  markRecapAnswered(answer: RatingGoalRecapAnswer): Promise<boolean>
   endByManager(end: RatingGoalManagerEnd): Promise<RatingGoalWriteResult>
   /**
    * Stores an evaluation on an active goal when it differs from the stored one

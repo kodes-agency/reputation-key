@@ -119,6 +119,10 @@ export default defineConfig({
             // tested here — Playwright never loads it against production
             // unless the guard already passed.
             'e2e/deployed/**/*.test.ts',
+            // The pure helpers behind the Storybook setup file. The setup file
+            // itself only runs in the browser project, so what can be tested
+            // without a browser is tested here.
+            '.storybook/**/*.test.ts',
           ],
           exclude: [
             'src/**/infrastructure/repositories/*.test.ts',

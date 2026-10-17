@@ -4,6 +4,7 @@ import {
   ratingGoalError,
   planChanges,
   paceProblem,
+  paceSinceAfter,
   planQualityProblem,
   targetProblem,
 } from './rating-goal'
@@ -104,6 +105,33 @@ describe('the change log rows a change writes', () => {
 
   it('writes nothing for an unchanged plan', () => {
     expect(planChanges(current, current)).toEqual([])
+  })
+})
+
+describe('when the pace a change of plan leaves came into force (Q3)', () => {
+  const SET = new Date('2026-09-01T09:00:00.000Z')
+  const CHANGED = new Date('2026-10-01T09:00:00.000Z')
+  const goal = { paceTenthsPerWeek: 70, paceSince: SET }
+  const plan = (paceTenthsPerWeek: number | null) => ({
+    mode: paceTenthsPerWeek === null ? ('keep' as const) : ('climb' as const),
+    targetTenths: 45,
+    qualityTenths: paceTenthsPerWeek === null ? null : 47,
+    paceTenthsPerWeek,
+  })
+
+  it('starts the pace at the change when the change moves it', () => {
+    expect(paceSinceAfter(goal, plan(140), CHANGED)).toEqual(CHANGED)
+  })
+
+  it('keeps the pace start when only the target or the quality moves', () => {
+    expect(paceSinceAfter(goal, plan(70), CHANGED)).toEqual(SET)
+  })
+
+  it('starts it at the change on a switch between keep and climb', () => {
+    expect(paceSinceAfter(goal, plan(null), CHANGED)).toEqual(CHANGED)
+    expect(
+      paceSinceAfter({ paceTenthsPerWeek: null, paceSince: SET }, plan(70), CHANGED),
+    ).toEqual(CHANGED)
   })
 })
 

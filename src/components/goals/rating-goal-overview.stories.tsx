@@ -1,13 +1,15 @@
 // The Google rating goal on the Property Overview in each state it can be in:
-// the card of an active goal (round 5, D4), a goal reached lately, the one-line prompt
+// the card of an active goal (round 5, D4) with the Monday check-in above it while one is due, a goal reached lately, the one-line prompt
 // into the wizard (to climb, or to keep the number when nothing higher is in
 // reach), and nothing at all (too few Google reviews, "Not now" chosen, a viewer
 // who may not set goals, a read on its way or failed). The Storybook Vitest project compiles no
 // Tailwind, so the plays assert words, roles and what each door opens.
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import { RatingGoalOverview } from './rating-goal-overview'
+import type { RatingGoalRecapCommands } from './rating-goal-recap'
+import { CARD_RECAP_MONDAY } from './rating-goal-recap.stories.fixtures'
 import {
   CARD_FAR_GOAL,
   CARD_HARBORLINE,
@@ -90,6 +92,62 @@ export const ActiveGoal: Story = {
       `/properties/${FIXTURE_PROPERTY_ID}/goals/google-rating`,
     )
     await expect(card.queryByRole('button', { name: /Set your Google/ })).toBeNull()
+  },
+}
+
+const keepMock = fn<RatingGoalRecapCommands['keepPaceFn']>(async ({ data }) => ({
+  goalId: data.goalId,
+  weekStart: data.weekStart,
+}))
+
+/**
+ * The Monday check-in on the Overview (V16, E30): the same region as on the
+ * Goals page, above the card, wired to the page's commands.
+ */
+export const WithCheckIn: Story = {
+  args: {
+    card: CARD_RECAP_MONDAY,
+    recap: {
+      keepPaceFn: keepMock,
+      changeRatingGoalFn: fn(async () => ({})),
+      onAnswered: fn(async () => undefined),
+    },
+  },
+  beforeEach: () => {
+    keepMock.mockClear()
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const region = canvas.getByRole('region', { name: 'Last week' })
+    const title = canvas.getByRole('heading', { level: 2, name: 'Google rating goal' })
+    // Above the card: the card's title follows the check-in in the page.
+    await expect(
+      region.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    await expect(region.contains(title)).toBe(false)
+
+    await userEvent.click(within(region).getByRole('button', { name: 'Keep 1 a day' }))
+
+    await waitFor(() => expect(args.recap?.onAnswered).toHaveBeenCalledOnce())
+    await expect(keepMock).toHaveBeenCalledWith({
+      data: {
+        propertyId: FIXTURE_PROPERTY_ID,
+        goalId: CARD_RECAP_MONDAY.goalId,
+        weekStart: '2026-10-05',
+      },
+    })
+  },
+}
+
+/** The page passed no commands: the card alone, even with a check-in due. */
+export const CheckInDueWithoutCommands: Story = {
+  args: { card: CARD_RECAP_MONDAY },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.queryByRole('region', { name: 'Last week' })).toBeNull()
+    await expect(
+      canvas.getByRole('heading', { level: 2, name: 'Google rating goal' }),
+    ).toBeVisible()
   },
 }
 

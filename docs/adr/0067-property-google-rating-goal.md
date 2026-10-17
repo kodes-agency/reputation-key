@@ -132,7 +132,9 @@ These hold for the goal and for every surface that shows it.
   sums of reviews that may be served (ADR 0031) and were observed under the
   Property's current Google binding. Dates are Google's creation times. No review
   text, reviewer, identifier or per-review value leaves Review, and a read neither
-  extends the cache clock nor copies content.
+  extends the cache clock nor copies content. The tracking page's two per-review
+  exceptions (the owner's, 2026-10-17: low reviews since the set and this week's
+  star split) are named in their amendment below, and nothing else is.
 - **The goal stores only Property-level figures:** target, mode, pace, state,
   the Google binding it was set under, the figures it started from (Google's count
   and average, the exact average), the tenth and status it last saw, and a change
@@ -563,6 +565,99 @@ ten reviews, and no read returns a review.
 The per-review rows the mock also shows (low reviews and this week's stars)
 are not part of this amendment: they need the owner's exception (PLAN-D Q2)
 and follow in their own.
+
+## Amended 2026-10-17 — round 5, what set the goal back (two per-review exceptions)
+
+The owner approved PLAN-D's Q2 (a) on 2026-10-16 (OWNER-ANSWERS-D, R5-1): the
+tracking page may show the two per-review facts the mock D3 draws. They are the
+only exceptions to "no per-review value leaves Review" (Data sources), they are
+for the goal's managers only (viewers the policy allows `goal.read` on the
+Property, under `goal.use`: AccountAdmins and the PropertyManagers granted it),
+and they are read live with the page, never stored, exported or logged.
+
+1. **Low reviews since the set** (`getLowReviews`): up to 25 current Google
+   reviews created since the goal was set whose stars are below the goal's
+   threshold and at most 4★, newest first, as the review's id, its stars and
+   when Google created it. No text, reviewer, Google identifier, reply or
+   assignee leaves Review. The server function turns the ids into the Inbox
+   items that open them, and only when the policy also allows the viewer
+   `inbox.read` on the Property (one navigation lookup, ADR 0031's Guest voice
+   precedent); the browser gets an item id or none, never a review id, and at
+   most ten rows, which the page may show fewer of beside Google's moves and
+   the plan's changes (those keep their place first). The server keeps at most
+   10 rows: the newest whose setback is about one new review or more, or,
+   while the goal's numbers say no count reaches it (new reviews too low), the
+   newest ten without a setback. A review's setback depends only on its stars
+   given today's numbers, so the read starts at the most stars that still set
+   the goal back half a review (a busy Property's newest 4★ reviews add almost
+   nothing and would otherwise fill the 25 ahead of an older 1★ one), and is
+   skipped when no stars do. For any goal of 4.1 or more a 4★ review is below
+   the threshold and can set the goal back; the `<= 4` ceiling (the owner's
+   Q2) is a backstop that keeps 5★ reviews out whatever the threshold.
+2. **This week's star split**: the existing star distribution of the reviews
+   created since this Property-local Monday ("2 new reviews, both 5★"). For one
+   review it is that review's stars, the same exposure the star mix since the
+   set had from round 2 until the tracking detail retired it.
+
+A row's **setback** is a counterfactual measured today, against the goal (not
+the headline's nearer number): the new reviews the goal needs now, as an
+un-rounded ratio N(θ − E)/(m − θ), less the same with that one review taken off
+Google's count and star sum and off the totals since the set, the average the
+goal assumes worked out again from them (the blend with the plan, its floor
+before the tenth review and its switch to the reviews' own average while they
+are too low). Worded "about N new reviews", N half up, shown from 1. Early in a
+goal one low review can read "about 50" or more: the plan counts as 15 reviews,
+so the headline itself moved that much, and the row says why (Q6 (a), shown as
+computed). A keep goal, a goal the read found reached or ended, and a goal
+without Google's numbers read no low reviews.
+
+The ratings and times are what a manager already sees on each review in the
+Inbox. The Disclosure's and the Agreement's "keeps no review content for the
+goal" stays true: nothing is kept. The amendment changes no stored figure, no
+retention and no export.
+
+## Amended 2026-10-17 — round 5, weekly check-in and the pace anchor
+
+The owner answered PLAN-D's Q3 and Q4 (OWNER-ANSWERS-D, 2026-10-16): a new
+pace starts afresh, and the Monday check-in is a card on the page only.
+
+1. **A new pace is judged from its change** (Q3). A goal stores when its pace
+   came into force (`pace_since`, migration 0061): the set, or the latest
+   change of the pace (a switch between keep and climb included); a set writes
+   it on the app's clock, a change moves it only when the pace moves. The
+   status judges the pace from it: getting started for 14 days, then a window
+   from the change until it is four weeks long, then the last four weeks; the
+   card's arrival uses the chosen pace until it is 28 days old (Q8 from the
+   change). "Just set", the reviews since the set, the blend of the planned
+   average and the too-low verdict keep the set.
+2. **The fresh start keeps what the goal knew.** While a goal is getting
+   started again (its pace younger than 14 days, the goal older), an
+   evaluation stores the status but keeps the known status from before the
+   change, and a change of the pace alone (mode and target kept) no longer
+   forgets it, so leaving the fresh start tells Below pace only when the goal
+   was not below pace before. Any other change of plan still forgets it. A
+   Below pace notice measured since the change says "since the pace changed"
+   (ADR 0046). The notice-volume check of 24 goals with a pace change at week
+   6 over 26 weeks pins it: raise 23 → 27 notices (four goals on pace before a
+   raise, once each, which the old rule silenced), ease 22 → 23 (one goal
+   eased to about its own pace, whose shorter window crosses 90% once more),
+   unchanged 20 → 20.
+3. **The Monday check-in** (Q4, R3-8's B, mock D4). From Monday 00:00 to
+   Sunday 24:00 of the Property's week, an active climb goal that is getting
+   started, on pace or below pace, set before last week began and not lagging
+   on Google, carries last week on its card: the count of new Google reviews,
+   their average as a tenth only from ten reviews (Review gives no window sum
+   under ten, the data-boundary rule of the tracking detail), the plan's whole
+   reviews a week when last week had one plan (no pace change during it), and
+   Keep, Raise and Ease. Raise and Ease step over 1 a week, 3 a week, then 1,
+   2, 3, 5, 7, 10, 15, 20, 30 and 50 a day, and are ordinary changes of the
+   pace. Keep stores the week it answers (`recap_answered_week`, its Monday)
+   for every manager, with no version and no change-log row, never back to an
+   earlier week, and refuses a week whose check-in has closed (`recap_closed`);
+   a change of the pace this week answers it too. It needs goal.update, and the
+   check-in is hidden without it. It is never automatic, and it is never a
+   bell row or an email (Q11 stands): one card on the Goals page and the
+   Property Overview, read with the card (no new query, no new read).
 
 ## Rejected alternatives
 

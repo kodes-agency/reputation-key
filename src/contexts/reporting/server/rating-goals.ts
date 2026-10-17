@@ -2,7 +2,9 @@
 //
 // Each handler runs through `withRatingGoals`, which asks the execution policy
 // (goal.read / create / update / cancel, capability goal.use, the Property's
-// grant) before the use case reads or writes anything.
+// grant) before the use case reads or writes anything. The detail then links
+// its low reviews to the Inbox (`withInboxItems`, which asks for inbox.read),
+// so no review id reaches the browser.
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 // For `.validator(...)` only: never re-export these (an `export … from` would
@@ -11,9 +13,11 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   changeRatingGoalSchema,
   endRatingGoalSchema,
+  keepRatingGoalPaceSchema,
   ratingGoalPropertySchema,
   setRatingGoalSchema,
 } from '../application/dto/rating-goal.dto'
+import { withInboxItems } from './rating-goal-inbox-links.server'
 import { withRatingGoals } from './rating-goal-request.server'
 
 export const getRatingGoalSetup = createServerFn({ method: 'GET' })
@@ -47,9 +51,10 @@ export const getRatingGoalDetail = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withRatingGoals((ratingGoals, policy, actor) =>
-          ratingGoals.detail(policy, data, actor),
-        ),
+        withRatingGoals(async (ratingGoals, policy, actor, ctx) => {
+          const detail = await ratingGoals.detail(policy, data, actor)
+          return detail === null ? null : withInboxItems(detail, data.propertyId, ctx)
+        }),
       'GET',
       'goal.getRatingGoalDetail',
     ),
@@ -104,6 +109,20 @@ export const endRatingGoal = createServerFn({ method: 'POST' })
         ),
       'POST',
       'goal.endRatingGoal',
+    ),
+  )
+
+/** Keep the pace for this week: the Monday check-in is answered for every manager. */
+export const keepRatingGoalPace = createServerFn({ method: 'POST' })
+  .validator(keepRatingGoalPaceSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withRatingGoals((ratingGoals, policy, actor) =>
+          ratingGoals.keep(policy, data, actor),
+        ),
+      'POST',
+      'goal.keepRatingGoalPace',
     ),
   )
 

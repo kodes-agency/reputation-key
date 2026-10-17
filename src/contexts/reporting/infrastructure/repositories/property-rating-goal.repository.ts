@@ -5,7 +5,8 @@
 // active goal per Property" when two managers set one at once: the loser's
 // insert does nothing and is told `active_exists`. A manager's change or end
 // is a compare-and-set on the version; a change also forgets the known status,
-// so a status the new plan puts the goal in is stored without a notice. An
+// so a status the new plan puts the goal in is stored without a notice, unless
+// it moves the pace alone (the fresh start keeps it, round 5 Q3). An
 // evaluation never moves the version and writes only when it changes the row,
 // and only onto the plan version it was worked out on, never over a newer
 // evaluation, and only onto the tenth, known status and below-pace notice it
@@ -100,6 +101,8 @@ const goalFromRow = (row: GoalRow): PropertyRatingGoal => ({
   createdBy: row.createdBy,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
+  paceSince: row.paceSince,
+  recapAnsweredWeek: row.recapAnsweredWeek,
   version: row.version,
 })
 
@@ -329,6 +332,9 @@ export const createPropertyRatingGoalRepository = (
           createdBy: goal.createdBy,
           createdAt: goal.createdAt,
           updatedAt: goal.updatedAt,
+          // Explicit, never the column's DEFAULT: the pace starts with the set,
+          // on the injected clock (ADR 0017).
+          paceSince: goal.createdAt,
         })
         // The only key a fresh id can collide on is the one-active index.
         .onConflictDoNothing()
@@ -346,9 +352,11 @@ export const createPropertyRatingGoalRepository = (
             targetTenths: change.plan.targetTenths,
             qualityTenths: change.plan.qualityTenths,
             ...paceColumns(change.plan.paceTenthsPerWeek),
+            paceSince: change.paceSince,
             // The status the new plan puts the goal in is the manager's own
-            // doing: the next evaluation stores it without a notice.
-            lastKnownStatus: null,
+            // doing: the next evaluation stores it without a notice. A new
+            // pace alone keeps it: the fresh start compares with it (Q3).
+            ...(change.forgetsKnownStatus ? { lastKnownStatus: null } : {}),
             version: sql`${propertyRatingGoals.version} + 1`,
             updatedAt: change.changedAt,
           })
@@ -370,6 +378,26 @@ export const createPropertyRatingGoalRepository = (
         return 'written' as const
       }),
     ),
+
+  // The Monday check-in's Keep: no version and no log row, so another
+  // manager's open form stays valid; never back to an earlier week.
+  markRecapAnswered: (answer) =>
+    trace('reporting.ratingGoal.markRecapAnswered', async () => {
+      const marked = await db
+        .update(propertyRatingGoals)
+        .set({
+          recapAnsweredWeek: sql`GREATEST(${propertyRatingGoals.recapAnsweredWeek}, ${answer.weekStart}::date)`,
+        })
+        .where(
+          and(
+            goalScope(answer.organizationId, answer.propertyId),
+            eq(propertyRatingGoals.id, answer.goalId),
+            eq(propertyRatingGoals.status, 'active'),
+          ),
+        )
+        .returning({ id: propertyRatingGoals.id })
+      return marked.length > 0
+    }),
 
   endByManager: (end) =>
     trace('reporting.ratingGoal.endByManager', () =>

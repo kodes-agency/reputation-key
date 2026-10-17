@@ -1236,6 +1236,18 @@ says it the way the plan reads:
    a new pace from its change follows), so an older worker never refuses a
    newer fact. Same two figures; nothing else in the payload moves.
 
+## Amended 2026-10-17 — the Google rating goal's pace anchor; the check-in is no notice
+
+1. **Reporting writes `since_pace_change`** (ADR 0067, amended 2026-10-17;
+   owner answer Q3). A goal's pace is judged from when it came into force, so a
+   Below pace notice whose window starts at a pace change (shorter than four
+   weeks) carries `ratingPaceWindow: since_pace_change`; Feed accepted it a
+   deploy earlier. The fresh start after a pace change is no status the goal
+   knows: leaving it tells Below pace only when the goal was not below before
+   the change, at most once in 14 days as before.
+2. **The Monday check-in is not a notice.** It is a card on the page (Q4, Q11
+   stands): no bell row, no email, no digest; it asks nothing of Feed.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

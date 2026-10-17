@@ -14,6 +14,7 @@ import {
   boolean,
   text,
   timestamp,
+  date,
   index,
   uniqueIndex,
   unique,
@@ -571,6 +572,14 @@ export const propertyRatingGoals = pgTable(
     lastKnownStatus: varchar('last_known_status', { length: 24 }),
     belowPaceNoticedAt: timestamp('below_pace_noticed_at', { withTimezone: true }),
     tooLowNoticedAt: timestamp('cant_reach_noticed_at', { withTimezone: true }),
+    // When the pace came into force: the set, or the latest change of the pace
+    // (migration 0061). A new pace is judged only from it (round 5, Q3). The
+    // domain always writes it; the DEFAULT is for an old web's inserts during
+    // the rolling deploy.
+    paceSince: timestamp('pace_since', { withTimezone: true }).notNull().defaultNow(),
+    // The Property-local Monday whose check-in a manager answered with Keep
+    // (migration 0061, round 5, Q4). It moves no version and logs no change.
+    recapAnsweredWeek: date('recap_answered_week', { mode: 'string' }),
     reachedAt: timestamp('reached_at', { withTimezone: true }),
     endedAt: timestamp('ended_at', { withTimezone: true }),
     createdBy: varchar('created_by', { length: 255 }).notNull(),

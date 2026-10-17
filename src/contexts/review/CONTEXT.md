@@ -33,7 +33,14 @@ is not the identity or history authority.
   (round 5) Review also works out the exact average at each Property-local
   week's end itself (`application/google-rating-week-history.ts`, the week
   sums stay inside) and returns Google's own number over time from the
-  verified snapshot facts (ADR 0067, round 5, tracking detail).
+  verified snapshot facts (ADR 0067, round 5, tracking detail). By the owner's
+  exception (ADR 0067, 2026-10-17) it also names the low reviews since a goal
+  was set (`getLowReviews`: below a bound Reporting gives, at most 4★, 25 at most,
+  an id, stars and a creation time, nothing else) and reads this week's star
+  split; Reporting keeps neither. For the Monday check-in (round 5 D-3) the
+  summary's one scan also counts one range (last Property-local week) and gives
+  its star sum only from ten reviews (`GOOGLE_RATING_RANGE_MIN_COUNT`; a smaller
+  minimum is refused).
 
 ## Model
 

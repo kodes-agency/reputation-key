@@ -42,6 +42,7 @@ describe('buildReportingContext', () => {
       'detail',
       'end',
       'history',
+      'keep',
       'set',
       'setup',
     ])

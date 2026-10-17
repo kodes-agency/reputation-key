@@ -24,8 +24,9 @@ const server = (): Promise<RatingGoalServer> =>
 type Input<K extends keyof RatingGoalServer> = Parameters<RatingGoalServer[K]>[0]
 
 /**
- * Set, change and end: the commands the wizard and the detail page send; and
- * "Not now", which the setup strip and the import's last step send.
+ * Set, change and end: the commands the wizard and the detail page send; Keep,
+ * which the Monday check-in sends (Raise and Ease are changes); and "Not now",
+ * which the setup strip and the import's last step send.
  */
 export const ratingGoalCommands = {
   setRatingGoal: async (input: Input<'setRatingGoal'>) =>
@@ -34,6 +35,8 @@ export const ratingGoalCommands = {
     (await server()).changeRatingGoal(input),
   endRatingGoal: async (input: Input<'endRatingGoal'>) =>
     (await server()).endRatingGoal(input),
+  keepRatingGoalPace: async (input: Input<'keepRatingGoalPace'>) =>
+    (await server()).keepRatingGoalPace(input),
   deferRatingGoal: async (input: Input<'deferRatingGoal'>) =>
     (await server()).deferRatingGoal(input),
 }

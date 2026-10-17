@@ -165,6 +165,29 @@ export type RatingGoalCardView = Readonly<{
    * midnight shows the day before until its next read.
    */
   weekday: number
+  /** The Monday check-in, while it is due (Q4); null otherwise. */
+  recap: RatingGoalRecapView | null
+}>
+
+/**
+ * The Monday check-in (round 5, PLAN-D D-3, owner answer Q4): last
+ * Property-local week against the plan, and the paces Keep, Raise and Ease
+ * leave. Shown from Monday until a manager answers it or the week ends; it
+ * changes nothing by itself.
+ */
+export type RatingGoalRecapView = Readonly<{
+  /** Last week's Monday, `YYYY-MM-DD`: what Keep sends back. */
+  weekStart: string
+  /** New Google reviews created last week. */
+  count: number
+  /** Their average as a tenth, half up; null under ten reviews (no week sum leaves Review under ten). */
+  averageTenths: number | null
+  /** The whole reviews a week the plan asked for; null when the pace changed during last week. */
+  plannedLastWeek: number | null
+  /** The pace Raise moves to, in tenths a week; null at 50 a day. */
+  raiseToTenths: number | null
+  /** The pace Ease moves to, in tenths a week; null at 1 a week. */
+  easeToTenths: number | null
 }>
 
 export type RatingGoalChangeView = Readonly<{
@@ -248,8 +271,8 @@ export type RatingGoalPlanSoFarView = Readonly<{
   reachedTenths: number | null
 }>
 
-/** "What moved you" (D-2): Google's number moving and what the goal was set with. */
-export type RatingGoalMovedView = Readonly<{
+/** "What moved you" without a per-review value (D-2): Google's number moving and what the goal was set with. */
+export type RatingGoalMovedEvents = Readonly<{
   /** Each change of Google's own number since the goal was set, newest first. */
   shownChanges: readonly Readonly<{ at: string; tenths: number; up: boolean }>[]
   /** The user id that set the goal; the page names the person. */
@@ -259,18 +282,61 @@ export type RatingGoalMovedView = Readonly<{
   initialPaceTenthsPerWeek: number | null
 }>
 
-export type RatingGoalDetailView = RatingGoalCardView &
-  Readonly<{
-    forecastAtChosenPace: RatingArrivalView | null
-    forecastAtActualPace: RatingArrivalView | null
-    changes: readonly RatingGoalChangeView[]
-    /** Null for a keep goal or without Google's numbers. */
-    plan: RatingGoalPlanProgressView | null
-    /** Null for a keep goal. */
-    chart: RatingGoalChartView | null
-    planSoFar: RatingGoalPlanSoFarView
-    moved: RatingGoalMovedView
-  }>
+/**
+ * This Property-local week's new reviews and their stars (the owner's
+ * exception, ADR 0067 2026-10-17): "2 new reviews, both 5★".
+ */
+export type RatingGoalThisWeekView = Readonly<{
+  count: number
+  /** Every review's stars when they all have the same; null otherwise or with none. */
+  allStars: number | null
+  /** Their average in tenths, half up; null with none. */
+  averageTenths: number | null
+}>
+
+/**
+ * A low review since the set as the detail read hands it to the server
+ * function (D-2b, E17): the server turns `reviewId` into an Inbox item and
+ * never sends it to the browser.
+ */
+export type RatingGoalLowReviewRead = Readonly<{
+  reviewId: string
+  /** When Google created it. */
+  at: string
+  stars: number
+  /** The new reviews it set the goal back, about (whole, at least 1); null while no count reaches the goal. */
+  setBack: number | null
+}>
+
+/** A low review as the page names it: the Inbox item that opens it, or none this viewer may open. */
+export type RatingGoalLowReviewView = Omit<RatingGoalLowReviewRead, 'reviewId'> &
+  Readonly<{ inboxItemId: string | null }>
+
+/** "What moved you": the events, this week's stars and the low reviews since the set. */
+export type RatingGoalMovedView<LowReview = RatingGoalLowReviewView> =
+  RatingGoalMovedEvents &
+    Readonly<{
+      thisWeek: RatingGoalThisWeekView
+      /** Newest first, ten at most; none for a keep goal or one reached or ended. */
+      lowReviews: readonly LowReview[]
+    }>
+
+export type RatingGoalDetailView<LowReview = RatingGoalLowReviewView> =
+  RatingGoalCardView &
+    Readonly<{
+      forecastAtChosenPace: RatingArrivalView | null
+      forecastAtActualPace: RatingArrivalView | null
+      changes: readonly RatingGoalChangeView[]
+      /** Null for a keep goal or without Google's numbers. */
+      plan: RatingGoalPlanProgressView | null
+      /** Null for a keep goal. */
+      chart: RatingGoalChartView | null
+      planSoFar: RatingGoalPlanSoFarView
+      moved: RatingGoalMovedView<LowReview>
+    }>
+
+/** The detail as the use case returns it, before the server links the low reviews to the Inbox. */
+export type RatingGoalDetailRead = RatingGoalDetailView<RatingGoalLowReviewRead>
 
 export type RatingGoalHistoryEntry = Readonly<{
   goalId: string
@@ -292,6 +358,8 @@ export type RatingGoalHistoryEntry = Readonly<{
 export type RatingGoalSetResult = Readonly<{ goalId: string; version: number }>
 export type RatingGoalChangeResult = Readonly<{ goalId: string; version: number }>
 export type RatingGoalEndResult = Readonly<{ goalId: string; ended: true }>
+/** The pace was kept for this week: the check-in of `weekStart` is answered. */
+export type RatingGoalKeepResult = Readonly<{ goalId: string; weekStart: string }>
 
 /** "Not now" was recorded for the Property's rating goal (or already was). */
 export type RatingGoalNotNowResult = Readonly<{ propertyId: string }>

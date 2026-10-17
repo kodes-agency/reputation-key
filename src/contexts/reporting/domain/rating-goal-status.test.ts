@@ -8,6 +8,7 @@ import {
   googleIsWaiting,
   keepStatus,
   PLANNED_AVERAGE_WEIGHT_REVIEWS,
+  restartsAfterPaceChange,
   reviewsTooLow,
   statusPaceWindow,
   trackingMix,
@@ -24,7 +25,7 @@ const climb = (overrides: Partial<Parameters<typeof climbStatus>[0]> = {}) =>
     targetTenths: 45,
     // 12 reviews since the goal was set, averaging 4.67.
     sinceSet: { count: 12, sum: 56 },
-    goalCreatedAt: daysAgo(30),
+    paceSince: daysAgo(30),
     now: NOW,
     chosenTenthsPerWeek: 100,
     reviewsInPaceWindow: 36,
@@ -59,7 +60,7 @@ describe('the status of a climb goal, top rule first', () => {
   it('says new reviews are too low once ten since the set average at or below the threshold', () => {
     // 20 reviews at exactly 4.45 against 4.5's threshold 4.45.
     expect(climb({ sinceSet: { count: 20, sum: 89 } })).toBe('reviews_too_low')
-    expect(climb({ sinceSet: { count: 10, sum: 40 }, goalCreatedAt: daysAgo(1) })).toBe(
+    expect(climb({ sinceSet: { count: 10, sum: 40 }, paceSince: daysAgo(1) })).toBe(
       'reviews_too_low',
     )
   })
@@ -74,7 +75,7 @@ describe('the status of a climb goal, top rule first', () => {
   })
 
   it('is getting started for the first 14 days', () => {
-    expect(climb({ goalCreatedAt: daysAgo(13), reviewsInPaceWindow: null })).toBe(
+    expect(climb({ paceSince: daysAgo(13), reviewsInPaceWindow: null })).toBe(
       'getting_started',
     )
   })
@@ -87,10 +88,8 @@ describe('the status of a climb goal, top rule first', () => {
 
   it('judges a goal set 21 days ago on its 21 days', () => {
     // 21 days at 10 a week is 30; 90% is 27.
-    expect(climb({ goalCreatedAt: daysAgo(21), reviewsInPaceWindow: 27 })).toBe('on_pace')
-    expect(climb({ goalCreatedAt: daysAgo(21), reviewsInPaceWindow: 26 })).toBe(
-      'below_pace',
-    )
+    expect(climb({ paceSince: daysAgo(21), reviewsInPaceWindow: 27 })).toBe('on_pace')
+    expect(climb({ paceSince: daysAgo(21), reviewsInPaceWindow: 26 })).toBe('below_pace')
   })
 
   it('judges a pace with a tenth of a review a week', () => {
@@ -232,6 +231,60 @@ describe('the window the pace is judged on', () => {
   it('forecasts the simple card at the actual pace once the goal is 28 days old', () => {
     expect(forecastPaceBasis(daysAgo(27), NOW)).toBe('chosen')
     expect(forecastPaceBasis(daysAgo(28), NOW)).toBe('actual')
+  })
+})
+
+describe('a new pace judged only from its change (Q3)', () => {
+  // A goal set 40 days ago whose pace a manager raised on day 40.
+  const SET = daysAgo(40)
+  const raisedOn = (day: number) => new Date(SET.getTime() + day * DAY)
+  const at = (day: number) => new Date(SET.getTime() + day * DAY)
+
+  it('is getting started again for 14 days from the change', () => {
+    expect(statusPaceWindow(raisedOn(40), at(40))).toBeNull()
+    expect(statusPaceWindow(raisedOn(40), at(53.9))).toBeNull()
+    expect(
+      climb({ paceSince: raisedOn(40), now: at(45), reviewsInPaceWindow: null }),
+    ).toBe('getting_started')
+  })
+
+  it('then runs its window from the change, and over the last 28 days from day 28 on', () => {
+    expect(statusPaceWindow(raisedOn(40), at(54))).toEqual({
+      start: raisedOn(40),
+      end: at(54),
+    })
+    expect(statusPaceWindow(raisedOn(40), at(67))).toEqual({
+      start: raisedOn(40),
+      end: at(67),
+    })
+    expect(statusPaceWindow(raisedOn(40), at(68))).toEqual({
+      start: at(40),
+      end: at(68),
+    })
+  })
+
+  it('forecasts at the chosen pace until the new pace is 28 days old (Q8 from the change)', () => {
+    const change = raisedOn(40)
+    const justBefore = new Date(change.getTime() + 28 * DAY - 60 * 60 * 1000)
+
+    expect(forecastPaceBasis(change, justBefore)).toBe('chosen')
+    expect(forecastPaceBasis(change, at(68))).toBe('actual')
+  })
+
+  it('is a restart only while the pace is younger than 14 days and the goal is not', () => {
+    const goal = { createdAt: SET, paceSince: raisedOn(40) }
+
+    expect(restartsAfterPaceChange(goal, at(41))).toBe(true)
+    expect(restartsAfterPaceChange(goal, at(53.9))).toBe(true)
+    expect(restartsAfterPaceChange(goal, at(54))).toBe(false)
+    // A new goal's own first 14 days are no restart, nor a pace changed in them.
+    expect(restartsAfterPaceChange({ createdAt: SET, paceSince: SET }, at(5))).toBe(false)
+    expect(
+      restartsAfterPaceChange({ createdAt: SET, paceSince: raisedOn(10) }, at(13)),
+    ).toBe(false)
+    expect(
+      restartsAfterPaceChange({ createdAt: SET, paceSince: raisedOn(10) }, at(14)),
+    ).toBe(true)
   })
 })
 

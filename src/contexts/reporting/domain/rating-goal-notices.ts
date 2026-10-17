@@ -17,7 +17,10 @@
 //   keep_dropped_below      a keep goal's tenth is no longer shown (in place of
 //                           the tenth lost, which is the same change).
 // A status is "entered" against the last status that was not waiting for
-// Google, so a day without Google's numbers never repeats a notice. A status
+// Google, so a day without Google's numbers never repeats a notice. Nor is the
+// fresh start after a manager changed the pace (round 5, owner answer Q3) a
+// status the goal knows: it keeps the one from before the change, so leaving
+// the fresh start tells only a status that differs from it. A status
 // the goal has not known before (a new goal, a plan a manager just changed) is
 // stored without a notice: notices report what Google and the reviews did,
 // never a manager's own change. An evaluation that ends the goal tells nobody.
@@ -25,7 +28,7 @@
 // waiting, getting started, reached or too low (rating-goal-status.ts).
 
 import type { PropertyRatingGoal, RatingGoalMode, RatingGoalStatus } from './rating-goal'
-import type { PaceWindow } from './rating-goal-status'
+import { restartsAfterPaceChange, type PaceWindow } from './rating-goal-status'
 import { legacyPacePerWeek } from './rating-goal-pace'
 
 /** A goal tells its managers it fell below pace at most once in this many days. */
@@ -35,8 +38,15 @@ export const TOO_LOW_NOTICE_DAYS = 14
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
-/** A pace window this long is "the last 4 weeks"; a shorter one runs from the set. */
+/** A pace window this long is "the last 4 weeks"; a shorter one runs from the pace's start. */
 const FULL_PACE_WINDOW_MS = 28 * DAY_MS
+/**
+ * A pace that came into force this close to the set counts from the set: an
+ * old web server's insert during the rolling deploy of migration 0061 stores
+ * the database clock, seconds after the set (and so does a manager who sets a
+ * goal and changes its pace at once, whose days are the same).
+ */
+const SAME_START_MS = 60 * 1000
 
 export type RatingGoalTransition =
   | 'reached'
@@ -46,7 +56,7 @@ export type RatingGoalTransition =
   | 'keep_dropped_below'
 
 /** Over which days a below-pace notice measured the reviews. */
-export type RatingGoalPaceWindowKind = 'last_4_weeks' | 'since_set'
+export type RatingGoalPaceWindowKind = 'last_4_weeks' | 'since_set' | 'since_pace_change'
 
 /** One notice, with the Property-level figures its copy states. */
 export type RatingGoalNotice =
@@ -79,7 +89,12 @@ export type RatingGoalNotice =
 export type RatingGoalNoticeInput = Readonly<{
   goal: Pick<
     PropertyRatingGoal,
-    'mode' | 'targetTenths' | 'paceTenthsPerWeek' | 'lastEvaluation'
+    | 'mode'
+    | 'targetTenths'
+    | 'paceTenthsPerWeek'
+    | 'lastEvaluation'
+    | 'createdAt'
+    | 'paceSince'
   >
   evaluation: Readonly<{
     status: RatingGoalStatus
@@ -114,10 +129,17 @@ function recentPaceTenths(reviews: number, window: PaceWindow): number {
   return windowMs <= 0 ? 0 : Math.floor((reviews * WEEK_MS * 10) / windowMs)
 }
 
-const paceWindowKind = (window: PaceWindow): RatingGoalPaceWindowKind =>
-  window.end.getTime() - window.start.getTime() >= FULL_PACE_WINDOW_MS
-    ? 'last_4_weeks'
-    : 'since_set'
+function paceWindowKind(
+  window: PaceWindow,
+  goal: RatingGoalNoticeInput['goal'],
+): RatingGoalPaceWindowKind {
+  if (window.end.getTime() - window.start.getTime() >= FULL_PACE_WINDOW_MS) {
+    return 'last_4_weeks'
+  }
+  return goal.paceSince.getTime() - goal.createdAt.getTime() < SAME_START_MS
+    ? 'since_set'
+    : 'since_pace_change'
+}
 
 function tenthNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
   const previous = input.goal.lastEvaluation.displayedTenths
@@ -146,7 +168,7 @@ function belowPaceNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null 
     paceTenthsPerWeek: goal.paceTenthsPerWeek,
     pacePerWeek: legacyPacePerWeek(goal.paceTenthsPerWeek),
     recentPaceTenths: recentPaceTenths(pace.reviews, pace.window),
-    paceWindow: paceWindowKind(pace.window),
+    paceWindow: paceWindowKind(pace.window, goal),
   }
 }
 
@@ -206,6 +228,15 @@ function noticesFor(input: RatingGoalNoticeInput): readonly RatingGoalNotice[] {
   }
 }
 
+/**
+ * A wait for Google, or the fresh start after a pace change (Q3), leaves the
+ * known status as it was: neither is something the goal's reviews did.
+ */
+function keepsKnownStatus({ goal, evaluation, now }: RatingGoalNoticeInput): boolean {
+  if (evaluation.status === 'waiting_for_google') return true
+  return evaluation.status === 'getting_started' && restartsAfterPaceChange(goal, now)
+}
+
 /** What an evaluation tells the goal's managers, and what it stores to compare with next. */
 export function decideRatingGoalNotices(
   input: RatingGoalNoticeInput,
@@ -224,10 +255,7 @@ export function decideRatingGoalNotices(
   const toldTooLow = notices.some((n) => n.transition === 'entered_reviews_too_low')
   return {
     notices,
-    knownStatus:
-      input.evaluation.status === 'waiting_for_google'
-        ? previous.knownStatus
-        : input.evaluation.status,
+    knownStatus: keepsKnownStatus(input) ? previous.knownStatus : input.evaluation.status,
     belowPaceNoticedAt: toldBelowPace ? input.now : previous.belowPaceNoticedAt,
     tooLowNoticedAt: toldTooLow ? input.now : previous.tooLowNoticedAt,
   }

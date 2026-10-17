@@ -1,7 +1,8 @@
-// Round 5 of the Google rating goal (PLAN-D D-1, D-2): the card that counts the
-// new reviews to the next number Google can show, on the Goals page and on the
-// Property Overview, and the detail page one click from it (mock D3), for the
-// people who may see them and for no one else.
+// Round 5 of the Google rating goal (PLAN-D D-1, D-2, D-2b, D-3): the card
+// that counts the new reviews to the next number Google can show, on the Goals
+// page and on the Property Overview, the detail page one click from it (mock
+// D3), and the Monday check-in above the card (mock D4), for the people who may
+// see them and for no one else.
 //
 // Journeys:
 //   1. the owner sets a goal (the setup's own command) and sees the card on the
@@ -12,7 +13,15 @@
 //      refused the card read;
 //   3. the owner opens the detail: the headline, "The climb, step by step" with
 //      its chart, "Your plan, so far" and "What moved you" ending in the set's
-//      row; both goals pages pass the axe scan.
+//      row; both goals pages pass the axe scan;
+//   4. a 2★ review after the set is named in "What moved you" with what it set
+//      the goal back, and its link opens its Inbox item; an expired 1★ review
+//      since the set is not named (D-2b, the owner’s exception);
+//   5. a goal set 15 days ago gets the Monday check-in, on manager-one's
+//      Overview too: the owner keeps the pace, and it is gone after a reload
+//      and, reloaded, from manager-one's Overview; asked again,
+//      the owner raises the pace: a pace row in the change log, and the goal
+//      is getting started again (Q3).
 //
 // The seed's Properties have no Google binding, so a goal on them only ever
 // waits for Google. This spec seeds its own bound Property (prefix `e2e-rg-`)
@@ -37,6 +46,7 @@ import {
   seedGoogleConnection,
   seedProperty,
   seedReview,
+  seedReviewInboxItemWithCycle,
 } from '../../helpers/fixtures'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { assertNoAxeViolations } from '../../helpers/a11y'
@@ -236,5 +246,146 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
       moved.getByText('Owners and managers only', { exact: false }),
     ).toBeVisible()
     await assertNoAxeViolations(page, 'the rating goal detail (/goals/google-rating)')
+  })
+
+  test('a low review since the set opens in the Inbox; an expired one is not named', async ({
+    page,
+  }) => {
+    // Now: after the goal the first journey set.
+    const now = new Date()
+    const { reviewId } = await seedReview({
+      organizationId: seed.organizationId,
+      propertyId,
+      externalId: `${PREFIX}low-${e2eRunId}`,
+      rating: 2,
+      text: 'The room was cold all night.',
+      reviewerName: 'Low Review Guest',
+      reviewedAt: now,
+    })
+    const { inboxItemId } = await seedReviewInboxItemWithCycle({
+      organizationId: seed.organizationId,
+      propertyId,
+      reviewId,
+    })
+    // Its content has expired: it is no longer a review any goal read counts.
+    await seedReview({
+      organizationId: seed.organizationId,
+      propertyId,
+      externalId: `${PREFIX}expired-${e2eRunId}`,
+      rating: 1,
+      reviewedAt: now,
+      contentExpiresAt: new Date(Date.now() - DAY_MS),
+    })
+    // Google counts the new one too: 13 reviews, 49 stars (3.769), shown 3.8.
+    await dbQuery(
+      `UPDATE metric_current_google_reputation_snapshots
+          SET review_count = $3, average_rating = 3.8, evaluated_at = now(), updated_at = now()
+        WHERE organization_id = $1 AND property_id = $2`,
+      [seed.organizationId, propertyId, STARS.length + 1],
+    )
+
+    await signIn(page)
+    await page.goto(`/properties/${propertyId}/goals/google-rating`)
+    const moved = page
+      .locator('[data-slot="card"]')
+      .filter({ has: page.getByRole('heading', { name: 'What moved you' }) })
+    // 13 × (3.95 − 3.769) / (4.1 − 3.95) = 15.7 with it (the blend held at
+    // 4.1 before the tenth review); 1.6 at the plan's 4.2 without it.
+    await expect(moved.getByText('2★ review', { exact: true })).toBeVisible()
+    await expect(moved.getByText('set you back about 14 new reviews')).toBeVisible()
+    await expect(moved.getByText('1★ review', { exact: true })).toHaveCount(0)
+    const open = moved.getByRole('link', {
+      name: /^Open in the inbox: the 2★ review of .+$/u,
+    })
+    await expect(open).toHaveAttribute(
+      'href',
+      `/properties/${propertyId}/reviews?itemId=${inboxItemId}`,
+    )
+    await expect(moved.locator('a[href*="reviewId="]')).toHaveCount(0)
+    // The low review's warning ink and its link, with the real CSS, both themes.
+    await assertNoAxeViolations(page, 'the rating goal detail with a low review')
+    await page.evaluate(() => window.localStorage.setItem('theme', 'light'))
+    await page.reload()
+    await expect(moved.getByText('set you back about 14 new reviews')).toBeVisible()
+    await expect(page.locator('html')).toHaveClass(/\blight\b/u)
+    await assertNoAxeViolations(page, 'the rating goal detail with a low review (light)')
+
+    await open.click()
+    await expect(page).toHaveURL(new RegExp(`itemId=${inboxItemId}`, 'u'))
+    await expect(page.getByText('Low Review Guest').first()).toBeVisible({
+      timeout: 15_000,
+    })
+  })
+
+  test('the Monday check-in: Keep answers it for everyone, Raise starts the pace afresh', async ({
+    page,
+    browser,
+  }) => {
+    // Set 15 days ago: last week began after the set, so this week asks.
+    await dbQuery(
+      `UPDATE property_rating_goals
+          SET created_at = now() - interval '15 days', pace_since = now() - interval '15 days'
+        WHERE organization_id = $1 AND property_id = $2 AND status = 'active'`,
+      [seed.organizationId, propertyId],
+    )
+    // manager-one sees the same check-in on the Overview before anyone answers it.
+    const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
+    const onePage = await oneContext.newPage()
+    await signIn(
+      onePage,
+      seed.onePropertyManagerEmail,
+      seed.boundedManagerPassword,
+      BASE_ORIGIN,
+    )
+    await onePage.goto(`/properties/${propertyId}`)
+    await expect(
+      onePage
+        .getByRole('region', { name: 'Last week' })
+        .getByRole('button', { name: 'Keep 1 a day' }),
+    ).toBeVisible()
+
+    await signIn(page)
+    await page.goto(`/properties/${propertyId}/goals`)
+    const recap = page.getByRole('region', { name: 'Last week' })
+    await expect(recap.getByText('Nothing changes unless you choose.')).toBeVisible()
+    await assertNoAxeViolations(page, 'Goals page with the Monday check-in')
+
+    await recap.getByRole('button', { name: 'Keep 1 a day' }).click()
+    await expect(recap).toHaveCount(0)
+    await page.reload()
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Google rating goal' }),
+    ).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Last week' })).toHaveCount(0)
+
+    // The owner's Keep answered it for manager-one too.
+    await onePage.reload()
+    await expect(
+      onePage.getByRole('heading', { level: 2, name: 'Google rating goal' }),
+    ).toBeVisible()
+    await expect(onePage.getByRole('region', { name: 'Last week' })).toHaveCount(0)
+    await oneContext.close()
+
+    // Asked again (the kept week forgotten): Raise is a change of pace.
+    await dbQuery(
+      `UPDATE property_rating_goals SET recap_answered_week = NULL
+        WHERE organization_id = $1 AND property_id = $2 AND status = 'active'`,
+      [seed.organizationId, propertyId],
+    )
+    await page.reload()
+    await page
+      .getByRole('region', { name: 'Last week' })
+      .getByRole('button', { name: 'Raise to 2 a day' })
+      .click()
+    await expect(page.getByRole('region', { name: 'Last week' })).toHaveCount(0)
+    await expect(
+      page.locator('[data-slot="rating-goal-card"]').getByText('Getting started'),
+    ).toBeVisible()
+    const log = await dbQuery<{ field: string; old_value: string; new_value: string }>(
+      `SELECT field, old_value, new_value FROM property_rating_goal_changes
+        WHERE organization_id = $1 AND property_id = $2`,
+      [seed.organizationId, propertyId],
+    )
+    expect(log).toEqual([{ field: 'pace', old_value: '70', new_value: '140' }])
   })
 })

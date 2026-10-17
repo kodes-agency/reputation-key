@@ -28,6 +28,19 @@
 // with two `all` reads a day apart, the difference of two week-end averages
 // can tell one new review's stars; managers see each review in the Inbox.
 //
+// Two reads are per-review, by the owner's exception for the tracking page
+// (2026-10-17, ADR 0067, PLAN-D Q2): the low reviews since the goal was set
+// (`getLowReviews`: a review's id, stars and creation time, nothing else, up to
+// GOOGLE_RATING_LOW_REVIEW_LIMIT) and this week's star split (the star
+// distribution since this Monday). The caller reads them live for the goal's
+// managers and keeps nothing.
+//
+// Since round 5's check-in (2026-10-17, D-3) the summary also counts the
+// reviews of one range in the same scan (last Property-local week), and gives
+// their star sum only from ten reviews (GOOGLE_RATING_RANGE_MIN_COUNT): no
+// window aggregate under ten returns a sum, so a week's sum never tells a few
+// reviews' stars.
+//
 // A review counts when it is servable under the same eligibility as
 // ReviewServingStats (ADR 0031: active source content with a rating, a review
 // instant and an unexpired cache clock, `now` from the injected clock) and was
@@ -36,13 +49,27 @@
 // one from an earlier binding never count, so the cache count can be compared
 // with Google's own count to tell whether the cache is complete.
 
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 
 /** A count of ratings and the sum of their stars. */
 export type GoogleRatingTotals = Readonly<{ count: number; sum: number }>
 
 /** Most count windows one summary read answers. */
 export const GOOGLE_RATING_SUMMARY_MAX_COUNT_WINDOWS = 4
+
+/** A range's star sum leaves Review only from this many reviews in it. */
+export const GOOGLE_RATING_RANGE_MIN_COUNT = 10
+
+/** The reviews created at or after `from` and before `to`. */
+export type GoogleRatingRange = Readonly<{
+  from: Date
+  to: Date
+  /** The sum is given from this many reviews; at least GOOGLE_RATING_RANGE_MIN_COUNT. */
+  minimumCount: number
+}>
+
+/** A range's count, and its star sum, null under the range's minimum count. */
+export type GoogleRatingRangeTotals = Readonly<{ count: number; sum: number | null }>
 
 export type GoogleRatingSummaryRequest = Readonly<{
   /** The recent-mix window starts here. */
@@ -53,6 +80,8 @@ export type GoogleRatingSummaryRequest = Readonly<{
   countSince: readonly Date[]
   /** When given, the count and star sum of the reviews created at or after it. */
   totalsSince?: Date
+  /** When given, the count (and from the minimum, the star sum) of one range. */
+  rangeTotals?: GoogleRatingRange
 }>
 
 export type GoogleRatingSummary = Readonly<{
@@ -66,6 +95,8 @@ export type GoogleRatingSummary = Readonly<{
   countsSince: readonly number[]
   /** Those created at or after `totalsSince`; null when it was not asked for. */
   totalsSince: GoogleRatingTotals | null
+  /** Those created in `rangeTotals`; null when it was not asked for. */
+  rangeTotals: GoogleRatingRangeTotals | null
 }>
 
 /** The reviews created in one calendar year of the Property's time zone. */
@@ -115,6 +146,20 @@ export type GoogleShownNumber = Readonly<{
 
 /** Most of Google's shown numbers one read returns. */
 export const GOOGLE_SHOWN_NUMBER_LIMIT = 100
+
+/**
+ * One low review since a goal was set, as the tracking page names it (the
+ * owner's exception, ADR 0067): no text, reviewer, Google identifier or reply.
+ */
+export type GoogleRatingLowReview = Readonly<{
+  reviewId: ReviewId
+  stars: number
+  /** When Google created it. */
+  reviewedAt: Date
+}>
+
+/** Most low reviews one read returns. */
+export const GOOGLE_RATING_LOW_REVIEW_LIMIT = 25
 
 export type ReviewGoogleRatingReads = Readonly<{
   /** Totals, the recent-mix inputs and windowed counts, in one read. */
@@ -171,6 +216,19 @@ export type ReviewGoogleRatingReads = Readonly<{
     propertyId: PropertyId,
     since: Date,
   ): Promise<readonly GoogleShownNumber[]>
+
+  /**
+   * Reviews created at or after `since` whose stars × 1000 are below
+   * `belowThousandths` and at most 4, newest first (by creation, then id),
+   * `limit` at most (GOOGLE_RATING_LOW_REVIEW_LIMIT; a RangeError above it).
+   */
+  getLowReviews(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    since: Date,
+    belowThousandths: number,
+    limit: number,
+  ): Promise<readonly GoogleRatingLowReview[]>
 
   /** Reviews created at or after `since`, per star (1 to 5, every star present). */
   getStarDistribution(
