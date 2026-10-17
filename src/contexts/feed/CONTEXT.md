@@ -313,6 +313,20 @@ own calendar. A surface with no timezone — the frozen snapshot written at
 insert time — leaves the target time out rather than guessing UTC, and every
 live surface re-renders.
 
+A portal goal's two notices, met and result revised (ADR 0046, amended
+2026-10-17; wording approved under P-8), also state the month's figures: the
+measure, and for a count the month as it stands and the target it was judged
+against, as whole numbers (`goalCount`, `goalTargetCount`, admitted only with a
+count measure), and the name of the Portal or Portal Group the goal is on
+(`goalSubjectName`). Reporting's monthly-result facts supply them when the
+notice is raised; no event carries them. "Seaview Hotel met its November
+portal goal" / "Your portals brought in 41 private ratings. The goal was 40."
+An average or a missing figure keeps the title and sends the reader to the
+goal. Whatever the goal's subject, the notice goes to the Property's
+responsible managers, AccountAdmins as the fallback (`goalNoticeScope`, asked
+by the fan-out and by both delivery rechecks). The copy lives in
+`domain/notification-templates-portal-goal.ts`.
+
 A Property's Google rating goal raises five Goals notices (ADR 0046, amended
 2026-10-14 and 2026-10-15): reached (offering to keep the number only when
 Google shows 4.9 or 5.0), a tenth gained or lost on Google, entered
