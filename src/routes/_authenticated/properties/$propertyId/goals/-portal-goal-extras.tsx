@@ -1,11 +1,9 @@
 // The Portal goals other than the Monthly portal goal's card, under it: each
 // goal's row with its measure, its target, whom it counts and, while a month
-// runs, the month so far. On the History view, the ended goals, or that there
-// are none. The table is the one the Goals page always had; the card above it
-// is now the Portal goals' first state, so an empty Active view draws nothing
-// here.
+// runs, the month so far. On the History view, the ended goals. The table is
+// the one the Goals page always had; the card above it is now the Portal goals'
+// first state, so no goals draw nothing here.
 import { Link } from '@tanstack/react-router'
-import { Target } from 'lucide-react'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
@@ -18,7 +16,6 @@ import {
   DataTableHeader,
   DataTableRow,
 } from '#/components/ui/data-table'
-import { EmptyState } from '#/components/ui/empty-state'
 import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { SectionTitle } from '#/components/ui/section-title'
 import { StatusBadge } from '#/components/ui/status-badge'
@@ -113,10 +110,8 @@ function GoalRow({
 }
 
 export function PortalGoalExtras({ view, goals, ...rows }: Props) {
-  if (goals.length === 0) {
-    // The card is the Active view's state; History says it has none.
-    return view === 'active' ? null : <EmptyState icon={Target} title="No goal history" />
-  }
+  // The card is the Active view's state; the section says an empty History.
+  if (goals.length === 0) return null
   return (
     <div className="flex flex-col gap-3">
       {view === 'active' ? (

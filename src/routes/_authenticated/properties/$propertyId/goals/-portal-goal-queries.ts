@@ -1,6 +1,7 @@
 // The Monthly portal goal's reads, defined once for every page that draws it
-// (route-query-definitions.test.ts), and the one function that marks them
-// stale after a Portal-goal command.
+// (route-query-definitions.test.ts), and the one function every Portal-goal
+// command marks them stale through (the product-state ledger's goalKeys
+// policy); its first caller is the card's Use.
 //
 // None of it may reach first paint (scripts/check-bundle-budget.mjs):
 //

@@ -3,9 +3,12 @@
 // portal goal's card, and two slots, `extras` (the other Portal goals) and
 // `footer` (the way to add one). A read on its way keeps the card's room; one
 // that failed says so here and holds nothing else back. A view that draws no
-// card (the History, or a reader who cannot set goals) shows the slots only.
+// card (the History, or a reader who cannot set goals) shows the slots only, or
+// that it has nothing to show.
 import type { ReactNode } from 'react'
+import { Target } from 'lucide-react'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { SectionTitle } from '#/components/ui/section-title'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -13,7 +16,7 @@ import { PortalGoalCard } from './portal-goal-card'
 import { portalGoalSectionLine } from './portal-goal-words'
 
 /** The section's anchor: a link to the goal lands here (`#portal-goals`). */
-export const PORTAL_GOALS_SECTION_ID = 'portal-goals'
+const PORTAL_GOALS_SECTION_ID = 'portal-goals'
 
 /** A read as the section draws it: its data, whether it failed, and its "Try again". */
 export type PortalGoalRead = Readonly<{
@@ -29,6 +32,8 @@ type Props = Readonly<{
   card: PortalGoalRead | null
   canCreatePortal: boolean
   extras?: ReactNode
+  /** What the section says when neither a card nor `extras` has anything to show. */
+  empty?: string
   footer?: ReactNode
 }>
 
@@ -88,6 +93,7 @@ export function PortalGoalSection({
   card,
   canCreatePortal,
   extras,
+  empty,
   footer,
 }: Props) {
   const line = card?.data === undefined ? null : portalGoalSectionLine(card.data)
@@ -110,6 +116,7 @@ export function PortalGoalSection({
         />
       )}
       {extras}
+      {empty === undefined ? null : <EmptyState icon={Target} title={empty} />}
       {footer}
     </section>
   )

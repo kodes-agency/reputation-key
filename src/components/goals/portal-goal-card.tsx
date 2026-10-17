@@ -11,7 +11,7 @@ import { PortalGoalCardBefore } from './portal-goal-card-before'
 import { PortalGoalMonthTile } from './portal-goal-month-tile'
 
 /** The card title's id: a sheet or a dialog that closes hands the focus back to it. */
-export const PORTAL_GOAL_TITLE_ID = 'portal-goal-title'
+const PORTAL_GOAL_TITLE_ID = 'portal-goal-title'
 
 type Props = Readonly<{
   card: PortalGoalCardView

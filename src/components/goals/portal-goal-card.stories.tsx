@@ -254,3 +254,16 @@ export const ReadError: Story = {
     await expect(args.card?.retry).toHaveBeenCalledOnce()
   },
 }
+
+/** The History view draws no card, and says when it has no ended goal to list. */
+export const HistoryWithNoEndedGoal: Story = {
+  args: { card: null, empty: 'No goal history' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('heading', { level: 2, name: 'Portal goals' }),
+    ).toBeVisible()
+    await expect(canvas.queryByRole('heading', { level: 3 })).toBeNull()
+    await expect(canvas.getByText('No goal history')).toBeVisible()
+  },
+}

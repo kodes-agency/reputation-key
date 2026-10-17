@@ -18,11 +18,13 @@ type Props = Readonly<{
   view: 'active' | 'history'
   /** The other Portal goals, under the card. */
   extras?: ReactNode
+  /** What the section says when it has nothing to show (an empty History). */
+  empty?: string
   /** The way to add one, at the section's foot. */
   footer?: ReactNode
 }>
 
-export function PortalGoalPanel({ propertyId, view, extras, footer }: Props) {
+export function PortalGoalPanel({ propertyId, view, extras, empty, footer }: Props) {
   const { can } = usePermissions()
   const drawsCard = view === 'active' && can('goal.create')
   const card = useQuery({
@@ -44,6 +46,7 @@ export function PortalGoalPanel({ propertyId, view, extras, footer }: Props) {
       card={read}
       canCreatePortal={can('portal.create')}
       extras={extras}
+      empty={empty}
       footer={footer}
     />
   )
