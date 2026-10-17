@@ -212,28 +212,56 @@ export const PortalOffline: Story = rowSays({
 })
 
 /**
- * Which month, whose goal, and which way it went — the three facts that tell
- * one Portal's monthly result from its nine siblings'. The body only restates
- * the title, so the row has no detail line.
+ * A portal goal met (deck N-1, approved under P-8). The visible title leaves
+ * the Property to the facts line and keeps the month; the line under it states
+ * the month's count against its target, and a screen reader hears the full
+ * title. The old "This Portal goal hit its target" never survives.
  */
-export const GoalResultNamesItsMonth: Story = rowSays({
+const SEAVIEW_GOAL = {
+  propertyName: 'Seaview Hotel',
+  goalName: 'Monthly portal goal',
+  goalMonth: '2026-11',
+  goalSubjectKind: 'property',
+  goalMeasure: 'portal_rating_count',
+  goalCount: 41,
+  goalTargetCount: 40,
+} as const
+
+export const PortalGoalMet: Story = rowSays({
   notification: {
     id: '20000000-0000-4000-8000-000000000034',
-    type: 'goal.result_revised',
-    payload: {
-      propertyName: 'Harbour Lodge',
-      goalName: 'Lobby QR scans',
-      goalMonth: '2026-10',
-      goalSubjectKind: 'portal',
-      goalOutcome: 'not_met',
-    },
+    type: 'goal.completed',
+    resourceType: 'goal',
+    payload: { ...SEAVIEW_GOAL, goalOutcome: 'met' },
   },
-  title: 'October goal no longer met: Lobby QR scans',
-  facts: ['Harbour Lodge'],
-  // Which of ten sibling results: the title says only "goal".
-  detail: 'This Portal goal no longer meets its target.',
-  name: /^October goal no longer met: Lobby QR scans at Harbour Lodge, \d+ minutes? ago, unread$/,
+  title: 'November portal goal met',
+  facts: ['Seaview Hotel'],
+  detail: 'Your portals brought in 41 private ratings. The goal was 40.',
+  name: /^Seaview Hotel met its November portal goal, \d+ minutes? ago, unread$/,
+  neverSays: /hit its target|This Portal goal/,
 })
+
+/**
+ * A correction took a met month back below its target (deck N-3). The row
+ * says what the month changed to; it is neutral news, never a missed-goal
+ * alarm, and a month that was simply not met sends no notice at all.
+ */
+export const PortalGoalNoLongerMet: Story = {
+  ...rowSays({
+    notification: {
+      id: '20000000-0000-4000-8000-0000000000c5',
+      type: 'goal.result_revised',
+      resourceType: 'goal',
+      payload: { ...SEAVIEW_GOAL, goalOutcome: 'not_met', goalCount: 39 },
+    },
+    title: 'November portal goal: no longer met',
+    facts: ['Seaview Hotel'],
+    detail: 'A correction changed November to 39 of 40.',
+    name: /^Seaview Hotel\u2019s November portal goal: no longer met, \d+ minutes? ago, unread$/,
+    neverSays: /no longer meets its target|current metrics/,
+  }),
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
 
 /**
  * An Organization notice belongs to no Property: it names the Organization and
