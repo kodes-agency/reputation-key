@@ -40,7 +40,7 @@ export const OneCountSubject: Story = {
     const canvas = within(canvasElement)
     expect(canvas.getByText('64 of 120 so far · 14 days left')).toBeVisible()
     const bar = canvas.getByRole('progressbar', {
-      name: 'Qualified scans so far this month',
+      name: 'Scans so far this month',
     })
     expect(bar).toHaveAttribute('aria-valuenow', '64')
     expect(bar).toHaveAttribute('aria-valuemax', '120')
@@ -68,7 +68,7 @@ export const OneCountSubjectBelowPace: Story = {
     expect(note).toHaveClass('text-warn')
     expect(note).toHaveAttribute('data-slot', 'goal-live-pace')
     const bar = canvas.getByRole('progressbar', {
-      name: 'Qualified scans so far this month',
+      name: 'Scans so far this month',
     })
     expect(bar).toHaveAttribute('aria-valuetext', '64 of 120 so far')
     expect(bar).toHaveAttribute('data-tone', 'neutral')

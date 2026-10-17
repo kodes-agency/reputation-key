@@ -12,7 +12,7 @@ import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import type { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { monthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
 import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
-import { goalDay, goalPageMetricLabel } from './goal-detail-view'
+import { goalDay } from './goal-detail-view'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalFigure } from './goal-so-far'
 import {
@@ -105,7 +105,7 @@ export function goalTargetLines(
     label: 'This month',
     value: goalFigure(metric, plan.effectiveTarget),
     notes: [
-      otherMeasure ? goalPageMetricLabel(metric) : null,
+      otherMeasure ? goalMetricLabel(metric) : null,
       marker ? goalTargetMarkerLine(metric, marker, frame) : null,
     ].filter(present),
   }
@@ -116,7 +116,7 @@ export function goalTargetLines(
       label: `From ${goalDay(following.from, frame)}${following.ifResumed ? ', if resumed' : ''}`,
       value: goalFigure(following.metric, following.targetValue),
       notes: [
-        otherMeasure ? goalPageMetricLabel(following.metric) : null,
+        otherMeasure ? goalMetricLabel(following.metric) : null,
         following.setAt ? `set on ${goalDay(following.setAt, frame)}` : null,
       ].filter(present),
     },

@@ -30,7 +30,7 @@ describe('the live line of a goal with one count subject', () => {
       bar: {
         value: 64,
         max: 120,
-        label: 'Qualified scans so far this month',
+        label: 'Scans so far this month',
         valueText: '64 of 120 so far',
       },
     })
@@ -111,7 +111,7 @@ describe('the pace note of a goal with one count subject', () => {
       bar: {
         value: 64,
         max: 120,
-        label: 'Qualified scans so far this month',
+        label: 'Scans so far this month',
         valueText: '64 of 120 so far',
       },
     })

@@ -10,11 +10,11 @@ import { goalTargetProvenance } from '#/contexts/reporting/application/goal-targ
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import {
   goalDay,
-  goalPageMetricLabel,
   goalStartLine,
   goalStartMonthHint,
   statusReasonLabel,
 } from './goal-detail-view'
+import { goalMetricLabel } from './goal-metric-label'
 import { goalTargetLines } from './goal-month-target-view'
 import type { GoalMarkerFrame } from './goal-target-marker'
 
@@ -50,7 +50,7 @@ export function GoalProgramCard({ goal, plan, subjectCount, canManage, frame }: 
       <CardContent className="grid gap-3 text-sm md:grid-cols-2">
         <p>
           <span className="text-muted-foreground">Metric:</span>{' '}
-          {goalPageMetricLabel(version.metric)}
+          {goalMetricLabel(version.metric)}
         </p>
         {goalTargetLines(goal, plan, frame).map((line) => (
           <p key={line.label}>

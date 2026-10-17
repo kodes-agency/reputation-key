@@ -31,7 +31,7 @@ describe('GoalLiveLine', () => {
     expect(html).toContain('aria-valuemin="0"')
     expect(html).toContain('aria-valuemax="120"')
     expect(html).toContain('aria-valuetext="64 of 120 so far"')
-    expect(html).toContain('aria-label="Qualified scans so far this month"')
+    expect(html).toContain('aria-label="Scans so far this month"')
     expect(html).toContain('data-tone="neutral"')
   })
 
