@@ -17,12 +17,11 @@ function row(id: string, overrides: Partial<GoalResultsMatrixRow>): GoalResultsM
     scope: 'property',
     subject: { kind: 'property', propertyId: 'property-1' },
     subjectName: 'Riverside Hotel',
-    ungroupedPortal: false,
     metric: 'qualified_scans',
     availability: 'ready',
     outcome: 'not_met',
     evidence: { kind: 'count', value: 0, sampleCount: 0 },
-    explanation: 'Not met: 0 verified qualified scans; target is at least 100.',
+    explanation: 'Not met: 0 scans, the goal was 100.',
     dataThrough: END,
     resultStatus: 'closed',
     correction: null,
@@ -55,14 +54,13 @@ const matrix: GoalResultsMatrixModel = {
           availability: 'updating',
           outcome: 'pending',
           evidence: { kind: 'count', value: 7, sampleCount: 7 },
-          explanation: 'Updating: 7 is the last verified value; no outcome yet.',
+          explanation: 'Updating: the final figure is on its way.',
           dataThrough: new Date('2026-07-20T04:00:00.000Z'),
         }),
         row('insufficient-data', {
           scope: 'portal',
           subject: { kind: 'portal', portalId: 'portal-1' },
           subjectName: 'Breakfast cards',
-          ungroupedPortal: true,
           metric: 'portal_rating_average',
           availability: 'insufficient_data',
           outcome: 'pending',
@@ -72,7 +70,7 @@ const matrix: GoalResultsMatrixModel = {
             sampleCount: 6,
             minimumSample: 10,
           },
-          explanation: 'Insufficient data: 6 of 10 required eligible ratings are ready.',
+          explanation: 'More ratings needed: 6 of 10.',
         }),
         row('temporarily-unavailable', {
           scope: 'portal',
@@ -87,14 +85,6 @@ const matrix: GoalResultsMatrixModel = {
           dataThrough: null,
         }),
       ],
-    },
-  ],
-  unassignedPortals: [
-    {
-      portalId: 'portal-3',
-      portalName: 'Restaurant receipt',
-      groupName: null,
-      message: 'No Goal Programs assigned',
     },
   ],
 }
@@ -129,14 +119,18 @@ const setLastYear: GoalResultsMatrixModel = {
       ],
     },
   ],
-  unassignedPortals: [],
 }
 
 export const AllEvidenceStates: Story = {
   args: { matrix, now: new Date('2026-08-05T12:00:00.000Z') },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Goal results matrix')).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', { level: 2, name: 'Monthly results' }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText('Each month’s result for your portal goals.'),
+    ).toBeVisible()
     for (const label of [
       'Ready',
       'Updating',
@@ -145,15 +139,34 @@ export const AllEvidenceStates: Story = {
     ]) {
       await expect(canvas.getByText(label)).toBeVisible()
     }
-    await expect(canvas.getByText('Ungrouped portal')).toBeVisible()
-    await expect(canvas.getByText('No Goal Programs assigned')).toBeVisible()
-    await expect(canvas.getAllByText(/Program version 2 · Metric rules/)[0]).toBeVisible()
+    // The evidence in plain words, and the column that holds the number.
+    await expect(canvas.getByText('0 scans')).toBeVisible()
+    await expect(canvas.getByText('7 private ratings')).toBeVisible()
+    await expect(canvas.getByText('6 of 10 ratings so far')).toBeVisible()
+    await expect(canvas.getByRole('columnheader', { name: 'Number' })).toBeVisible()
+    // No internals: no rules version, no list of portals without a goal.
+    expect(canvas.queryByText(/Metric rules/)).toBeNull()
+    expect(canvas.queryByText(/Program version/)).toBeNull()
+    expect(canvas.queryByText('No Goal Programs assigned')).toBeNull()
+    expect(canvas.queryByText(/Ungrouped portal|Target source/)).toBeNull()
     // The target was set before the month it applies from, and the row says when.
     await expect(
       canvas.getAllByText(/Effective Jul 1, 2026 · set on Jun 18/)[0],
     ).toBeVisible()
     expect(canvas.queryByText(/rank|composite/i)).toBeNull()
   },
+}
+
+/** The same month on the light surface; axe checks both themes. */
+export const AllEvidenceStatesLight: Story = {
+  ...AllEvidenceStates,
+  parameters: { theme: 'light' },
+}
+
+/** On a 320 px phone the table scrolls in its own frame and keeps its words. */
+export const AllEvidenceStatesNarrowPhone: Story = {
+  ...AllEvidenceStates,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
 export const TargetSetInAnEarlierYear: Story = {
@@ -191,7 +204,6 @@ const changedInJuly: GoalResultsMatrixModel = {
       ],
     },
   ],
-  unassignedPortals: [],
 }
 
 /**
@@ -208,7 +220,7 @@ export const AChangedMonthNamesWhoChangedIt: Story = {
     )
 
     await expect(changed).toBeVisible()
-    // It sits in the row's own "Target source" cell, under the target it explains.
+    // It sits in the row's own "Number" cell, under the target it explains.
     expect(changed.closest('td')).toHaveTextContent(/Monthly scans · target 100/)
     expect(canvas.getAllByText(/^Changed /)).toHaveLength(1)
   },

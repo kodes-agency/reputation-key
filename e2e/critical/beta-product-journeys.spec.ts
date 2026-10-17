@@ -899,12 +899,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const resultRow = page
       .getByRole('row')
       .filter({ hasText: activeGoalName })
-      .filter({ hasText: `${qualifiedScanCount} verified qualified scans` })
+      .filter({ hasText: `${qualifiedScanCount} scans` })
     await expect(resultRow).toHaveCount(1)
     await expect(resultRow).toContainText('Ready')
-    await expect(resultRow).toContainText(
-      `${qualifiedScanCount} verified qualified scans`,
-    )
+    await expect(resultRow).toContainText(`${qualifiedScanCount} scans`)
     await page.reload()
     await expect(resultRow).toHaveCount(1)
 

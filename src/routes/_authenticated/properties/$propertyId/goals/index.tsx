@@ -298,7 +298,8 @@ function GoalsRoute() {
           </DataTable>
         )}
       </section>
-      {canDo('goal.update') ? (
+      {/* Each month's result, once a goal has one: a first visit has none to show. */}
+      {canDo('goal.update') && matrix.months.length > 0 ? (
         <GoalResultsMatrix
           matrix={matrix}
           now={now}

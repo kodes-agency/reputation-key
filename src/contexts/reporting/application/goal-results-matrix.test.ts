@@ -168,7 +168,7 @@ describe('Goal Results Matrix', () => {
         availability: 'ready',
         evidence: { kind: 'count', value: 0, sampleCount: 0 },
         outcome: 'not_met',
-        explanation: 'Not met: 0 verified qualified scans; target is at least 100.',
+        explanation: 'Not met: 0 scans, the goal was 100.',
         monthTarget: null,
       }),
       expect.objectContaining({
@@ -178,12 +178,11 @@ describe('Goal Results Matrix', () => {
         availability: 'ready',
         evidence: { kind: 'count', value: 24, sampleCount: 24 },
         outcome: 'met',
-        explanation: 'Met: 24 eligible private ratings; target is at least 20.',
+        explanation: 'Met: 24 private ratings, the goal was 20.',
       }),
       expect.objectContaining({
         scope: 'portal',
         subjectName: 'Breakfast cards',
-        ungroupedPortal: true,
         metric: 'portal_rating_average',
         availability: 'ready',
         evidence: {
@@ -193,7 +192,7 @@ describe('Goal Results Matrix', () => {
           minimumSample: 10,
         },
         outcome: 'met',
-        explanation: 'Met: 4.5 average from 12 eligible ratings; target is at least 4.3.',
+        explanation: 'Met: 4.5 from 12 ratings, the goal was 4.3.',
       }),
     ])
     expect(matrix.months[0]?.rows[2]?.targetProvenance).toEqual({
@@ -257,7 +256,7 @@ describe('Goal Results Matrix', () => {
 
     expect(matrix.months[0]?.rows[0]).toMatchObject({
       outcome: 'met',
-      explanation: 'Met: 90 verified qualified scans; target is at least 80.',
+      explanation: 'Met: 90 scans, the goal was 80.',
       targetProvenance: { targetValue: 80, programVersion: 3 },
       monthTarget: {
         changedAt,
@@ -367,11 +366,11 @@ describe('Goal Results Matrix', () => {
     expect(rows[0]).toMatchObject({
       dataThrough: new Date('2026-07-20T04:00:00.000Z'),
       outcome: 'pending',
-      explanation: 'Updating: 7 is the last verified value; no outcome yet.',
+      explanation: 'Updating: the final figure is on its way.',
     })
     expect(rows[1]).toMatchObject({
       outcome: 'pending',
-      explanation: 'Insufficient data: 6 of 10 required eligible ratings are ready.',
+      explanation: 'More ratings needed: 6 of 10.',
     })
     expect(rows[2]).toMatchObject({
       dataThrough: null,
@@ -381,40 +380,69 @@ describe('Goal Results Matrix', () => {
     })
   })
 
-  it('identifies grouped and ungrouped Portals with no current Goal Program', () => {
+  it('explains a month in plain words', () => {
+    const judged = (
+      id: string,
+      metric: GoalMetric,
+      target: number,
+      evaluation: GoalMetricEvaluation,
+    ) =>
+      bundle({
+        id,
+        name: id,
+        metric,
+        target,
+        subject: { kind: 'property', propertyId: 'property-1' },
+        evaluation,
+      })
     const matrix = buildGoalResultsMatrix({
       ...catalogue,
       programs: [
-        bundle({
-          id: 'assigned',
-          name: 'Breakfast rating',
-          metric: 'portal_rating_count',
-          target: 10,
-          subject: { kind: 'portal', portalId: 'portal-ungrouped' },
-          evaluation: {
-            state: 'eligible',
-            value: 10,
-            sampleCount: 10,
-            achieved: true,
-            reason: null,
-          },
+        judged('met', 'portal_rating_count', 60, {
+          state: 'eligible',
+          value: 64,
+          sampleCount: 64,
+          achieved: true,
+          reason: null,
+        }),
+        judged('missed', 'portal_rating_count', 40, {
+          state: 'eligible',
+          value: 31,
+          sampleCount: 31,
+          achieved: false,
+          reason: null,
+        }),
+        judged('updating', 'qualified_scans', 40, {
+          state: 'updating',
+          value: null,
+          sampleCount: 0,
+          achieved: null,
+          reason: 'reading_updating',
+        }),
+        judged('thin', 'portal_rating_average', 4.5, {
+          state: 'insufficient_data',
+          value: null,
+          sampleCount: 6,
+          achieved: null,
+          reason: 'minimum_sample_not_met',
         }),
       ],
     })
+    const explanationOf = (programId: string) =>
+      matrix.months[0]?.rows.find((row) => row.programId === programId)?.explanation
 
-    expect(matrix.unassignedPortals).toEqual([
-      {
-        portalId: 'portal-grouped',
-        portalName: 'Front desk QR',
-        groupName: 'Front desk',
-        message: 'No Goal Programs assigned',
-      },
-      {
-        portalId: 'portal-new',
-        portalName: 'Lobby NFC',
-        groupName: null,
-        message: 'No Goal Programs assigned',
-      },
-    ])
+    expect(explanationOf('met')).toBe('Met: 64 private ratings, the goal was 60.')
+    expect(explanationOf('missed')).toBe('Not met: 31 private ratings, the goal was 40.')
+    expect(explanationOf('updating')).toBe('Updating: the final figure is on its way.')
+    expect(explanationOf('thin')).toBe('More ratings needed: 6 of 10.')
+    expect(JSON.stringify(matrix)).not.toMatch(
+      /verified|eligible|target is at least|Insufficient data/u,
+    )
+  })
+
+  it('lists no portal without a goal: a first visit shows nothing to fix', () => {
+    const matrix = buildGoalResultsMatrix({ ...catalogue, programs: [] })
+
+    expect(matrix).toEqual({ months: [] })
   })
 })

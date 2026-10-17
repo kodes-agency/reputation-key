@@ -26,76 +26,51 @@ type Props = Readonly<{
   personName: (userId: string) => string | null
 }>
 
+/**
+ * Each month's result of the Portal goals, newest month first. The Goals page
+ * draws it only once a goal has a month, so a first visit has nothing to read.
+ */
 export function GoalResultsMatrix({ matrix, now, personName }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle as="h2">Goal results matrix</CardTitle>
+        <CardTitle as="h2">Monthly results</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Monthly evidence for Property, Portal Group, and Portal goals. Each result keeps
-          its own measure and target.
+          Each month’s result for your portal goals.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
-        {matrix.months.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Monthly results will appear after the first assigned period begins.
-          </p>
-        ) : (
-          matrix.months.map((month) => (
-            <section
-              key={`${month.periodStart.toISOString()}:${month.periodEnd.toISOString()}`}
-            >
-              <h3 className="mb-2 text-sm font-medium">
-                {formatMonthYear(month.periodStart, month.propertyTimezone)}
-              </h3>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>Measure and evidence</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead>Data through</TableHead>
-                    <TableHead>Target source</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {month.rows.map((row) => (
-                    <MatrixRow
-                      key={row.resultId}
-                      row={row}
-                      timezone={month.propertyTimezone}
-                      now={now}
-                      personName={personName}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </section>
-          ))
-        )}
-        {matrix.unassignedPortals.length > 0 ? (
-          <section className="space-y-2 border-t pt-4">
-            <h3 className="text-sm font-medium">
-              Portals without a Portal-scoped Goal Program
+        {matrix.months.map((month) => (
+          <section
+            key={`${month.periodStart.toISOString()}:${month.periodEnd.toISOString()}`}
+          >
+            <h3 className="mb-2 text-sm font-medium">
+              {formatMonthYear(month.periodStart, month.propertyTimezone)}
             </h3>
-            <ul className="grid gap-2 text-sm sm:grid-cols-2">
-              {matrix.unassignedPortals.map((portal) => (
-                <li key={portal.portalId} className="rounded-md bg-muted/50 px-3 py-2">
-                  <span className="font-medium">{portal.portalName}</span>
-                  {portal.groupName ? (
-                    <span className="text-muted-foreground"> · {portal.groupName}</span>
-                  ) : (
-                    <span className="text-muted-foreground"> · Ungrouped portal</span>
-                  )}
-                  <span className="block text-xs text-muted-foreground">
-                    {portal.message}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Measure and evidence</TableHead>
+                  <TableHead>Result</TableHead>
+                  <TableHead>Data through</TableHead>
+                  <TableHead>Number</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {month.rows.map((row) => (
+                  <MatrixRow
+                    key={row.resultId}
+                    row={row}
+                    timezone={month.propertyTimezone}
+                    now={now}
+                    personName={personName}
+                  />
+                ))}
+              </TableBody>
+            </Table>
           </section>
-        ) : null}
+        ))}
       </CardContent>
     </Card>
   )
@@ -145,13 +120,6 @@ function MatrixRow({
           {row.targetProvenance.programName} · target{' '}
           {formatTarget(row.targetProvenance.targetValue, row.metric)}
         </span>
-        <span
-          className="block text-xs text-muted-foreground"
-          title={`Metric definition ${row.targetProvenance.metricDefinitionVersionId}`}
-        >
-          Program version {row.targetProvenance.programVersion} · Metric rules{' '}
-          {shortVersion(row.targetProvenance.metricDefinitionVersionId)}
-        </span>
         <span className="block text-xs text-muted-foreground">
           Effective {formatDate(row.targetProvenance.effectiveFrom, timezone)} · set on{' '}
           {formatShortDate(row.targetProvenance.setAt, timezone, now) ??
@@ -172,28 +140,25 @@ function MatrixRow({
   )
 }
 
+/** "64 scans", "64 private ratings", "4.6 from 12 ratings", "6 of 10 ratings so far". */
 function evidenceLabel(evidence: GoalResultsMatrixEvidence, metric: string): string {
   if (evidence.kind === 'average') {
     return evidence.value === null
-      ? `${evidence.sampleCount} eligible ratings · ${evidence.minimumSample} required`
-      : `${evidence.value.toFixed(1)} from ${evidence.sampleCount} eligible ratings`
+      ? `${evidence.sampleCount} of ${evidence.minimumSample} ratings so far`
+      : `${evidence.value.toFixed(1)} from ${evidence.sampleCount} ratings`
   }
   if (evidence.value === null) return 'No verified count available'
   return metric === 'qualified_scans'
-    ? `${evidence.value} verified qualified scans`
-    : `${evidence.value} eligible private ratings`
+    ? `${evidence.value} scans`
+    : `${evidence.value} private ratings`
 }
 
 function scopeLabel(row: GoalResultsMatrixRow): string {
   if (row.scope === 'property') return 'Property'
   if (row.scope === 'portal_group') return 'Portal group'
-  return row.ungroupedPortal ? 'Ungrouped portal' : 'Portal'
+  return 'Portal'
 }
 
 function formatTarget(value: number, metric: string): string {
   return metric === 'portal_rating_average' ? value.toFixed(1) : String(value)
-}
-
-function shortVersion(value: string): string {
-  return value.length > 12 ? `…${value.slice(-8)}` : value
 }

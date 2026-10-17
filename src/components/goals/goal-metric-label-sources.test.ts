@@ -46,7 +46,6 @@ function matrixOf(metric: GoalMetric): GoalResultsMatrixModel {
             scope: 'property',
             subject: { kind: 'property', propertyId: 'property-1' },
             subjectName: 'Riverside Hotel',
-            ungroupedPortal: false,
             metric,
             availability: 'ready',
             outcome: 'met',
@@ -68,7 +67,6 @@ function matrixOf(metric: GoalMetric): GoalResultsMatrixModel {
         ],
       },
     ],
-    unassignedPortals: [],
   }
 }
 
