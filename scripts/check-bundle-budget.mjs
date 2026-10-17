@@ -633,8 +633,13 @@
 // application/dto module is type-only and nothing in a route or component
 // imports it yet. Fresh production builds measured 307,564 B (75 js + 1 css) on
 // main 89ec42dbb and 307,564 B on the PR head, with the same entry file
-// (index-DuShRH77.js, 48,922 B): +0 B. vendor-charts 91,003 B (lazy). 136 B
-// spare under 307,700; the build's ceiling is 308,300 (owner, P-9).
+// (index-DuShRH77.js, 48,922 B): +0 B. vendor-charts 91,003 B (lazy). After the
+// review fixes (still server-side; the Results series takes its day helpers
+// from a new domain module), merged uncommitted onto main 54124cc10, which
+// carries PG-05 and PG-17, it measured 307,636 B, the same as that main, with
+// the same entry file (index-BmGamyjD.js, 48,945 B): +0 B. vendor-charts
+// 91,004 B (lazy). 64 B spare under 307,700; the build's ceiling is 308,300
+// (owner, P-9).
 //
 // 2026-10-17 (Inbox: urgent reviews stand out in the list): no raise. The
 // urgent row's tint is one new rule in the stylesheet (the negative tone's
