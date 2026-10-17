@@ -115,6 +115,7 @@ function setup(options: Options = {}) {
       nextCursor: null,
     }),
     listActivationsBetween: async () => [],
+    listActivationsForPortals: async () => [],
     listOpenPendingContentChanges: async () =>
       Array.from({ length: options.openChanges ?? 0 }, (_, index) => ({
         kind: 'portal_links' as const,

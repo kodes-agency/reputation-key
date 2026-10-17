@@ -89,6 +89,18 @@ export type PortalPublicationRepository = Readonly<{
       Readonly<{ version: number; kind: 'publish' | 'rollback'; activatedAt: Date }>
     >
   >
+  /**
+   * For several Portals of one Organization in one read, ordered by Portal and
+   * sequence: the activations that bound each run, over the Portal's whole
+   * history. That is each Portal's first activation, every one a disable or an
+   * archive closed, the one after each of those, and the open one. No time
+   * bound: a Portal has as many rows as it has runs, about two each. Enough for
+   * `liveRunStart` and `liveIntervals`, however long ago the run began.
+   */
+  listActivationsForPortals: (
+    organizationId: OrganizationId,
+    portalIds: readonly PortalId[],
+  ) => Promise<readonly PortalPublicationActivation[]>
   listOpenPendingContentChanges?: (
     organizationId: OrganizationId,
     propertyId: PropertyId,

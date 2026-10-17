@@ -115,6 +115,7 @@ import type { GuestSurface } from '../domain/portal-publication-snapshot'
 import type { PortalAccessArtifactChannel } from '../domain/portal-access-artifact'
 import type { PortalHealthReason, PortalHealthStatus } from '../domain/portal-health'
 import type { PortalContactRequestManagerAuthorityFacts } from './use-cases/portal-contact-request-authority'
+import type { GoalReadinessFacts } from './goal-readiness-facts'
 import type { AiReplyBrandProfile } from '#/shared/ai-reply-brand-profile'
 import type { Tx } from '#/shared/outbox/commit'
 
@@ -375,6 +376,16 @@ export type PortalPublicApi = Readonly<{
       Readonly<{ version: number; kind: 'publish' | 'rollback'; activatedAt: Date }>
     >
   >
+  /**
+   * What the Monthly portal goal needs about a Property's Portals: live since
+   * and live intervals, code, marker and group, for every non-archived Portal in
+   * name order, at most 100. No content; the caller has already authorized.
+   */
+  listGoalReadinessFacts: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    asOf: Date,
+  ) => Promise<GoalReadinessFacts>
   /** Current assigned managers, revalidated against role and current Property access. */
   getResponsibleManagerUserIds: (
     orgId: OrganizationId,

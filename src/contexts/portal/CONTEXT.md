@@ -14,6 +14,14 @@ assignment, and governed access artifacts.
 - Guest resolves public Portal data through `PortalPublicApi`; Goal reads group
   membership and a group's name through `PortalGroupPublicApi`. Portal does not
   read their stores.
+- Reporting's Monthly portal goal reads `listGoalReadinessFacts(org, property, asOf)`
+  on `PortalPublicApi` (`application/goal-readiness-facts.ts`): every non-archived,
+  non-deleted Portal of the Property in name order, at most 100 (`truncated` says
+  there were more), each with its publication state, `liveSince`, the live
+  intervals that overlap the last 60 days, when its current code was made, whether
+  that code's QR or NFC marker is published (`codeReady`, the scan-goal rule) and
+  its group. Names, states, identifiers and instants only. It checks no permission:
+  Reporting's use case authorizes `goal.create` under `goal.use` before it calls it.
 - Retained `entityType`/`entityId` values may reference historical Team or Staff rows for reconciliation. They never change Property ownership, authorization, grouping, or notification responsibility.
 - AI Reply Brand Authority is content-minimal. Generation may read only the exact display name, profile version, and derived display-name digest; transaction-bound callers receive only a boolean exact-current answer. Image URLs, colors, localized content, Portal overrides, links, Guest ratings, and Private Feedback are never exposed through it.
 - Responsible-manager assignment never grants property access, portal access, or staff attribution.
@@ -38,6 +46,20 @@ the builder, the publish transaction's comparison and the history read. Version
 Activations are append-only effective-dated routes from a stable token to one
 snapshot; publish, republish and rollback append activations, while disable/archive
 close one. Groups remain Property-scoped, and one Portal has at most one active group.
+
+A **live run** is an unbroken stretch of being live (`domain/portal-live-run.ts`).
+Publishing starts one; a republish or a rollback closes the live activation as
+`replaced` and opens the next, so the run goes on; a disable or an archive (and an
+Organization closing, which closes as `disabled`) ends it, and the next publication
+starts a new one. `liveRunStart` is when the current run began (null when the Portal
+is not live): the day it "went live", however often it was republished since.
+`liveIntervals` lists the runs that overlap a window, clipped to it; a run closed at
+its own start (an Organization closing can write one) gives none. The rule needs
+only the activations that bound each run (its first, the one that closed it and the
+open one), so `listActivationsForPortals` reads only those, over the Portal's whole
+history, about two rows a run, in one statement for many Portals on
+`portal_publication_activations_portal_sequence_unique`. A `published` state is not
+live by itself (an Organization closing keeps it): readers decide from `liveSince`.
 
 Archive is the Portal's removal, so it asks `portal.delete` (an AccountAdmin), the
 permission the Portals pages offer Archive on and the one a group's archive asks.
