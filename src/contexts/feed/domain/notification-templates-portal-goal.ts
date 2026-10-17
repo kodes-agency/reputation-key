@@ -113,7 +113,7 @@ const noticeCopy = (
 ): PortalGoalNoticeCopy => ({
   title,
   body: sentence(statement, markerClause(p), statement === '' ? OPEN_FOR_NUMBERS : ''),
-  // The row under the title states the month; the marker stays in the body.
+  // The row under the title states the figures; the marker stays in the body.
   detail: statement,
   actionLabel: SEE_THE_GOAL,
   // Email's facts line names the Property; a digest drops it under the
