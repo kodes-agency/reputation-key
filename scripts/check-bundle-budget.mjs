@@ -592,7 +592,8 @@
 // the other goal commands on demand, and every class it uses was already in the
 // stylesheet (byte for byte the same, 27,781 B). Fresh production builds
 // measured 307,517 B (75 js + 1 css) on D-2's head e9810d689 and 307,512 B after
-// the components commit: -5 B. 188 B spare.
+// the components commit: -5 B. Rebased onto D-2b (main 44e873b2b, 307,518 B)
+// it measured 307,530 B: +12 B, the check-in beside the low reviews. 170 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
