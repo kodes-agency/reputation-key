@@ -41,8 +41,9 @@ export type GoalProgramVersion = Readonly<{
   /**
    * Where the version's number came from (migration 0062). Absent, or null,
    * when the command that wrote it did not say: every version written before
-   * 0062, by an old web server, or by a command that does not ask. A read
-   * names it only when one was stored.
+   * 0062, by an old web server, or by a command that does not ask. A version
+   * that keeps its head's number, as a subject change does, keeps its source.
+   * A read names it only when one was stored.
    */
   targetSource?: GoalTargetSource | null
 }>

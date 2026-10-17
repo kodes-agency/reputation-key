@@ -34,6 +34,8 @@ export const changeGoalMonthTargetSchema = z.object({
   // Optional, and stored with the change only when one was written.
   note: z.string().trim().max(500).optional(),
   // Where the new target came from (migration 0062); omitted, none is stored.
+  // It records what the form said: nothing here checks it against a
+  // recommendation.
   targetSource: z.enum(['recommended', 'own']).optional(),
 })
 

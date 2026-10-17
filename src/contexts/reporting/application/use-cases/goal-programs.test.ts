@@ -1661,6 +1661,29 @@ describe('canonical Goal Program service', () => {
       ])
     })
 
+    it('a subject change keeps the number and where it came from', async () => {
+      const { revise, addPortal, revisions, setNow } = await scansGoal()
+      setNow(MID_MARCH)
+
+      await revise({ targetSource: 'own' })
+      await addPortal(2, 2)
+      await revise({ targetValue: 140 })
+      await addPortal(3, 4)
+
+      expect(
+        revisions().map(([{ version }]) => [
+          version.changeReason,
+          version.targetValue,
+          version.targetSource,
+        ]),
+      ).toEqual([
+        ['revised', 120, 'own'],
+        ['subjects_changed', 120, 'own'],
+        ['revised', 140, undefined],
+        ['subjects_changed', 140, undefined],
+      ])
+    })
+
     it('a status change without a note stores no status reason', async () => {
       const { service, repository, created } = await scansGoal()
       const changeStatus = (status: 'paused' | 'active', reason?: string) =>
