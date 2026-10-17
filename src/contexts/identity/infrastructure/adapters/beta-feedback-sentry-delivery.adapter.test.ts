@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeedbackCaptureParams } from '#/shared/observability/telemetry'
+import { scrubSentryTags } from '#/shared/observability/sentry-event-scrub'
 import type { BetaFeedbackInput } from '#/shared/beta-feedback-contract'
 
 const captured = vi.hoisted(() => ({ params: [] as FeedbackCaptureParams[] }))
@@ -22,7 +23,24 @@ const WEBP_BYTES = Uint8Array.from([
   ...[...'WEBPVP8 '].map((c) => c.charCodeAt(0)),
 ])
 
-function report(screenshot: BetaFeedbackInput['screenshot']): BetaFeedbackInput {
+const WEBP_SCREENSHOT: NonNullable<BetaFeedbackInput['screenshot']> = {
+  mediaType: 'image/webp',
+  base64: Buffer.from(WEBP_BYTES).toString('base64'),
+}
+
+/** The opaque id of an error the browser recorded, as the contract pins it. */
+const RECORDED_ERROR = 'e'.repeat(32)
+
+const MASKED_LAYOUT: NonNullable<BetaFeedbackInput['maskedLayout']> = {
+  width: 1280,
+  height: 800,
+  boxes: [{ x: 0, y: 0, w: 320, h: 48, role: 'heading' }],
+}
+
+function report(
+  screenshot: BetaFeedbackInput['screenshot'],
+  maskedLayout: BetaFeedbackInput['maskedLayout'] = null,
+): BetaFeedbackInput {
   return {
     kind: 'bug',
     impact: 'small_issue',
@@ -30,7 +48,7 @@ function report(screenshot: BetaFeedbackInput['screenshot']): BetaFeedbackInput 
     routePath: '/inbox',
     viewport: 'wide',
     clientErrorEventId: null,
-    maskedLayout: null,
+    maskedLayout,
     screenshot,
   }
 }
@@ -49,10 +67,10 @@ describe('beta feedback delivery to monitoring', () => {
   })
 
   it('sends an attached screenshot as an image file of the report', () => {
-    const base64 = Buffer.from(WEBP_BYTES).toString('base64')
+    const { base64 } = WEBP_SCREENSHOT
 
     const result = deliverBetaFeedback({
-      data: report({ mediaType: 'image/webp', base64 }),
+      data: report(WEBP_SCREENSHOT),
       actor,
       reporter,
       hmacSecret: 'secret',
@@ -106,5 +124,80 @@ describe('beta feedback delivery to monitoring', () => {
     })
 
     expect(captured.params[0]).not.toHaveProperty('reporter')
+  })
+})
+
+describe('beta feedback attachment tags', () => {
+  beforeEach(() => {
+    captured.params.length = 0
+  })
+
+  function sentTags(data: BetaFeedbackInput): Readonly<Record<string, string>> {
+    deliverBetaFeedback({
+      data,
+      actor,
+      reporter: null,
+      hmacSecret: 'secret',
+      reference: '00000000-0000-4000-8000-000000000010',
+    })
+    const tags = captured.params[0]?.tags
+    if (!tags) throw new Error('nothing was sent to monitoring')
+    return tags
+  }
+
+  // Each case pins all three tags: `feedback_attachment` and its retention
+  // keep meaning the masked layout alone, so saved searches still match.
+  it.each([
+    {
+      carries: 'a screenshot only',
+      data: report(WEBP_SCREENSHOT),
+      tags: {
+        feedback_screenshot: 'attached',
+        feedback_attachment: 'none',
+        feedback_attachment_retention: 'not_applicable',
+      },
+    },
+    {
+      carries: 'a masked layout only',
+      data: report(null, MASKED_LAYOUT),
+      tags: {
+        feedback_screenshot: 'none',
+        feedback_attachment: 'masked_layout_v1',
+        feedback_attachment_retention: 'expires_30d',
+      },
+    },
+    {
+      carries: 'a screenshot and a masked layout',
+      data: report(WEBP_SCREENSHOT, MASKED_LAYOUT),
+      tags: {
+        feedback_screenshot: 'attached',
+        feedback_attachment: 'masked_layout_v1',
+        feedback_attachment_retention: 'expires_30d',
+      },
+    },
+    {
+      carries: 'neither',
+      data: report(null),
+      tags: {
+        feedback_screenshot: 'none',
+        feedback_attachment: 'none',
+        feedback_attachment_retention: 'not_applicable',
+      },
+    },
+  ])('tags a report that carries $carries', ({ data, tags }) => {
+    expect(sentTags(data)).toMatchObject(tags)
+  })
+
+  it('sends only tags the monitoring scrubber keeps', () => {
+    // The scrubber drops any tag key it does not allow, so a key missing from
+    // its list would be sent and silently lost. A report carrying every
+    // optional part fills every tag with a value of its own.
+    const tags = sentTags({
+      ...report(WEBP_SCREENSHOT, MASKED_LAYOUT),
+      clientErrorEventId: RECORDED_ERROR,
+    })
+
+    expect(tags.feedback_client_error).toBe(RECORDED_ERROR)
+    expect(scrubSentryTags(tags)).toEqual(tags)
   })
 })
