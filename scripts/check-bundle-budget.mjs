@@ -669,7 +669,8 @@
 // stories, a metrics file) change no client module; the branch was measured
 // once more on main 89ec42dbb (PG-04 as #854, then #855, PG-06 #859 and #857)
 // without rebasing it: main 307,564 B, PG-17 applied 307,634 B, +70 B, the
-// stylesheet 27,811 B on both. 66 B spare under 307,700; no raise.
+// stylesheet 27,811 B on both. Rebased onto PG-05 (main f764b7b88) it
+// measured 307,636 B. 64 B spare under 307,700; no raise.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
