@@ -17,8 +17,9 @@
 //   4. a 2★ review after the set is named in "What moved you" with what it set
 //      the goal back, and its link opens its Inbox item; an expired 1★ review
 //      since the set is not named (D-2b, the owner’s exception);
-//   5. a goal set 15 days ago gets the Monday check-in: the owner keeps the
-//      pace, and it is gone after a reload and for manager-one; asked again,
+//   5. a goal set 15 days ago gets the Monday check-in, on manager-one's
+//      Overview too: the owner keeps the pace, and it is gone after a reload
+//      and, reloaded, from manager-one's Overview; asked again,
 //      the owner raises the pace: a pace row in the change log, and the goal
 //      is getting started again (Q3).
 //
@@ -327,6 +328,22 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
         WHERE organization_id = $1 AND property_id = $2 AND status = 'active'`,
       [seed.organizationId, propertyId],
     )
+    // manager-one sees the same check-in on the Overview before anyone answers it.
+    const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
+    const onePage = await oneContext.newPage()
+    await signIn(
+      onePage,
+      seed.onePropertyManagerEmail,
+      seed.boundedManagerPassword,
+      BASE_ORIGIN,
+    )
+    await onePage.goto(`/properties/${propertyId}`)
+    await expect(
+      onePage
+        .getByRole('region', { name: 'Last week' })
+        .getByRole('button', { name: 'Keep 1 a day' }),
+    ).toBeVisible()
+
     await signIn(page)
     await page.goto(`/properties/${propertyId}/goals`)
     const recap = page.getByRole('region', { name: 'Last week' })
@@ -341,15 +358,8 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     ).toBeVisible()
     await expect(page.getByRole('region', { name: 'Last week' })).toHaveCount(0)
 
-    const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
-    const onePage = await oneContext.newPage()
-    await signIn(
-      onePage,
-      seed.onePropertyManagerEmail,
-      seed.boundedManagerPassword,
-      BASE_ORIGIN,
-    )
-    await onePage.goto(`/properties/${propertyId}`)
+    // The owner's Keep answered it for manager-one too.
+    await onePage.reload()
     await expect(
       onePage.getByRole('heading', { level: 2, name: 'Google rating goal' }),
     ).toBeVisible()
