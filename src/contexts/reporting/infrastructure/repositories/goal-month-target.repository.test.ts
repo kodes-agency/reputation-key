@@ -384,6 +384,72 @@ describe.sequential('Goal month target repository (integration)', () => {
     })
   })
 
+  it('a month change stores its source, as does the version it writes for the months after', async () => {
+    const sourced = await createProgram(organizationId, [thisMonth])
+    const unsourced = await createProgram(organizationId, [thisMonth])
+    const revision = followingRevision(sourced, 300)
+    const sourceOf = async (goal: GoalProgramBundle) => {
+      const scope = [
+        goal.program.organizationId,
+        goal.program.propertyId,
+        goal.program.id,
+      ]
+      const logged = await client.query(
+        `SELECT target_source FROM goal_month_target_changes
+         WHERE organization_id = $1 AND property_id = $2 AND program_id = $3`,
+        scope,
+      )
+      const versions = await client.query(
+        `SELECT version, target_source FROM goal_program_versions
+         WHERE organization_id = $1 AND property_id = $2 AND program_id = $3
+         ORDER BY version`,
+        scope,
+      )
+      return { logged: logged.rows, versions: versions.rows }
+    }
+
+    await expect(
+      repository.changeMonthTarget(
+        changeOf(sourced, {
+          following: {
+            outcome: 'applied',
+            reason: null,
+            revision: {
+              ...revision,
+              version: { ...revision.version, targetSource: 'recommended' },
+            },
+          },
+          targetSource: 'recommended',
+        }),
+      ),
+    ).resolves.toBe('changed')
+    await expect(repository.changeMonthTarget(changeOf(unsourced))).resolves.toBe(
+      'changed',
+    )
+
+    await expect(sourceOf(sourced)).resolves.toEqual({
+      logged: [{ target_source: 'recommended' }, { target_source: 'recommended' }],
+      versions: [
+        { version: 1, target_source: null },
+        { version: 2, target_source: 'recommended' },
+      ],
+    })
+    await expect(sourceOf(unsourced)).resolves.toEqual({
+      logged: [{ target_source: null }, { target_source: null }],
+      versions: [{ version: 1, target_source: null }],
+    })
+    const read = await repository.get(
+      sourced.program.organizationId,
+      sourced.program.propertyId,
+      sourced.program.id,
+    )
+    expect(read?.targetChanges?.map((change) => change.targetSource)).toEqual([
+      'recommended',
+      'recommended',
+    ])
+    expect(read?.version.targetSource).toBe('recommended')
+  })
+
   it('a month put back on its version’s target stores none of its own, and both changes stay logged', async () => {
     const goal = await createProgram(organizationId, [thisMonth])
     await repository.changeMonthTarget(changeOf(goal))

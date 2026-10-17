@@ -74,6 +74,17 @@ const PROGRAM_VERSION_COLUMNS = [
   'created_at',
 ] as const
 
+/**
+ * What a Program gained after goal/programs.csv first shipped (migration
+ * 0062): the month whose check-in a manager kept, and who ended it when. Each
+ * version gained where its number came from. They are exported like every
+ * other column but named at the end of the file's heading (see the programs
+ * family below), as the results file's late column is, so no earlier column
+ * changes position.
+ */
+const PROGRAM_LATE_COLUMNS = ['check_in_answered_month', 'ended_at', 'ended_by'] as const
+const PROGRAM_VERSION_LATE_COLUMNS = ['target_source'] as const
+
 const SUBJECT_ASSIGNMENT_COLUMNS = [
   'id',
   'program_id',
@@ -137,6 +148,20 @@ const MONTH_TARGET_CHANGE_COLUMNS = [
   'note',
   'created_by',
   'created_at',
+] as const
+
+/** Where a change's new number came from (migration 0062), last in the heading. */
+const MONTH_TARGET_CHANGE_LATE_COLUMNS = ['target_source'] as const
+
+/**
+ * A manager's "Not now" for a Property's Monthly portal goal on the Overview:
+ * the month it was chosen for, who chose it and when (migration 0062).
+ */
+const PORTAL_GOAL_NOT_NOW_COLUMNS = [
+  'property_id',
+  'month',
+  'deferred_by',
+  'deferred_at',
 ] as const
 
 /**
@@ -351,7 +376,10 @@ async function readFamilies(
               current_version,
               created_by,
               to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
+              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at,
+              check_in_answered_month,
+              to_char(ended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS ended_at,
+              ended_by
             FROM goal_programs
             WHERE organization_id = ${organizationId}
             ORDER BY property_id, created_at, id`,
@@ -373,7 +401,8 @@ async function readFamilies(
               to_char(effective_to AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS effective_to,
               change_reason,
               created_by,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
+              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
+              target_source
             FROM goal_program_versions
             WHERE organization_id = ${organizationId}
             ORDER BY program_id, version`,
@@ -470,7 +499,8 @@ async function readFamilies(
               following_version_id,
               note,
               created_by,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
+              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
+              target_source
             FROM goal_month_target_changes
             WHERE organization_id = ${organizationId}
             ORDER BY program_id, monthly_result_id, created_at, id`,
@@ -536,22 +566,56 @@ async function readFamilies(
             WHERE organization_id = ${organizationId}
             ORDER BY property_id`,
       )
+      // A Property's "Not now" for its Monthly portal goal on the Overview.
+      const portalGoalNotNow = await readRows(
+        snapshot,
+        sql`SELECT
+              property_id,
+              month,
+              deferred_by,
+              to_char(deferred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS deferred_at
+            FROM portal_goal_prompt_deferrals
+            WHERE organization_id = ${organizationId}
+            ORDER BY property_id`,
+      )
 
       // Declared in ascending path order so the emitted entries already agree
       // with the archive's UTF-8 byte ordering.
       return [
+        {
+          name: 'portal-goal-not-now',
+          collections: [
+            {
+              recordType: 'portal_goal_not_now',
+              columns: PORTAL_GOAL_NOT_NOW_COLUMNS,
+              records: projectRows(portalGoalNotNow, PORTAL_GOAL_NOT_NOW_COLUMNS),
+            },
+          ],
+        },
         {
           name: 'programs',
           collections: [
             {
               recordType: 'goal_program',
               columns: PROGRAM_COLUMNS,
-              records: projectRows(programs, PROGRAM_COLUMNS),
+              records: projectRows(programs, [
+                ...PROGRAM_COLUMNS,
+                ...PROGRAM_LATE_COLUMNS,
+              ]),
             },
             {
               recordType: 'goal_program_version',
-              columns: PROGRAM_VERSION_COLUMNS,
-              records: projectRows(programVersions, PROGRAM_VERSION_COLUMNS),
+              // As in the results file: the late columns are named after this
+              // last record type's own, so they close the heading.
+              columns: [
+                ...PROGRAM_VERSION_COLUMNS,
+                ...PROGRAM_LATE_COLUMNS,
+                ...PROGRAM_VERSION_LATE_COLUMNS,
+              ],
+              records: projectRows(programVersions, [
+                ...PROGRAM_VERSION_COLUMNS,
+                ...PROGRAM_VERSION_LATE_COLUMNS,
+              ]),
             },
           ],
         },
@@ -596,8 +660,15 @@ async function readFamilies(
               // `columns` only orders the CSV heading, which names each record
               // type's columns in turn. Naming the month's late column after
               // this last record type's own puts it at the end of the file.
-              columns: [...MONTH_TARGET_CHANGE_COLUMNS, ...MONTHLY_RESULT_LATE_COLUMNS],
-              records: projectRows(monthTargetChanges, MONTH_TARGET_CHANGE_COLUMNS),
+              columns: [
+                ...MONTH_TARGET_CHANGE_COLUMNS,
+                ...MONTHLY_RESULT_LATE_COLUMNS,
+                ...MONTH_TARGET_CHANGE_LATE_COLUMNS,
+              ],
+              records: projectRows(monthTargetChanges, [
+                ...MONTH_TARGET_CHANGE_COLUMNS,
+                ...MONTH_TARGET_CHANGE_LATE_COLUMNS,
+              ]),
             },
           ],
         },
@@ -624,7 +695,8 @@ async function readFamilies(
  * Portal Group, and Portal subject assignments, and every monthly result with
  * its own target (when it has one), its revision chain, and the log of changes
  * to its target. It also exports each Property's Google rating goals and the
- * log of changes to their target, pace and mode.
+ * log of changes to their target, pace and mode, and each Property's "Not now"
+ * for its Monthly portal goal.
  *
  * It reads no metric table: a Goal result carries its own value, sample count,
  * state, and completeness evidence, while Metric stays the single owner of

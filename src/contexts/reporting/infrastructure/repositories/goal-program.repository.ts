@@ -448,6 +448,11 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             status: input.status,
             statusReason: input.reason,
             updatedAt: input.at,
+            // Who ended the goal and when (migration 0062). Ended is final, so
+            // no other transition clears them.
+            ...(input.status === 'ended'
+              ? { endedAt: input.at, endedBy: input.actorId }
+              : {}),
           })
           .where(
             and(

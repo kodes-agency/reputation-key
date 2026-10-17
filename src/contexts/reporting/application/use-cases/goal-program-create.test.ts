@@ -160,4 +160,27 @@ describe('createGoalCore', () => {
     expect(fakes.metrics.queryGoalMetric).not.toHaveBeenCalled()
     expect(fakes.repository.create).not.toHaveBeenCalled()
   })
+
+  it('writes where the number came from on the first version, and none when not told', async () => {
+    const { fakes, deps } = setup()
+    const start = { now: MID_MARCH, period: UTC_MARCH }
+
+    await createGoalCore(
+      deps,
+      { ...definition, targetSource: 'recommended' },
+      actor,
+      start,
+    )
+    await createGoalCore(
+      deps,
+      { ...definition, subjects: [{ kind: 'portal', portalId: 'portal-2' }] },
+      actor,
+      start,
+    )
+
+    const written = fakes.repository.create.mock.calls.map(
+      ([input]) => input.bundle.version.targetSource,
+    )
+    expect(written).toEqual(['recommended', undefined])
+  })
 })

@@ -42,6 +42,13 @@ export const goalPrograms = pgTable(
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
+    // The `YYYY-MM` month whose month-start check-in a manager answered with
+    // Keep (migration 0062). It moves no version and logs no change.
+    checkInAnsweredMonth: varchar('check_in_answered_month', { length: 7 }),
+    // Who ended the goal and when (migration 0062): both or neither, and only
+    // on an ended goal. Neither on a goal ended before 0062 or by an old web.
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endedBy: varchar('ended_by', { length: 255 }),
   },
   (t) => [
     unique('goal_programs_org_property_id_key').on(t.organizationId, t.propertyId, t.id),
@@ -60,6 +67,14 @@ export const goalPrograms = pgTable(
     check(
       'goal_programs_status_check',
       sql`${t.status} IN ('scheduled', 'active', 'paused', 'ended')`,
+    ),
+    check(
+      'goal_programs_check_in_answered_month_check',
+      sql`${t.checkInAnsweredMonth} IS NULL OR ${t.checkInAnsweredMonth} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    check(
+      'goal_programs_ended_record_check',
+      sql`(${t.endedAt} IS NULL) = (${t.endedBy} IS NULL) AND (${t.endedAt} IS NULL OR ${t.status} = 'ended')`,
     ),
   ],
 )
@@ -87,6 +102,9 @@ export const goalProgramVersions = pgTable(
     changeReason: text('change_reason').notNull(),
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     createdAt: createdAtColumn(),
+    // Where the version's number came from (migration 0062): `recommended` or
+    // `own`; NULL when the command that wrote it did not say.
+    targetSource: varchar('target_source', { length: 16 }),
   },
   (t) => [
     unique('goal_program_versions_program_version_key').on(t.programId, t.version),
@@ -160,6 +178,10 @@ export const goalProgramVersions = pgTable(
     check(
       'goal_program_versions_reason_check',
       sql`length(btrim(${t.changeReason})) > 0`,
+    ),
+    check(
+      'goal_program_versions_target_source_check',
+      sql`${t.targetSource} IS NULL OR ${t.targetSource} IN ('recommended', 'own')`,
     ),
   ],
 )
@@ -473,6 +495,9 @@ export const goalMonthTargetChanges = pgTable(
     note: text('note'),
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     createdAt: createdAtColumn(),
+    // Where the new number came from (migration 0062): `recommended` or `own`;
+    // NULL when the command that wrote it did not say.
+    targetSource: varchar('target_source', { length: 16 }),
   },
   (t) => [
     unique('goal_month_target_changes_change_result_key').on(
@@ -525,6 +550,10 @@ export const goalMonthTargetChanges = pgTable(
     check(
       'goal_month_target_changes_value_check',
       sql`${t.newTargetValue} > 0 AND ${t.newTargetValue} <> ${t.previousTargetValue}`,
+    ),
+    check(
+      'goal_month_target_changes_target_source_check',
+      sql`${t.targetSource} IS NULL OR ${t.targetSource} IN ('recommended', 'own')`,
     ),
   ],
 )
@@ -716,5 +745,36 @@ export const propertyRatingGoalDeferrals = pgTable(
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('cascade'),
+  ],
+)
+
+// "Not now" on the Overview's ready prompt for a Property's Monthly portal goal
+// (ADR 0068; migration 0062): a manager chose not to set one for `month`, the
+// `YYYY-MM` month the prompt offered, so the Overview stops offering it until a
+// later month. One row per Property, written by Reporting's "Not now" command
+// and never by a goal. Disposable decision state with no content, as the
+// Google rating goal's "Not now" above: its one reference, the Property within
+// its Organization, cascades with the Property, and the Organization purge
+// deletes the rows with the rest of the Goal family.
+export const portalGoalPromptDeferrals = pgTable(
+  'portal_goal_prompt_deferrals',
+  {
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').primaryKey(),
+    month: varchar('month', { length: 7 }).notNull(),
+    deferredBy: varchar('deferred_by', { length: 255 }).notNull(),
+    deferredAt: timestamp('deferred_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index('portal_goal_prompt_deferrals_org_idx').on(t.organizationId),
+    foreignKey({
+      name: 'portal_goal_prompt_deferrals_property_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
+    check(
+      'portal_goal_prompt_deferrals_month_check',
+      sql`${t.month} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`,
+    ),
   ],
 )

@@ -28,7 +28,13 @@ metric authority.
   the retraction of its own reading. The key `<fact id>:retract` of the earlier code, one
   for the first reading only, is still read.
 - **Goal Program**: versioned monthly target over an approved metric and subject set. A month
-  still running can carry its own target; once its period ends that target is locked.
+  still running can carry its own target; once its period ends that target is locked. A
+  version and a month target change keep where their number came from (`target_source`:
+  `recommended` or `own`, none when the command was not told), and an ended Program who ended
+  it and when (`ended_at`, `ended_by`, none for an end before migration 0062). The month whose
+  check-in a manager kept (`check_in_answered_month`) and the Overview's "Not now" for a
+  Monthly portal goal (`portal_goal_prompt_deferrals`, one row per Property, cascading with it)
+  are kept for the Monthly portal goal (ADR 0068).
 - **Goal monthly result**: evaluation head with append-only revision evidence.
 - **Goal progress**: the live month to date of the goals that target one subject (a Portal
   Group's goal card), read through the Program list's own authorisation and visibility and
