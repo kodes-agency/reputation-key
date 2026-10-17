@@ -109,13 +109,15 @@ export type { ReviewServingStats } from './ports/serving-stats.port'
 // and star sums through this Review-owned port (eligibility enforced here).
 export type {
   GoogleRatingDayCount,
+  GoogleRatingHistory,
   GoogleRatingMonthTotals,
   GoogleRatingStarCount,
   GoogleRatingSummary,
   GoogleRatingSummaryRequest,
   GoogleRatingTotals,
-  GoogleRatingWeekCount,
+  GoogleRatingWeekHistory,
   GoogleRatingYearTotals,
+  GoogleShownNumber,
   ReviewGoogleRatingReads,
 } from './ports/google-rating-reads.port'
 export type {

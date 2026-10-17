@@ -21,6 +21,7 @@ import {
   shortArrival,
 } from './rating-goal-arrival-words'
 import { RatingGoalCardHeader } from './rating-goal-card-header'
+import { RatingGoalClimbHeadline } from './rating-goal-climb-headline'
 import { PLAN_POLICY_LINE } from './rating-goal-copy'
 import { RatingGoalLadder } from './rating-goal-ladder'
 import { RatingGoalSlots } from './rating-goal-slots'
@@ -28,7 +29,6 @@ import { RatingGoalThisWeek } from './rating-goal-this-week'
 import {
   firstStepText,
   goalLineText,
-  headlineOf,
   narrowWeekLine,
   rungsOf,
   slotCount,
@@ -54,27 +54,12 @@ const QUIET = 'text-sm text-muted-foreground'
 /** Drawn only on a card at least 48rem wide (D2); a narrower one is D4's short card. */
 const WIDE_ONLY = 'hidden @3xl:block'
 
-/** "18 new reviews to 4.1", the figure large; or "Google should show 4.1 soon". */
-function Headline({ card }: Pick<Props, 'card'>) {
-  const headline = headlineOf(card)
-  if (headline === null) return null
-  if (headline.kind === 'soon') {
-    return <p className="text-2xl font-semibold">{headline.text}</p>
-  }
-  return (
-    <p className="text-2xl leading-tight font-semibold">
-      <span className="tabular-nums">{headline.count}</span> {headline.words}{' '}
-      <span className="text-link tabular-nums">{headline.target}</span>
-    </p>
-  )
-}
-
 /** Stale numbers: the headline as of their day, and why the goal waits. */
 function Waiting({ card, timezone, now }: Omit<Props, 'propertyId'>) {
   const asOf = googleShows(card.google, timezone, now).asOf
   return (
     <>
-      <Headline card={card} />
+      <RatingGoalClimbHeadline card={card} />
       {asOf === null ? null : <p className={QUIET}>{asOf}</p>}
       <p className={QUIET}>{waitingSentence(card.google, timezone, now)}</p>
     </>
@@ -95,7 +80,7 @@ function Climb({ card }: Pick<Props, 'card'>) {
   const possible = possibleSentence(card)
   return (
     <>
-      <Headline card={card} />
+      <RatingGoalClimbHeadline card={card} />
       <RatingGoalSlots count={slotCount(card)} />
       {soon === null ? null : <p className="text-sm">{soon}</p>}
       {goal === null ? null : <p className={QUIET}>{goal}</p>}

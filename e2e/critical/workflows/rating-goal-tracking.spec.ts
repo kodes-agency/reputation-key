@@ -1,6 +1,7 @@
-// Round 5 of the Google rating goal (PLAN-D D-1): the card that counts the new
-// reviews to the next number Google can show, on the Goals page and on the
-// Property Overview, for the people who may see it and for no one else.
+// Round 5 of the Google rating goal (PLAN-D D-1, D-2): the card that counts the
+// new reviews to the next number Google can show, on the Goals page and on the
+// Property Overview, and the detail page one click from it (mock D3), for the
+// people who may see them and for no one else.
 //
 // Journeys:
 //   1. the owner sets a goal (the setup's own command) and sees the card on the
@@ -8,7 +9,10 @@
 //      empty squares, the ladder and when it arrives;
 //   2. manager-one (granted the Property) sees the same card; manager-zero (no
 //      grant: `scope_denied`) and the staff Member (`beta_role_inactive`) are
-//      refused the card read.
+//      refused the card read;
+//   3. the owner opens the detail: the headline, "The climb, step by step" with
+//      its chart, "Your plan, so far" and "What moved you" ending in the set's
+//      row; both goals pages pass the axe scan.
 //
 // The seed's Properties have no Google binding, so a goal on them only ever
 // waits for Google. This spec seeds its own bound Property (prefix `e2e-rg-`)
@@ -35,6 +39,7 @@ import {
   seedReview,
 } from '../../helpers/fixtures'
 import { requireE2eSeedState } from '../../helpers/seed-state'
+import { assertNoAxeViolations } from '../../helpers/a11y'
 
 const PREFIX = 'e2e-rg-'
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
@@ -202,5 +207,34 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
       expect(error.code).toBe(refusal)
       await context.close()
     }
+  })
+
+  test('the owner opens the detail: the climb, the plan so far and what moved it', async ({
+    page,
+  }) => {
+    await signIn(page)
+    await page.goto(`/properties/${propertyId}/goals`)
+    await expectClimbCard(page, propertyId)
+    await assertNoAxeViolations(page, 'Goals page with the rating goal card')
+
+    await page.goto(`/properties/${propertyId}/goals/google-rating`)
+    const detail = page.locator('[data-slot="rating-goal-detail"]')
+    await expect(detail.getByText('2 new reviews to 4.0', { exact: true })).toBeVisible()
+    await expect(
+      detail.getByRole('heading', { level: 2, name: 'The climb, step by step' }),
+    ).toBeVisible()
+    // The chart is a chunk of its own, drawn after the words.
+    await expect(
+      detail.getByRole('img', { name: 'The climb, step by step' }),
+    ).toBeVisible({ timeout: 15_000 })
+    await expect(detail.getByRole('region', { name: 'Your plan, so far' })).toBeVisible()
+    const moved = detail
+      .locator('[data-slot="card"]')
+      .filter({ has: page.getByRole('heading', { name: 'What moved you' }) })
+    await expect(moved.getByText(/set the goal: 4\.0 at 1 a day$/u)).toBeVisible()
+    await expect(
+      moved.getByText('Owners and managers only', { exact: false }),
+    ).toBeVisible()
+    await assertNoAxeViolations(page, 'the rating goal detail (/goals/google-rating)')
   })
 })

@@ -26,10 +26,6 @@ const withinThreeYears = (days: RatingFraction): boolean =>
 const beyondThreeYears = (arrival: DaysArrival): boolean =>
   !withinThreeYears(arrival.central)
 
-/** "in about 3 months, likely 9 weeks to 4 months". */
-const whenLikely = (arrival: DaysArrival): string =>
-  `${whenText(arrival.central)}, likely ${likelyText(arrival)}`
-
 /** Why there is no time to give, or that Google is about to show it. */
 function noTime(
   arrival: Exclude<RatingArrivalView, DaysArrival>,
@@ -44,22 +40,6 @@ function noTime(
     case 'earned':
       return `Google should show ${ratingText(target)} soon.`
   }
-}
-
-/**
- * One arrival as a line of its own: "In about 3 months, likely 9 weeks to 4
- * months.", "More than 3 years away.", or why there is none. A target no pace
- * reaches names the average it was worked out at.
- */
-export function arrivalLine(
-  arrival: RatingArrivalView,
-  target: number,
-  average: string,
-): string {
-  if (arrival.kind !== 'days') return noTime(arrival, target, average)
-  if (beyondThreeYears(arrival)) return 'More than 3 years away.'
-  const words = whenLikely(arrival)
-  return `${words.charAt(0).toUpperCase()}${words.slice(1)}.`
 }
 
 /** "at your 1 a day", "at your pace of the last 4 weeks". */

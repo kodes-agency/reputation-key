@@ -114,7 +114,13 @@ metric authority.
   The card read also hands on the climb (`application/rating-goal-tracking-views.ts`): the
   next number Google can show (skipping a tenth it should show soon), what the goal still
   needs, the number above it as possible, the last four weeks and the day of the Property
-  week, all from the numbers it already reads.
+  week, all from the numbers it already reads. The detail read adds the climb's chart
+  (`application/rating-goal-detail-views.ts`, `domain/rating-goal-climb.ts`, round 5 D-2):
+  the exact average at each Property-local Monday from four weeks before the set's week (a
+  year back at most), the plan as a cone from the set or the latest plan change, the
+  likely band from the card's own arrival, a line for each tenth and Google's own moves,
+  in whole days from today and thousandths; the pace in the four weeks before the goal;
+  and what the goal was set with, from each field's first logged change.
   The setup (rounds 3 and 4, 2026-10-16) is one screen worked out on the page from the
   setup read's exact inputs (`application/rating-goal-setup-plan.ts`, `workOutRatingGoal`,
   client-safe, never throwing on what a manager typed): the planned average is automatic
@@ -137,7 +143,9 @@ metric authority.
   (`application/rating-goal-blend-volume.test.ts` pins the notice volume). The review cache is read only through Review's
   `ReviewGoogleRatingReads` (counts and star sums, the serving eligibility, the current
   binding epoch; also since a goal was set, per calendar year, per calendar month with ten
-  reviews and per local date, counts only); Google's own numbers
+  reviews and per local date, counts only; for the detail, the exact average at each
+  local week's end, which Review works out with the week sums kept inside, and Google's
+  own number over time from Review's verified snapshot facts); Google's own numbers
   come from the Current on Google snapshot. A goal may be set only on an active Property with at least ten Google
   reviews (Google's count decides that first, current or not) and current numbers; a
   reading waits for Google while its numbers are not current, show no tenth or give no

@@ -1,4 +1,4 @@
-// Property Google rating goal — status, progress and the next tenth (pure).
+// Property Google rating goal — status and the average its numbers assume (pure).
 //
 // A climb goal's status, the first rule that holds wins:
 //   waiting_for_google  no current snapshot, one older than 24 hours, or the
@@ -28,7 +28,6 @@ import {
   compareRatios,
   fromThousandths,
   ratio,
-  ratioToNumber,
   thresholdThousandths,
   type Ratio,
   type RatingTotals,
@@ -200,22 +199,6 @@ export function keepStatus(
 ): Extract<RatingGoalStatus, 'waiting_for_google' | 'holding' | 'dropped_below'> {
   if (input.waiting) return 'waiting_for_google'
   return input.displayedTenths >= input.targetTenths ? 'holding' : 'dropped_below'
-}
-
-/**
- * clamp((E − E0) / (θ − E0), 0, 1): how far the exact average has come from
- * the goal's baseline towards the threshold.
- */
-export function ratingProgress(
-  exact: Ratio,
-  baselineExact: number,
-  targetThresholdThousandths: number,
-): number {
-  const current = ratioToNumber(exact)
-  const threshold = targetThresholdThousandths / 1000
-  const span = threshold - baselineExact
-  if (span <= 0) return current >= threshold ? 1 : 0
-  return Math.min(1, Math.max(0, (current - baselineExact) / span))
 }
 
 /** The exact average has crossed the target's threshold; Google shows less. */

@@ -465,6 +465,12 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         'not_enabled_for_organization',
       ],
       [`/properties/${seed.p3PropertyId}/goals`, 'Goals', 'not_enabled_for_organization'],
+      // The Google rating goal's detail page sits behind the same Goals gate.
+      [
+        `/properties/${seed.p3PropertyId}/goals/google-rating`,
+        'Goals',
+        'not_enabled_for_organization',
+      ],
     ] as const satisfies readonly (readonly [
       string,
       string,

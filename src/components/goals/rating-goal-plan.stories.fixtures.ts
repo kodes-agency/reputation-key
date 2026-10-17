@@ -55,7 +55,6 @@ export const DETAIL_BEFORE_TEN: RatingGoalDetailView = {
   google: { ...BETA_GOOGLE, reviewCount: 265 },
   exactAverage: 3.921,
   threshold: 3.95,
-  progress: 0.24,
   thisWeekCount: 1,
   justSet: false,
   forecast: inDays(53, 40, 70),
@@ -65,59 +64,9 @@ export const DETAIL_BEFORE_TEN: RatingGoalDetailView = {
   lastFourWeeksPerWeek: 2,
   stillNeeded: 15,
   next: { targetTenths: 40, target: 4, reviewsNeeded: 15 },
-  bestCase: 9,
   forecastAtChosenPace: inDays(53, 40, 70),
   forecastAtActualPace: inDays(53, 40, 70),
-  recentMix: { average: 4, reviewCount: 25, basis: 'most_recent' },
   baseline: { googleShows: 3.9, reviewCount: 261, exactAverage: 3.912 },
-  weeks: [
-    { weekStart: '2026-09-28', count: 2 },
-    { weekStart: '2026-10-05', count: 1 },
-    { weekStart: '2026-10-12', count: 1 },
-  ],
-  starsSinceSet: [
-    { stars: 5, count: 3 },
-    { stars: 4, count: 1 },
-  ],
   changes: [],
   plan: BEFORE_TEN_PLAN,
-}
-
-/**
- * The same goal later: twelve reviews since it was set average 3.75★, at or
- * below the 3.95 that 4.0 needs, so it is "New reviews too low for 4.0".
- */
-export const DETAIL_TOO_LOW: RatingGoalDetailView = {
-  ...DETAIL_BEFORE_TEN,
-  status: 'reviews_too_low',
-  google: { ...BETA_GOOGLE, reviewCount: 273 },
-  exactAverage: 3.905,
-  progress: 0,
-  forecast: { kind: 'unreachable' },
-  forecastBasis: 'actual_pace',
-  qualityBasis: 'since_set',
-  setAt: '2026-08-03T09:00:00.000Z',
-  stillNeeded: null,
-  next: null,
-  bestCase: 12,
-  forecastAtChosenPace: { kind: 'unreachable' },
-  forecastAtActualPace: { kind: 'unreachable' },
-  weeks: [0, 1, 0, 1, 0, 1, 1, 2, 2, 2, 2].map((count, index) => ({
-    weekStart: new Date(Date.UTC(2026, 7, 3 + index * 7)).toISOString().slice(0, 10),
-    count,
-  })),
-  // Twelve reviews, 45 stars: 3.75★.
-  starsSinceSet: [
-    { stars: 5, count: 5 },
-    { stars: 4, count: 3 },
-    { stars: 3, count: 2 },
-    { stars: 1, count: 2 },
-  ],
-  plan: {
-    ...BEFORE_TEN_PLAN,
-    sinceSet: { reviewCount: 12, average: 3.75, averageTenths: 38 },
-    qualityBasis: 'since_set',
-    assumedAverage: 3.75,
-    forecast: { kind: 'unreachable' },
-  },
 }

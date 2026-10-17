@@ -1,12 +1,9 @@
-// The Google rating goal's detail page: the full monitoring view, one click from
-// the simple card (ADR 0067, decision 7). What Google shows against the goal;
-// "Your plan" against what happened since it was set (round 2, R2-11); the
-// forecast at the chosen pace and at the pace of the last four weeks, and the
-// best case; the bar from where the goal started with the next
-// tenth marked; this week, the last four weeks and what is still needed; the
-// weekly bars against the pace; the stars since it was set; the change log.
-// A goal the read found reached or ended looks forward no more: what it was,
-// the weeks, the stars and the changes stay, the forecasts and the bar go.
+// The Google rating goal's detail page, one click from its card (ADR 0067,
+// decision 7; round 5, PLAN-D D-2, mock D3): the card's headline with when the
+// goal arrives and where Google stands; "The climb, step by step", a chart of
+// the exact average against the plan and the likely band; "Your plan, so
+// far"; and "What moved you", in words. A goal the read found reached or
+// ended says so first and looks forward no more: no time, no likely band.
 import { lazy, Suspense } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
@@ -14,38 +11,18 @@ import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
-import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { EmptyState } from '#/components/ui/empty-state'
-import { ProgressBar } from '#/components/ui/progress-bar'
 import { Skeleton } from '#/components/ui/skeleton'
-import { RatingGoalHeadline } from './rating-goal-headline'
-import {
-  RatingGoalChangeLog,
-  RatingGoalFoot,
-  RatingGoalStarMix,
-  RatingGoalTiles,
-} from './rating-goal-detail-parts'
-import {
-  bestCaseLine,
-  detailForecasts,
-  nextTenthLine,
-  progressMarks,
-  yourPlanLines,
-} from './rating-goal-detail-view'
-import { PLAN_POLICY_LINE } from './rating-goal-copy'
-import { paceSentence } from './rating-goal-pace-words'
-import {
-  APPROXIMATE_NUMBERS,
-  averageProgressText,
-  endedSentence,
-  ratingText,
-  reviewsTooLowSentence,
-} from './rating-goal-view'
+import { climbChartModel, type ClimbChartModel } from './rating-goal-climb-chart-view'
+import { RatingGoalDetailHeader } from './rating-goal-detail-header'
+import { RatingGoalMovedList } from './rating-goal-moved-list'
+import { RatingGoalPlanSoFar } from './rating-goal-plan-so-far'
+import { endedSentence, ratingText } from './rating-goal-view'
 
 // Recharts is a chunk of its own, loaded once the page is up.
-const RatingGoalWeeklyChart = lazy(() =>
-  import('./rating-goal-weekly-chart').then((module) => ({
-    default: module.RatingGoalWeeklyChart,
+const RatingGoalClimbChart = lazy(() =>
+  import('./rating-goal-climb-chart').then((module) => ({
+    default: module.RatingGoalClimbChart,
   })),
 )
 
@@ -58,131 +35,63 @@ type Props = Readonly<{
   personName: (userId: string) => string | null
 }>
 
-const QUIET = 'text-sm text-muted-foreground'
-
-/** "Your plan": the goal, the new reviews' average and the pace, each against the plan. */
-function YourPlan({
-  plan,
-}: Readonly<{ plan: NonNullable<RatingGoalDetailView['plan']> }>) {
+/** One key of the chart: a swatch and its words. */
+function Key({ swatch, children }: Readonly<{ swatch: string; children: string }>) {
   return (
-    <section aria-labelledby="rating-goal-your-plan" className="flex flex-col gap-3">
-      <h3 id="rating-goal-your-plan" className="text-base font-medium">
-        Your plan
-      </h3>
-      <DescriptionList termWidth="wide">
-        {yourPlanLines(plan).map((line) => (
-          <DescriptionItem key={line.term} term={line.term} note={line.note ?? undefined}>
-            <span className="tabular-nums">{line.value}</span>
-          </DescriptionItem>
-        ))}
-      </DescriptionList>
-    </section>
+    <li className="inline-flex items-center gap-2">
+      <span aria-hidden="true" className={swatch} />
+      {children}
+    </li>
   )
 }
 
-/** What an active goal looks forward to: its plan, the forecasts and the best case. */
-function Outlook({ detail }: Pick<Props, 'detail'>) {
-  const target = ratingText(detail.target)
-  const best = bestCaseLine(detail)
-  const forecasts = detailForecasts(detail)
+/** The chart's key: only what it draws. */
+function Legend({ model }: Readonly<{ model: ClimbChartModel }>) {
+  const { chart } = model
   return (
-    <>
-      {detail.paceTenthsPerWeek === null || detail.plan !== null ? null : (
-        <p className="text-base">Your pace: {paceSentence(detail.paceTenthsPerWeek)}</p>
+    <ul
+      aria-label="Chart key"
+      className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+    >
+      {chart.history === null ? null : (
+        <Key swatch="h-1 w-4 rounded-full bg-foreground">Google’s exact average</Key>
       )}
-      {detail.googleShowsSoon ? (
-        <Alert variant="info">
-          <AlertDescription>
-            Google should show {target} soon. Its number can take up to two weeks to catch
-            up.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {detail.status === 'reviews_too_low' ? (
-        // What helps: the approved words on how guests are asked (R2-12).
-        <Alert variant="warning">
-          <AlertDescription>
-            {reviewsTooLowSentence(detail.target)} {PLAN_POLICY_LINE}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {detail.plan === null ? null : <YourPlan plan={detail.plan} />}
-      {forecasts.length === 0 ? null : (
-        <DescriptionList stacked aria-label="When Google is expected to show it">
-          {forecasts.map((line) => (
-            <DescriptionItem key={line.label} term={line.label}>
-              {line.text}
-            </DescriptionItem>
-          ))}
-        </DescriptionList>
+      {chart.plan.length === 0 ? null : (
+        <Key swatch="h-3 w-4 rounded-sm border border-dashed border-primary">
+          Your plan
+        </Key>
       )}
-      {best === null ? null : <p className={QUIET}>{best}</p>}
-    </>
+      {chart.likely.length === 0 ? null : (
+        <Key swatch="h-3 w-4 rounded-sm bg-link opacity-50">Likely</Key>
+      )}
+    </ul>
   )
 }
 
-function Summary({ detail, timezone, now }: Props) {
-  const target = ratingText(detail.target)
+/**
+ * While recharts loads: the chart's caption (its text alternative, there from
+ * the first paint) above a block of the chart's height, as ChartFrame lays
+ * them out, so nothing below moves when the chart arrives.
+ */
+function ClimbPending({ caption }: Readonly<{ caption: string }>) {
   return (
-    <Card className="gap-4">
-      <CardHeader>
-        <CardTitle as="h2">
-          {detail.mode === 'keep'
-            ? `Keeping ${target} on Google`
-            : `Reach ${target} on Google`}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <RatingGoalHeadline card={detail} timezone={timezone} now={now} />
-        {detail.state === 'active' ? <Outlook detail={detail} /> : null}
-      </CardContent>
-    </Card>
+    <figure className="min-w-0 space-y-2">
+      <figcaption className="text-sm text-muted-foreground">{caption}</figcaption>
+      <Skeleton aria-hidden="true" className="h-60 w-full" />
+    </figure>
   )
 }
 
-function Progress({ detail }: Pick<Props, 'detail'>) {
-  if (detail.progress === null) return null
-  const marks = progressMarks(detail)
-  const next = nextTenthLine(detail)
-  const approximate = detail.exactAverageSource === 'google'
-  const average = averageProgressText(detail)
+function Climb({ model }: Readonly<{ model: ClimbChartModel }>) {
   return (
     <Card className="gap-4">
-      <CardHeader>
-        <CardTitle as="h2">Progress</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <ProgressBar
-          value={Math.round(marks.value * 1000)}
-          max={1000}
-          marker={marks.marker}
-          label={`Progress toward Google showing ${ratingText(detail.target)}`}
-          valueText={average}
-        />
-        <div className="flex justify-between gap-4 text-xs text-muted-foreground tabular-nums">
-          <span>{marks.start}</span>
-          <span>{marks.end}</span>
-        </div>
-        <p className="text-sm tabular-nums">{average}</p>
-        {approximate ? <p className={QUIET}>{APPROXIMATE_NUMBERS}</p> : null}
-        {next === null ? null : <p className={QUIET}>{next}</p>}
-      </CardContent>
-    </Card>
-  )
-}
-
-function WeeklyBars({ detail }: Pick<Props, 'detail'>) {
-  return (
-    <Card className="gap-4">
-      <CardHeader>
-        <CardTitle as="h2">New Google reviews each week</CardTitle>
+      <CardHeader className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <CardTitle as="h2">The climb, step by step</CardTitle>
+        <Legend model={model} />
       </CardHeader>
       <CardContent>
-        <Suspense fallback={<Skeleton aria-hidden="true" className="h-60 w-full" />}>
-          <RatingGoalWeeklyChart
-            weeks={detail.weeks}
-            paceTenthsPerWeek={detail.paceTenthsPerWeek}
-          />
+        <Suspense fallback={<ClimbPending caption={model.caption} />}>
+          <RatingGoalClimbChart model={model} />
         </Suspense>
       </CardContent>
     </Card>
@@ -216,22 +125,20 @@ function Moved({ detail }: Pick<Props, 'detail'>) {
 
 export function RatingGoalDetail(props: Props) {
   const { detail } = props
-  const active = detail.state === 'active'
+  const model = climbChartModel(detail)
   return (
     <div data-slot="rating-goal-detail" className="flex flex-col gap-6">
       <Moved detail={detail} />
-      <Summary {...props} />
-      {active ? <Progress detail={detail} /> : null}
-      {active ? <RatingGoalTiles detail={detail} /> : null}
-      <WeeklyBars detail={detail} />
-      <RatingGoalStarMix detail={detail} />
-      <RatingGoalChangeLog
+      <RatingGoalDetailHeader detail={detail} timezone={props.timezone} now={props.now} />
+      {model === null ? null : <Climb model={model} />}
+      <RatingGoalPlanSoFar detail={detail} />
+      <RatingGoalMovedList
         detail={detail}
+        readAt={props.readAt}
         personName={props.personName}
         timezone={props.timezone}
         now={props.now}
       />
-      <RatingGoalFoot detail={detail} readAt={props.readAt} />
     </div>
   )
 }

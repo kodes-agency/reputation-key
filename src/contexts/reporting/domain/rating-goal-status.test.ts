@@ -8,7 +8,6 @@ import {
   googleIsWaiting,
   keepStatus,
   PLANNED_AVERAGE_WEIGHT_REVIEWS,
-  ratingProgress,
   reviewsTooLow,
   statusPaceWindow,
   trackingMix,
@@ -247,23 +246,6 @@ describe('the status of a keep goal', () => {
     expect(keepStatus({ waiting: true, displayedTenths: 44, targetTenths: 45 })).toBe(
       'waiting_for_google',
     )
-  })
-})
-
-describe('progress towards the threshold', () => {
-  it('runs from the baseline exact average to the threshold', () => {
-    // Baseline 4.31, now 4.38, threshold 4.45: 0.07 of 0.14.
-    expect(ratingProgress(ratio(438, 100), 4.31, 4450)).toBeCloseTo(0.5, 6)
-  })
-
-  it('is held between nothing and complete', () => {
-    expect(ratingProgress(ratio(425, 100), 4.31, 4450)).toBe(0)
-    expect(ratingProgress(ratio(450, 100), 4.31, 4450)).toBe(1)
-  })
-
-  it('is complete or nothing when the baseline already met the threshold', () => {
-    expect(ratingProgress(ratio(446, 100), 4.46, 4450)).toBe(1)
-    expect(ratingProgress(ratio(444, 100), 4.46, 4450)).toBe(0)
   })
 })
 

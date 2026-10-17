@@ -510,6 +510,60 @@ low-review rows and the Monday check-in follow in their own amendments.
    4.4 soon" and the card and the detail never disagree. The tenth above what
    Google shows (`nextTenthMilestone`) is retired.
 
+## Amended 2026-10-16 — round 5, tracking detail
+
+The detail page becomes D3 (R3-8: A's fan chart, the plan so far, C's "what
+moved you"), and it reads two more figures from Review. Neither moves the data
+boundary above (PLAN-D §4.1): every aggregate read keeps the rule that no
+window aggregate (a week, a month, a range) returns a star sum for fewer than
+ten reviews, and no read returns a review.
+
+1. **The exact average at the end of each week** (`getWeeklyHistory`): per
+   Property-local week from four weeks before the goal was set (a year at
+   most), the reviews created that week and the average of every current
+   review created before the week ended, in thousandths. Review works these
+   out itself from the week sums and the whole-history total in one statement
+   and keeps the sums: what leaves is counts and averages. A week-end average
+   is the whole-history aggregate `all` as of that week's end, a class the
+   goal already reads; the difference of two of them can tell one new
+   review's stars exactly as two reads of `all` a day apart already can, which
+   the read port accepts (managers see each review in the Inbox). It replaces
+   the weekly counts the old weekly bars read. It is drawn only while RepKey
+   holds every review Google counts: a partial cache would draw a false line.
+2. **Google's own number over time** (`getShownNumberChanges`): from the
+   verified snapshot facts Review keeps under the Property's current binding,
+   the snapshot in force when the chart starts and each later one whose
+   one-decimal number differs from the one before it (newest 100 at most).
+   These are Property-level figures Google publishes; nothing is stored for
+   the goal. The read finds the in-force instant first and compares only the
+   facts from it on, so its cost follows the chart's span, not the years of
+   facts a Property keeps.
+
+3. **The page.** The header leads with the card's headline and says when the
+   goal arrives at the card's own pace (the same arrival object the chart's
+   likely band is drawn from, so words and shape cannot disagree), where
+   Google stands against where it started, the number possible after it and,
+   once the goal works at the last four weeks' pace, the chosen pace's time
+   too (Q8). "The climb, step by step" draws the exact average at each
+   Monday from four weeks before the set's week (a year back at most), the
+   plan as a cone from the set (the stored baseline) or the latest plan change
+   (the history at that week's Monday, no interpolation, read from that Monday
+   when it is older than the chart and clipped at the chart's start; none under
+   a partial cache), the likely band from today, a line for each tenth and Google's own
+   moves, in weeks from today, never dates, in a chunk of its own. "Your
+   plan, so far" sets the last four weeks' pace against the plan and the four
+   full weeks before the goal, the new reviews' average against the plan's,
+   and the steps reached and next. "What moved you" says it in words: this
+   week's count, Google's moves, each change of the plan and what the goal was
+   set with (each field's first logged change, so a long log cannot lose it).
+   The exact-average bar, the tiles, the weekly bars, the star mix since the
+   set, the best case and the separate change log are retired (Q7's detail;
+   R3-8 replaces it).
+
+The per-review rows the mock also shows (low reviews and this week's stars)
+are not part of this amendment: they need the owner's exception (PLAN-D Q2)
+and follow in their own.
+
 ## Rejected alternatives
 
 - **A fourth Goal measure for the Google rating.** It would put Google data into

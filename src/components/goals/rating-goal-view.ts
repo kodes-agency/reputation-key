@@ -1,6 +1,6 @@
 // What the Property Google rating goal says, worked out once for the simple
 // card, the detail page and the history (ADR 0067). Google's own number leads;
-// the exact average is progress ("4.38 of 4.45"); when a goal arrives is a
+// the exact average is drawn on the detail's chart; when a goal arrives is a
 // duration from today (rating-goal-arrival-words.ts), never a date; "review"
 // means a Google review and nothing else.
 import type {
@@ -69,34 +69,6 @@ export const reviewsText = (count: number): string =>
 
 /** A target in tenths as text: 45 is "4.5". */
 export const tenthsText = (tenths: number): string => ratingText(tenths / 10)
-
-/**
- * The exact average against the threshold, to the hundredth. It is cut, never
- * rounded, so 4.449 reads "4.44 of 4.45" and never claims the line early.
- */
-export function exactProgressText(exact: number | null, threshold: number): string {
-  if (exact === null) return 'Exact average not known yet'
-  const cut = Math.floor(exact * 100 + 1e-9) / 100
-  const hundredths = { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-  return `${formatNumber(cut, hundredths)} of ${formatNumber(threshold, hundredths)}`
-}
-
-/**
- * The exact average against the threshold, named for what it is: "Exact average
- * 4.38 of 4.45" from RepKey's complete copy of the reviews, or "About 4.30 of
- * 4.45" while that copy is short of Google's count and the figure is Google's
- * own rounded number (plan, Terms). The card's bar and the detail page say it
- * the same way.
- */
-export function averageProgressText(
-  view: Pick<RatingGoalCardView, 'exactAverage' | 'exactAverageSource' | 'threshold'>,
-): string {
-  const progress = exactProgressText(view.exactAverage, view.threshold)
-  if (view.exactAverage === null) return progress
-  return view.exactAverageSource === 'google'
-    ? `About ${progress}`
-    : `Exact average ${progress}`
-}
 
 /**
  * What Google shows, as the headline prints it: Google's own last number, with

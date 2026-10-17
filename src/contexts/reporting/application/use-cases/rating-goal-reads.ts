@@ -14,7 +14,6 @@
 // Google's next numbers arrive.
 
 import { actualRate, chosenRate } from '../../domain/rating-goal-arrival'
-import { weeklySeries, weeklySeriesStart } from '../../domain/rating-goal-weeks'
 import {
   DAY_READ_LOOKBACK_DAYS,
   EVIDENCE_MIN_REVIEWS,
@@ -31,16 +30,19 @@ import type {
   RatingGoalSetupView,
 } from '../dto/rating-goal.types'
 import {
-  bestCaseNeeded,
   buildCardView,
   buildSetupView,
   changeView,
   goalBasis,
   historyEntry,
-  mixView,
   planProgressView,
 } from '../rating-goal-views'
 import { forecastFor } from '../rating-goal-tracking-views'
+import {
+  detailChartStart,
+  detailHistoryStart,
+  detailTracking,
+} from '../rating-goal-detail-views'
 import type { GoalActor } from './goal-program-shared'
 import {
   authorizeRatingGoal,
@@ -119,40 +121,44 @@ export async function getRatingGoalDetail(
   const { goal, reading } = evaluated
   const org = toOrganizationId(goal.organizationId)
   const property = toPropertyId(goal.propertyId)
-  const timezone = reading.facts.timezone
-  const [weekCounts, starsSinceSet, changes] = await Promise.all([
-    deps.reviews.getWeeklyCounts(
-      org,
-      property,
-      weeklySeriesStart(goal.createdAt, reading.now, timezone),
+  // The chart reads from four weeks before the set's week (a year back at most);
+  // the weekly history from the latest plan change's week when that is earlier,
+  // so it starts once the change log is in, beside Google's number.
+  const chartFrom = detailChartStart(goal, reading).instant
+  const changesRead = deps.repository.listChanges(
+    goal.organizationId,
+    goal.propertyId,
+    goal.id,
+    RATING_GOAL_CHANGE_LOG_LIMIT,
+  )
+  const [changes, history, shown] = await Promise.all([
+    changesRead,
+    changesRead.then((log) =>
+      deps.reviews.getWeeklyHistory(
+        org,
+        property,
+        detailHistoryStart(goal, reading, log).instant,
+      ),
     ),
-    deps.reviews.getStarDistribution(org, property, goal.createdAt),
-    deps.repository.listChanges(
-      goal.organizationId,
-      goal.propertyId,
-      goal.id,
-      RATING_GOAL_CHANGE_LOG_LIMIT,
-    ),
+    deps.reviews.getShownNumberChanges(org, property, chartFrom),
   ])
   // At the quality the goal now expects of new reviews: the plan's, the plan
   // mixed with new reviews, or theirs while too low (trackingMix).
   const basis = goalBasis(goal, reading)?.basis ?? null
   const pace = goal.paceTenthsPerWeek
   const climbing = basis !== null && pace !== null
+  const card = cardOf(evaluated)
   return {
-    ...cardOf(evaluated),
-    bestCase: bestCaseNeeded(goal, basis),
+    ...card,
     forecastAtChosenPace: climbing
       ? forecastFor(basis, goal.targetTenths, chosenRate(pace))
       : null,
     forecastAtActualPace: climbing
       ? forecastFor(basis, goal.targetTenths, actualRate(reading.reviewsLast28Days))
       : null,
-    recentMix: mixView(reading.mix),
-    weeks: weeklySeries(goal.createdAt, reading.now, timezone, weekCounts),
-    starsSinceSet,
-    changes: changes.map(changeView),
+    changes: changes.recent.map(changeView),
     plan: planProgressView(goal, reading),
+    ...detailTracking({ goal, reading, card, reads: { history, shown, changes } }),
   }
 }
 

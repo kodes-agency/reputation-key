@@ -113,7 +113,8 @@ const goalRatingGoalTransitionedSchema = z
     /** The goal's pace in tenths of a review a week (migration 0060). */
     paceTenthsPerWeek: z.number().int().min(10).max(3500).nullable().optional(),
     recentPaceTenths: z.number().int().min(0).max(100_000).nullable(),
-    paceWindow: z.enum(['last_4_weeks', 'since_set']).nullable(),
+    // `since_pace_change` (round 5): accepted a deploy before Reporting writes it.
+    paceWindow: z.enum(['last_4_weeks', 'since_set', 'since_pace_change']).nullable(),
     occurredAt: z.iso.datetime(),
   })
   .superRefine((payload, ctx) => {

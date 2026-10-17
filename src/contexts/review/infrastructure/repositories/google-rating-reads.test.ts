@@ -236,20 +236,6 @@ describe('Google rating reads for the rating goal', () => {
     expect(summary.all).toEqual({ count: 0, sum: 0 })
   })
 
-  it('counts each Monday-to-Sunday week of the Property time zone', async () => {
-    const weeks = await reads().getWeeklyCounts(
-      ORG,
-      PROPERTY,
-      new Date('2026-09-27T21:00:00Z'),
-    )
-
-    expect(weeks).toEqual([
-      { weekStart: '2026-09-28', count: 1 },
-      { weekStart: '2026-10-12', count: 1 },
-      { weekStart: '2026-10-19', count: 1 },
-    ])
-  })
-
   it('gives every star of the distribution, empty ones as zero', async () => {
     const stars = await reads().getStarDistribution(
       ORG,
@@ -281,7 +267,6 @@ describe('Google rating reads for the rating goal', () => {
         totalsSince: null,
       },
     )
-    await expect(reads().getWeeklyCounts(OTHER_ORG, PROPERTY, since)).resolves.toEqual([])
     await expect(reads().getYearlyTotals(OTHER_ORG, PROPERTY)).resolves.toEqual([])
     await expect(
       reads().getStarDistribution(OTHER_ORG, PROPERTY, since),

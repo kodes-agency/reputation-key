@@ -1,11 +1,13 @@
 // In-memory doubles for the Property Google rating goal use-case tests.
 import type {
   GoogleRatingDayCount,
+  GoogleRatingHistory,
   GoogleRatingMonthTotals,
   GoogleRatingSummary,
   GoogleRatingSummaryRequest,
   GoogleRatingTotals,
   GoogleRatingYearTotals,
+  GoogleShownNumber,
   ReviewGoogleRatingReads,
 } from '#/contexts/review/application/public-api'
 import type {
@@ -51,6 +53,10 @@ export type FakeWorld = {
   months: GoogleRatingMonthTotals[]
   /** Reviews per Property-local date, oldest first. */
   days: GoogleRatingDayCount[]
+  /** The exact average at each week's end from the detail's chart start. */
+  history: GoogleRatingHistory
+  /** Google's shown number in force at the chart start, then each change. */
+  shown: GoogleShownNumber[]
   held: boolean
   goals: PropertyRatingGoal[]
   changes: RatingGoalChange[]
@@ -61,10 +67,10 @@ export type FakeWorld = {
   authorizations: string[]
   deny: boolean
   summaryRequests: GoogleRatingSummaryRequest[]
-  /** The bounds each month and day read was asked with, in order. */
+  /** The bounds each month, day, history and shown-number read was asked with, in order. */
   evidenceRequests: Array<
     | Readonly<{ read: 'months'; since: Date; minimumCount: number }>
-    | Readonly<{ read: 'days'; since: Date }>
+    | Readonly<{ read: 'days' | 'history' | 'shown'; since: Date }>
   >
   /** Every port call, in order: `policy.authorize`, `repository.findActive`, ... */
   calls: string[]
@@ -96,6 +102,8 @@ export function exampleWorld(): FakeWorld {
     years: [],
     months: [],
     days: [],
+    history: { startAverageThousandths: 4302, weeks: [] },
+    shown: [],
     held: false,
     goals: [],
     changes: [],
@@ -169,8 +177,13 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
         (g) =>
           g.organizationId === org && g.propertyId === property && g.state !== 'active',
       ),
-    listChanges: async (_org, _property, goalId) =>
-      world.changes.filter((change) => change.goalId === goalId).reverse(),
+    listChanges: async (_org, _property, goalId, limit) => {
+      const log = world.changes.filter((change) => change.goalId === goalId)
+      const firstPerField = log.filter(
+        (change, index) => log.findIndex((row) => row.field === change.field) === index,
+      )
+      return { recent: [...log].reverse().slice(0, limit), firstPerField }
+    },
     insert: async (goal) => {
       if (
         world.goals.some((g) => g.propertyId === goal.propertyId && g.state === 'active')
@@ -314,7 +327,14 @@ function fakeReviews(world: FakeWorld): ReviewGoogleRatingReads {
       world.evidenceRequests = [...world.evidenceRequests, { read: 'days', since }]
       return world.days
     },
-    getWeeklyCounts: async () => [{ weekStart: '2026-10-12', count: 3 }],
+    getWeeklyHistory: async (_org, _property, since) => {
+      world.evidenceRequests = [...world.evidenceRequests, { read: 'history', since }]
+      return world.history
+    },
+    getShownNumberChanges: async (_org, _property, since) => {
+      world.evidenceRequests = [...world.evidenceRequests, { read: 'shown', since }]
+      return world.shown
+    },
     getStarDistribution: async () =>
       [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars === 5 ? 3 : 0 })),
   }

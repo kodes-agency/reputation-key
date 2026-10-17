@@ -236,7 +236,7 @@ describe('a manager’s change', () => {
     })
     const log = await repository().listChanges(ORG, PROPERTY, goalId(1), 50)
     expect(
-      log.map(({ field, oldValue, newValue, changedBy }) => [
+      log.recent.map(({ field, oldValue, newValue, changedBy }) => [
         field,
         oldValue,
         newValue,
@@ -261,7 +261,7 @@ describe('a manager’s change', () => {
     })
     await expect(repository().changePlan(change(2))).resolves.toBe('not_active')
     await expect(repository().listChanges(ORG, PROPERTY, goalId(1), 50)).resolves.toEqual(
-      [],
+      { recent: [], firstPerField: [] },
     )
   })
 
@@ -270,7 +270,50 @@ describe('a manager’s change', () => {
 
     await expect(
       repository().listChanges(OTHER_ORG, PROPERTY, goalId(1), 50),
-    ).resolves.toEqual([])
+    ).resolves.toEqual({ recent: [], firstPerField: [] })
+  })
+
+  it('finds what the goal was set with past the newest 50 changes, in one read', async () => {
+    const DAY_MS = 24 * 60 * 60 * 1000
+    const row = (
+      n: number,
+      field: 'target' | 'pace',
+      oldValue: string,
+      newValue: string,
+    ) => ({
+      id: goalId(200 + n),
+      goalId: goalId(1),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      changedBy: 'manager-2',
+      changedAt: new Date(SET_AT.getTime() + (n + 1) * DAY_MS),
+      field,
+      oldValue,
+      newValue,
+    })
+    // The target moved once, first; then the pace 51 times.
+    await held.db
+      .insert(propertyRatingGoalChanges)
+      .values([
+        row(0, 'target', '45', '46'),
+        ...Array.from({ length: 51 }, (_, n) =>
+          row(n + 1, 'pace', String(110 + n), String(111 + n)),
+        ),
+      ])
+
+    const log = await repository().listChanges(ORG, PROPERTY, goalId(1), 50)
+
+    expect(log.recent).toHaveLength(50)
+    expect(log.recent[0]).toMatchObject({ field: 'pace', newValue: '161' })
+    expect(log.recent.some((change) => change.field === 'target')).toBe(false)
+    expect(
+      log.firstPerField
+        .map(({ field, oldValue }) => [field, oldValue])
+        .sort(([a], [b]) => String(a).localeCompare(String(b))),
+    ).toEqual([
+      ['pace', '110'],
+      ['target', '45'],
+    ])
   })
 })
 

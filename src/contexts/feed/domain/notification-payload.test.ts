@@ -131,6 +131,14 @@ describe('parseNotificationPayload', () => {
     )
   })
 
+  it('keeps each window a below-pace notice may count over', () => {
+    for (const window of ['last_4_weeks', 'since_set', 'since_pace_change'] as const) {
+      expect(parseNotificationPayload({ ratingPaceWindow: window })).toEqual({
+        ratingPaceWindow: window,
+      })
+    }
+  })
+
   it('keeps a rating goal notice’s figures only inside their ranges', () => {
     expect(
       parseNotificationPayload({

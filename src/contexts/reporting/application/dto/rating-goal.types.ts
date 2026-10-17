@@ -61,13 +61,6 @@ export type RatingArrivalView =
       slow: RatingFraction | null
     }>
 
-export type RecentMixView = Readonly<{
-  /** Average stars of the reviews the mix is taken from, three decimals. */
-  average: number
-  reviewCount: number
-  basis: 'last_90_days' | 'most_recent'
-}>
-
 /**
  * Whether a goal may be set: `property_not_active` first, then `few_reviews`
  * (Google's count, current or not), then `waiting_for_google`.
@@ -122,8 +115,6 @@ export type RatingGoalCardView = Readonly<{
   exactAverageSource: RatingExactAverageSource | null
   /** The exact average at which Google shows the target (4.45 for 4.5). */
   threshold: number
-  /** From the baseline to the threshold, 0 to 1; null for a keep goal. */
-  progress: number | null
   /** The cache has crossed the threshold; Google does not show it yet. */
   googleShowsSoon: boolean
   /** Reviews created this Monday-to-Sunday week. */
@@ -212,19 +203,73 @@ export type RatingGoalPlanProgressView = Readonly<{
   forecast: RatingArrivalView
 }>
 
+/** One day of the detail's chart: 0 is today, negative before it; a star in thousandths. */
+export type RatingGoalChartPoint = Readonly<{ day: number; thousandths: number }>
+
+/** One week of the plan's cone or the likely band, in thousandths of a star. */
+export type RatingGoalBandPoint = Readonly<{ day: number; low: number; high: number }>
+
+/**
+ * "The climb, step by step" (round 5, PLAN-D E12–E16): Google's exact average
+ * over time, the plan as a cone from its latest change (else the set), the
+ * likely band from today, the lines where Google shows each tenth and when
+ * Google's own number changed. Days are whole Property-local days from today,
+ * every star value in thousandths: the page draws, it works nothing out.
+ */
+export type RatingGoalChartView = Readonly<{
+  /** The chart's first day: four weeks before the set's week, a year back at most. */
+  firstDay: number
+  /** At the start, at each week's end and today; null while RepKey lacks some of Google's reviews. */
+  history: readonly RatingGoalChartPoint[] | null
+  /** The exact average at which Google shows each tenth, from below the start to above the goal. */
+  thresholds: readonly Readonly<{ tenths: number; thousandths: number }>[]
+  /** Where the plan's cone starts: the set, or the latest change of the plan. */
+  anchor: Readonly<{
+    day: number
+    kind: 'set' | 'changed'
+    paceTenthsPerWeek: number
+    qualityTenths: number
+  }>
+  /** Empty when there is no cone (a changed plan without the history to start it from). */
+  plan: readonly RatingGoalBandPoint[]
+  /** Empty when the goal has no arrival to draw (no pace, out of reach, reached). */
+  likely: readonly RatingGoalBandPoint[]
+  /** Each day Google's own number moved, up or down. */
+  shownChanges: readonly Readonly<{ day: number; tenths: number; up: boolean }>[]
+  /** Today's exact average; null while it is Google's own figure. */
+  today: number | null
+}>
+
+/** "Your plan, so far": the pace before the goal, and the tenth reached since. */
+export type RatingGoalPlanSoFarView = Readonly<{
+  /** The four full weeks before the set's week, a month; null when the chart does not reach them. */
+  prePlan: Readonly<{ perMonth: number; trend: 'up' | 'down' | 'same' }> | null
+  /** What Google shows now, when it is more than when the goal was set. */
+  reachedTenths: number | null
+}>
+
+/** "What moved you" (D-2): Google's number moving and what the goal was set with. */
+export type RatingGoalMovedView = Readonly<{
+  /** Each change of Google's own number since the goal was set, newest first. */
+  shownChanges: readonly Readonly<{ at: string; tenths: number; up: boolean }>[]
+  /** The user id that set the goal; the page names the person. */
+  setBy: string
+  initialTargetTenths: number
+  /** Null for a goal set to keep a number. */
+  initialPaceTenthsPerWeek: number | null
+}>
+
 export type RatingGoalDetailView = RatingGoalCardView &
   Readonly<{
-    bestCase: number | null
     forecastAtChosenPace: RatingArrivalView | null
     forecastAtActualPace: RatingArrivalView | null
-    recentMix: RecentMixView | null
-    /** Monday-to-Sunday weeks since the goal was set, a year at most. */
-    weeks: readonly Readonly<{ weekStart: string; count: number }>[]
-    /** Stars of the reviews created since the goal was set. */
-    starsSinceSet: readonly Readonly<{ stars: number; count: number }>[]
     changes: readonly RatingGoalChangeView[]
     /** Null for a keep goal or without Google's numbers. */
     plan: RatingGoalPlanProgressView | null
+    /** Null for a keep goal. */
+    chart: RatingGoalChartView | null
+    planSoFar: RatingGoalPlanSoFarView
+    moved: RatingGoalMovedView
   }>
 
 export type RatingGoalHistoryEntry = Readonly<{

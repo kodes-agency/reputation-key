@@ -110,8 +110,9 @@ describe('Review context build', () => {
       'getDailyCounts',
       'getMonthlyTotals',
       'getRatingSummary',
+      'getShownNumberChanges',
       'getStarDistribution',
-      'getWeeklyCounts',
+      'getWeeklyHistory',
       'getYearlyTotals',
     ])
     expect(Object.isFrozen(api.lookups.reply)).toBe(true)

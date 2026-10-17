@@ -1,11 +1,9 @@
 // What the Google rating goal says, worked out once for the card, the detail
 // page and the history: Google's own number first, plain words, "review" for a
-// Google review only, and a forecast that is a month range, never a date.
+// Google review only, and a forecast that is a duration, never a date.
 import { describe, expect, it } from 'vitest'
 import {
-  averageProgressText,
   changeText,
-  exactProgressText,
   googleShows,
   historyEntryView,
   OUTCOME_SHOWN_FOR_DAYS,
@@ -36,22 +34,6 @@ describe('the numbers', () => {
   it('counts reviews in words, one or many', () => {
     expect(reviewsText(1)).toBe('1 review')
     expect(reviewsText(1300)).toBe('1,300 reviews')
-  })
-
-  it('reads the exact average against the threshold, never rounding it up past the line', () => {
-    expect(exactProgressText(4.382, 4.45)).toBe('4.38 of 4.45')
-    expect(exactProgressText(4.449, 4.45)).toBe('4.44 of 4.45')
-    expect(exactProgressText(null, 4.45)).toBe('Exact average not known yet')
-  })
-
-  it('names the average exact from the complete cache, about that from Google’s own figure', () => {
-    expect(averageProgressText(CARD)).toBe('Exact average 4.38 of 4.45')
-    expect(
-      averageProgressText({ ...CARD, exactAverage: 4.3, exactAverageSource: 'google' }),
-    ).toBe('About 4.30 of 4.45')
-    expect(
-      averageProgressText({ ...CARD, exactAverage: null, exactAverageSource: null }),
-    ).toBe('Exact average not known yet')
   })
 })
 
