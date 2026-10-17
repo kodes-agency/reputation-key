@@ -142,14 +142,12 @@ export function useRatingGoalRecapCommands(propertyId: string): RatingGoalRecapC
     keepPaceFn: ratingGoalCommands.keepRatingGoalPace,
     changeRatingGoalFn: ratingGoalCommands.changeRatingGoal,
     onAnswered: async () => {
-      await Promise.all(
-        [
-          goalKeys.ratingGoal(propertyId),
-          propertyKeys.setup(propertyId),
-          propertyKeys.setupSummaries(),
-          dashboardKeys.fleets(),
-        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
-      )
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: goalKeys.ratingGoal(propertyId) }),
+        queryClient.invalidateQueries({ queryKey: propertyKeys.setup(propertyId) }),
+        queryClient.invalidateQueries({ queryKey: propertyKeys.setupSummaries() }),
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.fleets() }),
+      ])
     },
   }
 }
