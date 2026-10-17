@@ -203,6 +203,8 @@ export const DETAIL: RatingGoalDetailView = {
     setBy: 'user-ana',
     initialTargetTenths: 44,
     initialPaceTenthsPerWeek: 140,
+    thisWeek: { count: 6, allStars: null, averageTenths: 47 },
+    lowReviews: [],
   },
 }
 

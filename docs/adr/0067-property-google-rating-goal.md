@@ -132,7 +132,9 @@ These hold for the goal and for every surface that shows it.
   sums of reviews that may be served (ADR 0031) and were observed under the
   Property's current Google binding. Dates are Google's creation times. No review
   text, reviewer, identifier or per-review value leaves Review, and a read neither
-  extends the cache clock nor copies content.
+  extends the cache clock nor copies content. The tracking page's two per-review
+  exceptions (the owner's, 2026-10-17: low reviews since the set and this week's
+  star split) are named in their amendment below, and nothing else is.
 - **The goal stores only Property-level figures:** target, mode, pace, state,
   the Google binding it was set under, the figures it started from (Google's count
   and average, the exact average), the tenth and status it last saw, and a change
@@ -563,6 +565,56 @@ ten reviews, and no read returns a review.
 The per-review rows the mock also shows (low reviews and this week's stars)
 are not part of this amendment: they need the owner's exception (PLAN-D Q2)
 and follow in their own.
+
+## Amended 2026-10-17 — round 5, what set the goal back (two per-review exceptions)
+
+The owner approved PLAN-D's Q2 (a) on 2026-10-16 (OWNER-ANSWERS-D, R5-1): the
+tracking page may show the two per-review facts the mock D3 draws. They are the
+only exceptions to "no per-review value leaves Review" (Data sources), they are
+for the goal's managers only (viewers the policy allows `goal.read` on the
+Property, under `goal.use`: AccountAdmins and the PropertyManagers granted it),
+and they are read live with the page, never stored, exported or logged.
+
+1. **Low reviews since the set** (`getLowReviews`): up to 25 current Google
+   reviews created since the goal was set whose stars are below the goal's
+   threshold and at most 4★, newest first, as the review's id, its stars and
+   when Google created it. No text, reviewer, Google identifier, reply or
+   assignee leaves Review. The server function turns the ids into the Inbox
+   items that open them, and only when the policy also allows the viewer
+   `inbox.read` on the Property (one navigation lookup, ADR 0031's Guest voice
+   precedent); the browser gets an item id or none, never a review id, and at
+   most ten rows, which the page may show fewer of beside Google's moves and
+   the plan's changes (those keep their place first). The server keeps at most
+   10 rows: the newest whose setback is about one new review or more, or,
+   while the goal's numbers say no count reaches it (new reviews too low), the
+   newest ten without a setback. A review's setback depends only on its stars
+   given today's numbers, so the read starts at the most stars that still set
+   the goal back half a review (a busy Property's newest 4★ reviews add almost
+   nothing and would otherwise fill the 25 ahead of an older 1★ one), and is
+   skipped when no stars do. For any goal of 4.1 or more a 4★ review is below
+   the threshold and can set the goal back; the `<= 4` ceiling (the owner's
+   Q2) is a backstop that keeps 5★ reviews out whatever the threshold.
+2. **This week's star split**: the existing star distribution of the reviews
+   created since this Property-local Monday ("2 new reviews, both 5★"). For one
+   review it is that review's stars, the same exposure the star mix since the
+   set had from round 2 until the tracking detail retired it.
+
+A row's **setback** is a counterfactual measured today, against the goal (not
+the headline's nearer number): the new reviews the goal needs now, as an
+un-rounded ratio N(θ − E)/(m − θ), less the same with that one review taken off
+Google's count and star sum and off the totals since the set, the average the
+goal assumes worked out again from them (the blend with the plan, its floor
+before the tenth review and its switch to the reviews' own average while they
+are too low). Worded "about N new reviews", N half up, shown from 1. Early in a
+goal one low review can read "about 50" or more: the plan counts as 15 reviews,
+so the headline itself moved that much, and the row says why (Q6 (a), shown as
+computed). A keep goal, a goal the read found reached or ended, and a goal
+without Google's numbers read no low reviews.
+
+The ratings and times are what a manager already sees on each review in the
+Inbox. The Disclosure's and the Agreement's "keeps no review content for the
+goal" stays true: nothing is kept. The amendment changes no stored figure, no
+retention and no export.
 
 ## Rejected alternatives
 

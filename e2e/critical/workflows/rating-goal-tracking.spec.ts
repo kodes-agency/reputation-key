@@ -1,4 +1,4 @@
-// Round 5 of the Google rating goal (PLAN-D D-1, D-2): the card that counts the
+// Round 5 of the Google rating goal (PLAN-D D-1, D-2, D-2b): the card that counts the
 // new reviews to the next number Google can show, on the Goals page and on the
 // Property Overview, and the detail page one click from it (mock D3), for the
 // people who may see them and for no one else.
@@ -12,7 +12,10 @@
 //      refused the card read;
 //   3. the owner opens the detail: the headline, "The climb, step by step" with
 //      its chart, "Your plan, so far" and "What moved you" ending in the set's
-//      row; both goals pages pass the axe scan.
+//      row; both goals pages pass the axe scan;
+//   4. a 2★ review after the set is named in "What moved you" with what it set
+//      the goal back, and its link opens its Inbox item; an expired 1★ review
+//      since the set is not named (D-2b, the owner's exception).
 //
 // The seed's Properties have no Google binding, so a goal on them only ever
 // waits for Google. This spec seeds its own bound Property (prefix `e2e-rg-`)
@@ -37,6 +40,7 @@ import {
   seedGoogleConnection,
   seedProperty,
   seedReview,
+  seedReviewInboxItemWithCycle,
 } from '../../helpers/fixtures'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { assertNoAxeViolations } from '../../helpers/a11y'
@@ -236,5 +240,74 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
       moved.getByText('Owners and managers only', { exact: false }),
     ).toBeVisible()
     await assertNoAxeViolations(page, 'the rating goal detail (/goals/google-rating)')
+  })
+
+  test('a low review since the set opens in the Inbox; an expired one is not named', async ({
+    page,
+  }) => {
+    // Now: after the goal the first journey set.
+    const now = new Date()
+    const { reviewId } = await seedReview({
+      organizationId: seed.organizationId,
+      propertyId,
+      externalId: `${PREFIX}low-${e2eRunId}`,
+      rating: 2,
+      text: 'The room was cold all night.',
+      reviewerName: 'Low Review Guest',
+      reviewedAt: now,
+    })
+    const { inboxItemId } = await seedReviewInboxItemWithCycle({
+      organizationId: seed.organizationId,
+      propertyId,
+      reviewId,
+    })
+    // Its content has expired: it is no longer a review any goal read counts.
+    await seedReview({
+      organizationId: seed.organizationId,
+      propertyId,
+      externalId: `${PREFIX}expired-${e2eRunId}`,
+      rating: 1,
+      reviewedAt: now,
+      contentExpiresAt: new Date(Date.now() - DAY_MS),
+    })
+    // Google counts the new one too: 13 reviews, 49 stars (3.769), shown 3.8.
+    await dbQuery(
+      `UPDATE metric_current_google_reputation_snapshots
+          SET review_count = $3, average_rating = 3.8, evaluated_at = now(), updated_at = now()
+        WHERE organization_id = $1 AND property_id = $2`,
+      [seed.organizationId, propertyId, STARS.length + 1],
+    )
+
+    await signIn(page)
+    await page.goto(`/properties/${propertyId}/goals/google-rating`)
+    const moved = page
+      .locator('[data-slot="card"]')
+      .filter({ has: page.getByRole('heading', { name: 'What moved you' }) })
+    // 13 × (3.95 − 3.769) / (4.1 − 3.95) = 15.7 with it (the blend held at
+    // 4.1 before the tenth review); 1.6 at the plan's 4.2 without it.
+    await expect(moved.getByText('2★ review', { exact: true })).toBeVisible()
+    await expect(moved.getByText('set you back about 14 new reviews')).toBeVisible()
+    await expect(moved.getByText('1★ review', { exact: true })).toHaveCount(0)
+    const open = moved.getByRole('link', {
+      name: /^Open in the inbox: the 2★ review of .+$/u,
+    })
+    await expect(open).toHaveAttribute(
+      'href',
+      `/properties/${propertyId}/reviews?itemId=${inboxItemId}`,
+    )
+    await expect(moved.locator('a[href*="reviewId="]')).toHaveCount(0)
+    // The low review's warning ink and its link, with the real CSS, both themes.
+    await assertNoAxeViolations(page, 'the rating goal detail with a low review')
+    await page.evaluate(() => window.localStorage.setItem('theme', 'light'))
+    await page.reload()
+    await expect(moved.getByText('set you back about 14 new reviews')).toBeVisible()
+    await expect(page.locator('html')).toHaveClass(/\blight\b/u)
+    await assertNoAxeViolations(page, 'the rating goal detail with a low review (light)')
+
+    await open.click()
+    await expect(page).toHaveURL(new RegExp(`itemId=${inboxItemId}`, 'u'))
+    await expect(page.getByText('Low Review Guest').first()).toBeVisible({
+      timeout: 15_000,
+    })
   })
 })

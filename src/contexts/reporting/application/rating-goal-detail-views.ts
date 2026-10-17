@@ -46,7 +46,7 @@ import type {
   RatingGoalChartPoint,
   RatingGoalChartView,
   RatingGoalDetailView,
-  RatingGoalMovedView,
+  RatingGoalMovedEvents,
   RatingGoalPlanSoFarView,
 } from './dto/rating-goal.types'
 import type { RatingGoalChangeLog } from './ports/property-rating-goal.repository'
@@ -328,7 +328,7 @@ function planSoFarView(detail: Detail): RatingGoalPlanSoFarView {
   }
 }
 
-function movedView(detail: Detail): RatingGoalMovedView {
+function movedView(detail: Detail): RatingGoalMovedEvents {
   const { goal, reads } = detail
   const set = initialPlan(
     { targetTenths: goal.targetTenths, paceTenthsPerWeek: goal.paceTenthsPerWeek },
@@ -344,10 +344,15 @@ function movedView(detail: Detail): RatingGoalMovedView {
   }
 }
 
-/** What the detail adds to the card: the chart, the plan so far and what moved the goal. */
+/**
+ * What the detail adds to the card: the chart, the plan so far and what moved
+ * the goal (without this week's stars and the low reviews, which the read
+ * adds, rating-goal-low-reviews.ts).
+ */
 export const detailTracking = (
   detail: Detail,
-): Pick<RatingGoalDetailView, 'chart' | 'planSoFar' | 'moved'> => ({
+): Pick<RatingGoalDetailView, 'chart' | 'planSoFar'> &
+  Readonly<{ moved: RatingGoalMovedEvents }> => ({
   chart: chartView(detail),
   planSoFar: planSoFarView(detail),
   moved: movedView(detail),

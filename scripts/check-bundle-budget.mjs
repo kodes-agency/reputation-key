@@ -579,6 +579,12 @@
 // 27,781 B). Fresh production builds measured 307,543 B (75 js + 1 css) on
 // D-1's head 5f1f57015 and 307,523 B after the detail commit: -20 B, the
 // retired weekly chart's preload entry. 177 B spare.
+//
+// 2026-10-17 (Google rating goal, round 5, PR D-2b: the low reviews in "What
+// moved you"): no raise. The rows and their Inbox links live in the goal's
+// route chunk; every class they use was already in the stylesheet (27,781 B,
+// byte for byte). A fresh production build measured 307,518 B (75 js + 1 css)
+// on the D-2b head; vendor-charts 91,005 B (lazy, 128,000 B cap). 182 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

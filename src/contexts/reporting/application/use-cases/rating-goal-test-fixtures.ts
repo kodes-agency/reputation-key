@@ -2,7 +2,9 @@
 import type {
   GoogleRatingDayCount,
   GoogleRatingHistory,
+  GoogleRatingLowReview,
   GoogleRatingMonthTotals,
+  GoogleRatingStarCount,
   GoogleRatingSummary,
   GoogleRatingSummaryRequest,
   GoogleRatingTotals,
@@ -57,6 +59,10 @@ export type FakeWorld = {
   history: GoogleRatingHistory
   /** Google's shown number in force at the chart start, then each change. */
   shown: GoogleShownNumber[]
+  /** Every review a low-review read may name, newest first (the read filters and limits). */
+  lowReviews: GoogleRatingLowReview[]
+  /** The star split a star-distribution read answers. */
+  stars: GoogleRatingStarCount[]
   held: boolean
   goals: PropertyRatingGoal[]
   changes: RatingGoalChange[]
@@ -67,10 +73,11 @@ export type FakeWorld = {
   authorizations: string[]
   deny: boolean
   summaryRequests: GoogleRatingSummaryRequest[]
-  /** The bounds each month, day, history and shown-number read was asked with, in order. */
+  /** The bounds each month, day, history, shown-number, low-review and star read was asked with. */
   evidenceRequests: Array<
     | Readonly<{ read: 'months'; since: Date; minimumCount: number }>
-    | Readonly<{ read: 'days' | 'history' | 'shown'; since: Date }>
+    | Readonly<{ read: 'days' | 'history' | 'shown' | 'stars'; since: Date }>
+    | Readonly<{ read: 'low'; since: Date; belowThousandths: number; limit: number }>
   >
   /** Every port call, in order: `policy.authorize`, `repository.findActive`, ... */
   calls: string[]
@@ -104,6 +111,8 @@ export function exampleWorld(): FakeWorld {
     days: [],
     history: { startAverageThousandths: 4302, weeks: [] },
     shown: [],
+    lowReviews: [],
+    stars: [1, 2, 3, 4, 5].map((stars) => ({ stars, count: 0 })),
     held: false,
     goals: [],
     changes: [],
@@ -335,8 +344,19 @@ function fakeReviews(world: FakeWorld): ReviewGoogleRatingReads {
       world.evidenceRequests = [...world.evidenceRequests, { read: 'shown', since }]
       return world.shown
     },
-    getStarDistribution: async () =>
-      [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars === 5 ? 3 : 0 })),
+    getLowReviews: async (_org, _property, since, belowThousandths, limit) => {
+      world.evidenceRequests = [
+        ...world.evidenceRequests,
+        { read: 'low', since, belowThousandths, limit },
+      ]
+      return world.lowReviews
+        .filter((review) => review.stars * 1000 < belowThousandths && review.stars <= 4)
+        .slice(0, limit)
+    },
+    getStarDistribution: async (_org, _property, since) => {
+      world.evidenceRequests = [...world.evidenceRequests, { read: 'stars', since }]
+      return world.stars
+    },
   }
 }
 

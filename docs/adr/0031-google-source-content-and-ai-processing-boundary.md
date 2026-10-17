@@ -109,3 +109,18 @@ Property's current Google binding. As with Feed's rating read above, a read
 neither extends the cache clock nor copies content. The goal stores no review
 content and no per-review value, only Property-level figures, and no AI
 operation takes part in it.
+
+## Amended 2026-10-17 — the rating goal's tracking page names low reviews
+
+Owner decision 2026-10-16 (PLAN-D Q2 (a)), recorded in
+[ADR 0067](0067-property-google-rating-goal.md) (amendment of 2026-10-17). The
+rating goal's "no per-review value" has two named exceptions on its tracking
+page, for the goal's managers only, read live and never stored, exported or
+logged: up to 25 current Google reviews since the goal was set below its
+threshold and at most 4★ (the review's id, stars and creation time; the server
+turns the ids into Inbox item ids when the viewer may open the Inbox and sends
+the browser at most ten rows and never a review id), and this Property-local
+week's star split. Both are read through Review's public API under this
+policy's serving eligibility and the Property's current Google binding; a read
+neither extends the cache clock nor copies content. No review text, reviewer,
+Google identifier or reply leaves Review, and no AI operation takes part.

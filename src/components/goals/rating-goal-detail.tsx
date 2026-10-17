@@ -27,6 +27,8 @@ const RatingGoalClimbChart = lazy(() =>
 )
 
 type Props = Readonly<{
+  /** The low reviews open in this Property's Inbox. */
+  propertyId: string
   detail: RatingGoalDetailView
   /** When the detail was read: Google's numbers are "checked N minutes ago" from it. */
   readAt: Date
@@ -133,6 +135,7 @@ export function RatingGoalDetail(props: Props) {
       {model === null ? null : <Climb model={model} />}
       <RatingGoalPlanSoFar detail={detail} />
       <RatingGoalMovedList
+        propertyId={props.propertyId}
         detail={detail}
         readAt={props.readAt}
         personName={props.personName}
