@@ -613,7 +613,8 @@
 // 8,974 -> 8,996 B gzip, lazy). The domain's new type costs nothing. Fresh
 // production builds measured 307,530 B (75 js + 1 css) on main 2c9fb2a0e and
 // 307,515 B on the PG-04 head: -15 B, all in the entry's preload map (chunk
-// names). The stylesheet is unchanged. 185 B spare.
+// names). The stylesheet is unchanged. Rebased onto PG-01..PG-03 (main
+// 51a871831, 307,533 B) it measured 307,540 B: +7 B. 160 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
