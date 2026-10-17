@@ -328,7 +328,7 @@ export function attentionQualifiers(attention: PropertyAttention): AttentionQual
   if (attention.goalsBehindPace > 0) {
     const goals = attention.goalsBehindPace
     qualifiers.push({
-      text: goals === 1 ? '1 goal behind pace' : `${goals} goals behind pace`,
+      text: goals === 1 ? 'Portal goal below pace' : `${goals} portal goals below pace`,
       urgent: false,
     })
   }

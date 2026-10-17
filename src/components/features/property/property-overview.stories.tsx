@@ -315,6 +315,41 @@ export const NoPortalChipWhenGuestsCanUseThemAll: Story = {
   },
 }
 
+// One portal goal below pace is a chip of words, with no "1" in front of it;
+// two or more count. It opens the Goals page, and its words are the Properties
+// list's ("Portal goal below pace"), never "behind".
+export const PortalGoalBelowPaceChip: Story = {
+  args: { signals: { ...calmSignals, goalsBehindPace: 1, needsAttention: 1 } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const chip = canvas.getByRole('link', { name: 'Portal goal below pace' })
+    expect(chip).toHaveTextContent(/^Portal goal below pace$/)
+    const href = new URL(chip.getAttribute('href') ?? '', 'http://localhost')
+    expect(href.pathname).toBe(`/properties/${property.id}/goals`)
+    expect(canvas.queryByText(/behind pace/)).toBeNull()
+  },
+}
+
+/** The one-goal chip on a 320 px phone and on the light surface. */
+export const PortalGoalBelowPaceChipNarrowPhone: Story = {
+  ...PortalGoalBelowPaceChip,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const PortalGoalBelowPaceChipLight: Story = {
+  ...PortalGoalBelowPaceChip,
+  parameters: { theme: 'light' },
+}
+
+export const PortalGoalsBelowPaceChip: Story = {
+  args: { signals: { ...calmSignals, goalsBehindPace: 2, needsAttention: 2 } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const chip = canvas.getByRole('link', { name: /2\s*portal goals below pace/ })
+    expect(chip).toHaveTextContent(/^2\s*portal goals below pace$/)
+  },
+}
+
 export const WeekOne: Story = {
   args: {
     lifetime: weekOne,

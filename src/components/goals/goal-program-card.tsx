@@ -1,5 +1,5 @@
 // The Program card of a goal's page: the measure, the target, who the goal is
-// for and from when it counts.
+// for, by name, and from when it counts.
 //
 // While a month runs the target is two lines, "This month" and "From Nov 1":
 // a running month can carry a target of its own, and a change that waits for
@@ -10,11 +10,11 @@ import { goalTargetProvenance } from '#/contexts/reporting/application/goal-targ
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import {
   goalDay,
-  goalPageMetricLabel,
   goalStartLine,
   goalStartMonthHint,
   statusReasonLabel,
 } from './goal-detail-view'
+import { goalMetricLabel } from './goal-metric-label'
 import { goalTargetLines } from './goal-month-target-view'
 import type { GoalMarkerFrame } from './goal-target-marker'
 
@@ -23,14 +23,14 @@ type Props = Readonly<{
   goal: Parameters<typeof monthTargetPlan>[0]
   /** The month that is running, or null while none is. */
   plan: ReturnType<typeof monthTargetPlan>
-  /** How many subjects the goal's current plan covers. */
-  subjectCount: number
+  /** Who the goal's current plan is for, by name (`goalListSubjectText`); null for none. */
+  forWhom: string | null
   /** The reader may change the goal, so the card says how its start is moved. */
   canManage: boolean
   frame: GoalMarkerFrame
 }>
 
-export function GoalProgramCard({ goal, plan, subjectCount, canManage, frame }: Props) {
+export function GoalProgramCard({ goal, plan, forWhom, canManage, frame }: Props) {
   const { program, version, results } = goal
   // The target the card speaks of first: the running month's while a month
   // runs, else the head version's.
@@ -50,7 +50,7 @@ export function GoalProgramCard({ goal, plan, subjectCount, canManage, frame }: 
       <CardContent className="grid gap-3 text-sm md:grid-cols-2">
         <p>
           <span className="text-muted-foreground">Metric:</span>{' '}
-          {goalPageMetricLabel(version.metric)}
+          {goalMetricLabel(version.metric)}
         </p>
         {goalTargetLines(goal, plan, frame).map((line) => (
           <p key={line.label}>
@@ -62,13 +62,11 @@ export function GoalProgramCard({ goal, plan, subjectCount, canManage, frame }: 
             ))}
           </p>
         ))}
-        <p>
-          <span className="text-muted-foreground">Subjects:</span> {subjectCount}
-        </p>
-        <p>
-          <span className="text-muted-foreground">Timezone:</span>{' '}
-          {version.propertyTimezone}
-        </p>
+        {forWhom === null ? null : (
+          <p>
+            <span className="text-muted-foreground">For:</span> {forWhom}
+          </p>
+        )}
         <p>
           {goalStartLine({
             ended: program.status === 'ended',

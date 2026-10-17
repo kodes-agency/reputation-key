@@ -8,7 +8,7 @@
 // pace, that note; an average gets its figure against the target and no pace;
 // a goal with several subjects gets how many are below pace. A figure that
 // cannot be read says so and is never a zero, and an average too thin to show
-// asks for more ratings. Pure.
+// asks for more ratings. Today counts as a day left. Pure.
 import type {
   GoalListProgress,
   GoalMetric,
@@ -40,20 +40,20 @@ const BELOW_PACE = 'below pace'
 
 type Month = NonNullable<GoalListProgress['month']>
 
-const plural = (count: number, one: string, many: string): string =>
-  count === 1 ? one : many
-
-/** "14 days left"; the last day of the month has none left after today. */
-function daysLeftText(daysLeft: number): string {
-  if (daysLeft <= 0) return 'last day'
-  return `${daysLeft} ${plural(daysLeft, 'day', 'days')} left`
+/**
+ * "9 days left" on Nov 22 of a 30-day month: today is one of them. The last day
+ * of the month is "last day". Takes the whole days that begin after today.
+ */
+export function daysLeftWords(daysAfterToday: number): string {
+  const left = daysAfterToday + 1
+  return left <= 1 ? 'last day' : `${left} days left`
 }
 
 function countLine(goal: GoalListProgress, month: Month, value: number): GoalLiveView {
   const target = goalFigure(goal.metric, month.targetValue)
   const soFar = `${goalFigure(goal.metric, value)} of ${target} so far`
   return {
-    text: `${soFar} · ${daysLeftText(goal.daysLeft)}`,
+    text: `${soFar} · ${daysLeftWords(goal.daysLeft)}`,
     paceNote: goal.belowPace === 1 ? BELOW_PACE : null,
     bar: {
       value,
@@ -67,7 +67,7 @@ function countLine(goal: GoalListProgress, month: Month, value: number): GoalLiv
 function averageLine(goal: GoalListProgress, month: Month): GoalLiveView {
   const { reading } = month
   const target = `target ${goalFigure(goal.metric, month.targetValue)}`
-  const left = daysLeftText(goal.daysLeft)
+  const left = daysLeftWords(goal.daysLeft)
   if (reading.kind === 'live') {
     return {
       text: `${goalFigure(goal.metric, reading.value)} so far · ${target} · ${left}`,
@@ -127,21 +127,8 @@ export function goalLiveShape(
 }
 
 /**
- * The subjects a row names in its quiet line. A goal with several subjects has
- * them in its live line, so the quiet line leaves them out; otherwise it names
- * them, as it always has.
- */
-export function goalListSubjectText(
-  count: number,
-  live: GoalListProgress | undefined,
-): string | null {
-  if (live !== undefined && live.month === null && live.subjectCount > 1) return null
-  return `${count} ${plural(count, 'subject', 'subjects')}`
-}
-
-/**
- * The quiet line of a row: the measure, the target, the subjects when the live
- * line does not name them, and when the target was set. Parts that are not
+ * The quiet line of a row: the measure, the target, who the goal is for by
+ * name (`goalListSubjectText`), and when the target was set. Parts that are not
  * there are left out.
  */
 export function goalListSummary(parts: readonly (string | null)[]): string {

@@ -13,14 +13,15 @@ export const GOAL_STATUS: StatusMap<GoalProgram['status']> = {
 const NO_VERDICT: Readonly<Record<string, StatusPresentation>> = {
   insufficient_data: { label: 'More ratings needed', tone: 'neutral' },
   updating: { label: 'Updating', tone: 'neutral' },
-  quarantined: { label: 'Needs review', tone: 'warn' },
+  quarantined: { label: 'Being checked', tone: 'neutral' },
 }
 
 const UNAVAILABLE: StatusPresentation = { label: 'Unavailable', tone: 'neutral' }
 
 /**
- * A month's result as a pill: achieved or not once it could be judged,
- * otherwise the reason it could not. A correction says so in the label.
+ * A month's result as a pill: met or not met once it could be judged,
+ * otherwise the reason it could not. A missed month is neutral, never red: it
+ * is a fact about the month, not a failure. A correction says so in the label.
  */
 export function goalResultStatus(
   evaluation: Readonly<{ state: string; achieved?: boolean | null }>,
@@ -29,8 +30,8 @@ export function goalResultStatus(
   const base: StatusPresentation =
     evaluation.state === 'eligible'
       ? evaluation.achieved
-        ? { label: 'Achieved', tone: 'positive' }
-        : { label: 'Not achieved', tone: 'negative' }
+        ? { label: 'Met', tone: 'positive' }
+        : { label: 'Not met', tone: 'neutral' }
       : (NO_VERDICT[evaluation.state] ?? UNAVAILABLE)
   return corrected ? { ...base, label: `Corrected · ${base.label}` } : base
 }

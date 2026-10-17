@@ -255,7 +255,7 @@ export const ANumberStaysWithItsMeasure: Story = {
     await saveGoals(canvas)
     await expect(await canvas.findByText('2 goals saved.')).toBeVisible()
 
-    await chooseMeasure(canvas, 'Qualified scans')
+    await chooseMeasure(canvas, 'Scans')
 
     // No goal for scans yet: every row is open, and none carries a number over.
     const fields = canvas.getAllByRole('spinbutton')
@@ -286,7 +286,7 @@ export const ANumberStaysWithItsMeasure: Story = {
     await expect(canvas.getByRole('link', { name: 'Back to goals' })).toBeVisible()
 
     // What was saved for private ratings is still what that table says.
-    await chooseMeasure(canvas, 'Private rating count')
+    await chooseMeasure(canvas, 'Private ratings')
     await expect(rowOf(canvas, 'Bar QR').getByText('Goal saved')).toBeVisible()
     await expect(rowOf(canvas, 'Bar QR').getByText('12')).toBeVisible()
   },
@@ -335,7 +335,7 @@ export const TheAverageMeasureShowsThe1To5Message: Story = {
   play: async ({ canvasElement }) => {
     savesAll.mockClear()
     const canvas = within(canvasElement)
-    await chooseMeasure(canvas, 'Private rating average')
+    await chooseMeasure(canvas, 'Average private rating')
     // The Lobby's goal is for another measure, so its row is open now.
     const lobby = targetOf(canvas, 'Lobby QR')
     await expect(lobby).toHaveAttribute('max', '5')

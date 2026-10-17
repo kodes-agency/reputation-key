@@ -118,11 +118,11 @@ describe('goalTargetLines', () => {
     })
 
     expect(linesOf(goal)).toEqual([
-      { label: 'This month', value: '400', notes: ['Qualified scans'] },
+      { label: 'This month', value: '400', notes: ['Scans'] },
       {
         label: 'From Nov 1',
         value: '4.5',
-        notes: ['Private rating average', 'set on Oct 12'],
+        notes: ['Average private rating', 'set on Oct 12'],
       },
     ])
   })
@@ -228,7 +228,7 @@ describe('goalListTarget', () => {
     })
 
     expect(listOf(goal).text).toBe(
-      'target 400 this month, set on Sep 20 · Private rating average 4.5 from Nov 1',
+      'target 400 this month, set on Sep 20 · Average private rating 4.5 from Nov 1',
     )
   })
 

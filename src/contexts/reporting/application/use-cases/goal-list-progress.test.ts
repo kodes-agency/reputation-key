@@ -362,6 +362,37 @@ describe('the month so far of the goals on the Goals list', () => {
     expect(await listProgress(input, actor)).toMatchObject([{ belowPace: 1 }])
   })
 
+  describe('subjects whose month expects fewer than 5 by today', () => {
+    function withMonthTargets(lobbyTarget: number, barTarget: number): GoalProgramBundle {
+      const goal = bundle({ subjects: portals(2) })
+      const [lobby, bar] = goal.results
+      return {
+        ...goal,
+        results: [
+          { ...lobby!, targetValue: lobbyTarget },
+          { ...bar!, targetValue: barTarget },
+        ],
+      }
+    }
+
+    it('counts only the subjects that are judged', async () => {
+      // Day 24 of 30: 4 a month expects 3.2, so it is not judged; 400 expects 320.
+      const { listProgress } = reader([withMonthTargets(4, 400)], () => counted(0))
+
+      expect(await listProgress(input, actor)).toMatchObject([
+        { subjectCount: 2, belowPace: 1 },
+      ])
+    })
+
+    it('judges nothing when every subject expects fewer than 5', async () => {
+      const { listProgress } = reader([withMonthTargets(4, 4)], () => counted(0))
+
+      expect(await listProgress(input, actor)).toMatchObject([
+        { subjectCount: 2, belowPace: null },
+      ])
+    })
+  })
+
   it('does not count a subject whose figure cannot be read', async () => {
     const { listProgress } = reader([bundle({ subjects: portals(3) })], (subject) =>
       subject.kind === 'portal' && subject.portalId === 'portal-1' ? broken : counted(10),

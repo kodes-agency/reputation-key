@@ -1,10 +1,11 @@
-// A goal's measure is named in two places and copied nowhere.
+// A goal's measure is named in one place and copied nowhere.
 //
-// `goalMetricLabel` (Reporting's) is what the Goals page, a group's goal card
-// and a goal's own name call a measure; `goalPageMetricLabel` is what a goal's
-// own page and its forms call it. The Goals list, the results matrix under it
-// and the metric select each carried a hand copy, and the matrix's copy said
-// "Private rating count" under a list that said "Private ratings".
+// `goalMetricLabel` (Reporting's) is what every goal surface calls a measure:
+// the Goals page, its results matrix, a group's goal card, a goal's own page,
+// its forms and the name a goal is given. The Goals list, the results matrix
+// under it and the metric select each carried a hand copy once, and a goal's
+// page had a second spelling ("Private rating count" under a list that said
+// "Private ratings").
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -23,13 +24,10 @@ const GOAL_SOURCES = [
 
 /** A measure's name written out as a string of its own. */
 const SPELLED_LABEL =
-  /(['"`])(?:Qualified scans|Private ratings|Private rating count|Private rating average)\1/u
+  /(['"`])(?:Scans|Qualified scans|Private ratings|Private rating count|Average private rating|Private rating average)\1/u
 
-/** The one file under the goal sources that owns a spelling. */
-const OWNERS: Readonly<Record<string, string>> = {
-  'src/components/goals/goal-detail-view.ts':
-    "`goalPageMetricLabel`: a goal's own page and its forms",
-}
+/** The files under the goal sources that own a spelling: none, Reporting owns it. */
+const OWNERS: Readonly<Record<string, string>> = {}
 
 const MONTH_START = new Date('2026-09-01T00:00:00.000Z')
 
@@ -48,7 +46,6 @@ function matrixOf(metric: GoalMetric): GoalResultsMatrixModel {
             scope: 'property',
             subject: { kind: 'property', propertyId: 'property-1' },
             subjectName: 'Riverside Hotel',
-            ungroupedPortal: false,
             metric,
             availability: 'ready',
             outcome: 'met',
@@ -70,12 +67,11 @@ function matrixOf(metric: GoalMetric): GoalResultsMatrixModel {
         ],
       },
     ],
-    unassignedPortals: [],
   }
 }
 
 describe("a goal's measure", () => {
-  it('is spelled by its two owners and by no other goal file', () => {
+  it("spells a measure only in Reporting's goal-metric-label", () => {
     const spelling = readUiSources({ includeTs: true })
       .filter((file) => GOAL_SOURCES.some((source) => file.path.startsWith(source)))
       .filter((file) => SPELLED_LABEL.test(file.text))
@@ -101,7 +97,11 @@ describe("a goal's measure", () => {
     },
   )
 
-  it('is "Private ratings" on the Goals page, never "Private rating count"', () => {
-    expect(goalMetricLabel('portal_rating_count')).toBe('Private ratings')
+  it.each([
+    ['qualified_scans', 'Scans'],
+    ['portal_rating_count', 'Private ratings'],
+    ['portal_rating_average', 'Average private rating'],
+  ] as const)('names %s "%s" everywhere', (metric, label) => {
+    expect(goalMetricLabel(metric)).toBe(label)
   })
 })

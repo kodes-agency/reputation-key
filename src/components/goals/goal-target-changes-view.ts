@@ -23,7 +23,8 @@
 import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import type { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { formatMonthName } from '#/lib/format'
-import { goalDay, goalPageMetricLabel } from './goal-detail-view'
+import { goalDay } from './goal-detail-view'
+import { goalMetricLabel } from './goal-metric-label'
 import { goalFigure } from './goal-so-far'
 import type { GoalMarkerFrame } from './goal-target-marker'
 
@@ -204,7 +205,7 @@ function versionEntry(
         : told(
             name,
             'the measure',
-            `to ${goalPageMetricLabel(version.metric)}, with a target of ${target}`,
+            `to ${goalMetricLabel(version.metric)}, with a target of ${target}`,
           ),
     detail: `Applies from ${goalDay(from, frame)}.`,
     note: reason === '' || DEFAULT_REASONS.has(reason) ? null : reason,

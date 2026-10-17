@@ -19,16 +19,6 @@ import { goalTargetMarkerLine } from './goal-target-marker'
 
 type Calendar = Readonly<{ timezone: string; now: Date }>
 
-const PAGE_METRIC_LABELS: Readonly<Record<GoalMetric, string>> = {
-  qualified_scans: 'Qualified scans',
-  portal_rating_count: 'Private rating count',
-  portal_rating_average: 'Private rating average',
-}
-
-/** What a goal's own page and its forms call a measure. */
-export const goalPageMetricLabel = (metric: GoalMetric): string =>
-  PAGE_METRIC_LABELS[metric]
-
 /** "Oct 11", with its year once it is not the year the reader is in. */
 export const goalDay = (date: Date, { timezone, now }: Calendar): string =>
   formatShortDate(date, timezone, now) ?? 'an unknown date'

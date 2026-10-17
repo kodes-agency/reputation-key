@@ -38,9 +38,9 @@ type Story = StoryObj<typeof GoalLiveLine>
 export const OneCountSubject: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('64 of 120 so far · 14 days left')).toBeVisible()
+    expect(canvas.getByText('64 of 120 so far · 15 days left')).toBeVisible()
     const bar = canvas.getByRole('progressbar', {
-      name: 'Qualified scans so far this month',
+      name: 'Scans so far this month',
     })
     expect(bar).toHaveAttribute('aria-valuenow', '64')
     expect(bar).toHaveAttribute('aria-valuemax', '120')
@@ -61,14 +61,14 @@ export const OneCountSubjectBelowPace: Story = {
     const canvas = within(canvasElement)
     const line = canvasElement.querySelector('[data-slot="goal-live-line"]')
     expect(line?.querySelector('p')).toHaveTextContent(
-      /^64 of 120 so far · 14 days left$/,
+      /^64 of 120 so far · 15 days left$/,
     )
     const note = canvas.getByText('below pace')
     expect(note).toBeVisible()
     expect(note).toHaveClass('text-warn')
     expect(note).toHaveAttribute('data-slot', 'goal-live-pace')
     const bar = canvas.getByRole('progressbar', {
-      name: 'Qualified scans so far this month',
+      name: 'Scans so far this month',
     })
     expect(bar).toHaveAttribute('aria-valuetext', '64 of 120 so far')
     expect(bar).toHaveAttribute('data-tone', 'neutral')
@@ -106,7 +106,7 @@ export const PastTheTarget: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('1,530 of 1,200 so far · 14 days left')).toBeVisible()
+    expect(canvas.getByText('1,530 of 1,200 so far · 15 days left')).toBeVisible()
     expect(canvas.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1200')
   },
 }
@@ -132,7 +132,7 @@ export const OneAverageSubject: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('4.6 so far · target 4.5 · 14 days left')).toBeVisible()
+    expect(canvas.getByText('4.6 so far · target 4.5 · 15 days left')).toBeVisible()
     expect(canvas.queryByRole('progressbar')).toBeNull()
   },
 }
@@ -152,7 +152,7 @@ export const MoreRatingsNeeded: Story = {
     const canvas = within(canvasElement)
     expect(
       canvas.getByText(
-        'More ratings needed · 4 of 10 so far · target 4.5 · 14 days left',
+        'More ratings needed · 4 of 10 so far · target 4.5 · 15 days left',
       ),
     ).toBeVisible()
     expect(canvas.queryByRole('progressbar')).toBeNull()
@@ -225,7 +225,7 @@ export const PendingKeepsTheRoomOfACount: Story = {
     expect(pending?.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2)
     // Only the loaded line is a bar a reader can find.
     expect(canvas.getAllByRole('progressbar')).toHaveLength(1)
-    expect(canvas.getByText('64 of 120 so far · 14 days left')).toBeVisible()
+    expect(canvas.getByText('64 of 120 so far · 15 days left')).toBeVisible()
   },
 }
 
@@ -271,7 +271,7 @@ export const PendingKeepsTheRoomOfACountOfFiveDigitsBelowPace: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('12,345 of 15,000 so far · 14 days left')).toBeVisible()
+    expect(canvas.getByText('12,345 of 15,000 so far · 15 days left')).toBeVisible()
     expect(canvas.getByText('below pace')).toBeVisible()
   },
 }

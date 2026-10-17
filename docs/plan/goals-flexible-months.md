@@ -16,7 +16,7 @@ Owner decisions (2026-10-11):
 - **D1. Start this month.** A new goal counts for the current calendar month when it is created on or before the 20th local day (the default), otherwise it starts next month. The creator can pick the other option. The UI always shows when the goal was set.
 - **D2. The month carries its own target.** While a month is running, a manager can change that month's target. The change is shown ("changed on Oct 20, started at 400") and logged with who, when, old and new value and an optional note. Once the period ends the target is locked; closed months stay immutable. By default the new target also applies to the following months.
 - **D3. The reason is optional**, and a goal that has not started can be edited.
-- **D4. Per-portal goals are separate goals.** There are no per-subject targets inside one goal and no property total that portals share. A table sets goals for several portals at once, one goal each.
+- **D4. Per-portal goals are separate goals.** There are no per-subject targets inside one goal and no property total that portals share. A table sets goals for several portals at once, one goal each. 2026-10-17: a Property goal shows each Portal's count as a fact (P-1); still no shared total or per-Portal targets ([ADR 0068](../adr/0068-monthly-portal-goal.md)).
 - **D5. Out of scope:** any Google-rating feature, a redesigned monitoring page, import-wizard changes, drafted goals, new measures, person or team goals.
 - **D6.** Technical safeguards stay (constraints, tenant scoping, tests). Docs that state a changed rule are amended in the same change. Existing goals and closed months keep working unchanged. Migrations are additive and safe while old web or worker code still runs.
 
@@ -683,7 +683,7 @@ The slice was replayed on main with Slice 4 (#774) on 2026-10-12. Seven files co
 3. **Ended goal this month, replacement wanted this month?** Default: refuse with the conflict copy; no silent move to next month.
 4. **May an ended goal's still-running month be retargeted?** Default: no; paused goals may.
 5. **Any limit on lowering a target late in the month?** Default: none; the log, the marker and the notice clause are the control.
-6. **Notify other managers when a target changes?** Default: no new notice; the goal-met and goal-missed notices carry the marker.
+6. **Notify other managers when a target changes?** Default: no new notice; the goal-met and goal-missed notices carry the marker. 2026-10-17: no goal-missed notice exists; none is added (ADR 0068). The goal-met and result-revised notices carry the marker.
 7. **Archived Portal inside a multi-subject goal when "also from next month" is ticked?** Default: this month changes, next month does not, and the message says why.
 8. **Bulk rows that already have a goal: read-only or editable?** Default: read-only with a link.
 9. **Month-to-date figure per row in the bulk table?** Default: no (up to 50 reads); the goal page shows it after saving.

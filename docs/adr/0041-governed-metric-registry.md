@@ -94,3 +94,20 @@ Google source: the three Goal measures stay first-party Portal measures
 result, and no Goal Program reads the rating goal. Review-solicitation analytics
 stay out of both: the rating goal never reads Portal Google-link opens.
 `employment_decision_eligible` stays `false`.
+
+## Note 2026-10-17 — a goal's recommended number reads its own versions
+
+Owner decision 2026-10-17, recorded in [ADR 0068](0068-monthly-portal-goal.md).
+The Monthly portal goal recommends a number from the Property's last 28 days. It
+reads the qualified-scan (…1301) and private-rating-count (…1302) versions, which
+already admit the `goal` consumer at `portal` scope, in one set-based statement,
+each reading at its latest correction. A reading the
+governed read would quarantine makes its Portal and measure unreadable, so a
+recommendation is never worked out from it. The read skips only the outbox
+completeness proof, the same documented exception as the behind-pace count:
+that proof is a completeness check for a result, and a suggestion is not one.
+The figure a goal shows for its month still comes from the governed read.
+
+Nothing in the registry changes: no version, scope, consumer, source policy or
+effective date moves, and the rating-average version (…1303) is not read for a
+recommendation.
