@@ -665,7 +665,11 @@
 // head (27,795 B). Fresh production builds measured 307,515 B (75 js + 1 css)
 // on the PG-04 head 460fb7f84 and 307,578 B on the PG-17 head: +63 B. Rebased
 // onto PG-04 on PG-01..PG-03 (a94ef41f5, 307,540 B) it measured 307,608 B:
-// +68 B, the entry +19 B. 92 B spare.
+// +68 B, the entry +19 B. 92 B spare. 2026-10-18, the review fixes (docs,
+// stories, a metrics file) change no client module; the branch was measured
+// once more on main 89ec42dbb (PG-04 as #854, then #855, PG-06 #859 and #857)
+// without rebasing it: main 307,564 B, PG-17 applied 307,634 B, +70 B, the
+// stylesheet 27,811 B on both. 66 B spare under 307,700; no raise.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
