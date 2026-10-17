@@ -330,6 +330,17 @@ export const PortalGoalBelowPaceChip: Story = {
   },
 }
 
+/** The one-goal chip on a 320 px phone and on the light surface. */
+export const PortalGoalBelowPaceChipNarrowPhone: Story = {
+  ...PortalGoalBelowPaceChip,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const PortalGoalBelowPaceChipLight: Story = {
+  ...PortalGoalBelowPaceChip,
+  parameters: { theme: 'light' },
+}
+
 export const PortalGoalsBelowPaceChip: Story = {
   args: { signals: { ...calmSignals, goalsBehindPace: 2, needsAttention: 2 } },
   play: async ({ canvasElement }) => {

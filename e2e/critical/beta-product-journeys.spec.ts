@@ -912,6 +912,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.goto(`/properties/${seed.p2PropertyId}/goals`)
     await expect(page).not.toHaveURL(/\/unavailable/)
     await expect(page.getByText(activeGoalName)).toHaveCount(0)
+    // P2 has no goal with a month, as on a first visit: the page draws no
+    // Monthly results card at all (PG-01), not an empty one.
+    await expect(page.getByRole('heading', { level: 1, name: 'Goals' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Monthly results' })).toHaveCount(0)
     await page.goto(`/properties/${seed.p3PropertyId}/goals/${governedGoalDefinitionId}`)
     await expect(page.getByText(/doesn't exist|not found/i).first()).toBeVisible()
     await expect(page.getByText(activeGoalName)).toHaveCount(0)

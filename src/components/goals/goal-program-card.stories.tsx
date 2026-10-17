@@ -88,6 +88,17 @@ export const ThisMonthAndTheMonthsAfter: Story = {
   },
 }
 
+/** The same card on a 320 px phone and on the light surface: the same words. */
+export const ThisMonthAndTheMonthsAfterNarrowPhone: Story = {
+  ...ThisMonthAndTheMonthsAfter,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const ThisMonthAndTheMonthsAfterLight: Story = {
+  ...ThisMonthAndTheMonthsAfter,
+  parameters: { theme: 'light' },
+}
+
 /** A goal that has not started has one target, and says how its start is moved. */
 export const NotStartedYet: Story = {
   args: { goal: scheduled, plan: monthTargetPlan(scheduled, NOW, FIXTURE_ZONE) },
