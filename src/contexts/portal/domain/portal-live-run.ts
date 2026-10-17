@@ -11,11 +11,11 @@
 // The rule reads only the activations that bound a run: each run's first
 // activation, the one that closed it (`disabled` or `archived`) and the open
 // one. Activations in the middle of a run change nothing, so a read may leave
-// out the ones that closed before its window (`listActivationsForPortals`).
+// them out (`listActivationsForPortals` reads only the boundaries).
 
 import type { PortalPublicationActivation } from './portal-publication-snapshot'
 
-export type LiveRunActivation = Pick<
+type LiveRunActivation = Pick<
   PortalPublicationActivation,
   'activationSequence' | 'activatedAt' | 'deactivatedAt' | 'deactivationReason'
 >
@@ -46,6 +46,13 @@ function liveRuns(activations: readonly LiveRunActivation[]): readonly LiveRun[]
   })
 }
 
+/**
+ * A run closed at its own start was never live. An Organization closing writes
+ * one when an activation is younger than the closing instant.
+ */
+const neverLive = (run: LiveRun): boolean =>
+  run.end !== null && run.end.getTime() <= run.start.getTime()
+
 /** When the current run began, or null when the Portal is not live. */
 export function liveRunStart(activations: readonly LiveRunActivation[]): Date | null {
   const runs = liveRuns(activations)
@@ -55,7 +62,7 @@ export function liveRunStart(activations: readonly LiveRunActivation[]): Date | 
 
 /**
  * The runs that overlap `[from, to)`, clipped to it, oldest first. A run still
- * open keeps a null end.
+ * open keeps a null end; a run closed at its own start gives no interval.
  */
 export function liveIntervals(
   activations: readonly LiveRunActivation[],
@@ -65,6 +72,7 @@ export function liveIntervals(
   return liveRuns(activations)
     .filter(
       (run) =>
+        !neverLive(run) &&
         run.start.getTime() < to.getTime() &&
         (run.end === null || run.end.getTime() > from.getTime()),
     )

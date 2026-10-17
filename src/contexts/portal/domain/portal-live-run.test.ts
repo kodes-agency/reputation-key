@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { liveIntervals, liveRunStart, type LiveRunActivation } from './portal-live-run'
+import { liveIntervals, liveRunStart } from './portal-live-run'
+
+type LiveRunActivation = Parameters<typeof liveRunStart>[0][number]
 
 // Europe/Sofia is UTC+3 until Oct 25, 2026: 12:00 local is 09:00 UTC.
 const at = (iso: string) => new Date(iso)
@@ -153,7 +155,7 @@ describe('portal live run', () => {
   it('a run older than the read keeps its first go-live from the boundary rows alone', () => {
     // What `listActivationsForPortals` returns for a Portal live since May and
     // republished in June: the run's first activation and the open one, without
-    // the republish in between that closed before the read's window.
+    // the republish in between.
     const read = [
       activation(1, '2026-05-02T06:00:00.000Z', {
         at: '2026-05-20T06:00:00.000Z',
@@ -171,5 +173,31 @@ describe('portal live run', () => {
     expect(
       liveIntervals(read, at('2026-08-18T00:00:00.000Z'), at('2026-10-17T00:00:00.000Z')),
     ).toEqual([{ from: at('2026-08-18T00:00:00.000Z'), to: null }])
+  })
+
+  it('a run closed at its own start has no live interval', () => {
+    // An Organization closing stamps GREATEST(activated_at, occurred_at), so an
+    // activation made after that instant closes where it began.
+    const activations = [
+      activation(1, '2026-10-01T06:00:00.000Z', {
+        at: '2026-10-10T11:00:00.000Z',
+        reason: 'disabled',
+      }),
+      activation(2, '2026-10-12T06:00:00.000Z', {
+        at: '2026-10-12T06:00:00.000Z',
+        reason: 'disabled',
+      }),
+    ]
+
+    expect(liveRunStart(activations)).toBeNull()
+    expect(
+      liveIntervals(
+        activations,
+        at('2026-09-24T00:00:00.000Z'),
+        at('2026-10-23T00:00:00.000Z'),
+      ),
+    ).toEqual([
+      { from: at('2026-10-01T06:00:00.000Z'), to: at('2026-10-10T11:00:00.000Z') },
+    ])
   })
 })
