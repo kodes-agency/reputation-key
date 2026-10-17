@@ -6,12 +6,16 @@
 // its planned quality of new reviews (at least 0.15★ above the target's
 // threshold, as a tenth) and its pace. A change names the version its form was
 // opened on, writes one log row per changed field and no reason. Ending is
-// always allowed while the goal is active. Nothing here is a deadline.
+// always allowed while the goal is active. Keeping the pace answers the Monday
+// check-in (round 5, Q4) for every manager, with no version and no log row.
+// Nothing here is a deadline.
 
 import { ratioToNumber } from '../../domain/rating-goal-numbers'
 import type { RatingGoalEligibility } from '../../domain/rating-goal-stops'
 import {
+  changeForgetsKnownStatus,
   paceProblem,
+  paceSinceAfter,
   planChanges,
   planQualityProblem,
   ratingGoalError,
@@ -20,9 +24,11 @@ import {
   type RatingGoalMode,
   type RatingGoalPlan,
 } from '../../domain/rating-goal'
+import { recapWeekStart, weeklyRecapDue } from '../../domain/rating-goal-recap'
 import type {
   RatingGoalChangeResult,
   RatingGoalEndResult,
+  RatingGoalKeepResult,
   RatingGoalSetResult,
 } from '../dto/rating-goal.types'
 import type {
@@ -36,10 +42,13 @@ import {
   setupEligibility,
   type RatingGoalReading,
 } from '../rating-goal-reading'
+import { googleShowsSoonOf } from '../rating-goal-views'
 import type { GoalActor } from './goal-program-shared'
 import {
   authorizeRatingGoal,
+  evaluateActiveRatingGoal,
   requireReading,
+  type EvaluatedRatingGoal,
   type RatingGoalDependencies,
 } from './rating-goal-shared'
 
@@ -61,6 +70,13 @@ export type ChangeRatingGoalInput = Readonly<{
   targetTenths?: number
   qualityTenths?: number | null
   paceTenthsPerWeek?: number | null
+}>
+
+export type KeepRatingGoalPaceInput = Readonly<{
+  propertyId: string
+  goalId: string
+  /** The check-in's week, as the card showed it: last week's Monday. */
+  weekStart: string
 }>
 
 export type EndRatingGoalInput = Readonly<{
@@ -177,6 +193,8 @@ function newGoal(
       reachedAt: null,
       endedAt: null,
       version: 1,
+      paceSince: goal.createdAt,
+      recapAnsweredWeek: null,
     },
     reading,
     null,
@@ -269,6 +287,8 @@ export async function changeRatingGoal(
       changedAt: now,
     })),
     changedAt: now,
+    paceSince: paceSinceAfter(goal, plan, now),
+    forgetsKnownStatus: changeForgetsKnownStatus(goal, plan),
   })
   if (result !== 'written') throwWriteRefusal(result)
   return { goalId: goal.id, version: input.expectedVersion + 1 }
@@ -291,4 +311,75 @@ export async function endRatingGoal(
   })
   if (result !== 'written') throwWriteRefusal(result)
   return { goalId: goal.id, ended: true }
+}
+
+/** The week the check-in open now looks back on, after the goal was evaluated; null when none is. */
+const openRecapWeek = ({
+  goal,
+  evaluation,
+  reading,
+}: EvaluatedRatingGoal): string | null =>
+  goal.state === 'active'
+    ? (weeklyRecapDue({
+        goal,
+        status: evaluation.status,
+        googleShowsSoon: googleShowsSoonOf(goal, reading),
+        now: reading.now,
+        timezone: reading.facts.timezone,
+      })?.weekStart ?? null)
+    : null
+
+/**
+ * True when Keep repeats the week already answered and that week is still the
+ * one a check-in open now looks back on. A stale tab's week is not: this
+ * week's check-in may still be unanswered, so it falls through and is refused.
+ */
+async function repeatsOpenWeek(
+  deps: RatingGoalDependencies,
+  organizationId: string,
+  goal: PropertyRatingGoal,
+  weekStart: string,
+): Promise<boolean> {
+  if (goal.recapAnsweredWeek !== weekStart) return false
+  const facts = await deps.properties.findPropertyFacts(organizationId, goal.propertyId)
+  return facts !== null && recapWeekStart(deps.now(), facts.timezone) === weekStart
+}
+
+const recapClosed = () =>
+  ratingGoalError('recap_closed', 'This week’s check-in has closed')
+
+/**
+ * Keeps the pace for this week: answers the Monday check-in it names for every
+ * manager. A repeat of the week already answered succeeds while that week is
+ * still the open check-in's; any other week, or a check-in
+ * that closed (the pace changed this week, the week ended, the status no
+ * longer asks), is refused `recap_closed`.
+ */
+export async function keepRatingGoalPace(
+  deps: RatingGoalDependencies,
+  input: KeepRatingGoalPaceInput,
+  actor: GoalActor,
+): Promise<RatingGoalKeepResult> {
+  await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.update')
+  const goal = await deps.repository.findById(
+    actor.organizationId,
+    input.propertyId,
+    input.goalId,
+  )
+  if (goal === null) throw ratingGoalError('not_found', 'Rating goal not found')
+  if (goal.state !== 'active' || goal.mode !== 'climb') throwWriteRefusal('not_active')
+  const kept = { goalId: goal.id, weekStart: input.weekStart }
+  if (await repeatsOpenWeek(deps, actor.organizationId, goal, input.weekStart))
+    return kept
+  const evaluated = await evaluateActiveRatingGoal(deps, goal)
+  if (evaluated.goal.state !== 'active') throwWriteRefusal('not_active')
+  if (openRecapWeek(evaluated) !== input.weekStart) throw recapClosed()
+  const stored = await deps.repository.markRecapAnswered({
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    goalId: goal.id,
+    weekStart: input.weekStart,
+  })
+  if (!stored) throwWriteRefusal('not_active')
+  return kept
 }

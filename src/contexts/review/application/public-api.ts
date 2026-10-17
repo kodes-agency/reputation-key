@@ -112,6 +112,8 @@ export type {
   GoogleRatingHistory,
   GoogleRatingLowReview,
   GoogleRatingMonthTotals,
+  GoogleRatingRange,
+  GoogleRatingRangeTotals,
   GoogleRatingStarCount,
   GoogleRatingSummary,
   GoogleRatingSummaryRequest,

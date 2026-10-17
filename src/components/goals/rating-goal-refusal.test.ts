@@ -49,6 +49,30 @@ describe('a rating goal refusal', () => {
     expect(ratingGoalRefusalCode(new Error('boom'))).toBeNull()
   })
 
+  it('takes a caller’s own sentence for a code, and keeps the rest', () => {
+    const own = { version_conflict: 'Someone else changed it. Reload.' }
+
+    expect(ratingGoalRefusal(refused('version_conflict'), own)).toMatchObject({
+      code: 'version_conflict',
+      status: 409,
+      message: 'Someone else changed it. Reload.',
+    })
+    expect((ratingGoalRefusal(refused('goal_exists'), own) as Error).message).toMatch(
+      /already has a Google rating goal/u,
+    )
+  })
+
+  it('rewords a wrapped command’s refusal with the caller’s sentence', async () => {
+    const command = withRatingGoalRefusals(
+      async () => {
+        throw refused('version_conflict')
+      },
+      { version_conflict: 'Someone else changed it. Reload.' },
+    )
+
+    await expect(command(undefined)).rejects.toThrow('Someone else changed it. Reload.')
+  })
+
   it('rewords the refusal of a command it wraps', async () => {
     const command = withRatingGoalRefusals(async () => {
       throw refused('goal_exists')

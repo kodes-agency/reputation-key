@@ -1,6 +1,6 @@
 // The Google rating goal on the Property Overview, between the attention band
 // and "How you are doing" (owner, 2026-10-14): the same simple card the Goals
-// page draws, a goal reached or ended lately, or one line into the wizard
+// page draws (with the Monday check-in above it while one is due), a goal reached or ended lately, or one line into the wizard
 // (not after a manager chose "Not now"). Nothing else, and nothing at all where
 // none of those applies (`overviewGoalView`).
 import { Target } from 'lucide-react'
@@ -11,8 +11,11 @@ import type {
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { RatingGoalCard } from './rating-goal-card'
 import { RatingGoalOutcome } from './rating-goal-outcome'
+import {
+  RatingGoalCardWithRecap,
+  type RatingGoalRecapCommands,
+} from './rating-goal-recap'
 import { overviewGoalView } from './rating-goal-overview-view'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
@@ -29,6 +32,8 @@ type Props = Readonly<{
   /** A manager chose "Not now" (the setup checklist); undefined until it is read. */
   notNowChosen: boolean | undefined
   onStart: (intent: RatingGoalWizardIntent) => void
+  /** The Monday check-in's commands, from the page (E30). */
+  recap?: RatingGoalRecapCommands
 }>
 
 /** One line, one door: the wizard opens from it as from the Goals page. */
@@ -52,6 +57,7 @@ export function RatingGoalOverview({
   timezone,
   now,
   onStart,
+  recap,
   ...reads
 }: Props) {
   const { can } = usePermissions()
@@ -61,11 +67,12 @@ export function RatingGoalOverview({
       return null
     case 'card':
       return (
-        <RatingGoalCard
+        <RatingGoalCardWithRecap
           card={view.card}
           propertyId={propertyId}
           timezone={timezone}
           now={now}
+          recap={recap}
         />
       )
     case 'outcome':

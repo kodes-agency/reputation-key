@@ -585,6 +585,15 @@
 // route chunk; every class they use was already in the stylesheet (27,781 B,
 // byte for byte). A fresh production build measured 307,518 B (75 js + 1 css)
 // on the D-2b head; vendor-charts 91,005 B (lazy, 128,000 B cap). 182 B spare.
+//
+// 2026-10-17 (Google rating goal, round 5, PR D-3: the Monday check-in and the
+// pace anchor): no raise. The check-in is drawn by the goal's card component in
+// the route chunks that already draw the card, its Keep command is fetched with
+// the other goal commands on demand, and every class it uses was already in the
+// stylesheet (byte for byte the same, 27,781 B). Fresh production builds
+// measured 307,517 B (75 js + 1 css) on D-2's head e9810d689 and 307,512 B after
+// the components commit: -5 B. Rebased onto D-2b (main 44e873b2b, 307,518 B)
+// it measured 307,530 B: +12 B, the check-in beside the low reviews. 170 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

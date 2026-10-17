@@ -144,7 +144,8 @@ const MONTH_TARGET_CHANGE_COLUMNS = [
  * tenths a week and its whole weekly mirror, migration 0060),
  * baselines, state and last evaluation. `cant_reach_noticed_at` holds when the
  * managers were last told new reviews are too low (migration 0059 kept the
- * column's name).
+ * column's name). `pace_since` is when its pace came into force and
+ * `recap_answered_week` the Monday whose check-in a manager kept (migration 0061).
  */
 const RATING_GOAL_COLUMNS = [
   'id',
@@ -166,6 +167,8 @@ const RATING_GOAL_COLUMNS = [
   'last_known_status',
   'below_pace_noticed_at',
   'cant_reach_noticed_at',
+  'pace_since',
+  'recap_answered_week',
   'reached_at',
   'ended_at',
   'created_by',
@@ -496,6 +499,8 @@ async function readFamilies(
               last_known_status,
               to_char(below_pace_noticed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS below_pace_noticed_at,
               to_char(cant_reach_noticed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cant_reach_noticed_at,
+              to_char(pace_since AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS pace_since,
+              to_char(recap_answered_week, 'YYYY-MM-DD') AS recap_answered_week,
               to_char(reached_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS reached_at,
               to_char(ended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS ended_at,
               created_by,

@@ -28,12 +28,19 @@ export const isValidPaceTenths = (tenthsPerWeek: number): boolean =>
   tenthsPerWeek <= MAX_PACE_TENTHS_PER_WEEK
 
 /**
- * The whole weekly mirror of a pace in tenths: half up, at least one. The
- * database CHECK holds `pace_per_week` to the same integer division
- * (migration 0060), so the two never disagree.
+ * The whole reviews a week a pace is counted against ("This week: 9 of 14",
+ * last week's check-in): half up, at least one.
+ */
+export const weeklyPlanCount = (tenthsPerWeek: number): number =>
+  Math.max(1, Math.floor((tenthsPerWeek + 5) / 10))
+
+/**
+ * The whole weekly mirror of a pace in tenths: the same count. The database
+ * CHECK holds `pace_per_week` to the same integer division (migration 0060),
+ * so the two never disagree.
  */
 export const legacyPacePerWeek = (tenthsPerWeek: number): number =>
-  Math.max(1, Math.floor((tenthsPerWeek + 5) / 10))
+  weeklyPlanCount(tenthsPerWeek)
 
 /** A pace in tenths of a review a week as an exact ratio of reviews a week. */
 export const paceRatio = (tenthsPerWeek: number): Ratio => ratio(tenthsPerWeek, 10)

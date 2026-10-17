@@ -538,7 +538,7 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
     // Thirty days on: six reviews in the last 28 days is 1.5 a week, far
     // under 90% of 20.
     await held.client.query(
-      `UPDATE property_rating_goals SET created_at = $2 WHERE id = $1`,
+      `UPDATE property_rating_goals SET created_at = $2, pace_since = $2 WHERE id = $1`,
       [set.goalId, new Date(NOW.getTime() - 30 * DAY)],
     )
 
@@ -591,7 +591,7 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
         actor,
       )
       await held.client.query(
-        `UPDATE property_rating_goals SET created_at = $2 WHERE id = $1`,
+        `UPDATE property_rating_goals SET created_at = $2, pace_since = $2 WHERE id = $1`,
         [set.goalId, new Date(NOW.getTime() - 10 * DAY)],
       )
       await seedRecentOneStarReviews()

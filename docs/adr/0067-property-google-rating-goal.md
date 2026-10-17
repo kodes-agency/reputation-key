@@ -616,6 +616,49 @@ Inbox. The Disclosure's and the Agreement's "keeps no review content for the
 goal" stays true: nothing is kept. The amendment changes no stored figure, no
 retention and no export.
 
+## Amended 2026-10-17 — round 5, weekly check-in and the pace anchor
+
+The owner answered PLAN-D's Q3 and Q4 (OWNER-ANSWERS-D, 2026-10-16): a new
+pace starts afresh, and the Monday check-in is a card on the page only.
+
+1. **A new pace is judged from its change** (Q3). A goal stores when its pace
+   came into force (`pace_since`, migration 0061): the set, or the latest
+   change of the pace (a switch between keep and climb included); a set writes
+   it on the app's clock, a change moves it only when the pace moves. The
+   status judges the pace from it: getting started for 14 days, then a window
+   from the change until it is four weeks long, then the last four weeks; the
+   card's arrival uses the chosen pace until it is 28 days old (Q8 from the
+   change). "Just set", the reviews since the set, the blend of the planned
+   average and the too-low verdict keep the set.
+2. **The fresh start keeps what the goal knew.** While a goal is getting
+   started again (its pace younger than 14 days, the goal older), an
+   evaluation stores the status but keeps the known status from before the
+   change, and a change of the pace alone (mode and target kept) no longer
+   forgets it, so leaving the fresh start tells Below pace only when the goal
+   was not below pace before. Any other change of plan still forgets it. A
+   Below pace notice measured since the change says "since the pace changed"
+   (ADR 0046). The notice-volume check of 24 goals with a pace change at week
+   6 over 26 weeks pins it: raise 23 → 27 notices (four goals on pace before a
+   raise, once each, which the old rule silenced), ease 22 → 23 (one goal
+   eased to about its own pace, whose shorter window crosses 90% once more),
+   unchanged 20 → 20.
+3. **The Monday check-in** (Q4, R3-8's B, mock D4). From Monday 00:00 to
+   Sunday 24:00 of the Property's week, an active climb goal that is getting
+   started, on pace or below pace, set before last week began and not lagging
+   on Google, carries last week on its card: the count of new Google reviews,
+   their average as a tenth only from ten reviews (Review gives no window sum
+   under ten, the data-boundary rule of the tracking detail), the plan's whole
+   reviews a week when last week had one plan (no pace change during it), and
+   Keep, Raise and Ease. Raise and Ease step over 1 a week, 3 a week, then 1,
+   2, 3, 5, 7, 10, 15, 20, 30 and 50 a day, and are ordinary changes of the
+   pace. Keep stores the week it answers (`recap_answered_week`, its Monday)
+   for every manager, with no version and no change-log row, never back to an
+   earlier week, and refuses a week whose check-in has closed (`recap_closed`);
+   a change of the pace this week answers it too. It needs goal.update, and the
+   check-in is hidden without it. It is never automatic, and it is never a
+   bell row or an email (Q11 stands): one card on the Goals page and the
+   Property Overview, read with the card (no new query, no new read).
+
 ## Rejected alternatives
 
 - **A fourth Goal measure for the Google rating.** It would put Google data into

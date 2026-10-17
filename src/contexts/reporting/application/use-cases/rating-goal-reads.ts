@@ -106,6 +106,7 @@ export async function getRatingGoalSetup(
 const cardOf = (evaluated: EvaluatedRatingGoal): RatingGoalCardView =>
   buildCardView(evaluated.goal, evaluated.evaluation.status, evaluated.reading, {
     thisWeek: evaluated.thisWeekCount,
+    lastWeek: evaluated.lastWeek,
   })
 
 /** The simple card of the active goal, or null when the Property has none. */

@@ -113,6 +113,7 @@ export const CARD: RatingGoalCardView = {
   nextUp: null,
   // 14 Oct 2026 is a Wednesday.
   weekday: 3,
+  recap: null,
 }
 
 export const CARD_JUST_SET: RatingGoalCardView = {

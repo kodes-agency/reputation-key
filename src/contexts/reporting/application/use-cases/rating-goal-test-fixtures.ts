@@ -45,9 +45,11 @@ export type FakeWorld = {
    * Cache totals, the mix inputs, one count per window, and the reviews since
    * a goal was set (answered only when a read asks for them).
    */
-  summary: Omit<GoogleRatingSummary, 'countsSince' | 'totalsSince'> & {
+  summary: Omit<GoogleRatingSummary, 'countsSince' | 'totalsSince' | 'rangeTotals'> & {
     counts: readonly number[]
     sinceSet: GoogleRatingTotals
+    /** The reviews of last Property-local week (the range a card read asks for). */
+    lastWeek: GoogleRatingTotals
   }
   /** Each calendar year's totals, oldest first. */
   years: GoogleRatingYearTotals[]
@@ -105,6 +107,8 @@ export function exampleWorld(): FakeWorld {
       counts: [28, 0, 0, 0],
       // Nine reviews since a goal was set: no verdict on their stars yet.
       sinceSet: { count: 9, sum: 41 },
+      // Eight reviews last week: a count, and no star sum under ten.
+      lastWeek: { count: 8, sum: 37 },
     },
     years: [],
     months: [],
@@ -208,6 +212,8 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
           reachedAt: null,
           endedAt: null,
           version: 1,
+          paceSince: goal.createdAt,
+          recapAnsweredWeek: null,
         },
       ]
       return 'inserted'
@@ -219,11 +225,27 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
       replace({
         ...goal,
         ...change.plan,
-        lastEvaluation: { ...goal.lastEvaluation, knownStatus: null },
+        paceSince: change.paceSince,
+        lastEvaluation: change.forgetsKnownStatus
+          ? { ...goal.lastEvaluation, knownStatus: null }
+          : goal.lastEvaluation,
         version: goal.version + 1,
       })
       world.changes = [...world.changes, ...change.changes]
       return 'written'
+    },
+    markRecapAnswered: async (answer) => {
+      const goal = find(
+        (g) =>
+          g.organizationId === answer.organizationId &&
+          g.propertyId === answer.propertyId &&
+          g.id === answer.goalId,
+      )
+      if (!goal || goal.state !== 'active') return false
+      const earlier =
+        goal.recapAnsweredWeek !== null && goal.recapAnsweredWeek > answer.weekStart
+      if (!earlier) replace({ ...goal, recapAnsweredWeek: answer.weekStart })
+      return true
     },
     endByManager: async (end) => {
       const goal = find((g) => g.id === end.goalId)
@@ -317,11 +339,21 @@ function fakeReviews(world: FakeWorld): ReviewGoogleRatingReads {
   return {
     getRatingSummary: async (_org, _property, request) => {
       world.summaryRequests = [...world.summaryRequests, request]
-      const { counts, sinceSet, ...totals } = world.summary
+      const { counts, sinceSet, lastWeek, ...totals } = world.summary
       return {
         ...totals,
         countsSince: request.countSince.map((_, i) => counts[i] ?? 0),
         totalsSince: request.totalsSince === undefined ? null : sinceSet,
+        rangeTotals:
+          request.rangeTotals === undefined
+            ? null
+            : {
+                count: lastWeek.count,
+                sum:
+                  lastWeek.count >= request.rangeTotals.minimumCount
+                    ? lastWeek.sum
+                    : null,
+              },
       }
     },
     getYearlyTotals: async () => world.years,
@@ -423,6 +455,8 @@ export function activeGoal(
     createdBy: 'manager-1',
     createdAt: new Date(NOW.getTime() - 40 * DAY),
     updatedAt: new Date(NOW.getTime() - 40 * DAY),
+    paceSince: overrides.createdAt ?? new Date(NOW.getTime() - 40 * DAY),
+    recapAnsweredWeek: null,
     version: 1,
     ...overrides,
   }

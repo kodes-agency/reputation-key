@@ -11,6 +11,7 @@ import { ratingGoalHistoryQuery, ratingGoalSetupQuery } from './-rating-goal-que
 import {
   preloadRatingGoalWizard,
   useRatingGoalCard,
+  useRatingGoalRecapCommands,
   useRatingGoalWizard,
 } from './-rating-goal-wizard-host'
 
@@ -49,6 +50,7 @@ export function OverviewRatingGoal({
     retry: false,
   })
   const { start, wizard } = useRatingGoalWizard(propertyId, { hasPortals, propertyName })
+  const recap = useRatingGoalRecapCommands(propertyId)
   // A door to the wizard is on screen: fetch its chunk now, so the click opens it at once.
   const doorShown = can('goal.create') && noActiveGoal
   useEffect(() => {
@@ -66,6 +68,7 @@ export function OverviewRatingGoal({
         history={history.data}
         notNowChosen={notNowChosen}
         onStart={start}
+        recap={recap}
       />
       {wizard}
     </>

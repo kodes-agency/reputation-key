@@ -151,6 +151,8 @@ const goalOf = (property: Property, plan: number): PropertyRatingGoal => ({
   createdBy: 'manager-1',
   createdAt: SET_AT,
   updatedAt: SET_AT,
+  paceSince: SET_AT,
+  recapAnsweredWeek: null,
   version: 1,
 })
 
@@ -185,6 +187,7 @@ function readingOn(
     reviewsLast90Days: total(days.slice(Math.max(0, day - 90), day)).count,
     extraCounts: [],
     sinceSet,
+    range: null,
   }
 }
 
@@ -258,7 +261,7 @@ async function run(scenario: Scenario, plan: number): Promise<Run> {
   const tracked: Day[] = []
   for (let day = 1; day <= DAYS && goal.state === 'active'; day += 1) {
     const reading = readingOn(property, days, day)
-    const window = statusPaceWindow(goal.createdAt, reading.now)
+    const window = statusPaceWindow(goal.paceSince, reading.now)
     const paceCount = window === null ? null : inWindow(days, day, window.start)
     const evaluation = evaluateRatingGoal(goal, reading, paceCount)
     const pace =

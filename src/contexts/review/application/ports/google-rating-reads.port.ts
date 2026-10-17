@@ -35,6 +35,12 @@
 // distribution since this Monday). The caller reads them live for the goal's
 // managers and keeps nothing.
 //
+// Since round 5's check-in (2026-10-17, D-3) the summary also counts the
+// reviews of one range in the same scan (last Property-local week), and gives
+// their star sum only from ten reviews (GOOGLE_RATING_RANGE_MIN_COUNT): no
+// window aggregate under ten returns a sum, so a week's sum never tells a few
+// reviews' stars.
+//
 // A review counts when it is servable under the same eligibility as
 // ReviewServingStats (ADR 0031: active source content with a rating, a review
 // instant and an unexpired cache clock, `now` from the injected clock) and was
@@ -51,6 +57,20 @@ export type GoogleRatingTotals = Readonly<{ count: number; sum: number }>
 /** Most count windows one summary read answers. */
 export const GOOGLE_RATING_SUMMARY_MAX_COUNT_WINDOWS = 4
 
+/** A range's star sum leaves Review only from this many reviews in it. */
+export const GOOGLE_RATING_RANGE_MIN_COUNT = 10
+
+/** The reviews created at or after `from` and before `to`. */
+export type GoogleRatingRange = Readonly<{
+  from: Date
+  to: Date
+  /** The sum is given from this many reviews; at least GOOGLE_RATING_RANGE_MIN_COUNT. */
+  minimumCount: number
+}>
+
+/** A range's count, and its star sum, null under the range's minimum count. */
+export type GoogleRatingRangeTotals = Readonly<{ count: number; sum: number | null }>
+
 export type GoogleRatingSummaryRequest = Readonly<{
   /** The recent-mix window starts here. */
   mixWindowStart: Date
@@ -60,6 +80,8 @@ export type GoogleRatingSummaryRequest = Readonly<{
   countSince: readonly Date[]
   /** When given, the count and star sum of the reviews created at or after it. */
   totalsSince?: Date
+  /** When given, the count (and from the minimum, the star sum) of one range. */
+  rangeTotals?: GoogleRatingRange
 }>
 
 export type GoogleRatingSummary = Readonly<{
@@ -73,6 +95,8 @@ export type GoogleRatingSummary = Readonly<{
   countsSince: readonly number[]
   /** Those created at or after `totalsSince`; null when it was not asked for. */
   totalsSince: GoogleRatingTotals | null
+  /** Those created in `rangeTotals`; null when it was not asked for. */
+  rangeTotals: GoogleRatingRangeTotals | null
 }>
 
 /** The reviews created in one calendar year of the Property's time zone. */

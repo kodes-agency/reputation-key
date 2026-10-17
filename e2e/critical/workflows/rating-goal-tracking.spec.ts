@@ -1,7 +1,8 @@
-// Round 5 of the Google rating goal (PLAN-D D-1, D-2, D-2b): the card that counts the
-// new reviews to the next number Google can show, on the Goals page and on the
-// Property Overview, and the detail page one click from it (mock D3), for the
-// people who may see them and for no one else.
+// Round 5 of the Google rating goal (PLAN-D D-1, D-2, D-2b, D-3): the card
+// that counts the new reviews to the next number Google can show, on the Goals
+// page and on the Property Overview, the detail page one click from it (mock
+// D3), and the Monday check-in above the card (mock D4), for the people who may
+// see them and for no one else.
 //
 // Journeys:
 //   1. the owner sets a goal (the setup's own command) and sees the card on the
@@ -15,7 +16,12 @@
 //      row; both goals pages pass the axe scan;
 //   4. a 2★ review after the set is named in "What moved you" with what it set
 //      the goal back, and its link opens its Inbox item; an expired 1★ review
-//      since the set is not named (D-2b, the owner's exception).
+//      since the set is not named (D-2b, the owner’s exception);
+//   5. a goal set 15 days ago gets the Monday check-in, on manager-one's
+//      Overview too: the owner keeps the pace, and it is gone after a reload
+//      and, reloaded, from manager-one's Overview; asked again,
+//      the owner raises the pace: a pace row in the change log, and the goal
+//      is getting started again (Q3).
 //
 // The seed's Properties have no Google binding, so a goal on them only ever
 // waits for Google. This spec seeds its own bound Property (prefix `e2e-rg-`)
@@ -309,5 +315,77 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     await expect(page.getByText('Low Review Guest').first()).toBeVisible({
       timeout: 15_000,
     })
+  })
+
+  test('the Monday check-in: Keep answers it for everyone, Raise starts the pace afresh', async ({
+    page,
+    browser,
+  }) => {
+    // Set 15 days ago: last week began after the set, so this week asks.
+    await dbQuery(
+      `UPDATE property_rating_goals
+          SET created_at = now() - interval '15 days', pace_since = now() - interval '15 days'
+        WHERE organization_id = $1 AND property_id = $2 AND status = 'active'`,
+      [seed.organizationId, propertyId],
+    )
+    // manager-one sees the same check-in on the Overview before anyone answers it.
+    const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
+    const onePage = await oneContext.newPage()
+    await signIn(
+      onePage,
+      seed.onePropertyManagerEmail,
+      seed.boundedManagerPassword,
+      BASE_ORIGIN,
+    )
+    await onePage.goto(`/properties/${propertyId}`)
+    await expect(
+      onePage
+        .getByRole('region', { name: 'Last week' })
+        .getByRole('button', { name: 'Keep 1 a day' }),
+    ).toBeVisible()
+
+    await signIn(page)
+    await page.goto(`/properties/${propertyId}/goals`)
+    const recap = page.getByRole('region', { name: 'Last week' })
+    await expect(recap.getByText('Nothing changes unless you choose.')).toBeVisible()
+    await assertNoAxeViolations(page, 'Goals page with the Monday check-in')
+
+    await recap.getByRole('button', { name: 'Keep 1 a day' }).click()
+    await expect(recap).toHaveCount(0)
+    await page.reload()
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Google rating goal' }),
+    ).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Last week' })).toHaveCount(0)
+
+    // The owner's Keep answered it for manager-one too.
+    await onePage.reload()
+    await expect(
+      onePage.getByRole('heading', { level: 2, name: 'Google rating goal' }),
+    ).toBeVisible()
+    await expect(onePage.getByRole('region', { name: 'Last week' })).toHaveCount(0)
+    await oneContext.close()
+
+    // Asked again (the kept week forgotten): Raise is a change of pace.
+    await dbQuery(
+      `UPDATE property_rating_goals SET recap_answered_week = NULL
+        WHERE organization_id = $1 AND property_id = $2 AND status = 'active'`,
+      [seed.organizationId, propertyId],
+    )
+    await page.reload()
+    await page
+      .getByRole('region', { name: 'Last week' })
+      .getByRole('button', { name: 'Raise to 2 a day' })
+      .click()
+    await expect(page.getByRole('region', { name: 'Last week' })).toHaveCount(0)
+    await expect(
+      page.locator('[data-slot="rating-goal-card"]').getByText('Getting started'),
+    ).toBeVisible()
+    const log = await dbQuery<{ field: string; old_value: string; new_value: string }>(
+      `SELECT field, old_value, new_value FROM property_rating_goal_changes
+        WHERE organization_id = $1 AND property_id = $2`,
+      [seed.organizationId, propertyId],
+    )
+    expect(log).toEqual([{ field: 'pace', old_value: '70', new_value: '140' }])
   })
 })

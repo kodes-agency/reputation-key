@@ -13,6 +13,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   changeRatingGoalSchema,
   endRatingGoalSchema,
+  keepRatingGoalPaceSchema,
   ratingGoalPropertySchema,
   setRatingGoalSchema,
 } from '../application/dto/rating-goal.dto'
@@ -108,6 +109,20 @@ export const endRatingGoal = createServerFn({ method: 'POST' })
         ),
       'POST',
       'goal.endRatingGoal',
+    ),
+  )
+
+/** Keep the pace for this week: the Monday check-in is answered for every manager. */
+export const keepRatingGoalPace = createServerFn({ method: 'POST' })
+  .validator(keepRatingGoalPaceSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withRatingGoals((ratingGoals, policy, actor) =>
+          ratingGoals.keep(policy, data, actor),
+        ),
+      'POST',
+      'goal.keepRatingGoalPace',
     ),
   )
 

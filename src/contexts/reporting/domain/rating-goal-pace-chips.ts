@@ -13,7 +13,7 @@
 // all round-trip; a month is 30.4 days.
 
 import { compareRatios, ratio, roundHalfUpInt, type Ratio } from './rating-goal-numbers'
-import { MAX_PACE_TENTHS_PER_WEEK } from './rating-goal-pace'
+import { MAX_PACE_TENTHS_PER_WEEK, MIN_PACE_TENTHS_PER_WEEK } from './rating-goal-pace'
 
 /** "A few a week": three a week. */
 export const A_FEW_A_WEEK_TENTHS = 30
@@ -146,3 +146,22 @@ export function ownPaceTenths(
   }
   return { tenths: raw, clamped: null }
 }
+
+/**
+ * The Monday check-in's ladder (round 5, E27): 1 a week, 3 a week, then the
+ * nice paces a day, 1 to 50. Raise and Ease step over it from any pace, so a
+ * pace between two rungs moves to the next one either way.
+ */
+const RECAP_PACE_LADDER: readonly number[] = [
+  MIN_PACE_TENTHS_PER_WEEK,
+  A_FEW_A_WEEK_TENTHS,
+  ...NICE_PACES_PER_DAY.map((perDay) => perDay * TENTHS_A_WEEK_PER_DAY),
+]
+
+/** The first rung above a pace; null at 50 a day. */
+export const raisedPace = (tenthsPerWeek: number): number | null =>
+  RECAP_PACE_LADDER.find((rung) => rung > tenthsPerWeek) ?? null
+
+/** The last rung below a pace; null at 1 a week. */
+export const easedPace = (tenthsPerWeek: number): number | null =>
+  [...RECAP_PACE_LADDER].reverse().find((rung) => rung < tenthsPerWeek) ?? null

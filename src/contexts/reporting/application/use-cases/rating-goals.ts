@@ -10,6 +10,7 @@ import type {
   RatingGoalDetailRead,
   RatingGoalEndResult,
   RatingGoalHistoryEntry,
+  RatingGoalKeepResult,
   RatingGoalNotNowResult,
   RatingGoalSetResult,
   RatingGoalSetupView,
@@ -18,9 +19,11 @@ import type { GoalActor, GoalExecutionPolicy } from './goal-program-shared'
 import {
   changeRatingGoal,
   endRatingGoal,
+  keepRatingGoalPace,
   setRatingGoal,
   type ChangeRatingGoalInput,
   type EndRatingGoalInput,
+  type KeepRatingGoalPaceInput,
   type SetRatingGoalInput,
 } from './rating-goal-commands'
 import { deferRatingGoal } from './rating-goal-not-now'
@@ -41,6 +44,7 @@ import {
 export type {
   ChangeRatingGoalInput,
   EndRatingGoalInput,
+  KeepRatingGoalPaceInput,
   RatingGoalPropertyInput,
   SetRatingGoalInput,
 }
@@ -60,6 +64,8 @@ export type RatingGoalRequestApi = Readonly<{
   set: Request<SetRatingGoalInput, RatingGoalSetResult>
   change: Request<ChangeRatingGoalInput, RatingGoalChangeResult>
   end: Request<EndRatingGoalInput, RatingGoalEndResult>
+  /** Keep the pace for this week: the Monday check-in is answered; no version moves. */
+  keep: Request<KeepRatingGoalPaceInput, RatingGoalKeepResult>
   /** "Not now": the setup checklist stops reminding; no goal is set or changed. */
   defer: Request<RatingGoalPropertyInput, RatingGoalNotNowResult>
 }>
@@ -81,6 +87,7 @@ export function createRatingGoalRequestApi(
     set: bind(setRatingGoal),
     change: bind(changeRatingGoal),
     end: bind(endRatingGoal),
+    keep: bind(keepRatingGoalPace),
     defer: bind(deferRatingGoal),
   })
 }
