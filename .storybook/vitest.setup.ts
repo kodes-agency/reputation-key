@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, vi } from 'vitest'
+import { commands } from 'vitest/browser'
+import type { StoryStart } from '../scripts/ci/storybook-story-starts'
 import { stopUpdateLoop } from './stop-update-loop'
+
+declare module 'vitest/browser' {
+  interface BrowserCommands {
+    /** Registered in vitest.config.ts; see scripts/ci/storybook-story-starts.ts. */
+    storybookStoryStarts: (start: StoryStart) => Promise<void>
+  }
+}
 
 // `@storybook/react` reads `globalThis.FRAMEWORK_OPTIONS` once at module load
 // to decide whether to mount stories under <StrictMode>. The Vite builder
@@ -50,6 +59,15 @@ function renderArgument(value: unknown): string {
     return String(value)
   }
 }
+
+// The first hook of every story, so that what can freeze before it is as
+// little as possible: tell the CI stall guard which story this page starts,
+// and wait until it has heard. A page that then freezes is named exactly,
+// which its batched updates cannot do (scripts/ci/storybook-story-starts.ts).
+// With no guard listening, the answer comes straight back.
+beforeEach(async ({ task }) => {
+  await commands.storybookStoryStarts({ fileId: task.file.id, testId: task.id })
+})
 
 beforeEach(() => {
   for (const entry of CONSOLE_ERROR_ALLOWLIST) assertAllowlistEntry(entry)
