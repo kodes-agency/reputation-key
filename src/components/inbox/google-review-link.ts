@@ -32,6 +32,8 @@ export const GOOGLE_REVIEW_LINK_COPY = {
   signInHint:
     'Google may ask you to sign in with the account that manages this Business Profile.',
   newTab: '(opens in a new tab)',
+  /** For RepKey's sentence link when it falls back: they say "the review". */
+  propertyNewTab: "(this property's reviews, opens in a new tab)",
 } as const
 
 /**

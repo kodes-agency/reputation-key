@@ -9,7 +9,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { RowActionsMenu, rowActionsLabel } from './row-actions-menu'
+import { RowActionsItemText, RowActionsMenu, rowActionsLabel } from './row-actions-menu'
 import { TooltipProvider } from './tooltip'
 
 type Props = Parameters<typeof RowActionsMenu>[0]
@@ -93,5 +93,21 @@ describe('RowActionsMenu trigger', () => {
     // @ts-expect-error the name is required: it is the trigger's accessible name
     const nameless: Props = { children: null }
     expect(nameless).toBeDefined()
+  })
+})
+
+describe('RowActionsItemText', () => {
+  it('draws the label over its muted second line, one recipe for every item', () => {
+    const html = renderToStaticMarkup(
+      createElement(RowActionsItemText, {
+        label: 'Open on Google',
+        description: 'Google may ask you to sign in.',
+      }),
+    )
+
+    expect(html).toBe(
+      '<span class="flex flex-col"><span>Open on Google</span> ' +
+        '<span class="text-xs text-muted-foreground">Google may ask you to sign in.</span></span>',
+    )
   })
 })

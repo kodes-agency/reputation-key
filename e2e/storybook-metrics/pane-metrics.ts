@@ -35,10 +35,13 @@
 // 768 and up everything is >= 24 px — WCAG 2.5.8 AA. Desktop density is
 // deliberate: the pane's toolbar members are 32 px outlined buttons (row 2),
 // and a 36 px floor there would re-inflate the strip row 20 deflated. A link
-// set inside a sentence (an inline `a[href]` beside its parent's own text, such
-// as "look at the review on Google") is WCAG 2.5.8's inline exception: its box
-// is the line it sits on, so no floor applies to it, while overflow, clipping
-// and layers are judged as for anything else (`TargetKind` `inline`).
+// set inside a sentence is WCAG 2.5.8's inline exception: its box is the line
+// it sits on, so no floor applies to it, while overflow, clipping and layers
+// are judged as for anything else (`TargetKind` `inline`). Only an anchor the
+// design system marks as one (`data-slot="inline-link"`, from `InlineLink` or
+// written beside `inlineLinkClass`), laid out inline beside its parent's own
+// text, takes it; in the Inbox panes that is the "look at the review on
+// Google" link alone, so every other link keeps its floor.
 //
 // Geometry has four ways to put content where a finger cannot reach it, and
 // each needs its own probe, because each hides from the others (a fifth, for
@@ -446,10 +449,11 @@ function measureInPage(args: MeasureArgs): PaneReport {
         box: boxOf(hitAreaOf(el)),
       }))
 
-  // An `a[href]` laid out inline beside text of its own parent is a link in a
-  // sentence; a link styled as a block, a button or standing alone is not.
+  // A marked inline link laid out inline beside text of its own parent is a
+  // link in a sentence; one styled as a block, a button or standing alone is
+  // not, and an unmarked anchor never is.
   const isInSentence = (el: Element): boolean =>
-    el.matches('a[href]') &&
+    el.matches('a[href][data-slot="inline-link"]') &&
     styleOf(el).display === 'inline' &&
     [...(el.parentElement?.childNodes ?? [])].some(
       (node) =>

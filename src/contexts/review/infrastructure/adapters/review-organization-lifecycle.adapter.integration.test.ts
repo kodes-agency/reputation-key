@@ -44,6 +44,9 @@ const GUEST_TEXT = 'REVIEW_GUEST_TEXT_MUST_NOT_SURVIVE'
 const GUEST_NAME = 'REVIEW_GUEST_NAME_MUST_NOT_SURVIVE'
 const REPLY_TEXT = 'REVIEW_MANAGER_REPLY_MUST_NOT_SURVIVE'
 const PROVIDER_MESSAGE_ID = 'REVIEW_PROVIDER_MESSAGE_MUST_NOT_SURVIVE'
+/** The review's own Business Profile page (synthetic location and token). */
+const GOOGLE_PAGE =
+  'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/REVIEW_GOOGLE_PAGE_MUST_NOT_SURVIVE'
 const REPLY_LIBRARY_GREETING = 'LIBRARY_GREETING_MUST_NOT_SURVIVE'
 const REPLY_LIBRARY_CONTACT = 'LIBRARY_ESCALATION_CONTACT_MUST_NOT_SURVIVE'
 const REPLY_LIBRARY_BODY = 'LIBRARY_TEMPLATE_BODY_MUST_NOT_SURVIVE'
@@ -225,12 +228,13 @@ async function insertReview(
   await pool.query(
     `INSERT INTO reviews (
        id, organization_id, property_id, platform, external_id,
-       external_location_id, reviewer_name, rating, text, language_code,
-       reviewed_at, expires_at, content_expires_at, source_epoch, source_revision,
-       source_observation_sequence, analysis_sequence, ai_source_byte_length,
-       ai_source_digest, source_content_state, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'google', $4, 'locations/review-lifecycle', $5, 4, $6,
-               'en', $7, $8, $8, 0, 1, 1, 1, 24, $9, 'active', $7, $7)`,
+       external_location_id, reviewer_name, google_review_url, rating, text,
+       language_code, reviewed_at, expires_at, content_expires_at, source_epoch,
+       source_revision, source_observation_sequence, analysis_sequence,
+       ai_source_byte_length, ai_source_digest, source_content_state, created_at,
+       updated_at
+     ) VALUES ($1, $2, $3, 'google', $4, 'locations/review-lifecycle', $5, $10, 4,
+               $6, 'en', $7, $8, $8, 0, 1, 1, 1, 24, $9, 'active', $7, $7)`,
     [
       reviewId,
       org,
@@ -241,6 +245,7 @@ async function insertReview(
       AT,
       EXPIRES_AT,
       DIGEST,
+      GOOGLE_PAGE,
     ],
   )
   await pool.query(
@@ -299,12 +304,12 @@ async function seedReviewWork(): Promise<void> {
   await pool.query(
     `INSERT INTO review_source_contents (
        review_id, organization_id, property_id, platform, external_id,
-       external_location_id, reviewer_name, rating, text, language_code,
-       reviewed_at, last_fetched_at, content_expires_at, source_epoch,
-       source_revision, ai_source_byte_length, ai_source_digest,
+       external_location_id, reviewer_name, google_review_url, rating, text,
+       language_code, reviewed_at, last_fetched_at, content_expires_at,
+       source_epoch, source_revision, ai_source_byte_length, ai_source_digest,
        created_at, updated_at
-     ) VALUES ($1, $2, $3, 'google', $4, 'locations/review-lifecycle', $5, 4, $6,
-               'en', $7, $7, $8, 0, 1, 24, $9, $7, $7)`,
+     ) VALUES ($1, $2, $3, 'google', $4, 'locations/review-lifecycle', $5, $10, 4,
+               $6, 'en', $7, $7, $8, 0, 1, 24, $9, $7, $7)`,
     [
       PUBLISHED_REVIEW_ID,
       ORG_ID,
@@ -315,6 +320,7 @@ async function seedReviewWork(): Promise<void> {
       AT,
       EXPIRES_AT,
       DIGEST,
+      GOOGLE_PAGE,
     ],
   )
   await pool.query(
@@ -724,7 +730,8 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
 
     const review = await pool.query(
       `SELECT source_content_state, content_expires_at, external_id, reviewer_name,
-              rating, text, translated_text, reviewed_at, sentiment_label
+              google_review_url, rating, text, translated_text, reviewed_at,
+              sentiment_label
        FROM reviews WHERE id = $1`,
       [PUBLISHED_REVIEW_ID],
     )
@@ -735,6 +742,7 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
       content_expires_at: null,
       external_id: null,
       reviewer_name: null,
+      google_review_url: null,
       rating: null,
       text: null,
       translated_text: null,
@@ -767,12 +775,15 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
       approved_by: null,
     })
 
-    // Nothing Review holds for the CLOSED tenant still carries its text. The
-    // second tenant seeds the same strings, so the probe stays org-scoped.
+    // Nothing Review holds for the CLOSED tenant still carries its text or a
+    // review's Google page (the tombstone CHECK would refuse the whole purge if
+    // the scrub left one). The second tenant seeds the same strings, so the
+    // probe stays org-scoped.
     const leak = await pool.query<{ total: string }>(
       `SELECT (
          (SELECT count(*) FROM reviews
-           WHERE organization_id = $5 AND (text = $1 OR reviewer_name = $2))
+           WHERE organization_id = $5
+             AND (text = $1 OR reviewer_name = $2 OR google_review_url IS NOT NULL))
          + (SELECT count(*) FROM material_review_revisions
              WHERE organization_id = $5 AND normalized_text = $1)
          + (SELECT count(*) FROM replies WHERE organization_id = $5 AND text = $3)

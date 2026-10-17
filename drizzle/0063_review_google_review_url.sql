@@ -23,7 +23,17 @@
 -- provider value. Every existing row is NULL there, so the constraint holds on
 -- any data. A process older than this release never writes the column; one that
 -- erases a Review a newer worker gave a link is refused by the constraint and
--- retried, rather than leaving a provider identifier on a tombstone.
+-- retried, rather than leaving a provider identifier on a tombstone. That can
+-- happen only while an old and a new worker overlap in a deploy: brief CHECK
+-- violations and job retries in the worker log then, none after.
+--
+-- The constraint is restated, not added `NOT VALID` and validated later as
+-- ADR 0049 prefers for forward-only migrations, like 0043 and 0044. drizzle
+-- applies every pending file in one transaction, so a NOT VALID/VALIDATE pair
+-- here, or in a second file of the same deploy, would hold the same ACCESS
+-- EXCLUSIVE lock across the same scan; only a later deploy would shorten it.
+-- At beta size the scan is short, and migrate-deploy bounds the lock WAIT
+-- (src/shared/db/migration-lock-timeout.ts).
 --
 -- Purely additive for old code otherwise: it names its columns in every
 -- statement and never reads these. Roll forward, never back: the down step is

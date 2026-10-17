@@ -108,6 +108,7 @@ describe('GoogleLinkedText', () => {
     expect(html).toContain('target="_blank"')
     expect(html).toContain('rel="noopener noreferrer"')
     expect(html).toContain('referrerPolicy="no-referrer"')
+    expect(html).toContain('data-slot="inline-link"')
     expect(html).toContain('>Look at the review on Google<')
     expect(html).toContain(GOOGLE_REVIEW_LINK_COPY.newTab)
     expect(html.startsWith('Google shows a reply RepKey can&#x27;t read')).toBe(true)
@@ -119,6 +120,16 @@ describe('GoogleLinkedText', () => {
 
     expect(html).toContain(`href="${PROPERTY_PAGE.replace('&', '&amp;')}"`)
     expect(html).toContain('referrerPolicy="no-referrer"')
+  })
+
+  it("tells a screen reader the fallback opens the property's reviews, not the review", () => {
+    const fallback = render(sentence, { kind: 'property', href: PROPERTY_PAGE })
+    const own = render(sentence, { kind: 'review', href: REVIEW_PAGE })
+
+    expect(fallback).toContain(
+      GOOGLE_REVIEW_LINK_COPY.propertyNewTab.replaceAll("'", '&#x27;'),
+    )
+    expect(own).not.toContain('reviews, opens')
   })
 
   it('leaves the sentence plain text when there is no link', () => {

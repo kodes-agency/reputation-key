@@ -1599,7 +1599,11 @@ function expectGoogleLink(scope: HTMLElement, link: GoogleReviewLink): void {
   expect(anchor).toHaveAttribute('target', '_blank')
   expect(anchor).toHaveAttribute('rel', 'noopener noreferrer')
   expect(anchor).toHaveAttribute('referrerpolicy', 'no-referrer')
-  expect(anchor).toHaveAccessibleName(/opens in a new tab/i)
+  expect(anchor).toHaveAccessibleName(
+    link.kind === 'property'
+      ? /this property's reviews, opens in a new tab/i
+      : /look at the review on google\s*\(opens in a new tab\)$/i,
+  )
 }
 
 /**

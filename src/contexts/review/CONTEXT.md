@@ -73,8 +73,12 @@ inspection compares the two copies, and erasure nulls it, with the tombstone
 CHECK refusing a tombstone that keeps one. It is in no observation, material
 or normalized digest, no `review_source_observations` row, no AI input and no
 export, so a link Google starts or stops sending never reads as a guest edit.
-It is served only through the eligible read (`getReviewSnippetById`), beside
-the words. Its token cannot be derived from the review id, so it is stored and
+It is served only through the eligible reads (`getReviewSnippetById`,
+`getReviewSnippetsByIds`), beside the words; the Inbox offers it only in an
+item's detail, because its list builds each row field by field. The metadata
+lookups (`lookups.review`) hand the Inbox whole Reviews with no eligibility
+check, so, as for the words, their readers must keep projecting the fields they
+use. Its token cannot be derived from the review id, so it is stored and
 never built. The page is the merchant view: Google asks for the account that
 manages the profile.
 

@@ -100,7 +100,7 @@ export const WithReviewPage: Story = {
     const menu = await openMenu(canvasElement)
     const items = menu.getAllByRole('menuitem')
     expect(items.map((item) => item.textContent?.split('(')[0]?.trim())).toEqual([
-      `${GOOGLE_REVIEW_LINK_COPY.review}${GOOGLE_REVIEW_LINK_COPY.signInHint}`,
+      `${GOOGLE_REVIEW_LINK_COPY.review} ${GOOGLE_REVIEW_LINK_COPY.signInHint}`,
       'Copy review text',
     ])
     const open = menu.getByRole('menuitem', { name: /^Open on Google/ })

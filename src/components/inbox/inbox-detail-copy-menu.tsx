@@ -2,6 +2,7 @@ import { Copy, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   RowActionsItem,
+  RowActionsItemText,
   RowActionsMenu,
   RowActionsSeparator,
 } from '#/components/ui/row-actions-menu'
@@ -33,12 +34,10 @@ function GoogleLinkItem({ link }: Readonly<{ link: GoogleReviewLink }>) {
       <GoogleReviewAnchor link={link}>
         <ExternalLink aria-hidden="true" />
         {link.kind === 'review' ? (
-          <span className="flex flex-col">
-            <span>{GOOGLE_REVIEW_LINK_COPY.review}</span>
-            <span className="text-xs text-muted-foreground">
-              {GOOGLE_REVIEW_LINK_COPY.signInHint}
-            </span>
-          </span>
+          <RowActionsItemText
+            label={GOOGLE_REVIEW_LINK_COPY.review}
+            description={GOOGLE_REVIEW_LINK_COPY.signInHint}
+          />
         ) : (
           GOOGLE_REVIEW_LINK_COPY.property
         )}

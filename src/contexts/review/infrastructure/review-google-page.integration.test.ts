@@ -38,8 +38,10 @@ import { eraseReviewSourceContent } from './review-source-content-store'
 
 const ORG = organizationId('review-google-page-org-a')
 const OTHER_ORG = organizationId('review-google-page-org-b')
-const PROPERTY = propertyId('ad000000-0000-4000-8000-000000000001')
-const CONNECTION = googleConnectionId('ad000000-0000-4000-8000-0000000000c1')
+// Ids no other suite uses: suites share one database, and a Property row left
+// under another Organization breaks the other suite's insert.
+const PROPERTY = propertyId('c7a90000-0000-4000-8000-000000000001')
+const CONNECTION = googleConnectionId('c7a90000-0000-4000-8000-0000000000c1')
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /** Synthetic only (test-fixtures/google-provider-identifiers-v1.json). */
@@ -64,6 +66,7 @@ const { getPool } = setupIntegrationDb({
     'review_ai_analysis_heads',
     'reviews',
     'google_connections',
+    'properties',
   ],
 })
 
@@ -82,7 +85,12 @@ const writer = createReviewProviderObservationWriter({
   historyCutoffs: { readHistoryCutoff: async () => null },
 })
 
-function providerReview(googleReviewUrl: string | null): GoogleReviewRead {
+const REVIEWED_AT = new Date('2026-09-30T18:00:00.000Z')
+
+function providerReview(
+  googleReviewUrl: string | null,
+  reviewedAt: Date,
+): GoogleReviewRead {
   return {
     reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
     externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
@@ -94,8 +102,8 @@ function providerReview(googleReviewUrl: string | null): GoogleReviewRead {
     text: 'Quiet room, lovely breakfast.',
     translatedText: null,
     languageCode: null,
-    reviewedAt: new Date('2026-09-30T18:00:00.000Z'),
-    sourceCreatedAt: new Date('2026-09-30T18:00:00.000Z'),
+    reviewedAt,
+    sourceCreatedAt: reviewedAt,
     sourceUpdatedAt: null,
     replyText: null,
     replyUpdatedAt: null,
@@ -104,7 +112,11 @@ function providerReview(googleReviewUrl: string | null): GoogleReviewRead {
 }
 
 /** One applied fetch of the review at `at`, as a sync page records it. */
-async function observe(at: Date, googleReviewUrl: string | null): Promise<ReviewId> {
+async function observe(
+  at: Date,
+  googleReviewUrl: string | null,
+  reviewedAt: Date = REVIEWED_AT,
+): Promise<ReviewId> {
   now = at
   const persisted = await writer.persist({
     organizationId: ORG,
@@ -114,7 +126,7 @@ async function observe(at: Date, googleReviewUrl: string | null): Promise<Review
     observationOrigin: 'ongoing',
     observationKey: crypto.randomUUID().replaceAll('-', '').padEnd(64, '0'),
     replyReadGeneration: await writer.allocateReplyReadGeneration(),
-    review: providerReview(googleReviewUrl),
+    review: providerReview(googleReviewUrl, reviewedAt),
     subjects: [] as unknown as ReviewProviderSubjectCandidates,
   })
   return persisted.reviewId
@@ -199,8 +211,7 @@ beforeAll(() => {
 beforeEach(async () => {
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch)
-     VALUES ($1, $2, 'Google page property', 'review-google-page-property', 'UTC', 0)
-     ON CONFLICT (id) DO UPDATE SET source_epoch = 0`,
+     VALUES ($1, $2, 'Google page property', 'review-google-page-property', 'UTC', 0)`,
     [PROPERTY, ORG],
   )
   await getPool().query(
@@ -272,6 +283,31 @@ describe.sequential("a Review's own page on Google", () => {
       sourceCache: null,
     })
     await expect(reviewFacts()).resolves.toEqual(['review.created'])
+  })
+
+  it('is erased with expired content and stored again by the re-observation', async () => {
+    // The database decides that content has expired (`transaction_timestamp()`
+    // against `content_expires_at`), so this Review is first fetched more than
+    // 30 days before the real now, and seen again after its clock ran out.
+    const firstFetch = new Date(Date.now() - 40 * DAY_MS)
+    const id = await observe(firstFetch, REVIEW_PAGE, firstFetch)
+
+    // The expired row is redacted (its page with it, or the tombstone CHECK
+    // refuses the transaction) before the fresh observation is persisted.
+    const reobservedAt = new Date(firstFetch.getTime() + 35 * DAY_MS)
+    expect(await observe(reobservedAt, LATER_PAGE, firstFetch)).toBe(id)
+
+    await expect(stored(id)).resolves.toMatchObject({
+      compatibility: LATER_PAGE,
+      sourceCache: LATER_PAGE,
+    })
+    await expect(findingsFor(id)).resolves.toEqual([])
+    // Outbox rows of one transaction share a timestamp, so compare as a set.
+    expect([...(await reviewFacts())].sort()).toEqual([
+      'review.created',
+      'review.source_transitioned',
+      'review.updated',
+    ])
   })
 
   it('is served only while the content is eligible', async () => {
