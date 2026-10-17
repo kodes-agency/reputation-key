@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import {
+  GOAL_PACE_MINIMUM_EXPECTED,
   GOAL_PACE_QUIET_DAYS,
   GOAL_PACE_THRESHOLD_PERCENT,
   goalPace,
@@ -175,6 +176,72 @@ describe('the pace a count goal is held to', () => {
   })
 })
 
+describe('a month that expects too few to judge', () => {
+  /** November 2026 on a UTC calendar: 30 days. */
+  const NOVEMBER = calendarPeriodRange(
+    new Date('2026-11-15T00:00:00.000Z'),
+    UTC,
+    'monthly',
+  )
+  const dayOf = (month: '10' | '11', day: number) =>
+    new Date(`2026-${month}-${String(day).padStart(2, '0')}T12:00:00.000Z`)
+  const november = (day: number, overrides: Partial<GoalPaceInput> = {}) =>
+    input({ period: NOVEMBER, now: dayOf('11', day), ...overrides })
+  const october = (day: number, overrides: Partial<GoalPaceInput> = {}) =>
+    input({ now: dayOf('10', day), ...overrides })
+
+  it('does not judge a month that expects fewer than 5 by today', () => {
+    expect(GOAL_PACE_MINIMUM_EXPECTED).toBe(5)
+    // 10 a month over 30 days: 14 days in, the line expects 4.67.
+    expect(goalPace(november(14, { target: 10, value: 0 }))).toMatchObject({
+      state: 'too_few_expected',
+      elapsedDays: 14,
+      totalDays: 30,
+      daysLeft: 16,
+    })
+    // 8 a month over 31 days: 19 days in, the line expects 4.9.
+    expect(goalPace(october(19, { target: 8, value: 0 })).state).toBe('too_few_expected')
+    // 4 a month never expects 5, not even on the last day.
+    expect(goalPace(november(30, { target: 4, value: 0 })).state).toBe('too_few_expected')
+  })
+
+  it('judges from the day 5 are expected, exactly 5 included', () => {
+    // 10 a month over 30 days: 15 days in, the line expects exactly 5; 90% is 4.5.
+    expect(goalPace(november(15, { target: 10, value: 4 })).state).toBe('behind')
+    expect(goalPace(november(15, { target: 10, value: 5 })).state).toBe('on_pace')
+    // 8 a month over 31 days: 20 days in, the line expects 5.16.
+    expect(goalPace(october(20, { target: 8, value: 0 })).state).toBe('behind')
+  })
+
+  it('keeps the first three days quiet before it asks what is expected', () => {
+    expect(goalPace(november(3, { target: 4, value: 0 })).state).toBe('too_early')
+    expect(goalPace(november(4, { target: 4, value: 0 })).state).toBe('too_few_expected')
+  })
+
+  it('guards scans and private ratings alike', () => {
+    for (const metric of ['qualified_scans', 'portal_rating_count'] as const) {
+      expect(goalPace(november(14, { metric, target: 10, value: 0 })).state).toBe(
+        'too_few_expected',
+      )
+      expect(goalPace(november(15, { metric, target: 10, value: 0 })).state).toBe(
+        'behind',
+      )
+    }
+  })
+
+  it('leaves an average without a pace, however small its target', () => {
+    const average = november(20, { metric: 'portal_rating_average', target: 4, value: 1 })
+
+    expect(goalPace(average).state).toBe('not_applicable')
+  })
+
+  it('leaves 120 on the 17th as before', () => {
+    // 120 x 17 / 31 = 65.8 expected, far over 5: judged as it always was.
+    expect(goalPace(october(17, { target: 120, value: 59 })).state).toBe('behind')
+    expect(goalPace(october(17, { target: 120, value: 64 })).state).toBe('on_pace')
+  })
+})
+
 describe('goals behind pace, by Property', () => {
   const NOW = new Date('2026-10-17T12:00:00.000Z')
   const month = (patch: Partial<RunningCountMonth> = {}): RunningCountMonth => ({
@@ -228,6 +295,20 @@ describe('goals behind pace, by Property', () => {
     const early = new Date('2026-10-03T12:00:00.000Z')
 
     expect(goalsBehindPaceByProperty([month({ value: 0 })], early).size).toBe(0)
+  })
+
+  it('leaves out a month that expects fewer than 5', () => {
+    // 10 a month over 31 days: on the 15th the line expects 4.8, on the 16th 5.2.
+    const small = month({ target: 10, value: 0 })
+
+    expect(
+      goalsBehindPaceByProperty([small], new Date('2026-10-15T12:00:00.000Z')).size,
+    ).toBe(0)
+    expect(
+      goalsBehindPaceByProperty([small], new Date('2026-10-16T12:00:00.000Z')).get(
+        'property-a',
+      ),
+    ).toBe(1)
   })
 
   it('judges each month on its own Property calendar', () => {
