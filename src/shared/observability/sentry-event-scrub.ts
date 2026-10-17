@@ -62,6 +62,8 @@ const ALLOWED_EVENT_TAGS: Readonly<Record<string, true>> = {
   feedback_viewport: true,
   feedback_role: true,
   feedback_reference: true,
+  // The opaque id of the browser error a Bug links to, or none.
+  feedback_client_error: true,
   // The masked layout's presence and first-party expiry (names kept from
   // before screenshots), then whether a screenshot file rides with the report.
   feedback_attachment: true,

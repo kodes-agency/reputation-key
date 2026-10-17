@@ -28,6 +28,9 @@ const WEBP_SCREENSHOT: NonNullable<BetaFeedbackInput['screenshot']> = {
   base64: Buffer.from(WEBP_BYTES).toString('base64'),
 }
 
+/** The opaque id of an error the browser recorded, as the contract pins it. */
+const RECORDED_ERROR = 'e'.repeat(32)
+
 const MASKED_LAYOUT: NonNullable<BetaFeedbackInput['maskedLayout']> = {
   width: 1280,
   height: 800,
@@ -185,15 +188,16 @@ describe('beta feedback attachment tags', () => {
     expect(sentTags(data)).toMatchObject(tags)
   })
 
-  it('keeps the screenshot tag through the monitoring scrubber', () => {
-    // The scrubber drops any tag key it does not allow, so a key missing
-    // from its list would never reach monitoring.
-    const tags = sentTags(report(WEBP_SCREENSHOT, MASKED_LAYOUT))
-
-    expect(scrubSentryTags(tags)).toMatchObject({
-      feedback_screenshot: 'attached',
-      feedback_attachment: 'masked_layout_v1',
-      feedback_attachment_retention: 'expires_30d',
+  it('sends only tags the monitoring scrubber keeps', () => {
+    // The scrubber drops any tag key it does not allow, so a key missing from
+    // its list would be sent and silently lost. A report carrying every
+    // optional part fills every tag with a value of its own.
+    const tags = sentTags({
+      ...report(WEBP_SCREENSHOT, MASKED_LAYOUT),
+      clientErrorEventId: RECORDED_ERROR,
     })
+
+    expect(tags.feedback_client_error).toBe(RECORDED_ERROR)
+    expect(scrubSentryTags(tags)).toEqual(tags)
   })
 })
