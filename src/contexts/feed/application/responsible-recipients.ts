@@ -9,20 +9,23 @@ import type { UserLookupPort } from './ports/notification-user-lookup.port'
 import type { InboxItemFacts } from './ports/notification-inbox-item-lookup.port'
 import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
 import type { NotificationAudience } from './notification-audience'
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 
 export type ResponsibleScope =
   | Readonly<{ kind: 'property'; propertyId: string }>
   | Readonly<{ kind: 'portal'; portalId: string }>
   | Readonly<{ kind: 'portal_group'; portalGroupId: string }>
 
-/** A Goal's subject is the scope whose responsible managers hear of its results. */
-export const goalSubjectScope = (subject: GoalSubject): ResponsibleScope =>
-  subject.kind === 'property'
-    ? { kind: 'property', propertyId: subject.propertyId }
-    : subject.kind === 'portal_group'
-      ? { kind: 'portal_group', portalGroupId: subject.portalGroupId }
-      : { kind: 'portal', portalId: subject.portalId }
+/**
+ * Who hears of a Portal goal's monthly results: the responsible managers of
+ * the Property the goal sits in, whatever its subject. A goal on one Portal
+ * or Portal Group is still the Property's news, not one outlet manager's
+ * (PROPOSAL §4.5, approved under P-8; ADR 0046, amended 2026-10-17). The
+ * fan-out and the delivery recheck both ask here, so they agree.
+ */
+export const goalNoticeScope = (propertyId: string): ResponsibleScope => ({
+  kind: 'property',
+  propertyId,
+})
 
 export type ResponsibleRecipientDeps = Readonly<{
   responsibleManagers: ResponsibleManagerLookupPort

@@ -1271,6 +1271,63 @@ describe('notification audience authorization', () => {
     ).resolves.toBe(false)
   })
 
+  // The recheck agrees with the fan-out: a Portal-goal notice, whatever its
+  // subject, belongs to the Property's responsible managers (PROPOSAL §4.5,
+  // approved under P-8). The Portal's own manager is not asked.
+  it("rechecks a portal goal notice against the Property's responsible managers", async () => {
+    const deps = buildDeps()
+    const PORTAL_MANAGER = userId('portal-manager-1')
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.responsibleManagers.findForPortal.mockResolvedValue([PORTAL_MANAGER])
+    const subject = { kind: 'portal' as const, portalId: PORTAL }
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      programName: 'Reception scans',
+      subject,
+    })
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-2',
+      revision: 2,
+      evaluationState: 'eligible',
+      achieved: false,
+      programName: 'Reception scans',
+      subject,
+    })
+    const completion = {
+      kind: 'goal_completion' as const,
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+    }
+    const revision = {
+      kind: 'goal_result_revision' as const,
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-2',
+      revision: 2,
+      evaluationState: 'eligible' as const,
+      achieved: false,
+    }
+    const authorizer = createNotificationAudienceAuthorizer(deps)
+
+    for (const audience of [completion, revision]) {
+      await expect(authorizer(authorize({ audience }))).resolves.toBe(true)
+      await expect(
+        authorizer(authorize({ userId: PORTAL_MANAGER, audience })),
+      ).resolves.toBe(false)
+    }
+    expect(deps.responsibleManagers.findForProperty).toHaveBeenCalledWith(ORG, PROPERTY)
+    expect(deps.responsibleManagers.findForPortal).not.toHaveBeenCalled()
+  })
+
   it('parses only complete Goal completion audiences', () => {
     const valid = {
       kind: 'goal_completion',

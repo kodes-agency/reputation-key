@@ -1,6 +1,7 @@
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type {
+  GoalMetric,
   GoalSubject,
   MonthlyResultNotificationFactsLookup,
 } from '#/contexts/reporting/application/public-api'
@@ -9,7 +10,7 @@ import type { ResponsibleManagerLookupPort } from '../application/ports/responsi
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationAudience } from '../application/notification-audience'
 import {
-  goalSubjectScope,
+  goalNoticeScope,
   resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
 import { goalMonthMarker } from './goal-month-marker'
@@ -159,6 +160,34 @@ const goalOutcomeOf = (
   return payload.achieved === true ? 'met' : 'not_met'
 }
 
+type GoalNoticeFacts = Readonly<{
+  subject: GoalSubject
+  programName: string
+  periodMonth: string
+  setDuringMonth: boolean
+  targetChangedInMonth: boolean
+  metric: GoalMetric
+  value: number | null
+  target: number
+  subjectName: string | null
+}>
+
+/**
+ * What a portal goal's notice states about its month (ADR 0046, amended
+ * 2026-10-17): the measure; for a count, the month as it stands and the target
+ * it was judged against; and the Portal's or Portal Group's name. An average
+ * states no figure: its notice sends the reader to the goal.
+ */
+const goalNoticeFigures = (facts: GoalNoticeFacts) => {
+  const counted = facts.metric !== 'portal_rating_average'
+  return {
+    goalMeasure: facts.metric,
+    ...(counted && facts.value !== null ? { goalCount: facts.value } : {}),
+    ...(counted ? { goalTargetCount: facts.target } : {}),
+    ...(facts.subjectName === null ? {} : { goalSubjectName: facts.subjectName }),
+  }
+}
+
 type GoalConsumerStatus = Readonly<{ status: 'applied' | 'obsolete' }>
 
 /** Record this consumer's receipt for the delivery, and answer with it. */
@@ -175,22 +204,16 @@ async function settle(
 }
 
 /**
- * Queue a Goal notice for each current responsible recipient of the Goal's
- * subject. Monthly-result facts are system evaluations and carry no
- * synchronous human actor, so current responsibility is the audience
- * authority.
+ * Queue a Goal notice for each current responsible manager of the Property
+ * the goal sits in, whatever its subject (`goalNoticeScope`). Monthly-result
+ * facts are system evaluations and carry no synchronous human actor, so
+ * current responsibility is the audience authority.
  */
 async function enqueueGoalNotices(
   deps: GoalNotificationConsumerDeps,
   event: ConsumerEvent,
   result: Pick<Parsed, 'organizationId' | 'propertyId' | 'monthlyResultId'>,
-  facts: Readonly<{
-    subject: GoalSubject
-    programName: string
-    periodMonth: string
-    setDuringMonth: boolean
-    targetChangedInMonth: boolean
-  }>,
+  facts: GoalNoticeFacts,
   notice: Readonly<{
     type: 'goal.completed' | 'goal.result_revised'
     /**
@@ -205,8 +228,11 @@ async function enqueueGoalNotices(
 ): Promise<void> {
   const organization = organizationId(result.organizationId)
   const property = propertyId(result.propertyId)
-  const scope = goalSubjectScope(facts.subject)
-  const recipients = await resolveResponsibleRecipients(deps, organization, scope)
+  const recipients = await resolveResponsibleRecipients(
+    deps,
+    organization,
+    goalNoticeScope(result.propertyId),
+  )
   // A Goal subject sits inside one Property, the one this fact is filed under.
   const where = await buildPropertyPayload(deps, organization, property)
   // The one marker a Goal notice may carry (ADR 0046): the month's target was
@@ -234,6 +260,7 @@ async function enqueueGoalNotices(
             goalMonth: facts.periodMonth,
             goalSubjectKind: facts.subject.kind,
             goalOutcome: notice.outcome,
+            ...goalNoticeFigures(facts),
             ...(goalMarker === null ? {} : { goalMarker }),
           },
           audience: notice.audience,
