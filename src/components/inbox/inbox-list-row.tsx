@@ -1,4 +1,4 @@
-import { Flag, MessageSquareText, Star, UserRoundCheck } from 'lucide-react'
+import { MessageSquareText, Star, UserRoundCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Checkbox } from '#/components/ui/checkbox'
 import { cn } from '#/lib/utils'
@@ -6,6 +6,7 @@ import { INBOX_BULK_LIMIT, type InboxItem } from '#/contexts/inbox/application/p
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { inboxRowView } from './inbox-list-row-view'
+import { inboxRowFill, inboxRowSignalTone } from './inbox-list-row-tone'
 import { STAR_FILLED_CLASS } from './inbox-detail-helpers'
 import { formatExactTime } from './utils'
 
@@ -111,32 +112,27 @@ function RowIdentity({
   )
 }
 
-function RowSummary({ item, view }: Readonly<{ item: InboxItem; view: RowView }>) {
+function RowSignal({ signal }: Readonly<{ signal: string }>) {
+  const tone = inboxRowSignalTone(signal)
+  const Icon = tone?.Icon
+  return (
+    <span className={cn('mr-1.5 font-medium', tone?.ink ?? 'text-foreground')}>
+      {Icon && <Icon className="mr-0.5 inline size-3" aria-hidden="true" />}
+      {signal} ·
+    </span>
+  )
+}
+
+function RowSummary({ view }: Readonly<{ view: RowView }>) {
+  // The fallback copy ("Rating only — …", "Content unavailable") prints in the
+  // summary's own ink. It used to be dimmed to 70% of it, which read 2.9 to
+  // 3.2:1 in the light theme and under 4.5:1 in the dark on every row fill.
   return (
     <span className="mt-1 line-clamp-2 h-9 text-[13px] leading-[18px] text-muted-foreground">
       {view.signals.map((signal) => (
-        <span
-          key={signal}
-          className={cn(
-            'mr-1.5 font-medium text-foreground',
-            signal === 'Escalated' && 'text-negative',
-          )}
-        >
-          {signal === 'Escalated' && (
-            <Flag className="mr-0.5 inline size-3" aria-hidden="true" />
-          )}
-          {signal} ·
-        </span>
+        <RowSignal key={signal} signal={signal} />
       ))}
-      <span
-        className={cn(
-          item.contentAvailability !== 'text' &&
-            !item.snippet &&
-            'text-muted-foreground/70',
-        )}
-      >
-        {view.content}
-      </span>
+      {view.content}
     </span>
   )
 }
@@ -192,7 +188,7 @@ function RowOpenButton({
     >
       <span className="min-w-0 flex-1">
         <RowIdentity item={item} view={view} allProperties={allProperties} />
-        <RowSummary item={item} view={view} />
+        <RowSummary view={view} />
       </span>
       <RowTrailing item={item} view={view} />
     </button>
@@ -220,7 +216,7 @@ export function InboxListRow({
       data-inbox-list-row
       className={cn(
         'group relative flex h-[78px] overflow-hidden border-b px-3 py-3 transition-colors hover:bg-accent/40 max-md:px-4',
-        (isActive || isChecked) && 'bg-accent',
+        inboxRowFill({ isActive, isChecked, isUrgent: view.isUrgent }),
       )}
     >
       <RowSelectionGutter

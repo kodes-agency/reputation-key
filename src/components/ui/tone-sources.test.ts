@@ -145,6 +145,8 @@ const TINT_ALLOWED: Readonly<Record<string, string>> = {
     'the private note: its amber is the pane’s colour for "not public"',
   'src/components/inbox/composer-mode-row.tsx': 'the composer’s private-note mode cue',
   'src/components/inbox/reply-composer.tsx': 'the composer’s private-note dock',
+  'src/components/inbox/inbox-list-row-tone.ts':
+    'an urgent review’s row in the Inbox list: a row, not a message box (measured in inbox-list-row-tone.test.ts)',
 }
 
 /** A tone's tint or edge as a utility. */
