@@ -878,8 +878,18 @@ jobs:
           ${{ steps.pw-cache.outputs.cache-hit == 'true'
           && 'pnpm exec playwright install-deps chromium'
           || 'pnpm exec playwright install --with-deps chromium' }}
+      # The stall guard fails the run about a minute after a story page goes
+      # quiet, and names the story (scripts/ci/storybook-stall-guard.ts). A
+      # frozen page runs no JavaScript, so Vitest's own timeouts cannot fire
+      # there, and without the guard the job waited for timeout-minutes with a
+      # log that named no story. Naming any reporter drops Vitest's defaults,
+      # so the two it uses on GitHub Actions are named as well.
       - name: Run storybook tests
-        run: pnpm test:storybook
+        run: >-
+          pnpm test:storybook
+          --reporter=default
+          --reporter=github-actions
+          --reporter=./scripts/ci/storybook-stall-guard.ts
 
   # Sharded because e2e WAS the entire CI critical path: 9m05s of a 9m05s wall,
   # 283s of it the `critical` project at one worker and 148s booting the Compose
