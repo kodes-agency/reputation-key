@@ -6,8 +6,11 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { userId } from '#/shared/domain/ids'
-import type { MonthlyResultRevisionNotificationFacts } from '#/contexts/reporting/application/public-api'
+import { userId, type UserId } from '#/shared/domain/ids'
+import type {
+  MonthlyResultNotificationFactsLookup,
+  MonthlyResultRevisionNotificationFacts,
+} from '#/contexts/reporting/application/public-api'
 import {
   handleNotificationGoalMonthlyResultClosed,
   handleNotificationGoalMonthlyResultRevised,
@@ -30,8 +33,27 @@ const IDS = {
   revision: '91000000-0000-4000-8000-000000000007',
 } as const
 const ORG = 'organization-goal-notification'
+/** A Property count goal's month: 41 private ratings against 40. */
+const FIGURES: Pick<
+  MonthlyResultRevisionNotificationFacts,
+  'metric' | 'value' | 'target' | 'subjectName'
+> = {
+  metric: 'portal_rating_count',
+  value: 41,
+  target: 40,
+  subjectName: null,
+}
 const MANAGER = userId('manager-goal-notification')
 const ADMIN = userId('admin-goal-notification')
+const PORTAL_MANAGER = userId('portal-manager-goal-notification')
+const PORTAL = '91000000-0000-4000-8000-000000000008'
+const PORTAL_GROUP = '91000000-0000-4000-8000-000000000009'
+/** What the closed-result lookup answers, so a test can put the goal on any subject. */
+type ClosedFacts = NonNullable<
+  Awaited<
+    ReturnType<MonthlyResultNotificationFactsLookup['findMonthlyResultNotificationFacts']>
+  >
+>
 
 const event = (
   payloadOverrides: Readonly<Record<string, unknown>> = {},
@@ -91,15 +113,16 @@ const makeDeps = () => {
   return {
     queue,
     monthlyResultFacts: {
-      findMonthlyResultNotificationFacts: vi.fn(async () => ({
+      findMonthlyResultNotificationFacts: vi.fn(async (): Promise<ClosedFacts> => ({
         programId: IDS.program,
         monthlyResultId: IDS.result,
         assignmentId: IDS.assignment,
         programName: 'Monthly guest engagement',
         periodMonth: '2026-10',
-        subject: { kind: 'property' as const, propertyId: IDS.property },
+        subject: { kind: 'property', propertyId: IDS.property },
         setDuringMonth: false,
         targetChangedInMonth: false,
+        ...FIGURES,
       })),
       findMonthlyResultRevisionNotificationFacts: vi.fn(
         async () =>
@@ -117,13 +140,14 @@ const makeDeps = () => {
             subject: { kind: 'property' as const, propertyId: IDS.property },
             setDuringMonth: false,
             targetChangedInMonth: false,
+            ...FIGURES,
           }) as MonthlyResultRevisionNotificationFacts | null,
       ),
     },
     responsibleManagers: {
-      findForProperty: vi.fn(async () => [MANAGER]),
-      findForPortal: vi.fn(async () => []),
-      findForPortalGroup: vi.fn(async () => []),
+      findForProperty: vi.fn(async (): Promise<readonly UserId[]> => [MANAGER]),
+      findForPortal: vi.fn(async (): Promise<readonly UserId[]> => []),
+      findForPortalGroup: vi.fn(async (): Promise<readonly UserId[]> => []),
       isEligibleForProperty: vi.fn(async () => true),
     },
     userLookup: { findByRole: vi.fn(async () => [ADMIN]) },
@@ -209,6 +233,9 @@ describe('canonical Goal monthly-result notification consumer', () => {
             goalMonth: '2026-10',
             goalSubjectKind: 'property',
             goalOutcome: 'met',
+            goalMeasure: 'portal_rating_count',
+            goalCount: 41,
+            goalTargetCount: 40,
           },
           // Delivery rechecks the result itself, not only responsibility: a
           // correction may un-achieve the month before the job runs.
@@ -255,6 +282,9 @@ describe('canonical Goal monthly-result notification consumer', () => {
       goalMonth: '2026-10',
       goalSubjectKind: 'property',
       goalOutcome: 'met',
+      goalMeasure: 'portal_rating_count',
+      goalCount: 41,
+      goalTargetCount: 40,
       goalMarker: 'set_in_month',
     })
   })
@@ -278,6 +308,9 @@ describe('canonical Goal monthly-result notification consumer', () => {
       goalMonth: '2026-10',
       goalSubjectKind: 'property',
       goalOutcome: 'met',
+      goalMeasure: 'portal_rating_count',
+      goalCount: 41,
+      goalTargetCount: 40,
       goalMarker: 'target_changed',
     })
   })
@@ -337,6 +370,119 @@ describe('canonical Goal monthly-result notification consumer', () => {
     })
   })
 
+  // ADR 0046, amended 2026-10-17: a portal goal's notice states the month's
+  // count, its target and whose goal it is, read from Reporting when it is
+  // raised. The events still carry identifiers only (ADR 0030).
+  it("a count goal's notice carries its figures and its portal's name", async () => {
+    const deps = makeDeps()
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      ...(await deps.monthlyResultFacts.findMonthlyResultNotificationFacts()),
+      subject: { kind: 'portal', portalId: PORTAL },
+      metric: 'qualified_scans',
+      value: 22,
+      target: 20,
+      subjectName: 'Reception',
+    })
+
+    await handleNotificationGoalMonthlyResultClosed(deps, event())
+
+    expect((deps.jobs[0]?.data as { payload: unknown }).payload).toEqual({
+      goalName: 'Monthly guest engagement',
+      propertyName: 'Riverside Hotel',
+      goalMonth: '2026-10',
+      goalSubjectKind: 'portal',
+      goalOutcome: 'met',
+      goalMeasure: 'qualified_scans',
+      goalCount: 22,
+      goalTargetCount: 20,
+      goalSubjectName: 'Reception',
+    })
+  })
+
+  it('an average carries none', async () => {
+    const deps = makeDeps()
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      ...(await deps.monthlyResultFacts.findMonthlyResultNotificationFacts()),
+      metric: 'portal_rating_average',
+      value: 4.6,
+      target: 4.5,
+    })
+
+    await handleNotificationGoalMonthlyResultClosed(deps, event())
+
+    const payload = (deps.jobs[0]?.data as { payload: Record<string, unknown> }).payload
+    expect(payload).toMatchObject({ goalMeasure: 'portal_rating_average' })
+    expect(payload).not.toHaveProperty('goalCount')
+    expect(payload).not.toHaveProperty('goalTargetCount')
+  })
+
+  it('a correction with no usable figure states only its target', async () => {
+    const deps = makeDeps()
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      ...(await deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts())!,
+      evaluationState: 'unavailable',
+      achieved: null,
+      value: null,
+    })
+
+    await handleNotificationGoalMonthlyResultRevised(
+      deps,
+      revisedEvent({
+        evaluationState: 'unavailable',
+        achieved: null,
+        outcomeChanged: false,
+        availabilityChanged: true,
+      }),
+    )
+
+    const payload = (deps.jobs[0]?.data as { payload: Record<string, unknown> }).payload
+    expect(payload).toMatchObject({ goalOutcome: 'unavailable', goalTargetCount: 40 })
+    expect(payload).not.toHaveProperty('goalCount')
+  })
+
+  // PROPOSAL §4.5, approved under P-8: a goal's results are the Property's
+  // news, so every Portal-goal notice reaches the Property's responsible
+  // managers, never one outlet's manager.
+  it("a single-portal goal's notice goes to the Property's responsible managers", async () => {
+    const deps = makeDeps()
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      ...(await deps.monthlyResultFacts.findMonthlyResultNotificationFacts()),
+      subject: { kind: 'portal', portalId: PORTAL },
+      subjectName: 'Reception',
+    })
+    deps.responsibleManagers.findForPortal.mockResolvedValue([PORTAL_MANAGER])
+
+    await handleNotificationGoalMonthlyResultClosed(deps, event())
+
+    expect(deps.responsibleManagers.findForProperty).toHaveBeenCalledWith(
+      ORG,
+      IDS.property,
+    )
+    expect(deps.responsibleManagers.findForPortal).not.toHaveBeenCalled()
+    expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual([
+      MANAGER,
+    ])
+  })
+
+  it('AccountAdmins when the Property has none', async () => {
+    const deps = makeDeps()
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      ...(await deps.monthlyResultFacts.findMonthlyResultNotificationFacts()),
+      subject: { kind: 'portal_group', portalGroupId: PORTAL_GROUP },
+      subjectName: 'Front desk',
+    })
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
+    deps.responsibleManagers.findForPortalGroup.mockResolvedValue([PORTAL_MANAGER])
+
+    await handleNotificationGoalMonthlyResultClosed(deps, event())
+
+    expect(deps.responsibleManagers.findForPortalGroup).not.toHaveBeenCalled()
+    expect(deps.userLookup.findByRole).toHaveBeenCalledWith(ORG, 'AccountAdmin')
+    expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual([
+      ADMIN,
+    ])
+  })
+
   it('acknowledges an unachieved close without lookup or delivery', async () => {
     const deps = makeDeps()
     await expect(
@@ -369,6 +515,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
       [key]: value,
     })
 
@@ -450,6 +597,9 @@ describe('canonical Goal monthly-result notification consumer', () => {
             goalMonth: '2026-10',
             goalSubjectKind: 'property',
             goalOutcome: 'met',
+            goalMeasure: 'portal_rating_count',
+            goalCount: 41,
+            goalTargetCount: 40,
           },
           audience: {
             kind: 'goal_result_revision',
@@ -510,6 +660,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
     })
 
     await expect(
@@ -555,6 +706,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
     })
 
     await expect(
@@ -598,6 +750,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
     })
     // Like BullMQ, an add under an id the queue still holds is a no-op.
     const held = new Map<string, unknown>()
@@ -656,6 +809,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
     })
 
     await expect(

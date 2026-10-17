@@ -177,19 +177,23 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
       {
         seeded: await seedClosedResult({ kind: 'property' }),
         subject: { kind: 'property', propertyId },
+        // The notice names a Property from Property facts, not from here.
+        subjectName: null,
       },
       {
         seeded: await seedClosedResult({ kind: 'portal_group', id: portalGroupId }),
         subject: { kind: 'portal_group', portalGroupId },
+        subjectName: 'Front desk',
       },
       {
         seeded: await seedClosedResult({ kind: 'portal', id: portalId }),
         subject: { kind: 'portal', portalId },
+        subjectName: 'Reception QR',
       },
     ] as const
     const lookup = createMonthlyResultNotificationFactsLookup(getDb())
 
-    for (const { seeded, subject } of cases) {
+    for (const { seeded, subject, subjectName } of cases) {
       await expect(
         lookup.findMonthlyResultNotificationFacts({
           organizationId,
@@ -206,8 +210,83 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         subject,
         setDuringMonth: false,
         targetChangedInMonth: false,
+        metric: 'portal_rating_count',
+        value: 12,
+        target: 10,
+        subjectName,
       })
     }
+  })
+
+  // A portal goal's notice states the month's count, the target it was judged
+  // against and whose goal it is (ADR 0046, amended 2026-10-17). Each is read
+  // here when the notice is raised; no event carries them.
+  it("facts carry the month's count, its own target and the portal's name", async () => {
+    const portalId = randomUUID()
+    await lease.pool.query(
+      `INSERT INTO portals
+         (id, organization_id, property_id, entity_type, entity_id, name, slug)
+       VALUES ($1, $2, $3, 'property', $5, 'Reception', $4)`,
+      [portalId, organizationId, propertyId, `reception-${randomUUID()}`, propertyId],
+    )
+    const seeded = await seedClosedResult({ kind: 'portal', id: portalId })
+    // The month's target was changed to 8 while it ran: that is the one it
+    // was judged against, not the version's 10.
+    await seedLockedMonthTargetCommitted(lease.pool, seeded.monthlyResultId, 8)
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+    const exact = {
+      organizationId,
+      propertyId,
+      assignmentId: seeded.assignmentId,
+      monthlyResultId: seeded.monthlyResultId,
+    }
+    const figures = { metric: 'portal_rating_count', subjectName: 'Reception', target: 8 }
+
+    await expect(lookup.findMonthlyResultNotificationFacts(exact)).resolves.toMatchObject(
+      { ...figures, value: 12 },
+    )
+
+    // A correction changes the month's figure: the notice states the month as
+    // it stands now, the head's value, never the figure it first closed on.
+    const revisionId = await appendRevision(seeded.monthlyResultId, {
+      revision: 1,
+      supersedesRevisionId: null,
+      evaluationState: 'eligible',
+      value: 9,
+      achieved: true,
+      at: '2026-08-03T12:00:00.000Z',
+    })
+    await expect(lookup.findMonthlyResultNotificationFacts(exact)).resolves.toMatchObject(
+      { ...figures, value: 9 },
+    )
+    await expect(
+      lookup.findMonthlyResultRevisionNotificationFacts({
+        ...exact,
+        programId: seeded.programId,
+        programVersionId: seeded.programVersionId,
+        revisionId,
+        revision: 1,
+      }),
+    ).resolves.toMatchObject({ ...figures, value: 9 })
+
+    // A correction that leaves the month with no usable result has no figure.
+    const unavailableId = await appendRevision(seeded.monthlyResultId, {
+      revision: 2,
+      supersedesRevisionId: revisionId,
+      evaluationState: 'unavailable',
+      value: null,
+      achieved: null,
+      at: '2026-08-04T12:00:00.000Z',
+    })
+    await expect(
+      lookup.findMonthlyResultRevisionNotificationFacts({
+        ...exact,
+        programId: seeded.programId,
+        programVersionId: seeded.programVersionId,
+        revisionId: unavailableId,
+        revision: 2,
+      }),
+    ).resolves.toMatchObject({ ...figures, value: null })
   })
 
   // A month whose target was changed while it ran closes against that target.

@@ -872,6 +872,10 @@ function currentRouteDeps(): RouteDeps {
     subject: { kind: 'property', propertyId: PROPERTY },
     setDuringMonth: false,
     targetChangedInMonth: false,
+    metric: 'portal_rating_count',
+    value: 41,
+    target: 40,
+    subjectName: null,
   } as const
   deps.userLookup.findByRole.mockResolvedValue([ADMIN])
   deps.responsibleManagers.findForProperty.mockResolvedValue([MANAGER])

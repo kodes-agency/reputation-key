@@ -1248,6 +1248,64 @@ says it the way the plan reads:
 2. **The Monday check-in is not a notice.** It is a card on the page (Q4, Q11
    stands): no bell row, no email, no digest; it asks nothing of Feed.
 
+## Amended 2026-10-17 — a portal goal's notice states its month's count, its target and its subject, and goes to the Property's responsible managers
+
+The Monthly portal goal (ADR 0068) keeps the two existing notice types,
+`goal.completed` and `goal.result_revised`, with the wording the owner
+approved under P-8 (PROPOSAL §4.5). They used to say "This Portal goal hit its
+target" and send the reader to the goal for the numbers; a reader with one
+monthly goal wants the numbers.
+
+1. **Four payload fields.** `goalMeasure` (closed enum: `qualified_scans`,
+   `portal_rating_count`, `portal_rating_average`); `goalCount` and
+   `goalTargetCount`, whole numbers from 0 to 10^9, kept by the allowlist only
+   with a count measure; and `goalSubjectName`, the tenant-authored name of
+   the Portal or Portal Group a goal is on, capped like `goalName`. A Property
+   goal carries no subject name: its notice names the Property. Like the
+   month and the marker, they are read from Reporting's monthly-result facts
+   when the notice is raised: the month as it stands now (its latest
+   correction's figure, else the closed row's), the target it was judged
+   against (its own, else its version's), and the name through an adapter
+   join (ADR 0008 r.2). No Goal event changes (ADR 0030). This closes the
+   open follow-up of the 2026-09-24 amendment: Feed now names the Portal.
+2. **r.8, widened.** ALLOWED gains a Portal's or Portal Group's name (tenant-
+   authored, as goal and Property names are) and a portal goal's whole-number
+   counts. A count of private ratings is a count, never a rating: no key is
+   named `rating`, no average is stated (an average goal's notice states no
+   figure), and the Google and review boundary is untouched.
+3. **The marker rule is unchanged.** `goalMarker` still says, in the same two
+   sentences, that the goal was set or its target changed during the month
+   ("today's marker sentence stays", P-8). It follows the figures in the body
+   and, as before, in the in-app row's line under the title: "met" against a
+   goal set on the 20th would overstate it. Only the fallback "Open the goal
+   to see the numbers." stays out of the row.
+4. **The copy (P-8).** Met: "Seaview Hotel met its November portal goal" /
+   "Your portals brought in 41 private ratings. The goal was 40." For a goal on
+   one Portal or Portal Group: "Reception met its November portal goal" /
+   "Reception brought in 22 private ratings. The goal was 20." A correction:
+   "Seaview Hotel’s November portal goal: no longer met" (or "now met") / "A
+   correction changed November to 39 of 40.", and "…: result unavailable" /
+   "A correction left November with no usable result." Scans say "scans", one
+   is singular, and an average or a missing figure keeps the title and says
+   "Open the goal to see the numbers." With no name or month the title
+   shortens: "Portal goal met", "Seaview Hotel met its portal goal",
+   "November portal goal met", "Portal goal result updated". The action is
+   "See the goal" for both. Email's facts line names only the Property, so a
+   goal's daily digest line, under that Property's heading, shows the body.
+   The bell row's facts line names the Property too, for a goal on one Portal
+   or Portal Group as well, whose title names only the Portal. The copy lives
+   in `domain/notification-templates-portal-goal.ts`.
+5. **Recipients.** Every Portal-goal notice, whatever its subject, goes to the
+   responsible managers of the Property the goal sits in, with AccountAdmins
+   as the fallback: a goal on one Portal is still the Property's news, not
+   one outlet manager's. The fan-out and both delivery rechecks ask the same
+   rule (`goalNoticeScope`), so they agree. Still not sent: a missed month, a
+   below-pace month, a number ready, a check-in.
+
+Rolling deploy: web first (it renders rows with and without the new fields),
+then the worker (it writes them). A row written before carries no figures and
+renders the fallback sentence; stored rows are never rewritten.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

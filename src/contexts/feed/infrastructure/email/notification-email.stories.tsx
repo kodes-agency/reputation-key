@@ -6,6 +6,7 @@
 // <head>, and with it the dark-mode media query and the preheader — the two
 // parts most likely to regress unnoticed.
 import type { Meta, StoryObj } from '@storybook/react'
+import { expect, within } from 'storybook/test'
 import { renderNotification } from '../../domain/notification-templates'
 import type { NotificationPayload } from '../../domain/notification-payload'
 import type { NotificationType } from '../../domain/notification-types'
@@ -207,15 +208,19 @@ export const Digest: Story = {
             },
             'b1',
           ),
-          // One of ten sibling results: the month, the subject and the
-          // direction are what tell it from the other nine.
+          // A goal on one portal names the portal; its count is the line.
           digestItem(
             'goal.completed',
             {
               propertyName: 'Harbour Lodge',
-              goalName: 'Lobby QR scans',
+              goalName: 'Reception ratings',
               goalMonth: '2026-10',
               goalSubjectKind: 'portal',
+              goalSubjectName: 'Reception',
+              goalOutcome: 'met',
+              goalMeasure: 'portal_rating_count',
+              goalCount: 22,
+              goalTargetCount: 20,
             },
             'b2',
           ),
@@ -250,4 +255,67 @@ export const DigestSingleProperty: Story = {
     ],
     preferencesUrl: PREFERENCES_URL,
   }),
+}
+
+/** Seaview's November portal goal, as the deck's notices state it (P-8). */
+const SEAVIEW_GOAL: NotificationPayload = {
+  propertyName: 'Seaview Hotel',
+  goalName: 'Monthly portal goal',
+  goalMonth: '2026-11',
+  goalSubjectKind: 'property',
+  goalMeasure: 'portal_rating_count',
+  goalCount: 41,
+  goalTargetCount: 40,
+}
+
+/** A portal goal notice in the one email it is sent in: the daily digest. */
+const goalDigest = (type: NotificationType, payload: NotificationPayload) =>
+  renderDigestEmail({
+    recipientName: 'Elena',
+    dateLabel: 'Tuesday, 1 December',
+    groups: [
+      {
+        propertyName: 'Seaview Hotel',
+        items: [digestItem(type, payload, 'g1')],
+      },
+    ],
+    preferencesUrl: PREFERENCES_URL,
+  })
+
+/** Asserts the digest line states the notice's title and its body (N-1, N-3). */
+const goalLineSays =
+  (title: string, body: string): Story['play'] =>
+  async ({ canvasElement, args }) => {
+    const text = within(canvasElement).getByText(/Plain-text part/).parentElement
+    expect(text).toHaveTextContent(title)
+    expect(text).toHaveTextContent(body)
+    // The HTML part carries the same title; neither title has an ASCII quote
+    // for React to escape.
+    expect(args.html).toContain(title)
+  }
+
+/**
+ * Goal email is daily only (ADR 0046, amended 2026-09-22), so a met portal
+ * goal reaches its reader as a digest line: the title, then the month's count
+ * against its target, under the Property's heading (deck N-1).
+ */
+export const PortalGoalMet: Story = {
+  args: goalDigest('goal.completed', { ...SEAVIEW_GOAL, goalOutcome: 'met' }),
+  play: goalLineSays(
+    'Seaview Hotel met its November portal goal',
+    'Your portals brought in 41 private ratings. The goal was 40.',
+  ),
+}
+
+/** A correction took the month below its target (deck N-3). */
+export const PortalGoalNoLongerMet: Story = {
+  args: goalDigest('goal.result_revised', {
+    ...SEAVIEW_GOAL,
+    goalOutcome: 'not_met',
+    goalCount: 39,
+  }),
+  play: goalLineSays(
+    'Seaview Hotel\u2019s November portal goal: no longer met',
+    'A correction changed November to 39 of 40.',
+  ),
 }

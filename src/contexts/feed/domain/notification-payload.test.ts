@@ -104,6 +104,10 @@ describe('parseNotificationPayload', () => {
       goalSubjectKind: 'portal',
       goalOutcome: 'met',
       goalMarker: 'set_in_month',
+      goalMeasure: 'portal_rating_count',
+      goalCount: 41,
+      goalTargetCount: 40,
+      goalSubjectName: 'Reception',
       // `failed`, because a reason is only admitted on a failed import: a
       // completed one carrying a stale reason would render "the import
       // stopped" over a success.
@@ -230,6 +234,76 @@ describe('parseNotificationPayload', () => {
     for (const other of ['set on Oct 20', 'lowered from 400', true, 20, null]) {
       expect(parseNotificationPayload({ goalMarker: other })).toEqual({})
     }
+  })
+
+  // A portal goal's notice states its month's count, its target and whose
+  // goal it is (ADR 0046, amended 2026-10-17): whole numbers and a
+  // tenant-authored name, like the goal's own name.
+  it("admits a goal's count, target, measure and subject name", () => {
+    expect(
+      parseNotificationPayload({
+        goalMeasure: 'qualified_scans',
+        goalCount: 0,
+        goalTargetCount: 1_000_000_000,
+        goalSubjectName: '  Reception  ',
+      }),
+    ).toEqual({
+      goalMeasure: 'qualified_scans',
+      goalCount: 0,
+      goalTargetCount: 1_000_000_000,
+      goalSubjectName: 'Reception',
+    })
+    expect(parseNotificationPayload({ goalMeasure: 'portal_rating_average' })).toEqual({
+      goalMeasure: 'portal_rating_average',
+    })
+    expect(parseNotificationPayload({ goalSubjectName: 'R'.repeat(121) })).toEqual({
+      goalSubjectName: 'R'.repeat(120),
+    })
+    for (const other of ['google_rating', 'scans', 1, null]) {
+      expect(parseNotificationPayload({ goalMeasure: other })).toEqual({})
+    }
+  })
+
+  it('drops a negative, fractional or oversized count', () => {
+    for (const bad of [-1, 2.5, 1_000_000_001, Number.NaN, '41', null]) {
+      expect(
+        parseNotificationPayload({
+          goalMeasure: 'portal_rating_count',
+          goalCount: bad,
+          goalTargetCount: bad,
+        }),
+      ).toEqual({ goalMeasure: 'portal_rating_count' })
+    }
+    // Counts belong to a count measure. An average, or a notice that does not
+    // say its measure, carries none: "4 private ratings" could not be told
+    // from a 4.0 average.
+    for (const goalMeasure of ['portal_rating_average', undefined]) {
+      expect(
+        parseNotificationPayload({ goalMeasure, goalCount: 4, goalTargetCount: 5 }),
+      ).toEqual(goalMeasure === undefined ? {} : { goalMeasure })
+    }
+  })
+
+  // `notifications_source_content_free_check` forbids a top-level `rating`
+  // key. A goal's count is a count of private ratings, never a rating, and no
+  // goal field is named for one.
+  it('never stores a key named rating', () => {
+    const parsed = parseNotificationPayload({
+      goalMeasure: 'portal_rating_count',
+      goalCount: 41,
+      goalTargetCount: 40,
+      goalSubjectName: 'Reception',
+      rating: 5,
+      goalRating: 4.6,
+    })
+
+    expect(Object.keys(parsed)).not.toContain('rating')
+    expect(parsed).toEqual({
+      goalMeasure: 'portal_rating_count',
+      goalCount: 41,
+      goalTargetCount: 40,
+      goalSubjectName: 'Reception',
+    })
   })
 
   it('keeps a known Google reauthorization cause and drops anything else', () => {

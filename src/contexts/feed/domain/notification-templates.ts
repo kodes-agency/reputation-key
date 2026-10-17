@@ -36,6 +36,10 @@ import {
   renderOrganizationRoleChanged,
 } from './notification-templates-account'
 import {
+  renderPortalGoalCompleted,
+  renderPortalGoalResultRevised,
+} from './notification-templates-portal-goal'
+import {
   renderRatingGoalBelowPace,
   renderRatingGoalChanged,
   renderRatingGoalKeepDropped,
@@ -44,9 +48,6 @@ import {
 } from './notification-templates-rating-goal'
 import type {
   NotificationActorRole,
-  NotificationGoalMarker,
-  NotificationGoalOutcome,
-  NotificationGoalSubjectKind,
   NotificationPayload,
   NotificationPortalHealthReason,
   NotificationPortalHealthStatus,
@@ -750,128 +751,6 @@ const renderReviewImportFinished = (p: NotificationPayload): RendererCopy =>
         summary: factsAt(p, 'review history imported'),
       }
 
-/** "October goal met: Lobby QR scans at Riverside Hotel". */
-const goalTitle = (lead: string, p: NotificationPayload): string =>
-  `${lead}${p.goalName === undefined ? '' : `: ${p.goalName}`}${atProperty(p)}`
-
-/** One formatter for the month name; the key is already Property-local. */
-let monthFormat: Intl.DateTimeFormat | undefined
-
-/**
- * "October" from the `YYYY-MM` key the Property's own calendar closed the
- * month on. Formatted in UTC because the key is a calendar month, not an
- * instant: reading it on any other clock could name the month before it.
- */
-const goalMonth = (p: NotificationPayload): string => {
-  if (p.goalMonth === undefined) return ''
-  const [year, month] = p.goalMonth.split('-').map(Number)
-  // The allowlist admits only `YYYY-MM`, but a template must never throw on a
-  // payload that reached it unparsed: `Intl.format(NaN)` is a RangeError, and
-  // this renders in the bell's own paint.
-  if (!Number.isInteger(year) || !Number.isInteger(month)) return ''
-  monthFormat ??= new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' })
-  return monthFormat.format(Date.UTC(year!, month! - 1, 1))
-}
-
-/** The glossary's words, so a reader can tell ten sibling results apart. */
-const GOAL_SUBJECTS: Record<NotificationGoalSubjectKind, string> = {
-  property: 'Property',
-  portal_group: 'Portal Group',
-  portal: 'Portal',
-}
-
-/** "This Portal goal" / "This goal" when the subject did not resolve. */
-const thisGoal = (p: NotificationPayload): string =>
-  p.goalSubjectKind === undefined
-    ? 'This goal'
-    : `This ${GOAL_SUBJECTS[p.goalSubjectKind]} goal`
-
-/** "October goal met", or "Goal met" when the month did not resolve. */
-const goalOutcomeTitle = (p: NotificationPayload, outcome: string): string => {
-  const month = goalMonth(p)
-  return month === '' ? `Goal ${outcome}` : `${month} goal ${outcome}`
-}
-
-/**
- * What a reader should know about a month whose target did not stand for all
- * of it. "Met" against a goal set on the 20th is true and still needs saying.
- */
-const GOAL_MARKER_CLAUSES: Record<NotificationGoalMarker, string> = {
-  set_in_month: 'The goal was set during the month.',
-  target_changed: 'The target was changed during the month.',
-}
-
-/** The marker's sentence, or nothing for a goal in place the whole month. */
-const goalMarkerClause = (p: NotificationPayload): string =>
-  p.goalMarker === undefined ? '' : GOAL_MARKER_CLAUSES[p.goalMarker]
-
-const renderGoalCompleted = (p: NotificationPayload): RendererCopy => ({
-  title: goalTitle(goalOutcomeTitle(p, 'met'), p),
-  body: sentence(
-    `${thisGoal(p)} hit its target.`,
-    goalMarkerClause(p),
-    'Open the goal to see the numbers.',
-  ),
-  // Which of ten sibling results it is: the title says only "goal".
-  detail: sentence(
-    p.goalSubjectKind === undefined ? '' : `${thisGoal(p)} hit its target.`,
-    goalMarkerClause(p),
-  ),
-  actionLabel: 'View progress',
-  summary: factsAt(
-    p,
-    p.goalName ?? 'goal met',
-    p.goalSubjectKind === undefined ? '' : GOAL_SUBJECTS[p.goalSubjectKind],
-  ),
-})
-
-/**
- * Which way the month went. A correction that leaves the result unusable is
- * not a miss, so it says the result is gone rather than that the goal failed.
- */
-const GOAL_OUTCOME_TITLES: Record<NotificationGoalOutcome, string> = {
-  met: 'met',
-  not_met: 'no longer met',
-  unavailable: 'result unavailable',
-}
-
-const GOAL_OUTCOME_CLAUSES: Record<NotificationGoalOutcome, string> = {
-  met: 'now meets its target',
-  not_met: 'no longer meets its target',
-  unavailable: 'has no usable result for the month',
-}
-
-const renderGoalResultRevised = (p: NotificationPayload): RendererCopy => {
-  const outcome = p.goalOutcome
-  return {
-    title: goalTitle(
-      outcome === undefined
-        ? 'Goal result updated'
-        : goalOutcomeTitle(p, GOAL_OUTCOME_TITLES[outcome]),
-      p,
-    ),
-    body: sentence(
-      outcome === undefined
-        ? 'A monthly result changed.'
-        : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
-      goalMarkerClause(p),
-      'Open the goal to see the current metrics.',
-    ),
-    detail: sentence(
-      outcome === undefined || p.goalSubjectKind === undefined
-        ? ''
-        : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
-      goalMarkerClause(p),
-    ),
-    actionLabel: 'View result',
-    summary: factsAt(
-      p,
-      p.goalName ?? 'goal result updated',
-      p.goalSubjectKind === undefined ? '' : GOAL_SUBJECTS[p.goalSubjectKind],
-    ),
-  }
-}
-
 /**
  * The recipient's own beta report reached an outcome. The copy never quotes
  * the report — its words live in monitoring only — so it says what happened
@@ -934,8 +813,8 @@ const RENDERERS: Record<
   'property.review_import_finished': renderReviewImportFinished,
   'integration.reauthorization_required': renderIntegrationReauthorizationRequired,
   'integration.google_disconnected': renderIntegrationGoogleDisconnected,
-  'goal.completed': renderGoalCompleted,
-  'goal.result_revised': renderGoalResultRevised,
+  'goal.completed': renderPortalGoalCompleted,
+  'goal.result_revised': renderPortalGoalResultRevised,
   'goal.rating_reached': renderRatingGoalReached,
   'goal.rating_changed': renderRatingGoalChanged,
   'goal.rating_below_pace': renderRatingGoalBelowPace,

@@ -15,7 +15,7 @@ import type { ReplyApprovalAuthorityPort } from './ports/reply-approval-authorit
 import type { EscalationResolutionLookupPort } from './ports/escalation-resolution-lookup.port'
 import type { NotificationRepositoryPort } from './ports/notification-repository.port'
 import {
-  goalSubjectScope,
+  goalNoticeScope,
   resolveHandlingCycleRecipients,
   resolveResponsibleRecipients,
   type ResponsibleScope,
@@ -773,11 +773,7 @@ const isGoalCompletionRecipient = async (
     return false
   }
   return includesRecipient(
-    await resolveResponsibleRecipients(
-      deps,
-      organizationId,
-      goalSubjectScope(facts.subject),
-    ),
+    await resolveResponsibleRecipients(deps, organizationId, goalNoticeScope(propertyId)),
     userId,
   )
 }
@@ -815,11 +811,7 @@ const isGoalResultRevisionRecipient = async (
     return false
   }
   return includesRecipient(
-    await resolveResponsibleRecipients(
-      deps,
-      organizationId,
-      goalSubjectScope(facts.subject),
-    ),
+    await resolveResponsibleRecipients(deps, organizationId, goalNoticeScope(propertyId)),
     userId,
   )
 }

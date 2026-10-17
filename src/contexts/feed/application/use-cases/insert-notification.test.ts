@@ -495,14 +495,25 @@ describe('insertNotification', () => {
       resourceType: 'goal',
       resourceId: 'goal-1',
       eventId: 'event-goal-1',
-      payload: { goalName: 'Weekend response time' },
+      payload: {
+        propertyName: 'Seaview Hotel',
+        goalName: 'Monthly portal goal',
+        goalMonth: '2026-11',
+        goalSubjectKind: 'property',
+        goalOutcome: 'met',
+        goalMeasure: 'portal_rating_count',
+        goalCount: 41,
+        goalTargetCount: 40,
+      },
     })
 
     expect(deps.preferenceRepo.resolveForDelivery).toHaveBeenCalled()
     expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
+    // The frozen snapshot is the approved copy (P-8), figures included.
     expect(result).toMatchObject({
       category: 'recognition',
-      title: 'Goal met: Weekend response time',
+      title: 'Seaview Hotel met its November portal goal',
+      body: 'Your portals brought in 41 private ratings. The goal was 40.',
     })
   })
 

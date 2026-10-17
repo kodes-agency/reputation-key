@@ -904,6 +904,10 @@ describe('Activity durable Recent Activity consumer', () => {
       subject: { kind: 'property' as const, propertyId: PROPERTY },
       setDuringMonth,
       targetChangedInMonth,
+      metric: 'qualified_scans' as const,
+      value: 412,
+      target: 400,
+      subjectName: null,
     })
     const projectedPayload = (applyOnce: ReturnType<typeof dependencies>['applyOnce']) =>
       (applyOnce.mock.calls[0] as unknown as [{ entry: { payload: unknown } }])[0].entry
