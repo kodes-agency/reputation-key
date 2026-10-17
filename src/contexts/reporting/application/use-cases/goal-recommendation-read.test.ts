@@ -116,16 +116,7 @@ describe('readPortalGoalRecommendation', () => {
     const recentCode = new Date('2026-10-06T08:00:00.000Z')
     const { deps } = setup({
       portals: [
-        portal('Bar', {
-          publicationState: 'disabled',
-          liveSince: null,
-          codeIssuedAt: new Date('2024-05-01T08:00:00.000Z'),
-        }),
-        portal('Lobby', {
-          publicationState: 'draft',
-          liveSince: null,
-          liveIntervals: [],
-        }),
+        portal('Bar', { codeIssuedAt: new Date('2024-05-01T08:00:00.000Z') }),
         portal('Reception', { codeIssuedAt: null, codeReady: false }),
         portal('Spa', { codeIssuedAt: recentCode }),
       ],
@@ -139,6 +130,32 @@ describe('readPortalGoalRecommendation', () => {
           // A code older than a year is looked at for its last year only.
           { portalId: 'portal-bar', from: new Date('2025-10-23T09:00:00.000Z') },
           { portalId: 'portal-spa', from: recentCode },
+        ],
+      }),
+    )
+  })
+
+  it('looks for no scan of a disabled or draft portal', async () => {
+    // A disabled Portal's scans feed no step and no quiet fact, and a seasonal
+    // one can carry a year of them: its last scan is not looked for.
+    const { deps } = setup({
+      portals: [
+        portal('Bar', { publicationState: 'disabled', liveSince: null }),
+        portal('Lobby', {
+          publicationState: 'draft',
+          liveSince: null,
+          liveIntervals: [],
+        }),
+        portal('Spa'),
+      ],
+    })
+
+    await read(deps)
+
+    expect(deps.facts.readDailyCounts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scanLookback: [
+          { portalId: 'portal-spa', from: new Date('2026-10-09T07:00:00.000Z') },
         ],
       }),
     )

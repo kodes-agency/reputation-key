@@ -114,8 +114,9 @@ metric authority.
   facts together, then the readings in one statement
   (`infrastructure/adapters/goal-recommendation-readings.ts`): the basis and this month as
   one range on versions …1301 and …1302, grouped by Portal (none kept), measure and local
-  day, at the latest correction, with the unreadable flag, plus each listed Portal's last
-  unretracted scan from its code's date (at most a year back). Like the behind-pace count
+  day, at the latest correction, with the unreadable flag, plus each published Portal's
+  last unretracted scan from its code's date (at most a year back; a disabled Portal's
+  scans are not looked for). Like the behind-pace count
   it skips only the outbox completeness proof; both spell a counted reading once, in
   `infrastructure/adapters/goal-count-readings.sql.ts`. An integration test holds its
   month to `queryGoalAggregate` for the Property, readings with no Portal and an archived

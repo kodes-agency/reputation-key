@@ -55,7 +55,12 @@ export type PortalFacts = Readonly<{
   joinsOn: string | null
   inBasis: boolean
   codeMadeOn: string | null
+  /**
+   * A scan has arrived since its code was made. A disabled Portal's scans are
+   * not looked for, so it reads false there: say nothing about it.
+   */
   firstScan: boolean
+  /** The local day of its last scan since that code; null when none, or disabled. */
   lastScanOn: string | null
   /** Its readings on its live days in the basis. */
   window: PerMeasure<number>

@@ -19,7 +19,7 @@ export type GoalRecommendationCountsQuery = Readonly<{
   /** Readings at or after this instant and before `to`. */
   from: Date
   to: Date
-  /** Each listed Portal's last scan is looked for from its own instant on. */
+  /** Each published Portal's last scan is looked for from its own instant on. */
   scanLookback: readonly Readonly<{ portalId: string; from: Date }>[]
 }>
 

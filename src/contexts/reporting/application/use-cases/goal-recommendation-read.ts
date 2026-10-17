@@ -7,7 +7,7 @@
 // clock once, the Property's time zone and Portal's facts about its Portals
 // together, and the Property's goal-count readings in one statement: the
 // basis and this month as one range, never before both measures began, with
-// each listed Portal's last scan looked for from its code's date (at most a
+// each published Portal's last scan looked for from its code's date (at most a
 // year back). The counts wait for the Portals because those dates come from
 // them. The rule is the domain's (`recommendPortalGoal`); this only gathers
 // what it is applied to. A suggestion, never a result: it writes nothing.
@@ -61,11 +61,15 @@ function readingsFrom(now: Date, timezone: string): Date {
   )
 }
 
-/** Each listed Portal with a code, from its code's date or a year back. */
+/**
+ * Each published Portal with a code, from its code's date or a year back. A
+ * disabled one's last scan feeds no step and no quiet fact, and finding it walks
+ * every reading the Portal ever had, so it is not looked for.
+ */
 function scanLookbackOf(portals: readonly RecommendationPortal[], now: Date) {
   const yearBack = now.getTime() - SCAN_LOOKBACK_MS
   return portals.flatMap((portal) =>
-    portal.publicationState !== 'draft' && portal.codeIssuedAt
+    portal.publicationState === 'published' && portal.codeIssuedAt
       ? [
           {
             portalId: portal.portalId,

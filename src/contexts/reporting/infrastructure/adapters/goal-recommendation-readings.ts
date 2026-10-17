@@ -15,23 +15,30 @@
 //   from `from` to `to`. There is no Portal filter: a Property goal counts
 //   every reading, so readings with no Portal, and those of draft, disabled,
 //   archived or deleted Portals, come back too;
-// - each listed Portal's last scan that was not retracted, looked for from its
-//   own instant on (its code's date, at most a year back): from the counted
+// - each published Portal's last scan that was not retracted, looked for from
+//   its own instant on (its code's date, at most a year back): from the counted
 //   rows when it was scanned in the range, and only otherwise further back, one
 //   quiet Portal at a time on its own index.
 //
 // It runs under the dashboard read budget, so a slow plan aborts instead of
 // holding a pool connection.
 //
-// Measured 2026-10-18 with EXPLAIN ANALYZE on a fleet fixture (5,000
-// Properties, 423,000 readings), with stale and with fresh statistics: a
-// Property with 2 Portals reads in 0.3 ms; one with 100 Portals and 10,000
-// readings in the range in 20–75 ms on a loaded machine. Its counts come from a
-// BitmapAnd of `metric_readings_org_property_idx` and
-// `metric_readings_version_event_idx`, and the second half grows with the
-// whole fleet's readings in the range. An index on (organization_id,
-// property_id, definition_version_id, event_at) would bound it; none is added
-// in v1.
+// Measured 2026-10-18 with EXPLAIN ANALYZE, with stale and with fresh
+// statistics, on a loaded machine:
+// - 5,000 Properties, 423,000 readings: a Property with 2 Portals reads in
+//   about 1 ms; one with 100 Portals and 10,000 readings in the range in
+//   20–75 ms.
+// - The same, with 40 of the 100 Portals quiet but holding a year of readings
+//   each (about 17,000; 20 of them disabled) and 2% of all readings retracted,
+//   1.08 million readings in all: 100–215 ms. Each quiet published Portal costs
+//   4–5 ms, because its walk fetches and sorts every reading it ever had. The
+//   walk used to look up the correction of every one of them and to cover
+//   disabled Portals too; that read took 350–550 ms.
+// The counts come from `metric_readings_version_event_idx`, alone or in a
+// BitmapAnd with `metric_readings_org_property_idx`, so they grow with the
+// whole fleet's readings in the range, not the Property's. An index on
+// (organization_id, property_id, definition_version_id, event_at) would bound
+// them; none is added in v1.
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -137,21 +144,28 @@ function countsStatement(query: GoalRecommendationCountsQuery): SQL {
       FROM quiet
       CROSS JOIN LATERAL (
         SELECT readings.event_at
-        FROM metric_readings AS readings
+        FROM (
+          -- On the Portal's own index (organization_id, portal_id), which holds
+          -- only its readings but not in time order: every reading it ever had
+          -- is fetched and sorted. Portal listed it for this Property, so no
+          -- Property filter is needed, and one would let the planner take the
+          -- Property's index instead. The version is not "=" for the same
+          -- reason: "=" lets it walk the fleet-wide (definition_version_id,
+          -- event_at) index back past every other Property's scans.
+          SELECT candidate.id, candidate.event_at
+          FROM metric_readings AS candidate
+          WHERE candidate.organization_id = ${query.organizationId}
+            AND candidate.portal_id = quiet.portal_id
+            AND candidate.definition_version_id IS NOT DISTINCT FROM ${SCAN_VERSION}::uuid
+            AND candidate.exact_value IS NOT NULL
+            AND candidate.event_at >= quiet.since
+            AND candidate.event_at < ${query.from}
+          ORDER BY candidate.event_at DESC
+        ) AS readings
+        -- Newest first, so only the scans down to the first one not retracted
+        -- look up their correction, not all of them.
         ${correctionTipJoin}
-        -- On the Portal's own index (organization_id, portal_id), which holds
-        -- only its readings. Portal listed it for this Property, so no Property
-        -- filter is needed, and one would let the planner take the Property's
-        -- index instead. The version is not "=" for the same reason: "=" lets
-        -- it walk the fleet-wide (definition_version_id, event_at) index back
-        -- past every other Property's scans, for a Portal that has gone quiet.
-        WHERE readings.organization_id = ${query.organizationId}
-          AND readings.portal_id = quiet.portal_id
-          AND readings.definition_version_id IS NOT DISTINCT FROM ${SCAN_VERSION}::uuid
-          AND readings.exact_value IS NOT NULL
-          AND readings.event_at >= quiet.since
-          AND readings.event_at < ${query.from}
-          AND tip.kind IS DISTINCT FROM 'retract'
+        WHERE tip.kind IS DISTINCT FROM 'retract'
         ORDER BY readings.event_at DESC
         LIMIT 1
       ) AS older
