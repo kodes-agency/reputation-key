@@ -594,6 +594,16 @@
 // measured 307,517 B (75 js + 1 css) on D-2's head e9810d689 and 307,512 B after
 // the components commit: -5 B. Rebased onto D-2b (main 44e873b2b, 307,518 B)
 // it measured 307,530 B: +12 B, the check-in beside the low reviews. 170 B spare.
+//
+// 2026-10-17 (Monthly portal goal, PG-01: wording and first-visit clean-up): no
+// raise. Every change is words in the Goals, goal page, Overview and Properties
+// route chunks, and classes only left (the stylesheet is byte for byte the
+// same, 27,795 B). Fresh production builds measured 307,530 B (75 js + 1 css)
+// on main 2c9fb2a0e and 307,567 B with goalListSubjectText in goal-live-view.ts,
+// which made a chunk the Goals list and a goal's page share and grew the
+// entry's preload map; beside goalAssignmentSubjectLabel, in a module both
+// already load, it measured 307,539 B: +9 B. vendor-charts 91,003 B (lazy).
+// 161 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
