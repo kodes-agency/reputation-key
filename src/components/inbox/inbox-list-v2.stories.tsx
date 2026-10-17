@@ -3,7 +3,7 @@
 // cover populated/empty/selected states, reply-state chips, and select +
 // row-open interactions. Items use distinct reviewer names so per-row
 // aria-labels are unambiguous.
-import type { Meta, StoryObj } from '@storybook/react'
+import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { InboxListV2 } from './inbox-list-v2'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
@@ -16,13 +16,15 @@ function makeItem(opts: {
   status?: InboxItem['status']
   rating?: number
   reviewerName?: string
-  snippet?: string
+  snippet?: string | null
+  contentAvailability?: InboxItem['contentAvailability']
   isEscalated?: boolean
   propertyName?: string
   reviewLanguageCode?: string
   attention?: InboxItem['attention']
   replyState?: InboxItem['replyState']
   assignedTo?: string | null
+  createdAt?: Date
 }): InboxItem {
   return {
     id: opts.id as InboxItem['id'],
@@ -34,7 +36,11 @@ function makeItem(opts: {
     rating: opts.rating ?? 4,
     sourceDate: new Date('2025-01-01'),
     platform: 'google',
-    snippet: opts.snippet ?? 'Great service, highly recommend!',
+    snippet:
+      opts.snippet === undefined ? 'Great service, highly recommend!' : opts.snippet,
+    ...(opts.contentAvailability !== undefined
+      ? { contentAvailability: opts.contentAvailability }
+      : {}),
     assignedTo: (opts.assignedTo ?? null) as InboxItem['assignedTo'],
     reviewerName: opts.reviewerName ?? 'Anonymous',
     propertyName: opts.propertyName ?? 'Acme Hotel',
@@ -50,7 +56,7 @@ function makeItem(opts: {
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
     commandRevision: 1,
-    createdAt: new Date('2025-01-01'),
+    createdAt: opts.createdAt ?? new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
   }
 }
@@ -402,5 +408,154 @@ export const SelectingPhone: Story = {
       canvas.getByRole('checkbox', { name: 'Select item from Alice Reviewer' }),
     ).toBeChecked()
     expect(canvas.queryByText('New since your last visit')).toBeNull()
+  },
+}
+
+// ─── Urgent ──────────────────────────────────────────────────────────────────
+// An urgent review's row wears a light red tint, and its "Urgent" label the red
+// with the alert icon; Escalated keeps its red Flag, so the two stay apart. The
+// open row wears the accent fill every open row does, its red label still
+// saying urgent. The new dot, the hover wash and the focus ring sit on the tint
+// as on any row, and a rating-only review's fallback copy prints in the
+// summary's ink there as everywhere. The list is the desktop pane's default
+// width (400 px), and the full window below `md`, where the row takes its phone
+// layout.
+const URGENT_PANE = {
+  layout: 'fullscreen',
+} as const
+
+const UrgentPane: Decorator = (Story) => (
+  <div style={{ width: '100%', maxWidth: 400 }}>
+    <Story />
+  </div>
+)
+
+const urgentItems: ReadonlyArray<InboxItem> = [
+  makeItem({
+    id: 'rev-calm',
+    sourceType: 'review',
+    rating: 5,
+    reviewerName: 'Calm Reviewer',
+    snippet: 'Lovely stay, the staff were kind.',
+  }),
+  makeItem({
+    id: 'rev-urgent',
+    sourceType: 'review',
+    rating: 1,
+    reviewerName: 'Urgent Reviewer',
+    snippet: 'The fire exit on our floor was locked all night.',
+    attention: 'urgent',
+    createdAt: new Date('2025-01-02'),
+  }),
+  makeItem({
+    id: 'rev-urgent-escalated',
+    sourceType: 'review',
+    rating: 1,
+    reviewerName: 'Escalated Reviewer',
+    snippet: 'I was charged twice and nobody answers the phone.',
+    attention: 'urgent',
+    isEscalated: true,
+  }),
+  makeItem({
+    id: 'rev-urgent-open',
+    sourceType: 'review',
+    rating: 2,
+    reviewerName: 'Open Reviewer',
+    snippet: 'Found broken glass by the pool.',
+    attention: 'urgent',
+    replyState: {
+      status: 'pending_approval',
+      publicationState: null,
+      publicationLastErrorClass: null,
+      updatedAt: new Date('2025-01-01T00:00:00Z'),
+    },
+  }),
+  makeItem({
+    id: 'rev-urgent-rating-only',
+    sourceType: 'review',
+    rating: 1,
+    reviewerName: 'Silent Reviewer',
+    snippet: null,
+    contentAvailability: 'rating_only',
+    attention: 'urgent',
+  }),
+  makeItem({
+    id: 'rev-escalated',
+    sourceType: 'review',
+    rating: 3,
+    reviewerName: 'Flagged Reviewer',
+    snippet: 'Our room was not ready until the evening.',
+    isEscalated: true,
+  }),
+]
+
+const urgentArgs = {
+  ...baseArgs,
+  items: urgentItems,
+  activeItemId: 'rev-urgent-open',
+  viewedUpTo: new Date('2025-01-01T12:00:00Z'),
+}
+
+async function expectUrgentRows(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  // The label's icon is decoration: the row's name already says "Urgent".
+  const labels = canvas.getAllByText('Urgent ·')
+  expect(labels).toHaveLength(4)
+  for (const label of labels) {
+    expect(label.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  }
+  expect(
+    canvas.getByRole('button', { name: 'Open review from Urgent Reviewer, Urgent, new' }),
+  ).toBeVisible()
+  expect(
+    canvas.getByRole('button', {
+      name: 'Open review from Escalated Reviewer, Escalated, Urgent',
+    }),
+  ).toBeVisible()
+  expect(
+    canvas.getByRole('button', { name: /open review from open reviewer, .*urgent/i }),
+  ).toHaveAttribute('aria-current', 'true')
+  expect(
+    canvas.getByRole('button', { name: 'Open review from Silent Reviewer, Urgent' }),
+  ).toBeVisible()
+  expect(canvas.getByText('Rating only — the guest left no text')).toBeVisible()
+  expect(
+    canvas.getByRole('button', { name: 'Open review from Flagged Reviewer, Escalated' }),
+  ).toBeVisible()
+}
+
+export const UrgentRows: Story = {
+  args: urgentArgs,
+  decorators: [UrgentPane],
+  parameters: URGENT_PANE,
+  play: async ({ canvasElement }) => expectUrgentRows(canvasElement),
+}
+
+export const UrgentRowsLight: Story = {
+  args: urgentArgs,
+  decorators: [UrgentPane],
+  parameters: { ...URGENT_PANE, theme: 'light' },
+  play: async ({ canvasElement }) => expectUrgentRows(canvasElement),
+}
+
+// Selecting on a phone: a checked urgent row wears the checked fill, and the
+// unchecked one keeps its tint beside its checkbox.
+export const UrgentRowsSelectingPhone: Story = {
+  args: {
+    ...urgentArgs,
+    activeItemId: undefined,
+    selectionMode: true,
+    selectedIds: ['rev-urgent-escalated'],
+  },
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('checkbox', { name: 'Select item from Escalated Reviewer' }),
+    ).toBeChecked()
+    expect(
+      canvas.getByRole('checkbox', { name: 'Select item from Urgent Reviewer' }),
+    ).not.toBeChecked()
+    expect(canvas.getAllByText('Urgent ·')).toHaveLength(4)
   },
 }
