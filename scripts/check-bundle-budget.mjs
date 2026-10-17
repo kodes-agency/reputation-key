@@ -636,6 +636,16 @@
 // and the entry -3 B (it names chunks by hash). Rebased onto the portal goal
 // stages, PG-06 and the reply-rate fix (main bebc1fae6) it measured 307,564 B. 136 B
 // spare.
+//
+// 2026-10-17 (Monthly portal goal, PG-05: notice wording and Property
+// recipients): no raise. The two goal renderers moved to
+// notification-templates-portal-goal.ts, which the templates the bell renders
+// import statically, so they stay in first paint; the approved copy replaced
+// the deleted sentences, and the payload parser admits four more keys. Fresh
+// production builds measured 307,533 B (75 js + 1 css) on main 51a871831 and
+// 307,567 B on the PG-05 head: +34 B, all in the entry (48,907 -> 48,941 B).
+// The stylesheet is byte for byte the same (27,795 B); vendor-charts 91,006 B
+// (lazy). 133 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
