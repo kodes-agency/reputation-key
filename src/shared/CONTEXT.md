@@ -54,6 +54,39 @@ credential generation in PostgreSQL is the durable commit fence. Queue Redis mus
 use `noeviction`; PostgreSQL may retry pool acquisition only, never a SQL statement
 whose commit outcome is ambiguous.
 
+### Stale tabs (`stale-tab/`)
+
+Deploys happen several times a day and a tab outlives them: it keeps the code of
+the release that served its page while the server moves on, so old code receives
+new response shapes (or asks for chunk files the new release no longer ships).
+The root route writes the serving release into the page head (`repkey-release`,
+whether or not monitoring is configured) and the browser entry keeps it
+(`startStaleTabGuard`, before hydration, because later navigations rewrite the
+head). Every server-function call then states it in `x-repkey-release`
+(`release-skew-middleware.ts`, global in `start.ts`), and the server compares it
+with its own release **before** the function's validator, middleware or handler
+runs:
+
+- a **read** from an older tab is refused with the typed `stale_client` 409
+  (`StaleClient`, an expected refusal that monitoring drops);
+- a **mutation** is finished as it always was and answered with a flag, so the
+  call and the person's input are never lost;
+- an unknown release on either side (a development server, a test, Storybook, a
+  server render, a client from before the check) means no answer is possible and
+  the call runs.
+
+A tab told it is stale is **armed**; so is a tab that meets a missing chunk
+(`vite:preloadError`, an unhandled chunk-load rejection). An armed tab reloads at
+the next page-to-page navigation (the address bar already holds the target, so
+the reload fetches it afresh), or at once when a route already failed to draw
+because of a stale refusal or a missing chunk (`useGuardedRouteError`). Search and
+hash changes do not reload, so a page keeps its form. It never reloads under a
+mutation in flight (the reload waits for the next moment), and never in a loop:
+`reload-guard.ts` allows one reload per release being left per two minutes,
+remembered in `sessionStorage` before the reload, and refuses when it cannot
+remember. The whole reload path is in first paint because it runs exactly when a
+lazy chunk may be gone.
+
 Jobs, outbox delivery, health, and observability expose infrastructure mechanics.
 Contexts own handler meaning, source transactions, recovery policy, content
 classification, and mutation authority.

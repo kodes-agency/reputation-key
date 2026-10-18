@@ -9,13 +9,16 @@
 //     quiet for an expected 4xx refusal;
 //   - sends a 401 to /login, because that is an expired session under an open
 //     page, not a failure;
-//   - offers "Try again", which re-runs the route's loaders.
+//   - offers "Try again", which re-runs the route's loaders;
+//   - loads the page afresh when the failure means this tab's code is older than
+//     the server's (a read the server refused, a chunk a deploy removed), once,
+//     and says nothing of it: that is not a failure of the page.
 //
 // Route-level error components (Portal list, All properties, Portal workspace)
 // used to render `errorMessage(error)` and nothing else, so they lost all four.
 // They, and the router default, now take their behaviour from here and keep only
 // their own frame (title, breadcrumbs, tier). PageState builds on this hook.
-import { useEffect } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { Navigate, useRouter } from '@tanstack/react-router'
 import {
   GENERIC_CLIENT_ERROR_MESSAGE,
@@ -23,6 +26,7 @@ import {
 } from '#/shared/security/error-display'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
 import { httpStatus, isExpectedRefusal } from '#/shared/security/expected-refusal'
+import { staleTab } from '#/shared/stale-tab/stale-tab'
 
 const UNAUTHENTICATED = 401
 
@@ -33,6 +37,8 @@ export type RouteErrorFacts = Readonly<{
   message: string
   /** Whether this failure is worth a report (not an expected 4xx refusal). */
   report: boolean
+  /** The tab's code is older than the server's: loading the page afresh is the cure. */
+  needsFreshCode: boolean
 }>
 
 /**
@@ -48,6 +54,7 @@ export function routeErrorFacts(
     signedOut: httpStatus(error) === UNAUTHENTICATED,
     message: publicErrorMessage(error, isProduction, fallback),
     report: !isExpectedRefusal(error),
+    needsFreshCode: staleTab.needsFreshCode(error),
   }
 }
 
@@ -56,6 +63,8 @@ export type GuardedRouteError = Readonly<{
   message: string
   /** Re-run the route's loaders. */
   retry: () => void
+  /** The page is being loaded afresh; draw the loading state, not the error. */
+  reloading: boolean
 }>
 
 /**
@@ -71,17 +80,28 @@ export function useGuardedRouteError(
   fallback?: string,
 ): GuardedRouteError {
   const router = useRouter()
-  const { signedOut, message, report } = routeErrorFacts(
+  const reloading = useSyncExternalStore(
+    staleTab.onReloading,
+    staleTab.isReloading,
+    () => false,
+  )
+  const { signedOut, message, report, needsFreshCode } = routeErrorFacts(
     error,
     import.meta.env.PROD,
     fallback,
   )
 
   useEffect(() => {
+    if (needsFreshCode) {
+      // Arm the tab too: if the guard refuses now (this release already reloaded
+      // a moment ago) or a mutation is in flight, the next navigation asks again.
+      staleTab.markStale()
+      if (staleTab.reload() === 'reloading') return
+    }
     if (report) captureBrowserException(error)
-  }, [error, report])
+  }, [error, report, needsFreshCode])
 
-  return { signedOut, message, retry: () => void router.invalidate() }
+  return { signedOut, message, retry: () => void router.invalidate(), reloading }
 }
 
 /** The 401 outcome: sign in again, and come back to this page afterwards. */

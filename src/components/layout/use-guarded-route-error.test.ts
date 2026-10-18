@@ -6,6 +6,7 @@
 // without a router.
 import { describe, expect, it } from 'vitest'
 import { GENERIC_CLIENT_ERROR_MESSAGE } from '#/shared/security/error-display'
+import { staleClientRefusal } from '#/shared/stale-tab/stale-client-refusal'
 import { routeErrorFacts } from './use-guarded-route-error'
 
 const withStatus = (status: number, message = 'refused'): Error =>
@@ -66,6 +67,39 @@ describe('routeErrorFacts', () => {
 
     it('reports a thrown string', () => {
       expect(routeErrorFacts('boom', true).report).toBe(true)
+    })
+  })
+
+  describe('needsFreshCode', () => {
+    it('is true for the refusal a stale tab gets, which is expected and never reported', () => {
+      const facts = routeErrorFacts(staleClientRefusal(), true)
+
+      expect(facts.needsFreshCode).toBe(true)
+      expect(facts.report).toBe(false)
+    })
+
+    it.each([
+      'Failed to fetch dynamically imported module: https://x/assets/a.js',
+      'error loading dynamically imported module: https://x/assets/a.js',
+      'Importing a module script failed.',
+    ])(
+      'is true for a missing chunk (%s), which is still reported if the reload is refused',
+      (message) => {
+        const facts = routeErrorFacts(new TypeError(message), true)
+
+        expect(facts.needsFreshCode).toBe(true)
+        expect(facts.report).toBe(true)
+      },
+    )
+
+    it.each([
+      new Error('boom'),
+      new TypeError('Load failed'),
+      withStatus(404),
+      withStatus(500),
+      'Importing a module script failed.',
+    ])('is false for an ordinary failure (%s)', (error) => {
+      expect(routeErrorFacts(error, true).needsFreshCode).toBe(false)
     })
   })
 })

@@ -27,9 +27,28 @@ export function resolveBrowserObservabilityConfig(
   }
 }
 
+/**
+ * What the root route writes into the page head.
+ *
+ * The release goes out whether or not monitoring is configured: the page keeps
+ * it to tell when the server has moved on (stale-tab/), which must not depend on
+ * a Sentry DSN being set.
+ */
+export type BrowserRuntimeConfig = Readonly<{
+  release: string
+  observability: BrowserObservabilityConfig | null
+}>
+
+export function resolveBrowserRuntimeConfig(
+  env: BrowserObservabilityEnvironment,
+  release: string,
+): BrowserRuntimeConfig {
+  return { release, observability: resolveBrowserObservabilityConfig(env, release) }
+}
+
 export const getBrowserObservabilityConfigFn = createServerFn({ method: 'GET' }).handler(
-  (): BrowserObservabilityConfig | null => {
+  (): BrowserRuntimeConfig => {
     const { env } = requestRuntimeConfig()
-    return resolveBrowserObservabilityConfig(env, getReleaseSha(env))
+    return resolveBrowserRuntimeConfig(env, getReleaseSha(env))
   },
 )

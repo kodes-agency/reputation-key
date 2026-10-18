@@ -9,17 +9,13 @@
 // the network failed. Each value is checked against a closed shape before it
 // becomes a tag, so nothing a person typed or a row held can pass as one.
 
+import { isChunkLoadMessage } from '#/shared/stale-tab/chunk-load'
+
 const MAX_CAUSE_DEPTH = 5
 const ERROR_CODE = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/u
 const SQLSTATE = /^[0-9A-Z]{5}$/u
 const SQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]{0,62}$/u
 
-const CHUNK_LOAD_MESSAGES = [
-  /^Failed to fetch dynamically imported module\b/u, // Chromium
-  /^error loading dynamically imported module\b/u, // Firefox
-  /^Importing a module script failed\.?$/u, // Safari
-  /^Unable to preload CSS for\b/u, // Vite's stylesheet preload
-]
 const NETWORK_MESSAGES = [
   /^Failed to fetch$/u, // Chromium
   /^NetworkError when attempting to fetch resource\.?$/u, // Firefox
@@ -87,7 +83,7 @@ function databaseFacts(chain: ReadonlyArray<ErrorFields>): ErrorFactTags {
 function errorKind(fields: ErrorFields | undefined): ErrorKind | undefined {
   const message = fields?.message
   if (typeof message !== 'string') return undefined
-  if (CHUNK_LOAD_MESSAGES.some((shape) => shape.test(message))) return 'chunk_load'
+  if (isChunkLoadMessage(message)) return 'chunk_load'
   if (NETWORK_MESSAGES.some((shape) => shape.test(message))) return 'network'
   return undefined
 }

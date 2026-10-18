@@ -3,6 +3,7 @@ import {
   sentryGlobalFunctionMiddleware,
   sentryGlobalRequestMiddleware,
 } from '@sentry/tanstackstart-react'
+import { releaseSkewClientMiddleware } from '#/shared/stale-tab/release-skew-middleware'
 import { startInstance } from './start'
 
 type RequestResult = Response | Readonly<{ response: Response }>
@@ -61,7 +62,21 @@ describe('TanStack Start global middleware on the server', () => {
     expect(options.requestMiddleware).toHaveLength(3)
     expect(options.requestMiddleware?.[0]).toBe(sentryGlobalRequestMiddleware)
     expect(options.requestMiddleware?.[0]?.options.server).toBeTypeOf('function')
-    expect(options.functionMiddleware).toEqual([sentryGlobalFunctionMiddleware])
+    expect(options.functionMiddleware).toEqual([
+      sentryGlobalFunctionMiddleware,
+      releaseSkewClientMiddleware,
+    ])
+  })
+
+  it('asks the release question ahead of everything the server function itself has', async () => {
+    const options = await startInstance.getOptions()
+    const [, releaseCheck] = options.functionMiddleware ?? []
+
+    // Global middleware runs before a function's validator, its own middleware
+    // and its handler. The client half depends on the server half, which Start
+    // flattens in ahead of it, so both halves are in the one registration.
+    expect(releaseCheck).toBe(releaseSkewClientMiddleware)
+    expect(releaseCheck?.options.middleware?.[0]?.options.server).toBeTypeOf('function')
   })
 })
 

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { resolveBrowserObservabilityConfig } from './browser-observability.server'
+import {
+  resolveBrowserObservabilityConfig,
+  resolveBrowserRuntimeConfig,
+} from './browser-observability.server'
 
 const RELEASE = 'a'.repeat(40)
 
@@ -47,5 +50,32 @@ describe('browser observability config', () => {
         RELEASE,
       ),
     ).toEqual({ dsn, release: RELEASE, environment: 'test' })
+  })
+})
+
+describe('browser runtime config', () => {
+  it('carries the release even when no browser DSN is configured', () => {
+    expect(resolveBrowserRuntimeConfig({ NODE_ENV: 'development' }, RELEASE)).toEqual({
+      release: RELEASE,
+      observability: null,
+    })
+  })
+
+  it('carries the monitoring settings beside the release when a DSN is configured', () => {
+    const dsn = 'https://public@o1.ingest.us.sentry.io/1'
+
+    expect(
+      resolveBrowserRuntimeConfig(
+        {
+          SENTRY_DSN: dsn,
+          NODE_ENV: 'production',
+          RAILWAY_ENVIRONMENT_NAME: 'closed-beta-v2',
+        },
+        RELEASE,
+      ),
+    ).toEqual({
+      release: RELEASE,
+      observability: { dsn, release: RELEASE, environment: 'closed-beta-v2' },
+    })
   })
 })

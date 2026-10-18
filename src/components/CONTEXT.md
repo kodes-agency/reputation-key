@@ -359,7 +359,8 @@ tier, under } }`, see `page-identity.ts`): that gives its fallbacks their frame
   and its tab title (`<Page> | Reputation Key`). A route does not write its own
   `pendingComponent`, `errorComponent` or `notFoundComponent` unless it names a
   missing entity (`RouteNotFound` with `entity`). The error state takes the
-  guarded behaviour (sanitised message, report, 401 sign-in redirect, Try again)
+  guarded behaviour (sanitised message, report, 401 sign-in redirect, Try again,
+  and one reload when the failure is a tab whose code is older than the server's)
   from `useGuardedRouteError`. A refusal is drawn by the shell route's not-found
   boundary (`ShellNoticeBoundary`), which replaces the shell; what a person set
   (the sidebar's open state, the focused sidebar link) is kept in

@@ -135,7 +135,10 @@ describe('production error-monitoring wiring', () => {
     expect(start).toContain(
       'requestMiddleware: [...sentry.request, csrfMiddleware, cspNonceMiddleware]',
     )
-    expect(start).toContain('functionMiddleware: [...sentry.function]')
+    // Sentry's function middleware stays first; the release check follows it.
+    expect(start).toContain(
+      'functionMiddleware: [...sentry.function, releaseSkewClientMiddleware]',
+    )
   })
 
   it('externalizes only the shared Node SDK from the server bundle', () => {

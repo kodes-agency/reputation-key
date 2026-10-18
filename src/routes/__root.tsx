@@ -37,11 +37,15 @@ export const Route = createRootRouteWithContext<{
         content: 'width=device-width, initial-scale=1',
       },
       { title: 'Reputation Key' },
-      ...(loaderData
+      ...(loaderData ? [{ name: 'repkey-release', content: loaderData.release }] : []),
+      ...(loaderData?.observability
         ? [
-            { name: 'repkey-sentry-dsn', content: loaderData.dsn },
-            { name: 'repkey-sentry-release', content: loaderData.release },
-            { name: 'repkey-sentry-environment', content: loaderData.environment },
+            { name: 'repkey-sentry-dsn', content: loaderData.observability.dsn },
+            { name: 'repkey-sentry-release', content: loaderData.observability.release },
+            {
+              name: 'repkey-sentry-environment',
+              content: loaderData.observability.environment,
+            },
           ]
         : []),
     ],
