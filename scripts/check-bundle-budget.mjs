@@ -802,8 +802,9 @@
 // route row is first paint: its options (title, the goal.read check, a loader
 // that only imports the lazy -portal-goal-queries chunk) and the names of its
 // component chunk's preloads in the entry. Its component and every part of the
-// page load with it (portals-*.js, lazy); the card it shares with the Goals
-// page is now a lazy chunk of its own (portal-goal-card-*.js), and the page
+// page load with it (portals-*.js, lazy); on the stacked base the card it
+// shares with the Goals page was a lazy chunk of its own (portal-goal-card-*.js;
+// after the rebase it is in -portal-goal-sheet-host-*.js, below), and the page
 // read's server function joins the card's stub chunk. No module-level
 // queryOptions, no static import of a server module, and every class was
 // already in the stylesheet. On the stacked base, PG-12's head 4801bd782,
@@ -829,7 +830,12 @@
 // 307,813 B on main (entry 49,054 B) and 308,012 B on the head (entry
 // 49,253 B): +199 B, all in the entry, the stylesheet main's own
 // (styles-mDD_TGAT.css, 27,845 B). The line stays at 308,050: 38 B spare,
-// 250 B under the ceiling.
+// 250 B under the ceiling. After the rebase's review fixes (the sheet host is
+// told which title to focus on both pages; comments), the head measured
+// 307,997 B (entry 49,238 B): -15 B, all in the entry, which is byte-identical
+// to the 308,012 B head's once the hashed chunk names are masked (only the
+// lazy chunks whose code changed got new names). The line stays at 308,050:
+// 53 B spare, 250 B under the ceiling.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

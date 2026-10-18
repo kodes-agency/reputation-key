@@ -5,9 +5,11 @@
 // with November and October closed (each month's facts on its chip); a
 // corrected month; scans; one Portal; across a stop; stopped; many changes;
 // no goal yet, where the page is the card's own state with its doors to the
-// set sheet; and no goal after a stop, with that goal's months and changes. At 320, 390, 820 and 1440 px and on
-// the light theme. The Storybook Vitest project compiles no Tailwind, so the
-// plays assert words, roles, the heading outline and the calls.
+// set sheet; and no goal after a stop, with that goal's months and changes.
+// At 320, 390, 820 and 1440 px and on the light theme. The Storybook Vitest
+// project compiles no Tailwind, so the plays assert words, roles, the heading
+// outline and the calls. The sheet those doors open, as the page hosts it, is
+// in the route's `-portal-goal-sheet-host.stories.tsx`.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalGoalPage } from './portal-goal-page'

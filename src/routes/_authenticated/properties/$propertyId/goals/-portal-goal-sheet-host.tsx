@@ -1,17 +1,18 @@
 // Opens the Monthly portal goal's set sheet from its card, on the Goals page
-// and on the goal's own page (PLAN PG-10, PG-13): "Change" on the ready card, "Set a private ratings number"
-// with scans first, "Set my own number" in the first weeks and while the
-// recommendation cannot be read, and "Set a number anyway" when nothing came
-// in. The sheet is a chunk of its own, fetched while a door to it is on screen,
-// and it works from the card's own read, so it needs no read of its own. A
-// fresh sheet (a new draft, no old refusal) is mounted for every opening.
+// and on the goal's own page (PLAN PG-10, PG-13): "Change" on the ready card,
+// "Set a private ratings number" with scans first, "Set my own number" in the
+// first weeks and while the recommendation cannot be read, and "Set a number
+// anyway" when nothing came in. The sheet is a chunk of its own, fetched while
+// a door to it is on screen, and it works from the card's own read, so it needs
+// no read of its own. A fresh sheet (a new draft, no old refusal) is mounted
+// for every opening.
 //
 // No Radix trigger opens it, so Radix has nowhere to put the focus back when it
 // closes: the host remembers what had the focus when it was opened and returns
 // it there; or to the goal's title when that is gone, and always once a goal
-// was set (the door is gone with the card it was on). The title is the card's
-// on the Goals page; on the goal's own page the card draws none, and the page
-// hands in a way to its own title.
+// was set (the door is gone with the card it was on). Each page says which
+// title that is: the card's on the Goals page; on the goal's own page the card
+// draws none, and the page hands in a way to its own title.
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import type {
   PortalGoalCardView,
@@ -50,7 +51,8 @@ function focusedElement(): HTMLElement | null {
 }
 
 /** The card's title, where the card draws one (the Goals page). */
-const focusCardTitle = (): void => document.getElementById(PORTAL_GOAL_TITLE_ID)?.focus()
+export const focusPortalGoalCardTitle = (): void =>
+  document.getElementById(PORTAL_GOAL_TITLE_ID)?.focus()
 
 /**
  * Puts the focus back where the sheet was opened from, or on the goal's title.
@@ -82,13 +84,14 @@ function useFocusReturn(focusTitle: () => void) {
 /**
  * The set sheet of the goal's card: `open` opens it on a measure, and `sheet`
  * is the element the page draws (nothing until it is first opened).
- * `focusTitle` puts the focus on the goal's title; the card's by default.
+ * `focusTitle` puts the focus on the goal's title, wherever the page draws it:
+ * no default, so a page never sends it to a title it does not have.
  */
 export function usePortalGoalSheet(
   propertyId: string,
   card: PortalGoalCardView | undefined,
   commands: Pick<PortalGoalCommands, 'setMonthlyPortalGoalFn' | 'onSet'>,
-  focusTitle: () => void = focusCardTitle,
+  focusTitle: () => void,
 ): Readonly<{ open: (intent: PortalGoalSheetIntent) => void; sheet: ReactNode }> {
   const [opening, setOpening] = useState<Opening | null>(null)
   const focus = useFocusReturn(focusTitle)

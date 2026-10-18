@@ -3,9 +3,10 @@
 // lead here from the Overview, and the page it left is gone by the time this
 // one is drawn, so the link asks for the focus in the address's state and the
 // section's title takes it once the section is drawn.
-// Any other way to `#portal-goals` (a notice, an old goal's address) leaves the
-// focus where it was. The Storybook Vitest project compiles no Tailwind, so the
-// play asserts roles and the focus.
+// Any other way to `#portal-goals` (an address typed or bookmarked) leaves the
+// focus where it was; a notice about the goal and its old address open
+// `/goals/portals` instead. The Storybook Vitest project compiles no Tailwind,
+// so the play asserts roles and the focus.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
