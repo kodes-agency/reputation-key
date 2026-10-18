@@ -24,6 +24,7 @@ import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
 import type {
   PortalGoalLastMonth,
   PortalGoalOfCard,
+  PortalGoalPortalCount,
   PortalGoalRows,
   PortalGoalRunningMonth,
 } from '../dto/monthly-portal-goal.types'
@@ -114,24 +115,25 @@ function runningMonth(
 }
 
 /**
- * Each published Portal's count of the running month, in name order, and what
- * the rest leave (draft, disabled, archived and deleted Portals and readings
- * with no Portal), in the month's own measure, drawn only when they add up to
- * the governed figure. One Portal that brought in all of it is named, but not
- * while the month has nothing in: 0 is no Portal's doing, so it is a row. From
- * 5 Portals the card says how many. A month the set read cannot read whole, a
- * list cut at 100 Portals, or no published Portal draws none.
+ * Each published Portal's count of the running month, in name order, in the
+ * month's own measure, with what the rest brought in (draft, disabled,
+ * archived and deleted Portals and readings with no Portal) and the governed
+ * figure they make up: only when they add up to it. A month the set read
+ * cannot read whole, or not this month, has none. The card and the goal's page
+ * both draw these.
  */
-function rowsOf(
+export function monthCountsOf(
   recommendation: PortalGoalRecommendation,
   month: PortalGoalRunningMonth,
-): PortalGoalRows | null {
-  const { measure } = month
-  const soFar = recommendation.monthToDate[measure]
+): Readonly<{
+  portals: readonly PortalGoalPortalCount[]
+  elsewhere: number
+  total: number
+}> | null {
+  const { measure, value } = month
   if (
-    month.value === null ||
-    soFar === null ||
-    recommendation.truncated ||
+    value === null ||
+    recommendation.monthToDate[measure] === null ||
     month.key !== recommendation.months.current.key
   ) {
     return null
@@ -145,10 +147,25 @@ function rowsOf(
     }))
   const elsewhere = recommendation.elsewhere[measure]
   const listed = portals.reduce((sum, { count }) => sum + count, 0)
-  if (portals.length === 0 || listed + elsewhere !== month.value) return null
+  return listed + elsewhere === value ? { portals, elsewhere, total: value } : null
+}
+
+/**
+ * The card's counts of the running month (`monthCountsOf`). One Portal that
+ * brought in all of it is named, but not while the month has nothing in: 0 is
+ * no Portal's doing, so it is a row. From 5 Portals the card says how many. A
+ * list cut at 100 Portals, or no published Portal, draws none.
+ */
+function rowsOf(
+  recommendation: PortalGoalRecommendation,
+  month: PortalGoalRunningMonth,
+): PortalGoalRows | null {
+  const counts = recommendation.truncated ? null : monthCountsOf(recommendation, month)
+  if (counts === null || counts.portals.length === 0) return null
+  const { portals, elsewhere, total } = counts
   if (portals.length >= MANY_PORTALS) return { kind: 'many', count: portals.length }
   const [only] = portals
-  if (only && portals.length === 1 && elsewhere === 0 && month.value > 0) {
+  if (only && portals.length === 1 && elsewhere === 0 && total > 0) {
     return { kind: 'one', name: only.name }
   }
   return { kind: 'rows', portals, elsewhere }

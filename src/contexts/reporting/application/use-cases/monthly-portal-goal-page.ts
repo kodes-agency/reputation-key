@@ -42,6 +42,7 @@ import {
   successionOf,
   type ShownMonths,
 } from './monthly-portal-goal-history'
+import { monthCountsOf } from './monthly-portal-goal-running'
 
 export type MonthlyPortalGoalPageDeps = MonthlyPortalGoalCardDeps &
   Readonly<{
@@ -59,30 +60,16 @@ const shownMeasure = (goal: PortalGoalOfCard) =>
   goal.month?.measure ?? goal.countingMonth?.measure ?? goal.measure
 
 /**
- * Every published Portal's count of the running month, in name order, with what
- * the rest brought in, when they add up to the governed figure; else none.
+ * Every published Portal's count of the running month, in name order (up to
+ * 100), with what the rest brought in, when they add up to the governed
+ * figure; else none.
  */
 function rowsOf(
   recommendation: PortalGoalRecommendation,
   month: PortalGoalRunningMonth | null,
 ): PortalGoalPageRows | null {
-  if (month === null || month.value === null) return null
-  const { measure } = month
-  if (
-    recommendation.monthToDate[measure] === null ||
-    month.key !== recommendation.months.current.key
-  ) {
-    return null
-  }
-  const portals = publishedOf(recommendation).map(({ portalId, name, monthToDate }) => ({
-    portalId,
-    name,
-    count: monthToDate[measure],
-  }))
-  const elsewhere = recommendation.elsewhere[measure]
-  const listed = portals.reduce((sum, { count }) => sum + count, 0)
-  if (listed + elsewhere !== month.value) return null
-  return { portals, elsewhere, total: month.value, truncated: recommendation.truncated }
+  const counts = month === null ? null : monthCountsOf(recommendation, month)
+  return counts === null ? null : { ...counts, truncated: recommendation.truncated }
 }
 
 /** The established published Portals that have gone quiet, by Portal. */

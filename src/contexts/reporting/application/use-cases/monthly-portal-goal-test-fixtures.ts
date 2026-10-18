@@ -108,7 +108,7 @@ type GoalShape = Readonly<{
 }>
 
 /** A month's result row: open and updating unless the shape says how far it has got. */
-export function monthResult(
+function monthResult(
   programId: string,
   programVersionId: string,
   assignmentId: string,

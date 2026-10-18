@@ -8,7 +8,7 @@ import { formatNumber } from '#/lib/format'
 import { dayWords, listOfNames, monthName, portalGoalUnit } from './portal-goal-words'
 
 /** How many changes the page lists before "Show all". */
-export const CHANGES_SHOWN = 12
+const CHANGES_SHOWN = 12
 
 export type PortalGoalChangeLine = Readonly<{
   key: string

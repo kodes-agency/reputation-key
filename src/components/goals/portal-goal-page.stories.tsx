@@ -24,6 +24,7 @@ import {
   SEAVIEW,
   personName,
 } from './portal-goal-page.stories.fixtures'
+import { portalRows } from './portal-goal.stories.play'
 
 const meta: Meta<typeof PortalGoalPage> = {
   title: 'Goals/PortalGoalPage',
@@ -49,14 +50,6 @@ const outline = (canvasElement: HTMLElement): string[] =>
   [...canvasElement.querySelectorAll('h1, h2, h3')].map(
     (heading) => `${heading.tagName.toLowerCase()} ${heading.textContent ?? ''}`,
   )
-
-/** Each row of "From your portals", name and count, in the order drawn. */
-function portalRows(canvas: Canvas): string[][] {
-  const list = canvas.getByRole('list', { name: 'From your portals' })
-  return within(list)
-    .getAllByRole('listitem')
-    .map((item) => [...item.children].map((part) => part.textContent ?? ''))
-}
 
 /** The tiles: a description list named after the goal. */
 function tilesOf(canvasElement: HTMLElement): Canvas {

@@ -31,6 +31,7 @@ import {
   CARD_STOPPED_NO_DATE,
   CARD_UNREADABLE,
 } from './portal-goal-running.stories.fixtures'
+import { portalRows } from './portal-goal.stories.play'
 
 const read = (data: PortalGoalCardView) => ({
   data,
@@ -78,14 +79,6 @@ async function expectNoSidewaysScroll(canvasElement: HTMLElement) {
   await expect(getComputedStyle(bar).overflowX).toBe('clip')
   await expect(getComputedStyle(bar).overflowY).toBe('visible')
   await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
-}
-
-/** Each row of "From your portals", name and count, in the order drawn. */
-function portalRows(canvas: Canvas): string[][] {
-  const list = canvas.getByRole('list', { name: 'From your portals' })
-  return within(list)
-    .getAllByRole('listitem')
-    .map((item) => [...item.children].map((part) => part.textContent ?? ''))
 }
 
 async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
