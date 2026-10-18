@@ -287,18 +287,20 @@ describe('Add a portal goal (PG-20)', () => {
   const PORTAL_ID = '00000000-0000-4000-8000-000000000003'
   const one = {
     propertyId: PROPERTY_ID,
-    subject: { kind: 'portal', portalId: PORTAL_ID },
-    metric: 'portal_rating_count',
+    subject: { kind: 'portal' as const, portalId: PORTAL_ID },
+    metric: 'portal_rating_count' as const,
     targetValue: 22,
     startMonth: '2026-12',
-    targetSource: 'recommended',
-  } as const
+    targetSource: 'recommended' as const,
+  }
   const each = {
     propertyId: PROPERTY_ID,
-    metric: 'portal_rating_count',
+    metric: 'portal_rating_count' as const,
     startMonth: '2026-12',
-    items: [{ portalId: PORTAL_ID, targetValue: 22, targetSource: 'recommended' }],
-  } as const
+    items: [
+      { portalId: PORTAL_ID, targetValue: 22, targetSource: 'recommended' as const },
+    ],
+  }
 
   /** Each command and the read ask `goal.create` first, as the use cases do. */
   const askingGoalCreate =
@@ -326,7 +328,7 @@ describe('Add a portal goal (PG-20)', () => {
     mocks.addEach.mockImplementation(askingGoalCreate({ outcomes: [] }))
   })
 
-  it.each([
+  it.each<[string, () => Promise<unknown>, typeof mocks.addOne, object]>([
     [
       'getPortalGoalAddOptions',
       () => getPortalGoalAddOptions({ data: input }),
@@ -335,20 +337,17 @@ describe('Add a portal goal (PG-20)', () => {
     ],
     ['addPortalGoal', () => addPortalGoal({ data: one }), mocks.addOne, one],
     ['addPortalGoals', () => addPortalGoals({ data: each }), mocks.addEach, each],
-  ] as const)(
-    '%s authorizes through the execution policy',
-    async (_name, call, use, data) => {
-      await withStartContext(call)
+  ])('%s authorizes through the execution policy', async (_name, call, use, data) => {
+    await withStartContext(call)
 
-      expect(use).toHaveBeenCalledWith(expect.any(Object), data, manager)
-      expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
-        actor: manager,
-        action: 'goal.create',
-        capability: 'goal.use',
-        propertyId: PROPERTY_ID,
-      })
-    },
-  )
+    expect(use).toHaveBeenCalledWith(expect.any(Object), data, manager)
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor: manager,
+      action: 'goal.create',
+      capability: 'goal.use',
+      propertyId: PROPERTY_ID,
+    })
+  })
 
   it.each(['scope_denied', 'beta_role_inactive'])(
     'passes the execution policy refusal %s on unchanged',

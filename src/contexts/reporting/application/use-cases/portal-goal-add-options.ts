@@ -152,7 +152,7 @@ async function namedGroups(
 }
 
 /** What the sheet offers, from what was read. */
-export function portalGoalAddOptionsOf(
+function portalGoalAddOptionsOf(
   basis: PortalGoalAddBasis,
   read: Readonly<{
     propertyId: string

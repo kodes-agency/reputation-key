@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GoalBulkCreateInput } from './goal-bulk-create'
+import type { GoalBulkCreateInput, GoalBulkCreateResult } from './goal-bulk-create'
 import type { GoalActor } from './goal-programs'
 import {
   actor,
@@ -41,17 +41,26 @@ function setup() {
         return created
       }),
     },
-    createForSubjects: vi.fn(async (input: GoalBulkCreateInput, _actor: GoalActor) => {
-      calls.push('create for subjects')
-      // The first row is saved; the others were taken a moment ago.
-      return {
-        outcomes: input.items.map(({ subject }, index) =>
-          index === 0
-            ? { subject, code: 'created' as const, programId: `goal-${index}` }
-            : { subject, code: 'subject_has_goal' as const },
-        ),
-      }
-    }),
+    createForSubjects: vi.fn(
+      async (
+        input: GoalBulkCreateInput,
+        _actor: GoalActor,
+      ): Promise<GoalBulkCreateResult> => {
+        calls.push('create for subjects')
+        // The first row is saved; the others were taken a moment ago.
+        return {
+          outcomes: input.items.map(({ subject }, index) => {
+            const portal = {
+              kind: 'portal' as const,
+              portalId: subject.kind === 'portal' ? subject.portalId : '',
+            }
+            return index === 0
+              ? { subject: portal, code: 'created' as const, programId: `goal-${index}` }
+              : { subject: portal, code: 'subject_has_goal' as const }
+          }),
+        }
+      },
+    ),
     subjectNames: world.subjectNames,
     recommendation: world.recommendation,
     now: () => NOV_22,
