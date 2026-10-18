@@ -346,3 +346,145 @@ export async function seedPortalHistory(
     lastScanAt,
   }
 }
+
+/** Next month on the Property's own calendar, as the `YYYY-MM` key a goal starts on. */
+export async function nextMonthKey(propertyId: string): Promise<string> {
+  const [row] = await dbQuery<{ month: string }>(
+    `SELECT to_char(date_trunc('month', now() AT TIME ZONE timezone) + interval '1 month',
+                    'YYYY-MM') AS month
+       FROM properties WHERE id = $1::uuid`,
+    [propertyId],
+  )
+  if (!row) throw new Error(`E2E Property ${propertyId} is not seeded`)
+  return row.month
+}
+
+/**
+ * Gives a goal set for next month a month that has closed (J11), as the
+ * month-end close would leave it: its first version and subject end where they
+ * began, a second version and subject count from that month, and the month's
+ * result is written closed with `value` against the goal's number (the shape
+ * `beta-product-journeys.spec.ts` gives a completed month). A month closes a
+ * day after it ends, so in a month's first 25 hours the month before last is
+ * used. Returns that month's first instant and the Property's time zone.
+ */
+export async function closePortalGoalMonth(
+  input: Readonly<{ propertyId: string; programId: string; value: number }>,
+): Promise<Readonly<{ periodStart: Date; timezone: string }>> {
+  const [period] = await dbQuery<{
+    organizationId: string
+    timezone: string
+    periodStart: Date
+    periodEnd: Date
+  }>(
+    `SELECT organization_id AS "organizationId", timezone,
+            ((date_trunc('month', now() AT TIME ZONE timezone) - shift.months_back)
+              AT TIME ZONE timezone) AS "periodStart",
+            ((date_trunc('month', now() AT TIME ZONE timezone) - shift.months_back
+              + interval '1 month') AT TIME ZONE timezone) AS "periodEnd"
+       FROM properties
+       CROSS JOIN LATERAL (
+         SELECT CASE
+           WHEN now() < (date_trunc('month', now() AT TIME ZONE timezone)
+             AT TIME ZONE timezone) + interval '25 hours'
+           THEN interval '2 months'
+           ELSE interval '1 month'
+         END AS months_back
+       ) AS shift
+      WHERE id = $1::uuid`,
+    [input.propertyId],
+  )
+  if (!period) throw new Error(`E2E Property ${input.propertyId} is not seeded`)
+  const closed = await dbQuery<{ id: string }>(
+    `WITH original_version AS MATERIALIZED (
+       SELECT * FROM goal_program_versions
+        WHERE organization_id = $1 AND property_id = $2::uuid
+          AND program_id = $3::uuid AND version = 1
+     ),
+     closed_assignments AS (
+       UPDATE goal_subject_assignments AS assignment
+          SET effective_to = assignment.effective_from
+         FROM original_version
+        WHERE assignment.organization_id = $1
+          AND assignment.property_id = $2::uuid
+          AND assignment.program_id = $3::uuid
+          AND assignment.program_version_id = original_version.id
+       RETURNING assignment.*
+     ),
+     closed_version AS (
+       UPDATE goal_program_versions AS version
+          SET effective_to = version.effective_from
+         FROM original_version
+        WHERE version.id = original_version.id
+       RETURNING version.*
+     ),
+     inserted_version AS (
+       INSERT INTO goal_program_versions (
+         id, program_id, organization_id, property_id, version,
+         metric_definition_id, metric_definition_version_id, metric_key,
+         metric_minimum_sample, target_value, property_timezone,
+         effective_from, effective_to, change_reason, created_by, created_at
+       )
+       SELECT
+         gen_random_uuid(), program_id, organization_id, property_id, 2,
+         metric_definition_id, metric_definition_version_id, metric_key,
+         metric_minimum_sample, target_value, property_timezone,
+         $4::timestamptz, NULL, 'E2E closed month', created_by, now()
+       FROM closed_version
+       RETURNING *
+     ),
+     inserted_assignment AS (
+       INSERT INTO goal_subject_assignments (
+         id, program_id, program_version_id, organization_id, property_id,
+         metric_key, subject_kind, property_subject_id, portal_group_id,
+         portal_id, effective_from, effective_to, created_by, created_at
+       )
+       SELECT
+         gen_random_uuid(), prior.program_id, version.id, prior.organization_id,
+         prior.property_id, prior.metric_key, prior.subject_kind,
+         prior.property_subject_id, prior.portal_group_id, prior.portal_id,
+         $4::timestamptz, NULL, prior.created_by, now()
+       FROM closed_assignments AS prior
+       CROSS JOIN inserted_version AS version
+       RETURNING *
+     ),
+     inserted_result AS (
+       INSERT INTO goal_monthly_results (
+         id, assignment_id, program_id, program_version_id, organization_id,
+         property_id, period_start, period_end, property_timezone,
+         status, evaluation_state, value, sample_count, achieved, reason,
+         source_complete_through, evaluation_watermark, closed_at
+       )
+       SELECT
+         gen_random_uuid(), assignment.id, assignment.program_id, version.id,
+         assignment.organization_id, assignment.property_id,
+         $4::timestamptz, $5::timestamptz, version.property_timezone,
+         'closed', 'eligible', $6::integer, $6::integer,
+         $6::integer >= version.target_value, NULL,
+         $5::timestamptz, $5::timestamptz, now()
+       FROM inserted_assignment AS assignment
+       CROSS JOIN inserted_version AS version
+       RETURNING id
+     )
+     UPDATE goal_programs AS program
+        SET status = 'active', status_reason = NULL, current_version = 2,
+            updated_at = now()
+      WHERE program.organization_id = $1
+        AND program.property_id = $2::uuid
+        AND program.id = $3::uuid
+        AND program.status = 'scheduled'
+        AND EXISTS (SELECT 1 FROM inserted_result)
+     RETURNING program.id`,
+    [
+      period.organizationId,
+      input.propertyId,
+      input.programId,
+      period.periodStart,
+      period.periodEnd,
+      input.value,
+    ],
+  )
+  if (closed.length !== 1)
+    throw new Error(`E2E goal ${input.programId} was not moved back`)
+  return { periodStart: new Date(period.periodStart), timezone: period.timezone }
+}

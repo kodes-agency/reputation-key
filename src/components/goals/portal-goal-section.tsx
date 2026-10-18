@@ -1,7 +1,8 @@
 // The Portal goals section of the Goals page, below the Google section and apart
 // from it (ADR 0068): its title, a line on what the goal counts, the Monthly
-// portal goal's card, and two slots, `extras` (the other Portal goals) and
-// `footer` (the way to add one). A read on its way keeps the card's room; one
+// portal goal's card, and three slots, `extras` (the other Portal goals),
+// `footer` (the way to add one) and `results` (the way to each month's result
+// and the ended goals, PG-18). A read on its way keeps the card's room; one
 // that failed says so here and holds nothing else back. A view that draws no
 // card (the History, or a reader who cannot set goals) shows the slots only, or
 // that it has nothing to show.
@@ -53,6 +54,8 @@ type Props = Readonly<{
   /** What the section says when neither a card nor `extras` has anything to show. */
   empty?: string
   footer?: ReactNode
+  /** The way to each month's result and the ended goals, at the very foot. */
+  results?: ReactNode
 }>
 
 /**
@@ -127,6 +130,7 @@ export function PortalGoalSection({
   extras,
   empty,
   footer,
+  results,
 }: Props) {
   useFocusOnArrival()
   const line = card?.data === undefined ? null : portalGoalSectionLine(card.data)
@@ -155,6 +159,7 @@ export function PortalGoalSection({
       {extras}
       {empty === undefined ? null : <EmptyState icon={Target} title={empty} />}
       {footer}
+      {results}
     </section>
   )
 }

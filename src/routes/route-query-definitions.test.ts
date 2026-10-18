@@ -75,15 +75,19 @@ const GOALS = '_authenticated/properties/$propertyId/goals'
  * own in that closure, and one more importer of server functions changes how
  * their stubs are grouped; copies of the same text compress to nearly nothing.
  * The budget has about 300 B of slack, so they stay per route, and what could
- * go wrong is held here instead: each copy must be the same read.
+ * go wrong is held here instead: each copy must be the same read. The Portal
+ * goal results page keeps its copies in a module its loader imports on demand
+ * (`-portal-goal-queries.ts`), so they add nothing to first paint.
  */
 const LEAF_COPIES: Readonly<Record<string, readonly string[]>> = {
   "goalKeys.list({ propertyId, model: 'program' })": [
+    `${GOALS}/-portal-goal-queries.ts`,
     `${GOALS}/index.tsx`,
     `${GOALS}/new.tsx`,
   ],
   'portalKeys.goalSubjectNames(propertyId)': [
     `${GOALS}/$goalId.tsx`,
+    `${GOALS}/-portal-goal-queries.ts`,
     `${GOALS}/index.tsx`,
   ],
 }

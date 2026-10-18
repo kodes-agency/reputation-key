@@ -143,7 +143,11 @@ export const AllEvidenceStates: Story = {
     await expect(canvas.getByText('0 scans')).toBeVisible()
     await expect(canvas.getByText('7 private ratings')).toBeVisible()
     await expect(canvas.getByText('6 of 10 ratings so far')).toBeVisible()
-    await expect(canvas.getByRole('columnheader', { name: 'Number' })).toBeVisible()
+    // Its header where the columns are drawn; where the card is too narrow for
+    // them (compiled Tailwind on a phone) each result names the column itself.
+    await expect(
+      canvas.getAllByText('Number').some((element) => element.checkVisibility()),
+    ).toBe(true)
     // No internals: no rules version, no list of portals without a goal.
     expect(canvas.queryByText(/Metric rules/)).toBeNull()
     expect(canvas.queryByText(/Program version/)).toBeNull()

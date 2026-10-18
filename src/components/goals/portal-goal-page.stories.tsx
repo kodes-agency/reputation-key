@@ -236,7 +236,7 @@ export const StripLater: Story = {
     // A month has closed: every month's result is a click away.
     await expect(
       canvas.getByRole('link', { name: 'All monthly results' }),
-    ).toHaveAttribute('href', '/properties/p1/goals#monthly-results')
+    ).toHaveAttribute('href', '/properties/p1/goals/portal-results')
     await expect(changeTexts(canvas)).toContain(
       'Dec 1 · Elena set December to 45 (recommended)',
     )
@@ -392,7 +392,7 @@ export const NoGoalAfterAStop: Story = {
     ])
     await expect(
       canvas.getByRole('link', { name: 'All monthly results' }),
-    ).toHaveAttribute('href', '/properties/p1/goals#monthly-results')
+    ).toHaveAttribute('href', '/properties/p1/goals/portal-results')
     await userEvent.click(canvas.getByRole('button', { name: 'Set a number anyway' }))
     await expect(args.commands.openSheet).toHaveBeenCalledWith({
       measure: 'portal_rating_count',

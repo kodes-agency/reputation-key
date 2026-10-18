@@ -90,8 +90,13 @@ describe("a goal's measure", () => {
           personName: () => null,
         }),
       )
-      // The measure is the first line of the row's second cell.
-      const [, measure] = [...markup.matchAll(/<td[^>]*><span[^>]*>([^<]*)<\/span>/gu)]
+      // The measure is the first line of the row's second cell, under the
+      // column's name that the cell shows only where the table reflows.
+      const [, measure] = [
+        ...markup.matchAll(
+          /<td[^>]*>(?:<span[^>]*@4xl:hidden[^>]*>[^<]*<\/span>)?<span[^>]*>([^<]*)<\/span>/gu,
+        ),
+      ]
 
       expect(measure?.[1]).toBe(goalMetricLabel(metric))
     },

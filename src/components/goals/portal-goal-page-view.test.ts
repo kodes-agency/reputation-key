@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { PortalGoalPageMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import {
-  allResultsLink,
   extrasSubjectName,
   fromPortalsWords,
   howItCountsWords,
@@ -269,13 +268,6 @@ describe('extrasSubjectName', () => {
         { kind: 'portal', portalId: 'portal-gone' } as const,
       ].map((subject) => extrasSubjectName(subject, 'Seaview Hotel', names)),
     ).toEqual(['Seaview Hotel', 'Reception', 'Rooms', 'Portal'])
-  })
-})
-
-describe('allResultsLink', () => {
-  it('the foot link appears once a month has closed', () => {
-    expect(allResultsLink(false)).toBeNull()
-    expect(allResultsLink(true)).toBe('All monthly results')
   })
 })
 

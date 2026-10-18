@@ -26,8 +26,6 @@ import { PortalGoalFromPortals } from './portal-goal-from-portals'
 import { PortalGoalHowItCounts } from './portal-goal-how-it-counts'
 import { PortalGoalMonthStrip } from './portal-goal-month-strip'
 import {
-  ALL_RESULTS_HASH,
-  allResultsLink,
   fromPortalsWords,
   monthAxis,
   monthSoFarHeading,
@@ -35,6 +33,7 @@ import {
   portalGoalTiles,
   stripChips,
 } from './portal-goal-page-view'
+import { allResultsLink } from './portal-goal-results-foot'
 import { stoppedWords } from './portal-goal-running-view'
 import { PortalGoalTiles } from './portal-goal-tiles'
 import { shownMeasure } from './portal-goal-words'
@@ -79,11 +78,10 @@ function AllResultsLink({ page, propertyId, canSeeResults }: HistoryProps) {
   const foot = canSeeResults ? allResultsLink(page.anyMonthClosed) : null
   if (foot === null) return null
   return (
-    // Every month's result, on the Goals page until it has a page of its own.
+    // Every month's result, on its own page.
     <InlineLink
-      to="/properties/$propertyId/goals"
+      to="/properties/$propertyId/goals/portal-results"
       params={{ propertyId }}
-      hash={ALL_RESULTS_HASH}
       className="self-start text-sm"
     >
       {foot}
