@@ -13,6 +13,10 @@ export type IntegrationErrorCode =
   | 'account_already_connected'
   | 'oauth_failed'
   | 'oauth_denied'
+  // Google issued tokens, but the person left Business Profile access unticked
+  // on Google's consent screen. Deterministic: the same consent fails the same
+  // way, so the callback asks for the permission instead of a plain retry.
+  | 'scope_not_granted'
   // BQC-7.6: PKCE/state redeem failure — the callback maps this to the same
   // fail-closed 'invalid_state' redirect as a bad state signature.
   | 'oauth_state_invalid'

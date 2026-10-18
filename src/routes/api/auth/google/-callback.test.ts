@@ -180,6 +180,30 @@ describe('GET /api/auth/google/callback', () => {
     )
   })
 
+  it.each([
+    [{ code: 'scope_not_granted' }, 'scope_not_granted'],
+    [{ code: 'account_already_connected' }, 'account_already_connected'],
+    [{ code: 'oauth_failed' }, 'connection_failed'],
+    [new Error('provider unreachable'), 'connection_failed'],
+  ])(
+    'redirects a connect failure with its client-safe code: %o',
+    async (failure, redirectCode) => {
+      mocks.connectGoogleAccount.mockRejectedValue(failure)
+
+      const response = await handleGoogleOAuthCallback(
+        request('state=v2.v2.secret.handle&code=provider-secret'),
+      )
+
+      expect(response.headers.get('location')).toBe(
+        `https://app.example.test/properties/import-google?error=${redirectCode}`,
+      )
+      expect(mocks.error).toHaveBeenCalledWith(
+        { security: true, reason: redirectCode },
+        'Google OAuth connection failed',
+      )
+    },
+  )
+
   it('preserves the exact reauthorization target through the callback', async () => {
     mocks.redeemState.mockResolvedValue({
       ...redeemed,

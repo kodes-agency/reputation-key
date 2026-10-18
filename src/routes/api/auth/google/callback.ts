@@ -21,8 +21,10 @@ import { isOAuthStateInvalidError } from '#/contexts/integration/server/error-he
  * Callback failures return one fixed route and a client-safe code. `denied` is the
  * user's own choice at Google's consent screen, not a failure of the connection —
  * reporting it as one tells the operator to debug something that is working.
+ * `scope_not_granted` is the same screen with Business Profile access unticked.
  */
-type CallbackErrorCode = 'connection_failed' | 'account_already_connected' | 'denied'
+type CallbackErrorCode =
+  'connection_failed' | 'account_already_connected' | 'denied' | 'scope_not_granted'
 
 const redirectWithError = (env: Env, code: CallbackErrorCode = 'connection_failed') =>
   new Response(null, {
@@ -34,15 +36,19 @@ const redirectWithError = (env: Env, code: CallbackErrorCode = 'connection_faile
 
 /**
  * Content-free classification of a connect failure. `account_already_connected`
- * is terminal for the ceremony the browser just completed — retrying the same
- * consent can never succeed, so it must not be reported as a generic retry.
+ * and `scope_not_granted` are terminal for the ceremony the browser just
+ * completed — retrying the same consent can never succeed, so neither may be
+ * reported as a generic retry.
  */
-const connectFailureCode = (error: unknown): CallbackErrorCode =>
-  typeof error === 'object' &&
-  error !== null &&
-  (error as { code?: unknown }).code === 'account_already_connected'
-    ? 'account_already_connected'
+const connectFailureCode = (error: unknown): CallbackErrorCode => {
+  const code =
+    typeof error === 'object' && error !== null
+      ? (error as { code?: unknown }).code
+      : undefined
+  return code === 'account_already_connected' || code === 'scope_not_granted'
+    ? code
     : 'connection_failed'
+}
 
 /** Log a state rejection without echoing the handle, tenant, or provider input. */
 const rejectState = (
