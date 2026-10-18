@@ -1,8 +1,8 @@
 // The Monthly portal goal card once its number is ready, and the goal it sets
 // (PLAN PG-09): Use for November and for the rest of October, scans first,
 // "How we worked this out", a Use on its way, a refusal, and the scheduled
-// goal (and its "Change", PLAN PG-14), each at 320 and 1440 px and the ready
-// card on the light theme too. The
+// goal (and its "Change", PLAN PG-14, drawn only for someone who may change
+// it), each at 320 and 1440 px and the ready card on the light theme too. The
 // running goal is `portal-goal-card-running.stories.tsx`. The Storybook Vitest
 // project compiles no Tailwind, so the plays assert words, roles and what Use
 // sends.
@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalSection } from './portal-goal-section'
@@ -310,6 +311,21 @@ export const ScheduledChange: Story = {
       mode: 'change',
       measure: 'portal_rating_count',
     })
+  },
+}
+
+/** Without `goal.update` (a Member) the scheduled card draws no "Change". */
+export const ScheduledChangeNotAllowed: Story = {
+  args: {
+    card: read(CARD_SCHEDULED),
+    commands: { setMonthlyPortalGoalFn: setMock, onSet: onSetMock, openSheet: fn() },
+  },
+  decorators: [withRole('Member')],
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('November · 40 private ratings')).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Change' })).toBeNull()
+    await expect(args.commands.openSheet).not.toHaveBeenCalled()
   },
 }
 

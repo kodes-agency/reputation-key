@@ -11,12 +11,12 @@
 // outline and the calls. The sheet those doors open, as the page hosts it, is
 // in the route's `-portal-goal-sheet-host.stories.tsx`. Its actions (PLAN
 // PG-14): "Change number" and the menu's other measure open the change sheet,
-// and Stop asks first, in the destructive tone, then stops, says so and hands
-// over to the route (which leaves for the Goals page); a goal that has not
-// started is told it frees its month at once; a second Stop is said in place.
-// "More portal goals" has its way to add one, as the route hands it in when
-// the add sheet offers something; with nothing to add and no other goal there
-// is no such block.
+// and Stop asks first, in the destructive tone (at 320 and 820 px too), then
+// stops, says so and hands over to the route (which leaves for the Goals
+// page); a goal that has not started is told it frees its month at once; a
+// second Stop is said in place. "More portal goals" has its way to add one, as
+// the route hands it in when the add sheet offers something; with nothing to
+// add and no other goal there is no such block.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
@@ -526,6 +526,26 @@ export const StopDialog: Story = {
     // The route leaves for the Goals page from here.
     await waitFor(() => expect(args.stop.onStopped).toHaveBeenCalledOnce())
   },
+}
+
+/** 320 px: the question, what happens and both buttons, in the destructive dialog. */
+export const StopDialogOnANarrowPhone: Story = {
+  play: async ({ canvasElement }) => {
+    const { in: inDialog } = await openStop(canvasElement)
+    await expect(
+      inDialog.getByText(
+        'November keeps counting to Nov 30 and keeps its result. You can set a new goal from December.',
+      ),
+    ).toBeVisible()
+    await expect(inDialog.getByRole('button', { name: 'Keep the goal' })).toBeVisible()
+    await expect(inDialog.getByRole('button', { name: 'Stop the goal' })).toBeVisible()
+  },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const StopDialogOnATablet: Story = {
+  ...StopDialogOnANarrowPhone,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
 }
 
 /** "Keep the goal" stops nothing, and the focus goes back to the menu's trigger. */
