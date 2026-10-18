@@ -9,7 +9,7 @@
 // card before a goal. Under it all, the other Portal goals and the way to add
 // one, which the route hands in (a component imports no routes). Its actions
 // ("Change number" and the menu) come with the change and the stop.
-import { useId, useRef, type ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import type { PortalGoalPageView } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { PageHeader } from '#/components/layout/page-header'
@@ -140,10 +140,7 @@ function GoalBody({
  * Before a goal: the card's own state; after a stopped goal's last month has
  * closed, its months and changes under it.
  */
-function BeforeGoal({
-  focusTitle,
-  ...props
-}: Omit<Props, 'extras' | 'addLink'> & Readonly<{ focusTitle: () => void }>) {
+function BeforeGoal(props: Omit<Props, 'extras' | 'addLink'>) {
   const { page, propertyId, canCreatePortal, commands } = props
   const card = (
     <PortalGoalCard
@@ -156,7 +153,7 @@ function BeforeGoal({
         // place: the page's title takes the focus.
         onSet: async () => {
           await commands.onSet()
-          focusTitle()
+          focusPortalGoalPageTitle()
         },
       }}
       titleAs={null}
@@ -172,9 +169,17 @@ function BeforeGoal({
   )
 }
 
-/** The page header's h1, made focusable for the moment it takes the focus. */
-function focusTitleIn(header: HTMLElement | null): void {
-  const title = header?.querySelector<HTMLHeadingElement>('h1')
+/** The page header's id: the header outlives the card, so its title takes the focus. */
+const PAGE_HEADER_ID = 'portal-goal-page-header'
+
+/**
+ * The page's h1, made focusable for the moment it takes the focus: after Use,
+ * and when the set sheet closes with its door gone (the card has no title here).
+ */
+export function focusPortalGoalPageTitle(): void {
+  const title = document
+    .getElementById(PAGE_HEADER_ID)
+    ?.querySelector<HTMLHeadingElement>('h1')
   if (!title) return
   title.tabIndex = -1
   title.classList.add('outline-none')
@@ -201,11 +206,9 @@ function MorePortalGoals({ extras, addLink }: Pick<Props, 'extras' | 'addLink'>)
 export function PortalGoalPage(props: Props) {
   const { page, propertyId, propertyName } = props
   const { card } = page
-  // The header outlives the card, so its title is where the focus goes after a set.
-  const header = useRef<HTMLDivElement>(null)
   return (
     <PageShell>
-      <div ref={header}>
+      <div id={PAGE_HEADER_ID}>
         <PageHeader
           title={PORTAL_GOAL_NAME}
           breadcrumbs={trailCrumbs(
@@ -218,7 +221,7 @@ export function PortalGoalPage(props: Props) {
       {card.state === 'goal' ? (
         <GoalBody {...props} goal={card.goal} />
       ) : (
-        <BeforeGoal {...props} focusTitle={() => focusTitleIn(header.current)} />
+        <BeforeGoal {...props} />
       )}
       <MorePortalGoals extras={props.extras} addLink={props.addLink} />
     </PageShell>

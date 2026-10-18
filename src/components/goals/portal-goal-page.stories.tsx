@@ -4,8 +4,8 @@
 // changed and how it counts); set and not yet begun; a quiet Portal; December
 // with November and October closed (each month's facts on its chip); a
 // corrected month; scans; one Portal; across a stop; stopped; many changes;
-// no goal yet, where the page is the card's own state; and no goal after a
-// stop, with that goal's months and changes. At 320, 390, 820 and 1440 px and on
+// no goal yet, where the page is the card's own state with its doors to the
+// set sheet; and no goal after a stop, with that goal's months and changes. At 320, 390, 820 and 1440 px and on
 // the light theme. The Storybook Vitest project compiles no Tailwind, so the
 // plays assert words, roles, the heading outline and the calls.
 import type { Meta, StoryObj } from '@storybook/react-vite'
@@ -39,7 +39,8 @@ const meta: Meta<typeof PortalGoalPage> = {
     page: PAGE_RUNNING,
     canCreatePortal: true,
     canSeeResults: true,
-    commands: { setMonthlyPortalGoalFn: fn(), onSet: fn() },
+    // As the route hands them in: before a goal, the card's doors open the set sheet.
+    commands: { setMonthlyPortalGoalFn: fn(), onSet: fn(), openSheet: fn() },
     personName,
   },
 }
@@ -345,6 +346,11 @@ export const NoGoalYet: Story = {
       'h1 Monthly portal goal',
       'h2 More portal goals',
     ])
+    // The card's door to the set sheet, as on the Goals page.
+    await userEvent.click(canvas.getByRole('button', { name: 'Change' }))
+    await expect(args.commands.openSheet).toHaveBeenCalledWith({
+      measure: 'portal_rating_count',
+    })
     await userEvent.click(canvas.getByRole('button', { name: 'Use 40' }))
     await waitFor(() =>
       expect(args.commands.setMonthlyPortalGoalFn).toHaveBeenCalledWith({
@@ -369,7 +375,7 @@ export const NoGoalYet: Story = {
  */
 export const NoGoalAfterAStop: Story = {
   args: { page: PAGE_NO_GOAL_AFTER_A_STOP },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await expect(outline(canvasElement)).toEqual([
       'h1 Monthly portal goal',
@@ -385,5 +391,9 @@ export const NoGoalAfterAStop: Story = {
     await expect(
       canvas.getByRole('link', { name: 'All monthly results' }),
     ).toHaveAttribute('href', '/properties/p1/goals#monthly-results')
+    await userEvent.click(canvas.getByRole('button', { name: 'Set a number anyway' }))
+    await expect(args.commands.openSheet).toHaveBeenCalledWith({
+      measure: 'portal_rating_count',
+    })
   },
 }

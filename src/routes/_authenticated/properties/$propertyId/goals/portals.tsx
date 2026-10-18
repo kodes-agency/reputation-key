@@ -4,7 +4,10 @@
 // asks the static table for `goal.read` alone, as the Google rating goal's page
 // does, and the read itself asks for `goal.create`. Its read is primed by the
 // loader from a module fetched on demand, so neither the read nor its server
-// function joins first paint. Without a goal it shows the card's own state.
+// function joins first paint. Without a goal it shows the card's own state,
+// with its doors to the set sheet (`-portal-goal-sheet-host.tsx`, as on the
+// Goals page); the card draws no title here, so the page's title takes the
+// focus back from the sheet.
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
@@ -15,7 +18,11 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { InlineLink } from '#/components/ui/inline-link'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
-import { PortalGoalPage } from '#/components/goals/portal-goal-page'
+import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
+import {
+  PortalGoalPage,
+  focusPortalGoalPageTitle,
+} from '#/components/goals/portal-goal-page'
 import { extrasSubjectName } from '#/components/goals/portal-goal-page-view'
 import { PortalGoalExtras } from './-portal-goal-extras'
 import {
@@ -23,6 +30,7 @@ import {
   portalGoalCommands,
   portalGoalPageQuery,
 } from './-portal-goal-queries'
+import { usePortalGoalSheet } from './-portal-goal-sheet-host'
 
 const TITLE = 'Monthly portal goal'
 
@@ -60,54 +68,61 @@ function MonthlyPortalGoalRoute() {
     enabled: canDo('member.list'),
     retry: false,
   })
+  const set = {
+    setMonthlyPortalGoalFn: portalGoalCommands.setMonthlyPortalGoal,
+    onSet: () => markPortalGoalReadsStale(queryClient, propertyId),
+  } satisfies PortalGoalCommands
+  const sheet = usePortalGoalSheet(propertyId, page.card, set, focusPortalGoalPageTitle)
   const { name, timezone } = propData.property
   const { extras } = page
   return (
-    <PortalGoalPage
-      key={propertyId}
-      propertyId={propertyId}
-      propertyName={name}
-      page={page}
-      canCreatePortal={canDo('portal.create')}
-      canSeeResults={canDo('goal.update')}
-      commands={{
-        setMonthlyPortalGoalFn: portalGoalCommands.setMonthlyPortalGoal,
-        onSet: () => markPortalGoalReadsStale(queryClient, propertyId),
-      }}
-      personName={goalPersonNames(members.data?.members)}
-      extras={
-        <PortalGoalExtras
-          propertyId={propertyId}
-          timezone={timezone}
-          view="active"
-          goals={extras.goals}
-          monthlyGoalId={null}
-          live={{
-            byProgram: new Map(
-              (extras.progress ?? []).map((goal) => [goal.programId, goal]),
-            ),
-            loading: false,
-            // The read could not say their month so far: the rows say so.
-            failed: extras.progress === null,
-          }}
-          subjectName={(subject) => extrasSubjectName(subject, name, extras.subjectNames)}
-          now={now}
-          titled={false}
-        />
-      }
-      addLink={
-        canDo('goal.create') ? (
-          // A goal for one Portal, a group or an average (one click deeper,
-          // P-5), on the New goal page until the add sheet replaces it.
-          <InlineLink
-            to="/properties/$propertyId/goals/new"
-            params={{ propertyId }}
-            className="self-start text-sm"
-          >
-            Add a portal goal
-          </InlineLink>
-        ) : null
-      }
-    />
+    <>
+      <PortalGoalPage
+        key={propertyId}
+        propertyId={propertyId}
+        propertyName={name}
+        page={page}
+        canCreatePortal={canDo('portal.create')}
+        canSeeResults={canDo('goal.update')}
+        commands={{ ...set, openSheet: sheet.open }}
+        personName={goalPersonNames(members.data?.members)}
+        extras={
+          <PortalGoalExtras
+            propertyId={propertyId}
+            timezone={timezone}
+            view="active"
+            goals={extras.goals}
+            monthlyGoalId={null}
+            live={{
+              byProgram: new Map(
+                (extras.progress ?? []).map((goal) => [goal.programId, goal]),
+              ),
+              loading: false,
+              // The read could not say their month so far: the rows say so.
+              failed: extras.progress === null,
+            }}
+            subjectName={(subject) =>
+              extrasSubjectName(subject, name, extras.subjectNames)
+            }
+            now={now}
+            titled={false}
+          />
+        }
+        addLink={
+          canDo('goal.create') ? (
+            // A goal for one Portal, a group or an average (one click deeper,
+            // P-5), on the New goal page until the add sheet replaces it.
+            <InlineLink
+              to="/properties/$propertyId/goals/new"
+              params={{ propertyId }}
+              className="self-start text-sm"
+            >
+              Add a portal goal
+            </InlineLink>
+          ) : null
+        }
+      />
+      {sheet.sheet}
+    </>
   )
 }
