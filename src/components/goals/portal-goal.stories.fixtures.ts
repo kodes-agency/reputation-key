@@ -246,6 +246,9 @@ export const GOAL_SCHEDULED: PortalGoalOfCard = {
   target: 40,
   startsOn: '2026-11-01',
   month: null,
+  rows: null,
+  stopped: null,
+  lastMonth: null,
   currentMonthSoFar: 12,
   countingMonth: null,
 }
@@ -264,7 +267,16 @@ export const CARD_RUNNING: PortalGoalCardView = {
     ...GOAL_SCHEDULED,
     status: 'active',
     startsOn: null,
-    month: { key: '2026-11', target: 40, value: 23, daysAfterToday: 8 },
+    month: {
+      key: '2026-11',
+      target: 40,
+      value: 23,
+      elapsedDays: 22,
+      totalDays: 30,
+      daysAfterToday: 8,
+      belowPace: true,
+      quietDays: false,
+    },
     currentMonthSoFar: null,
   },
 }

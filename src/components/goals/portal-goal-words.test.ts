@@ -200,7 +200,17 @@ describe('the Monthly portal goal on its card, in words', () => {
   const RUNNING = CARD_RUNNING.state === 'goal' ? CARD_RUNNING.goal : GOAL_SCHEDULED
   const running = (month: Partial<NonNullable<typeof RUNNING.month>>) => ({
     ...RUNNING,
-    month: { key: '2026-11', target: 40, value: 23, daysAfterToday: 8, ...month },
+    month: {
+      key: '2026-11',
+      target: 40,
+      value: 23,
+      elapsedDays: 22,
+      totalDays: 30,
+      daysAfterToday: 8,
+      belowPace: true,
+      quietDays: false,
+      ...month,
+    },
   })
 
   it('a scheduled goal says its month, when it starts and this month so far', () => {

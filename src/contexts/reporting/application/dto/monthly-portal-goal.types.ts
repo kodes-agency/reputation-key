@@ -128,10 +128,78 @@ export type PortalGoalSheetFacts = Readonly<{
 }>
 
 /**
- * The Property's Monthly portal goal on its card, minimal until the running
- * card arrives: the month it is counting while active (the governed figure,
- * never the recommendation's), or, while it waits for its first month, the day
- * it starts and this month so far.
+ * The month a goal is counting, as its card draws it (copy deck G-21…G-25,
+ * G-32): the governed figure against the month's own number, the days, and
+ * the pace, all decided by the read.
+ */
+export type PortalGoalRunningMonth = Readonly<{
+  /** `YYYY-MM`. */
+  key: string
+  /** The month's own number, else its version's. */
+  target: number
+  /** The governed figure so far; null when it cannot be read, never a zero. */
+  value: number | null
+  /** The month's local days that have begun, today included. */
+  elapsedDays: number
+  /** The month's local days. */
+  totalDays: number
+  /** The local days still to begin after today ("9 days left" counts today too). */
+  daysAfterToday: number
+  /**
+   * `goalPace` says behind (true) or on pace (false); null when the month is
+   * not judged: its first days, fewer than 5 expected by today (P-6), or no
+   * figure.
+   */
+  belowPace: boolean | null
+  /** The first days of the month, which are never judged: no pace word and no tick. */
+  quietDays: boolean
+}>
+
+/** One published Portal's count this month, under "From your portals". */
+export type PortalGoalPortalCount = Readonly<{
+  portalId: string
+  name: string
+  count: number
+}>
+
+/**
+ * What the Portals brought in this month (P-1): plain counts in name order,
+ * never sorted by count. Each published Portal with what the others leave
+ * (draft, disabled, archived and deleted Portals and readings with no Portal,
+ * "Other portals"); one Portal that brought in all of it; or, from 5 Portals,
+ * how many.
+ */
+export type PortalGoalRows =
+  | Readonly<{
+      kind: 'rows'
+      portals: readonly PortalGoalPortalCount[]
+      elsewhere: number
+    }>
+  | Readonly<{ kind: 'one'; name: string }>
+  | Readonly<{ kind: 'many'; count: number }>
+
+/** The month before this one, while its result is being read and through the 7th. */
+export type PortalGoalLastMonth = Readonly<{
+  /** `YYYY-MM`. */
+  key: string
+  /**
+   * Once closed, its result's figure; while it is read, the governed figure so
+   * far. Null when it cannot be read.
+   */
+  value: number | null
+  /** That month's own number. */
+  target: number
+  outcome: 'updating' | 'met' | 'not_met' | 'unavailable'
+  /** The local day its final figure is due: "Final figure on Dec 2". */
+  finalOn: string
+}>
+
+/**
+ * The Property's Monthly portal goal on its card: while it waits for its first
+ * month, the day it starts and this month so far; while it runs (or after it
+ * was stopped, to the end of the month it still counts), that month with the
+ * governed figure, never the recommendation's, and each Portal's count; and
+ * the month before, while it is read and through the 7th.
  */
 export type PortalGoalOfCard = Readonly<{
   programId: string
@@ -144,21 +212,28 @@ export type PortalGoalOfCard = Readonly<{
   /** Scheduled: the local day its first month begins; else null. */
   startsOn: string | null
   /**
-   * Active: the month it is counting, that month's own target, the figure so
-   * far (null when it cannot be read) and the local days after today; else null.
+   * Active, or stopped with this month still counting: the month it is
+   * counting; else null.
    */
-  month: Readonly<{
-    key: string
-    target: number
-    value: number | null
-    daysAfterToday: number
-  }> | null
+  month: PortalGoalRunningMonth | null
+  /**
+   * With a month: what each Portal brought in, drawn only when the counts add
+   * up to the governed figure; else null.
+   */
+  rows: PortalGoalRows | null
+  /**
+   * Stopped with this month still counting: the local day it was stopped (null
+   * when no day was recorded) and the month's last day; else null.
+   */
+  stopped: Readonly<{ on: string | null; monthEnd: string }> | null
+  /** The month before, while its result is read and through the 7th; else null. */
+  lastMonth: PortalGoalLastMonth | null
   /** Scheduled: this month so far at the Property; null when it cannot be read. */
   currentMonthSoFar: number | null
   /**
-   * Paused or ended: the latest month of it still open or being read, as
-   * `YYYY-MM` with that month's own target (on Dec 1 a goal stopped in November
-   * still counts November); else null.
+   * Paused, or stopped with no month counting now: the latest month of it
+   * still open or being read, as `YYYY-MM` with that month's own target (on
+   * Dec 1 a goal stopped in November still counts November); else null.
    */
   countingMonth: Readonly<{ key: string; target: number }> | null
 }>

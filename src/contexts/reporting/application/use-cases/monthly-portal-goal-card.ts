@@ -5,42 +5,38 @@
 // the Property grant) before anything is read, since whoever sees the card is
 // whoever may set the goal; then reads the clock once, and the Property's
 // Programs (scoped by what the actor may see) and the recommendation together.
-// With a Monthly portal goal (`monthlyPortalGoalOf`) the card shows it: while
-// it waits for its first month, the day it starts and this month so far; while
-// it runs, the month it is counting with the governed figure (`progressOf`),
-// never the recommendation's own count. Without one it is the recommendation's
-// state, worded by the card: the gates (no Portal, draft Portals only), the
-// first weeks with each Portal's steps, the number ready to use (scans first
-// when only scans came in), nothing counted, or a recommendation that cannot be
-// read. It writes nothing.
-import { goalMonthDays } from '../../domain/goal-pace'
-import { effectiveMonthTarget } from '../goal-effective-month-target'
+// With a Monthly portal goal (`monthlyPortalGoalOf`) the card shows it
+// (`monthly-portal-goal-running.ts`): while it waits for its first month, the
+// day it starts and this month so far; while it runs, or after it was stopped
+// to the end of that month, the month it is counting with the governed figure,
+// never the recommendation's own count, its pace, each Portal's count and the
+// month before. Without one it is the recommendation's state, worded by the
+// card: the gates (no Portal, draft Portals only), the first weeks with each
+// Portal's steps, the number ready to use (scans first when only scans came
+// in), nothing counted, or a recommendation that cannot be read. It writes
+// nothing.
 import type { PortalFacts } from '../../domain/goal-recommendation-types'
 import { localDateOf } from '../../domain/local-days'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
 import type {
   PortalGoalCardView,
   PortalGoalFirstWeeks,
-  PortalGoalOfCard,
   PortalReadinessRow,
 } from '../dto/monthly-portal-goal.types'
-import {
-  monthlyPortalGoalOf,
-  type PropertyCountGoal,
-} from '../monthly-portal-goal-identity'
+import { monthlyPortalGoalOf } from '../monthly-portal-goal-identity'
 import type {
   GoalActor,
   GoalExecutionPolicy,
   GoalMetricReadPort,
   GoalProgramService,
 } from './goal-programs'
-import { progressOf } from './goal-progress'
 import {
   gatherPortalGoalRecommendation,
   type PortalGoalRecommendationReads,
 } from './goal-recommendation-read'
 import type { MonthlyPortalGoalSetRequestApi } from './monthly-portal-goal'
 import { portalGoalOfferOf, portalGoalSheetFactsOf } from './monthly-portal-goal-offer'
+import { monthlyPortalGoalOnCard } from './monthly-portal-goal-running'
 
 export type MonthlyPortalGoalCardDeps = Readonly<{
   policy: GoalExecutionPolicy
@@ -115,81 +111,6 @@ function beforeGoal(
   }
 }
 
-/**
- * A paused or stopped goal's month: the latest of its months still open or
- * being read, with that month's own target. On Dec 1 and 2 a goal stopped in
- * November still counts November, whatever today's month is.
- */
-function countingMonthOf(bundle: PropertyCountGoal): PortalGoalOfCard['countingMonth'] {
-  const [latest] = bundle.results
-    .filter(({ status }) => status === 'open' || status === 'reconciling')
-    .sort((a, b) => b.periodStart.getTime() - a.periodStart.getTime())
-  if (!latest) return null
-  const version =
-    bundle.versions.find(({ id }) => id === latest.programVersionId) ?? bundle.version
-  return {
-    key: localDateOf(latest.periodStart, latest.propertyTimezone).slice(0, 7),
-    target: effectiveMonthTarget(latest, version),
-  }
-}
-
-/**
- * The goal as its card shows it. Only an active goal reads a figure, and that
- * is the governed read of the month it is counting.
- */
-async function goalOnTheCard(
-  deps: MonthlyPortalGoalCardDeps,
-  bundle: PropertyCountGoal,
-  context: Readonly<{
-    recommendation: PortalGoalRecommendation
-    now: Date
-    actor: GoalActor
-  }>,
-): Promise<PortalGoalOfCard> {
-  const { program, version } = bundle
-  const { recommendation, now, actor } = context
-  const measure = version.metric
-  const goal = {
-    programId: program.id,
-    version: version.version,
-    measure,
-    status: program.status,
-    target: version.targetValue,
-    startsOn: null,
-    month: null,
-    currentMonthSoFar: null,
-    countingMonth: null,
-  } satisfies PortalGoalOfCard
-  if (program.status === 'scheduled') {
-    return {
-      ...goal,
-      startsOn: localDateOf(version.effectiveFrom, version.propertyTimezone),
-      currentMonthSoFar: recommendation.monthToDate[measure],
-    }
-  }
-  if (program.status !== 'active')
-    return { ...goal, countingMonth: countingMonthOf(bundle) }
-  const progress = await progressOf(
-    deps,
-    bundle,
-    { kind: 'property', propertyId: program.propertyId },
-    'active',
-    now,
-    actor,
-  )
-  if (progress === null) return goal
-  const { period, timezone, reading } = progress
-  return {
-    ...goal,
-    month: {
-      key: localDateOf(period.start, timezone).slice(0, 7),
-      target: progress.targetValue,
-      value: reading.kind === 'live' ? reading.value : null,
-      daysAfterToday: goalMonthDays(period, now, timezone).daysLeft,
-    },
-  }
-}
-
 export async function readMonthlyPortalGoalCard(
   deps: MonthlyPortalGoalCardDeps,
   input: Readonly<{ propertyId: string }>,
@@ -217,7 +138,7 @@ export async function readMonthlyPortalGoalCard(
   return {
     state: 'goal',
     today: localDateOf(now, recommendation.timezone),
-    goal: await goalOnTheCard(deps, goal, { recommendation, now, actor }),
+    goal: await monthlyPortalGoalOnCard(deps, goal, { recommendation, now, actor }),
   }
 }
 

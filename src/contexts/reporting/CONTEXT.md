@@ -166,6 +166,22 @@ metric authority.
   note on an own number (about how many times the usual, half up, once it is three times
   or more; or under half) are `goalStepDown` and `ownNumberNote` of the one grid, which
   `application/goal-number-steps.ts` hands to components with `goalStepUp`.
+- **Monthly portal goal, running** (ADR 0068;
+  `application/use-cases/monthly-portal-goal-running.ts`): the card's goal once it runs.
+  Its month is the governed read of the Property's month so far (`progressOf`; a stopped
+  goal still counts to the end of the month it was stopped in, so that month is read the
+  same way, `readSubjectMonth`, and the card says the day it was stopped, from `ended_at`,
+  none for an end before 0062). The server decides the month's days (today counted), its
+  first three quiet days (no pace word, no tick) and `belowPace` (`goalPace`, P-6
+  included: true only when behind; null when not judged). Each published Portal's count
+  of the month comes from the recommendation's one set read, in name order, never sorted,
+  with what the rest bring in (draft, disabled, archived and deleted Portals and readings
+  with no Portal) as "Other portals"; the counts are drawn only when they add up to the
+  governed figure, so a race or a pending fact draws none rather than rows that disagree
+  with the headline. One Portal that brought in all of it is named; from 5 Portals the card
+  says how many. The month before is shown while its result is read (its governed figure
+  so far; final a day and an hour after it ends) and, once closed, met, not met or with
+  no usable result, through the 7th.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save
