@@ -148,6 +148,14 @@ function readText(text: string): Reading {
 const takes = (n: number): boolean =>
   Number.isSafeInteger(n) && n >= 1 && n <= HIGHEST_NUMBER
 
+/** Whether the box holds one of the offer's three suggested numbers. */
+function suggests(offer: PortalGoalOffer | null, text: string): boolean {
+  const reading = readText(text)
+  if (offer === null || reading.kind !== 'whole') return false
+  const { usual, aBitMore, stretch } = offer.choices
+  return [usual, aBitMore, stretch].includes(reading.n)
+}
+
 export function changedDraft(
   draft: PortalGoalSheetDraft,
   change: PortalGoalSheetChange,
@@ -155,12 +163,18 @@ export function changedDraft(
 ): PortalGoalSheetDraft {
   switch (change.kind) {
     case 'month': {
-      // A month's choices come with it; an own number stays where there are none.
+      // A month's choices come with it. Where there are none, a number of the
+      // manager's own stays, but not one the other month suggested.
       const offer = offerFor(facts, change.month, draft.measure)
+      const left = offerFor(facts, monthOf(draft, facts), draft.measure)
       return {
         ...draft,
         month: change.month,
-        text: offer ? recommendedText(offer) : draft.text,
+        text: offer
+          ? recommendedText(offer)
+          : suggests(left, draft.text)
+            ? ''
+            : draft.text,
       }
     }
     case 'measure':

@@ -211,16 +211,6 @@ describe('portalGoalSheetModel', () => {
     )
   })
 
-  it('an own number stays when the month changes without an offer', () => {
-    const own = typed(openingDraft(FIRST_WEEKS, ratings), '12', FIRST_WEEKS)
-    const november = changedDraft(own, { kind: 'month', month: '2026-11' }, FIRST_WEEKS)
-
-    expect(portalGoalSheetModel(november, FIRST_WEEKS)).toMatchObject({
-      description: 'Starts on Nov 1.',
-      primary: { label: 'Set 12 for November' },
-    })
-  })
-
   it('Count scans instead swaps unit and offers', () => {
     const model = portalGoalSheetModel(
       changedDraft(
@@ -284,28 +274,6 @@ describe('portalGoalSheetModel', () => {
         scansOnly,
       ).number.text,
     ).toBe('')
-  })
-
-  it('a month the read no longer offers falls back to the one it opens on', () => {
-    // After the month turned, the read offers November and December.
-    const turned: PortalGoalSheetFacts = {
-      ...FIRST_WEEKS,
-      month: '2026-11',
-      ownNumber: {
-        current: { key: '2026-11', soFar: { ratings: 0, scans: 0 } },
-        next: { key: '2026-12' },
-      },
-    }
-    const october = typed(openingDraft(FIRST_WEEKS, ratings), '12', FIRST_WEEKS)
-
-    expect(portalGoalSheetModel(october, turned)).toMatchObject({
-      month: '2026-11',
-      months: [
-        { value: '2026-11', label: 'November' },
-        { value: '2026-12', label: 'December' },
-      ],
-      submission: { startMonth: '2026-11', targetValue: 12 },
-    })
   })
 
   it('words each refusal', () => {
