@@ -124,17 +124,3 @@ export const getGoalListProgress = createServerFn({ method: 'GET' })
       'goal.getGoalListProgress',
     ),
   )
-
-/** The month so far for every current subject of one goal (the goal's page). */
-export const getGoalProgramProgress = createServerFn({ method: 'GET' })
-  .validator(goalProgramIdentitySchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => ({
-          subjects: await programs.programProgress(policy, data, actor),
-        })),
-      'GET',
-      'goal.getGoalProgramProgress',
-    ),
-  )

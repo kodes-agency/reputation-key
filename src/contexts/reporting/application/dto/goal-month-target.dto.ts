@@ -1,14 +1,11 @@
 // The command that changes a running month's target.
 //
 // Its own module, apart from goal-program.dto.ts, on purpose: that module is
-// part of the first-paint bundle, and only the goal's own page changes a
-// month's target. The two small rules it shares with the Program commands (the
-// month key and the note) are restated here for the same reason. The measure's
-// target rule is not restated: the form below takes it from that module, which
-// the page has loaded anyway.
+// part of the first-paint bundle, and only a goal's own page changes a month's
+// target. The two small rules it shares with the Program commands (the month
+// key and the note) are restated here for the same reason. The measure's
+// target rule is the command's: it depends on the version the month belongs to.
 import { z } from 'zod/v4'
-import type { GoalMetric } from '../../domain/goal-program'
-import { addTargetIssue } from './goal-program.dto'
 
 const uuid = z.uuid()
 
@@ -40,36 +37,3 @@ export const changeGoalMonthTargetSchema = z.object({
 })
 
 export type ChangeGoalMonthTargetInput = z.infer<typeof changeGoalMonthTargetSchema>
-
-/**
- * The dialog's form: the command's own fields, with the measure's target rule
- * said under the field before anything is sent. The measure is the running
- * month's, which the form does not choose, so it is the schema's and not a
- * field. A cleared number control reads as NaN, which is named as a target to
- * enter; the note is the text a field holds, empty when none was written.
- */
-const formSchemaFor = (metric: GoalMetric) =>
-  z
-    .object({
-      targetValue: z.number({ error: 'Enter a valid monthly target' }),
-      applyToFollowing: changeGoalMonthTargetSchema.shape.applyToFollowing,
-      note: z.string().trim().max(500),
-    })
-    .superRefine((input, context) =>
-      addTargetIssue({ metric, targetValue: input.targetValue }, context),
-    )
-
-const formSchemas = new Map<GoalMetric, ReturnType<typeof formSchemaFor>>()
-
-/** One schema per measure, the same object each time, so a form keeps its validator. */
-export function changeGoalMonthTargetFormSchema(
-  metric: GoalMetric,
-): ReturnType<typeof formSchemaFor> {
-  const known = formSchemas.get(metric)
-  if (known) return known
-  const built = formSchemaFor(metric)
-  formSchemas.set(metric, built)
-  return built
-}
-
-export type ChangeGoalMonthTargetFormInput = z.input<ReturnType<typeof formSchemaFor>>

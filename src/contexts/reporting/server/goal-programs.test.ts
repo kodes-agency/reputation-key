@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   list: vi.fn(),
   progress: vi.fn(),
-  programProgress: vi.fn(),
   listProgress: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
@@ -27,7 +26,6 @@ vi.mock('#/composition', () => ({
         get: mocks.get,
         list: mocks.list,
         progress: mocks.progress,
-        programProgress: mocks.programProgress,
         listProgress: mocks.listProgress,
       },
     },
@@ -55,7 +53,6 @@ import {
   createGoalProgram,
   getGoalProgram,
   getGoalListProgress,
-  getGoalProgramProgress,
   getGoalProgress,
   listGoalPrograms,
   reviseGoalProgram,
@@ -223,28 +220,6 @@ describe('canonical Goal Program server functions', () => {
     expect(mocks.listProgress).toHaveBeenCalledWith(
       expect.any(Object),
       { propertyId: PROPERTY_ID },
-      actor,
-    )
-  })
-
-  it('reads the month so far for every subject of one goal through the request policy', async () => {
-    const progress = [
-      {
-        subject: { kind: 'portal', portalId: PORTAL_ID },
-        progress: { programId: 'program-1', reading: { kind: 'live', value: 412 } },
-      },
-    ]
-    mocks.programProgress.mockResolvedValue(progress)
-    const identity = {
-      propertyId: PROPERTY_ID,
-      programId: '00000000-0000-4000-8000-000000000004',
-    }
-
-    await withStartContext(() => getGoalProgramProgress({ data: identity }))
-
-    expect(mocks.programProgress).toHaveBeenCalledWith(
-      expect.any(Object),
-      identity,
       actor,
     )
   })
