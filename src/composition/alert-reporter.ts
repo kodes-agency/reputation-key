@@ -10,6 +10,10 @@ export function reportAlertToObservability(event: AlertEvent): void {
   error.name = `[alert] ${event.name}`
   captureObservabilityException(error, {
     source: 'alert-dispatcher',
-    alert: { name: event.name, severity: event.severity },
+    alert: {
+      name: event.name,
+      severity: event.severity,
+      ...(event.facts ? { facts: event.facts } : {}),
+    },
   })
 }

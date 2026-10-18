@@ -282,6 +282,54 @@ describe('scrubErrorEvent', () => {
     expect(JSON.stringify(scrubbed)).not.toContain(marker)
   })
 
+  it('tags a typed job failure with its code while its message stays replaced', () => {
+    const thrown = Object.assign(new Error(`failed for ${marker}`), {
+      name: 'ReviewProviderSnapshotFailure',
+      failureCode: 'provider_failure',
+    })
+
+    const scrubbed = scrubErrorEvent(
+      {
+        message: marker,
+        exception: {
+          values: [{ type: 'ReviewProviderSnapshotFailure', value: marker }],
+        },
+        tags: { runtime_source: 'bullmq-job', job_name: 'sync-property-reviews' },
+      },
+      { originalException: thrown },
+    ) as Record<string, unknown>
+
+    expect(scrubbed.tags).toEqual({
+      runtime_source: 'bullmq-job',
+      job_name: 'sync-property-reviews',
+      failure_code: 'provider_failure',
+    })
+    expect(JSON.stringify(scrubbed)).not.toContain(marker)
+  })
+
+  it('keeps the alert detail tags and drops any other alert tag', () => {
+    const scrubbed = scrubErrorEvent({
+      tags: {
+        alert: 'sync.failed-nonzero',
+        alert_severity: 'p2',
+        alert_jobs: 'sync-property-reviews',
+        alert_reasons: 'repair_required,dead_letter_present',
+        alert_codes: 'provider_failure:2',
+        alert_count: '2',
+        alert_detail: marker,
+      },
+    }) as Record<string, unknown>
+
+    expect(scrubbed.tags).toEqual({
+      alert: 'sync.failed-nonzero',
+      alert_severity: 'p2',
+      alert_jobs: 'sync-property-reviews',
+      alert_reasons: 'repair_required,dead_letter_present',
+      alert_codes: 'provider_failure:2',
+      alert_count: '2',
+    })
+  })
+
   it('scrubs an event that has no exception hint', () => {
     expect(scrubErrorEvent({ message: marker })).toEqual({ message: '[REDACTED]' })
   })

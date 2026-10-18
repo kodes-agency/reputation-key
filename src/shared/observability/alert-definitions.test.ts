@@ -30,6 +30,7 @@ import {
   type AlertAuxReads,
 } from './alert-definitions'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
+import type { JobRuntimeReportRow } from '#/shared/jobs/runtime-observations'
 import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
 
 const RUNBOOKS_PATH = 'docs/operations/runbooks.md'
@@ -39,6 +40,41 @@ type DeepMutable<T> = {
   -readonly [K in keyof T]: T[K] extends object ? DeepMutable<T[K]> : T[K]
 }
 type MutableSnapshot = DeepMutable<OperationsSnapshot>
+
+/** One governed job family's report row; `ready` follows `reasons`. */
+function jobRow(
+  jobName: string,
+  reasons: JobRuntimeReportRow['reasons'] = [],
+  deadLetterCount = 0,
+): JobRuntimeReportRow {
+  return {
+    jobName,
+    owner: 'review',
+    processor: 'sync',
+    action: 'sync',
+    routing: 'cell_local',
+    capability: 'review.sync',
+    posture: 'active',
+    queue: 'background',
+    schedule: 'none',
+    retryAttempts: 3,
+    retryBackoff: 'exponential',
+    timeoutMs: 60_000,
+    workerConcurrency: 1,
+    retention: 'default',
+    lastSuccessObjectiveMs: null,
+    maximumQueueAgeMs: 60_000,
+    ready: reasons.length === 0,
+    reasons,
+    lastSucceededAt: null,
+    lastDeniedAt: null,
+    deniedCount: 0,
+    oldestWaitingAt: null,
+    deadLetterCount,
+    repairCommand: 'none',
+    runbook: 'runbooks.md §17',
+  }
+}
 
 /** A healthy snapshot — every alert quiet. */
 function healthy(): MutableSnapshot {
@@ -62,6 +98,7 @@ function healthy(): MutableSnapshot {
     sync: {
       dueForIncrementalCount: 0,
       failedSyncCount: 0,
+      failedSyncCodes: {},
       oldestDueAgeMs: null,
       gbpPushEnabled: false,
     },
@@ -329,6 +366,52 @@ describe('worker.job-runtime-unready', () => {
     expect(event!.detail).toContain('scheduleDenied=1')
   })
 
+  it('names the unready job families and why, never the ready ones', () => {
+    const s = healthy()
+    s.jobs = {
+      ready: false,
+      total: 3,
+      active: 3,
+      dark: 0,
+      quarantined: 0,
+      failing: 2,
+      missingObservations: 0,
+      invalidObservations: 0,
+      handlerMissing: 0,
+      schedulerMissing: 0,
+      scheduleDenied: 0,
+      forbiddenDarkWork: 0,
+      quarantinedSchedulers: 0,
+      missedObjectives: 0,
+      queueAgeMissed: 0,
+      stalled: 0,
+      repairRequired: 2,
+      deadLetters: 1,
+      gateDenials: 0,
+      rows: [
+        jobRow('sync-property-reviews', ['repair_required', 'dead_letter_present'], 1),
+        jobRow('discover-new-reviews'),
+        jobRow('purge-expired-reviews', ['repair_required']),
+      ],
+    }
+
+    expect(evaluateOne('worker.job-runtime-unready', s)!.facts).toEqual({
+      jobs: ['sync-property-reviews', 'purge-expired-reviews'],
+      reasons: ['repair_required', 'dead_letter_present'],
+      count: 2,
+    })
+  })
+
+  it('says the report was unavailable when the authority could not be read', () => {
+    const s = healthy()
+    delete s.jobs
+    s.degraded = ['jobs']
+
+    expect(evaluateOne('worker.job-runtime-unready', s)!.facts).toEqual({
+      reasons: ['report_unavailable'],
+    })
+  })
+
   it('stays silent when ready and fails visible when the authority is unavailable', () => {
     const ready = healthy()
     ready.jobs = {
@@ -524,6 +607,54 @@ describe('queue.quarantine-nonempty', () => {
     expect(event!.detail).toContain('quarantine')
   })
 
+  it('counts the quarantined jobs and names the families holding dead letters', () => {
+    const s = healthy()
+    s.quarantine = { count: 3, oldestAgeMs: QUARANTINE_NONEMPTY_ALERT_MS + 1 }
+    s.jobs = {
+      ready: false,
+      total: 2,
+      active: 2,
+      dark: 0,
+      quarantined: 0,
+      failing: 1,
+      missingObservations: 0,
+      invalidObservations: 0,
+      handlerMissing: 0,
+      schedulerMissing: 0,
+      scheduleDenied: 0,
+      forbiddenDarkWork: 0,
+      quarantinedSchedulers: 0,
+      missedObjectives: 0,
+      queueAgeMissed: 0,
+      stalled: 0,
+      repairRequired: 0,
+      deadLetters: 3,
+      gateDenials: 0,
+      rows: [
+        jobRow('sync-property-reviews', ['dead_letter_present'], 3),
+        jobRow('discover-new-reviews'),
+      ],
+    }
+
+    expect(evaluateOne('queue.quarantine-nonempty', s)!.facts).toEqual({
+      count: 3,
+      jobs: ['sync-property-reviews'],
+    })
+    expect(
+      evaluateOne('queue.quarantine-growth', {
+        ...s,
+        quarantine: { count: 3, oldestAgeMs: QUARANTINE_REDRIVE_SLA_ALERT_MS + 1 },
+      })!.facts,
+    ).toEqual({ count: 3, jobs: ['sync-property-reviews'] })
+  })
+
+  it('still counts the quarantined jobs when the job report is unavailable', () => {
+    const s = healthy()
+    s.quarantine = { count: 2, oldestAgeMs: QUARANTINE_NONEMPTY_ALERT_MS + 1 }
+
+    expect(evaluateOne('queue.quarantine-nonempty', s)!.facts).toEqual({ count: 2 })
+  })
+
   it('stays silent at the boundary — a job an operator is redriving now must not page', () => {
     const s = healthy()
     s.quarantine = { count: 1, oldestAgeMs: QUARANTINE_NONEMPTY_ALERT_MS }
@@ -565,6 +696,20 @@ describe('sync.failed-nonzero', () => {
     })
   })
 
+  it('counts the failing syncs by the code each failed with', () => {
+    const s = healthy()
+    s.sync = {
+      ...s.sync,
+      failedSyncCount: 3,
+      failedSyncCodes: { provider_failure: 2, authorization_denied: 1 },
+    }
+
+    expect(evaluateOne('sync.failed-nonzero', s)!.facts).toEqual({
+      count: 3,
+      codes: { provider_failure: 2, authorization_denied: 1 },
+    })
+  })
+
   it('stays silent when no sync failure is due', () => {
     expect(evaluateOne('sync.failed-nonzero', healthy())).toBeNull()
   })
@@ -593,6 +738,7 @@ describe('sync.sweep-lag', () => {
     s.sync = {
       dueForIncrementalCount: 5,
       failedSyncCount: 0,
+      failedSyncCodes: {},
       oldestDueAgeMs: SYNC_SWEEP_LAG_ALERT_MS + 1,
       gbpPushEnabled: true,
     }

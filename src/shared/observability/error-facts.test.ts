@@ -102,6 +102,35 @@ describe('errorFactTags', () => {
     expect(errorFactTags(Object.assign(new Error('x'), { code }))).toEqual({})
   })
 
+  it('reads the failure code a typed job failure carries', () => {
+    const error = Object.assign(new Error('authorization_denied'), {
+      failureCode: 'authorization_denied',
+    })
+
+    expect(errorFactTags(error)).toEqual({ failure_code: 'authorization_denied' })
+  })
+
+  it('reads the failure code of the failure a wrapper was built around', () => {
+    const cause = Object.assign(new Error('provider_failure'), {
+      failureCode: 'provider_failure',
+    })
+
+    expect(errorFactTags(new Error('wrapped', { cause }))).toEqual({
+      failure_code: 'provider_failure',
+    })
+  })
+
+  it.each([
+    ['text with spaces', 'rate limit hit for guest@example.invalid'],
+    ['capitals', 'Provider_Failure'],
+    ['a leading digit', '4xx_failure'],
+    ['more than 64 characters', `a${'b'.repeat(64)}`],
+    ['a number', 500],
+    ['an object', { code: 'provider_failure' }],
+  ])('ignores a failure code that is %s', (_label, failureCode) => {
+    expect(errorFactTags(Object.assign(new Error('x'), { failureCode }))).toEqual({})
+  })
+
   it('stops at a cause that points back at itself', () => {
     const error: Error & { cause?: unknown } = new Error('loop')
     error.cause = error

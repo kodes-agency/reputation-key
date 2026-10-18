@@ -105,6 +105,7 @@ function healthySnapshot(): MutableSnapshot {
     sync: {
       dueForIncrementalCount: 0,
       failedSyncCount: 0,
+      failedSyncCodes: {},
       oldestDueAgeMs: null,
       gbpPushEnabled: false,
     },

@@ -5,8 +5,9 @@
 // failures that differ only in their message cannot be told apart. These facts
 // come from an error's own machine fields instead: the code it was thrown with,
 // the code of the failure it wraps, a database refusal's SQLSTATE and schema
-// names, and a fixed kind for the few browser messages that say a code file or
-// the network failed. Each value is checked against a closed shape before it
+// names, the failure code a typed job failure carries (the closed set a job
+// raises it from), and a fixed kind for the few browser messages that say a code
+// file or the network failed. Each value is checked against a closed shape before it
 // becomes a tag, so nothing a person typed or a row held can pass as one.
 
 import { isChunkLoadMessage } from '#/shared/stale-tab/chunk-load'
@@ -14,6 +15,9 @@ import { isChunkLoadMessage } from '#/shared/stale-tab/chunk-load'
 const MAX_CAUSE_DEPTH = 5
 const ERROR_CODE = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/u
 const SQLSTATE = /^[0-9A-Z]{5}$/u
+// A failure code is a lower-case snake_case word set: the closed unions the
+// jobs raise their failures from (such as ReviewProviderSnapshotFailureCode).
+const FAILURE_CODE = /^[a-z][a-z0-9_]{0,63}$/u
 const SQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]{0,62}$/u
 
 const NETWORK_MESSAGES = [
@@ -27,6 +31,7 @@ export type ErrorKind = 'chunk_load' | 'network'
 export type ErrorFactTags = Readonly<{
   error_code?: string
   cause_code?: string
+  failure_code?: string
   error_kind?: ErrorKind
   db_code?: string
   db_constraint?: string
@@ -57,6 +62,16 @@ function matching(value: unknown, shape: RegExp): string | undefined {
 
 function errorCode(fields: ErrorFields): string | undefined {
   return matching(fields.code, ERROR_CODE) ?? matching(fields.code, SQLSTATE)
+}
+
+/**
+ * The first failure code in the chain, so a wrapper keeps the code of the typed
+ * failure it was built around.
+ */
+function failureCode(chain: ReadonlyArray<ErrorFields>): string | undefined {
+  return chain
+    .map((fields) => matching(fields.failureCode, FAILURE_CODE))
+    .find((value) => value !== undefined)
 }
 
 /** node-postgres's server-reported failure: a severity and a SQLSTATE code. */
@@ -94,9 +109,11 @@ export function errorFactTags(error: unknown): ErrorFactTags {
   const code = outermost ? errorCode(outermost) : undefined
   const causeCode = causes.map(errorCode).find((value) => value !== undefined)
   const kind = errorKind(outermost)
+  const failure = failureCode(chain)
   return {
     ...(code ? { error_code: code } : {}),
     ...(causeCode ? { cause_code: causeCode } : {}),
+    ...(failure ? { failure_code: failure } : {}),
     ...(kind ? { error_kind: kind } : {}),
     ...databaseFacts(chain),
   }
