@@ -3,7 +3,9 @@
 // Rebuild derives review-sourced inbox state from canonical data and
 // reconciles missing items and reply milestone metadata without inferring a
 // Handling Cycle outcome from expiry, source absence, or historical publish
-// state. It never touches inbox-owned fields, never deletes, and dryRun writes
+// state. The one outcome it records is for an item it creates: closed, when
+// Review's exact-current permit shows a reply on Google answering the review.
+// It never touches inbox-owned fields, never deletes, and dryRun writes
 // nothing while reporting the same counts.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -16,7 +18,15 @@ import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
 } from '../ports/review-source-lookup.port'
-import type { ReplyLookupPort, ReplyMilestones } from '../ports/reply-lookup.port'
+import type {
+  GoogleReplyHead,
+  ReplyLookupPort,
+  ReplyMilestones,
+} from '../ports/reply-lookup.port'
+import type {
+  CurrentReplyObservationPermit,
+  ReplyObservationAuthorityPort,
+} from '../ports/reply-observation-authority.port'
 import {
   inboxItemId,
   organizationId,
@@ -77,10 +87,58 @@ function makeSource(overrides: Partial<ReviewSourceMeta> = {}): ReviewSourceMeta
   }
 }
 
+const READ_FROM_GOOGLE = new Date('2026-06-10T08:00:00Z')
+
+/** Google shows a reply written there, answering revision 1 of `src`. */
+function googleReply(
+  src: ReviewSourceMeta,
+  overrides: Partial<GoogleReplyHead> = {},
+): GoogleReplyHead {
+  return {
+    reviewId: src.id,
+    propertyId: src.propertyId,
+    observationRevision: 3,
+    sourceEpoch: src.sourceEpoch,
+    materialReviewRevision: 1,
+    state: 'live',
+    change: 'added',
+    resolution: 'external_current_live',
+    provenance: 'external_or_unknown',
+    matchedReplyId: null,
+    matchedPublicationCycle: null,
+    observedAt: READ_FROM_GOOGLE,
+    ...overrides,
+  }
+}
+
+/** Review's authority: issues the permit asked for, or reports it obsolete. */
+function fakeAuthority(answer: 'current' | 'obsolete') {
+  const authority: ReplyObservationAuthorityPort = {
+    withExactCurrent: vi.fn(async (expectation, apply) => {
+      if (answer === 'obsolete') return { status: 'obsolete' as const }
+      const permit: CurrentReplyObservationPermit = {
+        ...expectation,
+        authority: 'review.current-google-reply-observation.v1',
+        sourceEpochCarryFromMaterialReviewRevision: null,
+        state: 'live',
+        observedAt: expectation.occurredAt,
+        reviewSourceContentState: 'active',
+        responseTargetEligibility: 'legacy_unknown',
+        responseTargetStartAt: null,
+        rating: 5,
+      }
+      return { status: 'current' as const, value: await apply(permit) }
+    }),
+  }
+  return authority
+}
+
 function setup(opts: {
   items?: InboxItem[]
   sources?: ReviewSourceMeta[]
   milestones?: ReadonlyMap<string, ReplyMilestones>
+  onGoogle?: ReadonlyArray<GoogleReplyHead>
+  permit?: 'current' | 'obsolete'
 }) {
   const repo = createInMemoryInboxRepo()
   for (const item of opts.items ?? []) repo.items.push(item)
@@ -94,6 +152,9 @@ function setup(opts: {
   const replyLookup: ReplyLookupPort = {
     getEffectiveReplyByReviewId: vi.fn(async () => null),
     getReplyMilestonesByReviewIds: vi.fn(async () => opts.milestones ?? new Map()),
+    getGoogleReplyHeadsByReviewIds: vi.fn(
+      async () => new Map((opts.onGoogle ?? []).map((head) => [head.reviewId, head])),
+    ),
     getReplyStatesByReviewIds: vi.fn(async () => new Map()),
     findReviewIdsByReplyStage: vi.fn(async () => ({ awaiting: [], waiting: [] })),
   }
@@ -102,11 +163,12 @@ function setup(opts: {
     commandStore,
     reviewSourceLookup,
     replyLookup,
+    replyObservationAuthority: fakeAuthority(opts.permit ?? 'current'),
     idGen: () => inboxItemId(`ii-new-${crypto.randomUUID()}`),
     clock: () => NOW,
     logger: createMockLogger(),
   }
-  return { useCase: rebuildInboxProjection(deps), repo, events }
+  return { useCase: rebuildInboxProjection(deps), repo, events, deps }
 }
 
 describe('rebuildInboxProjection', () => {
@@ -167,6 +229,111 @@ describe('rebuildInboxProjection', () => {
       firstReplySubmittedAt: new Date('2026-06-05T12:00:00Z'),
       firstReplyPublishedAt: publishedAt,
     })
+  })
+
+  it('creates a missing item closed when Google shows a reply answering it', async () => {
+    const src = makeSource()
+    const writtenOnGoogle = new Date('2026-06-09T18:00:00Z')
+    const milestones: ReadonlyMap<string, ReplyMilestones> = new Map([
+      [src.id as string, { firstSubmittedAt: null, firstPublishedAt: writtenOnGoogle }],
+    ])
+    const { useCase, repo, events, deps } = setup({
+      sources: [src],
+      milestones,
+      onGoogle: [googleReply(src)],
+    })
+
+    const report = await useCase({ organizationId: ORG, dryRun: false })
+
+    expect(report).toMatchObject({ created: 1, closed: 1, milestones: 1 })
+    expect(repo.items[0]).toMatchObject({
+      sourceId: src.id,
+      status: 'closed',
+      closedAt: READ_FROM_GOOGLE,
+      firstReplyPublishedAt: writtenOnGoogle,
+    })
+    expect(deps.replyObservationAuthority.withExactCurrent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reviewId: src.id,
+        observationRevision: 3,
+        materialReviewRevision: 1,
+        resolution: 'external_current_live',
+        occurredAt: READ_FROM_GOOGLE,
+      }),
+      expect.any(Function),
+    )
+    expect(events.facts).toHaveLength(0)
+  })
+
+  it('creates the item open when the Google reply moved after it was read', async () => {
+    const src = makeSource()
+    const { useCase, repo } = setup({
+      sources: [src],
+      onGoogle: [googleReply(src)],
+      permit: 'obsolete',
+    })
+
+    const report = await useCase({ organizationId: ORG, dryRun: false })
+
+    expect(report).toMatchObject({ created: 1, closed: 0 })
+    expect(repo.items[0]).toMatchObject({ status: 'open', closedAt: null })
+  })
+
+  it.each([
+    ['answers an earlier revision', { materialReviewRevision: 0 }],
+    ['was read in an earlier source epoch', { sourceEpoch: 0 }],
+    ['differs from the reply RepKey sent', { resolution: 'diverged' as const }],
+    ['was carried over a guest edit', { resolution: 'unchanged' as const }],
+    [
+      'was deleted',
+      {
+        state: 'absent' as const,
+        change: 'deleted' as const,
+        resolution: 'absent' as const,
+      },
+    ],
+  ])('creates a missing item open when the Google reply %s', async (_case, head) => {
+    const src = makeSource()
+    const { useCase, repo, deps } = setup({
+      sources: [src],
+      onGoogle: [googleReply(src, head)],
+    })
+
+    const report = await useCase({ organizationId: ORG, dryRun: false })
+
+    expect(report).toMatchObject({ created: 1, closed: 0 })
+    expect(repo.items[0]!.status).toBe('open')
+    expect(deps.replyObservationAuthority.withExactCurrent).not.toHaveBeenCalled()
+  })
+
+  it('never closes an existing open item, even when Google answers its review', async () => {
+    const src = makeSource()
+    const item = makeItem({ sourceId: src.id, status: 'open' })
+    const { useCase, repo, deps } = setup({
+      items: [item],
+      sources: [src],
+      onGoogle: [googleReply(src)],
+    })
+
+    const report = await useCase({ organizationId: ORG, dryRun: false })
+
+    expect(report.closed).toBe(0)
+    expect(repo.items[0]!.status).toBe('open')
+    expect(deps.replyObservationAuthority.withExactCurrent).not.toHaveBeenCalled()
+  })
+
+  it('dryRun counts an item it would create closed without asking for a permit', async () => {
+    const src = makeSource()
+    const { useCase, repo, deps } = setup({
+      sources: [src],
+      onGoogle: [googleReply(src)],
+    })
+
+    const report = await useCase({ organizationId: ORG, dryRun: true })
+
+    expect(report).toMatchObject({ created: 1, closed: 1, dryRun: true })
+    expect(repo.items).toHaveLength(0)
+    expect(deps.replyObservationAuthority.withExactCurrent).not.toHaveBeenCalled()
   })
 
   it('does not close an open item whose review row is gone', async () => {

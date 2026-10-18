@@ -8,6 +8,7 @@ import { inboxStatusLegal } from './inbox-status-legal'
 import type { Review } from '#/contexts/review/domain/types'
 import type { Reply } from '#/contexts/review/domain/types'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
+import type { GoogleReplyHeadRow } from '#/contexts/review/application/ports/reply.repository'
 import type { InvariantContext } from '../types'
 
 const CTX: InvariantContext = { organizationId: 'org-test-0001' }
@@ -17,6 +18,7 @@ const review = (n: number): Review =>
     id: `review-${n}`,
     propertyId: 'prop-1',
     reviewedAt: new Date('2026-01-01T00:00:00Z'),
+    sourceRevision: 2,
   }) as unknown as Review
 
 const reviews = (count: number): ReadonlyArray<Review> =>
@@ -28,14 +30,29 @@ const openInboxItem = (id: string) => ({ id, status: 'open' }) as unknown as Inb
 
 const closedInboxItem = (id: string) => ({ id, status: 'closed' }) as unknown as InboxItem
 
+/** What Google shows for every review: a reply written there, on a revision. */
+type GoogleReplySeed = Readonly<{
+  state: GoogleReplyHeadRow['state']
+  resolution: GoogleReplyHeadRow['resolution']
+  materialReviewRevision: number
+}>
+
 const deps = (
   all: ReadonlyArray<Review>,
-  opts?: { published?: boolean; inbox?: InboxItem | null },
+  opts?: {
+    published?: boolean
+    onGoogle?: GoogleReplySeed
+    inbox?: InboxItem | null
+  },
 ) => ({
   reviewRepo: { findByOrganizationId: async () => all },
   replyRepo: {
     findByReviewId: async () =>
       opts?.published === true ? publishedReply() : ([] as ReadonlyArray<Reply>),
+    findCurrentGoogleReplyHeadsByReviewIds: async () =>
+      opts?.onGoogle
+        ? all.map((r) => ({ ...opts.onGoogle, reviewId: r.id }) as GoogleReplyHeadRow)
+        : [],
   },
   inboxRepo: { findBySource: async () => opts?.inbox ?? null },
 })
@@ -62,6 +79,43 @@ describe('inboxStatusLegal', () => {
     ).check(CTX)
     expect(violations).toEqual([])
   })
+
+  it('reports an open inbox item behind a reply written on Google', async () => {
+    const violations = await inboxStatusLegal(
+      deps(reviews(1), {
+        onGoogle: {
+          state: 'live',
+          resolution: 'external_current_live',
+          materialReviewRevision: 2,
+        },
+        inbox: openInboxItem('inbox-1'),
+      }) as never,
+    ).check(CTX)
+
+    expect(violations).toHaveLength(1)
+    expect(violations[0]?.message).toContain("inbox item is 'open'")
+  })
+
+  it.each([
+    ['deleted on Google', { state: 'absent', resolution: 'absent' }, 2],
+    [
+      'answering an earlier revision',
+      { state: 'live', resolution: 'external_current_live' },
+      1,
+    ],
+    ['carried over a guest edit', { state: 'live', resolution: 'unchanged' }, 2],
+  ] as const)(
+    'leaves an open item alone when the Google reply is %s',
+    async (_case, reading, materialReviewRevision) => {
+      const violations = await inboxStatusLegal(
+        deps(reviews(1), {
+          onGoogle: { ...reading, materialReviewRevision },
+          inbox: openInboxItem('inbox-1'),
+        }) as never,
+      ).check(CTX)
+      expect(violations).toEqual([])
+    },
+  )
 
   it('does not report truncation at exactly the cap', async () => {
     const violations = await inboxStatusLegal(deps(reviews(500)) as never).check(CTX)

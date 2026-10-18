@@ -75,6 +75,29 @@ export type GoogleObservedReplyView = Readonly<{
   updatedAt: Date
 }>
 
+/**
+ * The Google reply observation Review's head selects for a review, without
+ * its text: the identity Review's exact-current observation authority checks
+ * (`ReplyObservationExpectation`) and what Google shows. Projection repair
+ * reads it; a reply written on Google exists only as this head.
+ */
+// fallow-ignore-next-line code-duplication
+export type GoogleReplyHead = Readonly<{
+  reviewId: ReviewId
+  propertyId: PropertyId
+  observationRevision: number
+  sourceEpoch: number
+  materialReviewRevision: number
+  state: 'live' | 'absent'
+  change: 'added' | 'edited' | 'deleted' | 'unchanged'
+  resolution:
+    'confirmed_on_google' | 'external_current_live' | 'diverged' | 'absent' | 'unchanged'
+  provenance: 'repkey_confirmed' | 'external_or_unknown' | 'none'
+  matchedReplyId: ReplyId | null
+  matchedPublicationCycle: number | null
+  observedAt: Date
+}>
+
 /** The effective public-reply message Inbox may present. */
 export type ReplyView = ReplyEntityView | GoogleObservedReplyView
 
@@ -96,14 +119,25 @@ export type ReplyLookupPort = Readonly<{
     orgId: OrganizationId,
   ): Promise<ReplyView | null>
   /**
-   * BQC-3.4: earliest reply milestones per review (any source — internal
-   * and google_sync), for projection rebuild. Keyed by reviewId; reviews
-   * with no replies are absent from the map.
+   * BQC-3.4: earliest reply milestones per review, for projection rebuild:
+   * RepKey's replies, legacy `google_sync` rows, and the reply Google shows
+   * now (at the time Google reports for it, else when RepKey read it). Keyed
+   * by reviewId; reviews with no reply anywhere are absent from the map.
    */
   getReplyMilestonesByReviewIds(
     ids: ReadonlyArray<ReviewId>,
     orgId: OrganizationId,
   ): Promise<ReadonlyMap<string, ReplyMilestones>>
+  /**
+   * Review's current Google reply observation head per review, content-free,
+   * for projection rebuild. Keyed by reviewId; a review Google was never read
+   * for is absent. A head read here is a hint: only Review's exact-current
+   * permit may close work on it.
+   */
+  getGoogleReplyHeadsByReviewIds(
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyMap<string, GoogleReplyHead>>
   /**
    * Governed, content-free effective reply state for a bounded review set.
    * Reviews with no reply are absent from the map.

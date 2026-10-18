@@ -235,6 +235,8 @@ function makeReplyLookup() {
     getCurrentGoogleReplyByReviewId: async () => null,
     findMilestonesByReviewIds: (ids, orgId) =>
       replyRepo.findMilestonesByReviewIds(ids, orgId),
+    findCurrentGoogleReplyHeadsByReviewIds: (ids, orgId) =>
+      replyRepo.findCurrentGoogleReplyHeadsByReviewIds(ids, orgId),
     findStatesByReviewIds: (ids, orgId) => replyRepo.findStatesByReviewIds(ids, orgId),
     findReviewIdsByReplyStage: (orgId, propertyIds) =>
       replyRepo.findReviewIdsByReplyStage(orgId, propertyIds),
@@ -684,6 +686,9 @@ describe.sequential('outbox delivery end-to-end proof', () => {
       ),
       reviewSourceLookup: makeReviewSourceLookup(),
       replyLookup: makeReplyLookup(),
+      replyObservationAuthority: createReplyObservationAuthorityAdapter(
+        createReviewReplyObservationAuthority(db),
+      ),
       idGen,
       clock: () => REBUILD_AT,
       logger: noopLogger,

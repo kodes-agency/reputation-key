@@ -125,6 +125,7 @@ const noopLogger: LoggerPort = {
 const noopReplyLookup: ReplyLookupPort = {
   getEffectiveReplyByReviewId: async () => null,
   getReplyMilestonesByReviewIds: async () => new Map(),
+  getGoogleReplyHeadsByReviewIds: async () => new Map(),
   getReplyStatesByReviewIds: async () => new Map(),
   findReviewIdsByReplyStage: async () => ({ awaiting: [], waiting: [] }),
 }
@@ -263,6 +264,8 @@ export function createInboxContainer() {
     reviewSourceLookup: noopReviewSourceLookup,
     responseTargetAuthority: noopResponseTargetAuthority,
     replyLookup: noopReplyLookup,
+    // Storybook projects no Google reply observations, so no permit is current.
+    replyObservationAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
     staffPublicApi: noopStaffApi,
     logger: noopLogger,
     clock: () => clockNow,

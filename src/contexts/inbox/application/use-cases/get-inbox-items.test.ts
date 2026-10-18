@@ -85,6 +85,7 @@ const setup = (
   const replyLookup: ReplyLookupPort = {
     getEffectiveReplyByReviewId: vi.fn(async () => null),
     getReplyMilestonesByReviewIds: vi.fn(async () => new Map()),
+    getGoogleReplyHeadsByReviewIds: vi.fn(async () => new Map()),
     getReplyStatesByReviewIds,
     findReviewIdsByReplyStage: vi.fn(async () => ({ awaiting: [], waiting: [] })),
   }

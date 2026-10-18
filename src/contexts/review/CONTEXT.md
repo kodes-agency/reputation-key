@@ -54,6 +54,12 @@ is not the identity or history authority.
   through `createEligibleGoogleReplyReads`, which also drops an observation
   whose own content clock lapsed; the two can disagree once a reply has not
   changed for the cache window.
+- The Inbox projection rebuild reads the same truth through `lookups.reply`:
+  `findMilestonesByReviewIds` counts a live head's reply as published at
+  Google's time (else when RepKey read it), and
+  `findCurrentGoogleReplyHeadsByReviewIds` gives each head's content-free
+  identity, which the rebuild hands back to the exact-current observation
+  authority before it closes an item it creates.
 
 ## Model
 

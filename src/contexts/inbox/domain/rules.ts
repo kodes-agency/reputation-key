@@ -42,3 +42,30 @@ export const timestampFieldsForStatus = (
   if (status === 'closed') return { closedAt: now }
   return { closedAt: null }
 }
+
+/** What Google shows for a review, as Review's observation head records it. */
+export type GoogleReplyReading = Readonly<{
+  state: 'live' | 'absent'
+  resolution:
+    'confirmed_on_google' | 'external_current_live' | 'diverged' | 'absent' | 'unchanged'
+}>
+
+/** A reading that answers the review (see `isAnsweringGoogleReply`). */
+export type AnsweringGoogleReplyReading = Readonly<{
+  state: 'live'
+  resolution: 'confirmed_on_google' | 'external_current_live'
+}>
+
+/**
+ * Google shows a reply that answers the review: RepKey's reply confirmed
+ * there, or one written on Google. Only this closes a Review Handling Cycle
+ * (Invariant 12); a `diverged` reading (Google shows something other than the
+ * reply RepKey sent) and a reply carried over a guest edit (`unchanged`) do
+ * not.
+ */
+export const isAnsweringGoogleReply = <R extends GoogleReplyReading>(
+  reading: R,
+): reading is R & AnsweringGoogleReplyReading =>
+  reading.state === 'live' &&
+  (reading.resolution === 'confirmed_on_google' ||
+    reading.resolution === 'external_current_live')

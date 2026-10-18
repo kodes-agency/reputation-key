@@ -47,6 +47,8 @@ import { createAtomicInboxCommandStore } from '../inbox-command-store'
 import { createReviewHandlingCycleStore } from '../review-handling-cycle.store'
 import { createReviewSourceLookupAdapter } from '../adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '../adapters/reply-lookup.adapter'
+import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
+import { createReplyObservationAuthorityAdapter } from '../adapters/reply-observation-authority.adapter'
 import { createInboxRepository } from './inbox.repository'
 
 const ORG = organizationId('org-inbox-erased-review-1111111111')
@@ -396,11 +398,16 @@ describe.sequential('an Inbox item whose Review Google deleted', () => {
         getCurrentGoogleReplyByReviewId: async () => null,
         findMilestonesByReviewIds: (ids, orgId) =>
           replyRepo.findMilestonesByReviewIds(ids, orgId),
+        findCurrentGoogleReplyHeadsByReviewIds: (ids, orgId) =>
+          replyRepo.findCurrentGoogleReplyHeadsByReviewIds(ids, orgId),
         findStatesByReviewIds: (ids, orgId) =>
           replyRepo.findStatesByReviewIds(ids, orgId),
         findReviewIdsByReplyStage: (orgId, propertyIds) =>
           replyRepo.findReviewIdsByReplyStage(orgId, propertyIds),
       }),
+      replyObservationAuthority: createReplyObservationAuthorityAdapter(
+        createReviewReplyObservationAuthority(db),
+      ),
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: () => NOW,
       logger,

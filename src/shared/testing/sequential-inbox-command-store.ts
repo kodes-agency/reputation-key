@@ -9,7 +9,10 @@
 // (src/contexts/inbox/infrastructure/inbox-command-store.ts).
 
 import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
-import { timestampFieldsForStatus } from '#/contexts/inbox/domain/rules'
+import {
+  isAnsweringGoogleReply,
+  timestampFieldsForStatus,
+} from '#/contexts/inbox/domain/rules'
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
 import type {
@@ -57,6 +60,36 @@ export function createSequentialInboxCommandStore(deps: {
       const created = await deps.repo.create(item, item.organizationId)
       if (event) await recordAndEmit(event)
       return { item: created, created: true }
+    },
+
+    createReviewItemAnsweredOnGoogle: async (item, anchor, observation) => {
+      if (
+        observation.reviewId !== item.sourceId ||
+        !isAnsweringGoogleReply(observation) ||
+        observation.materialReviewRevision !== anchor.materialReviewRevision
+      ) {
+        throw new Error('Review observation permit does not answer this item')
+      }
+      const existing = await deps.repo.findBySource(
+        item.sourceType,
+        item.sourceId as string,
+        item.organizationId,
+      )
+      if (existing) return { item: existing, created: false }
+      const created = await deps.repo.create(item, item.organizationId)
+      const closed = await deps.repo.updateStatus(
+        created.id,
+        created.organizationId,
+        'closed',
+        {
+          closedAt: observation.observedAt,
+          ...(created.firstReplyPublishedAt === null
+            ? { firstReplyPublishedAt: observation.observedAt }
+            : {}),
+        },
+        observation.observedAt,
+      )
+      return { item: closed, created: true }
     },
 
     updateStatus: async (item, updates, event, now) => {
@@ -349,10 +382,7 @@ export function createSequentialInboxCommandStore(deps: {
         await receipt(command.eventId, command.consumerName, 'obsolete')
         return 'obsolete'
       }
-      const shouldClose =
-        observation.state === 'live' &&
-        (observation.resolution === 'confirmed_on_google' ||
-          observation.resolution === 'external_current_live')
+      const shouldClose = isAnsweringGoogleReply(observation)
       const shouldReopen =
         observation.state === 'absent' &&
         observation.resolution === 'absent' &&

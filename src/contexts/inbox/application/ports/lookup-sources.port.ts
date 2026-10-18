@@ -12,7 +12,11 @@ import type {
   ReplyId,
   ReviewId,
 } from '#/shared/domain/ids'
-import type { ReplyEntityView, ReplyMilestones } from './reply-lookup.port'
+import type {
+  GoogleReplyHead,
+  ReplyEntityView,
+  ReplyMilestones,
+} from './reply-lookup.port'
 import type { FeedbackContentFilter } from './feedback-lookup.port'
 import type { InboxItemReplyState } from '../../domain/types'
 
@@ -118,6 +122,11 @@ export type ReplyLookupSource = Readonly<{
     ids: ReadonlyArray<ReviewId>,
     orgId: OrganizationId,
   ) => Promise<ReadonlyArray<Readonly<{ reviewId: ReviewId } & ReplyMilestones>>>
+  /** Content-free current Google reply observation heads for projection repair. */
+  findCurrentGoogleReplyHeadsByReviewIds: (
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<GoogleReplyHead>>
   /** Content-free state candidates for effective-reply selection. */
   findStatesByReviewIds: (
     ids: ReadonlyArray<ReviewId>,

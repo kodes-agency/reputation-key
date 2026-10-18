@@ -48,6 +48,7 @@ import { setResponseTargetPolicy } from './application/use-cases/set-response-ta
 import { releaseDueResponseTargetReminders } from './application/use-cases/release-response-target-reminders'
 import type { InboxActorDirectory } from './application/ports/inbox-actor-directory.port'
 import type { InboxHistoryRepository } from './application/ports/inbox-history.repository'
+import type { ReplyObservationAuthorityPort } from './application/ports/reply-observation-authority.port'
 import { inboxItemId, inboxNoteId } from '#/shared/domain/ids'
 
 type WireInput = Readonly<{
@@ -63,6 +64,7 @@ type WireInput = Readonly<{
   responseTargetAuthority: ReviewResponseTargetAuthorityPort
   reviewSourceLookup: ReviewSourceLookupPort
   replyLookup: ReplyLookupPort
+  replyObservationAuthority: ReplyObservationAuthorityPort
   aiInsights?: AiReviewInsightsPort
   propertyLookup?: PropertyLookupPort
   staffPublicApi: StaffPublicApi
@@ -188,6 +190,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       commandStore: input.commandStore,
       reviewSourceLookup: input.reviewSourceLookup,
       replyLookup: input.replyLookup,
+      replyObservationAuthority: input.replyObservationAuthority,
       idGen: () => inboxItemId(input.idGen()),
       clock: input.clock,
       logger: input.logger,

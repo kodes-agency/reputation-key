@@ -174,6 +174,7 @@ const setup = (
       return reply
     },
     getReplyMilestonesByReviewIds: async () => new Map(),
+    getGoogleReplyHeadsByReviewIds: async () => new Map(),
     getReplyStatesByReviewIds: async () => new Map(),
     findReviewIdsByReplyStage: async () => ({ awaiting: [], waiting: [] }),
   }
