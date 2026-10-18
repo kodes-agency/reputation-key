@@ -182,6 +182,44 @@ describe('release skew, in the tab', () => {
     expect(tab.isStale()).toBe(true)
   })
 
+  it('reloads straight away when the refusal answers a view a navigation has just drawn', async () => {
+    const reload = vi.fn()
+    const items = new Map<string, string>()
+    const tab = createStaleTab({
+      storage: () => ({
+        getItem: (key) => items.get(key) ?? null,
+        setItem: (key, value) => void items.set(key, value),
+      }),
+      now: () => 1_000,
+      reload,
+      later: vi.fn(),
+    })
+    tab.remember(OLD)
+    tab.reloadOnNavigation({
+      subscribe: (_type, listener) => {
+        listener({
+          pathChanged: false,
+          fromLocation: { searchStr: '?itemId=1' },
+          toLocation: { searchStr: '?itemId=2', publicHref: '/inbox?itemId=2' },
+        })
+        return () => undefined
+      },
+    })
+    const refusal = Object.assign(new Error('Reload'), {
+      _tag: 'StaleClient',
+      code: STALE_CLIENT_CODE,
+      status: 409,
+    })
+    const next = vi.fn(async (_options?: unknown) => {
+      throw refusal
+    })
+
+    await expect(sendWithRelease(tab, 'GET', next)).rejects.toBe(refusal)
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(reload).toHaveBeenCalledWith(undefined)
+  })
+
   it('leaves the tab alone for any other failure', async () => {
     const tab = tabOn(OLD)
     const next = vi.fn(async (_options?: unknown) => {

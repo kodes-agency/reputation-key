@@ -360,12 +360,16 @@ tier, under } }`, see `page-identity.ts`): that gives its fallbacks their frame
   `pendingComponent`, `errorComponent` or `notFoundComponent` unless it names a
   missing entity (`RouteNotFound` with `entity`). The error state takes the
   guarded behaviour (sanitised message, report, 401 sign-in redirect, Try again,
-  and one reload when the failure is a tab whose code is older than the server's)
-  from `useGuardedRouteError`. A refusal is drawn by the shell route's not-found
-  boundary (`ShellNoticeBoundary`), which replaces the shell; what a person set
-  (the sidebar's open state, the focused sidebar link) is kept in
-  `shell-continuity` so the swap does not reset it, and the refusal takes the
-  frame of the page it replaces (`refusal-frame`).
+  and one reload when the failure is a tab whose code is older than the server's,
+  drawn as the loading state) from `useGuardedRouteError`. A component's own
+  query refused for that reason needs nothing of its own: the release check
+  reloads the page when the refusal answers a view a navigation has just drawn
+  (a selection made through search parameters included), and otherwise the
+  refusal's sentence stands until the next navigation reloads. A refusal is
+  drawn by the shell route's not-found boundary (`ShellNoticeBoundary`), which
+  replaces the shell; what a person set (the sidebar's open state, the focused
+  sidebar link) is kept in `shell-continuity` so the swap does not reset it, and
+  the refusal takes the frame of the page it replaces (`refusal-frame`).
 - `hooks/` contains cross-feature React behavior and action wrappers.
 - `inbox/` and `goals/` contain large cohesive manager experiences.
 - `features/<feature>/` contains feature presentation grouped by user concept;

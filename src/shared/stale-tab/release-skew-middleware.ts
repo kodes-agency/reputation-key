@@ -63,7 +63,9 @@ export async function sendWithRelease<R extends Settled>(
     if (isFlagged(result)) tab.markStale()
     return result
   } catch (error) {
-    if (isStaleClientError(error)) tab.markStale()
+    // A refused read arms the tab, and reloads it when the read belongs to a
+    // view a navigation has just drawn. The caller still sees the refusal.
+    if (isStaleClientError(error)) tab.readRefused()
     throw error
   }
 }

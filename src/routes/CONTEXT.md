@@ -24,7 +24,9 @@ business rules or persistence.
 (`getBrowserObservabilityConfigFn`), written to the head as `repkey-release`: a
 tab keeps it to notice that a deploy has replaced the server under it
 (`src/shared/CONTEXT.md`, "Stale tabs"). `router.tsx` makes an armed tab load the
-next page afresh.
+next view afresh, a new path or new search alike (the Inbox selects through its
+search; a hash alone does not count), and notes every such navigation so that a
+read refused within three seconds of it reloads the current address at once.
 
 ## Authenticated layout
 

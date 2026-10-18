@@ -77,23 +77,32 @@ runs:
 
 A tab told it is stale is **armed**; so is a tab that meets a missing chunk
 (`vite:preloadError`, an unhandled chunk-load rejection). An armed tab turns its
-next page-to-page navigation into a full page load of the target (the router
+next navigation to another view, a new path **or new search** (the Inbox selects
+an item through its search), into a full page load of the target (the router
 announces it before the address bar changes, so the target is named, and only a
-path on this site is loaded), or reloads at once when a route already failed to
-draw (`useGuardedRouteError`): because of a stale refusal, a missing chunk, or any
-failure at all once the tab is armed, since old code meeting a newer answer fails
-in ways no shape can name. Search and hash changes do not reload, so a page keeps
-its form. It never reloads under a mutation in flight (the reload waits for the
-next moment), and never in a loop: `reload-guard.ts` allows one reload per release
-being left per two minutes, remembered in `sessionStorage` before the reload, and
-refuses when it cannot remember. A page still here ten seconds after asking (a
+path on this site is loaded); a change of hash alone does not reload. A read the
+server refuses within `FRESH_VIEW_MS` (3 s) of such a navigation reloads the
+current address at once, armed or not: the refusal answers the view the
+navigation has just drawn, so nothing in it can be lost, and this is what spares
+the first item selected in the Inbox after a deploy. A refusal later than that (a
+focus refetch, a poll, a part of the page that mounted late) only arms the tab,
+because the person may be in the middle of something. A tab also reloads at once
+when a route already failed to draw (`useGuardedRouteError`): because of a stale
+refusal, a missing chunk, or any failure at all once the tab is armed, since old
+code meeting a newer answer fails in ways no shape can name. It never reloads
+under a mutation in flight (the reload waits for the next moment), and never in
+a loop: `reload-guard.ts` allows one reload per release being left per two
+minutes, remembered in `sessionStorage` before the reload, and refuses when it
+cannot remember. A navigation that would lose unsaved work is held by the page's
+own blocker (`useBlocker`) before the router announces it, and a reload still
+meets the page's `beforeunload`. A page still here ten seconds after asking (a
 navigation that was cancelled) draws its failure again instead of a loading state
 that never ends. The whole reload path is in first paint because it runs exactly
 when a lazy chunk may be gone.
 
-A read refused on a page that never changes path (the Inbox selects with search
-parameters) shows the refusal's own sentence ("Reload to continue") in place of
-that read until the person reloads or goes to another page.
+A read refused outside that window on a page that stays put (a focus refetch on
+the Inbox) shows the refusal's own sentence ("Reload to continue") in place of
+that read until the person reloads or selects or opens anything, which reloads.
 
 Jobs, outbox delivery, health, and observability expose infrastructure mechanics.
 Contexts own handler meaning, source transactions, recovery policy, content

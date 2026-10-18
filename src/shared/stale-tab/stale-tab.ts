@@ -2,12 +2,16 @@
 //
 // The tab keeps the release that served its page. It is ARMED (stale) when the
 // server says it has moved on (release-skew-middleware.ts) or when code the page
-// needs is gone (a missing chunk). An armed tab reloads at a moment that costs
-// the person nothing:
-//   - the next page-to-page navigation, which it turns into a full page load
-//     of the navigation's target;
+// needs is gone (a missing chunk). It reloads at a moment that costs the person
+// nothing:
+//   - an armed tab's next navigation to another view (a new path or new search:
+//     the Inbox selects an item through its search), which it turns into a full
+//     page load of the navigation's target;
+//   - a read the server refuses just after a navigation (FRESH_VIEW_MS), which
+//     reloads the current address: that view has only just been drawn;
 //   - a route that already failed to draw (use-guarded-route-error.tsx):
 //     refused, missing its chunk, or failing in an already armed tab.
+// A read refused later than that (a focus refetch, a poll) only arms the tab.
 // It never reloads under a mutation still in flight, never in a loop
 // (reload-guard.ts), and never when it does not know its own release: a
 // development server, a test, Storybook and a server render all stay inert. A
@@ -39,7 +43,8 @@ type FailureTarget = Pick<Window, 'addEventListener' | 'removeEventListener'>
 
 type NavigationEvent = Readonly<{
   pathChanged: boolean
-  toLocation: Readonly<{ publicHref: string }>
+  fromLocation?: Readonly<{ searchStr: string }>
+  toLocation: Readonly<{ publicHref: string; searchStr: string }>
 }>
 
 type NavigationSource = Readonly<{
@@ -76,6 +81,30 @@ function sitePath(href: unknown): string | undefined {
  */
 export const RELOAD_SETTLE_MS = 10_000
 
+/**
+ * How long after a navigation its view counts as just drawn, so that a read the
+ * server refuses reloads the page at once instead of only arming the tab.
+ *
+ * A navigation's own reads start straight away (its loaders, then the queries
+ * of the view as it mounts, after its chunk if it has one), and the server
+ * refuses before any handler runs, so the refusal is back in about one round
+ * trip. Three seconds holds a slow phone connection with a chunk to fetch first,
+ * and is still too short for anyone to have written something worth keeping in
+ * a view that has just appeared. A refusal after that is a focus refetch, a poll
+ * or a part of the page that mounted late, when the person may be in the middle
+ * of something: it only arms the tab.
+ */
+export const FRESH_VIEW_MS = 3_000
+
+/**
+ * A navigation that draws another view: a new path or new search. A new hash
+ * alone scrolls the same view, and the same address again is a refresh (Try
+ * again re-runs the loaders).
+ */
+function drawsAnotherView(event: NavigationEvent): boolean {
+  return event.pathChanged || event.fromLocation?.searchStr !== event.toLocation.searchStr
+}
+
 export type StaleTabDeps = ReloadGuardDeps &
   Readonly<{ later: (run: () => void, ms: number) => void }>
 
@@ -85,6 +114,8 @@ export function createStaleTab(deps: StaleTabDeps) {
   let stale = false
   let mutationsInFlight = 0
   let reloading = false
+  /** When the latest navigation to another view began; none yet is never fresh. */
+  let navigatedAt = Number.NaN
   const watchers = new Set<() => void>()
 
   function setReloading(value: boolean): void {
@@ -143,6 +174,20 @@ export function createStaleTab(deps: StaleTabDeps) {
     },
 
     /**
+     * The server refused a read because this tab's code is stale. Reload the
+     * current address when the view is fresh from a navigation (FRESH_VIEW_MS);
+     * otherwise, or when the reload is deferred or refused, the tab stays armed
+     * for its next navigation. By then the router has written the navigation's
+     * address, so the current one is the view that asked.
+     */
+    readRefused(): ReloadOutcome | 'armed' {
+      tab.markStale()
+      if (!stale) return 'unavailable'
+      const age = deps.now() - navigatedAt
+      return age >= 0 && age < FRESH_VIEW_MS ? tab.reload() : 'armed'
+    },
+
+    /**
      * A route failed to draw. Load the page afresh when the failure says this
      * tab's code is stale (a refusal, a missing chunk), arming the tab, or when
      * the tab already knows it is: old code meeting a newer answer fails in ways
@@ -162,14 +207,20 @@ export function createStaleTab(deps: StaleTabDeps) {
     },
 
     /**
-     * Load the page afresh when an armed tab goes to another page. A change of
-     * search or hash stays, so a page keeps the form it is showing. The router
-     * announces the navigation before the address bar changes, so the new load
-     * names its target. Returns the unsubscribe.
+     * Load the page afresh when an armed tab goes to another view: a new path
+     * or new search (the Inbox selects an item through its search). A change of
+     * hash alone stays. The router announces the navigation before the address
+     * bar changes, so the new load names its target. Every such navigation is
+     * noted, armed or not, for `readRefused`. A navigation that would lose
+     * something is held by the page's own blocker before the router announces
+     * it, and a reload itself still meets the page's `beforeunload`. Returns
+     * the unsubscribe.
      */
     reloadOnNavigation(source: NavigationSource): () => void {
-      return source.subscribe('onBeforeLoad', ({ pathChanged, toLocation }) => {
-        if (pathChanged && stale) tab.reload(toLocation.publicHref)
+      return source.subscribe('onBeforeLoad', (event) => {
+        if (!drawsAnotherView(event)) return
+        navigatedAt = deps.now()
+        if (stale) tab.reload(event.toLocation.publicHref)
       })
     },
   }

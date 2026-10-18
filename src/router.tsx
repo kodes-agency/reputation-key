@@ -80,7 +80,8 @@ export function getRouter() {
   if (typeof document !== 'undefined') {
     // A browser error report names the route template the page was on.
     setBrowserRouteSource(() => router.state.matches.at(-1)?.routeId)
-    // A tab whose code is older than the server loads the next page afresh.
+    // A tab whose code is older than the server loads its next view (a new
+    // path or new search) afresh; a read refused just after one reloads it.
     staleTab.reloadOnNavigation(router)
   }
 
