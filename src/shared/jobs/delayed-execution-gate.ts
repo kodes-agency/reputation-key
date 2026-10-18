@@ -433,7 +433,9 @@ export function createGatedJobHandler(
     if (!handler) {
       // BQC-3.6: an unknown job name is a deployment/config failure, never a
       // silent ack — throw so the job fails, burns attempts, and lands in the
-      // failure quarantine (§4). Boot-time readiness catches the static form.
+      // failure quarantine (§4). On-demand work only: a schedule firing is
+      // logged and captured instead (failure-quarantine.ts). Boot-time
+      // readiness catches the static form.
       logger.error(
         { jobName: job.name },
         'no handler registered for job — failing as deployment/config error',

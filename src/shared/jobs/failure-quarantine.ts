@@ -20,11 +20,14 @@
 // for operator inspection only.
 //
 // A schedule firing is never dead-lettered. Every schedule is
-// enumeration-only: the next firing repeats the whole pass, so a failed
-// firing is not lost work and leaves nothing to redrive (a redriven copy would
-// not be a firing, and only a firing is granted the tenant-cross scope). Its
-// terminal failure stays visible through the job-runtime head and error
-// monitoring instead.
+// enumeration-only, so the next firing repeats the whole pass: a failed firing
+// is not lost work and leaves nothing to redrive. Its own id
+// (repeat:<scheduler>:<timestamp>) is also what made the old dead-letter id
+// invalid; see quarantineJobIdFor. The failure is not hidden: worker.ts captures
+// each terminal one in error monitoring, logs it ('job failed' at error level,
+// plus a warn line saying why there is no dead letter), and BullMQ keeps the
+// job in its retained failed set. The job-runtime report shows repair_required
+// until a later success.
 //
 // Distinct from queue-quarantine.ts (BQC-0.4), which PAUSES a live queue as
 // a containment stop-control — different concept, do not confuse.

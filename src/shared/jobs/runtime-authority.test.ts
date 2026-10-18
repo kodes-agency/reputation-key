@@ -330,6 +330,49 @@ describe('job runtime authority', () => {
         }),
       ).toEqual({ ready: false, reasons: ['repair_required'] })
     })
+
+    // Runbook §17 ("a scheduled family that stops being active") is written
+    // against this: a firing failed, then the family left the active schedule.
+    // No later plain success answers that failure, a firing was never
+    // dead-lettered so there is nothing to redrive, and only returning the
+    // family to the active schedule lets a success clear it.
+    describe.each([
+      ['quarantined', { posture: 'quarantined' }],
+      ['made on-demand', { schedule: 'none', lastSuccessObjectiveMs: null }],
+    ] as const)('a family that was %s after the failed firing', (_, change) => {
+      const left = scheduledContract(change)
+      const stale = { ...failedThenSucceeded, schedulerRegistered: false }
+      const assess = (
+        contract: JobOperationalContract,
+        observed: JobRuntimeObservation,
+      ) =>
+        assessJobRuntime({
+          contract,
+          observation: observed,
+          runtimeStartedAt: STARTED,
+          now: NOW,
+        })
+
+      it('stays in repair after a later success, a manual run included', () => {
+        expect(assess(left, stale)).toEqual({
+          ready: false,
+          reasons: ['repair_required'],
+        })
+      })
+
+      it('is cleared once it is an active schedule again and a success is on record', () => {
+        expect(assess(scheduledContract(), failedThenSucceeded)).toEqual({
+          ready: true,
+          reasons: [],
+        })
+      })
+
+      it('is cleared by a governed redrive success, the one answer outside the schedule', () => {
+        const redriven = { ...stale, lastRepairAt: new Date('2026-08-27T02:57:00.000Z') }
+
+        expect(assess(left, redriven)).toEqual({ ready: true, reasons: [] })
+      })
+    })
   })
 
   it('keeps stalled work visible until a later success or repair is observed', () => {

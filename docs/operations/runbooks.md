@@ -212,12 +212,12 @@ definitions and security controls live in
 
 **What it means:** the quarantine is a dead-letter queue with **no consumer** — nothing drains it, and the daily `quarantine-ttl-sweep` DELETES entries after `QUARANTINE_TTL_DAYS` (default 30d). A job that lands there is lost work that no retry will ever pick up. If it was a review sync, a notification fan-out, or a reply publication, that unit of work simply never happened and nobody was told. Fifteen minutes is three health-check evaluation cadences: long enough that an operator actively redriving right now does not trip it, short enough that the loss is still recoverable.
 
-Only on-demand work lands here. A schedule firing is never dead-lettered: every schedule is enumeration-only, so its next firing repeats the whole pass and nothing is lost, and there is no unit of work to redrive. A firing that fails past its retry budget is logged (`terminal schedule firing failure — not dead-lettered, the next firing repeats the pass`, then `job failed`), captured in error monitoring, and shown as `repair_required` on its family's job-runtime row until a later firing succeeds (§17).
+Only on-demand work lands here. A schedule firing is never dead-lettered: every schedule is enumeration-only, so its next firing repeats the whole pass and nothing is lost, and there is no unit of work to redrive. A firing that fails past its retry budget is logged (`job failed` at error level, then `terminal schedule firing failure — not dead-lettered, the next firing repeats the pass` as a warning), captured in error monitoring, kept in BullMQ's retained failed set, and shown as `repair_required` on its family's job-runtime row until a later success (§17).
 
 **First three things to check:**
 
 1. `ops:quarantine list` — what is in there (the oldest 100 entries, oldest first, so the entry the age alerts page about is always listed; redrive and discard look their target up by id, so any entry is reachable, listed or not), how many distinct job names, and is each entry `confirmed_failed`? One entry is a poison payload; a growing pile of one job name is a systemic handler failure. `pending_failure` means the worker staged evidence before rejecting but did not observe BullMQ's completed failed transition; redrive requires fresh proof that the original remains failed, so a recovered/completed original cannot be duplicated.
-2. The quarantine reason. `ops:quarantine list` prints it under each entry: the error name and its first message line, followed by `(policy: policy_unavailable)` when the attempt that exhausted the job was refused by the delayed-execution gate because it could not read the policy. That one is a policy outage, not a handler bug: restore the policy read before any redrive. Anything else is a handler that threw past its retry budget. No region or routing reason exists, and no alert watches for one.
+2. The quarantine reason. `ops:quarantine list` prints it under each entry: the error name and its first message line, followed by `(policy: policy_unavailable)` when the attempt that exhausted the job was refused by the delayed-execution gate because it could not read the policy. That one is a policy outage, not a handler bug: restore the policy read before any redrive. It never appears for a schedule firing: a firing whose retries were all spent on an unreadable policy is not dead-lettered, so look for `delayed execution denied — retry (policy_unavailable)` in the worker's `job failed` log and for `repair_required` on the family's row (§17) instead. Anything else is a handler that threw past its retry budget. No region or routing reason exists, and no alert watches for one.
 3. `queue.quarantine.oldest_age_ms` versus `QUARANTINE_TTL_DAYS`. This tells you how much time is left before the TTL sweep deletes the evidence along with the work. The gauge, the listing, and the TTL sweep all read the quarantine oldest-first, so a burst of fresh dead letters cannot hide an aged one.
 
 **Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then match each entry's job family to the event-job catalogue. For an enabled family, first run `ops:quarantine redrive <id> --operator <registered-operator>` for the dry-run report, then add `--reason <incident-reason> --apply`; redrive returns the job to its original queue. For a blocked or quarantined family, never redrive: first run `ops:quarantine discard <id> --operator <registered-operator>`, record the identifiers and disposition in the incident, then add `--reason <incident-reason> --apply --yes ops:quarantine`. Discard permanently removes the quarantined job without executing or re-enqueuing it, which is why it alone needs the typed confirmation. For `pending_failure`, the redrive apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at the redrive boundary, so a concurrent privacy-verification scan cannot miss content moved between queues.
@@ -592,9 +592,20 @@ each family. It contains no tenant or payload content.
 <registered-operator>` before applying the row's exact repair command.
    An active scheduled row (`posture` is `active`, `schedule` is not `none`)
    that shows `repair_required` has no quarantine entry for the failed firing,
-   and its redrive command does not apply: read the worker's `job failed` error
-   and the error-monitoring event for that job name. If the reason outlives one
-   cadence, the firings are still failing.
+   so its `repairCommand` names no redrive: read the worker's `job failed`
+   error and the error-monitoring event for that job name. If the reason
+   outlives one cadence plus the family's retry budget (`retryAttempts` ×
+   (`timeoutMs` + the `retryBackoff` delay), all on the row), the firings are
+   still failing. Once the cause is fixed, any later success clears the reason,
+   so a daily family need not wait a day where an enqueue command exists:
+   `pnpm ops purge retention --operator <registered-operator> --reason
+<incident-reason> --apply --yes ops:purge` reruns `retention-sweep` (§10), and
+   `pnpm ops refresh reviews --operator <registered-operator> --reason
+<incident-reason> --apply` reruns the hourly `refresh-expiring-reviews`. The
+   other daily families, `quarantine-ttl-sweep` and
+   `reconcile-gbp-notification-subscriptions`, have no rerun command
+   (`pnpm ops gbp-subscribe` only reports and refuses `--apply`), so they wait
+   for their next firing.
 
 **Remediate:** repair configuration/handler/scheduler drift by promoting a
 reviewed immutable release; never register an ad-hoc handler or repeat entry in
@@ -606,6 +617,29 @@ family needs no command: fix the cause and its next successful firing clears
 `repair_required`. A domain-specific
 reconciliation or rebuild remains authoritative when its runbook says replaying
 one queue item cannot reconstruct the projection.
+
+**A scheduled family that stops being active.** A later success answers
+`repair_required` only while the family is an active schedule. If a release
+moves a family to `quarantined`, or sets its schedule to `none`, after a firing
+failed terminally and before a firing succeeded, the row keeps `repair_required`
+and `worker.job-runtime-unready` keeps firing: the failed firing left no dead
+letter, so there is nothing to redrive, and an inactive family has no firing to
+succeed. A manual run does not clear it either, because for these postures only
+a successful quarantine redrive counts. No `pnpm ops` command clears it today,
+and Queue Redis is not edited by hand to silence a row.
+
+1. Prevent it. Before a release takes a scheduled family out of the active
+   schedule, read its row. If it shows `repair_required`, fix the cause and let
+   one success land first.
+2. If the family should run again, return it to `active` with its schedule in a
+   reviewed release. The next success, a firing or a manual run, clears the row.
+3. If it must stay inactive, the row stays unready until the owner decides.
+   Escalate to Bozhidar Denev and record it in the incident. A family being
+   retired is removed from the catalogue with a scheduler tombstone
+   (`RETIRED_SCHEDULER_JOB_NAMES`), which removes its row. The missing piece is
+   an audited operator command that acknowledges a stale `repair_required` after
+   the cause is fixed, recording operator and reason like the other `ops`
+   commands. It is a follow-up and does not exist yet.
 
 **Verification:** `jobs.ready` is true; `jobs.failing`, missing handler/scheduler,
 schedule-denied, forbidden-dark-work, missed-objective, queue-age, stalled,
