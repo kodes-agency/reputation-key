@@ -16,6 +16,10 @@ import type {
   GoalRecommendationCounts,
   GoalRecommendationFactsPort,
 } from '../ports/goal-recommendation-facts.port'
+import type {
+  PortalGoalPromptDeferral,
+  PortalGoalPromptDeferralStore,
+} from '../ports/portal-goal-prompt-deferrals.port'
 import type { GoalActor } from './goal-program-shared'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 import type {
@@ -299,6 +303,38 @@ export const runningGoal = (november: Readonly<{ target?: number }> = {}) =>
     open: { start: NOV_1, end: DEC_1, ...november },
   })
 
+/**
+ * A goal for one Portal alone (Reception unless said), counting private
+ * ratings: active in November, 20 a month unless said.
+ */
+export function portalGoal(
+  id: string,
+  shape: Readonly<{
+    portalId?: string
+    target?: number
+    status?: GoalProgramBundle['program']['status']
+    createdAt?: Date
+  }> = {},
+) {
+  const base = propertyGoal(id, 'portal_rating_count', {
+    status: shape.status ?? 'active',
+    open: { start: NOV_1, end: DEC_1 },
+    ...(shape.createdAt ? { createdAt: shape.createdAt } : {}),
+  })
+  const version = { ...base.version, targetValue: shape.target ?? 20 }
+  const subject = {
+    kind: 'portal',
+    portalId: shape.portalId ?? 'portal-reception',
+  } as const
+  return {
+    ...base,
+    program: { ...base.program, name: 'Reception goal' },
+    version,
+    versions: [version],
+    assignments: base.assignments.map((assignment) => ({ ...assignment, subject })),
+  } satisfies GoalProgramBundle
+}
+
 /** Seaview's three Portals, live since October. */
 export const SEAVIEW_PORTALS = [
   portal('Reception', '2026-10-09'),
@@ -318,8 +354,12 @@ type World = Readonly<{
   figure?: GovernedGoalMetricResult
   /** What it says of each month, by the month's first instant (ISO): it wins over `figure`. */
   figures?: Readonly<Record<string, GovernedGoalMetricResult>>
+  /** What it says of one Portal's month, by Portal id: it wins over both. */
+  portalFigures?: Readonly<Record<string, GovernedGoalMetricResult>>
   /** What Portal names a Portal or a Portal Group, by `portal:<id>` or `portal_group:<id>`. */
   subjectNames?: Readonly<Record<string, string>>
+  /** The month a manager put the Overview's prompt off for, if one did. */
+  deferredMonth?: string
 }>
 
 /** The card's and the page's reads over an in-memory Property, recording what was asked in order. */
@@ -341,6 +381,20 @@ export function fakeWorld(world: World = {}) {
       }
     }),
   } satisfies GoalRecommendationFactsPort
+  // "Not now" kept as the table keeps it: one month per Property, moved only on.
+  let deferredMonth = world.deferredMonth ?? null
+  const prompts = {
+    deferredMonth: vi.fn(async () => {
+      calls.push('prompt')
+      return deferredMonth
+    }),
+    defer: vi.fn(async (deferral: PortalGoalPromptDeferral) => {
+      calls.push('defer')
+      if (deferredMonth === null || deferral.month > deferredMonth) {
+        deferredMonth = deferral.month
+      }
+    }),
+  } satisfies PortalGoalPromptDeferralStore
   const deps = {
     policy: {
       authorize: vi.fn(async (_request: AuthorizeRequest) => {
@@ -354,12 +408,26 @@ export function fakeWorld(world: World = {}) {
       }),
     },
     metrics: {
-      queryGoalMetric: vi.fn(async (query: Readonly<{ periodStart: Date }>) => {
-        calls.push('figure')
-        return (
-          world.figures?.[query.periodStart.toISOString()] ?? world.figure ?? governed(0)
-        )
-      }),
+      queryGoalMetric: vi.fn(
+        async (
+          query: Readonly<{
+            periodStart: Date
+            subject: Readonly<{ kind: string; portalId?: string }>
+          }>,
+        ) => {
+          calls.push('figure')
+          const ofPortal =
+            query.subject.portalId === undefined
+              ? undefined
+              : world.portalFigures?.[query.subject.portalId]
+          return (
+            ofPortal ??
+            world.figures?.[query.periodStart.toISOString()] ??
+            world.figure ??
+            governed(0)
+          )
+        },
+      ),
     },
     recommendation: {
       subjects: {
@@ -369,6 +437,7 @@ export function fakeWorld(world: World = {}) {
       },
       facts,
     },
+    prompts,
     subjectNames: {
       getSubjectName: vi.fn(
         async (_organizationId: string, _propertyId: string, subject) => {

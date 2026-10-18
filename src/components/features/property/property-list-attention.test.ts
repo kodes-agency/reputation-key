@@ -44,6 +44,23 @@ describe('attention', () => {
     ])
   })
 
+  it('the qualifier never says Google', () => {
+    // A Property goal below pace is a Portal goal's: its words sit in the
+    // attention column, never the "Google goal" one (P-7, PG-16).
+    const said = [1, 2, 12].flatMap((goalsBehindPace) =>
+      attentionQualifiers(attention({ total: goalsBehindPace, goalsBehindPace })).map(
+        ({ text }) => text,
+      ),
+    )
+
+    expect(said).toEqual([
+      'Portal goal below pace',
+      '2 portal goals below pace',
+      '12 portal goals below pace',
+    ])
+    expect(said.filter((text) => /google|rating goal/iu.test(text))).toEqual([])
+  })
+
   it('opens the queue that holds the count', () => {
     expect(attentionTarget(attention({ total: 3, itemsToTriage: 2, escalated: 1 }))).toBe(
       'open',

@@ -30,3 +30,9 @@ export async function prefetchGoalsPage(
       : Promise.resolve(),
   ])
 }
+
+// The Overview loader's priming (PG-16) is fetched through this same module,
+// so both loaders reach one on-demand chunk: a chunk of its own for it cost
+// first paint 26 B more (measured 2026-10-18, its name and dependency list in
+// the entry's preload map).
+export { prefetchOverviewGoals } from '../-overview-goals-prefetch'

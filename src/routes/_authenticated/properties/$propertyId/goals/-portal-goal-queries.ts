@@ -225,3 +225,24 @@ export async function markPortalGoalAddedStale(
     ),
   ])
 }
+
+/**
+ * A Portal's Results line (PLAN PG-16): its count toward the Monthly portal
+ * goal this month, or its own goal's month so far; null for no line. Fresh as
+ * long as a running month's read.
+ */
+export const portalGoalLineQuery = (propertyId: string, portalId: string) =>
+  queryOptions({
+    queryKey: goalKeys.portalGoalLine(propertyId, portalId),
+    queryFn: async () =>
+      (await server()).getMonthlyPortalGoalLine({ data: { propertyId, portalId } }),
+    staleTime: PORTAL_GOAL_STALE_MS,
+  })
+
+/**
+ * The Overview prompt's "Not now" (PLAN PG-16), fetched with its first use like
+ * the other commands; it marks the reads stale through `markPortalGoalReadsStale`.
+ */
+export const deferPortalGoalPrompt = async (
+  input: Parameters<MonthlyPortalGoalServer['deferMonthlyPortalGoalPrompt']>[0],
+) => (await server()).deferMonthlyPortalGoalPrompt(input)

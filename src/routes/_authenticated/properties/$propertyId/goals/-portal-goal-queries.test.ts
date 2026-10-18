@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
 
 const getMonthlyPortalGoalCard = vi.hoisted(() => vi.fn())
+const getMonthlyPortalGoalLine = vi.hoisted(() => vi.fn())
+const deferMonthlyPortalGoalPrompt = vi.hoisted(() => vi.fn())
 const add = vi.hoisted(() => ({
   getPortalGoalAddOptions: vi.fn(),
   addPortalGoal: vi.fn(),
@@ -11,15 +13,19 @@ const add = vi.hoisted(() => ({
 
 vi.mock('#/contexts/reporting/server/monthly-portal-goals', () => ({
   getMonthlyPortalGoalCard,
+  getMonthlyPortalGoalLine,
+  deferMonthlyPortalGoalPrompt,
   ...add,
 }))
 
 import {
+  deferPortalGoalPrompt,
   markPortalGoalAddedStale,
   markPortalGoalReadsStale,
   portalGoalAddCommands,
   portalGoalAddQuery,
   portalGoalCardQuery,
+  portalGoalLineQuery,
   prefetchPortalGoalAdd,
   prefetchPortalGoalSection,
 } from './-portal-goal-queries'
@@ -130,6 +136,24 @@ describe('the Monthly portal goal reads', () => {
       overview: true,
       ratingGoal: false,
       otherProperty: false,
+    })
+  })
+
+  it("reads a Portal's Results line under the Monthly portal goal's family, and sends Not now", async () => {
+    const queryClient = new QueryClient()
+    getMonthlyPortalGoalLine.mockResolvedValueOnce(null)
+    deferMonthlyPortalGoalPrompt.mockResolvedValueOnce({ month: '2026-11' })
+    const line = portalGoalLineQuery(PROPERTY, 'portal-1')
+
+    await expect(queryClient.fetchQuery(line)).resolves.toBeNull()
+    await deferPortalGoalPrompt({ data: { propertyId: PROPERTY, month: '2026-11' } })
+
+    expect(line.queryKey).toEqual(goalKeys.portalGoalLine(PROPERTY, 'portal-1'))
+    expect(getMonthlyPortalGoalLine).toHaveBeenCalledWith({
+      data: { propertyId: PROPERTY, portalId: 'portal-1' },
+    })
+    expect(deferMonthlyPortalGoalPrompt).toHaveBeenCalledWith({
+      data: { propertyId: PROPERTY, month: '2026-11' },
     })
   })
 })

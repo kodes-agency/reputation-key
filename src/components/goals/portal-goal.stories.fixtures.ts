@@ -220,21 +220,31 @@ const SHEET_NOTHING: PortalGoalSheetFacts = {
   readyOn: null,
 }
 
+/** The Overview's prompt for an offer, with nobody having put it off. */
+const promptOf = (offer: PortalGoalOffer) => ({
+  month: offer.month,
+  number: offer.choices.aBitMore,
+  deferred: false,
+})
+
 export const CARD_READY: PortalGoalCardView = {
   state: 'ready',
   offer: OFFER_NOVEMBER,
+  prompt: promptOf(OFFER_NOVEMBER),
   sheet: SHEET_READY,
 }
 
 export const CARD_READY_OCTOBER: PortalGoalCardView = {
   state: 'ready',
   offer: OFFER_OCTOBER,
+  prompt: promptOf(OFFER_OCTOBER),
   sheet: { ...SHEET_READY, month: '2026-10' },
 }
 
 export const CARD_SCANS_ONLY: PortalGoalCardView = {
   state: 'scans_only',
   offer: OFFER_SCANS,
+  prompt: promptOf(OFFER_SCANS),
   sheet: SHEET_SCANS_ONLY,
 }
 

@@ -19,6 +19,9 @@ import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-ag
 import { reviewId } from '#/shared/domain/ids'
 import { PropertyOverview } from './property-overview'
 import { RatingGoalCard } from '#/components/goals/rating-goal-card'
+import { PortalGoalOverview } from '#/components/goals/portal-goal-overview'
+import { overviewPortalGoalView } from '#/components/goals/portal-goal-overview-view'
+import { CARD_RUNNING } from '#/components/goals/portal-goal-running.stories.fixtures'
 import {
   CARD,
   FIXTURE_NOW,
@@ -326,6 +329,8 @@ export const PortalGoalBelowPaceChip: Story = {
     expect(chip).toHaveTextContent(/^Portal goal below pace$/)
     const href = new URL(chip.getAttribute('href') ?? '', 'http://localhost')
     expect(href.pathname).toBe(`/properties/${property.id}/goals`)
+    // It lands on the Portal goals section, not the top of the page (PG-16).
+    expect(href.hash).toBe('#portal-goals')
     expect(canvas.queryByText(/behind pace/)).toBeNull()
   },
 }
@@ -482,5 +487,60 @@ export const WithRatingGoal: Story = {
     expect(
       goal.compareDocumentPosition(scorecard) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  },
+}
+
+/**
+ * The Monthly portal goal has its own slot: after "How you are doing" and
+ * before "Guest voice", never beside the Google rating goal, which stays above
+ * the scorecard (PG-16).
+ */
+export const WithPortalGoal: Story = {
+  args: {
+    ratingGoal: (
+      <RatingGoalCard
+        card={CARD}
+        propertyId={property.id}
+        timezone={FIXTURE_TIMEZONE}
+        now={new Date(FIXTURE_NOW)}
+      />
+    ),
+    portalGoal: (
+      <PortalGoalOverview
+        view={overviewPortalGoalView({
+          card: CARD_RUNNING,
+          canSet: true,
+          canChange: true,
+        })}
+        propertyId={property.id}
+        onNotNow={() => undefined}
+        notNowPending={false}
+        checkIn={{
+          commands: {
+            changeMonthlyPortalGoalNowFn: async () => undefined,
+            keepMonthlyPortalGoalFn: async () => undefined,
+          },
+          onAnswered: async () => undefined,
+        }}
+      />
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const following = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    const google = canvas.getByRole('heading', { name: 'Google rating goal', level: 2 })
+    const scorecard = canvas.getByRole('heading', { name: 'How you are doing', level: 2 })
+    const portal = canvas.getByRole('heading', {
+      name: 'Monthly portal goal · November',
+      level: 2,
+    })
+    const voice = canvas.getByRole('heading', { name: 'Guest voice', level: 2 })
+    expect(following(scorecard, portal)).toBe(true)
+    expect(following(portal, voice)).toBe(true)
+    expect(following(google, scorecard)).toBe(true)
+    // Directly after the scorecard: nothing of the Google goal sits beside it.
+    const slot = portal.closest('[data-slot="portal-goal-overview"]')
+    expect(slot?.previousElementSibling).toBe(scorecard.closest('section'))
   },
 }

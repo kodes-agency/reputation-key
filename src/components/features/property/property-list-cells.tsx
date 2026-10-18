@@ -184,6 +184,7 @@ export function AttentionValue({
         to="/properties/$propertyId/goals"
         params={{ propertyId }}
         search={{ view: 'active' }}
+        hash="portal-goals"
         aria-label={label}
         className={className}
       >

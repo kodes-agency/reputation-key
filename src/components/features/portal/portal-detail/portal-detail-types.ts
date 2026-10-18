@@ -4,6 +4,7 @@
 // untouched. It lives here rather than in either component so the shell and the
 // panel share one declaration instead of restating the resource props.
 
+import type { ReactNode } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { LinkTreeLink } from '../link-tree/link-tree-types'
@@ -96,6 +97,12 @@ export type PortalDetailResources = Readonly<{
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
   getPortalAnalytics: typeof getPortalAnalyticsFn
+  /**
+   * The Monthly portal goal's line at the top of the Results tab; left out, it
+   * has none. While `goalLinePending`, the tab keeps its loading state.
+   */
+  goalLine?: ReactNode
+  goalLinePending?: boolean
   /** The editor's live preview read: the draft, or the version guests can open now. */
   getPortalPreview: PortalPreviewReader
   responsibleManagers?: PortalResponsibleManagerState
