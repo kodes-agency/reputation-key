@@ -26,6 +26,11 @@
 //       what it counts, the tiles, each Portal's count with the total, the
 //       month on its strip, and the change log (the set, as recommended, and
 //       each Portal going live); both themes pass axe.
+//   J11. all monthly results: once a Portal goal's month has closed and another
+//       has ended, the Portal goals section's foot opens `/goals/portal-results`:
+//       the closed month's result in plain words, and the ended goal with the
+//       day it ended, where "Ended portal goals (1)" lands; both themes pass
+//       axe.
 //
 // Every Property here is the journey's own (prefix `e2e-pg-`, run id and retry
 // in the slug). Expected days are read from the database clock in the
@@ -48,7 +53,9 @@ import {
 import {
   MONTHLY_PORTAL_GOALS,
   PORTAL_NAMES,
+  closePortalGoalMonth,
   localToday,
+  nextMonthKey,
   seedPortalGoalProperty,
   seedPortalHistory,
   tearDownPortalGoalProperties,
@@ -59,7 +66,11 @@ import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../../src/contexts/reporting/d
 import { goalMonthDays, goalPace } from '../../../src/contexts/reporting/domain/goal-pace'
 import { addLocalDays } from '../../../src/contexts/reporting/domain/local-days'
 import { calendarPeriodRange } from '../../../src/shared/domain/period-range'
-import { formatLocalDate, formatMonthName } from '../../../src/lib/format'
+import {
+  formatLocalDate,
+  formatMonthName,
+  formatMonthYear,
+} from '../../../src/lib/format'
 
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const seed = requireE2eSeedState()
@@ -598,5 +609,113 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(page.locator('html')).toHaveClass(/\blight\b/u)
     await expect(rows).toHaveCount(PORTAL_NAMES.length + 1)
     await assertNoAxeViolations(page, 'the monthly portal goal page (light)')
+  })
+  test('J11 all monthly results: a closed month and an ended goal on their own page; both themes pass axe', async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, portals } = await seedPortalGoalProperty(
+      page,
+      'j11',
+      testInfo.retry,
+    )
+    seeded.push(propertyId)
+    const [reception, , spa] = portals
+    if (!reception || !spa) throw new Error('E2E Portals are not seeded')
+    const GOAL_PROGRAMS = 'src/contexts/reporting/server/goal-programs.ts'
+    const startMonth = await nextMonthKey(propertyId)
+    const create = (data: Readonly<Record<string, unknown>>) =>
+      callServerFn<{ program: { id: string } }>(page, {
+        file: GOAL_PROGRAMS,
+        exportName: 'createGoalProgram',
+        data: { propertyId, description: null, startMonth, ...data },
+      })
+    // Reception's goal, with a month that has closed: 12 of 20, not met.
+    const counted = await create({
+      name: 'Reception ratings',
+      metric: 'portal_rating_count',
+      targetValue: 20,
+      subjects: [{ kind: 'portal', portalId: reception.id }],
+    })
+    const closed = await closePortalGoalMonth({
+      propertyId,
+      programId: counted.program.id,
+      value: 12,
+    })
+    // Spa's goal, ended today.
+    const stopped = await create({
+      name: 'Spa scans',
+      metric: 'qualified_scans',
+      targetValue: 30,
+      subjects: [{ kind: 'portal', portalId: spa.id }],
+    })
+    await callServerFn(page, {
+      file: GOAL_PROGRAMS,
+      exportName: 'changeGoalProgramStatus',
+      data: {
+        propertyId,
+        programId: stopped.program.id,
+        status: 'ended',
+        reason: 'E2E an ended portal goal.',
+      },
+    })
+    const endedOn = `Ended on ${formatLocalDate(await localToday(propertyId), { year: false })}`
+
+    await page.goto(`/properties/${propertyId}/goals`)
+    await waitForHydration(page)
+    const section = page.locator('#portal-goals')
+    await expect(
+      section.getByRole('link', { name: 'Ended portal goals (1)' }),
+    ).toHaveAttribute('href', `/properties/${propertyId}/goals/portal-results#ended`)
+    await clickWhenReady(section.getByRole('link', { name: 'All monthly results' }))
+    await expect(page).toHaveURL(
+      new RegExp(`/properties/${propertyId}/goals/portal-results$`, 'u'),
+    )
+    await waitForHydration(page)
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Portal goal results' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('heading', {
+        level: 3,
+        name: formatMonthYear(closed.periodStart, closed.timezone) ?? '',
+      }),
+    ).toBeVisible()
+    // The month that has closed; a month the maintenance job opens since is
+    // a row of its own.
+    const row = page
+      .getByRole('row')
+      .filter({ hasText: 'Not met: 12 private ratings, the goal was 20.' })
+    await expect(row).toHaveCount(1)
+    await expect(row).toContainText('Reception ratings')
+
+    // The ended goal, with the day it ended; the section's foot lands here.
+    const ended = page
+      .getByRole('list', { name: 'Ended portal goals' })
+      .getByRole('listitem')
+    await expect(ended).toHaveCount(1)
+    await expect(ended.getByRole('link', { name: 'Spa scans' })).toBeVisible()
+    await expect(ended).toContainText('Scans · target 30 · Spa')
+    await expect(ended).toContainText(endedOn)
+
+    await dismissToasts(page)
+    await assertNoAxeViolations(page, 'the portal goal results page')
+    await page.evaluate(() => window.localStorage.setItem('theme', 'light'))
+    await page.reload()
+    await waitForHydration(page)
+    await expect(page.locator('html')).toHaveClass(/\blight\b/u)
+    await expect(ended).toHaveCount(1)
+    await assertNoAxeViolations(page, 'the portal goal results page (light)')
+
+    await page.goto(`/properties/${propertyId}/goals`)
+    await waitForHydration(page)
+    await clickWhenReady(section.getByRole('link', { name: 'Ended portal goals (1)' }))
+    await expect(page).toHaveURL(
+      new RegExp(`/properties/${propertyId}/goals/portal-results#ended$`, 'u'),
+    )
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Ended portal goals' }),
+    ).toBeVisible()
   })
 })

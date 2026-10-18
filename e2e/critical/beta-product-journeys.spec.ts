@@ -895,7 +895,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect(Number(evaluated.value)).toBe(qualifiedScanCount)
     expect(evaluated.sample_count).toBe(qualifiedScanCount)
 
-    await page.goto(`/properties/${seed.p1PropertyId}/goals`)
+    // Each month's result has its own page (PG-18), off the Goals page.
+    await page.goto(`/properties/${seed.p1PropertyId}/goals/portal-results`)
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Portal goal results' }),
+    ).toBeVisible()
     const resultRow = page
       .getByRole('row')
       .filter({ hasText: activeGoalName })
@@ -912,9 +916,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.goto(`/properties/${seed.p2PropertyId}/goals`)
     await expect(page).not.toHaveURL(/\/unavailable/)
     await expect(page.getByText(activeGoalName)).toHaveCount(0)
-    // P2 has no goal with a month, as on a first visit: the page draws no
-    // Monthly results card at all (PG-01), not an empty one.
+    // P2 has no goal with a month, as on a first visit: the Goals page shows no
+    // way to every month's result (PG-18), and no results of its own.
     await expect(page.getByRole('heading', { level: 1, name: 'Goals' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'All monthly results' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Monthly results' })).toHaveCount(0)
     await page.goto(`/properties/${seed.p3PropertyId}/goals/${governedGoalDefinitionId}`)
     await expect(page.getByText(/doesn't exist|not found/i).first()).toBeVisible()
