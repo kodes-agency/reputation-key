@@ -42,6 +42,9 @@ export const reviseGoalProgram = createServerFn({ method: 'POST' })
     ),
   )
 
+// No screen changes a goal's subjects since the goal page's old dialogs went
+// (PLAN PG-21): the engine keeps assignment changes (ADR 0068), so this stays,
+// listed in `.fallowrc.json`'s ignoreExports.
 export const changeGoalProgramAssignments = createServerFn({ method: 'POST' })
   .validator(changeGoalProgramAssignmentsSchema)
   .handler(

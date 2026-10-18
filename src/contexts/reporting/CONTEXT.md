@@ -542,6 +542,19 @@ surface is `programs.portalGoalAdd` (`options`, `one`, `each`), reached through
 The New goal page and its table that set goals for several portals are gone; `/goals/new`
 only redirects to the goal page's add sheet.
 
+A goal for one Portal, one Portal Group or the average has a page of its own on `$goalId`
+(PLAN PG-21): `programs.portalGoalSingle.page`, reached through `getPortalGoalSinglePage` in
+the same lazy server module, asks `goal.create`, then reads the goal as the Monthly portal
+goal's page does, from its own subject (`application/use-cases/portal-goal-single-page.ts`):
+the Property's recommendation narrowed to the subject (`narrowedRecommendation`) gives its
+usual, its change sheet's offers and its go-lives, and the governed read of the subject its
+months; the average gets its level and this month's governed average, or the ratings it
+still needs. A Property count goal answers `monthly` (its page is `/goals/portals`), and a goal
+for several subjects has none. The Monthly portal goal's change commands take a goal for one
+Portal or one group too, its subject kept and its number recorded as recommended against its
+own numbers, and Stop also takes the average. The goal page's old dialogs (rename, subjects,
+revise, a month's target, pause, resume and end) are gone; the engine keeps those commands.
+
 The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
 `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
 `getPortalResultsOverview` take the caller's `AuthContext` beside their input and first ask
