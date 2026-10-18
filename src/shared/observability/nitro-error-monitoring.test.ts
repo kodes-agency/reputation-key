@@ -1,5 +1,9 @@
 import { HTTPError } from 'nitro/h3'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  incomingRequestAbort,
+  outboundSocketReset,
+} from '#/shared/testing/client-hangup-fixtures'
 import { createNitroErrorMonitoringPlugin } from './nitro-error-monitoring'
 
 function harness() {
@@ -31,6 +35,23 @@ describe('Nitro error monitoring plugin', () => {
     expect(monitor.captureException).toHaveBeenCalledWith(error, {
       source: 'nitro',
     })
+  })
+
+  it('does not turn a visitor closing the connection into an issue', () => {
+    const { errorHook, monitor } = harness()
+
+    errorHook(incomingRequestAbort(), { tags: ['request'] })
+
+    expect(monitor.captureException).not.toHaveBeenCalled()
+  })
+
+  it('still reports a reset on one of our own sockets', () => {
+    const { errorHook, monitor } = harness()
+    const reset = outboundSocketReset()
+
+    errorHook(reset, { tags: ['request'] })
+
+    expect(monitor.captureException).toHaveBeenCalledWith(reset, { source: 'nitro' })
   })
 
   it.each([400, 401, 403, 404, 429])(

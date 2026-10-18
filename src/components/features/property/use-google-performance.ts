@@ -63,6 +63,12 @@ export function useGooglePerformance(
   // cancelled query and the section showed its skeleton for ever on every
   // client-side navigation. Removing before the re-subscribe makes the
   // observer build a fresh query and fetch.
+  //
+  // The cancel aborts the request signal, so the browser rejects the pending
+  // server-function call with an AbortError. Query awaits that call, so the
+  // rejection is handled (use-google-performance.lifecycle.test.ts holds this
+  // for unmount, hiding and lease renewal); an AbortError that still reaches
+  // the window unhandled is dropped by error monitoring (browser-error-event.ts).
   const clearQueryKey = useCallback(
     (key: QueryKey) => {
       queryClient.removeQueries({ queryKey: key, exact: false })

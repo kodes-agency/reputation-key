@@ -6,6 +6,11 @@ import {
 } from './telemetry'
 import { scrubSentryEvent } from './sentry-event-scrub'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import {
+  incomingRequestAbort,
+  outboundSocketReset,
+  responseCutByServer,
+} from '#/shared/testing/client-hangup-fixtures'
 
 function sdk() {
   const scope = {
@@ -102,6 +107,24 @@ describe('error monitoring runtime', () => {
         { name: 'ReplayCanvas' },
       ]),
     ).toEqual([{ name: 'Http' }])
+  })
+
+  it('does not report a visitor hanging up, and still reports our own resets', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize({ ...baseConfig, service: 'web' })
+    const { beforeSend } = sentry.init.mock.calls[0]![0]
+
+    expect(
+      beforeSend({ message: 'aborted' }, { originalException: incomingRequestAbort() }),
+    ).toBeNull()
+    // Our own sockets and a response cut by an upstream still report, tagged.
+    for (const failure of [outboundSocketReset(), responseCutByServer()]) {
+      expect(beforeSend({ message: 'reset' }, { originalException: failure })).toEqual({
+        message: '[REDACTED]',
+        tags: { error_code: 'ECONNRESET' },
+      })
+    }
   })
 
   it('captures native feedback only after monitoring is initialized', () => {
