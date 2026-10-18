@@ -237,7 +237,7 @@ Each month's result of the Portal goals has its own page, **Goals › Portal goa
 
 ### PG-19 — Tabs inside the Google section
 
-Not recorded yet.
+The Active / History tabs are the Google rating goal's own (P-7a). `RatingGoalViews` (`src/components/goals/rating-goal-views.tsx`) draws them inside one region named "Google rating goal", above the view they choose (on Active the card, or the door into the wizard; on History the reached and ended Google rating goals), and the tab row is named "Google rating goal views". The card, the door and History still title themselves (h2 "Google rating goal") but no longer draw a region of their own, so the page names no landmark twice (axe's landmark-unique rule, which the e2e scans of the Goals page apply). `?view=` drives the Google section only: the Portal goals section draws the Monthly portal goal's card and the Portal goals not ended, with their month so far, on both tabs, and the ended Portal goals are listed only at `/goals/portal-results#ended` (PG-18), so the Goals page's "Goal history" table and its "No goal history" state are gone. `?start=rating-goal` still opens the wizard, from the Active tab, as before. First paint is unchanged: the entry is byte-identical once the hashed chunk names are masked.
 
 ### PG-20 — Add a portal goal; `/goals/new` redirects
 
