@@ -28,6 +28,7 @@ import {
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalSection } from './portal-goal-section'
 import { SEAVIEW } from './portal-goal.stories.fixtures'
+import { expectAnsweredOnTheCard } from './portal-goal.stories.play'
 
 const changeNowMock = fn<PortalGoalCheckInCommands['changeMonthlyPortalGoalNowFn']>(
   async () => ({ changed: true }),
@@ -87,7 +88,6 @@ export default meta
 type Story = StoryObj<typeof meta>
 type Canvas = ReturnType<typeof within>
 
-const TITLE_ID = 'portal-goal-title'
 const FOOT = 'Nothing changes unless you choose. December counts against 40 until then.'
 
 /** A toast in the page, once it has faded in. */
@@ -149,9 +149,7 @@ export const CheckIn: Story = {
       },
     })
     await expect(keepMock).not.toHaveBeenCalled()
-    await expectToast('December goal: 45 private ratings')
-    await waitFor(() => expect(onSetMock).toHaveBeenCalledOnce())
-    await waitFor(() => expect(document.activeElement).toHaveAttribute('id', TITLE_ID))
+    await expectAnsweredOnTheCard('December goal: 45 private ratings', onSetMock)
   },
 }
 
@@ -255,7 +253,7 @@ export const CheckInKeep: Story = {
       },
     })
     await expect(changeNowMock).not.toHaveBeenCalled()
-    await expectToast('December stays at 40')
+    await expectAnsweredOnTheCard('December stays at 40', onSetMock)
     await waitFor(() =>
       expect(canvas.queryByRole('region', { name: 'For December' })).toBeNull(),
     )
@@ -263,7 +261,6 @@ export const CheckInKeep: Story = {
     await expect(
       canvas.getByRole('progressbar', { name: 'Private ratings in December' }),
     ).toBeVisible()
-    await waitFor(() => expect(document.activeElement).toHaveAttribute('id', TITLE_ID))
   },
 }
 
