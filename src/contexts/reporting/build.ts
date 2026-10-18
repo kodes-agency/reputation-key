@@ -72,10 +72,11 @@ import {
   type PortalGoalRecommendationRequestApi,
 } from './application/use-cases/goal-recommendation-read'
 import type { GoalRecommendationFactsPort } from './application/ports/goal-recommendation-facts.port'
+import { readMonthlyPortalGoalCard } from './application/use-cases/monthly-portal-goal-card'
 import {
-  readMonthlyPortalGoalCard,
+  readMonthlyPortalGoalPage,
   type MonthlyPortalGoalRequestApi,
-} from './application/use-cases/monthly-portal-goal-card'
+} from './application/use-cases/monthly-portal-goal-page'
 import { setMonthlyPortalGoal } from './application/use-cases/monthly-portal-goal'
 import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
 import {
@@ -378,18 +379,26 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
   })
   // The Monthly portal goal: its card, a composed read of the Programs the
   // actor may see, the recommendation and a running month's governed figure;
-  // and its set command, a Program created after a pre-check of every Program
-  // of the Property. Each asks `goal.create` itself first.
+  // its page, the same read with its months, changes and the other Portal
+  // goals; and its set command, a Program created after a pre-check of every
+  // Program of the Property. Each asks `goal.create` itself first.
+  const monthlyPortalGoalReads = (policy: GoalExecutionPolicy) => ({
+    policy,
+    reads: readGoalPrograms(policy),
+    metrics: metricApi,
+    recommendation: goalRecommendationDeps(policy),
+    now: input.clock,
+  })
   const monthlyPortalGoal: MonthlyPortalGoalRequestApi['monthlyPortalGoal'] =
     Object.freeze({
       card: (policy, ...args) =>
-        readMonthlyPortalGoalCard(
+        readMonthlyPortalGoalCard(monthlyPortalGoalReads(policy), ...args),
+      page: (policy, ...args) =>
+        readMonthlyPortalGoalPage(
           {
-            policy,
-            reads: readGoalPrograms(policy),
-            metrics: metricApi,
-            recommendation: goalRecommendationDeps(policy),
-            now: input.clock,
+            ...monthlyPortalGoalReads(policy),
+            subjectNames: goalProgramSubjects,
+            logger: input.logger,
           },
           ...args,
         ),

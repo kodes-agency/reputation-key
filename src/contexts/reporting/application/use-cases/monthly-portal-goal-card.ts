@@ -23,7 +23,11 @@ import type {
   PortalGoalFirstWeeks,
   PortalReadinessRow,
 } from '../dto/monthly-portal-goal.types'
-import { monthlyPortalGoalOf } from '../monthly-portal-goal-identity'
+import {
+  monthlyPortalGoalOf,
+  type PropertyCountGoal,
+} from '../monthly-portal-goal-identity'
+import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import type {
   GoalActor,
   GoalExecutionPolicy,
@@ -34,7 +38,6 @@ import {
   gatherPortalGoalRecommendation,
   type PortalGoalRecommendationReads,
 } from './goal-recommendation-read'
-import type { MonthlyPortalGoalSetRequestApi } from './monthly-portal-goal'
 import { portalGoalOfferOf, portalGoalSheetFactsOf } from './monthly-portal-goal-offer'
 import { monthlyPortalGoalOnCard } from './monthly-portal-goal-running'
 
@@ -111,11 +114,25 @@ function beforeGoal(
   }
 }
 
-export async function readMonthlyPortalGoalCard(
-  deps: MonthlyPortalGoalCardDeps,
+/** What the card (and the goal's page) is made from, read once. */
+export type MonthlyPortalGoalGathered = Readonly<{
+  now: Date
+  /** The Programs the actor may see. */
+  programs: readonly GoalProgramBundle[]
+  recommendation: PortalGoalRecommendation
+  /** The Property's Monthly portal goal among them, or none. */
+  goal: PropertyCountGoal | null
+}>
+
+/**
+ * Asks the policy for `goal.create` before anything is read, then reads the
+ * clock once, and the Programs and the recommendation together.
+ */
+export async function gatherMonthlyPortalGoal(
+  deps: Omit<MonthlyPortalGoalCardDeps, 'metrics'>,
   input: Readonly<{ propertyId: string }>,
   actor: GoalActor,
-): Promise<PortalGoalCardView> {
+): Promise<MonthlyPortalGoalGathered> {
   const { organizationId } = actor
   const { propertyId } = input
   await deps.policy.authorize({
@@ -133,7 +150,16 @@ export async function readMonthlyPortalGoalCard(
       now,
     }),
   ])
-  const goal = monthlyPortalGoalOf(programs, now)
+  return { now, programs, recommendation, goal: monthlyPortalGoalOf(programs, now) }
+}
+
+/** The card from what was gathered: the goal, or the state before one. */
+export async function monthlyPortalGoalCardOf(
+  deps: Pick<MonthlyPortalGoalCardDeps, 'metrics'>,
+  gathered: MonthlyPortalGoalGathered,
+  actor: GoalActor,
+): Promise<PortalGoalCardView> {
+  const { goal, recommendation, now } = gathered
   if (goal === null) return beforeGoal(recommendation, now)
   return {
     state: 'goal',
@@ -142,14 +168,23 @@ export async function readMonthlyPortalGoalCard(
   }
 }
 
+export async function readMonthlyPortalGoalCard(
+  deps: MonthlyPortalGoalCardDeps,
+  input: Readonly<{ propertyId: string }>,
+  actor: GoalActor,
+): Promise<PortalGoalCardView> {
+  return monthlyPortalGoalCardOf(
+    deps,
+    await gatherMonthlyPortalGoal(deps, input, actor),
+    actor,
+  )
+}
+
 /** Request-facing: each invocation receives its scoped policy, like the Program reads. */
-export type MonthlyPortalGoalRequestApi = Readonly<{
-  monthlyPortalGoal: Readonly<{
-    card: (
-      policy: GoalExecutionPolicy,
-      input: Readonly<{ propertyId: string }>,
-      actor: GoalActor,
-    ) => Promise<PortalGoalCardView>
-  }> &
-    MonthlyPortalGoalSetRequestApi
+export type MonthlyPortalGoalCardRequestApi = Readonly<{
+  card: (
+    policy: GoalExecutionPolicy,
+    input: Readonly<{ propertyId: string }>,
+    actor: GoalActor,
+  ) => Promise<PortalGoalCardView>
 }>

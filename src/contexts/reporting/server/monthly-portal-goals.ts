@@ -35,6 +35,20 @@ export const getMonthlyPortalGoalCard = createServerFn({ method: 'GET' })
     ),
   )
 
+/** The goal's page: the card's arm, and with a goal its months, changes and Portals. */
+export const getMonthlyPortalGoalPage = createServerFn({ method: 'GET' })
+  .validator(monthlyPortalGoalPropertySchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.monthlyPortalGoal.page(policy, data, actor),
+        ),
+      'GET',
+      'goal.getMonthlyPortalGoalPage',
+    ),
+  )
+
 /** The card's Use: the Monthly portal goal, set from the month it named. */
 export const setMonthlyPortalGoal = createServerFn({ method: 'POST' })
   .validator(setMonthlyPortalGoalSchema)

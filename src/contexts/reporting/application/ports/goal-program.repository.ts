@@ -25,6 +25,8 @@ export type GoalProgram = Readonly<{
    * recorded no time. A read names it only when one was stored.
    */
   endedAt?: Date
+  /** Who ended it (migration 0062), named only when stored, with `endedAt`. */
+  endedBy?: string
 }>
 
 export type GoalProgramVersion = Readonly<{

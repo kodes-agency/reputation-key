@@ -821,6 +821,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       repository.get(organizationId, targetPropertyId, original.program.id)
     // A read names no end for a goal that has not ended.
     expect((await read())?.program).not.toHaveProperty('endedAt')
+    expect((await read())?.program).not.toHaveProperty('endedBy')
 
     const endedAt = new Date('2026-01-12T09:30:00.000Z')
     await expect(change('paused', 'ended', 'manager-3', endedAt)).resolves.toMatchObject({
@@ -829,8 +830,13 @@ describe.sequential('Goal Program repository (integration)', () => {
     expect(await endRecord()).toEqual([
       { status: 'ended', ended_at: endedAt, ended_by: 'manager-3' },
     ])
-    // The read the Monthly portal goal's card works from says when it ended.
-    expect((await read())?.program).toMatchObject({ status: 'ended', endedAt })
+    // The read the Monthly portal goal's card and page work from says when it
+    // ended, and who ended it.
+    expect((await read())?.program).toMatchObject({
+      status: 'ended',
+      endedAt,
+      endedBy: 'manager-3',
+    })
   })
 
   it('finds only exact-version closed results inside the half-open impacted month', async () => {

@@ -15,6 +15,7 @@ import {
   type GoalTargetSource,
 } from '../../domain/goal-program'
 import { nextRevisionStart } from '../goal-revision-start'
+import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
 import {
   changeAssignments,
   type GoalAssignmentChangeResult,
@@ -192,7 +193,7 @@ async function reviseGoal(
     propertyTimezone: timezone,
     effectiveFrom: period.start,
     effectiveTo: null,
-    changeReason: noteOf(input.reason) ?? 'revised',
+    changeReason: noteOf(input.reason) ?? GOAL_VERSION_REASONS.revised,
     createdBy: actor.userId,
     createdAt: now,
     targetSource: input.targetSource,

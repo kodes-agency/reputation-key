@@ -19,6 +19,7 @@ import {
   type GoalTargetSource,
 } from '../../domain/goal-program'
 import { resolveGoalStart, type GoalMonthlyPeriod } from '../../domain/goal-start'
+import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
 import {
   assertOrganizationFreeToStartGoals,
   assertSubjectsAreFree,
@@ -110,7 +111,7 @@ function newProgramBundle(
     propertyTimezone: timezone,
     effectiveFrom: period.start,
     effectiveTo: null,
-    changeReason: 'created',
+    changeReason: GOAL_VERSION_REASONS.created,
     createdBy: actor.userId,
     createdAt: now,
     targetSource: input.targetSource,

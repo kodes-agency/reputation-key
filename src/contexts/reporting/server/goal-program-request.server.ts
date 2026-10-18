@@ -23,7 +23,7 @@ import type { GoalBulkCreateRequestApi } from '../application/use-cases/goal-bul
 import type { GoalMonthPreviewRequestApi } from '../application/use-cases/goal-month-preview'
 import type { GoalProgressRequestApi } from '../application/use-cases/goal-progress'
 import type { GoalListProgressRequestApi } from '../application/use-cases/goal-list-progress'
-import type { MonthlyPortalGoalRequestApi } from '../application/use-cases/monthly-portal-goal-card'
+import type { MonthlyPortalGoalRequestApi } from '../application/use-cases/monthly-portal-goal-page'
 
 export const requestActor = (
   ctx: Awaited<ReturnType<typeof resolveTenantContext>>,

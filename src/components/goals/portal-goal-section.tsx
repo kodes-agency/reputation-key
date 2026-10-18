@@ -107,7 +107,8 @@ function SectionCard({
 /**
  * The title takes the focus when the address that drew the section asks for it
  * (`focusPortalGoals`), on whichever page the link was taken. Any other way to
- * `#portal-goals` (a notice, an old goal's address) leaves the focus alone.
+ * `#portal-goals` (an address typed or bookmarked) leaves the focus alone; a
+ * notice about the goal and its old address open `/goals/portals` instead.
  */
 function useFocusOnArrival() {
   const asked = useRouterState({
