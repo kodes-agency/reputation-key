@@ -27,6 +27,8 @@ type Props = Readonly<{
   discovery: GoogleImportDiscoveryController
   startPending: boolean
   startError: string | null
+  /** What the Google OAuth callback reported, shown under the connect button. */
+  callbackError: string | null
   onSubmit: (draft: ImportReviewDraft) => void | Promise<void>
 }>
 
@@ -36,6 +38,7 @@ export function GoogleImportManagerView({
   discovery,
   startPending,
   startError,
+  callbackError,
   onSubmit,
 }: Props) {
   const reviewForm = useGoogleImportReviewForm({
@@ -79,6 +82,10 @@ export function GoogleImportManagerView({
         <Alert variant="destructive">
           <AlertTitle>Import unavailable</AlertTitle>
           <AlertDescription>{startError}</AlertDescription>
+        </Alert>
+      ) : callbackError && !confirming ? (
+        <Alert variant="destructive">
+          <AlertDescription>{callbackError}</AlertDescription>
         </Alert>
       ) : null}
 

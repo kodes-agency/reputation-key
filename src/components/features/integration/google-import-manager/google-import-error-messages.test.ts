@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GoogleImportDiscoveryErrorCode } from '#/contexts/integration/application/google-import-discovery'
 import type { GoogleImportTransactionErrorCode } from '#/contexts/integration/application/google-import-transaction'
+import { CONNECTION_CALLBACK_ERRORS } from './google-import-callback-errors'
 import {
   connectionCallbackErrorMessage,
   discoveryErrorIsRecoverable,
@@ -141,8 +142,22 @@ describe('connectionCallbackErrorMessage', () => {
       /already connected/i,
     )
     expect(connectionCallbackErrorMessage('denied')).toMatch(/cancelled/i)
-    expect(connectionCallbackErrorMessage('connection_failed')).toMatch(/failed/i)
+    expect(connectionCallbackErrorMessage('connection_failed')).toBe(
+      'Google could not be connected. Try again.',
+    )
     expect(connectionCallbackErrorMessage(undefined)).toBeNull()
+  })
+
+  it('asks for the Business Profile permission when Google left it out', () => {
+    expect(connectionCallbackErrorMessage('scope_not_granted')).toBe(
+      'Google didn’t give RepKey access to Business Profile. Connect again and tick the Business Profile permission on Google’s screen.',
+    )
+  })
+
+  it('has its own sentence for every code the callback sends', () => {
+    const messages = CONNECTION_CALLBACK_ERRORS.map(connectionCallbackErrorMessage)
+    expect(messages.every((message) => typeof message === 'string')).toBe(true)
+    expect(new Set(messages).size).toBe(CONNECTION_CALLBACK_ERRORS.length)
   })
 })
 

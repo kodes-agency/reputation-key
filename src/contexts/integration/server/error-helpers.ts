@@ -14,6 +14,7 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
       'oauth_failed',
       'oauth_denied',
       'oauth_state_invalid',
+      'scope_not_granted',
       'token_refresh_failed',
       'gbp_api_error',
       'invalid_visibility',

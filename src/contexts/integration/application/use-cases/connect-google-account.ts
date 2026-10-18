@@ -17,7 +17,7 @@ export type { ConnectGoogleInput as ConnectGoogleAccountInput } from '../dto/con
 import { googleConnectionId } from '#/shared/domain/ids'
 import { buildGoogleConnection } from '../../domain/constructors'
 import type { GoogleConnectionId } from '../../domain/types'
-import { integrationError } from '../../domain/errors'
+import { integrationError, isIntegrationError } from '../../domain/errors'
 import { integrationGoogleAccountConnected } from '../../domain/events'
 import { canManageOrganizationGoogleConnections } from '../google-organization-authority'
 import type {
@@ -107,6 +107,11 @@ function completedAttemptLanded(
     connection.accessVersion === completed.expectedAccessVersion + 1 &&
     connection.credentialAuthorizedBy === ctx.userId
   )
+}
+
+/** Google answered, and the grant it gave left Business Profile access out. */
+function isScopeNotGrantedError(error: unknown): boolean {
+  return isIntegrationError(error) && error.code === 'scope_not_granted'
 }
 
 /** `account_already_connected` is deterministic; anything else may be retried. */
@@ -394,7 +399,9 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
   /**
    * The provider exchange itself. A successful response that was not preserved
    * is treated as a failure, and any failure before preservation closes the
-   * attempt as ambiguous rather than leaving it claimable.
+   * attempt rather than leaving it claimable: as failed when Google's answer
+   * was read and refused for missing Business Profile access, as ambiguous
+   * otherwise.
    */
   const exchangeAndPreserve = async (
     input: ConnectGoogleInput,
@@ -439,12 +446,15 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
       return oauthResult
     } catch (error) {
       if (!preserved) {
+        const scopeNotGranted = isScopeNotGrantedError(error)
         await deps.exchangeRecovery.finishWithoutResult({
           id: facts.id,
           organizationId: facts.organizationId,
           initiatorUserId: facts.initiatorUserId,
-          outcome: 'provider_outcome_ambiguous',
-          outcomeCode: 'exchange_result_not_preserved',
+          outcome: scopeNotGranted ? 'failed' : 'provider_outcome_ambiguous',
+          outcomeCode: scopeNotGranted
+            ? 'scope_not_granted'
+            : 'exchange_result_not_preserved',
           now: deps.clock(),
         })
       }

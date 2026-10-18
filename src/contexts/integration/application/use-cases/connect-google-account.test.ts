@@ -11,7 +11,7 @@ import {
   buildTestAuthContext,
   buildTestGoogleConnection,
 } from '#/shared/testing/fixtures'
-import { isIntegrationError } from '../../domain/errors'
+import { integrationError, isIntegrationError } from '../../domain/errors'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleOAuthProviderCallAuthorizer } from '../ports/google-oauth.port'
 import type {
@@ -50,6 +50,9 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
         encryptedResult?: string
       })
     | undefined
+  const finishWithoutResult = vi.fn<
+    GoogleOAuthExchangeRecoveryStore['finishWithoutResult']
+  >(async () => ({ ok: true, value: { finished: true } }))
   const exchangeRecovery: GoogleOAuthExchangeRecoveryStore = {
     begin: async (value) => {
       attempt = { ...value, state: 'prepared' }
@@ -98,7 +101,7 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
         : null,
     releaseClaim: async () => ({ ok: true, value: { released: true } }),
     discardClaim: async () => ({ ok: true, value: { discarded: true } }),
-    finishWithoutResult: async () => ({ ok: true, value: { finished: true } }),
+    finishWithoutResult,
     expire: async () => ({ expired: 0 }),
   }
   const originalExchange = oauth.exchangeCode
@@ -149,6 +152,7 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
     oauth,
     exchangeCode,
     outbox,
+    finishWithoutResult,
     markAttemptCompleted: () => {
       if (!attempt || attempt.state !== 'applying') {
         throw new Error('Expected an applying OAuth exchange attempt')
@@ -228,12 +232,39 @@ describe('connectGoogleAccount', () => {
     expect(oauth.exchangeVerifierCalls()).toEqual([])
   })
 
-  it('propagates an OAuth exchange failure', async () => {
-    const { useCase, oauth } = setup()
+  it('propagates an OAuth exchange failure and closes the attempt as ambiguous', async () => {
+    const { useCase, oauth, finishWithoutResult } = setup()
     oauth.setExchangeError(new Error('OAuth provider unreachable'))
     await expect(
       useCase(input(), buildTestAuthContext({ role: 'AccountAdmin' })),
     ).rejects.toThrow('OAuth provider unreachable')
+    expect(finishWithoutResult).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        id: input().exchangeAttemptId,
+        outcome: 'provider_outcome_ambiguous',
+        outcomeCode: 'exchange_result_not_preserved',
+      }),
+    )
+  })
+
+  it('closes a grant without Business Profile access as failed, not ambiguous', async () => {
+    const { useCase, oauth, connectionRepo, finishWithoutResult } = setup()
+    oauth.setExchangeError(
+      integrationError('scope_not_granted', 'Business Profile access missing'),
+    )
+
+    await expect(
+      useCase(input(), buildTestAuthContext({ role: 'AccountAdmin' })),
+    ).rejects.toMatchObject({ code: 'scope_not_granted' })
+
+    expect(finishWithoutResult).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        id: input().exchangeAttemptId,
+        outcome: 'failed',
+        outcomeCode: 'scope_not_granted',
+      }),
+    )
+    expect(connectionRepo.all()).toEqual([])
   })
 
   it('reconnects only the exact targeted subject in the same organization', async () => {
