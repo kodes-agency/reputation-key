@@ -5,10 +5,8 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { importFns, importSetupFns } from './-import-fns'
-import {
-  CONNECTION_CALLBACK_ERRORS,
-  GoogleImportManager,
-} from '#/components/features/integration/google-import-manager'
+import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
+import { CONNECTION_CALLBACK_ERRORS } from '#/components/features/integration/google-import-manager/google-import-callback-errors'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'

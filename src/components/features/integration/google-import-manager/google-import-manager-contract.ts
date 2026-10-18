@@ -11,7 +11,7 @@ import type {
   GoogleImportReviewDraftInput,
 } from '#/contexts/integration/application/dto/google-import-v2.dto'
 import type { ImportReviewDraft } from './google-import-review-model'
-import type { ConnectionCallbackError } from './google-import-error-messages'
+import type { ConnectionCallbackError } from './google-import-callback-errors'
 import type {
   cancelPropertyImportV2,
   getPropertyImportV2Status,

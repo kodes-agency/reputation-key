@@ -1,3 +1,5 @@
+import type { ConnectionCallbackError } from './google-import-callback-errors'
+
 /**
  * Read the server function's classified code.
  *
@@ -57,16 +59,6 @@ export function leaseRenewalFailureIsFinal(error: unknown): boolean {
   const code = errorCode(error)
   return code !== null && !TRANSIENT_RENEWAL_CODES.has(code)
 }
-
-/** The client-safe codes the Google OAuth callback sends back to the import page. */
-export const CONNECTION_CALLBACK_ERRORS = [
-  'denied',
-  'connection_failed',
-  'account_already_connected',
-  'scope_not_granted',
-] as const
-
-export type ConnectionCallbackError = (typeof CONNECTION_CALLBACK_ERRORS)[number]
 
 /** The one sentence the import page shows for a callback code. */
 export function connectionCallbackErrorMessage(

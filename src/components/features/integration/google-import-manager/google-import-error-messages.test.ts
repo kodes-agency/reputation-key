@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { GoogleImportDiscoveryErrorCode } from '#/contexts/integration/application/google-import-discovery'
 import type { GoogleImportTransactionErrorCode } from '#/contexts/integration/application/google-import-transaction'
+import { CONNECTION_CALLBACK_ERRORS } from './google-import-callback-errors'
 import {
-  CONNECTION_CALLBACK_ERRORS,
   connectionCallbackErrorMessage,
   discoveryErrorIsRecoverable,
   discoveryErrorMessage,
