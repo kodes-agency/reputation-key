@@ -1069,7 +1069,7 @@
 // (its later commits change no first-paint module) measures 307,788 B (entry
 // 49,185 B, styles-CliEJp3n.css 27,832 B); the -13 B is the hashed chunk
 // names. The line stays at 308,050: 262 B spare, 512 B under the ceiling of
-// 308,300 (owner, P-9). Measure again after the rebase onto main.
+// 308,300 (owner, P-9).
 // 2026-10-18 (PG-21 after review: the average's Change number, months and
 // changes; a plain page with Stop for a goal for several subjects; no "Count
 // scans instead" where the subject already holds the other measure): no
@@ -1083,8 +1083,27 @@
 // (styles-CliEJp3n.css 27,832 B). A fresh production build of the head
 // measures 307,762 B (75 js + 1 css; entry 49,196 B): -26 B on the builder's
 // 307,788 B. The line stays at 308,050 here: 288 B spare, 538 B under the
-// ceiling of 308,300 (owner, P-9). main's line is 308,200 since PG-18; measure
-// again after the rebase onto main and keep main's line.
+// ceiling of 308,300 (owner, P-9).
+// Rebased onto main 1c1458c59 (PG-15's month-start check-in, on PG-14 as
+// merged, PG-18's results page, PG-19's tabs inside the Google section and
+// PG-20's add sheet), under main's line of 308,200: no raise. Fresh production
+// builds in one session (rm -rf node_modules/.nitro .output) measured 308,043 B
+// on main (75 js + 1 css; entry 49,366 B, styles-ChuBAd4e.css 27,839 B) and
+// 307,975 B on the head (entry 49,405 B, styles-CliEJp3n.css 27,832 B, no class
+// added): -68 B. Where the bytes moved: the entry +39 B (its preload list names
+// other lazy chunks than main's); the server-function stub chunk the goal page
+// shared with the other routes 5,512 -> 5,427 B (-85 B), as the page no longer
+// imports the old dialogs' server functions; the query keys -19 B; the
+// stylesheet -7 B; the other first-paint modules +4 B. Lazy chunks, main ->
+// head (vite's gzip column): the goal page's route chunk (_goalId) 10.98 ->
+// 4.17 kB; the Monthly portal goal's stub chunk 0.66 -> 0.71 kB; the goal page
+// both routes share, portal-goal-page-*.js, 6.71 kB; the set sheet's chunk
+// 4.35 -> 3.65 kB and its refusals chunk 4.25 -> 3.27 kB, with the sheet's
+// frame (1.48 kB) and view (1.96 kB) now apart; the goal routes' shared host,
+// -portal-goal-add-host-*.js, 12.05 -> 4.95 kB beside the new
+// -portal-goal-sheet-host-*.js, 9.05 kB. The results page's chunks are main's
+// own. 225 B spare under 308,200; 325 B under the ceiling of 308,300 (owner,
+// P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
