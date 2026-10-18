@@ -189,29 +189,41 @@ function entryOf(
   }
 }
 
+/**
+ * The month so far of each of `programs` that is active, in their order: the
+ * Goals list's, or the other Portal goals on the Monthly portal goal's page.
+ */
+export async function listProgressOf(
+  deps: Pick<GoalProgressDeps, 'metrics'>,
+  programs: readonly GoalProgramBundle[],
+  now: Date,
+  actor: GoalActor,
+): Promise<readonly GoalListProgress[]> {
+  const plans = planPage(programs, now)
+  const requests = plans.flatMap((plan) =>
+    plan.reads.map((subject) => ({ plan, subject })),
+  )
+  const figures = await inParallel(
+    requests,
+    GOAL_LIST_PROGRESS_CONCURRENCY,
+    ({ plan, subject }) => progressOf(deps, plan.bundle, subject, 'active', now, actor),
+  )
+  return plans.flatMap((plan) => {
+    const read = requests.flatMap(({ plan: owner }, index) => {
+      const figure = figures[index]
+      return owner === plan && figure ? [figure] : []
+    })
+    const entry = entryOf(plan, read, now)
+    return entry ? [entry] : []
+  })
+}
+
 /** The month so far of each active goal of a Property, for the Goals list. */
 export function createGoalListProgressReader(
   deps: GoalProgressDeps,
 ): GoalListProgressReader {
   return async (input, actor) => {
     const programs = await deps.reads.list(input.propertyId, actor)
-    const now = deps.now()
-    const plans = planPage(programs, now)
-    const requests = plans.flatMap((plan) =>
-      plan.reads.map((subject) => ({ plan, subject })),
-    )
-    const figures = await inParallel(
-      requests,
-      GOAL_LIST_PROGRESS_CONCURRENCY,
-      ({ plan, subject }) => progressOf(deps, plan.bundle, subject, 'active', now, actor),
-    )
-    return plans.flatMap((plan) => {
-      const read = requests.flatMap(({ plan: owner }, index) => {
-        const figure = figures[index]
-        return owner === plan && figure ? [figure] : []
-      })
-      const entry = entryOf(plan, read, now)
-      return entry ? [entry] : []
-    })
+    return listProgressOf(deps, programs, deps.now(), actor)
   }
 }

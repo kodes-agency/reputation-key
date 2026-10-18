@@ -63,18 +63,21 @@ const FINAL_FIGURE_MARGIN_MS = 60 * 60 * 1_000
 const propertySubject = (bundle: PropertyCountGoal) =>
   ({ kind: 'property', propertyId: bundle.program.propertyId }) as const
 
-const versionOf = (bundle: PropertyCountGoal, versionId: string): GoalProgramVersion =>
+export const versionOf = (
+  bundle: PropertyCountGoal,
+  versionId: string,
+): GoalProgramVersion =>
   bundle.versions.find(({ id }) => id === versionId) ?? bundle.version
 
 /**
  * What a month counts, from the version it opened under; null for a version
  * that is not a count (an average a Property goal was changed from).
  */
-const measureOf = (version: GoalProgramVersion): PortalGoalMeasure | null =>
+export const measureOf = (version: GoalProgramVersion): PortalGoalMeasure | null =>
   isPortalGoalMeasure(version.metric) ? version.metric : null
 
 /** `YYYY-MM` of the local month a period begins. */
-const monthKeyOf = (instant: Date, timezone: string): string =>
+export const monthKeyOf = (instant: Date, timezone: string): string =>
   localDateOf(instant, timezone).slice(0, 7)
 
 /** The month's days and pace, as the server judges them, for the card to word. */
@@ -232,8 +235,20 @@ async function stoppedMonthOf(
   }
 }
 
+/** The local day a month's final figure is due: a day and an hour after it ends. */
+export function finalFigureOn(
+  result: Pick<GoalMonthlyResult, 'periodEnd' | 'propertyTimezone'>,
+): string {
+  const finalAt = new Date(
+    result.periodEnd.getTime() + GOAL_RECONCILIATION_DELAY_MS + FINAL_FIGURE_MARGIN_MS,
+  )
+  return localDateOf(finalAt, result.propertyTimezone)
+}
+
 /** How a closed month came out: met or not, or no usable result. */
-function outcomeOf(result: GoalMonthlyResult): PortalGoalLastMonth['outcome'] {
+export function outcomeOf(
+  result: Pick<GoalMonthlyResult, 'evaluation'>,
+): 'met' | 'not_met' | 'unavailable' {
   const { evaluation } = result
   if (evaluation.state !== 'eligible') return 'unavailable'
   return evaluation.achieved ? 'met' : 'not_met'
@@ -261,10 +276,7 @@ async function lastMonthOf(
   const version = versionOf(bundle, result.programVersionId)
   const measure = measureOf(version)
   if (measure === null) return null
-  const finalAt = new Date(
-    result.periodEnd.getTime() + GOAL_RECONCILIATION_DELAY_MS + FINAL_FIGURE_MARGIN_MS,
-  )
-  const finalOn = localDateOf(finalAt, result.propertyTimezone)
+  const finalOn = finalFigureOn(result)
   const base = {
     key: previousKey,
     measure,

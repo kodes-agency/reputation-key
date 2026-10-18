@@ -185,6 +185,21 @@ metric authority.
   not met or with no usable result, through the 7th. Each month carries the measure of the
   version it opened under, and is worded and its counts drawn in that measure: a change
   from a coming month ("Count scans instead") leaves the month already counting as it was.
+- **Monthly portal goal, its page** (ADR 0068;
+  `application/use-cases/monthly-portal-goal-page.ts`, `/goals/portals`): the card's read
+  once more, authorised for `goal.create` the same way, with what the page shows beside
+  it. The **line of succession** is the goal itself, then every earlier Property count goal
+  of the Property that has ended, newest end first (`monthly-portal-goal-history.ts`); its
+  months are theirs together, one per month, newest first, up to 24 (the running month and
+  the month still being read with their governed figures, a closed month with its result
+  after any correction), and its changes are dated facts from versions (a new number or
+  measure from a month, with its source and note; a version that only changed subjects, or
+  that a month's change wrote for the months after it, is not one of its own), month target
+  changes, the stop (`ended_at`, `ended_by`) and each published Portal's current live run.
+  Every published Portal's count of the running month is listed (up to 100) when they add
+  up to the governed figure; an established Portal gone quiet carries its fact. The other
+  Portal goals come with their month so far (`listProgressOf`, the Goals list's own) and
+  their subjects' names. Its types are `application/dto/monthly-portal-goal-page.types.ts`.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save

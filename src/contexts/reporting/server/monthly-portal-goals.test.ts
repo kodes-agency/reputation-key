@@ -9,6 +9,7 @@ import type {
 
 const mocks = vi.hoisted(() => ({
   card: vi.fn(),
+  page: vi.fn(),
   set: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
@@ -17,7 +18,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     goalPublicApi: {
-      programs: { monthlyPortalGoal: { card: mocks.card, set: mocks.set } },
+      programs: {
+        monthlyPortalGoal: { card: mocks.card, page: mocks.page, set: mocks.set },
+      },
     },
   }),
 }))
@@ -34,7 +37,11 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { monthlyPortalGoalPropertySchema } from '../application/dto/monthly-portal-goal.dto'
 import { GoalProgramError } from '../application/use-cases/goal-programs'
-import { getMonthlyPortalGoalCard, setMonthlyPortalGoal } from './monthly-portal-goals'
+import {
+  getMonthlyPortalGoalCard,
+  getMonthlyPortalGoalPage,
+  setMonthlyPortalGoal,
+} from './monthly-portal-goals'
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000002'
@@ -141,6 +148,45 @@ describe('Monthly portal goal server functions', () => {
     expect(monthlyPortalGoalPropertySchema.safeParse({ propertyId: 'p1' }).success).toBe(
       false,
     )
+  })
+})
+
+describe('getMonthlyPortalGoalPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveTenantContext.mockResolvedValue(manager)
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+  })
+
+  it('authorizes through the execution policy, as the card does', async () => {
+    mocks.page.mockImplementation(cardAskingGoalCreate)
+
+    await withStartContext(() => getMonthlyPortalGoalPage({ data: input }))
+
+    expect(mocks.page).toHaveBeenCalledWith(expect.any(Object), input, manager)
+    expect(mocks.card).not.toHaveBeenCalled()
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor: manager,
+      action: 'goal.create',
+      capability: 'goal.use',
+      propertyId: PROPERTY_ID,
+    })
+  })
+
+  it('passes the execution policy refusal scope_denied on unchanged', async () => {
+    mocks.requireExecutionAllowed.mockRejectedValue(
+      new ServerFunctionError(
+        'AuthError',
+        'Authorization denied: scope_denied',
+        'scope_denied',
+        403,
+      ),
+    )
+    mocks.page.mockImplementation(cardAskingGoalCreate)
+
+    await expect(
+      withStartContext(() => getMonthlyPortalGoalPage({ data: input })),
+    ).rejects.toMatchObject({ name: 'AuthError', code: 'scope_denied', status: 403 })
   })
 })
 
