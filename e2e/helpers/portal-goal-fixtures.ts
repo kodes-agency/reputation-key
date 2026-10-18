@@ -3,11 +3,27 @@
 //
 // Each journey seeds its own Property (prefix `e2e-pg-`, with the run id and
 // the retry in the slug) with the three Portals of the screens' example, live
-// through the real Portal commands. Properties and Portals are never deleted:
+// through the real Portal commands. A journey that needs history moves each
+// Portal's go-live and code back and adds its readings (`seedPortalHistory`),
+// and gets back the pure rule's input for the same facts, so its expected
+// numbers come from `recommendPortalGoal`, never written down. Properties and
+// Portals are never deleted:
 // the goal tables hold RESTRICT foreign keys onto the Property, so
 // `cleanupE2eData({ prefix })` would throw, and the stack is disposable. The
 // teardown ends what a journey left open and takes manager-one's grants back.
 import type { Page } from '@playwright/test'
+import type {
+  PortalGoalMeasure,
+  RecommendationDayCount,
+  RecommendationPortal,
+  RecommendPortalGoalInput,
+} from '../../src/contexts/reporting/domain/goal-recommendation-types'
+import { addLocalDays, localDateOf } from '../../src/contexts/reporting/domain/local-days'
+import {
+  findMetricVersionById,
+  METRIC_VERSION_IDS,
+} from '../../src/contexts/reporting/domain/metric-registry'
+import { propertyWallClockToInstant } from '../../src/shared/domain/property-calendar'
 import {
   callServerFn,
   callServerFnGet,
@@ -160,4 +176,173 @@ export async function tearDownPortalGoalProperties(
   await dbQuery('DELETE FROM property_access_grant WHERE property_id = ANY($1::uuid[])', [
     propertyIds,
   ])
+}
+
+/** Each count measure's governed version, as the guest gateway records a reading of it. */
+const GOAL_COUNT_VERSIONS: Readonly<Record<PortalGoalMeasure, string>> = {
+  portal_rating_count: METRIC_VERSION_IDS.portalRatingCountGoal,
+  qualified_scans: METRIC_VERSION_IDS.qualifiedScanGoal,
+}
+const MEASURES = ['portal_rating_count', 'qualified_scans'] as const
+
+function governedCount(measure: PortalGoalMeasure) {
+  const governed = findMetricVersionById(GOAL_COUNT_VERSIONS[measure])
+  const sourcePolicy = governed?.version.sourcePolicyAllowlist[0]
+  if (!governed || !sourcePolicy) throw new Error(`No governed version for ${measure}`)
+  return { governed, sourcePolicy }
+}
+
+/** One Portal's past: when it went live and its code was made, and its readings. */
+export type PortalHistory = Readonly<{
+  portal: Readonly<{ id: string; name: string }>
+  liveDaysAgo: number
+  codeDaysAgo: number
+  /** One private rating at local noon per entry, each a number of days ago. */
+  ratingsDaysAgo: readonly number[]
+  /** One scan at local noon per entry, each a number of days ago. */
+  scansDaysAgo: readonly number[]
+}>
+
+/** Local noon on the Property's day `daysAgo` before today: never near a clock change. */
+function localNoon(today: string, daysAgo: number, timezone: string): Date {
+  const [year = 0, month = 1, day = 1] = addLocalDays(today, -daysAgo)
+    .split('-')
+    .map(Number)
+  return propertyWallClockToInstant(
+    { year, month, day, hour: 12, minute: 0, second: 0, millisecond: 0 },
+    timezone,
+  )
+}
+
+/** Readings of one measure at one Portal, recorded as the guest gateway records them. */
+async function insertReadings(
+  property: Readonly<{ propertyId: string; organizationId: string }>,
+  portalId: string,
+  measure: PortalGoalMeasure,
+  at: readonly Date[],
+): Promise<void> {
+  if (at.length === 0) return
+  const { governed, sourcePolicy } = governedCount(measure)
+  await dbQuery(
+    `INSERT INTO metric_readings (
+       organization_id, property_id, portal_id, metric_key, value,
+       definition_version_id, source_event_id, source_policy, exact_value,
+       sample_count, attribution_quality, recorded_at, event_at,
+       property_local_date, data_quality, retention_class
+     )
+     SELECT $1, $2::uuid, $3::uuid, $4, 1, $5::uuid,
+       $8 || gen_random_uuid()::text, $6, 1, 1, 'exact',
+       reading.at, reading.at,
+       to_char(reading.at AT TIME ZONE properties.timezone, 'YYYY-MM-DD'),
+       'exact', 'standard'
+     FROM unnest($7::timestamptz[]) AS reading(at)
+     JOIN properties ON properties.id = $2::uuid`,
+    [
+      property.organizationId,
+      property.propertyId,
+      portalId,
+      governed.definition.key,
+      governed.version.id,
+      sourcePolicy,
+      at.map((instant) => instant.toISOString()),
+      PORTAL_GOAL_PREFIX,
+    ],
+  )
+}
+
+/** Readings per Portal, measure and local day, as the recommendation reads them. */
+function dayCounts(
+  portalId: string,
+  measure: PortalGoalMeasure,
+  at: readonly Date[],
+  timezone: string,
+): RecommendationDayCount[] {
+  const byDay = new Map<string, number>()
+  for (const instant of at) {
+    const day = localDateOf(instant, timezone)
+    byDay.set(day, (byDay.get(day) ?? 0) + 1)
+  }
+  return [...byDay].map(([localDay, count]) => ({ portalId, measure, localDay, count }))
+}
+
+/**
+ * Moves each Portal's go-live (its open activation) and code back to local noon
+ * that many days ago, adds its readings, and returns the pure rule's input for
+ * the same facts as of the database's clock, so a journey works its expected
+ * numbers out with `recommendPortalGoal`.
+ */
+export async function seedPortalHistory(
+  propertyId: string,
+  histories: readonly PortalHistory[],
+): Promise<RecommendPortalGoalInput> {
+  const [property] = await dbQuery<{
+    organizationId: string
+    timezone: string
+    now: Date
+    today: string
+  }>(
+    `SELECT organization_id AS "organizationId", timezone, now() AS now,
+            to_char((now() AT TIME ZONE timezone)::date, 'YYYY-MM-DD') AS today
+       FROM properties WHERE id = $1::uuid`,
+    [propertyId],
+  )
+  if (!property) throw new Error(`E2E Property ${propertyId} is not seeded`)
+  const { timezone, today } = property
+  const noon = (daysAgo: number) => localNoon(today, daysAgo, timezone)
+  const portals: RecommendationPortal[] = []
+  const days: RecommendationDayCount[] = []
+  const lastScanAt = new Map<string, Date>()
+  for (const history of histories) {
+    const { portal } = history
+    const liveSince = noon(history.liveDaysAgo)
+    const codeIssuedAt = noon(history.codeDaysAgo)
+    await dbQuery(
+      `UPDATE portal_publication_activations SET activated_at = $2
+        WHERE portal_id = $1::uuid AND deactivated_at IS NULL`,
+      [portal.id, liveSince.toISOString()],
+    )
+    await dbQuery(`UPDATE portal_tokens SET issued_at = $2 WHERE portal_id = $1::uuid`, [
+      portal.id,
+      codeIssuedAt.toISOString(),
+    ])
+    const ratings = history.ratingsDaysAgo.map(noon)
+    const scans = history.scansDaysAgo.map(noon)
+    const owner = { propertyId, organizationId: property.organizationId }
+    await insertReadings(owner, portal.id, 'portal_rating_count', ratings)
+    await insertReadings(owner, portal.id, 'qualified_scans', scans)
+    portals.push({
+      portalId: portal.id,
+      name: portal.name,
+      publicationState: 'published',
+      liveSince,
+      liveIntervals: [{ from: liveSince, to: null }],
+      codeIssuedAt,
+      codeReady: true,
+    })
+    days.push(
+      ...dayCounts(portal.id, 'portal_rating_count', ratings, timezone),
+      ...dayCounts(portal.id, 'qualified_scans', scans, timezone),
+    )
+    const lastScan = scans.reduce<Date | null>(
+      (last, at) => (last === null || at > last ? at : last),
+      null,
+    )
+    if (lastScan) lastScanAt.set(portal.id, lastScan)
+  }
+  return {
+    now: new Date(property.now),
+    timezone,
+    versionFrom: new Date(
+      Math.max(
+        ...MEASURES.map((measure) =>
+          governedCount(measure).governed.version.effectiveFrom.getTime(),
+        ),
+      ),
+    ),
+    portals,
+    truncated: false,
+    days,
+    unreadable: [],
+    lastScanAt,
+  }
 }
