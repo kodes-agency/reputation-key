@@ -46,6 +46,17 @@ export const CLOSED_BETA_IMAGE_SERVICES = [
   serviceId: string
 }>[]
 
+/**
+ * What the google-provider-redis image is built from. CI also bakes the source
+ * revision into it (IMAGE_SOURCE_REVISION, which its entrypoint compares with
+ * RELEASE_SHA), so its digest changes on every commit even when none of these
+ * did. Every COPY in the Dockerfile must read from one of them.
+ */
+export const PROVIDER_REDIS_IMAGE_SOURCES = [
+  'Dockerfile.google-provider-redis',
+  'services/google-provider-redis',
+] as const
+
 type RailwayServiceSource = Readonly<{ repo: string | null; image: string | null }>
 
 export type GitRevisionReader = Readonly<{
@@ -245,6 +256,91 @@ function serviceIsHealthy(service: RailwayServiceObservation): boolean {
   )
 }
 
+/** What `providerRedisKeptRevision` must prove before it keeps the service. */
+export type ProviderRedisKeepCheck = Readonly<{
+  isAncestor: (ancestor: string, descendant: string) => boolean
+  /** True when no PROVIDER_REDIS_IMAGE_SOURCES path differs between the two. */
+  imageSourcesUnchanged: (from: string, to: string) => boolean
+  /** The google-provider-redis image main CI built for `revision`, or null. */
+  ciImageReference: (revision: string) => string | null
+}>
+
+/**
+ * The revision google-provider-redis may stay on instead of moving to the
+ * target, or null when it must move.
+ *
+ * It keeps nothing across a restart (ADR 0050), so every redeploy drops the
+ * page cursors of the Google review syncs in flight and the OAuth state of any
+ * Google connect in progress. When nothing it is built from changed between
+ * the revision it runs and the target, the new image differs only by the
+ * revision baked in, and the restart buys nothing. It stays only when that is
+ * proved: it is healthy, its RELEASE_SHA is an ancestor of the target (not a
+ * rollback), its image sources are identical, and the image it runs is the
+ * one CI built for that RELEASE_SHA. The last guards an interrupted deploy,
+ * which writes RELEASE_SHA before it connects the image: keeping that service
+ * would leave an identity its image does not carry, and the entrypoint refuses
+ * to boot on the next restart.
+ */
+export function providerRedisKeptRevision(
+  service: ClosedBetaImageDeployment,
+  current: RailwayServiceObservation,
+  identity: string | null,
+  check: ProviderRedisKeepCheck,
+): string | null {
+  if (service.imageName !== 'google-provider-redis') return null
+  if (identity === null || identity === service.sourceRevision) return null
+  const runningImage = current.source?.image
+  if (!runningImage || !serviceIsHealthy(current)) return null
+  if (!check.isAncestor(identity, service.sourceRevision)) return null
+  if (!check.imageSourcesUnchanged(identity, service.sourceRevision)) return null
+  return check.ciImageReference(identity) === runningImage ? identity : null
+}
+
+/**
+ * The real proofs: git for ancestry and the image sources, the running
+ * release's own CI digest map for its image. Anything that cannot be read
+ * proves nothing, so the service moves as it always did.
+ */
+export function createProviderRedisKeepCheck(
+  runner: CommandRunner,
+  out: (line: string) => void,
+  cwd = process.cwd(),
+): ProviderRedisKeepCheck {
+  const git = createGitRevisionReader(runner, cwd)
+  return {
+    isAncestor: (ancestor, descendant) => {
+      try {
+        return git.isAncestor(ancestor, descendant)
+      } catch {
+        return false
+      }
+    },
+    imageSourcesUnchanged: (from, to) =>
+      runner(
+        'git',
+        ['diff', '--quiet', from, to, '--', ...PROVIDER_REDIS_IMAGE_SOURCES],
+        {
+          cwd,
+        },
+      ).status === 0,
+    ciImageReference: (revision) => {
+      try {
+        const image = downloadCiImageDigestMap(revision, runner).images[
+          'google-provider-redis'
+        ]
+        return `${image.repository}@${image.digest}`
+      } catch (error) {
+        out(
+          `google-provider-redis: cannot prove the image CI built for ${revision} (${
+            error instanceof Error ? error.message : String(error)
+          }); moving it`,
+        )
+        return null
+      }
+    },
+  }
+}
+
 function sleep(milliseconds: number): Promise<void> {
   const { promise, resolve: done } = Promise.withResolvers<void>()
   setTimeout(done, milliseconds)
@@ -377,6 +473,8 @@ export async function applyClosedBetaImageDeployment(
     plan: readonly ClosedBetaImageDeployment[]
     runner?: CommandRunner
     out?: (line: string) => void
+    /** Absent: google-provider-redis moves with the others, as it always did. */
+    keepProviderRedis?: ProviderRedisKeepCheck
   }>,
 ): Promise<readonly Readonly<{ serviceName: string; deploymentId: string }>[]> {
   const runner = input.runner ?? defaultCommandRunner
@@ -391,6 +489,19 @@ export async function applyClosedBetaImageDeployment(
       service.serviceName,
     )
     const identity = readReleaseIdentity(service, runner)
+    const kept = input.keepProviderRedis
+      ? providerRedisKeptRevision(service, current, identity, input.keepProviderRedis)
+      : null
+    if (kept) {
+      out(
+        `${service.serviceName}: kept at ${kept}; nothing it is built from changed, and a redeploy would empty the provider-ephemeral store`,
+      )
+      settled.push({
+        serviceName: service.serviceName,
+        deploymentId: current.deploymentId,
+      })
+      continue
+    }
     if (
       current.source?.image === service.imageReference &&
       serviceIsHealthy(current) &&
@@ -481,6 +592,22 @@ export async function verifyClosedBetaStorageCors(
   }
 }
 
+/** The report's answer to whether an apply would keep google-provider-redis. */
+function reportedProviderRedisKeep(
+  plan: readonly ClosedBetaImageDeployment[],
+  inventory: readonly RailwayServiceObservation[],
+  check: ProviderRedisKeepCheck,
+): string | null {
+  const service = plan.find(({ imageName }) => imageName === 'google-provider-redis')
+  if (!service) return null
+  return providerRedisKeptRevision(
+    service,
+    serviceObservation(inventory, service.serviceId, service.serviceName),
+    readReleaseIdentity(service, defaultCommandRunner),
+    check,
+  )
+}
+
 const COMMAND = 'ops:deploy-ci-images'
 const USAGE = 'pnpm ops deploy-ci-images [--sha <source-revision>] [--apply]'
 
@@ -516,10 +643,9 @@ export async function runDeployCiImagesCommand(
     createGitRevisionReader(defaultCommandRunner),
   )
   const digestMap = downloadCiImageDigestMap(revision)
-  const plan = buildClosedBetaImageDeploymentPlan(
-    digestMap,
-    readClosedBetaServiceInventory(),
-  )
+  const inventory = readClosedBetaServiceInventory()
+  const plan = buildClosedBetaImageDeploymentPlan(digestMap, inventory)
+  const keepProviderRedis = createProviderRedisKeepCheck(defaultCommandRunner, out)
   out(
     JSON.stringify(
       {
@@ -544,12 +670,22 @@ export async function runDeployCiImagesCommand(
     ),
   )
   if (!args.apply) {
+    const kept = reportedProviderRedisKeep(plan, inventory, keepProviderRedis)
+    out(
+      kept
+        ? `google-provider-redis: would stay at ${kept}; nothing it is built from changed`
+        : 'google-provider-redis: would move with the others',
+    )
     await verifyClosedBetaGoogleOAuth(out)
     await verifyClosedBetaStorageCors(false, out)
-    out(`report only — re-run with --sha ${revision} --apply to move three services`)
+    out(
+      `report only — re-run with --sha ${revision} --apply to move ${
+        kept ? 'web and worker' : 'three services'
+      }`,
+    )
     return 0
   }
-  const settled = await applyClosedBetaImageDeployment({ plan, out })
+  const settled = await applyClosedBetaImageDeployment({ plan, out, keepProviderRedis })
   out(
     JSON.stringify(
       { command: COMMAND, mode: 'applied', sourceRevision: revision, settled },
