@@ -105,7 +105,7 @@ export function SetupRatingGoalStep({
             intent={intent}
             setup={setup}
             // A Property just imported has no Portal yet: the one next step is a first one.
-            hasPortals={false}
+            portalNextStep="create"
             setRatingGoalFn={setRatingGoalFn}
             changeRatingGoalFn={changeRatingGoalFn}
             onSaved={() => setStage('set')}

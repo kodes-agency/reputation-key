@@ -7,12 +7,16 @@
 // No Radix trigger opens it, so Radix has nowhere to put the focus back when it
 // closes: the host remembers what had the focus when it was opened and returns
 // it there, or to the Google section's heading when that is gone (the empty
-// state's "Set goal" is the card by the time the wizard closes).
+// state's "Set goal" is the card by the time the wizard closes). The done
+// screen's "See your portal goal" is the one way out that moves the page: the
+// wizard then hands the focus to the Portal goals' title itself, and from
+// another page the Portal goals take it as they are drawn.
 import { lazy, Suspense, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { RATING_GOAL_HEADING_ID } from '#/components/goals/rating-goal-card-header'
+import type { PortalNextStep } from '#/components/goals/rating-goal-portal-step'
 import type { RatingGoalRecapCommands } from '#/components/goals/rating-goal-recap'
 import type { RegionRead } from '#/components/goals/rating-goal-section'
 import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wizard-view'
@@ -89,7 +93,11 @@ function useFocusReturn() {
  */
 export function useRatingGoalWizard(
   propertyId: string,
-  options: Readonly<{ hasPortals: boolean; readSetup?: boolean; propertyName?: string }>,
+  options: Readonly<{
+    portalNextStep: PortalNextStep
+    readSetup?: boolean
+    propertyName?: string
+  }>,
 ): Readonly<{
   start: (intent: RatingGoalWizardIntent) => void
   wizard: ReactNode
@@ -120,7 +128,7 @@ export function useRatingGoalWizard(
           propertyName={options.propertyName}
           intent={opening.intent}
           setup={regionRead(setup)}
-          hasPortals={options.hasPortals}
+          portalNextStep={options.portalNextStep}
           setRatingGoalFn={ratingGoalCommands.setRatingGoal}
           changeRatingGoalFn={ratingGoalCommands.changeRatingGoal}
           onCloseAutoFocus={focus.returnFocus(opening.open)}

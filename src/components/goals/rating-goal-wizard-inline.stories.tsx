@@ -28,7 +28,7 @@ const meta: Meta<typeof RatingGoalWizard> = {
     propertyId: FIXTURE_PROPERTY_ID,
     intent: { kind: 'climb' },
     setup: { data: SETUP_BETA, failed: false, retrying: false, retry: () => undefined },
-    hasPortals: false,
+    portalNextStep: 'create',
     setRatingGoalFn: fn<SetFn>(async () => ({ goalId: FIXTURE_GOAL_ID, version: 1 })),
     changeRatingGoalFn: fn<ChangeFn>(async () => ({
       goalId: FIXTURE_GOAL_ID,

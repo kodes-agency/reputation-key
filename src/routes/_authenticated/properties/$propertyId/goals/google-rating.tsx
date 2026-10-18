@@ -103,8 +103,11 @@ function GoogleRatingGoalRoute() {
   const { timezone, name } = propData.property
   const active = detail?.state === 'active'
   // The wizard's setup, read ahead while the goal can change: the change opens on it.
+  // Only a change opens here, and a change closes with a toast: the done screen
+  // and its next step never show, so no Portal is read for it. Its card is the
+  // step that is never a dead end.
   const { start, wizard, setup } = useRatingGoalWizard(propertyId, {
-    hasPortals: true,
+    portalNextStep: 'see',
     propertyName: name,
     readSetup: active && canDo('goal.update'),
   })

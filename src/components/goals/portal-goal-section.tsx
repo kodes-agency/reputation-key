@@ -5,7 +5,8 @@
 // that failed says so here and holds nothing else back. A view that draws no
 // card (the History, or a reader who cannot set goals) shows the slots only, or
 // that it has nothing to show.
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { useRouterState } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -18,6 +19,20 @@ import { portalGoalSectionLine } from './portal-goal-words'
 
 /** The section's anchor: a link to the goal lands here (`#portal-goals`). */
 const PORTAL_GOALS_SECTION_ID = 'portal-goals'
+
+/** The section's title, which a link that leads here may hand the focus. */
+const PORTAL_GOALS_TITLE_ID = 'portal-goals-title'
+
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    /**
+     * Set by a link to `#portal-goals` that hands the section's title the
+     * focus once the section is drawn: the Google rating goal's done screen
+     * ("See your portal goal"), which may lead here from another page.
+     */
+    focusPortalGoals?: true
+  }
+}
 
 /** A read as the section draws it: its data, whether it failed, and its "Try again". */
 export type PortalGoalRead = Readonly<{
@@ -89,6 +104,20 @@ function SectionCard({
   return <PortalGoalCard card={card.data} {...props} />
 }
 
+/**
+ * The title takes the focus when the address that drew the section asks for it
+ * (`focusPortalGoals`), on whichever page the link was taken. Any other way to
+ * `#portal-goals` (a notice, an old goal's address) leaves the focus alone.
+ */
+function useFocusOnArrival() {
+  const asked = useRouterState({
+    select: (state) => state.location.state.focusPortalGoals === true,
+  })
+  useEffect(() => {
+    if (asked) document.getElementById(PORTAL_GOALS_TITLE_ID)?.focus()
+  }, [asked])
+}
+
 export function PortalGoalSection({
   propertyId,
   card,
@@ -98,16 +127,20 @@ export function PortalGoalSection({
   empty,
   footer,
 }: Props) {
+  useFocusOnArrival()
   const line = card?.data === undefined ? null : portalGoalSectionLine(card.data)
   return (
     <section
       id={PORTAL_GOALS_SECTION_ID}
-      aria-labelledby="portal-goals-title"
+      aria-labelledby={PORTAL_GOALS_TITLE_ID}
       className="flex flex-col gap-4"
       style={{ scrollMarginTop: ANCHOR_MARGIN }}
     >
       <div className="flex flex-col gap-1">
-        <SectionTitle id="portal-goals-title">Portal goals</SectionTitle>
+        {/* Focusable, so a link that leads here (`#portal-goals`) can hand it the focus. */}
+        <SectionTitle id={PORTAL_GOALS_TITLE_ID} tabIndex={-1} className="outline-none">
+          Portal goals
+        </SectionTitle>
         {line === null ? null : <p className="text-sm text-muted-foreground">{line}</p>}
       </div>
       {card === null ? null : (

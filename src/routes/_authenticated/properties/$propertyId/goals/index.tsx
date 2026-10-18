@@ -25,6 +25,7 @@ import { InlineLink } from '#/components/ui/inline-link'
 import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
+import { portalNextStepOf } from '#/components/goals/rating-goal-portal-step'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { goalForResult } from './-goal-for-result'
@@ -162,6 +163,7 @@ function GoalsRoute() {
           timezone={propData.property.timezone}
           view={view}
           hasPortals={subjectNames.portals.length > 0}
+          portalNextStep={portalNextStepOf(subjectNames.portals)}
           startOnArrival={start !== undefined}
           // Answered once: off the address, so a reload or Back does not open it again.
           onArrivalHandled={() =>

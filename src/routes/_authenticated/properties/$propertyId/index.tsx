@@ -13,6 +13,10 @@ import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queri
 import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
 import { ratingGoalNotNowChosen } from '#/components/features/property/settings/property-setup-steps'
 import { countBlockedPortals } from '#/components/features/portal/portal-overview/portal-attention'
+import {
+  portalNextStepOf,
+  type PortalNextStep,
+} from '#/components/goals/rating-goal-portal-step'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { can } from '#/shared/domain/permissions'
@@ -110,7 +114,7 @@ function PropertyOverviewRoute() {
             propertyId={propertyId}
             propertyName={propData.property.name}
             timezone={propData.property.timezone}
-            hasPortals={portals.any}
+            portalNextStep={portals.nextStep}
             notNowChosen={ratingGoalNotNowChosen(setup)}
           />
         ) : null
@@ -128,15 +132,17 @@ function PropertyOverviewRoute() {
 }
 
 /**
- * How many portals guests cannot use, for the attention band, and whether there
- * are any, for the rating goal wizard's one next step. A side read, never a
- * reason to hold the page: a reader who may not read portals (or whose portal read is
- * off) is not asked, and a failed read leaves the chip out rather than the page in an
- * error. It is the Portals page's own read, so the two share one cache entry.
+ * How many portals guests cannot use, for the attention band, and the rating
+ * goal wizard's one next step: the monthly portal goal once one is live, else a
+ * first Portal. A side read, never a reason to hold the page: a reader who may
+ * not read portals (or whose portal read is off) is not asked, and a failed read
+ * leaves the chip out rather than the page in an error; the step is then the
+ * goal's card, which is never a dead end. It is the Portals page's own read, so
+ * the two share one cache entry.
  */
 function usePortalSummary(
   propertyId: string,
-): Readonly<{ blocked: number; any: boolean }> {
+): Readonly<{ blocked: number; nextStep: PortalNextStep }> {
   const { can } = usePermissions()
   const { has } = useCapabilities()
   const { data } = useQuery({
@@ -144,8 +150,11 @@ function usePortalSummary(
     enabled: can('portal.read') && has('portal.read'),
     retry: false,
   })
-  if (!data) return { blocked: 0, any: true }
-  return { blocked: countBlockedPortals(data.portals), any: data.portals.length > 0 }
+  if (!data) return { blocked: 0, nextStep: 'see' }
+  return {
+    blocked: countBlockedPortals(data.portals),
+    nextStep: portalNextStepOf(data.portals),
+  }
 }
 
 /** The Google rating goal is the viewer's to see: `goal.read`, with Goals on. */

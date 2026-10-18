@@ -4,21 +4,28 @@
 // The Storybook Vitest project compiles no Tailwind, so nothing here claims a
 // pixel; the plays prove what each screen says (the goal, when, what it needs,
 // the likely range, the status line, the pace and the average) and what is
-// sent. The interactions are in rating-goal-wizard-setup.stories.tsx, a change
-// and the frames in rating-goal-wizard-change.stories.tsx.
+// sent, and where the done screen's one next step leads. The interactions are
+// in rating-goal-wizard-setup.stories.tsx, a change and the frames in
+// rating-goal-wizard-change.stories.tsx.
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, userEvent, waitFor } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import {
   aimsFor,
   clearMocks,
+  clickHolding,
+  closesOnto,
   Harness,
+  navigations,
   numeral,
   openWizard,
+  PortalGoalsLanding,
   read,
   setMock,
   statusLine,
   type Dialog,
+  type HarnessProps,
 } from './rating-goal-wizard.stories.harness'
+import { setGoalAndLand } from './rating-goal-wizard.stories.play'
 import {
   CATCHING_UP,
   EDGE_46,
@@ -279,4 +286,115 @@ export const DesktopLight: Story = {
   play: async ({ canvasElement }) => {
     await openWizard(canvasElement)
   },
+}
+
+/** The wizard on the Goals page, above the Portal goals the done screen leads to. */
+const onTheGoalsPage = (args: HarnessProps) => (
+  <>
+    <Harness {...args} />
+    <PortalGoalsLanding />
+  </>
+)
+
+/**
+ * A live Portal: "See your portal goal" leads to the monthly portal goal's card
+ * on the Goals page, the wizard closes, and the Portal goals title takes the
+ * focus from it.
+ */
+async function seesThePortalGoal(canvasElement: HTMLElement) {
+  const dialog = await openWizard(canvasElement)
+  await setGoalAndLand(dialog)
+  const link = dialog.getByRole('link', { name: 'See your portal goal' })
+  await expect(link).toHaveAttribute(
+    'href',
+    `/properties/${FIXTURE_PROPERTY_ID}/goals#portal-goals`,
+  )
+  await expect(dialog.queryByRole('link', { name: 'Create a portal' })).toBeNull()
+  await userEvent.click(link)
+  await closesOnto(() =>
+    within(canvasElement).getByRole('heading', { name: 'Portal goals' }),
+  )
+  await expect(navigations).toHaveBeenCalledWith(
+    `/properties/${FIXTURE_PROPERTY_ID}/goals`,
+  )
+}
+
+export const DoneSeePortalGoal: Story = {
+  args: { portalNextStep: 'see' },
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+  render: onTheGoalsPage,
+  play: async ({ canvasElement }) => seesThePortalGoal(canvasElement),
+}
+
+/** The same on the narrowest phone, where the wizard is a sheet. */
+export const DoneSeePortalGoalOnAPhone: Story = {
+  args: { portalNextStep: 'see' },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' }, theme: 'light' },
+  render: onTheGoalsPage,
+  play: async ({ canvasElement }) => seesThePortalGoal(canvasElement),
+}
+
+/**
+ * A click with Cmd, Ctrl, Shift or Alt held is the browser's: it opens the card
+ * in a new tab or window (or saves the link), and this page stays as it is, the
+ * wizard open on its done screen. A plain click still goes.
+ */
+export const DoneSeePortalGoalInANewTab: Story = {
+  args: { portalNextStep: 'see' },
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+  render: onTheGoalsPage,
+  play: async ({ canvasElement }) => {
+    const dialog = await openWizard(canvasElement)
+    await setGoalAndLand(dialog)
+    const link = dialog.getByRole('link', { name: 'See your portal goal' })
+    for (const held of [
+      { metaKey: true },
+      { ctrlKey: true },
+      { shiftKey: true },
+      { altKey: true },
+    ]) {
+      await clickHolding(link, held)
+      await expect(within(document.body).getByRole('dialog')).toBeVisible()
+    }
+    await expect(navigations).not.toHaveBeenCalled()
+    await userEvent.click(link)
+    await closesOnto(() =>
+      within(canvasElement).getByRole('heading', { name: 'Portal goals' }),
+    )
+    await expect(navigations).toHaveBeenCalledTimes(1)
+  },
+}
+
+/**
+ * No live Portal (none, or drafts only): the one next step is a first Portal,
+ * and any other way out leaves the focus to the page, back to what opened it.
+ */
+async function offersAFirstPortal(canvasElement: HTMLElement) {
+  const dialog = await openWizard(canvasElement)
+  await setGoalAndLand(dialog)
+  await expect(dialog.getByRole('link', { name: 'Create a portal' })).toHaveAttribute(
+    'href',
+    `/properties/${FIXTURE_PROPERTY_ID}/portals/new`,
+  )
+  await expect(dialog.queryByRole('link', { name: 'See your portal goal' })).toBeNull()
+  await userEvent.click(dialog.getByRole('button', { name: 'Go to goals' }))
+  await closesOnto(() =>
+    within(canvasElement).getByRole('button', { name: 'Open the wizard' }),
+  )
+  await expect(navigations).not.toHaveBeenCalled()
+}
+
+export const DoneCreatePortal: Story = {
+  args: { portalNextStep: 'create' },
+  parameters: { viewport: { defaultViewport: 'tablet' } },
+  render: onTheGoalsPage,
+  play: async ({ canvasElement }) => offersAFirstPortal(canvasElement),
+}
+
+/** The same on a staff phone, where the wizard is a sheet. */
+export const DoneCreatePortalOnAPhone: Story = {
+  args: { portalNextStep: 'create' },
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  render: onTheGoalsPage,
+  play: async ({ canvasElement }) => offersAFirstPortal(canvasElement),
 }
