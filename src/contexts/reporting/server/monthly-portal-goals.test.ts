@@ -542,6 +542,18 @@ describe('the change and stop commands (PG-14)', () => {
     expect(changeMonthlyPortalGoalNowSchema.safeParse(now).success).toBe(true)
     expect(reviseMonthlyPortalGoalSchema.safeParse(fromNext).success).toBe(true)
     expect(stopMonthlyPortalGoalSchema.safeParse(goal).success).toBe(true)
+    // The average's level, in tenths, now or from its next month (PG-21); a
+    // count's whole number is the engine's to require, by what the goal measures.
+    expect(
+      changeMonthlyPortalGoalNowSchema.safeParse({ ...now, targetValue: 4.6 }).success,
+    ).toBe(true)
+    expect(
+      reviseMonthlyPortalGoalSchema.safeParse({
+        ...fromNext,
+        metric: 'portal_rating_average',
+        targetValue: 4.6,
+      }).success,
+    ).toBe(true)
     for (const refused of [
       { ...now, month: '2026-13' },
       { ...now, targetValue: 0 },
@@ -551,8 +563,8 @@ describe('the change and stop commands (PG-14)', () => {
       expect(changeMonthlyPortalGoalNowSchema.safeParse(refused).success).toBe(false)
     }
     for (const refused of [
-      { ...fromNext, metric: 'portal_rating_average' },
-      { ...fromNext, targetValue: 4.5 },
+      { ...fromNext, metric: 'google_rating' },
+      { ...fromNext, targetValue: 0.5 },
       { ...fromNext, targetSource: 'suggested' },
       // The month it starts with is what the sheet showed, always sent.
       { ...fromNext, startMonth: undefined },

@@ -5,8 +5,10 @@
 // drawn only for someone who may do it. The menu's items hand over once the
 // menu has closed, with the focus back on its trigger, so the sheet or the
 // dialog they open returns it there. A goal for one Portal or a group has the
-// same actions on its own page, its menu named after the page (PLAN PG-21); the
-// average, with no number to change here, has Stop alone.
+// same actions on its own page, its menu named after the page (PLAN PG-21),
+// without the other measure when its subject already holds a goal for it; the
+// average changes its level in a sheet of its own, and has no other measure; a
+// goal for several subjects has Stop alone.
 import { useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
@@ -32,6 +34,10 @@ type Props = Readonly<{
   /** `goal.cancel`: stop the goal. */
   canStop: boolean
   openSheet: (intent: PortalGoalSheetIntent) => void
+  /** "Change number" for a goal that is no count (the average): its own sheet. */
+  onChangeNumber?: () => void
+  /** The other measure is offered: false when the subject already holds a goal for it. */
+  canSwitch?: boolean
   /** Opens the Stop dialog, which the page holds. */
   onStop: () => void
   /** The menu's trigger, which the page's Stop dialog hands the focus back to. */
@@ -46,6 +52,8 @@ function PortalGoalPageActions({
   canChange: mayChange,
   canStop,
   openSheet,
+  onChangeNumber,
+  canSwitch = true,
   onStop,
   triggerRef: trigger,
 }: Props) {
@@ -53,8 +61,12 @@ function PortalGoalPageActions({
   // A stopped goal takes no change and no second stop.
   const { measure } = goal
   if (goal.status === 'ended' || goal.change === null) return null
-  const canChange = mayChange && measure !== null
-  const other = measure === null ? null : switchOf(measure)
+  const canChange = mayChange && (measure !== null || onChangeNumber !== undefined)
+  const other = !mayChange || measure === null || !canSwitch ? null : switchOf(measure)
+  const changeNumber = () => {
+    if (onChangeNumber !== undefined) onChangeNumber()
+    else if (measure !== null) openSheet({ mode: 'change', measure })
+  }
   const handOver = (event: Event) => {
     const item = chosen.current
     chosen.current = null
@@ -67,18 +79,18 @@ function PortalGoalPageActions({
   return (
     <>
       {canChange ? (
-        <Button variant="outline" onClick={() => openSheet({ mode: 'change', measure })}>
+        <Button variant="outline" onClick={changeNumber}>
           Change number
         </Button>
       ) : null}
-      {canChange || canStop ? (
+      {other !== null || canStop ? (
         <RowActionsMenu
           ref={trigger}
           name={name}
           variant="outline"
           onCloseAutoFocus={handOver}
         >
-          {canChange && other !== null ? (
+          {other !== null ? (
             <RowActionsItem
               opensDialog
               onSelect={() => {
@@ -124,6 +136,10 @@ export function usePortalGoalPageActions(
     canChange: boolean
     canStop: boolean
     openSheet?: (intent: PortalGoalSheetIntent) => void
+    /** The average's "Change number", which opens its own sheet. */
+    onChangeNumber?: () => void
+    /** False when the subject already holds a goal for the other measure. */
+    canSwitch?: boolean
     stop: PortalGoalStopCommands
     focusTitle: () => void
   }>,
@@ -142,6 +158,8 @@ export function usePortalGoalPageActions(
         canChange={input.canChange}
         canStop={input.canStop}
         openSheet={input.openSheet ?? (() => undefined)}
+        onChangeNumber={input.onChangeNumber}
+        canSwitch={input.canSwitch}
         onStop={() => setStopping({ goal, open: true })}
         triggerRef={menuTrigger}
       />

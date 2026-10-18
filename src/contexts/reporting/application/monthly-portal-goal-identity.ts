@@ -15,8 +15,9 @@
 // closed are never it. Every Property count goal, the monthly one or not, has
 // the card for its page (`$goalId` sends it there). A count goal for one Portal
 // or one Portal Group, and the average, have a page of their own on `$goalId`
-// (PLAN PG-21); a goal for several subjects has none. Pure and client-safe: it
-// reads only the bundles.
+// (PLAN PG-21); so does a goal for several subjects, made before goals had
+// pages, a plain one with Stop. Pure and client-safe: it reads only the
+// bundles.
 import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
 import type {
@@ -104,18 +105,24 @@ export function monthlyPortalGoalOf(
 /**
  * The page `$goalId` draws for a goal (PLAN PG-21): the Monthly portal goal's
  * own (`/goals/portals`) for a Property count goal; a subject's page for a count
- * goal for one Portal or one Portal Group; an average's page for the average;
- * none for a goal that names several subjects now.
+ * goal for one Portal or one Portal Group; an average's page for the average; a
+ * plain page for a goal that names several subjects now; none for a goal that
+ * names no subject.
  */
 export function portalGoalPageOf(
   bundle: GoalProgramBundle,
 ):
   | Readonly<{ kind: 'monthly' }>
   | Readonly<{ kind: 'subject' | 'average'; subject: GoalSubject }>
+  | Readonly<{ kind: 'several'; subjects: readonly GoalSubject[] }>
   | null {
   if (isPropertyCountGoal(bundle)) return { kind: 'monthly' }
-  const [only, ...more] = currentAssignments(bundle)
-  if (only === undefined || more.length > 0) return null
+  const assignments = currentAssignments(bundle)
+  const [only, ...more] = assignments
+  if (only === undefined) return null
+  if (more.length > 0) {
+    return { kind: 'several', subjects: assignments.map(({ subject }) => subject) }
+  }
   const { subject } = only
   if (bundle.version.metric === 'portal_rating_average') {
     return { kind: 'average', subject }

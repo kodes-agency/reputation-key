@@ -40,6 +40,7 @@ import {
 } from '../monthly-portal-goal-identity'
 import type {
   GoalMonthlyResult,
+  GoalProgramBundle,
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
@@ -72,13 +73,13 @@ const FINAL_FIGURE_MARGIN_MS = 60 * 60 * 1_000
  * What the goal counts now: the Property for the Monthly portal goal, or the
  * one Portal or Portal Group a goal was set for.
  */
-export const subjectOf = (bundle: PortalCountGoal): GoalSubject =>
+export const subjectOf = (bundle: GoalProgramBundle): GoalSubject =>
   bundle.assignments.find(
     ({ programVersionId }) => programVersionId === bundle.version.id,
   )?.subject ?? { kind: 'property', propertyId: bundle.program.propertyId }
 
 export const versionOf = (
-  bundle: PropertyCountGoal,
+  bundle: GoalProgramBundle,
   versionId: string,
 ): GoalProgramVersion =>
   bundle.versions.find(({ id }) => id === versionId) ?? bundle.version

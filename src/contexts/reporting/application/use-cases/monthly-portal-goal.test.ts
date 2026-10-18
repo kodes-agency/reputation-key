@@ -550,9 +550,42 @@ describe('changeMonthlyPortalGoalNow', () => {
     )
   })
 
+  it('changes the average now to its own level in tenths, never a recommended one (PG-21)', async () => {
+    const average = propertyGoal('average', 'portal_rating_average', {
+      status: 'active',
+      from: OCT_1,
+      open: { start: OCT_1, end: NOV_1 },
+    })
+    const { deps } = changeWorld([runningOctober(), average])
+
+    await changeMonthlyPortalGoalNow(
+      deps,
+      {
+        ...OCTOBER_45,
+        programId: 'average',
+        targetValue: 4.6,
+        expectedTarget: 4.5,
+        targetSource: 'recommended',
+      },
+      actor,
+    )
+
+    expect(deps.programs.changeMonthTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        programId: 'average',
+        month: '2026-10',
+        targetValue: 4.6,
+        applyToFollowing: true,
+        targetSource: 'own',
+      }),
+      actor,
+    )
+    // There is no recommended average: none is read.
+    expect(deps.recommendation.facts.listPortalReadiness).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['a goal for several subjects', severalSubjects('other')],
-    ['an average', existing('other', { metric: 'portal_rating_average' })],
     [
       'a second Property count goal, set after the monthly one',
       existing('other', { metric: 'qualified_scans', createdAt: OCT_23 }),
@@ -719,9 +752,61 @@ describe('reviseMonthlyPortalGoal', () => {
     )
   })
 
+  it('From Dec 1 on the average changes its level, its own, and keeps its subject (PG-21)', async () => {
+    const { deps } = changeWorld([
+      existing('average', { metric: 'portal_rating_average' }),
+    ])
+
+    await reviseMonthlyPortalGoal(
+      deps,
+      {
+        ...FROM_NOVEMBER_45,
+        programId: 'average',
+        metric: 'portal_rating_average',
+        targetValue: 4.6,
+        targetSource: 'recommended',
+      },
+      actor,
+    )
+
+    expect(deps.programs.revise).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metric: 'portal_rating_average',
+        targetValue: 4.6,
+        subjects: [{ kind: 'property', propertyId: PROPERTY_ID }],
+        targetSource: 'own',
+      }),
+      actor,
+    )
+  })
+
+  it.each([
+    ['the average to a count', 'average', 'portal_rating_average', 'qualified_scans'],
+    [
+      'a count to the average',
+      'reception',
+      'portal_rating_count',
+      'portal_rating_average',
+    ],
+  ] as const)('never turns %s', async (_label, programId, metric, asked) => {
+    const goal =
+      metric === 'portal_rating_average'
+        ? existing(programId, { metric })
+        : existing(programId, { subject: receptionSubject })
+    const { deps } = changeWorld([goal])
+
+    await expect(
+      reviseMonthlyPortalGoal(
+        deps,
+        { ...FROM_NOVEMBER_45, programId, metric: asked, targetValue: 4 },
+        actor,
+      ),
+    ).rejects.toEqual(new GoalProgramError('invalid_target'))
+    expect(deps.programs.revise).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['a goal for several subjects', severalSubjects('other')],
-    ['an average', existing('other', { metric: 'portal_rating_average' })],
     [
       'a second Property count goal, set after the monthly one',
       existing('other', { metric: 'qualified_scans', createdAt: OCT_23 }),
@@ -851,8 +936,20 @@ describe('stopMonthlyPortalGoal', () => {
     )
   })
 
-  it('refuses a goal for several subjects', async () => {
+  it('stops a goal for several subjects, made before goals had pages (PG-21)', async () => {
     const { deps } = changeWorld([severalSubjects('monthly')])
+
+    await stopMonthlyPortalGoal(deps, STOP, actor)
+
+    expect(deps.programs.changeStatus).toHaveBeenCalledWith(
+      { propertyId: PROPERTY_ID, programId: 'monthly', status: 'ended' },
+      actor,
+    )
+  })
+
+  it('refuses a goal that names no subject: it has no page to stop it from', async () => {
+    const goal = existing('monthly', { subject: receptionSubject })
+    const { deps } = changeWorld([{ ...goal, assignments: [] }])
 
     await expect(stopMonthlyPortalGoal(deps, STOP, actor)).rejects.toEqual(
       new GoalProgramError('invalid_subject'),

@@ -87,6 +87,11 @@ export type PortalGoalSheetProps = Readonly<{
    * Portal's or a group's on its own page (PLAN PG-21); else the sheet's own.
    */
   changeTitle?: string
+  /**
+   * The change sheet offers the other measure: false on a Portal's or a
+   * group's page when its subject already holds a goal for it (PLAN PG-21).
+   */
+  canSwitch?: boolean
 }>
 
 /** Set, sent once however often it is pressed, and what follows it. */

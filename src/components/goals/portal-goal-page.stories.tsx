@@ -19,7 +19,9 @@
 // add and no other goal there is no such block. A goal for one Portal or one
 // group (PLAN PG-21) has the same page, titled for its subject, with no
 // Portals' rows and the same actions; the average has it without a bar, with
-// Stop alone (at 1440, 820, 390 and 320 px and on the light theme).
+// its months, what changed, its own "Change number" and Stop (at 1440, 820, 390
+// and 320 px and on the light theme). The other states of those pages, and the
+// average's change sheet, are `portal-goal-single-page.stories.tsx`'.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
@@ -51,7 +53,11 @@ import {
   SINGLE_RECEPTION,
   SINGLE_ROOMS,
 } from './portal-goal-single-page.stories.fixtures'
-import { singleGoalTitle, singleSubjectWords } from './portal-goal-single-page-view'
+import {
+  singleGoalTitle,
+  singleSubjectWords,
+  subjectPlace,
+} from './portal-goal-single-page-view'
 
 const stopMock = fn(async () => ({ programId: 'program-monthly' }))
 const onStoppedMock = fn(async () => undefined)
@@ -641,6 +647,8 @@ const singleArgs = (view: typeof SINGLE_RECEPTION) => ({
   single: {
     title: singleGoalTitle(view.subject),
     name: singleSubjectWords(view.subject),
+    where: subjectPlace(view.subject) ?? '',
+    canSwitch: !view.otherMeasureHeld,
   },
   extras: null,
   addLink: null,
@@ -725,21 +733,36 @@ export const GroupGoal: Story = {
   },
 }
 
-/** The average: its page without a bar; its one action is Stop. */
+/** What the route hands the average's page: its read, its change and its stop. */
+const averageCommands = {
+  changeMonthlyPortalGoalNowFn: fn(async () => ({})),
+  reviseMonthlyPortalGoalFn: fn(async () => ({})),
+  onChanged: fn(async () => undefined),
+  reread: fn(async () => undefined),
+}
+
+/** The average: its page without a bar, its months and changes, Change number and Stop. */
 export const AverageGoal: Story = {
   render: (args) => (
     <PortalGoalAveragePage
       propertyId={args.propertyId}
       propertyName={args.propertyName}
-      goal={AVERAGE_RUNNING.goal}
+      view={AVERAGE_RUNNING}
+      canChange={args.canChange}
       canStop={args.canStop}
+      commands={averageCommands}
       stop={args.stop}
+      personName={args.personName}
     />
   ),
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(outline(canvasElement)).toEqual(['h1 Average private rating'])
+    await expect(outline(canvasElement)).toEqual([
+      'h1 Average private rating',
+      'h2 Month by month',
+      'h2 Changes',
+    ])
     await expect(
       canvas.getByText(
         'The average private rating guests give at your portals. A month needs at least 10 ratings.',
@@ -750,7 +773,12 @@ export const AverageGoal: Story = {
     await expect(tiles.getByText('4.6 so far · goal 4.5')).toBeVisible()
     await expect(tiles.getByText('9 days left')).toBeVisible()
     await expect(canvas.queryByRole('progressbar')).toBeNull()
-    await expect(canvas.queryByRole('button', { name: 'Change number' })).toBeNull()
+    await expect(chipNames(canvas)).toEqual([
+      'November: 4.6 · goal 4.5, running',
+      'October: 4.6 · goal 4.5, met',
+    ])
+    await expect(changeTexts(canvas)).toEqual(['Sep 28 · Elena set 4.5 from October'])
+    await expect(canvas.getByRole('button', { name: 'Change number' })).toBeVisible()
     await userEvent.click(
       canvas.getByRole('button', { name: 'More actions for Average private rating' }),
     )
@@ -770,9 +798,12 @@ export const AverageMoreNeeded: Story = {
     <PortalGoalAveragePage
       propertyId={args.propertyId}
       propertyName={args.propertyName}
-      goal={AVERAGE_MORE_NEEDED.goal}
+      view={AVERAGE_MORE_NEEDED}
+      canChange={args.canChange}
       canStop={args.canStop}
+      commands={averageCommands}
       stop={args.stop}
+      personName={args.personName}
     />
   ),
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },

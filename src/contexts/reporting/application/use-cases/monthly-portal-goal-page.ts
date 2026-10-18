@@ -151,12 +151,13 @@ export function tilesOf(
 }
 
 /**
- * The other Portal goals' subjects by name: a Portal the recommendation lists
- * by its name there, any other Portal and each Portal Group asked of Portal, a
- * few at a time. A name that cannot be read is left out (the row says
- * "Portal" or "Group"), and the failure is logged once.
+ * The other Portal goals' subjects by name (and those of a goal for several
+ * subjects, on its own page): a Portal the recommendation lists by its name
+ * there, any other Portal and each Portal Group asked of Portal, a few at a
+ * time. A name that cannot be read is left out (the row says "Portal" or
+ * "Group"), and the failure is logged once.
  */
-async function subjectNamesOf(
+export async function subjectNamesOf(
   deps: Pick<MonthlyPortalGoalPageDeps, 'subjectNames' | 'logger'>,
   goals: readonly GoalProgramBundle[],
   recommendation: PortalGoalRecommendation,

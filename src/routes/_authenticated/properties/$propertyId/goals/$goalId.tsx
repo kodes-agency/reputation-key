@@ -3,8 +3,11 @@
 // portal goal's (`/goals/portals`), where a notice about it lands too
 // (`?result=` comes here). A goal for one Portal or one Portal Group has the
 // Monthly portal goal's page made from its own subject ("Reception · portal
-// goal"), with the same "Change number", "Count scans instead" and Stop; the
-// average has the same page without a bar, with Stop. Behind `goal.use` with
+// goal"), with the same "Change number", "Count scans instead" (unless its
+// subject already holds a goal for the other measure) and Stop; the average has
+// the same page without a bar, with its own "Change number" and Stop; a goal
+// for several subjects, made before goals had pages, a plain page with Stop.
+// Behind `goal.use` with
 // the other goal routes; the route asks the static table for `goal.read`
 // alone, and the read itself asks for `goal.create`. Its read is primed by the
 // loader from a module fetched on demand, so neither the read nor its server
@@ -24,11 +27,13 @@ import {
   PortalGoalPage,
   focusPortalGoalPageTitle,
 } from '#/components/goals/portal-goal-page'
+import { PortalGoalSeveralPage } from '#/components/goals/portal-goal-several-page'
 import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
 import {
   SINGLE_GOAL_WORDS,
   singleGoalTitle,
   singleSubjectWords,
+  subjectPlace,
 } from '#/components/goals/portal-goal-single-page-view'
 import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
 import {
@@ -60,17 +65,18 @@ export const Route = createFileRoute(
 
 type SubjectView = Extract<PortalGoalSinglePageView, Readonly<{ kind: 'subject' }>>
 type AverageView = Extract<PortalGoalSinglePageView, Readonly<{ kind: 'average' }>>
+type SeveralView = Extract<PortalGoalSinglePageView, Readonly<{ kind: 'several' }>>
 
 /**
  * What a change or a stop marks stale: every Portal-goal read, and the month so
- * far of the goals of the goal's own subject (a Portal Group page's goal card),
+ * far of the goals of the goal's own subjects (a Portal Group page's goal card),
  * as an added goal does. A stop then leaves for the Goals page.
  */
-function useGoalCommands(subjectKey: string) {
+function useGoalCommands(subjectKeys: readonly string[]) {
   const { propertyId } = Route.useParams()
   const queryClient = useQueryClient()
   const navigate = Route.useNavigate()
-  const markStale = () => markPortalGoalAddedStale(queryClient, propertyId, [subjectKey])
+  const markStale = () => markPortalGoalAddedStale(queryClient, propertyId, subjectKeys)
   const stop = {
     stopMonthlyPortalGoalFn: portalGoalCommands.stopMonthlyPortalGoal,
     onStopped: async () => {
@@ -94,7 +100,7 @@ function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
     enabled: canDo('member.list'),
     retry: false,
   })
-  const { markStale, stop } = useGoalCommands(view.subject.key)
+  const { markStale, stop } = useGoalCommands([view.subject.key])
   const commands = {
     setMonthlyPortalGoalFn: portalGoalCommands.setMonthlyPortalGoal,
     changeMonthlyPortalGoalNowFn: portalGoalCommands.changeMonthlyPortalGoalNow,
@@ -113,6 +119,7 @@ function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
     },
     doorShown: portalGoalDoorShown(card, canDo('goal.update'), 'page'),
     changeTitle: SINGLE_GOAL_WORDS.changeTitle,
+    canSwitch: !view.otherMeasureHeld,
   })
   return (
     <>
@@ -131,6 +138,8 @@ function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
         single={{
           title: singleGoalTitle(view.subject),
           name: singleSubjectWords(view.subject),
+          where: subjectPlace(view.subject) ?? singleSubjectWords(view.subject),
+          canSwitch: !view.otherMeasureHeld,
         }}
       />
       {sheet.sheet}
@@ -138,18 +147,53 @@ function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
   )
 }
 
-/** The average: the same page without a bar, with Stop. */
+/** The average: the same page without a bar, with its own "Change number" and Stop. */
 function AverageGoalPage({ view }: Readonly<{ view: AverageView }>) {
   const { propertyId, goalId } = Route.useParams()
   const { can: canDo } = usePermissions()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { stop } = useGoalCommands(view.subject.key)
+  const pageRead = useSuspenseQuery(portalGoalSinglePageQuery(propertyId, goalId))
+  const members = useQuery({
+    ...membersQuery,
+    enabled: canDo('member.list'),
+    retry: false,
+  })
+  const { markStale, stop } = useGoalCommands([view.subject.key])
   return (
     <PortalGoalAveragePage
       key={`${propertyId}:${goalId}`}
       propertyId={propertyId}
       propertyName={propData.property.name}
-      goal={view.goal}
+      view={view}
+      canChange={canDo('goal.update')}
+      canStop={canDo('goal.cancel')}
+      commands={{
+        changeMonthlyPortalGoalNowFn: portalGoalCommands.changeMonthlyPortalGoalNow,
+        reviseMonthlyPortalGoalFn: portalGoalCommands.reviseMonthlyPortalGoal,
+        onChanged: markStale,
+        reread: async () => {
+          const latest = (await pageRead.refetch()).data
+          return latest?.kind === 'average' ? latest.goal : undefined
+        },
+      }}
+      stop={stop}
+      personName={goalPersonNames(members.data?.members)}
+    />
+  )
+}
+
+/** A goal for several subjects: a plain page, with Stop. */
+function SeveralGoalPage({ view }: Readonly<{ view: SeveralView }>) {
+  const { propertyId, goalId } = Route.useParams()
+  const { can: canDo } = usePermissions()
+  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
+  const { stop } = useGoalCommands(view.subjects.map(({ key }) => key))
+  return (
+    <PortalGoalSeveralPage
+      key={`${propertyId}:${goalId}`}
+      propertyId={propertyId}
+      propertyName={propData.property.name}
+      view={view}
       canStop={canDo('goal.cancel')}
       stop={stop}
     />
@@ -168,9 +212,12 @@ function GoalRoute() {
       />
     )
   }
-  return data.kind === 'subject' ? (
-    <SubjectGoalPage view={data} />
-  ) : (
-    <AverageGoalPage view={data} />
-  )
+  switch (data.kind) {
+    case 'subject':
+      return <SubjectGoalPage view={data} />
+    case 'average':
+      return <AverageGoalPage view={data} />
+    case 'several':
+      return <SeveralGoalPage view={data} />
+  }
 }

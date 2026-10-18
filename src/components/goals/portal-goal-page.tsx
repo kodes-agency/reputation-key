@@ -14,7 +14,9 @@
 //
 // A goal for one Portal or one Portal Group has this page too, on `$goalId`
 // (PLAN PG-21): titled for its subject ("Reception · portal goal"), counting
-// from it, with the same actions and no Portals' rows or other goals.
+// from it and saying so in "How this goal counts", with the same actions (no
+// other measure when its subject already holds a goal for it) and no Portals'
+// rows or other goals.
 import { useId, type ReactNode } from 'react'
 import type { PortalGoalPageView } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
@@ -63,8 +65,11 @@ type Props = Readonly<{
   extras?: ReactNode
   /** The way to add one, when "Add a portal goal" offers something; else null. */
   addLink?: ReactNode
-  /** A goal for one Portal or one group: its page's title and whom it counts. */
-  single?: Readonly<{ title: string; name: string }>
+  /**
+   * A goal for one Portal or one group: its page's title, whom it counts, where
+   * its ratings count ("Reception"), and whether the other measure is offered.
+   */
+  single?: Readonly<{ title: string; name: string; where: string; canSwitch: boolean }>
 }>
 
 /** P-5: the month so far, with its first and last day, and a stop. */
@@ -146,7 +151,11 @@ function GoalBody({
         />
       )}
       <MonthsAndChanges {...props} />
-      <PortalGoalHowItCounts measure={measure} timezone={page.timezone} />
+      <PortalGoalHowItCounts
+        measure={measure}
+        timezone={page.timezone}
+        where={single?.where}
+      />
       <AllResultsLink {...props} />
     </div>
   )
@@ -239,6 +248,7 @@ function usePageActions(props: Props) {
     canChange: props.canChange,
     canStop: props.canStop,
     openSheet,
+    canSwitch: props.single?.canSwitch,
     stop: props.stop,
     focusTitle: focusPortalGoalPageTitle,
   })

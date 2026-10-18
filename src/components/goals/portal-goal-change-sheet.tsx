@@ -13,7 +13,7 @@
 // after), or the month a change from a coming month starts with has turned
 // (F-4). A goal stopped a moment ago (F-5) leaves nothing to change: the sheet
 // closes on the latest and a toast says why. Part of the sheet's chunk.
-import { useEffect, useId, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
@@ -24,18 +24,15 @@ import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
 import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
 import type { PortalGoalSheetProps } from './portal-goal-sheet'
+import { PortalGoalNoteField } from './portal-goal-note-field'
 import { PortalGoalSheetBody } from './portal-goal-sheet-body'
 import {
   changedChangeDraft,
   openingChangeDraft,
   portalGoalChangeModel,
   type PortalGoalChangeContext,
-  type PortalGoalChangeModel,
   type PortalGoalChangeSubmission,
 } from './portal-goal-sheet-change-view'
 import { PortalGoalSheetFrame } from './portal-goal-sheet-frame'
@@ -107,53 +104,6 @@ function useChangeCommand(props: Props) {
   return { send, pending: save.isPending, error, notice }
 }
 
-/** S-19: "Add a note", then the field, which takes the focus as it appears. */
-function NoteField({
-  note,
-  pending,
-  onOpen,
-  onType,
-}: Readonly<{
-  note: PortalGoalChangeModel['note']
-  pending: boolean
-  onOpen: () => void
-  onType: (text: string) => void
-}>) {
-  const id = useId()
-  const field = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (note.open) field.current?.focus()
-  }, [note.open])
-  if (!note.open) {
-    return (
-      <Button
-        type="button"
-        variant="link"
-        size="inline"
-        touch
-        className="self-start"
-        disabled={pending}
-        onClick={onOpen}
-      >
-        Add a note
-      </Button>
-    )
-  }
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={id}>Note</Label>
-      <Input
-        ref={field}
-        id={id}
-        value={note.text}
-        maxLength={note.limit}
-        disabled={pending}
-        onChange={(event) => onType(event.target.value)}
-      />
-    </div>
-  )
-}
-
 export function PortalGoalChangeSheet(props: Props) {
   const { goal, change, facts } = props
   const [now] = useState(() => props.now ?? new Date())
@@ -180,13 +130,14 @@ export function PortalGoalChangeSheet(props: Props) {
           error={error}
           notice={notice}
           onChange={edit}
+          canSwitch={props.canSwitch}
           onSubmit={() => {
             if (model.submission !== null && model.toast !== null) {
               send({ submission: model.submission, toast: model.toast })
             }
           }}
           note={
-            <NoteField
+            <PortalGoalNoteField
               note={model.note}
               pending={pending}
               onOpen={() => edit({ kind: 'note_open' })}

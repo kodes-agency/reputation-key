@@ -6,7 +6,9 @@
 // sheet said; Stop keeps the running month, with its result, and frees the
 // months after it, while a goal that has not started frees its month at once;
 // a second Stop is refused. A goal for one Portal (PLAN PG-21) takes the same
-// changes with its Portal kept as its subject, and the same Stop.
+// changes with its Portal kept as its subject, and the same Stop; so does the
+// average private rating, its level in tenths and always its own; and a goal
+// for several subjects, made by an older form, takes Stop.
 //
 // Monthly results cannot be deleted, so nothing here is committed: every
 // statement runs in one held transaction that is rolled back. The month guard
@@ -347,6 +349,99 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
       ({ programVersionId }) => programVersionId === changed.version.id,
     )
     expect(current.map(({ subject }) => subject)).toEqual([reception])
+
+    await expect(
+      stopMonthlyPortalGoal(deps, { propertyId, programId: program.id }, actor),
+    ).resolves.toMatchObject({ status: 'ended', endedBy: 'elena' })
+  })
+
+  it('the average changes its level now and from next month in tenths, its own, and stops (PG-21)', async () => {
+    const propertyId = await propertyFixture()
+    clock = new Date()
+    const { program } = await service.create(
+      {
+        propertyId,
+        name: 'Average private rating',
+        description: null,
+        metric: 'portal_rating_average',
+        targetValue: 4.5,
+        subjects: [{ kind: 'property', propertyId }],
+        startMonth: thisKey,
+        targetSource: 'own',
+      },
+      actor,
+    )
+
+    await changeMonthlyPortalGoalNow(
+      deps,
+      {
+        ...nowChange(propertyId, program.id, 4.6),
+        expectedTarget: 4.5,
+        targetSource: 'recommended',
+      },
+      actor,
+    )
+    await reviseMonthlyPortalGoal(
+      deps,
+      {
+        propertyId,
+        programId: program.id,
+        metric: 'portal_rating_average',
+        targetValue: 4.4,
+        expectedVersion: 2,
+        startMonth: nextKey,
+        targetSource: 'recommended',
+      },
+      actor,
+    )
+
+    const changed = await stored(propertyId, program.id)
+    expect(changed.results[0]).toMatchObject({ status: 'open', targetValue: 4.6 })
+    expect(changed.version).toMatchObject({
+      metric: 'portal_rating_average',
+      targetValue: 4.4,
+      effectiveFrom: thisMonth.end,
+      targetSource: 'own',
+    })
+    expect(changed.targetChanges).toEqual([
+      expect.objectContaining({ newTargetValue: 4.6, targetSource: 'own' }),
+    ])
+    await expect(
+      stopMonthlyPortalGoal(deps, { propertyId, programId: program.id }, actor),
+    ).resolves.toMatchObject({ status: 'ended' })
+  })
+
+  it('a goal for several subjects, made by an older form, stops (PG-21)', async () => {
+    const propertyId = await propertyFixture()
+    const portalIds = [randomUUID(), randomUUID()]
+    for (const [index, portalId] of portalIds.entries()) {
+      await held?.client.query(
+        `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug)
+         VALUES ($1, $2, $3, 'property', $5, $6, $4)`,
+        [
+          portalId,
+          organizationId,
+          propertyId,
+          `several-${randomUUID()}`,
+          propertyId,
+          `Desk ${index}`,
+        ],
+      )
+    }
+    clock = new Date()
+    const { program } = await service.create(
+      {
+        propertyId,
+        name: 'Desks · Private ratings',
+        description: null,
+        metric: 'portal_rating_count',
+        targetValue: 20,
+        subjects: portalIds.map((portalId) => ({ kind: 'portal', portalId }) as const),
+        startMonth: thisKey,
+        targetSource: 'own',
+      },
+      actor,
+    )
 
     await expect(
       stopMonthlyPortalGoal(deps, { propertyId, programId: program.id }, actor),

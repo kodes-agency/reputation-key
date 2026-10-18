@@ -40,6 +40,8 @@ type Props = Readonly<{
    * press: the banner shows only refusals of presses made since it opened.
    */
   notice?: unknown
+  /** The other measure is offered: not where the subject already holds a goal for it. */
+  canSwitch?: boolean
 }>
 
 /** S-5, S-6 and S-7, with S-6's way back to the recommended number. */
@@ -90,6 +92,7 @@ export function PortalGoalSheetBody({
   onSubmit,
   note,
   notice = null,
+  canSwitch = true,
 }: Props) {
   const id = useId()
   const [boxFocused, setBoxFocused] = useState(false)
@@ -156,18 +159,20 @@ export function PortalGoalSheetBody({
       ) : null}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         {model.offer === null ? null : <PortalGoalWorkedOut offer={model.offer} />}
-        <Button
-          type="button"
-          variant="link"
-          size="inline"
-          touch
-          disabled={pending}
-          onClick={() =>
-            onChange({ kind: 'measure', measure: model.switchMeasure.measure })
-          }
-        >
-          {model.switchMeasure.label}
-        </Button>
+        {canSwitch ? (
+          <Button
+            type="button"
+            variant="link"
+            size="inline"
+            touch
+            disabled={pending}
+            onClick={() =>
+              onChange({ kind: 'measure', measure: model.switchMeasure.measure })
+            }
+          >
+            {model.switchMeasure.label}
+          </Button>
+        ) : null}
       </div>
       {note}
       {notice === null ? (

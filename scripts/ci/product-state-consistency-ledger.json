@@ -760,6 +760,12 @@
       "policy": "The instant the sheet was opened (or the one a story fixes), taken once so the starts-below-pace note judges the typed number against the same day while the sheet is open; it is not server state and is never written back, and the sheet's remount is its reset boundary."
     },
     {
+      "id": "src/components/goals/portal-goal-average-change-sheet.tsx:useState(draft)",
+      "classification": "server_draft",
+      "owner": "Average private rating change sheet",
+      "policy": "Now or from next month, the level box as typed and the note, seeded once when the sheet mounts from the average goal it opened on (the month the read names and the goal's level there). The goal's page mounts a fresh sheet with a new key for every opening and again on the latest goal after a refusal that leaves it behind (revision_conflict, month_locked, start_month_changed), which is the reset boundary, so a page refetch while it is open never overwrites what the manager typed. The keys the change is sent against (month, level, version, the months after) are read from the goal the sheet opened on at the press, and only the primary sends the draft to the server."
+    },
+    {
       "id": "src/components/goals/rating-goal-wizard.tsx:useState(step)",
       "classification": "local_runtime",
       "owner": "Google rating goal wizard",

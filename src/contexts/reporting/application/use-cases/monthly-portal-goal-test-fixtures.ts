@@ -24,13 +24,14 @@ import type {
   PortalGoalPromptDeferral,
   PortalGoalPromptDeferralStore,
 } from '../ports/portal-goal-prompt-deferrals.port'
-import type { GoalActor } from './goal-program-shared'
+import { GoalProgramError, type GoalActor } from './goal-program-shared'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 import type {
   PortalGoalCardView,
   PortalGoalOfCard,
 } from '../dto/monthly-portal-goal.types'
 import type { MonthlyPortalGoalPageDeps } from './monthly-portal-goal-page'
+import type { PortalGoalSinglePageDeps } from './portal-goal-single-page'
 
 export const PROPERTY_ID = 'property-1'
 export const actor: GoalActor = {
@@ -414,6 +415,15 @@ export function fakeWorld(world: World = {}) {
         calls.push('programs')
         return world.programs ?? []
       }),
+      // One Program, as the goal's own page reads it: hidden or gone is not found.
+      get: vi.fn(async (input: Readonly<{ programId: string }>) => {
+        calls.push('program')
+        const found = (world.programs ?? []).find(
+          ({ program }) => program.id === input.programId,
+        )
+        if (!found) throw new GoalProgramError('not_found')
+        return found
+      }),
     },
     metrics: {
       queryGoalMetric: vi.fn(
@@ -460,7 +470,7 @@ export function fakeWorld(world: World = {}) {
     },
     logger: { warn: vi.fn() },
     now: () => world.now ?? OCT_17,
-  } satisfies MonthlyPortalGoalPageDeps
+  } satisfies PortalGoalSinglePageDeps
   return { deps, calls }
 }
 

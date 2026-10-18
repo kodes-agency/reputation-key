@@ -240,10 +240,18 @@ describe('portalGoalPageOf (PG-21)', () => {
     ).toEqual({ kind: 'average', subject: property })
   })
 
-  it('a goal for several subjects has no page of its own', () => {
+  it('a goal for several subjects has a plain page that names them all', () => {
     expect(
       portalGoalPageOf(goal({ id: 'mixed', subjects: [property, reception] })),
-    ).toBeNull()
-    expect(portalGoalPageOf(goal({ id: 'two', subjects: [reception, rooms] }))).toBeNull()
+    ).toEqual({ kind: 'several', subjects: [property, reception] })
+    expect(
+      portalGoalPageOf(
+        goal({
+          id: 'two',
+          subjects: [reception, rooms],
+          metric: 'portal_rating_average',
+        }),
+      ),
+    ).toEqual({ kind: 'several', subjects: [reception, rooms] })
   })
 })

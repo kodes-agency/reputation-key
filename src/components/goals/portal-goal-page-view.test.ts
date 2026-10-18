@@ -192,6 +192,42 @@ describe('stripChips', () => {
   })
 })
 
+describe('stripChips on the average’s own page (PG-21)', () => {
+  it('says each month’s average and its goal in tenths, never a count', () => {
+    const average = (patch: Partial<PortalGoalPageMonth>) =>
+      month({ measure: 'portal_rating_average', target: 4.5, ...patch })
+    const [running, met, unread] = stripChips(
+      [
+        average({ value: 4.6, outcome: 'running' }),
+        average({
+          key: '2026-10',
+          value: 4.4,
+          outcome: 'not_met',
+          finalOn: '2026-11-02',
+          correction: { on: '2026-11-05', value: 4.6, outcome: 'met' },
+        }),
+        average({ key: '2026-09', value: null, outcome: 'unavailable' }),
+      ],
+      '2026-11-22',
+    )
+
+    expect(running).toMatchObject({
+      text: 'Nov 4.6/4.5',
+      label: 'November: 4.6 · goal 4.5, running',
+    })
+    expect(met?.lines).toEqual([
+      '4.4 · goal 4.5 · not met',
+      'Final on Nov 2',
+      'Number in October: 4.5',
+      'Corrected on Nov 5: 4.6 · goal 4.5, now met.',
+    ])
+    expect(unread).toMatchObject({
+      text: 'Sep –/4.5',
+      label: 'September: goal 4.5, no usable result',
+    })
+  })
+})
+
 describe('fromPortalsWords', () => {
   const portals = [
     { portalId: 'portal-reception', name: 'Reception' },
@@ -275,6 +311,10 @@ describe('howItCountsWords', () => {
   it('How this goal counts has a scans version', () => {
     expect(howItCountsWords('portal_rating_count', 'Europe/Sofia')).toBe(
       'Counts the 1–5 star private ratings guests give at any of your portals. Low and high ratings count the same. Months follow Sofia time, from the 1st to the last day. A month’s result arrives about a day after it ends. If a guest corrects or withdraws a rating, the month updates.',
+    )
+    // A goal for one portal counts the ratings at its portal (PG-21).
+    expect(howItCountsWords('portal_rating_count', 'Europe/Sofia', 'Reception')).toMatch(
+      /^Counts the 1–5 star private ratings guests give at Reception\. /,
     )
     expect(howItCountsWords('qualified_scans', 'Europe/Sofia')).toBe(
       'Counts guests who open a portal from its code. The same visit counts once per portal in any 24 hours. Bots don’t count. Months follow Sofia time, from the 1st to the last day. A month’s result arrives about a day after it ends.',

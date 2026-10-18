@@ -43,8 +43,11 @@
 //
 // A goal for one Portal or one Portal Group takes the same changes from its own
 // page (PLAN PG-21), its one subject kept, and its number recorded as
-// recommended against its own numbers (the recommendation narrowed to it);
-// the average takes Stop. A goal for several subjects takes none of them here.
+// recommended against its own numbers (the recommendation narrowed to it).
+// The average takes a change of its level, now or from its next month, always
+// the manager's own number (there is none to recommend), and never of what it
+// measures. Every one of them takes Stop, a goal for several subjects too (its
+// plain page offers nothing else).
 import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
 import { goalStartOptions, monthKeyOf } from '../../domain/goal-start'
 import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
@@ -64,7 +67,6 @@ import {
   isPropertyCountGoal,
   monthlyPortalGoalOf,
   portalGoalPageOf,
-  type PortalCountGoal,
   type PropertyCountGoal,
 } from '../monthly-portal-goal-identity'
 import type {
@@ -201,12 +203,13 @@ function theMonthlyGoal(
 }
 
 /** A goal a change is made to, and the one subject it counts. */
-type Changed = Readonly<{ goal: PortalCountGoal; subject: GoalSubject }>
+type Changed = Readonly<{ goal: GoalProgramBundle; subject: GoalSubject }>
 
 /**
  * The Program asked for, when a change is made to it here (PLAN PG-21): a count
- * goal for one Portal or one Portal Group, or else the Property's Monthly
- * portal goal. Its number is recorded as recommended against the subject's own.
+ * goal for one Portal or one Portal Group, the average private rating, or else
+ * the Property's Monthly portal goal. A count's number is recorded as
+ * recommended against the subject's own.
  */
 function theChangedGoal(
   programs: readonly GoalProgramBundle[],
@@ -218,8 +221,22 @@ function theChangedGoal(
   if (asked !== undefined && page?.kind === 'subject' && isPortalCountGoal(asked)) {
     return { goal: asked, subject: page.subject }
   }
+  if (asked !== undefined && page?.kind === 'average') {
+    return { goal: asked, subject: page.subject }
+  }
   const goal = theMonthlyGoal(programs, programId, now)
   return { goal, subject: { kind: 'property', propertyId: goal.program.propertyId } }
+}
+
+/**
+ * A count stays a count (private ratings or scans, "Count scans instead"), and
+ * the average stays the average: a change never turns one into the other.
+ */
+function assertSameKindOfMeasure(goal: GoalProgramBundle, metric: GoalMetric): void {
+  const average = goal.version.metric === 'portal_rating_average'
+  if (average !== (metric === 'portal_rating_average')) {
+    throw new GoalProgramError('invalid_target')
+  }
 }
 
 /** The recommendation for `subject`: the Property's, or the Property's narrowed to it. */
@@ -268,7 +285,7 @@ async function recordedSource(
 }
 
 /** What the month `month` counts: the measure of the version it opened under. */
-function measureOfMonth(goal: PropertyCountGoal, month: string): GoalMetric | null {
+function measureOfMonth(goal: GoalProgramBundle, month: string): GoalMetric | null {
   const result = goal.results.find(
     ({ periodStart, propertyTimezone }) =>
       monthKeyOf(periodStart, propertyTimezone) === month,
@@ -327,7 +344,8 @@ export async function reviseMonthlyPortalGoal(
   actor: GoalActor,
 ): Promise<GoalProgramBundle> {
   const programs = await authorizedPrograms(deps, input, actor, 'goal.update')
-  const { subject } = theChangedGoal(programs, input.programId, deps.now())
+  const { goal, subject } = theChangedGoal(programs, input.programId, deps.now())
+  assertSameKindOfMeasure(goal, input.metric)
   const targetSource = await recordedSource(deps, input, actor, {
     month: input.startMonth,
     metric: input.metric,
@@ -353,10 +371,10 @@ export async function reviseMonthlyPortalGoal(
  * Stop: the goal ends. The month it is counting keeps counting to its last day
  * and keeps its result; a goal that has not started frees its month at once.
  * Any Property count goal may be stopped, and any goal with a page of its own
- * (one Portal's, one group's, the average); a goal for several subjects not
- * from here. One already stopped is refused `invalid_transition`: the engine
- * takes ended to ended as a status already reached, and would answer a
- * conflict.
+ * (one Portal's, one group's, the average's, and a goal for several subjects'
+ * plain page); a goal that names no subject has none, so not from here. One
+ * already stopped is refused `invalid_transition`: the engine takes ended to
+ * ended as a status already reached, and would answer a conflict.
  */
 export async function stopMonthlyPortalGoal(
   deps: MonthlyPortalGoalChangeDeps,
