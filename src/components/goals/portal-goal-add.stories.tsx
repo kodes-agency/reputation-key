@@ -392,20 +392,32 @@ export const OldLinkOpensOnAPortal: Story = {
   },
 }
 
+/** M-9: a closed card says "Has a goal" and links to the goal that holds it. */
+async function expectHeld(
+  sheet: Sheet,
+  radio: RegExp,
+  goal: Readonly<{ name: string; programId: string }>,
+) {
+  await expect(sheet.getByRole('radio', { name: radio })).toBeDisabled()
+  await expect(sheet.getByText('Has a goal')).toBeVisible()
+  await expect(sheet.getByRole('link', { name: goal.name })).toHaveAttribute(
+    'href',
+    `/properties/${PROPERTY_ID}/goals/${goal.programId}`,
+  )
+}
+
+const RECEPTION_GOAL = {
+  name: 'Reception · Private ratings',
+  programId: 'c0000000-0000-4000-8000-000000000001',
+}
+
 /** M-9: a portal that has a goal is closed, with a link to that goal. */
 export const PortalHasAGoal: Story = {
   args: { options: ADD_RECEPTION_HELD },
   play: async ({ canvasElement }) => {
     const { in: sheet } = await openSheet(canvasElement)
     await choose(sheet, /^A goal for one portal/u)
-    await expect(sheet.getByRole('radio', { name: /^Reception/u })).toBeDisabled()
-    await expect(sheet.getByText('Has a goal')).toBeVisible()
-    await expect(
-      sheet.getByRole('link', { name: 'Reception · Private ratings' }),
-    ).toHaveAttribute(
-      'href',
-      `/properties/${PROPERTY_ID}/goals/c0000000-0000-4000-8000-000000000001`,
-    )
+    await expectHeld(sheet, /^Reception/u, RECEPTION_GOAL)
   },
 }
 
@@ -443,11 +455,15 @@ export const PortalTakenAMomentAgo: Story = {
     await expect(onAddedMock).toHaveBeenCalledOnce()
     await expect(onAddedMock).toHaveBeenCalledWith([])
     await expect(await sheet.findByText('Which portal?')).toBeVisible()
-    await expect(sheet.getByRole('radio', { name: /^Reception/u })).toBeDisabled()
-    await expect(sheet.getByText('Has a goal')).toBeVisible()
+    await expectHeld(sheet, /^Reception/u, RECEPTION_GOAL)
     await expect(sheet.queryByRole('button', { name: /^Set /u })).toBeNull()
     await expect(sheet.getByRole('button', { name: 'Next' })).toBeDisabled()
   },
+}
+
+const AVERAGE_GOAL = {
+  name: 'Average private rating',
+  programId: 'c0000000-0000-4000-8000-000000000002',
 }
 
 /** M-9 on the choice: an average that has a goal is closed, with a link to it. */
@@ -455,28 +471,12 @@ export const AverageHasAGoal: Story = {
   args: {
     options: {
       ...ADD_SEAVIEW,
-      average: {
-        available: true,
-        last4Weeks: 40,
-        heldBy: {
-          programId: 'c0000000-0000-4000-8000-000000000002',
-          name: 'Average private rating',
-        },
-      },
+      average: { available: true, last4Weeks: 40, heldBy: AVERAGE_GOAL },
     },
   },
   play: async ({ canvasElement }) => {
     const { in: sheet } = await openSheet(canvasElement)
-    await expect(
-      sheet.getByRole('radio', { name: /^Average private rating/u }),
-    ).toBeDisabled()
-    await expect(sheet.getByText('Has a goal')).toBeVisible()
-    await expect(
-      sheet.getByRole('link', { name: 'Average private rating' }),
-    ).toHaveAttribute(
-      'href',
-      `/properties/${PROPERTY_ID}/goals/c0000000-0000-4000-8000-000000000002`,
-    )
+    await expectHeld(sheet, /^Average private rating/u, AVERAGE_GOAL)
   },
 }
 
