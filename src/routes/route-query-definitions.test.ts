@@ -79,9 +79,9 @@ const GOALS = '_authenticated/properties/$propertyId/goals'
  * goal results page keeps its copies in a module its loader imports on demand
  * (`-portal-goal-queries.ts`), so they add nothing to first paint.
  */
-// The New goal page's copy of the goal list went with the page (PG-20).
 const LEAF_COPIES: Readonly<Record<string, readonly string[]>> = {
   "goalKeys.list({ propertyId, model: 'program' })": [
+    // The New goal page's copy went with the page (PG-20).
     `${GOALS}/-portal-goal-queries.ts`,
     `${GOALS}/index.tsx`,
   ],
