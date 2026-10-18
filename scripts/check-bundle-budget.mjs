@@ -889,15 +889,19 @@
 // is on screen, and its host joins the goal routes' shared lazy chunk
 // (-portal-goal-add-host-*.js); its read and two commands are in the
 // monthly-portal-goals stub chunk, reached only by -portal-goal-queries.ts's
-// own import(). Every class was already in the stylesheet; the form's
-// lg:grid-cols-2 left it (styles-ChuBAd4e.css, 27,839 B, from 27,845). On the
+// own import(). Every class was already in the stylesheet; the form's two
+// columns from the large breakpoint left it (27,839 B, from 27,845; this note
+// does not spell the class, or the scan would keep it). On the
 // stacked base, PG-13's head 840adcde3, fresh production builds measured
 // 307,997 B (entry 49,238 B) and 307,924 B on the head (entry 49,239 B): -73 B,
 // mostly the first-paint server-function stubs (-49 B) and query keys (-20 B).
-// With the form's start-month re-export also gone from goal-program.dto.ts the
-// final head measured 307,918 B (entry 49,227 B): -79 B in all. The line stays
-// at 308,050: 132 B spare, 382 B under the ceiling. Measure again after the
-// rebase onto main.
+// The form's start-month re-export leaving goal-program.dto.ts changed no byte
+// (it was tree-shaken). One build in between measured 307,918 B only because
+// this note spelled the retired class, which put it back in the stylesheet and
+// renamed it; the final head, with the note fixed, measures 307,924 B again
+// (entry 49,239 B, styles-ChuBAd4e.css 27,839 B). The line stays at 308,050:
+// 126 B spare, 376 B under the ceiling. Measure again after the rebase onto
+// main.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
