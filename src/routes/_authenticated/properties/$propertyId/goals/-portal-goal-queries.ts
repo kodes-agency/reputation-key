@@ -14,11 +14,18 @@
 //   `import()` below, so it stays a chunk of its own, fetched beside the first
 //   read. A server-function module that two entries share is grouped with the
 //   stubs first paint loads (vite.config.ts, `app-server-fns`).
+// - The Portal goal results page's reads (`portalGoalResultsQueries`, PG-18)
+//   live here too, and they are the one exception: they import the Goals
+//   list's server functions (`listGoalPrograms`, `listPortals`,
+//   `listPortalGroups`), whose stubs first paint already loads with the Goals
+//   route. Only `monthly-portal-goals` is reached by `import()`.
 import { queryOptions, type QueryClient } from '@tanstack/react-query'
+import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
+// The Portal goal results page's reads (below): the Goals list's own.
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
 import { listGoalPrograms } from '#/contexts/reporting/server/goal-programs'
-import { dashboardKeys, goalKeys, portalKeys } from '#/shared/queries/query-keys'
+import { portalKeys } from '#/shared/queries/query-keys'
 
 type MonthlyPortalGoalServer =
   typeof import('#/contexts/reporting/server/monthly-portal-goals')
