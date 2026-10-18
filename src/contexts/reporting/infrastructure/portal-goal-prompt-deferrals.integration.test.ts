@@ -67,7 +67,7 @@ describe.sequential('Monthly portal goal prompt deferrals (integration)', () => 
     ])
   })
 
-  it("reads no other Organization's row, and writes none for a Property it does not hold", async () => {
+  it("reads no other Organization's row, and never moves it for another Organization", async () => {
     const store = createPortalGoalPromptDeferralStore(getDb())
     const propertyId = await propertyFixture()
     await store.defer({
@@ -91,5 +91,26 @@ describe.sequential('Monthly portal goal prompt deferrals (integration)', () => 
       }),
     ).resolves.toBeUndefined()
     await expect(store.deferredMonth(organizationId, propertyId)).resolves.toBe('2026-11')
+  })
+
+  it('refuses a first row for a Property of another Organization: the foreign key', async () => {
+    const store = createPortalGoalPromptDeferralStore(getDb())
+    const propertyId = await propertyFixture()
+    const other = `portal-goal-prompt-other-${randomUUID()}`
+
+    await expect(
+      store.defer({
+        organizationId: other,
+        propertyId,
+        month: '2026-11',
+        deferredBy: 'mallory',
+        deferredAt: at('2026-10-23T10:00:00.000Z'),
+      }),
+      // Postgres 23503 by code, on the driver error Drizzle wraps: the insert is
+      // refused by the composite key, not dropped. The use case authorizes the
+      // Property for the actor's Organization first, so no request reaches it.
+    ).rejects.toMatchObject({ cause: { code: '23503' } })
+    await expect(store.deferredMonth(organizationId, propertyId)).resolves.toBeNull()
+    await expect(store.deferredMonth(other, propertyId)).resolves.toBeNull()
   })
 })
