@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   addOptions: vi.fn(),
   addOne: vi.fn(),
   addEach: vi.fn(),
+  keep: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -32,6 +33,7 @@ vi.mock('#/composition', () => ({
           changeNow: mocks.changeNow,
           revise: mocks.revise,
           stop: mocks.stop,
+          keep: mocks.keep,
         },
         portalGoalAdd: {
           options: mocks.addOptions,
@@ -57,6 +59,7 @@ import {
   addPortalGoalSchema,
   addPortalGoalsSchema,
   changeMonthlyPortalGoalNowSchema,
+  keepMonthlyPortalGoalSchema,
   monthlyPortalGoalPropertySchema,
   reviseMonthlyPortalGoalSchema,
   stopMonthlyPortalGoalSchema,
@@ -69,6 +72,7 @@ import {
   getMonthlyPortalGoalCard,
   getMonthlyPortalGoalPage,
   getPortalGoalAddOptions,
+  keepMonthlyPortalGoal,
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
@@ -547,5 +551,66 @@ describe('the change and stop commands (PG-14)', () => {
     expect(
       stopMonthlyPortalGoalSchema.safeParse({ ...goal, programId: 'p1' }).success,
     ).toBe(false)
+  })
+})
+
+describe("the month-start check-in's Keep (PG-15)", () => {
+  const keep = {
+    propertyId: PROPERTY_ID,
+    programId: '00000000-0000-4000-8000-000000000003',
+    month: '2026-12',
+  } as const
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveTenantContext.mockResolvedValue(manager)
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+  })
+
+  it('authorizes goal.update through the execution policy', async () => {
+    mocks.keep.mockImplementation(
+      async (policy: GoalExecutionPolicy, data: typeof keep, actor: GoalActor) => {
+        await policy.authorize({
+          actor,
+          organizationId: actor.organizationId,
+          propertyId: data.propertyId,
+          action: 'goal.update',
+        })
+        return { month: data.month }
+      },
+    )
+
+    await withStartContext(() => keepMonthlyPortalGoal({ data: keep }))
+
+    expect(mocks.keep).toHaveBeenCalledWith(expect.any(Object), keep, manager)
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor: manager,
+      action: 'goal.update',
+      capability: 'goal.use',
+      propertyId: PROPERTY_ID,
+    })
+  })
+
+  it.each([
+    ['check_in_closed', 409],
+    ['invalid_transition', 409],
+    ['invalid_subject', 400],
+  ] as const)('answers %s with HTTP %i', async (code, status) => {
+    mocks.keep.mockRejectedValue(new GoalProgramError(code))
+
+    await expect(
+      withStartContext(() => keepMonthlyPortalGoal({ data: keep })),
+    ).rejects.toMatchObject({ name: 'GoalProgramError', code, status })
+  })
+
+  it('takes the goal and the month the check-in asked about', () => {
+    expect(keepMonthlyPortalGoalSchema.safeParse(keep).success).toBe(true)
+    for (const refused of [
+      { ...keep, month: '2026-13' },
+      { ...keep, month: undefined },
+      { ...keep, programId: 'monthly' },
+    ]) {
+      expect(keepMonthlyPortalGoalSchema.safeParse(refused).success).toBe(false)
+    }
   })
 })

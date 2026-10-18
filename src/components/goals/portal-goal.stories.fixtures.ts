@@ -255,6 +255,7 @@ export const GOAL_SCHEDULED: PortalGoalOfCard = {
   // Nothing runs yet: a change is from its first month, Nov 1.
   change: { now: null, nextMonthKey: '2026-11', opensOn: 'next' },
   newGoalFrom: null,
+  checkIn: null,
 }
 
 export const CARD_SCHEDULED: PortalGoalCardView = {

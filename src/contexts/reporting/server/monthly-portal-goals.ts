@@ -10,8 +10,8 @@
 //
 // Each handler runs through `withGoalPrograms`, so every read and the set ask
 // the execution policy (capability `goal.use`, the Property grant) for
-// `goal.create` before anything is read; a change asks it for `goal.update`,
-// and Stop for `goal.cancel`. A change and a stop never reach
+// `goal.create` before anything is read; a change and the check-in's Keep ask
+// it for `goal.update`, and Stop for `goal.cancel`. A change and a stop never reach
 // `server/goal-month-target.ts` or `server/goal-programs.ts`: this module
 // imports no other server-function module (PLAN §0.2, E10).
 import { createServerFn } from '@tanstack/react-start'
@@ -22,6 +22,7 @@ import {
   addPortalGoalSchema,
   addPortalGoalsSchema,
   changeMonthlyPortalGoalNowSchema,
+  keepMonthlyPortalGoalSchema,
   monthlyPortalGoalPropertySchema,
   reviseMonthlyPortalGoalSchema,
   setMonthlyPortalGoalSchema,
@@ -161,5 +162,19 @@ export const stopMonthlyPortalGoal = createServerFn({ method: 'POST' })
         }),
       'POST',
       'goal.stopMonthlyPortalGoal',
+    ),
+  )
+
+/** The month-start check-in's Keep: the month keeps its number, and the check-in is answered. */
+export const keepMonthlyPortalGoal = createServerFn({ method: 'POST' })
+  .validator(keepMonthlyPortalGoalSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.monthlyPortalGoal.keep(policy, data, actor),
+        ),
+      'POST',
+      'goal.keepMonthlyPortalGoal',
     ),
   )

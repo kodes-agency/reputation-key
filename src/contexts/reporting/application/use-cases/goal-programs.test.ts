@@ -177,6 +177,15 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
       created = { ...created, program }
       return program
     }),
+    // The port's contract: the answered month alone, only while the goal runs.
+    answerCheckIn: vi.fn(async ({ month }) => {
+      if (!created || created.program.status !== 'active') return false
+      created = {
+        ...created,
+        program: { ...created.program, checkInAnsweredMonth: month },
+      }
+      return true
+    }),
     findAssignmentConflicts: vi.fn(async () => []),
     // Its cases have a suite and a stand-in of their own (goal-month-target.test.ts).
     changeMonthTarget: vi.fn(async () => 'changed' as const),

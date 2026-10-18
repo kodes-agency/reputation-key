@@ -11,7 +11,11 @@
 // number this read would offer. The set sheet (PLAN PG-10) is offered the same
 // numbers for both months and both measures, with the exact usual an own
 // number is measured against: the one its "your usual" is rounded from, so for
-// this month what already counts plus the days left at the usual. Pure.
+// this month what already counts plus the days left at the usual. The
+// month-start check-in (PLAN PG-15) offers this month's one recommended
+// number, the sheet's (PLAN E6), worked out as a whole month ("a 31-day month
+// gets about 38") only while the rest of the month is all of it: on its first
+// day with nothing in yet, when the two are the same numbers. Pure.
 import type {
   Choices,
   PortalGoalMeasure,
@@ -38,28 +42,44 @@ export function offeredChoices(
   return null
 }
 
-/** The offer for `month` and `measure`; null where the recommendation has no number. */
+/**
+ * The offer for `month` and `measure`; null where the recommendation has no
+ * number. This month's is the rest of it, on top of what already counts,
+ * unless `wholeMonth` asks for all of it, as the next month's is.
+ */
 function portalGoalOfferFor(
   recommendation: PortalGoalRecommendation,
   month: string,
   measure: PortalGoalMeasure,
+  wholeMonth = false,
 ): PortalGoalOffer | null {
   const { months, basis } = recommendation
-  const current = month === months.current.key
-  const choices = offeredChoices(recommendation, month, measure)
+  const thisMonth = month === months.current.key
+  const current = thisMonth && !wholeMonth
   const { fullMonth, usualPerMonth, usualFromToday } = recommendation.measures[measure]
-  const whole = current ? fullMonth.current : fullMonth.next
+  const whole = thisMonth ? fullMonth.current : fullMonth.next
+  const choices = current ? offeredChoices(recommendation, month, measure) : whole
   // What the offer's "your usual" stands for: this month's from today (what
-  // already counts and the days left), the next month's for all of it.
-  const usualExact = current ? usualFromToday : usualPerMonth.next
-  if (choices === null || whole === null || usualExact === null || basis === null) {
+  // already counts and the days left), a whole month's for all of it.
+  const usualExact = current
+    ? usualFromToday
+    : thisMonth
+      ? usualPerMonth.current
+      : usualPerMonth.next
+  if (
+    (!thisMonth && month !== months.next.key) ||
+    choices === null ||
+    whole === null ||
+    usualExact === null ||
+    basis === null
+  ) {
     return null
   }
   const joined = recommendation.portals.filter(({ inBasis }) => inBasis)
   return {
     month,
     current,
-    days: current ? months.current.days : months.next.days,
+    days: thisMonth ? months.current.days : months.next.days,
     measure,
     choices: {
       usual: choices.usual,
@@ -99,6 +119,23 @@ export function portalGoalOfferOf(
     recommendation.defaultMonthKey,
     recommendation.defaultMeasure,
   )
+}
+
+/**
+ * What the month-start check-in offers for this month, in `measure`: the
+ * number the sheet offers for it now, on top of what already counts (PLAN E6).
+ * On the month's first day with nothing in yet that is the whole month's (G4:
+ * 40 · 45 · 50 for a 31-day December, 45 recommended), and it is worked out
+ * as one ("a 31-day month gets about 38").
+ */
+export function checkInOfferOf(
+  recommendation: PortalGoalRecommendation,
+  measure: PortalGoalMeasure,
+): PortalGoalOffer | null {
+  const month = recommendation.months.current.key
+  const rest = portalGoalOfferFor(recommendation, month, measure)
+  if (rest === null || rest.soFar !== 0 || rest.rest?.daysLeft !== rest.days) return rest
+  return portalGoalOfferFor(recommendation, month, measure, true) ?? rest
 }
 
 /** What the set sheet works from: both months, both measures, and the month it opens on. */
