@@ -39,11 +39,16 @@ export function listOfNames(names: readonly string[]): string {
 }
 
 /** "October", for the month `2026-10`. */
-const monthName = (month: string): string =>
+export const monthName = (month: string): string =>
   formatMonthName(`${month}-15T12:00:00.000Z`) ?? month
 
 /** "Oct 23", for the Property-local day `2026-10-23`. */
-const dayWords = (day: string): string => formatLocalDate(day, { year: false }) ?? day
+export const dayWords = (day: string): string =>
+  formatLocalDate(day, { year: false }) ?? day
+
+/** "40 private ratings", "1 scan". */
+export const portalGoalCount = (measure: PortalGoalMeasure, n: number): string =>
+  `${formatNumber(n)} ${portalGoalUnit(measure, n)}`
 
 const RATINGS_SECTION_LINE = 'How many private ratings your portals bring in each month.'
 const SCANS_SECTION_LINE = 'How many scans your portals get each month.'
@@ -171,9 +176,8 @@ export function nothingCountedWords(weeks: number): Readonly<{
 export const RECOMMENDATION_UNREADABLE_WORDS =
   'Your recommended number can’t be read right now.'
 
-/** "40 private ratings", "1 scan". */
 const countOf = (goal: PortalGoalOfCard, n: number): string =>
-  `${formatNumber(n)} ${portalGoalUnit(goal.measure, n)}`
+  portalGoalCount(goal.measure, n)
 
 /** "November · 40 private ratings": the month and the number it counts against. */
 const monthTarget = (goal: PortalGoalOfCard, month: string, target: number): string =>

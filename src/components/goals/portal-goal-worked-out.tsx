@@ -22,9 +22,8 @@ export function PortalGoalWorkedOut({ offer }: Readonly<{ offer: PortalGoalOffer
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <ExplainTrigger className="max-md:min-h-(--control-touch)">
-        {WORKED_OUT_TITLE}
-      </ExplainTrigger>
+      {/* In the sentence it explains, like a glossary term: no tap height of its own. */}
+      <ExplainTrigger>{WORKED_OUT_TITLE}</ExplainTrigger>
       <PopoverContent
         side="top"
         aria-label={WORKED_OUT_TITLE}

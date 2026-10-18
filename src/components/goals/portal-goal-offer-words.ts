@@ -8,20 +8,19 @@ import type {
   PortalGoalNewPortal,
   PortalGoalOffer,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import { formatLocalDate, formatMonthName, formatNumber } from '#/lib/format'
+import { formatNumber } from '#/lib/format'
 import type { GoalRefusalSentences } from './goal-refusal'
-import { listOfNames, portalGoalUnit, timeZoneCity } from './portal-goal-words'
+import {
+  dayWords,
+  listOfNames,
+  monthName,
+  portalGoalCount,
+  portalGoalUnit,
+  timeZoneCity,
+} from './portal-goal-words'
 
-/** "October", for the month `2026-10`. */
-const monthName = (month: string): string =>
-  formatMonthName(`${month}-15T12:00:00.000Z`) ?? month
-
-/** "Oct 22", for the Property-local day `2026-10-22`. */
-const dayWords = (day: string): string => formatLocalDate(day, { year: false }) ?? day
-
-/** "40 private ratings", "1 scan". */
 const countOf = (offer: PortalGoalOffer, n: number): string =>
-  `${formatNumber(n)} ${portalGoalUnit(offer.measure, n)}`
+  portalGoalCount(offer.measure, n)
 
 /** "12 already count", "1 already counts". */
 const alreadyCount = (n: number): string =>
