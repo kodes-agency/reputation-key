@@ -207,6 +207,25 @@ metric authority.
   Goals list's own) and their subjects' names, side reads: a failure there is logged and
   leaves the page whole (`progress: null`, a name left out). Its types are
   `application/dto/monthly-portal-goal-page.types.ts`.
+- **Monthly portal goal, its month-start check-in** (ADR 0068 decision 8;
+  `domain/portal-goal-check-in.ts`, `application/use-cases/monthly-portal-goal-check-in.ts`):
+  on local days 1 to 7 of a month that is not the goal's first, while the goal runs, the
+  card asks once whether the month keeps its number. It is asked only while its month is
+  open (the month a change now is made against) and until a manager answers: Keep writes
+  `goal_programs.check_in_answered_month` alone (`answerCheckIn`, `goal.update`; no version,
+  no change row, no new `updated_at`; the same again when pressed twice; `check_in_closed`
+  outside the running month's days 1 to 7, cut in the zone the month was cut in), and a
+  change of this month's own number since it began (Use, or another number through the
+  sheet) answers it as well. Its number is the month's one recommended number in the
+  measure the month counts, the one the change sheet offers for it now: the rest of the
+  month on top of what already counts (PLAN E6), worked out as a whole month only on its
+  first day with nothing in yet (G4: Use 45, Keep 40 for a 31-day December). With that
+  number the month's already it is one line, with nothing of the measure over the basis it
+  offers no number (Keep and another number, with the basis weeks), and with no
+  recommendation that can be read it asks nothing. Use is the change now
+  (`changeMonthlyPortalGoalNow`), recorded as `recommended` as any change to that number
+  is. Nothing is automatic and nothing is sent: an ignored check-in keeps the number and
+  folds away after the 7th.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save

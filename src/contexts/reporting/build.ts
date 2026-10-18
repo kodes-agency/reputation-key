@@ -72,6 +72,7 @@ import {
 } from './application/use-cases/monthly-portal-goal-page'
 import {
   changeMonthlyPortalGoalNow,
+  keepMonthlyPortalGoal,
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
@@ -395,7 +396,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     now: input.clock,
   })
   // Its commands: the set, and the change and the stop (PLAN PG-14), each over
-  // every Program of the Property and the engine's own commands.
+  // every Program of the Property and the engine's own commands; and the
+  // month-start check-in's Keep (PLAN PG-15), the answered month alone.
   const monthlyPortalGoalCommands = (policy: GoalExecutionPolicy) => ({
     policy,
     repository: goalProgramRepo,
@@ -424,6 +426,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
         reviseMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
       stop: (policy, ...args) =>
         stopMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
+      keep: (policy, ...args) =>
+        keepMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
     })
   // Add a portal goal (PLAN PG-20): what it offers, read like the card, and its
   // two commands, the engine's own create and its save for several subjects.

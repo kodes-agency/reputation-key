@@ -6,9 +6,10 @@
 // says so in the section and holds nothing else back. The
 // card's Use sends the set command, and its other doors open the sheet
 // (`-portal-goal-sheet-host.tsx`), which sends the same command or, from a goal
-// that has not started, changes it; a set or a change (or a refusal that means
-// the card is behind) marks every Portal-goal read stale, never the Google
-// rating goal's.
+// that has not started, changes it; on a month's first seven days the card's
+// check-in sends the change now (Use) or Keep. A set, a change or a Keep (or a
+// refusal that means the card is behind) marks every Portal-goal read stale,
+// never the Google rating goal's.
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
@@ -62,6 +63,10 @@ export function PortalGoalPanel({ propertyId, extras, footer, results }: Props) 
     changeMonthlyPortalGoalNowFn: portalGoalCommands.changeMonthlyPortalGoalNow,
     reviseMonthlyPortalGoalFn: portalGoalCommands.reviseMonthlyPortalGoal,
     onSet: () => markPortalGoalReadsStale(queryClient, propertyId),
+    checkIn: {
+      changeMonthlyPortalGoalNowFn: portalGoalCommands.changeMonthlyPortalGoalNow,
+      keepMonthlyPortalGoalFn: portalGoalCommands.keepMonthlyPortalGoal,
+    },
   } satisfies PortalGoalCommands & PortalGoalSheetCommands
   const shown = drawsCard ? card.data : undefined
   const sheet = usePortalGoalSheet({

@@ -32,6 +32,11 @@ import { eraseReviewSourceContent } from '../review-source-content-store'
 import { lockReviewSourceMutationScope } from '../review-source-mutation-serialization'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
 import {
+  listingAgreement,
+  recordMissingFromListing,
+  refuseRemovalWithoutExactListing,
+} from './review-provider-snapshot-listing'
+import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
   createRunReviewSourceContentLifecycle,
 } from '../../application/use-cases/run-source-content-lifecycle'
@@ -1072,11 +1077,12 @@ export const createReviewProviderSnapshotRepository = (
         const code = run.failureCode as ReviewProviderSnapshotFailureCode
         return { status: 'failed' as const, run: fromRunRow(run), code }
       }
+      const agreement = listingAgreement(run)
       if (
         run.mainCursorRef != null ||
         run.mainPageCount < 1 ||
         !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating) ||
-        run.mainUniqueCount !== run.expectedTotal
+        agreement.kind === 'mismatch'
       ) {
         const failed = await failLockedRun(tx, run, 'set_mismatch')
         return {
@@ -1086,39 +1092,9 @@ export const createReviewProviderSnapshotRepository = (
         }
       }
 
-      await tx.execute(sql`
-        INSERT INTO review_provider_deletion_candidates
-          (run_id, review_id, expected_mapping_state, expected_source_revision, state)
-        SELECT ${run.id}, s.review_id, s.state, s.last_source_revision, 'pending'
-        FROM review_provider_subjects s
-        LEFT JOIN review_provider_snapshot_members m
-          ON m.run_id = ${run.id} AND m.review_id = s.review_id AND m.main_seen
-        WHERE s.organization_id = ${run.organizationId}
-          AND s.property_id = ${run.propertyId}
-          AND s.source_epoch = ${run.sourceEpoch}
-          AND s.state IN ('linked', 'source_expired')
-          AND s.last_observed_at <= ${run.startedAt}
-          AND m.review_id IS NULL
-          AND s.first_missing_at IS NOT NULL
-          AND s.first_missing_snapshot_run_id <> ${run.id}
-          AND s.first_missing_at <= ${run.startedAt}::timestamptz - interval '15 minutes'
-        ON CONFLICT (run_id, review_id) DO NOTHING
-      `)
-      await tx.execute(sql`
-        UPDATE review_provider_subjects s
-        SET first_missing_at = COALESCE(s.first_missing_at, transaction_timestamp()),
-            first_missing_snapshot_run_id = COALESCE(s.first_missing_snapshot_run_id, ${run.id}),
-            updated_at = transaction_timestamp()
-        WHERE s.organization_id = ${run.organizationId}
-          AND s.property_id = ${run.propertyId}
-          AND s.source_epoch = ${run.sourceEpoch}
-          AND s.state IN ('linked', 'source_expired')
-          AND s.last_observed_at <= ${run.startedAt}
-          AND NOT EXISTS (
-            SELECT 1 FROM review_provider_snapshot_members m
-            WHERE m.run_id = ${run.id} AND m.review_id = s.review_id AND m.main_seen
-          )
-      `)
+      // Only a listing that agrees with Google's total says anything about
+      // what is missing. A small gap completes the run with no removals.
+      if (agreement.kind === 'exact') await recordMissingFromListing(tx, run)
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
         .set({
@@ -1133,7 +1109,12 @@ export const createReviewProviderSnapshotRepository = (
           confirmationDeadline: sql`${run.startedAt}::timestamptz + interval '12 hours'`,
           updatedAt: sql`transaction_timestamp()`,
         })
-        .where(eq(reviewProviderSnapshotRuns.id, run.id))
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.id, run.id),
+            eq(reviewProviderSnapshotRuns.organizationId, run.organizationId),
+          ),
+        )
         .returning()
       if (!updated[0])
         throw domainError(
@@ -1306,7 +1287,7 @@ export const createReviewProviderSnapshotRepository = (
         run.confirmationCursorRef != null ||
         !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating) ||
         run.confirmationUniqueCount !== run.mainUniqueCount ||
-        run.mainUniqueCount !== run.expectedTotal ||
+        listingAgreement(run).kind === 'mismatch' ||
         memberMismatch.rowCount !== 0 ||
         run.confirmationDeadline == null ||
         now >= run.confirmationDeadline
@@ -1411,6 +1392,7 @@ export const createReviewProviderSnapshotRepository = (
         .orderBy(asc(reviewProviderDeletionCandidates.reviewId))
         .limit(limit)
         .for('update')
+      refuseRemovalWithoutExactListing(run, candidates.length)
 
       // The provider-deletion path shares the lifecycle mutation order. Lock
       // every Reply scope before any Review row; mapping locks come last.

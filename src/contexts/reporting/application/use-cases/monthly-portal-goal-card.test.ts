@@ -447,6 +447,7 @@ describe('readMonthlyPortalGoalCard', () => {
         // Changed from its first month: nothing is running yet.
         change: { now: null, nextMonthKey: '2026-11', opensOn: 'next' },
         newGoalFrom: null,
+        checkIn: null,
       },
     })
     // Nothing is running, so no governed figure is read.
@@ -508,6 +509,8 @@ describe('readMonthlyPortalGoalCard', () => {
           opensOn: 'next',
         },
         newGoalFrom: null,
+        // Nov 22: no check-in after the 7th.
+        checkIn: null,
       },
     })
     expect(deps.metrics.queryGoalMetric).toHaveBeenCalledWith(

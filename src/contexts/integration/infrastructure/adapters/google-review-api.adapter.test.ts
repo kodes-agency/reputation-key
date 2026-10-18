@@ -63,6 +63,7 @@ function cursorStore(
       ok: true as const,
       value: { pageToken: 'provider-page-token' },
     })),
+    release: vi.fn(async () => ({ ok: true as const, value: null })),
     publishNext: vi.fn(async () => ({
       ok: true as const,
       value: { nextCursorRef: `v1.${'a'.repeat(43)}` },

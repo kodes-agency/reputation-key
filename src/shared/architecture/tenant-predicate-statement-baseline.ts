@@ -61,7 +61,7 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/review/infrastructure/google-reply-observation-store.ts#supersedeExternalCurrentAttempt': 1,
   'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts#commitPage': 1,
   'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts#finishConfirmationScan': 1,
-  'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts#finishMainScan': 2,
+  'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts#finishMainScan': 1,
   'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts#sweepExpiredTombstones': 2,
   'src/contexts/review/infrastructure/repositories/source-content-lifecycle-store.repository.ts#applyLifecycleBatch': 1,
 }

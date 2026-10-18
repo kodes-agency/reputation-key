@@ -7,6 +7,10 @@ import {
   CARD_READY,
   CARD_SCHEDULED,
 } from '#/components/goals/portal-goal.stories.fixtures'
+import {
+  CARD_CHECK_IN,
+  CARD_CHECK_IN_SAME,
+} from '#/components/goals/portal-goal-check-in.stories.fixtures'
 import { afresh, openedAs, portalGoalDoorShown } from './-portal-goal-sheet-host'
 
 // The sheet's chunk is fetched only while a door to it is drawn (PLAN PG-14).
@@ -27,6 +31,12 @@ describe('portalGoalDoorShown', () => {
   it('a goal that has not started: "Change", for someone who may change it', () => {
     expect(portalGoalDoorShown(CARD_SCHEDULED, true, 'card')).toBe(true)
     expect(portalGoalDoorShown(CARD_SCHEDULED, false, 'card')).toBe(false)
+  })
+
+  it('the month-start check-in: "Other number" or "Change", for someone who may change it', () => {
+    expect(portalGoalDoorShown(CARD_CHECK_IN, true, 'card')).toBe(true)
+    expect(portalGoalDoorShown(CARD_CHECK_IN_SAME, true, 'card')).toBe(true)
+    expect(portalGoalDoorShown(CARD_CHECK_IN, false, 'card')).toBe(false)
   })
 
   it('a stopped goal: its way to the next goal, on the card and on the page', () => {

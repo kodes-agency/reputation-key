@@ -143,6 +143,7 @@ function adapterGiven(permit: object) {
     logger: { warn: vi.fn() } as never,
     cursorStore: {
       redeem: vi.fn(),
+      release: vi.fn(),
       publishNext: vi.fn(),
       discardRun: vi.fn(),
     },

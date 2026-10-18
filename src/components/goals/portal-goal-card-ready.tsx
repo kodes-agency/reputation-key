@@ -19,6 +19,7 @@ import {
 } from '#/components/hooks/use-action-mutation'
 import { Button } from '#/components/ui/button'
 import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
+import type { PortalGoalCheckInCommands } from './portal-goal-check-in'
 import { PORTAL_ASK_EVERY_GUEST_LINE } from './portal-goal-copy'
 import { offerWords } from './portal-goal-offer-words'
 import { PORTAL_GOAL_BEHIND, PORTAL_SHEET_REFUSALS } from './portal-goal-sheet-refusals'
@@ -37,6 +38,11 @@ export type PortalGoalCommands = Readonly<{
    * out, and the card then draws no door to it.
    */
   openSheet?: (intent: PortalGoalSheetIntent) => void
+  /**
+   * The month-start check-in's Use and Keep. A page that leaves them out
+   * draws no check-in: the card shows the running month.
+   */
+  checkIn?: PortalGoalCheckInCommands
 }>
 
 type Props = Readonly<{

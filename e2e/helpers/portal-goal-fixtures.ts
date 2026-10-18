@@ -24,13 +24,16 @@ import {
   METRIC_VERSION_IDS,
 } from '../../src/contexts/reporting/domain/metric-registry'
 import { propertyWallClockToInstant } from '../../src/shared/domain/property-calendar'
+import { calendarPeriodRange } from '../../src/shared/domain/period-range'
 import {
   callServerFn,
   callServerFnGet,
   dbQuery,
   e2eRunId,
+  enqueueGoalProgramMaintenance,
   getUserByEmail,
   seedProperty,
+  waitFor,
 } from './fixtures'
 import { requireE2eSeedState } from './seed-state'
 
@@ -488,4 +491,139 @@ export async function closePortalGoalMonth(
   if (closed.length !== 1)
     throw new Error(`E2E goal ${input.programId} was not moved back`)
   return { periodStart: new Date(period.periodStart), timezone: period.timezone }
+}
+
+/**
+ * Moves a Monthly portal goal set from next month (so still scheduled, with no
+ * month) back to last month, as the beta journeys' goal does
+ * (`beta-product-journeys.spec.ts`): its first version keeps an empty window,
+ * a second one starts on last month's first day with that month open, and the
+ * goal is active. The maintenance job then reads last month again and opens
+ * this one, which this waits for: the goal has run since last month, so this
+ * month is not its first.
+ */
+export async function runMonthlyGoalSinceLastMonth(
+  input: Readonly<{ propertyId: string; programId: string; timezone: string; now: Date }>,
+): Promise<void> {
+  const seed = requireE2eSeedState()
+  const thisMonth = calendarPeriodRange(input.now, input.timezone, 'monthly')
+  const lastMonth = calendarPeriodRange(
+    new Date(thisMonth.start.getTime() - 1),
+    input.timezone,
+    'monthly',
+  )
+  const moved = await dbQuery<{ id: string }>(
+    `WITH original_version AS MATERIALIZED (
+       SELECT * FROM goal_program_versions
+        WHERE organization_id = $1 AND property_id = $2::uuid
+          AND program_id = $3::uuid AND version = 1
+     ),
+     closed_assignments AS (
+       UPDATE goal_subject_assignments AS assignment
+          SET effective_to = assignment.effective_from
+         FROM original_version
+        WHERE assignment.organization_id = $1
+          AND assignment.property_id = $2::uuid
+          AND assignment.program_id = $3::uuid
+          AND assignment.program_version_id = original_version.id
+       RETURNING assignment.*
+     ),
+     closed_version AS (
+       UPDATE goal_program_versions AS version
+          SET effective_to = version.effective_from
+         FROM original_version
+        WHERE version.id = original_version.id
+       RETURNING version.*
+     ),
+     inserted_version AS (
+       INSERT INTO goal_program_versions (
+         id, program_id, organization_id, property_id, version,
+         metric_definition_id, metric_definition_version_id, metric_key,
+         metric_minimum_sample, target_value, property_timezone,
+         effective_from, effective_to, change_reason, created_by, created_at
+       )
+       SELECT gen_random_uuid(), program_id, organization_id, property_id, 2,
+         metric_definition_id, metric_definition_version_id, metric_key,
+         metric_minimum_sample, target_value, property_timezone,
+         $4::timestamptz, NULL, 'E2E running since last month', created_by, now()
+       FROM closed_version
+       RETURNING *
+     ),
+     inserted_assignment AS (
+       INSERT INTO goal_subject_assignments (
+         id, program_id, program_version_id, organization_id, property_id,
+         metric_key, subject_kind, property_subject_id, portal_group_id,
+         portal_id, effective_from, effective_to, created_by, created_at
+       )
+       SELECT gen_random_uuid(), prior.program_id, version.id, prior.organization_id,
+         prior.property_id, prior.metric_key, prior.subject_kind,
+         prior.property_subject_id, prior.portal_group_id, prior.portal_id,
+         $4::timestamptz, NULL, prior.created_by, now()
+       FROM closed_assignments AS prior
+       CROSS JOIN inserted_version AS version
+       RETURNING *
+     ),
+     inserted_result AS (
+       INSERT INTO goal_monthly_results (
+         id, assignment_id, program_id, program_version_id, organization_id,
+         property_id, period_start, period_end, property_timezone,
+         status, evaluation_state, sample_count, reason
+       )
+       SELECT gen_random_uuid(), assignment.id, assignment.program_id, version.id,
+         assignment.organization_id, assignment.property_id,
+         $4::timestamptz, $5::timestamptz, version.property_timezone,
+         'open', 'updating', 0, 'period_open'
+       FROM inserted_assignment AS assignment
+       CROSS JOIN inserted_version AS version
+       RETURNING id
+     )
+     UPDATE goal_programs AS program
+        SET status = 'active', status_reason = NULL, current_version = 2,
+            updated_at = now()
+      WHERE program.organization_id = $1
+        AND program.property_id = $2::uuid
+        AND program.id = $3::uuid
+        AND program.status = 'scheduled'
+        AND EXISTS (SELECT 1 FROM inserted_result)
+     RETURNING program.id`,
+    [
+      seed.organizationId,
+      input.propertyId,
+      input.programId,
+      lastMonth.start.toISOString(),
+      lastMonth.end.toISOString(),
+    ],
+  )
+  if (moved.length !== 1) throw new Error('E2E goal was not moved to last month')
+  await enqueueGoalProgramMaintenance({
+    organizationId: seed.organizationId,
+    propertyId: input.propertyId,
+  })
+  await waitFor(
+    async () => {
+      const [opened] = await dbQuery<{ id: string }>(
+        `SELECT id FROM goal_monthly_results
+          WHERE organization_id = $1 AND property_id = $2::uuid
+            AND program_id = $3::uuid AND period_start = $4::timestamptz
+            AND status = 'open'`,
+        [
+          seed.organizationId,
+          input.propertyId,
+          input.programId,
+          thisMonth.start.toISOString(),
+        ],
+      )
+      return opened ?? null
+    },
+    {
+      description:
+        'goal maintenance opens this month for a goal running since last month',
+      diagnose: async () =>
+        dbQuery(
+          `SELECT period_start, status, evaluation_state FROM goal_monthly_results
+            WHERE program_id = $1::uuid ORDER BY period_start`,
+          [input.programId],
+        ),
+    },
+  )
 }
