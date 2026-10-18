@@ -28,7 +28,8 @@ function Counts({
   labelledBy: string
 }>) {
   return (
-    <ul aria-labelledby={labelledBy} className="flex flex-col gap-1 text-sm">
+    // As wide as a name and its count read together, not the page.
+    <ul aria-labelledby={labelledBy} className="flex max-w-md flex-col gap-1 text-sm">
       {rows.map((row) => (
         <li key={row.key} className="flex justify-between gap-3">
           <span className="min-w-0 truncate">{row.name}</span>

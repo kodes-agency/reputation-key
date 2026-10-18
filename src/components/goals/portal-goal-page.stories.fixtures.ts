@@ -42,6 +42,12 @@ const GO_LIVES: readonly PortalGoalChange[] = [
   { kind: 'went_live', on: '2026-10-09', portals: ['Reception', 'Restaurant'] },
 ]
 
+/** Where the goal counted from October: its Portals went live in early September. */
+const SEPTEMBER_GO_LIVES: readonly PortalGoalChange[] = [
+  { kind: 'went_live', on: '2026-09-08', portals: ['Spa'] },
+  { kind: 'went_live', on: '2026-09-02', portals: ['Reception', 'Restaurant'] },
+]
+
 const SET_ON_OCT_23: PortalGoalChange = {
   kind: 'set_from',
   on: '2026-10-23',
@@ -196,7 +202,7 @@ export const PAGE_LATER: PortalGoalPageView = {
       note: null,
     },
     { ...SET_ON_OCT_23, on: '2026-09-23', fromMonth: '2026-10' },
-    ...GO_LIVES,
+    ...SEPTEMBER_GO_LIVES,
   ],
   anyMonthClosed: true,
 }
@@ -271,7 +277,7 @@ export const PAGE_ACROSS_A_STOP: PortalGoalPageView = {
     },
     { kind: 'stopped', on: '2026-11-12', by: 'marco' },
     { ...SET_ON_OCT_23, on: '2026-09-23', fromMonth: '2026-10' },
-    ...GO_LIVES,
+    ...SEPTEMBER_GO_LIVES,
   ],
 }
 
