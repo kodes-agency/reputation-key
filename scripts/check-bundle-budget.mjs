@@ -896,12 +896,12 @@
 // 307,997 B (entry 49,238 B) and 307,924 B on the head (entry 49,239 B): -73 B,
 // mostly the first-paint server-function stubs (-49 B) and query keys (-20 B).
 // The form's start-month re-export leaving goal-program.dto.ts changed no byte
-// (it was tree-shaken). One build in between measured 307,918 B only because
-// this note spelled the retired class, which put it back in the stylesheet and
-// renamed it; the final head, with the note fixed, measures 307,924 B again
-// (entry 49,239 B, styles-ChuBAd4e.css 27,839 B). The line stays at 308,050:
-// 126 B spare, 376 B under the ceiling. Measure again after the rebase onto
-// main.
+// (it was tree-shaken). The review fixes change no first-paint module (the add
+// sheet's chunk grows to 4,208 B): the head measures 307,904 B (entry 49,219 B,
+// styles-ChuBAd4e.css 27,839 B), and its entry is byte for byte the 307,924 B
+// build's once the hashed chunk names are masked, so the -20 B is the names'
+// gzip noise. The line stays at 308,050: 146 B spare, 396 B under the ceiling.
+// Measure again after the rebase onto main.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
