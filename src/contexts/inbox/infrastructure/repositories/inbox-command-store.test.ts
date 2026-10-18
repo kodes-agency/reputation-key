@@ -60,6 +60,8 @@ import {
 import { readInboxEscalationHistory } from '../inbox-escalation-history'
 import { createReviewSourceLookupAdapter } from '../adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '../adapters/reply-lookup.adapter'
+import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
+import { createReplyObservationAuthorityAdapter } from '../adapters/reply-observation-authority.adapter'
 import { rebuildInboxProjection } from '../../application/use-cases/rebuild-inbox-projection'
 import type {
   ReviewLookupPort,
@@ -1969,11 +1971,16 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
         getCurrentGoogleReplyByReviewId: async () => null,
         findMilestonesByReviewIds: (ids, orgId) =>
           replyRepo.findMilestonesByReviewIds(ids, orgId),
+        findCurrentGoogleReplyHeadsByReviewIds: (ids, orgId) =>
+          replyRepo.findCurrentGoogleReplyHeadsByReviewIds(ids, orgId),
         findStatesByReviewIds: (ids, orgId) =>
           replyRepo.findStatesByReviewIds(ids, orgId),
         findReviewIdsByReplyStage: (orgId, propertyIds) =>
           replyRepo.findReviewIdsByReplyStage(orgId, propertyIds),
       }),
+      replyObservationAuthority: createReplyObservationAuthorityAdapter(
+        createReviewReplyObservationAuthority(db),
+      ),
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: () => NOW,
       logger: noopLogger,

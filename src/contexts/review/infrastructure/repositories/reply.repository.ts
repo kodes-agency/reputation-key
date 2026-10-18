@@ -16,6 +16,7 @@ import {
 } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
+  googleReplyObservationHeads,
   googleReplyObservations,
   replies,
   replyPublicationAttempts,
@@ -24,12 +25,16 @@ import {
 } from '#/shared/db/schema/review.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import type {
+  GoogleReplyHeadRow,
+  ReplyMilestoneRow,
   ReplyRepository,
   ReplyStageRow,
   ReplyStateRow,
 } from '../../application/ports/reply.repository'
 import type { Reply, ReplySource } from '../../domain/types'
 import {
+  propertyId as toPropertyId,
+  replyId as toReplyId,
   reviewId as toReviewId,
   type OrganizationId,
   type PropertyId,
@@ -68,6 +73,32 @@ const replyQueueStageSql = sql<ReplyStageRow['stage']>`CASE
     THEN 'waiting'
   ELSE 'needs_reply'
 END`
+
+/**
+ * A review's first published reply is the earlier of RepKey's own and the one
+ * Google shows now; a review answered only on Google gets a row of its own.
+ */
+function mergeGoogleReplyMilestones(
+  fromReplies: ReadonlyArray<ReplyMilestoneRow>,
+  onGoogle: ReadonlyArray<Readonly<{ reviewId: ReviewId; publishedAt: Date }>>,
+): ReadonlyArray<ReplyMilestoneRow> {
+  const merged = new Map<string, ReplyMilestoneRow>(
+    fromReplies.map((row) => [row.reviewId, row]),
+  )
+  for (const { reviewId, publishedAt } of onGoogle) {
+    const row = merged.get(reviewId)
+    const earliest =
+      row?.firstPublishedAt && row.firstPublishedAt <= publishedAt
+        ? row.firstPublishedAt
+        : publishedAt
+    merged.set(reviewId, {
+      reviewId,
+      firstSubmittedAt: row?.firstSubmittedAt ?? null,
+      firstPublishedAt: earliest,
+    })
+  }
+  return [...merged.values()]
+}
 
 type DuePublicationState =
   'requested' | 'authorized' | 'sending' | 'pending_observation' | 'ambiguous'
@@ -145,28 +176,106 @@ export const createReplyRepository = (
   findMilestonesByReviewIds: async (reviewIds, organizationId) => {
     return trace('reply.findMilestonesByReviewIds', async () => {
       if (reviewIds.length === 0) return []
+      const ids = sql.param(reviewIds.map(String))
+      const [rows, onGoogle] = await Promise.all([
+        db
+          .select({
+            reviewId: replies.reviewId,
+            firstSubmittedAt: sql<string | null>`min(${replies.submittedAt})`.as(
+              'first_submitted_at',
+            ),
+            firstPublishedAt: sql<string | null>`min(${replies.publishedAt})`.as(
+              'first_published_at',
+            ),
+          })
+          .from(replies)
+          .where(
+            and(
+              eq(replies.organizationId, organizationId),
+              sql`${replies.reviewId} = ANY(${ids}::uuid[])`,
+            ),
+          )
+          .groupBy(replies.reviewId),
+        // A reply written on Google has no `replies` row: it is the
+        // observation a live head points at. Its time is the one Google
+        // reports for it, else when RepKey read it (the Inbox reply lookup's
+        // rule), never a guess.
+        db
+          .select({
+            reviewId: googleReplyObservationHeads.reviewId,
+            publishedAt: sql<string>`coalesce(${googleReplyObservations.providerUpdatedAt}, ${googleReplyObservations.observedAt})`,
+          })
+          .from(googleReplyObservationHeads)
+          .innerJoin(
+            googleReplyObservations,
+            and(
+              eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
+              eq(googleReplyObservations.organizationId, organizationId),
+            ),
+          )
+          .where(
+            and(
+              eq(googleReplyObservationHeads.organizationId, organizationId),
+              eq(googleReplyObservationHeads.state, 'live'),
+              sql`${googleReplyObservationHeads.reviewId} = ANY(${ids}::uuid[])`,
+            ),
+          ),
+      ])
+      return mergeGoogleReplyMilestones(
+        rows.map((row) => ({
+          reviewId: toReviewId(row.reviewId),
+          firstSubmittedAt: row.firstSubmittedAt ? new Date(row.firstSubmittedAt) : null,
+          firstPublishedAt: row.firstPublishedAt ? new Date(row.firstPublishedAt) : null,
+        })),
+        onGoogle.map((row) => ({
+          reviewId: toReviewId(row.reviewId),
+          publishedAt: new Date(row.publishedAt),
+        })),
+      )
+    })
+  },
+
+  findCurrentGoogleReplyHeadsByReviewIds: async (reviewIds, organizationId) => {
+    return trace('reply.findCurrentGoogleReplyHeadsByReviewIds', async () => {
+      if (reviewIds.length === 0) return []
       const rows = await db
         .select({
-          reviewId: replies.reviewId,
-          firstSubmittedAt: sql<string | null>`min(${replies.submittedAt})`.as(
-            'first_submitted_at',
-          ),
-          firstPublishedAt: sql<string | null>`min(${replies.publishedAt})`.as(
-            'first_published_at',
-          ),
+          reviewId: googleReplyObservationHeads.reviewId,
+          propertyId: googleReplyObservationHeads.propertyId,
+          observationRevision: googleReplyObservationHeads.observationRevision,
+          sourceEpoch: googleReplyObservationHeads.sourceEpoch,
+          materialReviewRevision: googleReplyObservationHeads.materialReviewRevision,
+          state: googleReplyObservations.state,
+          change: googleReplyObservations.change,
+          resolution: googleReplyObservations.resolution,
+          provenance: googleReplyObservations.provenance,
+          matchedReplyId: googleReplyObservations.matchedReplyId,
+          matchedPublicationCycle: googleReplyObservations.matchedPublicationCycle,
+          observedAt: googleReplyObservations.observedAt,
         })
-        .from(replies)
-        .where(
+        .from(googleReplyObservationHeads)
+        .innerJoin(
+          googleReplyObservations,
           and(
-            eq(replies.organizationId, organizationId),
-            sql`${replies.reviewId} = ANY(${sql.param(reviewIds.map(String))}::uuid[])`,
+            eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
+            eq(googleReplyObservations.organizationId, organizationId),
           ),
         )
-        .groupBy(replies.reviewId)
-      return rows.map((row) => ({
+        .where(
+          and(
+            eq(googleReplyObservationHeads.organizationId, organizationId),
+            sql`${googleReplyObservationHeads.reviewId} = ANY(${sql.param(reviewIds.map(String))}::uuid[])`,
+          ),
+        )
+      return rows.map((row): GoogleReplyHeadRow => ({
+        ...row,
         reviewId: toReviewId(row.reviewId),
-        firstSubmittedAt: row.firstSubmittedAt ? new Date(row.firstSubmittedAt) : null,
-        firstPublishedAt: row.firstPublishedAt ? new Date(row.firstPublishedAt) : null,
+        propertyId: toPropertyId(row.propertyId),
+        state: row.state as GoogleReplyHeadRow['state'],
+        change: row.change as GoogleReplyHeadRow['change'],
+        resolution: row.resolution as GoogleReplyHeadRow['resolution'],
+        provenance: row.provenance as GoogleReplyHeadRow['provenance'],
+        matchedReplyId: row.matchedReplyId ? toReplyId(row.matchedReplyId) : null,
       }))
     })
   },

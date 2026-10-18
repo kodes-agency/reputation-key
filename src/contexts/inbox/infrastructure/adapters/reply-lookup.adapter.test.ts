@@ -10,7 +10,13 @@ import type {
   ReplyLookupPort,
 } from '../../application/ports/reply-lookup.port'
 import type { ReplyLookupSource } from '../../application/ports/lookup-sources.port'
-import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  replyId,
+  reviewId,
+  userId,
+} from '#/shared/domain/ids'
 
 const ORG = organizationId('org-1')
 const REVIEW = reviewId('d4000000-0000-4000-8000-000000000010')
@@ -52,6 +58,7 @@ const setup = (replies: ReadonlyArray<ReplyEntityView>) =>
     findByReviewId: async () => replies,
     getCurrentGoogleReplyByReviewId: async () => null,
     findMilestonesByReviewIds: async () => [],
+    findCurrentGoogleReplyHeadsByReviewIds: async () => [],
     findStatesByReviewIds: async () => [],
     findReviewIdsByReplyStage: async () => [],
   })
@@ -102,6 +109,7 @@ describe('getEffectiveReplyByReviewId', () => {
         observedAt,
       }),
       findMilestonesByReviewIds: async () => [],
+      findCurrentGoogleReplyHeadsByReviewIds: async () => [],
       findStatesByReviewIds: async () => [],
       findReviewIdsByReplyStage: async () => [],
     })
@@ -135,6 +143,7 @@ describe('getEffectiveReplyByReviewId', () => {
         observedAt: NOW,
       }),
       findMilestonesByReviewIds: async () => [],
+      findCurrentGoogleReplyHeadsByReviewIds: async () => [],
       findStatesByReviewIds: async () => [],
       findReviewIdsByReplyStage: async () => [],
     })
@@ -187,6 +196,40 @@ describe('getReplyMilestonesByReviewIds', () => {
   })
 })
 
+describe('getGoogleReplyHeadsByReviewIds', () => {
+  it('keys one content-free source batch by review', async () => {
+    const neverRead = reviewId('d4000000-0000-4000-8000-000000000012')
+    const head = {
+      reviewId: REVIEW,
+      propertyId: propertyId('d4000000-0000-4000-8000-0000000000f1'),
+      observationRevision: 4,
+      sourceEpoch: 1,
+      materialReviewRevision: 2,
+      state: 'live' as const,
+      change: 'added' as const,
+      resolution: 'external_current_live' as const,
+      provenance: 'external_or_unknown' as const,
+      matchedReplyId: null,
+      matchedPublicationCycle: null,
+      observedAt: NOW,
+    }
+    const findCurrentGoogleReplyHeadsByReviewIds = vi.fn(async () => [head])
+    const source = {
+      findCurrentGoogleReplyHeadsByReviewIds,
+    } as unknown as ReplyLookupSource
+    const adapter = createReplyLookupAdapter(source)
+
+    const result = await adapter.getGoogleReplyHeadsByReviewIds([REVIEW, neverRead], ORG)
+
+    expect(findCurrentGoogleReplyHeadsByReviewIds).toHaveBeenCalledOnce()
+    expect(findCurrentGoogleReplyHeadsByReviewIds).toHaveBeenCalledWith(
+      [REVIEW, neverRead],
+      ORG,
+    )
+    expect(result).toEqual(new Map([[REVIEW, head]]))
+  })
+})
+
 describe('getReplyStatesByReviewIds', () => {
   it('selects the effective reply from one content-free source batch', async () => {
     const secondReview = reviewId('d4000000-0000-4000-8000-000000000011')
@@ -221,6 +264,7 @@ describe('getReplyStatesByReviewIds', () => {
       findByReviewId,
       getCurrentGoogleReplyByReviewId: async () => null,
       findMilestonesByReviewIds: async () => [],
+      findCurrentGoogleReplyHeadsByReviewIds: async () => [],
       findStatesByReviewIds,
       findReviewIdsByReplyStage: async () => [],
     })
@@ -286,6 +330,7 @@ describe('findReviewIdsByReplyStage', () => {
       findByReviewId: async () => [],
       getCurrentGoogleReplyByReviewId: async () => null,
       findMilestonesByReviewIds: async () => [],
+      findCurrentGoogleReplyHeadsByReviewIds: async () => [],
       findStatesByReviewIds: async () => [],
       findReviewIdsByReplyStage,
     })

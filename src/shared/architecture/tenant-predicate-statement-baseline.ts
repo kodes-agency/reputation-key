@@ -41,7 +41,6 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/guest/infrastructure/guest-observation-store.ts#retractQualifiedScan': 1,
   'src/contexts/inbox/infrastructure/feedback-handling.store.ts#correctOutcome': 1,
   'src/contexts/inbox/infrastructure/feedback-handling.store.ts#markHandled': 1,
-  'src/contexts/inbox/infrastructure/inbox-command-store.ts#closeCycleOnObservedReply': 1,
   'src/contexts/inbox/infrastructure/inbox-command-store.ts#openNextFeedbackCycleOnResubmission': 1,
   'src/contexts/inbox/infrastructure/inbox-command-store.ts#reopenCycleOnDeletedReply': 1,
   'src/contexts/inbox/infrastructure/inbox-command-store.ts#updateStatus': 1,

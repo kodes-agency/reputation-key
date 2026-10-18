@@ -88,6 +88,23 @@ permit is checked under Review's observation fence before Inbox commits closure 
 reopen work. The reminder job runs every five minutes and Notification revalidates
 recipients immediately before delivery.
 
+The projection rebuild (`rebuildInboxProjection`, `ops:rebuild-projection`)
+repairs from canonical data and records no facts. Its reply milestones read
+Review's reply truth, so a reply written on Google counts as published, at the
+time Google reports for it (`provider_updated_at`, else when RepKey read it).
+It never changes an existing item's status: an open item over a reply Google
+shows can be right — a manager reopened it, or the guest edited the review
+after the reply — and a rebuild cannot tell that from a lost close. An item it
+creates is created closed when, inside Review's exact-current observation
+permit, Google shows a reply answering the review's current revision (the
+predicate `inbox.on-reply-observed` closes on, `isAnsweringGoogleReply`); that
+review's observed fact gave up waiting for the item long ago and nobody else
+may close a Review cycle, so an item created open would stay open for good
+(decided 2026-10-18). Its cycle opens and closes at the instant Google was seen
+answering (never a close before the open), and the rows carry the repair's own
+write time. An obsolete permit creates the item open, and the newer
+observation's own fact reaches it.
+
 Handling History uses one bounded transition reader and a total order of
 `(occurredAt, cycleNumber, stateRevision, kind, id)`. Actor names are resolved in
 one Organization-scoped batch and reveal no email, avatar, role, or membership

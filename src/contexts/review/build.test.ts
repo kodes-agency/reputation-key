@@ -96,6 +96,7 @@ describe('Review context build', () => {
 
     expect(Object.keys(api.lookups.reply).sort()).toEqual([
       'findByReviewId',
+      'findCurrentGoogleReplyHeadsByReviewIds',
       'findMilestonesByReviewIds',
       'findReviewIdsByReplyStage',
       'findStatesByReviewIds',

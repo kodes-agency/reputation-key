@@ -4,20 +4,31 @@
 // projection. Derives state from canonical governed data:
 // - reviews (existence / sourceDate / platform / propertyId / stable revision)
 //   via the review source lookup port;
-// - reply milestones (first submitted/published) via the reply lookup port.
+// - reply milestones (first submitted/published) via the reply lookup port. A
+//   reply written on Google has no Reply row: it counts as published while
+//   Review's observation head is live, at the time Google reports for it;
+// - Review's current Google reply observation head, for missing items.
 //
 // Reconciles:
-// - missing items created in an open Handling Cycle with
-//   reply milestones (idempotent create — creation-during-rebuild does NOT
-//   record another created fact: rebuild is repair, not new information; the
-//   durable record is the report);
+// - missing items created in an open Handling Cycle with reply milestones —
+//   or created CLOSED when Google already shows a reply answering the
+//   review's current revision. That close is decided inside Review's
+//   exact-current observation permit, on the predicate
+//   `inbox.on-reply-observed` closes on: the review's observed fact gave up
+//   waiting for an item long ago and nobody else may close a Review cycle, so
+//   an item created open over it would stay open for good. Either way the
+//   create records no fact: rebuild is repair, not new information; the
+//   durable record is the report;
 // - missing reply milestones stamped (no fact — milestones have no event
 //   type).
 //
-// Status is deliberately OUT of scope. Missing/expired source content and a
-// historical published milestone are not exact-current Handling Cycle
-// authority. Only the source-transition and reply-observation consumers may
-// close a Review cycle while holding Review's current-state permit.
+// The status of an EXISTING item is deliberately OUT of scope. Missing/expired
+// source content and a historical published milestone are not exact-current
+// Handling Cycle authority, and an open item over a reply Google shows can be
+// right — a manager reopened it, or a guest edited the review after the reply
+// (a carried-over reply raises no observed fact) — which a rebuild cannot tell
+// from a lost close. Only the source-transition and reply-observation
+// consumers close or reopen an existing Review cycle.
 //
 // NEVER touches inbox-owned fields (assignment, escalation, notes) and never
 // deletes items. Feedback-sourced items are OUT of scope: the guest context
@@ -29,7 +40,15 @@ import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
 } from '../ports/review-source-lookup.port'
-import type { ReplyLookupPort, ReplyMilestones } from '../ports/reply-lookup.port'
+import type {
+  GoogleReplyHead,
+  ReplyLookupPort,
+  ReplyMilestones,
+} from '../ports/reply-lookup.port'
+import type {
+  ReplyObservationAuthorityPort,
+  ReplyObservationExpectation,
+} from '../ports/reply-observation-authority.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   InboxItemId,
@@ -39,6 +58,7 @@ import type {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import { createInboxItem as buildInboxItem } from '../../domain/constructors'
+import { isAnsweringGoogleReply } from '../../domain/rules'
 
 export type RebuildInboxProjectionInput = Readonly<{
   organizationId: OrganizationId
@@ -52,7 +72,10 @@ export type RebuildInboxProjectionReport = Readonly<{
   scanned: number
   /** Items created for canonical reviews that had none. */
   created: number
-  /** Retained for report compatibility; rebuild never infers a close. */
+  /**
+   * Of `created`, the items created closed because Google already shows a
+   * reply answering the review. An existing item is never closed.
+   */
   closed: number
   /** Items that received a missing reply milestone stamp. */
   milestones: number
@@ -64,6 +87,7 @@ export type RebuildInboxProjectionDeps = Readonly<{
   commandStore: InboxCommandStore
   reviewSourceLookup: ReviewSourceLookupPort
   replyLookup: ReplyLookupPort
+  replyObservationAuthority: ReplyObservationAuthorityPort
   idGen: () => InboxItemId
   clock: () => Date
   logger: LoggerPort
@@ -196,16 +220,80 @@ async function reconcileExistingItems(
   }
 }
 
+/** Reply milestones and Google reply heads for one bounded batch of reviews. */
+type ReplyTruth = Readonly<{
+  milestones: ReadonlyMap<string, ReplyMilestones>
+  heads: ReadonlyMap<string, GoogleReplyHead>
+}>
+
 /**
- * Pass B, one review: materialize metadata plus an OPEN initial cycle. A review
- * without a stable material revision, or one the constructor rejects, is
- * reported and skipped rather than guessed at.
+ * The expectation to ask Review's exact-current permit for, when the head
+ * read for a missing review shows a reply answering the revision its item
+ * opens on. A hint only: the permit decides, under Review's fence.
+ */
+function answeringReplyExpectation(
+  organizationId: OrganizationId,
+  src: ReviewSourceMeta,
+  head: GoogleReplyHead | undefined,
+): ReplyObservationExpectation | null {
+  if (
+    head === undefined ||
+    !isAnsweringGoogleReply(head) ||
+    head.sourceEpoch !== src.sourceEpoch ||
+    head.materialReviewRevision !== src.materialReviewRevision
+  ) {
+    return null
+  }
+  return {
+    organizationId,
+    propertyId: head.propertyId,
+    reviewId: head.reviewId,
+    observationRevision: head.observationRevision,
+    sourceEpoch: head.sourceEpoch,
+    materialReviewRevision: head.materialReviewRevision,
+    change: head.change,
+    resolution: head.resolution,
+    provenance: head.provenance,
+    matchedReplyId: head.matchedReplyId,
+    matchedPublicationCycle: head.matchedPublicationCycle,
+    occurredAt: head.observedAt,
+  }
+}
+
+/**
+ * Create the item closed inside Review's permit. Null when the permit is
+ * obsolete: Google's reply moved after it was read, and the newer
+ * observation's own fact reaches the item once it exists.
+ */
+async function createAnsweredOnGoogle(
+  deps: RebuildInboxProjectionDeps,
+  item: InboxItem,
+  anchor: Readonly<{ materialReviewRevision: number }>,
+  expectation: ReplyObservationExpectation,
+): Promise<Readonly<{ created: boolean }> | null> {
+  const result = await deps.replyObservationAuthority.withExactCurrent(
+    expectation,
+    (permit) => deps.commandStore.createReviewItemAnsweredOnGoogle(item, anchor, permit),
+  )
+  if (result.status === 'current') return result.value
+  deps.logger.info(
+    {},
+    'rebuildInboxProjection: the Google reply changed since it was read; creating the item open',
+  )
+  return null
+}
+
+/**
+ * Pass B, one review: materialize metadata plus an initial cycle, closed when
+ * Google already answers the review. A review without a stable material
+ * revision, or one the constructor rejects, is reported and skipped rather
+ * than guessed at.
  */
 async function materializeMissingItem(
   deps: RebuildInboxProjectionDeps,
   input: RebuildInboxProjectionInput,
   src: ReviewSourceMeta,
-  milestones: ReadonlyMap<string, ReplyMilestones>,
+  truth: ReplyTruth,
   counters: Counters,
 ): Promise<void> {
   if (src.materialReviewRevision === null) {
@@ -234,7 +322,7 @@ async function materializeMissingItem(
     return
   }
 
-  const reply = milestones.get(src.id as string)
+  const reply = truth.milestones.get(src.id as string)
   const item: InboxItem = {
     ...built.value,
     status: 'open',
@@ -242,23 +330,36 @@ async function materializeMissingItem(
     firstReplySubmittedAt: reply?.firstSubmittedAt ?? null,
     firstReplyPublishedAt: reply?.firstPublishedAt ?? null,
   }
+  const anchor = { materialReviewRevision: src.materialReviewRevision }
+  const answered = answeringReplyExpectation(
+    input.organizationId,
+    src,
+    truth.heads.get(src.id as string),
+  )
 
   counters.created += 1
   if (item.firstReplySubmittedAt ?? item.firstReplyPublishedAt) {
     counters.milestones += 1
   }
-  if (input.dryRun) return
+  if (input.dryRun) {
+    if (answered) counters.closed += 1
+    return
+  }
+  if (answered) {
+    const result = await createAnsweredOnGoogle(deps, item, anchor, answered)
+    if (result?.created) counters.closed += 1
+    if (result) return
+  }
   // Idempotent create, NO created/status fact — rebuild is repair, not
   // new information; the durable record is this report.
-  await deps.commandStore.createItem(item, null, {
-    materialReviewRevision: src.materialReviewRevision,
-  })
+  await deps.commandStore.createItem(item, null, anchor)
 }
 
 /**
- * Pass B: canonical reviews with no inbox item. Reply milestones resolve in
- * bounded chunks. This repair path cannot infer a current handling outcome from
- * expiry or historical Reply milestones.
+ * Pass B: canonical reviews with no inbox item. Reply milestones and Google
+ * reply heads resolve in bounded chunks. Expiry and historical Reply
+ * milestones never decide a handling outcome; only Review's exact-current
+ * permit for a reply Google shows does.
  */
 async function materializeMissingItems(
   deps: RebuildInboxProjectionDeps,
@@ -269,17 +370,14 @@ async function materializeMissingItems(
 ): Promise<void> {
   for (let offset = 0; offset < missingSources.length; offset += batchSize) {
     const batch = missingSources.slice(offset, offset + batchSize)
-    const liveIds = batch.map((source) => source.id)
-    const milestones =
-      liveIds.length > 0
-        ? await deps.replyLookup.getReplyMilestonesByReviewIds(
-            liveIds,
-            input.organizationId,
-          )
-        : new Map<string, ReplyMilestones>()
+    const ids = batch.map((source) => source.id)
+    const [milestones, heads] = await Promise.all([
+      deps.replyLookup.getReplyMilestonesByReviewIds(ids, input.organizationId),
+      deps.replyLookup.getGoogleReplyHeadsByReviewIds(ids, input.organizationId),
+    ])
 
     for (const src of batch) {
-      await materializeMissingItem(deps, input, src, milestones, counters)
+      await materializeMissingItem(deps, input, src, { milestones, heads }, counters)
     }
   }
 }

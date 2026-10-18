@@ -66,6 +66,10 @@ export const createReplyLookupAdapter = (deps: ReplyLookupSource): ReplyLookupPo
     const rows = await deps.findMilestonesByReviewIds(ids, orgId)
     return new Map(rows.map(({ reviewId, ...milestones }) => [reviewId, milestones]))
   },
+  getGoogleReplyHeadsByReviewIds: async (ids, orgId) => {
+    const heads = await deps.findCurrentGoogleReplyHeadsByReviewIds(ids, orgId)
+    return new Map(heads.map((head) => [head.reviewId as string, head]))
+  },
   getReplyStatesByReviewIds: async (ids, orgId) => {
     const rows = await deps.findStatesByReviewIds(ids, orgId)
     const states = new Map<string, InboxItemReplyState>()

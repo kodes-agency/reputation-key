@@ -44,6 +44,12 @@ const PROP_B = propertyId('72b00000-0000-4000-8000-000000000002')
 let pool: Pool
 
 async function truncateReplies(pool: Pool) {
+  for (const table of ['google_reply_observation_heads', 'google_reply_observations']) {
+    await pool.query(`DELETE FROM ${table} WHERE organization_id IN ($1, $2)`, [
+      ORG_A,
+      ORG_B,
+    ])
+  }
   await pool.query('DELETE FROM replies WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,
@@ -149,6 +155,71 @@ async function seedReview(
     aiSourceDigest: '0'.repeat(64),
     ...overrides,
   })
+}
+
+/** A review as Google serves it, so its first material revision exists. */
+const servedReview = (n: number) =>
+  seedReview(getDb(), {
+    id: reviewId(`3a000000-0000-0000-0000-0000000001${String(n).padStart(2, '0')}`),
+    externalId: `rpl-google-${n}`,
+    contentExpiresAt: new Date('2027-01-01T00:00:00Z'),
+  })
+
+/** What Google shows for a review now: one observation and the head on it. */
+async function observeGoogleReply(
+  review: Review,
+  seed: Readonly<{
+    state: 'live' | 'absent'
+    providerUpdatedAt: Date | null
+    observedAt: Date
+  }>,
+): Promise<void> {
+  const live = seed.state === 'live'
+  const inserted = await pool.query<{ id: string }>(
+    `INSERT INTO google_reply_observations (
+       organization_id, property_id, review_id, observation_revision,
+       observation_key, input_digest, source_epoch, material_review_revision,
+       read_generation, state, change, resolution, source, provenance,
+       normalized_text, normalization_version, normalized_digest,
+       provider_updated_at, observed_at, content_expires_at
+     ) VALUES ($1, $2, $3, 2, $4, $4, $5, $6, 1, $7, $8, $9, 'provider_snapshot', $10,
+               $11, 'google-reply-v1', $12, $13, $14, '2027-01-01T00:00:00Z')
+     RETURNING id`,
+    [
+      review.organizationId,
+      review.propertyId,
+      review.id,
+      review.id.replaceAll('-', '').repeat(2),
+      review.sourceEpoch,
+      review.sourceRevision,
+      seed.state,
+      live ? 'added' : 'deleted',
+      live ? 'external_current_live' : 'absent',
+      live ? 'external_or_unknown' : 'none',
+      live ? 'Thank you, from Google' : null,
+      live ? 'd'.repeat(64) : null,
+      seed.providerUpdatedAt,
+      seed.observedAt,
+    ],
+  )
+  await pool.query(
+    `INSERT INTO google_reply_observation_heads (
+       review_id, organization_id, property_id, observation_id,
+       observation_revision, source_epoch, material_review_revision, state,
+       provenance, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 2, $5, $6, $7, $8, $9, $9)`,
+    [
+      review.id,
+      review.organizationId,
+      review.propertyId,
+      inserted.rows[0]?.id,
+      review.sourceEpoch,
+      review.sourceRevision,
+      seed.state,
+      live ? 'external_or_unknown' : 'none',
+      seed.observedAt,
+    ],
+  )
 }
 
 function makeReply(overrides: Partial<Omit<Reply, 'id'>> & { id?: string } = {}): Reply {
@@ -297,6 +368,145 @@ describe.sequential('replyRepository (integration)', () => {
       const repo = createReplyRepository(getDb(), () => new Date())
 
       await expect(repo.findMilestonesByReviewIds([], ORG_A)).resolves.toEqual([])
+    })
+
+    it('counts the reply Google shows, at the time Google reports for it', async () => {
+      const repo = createReplyRepository(getDb(), () => new Date())
+      const writtenOnGoogle = new Date('2025-05-29T08:00:00Z')
+      const readFromGoogle = new Date('2025-05-30T06:00:00Z')
+      const onlyOnGoogle = await servedReview(1)
+      await observeGoogleReply(onlyOnGoogle, {
+        state: 'live',
+        providerUpdatedAt: writtenOnGoogle,
+        observedAt: readFromGoogle,
+      })
+      const noUpdateTime = await servedReview(2)
+      await observeGoogleReply(noUpdateTime, {
+        state: 'live',
+        providerUpdatedAt: null,
+        observedAt: readFromGoogle,
+      })
+      // RepKey's own reply went out first; Google's time is its later edit.
+      const repliedFromRepKey = await servedReview(3)
+      const sentFromRepKey = new Date('2025-05-28T12:00:00Z')
+      await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000103',
+          reviewId: repliedFromRepKey.id,
+          source: 'internal',
+          submittedAt: new Date('2025-05-28T10:00:00Z'),
+          publishedAt: sentFromRepKey,
+        }),
+      )
+      await observeGoogleReply(repliedFromRepKey, {
+        state: 'live',
+        providerUpdatedAt: writtenOnGoogle,
+        observedAt: readFromGoogle,
+      })
+      const deletedOnGoogle = await servedReview(4)
+      await observeGoogleReply(deletedOnGoogle, {
+        state: 'absent',
+        providerUpdatedAt: null,
+        observedAt: readFromGoogle,
+      })
+
+      const milestones = await repo.findMilestonesByReviewIds(
+        [onlyOnGoogle.id, noUpdateTime.id, repliedFromRepKey.id, deletedOnGoogle.id],
+        ORG_A,
+      )
+
+      expect(new Map(milestones.map((row) => [row.reviewId, row]))).toEqual(
+        new Map([
+          [
+            onlyOnGoogle.id,
+            {
+              reviewId: onlyOnGoogle.id,
+              firstSubmittedAt: null,
+              firstPublishedAt: writtenOnGoogle,
+            },
+          ],
+          [
+            noUpdateTime.id,
+            {
+              reviewId: noUpdateTime.id,
+              firstSubmittedAt: null,
+              firstPublishedAt: readFromGoogle,
+            },
+          ],
+          [
+            repliedFromRepKey.id,
+            {
+              reviewId: repliedFromRepKey.id,
+              firstSubmittedAt: new Date('2025-05-28T10:00:00Z'),
+              firstPublishedAt: sentFromRepKey,
+            },
+          ],
+        ]),
+      )
+      await expect(
+        repo.findMilestonesByReviewIds([onlyOnGoogle.id], ORG_B),
+      ).resolves.toEqual([])
+    })
+  })
+
+  describe('findCurrentGoogleReplyHeadsByReviewIds', () => {
+    it('returns each head as the identity Review fences on, without reply text', async () => {
+      const repo = createReplyRepository(getDb(), () => new Date())
+      const readFromGoogle = new Date('2025-05-30T06:00:00Z')
+      const live = await servedReview(5)
+      await observeGoogleReply(live, {
+        state: 'live',
+        providerUpdatedAt: new Date('2025-05-29T08:00:00Z'),
+        observedAt: readFromGoogle,
+      })
+      const deleted = await servedReview(6)
+      await observeGoogleReply(deleted, {
+        state: 'absent',
+        providerUpdatedAt: null,
+        observedAt: readFromGoogle,
+      })
+      const neverRead = await servedReview(7)
+
+      const heads = await repo.findCurrentGoogleReplyHeadsByReviewIds(
+        [live.id, deleted.id, neverRead.id],
+        ORG_A,
+      )
+
+      expect(new Map(heads.map((head) => [head.reviewId, head]))).toEqual(
+        new Map([
+          [
+            live.id,
+            {
+              reviewId: live.id,
+              propertyId: PROP_A,
+              observationRevision: 2,
+              sourceEpoch: live.sourceEpoch,
+              materialReviewRevision: live.sourceRevision,
+              state: 'live',
+              change: 'added',
+              resolution: 'external_current_live',
+              provenance: 'external_or_unknown',
+              matchedReplyId: null,
+              matchedPublicationCycle: null,
+              observedAt: readFromGoogle,
+            },
+          ],
+          [
+            deleted.id,
+            expect.objectContaining({
+              state: 'absent',
+              change: 'deleted',
+              resolution: 'absent',
+            }),
+          ],
+        ]),
+      )
+      await expect(
+        repo.findCurrentGoogleReplyHeadsByReviewIds([live.id], ORG_B),
+      ).resolves.toEqual([])
+      await expect(
+        repo.findCurrentGoogleReplyHeadsByReviewIds([], ORG_A),
+      ).resolves.toEqual([])
     })
   })
 
@@ -541,6 +751,8 @@ describe.sequential('replyRepository (integration)', () => {
         getCurrentGoogleReplyByReviewId: async () => null,
         findMilestonesByReviewIds: (ids, orgId) =>
           repo.findMilestonesByReviewIds(ids, orgId),
+        findCurrentGoogleReplyHeadsByReviewIds: (ids, orgId) =>
+          repo.findCurrentGoogleReplyHeadsByReviewIds(ids, orgId),
         findStatesByReviewIds: (ids, orgId) => repo.findStatesByReviewIds(ids, orgId),
         findReviewIdsByReplyStage: (orgId, propertyIds) =>
           repo.findReviewIdsByReplyStage(orgId, propertyIds),

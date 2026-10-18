@@ -27,6 +27,27 @@ export type ReplyStateRow = Readonly<{
   updatedAt: Date
 }>
 
+/**
+ * Content-free identity of the Google reply observation a Review's head
+ * selects: the fields Review's exact-current observation authority checks,
+ * never the reply text. A reply written on Google exists only as this head.
+ */
+export type GoogleReplyHeadRow = Readonly<{
+  reviewId: ReviewId
+  propertyId: PropertyId
+  observationRevision: number
+  sourceEpoch: number
+  materialReviewRevision: number
+  state: 'live' | 'absent'
+  change: 'added' | 'edited' | 'deleted' | 'unchanged'
+  resolution:
+    'confirmed_on_google' | 'external_current_live' | 'diverged' | 'absent' | 'unchanged'
+  provenance: 'repkey_confirmed' | 'external_or_unknown' | 'none'
+  matchedReplyId: ReplyId | null
+  matchedPublicationCycle: number | null
+  observedAt: Date
+}>
+
 /** Content-free reply candidate used to partition effective queue stages. */
 export type ReplyStageRow = Readonly<{
   reviewId: ReviewId
@@ -91,13 +112,23 @@ export type ReplyRepository = Readonly<{
     organizationId: OrganizationId,
   ): Promise<Reply | null>
   /**
-   * Earliest lifecycle timestamps for a bounded review set. The repository
-   * aggregates in one query and never exposes reply text to projection repair.
+   * Earliest lifecycle timestamps for a bounded review set, never reply text.
+   * `firstPublishedAt` also counts the reply Google shows now (its head is
+   * `live`), at the time Google reports for it, else when RepKey read it: a
+   * reply written on Google has no `replies` row.
    */
   findMilestonesByReviewIds(
     reviewIds: ReadonlyArray<ReviewId>,
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<ReplyMilestoneRow>>
+  /**
+   * The Google reply observation head of each review in a bounded set, in one
+   * query. A review Google was never read for has no head and is absent.
+   */
+  findCurrentGoogleReplyHeadsByReviewIds(
+    reviewIds: ReadonlyArray<ReviewId>,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<GoogleReplyHeadRow>>
   /**
    * Current reply state scalars for a bounded review set. One query returns
    * every source candidate so the consumer can apply effective-reply precedence
@@ -205,12 +236,13 @@ export type ReplyRepository = Readonly<{
 
 /**
  * The read-only reply slice Review publishes through `lookups.reply`
- * (ARC-03-T12). Other contexts get these four reads and nothing that writes.
+ * (ARC-03-T12). Other contexts get these five reads and nothing that writes.
  */
 export type ReplyLookups = Pick<
   ReplyRepository,
   | 'findByReviewId'
   | 'findMilestonesByReviewIds'
+  | 'findCurrentGoogleReplyHeadsByReviewIds'
   | 'findStatesByReviewIds'
   | 'findReviewIdsByReplyStage'
 >

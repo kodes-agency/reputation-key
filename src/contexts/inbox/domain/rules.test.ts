@@ -1,7 +1,12 @@
 // Inbox context — domain rules tests (ADR 0055: open/closed 2-state machine)
 
 import { describe, it, expect } from 'vitest'
-import { canTransition, validateTransition, timestampFieldsForStatus } from './rules'
+import {
+  canTransition,
+  isAnsweringGoogleReply,
+  validateTransition,
+  timestampFieldsForStatus,
+} from './rules'
 import { isInboxError } from './errors'
 import type { InboxStatus } from './types'
 
@@ -89,5 +94,18 @@ describe('timestampFieldsForStatus', () => {
     // ADR 0055: one field, not four. Reopening has to null it — a stale
     // closedAt on an open item is what makes an SLA report lie.
     expect(timestampFieldsForStatus('open', NOW)).toEqual({ closedAt: null })
+  })
+})
+
+describe('isAnsweringGoogleReply', () => {
+  it.each([
+    ['live', 'confirmed_on_google', true],
+    ['live', 'external_current_live', true],
+    ['live', 'diverged', false],
+    ['live', 'unchanged', false],
+    ['absent', 'absent', false],
+    ['absent', 'unchanged', false],
+  ] as const)('reads %s / %s as answering: %s', (state, resolution, expected) => {
+    expect(isAnsweringGoogleReply({ state, resolution })).toBe(expected)
   })
 })

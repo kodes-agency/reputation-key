@@ -69,6 +69,7 @@ function replyLookup(
   return {
     getEffectiveReplyByReviewId: async () => null,
     getReplyMilestonesByReviewIds: async () => new Map(),
+    getGoogleReplyHeadsByReviewIds: async () => new Map(),
     getReplyStatesByReviewIds: async () => new Map(),
     findReviewIdsByReplyStage: findStages,
   }

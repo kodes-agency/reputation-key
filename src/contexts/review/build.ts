@@ -707,6 +707,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       reply: Object.freeze({
         findByReviewId: replyRepo.findByReviewId,
         findMilestonesByReviewIds: replyRepo.findMilestonesByReviewIds,
+        findCurrentGoogleReplyHeadsByReviewIds:
+          replyRepo.findCurrentGoogleReplyHeadsByReviewIds,
         findStatesByReviewIds: replyRepo.findStatesByReviewIds,
         findReviewIdsByReplyStage: replyRepo.findReviewIdsByReplyStage,
       }),

@@ -254,6 +254,8 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
       input.sources.reply.getCurrentGoogleReplyByReviewId(id, orgId),
     findMilestonesByReviewIds: (ids, orgId) =>
       input.sources.reply.findMilestonesByReviewIds(ids, orgId),
+    findCurrentGoogleReplyHeadsByReviewIds: (ids, orgId) =>
+      input.sources.reply.findCurrentGoogleReplyHeadsByReviewIds(ids, orgId),
     findStatesByReviewIds: (ids, orgId) =>
       input.sources.reply.findStatesByReviewIds(ids, orgId),
     findReviewIdsByReplyStage: (orgId, propertyIds) =>
@@ -326,6 +328,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     responseTargetAuthority,
     reviewSourceLookup,
     replyLookup,
+    replyObservationAuthority,
     propertyLookup,
     staffPublicApi: input.staffPublicApi,
     aiInsights: input.aiInsights,

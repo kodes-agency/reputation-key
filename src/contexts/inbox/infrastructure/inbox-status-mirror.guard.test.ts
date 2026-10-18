@@ -35,6 +35,8 @@ const FENCED_MIRROR_WRITERS: Readonly<Record<string, string>> = {
     'Receipt-coordinated command store: every mirror write co-commits with the Handling Cycle head, its transition row, and the outbox fact.',
   'contexts/inbox/infrastructure/feedback-handling.store.ts':
     'Private-feedback outcome store: closes the head and mirrors the status in one locked transaction.',
+  'contexts/inbox/infrastructure/review-reply-close.ts':
+    "Close on a reply Google shows, shared by the reply-observed consumer and the projection rebuild: closes the Handling Cycle head and mirrors the status in one transaction, inside Review's exact-current observation permit.",
   'contexts/inbox/infrastructure/review-handling-cycle.store.ts':
     'Review Handling Cycle store: the head is the authority and the mirror follows it in the same transaction.',
   'contexts/inbox/infrastructure/repositories/inbox.repository.ts':

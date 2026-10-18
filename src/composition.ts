@@ -562,6 +562,8 @@ function buildContainer(
       reply: {
         findByReviewId: review.lookups.reply.findByReviewId,
         findMilestonesByReviewIds: review.lookups.reply.findMilestonesByReviewIds,
+        findCurrentGoogleReplyHeadsByReviewIds:
+          review.lookups.reply.findCurrentGoogleReplyHeadsByReviewIds,
         findStatesByReviewIds: review.lookups.reply.findStatesByReviewIds,
         findReviewIdsByReplyStage: review.lookups.reply.findReviewIdsByReplyStage,
         getCurrentGoogleReplyByReviewId: review.publicApi.getCurrentGoogleReplyByReviewId,
@@ -724,6 +726,14 @@ function buildContainer(
               findByReviewId: (
                 ...args: Parameters<typeof review.internal.repos.replyRepo.findByReviewId>
               ) => review.internal.repos.replyRepo.findByReviewId(...args),
+              findCurrentGoogleReplyHeadsByReviewIds: (
+                ...args: Parameters<
+                  typeof review.internal.repos.replyRepo.findCurrentGoogleReplyHeadsByReviewIds
+                >
+              ) =>
+                review.internal.repos.replyRepo.findCurrentGoogleReplyHeadsByReviewIds(
+                  ...args,
+                ),
             }),
             inbox: Object.freeze({
               findBySource: (

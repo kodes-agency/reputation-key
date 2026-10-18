@@ -45,6 +45,7 @@ import { trace } from '#/shared/observability/trace'
 import type { Permission } from '#/shared/domain/permissions'
 import type { HandlingCycleHead, InboxItem } from '../domain/types'
 import { inboxError } from '../domain/errors'
+import { isAnsweringGoogleReply } from '../domain/rules'
 import {
   inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
@@ -88,7 +89,6 @@ import type {
 import {
   cancelPrivateFeedbackTarget,
   cancelResponseTargetForCycle,
-  completeGoogleReviewTarget,
   insertResponseTargetForHandlingCycle,
 } from './response-target.store'
 import { assertManualReopenPermitted } from '../domain/handling-outcome-authority'
@@ -116,6 +116,11 @@ import {
   readCurrentCycleNumber,
 } from './inbox-escalation-history'
 import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head'
+import {
+  closeReviewCycleOnGoogleReply,
+  insertReviewItemAnsweredOnGoogle,
+  lockReviewRowsForObservation,
+} from './review-reply-close'
 
 export type InboxCommandAuthorityPrincipal = Readonly<{
   userId: string
@@ -602,92 +607,7 @@ async function convergeProjectedItemRow(
   }
 }
 
-/**
- * Canonical Review Handling Cycle lock order is head -> Inbox item. `startNext`
- * uses the same order; reversing it here lets a material revision/reopen race
- * form a PostgreSQL row-lock cycle. A Review-attested epoch carry advances only
- * the head's exact-material fence under this lock; cycle, state, and status stay
- * unchanged because the normalized material did not create work.
- */
-async function lockReviewRowsForObservation(
-  tx: Tx,
-  item: InboxItem,
-  observation: CurrentReplyObservationPermit,
-): Promise<Readonly<{ headRow: PersistedHead; itemRow: PersistedItem }>> {
-  const headRows = await tx
-    .select()
-    .from(inboxHandlingCycleHeads)
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.sourceType, 'review'),
-        eq(inboxHandlingCycleHeads.sourceId, observation.reviewId),
-      ),
-    )
-    .for('update')
-    .limit(1)
-  const itemRows = await tx
-    .select()
-    .from(inboxItems)
-    .where(
-      and(
-        eq(inboxItems.id, item.id),
-        eq(inboxItems.organizationId, item.organizationId),
-        eq(inboxItems.propertyId, observation.propertyId),
-        eq(inboxItems.sourceType, 'review'),
-        eq(inboxItems.sourceId, observation.reviewId),
-      ),
-    )
-    .for('update')
-    .limit(1)
-  let headRow = headRows[0]
-  const itemRow = itemRows[0]
-  if (!itemRow || !headRow) {
-    throw inboxError('not_found', 'Review Inbox item or Handling Cycle head not found')
-  }
-  if (itemRow.status !== headRow.status) {
-    throw inboxError(
-      'revision_conflict',
-      'Review Inbox Handling Cycle is not current for this observation',
-    )
-  }
-
-  if (headRow.currentSourceRevision !== observation.materialReviewRevision) {
-    const carriedFrom = observation.sourceEpochCarryFromMaterialReviewRevision
-    if (
-      carriedFrom === null ||
-      headRow.currentSourceRevision !== carriedFrom ||
-      headRow.currentMaterialReviewRevision !== carriedFrom ||
-      observation.materialReviewRevision !== carriedFrom + 1
-    ) {
-      throw inboxError(
-        'revision_conflict',
-        'Review Inbox Handling Cycle is not current for this observation',
-      )
-    }
-    const carriedHead = await advanceHeadAcrossSourceEpochCarry(tx, {
-      item,
-      head: headRow,
-      carriedFrom,
-      observedAt: observation.observedAt,
-    })
-    if (!carriedHead) {
-      throw inboxError(
-        'revision_conflict',
-        'Review Inbox Handling Cycle changed during source-epoch carry',
-      )
-    }
-    headRow = carriedHead
-  }
-  return { headRow, itemRow }
-}
-
-/**
- * Google now shows the reply this cycle was working towards: complete the
- * Response Target, close the cycle, and close the Inbox row under the fences
- * the observation was read with.
- */
+/** The consumer's close: the shared close, then its status and cycle facts. */
 async function closeCycleOnObservedReply(
   tx: Tx,
   command: ApplyReplyObservedCommand,
@@ -697,71 +617,11 @@ async function closeCycleOnObservedReply(
     observation: CurrentReplyObservationPermit
   }>,
 ): Promise<void> {
-  const { headRow, itemRow, observation } = input
-  await completeGoogleReviewTarget(
-    tx,
-    handlingCycleHeadFromRow(headRow),
-    observation.observedAt,
-  )
-  const decision = closeHandlingCycle({
-    current: handlingCycleHeadFromRow(headRow),
-    closeReason:
-      observation.resolution === 'confirmed_on_google'
-        ? 'confirmed_on_google'
-        : 'external_reply_observed',
-    actorType: 'provider',
-    actorUserId: null,
+  const { cycleFact } = await closeReviewCycleOnGoogleReply(tx, {
+    ...input,
+    item: command.item,
     triggerEventId: command.eventId,
-    closedAt: observation.observedAt,
   })
-  if (decision.isErr()) throw decision.error
-  const cycleFact = lifecycleFactFor(decision.value.transition)
-  await tx
-    .insert(inboxHandlingCycleTransitions)
-    .values(transitionInsert(decision.value.transition, observation.observedAt))
-  const [updatedHead] = await tx
-    .update(inboxHandlingCycleHeads)
-    .set({
-      status: 'closed',
-      stateRevision: decision.value.head.stateRevision,
-      updatedAt: observation.observedAt,
-    })
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
-        eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-        eq(inboxHandlingCycleHeads.status, 'open'),
-      ),
-    )
-    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-  if (!updatedHead) {
-    throw inboxError(
-      'revision_conflict',
-      'Review Handling Cycle changed during reply close',
-    )
-  }
-  const [updatedItem] = await tx
-    .update(inboxItems)
-    .set({
-      status: 'closed',
-      closedAt: observation.observedAt,
-      ...(itemRow.firstReplyPublishedAt === null
-        ? { firstReplyPublishedAt: observation.observedAt }
-        : {}),
-      commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
-      updatedAt: observation.observedAt,
-    })
-    .where(
-      and(
-        eq(inboxItems.id, command.item.id),
-        eq(inboxItems.organizationId, command.item.organizationId),
-        eq(inboxItems.status, 'open'),
-      ),
-    )
-    .returning({ id: inboxItems.id })
-  if (!updatedItem) {
-    throw inboxError('revision_conflict', 'Inbox item changed during reply close')
-  }
   await insertOutboxRow(tx, command.closeFact)
   await insertOutboxRow(tx, cycleFact)
 }
@@ -1672,6 +1532,18 @@ export const createAtomicInboxCommandStore = (
         })
         return result
       })
+    },
+
+    createReviewItemAnsweredOnGoogle: async (item, anchor, observation) => {
+      return trace('inbox.commandStore.createReviewItemAnsweredOnGoogle', () =>
+        db.transaction((tx) =>
+          insertReviewItemAnsweredOnGoogle(
+            tx,
+            { item, anchor, observation, now: clock() },
+            insertItemIdempotent,
+          ),
+        ),
+      )
     },
 
     updateStatus: async (item, updates, event, now) => {
@@ -2949,10 +2821,7 @@ export const createAtomicInboxCommandStore = (
             observation,
           )
 
-          const shouldClose =
-            observation.state === 'live' &&
-            (observation.resolution === 'confirmed_on_google' ||
-              observation.resolution === 'external_current_live')
+          const shouldClose = isAnsweringGoogleReply(observation)
           const reopenReason =
             observation.reviewSourceContentState === 'active' &&
             observation.state === 'absent' &&
