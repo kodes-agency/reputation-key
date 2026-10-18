@@ -29,10 +29,10 @@ import {
  * disagree by more than this are not Google's bookkeeping, they are a listing
  * that went wrong.
  */
-export const SNAPSHOT_COUNT_GAP_PERCENT = 2
+const SNAPSHOT_COUNT_GAP_PERCENT = 2
 
 /** One review is always allowed, so a small location is not held to 0. */
-export const SNAPSHOT_COUNT_GAP_MIN = 1
+const SNAPSHOT_COUNT_GAP_MIN = 1
 
 /**
  * The largest gap ever accepted: strictly less than one page. A page that
@@ -75,10 +75,13 @@ const isCount = (value: number): boolean => Number.isSafeInteger(value) && value
  *
  * - neither side is empty. A list with nothing in it, or a total of zero
  *   against a list that has reviews, is a contradiction, not a small gap;
- * - every page before the last came back full (`pages` is the fewest pages
- *   `unique` reviews fill). The "less than one page" bound assumes Google
- *   pages as we ask; when it sends a short page early, a lost page could hide
- *   fewer reviews than the tolerance, so the gap is refused.
+ * - the listing took no more pages than its reviews fill at 50 a page
+ *   (`pages === ceil(unique / 50)`), so all its pages together came back less
+ *   than one page short. The "less than one page" bound assumes Google pages
+ *   as we ask; a listing paged smaller than that could lose a short page that
+ *   hides fewer reviews than the tolerance, so its gap is refused. The run
+ *   row keeps no per-page counts, so this cannot prove each page before the
+ *   last was full, only that their shortfall adds up to under one page.
  *
  * Stability across runs (the same gap on this Property's previous run) is
  * deliberately not required. Inside one run the gap is already stable: Google

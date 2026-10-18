@@ -113,9 +113,9 @@ sync.
 
 The owner decided: accept a small gap, complete the run, and remove nothing.
 A run whose total and list differ by at most 2% of the total (rounded down, at
-least 1, and always under one 50-review page), whose pages before the last all
-came back full, and whose confirmation scan listed exactly the same reviews
-again, completes. It records no removal candidate and no first miss, and its
+least 1, and always under one 50-review page), whose listing took no more
+pages than its reviews fill at 50 a page, and whose confirmation scan listed
+exactly the same reviews again, completes. It records no removal candidate and no first miss, and its
 apply step refuses any candidate it finds. A wider gap still fails as
 `set_mismatch`. A listing that disagrees with Google's total is never grounds
 for removing anything. The cost is that a location whose numbers keep

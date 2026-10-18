@@ -34,6 +34,7 @@ import { createReviewSourceContentLifecycleStore } from './source-content-lifecy
 import {
   listingAgreement,
   recordMissingFromListing,
+  refuseRemovalWithoutExactListing,
 } from './review-provider-snapshot-listing'
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
@@ -1108,7 +1109,12 @@ export const createReviewProviderSnapshotRepository = (
           confirmationDeadline: sql`${run.startedAt}::timestamptz + interval '12 hours'`,
           updatedAt: sql`transaction_timestamp()`,
         })
-        .where(eq(reviewProviderSnapshotRuns.id, run.id))
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.id, run.id),
+            eq(reviewProviderSnapshotRuns.organizationId, run.organizationId),
+          ),
+        )
         .returning()
       if (!updated[0])
         throw domainError(
@@ -1386,15 +1392,7 @@ export const createReviewProviderSnapshotRepository = (
         .orderBy(asc(reviewProviderDeletionCandidates.reviewId))
         .limit(limit)
         .for('update')
-      // `finishMainScan` records no candidate for a run whose listing
-      // disagreed with Google's total. Should one exist all the same, refuse
-      // rather than remove: the run stays `deleting` until it expires.
-      if (candidates.length > 0 && listingAgreement(run).kind !== 'exact') {
-        throw domainError(
-          'snapshot_count_gap_removal_refused',
-          'Provider removal refused for a listing that disagreed with the provider total',
-        )
-      }
+      refuseRemovalWithoutExactListing(run, candidates.length)
 
       // The provider-deletion path shares the lifecycle mutation order. Lock
       // every Reply scope before any Review row; mapping locks come last.

@@ -6,6 +6,7 @@
 // the repository that calls them.
 
 import { sql } from 'drizzle-orm'
+import { domainError } from '#/shared/domain/errors'
 import type { Tx } from '#/shared/outbox/commit'
 import type { reviewProviderSnapshotRuns } from '#/shared/db/schema/review.schema'
 import {
@@ -24,6 +25,25 @@ export const listingAgreement = (run: RunRow): SnapshotCountAgreement =>
         unique: run.mainUniqueCount,
         pages: run.mainPageCount,
       })
+
+/**
+ * The apply step's own hold on the rule. `finishMainScan` records no removal
+ * candidate for a run whose listing disagreed with Google's total, and the
+ * counts it judged are frozen once the main scan ends, so this cannot fire
+ * through the normal flow. Should such a candidate exist all the same, refuse
+ * rather than remove: the transaction rolls back, nothing is erased, and the
+ * run stays `deleting` until it expires.
+ */
+export function refuseRemovalWithoutExactListing(
+  run: RunRow,
+  candidateCount: number,
+): void {
+  if (candidateCount === 0 || listingAgreement(run).kind === 'exact') return
+  throw domainError(
+    'snapshot_count_gap_removal_refused',
+    'Provider removal refused for a listing that disagreed with the provider total',
+  )
+}
 
 /**
  * What a complete main listing says is missing. A stored Review absent from

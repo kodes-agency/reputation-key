@@ -1336,6 +1336,7 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
 
     it.each([
       { expected: 82, unique: 70, pages: 2, case: 'a gap beyond 2% of the total' },
+      { expected: 82, unique: 80, pages: 2, case: 'a gap one review past the tolerance' },
       { expected: 2_600, unique: 2_550, pages: 51, case: 'a missing full page' },
       { expected: 82, unique: 81, pages: 3, case: 'a short page before the last' },
     ])('still fails $case as set_mismatch', async (listing) => {

@@ -128,7 +128,7 @@ poll failing on an imported Property is not the import failing.
 A snapshot run removes a Review only after a listing that agrees with Google's
 own total. Google's total and its list do not always agree, so a small gap
 (`application/snapshot-count-gap.ts`: at most 2% of the total, at least 1,
-always under one page, full pages before the last) still completes the run,
+always under one page, no more pages than the reviews fill) still completes the run,
 but `finishMainScan` then records no removal candidate and no first miss, and
 `applyDeletionBatch` refuses any candidate on such a run. A wider gap fails as
 `set_mismatch`. The completed run verifies Google's count and average as usual;

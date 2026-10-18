@@ -68,6 +68,35 @@ describe('snapshotCountAgreement', () => {
     })
   })
 
+  it.each([
+    { expected: 82, unique: 80, pages: 2, verdict: 'mismatch' },
+    { expected: 82, unique: 84, pages: 2, verdict: 'mismatch' },
+    { expected: 100, unique: 98, pages: 2, verdict: 'gap' },
+    { expected: 100, unique: 102, pages: 3, verdict: 'gap' },
+    { expected: 100, unique: 97, pages: 2, verdict: 'mismatch' },
+    { expected: 100, unique: 103, pages: 3, verdict: 'mismatch' },
+    { expected: 2_600, unique: 2_649, pages: 53, verdict: 'gap' },
+    { expected: 2_600, unique: 2_650, pages: 53, verdict: 'mismatch' },
+  ])(
+    'is a $verdict at $expected counted and $unique listed (at or one past the tolerance)',
+    ({ verdict, ...listing }) => {
+      expect(snapshotCountAgreement(listing).kind).toBe(verdict)
+    },
+  )
+
+  it.each([
+    { expected: 1, unique: 2, pages: 1, verdict: 'gap' },
+    { expected: 2, unique: 1, pages: 1, verdict: 'gap' },
+    { expected: 2, unique: 4, pages: 1, verdict: 'mismatch' },
+    { expected: 3, unique: 1, pages: 1, verdict: 'mismatch' },
+    { expected: 0, unique: 0, pages: 1, verdict: 'exact' },
+  ])(
+    'treats a tiny total by the same rule ($expected counted, $unique listed)',
+    ({ verdict, ...listing }) => {
+      expect(snapshotCountAgreement(listing).kind).toBe(verdict)
+    },
+  )
+
   it('refuses a missing full page even where 2% of the total would cover it', () => {
     // 2% of 2,600 is 52, but a page carries 50: the cap keeps a page out.
     expect(snapshotCountAgreement({ expected: 2_600, unique: 2_550, pages: 51 })).toEqual(
