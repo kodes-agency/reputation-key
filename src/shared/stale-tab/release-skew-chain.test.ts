@@ -7,6 +7,8 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { createServerFn } from '@tanstack/react-start'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RELEASE_HEADER, STALE_CLIENT_CODE } from './release-skew'
+// Static: vi.mock and vi.hoisted are hoisted above it, so it loads mocked.
+import { releaseSkewClientMiddleware } from './release-skew-middleware'
 
 const hoisted = vi.hoisted(() => ({ release: 'b'.repeat(40), headers: new Headers() }))
 
@@ -17,8 +19,6 @@ vi.mock('@tanstack/react-start/server', () => ({
 vi.mock('#/shared/config/request-runtime-config', () => ({
   requestRuntimeConfig: () => ({ env: { RELEASE_SHA: hoisted.release } }),
 }))
-
-const { releaseSkewClientMiddleware } = await import('./release-skew-middleware')
 
 const OLD = 'a'.repeat(40)
 const START_KEY = Symbol.for('tanstack-start:start-storage-context')

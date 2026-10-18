@@ -7,6 +7,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { RELEASE_HEADER, STALE_CLIENT_CODE } from './release-skew'
+// Static on purpose: vi.mock and vi.hoisted are hoisted above it, so the module
+// loads with the mocks in place, and the changed-code gate reads the import.
+import {
+  releaseSkewClientMiddleware,
+  releaseSkewServerMiddleware,
+  sendWithRelease,
+} from './release-skew-middleware'
 import { createStaleTab } from './stale-tab'
 
 const hoisted = vi.hoisted(() => ({
@@ -28,9 +35,6 @@ vi.mock('#/shared/config/request-runtime-config', () => ({
     return { env: { RELEASE_SHA: hoisted.release } }
   },
 }))
-
-const { releaseSkewServerMiddleware, releaseSkewClientMiddleware, sendWithRelease } =
-  await import('./release-skew-middleware')
 
 const OLD = 'a'.repeat(40)
 const NEW = 'b'.repeat(40)
