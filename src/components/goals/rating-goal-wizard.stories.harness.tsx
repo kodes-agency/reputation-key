@@ -1,13 +1,16 @@
 // What the Google rating goal wizard's stories share: a page with the one door
 // the wizard opens from (a fresh wizard for every opening, the focus handed
-// back to the door as the page's host does), the command mocks, and the steps a
-// play takes. Story-only: the `.stories.` segment keeps it out of the bundles.
+// back to the door as the page's host does), the Portal goals title the done
+// screen leads to, the command mocks, and the steps a play takes. Story-only:
+// the `.stories.` segment keeps it out of the bundles.
 import { useRef, useState } from 'react'
+import { useBlocker } from '@tanstack/react-router'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { Button } from '#/components/ui/button'
 import { RatingGoalWizard, type RatingGoalWizardProps } from './rating-goal-wizard'
+import { PORTAL_GOALS_TITLE_ID } from './rating-goal-wizard-done'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 import { FIXTURE_GOAL_ID, FIXTURE_PROPERTY_ID } from './rating-goal.stories.fixtures'
 import { HARBORLINE, setupViewOf } from './rating-goal-setup.stories.fixtures'
@@ -71,9 +74,33 @@ export function Harness(props: HarnessProps) {
   )
 }
 
+/** Where the page was asked to go while the story ran: the path of each address. */
+export const navigations = fn<(pathname: string) => void>()
+
+/**
+ * The Goals page's Portal goals title, where "See your portal goal" lands, as
+ * the page draws it. The story's router has no Goals page, so the address the
+ * link asks for is recorded and not followed: the story stays on screen.
+ */
+export function PortalGoalsLanding() {
+  useBlocker({
+    shouldBlockFn: ({ next }) => {
+      navigations(next.pathname)
+      return true
+    },
+    enableBeforeUnload: false,
+  })
+  return (
+    <h2 id={PORTAL_GOALS_TITLE_ID} tabIndex={-1}>
+      Portal goals
+    </h2>
+  )
+}
+
 export const clearMocks = () => {
   setMock.mockClear()
   changeMock.mockClear()
+  navigations.mockClear()
 }
 
 /** Opens the wizard and waits for its title. */
@@ -87,6 +114,12 @@ export async function openWizard(canvasElement: HTMLElement, title = 'Your Googl
 }
 
 export type Dialog = Awaited<ReturnType<typeof openWizard>>
+
+/** Waits for the wizard to close and the focus to land on what `target` finds. */
+export async function closesOnto(target: () => HTMLElement) {
+  await waitFor(() => expect(within(document.body).queryByRole('dialog')).toBeNull())
+  await waitFor(() => expect(target()).toHaveFocus())
+}
 
 /** The goal's numeral: its value and its sentence. */
 export const numeral = (dialog: Dialog) =>

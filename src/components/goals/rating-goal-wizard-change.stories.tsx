@@ -8,6 +8,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   changeMock,
   clearMocks,
+  closesOnto,
   Harness,
   numeral,
   openWizard,
@@ -209,11 +210,8 @@ export const FocusGoesBackOnClose: Story = {
   play: async ({ canvasElement }) => {
     await openWizard(canvasElement)
     await userEvent.keyboard('{Escape}')
-    await waitFor(() => expect(within(document.body).queryByRole('dialog')).toBeNull())
-    await waitFor(() =>
-      expect(
-        within(canvasElement).getByRole('button', { name: 'Open the wizard' }),
-      ).toHaveFocus(),
+    await closesOnto(() =>
+      within(canvasElement).getByRole('button', { name: 'Open the wizard' }),
     )
   },
 }
