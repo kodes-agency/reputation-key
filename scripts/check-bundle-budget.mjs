@@ -929,7 +929,7 @@
 // 840adcde3, measured 307,997 B (75 js + 1 css; entry 49,238 B), that head
 // 1728c638c 308,005 B (entry 49,246 B), and the head after the review fixes,
 // 66b6bb5c1, 308,012 B (entry 49,253 B): +15 B, all in the entry (both shas
-// from before the rebase; 0c8df4f57 and 5f25ab32a on main). With the
+// from before the rebase; 0c8df4f57 and 5f25ab32a after it). With the
 // hashed chunk names masked, the review head's entry is byte-identical to
 // 1728c638c's (the 7 B between them is hash naming), and 15 characters longer
 // than the base's: /goals/portals now preloads the shared chunks its actions

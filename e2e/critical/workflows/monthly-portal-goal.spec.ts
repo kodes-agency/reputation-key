@@ -30,8 +30,9 @@
 //       "From {next month} 1" and a new number set from next month say so in a
 //       toast; Stop asks first, stops, and the Goals page's card says the goal
 //       was stopped today, that this month still counts to its last day, and
-//       offers a goal from next month. A goal is never stopped and set again
-//       in the same month here.
+//       offers a goal from next month; the stopped goal is an ended one, so the
+//       section's foot leads to it as "Ended portal goals (1)" (PG-18). A goal
+//       is never stopped and set again in the same month here.
 //   J11. all monthly results: once a Portal goal's month has closed and another
 //       has ended, the Portal goals section's foot opens `/goals/portal-results`:
 //       the closed month's result in plain words, and the ended goal with the
@@ -736,6 +737,10 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(
       card.getByRole('button', { name: `Set a goal from ${nextName}` }),
     ).toBeVisible()
+    // A stopped goal is an ended one: the section's foot leads to it (PG-18).
+    await expect(
+      page.locator('#portal-goals').getByRole('link', { name: 'Ended portal goals (1)' }),
+    ).toHaveAttribute('href', `/properties/${propertyId}/goals/portal-results#ended`)
   })
   test('J11 all monthly results: a closed month and an ended goal on their own page; both themes pass axe', async ({
     page,
