@@ -988,6 +988,45 @@
 // characters each), so the +11 B is the names' gzip noise, not code. The line
 // stays at 308,200: 157 B spare, 257 B under the build's ceiling of 308,300
 // (owner, P-9).
+//
+// 2026-10-18 (a tab whose code is older than the server loads afresh instead of
+// breaking; src/shared/stale-tab/): fresh production builds (rm -rf
+// node_modules/.nitro .output) of main (1c1458c59) and of this change, in one
+// session: 308,043 B (75 js + 1 css; entry 49,366 B) -> 309,100 B (75 js + 1
+// css; entry 50,423 B), +1,057 B, all in the entry chunk. It is first-paint
+// code on purpose: the reload runs exactly when a lazy chunk may be gone, so it
+// cannot itself be one. It holds the tab half of the release check (the header,
+// the armed flag, mutations in flight), the reload guard, the chunk-load message
+// shapes, the router subscription and the route boundary's reload. The server
+// half (the request header, the env read, the typed refusal) is dropped by the
+// Start compiler: the built client entry has none of it. A first shape that
+// imported the error class in release-skew.ts cut server-function-error out
+// into a chunk of its own (+342 B, and -165 B in use-action-mutation, 309,247 B
+// in all, on the base before PG-15), so only the server half imports it and the
+// tab recognises the refusal by its code and status. After review (an armed tab
+// reloads for any route failure, a page that outlives its reload draws the
+// failure again, a stricter reload target), a fresh build of the head measured
+// 309,151 B (entry 50,474 B), +51 B. Then a search-only navigation reloads an
+// armed tab too, and a read refused within 3 s of a navigation reloads at once
+// (the Inbox selects through its search): a fresh build measured 309,235 B
+// (75 js + 1 css; entry 50,558 B), +84 B.
+//
+// A trim was tried first. Of the tab's ~1,050 B in the entry, the part that runs
+// only after a refusal or a missing chunk (the reload guard, the target check,
+// the reload with its latch and 10 s settle, the failure rule the route boundary
+// asks) is ~320 B. Imported when it is needed, it would fail on exactly
+// the tab that needs it: the deploy that made the tab stale removed its old
+// chunk files. Imported at boot, it would save ~200-250 B once its import glue is
+// paid for, and a tab whose boot fetch failed (a deploy in its first seconds, a
+// network drop) would have no guarded reload at all for its whole life. Neither
+// is worth the bytes, so all of it stays in first paint, beside the chunk-error
+// listener and the header, which must work with the network or chunks broken.
+//
+// The line moves from 308,200 B to 309,500 B: the measurement, plus ~150 B for
+// #881 (client hang-ups, the same closure, merging first), plus ~100 B of
+// gzip noise, to the nearest 100. That is above the 308,300 B ceiling the owner
+// set for the portal goal series (P-9). The owner delegated this raise on
+// 2026-10-18 ("do as you think is best"), and this is that call.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -999,7 +1038,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 308_200, // raised to 308,200 on 2026-10-18 for the Portal goal results page's route (PG-18), measured 308,136 on PG-13's head 840adcde3 after review (base 307,997), under the build's ceiling of 308,300 (owner, P-9); raised to 308,050 on 2026-10-18 for the Monthly portal goal page's route (PG-13), measured 308,012 on main 6760d5ebb after its rebase (main 307,813), under the build's ceiling of 308,300 (owner, P-9); raised to 307,850 on 2026-10-18 for the Monthly portal goal card (PG-08), measured 307,799 on main b31e4640a (main 307,671), under the build's ceiling of 308,300 (owner, P-9); lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 309_500, // raised to 309,500 on 2026-10-18 for the stale-tab reload (a tab older than the server loads afresh), measured 309,235 on main 1c1458c59 plus the change (main 308,043), with ~150 B left for #881; owner delegated (2026-10-18); raised to 308,200 on 2026-10-18 for the Portal goal results page's route (PG-18), measured 308,136 on PG-13's head 840adcde3 after review (base 307,997), under the build's ceiling of 308,300 (owner, P-9); raised to 308,050 on 2026-10-18 for the Monthly portal goal page's route (PG-13), measured 308,012 on main 6760d5ebb after its rebase (main 307,813), under the build's ceiling of 308,300 (owner, P-9); raised to 307,850 on 2026-10-18 for the Monthly portal goal card (PG-08), measured 307,799 on main b31e4640a (main 307,671), under the build's ceiling of 308,300 (owner, P-9); lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

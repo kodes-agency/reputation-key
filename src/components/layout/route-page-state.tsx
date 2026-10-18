@@ -101,6 +101,13 @@ export function RouteError({ error }: ErrorComponentProps) {
   const guarded = useGuardedRouteError(error)
   const { inShell, frame } = useRouteFrame()
   if (guarded.signedOut) return <SignedOutRedirect />
+  if (guarded.reloading) {
+    return (
+      <Framed inShell={inShell}>
+        <PageState kind="loading" {...frame} />
+      </Framed>
+    )
+  }
   return (
     <Framed inShell={inShell}>
       <PageState

@@ -6,6 +6,7 @@
 // without a router.
 import { describe, expect, it } from 'vitest'
 import { GENERIC_CLIENT_ERROR_MESSAGE } from '#/shared/security/error-display'
+import { staleClientRefusal } from '#/shared/stale-tab/stale-client-refusal'
 import { routeErrorFacts } from './use-guarded-route-error'
 
 const withStatus = (status: number, message = 'refused'): Error =>
@@ -66,6 +67,23 @@ describe('routeErrorFacts', () => {
 
     it('reports a thrown string', () => {
       expect(routeErrorFacts('boom', true).report).toBe(true)
+    })
+  })
+
+  describe('a stale tab', () => {
+    // Whether the page is loaded afresh instead is the tab's call
+    // (`staleTab.reloadForFailure`, stale-tab.test.ts); these are what is
+    // reported when it is not.
+    it('never reports the refusal a stale tab gets: it is expected', () => {
+      expect(routeErrorFacts(staleClientRefusal(), true).report).toBe(false)
+    })
+
+    it.each([
+      'Failed to fetch dynamically imported module: https://x/assets/a.js',
+      'error loading dynamically imported module: https://x/assets/a.js',
+      'Importing a module script failed.',
+    ])('still reports a missing chunk (%s) the tab could not reload for', (message) => {
+      expect(routeErrorFacts(new TypeError(message), true).report).toBe(true)
     })
   })
 })

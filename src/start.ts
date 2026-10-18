@@ -11,6 +11,7 @@ import {
 } from '@sentry/tanstackstart-react'
 import { getSecurityHeaders } from '#/shared/security/security-headers'
 import { serverFunctionErrorAdapter } from '#/shared/auth/server-function-error'
+import { releaseSkewClientMiddleware } from '#/shared/stale-tab/release-skew-middleware'
 // Policy administration is an operator-facing server surface rather than a
 // route component. Import it here so its createServerFn handlers are present
 // in the production server manifest.
@@ -77,6 +78,10 @@ export const startInstance = createStart(() => {
   return {
     serializationAdapters: [serverFunctionErrorAdapter],
     requestMiddleware: [...sentry.request, csrfMiddleware, cspNonceMiddleware],
-    functionMiddleware: [...sentry.function],
+    // Sentry first, as for requests. The release check follows it and still runs
+    // ahead of everything the function itself has: a read from a tab whose code
+    // is older than this server is refused before its validator, its own
+    // middleware and its handler (the refusal is a 4xx, which Sentry drops).
+    functionMiddleware: [...sentry.function, releaseSkewClientMiddleware],
   }
 })

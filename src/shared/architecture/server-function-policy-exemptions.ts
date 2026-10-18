@@ -253,6 +253,6 @@ export const SERVER_FUNCTION_POLICY_EXEMPTIONS: readonly ServerFunctionPolicyExe
       category: 'PUBLIC',
       guard: null,
       reason:
-        'The browser’s error-monitoring config (DSN, release, environment), needed before sign-in. It reads no tenant and no account.',
+        'The browser’s runtime config (the release, and the error-monitoring DSN and environment), needed before sign-in. It reads no tenant and no account.',
     },
   ]

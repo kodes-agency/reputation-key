@@ -1,3 +1,5 @@
+import { staleTab } from '#/shared/stale-tab/stale-tab'
+
 export type ReplyDraftSnapshot = Readonly<{
   text: string
   languageTag: string | null
@@ -17,6 +19,24 @@ type SaveDraft = (
 
 const same = (left: ReplyDraftSnapshot, right: ReplyDraftSnapshot | null) =>
   right !== null && left.text === right.text && left.languageTag === right.languageTag
+
+/**
+ * Keep a stale tab from reloading while typed words are not saved yet, and
+ * return the release. A tab whose code is older than the server reloads itself
+ * (shared/stale-tab), and a reload never unmounts the composer, so neither the
+ * debounce nor `flushOnTeardown` would get to send the text. Held, the reload
+ * waits for the tab's next navigation, which does unmount it. Releasing twice
+ * is harmless.
+ */
+const holdReload = (): (() => void) => {
+  let release = (): void => undefined
+  void staleTab.trackMutation(
+    new Promise<void>((resolve) => {
+      release = resolve
+    }),
+  )
+  return () => release()
+}
 
 export function createReplyAutosaveCoordinator(
   input: Readonly<{
@@ -51,6 +71,8 @@ export function createReplyAutosaveCoordinator(
   /** The `generation` the save in `active` started in. */
   let activeGeneration = 0
   let timer: ReturnType<typeof setTimeout> | null = null
+  /** Releases the reload hold a running debounce keeps (`holdReload`). */
+  let releaseDebounceHold: (() => void) | null = null
   /**
    * The snapshot a running debounce is holding, kept OUTSIDE the timer closure
    * so teardown can still reach it. `pending` is not this: `schedule` clears
@@ -76,33 +98,40 @@ export function createReplyAutosaveCoordinator(
     if (timer !== null) clearTimeout(timer)
     timer = null
     scheduled = null
+    releaseDebounceHold?.()
+    releaseDebounceHold = null
   }
   const drain = async (): Promise<void> => {
     if (draining) return draining
     if (accepting) await accepting
     if (draining) return draining
     const work = (async () => {
-      while (pending) {
-        const snapshot = pending
-        const startedIn = generation
-        pending = null
-        active = snapshot
-        activeGeneration = startedIn
-        emit('saving')
-        try {
-          await save(snapshot)
-          if (startedIn === generation) lastSaved = snapshot
-          failed = null
-          emit(pending ? 'pending' : 'saved')
-        } catch {
-          failed = pending ?? snapshot
+      const saved = holdReload()
+      try {
+        while (pending) {
+          const snapshot = pending
+          const startedIn = generation
           pending = null
-          lastSaved = null
-          emit('error', 'Draft could not be saved. Retry before submitting.')
-          throw new Error('Draft autosave failed')
-        } finally {
-          active = null
+          active = snapshot
+          activeGeneration = startedIn
+          emit('saving')
+          try {
+            await save(snapshot)
+            if (startedIn === generation) lastSaved = snapshot
+            failed = null
+            emit(pending ? 'pending' : 'saved')
+          } catch {
+            failed = pending ?? snapshot
+            pending = null
+            lastSaved = null
+            emit('error', 'Draft could not be saved. Retry before submitting.')
+            throw new Error('Draft autosave failed')
+          } finally {
+            active = null
+          }
         }
+      } finally {
+        saved()
       }
     })()
     draining = work
@@ -157,17 +186,30 @@ export function createReplyAutosaveCoordinator(
       if (same(snapshot, lastSaved)) return emit('saved')
       emit('pending')
       scheduled = snapshot
+      releaseDebounceHold = holdReload()
       timer = setTimeout(() => {
+        // Taken before the debounce lets go, so the words are never unheld on
+        // their way from the timer to the request.
+        const saved = holdReload()
         timer = null
         scheduled = null
-        void enqueue(snapshot).catch(() => undefined)
+        releaseDebounceHold?.()
+        releaseDebounceHold = null
+        void enqueue(snapshot)
+          .catch(() => undefined)
+          .finally(saved)
       }, input.delayMs ?? 700)
     },
     async flush(snapshot: ReplyDraftSnapshot) {
-      cancelTimer()
-      if (!same(snapshot, lastSaved)) await enqueue(snapshot)
-      else if (draining) await draining
-      if (failed) throw new Error('Draft autosave failed')
+      const saved = holdReload()
+      try {
+        cancelTimer()
+        if (!same(snapshot, lastSaved)) await enqueue(snapshot)
+        else if (draining) await draining
+        if (failed) throw new Error('Draft autosave failed')
+      } finally {
+        saved()
+      }
     },
     async acceptAiDraft(snapshot: ReplyDraftSnapshot, provenanceToken: string) {
       cancelTimer()
@@ -256,9 +298,11 @@ export function createReplyAutosaveCoordinator(
       cancelTimer()
       pending = null
       if (!latest) return
+      const saved = holdReload()
       void Promise.allSettled([draining, accepting])
         .then(() => (same(latest, lastSaved) ? undefined : save(latest)))
         .catch(() => undefined)
+        .finally(saved)
     },
     /**
      * Detach the status channel and stand everything down: the timer, and any

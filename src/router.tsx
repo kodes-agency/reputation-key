@@ -17,6 +17,7 @@ import {
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
 import { setBrowserRouteSource } from '#/shared/observability/browser-route'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
+import { staleTab } from '#/shared/stale-tab/stale-tab'
 
 /**
  * Hands a failure to monitoring unless it is an expected refusal (a 4xx): a
@@ -76,9 +77,12 @@ export function getRouter() {
   // By default this also wraps the router output in <QueryClientProvider>.
   setupRouterSsrQueryIntegration({ router, queryClient })
 
-  // A browser error report names the route template the page was on.
   if (typeof document !== 'undefined') {
+    // A browser error report names the route template the page was on.
     setBrowserRouteSource(() => router.state.matches.at(-1)?.routeId)
+    // A tab whose code is older than the server loads its next view (a new
+    // path or new search) afresh; a read refused just after one reloads it.
+    staleTab.reloadOnNavigation(router)
   }
 
   return router

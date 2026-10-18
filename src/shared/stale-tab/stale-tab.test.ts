@@ -1,0 +1,658 @@
+// What a browser tab does once it learns its code is older than the server's.
+// The tab keeps the release that served its page, arms a flag when the server
+// says it has moved on (or when code it needs is gone), and reloads at a moment
+// that costs the person nothing: the next navigation to another view (a new
+// path or new search), a read refused just after a navigation, or a route that
+// already failed to draw. It never reloads under a mutation in flight.
+import { describe, expect, it, vi } from 'vitest'
+import { STALE_CLIENT_CODE } from './release-skew'
+import {
+  FRESH_VIEW_MS,
+  RELOAD_SETTLE_MS,
+  createStaleTab,
+  readReleaseMeta,
+  watchBrowserFailures,
+} from './stale-tab'
+
+const RELEASE = 'a'.repeat(40)
+
+function setup(release: string | null = RELEASE) {
+  const items = new Map<string, string>()
+  const reload = vi.fn()
+  const timers: Array<Readonly<{ run: () => void; ms: number }>> = []
+  let time = 5_000_000
+  const tab = createStaleTab({
+    storage: () => ({
+      getItem: (key) => items.get(key) ?? null,
+      setItem: (key, value) => void items.set(key, value),
+    }),
+    now: () => time,
+    reload,
+    later: (run, ms) => void timers.push({ run, ms }),
+  })
+  if (release !== null) tab.remember(release)
+  /** Let the time a reload is given to replace the page run out, with the page still here. */
+  const outlive = (): void => timers.splice(0).forEach((timer) => timer.run())
+  /** Move the tab's clock; a negative step is a clock set back. */
+  const tick = (ms: number): void => void (time += ms)
+  return { tab, reload, items, timers, outlive, tick }
+}
+
+type Place = Readonly<{ searchStr: string; publicHref: string }>
+type NavigationEvent = Readonly<{
+  pathChanged: boolean
+  fromLocation?: Place
+  toLocation: Place
+}>
+
+/** A stand-in for the router: it announces a navigation the way TanStack's `onBeforeLoad` does. */
+function routerWith() {
+  let listener: ((event: NavigationEvent) => void) | undefined
+  const unsubscribe = vi.fn()
+  const place = (href: string) => new URL(href, 'https://manager.example')
+  return {
+    router: {
+      subscribe: vi.fn((type: string, next: (event: NavigationEvent) => void) => {
+        if (type === 'onBeforeLoad') listener = next
+        return unsubscribe
+      }),
+    },
+    /**
+     * From one address of this site to another. `publicHref` is what the
+     * router hands over as the target, when a test needs it to differ.
+     */
+    go: (from: string | undefined, to: string, publicHref = to) => {
+      const before = from === undefined ? undefined : place(from)
+      const after = place(to)
+      listener?.({
+        pathChanged: before?.pathname !== after.pathname,
+        fromLocation: before && { searchStr: before.search, publicHref: from ?? '' },
+        toLocation: { searchStr: after.search, publicHref },
+      })
+    },
+    unsubscribe,
+  }
+}
+
+const staleClientError = () =>
+  Object.assign(new Error('Reload'), {
+    _tag: 'StaleClient',
+    code: STALE_CLIENT_CODE,
+    status: 409,
+  })
+
+describe('remembering the release', () => {
+  it('keeps a concrete release', () => {
+    expect(setup().tab.release()).toBe(RELEASE)
+  })
+
+  it.each(['unknown', '', 'local-dev', undefined, null])(
+    'knows no release from %j (dev, tests, Storybook, a server render)',
+    (value) => {
+      const { tab } = setup(null)
+      tab.remember(value)
+
+      expect(tab.release()).toBeUndefined()
+    },
+  )
+
+  it('reads it from the page head once, whatever the head says later', () => {
+    const { tab } = setup(null)
+    const head = { content: RELEASE as string | null }
+    const doc = {
+      querySelector: (selector: string) =>
+        selector === 'meta[name="repkey-release"]'
+          ? { getAttribute: () => head.content }
+          : null,
+    }
+
+    tab.remember(readReleaseMeta(doc))
+    head.content = 'b'.repeat(40)
+
+    expect(tab.release()).toBe(RELEASE)
+  })
+
+  it('reads nothing from a head without the tag', () => {
+    expect(readReleaseMeta({ querySelector: () => null })).toBeUndefined()
+  })
+})
+
+describe('arming', () => {
+  it('starts unarmed', () => {
+    expect(setup().tab.isStale()).toBe(false)
+  })
+
+  it('arms when told the server has moved on', () => {
+    const { tab } = setup()
+    tab.markStale()
+
+    expect(tab.isStale()).toBe(true)
+  })
+
+  it('stays unarmed when it does not know its own release, so nothing can ever reload', () => {
+    const { tab } = setup(null)
+    tab.markStale()
+
+    expect(tab.isStale()).toBe(false)
+  })
+})
+
+describe('reloading', () => {
+  it('has nothing to do without a release', () => {
+    const { tab, reload } = setup(null)
+
+    expect(tab.reload()).toBe('unavailable')
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('reloads through the guard', () => {
+    const { tab, reload } = setup()
+
+    expect(tab.reload()).toBe('reloading')
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('is refused by the guard when this release already reloaded inside the window', () => {
+    const { tab, reload, items } = setup()
+    items.set(`repkey:stale-reload:${RELEASE}`, '5000000')
+
+    expect(tab.reload()).toBe('refused')
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('says so while it reloads, so a page can draw the loading state instead of an error', () => {
+    const { tab } = setup()
+    const heard = vi.fn()
+    tab.onReloading(heard)
+
+    expect(tab.isReloading()).toBe(false)
+    tab.reload()
+    tab.reload()
+
+    expect(tab.isReloading()).toBe(true)
+    expect(heard).toHaveBeenCalledOnce()
+  })
+
+  it('does not say it is reloading when the guard refused', () => {
+    const { tab, items } = setup()
+    items.set(`repkey:stale-reload:${RELEASE}`, '5000000')
+    tab.reload()
+
+    expect(tab.isReloading()).toBe(false)
+  })
+
+  it('stops telling a listener that has gone', () => {
+    const { tab } = setup()
+    const heard = vi.fn()
+    tab.onReloading(heard)()
+
+    tab.reload()
+
+    expect(heard).not.toHaveBeenCalled()
+  })
+
+  it('asks for one reload per page, however often it is asked', () => {
+    const { tab, reload } = setup()
+
+    expect(tab.reload()).toBe('reloading')
+    expect(tab.reload('/elsewhere')).toBe('reloading')
+
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('draws the failure again when the page outlives its reload (a navigation that was cancelled), and never asks twice inside the window', () => {
+    const { tab, reload, timers, outlive } = setup()
+    const heard = vi.fn()
+    tab.onReloading(heard)
+    tab.reload()
+
+    expect(timers.map((timer) => timer.ms)).toEqual([RELOAD_SETTLE_MS])
+    outlive()
+
+    expect(tab.isReloading()).toBe(false)
+    expect(heard).toHaveBeenCalledTimes(2)
+    expect(tab.reload()).toBe('refused')
+    expect(tab.isReloading()).toBe(false)
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('waits while a mutation is in flight, so the call is never cut off', async () => {
+    const { tab, reload } = setup()
+    let finish: (value: string) => void = () => undefined
+    const pending = tab.trackMutation(
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+    )
+
+    expect(tab.reload()).toBe('deferred')
+    expect(reload).not.toHaveBeenCalled()
+
+    finish('saved')
+    await expect(pending).resolves.toBe('saved')
+
+    expect(tab.reload()).toBe('reloading')
+  })
+
+  it('stops waiting when the mutation fails too', async () => {
+    const { tab } = setup()
+    const failing = tab.trackMutation(Promise.reject(new Error('refused')))
+
+    await expect(failing).rejects.toThrow('refused')
+
+    expect(tab.reload()).toBe('reloading')
+  })
+
+  it('counts every mutation in flight, not only the last', async () => {
+    const { tab } = setup()
+    const finish: Array<() => void> = []
+    const track = () =>
+      tab.trackMutation(new Promise<void>((resolve) => void finish.push(resolve)))
+    const first = track()
+    const second = track()
+
+    finish[0]?.()
+    await first
+
+    expect(tab.reload()).toBe('deferred')
+
+    finish[1]?.()
+    await second
+
+    expect(tab.reload()).toBe('reloading')
+  })
+})
+
+describe('reloadForFailure (a route that already failed to draw)', () => {
+  it('reloads for a failure that says the code is stale, and arms the tab', () => {
+    const { tab, reload } = setup()
+
+    expect(tab.reloadForFailure(staleClientError())).toBe('reloading')
+    expect(tab.isStale()).toBe(true)
+    expect(reload).toHaveBeenCalledWith(undefined)
+  })
+
+  it('reloads an armed tab whatever the failure: its code is known to be old and the page is lost already', () => {
+    const { tab, reload } = setup()
+    tab.markStale()
+
+    const outcome = tab.reloadForFailure(
+      new TypeError("Cannot read properties of undefined (reading 'length')"),
+    )
+
+    expect(outcome).toBe('reloading')
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('leaves an ordinary failure of a current tab to the error page', () => {
+    const { tab, reload } = setup()
+
+    expect(tab.reloadForFailure(new Error('boom'))).toBe('unrelated')
+    expect(tab.isStale()).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('leaves every failure to the error page when it does not know its release', () => {
+    const { tab, reload } = setup(null)
+
+    expect(tab.reloadForFailure(new TypeError('Importing a module script failed.'))).toBe(
+      'unrelated',
+    )
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('stays armed when a mutation in flight defers the reload, so the next navigation asks again', () => {
+    const { tab, reload } = setup()
+    void tab.trackMutation(new Promise(() => undefined))
+
+    expect(tab.reloadForFailure(staleClientError())).toBe('deferred')
+    expect(tab.isStale()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+  })
+})
+
+describe('needsFreshCode', () => {
+  it('is true for the typed refusal', () => {
+    expect(setup().tab.needsFreshCode(staleClientError())).toBe(true)
+  })
+
+  it.each([
+    ['Chromium', 'Failed to fetch dynamically imported module: https://x/assets/a.js'],
+    ['Firefox', 'error loading dynamically imported module: https://x/assets/a.js'],
+    ['Safari', 'Importing a module script failed.'],
+  ])('is true for a missing chunk in %s', (_browser, message) => {
+    expect(setup().tab.needsFreshCode(new TypeError(message))).toBe(true)
+  })
+
+  it.each([
+    ['a network failure', new TypeError('Load failed')],
+    [
+      'a plain bug',
+      new TypeError("Cannot read properties of undefined (reading 'length')"),
+    ],
+    [
+      'another refusal',
+      Object.assign(new Error('no'), { _tag: 'T', code: 'forbidden', status: 403 }),
+    ],
+    ['a string', 'Importing a module script failed.'],
+    ['nothing', undefined],
+  ])('is false for %s', (_label, error) => {
+    expect(setup().tab.needsFreshCode(error)).toBe(false)
+  })
+})
+
+describe('watching the browser for missing code', () => {
+  function windowWith() {
+    const listeners = new Map<string, Array<(event: unknown) => void>>()
+    return {
+      target: {
+        addEventListener: (type: string, listener: (event: unknown) => void) =>
+          void listeners.set(type, [...(listeners.get(type) ?? []), listener]),
+        removeEventListener: (type: string, listener: (event: unknown) => void) =>
+          void listeners.set(
+            type,
+            (listeners.get(type) ?? []).filter((entry) => entry !== listener),
+          ),
+      },
+      dispatch: (type: string, event: unknown) =>
+        (listeners.get(type) ?? []).forEach((listener) => listener(event)),
+      count: () => [...listeners.values()].reduce((sum, list) => sum + list.length, 0),
+    }
+  }
+
+  it('arms, but does not reload, when the bundler reports a missing preload', () => {
+    const { tab, reload } = setup()
+    const page = windowWith()
+    watchBrowserFailures(tab, page.target)
+
+    page.dispatch('vite:preloadError', { payload: new Error('gone') })
+
+    expect(tab.isStale()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('arms on an unhandled rejection that is a missing chunk', () => {
+    const { tab, reload } = setup()
+    const page = windowWith()
+    watchBrowserFailures(tab, page.target)
+
+    page.dispatch('unhandledrejection', {
+      reason: new TypeError('Importing a module script failed.'),
+    })
+
+    expect(tab.isStale()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('leaves every other rejection alone, and never swallows one', () => {
+    const { tab } = setup()
+    const page = windowWith()
+    watchBrowserFailures(tab, page.target)
+    const preventDefault = vi.fn()
+
+    page.dispatch('unhandledrejection', {
+      reason: new TypeError('Load failed'),
+      preventDefault,
+    })
+    page.dispatch('unhandledrejection', {
+      reason: new TypeError('Importing a module script failed.'),
+      preventDefault,
+    })
+
+    expect(preventDefault).not.toHaveBeenCalled()
+  })
+
+  it('can be taken down', () => {
+    const { tab } = setup()
+    const page = windowWith()
+    const stop = watchBrowserFailures(tab, page.target)
+
+    expect(page.count()).toBe(2)
+    stop()
+
+    expect(page.count()).toBe(0)
+  })
+})
+
+describe('reloading on the next navigation', () => {
+  it('loads the target afresh when an armed tab goes to another page', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    tab.markStale()
+
+    go('/inbox', '/properties/42?tab=a')
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(reload).toHaveBeenCalledWith('/properties/42?tab=a')
+  })
+
+  it('loads the target afresh when an armed tab changes only the search, as the Inbox does to select an item', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    tab.markStale()
+
+    go('/inbox?itemId=1', '/inbox?itemId=2')
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(reload).toHaveBeenCalledWith('/inbox?itemId=2')
+  })
+
+  it('loads the target afresh when the search and the hash change together', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    tab.markStale()
+
+    go('/inbox?itemId=1#notes', '/inbox?itemId=2#reply')
+
+    expect(reload).toHaveBeenCalledWith('/inbox?itemId=2#reply')
+  })
+
+  it('does nothing when only the hash changed: the same view, scrolled', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    tab.markStale()
+
+    go('/inbox?itemId=1', '/inbox?itemId=1#reply')
+
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('does nothing for a refresh of the same address (Try again re-runs the loaders)', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    tab.markStale()
+
+    go('/inbox?itemId=1', '/inbox?itemId=1')
+
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    '//attacker.example/x',
+    '/\\attacker.example/x',
+    'https://attacker.example/x',
+    'properties',
+    '',
+    // The address parser drops tabs and line breaks and reads a backslash as a
+    // slash, so the next three would become `//attacker.example`; a path the
+    // router built never holds a raw one of them.
+    '/\t/attacker.example/x',
+    '/\r\n/attacker.example/x',
+    '/\t\\attacker.example/x',
+    '/properties\\x',
+  ])(
+    'never loads %j: anything that is not a path on this site reloads the current address',
+    (target) => {
+      const { tab, reload } = setup()
+      const { router, go } = routerWith()
+      tab.reloadOnNavigation(router)
+      tab.markStale()
+
+      go('/inbox', '/properties/42', target)
+
+      expect(reload).toHaveBeenCalledWith(undefined)
+    },
+  )
+
+  it('loads a path whose odd characters are already encoded', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    tab.markStale()
+
+    go('/inbox', '/properties/a%20b?q=%5C%09#x')
+
+    expect(reload).toHaveBeenCalledWith('/properties/a%20b?q=%5C%09#x')
+  })
+
+  it('does nothing while the tab is current', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+
+    go('/inbox', '/properties/42')
+    go('/inbox?itemId=1', '/inbox?itemId=2')
+
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('lets the navigation go on when a mutation is still in flight', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    tab.markStale()
+    void tab.trackMutation(new Promise(() => undefined))
+
+    go('/inbox?itemId=1', '/inbox?itemId=2')
+
+    expect(reload).not.toHaveBeenCalled()
+    expect(tab.isStale()).toBe(true)
+  })
+
+  it('hands back the router subscription so it can be undone', () => {
+    const { tab } = setup()
+    const { router, unsubscribe } = routerWith()
+
+    tab.reloadOnNavigation(router)()
+
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+})
+
+describe('a read refused just after a navigation', () => {
+  it('reloads the current address at once: the view was just drawn, so nothing in it is lost', () => {
+    const { tab, reload, tick } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    go('/inbox?itemId=1', '/inbox?itemId=2')
+    tick(FRESH_VIEW_MS - 1)
+
+    expect(tab.readRefused()).toBe('reloading')
+    expect(reload).toHaveBeenCalledOnce()
+    expect(reload).toHaveBeenCalledWith(undefined)
+    expect(tab.isReloading()).toBe(true)
+  })
+
+  it('only arms the tab once the window has closed (a focus refetch, a poll, a late mount)', () => {
+    const { tab, reload, tick } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    go('/inbox?itemId=1', '/inbox?itemId=2')
+    tick(FRESH_VIEW_MS)
+
+    expect(tab.readRefused()).toBe('armed')
+    expect(tab.isStale()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('counts from the latest navigation', () => {
+    const { tab, reload, tick } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    go('/inbox', '/properties/42')
+    tick(FRESH_VIEW_MS * 5)
+    go('/properties/42', '/inbox?itemId=2')
+    tick(FRESH_VIEW_MS - 1)
+
+    expect(tab.readRefused()).toBe('reloading')
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('only arms the tab when there was no navigation at all', () => {
+    const { tab, reload } = setup()
+
+    expect(tab.readRefused()).toBe('armed')
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('does not count a change of hash alone, which draws no new view', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    go('/inbox?itemId=2', '/inbox?itemId=2#reply')
+
+    expect(tab.readRefused()).toBe('armed')
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('does not count a refresh of the same address', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    go('/inbox?itemId=2', '/inbox?itemId=2')
+
+    expect(tab.readRefused()).toBe('armed')
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('does not take a clock set back as a fresh view', () => {
+    const { tab, reload, tick } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    go('/inbox?itemId=1', '/inbox?itemId=2')
+    tick(-1)
+
+    expect(tab.readRefused()).toBe('armed')
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('waits for a mutation in flight and stays armed, so the next navigation asks again', () => {
+    const { tab, reload } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    void tab.trackMutation(new Promise(() => undefined))
+    go('/inbox?itemId=1', '/inbox?itemId=2')
+
+    expect(tab.readRefused()).toBe('deferred')
+    expect(tab.isStale()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('is refused by the guard when this release already reloaded inside its window, and stays armed', () => {
+    const { tab, reload, items } = setup()
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    items.set(`repkey:stale-reload:${RELEASE}`, '5000000')
+    go('/inbox?itemId=1', '/inbox?itemId=2')
+
+    expect(tab.readRefused()).toBe('refused')
+    expect(tab.isStale()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when the tab does not know its release', () => {
+    const { tab, reload } = setup(null)
+    const { router, go } = routerWith()
+    tab.reloadOnNavigation(router)
+    go('/inbox?itemId=1', '/inbox?itemId=2')
+
+    expect(tab.readRefused()).toBe('unavailable')
+    expect(tab.isStale()).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
+  })
+})
