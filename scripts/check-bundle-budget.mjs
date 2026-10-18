@@ -796,6 +796,24 @@
 // (28d4a874c), so measure again once this branch is rebased onto main.
 // Rebased onto PG-10 and PG-11 (main 7c736c3e8) it measured 307,813 B: 37 B
 // under 307,850, 487 B under the ceiling.
+//
+// 2026-10-18 (Monthly portal goal, PG-13: the goal page /goals/portals): raised
+// to 307,950 B, under the build's ceiling of 308,300 (owner, P-9). The page's
+// route row is first paint: its options (title, the goal.read check, a loader
+// that only imports the lazy -portal-goal-queries chunk) and the names of its
+// component chunk's preloads in the entry. Its component and every part of the
+// page load with it (portals-*.js 4,582 B gzip, lazy); the card it shares with
+// the Goals page is now a lazy chunk of its own (portal-goal-card-*.js 7,826 B),
+// and the page read's server function joins the card's stub chunk. No module-
+// level queryOptions, no static import of a server module, and every class was
+// already in the stylesheet (the same file, styles-_Q6CwAvC.css, 27,811 B).
+// Fresh production builds measured 307,700 B (75 js + 1 css) on the base,
+// PG-12's stacked head 4801bd782, and 307,893 B on the head: +193 B, of which
+// +189 B is the entry (49,024 -> 49,213 B). A route with nothing but its row
+// measured +102 B; the rest is its component's preload list. Over 307,850, so
+// the line moves to 307,950 (57 B spare). PG-09..12 measure about 307,800 B on
+// main, so expect about 307,995 B once this branch is rebased there: measure
+// again then and set the line from that build, still under 308,300.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -807,7 +825,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 307_850, // raised to 307,850 on 2026-10-18 for the Monthly portal goal card (PG-08), measured 307,799 on main b31e4640a (main 307,671), under the build's ceiling of 308,300 (owner, P-9); lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 307_950, // raised to 307,950 on 2026-10-18 for the Monthly portal goal page's route (PG-13), measured 307,893 on its stacked base (base 307,700), under the build's ceiling of 308,300 (owner, P-9); raised to 307,850 on 2026-10-18 for the Monthly portal goal card (PG-08), measured 307,799 on main b31e4640a (main 307,671), under the build's ceiling of 308,300 (owner, P-9); lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
