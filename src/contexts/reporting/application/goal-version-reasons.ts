@@ -16,8 +16,12 @@ export const GOAL_VERSION_REASONS = {
   targetChanged: 'target_changed',
 } as const
 
-const KINDS: ReadonlySet<string> = new Set(Object.values(GOAL_VERSION_REASONS))
-
-/** A version's reason as the manager's note; null when it is the kind of change. */
+/**
+ * A version's reason as the manager's note; null when it is the kind of change.
+ * Worked out when asked, so the module does nothing when it loads and a bundle
+ * that only imports it drops it.
+ */
 export const versionNoteOf = (reason: string): string | null =>
-  KINDS.has(reason) ? null : reason
+  (Object.values(GOAL_VERSION_REASONS) as readonly string[]).includes(reason)
+    ? null
+    : reason
