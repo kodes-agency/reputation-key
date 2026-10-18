@@ -1,7 +1,7 @@
 // The variables of a deployed Railway service, as a map. Shared by the ops
 // checks that need a few of them (Google OAuth, storage CORS).
 
-import type { CommandRunner } from './deploy-ci-images'
+import type { CommandRunner } from './command-runner'
 
 export function readRailwayVariables(
   runner: CommandRunner,

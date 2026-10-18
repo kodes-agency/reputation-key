@@ -9,7 +9,7 @@ import {
   buildGoogleAuthorizeUrl,
   googleOAuthCallbackUrl,
 } from '../../src/contexts/integration/application/google-authorize-request'
-import type { CommandRunner } from './deploy-ci-images'
+import type { CommandRunner } from './command-runner'
 import { readRailwayVariables } from './railway-variables'
 
 export type GoogleOAuthConfig = Readonly<{
