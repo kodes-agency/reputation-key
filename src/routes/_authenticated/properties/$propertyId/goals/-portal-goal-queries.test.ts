@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
 
 const getMonthlyPortalGoalCard = vi.hoisted(() => vi.fn())
@@ -38,6 +38,53 @@ describe('the Monthly portal goal reads', () => {
     await expect(
       prefetchPortalGoalSection(new QueryClient(), 'property-2'),
     ).resolves.toBeUndefined()
+  })
+
+  describe('how long a card is read again after', () => {
+    const T0 = new Date('2026-10-17T09:00:00.000Z').getTime()
+    const at = (ms: number) => vi.setSystemTime(new Date(T0 + ms))
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      at(0)
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('reads a card before a goal again once it is 5 seconds old: a Portal command may have changed it', async () => {
+      const queryClient = new QueryClient()
+      getMonthlyPortalGoalCard.mockResolvedValue({
+        state: 'drafts_only',
+        drafts: [{ portalId: 'portal-spa', name: 'Spa' }],
+      })
+
+      await prefetchPortalGoalSection(queryClient, PROPERTY)
+      at(4_000)
+      await prefetchPortalGoalSection(queryClient, PROPERTY)
+      expect(getMonthlyPortalGoalCard).toHaveBeenCalledTimes(1)
+
+      at(6_000)
+      await prefetchPortalGoalSection(queryClient, PROPERTY)
+      expect(getMonthlyPortalGoalCard).toHaveBeenCalledTimes(2)
+    })
+
+    it("keeps a goal's card for 30 seconds", async () => {
+      const queryClient = new QueryClient()
+      getMonthlyPortalGoalCard.mockResolvedValue({
+        state: 'goal',
+        goal: { programId: 'program-1' },
+      })
+
+      await prefetchPortalGoalSection(queryClient, PROPERTY)
+      at(29_000)
+      await prefetchPortalGoalSection(queryClient, PROPERTY)
+      expect(getMonthlyPortalGoalCard).toHaveBeenCalledTimes(1)
+
+      at(31_000)
+      await prefetchPortalGoalSection(queryClient, PROPERTY)
+      expect(getMonthlyPortalGoalCard).toHaveBeenCalledTimes(2)
+    })
   })
 
   it("marks a Portal goal's reads, the list and the dashboard stale, never the Google rating goal's", async () => {

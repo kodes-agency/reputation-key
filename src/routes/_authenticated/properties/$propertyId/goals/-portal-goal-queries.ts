@@ -24,12 +24,22 @@ const server = (): Promise<MonthlyPortalGoalServer> =>
 /** A read of the month so far is good for this long; a focused tab reads it again. */
 const PORTAL_GOAL_STALE_MS = 30_000
 
+/**
+ * The card before a goal is good only this long. It is made of Portal's facts (a
+ * Portal created, published or turned off, a code made), and no Portal command
+ * marks a goal read stale: the gate's "Open Spa" or "Create a portal" leads away
+ * and back. Long enough that the loader's read is still fresh when the section
+ * mounts; shorter than any trip to a Portal and back.
+ */
+const BEFORE_GOAL_STALE_MS = 5_000
+
 export const portalGoalCardQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.portalGoalRead(propertyId, 'card'),
     queryFn: async () =>
       (await server()).getMonthlyPortalGoalCard({ data: { propertyId } }),
-    staleTime: PORTAL_GOAL_STALE_MS,
+    staleTime: (query) =>
+      query.state.data?.state === 'goal' ? PORTAL_GOAL_STALE_MS : BEFORE_GOAL_STALE_MS,
   })
 
 /**
