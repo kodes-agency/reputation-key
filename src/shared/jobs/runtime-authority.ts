@@ -49,7 +49,13 @@ export type JobRuntimeObservation = Readonly<{
   schedulerRegistered: boolean
   lastStartedAt: Date | null
   lastSucceededAt: Date | null
-  lastTerminalFailureAt: Date | null
+  /**
+   * Latest terminal failure of on-demand work, a manual run of a scheduled
+   * family included. It is dead-lettered, so only a governed redrive answers it.
+   */
+  lastOnDemandFailureAt: Date | null
+  /** Latest terminal failure of a schedule firing, which is never dead-lettered. */
+  lastScheduleFailureAt: Date | null
   lastRepairAt: Date | null
   lastStalledAt: Date | null
   /** Latest terminal gate denial of any execution; counted, never paged. */
@@ -198,7 +204,8 @@ function invalidObservation(observation: JobRuntimeObservation, now: Date): bool
   const dates = [
     observation.lastStartedAt,
     observation.lastSucceededAt,
-    observation.lastTerminalFailureAt,
+    observation.lastOnDemandFailureAt,
+    observation.lastScheduleFailureAt,
     observation.lastRepairAt,
     observation.lastStalledAt,
     observation.lastDeniedAt,
@@ -213,27 +220,34 @@ function invalidObservation(observation: JobRuntimeObservation, now: Date): bool
 }
 
 /**
- * Whether a later success answers the family's terminal failure. On-demand work
- * is one unit that only a governed quarantine redrive runs again, so only that
- * redrive repairs it. An active schedule is enumeration-only and is never
- * dead-lettered: its next firing repeats the whole pass, so a later success is
- * the repair — the rule a denied firing already follows. A quarantined family
- * has no firing, so it keeps the redrive rule.
+ * Whether the family's scheduler fires: an active family with a cadence. Only
+ * then does a failed firing count, and a later success answers it. A firing is
+ * enumeration-only and never dead-lettered, so the next one repeats the whole
+ * pass: the rule a denied firing already follows. A family taken out of the
+ * active schedule has no firing left to succeed, so its old firing failures no
+ * longer hold it; a scheduler it kept is `quarantined_scheduler_registered`.
  */
-export function isRepairedByNextSuccess(
+export function firesOnSchedule(
   contract: Pick<JobOperationalContract, 'posture' | 'schedule'>,
 ): boolean {
   return contract.posture === 'active' && isScheduled(contract.schedule)
 }
 
-/** When the family's latest terminal failure was last answered. */
-function repairedAt(
+/**
+ * On-demand work and firings keep separate latches. On-demand work is one unit
+ * that only a governed quarantine redrive runs again, so no plain success
+ * answers it, a firing's included. A failed firing is answered by any later
+ * success, for as long as the family still fires.
+ */
+function repairRequired(
   contract: JobOperationalContract,
   observation: JobRuntimeObservation,
-): Date | null {
-  const { lastRepairAt, lastSucceededAt } = observation
-  if (!isRepairedByNextSuccess(contract)) return lastRepairAt
-  return after(lastSucceededAt, lastRepairAt) ? lastSucceededAt : lastRepairAt
+): boolean {
+  if (after(observation.lastOnDemandFailureAt, observation.lastRepairAt)) return true
+  return (
+    firesOnSchedule(contract) &&
+    after(observation.lastScheduleFailureAt, observation.lastSucceededAt)
+  )
 }
 
 function appendWorkHealthReasons(
@@ -248,9 +262,7 @@ function appendWorkHealthReasons(
   ) {
     reasons.push('queue_age_objective_missed')
   }
-  if (after(observation.lastTerminalFailureAt, repairedAt(contract, observation))) {
-    reasons.push('repair_required')
-  }
+  if (repairRequired(contract, observation)) reasons.push('repair_required')
   if (
     after(observation.lastStalledAt, observation.lastSucceededAt) &&
     after(observation.lastStalledAt, observation.lastRepairAt)

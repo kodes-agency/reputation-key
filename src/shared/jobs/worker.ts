@@ -24,6 +24,7 @@ import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
 import { getJobRedisUrl } from './redis-topology'
 import type { JobRuntimeObservationSink } from './runtime-observations'
+import { executionKindOf } from './schedule-firing'
 import {
   JOB_OPERATIONAL_QUEUE_CONCURRENCY,
   JOB_OPERATIONAL_QUEUE_RATE_LIMIT,
@@ -283,6 +284,7 @@ export function createJobWorker<T>(
             jobName: job.name,
             jobId: job.id ?? 'unknown',
             at: clock(),
+            executionKind: executionKindOf(job),
           }),
         )
       }

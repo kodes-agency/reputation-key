@@ -319,6 +319,7 @@ async function main() {
         repairRequired: runtimeReport.repairRequired,
         deadLetters: runtimeReport.deadLetters,
         gateDenials: runtimeReport.gateDenials,
+        terminalFailures: runtimeReport.terminalFailures,
         failedJobs: runtimeReport.rows
           .filter((row) => !row.ready)
           .map((row) => ({

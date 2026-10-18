@@ -14,7 +14,7 @@ import {
 } from '#/shared/governance/event-job-catalogue'
 import { jobEnqueueOptions } from './job-policy'
 import {
-  isRepairedByNextSuccess,
+  firesOnSchedule,
   validateJobOperationalContracts,
   type JobOperationalContract,
 } from './runtime-authority'
@@ -23,9 +23,10 @@ import type { JobSchedulerRegistration } from './job-schedulers'
 const DEFAULT_MAXIMUM_QUEUE_AGE_MS = 15 * 60_000
 const GENERIC_REPAIR_COMMAND =
   'pnpm ops quarantine redrive <quarantineJobId> --operator <registered-operator> --reason <incident-reason> --apply'
-// A firing is never dead-lettered, so an active schedule has nothing to redrive.
+// A firing is never dead-lettered, so it has nothing to redrive; only a manual
+// run of the family is, and the row's failure times say which one failed.
 const SCHEDULED_REPAIR_COMMAND =
-  'fix the cause; the next successful firing clears repair_required (docs/operations/runbooks.md §17)'
+  'fix the cause; a later success clears a failed firing (lastScheduleFailureAt), a failed manual run (lastOnDemandFailureAt) needs its dead letter redriven (docs/operations/runbooks.md §17)'
 const GENERIC_RUNBOOK = 'docs/operations/runbooks.md'
 
 /**
@@ -119,7 +120,7 @@ function repairCommandFor(
   posture: JobOperationalContract['posture'],
   schedule: string,
 ): string {
-  return isRepairedByNextSuccess({ posture, schedule })
+  return firesOnSchedule({ posture, schedule })
     ? SCHEDULED_REPAIR_COMMAND
     : GENERIC_REPAIR_COMMAND
 }

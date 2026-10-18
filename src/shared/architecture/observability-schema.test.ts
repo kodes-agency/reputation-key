@@ -364,6 +364,9 @@ const NON_METRIC_PATHS = new Set([
   'jobs.rows.*.ready',
   'jobs.rows.*.reasons.*',
   'jobs.rows.*.lastSucceededAt',
+  'jobs.rows.*.lastOnDemandFailureAt',
+  'jobs.rows.*.lastScheduleFailureAt',
+  'jobs.rows.*.failedCount',
   'jobs.rows.*.lastDeniedAt',
   'jobs.rows.*.deniedCount',
   'jobs.rows.*.oldestWaitingAt',
@@ -465,6 +468,7 @@ async function assembleSnapshot() {
         repairRequired: 0,
         deadLetters: 0,
         gateDenials: 0,
+        terminalFailures: 0,
         rows: [
           {
             jobName: 'health-check',
@@ -486,6 +490,9 @@ async function assembleSnapshot() {
             ready: false,
             reasons: ['scheduler_missing'],
             lastSucceededAt: null,
+            lastOnDemandFailureAt: null,
+            lastScheduleFailureAt: null,
+            failedCount: 0,
             lastDeniedAt: null,
             deniedCount: 0,
             oldestWaitingAt: null,

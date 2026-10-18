@@ -282,6 +282,7 @@ describe('worker observability', () => {
         jobName: 'schedule-property-ai-trends',
         jobId: firing.id,
         at: expect.any(Date),
+        executionKind: 'schedule',
       }),
     )
     expect(captureObservabilityException).toHaveBeenCalledWith(failure, {
@@ -397,6 +398,10 @@ describe('worker observability', () => {
         expect.objectContaining({ jobId: 'redrive-1', repair: true }),
       )
       expect(observationSink.recordTerminalFailure).toHaveBeenCalledTimes(1)
+      // Enqueued on demand, not fired by a scheduler: its own latch.
+      expect(observationSink.recordTerminalFailure).toHaveBeenCalledWith(
+        expect.objectContaining({ jobId: 'job-1', executionKind: 'worker' }),
+      )
       expect(observationSink.recordDenied).not.toHaveBeenCalled()
       expect(observationSink.recordStalled).toHaveBeenCalledWith(
         expect.objectContaining({

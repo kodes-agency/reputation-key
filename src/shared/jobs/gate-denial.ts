@@ -9,7 +9,9 @@
  * success. It carries only the closed deny reason, never scope or payload.
  */
 
-export type GateDeniedExecutionKind = 'worker' | 'schedule'
+import type { JobExecutionKind } from './schedule-firing'
+
+export type GateDeniedExecutionKind = JobExecutionKind
 
 export type GateDeniedResult = Readonly<{
   gate: 'denied'

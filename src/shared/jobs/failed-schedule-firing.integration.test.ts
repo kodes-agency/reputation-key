@@ -87,15 +87,24 @@ afterAll(async () => {
   lease?.release()
 })
 
-/** Both families' terminal-failure heads, written by the worker's `failed` listener. */
+/**
+ * Both families' terminal-failure heads, written by the worker's `failed`
+ * listener: a firing's and on-demand work's each in its own field.
+ */
 async function waitForFailureHeads(
   store: ReturnType<typeof createJobRuntimeObservationStore>,
 ): Promise<void> {
   await vi.waitFor(async () => {
-    for (const jobName of [SCHEDULED_JOB, ON_DEMAND_JOB]) {
-      const head = await store.read(jobName)
-      expect(head?.observation.lastTerminalFailureAt).toBeInstanceOf(Date)
-    }
+    const scheduled = await store.read(SCHEDULED_JOB)
+    const onDemand = await store.read(ON_DEMAND_JOB)
+    expect(scheduled?.observation).toMatchObject({
+      lastScheduleFailureAt: expect.any(Date),
+      lastOnDemandFailureAt: null,
+    })
+    expect(onDemand?.observation).toMatchObject({
+      lastScheduleFailureAt: null,
+      lastOnDemandFailureAt: expect.any(Date),
+    })
   }, WAIT)
 }
 
@@ -159,13 +168,24 @@ describe('terminally failed work (real BullMQ worker)', () => {
 
       const failed = await readReport()
       expect(failed.rows).toMatchObject([
-        { jobName: SCHEDULED_JOB, reasons: ['repair_required'], deadLetterCount: 0 },
+        {
+          jobName: SCHEDULED_JOB,
+          reasons: ['repair_required'],
+          deadLetterCount: 0,
+          lastScheduleFailureAt: expect.any(String),
+          lastOnDemandFailureAt: null,
+          failedCount: 1,
+        },
         {
           jobName: ON_DEMAND_JOB,
           reasons: ['repair_required', 'dead_letter_present'],
           deadLetterCount: 1,
+          lastScheduleFailureAt: null,
+          lastOnDemandFailureAt: expect.any(String),
+          failedCount: 1,
         },
       ])
+      expect(failed.terminalFailures).toBe(2)
 
       // The scheduler queued the next firing when the failed one started.
       failing = false
@@ -178,6 +198,9 @@ describe('terminally failed work (real BullMQ worker)', () => {
           jobName: SCHEDULED_JOB,
           ready: true,
           reasons: [],
+          // The success answers the failed firing; the retained set keeps it.
+          lastScheduleFailureAt: expect.any(String),
+          failedCount: 1,
         })
       }, WAIT)
 
