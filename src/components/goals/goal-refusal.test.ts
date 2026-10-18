@@ -31,6 +31,7 @@ const SENTENCES: Readonly<Record<string, string>> = {
   no_open_month: 'This month’s result isn’t open yet. Try again in a few minutes.',
   organization_closing:
     'This organization is being closed, so goals can’t be created, started or resumed.',
+  check_in_closed: 'This month’s check-in has closed.',
 }
 
 describe('goalRefusal', () => {

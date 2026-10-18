@@ -94,3 +94,6 @@ export const reviseMonthlyPortalGoalSchema = z.object({
 
 /** Stop. */
 export const stopMonthlyPortalGoalSchema = z.object(ofTheGoal)
+
+/** The month-start check-in's Keep, for the month it asked about. */
+export const keepMonthlyPortalGoalSchema = z.object({ ...ofTheGoal, month: monthKey })

@@ -27,6 +27,11 @@ export type GoalProgram = Readonly<{
   endedAt?: Date
   /** Who ended it (migration 0062), named only when stored, with `endedAt`. */
   endedBy?: string
+  /**
+   * The `YYYY-MM` month whose month-start check-in a manager answered with
+   * Keep (migration 0062); named only when one was stored.
+   */
+  checkInAnsweredMonth?: string
 }>
 
 export type GoalProgramVersion = Readonly<{
@@ -314,6 +319,21 @@ export type GoalProgramRepository = Readonly<{
       scheduledStatusReason?: GoalScheduledStatusReason
       actorId: string
       at: Date
+    }>,
+  ): Promise<boolean>
+  /**
+   * Record that the month-start check-in of `month` was answered with Keep:
+   * the Program's answered month, in place. No version is written and no
+   * month's target changes, so the Program's head and status stay as they
+   * are; answering the same month again writes the same. False when the
+   * Program does not exist for the tenant or is not active.
+   */
+  answerCheckIn(
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      programId: string
+      month: string
     }>,
   ): Promise<boolean>
   /**

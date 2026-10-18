@@ -839,6 +839,103 @@ describe.sequential('Goal Program repository (integration)', () => {
     })
   })
 
+  it('a kept check-in records its month alone, the same again when kept twice', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Check-in Property')
+    const periodStart = new Date('2026-01-01T00:00:00.000Z')
+    const original = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: periodStart,
+      at: periodStart,
+      withOpenResult: { end: new Date('2026-02-01T00:00:00.000Z') },
+    })
+    await repository.create({ bundle: original, auditAction: 'goal.program.created' })
+    const stored = async () =>
+      (
+        await lease.pool.query(
+          `SELECT status, current_version, updated_at, check_in_answered_month
+           FROM goal_programs
+           WHERE organization_id = $1 AND property_id = $2 AND id = $3`,
+          [organizationId, targetPropertyId, original.program.id],
+        )
+      ).rows
+    const keep = (month: string, programId = original.program.id) =>
+      repository.answerCheckIn({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId,
+        month,
+      })
+    const [before] = await stored()
+
+    await expect(keep('2026-01')).resolves.toBe(true)
+    await expect(keep('2026-01')).resolves.toBe(true)
+
+    // No version, no status change, no new update time: only the answer.
+    expect(await stored()).toEqual([
+      {
+        status: 'active',
+        current_version: 1,
+        updated_at: before?.updated_at,
+        check_in_answered_month: '2026-01',
+      },
+    ])
+    const read = await repository.get(
+      organizationId,
+      targetPropertyId,
+      original.program.id,
+    )
+    expect(read?.program.checkInAnsweredMonth).toBe('2026-01')
+    expect(read?.version.version).toBe(1)
+    // Another Program, or another Organization's, is never answered.
+    await expect(keep('2026-01', randomUUID())).resolves.toBe(false)
+    await expect(
+      repository.answerCheckIn({
+        organizationId: `${organizationId}-other`,
+        propertyId: targetPropertyId,
+        programId: original.program.id,
+        month: '2026-02',
+      }),
+    ).resolves.toBe(false)
+    expect((await stored())[0]?.check_in_answered_month).toBe('2026-01')
+    // A goal that has ended takes no answer.
+    await repository.changeStatus({
+      organizationId,
+      propertyId: targetPropertyId,
+      programId: original.program.id,
+      expectedStatus: 'active',
+      status: 'ended',
+      reason: null,
+      actorId: 'manager-2',
+      at: new Date('2026-01-12T09:30:00.000Z'),
+    })
+    await expect(keep('2026-02')).resolves.toBe(false)
+    expect((await stored())[0]?.check_in_answered_month).toBe('2026-01')
+  })
+
+  it('a goal never kept names no answered month', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Unanswered Property')
+    const periodStart = new Date('2026-01-01T00:00:00.000Z')
+    const original = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: periodStart,
+      at: periodStart,
+      withOpenResult: { end: new Date('2026-02-01T00:00:00.000Z') },
+    })
+    await repository.create({ bundle: original, auditAction: 'goal.program.created' })
+
+    const read = await repository.get(
+      organizationId,
+      targetPropertyId,
+      original.program.id,
+    )
+
+    expect(read?.program).not.toHaveProperty('checkInAnsweredMonth')
+  })
+
   it('finds only exact-version closed results inside the half-open impacted month', async () => {
     const repository = createGoalProgramRepository(getDb())
     const targetPropertyId = await createPropertyFixture('Correction Goal Property')
