@@ -2,7 +2,9 @@
 // card of an active goal (each status, and a goal to keep), a goal reached or
 // ended lately (found by the card read, or by the snapshot consumer and so read
 // from History), the door into the wizard, the "keep" door, the reasons there is
-// no goal yet, a read on its way or failed, and a reader who cannot set goals. The Storybook Vitest project compiles no Tailwind, so the plays assert
+// no goal yet, a read on its way or failed, and a reader who cannot set goals;
+// then the section as the Goals page draws it, its Active / History tabs inside
+// it (P-7a). The Storybook Vitest project compiles no Tailwind, so the plays assert
 // words, roles and what each door opens, not pixels.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
@@ -11,6 +13,7 @@ import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import { Button } from '#/components/ui/button'
 import { RatingGoalHistory } from './rating-goal-history'
 import { RatingGoalSection } from './rating-goal-section'
+import { RatingGoalViews } from './rating-goal-views'
 import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import { SETUP_BETA } from './rating-goal-plan.stories.fixtures'
 import {
@@ -852,5 +855,97 @@ export const HistoryEmpty: Story = {
     await expect(
       within(canvasElement).getByText('No Google rating goal history'),
     ).toBeVisible()
+  },
+}
+
+/**
+ * The section as the Goals page draws it (P-7a, ADR 0068): one region named
+ * "Google rating goal" holds the Active / History tabs, then the view they
+ * choose. The page's axe scan holds landmarks unique; this runner's does not
+ * (no page shell), so the plays count the region.
+ */
+async function expectTabsInsideSection(
+  canvasElement: HTMLElement,
+  view: 'Active' | 'History',
+) {
+  const sections = within(canvasElement).getAllByRole('region', {
+    name: 'Google rating goal',
+  })
+  await expect(sections).toHaveLength(1)
+  const section = within(sections[0]!)
+  const tabs = section.getByRole('navigation', { name: 'Google rating goal views' })
+  await expect(within(tabs).getByRole('link', { name: view })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(within(tabs).getByRole('link', { name: 'Active' })).toHaveAttribute(
+    'href',
+    `/properties/${FIXTURE_PROPERTY_ID}/goals?view=active`,
+  )
+  await expect(within(tabs).getByRole('link', { name: 'History' })).toHaveAttribute(
+    'href',
+    `/properties/${FIXTURE_PROPERTY_ID}/goals?view=history`,
+  )
+  // Above the view they choose: the section's title follows them.
+  const title = section.getByRole('heading', { level: 2, name: 'Google rating goal' })
+  await expect(
+    tabs.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0)
+  return section
+}
+
+/** History is the Google section's own: its tabs, then its reached and ended goals. */
+export const HistoryTabInsideSection: Story = {
+  render: () => (
+    <div className="max-w-5xl">
+      <RatingGoalViews propertyId={FIXTURE_PROPERTY_ID} view="history">
+        <RatingGoalHistory
+          history={read(HISTORY)}
+          timezone={FIXTURE_TIMEZONE}
+          now={NOW}
+        />
+      </RatingGoalViews>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const section = await expectTabsInsideSection(canvasElement, 'History')
+    await expect(section.getByText('Reach 4.3 on Google')).toBeVisible()
+    await expect(section.getByText('Keep 4.2 on Google')).toBeVisible()
+  },
+}
+export const HistoryTabInsideSectionPhone320: Story = {
+  ...HistoryTabInsideSection,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+export const HistoryTabInsideSectionPhone390: Story = {
+  ...HistoryTabInsideSection,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
+export const HistoryTabInsideSectionTablet: Story = {
+  ...HistoryTabInsideSection,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
+}
+export const HistoryTabInsideSectionDesktop: Story = {
+  ...HistoryTabInsideSection,
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+export const HistoryTabInsideSectionLight: Story = {
+  ...HistoryTabInsideSection,
+  parameters: { theme: 'light' },
+}
+
+/** The Active view with no goal yet: the same one region, its tabs, then the door. */
+export const ActiveTabInsideSection: Story = {
+  args: { card: cardRead(null), setup: read(SETUP) },
+  render: (args) => (
+    <div className="max-w-5xl">
+      <RatingGoalViews propertyId={FIXTURE_PROPERTY_ID} view="active">
+        <RatingGoalSection {...args} />
+      </RatingGoalViews>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const section = await expectTabsInsideSection(canvasElement, 'Active')
+    await expect(section.getByRole('button', { name: 'Set goal' })).toBeVisible()
   },
 }

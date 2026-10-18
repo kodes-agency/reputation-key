@@ -1,7 +1,9 @@
-// The Goals page's History view, Google part: the Property's reached and ended
-// Google rating goals, newest first. Each row says what it aimed at, how
-// (climb at a pace, or keep), when it was set, when it was reached or ended,
-// and why it ended, in plain words.
+// The Google rating goal's History view on the Goals page: the Property's
+// reached and ended Google rating goals, newest first. Each row says what it
+// aimed at, how (climb at a pace, or keep), when it was set, when it was reached
+// or ended, and why it ended, in plain words. It is drawn inside the Google
+// section, under its tabs (`RatingGoalViews`, P-7a), which is the region named
+// "Google rating goal"; this part titles itself but is no region of its own.
 import { History } from 'lucide-react'
 import type { RatingGoalHistoryEntry } from '#/contexts/reporting/application/dto/rating-goal.types'
 import {
@@ -68,8 +70,8 @@ function Rows({
 
 export function RatingGoalHistory({ history, timezone, now }: Props) {
   return (
-    <section aria-labelledby="google-rating-goal-history" className="flex flex-col gap-3">
-      <SectionTitle id="google-rating-goal-history">Google rating goal</SectionTitle>
+    <div className="flex flex-col gap-3">
+      <SectionTitle>Google rating goal</SectionTitle>
       {history.failed ? (
         <RegionError
           message="The Google rating goal history couldn’t be loaded."
@@ -82,6 +84,6 @@ export function RatingGoalHistory({ history, timezone, now }: Props) {
       ) : (
         <Rows entries={history.data} timezone={timezone} now={now} />
       )}
-    </section>
+    </div>
   )
 }

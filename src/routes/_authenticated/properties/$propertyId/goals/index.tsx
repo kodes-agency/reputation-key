@@ -21,7 +21,6 @@ import { trailCrumbs } from '#/components/layout/page-identity'
 import { InlineLink } from '#/components/ui/inline-link'
 import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
 import { portalNextStepOf } from '#/components/goals/rating-goal-portal-step'
-import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { PortalGoalResultsLinks } from '#/components/goals/portal-goal-results-links'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { goalForResult } from './-goal-for-result'
@@ -138,25 +137,22 @@ function GoalsRoute() {
           NAV_LABEL.goals,
         )}
       />
-      <div className="flex flex-col gap-4">
-        <GoalViewTabs propertyId={propertyId} view={view} />
-        {/* The Google rating goal first, apart from the Portal goals: no shared numbers. */}
-        <RatingGoalPanel
-          propertyId={propertyId}
-          timezone={propData.property.timezone}
-          view={view}
-          hasPortals={subjectNames.portals.length > 0}
-          portalNextStep={portalNextStepOf(subjectNames.portals)}
-          startOnArrival={start !== undefined}
-          // Answered once: off the address, so a reload or Back does not open it again.
-          onArrivalHandled={() =>
-            void navigate({
-              search: (prev) => ({ ...prev, start: undefined }),
-              replace: true,
-            })
-          }
-        />
-      </div>
+      {/* The Google rating goal first, with its own tabs, apart from the Portal goals: no shared numbers. */}
+      <RatingGoalPanel
+        propertyId={propertyId}
+        timezone={propData.property.timezone}
+        view={view}
+        hasPortals={subjectNames.portals.length > 0}
+        portalNextStep={portalNextStepOf(subjectNames.portals)}
+        startOnArrival={start !== undefined}
+        // Answered once: off the address, so a reload or Back does not open it again.
+        onArrivalHandled={() =>
+          void navigate({
+            search: (prev) => ({ ...prev, start: undefined }),
+            replace: true,
+          })
+        }
+      />
       {/* Apart from the Google section above: no shared numbers. */}
       <PortalGoalPanel
         propertyId={propertyId}

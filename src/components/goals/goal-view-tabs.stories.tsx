@@ -1,8 +1,9 @@
-// The Goals page's Active / History switch (UI consistency scan: COLL-11). Two
-// links in a named navigation landmark, the current one marked with
-// `aria-current`, where it used to be two Buttons that said nothing about which
-// view was on. Dark is the default theme; the light variant draws the same row on
-// the light surface (axe runs on both).
+// The Google rating goal's Active / History switch on the Goals page (UI
+// consistency scan: COLL-11), inside the Google section since P-7a (ADR 0068),
+// so its name says whose views they are. Two links in a named navigation
+// landmark, the current one marked with `aria-current`, where it used to be two
+// Buttons that said nothing about which view was on. Dark is the default theme;
+// the light variant draws the same row on the light surface (axe runs on both).
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, within } from 'storybook/test'
 import { GoalViewTabs } from './goal-view-tabs'
@@ -20,7 +21,9 @@ type Story = StoryObj<typeof GoalViewTabs>
 
 export const ActiveView: Story = {
   play: async ({ canvasElement }) => {
-    const nav = within(canvasElement).getByRole('navigation', { name: 'Goal views' })
+    const nav = within(canvasElement).getByRole('navigation', {
+      name: 'Google rating goal views',
+    })
     // Route views, not a tablist: nothing here swaps a panel in the same document.
     expect(within(canvasElement).queryByRole('tablist')).toBeNull()
     expect(within(nav).getAllByRole('link')).toHaveLength(2)
@@ -37,7 +40,9 @@ export const ActiveView: Story = {
 export const HistoryView: Story = {
   args: { view: 'history' },
   play: async ({ canvasElement }) => {
-    const nav = within(canvasElement).getByRole('navigation', { name: 'Goal views' })
+    const nav = within(canvasElement).getByRole('navigation', {
+      name: 'Google rating goal views',
+    })
     expect(within(nav).getByRole('link', { name: 'History' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -51,7 +56,9 @@ export const HistoryView: Story = {
 /** Each view has an address, so it can be bookmarked and Back steps between them. */
 export const EachViewHasAnAddress: Story = {
   play: async ({ canvasElement }) => {
-    const nav = within(canvasElement).getByRole('navigation', { name: 'Goal views' })
+    const nav = within(canvasElement).getByRole('navigation', {
+      name: 'Google rating goal views',
+    })
     expect(within(nav).getByRole('link', { name: 'Active' })).toHaveAttribute(
       'href',
       '/properties/property-1/goals?view=active',
