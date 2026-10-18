@@ -57,6 +57,25 @@ describe('stopWords', () => {
     })
   })
 
+  it('a goal for one portal, a group or the average asks to stop this portal goal (PG-21)', () => {
+    expect(stopWords(goalOf(CARD_RUNNING), 'single')).toMatchObject({
+      title: 'Stop this portal goal?',
+      description:
+        'November keeps counting to Nov 30 and keeps its result. You can set a new goal from December.',
+      confirm: 'Stop the goal',
+    })
+    // The average names no month it still counts, nor the month before.
+    const average = {
+      programId: 'average-goal',
+      status: 'active',
+      startsOn: null,
+      change: goalOf(CARD_RUNNING).change,
+    } as const
+    expect(stopWords(average, 'single').description).toBe(
+      'November keeps counting to Nov 30 and keeps its result. You can set a new goal from December.',
+    )
+  })
+
   it('a second Stop says the goal was already stopped', () => {
     const refused = goalRefusal(
       new ServerFunctionError(

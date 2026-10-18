@@ -12,8 +12,8 @@
 // definition is an object with both a `queryKey` and a `queryFn`; an
 // invalidation names a key and reads nothing, so it is not one.
 //
-// Two goal reads stay defined per route, on purpose (`LEAF_COPIES`): they are
-// listed, and their copies must be the same read.
+// A goal read may stay defined per route, on purpose (`LEAF_COPIES`): it is
+// listed, and its copies must be the same read.
 import { relative } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
@@ -64,8 +64,6 @@ function redefined(definitions: readonly Definition[]): Record<string, string[]>
   return Object.fromEntries([...places].filter(([, paths]) => paths.length > 1))
 }
 
-const GOALS = '_authenticated/properties/$propertyId/goals'
-
 /**
  * Reads that more than one goal page defines for itself, and may. Sharing them
  * was measured on 2026-10-13, on production builds of the same tree: against
@@ -79,14 +77,15 @@ const GOALS = '_authenticated/properties/$propertyId/goals'
  * goal results page keeps its copies in a module its loader imports on demand
  * (`-portal-goal-queries.ts`), so they add nothing to first paint.
  */
+// The New goal page's copy of the goal list went with the page (PG-20), and the
+// goal page's copy of the subject names with its old dialogs (PG-21): each goal
+// page's read is the Portal goals' own now (`-portal-goal-queries.ts`).
 const LEAF_COPIES: Readonly<Record<string, readonly string[]>> = {
   "goalKeys.list({ propertyId, model: 'program' })": [
-    // The New goal page's copy went with the page (PG-20).
     `${GOALS}/-portal-goal-queries.ts`,
     `${GOALS}/index.tsx`,
   ],
   'portalKeys.goalSubjectNames(propertyId)': [
-    `${GOALS}/$goalId.tsx`,
     `${GOALS}/-portal-goal-queries.ts`,
     `${GOALS}/index.tsx`,
   ],
@@ -102,6 +101,8 @@ describe('route query options', () => {
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'card')")
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'page')")
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'add')")
+    // A goal's own page (PG-21): one Portal's, one group's or the average's.
+    expect(keys).toContain('goalKeys.portalGoalRead(propertyId, `goal:${programId}`)')
   })
 
   it('are defined once, and imported by every route that reads them', () => {

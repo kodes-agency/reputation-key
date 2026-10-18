@@ -168,7 +168,7 @@ export function PortalGoalChangeSheet(props: Props) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       busy={pending}
-      title={model.title}
+      title={props.changeTitle ?? model.title}
       description={model.description}
       onCloseAutoFocus={props.onCloseAutoFocus}
     >

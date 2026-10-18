@@ -30,7 +30,10 @@ function isPortalGoalSource(path: string): boolean {
   if (path === RESULTS_LINE_HOST) return true
   if (!path.startsWith(GOALS_ROUTE)) return false
   const name = path.slice(GOALS_ROUTE.length)
-  return /^(-portal-goal-[^/]+\.tsx?|portals\.tsx|portal-results\.tsx)$/u.test(name)
+  // `$goalId.tsx` is a portal goal's own page (PG-21).
+  return /^(-portal-goal-[^/]+\.tsx?|portals\.tsx|portal-results\.tsx|\$goalId\.tsx)$/u.test(
+    name,
+  )
 }
 
 const ALL_SOURCES = readUiSources({ includeTs: true })
@@ -87,6 +90,7 @@ describe('the Monthly portal goal sources', () => {
     expect(paths).toContain(`${GOALS_ROUTE}-portal-goal-queries.ts`)
     expect(paths).toContain(RESULTS_LINE_HOST)
     expect(paths).toContain(`${GOALS_ROUTE}-portal-goal-overview.tsx`)
+    expect(paths).toContain(`${GOALS_ROUTE}$goalId.tsx`)
   })
 
   it('never imports the Google rating goal', () => {

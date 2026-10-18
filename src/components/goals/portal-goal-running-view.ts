@@ -56,6 +56,9 @@ export type PortalGoalRunningWords =
 
 const BELOW_PACE = 'below pace'
 
+/** G-25: a month whose figure cannot be read, never a zero. */
+export const MONTH_FIGURE_UNREADABLE = 'This month’s figure can’t be read right now.'
+
 /** G-32: "Private ratings in November", "Scans in November". */
 function barLabel(measure: PortalGoalMeasure, monthKey: string): string {
   const unit = portalGoalUnit(measure, 2)
@@ -74,7 +77,7 @@ export function runningWords(month: PortalGoalRunningMonth): PortalGoalRunningWo
     return {
       kind: 'unreadable',
       heading: monthNumberWords(measure, month.key, target),
-      line: 'This month’s figure can’t be read right now.',
+      line: MONTH_FIGURE_UNREADABLE,
     }
   }
   const figure = `${formatNumber(value)} of ${formatNumber(target)}`

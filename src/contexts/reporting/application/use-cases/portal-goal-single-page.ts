@@ -15,7 +15,7 @@
 // it is active, this month's governed average, or how many ratings it still
 // needs. A goal for several subjects has no page. It writes nothing.
 import { goalMonthDays } from '../../domain/goal-pace'
-import type { GoalSubject } from '../../domain/goal-subject'
+import { goalSubjectIdentity, type GoalSubject } from '../../domain/goal-subject'
 import { localDateOf } from '../../domain/local-days'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
 import type { PortalGoalPageView } from '../dto/monthly-portal-goal-page.types'
@@ -63,19 +63,20 @@ async function subjectNameOf(
   recommendation: PortalGoalRecommendation,
   scope: Context['scope'],
 ): Promise<PortalGoalSingleSubject> {
-  if (subject.kind === 'property') return { kind: 'property', name: null }
+  const key = goalSubjectIdentity(subject)
+  if (subject.kind === 'property') return { kind: 'property', key, name: null }
   if (subject.kind === 'portal') {
     const listed = [...recommendation.portals, ...recommendation.drafts].find(
       ({ portalId }) => portalId === subject.portalId,
     )
-    if (listed) return { kind: 'portal', name: listed.name }
+    if (listed) return { kind: 'portal', key, name: listed.name }
   }
   const name = await deps.subjectNames.getSubjectName(
     scope.organizationId,
     scope.propertyId,
     subject,
   )
-  return { kind: subject.kind, name }
+  return { kind: subject.kind, key, name }
 }
 
 /** A Portal's or a group's count goal, as the Monthly portal goal's page shows one. */

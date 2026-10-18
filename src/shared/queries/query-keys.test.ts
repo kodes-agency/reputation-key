@@ -128,24 +128,13 @@ describe('dashboard query keys', () => {
 })
 
 describe('goal query keys', () => {
-  it('isolates goal details by property as well as goal', () => {
-    expect(goalKeys.detail('property-1', 'goal-1')).toEqual([
-      'goals',
-      'detail',
-      'property-1',
-      'goal-1',
+  it("keeps a goal's own page under its Property's Portal goals, apart from another property (PG-21)", () => {
+    expect(goalKeys.portalGoalRead('property-1', 'goal:goal-1')).toEqual([
+      ...goalKeys.portalGoal('property-1'),
+      'goal:goal-1',
     ])
-  })
-
-  it("keeps one goal's month so far apart from its detail and from another property", () => {
-    expect(goalKeys.programProgress('property-1', 'goal-1')).toEqual([
-      'goals',
-      'program-progress',
-      'property-1',
-      'goal-1',
-    ])
-    expect(goalKeys.programProgress('property-1', 'goal-1')).not.toEqual(
-      goalKeys.detail('property-1', 'goal-1'),
+    expect(goalKeys.portalGoalRead('property-2', 'goal:goal-1')).not.toEqual(
+      goalKeys.portalGoalRead('property-1', 'goal:goal-1'),
     )
   })
 

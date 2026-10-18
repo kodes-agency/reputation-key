@@ -82,6 +82,11 @@ export type PortalGoalSheetProps = Readonly<{
   onCloseAutoFocus?: (event: Event) => void
   /** The sheet's clock, for "starts below pace"; now unless a story fixes it. */
   now?: Date
+  /**
+   * The change sheet's title on a goal other than the Monthly portal goal, a
+   * Portal's or a group's on its own page (PLAN PG-21); else the sheet's own.
+   */
+  changeTitle?: string
 }>
 
 /** Set, sent once however often it is pressed, and what follows it. */

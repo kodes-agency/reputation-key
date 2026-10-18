@@ -13,6 +13,8 @@ import type { PortalGoalChangeFacts } from './monthly-portal-goal.types'
 /** Whom the goal counts, and its name; null when Portal could not say it. */
 export type PortalGoalSingleSubject = Readonly<{
   kind: 'property' | 'portal' | 'portal_group'
+  /** `portal:<id>`, `portal_group:<id>` or `property:<id>`: the subject's reads are keyed by it. */
+  key: string
   name: string | null
 }>
 

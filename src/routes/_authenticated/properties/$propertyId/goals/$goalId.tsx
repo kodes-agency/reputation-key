@@ -1,87 +1,42 @@
-import { useState } from 'react'
+// A goal's own page (ADR 0068, PLAN PG-21). A Property count goal is the
+// Monthly portal goal, or one set beside it in a race: its page is the Monthly
+// portal goal's (`/goals/portals`), where a notice about it lands too
+// (`?result=` comes here). A goal for one Portal or one Portal Group has the
+// Monthly portal goal's page made from its own subject ("Reception · portal
+// goal"), with the same "Change number", "Count scans instead" and Stop; the
+// average has the same page without a bar, with Stop. Behind `goal.use` with
+// the other goal routes; the route asks the static table for `goal.read`
+// alone, and the read itself asks for `goal.create`. Its read is primed by the
+// loader from a module fetched on demand, so neither the read nor its server
+// function joins first paint. A stop leaves for the Goals page.
 import { createFileRoute, Navigate } from '@tanstack/react-router'
-import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import {
-  changeGoalProgramAssignments,
-  changeGoalProgramStatus,
-  getGoalProgram,
-  getGoalProgramProgress,
-  reviseGoalProgram,
-} from '#/contexts/reporting/server/goal-programs'
-// Their own modules: only this page renames a goal or changes a month's target
-// (see the note in each module).
-import { renameGoalProgram } from '#/contexts/reporting/server/goal-program-details'
-import { changeGoalMonthTarget } from '#/contexts/reporting/server/goal-month-target'
-import { effectiveMonthTarget } from '#/contexts/reporting/application/goal-effective-month-target'
-import { monthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
-import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
-import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
-import { isPropertyCountGoal } from '#/contexts/reporting/application/monthly-portal-goal-identity'
-import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
-import { listPortals } from '#/contexts/portal/server/portals'
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
-import {
-  actionErrorMessage,
-  useActionMutation,
-} from '#/components/hooks/use-action-mutation'
-import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
-import { PageShell } from '#/components/layout/page-shell'
-import { PageHeader } from '#/components/layout/page-header'
-import { trailCrumbs } from '#/components/layout/page-identity'
-import { StatusBadge } from '#/components/ui/status-badge'
-import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
-import { GoalMonthTargetDialog } from '#/components/goals/goal-month-target-dialog'
-import { GoalProgramCard } from '#/components/goals/goal-program-card'
-import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revision-dialog'
-import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
-import { GoalProgramRenameDialog } from '#/components/goals/goal-program-rename-dialog'
-import { GoalStatusActions } from '#/components/goals/goal-status-actions'
-import { GOAL_STATUS, goalResultStatus } from '#/components/goals/goal-status'
-import { GoalTargetChanges } from '#/components/goals/goal-target-changes'
+import type { PortalGoalSinglePageView } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
-import { withGoalRefusals } from '#/components/goals/goal-refusal'
+import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
+import { PortalGoalAveragePage } from '#/components/goals/portal-goal-average-page'
 import {
-  goalDay,
-  goalMonthNotes,
-  goalNoResultsText,
-} from '#/components/goals/goal-detail-view'
-import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
+  PortalGoalPage,
+  focusPortalGoalPageTitle,
+} from '#/components/goals/portal-goal-page'
+import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
 import {
-  goalAssignmentSubjectLabel,
-  goalListSubjectText,
-} from '#/components/goals/goal-assignment-subject-label'
-import { formatDate } from '#/lib/format'
-
-const goalQuery = (propertyId: string, programId: string) =>
-  queryOptions({
-    queryKey: goalKeys.detail(propertyId, programId),
-    queryFn: () => getGoalProgram({ data: { propertyId, programId } }),
-    staleTime: 30_000,
-  })
-// The live month to date of each current subject, for the row of the month
-// still running: never a result, and a side read that never holds the page back.
-const goalSoFarQuery = (propertyId: string, programId: string) =>
-  queryOptions({
-    queryKey: goalKeys.programProgress(propertyId, programId),
-    queryFn: () => getGoalProgramProgress({ data: { propertyId, programId } }),
-    staleTime: 30_000,
-  })
-const subjectNamesQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: portalKeys.goalSubjectNames(propertyId),
-    queryFn: async () => {
-      const [groups, portals] = await Promise.all([
-        listPortalGroups({ data: { propertyId } }),
-        listPortals({ data: { propertyId } }),
-      ])
-      return { groups: groups.groups, portals: portals.portals }
-    },
-  })
+  SINGLE_GOAL_WORDS,
+  singleGoalTitle,
+  singleSubjectWords,
+} from '#/components/goals/portal-goal-single-page-view'
+import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
+import {
+  markPortalGoalAddedStale,
+  portalGoalCommands,
+  portalGoalSinglePageQuery,
+} from './-portal-goal-queries'
+import { portalGoalDoorShown, usePortalGoalSheet } from './-portal-goal-sheet-host'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/goals/$goalId',
@@ -92,25 +47,119 @@ export const Route = createFileRoute(
       throw roleUnavailable('Goal', 'properties')
     }
   },
+  // `fetchQuery`, not `ensureQueryData`: a read that a change has marked stale is
+  // read again before the page draws, never shown first.
   loader: async ({ params, context }) => {
-    await Promise.all([
-      context.queryClient.ensureQueryData(goalQuery(params.propertyId, params.goalId)),
-      context.queryClient.ensureQueryData(subjectNamesQuery(params.propertyId)),
-    ])
+    const queries = await import('./-portal-goal-queries')
+    await context.queryClient.fetchQuery(
+      queries.portalGoalSinglePageQuery(params.propertyId, params.goalId),
+    )
   },
-  component: GoalDetailRoute,
+  component: GoalRoute,
 })
 
+type SubjectView = Extract<PortalGoalSinglePageView, Readonly<{ kind: 'subject' }>>
+type AverageView = Extract<PortalGoalSinglePageView, Readonly<{ kind: 'average' }>>
+
 /**
- * A count goal for the Property alone is the Monthly portal goal, or one set
- * beside it in a race: its page is the Monthly portal goal's own
- * (`/goals/portals`), where a notice about it lands too (`?result=` comes
- * here). Every other goal has this page.
+ * What a change or a stop marks stale: every Portal-goal read, and the month so
+ * far of the goals of the goal's own subject (a Portal Group page's goal card),
+ * as an added goal does. A stop then leaves for the Goals page.
  */
-function GoalDetailRoute() {
+function useGoalCommands(subjectKey: string) {
+  const { propertyId } = Route.useParams()
+  const queryClient = useQueryClient()
+  const navigate = Route.useNavigate()
+  const markStale = () => markPortalGoalAddedStale(queryClient, propertyId, [subjectKey])
+  const stop = {
+    stopMonthlyPortalGoalFn: portalGoalCommands.stopMonthlyPortalGoal,
+    onStopped: async () => {
+      await markStale()
+      await navigate({ to: '/properties/$propertyId/goals', params: { propertyId } })
+    },
+    onRefused: markStale,
+  } satisfies PortalGoalStopCommands
+  return { markStale, stop }
+}
+
+/** A goal for one Portal or one group: the Monthly portal goal's page, from its subject. */
+function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
   const { propertyId, goalId } = Route.useParams()
-  const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
-  if (isPropertyCountGoal(data)) {
+  const { can: canDo } = usePermissions()
+  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
+  const pageRead = useSuspenseQuery(portalGoalSinglePageQuery(propertyId, goalId))
+  // Who made each change, by name. A side read that never holds the page back.
+  const members = useQuery({
+    ...membersQuery,
+    enabled: canDo('member.list'),
+    retry: false,
+  })
+  const { markStale, stop } = useGoalCommands(view.subject.key)
+  const commands = {
+    setMonthlyPortalGoalFn: portalGoalCommands.setMonthlyPortalGoal,
+    changeMonthlyPortalGoalNowFn: portalGoalCommands.changeMonthlyPortalGoalNow,
+    reviseMonthlyPortalGoalFn: portalGoalCommands.reviseMonthlyPortalGoal,
+    onSet: markStale,
+  } satisfies PortalGoalCommands & PortalGoalSheetCommands
+  const { card } = view.page
+  const sheet = usePortalGoalSheet({
+    propertyId,
+    card,
+    commands,
+    focusTitle: focusPortalGoalPageTitle,
+    reread: async () => {
+      const latest = (await pageRead.refetch()).data
+      return latest?.kind === 'subject' ? latest.page.card : undefined
+    },
+    doorShown: portalGoalDoorShown(card, canDo('goal.update'), 'page'),
+    changeTitle: SINGLE_GOAL_WORDS.changeTitle,
+  })
+  return (
+    <>
+      <PortalGoalPage
+        key={`${propertyId}:${goalId}`}
+        propertyId={propertyId}
+        propertyName={propData.property.name}
+        page={view.page}
+        canCreatePortal={canDo('portal.create')}
+        canSeeResults={canDo('goal.update')}
+        canChange={canDo('goal.update')}
+        canStop={canDo('goal.cancel')}
+        commands={{ ...commands, openSheet: sheet.open }}
+        stop={stop}
+        personName={goalPersonNames(members.data?.members)}
+        single={{
+          title: singleGoalTitle(view.subject),
+          name: singleSubjectWords(view.subject),
+        }}
+      />
+      {sheet.sheet}
+    </>
+  )
+}
+
+/** The average: the same page without a bar, with Stop. */
+function AverageGoalPage({ view }: Readonly<{ view: AverageView }>) {
+  const { propertyId, goalId } = Route.useParams()
+  const { can: canDo } = usePermissions()
+  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
+  const { stop } = useGoalCommands(view.subject.key)
+  return (
+    <PortalGoalAveragePage
+      key={`${propertyId}:${goalId}`}
+      propertyId={propertyId}
+      propertyName={propData.property.name}
+      goal={view.goal}
+      canStop={canDo('goal.cancel')}
+      stop={stop}
+    />
+  )
+}
+
+function GoalRoute() {
+  const { propertyId, goalId } = Route.useParams()
+  const { data } = useSuspenseQuery(portalGoalSinglePageQuery(propertyId, goalId))
+  if (data.kind === 'monthly') {
     return (
       <Navigate
         to="/properties/$propertyId/goals/portals"
@@ -119,241 +168,9 @@ function GoalDetailRoute() {
       />
     )
   }
-  return <GoalDetailPage />
-}
-
-function GoalDetailPage() {
-  const { propertyId, goalId } = Route.useParams()
-  const { can: canDo } = usePermissions()
-  const [now] = useState(() => new Date())
-  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
-  const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
-  // Who changed a target, by name. A side read that never holds the page back:
-  // until it has been read, a change is told without a person.
-  const members = useQuery({
-    ...membersQuery,
-    enabled: canDo('member.list'),
-    retry: false,
-  })
-  // Pause and Resume act at once, so a refusal (an invalid transition) is a
-  // toast. End confirms first, in a dialog that stays open and says a refusal
-  // itself, so it is its own mutation with no toast. Both say a refusal as a
-  // sentence, not as the command's code.
-  const mutation = useActionMutation(withGoalRefusals(changeGoalProgramStatus), {
-    successMessage: 'Goal status updated',
-    errorMessage: actionErrorMessage,
-    invalidateKeys: [goalKeys.all],
-  })
-  const endMutation = useActionMutation(withGoalRefusals(changeGoalProgramStatus), {
-    successMessage: 'Goal status updated',
-    invalidateKeys: [goalKeys.all],
-  })
-  const { program, version, versions, assignments } = data
-  // Only an active goal is counting. The figure read while it was active stays
-  // in the cache after a pause or an end, so it is used only while that holds.
-  const counting = program.status === 'active'
-  const soFar = useQuery({
-    ...goalSoFarQuery(propertyId, goalId),
-    enabled: counting,
-    retry: false,
-  })
-  const soFarSubjects = (counting ? soFar.data?.subjects : undefined) ?? []
-  const soFarBySubject = new Map(
-    soFarSubjects.map(({ subject, progress }) => [goalSubjectKey(subject), progress]),
-  )
-  const calendar = {
-    timezone: version.propertyTimezone,
-    now,
-    personName: goalPersonNames(members.data?.members),
-  }
-  const scheduled = program.status === 'scheduled'
-  const startsOn = goalDay(goalTargetProvenance(data, version).countsFrom, calendar)
-  const currentAssignments = assignments.filter(
-    (assignment) => assignment.programVersionId === version.id,
-  )
-  const results = [...data.results].sort(
-    (left, right) => right.periodStart.getTime() - left.periodStart.getTime(),
-  )
-  const canManage = canDo('goal.update')
-  // The month that is running, as the change command would plan it: its own
-  // target, and what the months after it are set to.
-  const monthPlan = monthTargetPlan(data, now, propData.property.timezone)
-  // A status change carries no note from here, so none is stored: the badge
-  // says the status. The toast above reports a refusal; settling here keeps it
-  // from escaping the click as an unhandled rejection.
-  const updateStatus = (status: 'active' | 'paused') => {
-    void mutation({ data: { propertyId, programId: goalId, status } }).catch(
-      () => undefined,
-    )
-  }
-  const endGoal = () =>
-    endMutation({ data: { propertyId, programId: goalId, status: 'ended' } })
-  const formatDay = (date: Date): string =>
-    formatDate(date, version.propertyTimezone) ?? ''
-  // A subject's name as the Goals list says it, so a row and this page agree.
-  const subjectLabel = (subject: GoalSubject) =>
-    goalAssignmentSubjectLabel(
-      subject,
-      propData.property.name,
-      subjectNames.groups,
-      subjectNames.portals,
-    )
-
-  return (
-    <PageShell key={`${propertyId}:${goalId}`}>
-      <PageHeader
-        title={program.name}
-        meta={[<StatusBadge key="status" status={program.status} map={GOAL_STATUS} />]}
-        description={program.description ?? undefined}
-        breadcrumbs={trailCrumbs(
-          'goals',
-          { propertyId, propertyName: propData.property.name },
-          program.name,
-        )}
-        actions={
-          canManage && program.status !== 'ended' ? (
-            <>
-              <GoalProgramRenameDialog
-                renameGoalProgramFn={renameGoalProgram}
-                propertyId={propertyId}
-                programId={program.id}
-                name={program.name}
-                description={program.description}
-              />
-              <GoalProgramAssignmentsDialog
-                changeAssignmentsFn={changeGoalProgramAssignments}
-                property={{ id: propertyId, name: propData.property.name }}
-                programId={program.id}
-                currentVersion={version.version}
-                propertyTimezone={version.propertyTimezone}
-                goal={data}
-                assignments={currentAssignments}
-                groups={subjectNames.groups}
-                portals={subjectNames.portals}
-              />
-              {monthPlan === null ? null : (
-                <GoalMonthTargetDialog
-                  changeGoalMonthTargetFn={changeGoalMonthTarget}
-                  property={{ id: propertyId, timezone: propData.property.timezone }}
-                  goal={data}
-                  soFar={soFarSubjects.map(({ subject, progress }) => ({
-                    name: subjectLabel(subject),
-                    reading: progress.reading,
-                  }))}
-                />
-              )}
-              <GoalProgramRevisionDialog
-                reviseGoalProgramFn={reviseGoalProgram}
-                property={{
-                  id: propertyId,
-                  name: propData.property.name,
-                  timezone: propData.property.timezone,
-                }}
-                programId={program.id}
-                currentVersion={version.version}
-                goal={data}
-                metric={version.metric}
-                targetValue={version.targetValue}
-                assignments={currentAssignments}
-                groups={subjectNames.groups}
-                portals={subjectNames.portals}
-              />
-              <GoalStatusActions
-                goalName={program.name}
-                status={program.status}
-                pending={mutation.isPending || endMutation.isPending}
-                onChange={updateStatus}
-                onEnd={endGoal}
-              />
-            </>
-          ) : undefined
-        }
-      />
-      <GoalProgramCard
-        goal={data}
-        plan={monthPlan}
-        forWhom={goalListSubjectText(
-          currentAssignments.map((assignment) => assignment.subject),
-          subjectLabel,
-        )}
-        canManage={canManage}
-        frame={calendar}
-      />
-
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">Monthly results</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {results.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {goalNoResultsText({
-                scheduled,
-                statusReason: program.statusReason,
-                startsOn,
-              })}
-            </p>
-          ) : (
-            <div className="divide-y">
-              {results.map((result) => {
-                const assignment = assignments.find(
-                  (candidate) => candidate.id === result.assignmentId,
-                )
-                const resultVersion = versions.find(
-                  (candidate) => candidate.id === result.programVersionId,
-                )
-                const notes =
-                  assignment && resultVersion
-                    ? goalMonthNotes({
-                        metric: resultVersion.metric,
-                        result,
-                        setAt: goalTargetProvenance(data, resultVersion).setAt,
-                        progress:
-                          soFarBySubject.get(goalSubjectKey(assignment.subject)) ?? null,
-                        marker: monthTargetMarker(data, result, resultVersion),
-                        ...calendar,
-                      })
-                    : []
-                return (
-                  <div
-                    key={result.id}
-                    className="grid gap-2 py-3 text-sm md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">
-                        {assignment ? subjectLabel(assignment.subject) : 'Subject'}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {formatDay(result.periodStart)} –{' '}
-                        {formatDay(new Date(result.periodEnd.getTime() - 1))}
-                      </p>
-                    </div>
-                    <div>
-                      <p>
-                        {result.evaluation.value ?? '—'} /{' '}
-                        {resultVersion
-                          ? effectiveMonthTarget(result, resultVersion)
-                          : '—'}
-                      </p>
-                      {notes.map((note) => (
-                        <p key={note} className="text-muted-foreground">
-                          {note}
-                        </p>
-                      ))}
-                    </div>
-                    <StatusBadge
-                      {...goalResultStatus(result.evaluation, Boolean(result.revision))}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <GoalTargetChanges goal={data} frame={calendar} />
-    </PageShell>
+  return data.kind === 'subject' ? (
+    <SubjectGoalPage view={data} />
+  ) : (
+    <AverageGoalPage view={data} />
   )
 }

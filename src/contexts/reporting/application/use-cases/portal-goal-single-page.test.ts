@@ -119,7 +119,11 @@ describe('readPortalGoalSinglePage', () => {
     const view = await read(deps, 'reception-goal')
 
     if (view.kind !== 'subject') throw new Error(`expected a subject, got ${view.kind}`)
-    expect(view.subject).toEqual({ kind: 'portal', name: 'Reception' })
+    expect(view.subject).toEqual({
+      kind: 'portal',
+      key: 'portal:portal-reception',
+      name: 'Reception',
+    })
     const { card } = view.page
     if (card.state !== 'goal') throw new Error('expected the goal')
     expect(card.goal).toMatchObject({
@@ -213,7 +217,11 @@ describe('readPortalGoalSinglePage', () => {
     const view = await read(deps, 'reception-goal')
 
     if (view.kind !== 'subject') throw new Error(`expected a subject, got ${view.kind}`)
-    expect(view.subject).toEqual({ kind: 'portal_group', name: 'Rooms' })
+    expect(view.subject).toEqual({
+      kind: 'portal_group',
+      key: 'portal_group:group-rooms',
+      name: 'Rooms',
+    })
     // 32 in 4 weeks at its two Portals: about 34 a 30-day month.
     expect(view.page.tiles?.usual).toEqual({ about: 34, weeks: 4 })
     if (view.page.card.state !== 'goal') throw new Error('expected the goal')
@@ -233,7 +241,11 @@ describe('readPortalGoalSinglePage', () => {
     const view = await read(deps, 'reception-goal')
 
     if (view.kind !== 'subject') throw new Error(`expected a subject, got ${view.kind}`)
-    expect(view.subject).toEqual({ kind: 'portal', name: 'Reception' })
+    expect(view.subject).toEqual({
+      kind: 'portal',
+      key: 'portal:portal-reception',
+      name: 'Reception',
+    })
     expect(view.page.tiles?.usual).toBeNull()
     if (view.page.card.state !== 'goal') throw new Error('expected the goal')
     expect(view.page.card.sheet.offers.portal_rating_count).toEqual({
