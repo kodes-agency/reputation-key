@@ -1070,6 +1070,21 @@
 // 49,185 B, styles-CliEJp3n.css 27,832 B); the -13 B is the hashed chunk
 // names. The line stays at 308,050: 262 B spare, 512 B under the ceiling of
 // 308,300 (owner, P-9). Measure again after the rebase onto main.
+// 2026-10-18 (PG-21 after review: the average's Change number, months and
+// changes; a plain page with Stop for a goal for several subjects; no "Count
+// scans instead" where the subject already holds the other measure): no
+// raise, a saving. The rename and the one-goal progress server functions and
+// the retired forms' schemas leave first paint (goal-program.dto.ts and
+// server/goal-programs.ts). The new UI is lazy: the average's change sheet is
+// a chunk of its own (1.85 kB, vite's gzip column), sharing a chunk with the
+// Monthly portal goal's change sheet for the command and its refusals
+// (3.25 kB); the $goalId route chunk holds the average's and the plain page
+// (4.13 kB) beside the shared goal page (6.71 kB). No class was added
+// (styles-CliEJp3n.css 27,832 B). A fresh production build of the head
+// measures 307,762 B (75 js + 1 css; entry 49,196 B): -26 B on the builder's
+// 307,788 B. The line stays at 308,050 here: 288 B spare, 538 B under the
+// ceiling of 308,300 (owner, P-9). main's line is 308,200 since PG-18; measure
+// again after the rebase onto main and keep main's line.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
