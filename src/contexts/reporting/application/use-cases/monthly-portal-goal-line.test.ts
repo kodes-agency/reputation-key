@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import {
   readMonthlyPortalGoalLine,
   type MonthlyPortalGoalLineDeps,
@@ -106,6 +107,33 @@ describe('readMonthlyPortalGoalLine', () => {
 
     await expect(lineOf(deps, 'portal-bar')).resolves.toBeNull()
     await expect(lineOf(none.deps)).resolves.toBeNull()
+  })
+
+  it('a Portal with nothing this month brings nothing in: no line, unless its own goal runs', async () => {
+    const lobbyGoal = portalGoal('lobby-goal', { portalId: 'portal-lobby', target: 20 })
+    const world = (programs: readonly GoalProgramBundle[]) =>
+      fakeWorld({
+        now: NOV_22,
+        portals: [...SEAVIEW_PORTALS, portal('Lobby', '2026-10-09')],
+        counts: { days: NOVEMBER },
+        programs,
+        figure: governed(23),
+        portalFigures: { 'portal-lobby': governed(0) },
+      }).deps
+
+    await expect(lineOf(world([runningGoal()]), 'portal-lobby')).resolves.toBeNull()
+    await expect(
+      lineOf(world([runningGoal(), lobbyGoal]), 'portal-lobby'),
+    ).resolves.toEqual({
+      month: '2026-11',
+      monthlyGoal: null,
+      ownGoal: {
+        programId: 'lobby-goal',
+        measure: 'portal_rating_count',
+        value: 0,
+        target: 20,
+      },
+    })
   })
 
   it('a goal that has not started counts nothing yet: no line', async () => {

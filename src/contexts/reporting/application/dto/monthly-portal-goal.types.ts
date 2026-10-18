@@ -479,7 +479,8 @@ export type PortalGoalLineView = Readonly<{
   /**
    * The Portal's count of the month the Monthly portal goal is counting, in
    * that month's measure: only when every Portal's count adds up to the
-   * goal's governed figure (as the card's rows are); else null.
+   * goal's governed figure (as the card's rows are) and the Portal has brought
+   * something in (a count of at least 1); else null.
    */
   monthlyGoal: Readonly<{ measure: PortalGoalMeasure; count: number }> | null
   /**

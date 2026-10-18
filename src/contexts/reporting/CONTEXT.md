@@ -241,8 +241,9 @@ metric authority.
   the set read and only when every Portal's count adds up to the governed figure, as the
   card's rows are (a disabled Portal's readings still count, so it has one too); and the
   goal for that Portal alone when one runs, with its own governed figure against the month's
-  number (none when that figure cannot be read). A draft Portal, and a Portal neither goal
-  counts this month, have no line (`null`).
+  number (none when that figure cannot be read). A draft Portal, a Portal neither goal
+  counts this month, and a Portal with nothing yet toward the Monthly portal goal (every
+  Portal on the 1st) and no goal of its own, have no line (`null`).
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save

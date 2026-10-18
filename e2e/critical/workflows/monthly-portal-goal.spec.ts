@@ -45,7 +45,8 @@
 //       hides it, after a reload too; with a goal running this month, the slot
 //       shows the month and each Portal's count, the "Portal goal below pace"
 //       chip (exactly when `goalPace` says behind) leads to `#portal-goals`,
-//       and Reception's Results tab says what it brought in toward the goal.
+//       and Reception's Results tab says what it brought in toward the goal
+//       (no line on the month's first day, when it has brought nothing in).
 //       Neither page shifts (CLS < 0.1).
 //   J11. all monthly results: once a Portal goal's month has closed and another
 //       has ended, the Portal goals section's foot opens `/goals/portal-results`:
@@ -1350,25 +1351,31 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       await expect(chip).toHaveCount(0)
     }
 
-    // Reception's Results tab: what it brought in toward the goal, above its figures.
+    // Reception's Results tab: what it brought in toward the goal, above its
+    // figures; on the month's first day it has brought nothing in yet (the
+    // ratings stop at yesterday), and there is no line. Both branches assert.
     const receptionFacts = recommendation.portals.find(({ name }) => name === 'Reception')
     const receptionCount = receptionFacts?.monthToDate.portal_rating_count ?? 0
     await page.goto(`/properties/${propertyId}/portals/${reception.id}?tab=results`)
     await waitForHydration(page)
-    const line = page.locator('[data-slot="portal-goal-results-line"]')
-    await expect(
-      line.getByText(
-        `${nameOf(month)} · Reception’s ${receptionCount} private ${
-          receptionCount === 1 ? 'rating counts' : 'ratings count'
-        } toward the monthly portal goal.`,
-      ),
-    ).toBeVisible()
-    await expect(await pathOf(line.getByRole('link', { name: 'Open goal' }))).toBe(
-      `/properties/${propertyId}/goals/portals`,
-    )
     await expect(
       page.getByRole('status').filter({ hasText: 'Loading results' }),
     ).toHaveCount(0)
+    const line = page.locator('[data-slot="portal-goal-results-line"]')
+    if (receptionCount > 0) {
+      await expect(
+        line.getByText(
+          `${nameOf(month)} · Reception’s ${receptionCount} private ${
+            receptionCount === 1 ? 'rating counts' : 'ratings count'
+          } toward the monthly portal goal.`,
+        ),
+      ).toBeVisible()
+      await expect(await pathOf(line.getByRole('link', { name: 'Open goal' }))).toBe(
+        `/properties/${propertyId}/goals/portals`,
+      )
+    } else {
+      await expect(line).toHaveCount(0)
+    }
     expect(await shiftOf()).toBeLessThan(CLS_BUDGET)
   })
 })

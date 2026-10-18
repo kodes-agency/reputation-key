@@ -10,7 +10,8 @@
 // Portal's count adds up to the goal's governed figure, as the card's rows are;
 // and the goal for this Portal alone, when one runs, with its own governed
 // figure against the month's number. A draft Portal (no line on its tab),
-// a Portal the read does not list, and a Portal neither goal counts this month
+// a Portal the read does not list, a Portal neither goal counts this month, and
+// one with nothing yet toward the Monthly portal goal and no goal of its own
 // have none. It writes nothing.
 import type { PortalFacts } from '../../domain/goal-recommendation-types'
 import type {
@@ -69,7 +70,9 @@ function ownGoalOf(
 
 /**
  * The Portal's count of the month the Monthly portal goal counts now, in that
- * month's measure, when the Portals' counts add up to its governed figure.
+ * month's measure, when the Portals' counts add up to its governed figure. A
+ * Portal that has brought nothing in this month (every Portal, on the 1st) has
+ * nothing to say toward the goal: no count.
  */
 async function monthlyGoalCountOf(
   deps: MonthlyPortalGoalLineDeps,
@@ -83,7 +86,8 @@ async function monthlyGoalCountOf(
   if (counting === null) return null
   const { month } = counting
   if (monthCountsOf(context.recommendation, month) === null) return null
-  return { measure: month.measure, count: portal.monthToDate[month.measure] }
+  const count = portal.monthToDate[month.measure]
+  return count > 0 ? { measure: month.measure, count } : null
 }
 
 /** The Portal's own goal this month, when its governed figure can be read. */

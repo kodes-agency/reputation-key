@@ -3,8 +3,8 @@
 // that goal's month so far against its number and what is left to go; else
 // what the Portal brought in toward the Monthly portal goal this month. Each
 // with "Open goal" to the goal it names. The read decides which goal counts,
-// the month and the numbers (PLAN E12); none (a draft Portal, or no goal
-// counting this month) is no line.
+// the month and the numbers (PLAN E12); none (a draft Portal, no goal
+// counting this month, or nothing yet toward the monthly goal) is no line.
 import type { PortalGoalLineView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { formatNumber } from '#/lib/format'
 import { monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
