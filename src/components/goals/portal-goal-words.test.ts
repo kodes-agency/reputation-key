@@ -16,6 +16,7 @@ import {
   goalLines,
   listOfNames,
   nothingCountedWords,
+  ownNumberDoorWords,
   portalGoalSectionLine,
   portalGoalUnit,
   readinessWords,
@@ -135,6 +136,12 @@ describe('the Monthly portal goal card, in words', () => {
     expect(soFarWords('2026-10', { ratings: 8, scans: null })).toBe(
       'So far in October: 8 private ratings · scans can’t be read right now',
     )
+  })
+
+  it('offers a number of their own before one is recommended', () => {
+    expect(ownNumberDoorWords('getting_ready')).toBe('Set my own number')
+    expect(ownNumberDoorWords('recommendation_unreadable')).toBe('Set my own number')
+    expect(ownNumberDoorWords('nothing_counted')).toBe('Set a number anyway')
   })
 
   it('names the weeks nothing came in', () => {

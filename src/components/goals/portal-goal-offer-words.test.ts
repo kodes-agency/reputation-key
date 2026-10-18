@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalGoalOffer } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import {
-  PORTAL_SET_REFUSALS,
-  WORKED_OUT_TITLE,
-  offerWords,
-  workedOutWords,
-} from './portal-goal-offer-words'
+import { WORKED_OUT_TITLE, offerWords, workedOutWords } from './portal-goal-offer-words'
 import {
   OFFER_NOVEMBER,
   OFFER_OCTOBER,
@@ -35,6 +30,7 @@ describe('the ready card, in words', () => {
       asksEveryGuest: true,
       use: 'Use 40',
       setToast: 'November goal set: 40 private ratings',
+      door: { label: 'Change', measure: 'portal_rating_count' },
     })
   })
 
@@ -90,12 +86,8 @@ describe('the ready card, in words', () => {
       asksEveryGuest: false,
       use: 'Use 55 scans',
       setToast: 'November goal set: 55 scans',
-    })
-  })
-
-  it('says who set a goal a moment ago, in its own words', () => {
-    expect(PORTAL_SET_REFUSALS).toEqual({
-      subject_has_goal: 'A monthly portal goal was set a moment ago. Here is the latest.',
+      // P-2: scans come first, and private ratings are one tap away.
+      door: { label: 'Set a private ratings number', measure: 'portal_rating_count' },
     })
   })
 })

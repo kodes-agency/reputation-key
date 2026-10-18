@@ -3,8 +3,10 @@
 // the Google section), and the page's other Portal goals in its slots. The card
 // is read only for someone who may set the goal; a read that failed says so in
 // the section and holds nothing else back. The History view draws no card. The
-// card's Use sends the set command; a set (or a refusal that means the card is
-// behind) marks every Portal-goal read stale, never the Google rating goal's.
+// card's Use sends the set command, and its other doors open the set sheet
+// (`-portal-goal-sheet-host.tsx`), which sends the same command; a set (or a
+// refusal that means the card is behind) marks every Portal-goal read stale,
+// never the Google rating goal's.
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
@@ -19,6 +21,7 @@ import {
   portalGoalCardQuery,
   portalGoalCommands,
 } from './-portal-goal-queries'
+import { usePortalGoalSheet } from './-portal-goal-sheet-host'
 
 type Props = Readonly<{
   propertyId: string
@@ -48,20 +51,24 @@ export function PortalGoalPanel({ propertyId, view, extras, empty, footer }: Pro
         retry: () => void card.refetch(),
       }
     : null
-  const commands: PortalGoalCommands = {
+  const set = {
     setMonthlyPortalGoalFn: portalGoalCommands.setMonthlyPortalGoal,
     onSet: () => markPortalGoalReadsStale(queryClient, propertyId),
-  }
+  } satisfies PortalGoalCommands
+  const sheet = usePortalGoalSheet(propertyId, drawsCard ? card.data : undefined, set)
   const monthlyGoalId = card.data?.state === 'goal' ? card.data.goal.programId : null
   return (
-    <PortalGoalSection
-      propertyId={propertyId}
-      card={read}
-      canCreatePortal={can('portal.create')}
-      commands={commands}
-      extras={extras?.(drawsCard ? monthlyGoalId : null)}
-      empty={empty}
-      footer={footer}
-    />
+    <>
+      <PortalGoalSection
+        propertyId={propertyId}
+        card={read}
+        canCreatePortal={can('portal.create')}
+        commands={{ ...set, openSheet: sheet.open }}
+        extras={extras?.(drawsCard ? monthlyGoalId : null)}
+        empty={empty}
+        footer={footer}
+      />
+      {sheet.sheet}
+    </>
   )
 }

@@ -3,8 +3,9 @@
 // weeks, nothing counted or an unreadable recommendation
 // (`portal-goal-card-before.tsx`); then the number to use
 // (`portal-goal-card-ready.tsx`); then the goal (`portal-goal-card-goal.tsx`).
-// The title takes the focus back from a sheet that closes, and after a set,
-// wherever the card is drawn.
+// Every arm once a Portal is live has a door to the set sheet. The title takes
+// the focus back from a sheet that closes, and after a set, wherever the card
+// is drawn.
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
@@ -14,7 +15,7 @@ import { PortalGoalCardReady, type PortalGoalCommands } from './portal-goal-card
 import { PortalGoalMonthTile } from './portal-goal-month-tile'
 
 /** The card title's id: a sheet or a dialog that closes hands the focus back to it. */
-const PORTAL_GOAL_TITLE_ID = 'portal-goal-title'
+export const PORTAL_GOAL_TITLE_ID = 'portal-goal-title'
 
 type Props = Readonly<{
   card: PortalGoalCardView
@@ -70,6 +71,7 @@ function CardBody({
           card={card}
           propertyId={propertyId}
           canCreatePortal={canCreatePortal}
+          openSheet={commands.openSheet}
         />
       )
   }

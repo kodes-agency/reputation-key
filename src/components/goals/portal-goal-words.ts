@@ -1,4 +1,4 @@
-// The Monthly portal goal card's words, before a goal (copy deck G-2, G-5…G-11,
+// The Monthly portal goal card's words, before a goal (copy deck G-2, G-5…G-12,
 // G-19) and, until the running card arrives, with one (G-20…G-22, G-24, G-25).
 // The read decides every state, day and number (PLAN E12); this only says
 // them, in one place, so a card, its stories and its tests spell each line
@@ -159,6 +159,17 @@ export function readyOnWords(readyOn: string | null): string {
   return readyOn === null
     ? 'Your recommended number is ready 2 weeks after a portal goes live.'
     : `Your recommended number is ready on ${dayWords(readyOn)}, after 2 weeks live.`
+}
+
+/**
+ * G-12: the way into the set sheet with a number of the manager's own, before
+ * one is recommended: in the first weeks and while the recommendation cannot
+ * be read, "Set my own number"; when nothing came in, "Set a number anyway".
+ */
+export function ownNumberDoorWords(
+  state: 'getting_ready' | 'nothing_counted' | 'recommendation_unreadable',
+): string {
+  return state === 'nothing_counted' ? 'Set a number anyway' : 'Set my own number'
 }
 
 /** G-19: nothing came in over the basis, and the way to the codes. */

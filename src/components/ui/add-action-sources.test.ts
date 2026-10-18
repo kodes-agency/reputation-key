@@ -34,6 +34,8 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'the glyph of a "created" event in a history line, not a button',
   'src/components/goals/rating-goal-goal-numeral.tsx':
     'the + stepper of the rating goal setup raises the goal a tenth: an icon-only IconButton beside −, not a button that adds',
+  'src/components/goals/portal-goal-number-tile.tsx':
+    'the + stepper of the monthly portal goal sheet raises the number a step: an icon-only IconButton beside −, not a button that adds',
 }
 
 const importsPlus = (path: string) =>
