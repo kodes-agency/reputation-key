@@ -78,7 +78,8 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     ).toBeVisible()
     await expect(card.getByText('Getting your portals ready')).toBeVisible()
 
-    // Every Portal went live today, in name order, and nothing is scanned yet.
+    // Every Portal went live today with its code made (issuing it publishes its
+    // QR and NFC markers), in name order, and nothing is scanned yet.
     const rows = card
       .getByRole('list', { name: 'Portal readiness' })
       .getByRole('listitem')
@@ -87,6 +88,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       const row = rows.nth(index)
       await expect(row).toContainText(name)
       await expect(row).toContainText('Live (done)')
+      await expect(row).toContainText('Code made (done)')
       await expect(row).toContainText('First scan (not yet)')
     }
     // A code made today is far from the 14 days its hint waits for.
