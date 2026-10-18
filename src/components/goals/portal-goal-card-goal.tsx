@@ -7,8 +7,11 @@
 // Portal brought in (G-26, G-27). A stopped goal says so, that its month still
 // counts, and offers the next goal from the month after (G-29). Under it all,
 // the month before while it is read and through the 7th (G-30, G-31), and
-// "View details" to the goal's page (G-28). The figure is the governed
-// read's, never a forecast; the words are the views'.
+// "View details" to the goal's page (G-28). On the month's first seven days,
+// for someone who may change the goal, the month-start check-in takes the
+// card's body (`portal-goal-check-in.tsx`); when the recommended number is the
+// month's already, it is one line under the month instead (K-7). The figure is
+// the governed read's, never a forecast; the words are the views'.
 import { Check } from 'lucide-react'
 import type {
   PortalGoalOfCard,
@@ -20,6 +23,8 @@ import { TONE_INK } from '#/components/ui/tone'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalGoalBar } from './portal-goal-bar'
+import { PortalGoalCheckIn, type PortalGoalCheckInCommands } from './portal-goal-check-in'
+import { sameNumberWords } from './portal-goal-check-in-view'
 import { PortalGoalPortalCounts } from './portal-goal-portal-counts'
 import { lastMonthWords, runningWords, stoppedWords } from './portal-goal-running-view'
 import type { PortalGoalSheetIntent } from './portal-goal-sheet-view'
@@ -34,6 +39,14 @@ type Props = Readonly<{
   propertyId: string
   /** Opens the sheet; a page that draws none leaves it out, and no door is drawn. */
   openSheet?: OpenSheet
+  /** The month-start check-in's commands; a page that leaves them out draws none. */
+  checkIn?: Readonly<{
+    commands: PortalGoalCheckInCommands
+    /** Reads the card again once it is answered. */
+    onAnswered: () => Promise<void>
+    /** Its region heading's level: one below the card's title. */
+    headingAs: 'h2' | 'h3' | 'h4'
+  }>
 }>
 
 /** A door to the sheet, in the card's line. */
@@ -194,20 +207,64 @@ function LastMonth({ goal }: Readonly<{ goal: PortalGoalOfCard }>) {
   )
 }
 
-export function PortalGoalCardGoal({ goal, today, propertyId, openSheet }: Props) {
+/** K-7: December keeps the recommended number it has, and "Change" to the sheet. */
+function SameNumberLine({
+  goal,
+  openSheet,
+}: Readonly<{ goal: PortalGoalOfCard; openSheet?: OpenSheet }>) {
+  if (goal.checkIn?.kind !== 'same') return null
+  const words = sameNumberWords(goal.checkIn)
   return (
-    <div className="flex flex-col gap-4">
-      {goal.month === null ? (
-        <GoalLines goal={goal} today={today} openSheet={openSheet} />
-      ) : (
-        <RunningMonth
-          goal={goal}
-          month={goal.month}
-          propertyId={propertyId}
-          openSheet={openSheet}
+    <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground">
+      <span>{words.text}</span>
+      {openSheet === undefined ? null : (
+        <SheetLink
+          label={words.change}
+          onClick={() => openSheet({ mode: 'change', measure: goal.measure })}
         />
       )}
-      <LastMonth goal={goal} />
+    </p>
+  )
+}
+
+export function PortalGoalCardGoal({
+  goal,
+  today,
+  propertyId,
+  openSheet,
+  checkIn,
+}: Props) {
+  const { can } = usePermissions()
+  // Only someone who may change the goal is asked, on a page that can answer.
+  const asked = checkIn !== undefined && can('goal.update') ? goal.checkIn : null
+  return (
+    <div className="flex flex-col gap-4">
+      {checkIn && asked !== null && asked.kind !== 'same' ? (
+        <PortalGoalCheckIn
+          goal={goal}
+          checkIn={asked}
+          propertyId={propertyId}
+          commands={checkIn.commands}
+          onAnswered={checkIn.onAnswered}
+          openSheet={openSheet}
+          headingAs={checkIn.headingAs}
+        />
+      ) : (
+        <>
+          {goal.month === null ? (
+            <GoalLines goal={goal} today={today} openSheet={openSheet} />
+          ) : (
+            <RunningMonth
+              goal={goal}
+              month={goal.month}
+              propertyId={propertyId}
+              openSheet={openSheet}
+            />
+          )}
+          {asked === null ? null : <SameNumberLine goal={goal} openSheet={openSheet} />}
+          <LastMonth goal={goal} />
+        </>
+      )}
       {/* G-28: the goal's page. */}
       <InlineLink
         to="/properties/$propertyId/goals/portals"
