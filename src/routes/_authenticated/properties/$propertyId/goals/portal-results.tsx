@@ -6,7 +6,7 @@
 // primed by the loader from a module fetched on demand, so no query of its own
 // joins first paint.
 import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { Navigate, createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { roleUnavailable } from '#/shared/auth/route-notice'
@@ -18,7 +18,10 @@ import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import { PortalGoalResults } from '#/components/goals/portal-goal-results'
-import { endedPortalGoals } from '#/components/goals/portal-goal-results-view'
+import {
+  endedPortalGoals,
+  hasPortalGoalResults,
+} from '#/components/goals/portal-goal-results-view'
 import { portalGoalResultsQueries } from './-portal-goal-queries'
 
 const TITLE = 'Portal goal results'
@@ -57,21 +60,37 @@ function PortalGoalResultsRoute() {
     retry: false,
   })
   const { name } = propData.property
+  const matrix = buildGoalResultsMatrix({
+    programs: data.programs,
+    property: { id: propertyId, name },
+    portalGroups: names.groups,
+    portals: names.portals,
+  })
+  const ended = endedPortalGoals(data.programs, {
+    now,
+    subjectName: (subject) =>
+      goalAssignmentSubjectLabel(subject, name, names.groups, names.portals),
+  })
+  // Nothing to show yet: every way here appears only once there is, so this is
+  // an address typed or kept from before. The Portal goals section says what
+  // there is, and its title takes the focus.
+  if (!hasPortalGoalResults({ matrix, ended })) {
+    return (
+      <Navigate
+        to="/properties/$propertyId/goals"
+        params={{ propertyId }}
+        hash="portal-goals"
+        state={{ focusPortalGoals: true }}
+        replace
+      />
+    )
+  }
   return (
     <PortalGoalResults
       propertyId={propertyId}
       propertyName={name}
-      matrix={buildGoalResultsMatrix({
-        programs: data.programs,
-        property: { id: propertyId, name },
-        portalGroups: names.groups,
-        portals: names.portals,
-      })}
-      ended={endedPortalGoals(data.programs, {
-        now,
-        subjectName: (subject) =>
-          goalAssignmentSubjectLabel(subject, name, names.groups, names.portals),
-      })}
+      matrix={matrix}
+      ended={ended}
       now={now}
       personName={goalPersonNames(members.data?.members)}
     />

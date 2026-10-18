@@ -29,8 +29,8 @@
 //   J11. all monthly results: once a Portal goal's month has closed and another
 //       has ended, the Portal goals section's foot opens `/goals/portal-results`:
 //       the closed month's result in plain words, and the ended goal with the
-//       day it ended, where "Ended portal goals (1)" lands; both themes pass
-//       axe.
+//       day it ended, where "Ended portal goals (1)" lands and hands its title
+//       the focus; both themes pass axe.
 //
 // Every Property here is the journey's own (prefix `e2e-pg-`, run id and retry
 // in the slug). Expected days are read from the database clock in the
@@ -714,8 +714,9 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(page).toHaveURL(
       new RegExp(`/properties/${propertyId}/goals/portal-results#ended$`, 'u'),
     )
+    // The list's title takes the focus, so a keyboard arrives where the link said.
     await expect(
       page.getByRole('heading', { level: 2, name: 'Ended portal goals' }),
-    ).toBeVisible()
+    ).toBeFocused()
   })
 })

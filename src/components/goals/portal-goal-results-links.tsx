@@ -18,17 +18,21 @@ type Props = Readonly<{
   programs: Parameters<typeof anyPortalGoalMonthClosed>[0]
 }>
 
-/** A foot link to the results page, at `hash` when given. */
+/**
+ * A foot link to the results page; `toEnded` lands on its ended goals
+ * (`#ended`), whose title then takes the focus.
+ */
 function ResultsLink({
   propertyId,
-  hash,
+  toEnded = false,
   children,
-}: Readonly<{ propertyId: string; hash?: string; children: ReactNode }>) {
+}: Readonly<{ propertyId: string; toEnded?: boolean; children: ReactNode }>) {
   return (
     <InlineLink
       to="/properties/$propertyId/goals/portal-results"
       params={{ propertyId }}
-      hash={hash}
+      hash={toEnded ? ENDED_PORTAL_GOALS_HASH : undefined}
+      state={toEnded ? { focusEndedPortalGoals: true } : undefined}
       className="self-start text-sm"
     >
       {children}
@@ -46,7 +50,7 @@ export function PortalGoalResultsLinks({ propertyId, programs }: Props) {
         <ResultsLink propertyId={propertyId}>{allResults}</ResultsLink>
       )}
       {ended === null ? null : (
-        <ResultsLink propertyId={propertyId} hash={ENDED_PORTAL_GOALS_HASH}>
+        <ResultsLink propertyId={propertyId} toEnded>
           {ended}
         </ResultsLink>
       )}

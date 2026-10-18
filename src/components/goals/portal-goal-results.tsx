@@ -5,7 +5,8 @@
 // show is not drawn: the ways here (the Portal goals section's foot and the goal
 // page's "All monthly results") appear only once a month has closed or a goal
 // has ended.
-import { Link } from '@tanstack/react-router'
+import { useEffect } from 'react'
+import { Link, useRouterState } from '@tanstack/react-router'
 import type { GoalResultsMatrix as GoalResultsMatrixModel } from '#/contexts/reporting/application/public-api'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
@@ -35,14 +36,38 @@ type Props = Readonly<{
 /** Where `#ended` lands: below the sticky header, as `#portal-goals` does. */
 const ANCHOR_MARGIN = '6rem'
 
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    /**
+     * Set by the Portal goals section's "Ended portal goals (n)" (R-4): the
+     * list's title takes the focus once the page is drawn, so a keyboard or a
+     * screen reader arrives where the link said, not at the top of the page.
+     */
+    focusEndedPortalGoals?: true
+  }
+}
+
+/** The ended goals' title takes the focus when the link that led here asks for it. */
+function useFocusOnArrival() {
+  const asked = useRouterState({
+    select: (state) => state.location.state.focusEndedPortalGoals === true,
+  })
+  useEffect(() => {
+    if (asked) document.getElementById(ENDED_PORTAL_GOALS_ID)?.focus()
+  }, [asked])
+}
+
 /** The ended Portal goals, the most recently ended first, each opening its goal. */
 function EndedPortalGoals({ propertyId, ended }: Pick<Props, 'propertyId' | 'ended'>) {
   return (
     <Card>
       <CardHeader>
+        {/* Focusable, so the link that leads here (`#ended`) can hand it the focus. */}
         <CardTitle
           as="h2"
           id={ENDED_PORTAL_GOALS_ID}
+          tabIndex={-1}
+          className="outline-none"
           style={{ scrollMarginTop: ANCHOR_MARGIN }}
         >
           {ENDED_PORTAL_GOALS_TITLE}
@@ -77,6 +102,7 @@ export function PortalGoalResults({
   now,
   personName,
 }: Props) {
+  useFocusOnArrival()
   return (
     <PageShell tier="dashboard">
       <PageHeader

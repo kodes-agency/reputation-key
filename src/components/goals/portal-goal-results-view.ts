@@ -75,6 +75,19 @@ function endedGoalOf(goal: PortalGoal, { now, subjectName }: Frame): EndedPortal
   }
 }
 
+/**
+ * Whether the page has a part to draw: a month of a Portal goal (the running
+ * one included) or a goal that has ended. The ways here appear only once it
+ * has; an address typed or kept from before goes back to the Portal goals.
+ */
+export const hasPortalGoalResults = ({
+  matrix,
+  ended,
+}: Readonly<{
+  matrix: Readonly<{ months: readonly unknown[] }>
+  ended: readonly EndedPortalGoal[]
+}>): boolean => matrix.months.length > 0 || ended.length > 0
+
 /** The ended Portal goals, the most recently ended first. */
 export function endedPortalGoals(
   programs: readonly PortalGoal[],
