@@ -111,13 +111,40 @@ describe('job operational catalogue', () => {
     })
   })
 
-  it('gives active work an executable redrive command rather than a report-only listing', () => {
-    for (const contract of JOB_OPERATIONAL_CONTRACTS.filter(
-      ({ posture }) => posture === 'active',
-    )) {
-      expect(contract.repairCommand).toContain('pnpm ops quarantine redrive')
-      expect(contract.repairCommand).toContain('--apply')
-      expect(contract.repairCommand).not.toContain('quarantine list')
-    }
+  describe('repair command', () => {
+    const activeScheduled = JOB_OPERATIONAL_CONTRACTS.filter(
+      ({ posture, schedule }) => posture === 'active' && schedule !== 'none',
+    )
+    const activeOnDemand = JOB_OPERATIONAL_CONTRACTS.filter(
+      ({ posture, schedule }) => posture === 'active' && schedule === 'none',
+    )
+    const quarantined = JOB_OPERATIONAL_CONTRACTS.filter(
+      ({ posture }) => posture === 'quarantined',
+    )
+
+    it('covers each kind of family', () => {
+      expect(activeScheduled.length).toBeGreaterThan(0)
+      expect(activeOnDemand.length).toBeGreaterThan(0)
+      expect(quarantined.length).toBeGreaterThan(0)
+    })
+
+    it('gives on-demand and quarantined work an executable redrive command rather than a report-only listing', () => {
+      for (const contract of [...activeOnDemand, ...quarantined]) {
+        expect(contract.repairCommand).toContain('pnpm ops quarantine redrive')
+        expect(contract.repairCommand).toContain('--apply')
+        expect(contract.repairCommand).not.toContain('quarantine list')
+      }
+    })
+
+    // A firing is never dead-lettered, so a redrive command would send the
+    // operator to a quarantine that holds nothing for it.
+    it('sends an active scheduled family to its next successful firing, not to a redrive', () => {
+      for (const contract of activeScheduled) {
+        expect(contract.repairCommand).not.toContain('quarantine redrive')
+        expect(contract.repairCommand).toContain('next successful firing')
+        expect(contract.repairCommand).toContain('docs/operations/runbooks.md §17')
+        expect(contract.repairCommand).not.toBe('none')
+      }
+    })
   })
 })

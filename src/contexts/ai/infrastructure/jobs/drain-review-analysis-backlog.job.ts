@@ -20,7 +20,8 @@ import type {
  */
 export const DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME = 'ai-review-analysis-backlog-drain'
 
-// Empty but for what a quarantine redrive adds (the family's repair command).
+// Empty but for what a quarantine redrive adds. That applies to on-demand or
+// legacy dead letters only: a firing of this schedule is never dead-lettered.
 const drainJobData = z
   .object({ redriveMetadata: redriveMetadataSchema.optional() })
   .strict()

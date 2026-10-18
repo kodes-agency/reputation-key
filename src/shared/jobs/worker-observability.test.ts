@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 const logger = vi.hoisted(() => ({
   info: vi.fn(),
+  warn: vi.fn(),
   error: vi.fn(),
 }))
 const captureObservabilityException = vi.hoisted(() => vi.fn())
@@ -234,6 +235,68 @@ describe('worker observability', () => {
       queue: 'default',
       jobName: 'sync-property-reviews',
     })
+  })
+
+  it('fails a schedule firing terminally without a dead letter or a transport error', async () => {
+    const observationSink = {
+      recordStarted: vi.fn(async () => undefined),
+      recordSucceeded: vi.fn(async () => undefined),
+      recordDenied: vi.fn(async () => undefined),
+      recordTerminalFailure: vi.fn(async () => undefined),
+      recordStalled: vi.fn(async () => undefined),
+    }
+    const quarantineQueue = {
+      add: vi.fn(async () => ({ id: 'quarantine-job' })),
+      getJob: vi.fn(async () => undefined),
+    } as unknown as Queue
+    const failure = new Error('lock timeout')
+    createJobWorker(
+      'background',
+      vi.fn(async () => {
+        throw failure
+      }),
+      1,
+      quarantineQueue,
+      observationSink,
+    )
+    const worker = fakeWorkers().at(-1)!
+    const runtimeHandler = worker.handler as (job: Job) => Promise<unknown>
+    const firing = {
+      id: 'repeat:schedule-property-ai-trends-recurring:1791090138172',
+      name: 'schedule-property-ai-trends',
+      queueName: 'background',
+      repeatJobKey: 'schedule-property-ai-trends-recurring',
+      data: {},
+      opts: { attempts: 3 },
+    }
+    logger.error.mockClear()
+
+    await expect(runtimeHandler({ ...firing, attemptsMade: 2 } as Job)).rejects.toBe(
+      failure,
+    )
+    worker.listeners.get('failed')?.({ ...firing, attemptsMade: 3 }, failure, 'active')
+
+    await vi.waitFor(() =>
+      expect(observationSink.recordTerminalFailure).toHaveBeenCalledWith({
+        queue: 'background',
+        jobName: 'schedule-property-ai-trends',
+        jobId: firing.id,
+        at: expect.any(Date),
+      }),
+    )
+    expect(captureObservabilityException).toHaveBeenCalledWith(failure, {
+      source: 'bullmq-job',
+      queue: 'background',
+      jobName: 'schedule-property-ai-trends',
+    })
+    expect(quarantineQueue.add).not.toHaveBeenCalled()
+    expect(quarantineQueue.getJob).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      { queue: 'background', jobName: 'schedule-property-ai-trends' },
+      'terminal schedule firing failure — not dead-lettered, the next firing repeats the pass',
+    )
+    // The only error is the failure itself, never a refused dead-letter write.
+    expect(logger.error.mock.calls.map(([, message]) => message)).toEqual(['job failed'])
   })
 
   it('records a gate-denied completion as a denial, never as a success', async () => {
