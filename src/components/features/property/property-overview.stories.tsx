@@ -326,6 +326,8 @@ export const PortalGoalBelowPaceChip: Story = {
     expect(chip).toHaveTextContent(/^Portal goal below pace$/)
     const href = new URL(chip.getAttribute('href') ?? '', 'http://localhost')
     expect(href.pathname).toBe(`/properties/${property.id}/goals`)
+    // It lands on the Portal goals section, not the top of the page (PG-16).
+    expect(href.hash).toBe('#portal-goals')
     expect(canvas.queryByText(/behind pace/)).toBeNull()
   },
 }

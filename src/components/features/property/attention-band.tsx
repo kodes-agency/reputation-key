@@ -123,6 +123,7 @@ export function AttentionBand({
           to="/properties/$propertyId/goals"
           params={{ propertyId }}
           search={{ view: 'active' }}
+          hash="portal-goals"
         >
           <ChipContent
             icon={Target}
