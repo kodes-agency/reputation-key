@@ -1085,7 +1085,7 @@
 // (1.47 kB) now apart and its view (1.99 kB) as it was; the goal routes' shared
 // host, -portal-goal-add-host-*.js, 5.75 -> 4.95 kB beside
 // -portal-goal-sheet-host-*.js, 9.25 -> 9.29 kB. The results page's route chunk
-// is 3.88 -> 5.27 kB: the goal-status chunk (2.80 kB) it shared with the old
+// is 3.88 -> 5.27 kB: the goal-status chunk (2.77 kB) it shared with the old
 // goal page and the other goals' rows has no other user left, so its code sits
 // in the results page's chunk now. The
 // line stays at 309,500: 301 B spare. The 308,300 B ceiling the owner set for

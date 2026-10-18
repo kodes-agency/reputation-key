@@ -560,8 +560,9 @@ change commands take a goal for one Portal or one group too, its subject kept an
 recorded as recommended against its own numbers, and the average, its level in tenths and
 always `own`, never turned into a count or back; Stop takes every goal that names a subject.
 The goal page's old dialogs (rename, subjects, revise, a month's target, pause, resume and
-end) are gone, with the rename and the one-goal progress server functions and the forms'
-own schemas; the engine keeps those commands.
+end) are gone, with the rename, the one-goal progress and the month-target server functions
+(`changeGoalMonthTarget`, its module, DTO and test) and the forms' own schemas; the engine
+keeps those commands, `changeMonthTarget` among them.
 
 The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
 `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
