@@ -24,7 +24,7 @@ import type {
 import { goalPace } from '#/contexts/reporting/application/goal-pace'
 import { formatNumber } from '#/lib/format'
 import {
-  committedText,
+  committedCount,
   notesOf,
   numberOf,
   offerFor,
@@ -153,7 +153,7 @@ export function changedChangeDraft(
     case 'type':
       return { ...draft, text: edit.text }
     case 'commit':
-      return { ...draft, text: committedText(draft.text) }
+      return { ...draft, text: committedCount(draft.text) }
     case 'note_open':
       return { ...draft, note: { ...draft.note, open: true } }
     case 'note':

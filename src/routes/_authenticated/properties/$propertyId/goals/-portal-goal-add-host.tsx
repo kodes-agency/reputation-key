@@ -5,7 +5,8 @@
 // door is on screen, and it works from the add read (`portalGoalAddQuery`,
 // primed by both pages' loaders), so the door is drawn only when the read
 // offers something to add (the M-rule) and never pops in after the section. A
-// fresh sheet (new drafts, no old refusal) is mounted for every opening.
+// fresh sheet (new drafts, no old refusal) is mounted for every opening, as
+// the set sheet's host mounts its own (`afresh`).
 //
 // No Radix trigger opens it, so the host remembers what had the focus and
 // returns it there on closing, or to the page's goal title when that is gone
@@ -27,7 +28,7 @@ import {
   portalGoalAddCommands,
   portalGoalAddQuery,
 } from './-portal-goal-queries'
-import { useFocusReturn } from './-portal-goal-sheet-host'
+import { afresh, openedAs, useFocusReturn } from './-portal-goal-sheet-host'
 
 const loadSheet = () => import('#/components/goals/portal-goal-add-sheet')
 const PortalGoalAddSheet = lazy(() =>
@@ -69,15 +70,10 @@ export function usePortalGoalAdd(input: Input) {
   const open = (at: PortalGoalAddOpening) => {
     if (options === undefined) return
     focus.remember()
-    setOpening((current) => ({
-      ...at,
-      options,
-      open: true,
-      key: (current?.key ?? 0) + 1,
-    }))
+    setOpening((current) => ({ ...at, options, ...afresh(current) }))
   }
   const setOpen = (next: boolean) => {
-    setOpening((current) => (current === null ? null : { ...current, open: next }))
+    setOpening(openedAs(next))
     if (!next) input.onClosed?.()
   }
   const commands: PortalGoalAddCommands = {

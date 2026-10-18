@@ -6,8 +6,9 @@
 // and the note an own number gets, both from Reporting's application layer.
 // Nothing here throws on what was typed: letters, spaces, a 0 or a number too
 // big for a goal make the box invalid and Set unavailable, never an error. The
-// box's reading and steps and the three suggestions are the add sheet's too
-// (`portal-goal-add-view.ts`).
+// box (`numberOf`, `committedCount`), its steps and the three suggestions are
+// the add sheet's too (`portal-goal-add-number-view.ts` and
+// `portal-goal-add-each-view.ts`).
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalOffer,
@@ -161,13 +162,13 @@ export type Reading =
   | Readonly<{ kind: 'whole'; n: number }>
   | Readonly<{ kind: 'other' }>
 
-export function readText(text: string): Reading {
+function readText(text: string): Reading {
   const digits = text.replaceAll(/[\s,]/gu, '')
   if (digits === '') return { kind: 'empty' }
   return /^\d+$/u.test(digits) ? { kind: 'whole', n: Number(digits) } : { kind: 'other' }
 }
 
-export const takes = (n: number): boolean =>
+const takes = (n: number): boolean =>
   Number.isSafeInteger(n) && n >= 1 && n <= HIGHEST_NUMBER
 
 /** Whether the box holds one of the offer's three suggested numbers. */
@@ -211,12 +212,12 @@ export function changedDraft(
     case 'type':
       return { ...draft, text: change.text }
     case 'commit':
-      return { ...draft, text: committedText(draft.text) }
+      return { ...draft, text: committedCount(draft.text) }
   }
 }
 
 /** Enter, or the box left: a whole number as the grid writes it; anything else as typed. */
-export function committedText(text: string): string {
+export function committedCount(text: string): string {
   const reading = readText(text)
   return reading.kind === 'whole' && Number.isSafeInteger(reading.n)
     ? String(reading.n)

@@ -959,8 +959,16 @@
 // -portal-goal-add-host-*.js, 10.47 -> 10.96 kB; the stub chunk 0.46 -> 0.61
 // kB. The add sheet's chunk (4.21 kB) and the results page's (3.88 kB) are
 // unchanged, and the starts-below-pace note is still in the sheet's chunk
-// alone. No raise: 165 B spare under 308,200; 265 B under the build's ceiling
-// of 308,300 (owner, P-9).
+// alone. The review's two clean-ups (the add sheet's number step reads its box
+// with the set sheet's helpers, and both goal hosts open and close their
+// sheets with one pair of steps) change no first-paint module: fresh builds in
+// one session measured 308,035 B on b259a15fc again (entry 49,358 B) and
+// 308,032 B, twice, on the review head (entry 49,355 B): -3 B. With the hashed
+// chunk names masked the two entries are byte-identical, so the -3 B is the
+// names' gzip noise. Lazy chunks: the set sheet's view
+// (portal-goal-sheet-refusals-*.js) 4.26 -> 4.25 kB, the goal routes' shared
+// host 10.96 -> 10.91 kB. No raise: 168 B spare under 308,200; 268 B under the
+// build's ceiling of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

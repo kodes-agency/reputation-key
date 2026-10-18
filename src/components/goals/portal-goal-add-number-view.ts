@@ -10,17 +10,16 @@ import type {
   PortalGoalAddOffer,
   PortalGoalAddOptions,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
-import { formatNumber } from '#/lib/format'
 import { goalMetricLabel } from './goal-metric-label'
 import { countsFromWords } from './portal-goal-offer-words'
 import {
   choicesOf,
-  readText,
-  stepsFrom,
-  takes,
+  committedCount,
+  numberOf,
+  primaryNumber,
   type PortalGoalSheetModel,
 } from './portal-goal-sheet-view'
-import { dayWords, monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
+import { dayWords, monthName, portalGoalUnit } from './portal-goal-words'
 
 /** The average private rating, the one goal of the sheet that is not a count. */
 export const AVERAGE_METRIC: AddPortalGoalRequest['metric'] = 'portal_rating_average'
@@ -38,15 +37,14 @@ function primaryOf(
     : { label: `Set ${number} for ${monthName(options.month)}`, disabled: false }
 }
 
-/** M-10: the number step of a goal for one Portal or one group. */
+/** M-10: the number step of a goal for one Portal or one group; its box is the set sheet's. */
 export function numberModel(
   options: PortalGoalAddOptions,
   offer: PortalGoalAddOffer,
   text: string,
 ) {
   const { measure, month } = options
-  const reading = readText(text)
-  const value = reading.kind === 'whole' && takes(reading.n) ? reading.n : null
+  const { value, number } = numberOf(measure, text)
   const choices = offer.choices === null ? null : choicesOf({ choices: offer.choices })
   const submission: PortalGoalAddSubmission | null =
     value === null
@@ -64,23 +62,10 @@ export function numberModel(
       ? countsFromWords(month, offer.soFar)
       : `Starts on ${dayWords(`${month}-01`)}.`,
     unit: portalGoalUnit(measure, value ?? 0),
-    number: {
-      text,
-      value,
-      invalid: reading.kind !== 'empty' && value === null,
-      valueText: value === null ? null : portalGoalCount(measure, value),
-      ...stepsFrom(reading),
-    } satisfies PortalGoalSheetModel['number'],
+    number,
     choices,
     chosen: choices?.find((choice) => choice.value === value)?.value ?? null,
-    primary: primaryOf(
-      options,
-      value === null
-        ? null
-        : measure === 'portal_rating_count'
-          ? formatNumber(value)
-          : portalGoalCount(measure, value),
-    ),
+    primary: primaryOf(options, value === null ? null : primaryNumber(measure, value)),
     submission,
   }
 }
@@ -151,14 +136,12 @@ export function averageModel(options: PortalGoalAddOptions, text: string) {
   }
 }
 
-/** The box as Enter or leaving it writes it: a whole count plainly, an average to tenths. */
+/**
+ * The box as Enter or leaving it writes it: an average to tenths, a count as
+ * the set sheet's box writes it (whole, plainly).
+ */
 export function committedText(text: string, average: boolean): string {
-  if (average) {
-    const { value } = averageOf(text)
-    return value === null ? text : averageWords(value)
-  }
-  const reading = readText(text)
-  return reading.kind === 'whole' && Number.isSafeInteger(reading.n)
-    ? String(reading.n)
-    : text
+  if (!average) return committedCount(text)
+  const { value } = averageOf(text)
+  return value === null ? text : averageWords(value)
 }

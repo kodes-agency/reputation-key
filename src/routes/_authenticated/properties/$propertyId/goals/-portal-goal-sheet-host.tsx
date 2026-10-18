@@ -118,6 +118,24 @@ export function useFocusReturn(focusTitle: () => void) {
   }
 }
 
+/** Where a host's sheet is: open or closed, and the key it is mounted under. */
+type Keyed = Readonly<{ open: boolean; key: number }>
+
+/**
+ * An opening afresh: open, under the next key, so a fresh sheet is mounted (a
+ * new draft, no old refusal). "Add a portal goal" opens the same way.
+ */
+export const afresh = (current: Keyed | null): Keyed => ({
+  open: true,
+  key: (current?.key ?? 0) + 1,
+})
+
+/** Opens or closes the sheet there is, on what it opened on; with none, still none. */
+export const openedAs =
+  (open: boolean) =>
+  <T extends Keyed>(current: T | null): T | null =>
+    current === null ? null : { ...current, open }
+
 type SheetHost = Readonly<{
   propertyId: string
   card: PortalGoalCardView | undefined
@@ -159,17 +177,9 @@ export function usePortalGoalSheet({
     const goal = goalOfCard(card)
     if (facts === null || (intent.mode === 'change' && goal === null)) return
     focus.remember()
-    setOpening((current) => ({
-      intent,
-      facts,
-      goal,
-      notice: null,
-      open: true,
-      key: (current?.key ?? 0) + 1,
-    }))
+    setOpening((current) => ({ intent, facts, goal, notice: null, ...afresh(current) }))
   }
-  const setOpen = (next: boolean) =>
-    setOpening((current) => (current === null ? null : { ...current, open: next }))
+  const setOpen = (next: boolean) => setOpening(openedAs(next))
   // F-1, F-2, F-4: the latest goal, and a fresh sheet on it that says why. A
   // latest goal that takes no change (it was stopped) closes the sheet as it
   // is, so the focus goes back as on any close.
