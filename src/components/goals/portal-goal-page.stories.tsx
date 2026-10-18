@@ -61,6 +61,12 @@ function tilesOf(canvasElement: HTMLElement): Canvas {
   return within(strip)
 }
 
+/** Each chip of "Month by month", by its name. */
+function chipNames(canvas: Canvas): (string | null)[] {
+  const strip = within(canvas.getByRole('list', { name: 'Month by month' }))
+  return strip.getAllByRole('button').map((chip) => chip.getAttribute('aria-label'))
+}
+
 /** Each line of "Changes", as the page reads it out. */
 function changeTexts(canvas: Canvas): string[] {
   const section = canvas.getByRole('region', { name: 'Changes' })
@@ -287,10 +293,7 @@ export const AcrossAStop: Story = {
   args: { page: PAGE_ACROSS_A_STOP },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const strip = within(canvas.getByRole('list', { name: 'Month by month' }))
-    await expect(
-      strip.getAllByRole('button').map((chip) => chip.getAttribute('aria-label')),
-    ).toEqual([
+    await expect(chipNames(canvas)).toEqual([
       'December: 12 of 45 private ratings, running',
       'November: 36 of 40 private ratings, not met',
       'October: 41 of 40 private ratings, met',
@@ -374,10 +377,7 @@ export const NoGoalAfterAStop: Story = {
       'h2 Changes',
       'h2 More portal goals',
     ])
-    const strip = within(canvas.getByRole('list', { name: 'Month by month' }))
-    await expect(
-      strip.getAllByRole('button').map((chip) => chip.getAttribute('aria-label')),
-    ).toEqual(['November: 41 of 40 private ratings, met'])
+    await expect(chipNames(canvas)).toEqual(['November: 41 of 40 private ratings, met'])
     await expect(changeTexts(canvas).slice(0, 2)).toEqual([
       'Nov 12 · Marco stopped the goal',
       'Oct 23 · Elena set 40 a month from November (recommended)',
