@@ -1,9 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   sentryGlobalFunctionMiddleware,
   sentryGlobalRequestMiddleware,
 } from '@sentry/tanstackstart-react'
+import * as Sentry from '@sentry/node'
 import { releaseSkewClientMiddleware } from '#/shared/stale-tab/release-skew-middleware'
+import { unknownServerFunctionMiddleware } from '#/shared/stale-tab/unknown-server-function'
+import {
+  runRequestChain,
+  serverFnChainRequest,
+} from '#/shared/testing/request-middleware-chain'
 import { startInstance } from './start'
 
 type RequestResult = Response | Readonly<{ response: Response }>
@@ -59,7 +65,7 @@ describe('TanStack Start global middleware on the server', () => {
   it('runs Sentry request and function middleware before the application middleware', async () => {
     const options = await startInstance.getOptions()
 
-    expect(options.requestMiddleware).toHaveLength(3)
+    expect(options.requestMiddleware).toHaveLength(4)
     expect(options.requestMiddleware?.[0]).toBe(sentryGlobalRequestMiddleware)
     expect(options.requestMiddleware?.[0]?.options.server).toBeTypeOf('function')
     expect(options.functionMiddleware).toEqual([
@@ -132,5 +138,97 @@ describe('TanStack Start request CSRF boundary', () => {
 
     expect((result as Readonly<{ response: Response }>).response.status).toBe(200)
     expect(next).toHaveBeenCalledOnce()
+  })
+})
+
+describe('a request for a server function this build does not have', () => {
+  const sentEvents: unknown[] = []
+
+  beforeEach(() => {
+    sentEvents.length = 0
+    Sentry.init({
+      dsn: 'https://public@monitoring.invalid/1',
+      defaultIntegrations: false,
+      integrations: [],
+      transport: () => ({ send: async () => ({}), flush: async () => true }),
+      beforeSend: (event) => {
+        sentEvents.push(event)
+        return null
+      },
+    })
+  })
+
+  afterEach(async () => {
+    await Sentry.close()
+  })
+
+  const missing = async () => {
+    throw new Error('Server function info not found for 0123abcd')
+  }
+
+  it('is registered between the CSRF boundary and the nonce, inside Sentry', async () => {
+    const options = await startInstance.getOptions()
+
+    expect(options.requestMiddleware?.[2]).toBe(unknownServerFunctionMiddleware)
+  })
+
+  // The thing the issue was about, through the chain the server registers.
+  it('is answered 404 and never reaches Sentry', async () => {
+    const options = await startInstance.getOptions()
+
+    const response = await runRequestChain(
+      options.requestMiddleware ?? [],
+      missing,
+      serverFnChainRequest('0123abcd'),
+    )
+    await Sentry.flush(100)
+
+    expect(response.status).toBe(404)
+    expect(sentEvents).toEqual([])
+  })
+
+  it('from another origin is still refused by the CSRF boundary first', async () => {
+    const options = await startInstance.getOptions()
+    const crossSite = serverFnChainRequest('0123abcd')
+
+    const response = await runRequestChain(options.requestMiddleware ?? [], missing, {
+      ...crossSite,
+      request: new Request(crossSite.request, {
+        headers: { 'Sec-Fetch-Site': 'cross-site' },
+      }),
+    })
+
+    expect(response.status).toBe(403)
+  })
+
+  it('leaves a function that exists alone', async () => {
+    const options = await startInstance.getOptions()
+    const answer = new Response('{"result":1}')
+
+    const response = await runRequestChain(
+      options.requestMiddleware ?? [],
+      async () => ({ response: answer }),
+      serverFnChainRequest('9f2c'.repeat(16)),
+    )
+
+    expect(response).toBe(answer)
+    expect(sentEvents).toEqual([])
+  })
+
+  it('still reports a real failure of a function that exists', async () => {
+    const options = await startInstance.getOptions()
+
+    await expect(
+      runRequestChain(
+        options.requestMiddleware ?? [],
+        async () => {
+          throw new Error('database failed')
+        },
+        serverFnChainRequest('9f2c'.repeat(16)),
+      ),
+    ).rejects.toThrow('database failed')
+    await Sentry.flush(100)
+
+    expect(sentEvents).toHaveLength(1)
   })
 })
