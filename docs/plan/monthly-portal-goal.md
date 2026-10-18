@@ -205,7 +205,7 @@ Not recorded yet.
 
 ### PG-11 — Google done screen
 
-Not recorded yet.
+The Google rating goal wizard's done screen offers "See your portal goal" once the Property has a live (published) Portal, a link to the Goals page's `#portal-goals` that closes the wizard and hands the focus to the Portal goals' title; with no Portal, or drafts, disabled or archived ones only, it offers "Create a portal". The rule is `portalNextStepOf` (`src/components/goals/rating-goal-portal-step.ts`), worked out by the Goals page from its Portal list and by the Overview from the Portals overview read (the card, never a dead end, while that read is missing). The import's setup step always offers Create; the Google goal's detail page opens only a change, which never reaches the done screen. `hasPortals` keeps its meaning for the empty state's too-few-reviews link. No Google figure reaches the Portal goals.
 
 ### PG-12 — Running card
 
