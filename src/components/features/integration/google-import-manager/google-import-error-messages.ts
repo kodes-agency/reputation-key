@@ -58,14 +58,32 @@ export function leaseRenewalFailureIsFinal(error: unknown): boolean {
   return code !== null && !TRANSIENT_RENEWAL_CODES.has(code)
 }
 
+/** The client-safe codes the Google OAuth callback sends back to the import page. */
+export const CONNECTION_CALLBACK_ERRORS = [
+  'denied',
+  'connection_failed',
+  'account_already_connected',
+  'scope_not_granted',
+] as const
+
+export type ConnectionCallbackError = (typeof CONNECTION_CALLBACK_ERRORS)[number]
+
+/** The one sentence the import page shows for a callback code. */
 export function connectionCallbackErrorMessage(
-  error: 'connection_failed' | 'denied' | 'account_already_connected' | undefined,
+  error: ConnectionCallbackError | undefined,
 ): string | null {
-  if (error === 'account_already_connected') {
-    return 'That Google account is already connected. Select it above instead of authorizing again.'
+  switch (error) {
+    case undefined:
+      return null
+    case 'account_already_connected':
+      return 'That Google account is already connected. Select it above instead of authorizing again.'
+    case 'denied':
+      return 'Google authorization was cancelled.'
+    case 'scope_not_granted':
+      return 'Google didn’t give RepKey access to Business Profile. Connect again and tick the Business Profile permission on Google’s screen.'
+    case 'connection_failed':
+      return 'Google could not be connected. Try again.'
   }
-  if (error === 'denied') return 'Google authorization was cancelled.'
-  return error ? 'Google Account connection failed. Try connecting again.' : null
 }
 
 export function discoveryErrorMessage(error: unknown): string {

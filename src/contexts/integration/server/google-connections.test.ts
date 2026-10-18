@@ -67,6 +67,7 @@ describe('throwContextError with IntegrationError (google-connections handlers)'
       ['oauth_failed', 400],
       ['oauth_denied', 400],
       ['oauth_state_invalid', 400],
+      ['scope_not_granted', 400],
       ['token_refresh_failed', 400],
       ['gbp_api_error', 400],
       ['invalid_visibility', 400],
