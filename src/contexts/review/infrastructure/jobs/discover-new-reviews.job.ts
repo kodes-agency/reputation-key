@@ -18,7 +18,25 @@
 //   - that interval is not flat: each property's next due time is priced on
 //     the backoff ladder (domain/discovery-backoff.ts) from its own activity
 //     evidence, so the quiet majority costs a fraction of the provider quota
-//     a flat 15-minute interval used to spend on them.
+//     a flat 15-minute interval used to spend on them;
+//   - the jobs a sweep enqueues do not all start at once. Each is handed to
+//     the queue with a START DELAY drawn from a stable hash of its property
+//     id, inside DISCOVERY_SPREAD_WINDOW_MS (10 minutes: the 15-minute sweep
+//     cadence less the sweep's own 5-minute timeout; domain/discovery-spread.ts).
+//     The snapshot runs of one sweep share a per-credential reviews.list quota
+//     of 30 calls a minute, and a connection with a few dozen properties spent
+//     it in the sweep's first seconds. Only this sweep spreads: push, import
+//     and user-initiated syncs enqueue with no delay.
+//     The delay moves when a job STARTS, never when its property is next DUE:
+//     next_incremental_at is still written from the sweep's own time, so the
+//     offset cannot push a property past the next sweep (dating it from the
+//     delayed start would halve a hot property's polling), and because the
+//     offset is the same on every sweep, consecutive polls stay exactly one
+//     due-interval apart. The window is clamped strictly below the cadence
+//     and the base interval, so a delayed job has always started before the
+//     earliest instant a later sweep can enqueue the same property again:
+//     nothing is ever waiting twice, and the sweep's queue behaviour (no job
+//     id) is exactly what it was.
 //
 // Content-free: identifiers, timestamps, counts, and an error class only.
 
@@ -41,16 +59,21 @@ import {
   nextDiscoveryDueAt,
   type DiscoveryBackoffTier,
 } from '../../domain/discovery-backoff'
+import {
+  discoverySpreadDelayMs,
+  discoverySpreadWindowMs,
+} from '../../domain/discovery-spread'
 
 const DEFAULT_BATCH_SIZE = 200
 const DEFAULT_MAX_BATCHES = 10
 
 /**
  * BASE per-property poll interval — the hot rung of the backoff ladder. The
- * sweep FIRES every 15 minutes (worker/index.ts, a literal cadence); this is
- * the shortest a property ever waits before being polled again, and it is
- * what REVIEW_DISCOVERY_INTERVAL_MINUTES configures. A property with no
- * recent activity waits a MULTIPLE of it — see domain/discovery-backoff.ts.
+ * sweep FIRES every 15 minutes (`every:900000` in the job catalogue, mirrored
+ * as DISCOVERY_SWEEP_CADENCE_MS); this is the shortest a property ever waits
+ * before being polled again, and it is what REVIEW_DISCOVERY_INTERVAL_MINUTES
+ * configures. A property with no recent activity waits a MULTIPLE of it — see
+ * domain/discovery-backoff.ts.
  */
 export const DEFAULT_DISCOVERY_INTERVAL_MS = 15 * 60 * 1000
 
@@ -62,6 +85,12 @@ type DiscoverHandlerDeps = Readonly<{
   intervalMs?: number
   batchSize?: number
   maxBatches?: number
+  /**
+   * Width of the window a sweep's sync jobs start over. Defaults to
+   * DISCOVERY_SPREAD_WINDOW_MS and is always clamped below the sweep cadence
+   * and the base interval; 0 starts every job immediately.
+   */
+  spreadWindowMs?: number
 }>
 
 type SweepState = {
@@ -97,20 +126,27 @@ async function enqueueCandidates(
   options: Readonly<{
     now: Date
     baseIntervalMs: number
+    spreadWindowMs: number
     logger: DiscoverHandlerDeps['logger']
   }>,
 ): Promise<void> {
-  const { now, baseIntervalMs, logger } = options
+  const { now, baseIntervalMs, spreadWindowMs, logger } = options
   for (const candidate of candidates) {
+    // A zero delay is left out entirely so the job options stay what they
+    // were before the spread existed.
+    const delayMs = discoverySpreadDelayMs(candidate.propertyId, spreadWindowMs)
     try {
-      await deps.queue.addSyncJob({
-        propertyId: candidate.propertyId,
-        organizationId: candidate.organizationId,
-        connectionId: candidate.connectionId,
-        locationName: candidate.locationName,
-        initiator: { kind: 'system', id: DISCOVERY_SWEEP_SYNC_INITIATOR_ID },
-        correlationId: `review-discovery:${candidate.propertyId}`,
-      })
+      await deps.queue.addSyncJob(
+        {
+          propertyId: candidate.propertyId,
+          organizationId: candidate.organizationId,
+          connectionId: candidate.connectionId,
+          locationName: candidate.locationName,
+          initiator: { kind: 'system', id: DISCOVERY_SWEEP_SYNC_INITIATOR_ID },
+          correlationId: `review-discovery:${candidate.propertyId}`,
+        },
+        delayMs > 0 ? { delayMs } : undefined,
+      )
     } catch (err) {
       state.enqueueFailedPropertyId = candidate.propertyId
       logger.warn({ err }, 'Failed to enqueue discovery sync job')
@@ -145,6 +181,7 @@ async function processDiscoveryBatch(
     batchSize: number
     now: Date
     baseIntervalMs: number
+    spreadWindowMs: number
     logger: DiscoverHandlerDeps['logger']
   }>,
 ): Promise<BatchOutcome> {
@@ -161,6 +198,7 @@ async function processDiscoveryBatch(
   await enqueueCandidates(deps, batch, state, {
     now: options.now,
     baseIntervalMs: options.baseIntervalMs,
+    spreadWindowMs: options.spreadWindowMs,
     logger: options.logger,
   })
   if (state.enqueueFailedPropertyId !== null) return { kind: 'enqueue_failed' }
@@ -178,6 +216,7 @@ async function runDiscoveryLoop(
     maxBatches: number
     now: Date
     baseIntervalMs: number
+    spreadWindowMs: number
     logger: DiscoverHandlerDeps['logger']
   }>,
 ): Promise<void> {
@@ -201,6 +240,7 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
   const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE
   const maxBatches = deps.maxBatches ?? DEFAULT_MAX_BATCHES
   const baseIntervalMs = deps.intervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS
+  const spreadWindowMs = discoverySpreadWindowMs(baseIntervalMs, deps.spreadWindowMs)
 
   return async (_job: Job) => {
     return trace('job.discoverNewReviews', async () => {
@@ -222,6 +262,7 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
           maxBatches,
           now,
           baseIntervalMs,
+          spreadWindowMs,
           logger,
         })
       } finally {
@@ -232,6 +273,7 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
             batchesProcessed: state.batches,
             budgetExhausted: state.batches >= maxBatches,
             baseIntervalMs,
+            spreadWindowMs,
             // Ladder shape for this run: rising cold/warm counts are the
             // whole point — they are polls the flat interval used to spend.
             enqueuedHot: state.enqueuedByTier.hot,
