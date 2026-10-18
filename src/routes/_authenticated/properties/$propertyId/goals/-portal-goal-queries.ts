@@ -15,7 +15,10 @@
 //   read. A server-function module that two entries share is grouped with the
 //   stubs first paint loads (vite.config.ts, `app-server-fns`).
 import { queryOptions, type QueryClient } from '@tanstack/react-query'
-import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
+import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
+import { listPortals } from '#/contexts/portal/server/portals'
+import { listGoalPrograms } from '#/contexts/reporting/server/goal-programs'
+import { dashboardKeys, goalKeys, portalKeys } from '#/shared/queries/query-keys'
 
 type MonthlyPortalGoalServer =
   typeof import('#/contexts/reporting/server/monthly-portal-goals')
@@ -100,5 +103,51 @@ export async function markPortalGoalReadsStale(
     }),
     queryClient.invalidateQueries({ queryKey: dashboardKeys.fleets() }),
     queryClient.invalidateQueries({ queryKey: dashboardKeys.property({ propertyId }) }),
+  ])
+}
+
+/** A read of the goals is good for this long, as on the Goals page. */
+const GOALS_STALE_MS = 30_000
+
+/**
+ * The Portal goal results page's reads (`/goals/portal-results`, PLAN PG-18):
+ * the Property's goals with every month's result, and the names of the Portals
+ * and groups they count. They are the Goals page's own reads under the same
+ * keys, so a page opened from the other reads nothing again; each is a copy the
+ * route-query-definitions test holds to the same read. Here, in the chunk the
+ * goal routes already fetch on demand, so the page adds no chunk of its own to
+ * first paint's preload map. Their server functions are imported, unlike the
+ * Monthly portal goal's: the Goals route already loads them with first paint.
+ */
+export const portalGoalResultsQueries = (propertyId: string) => ({
+  goals: queryOptions({
+    queryKey: goalKeys.list({ propertyId, model: 'program' }),
+    queryFn: () => listGoalPrograms({ data: { propertyId } }),
+    staleTime: GOALS_STALE_MS,
+  }),
+  subjectNames: queryOptions({
+    queryKey: portalKeys.goalSubjectNames(propertyId),
+    queryFn: async () => {
+      const [groups, portals] = await Promise.all([
+        listPortalGroups({ data: { propertyId } }),
+        listPortals({ data: { propertyId } }),
+      ])
+      return { groups: groups.groups, portals: portals.portals }
+    },
+  }),
+})
+
+/**
+ * Primes the results page: both reads, together. A failure fails the page, as
+ * on the Goals page: without its goals it has nothing to show.
+ */
+export async function prefetchPortalGoalResults(
+  queryClient: QueryClient,
+  propertyId: string,
+): Promise<void> {
+  const queries = portalGoalResultsQueries(propertyId)
+  await Promise.all([
+    queryClient.ensureQueryData(queries.goals),
+    queryClient.ensureQueryData(queries.subjectNames),
   ])
 }

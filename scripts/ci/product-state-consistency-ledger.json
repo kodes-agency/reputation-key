@@ -280,7 +280,7 @@
       "id": "src/routes/_authenticated/properties/$propertyId/goals/index.tsx:useState(now)",
       "classification": "local_runtime",
       "owner": "Goals page",
-      "policy": "The instant the page was opened, taken once so the day a target was set prints its year only when it is not the current one, in the list and in the results matrix; it is not server state and is never written back, and a remount of the route is its reset boundary."
+      "policy": "The instant the page was opened, taken once so the day a target was set prints its year only when it is not the current one, in the list; it is not server state and is never written back, and a remount of the route is its reset boundary."
     },
     {
       "id": "src/routes/_authenticated/properties/$propertyId/goals/$goalId.tsx:useState(now)",
@@ -755,6 +755,12 @@
       "classification": "local_runtime",
       "owner": "Monthly portal goal page",
       "policy": "The instant the page was opened, taken once so the other Portal goals' rows read this month's target and print the day it was set with its year only when it is not the current one; the goal's own days come from the read, so it is not server state and is never written back, and a remount of the route is its reset boundary."
+    },
+    {
+      "id": "src/routes/_authenticated/properties/$propertyId/goals/portal-results.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Portal goal results page",
+      "policy": "The instant the page was opened, taken once so the day a month's target was set and the day a goal ended print their year only when it is not the current one, in the results matrix and the ended goals; it is not server state and is never written back, and a remount of the route is its reset boundary."
     },
     {
       "id": "src/routes/_authenticated/properties/$propertyId/goals/google-rating.tsx:useState(now)",
