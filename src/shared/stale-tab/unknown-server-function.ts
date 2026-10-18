@@ -19,9 +19,7 @@
 // error handler of the Nitro layer never sees one either.
 
 import { createMiddleware } from '@tanstack/react-start'
-
-/** The whole body of the answer. Text, so Start's client reads it as the error's message. */
-export const UNKNOWN_SERVER_FUNCTION_BODY = 'Unknown server function'
+import { UNKNOWN_SERVER_FUNCTION_BODY } from './release-skew'
 
 /** How Start's generated resolver words the lookup that found nothing. Pinned by this module's tests. */
 const MISSING_FUNCTION = 'Server function info not found for '
