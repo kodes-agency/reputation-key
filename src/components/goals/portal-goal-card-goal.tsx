@@ -39,7 +39,7 @@ type Props = Readonly<{
 /** A door to the sheet, in the card's line. */
 function SheetLink({ label, onClick }: Readonly<{ label: string; onClick: () => void }>) {
   return (
-    <Button variant="link" size="inline" touch onClick={onClick}>
+    <Button variant="link" size="inline" touch className="self-start" onClick={onClick}>
       {label}
     </Button>
   )
