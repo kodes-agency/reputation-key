@@ -86,13 +86,12 @@ describe('a trail is trailCrumbs', () => {
 describe('a header slot has one job', () => {
   /**
    * `description` is a sentence of purpose, written out. A count, a name or a status is
-   * `meta`; the two pages that print a dynamic sentence say why.
+   * `meta`; the page that prints a dynamic sentence says why. (A goal's own page
+   * printed the goal's description until it became a portal goal's page, PG-21.)
    */
   const DESCRIPTION_ALLOWED: Readonly<Record<string, string>> = {
     'src/components/features/portal/property-look/property-look-page.tsx':
       'a sentence of purpose that names the Property whose look it is',
-    'src/routes/_authenticated/properties/$propertyId/goals/$goalId.tsx':
-      'the goal’s own description, in the words the person wrote',
   }
   const dynamicDescription = (file: SourceFile) =>
     pageHeaderProps(file.text).some((props) => /\bdescription=\{/u.test(props))
