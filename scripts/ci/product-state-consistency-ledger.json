@@ -765,7 +765,7 @@
       "id": "src/components/goals/portal-goal-change-sheet.tsx:useState(draft)",
       "classification": "server_draft",
       "owner": "Monthly portal goal change sheet",
-      "policy": "Now or from next month, the measure, the number box as typed and the note, seeded once when the sheet mounts from the goal it opened on (the month the read names, the goal's number there, or the recommended number of a switched measure). The host mounts a fresh sheet with a new key for every opening and again on the latest goal after a revision_conflict, which is the reset boundary; a month_locked refusal moves it to the next month from the refusal's handler, never from an effect. The keys the change is sent against (month, number, version, the months after) are read from the goal the sheet opened on at the press, and only the primary sends the draft to the server."
+      "policy": "Now or from next month, the measure, the number box as typed and the note, seeded once when the sheet mounts from the goal it opened on (the month the read names, the goal's number there, or the recommended number of a switched measure). The host mounts a fresh sheet with a new key for every opening and again on the latest goal, read again, after a revision_conflict, month_locked or start_month_changed refusal (F-1, F-2, F-4), which is the reset boundary; nothing moves the draft from an effect. The keys the change is sent against (month, number, version, the months after) are read from the goal the sheet opened on at the press, and only the primary sends the draft to the server."
     },
     {
       "id": "src/components/goals/portal-goal-change-sheet.tsx:useState(now)",
