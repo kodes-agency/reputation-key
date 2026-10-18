@@ -281,9 +281,13 @@ async function expectScheduled(canvas: Canvas) {
   ).toBeVisible()
   await expect(canvas.getByText('November · 40 private ratings')).toBeVisible()
   await expect(canvas.getByText('Starts on Nov 1 · October so far: 12')).toBeVisible()
-  // Nothing to use, and no figure of the month yet.
+  // Nothing to use, and no figure of the month yet; its page is a click away.
   await expect(canvas.queryByRole('button')).toBeNull()
   await expect(canvas.queryByText(/to go/u)).toBeNull()
+  await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
+    'href',
+    '/properties/p1/goals/portals',
+  )
 }
 
 /** Set for November on Oct 23: its month and number, the day it starts, October so far. */

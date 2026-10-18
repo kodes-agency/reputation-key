@@ -146,8 +146,8 @@ export type PortalGoalPageView = Readonly<{
   card: PortalGoalCardView
   /** The Property's time zone, whose months the goal follows. */
   timezone: string
-  /** Published Portals: "from all 3 portals", or the one by name. */
-  portals: readonly string[]
+  /** Published Portals in name order: "from all 3 portals", or the one by name. */
+  portals: readonly Readonly<{ portalId: string; name: string }>[]
   /** With a goal; else null. */
   tiles: PortalGoalPageTiles | null
   /** With a running month whose counts add up; else null. */

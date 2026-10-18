@@ -83,7 +83,11 @@ describe('readMonthlyPortalGoalPage', () => {
     expect(page.card.state).toBe('getting_ready')
     expect(page).toMatchObject({
       timezone: 'Europe/Sofia',
-      portals: ['Reception', 'Restaurant', 'Spa'],
+      portals: [
+        { portalId: 'portal-reception', name: 'Reception' },
+        { portalId: 'portal-restaurant', name: 'Restaurant' },
+        { portalId: 'portal-spa', name: 'Spa' },
+      ],
       tiles: null,
       rows: null,
       months: [],

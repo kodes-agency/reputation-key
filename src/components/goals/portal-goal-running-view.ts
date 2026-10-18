@@ -114,18 +114,29 @@ export type PortalGoalCountsWords =
       /** Each published Portal in the read's name order, then "Other portals". */
       rows: readonly PortalGoalCountRow[]
     }>
-  | Readonly<{ kind: 'sentence'; text: string }>
+  | Readonly<{
+      kind: 'sentence'
+      text: string
+      /** "See each", to every Portal's count on the goal's page; null when all are named. */
+      seeEach: string | null
+    }>
 
 /**
  * G-26 and G-27: what each Portal brought in, plain counts in the read's name
  * order (P-1), never sorted and with no bars; "Other portals" only when
  * something came from them. One Portal that brought in all of it is named, and
- * from 5 Portals the card says how many.
+ * from 5 Portals the card says how many, with "See each" to the goal's page.
  */
 export function portalCountsWords(rows: PortalGoalRows): PortalGoalCountsWords {
-  if (rows.kind === 'one') return { kind: 'sentence', text: `All from ${rows.name}.` }
+  if (rows.kind === 'one') {
+    return { kind: 'sentence', text: `All from ${rows.name}.`, seeEach: null }
+  }
   if (rows.kind === 'many') {
-    return { kind: 'sentence', text: `From ${formatNumber(rows.count)} portals` }
+    return {
+      kind: 'sentence',
+      text: `From ${formatNumber(rows.count)} portals`,
+      seeEach: 'See each',
+    }
   }
   const listed: PortalGoalCountRow[] = rows.portals.map(({ portalId, name, count }) => ({
     key: portalId,

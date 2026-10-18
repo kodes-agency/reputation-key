@@ -3,7 +3,8 @@
 // "below pace" only when the read says so, what each Portal brought in (in
 // name order, one Portal, five, and Other portals), the first quiet days, the
 // last day, a goal passed, a figure that cannot be read, a stopped goal, and
-// the month before while it is read and once it closed. Each at 320, 390, 820
+// the month before while it is read and once it closed, and "View details" to
+// the goal's page. Each at 320, 390, 820
 // and 1440 px and on the light theme where the layout changes. The Storybook
 // Vitest project compiles no Tailwind, so the plays assert words, roles, the
 // tick's place and the bar's own clip on x (inline style, so it holds there
@@ -116,9 +117,14 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
     ['Restaurant', '0'],
     ['Spa', '20'],
   ])
-  // Never a verdict in green, and nothing to press on the card yet.
+  // Never a verdict in green, and nothing to press on the card yet: the way
+  // on is the goal's page.
   await expect(canvas.queryByText(/on pace/u)).toBeNull()
   await expect(canvas.queryByRole('button')).toBeNull()
+  await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
+    'href',
+    '/properties/p1/goals/portals',
+  )
 }
 
 /** Nov 22: 23 of 40, 9 days left, below pace, and each Portal in name order. */
@@ -259,7 +265,11 @@ export const FivePortals: Story = {
   args: { card: read(CARD_FIVE_PORTALS) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('From 5 portals')).toBeVisible()
+    await expect(canvas.getByText(/^From 5 portals/u)).toBeVisible()
+    await expect(canvas.getByRole('link', { name: 'See each' })).toHaveAttribute(
+      'href',
+      '/properties/p1/goals/portals#from-your-portals',
+    )
     await expect(canvas.queryByRole('list', { name: 'From your portals' })).toBeNull()
   },
 }

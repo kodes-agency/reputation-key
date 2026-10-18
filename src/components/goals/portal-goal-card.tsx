@@ -55,7 +55,9 @@ function CardBody({
 }: Omit<Props, 'titleAs'>) {
   switch (card.state) {
     case 'goal':
-      return <PortalGoalCardGoal goal={card.goal} today={card.today} />
+      return (
+        <PortalGoalCardGoal goal={card.goal} today={card.today} propertyId={propertyId} />
+      )
     case 'ready':
     case 'scans_only':
       return (

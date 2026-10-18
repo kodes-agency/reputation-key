@@ -57,7 +57,7 @@ const SCANS_SECTION_LINE = 'How many scans your portals get each month.'
  * What the card's goal counts as shown: the month it is counting (a change to
  * scans from next month leaves this one on private ratings), else the goal's.
  */
-const shownMeasure = (goal: PortalGoalOfCard): PortalGoalMeasure =>
+export const shownMeasure = (goal: PortalGoalOfCard): PortalGoalMeasure =>
   goal.month?.measure ?? goal.countingMonth?.measure ?? goal.measure
 
 /** G-2: what the goal counts, under the section's title. None at a gate (G-5 says it). */

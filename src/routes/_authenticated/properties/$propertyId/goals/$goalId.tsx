@@ -103,8 +103,9 @@ export const Route = createFileRoute(
 
 /**
  * A count goal for the Property alone is the Monthly portal goal, or one set
- * beside it in a race: its page is the card on the Goals page, where a notice
- * about it lands too (`?result=` comes here). Every other goal has this page.
+ * beside it in a race: its page is the Monthly portal goal's own
+ * (`/goals/portals`), where a notice about it lands too (`?result=` comes
+ * here). Every other goal has this page.
  */
 function GoalDetailRoute() {
   const { propertyId, goalId } = Route.useParams()
@@ -112,10 +113,8 @@ function GoalDetailRoute() {
   if (isPropertyCountGoal(data)) {
     return (
       <Navigate
-        to="/properties/$propertyId/goals"
+        to="/properties/$propertyId/goals/portals"
         params={{ propertyId }}
-        search={{ view: 'active' }}
-        hash="portal-goals"
         replace
       />
     )

@@ -48,6 +48,11 @@ type Props = Readonly<{
   }>
   subjectName: (subject: GoalSubject) => string
   now: Date
+  /**
+   * Its own "More portal goals" title on the Active view; off where the page
+   * titles the part it sits in (the Monthly portal goal's page).
+   */
+  titled?: boolean
 }>
 
 function GoalRow({
@@ -57,7 +62,8 @@ function GoalRow({
   live,
   subjectName,
   now,
-}: Readonly<{ goal: ListedGoal }> & Omit<Props, 'view' | 'goals' | 'monthlyGoalId'>) {
+}: Readonly<{ goal: ListedGoal }> &
+  Omit<Props, 'view' | 'goals' | 'monthlyGoalId' | 'titled'>) {
   const { program, version, assignments } = goal
   const currentSubjects = assignments
     .filter((assignment) => assignment.programVersionId === version.id)
@@ -112,13 +118,19 @@ function GoalRow({
   )
 }
 
-export function PortalGoalExtras({ view, goals: listed, monthlyGoalId, ...rows }: Props) {
+export function PortalGoalExtras({
+  view,
+  goals: listed,
+  monthlyGoalId,
+  titled = true,
+  ...rows
+}: Props) {
   const goals = listed.filter(({ program }) => program.id !== monthlyGoalId)
   // The card is the Active view's state; the section says an empty History.
   if (goals.length === 0) return null
   return (
     <div className="flex flex-col gap-3">
-      {view === 'active' ? (
+      {view === 'active' && titled ? (
         <SectionTitle level={3}>More portal goals</SectionTitle>
       ) : null}
       {rows.live.failed ? (

@@ -198,7 +198,10 @@ export async function readMonthlyPortalGoalPage(
   const page = {
     card,
     timezone: recommendation.timezone,
-    portals: publishedOf(recommendation).map(({ name }) => name),
+    portals: publishedOf(recommendation).map(({ portalId, name }) => ({
+      portalId,
+      name,
+    })),
     facts: factsOf(recommendation),
     extras: { goals: others, progress, subjectNames },
   }
