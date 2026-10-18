@@ -759,6 +759,28 @@
 //     styles-mDD_TGAT.css, 27,845 B): +13 B, 40 B spare under 307,850 and
 //     490 B under the build's ceiling of 308,300 (owner, P-9). Re-measure
 //     after the rebase onto main.
+//
+// 2026-10-18 (Monthly portal goal, PG-11: the Google done screen's next step):
+// no raise. Measured on PG-09 as it lands, 28d4a874c (PG-09 on PG-08), with
+// the PR's commits replayed onto it. "See your portal goal", its history
+// state and the plain-click check load with the lazy wizard chunk
+// (rating-goal-wizard-*.js 14,092 -> 14,275 B); the rule
+// (rating-goal-portal-step.ts) joins the lazy chunk the Goals page and the
+// Overview already share (rating-goal-recap-*.js 4,316 -> 4,362 B); the Portal
+// goals' focus on arrival is in the Goals page's lazy chunk (goals-*.js
+// 13,875 -> 13,945 B); the Overview's (_propertyId-*.js 5,976 -> 5,987 B), the
+// detail page's (google-rating-*.js 8,221 -> 8,235 B) and the wizard host's
+// (2,827 -> 2,833 B) lazy chunks grow by the prop. The stylesheet is the same
+// file (styles-mDD_TGAT.css, 27,845 B). Fresh production builds measured
+// 307,797 B (75 js + 1 css) on the base and 307,798 B on the head, twice:
+// +1 B, all in the entry (49,038 -> 49,039 B). The entry is the same length;
+// its preload list names the same chunks, one of them (rating-goal-overview-
+// view) three places later, behind the shared chunk the rule joined. The
+// PLAN's inline rule (spelled at both pages, no module) measured 307,797 B
+// (entry 49,038 B, the base's order); kept the one tested rule for 1 B. No
+// change to the budget; 52 B spare under 307,850, 502 B under the build's
+// ceiling of 308,300 (owner, P-9).
+
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
