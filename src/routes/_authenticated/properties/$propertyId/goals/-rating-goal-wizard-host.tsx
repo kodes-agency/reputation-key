@@ -9,7 +9,8 @@
 // it there, or to the Google section's heading when that is gone (the empty
 // state's "Set goal" is the card by the time the wizard closes). The done
 // screen's "See your portal goal" is the one way out that moves the page: the
-// wizard then hands the focus to the Portal goals' title itself.
+// wizard then hands the focus to the Portal goals' title itself, and from
+// another page the Portal goals take it as they are drawn.
 import { lazy, Suspense, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'

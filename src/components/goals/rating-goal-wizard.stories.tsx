@@ -12,6 +12,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test'
 import {
   aimsFor,
   clearMocks,
+  clickHolding,
   closesOnto,
   Harness,
   navigations,
@@ -333,24 +334,67 @@ export const DoneSeePortalGoalOnAPhone: Story = {
   play: async ({ canvasElement }) => seesThePortalGoal(canvasElement),
 }
 
-/** No live Portal (none, or drafts only): the one next step is a first Portal. */
-export const DoneCreatePortal: Story = {
-  args: { portalNextStep: 'create' },
-  parameters: { viewport: { defaultViewport: 'tablet' } },
+/**
+ * A click with Cmd, Ctrl, Shift or Alt held is the browser's: it opens the card
+ * in a new tab or window (or saves the link), and this page stays as it is, the
+ * wizard open on its done screen. A plain click still goes.
+ */
+export const DoneSeePortalGoalInANewTab: Story = {
+  args: { portalNextStep: 'see' },
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
   render: onTheGoalsPage,
   play: async ({ canvasElement }) => {
     const dialog = await openWizard(canvasElement)
     await setGoalAndLand(dialog)
-    await expect(dialog.getByRole('link', { name: 'Create a portal' })).toHaveAttribute(
-      'href',
-      `/properties/${FIXTURE_PROPERTY_ID}/portals/new`,
-    )
-    await expect(dialog.queryByRole('link', { name: 'See your portal goal' })).toBeNull()
-    // Any other way out leaves the focus to the page: back to what opened it.
-    await userEvent.click(dialog.getByRole('button', { name: 'Go to goals' }))
-    await closesOnto(() =>
-      within(canvasElement).getByRole('button', { name: 'Open the wizard' }),
-    )
+    const link = dialog.getByRole('link', { name: 'See your portal goal' })
+    for (const held of [
+      { metaKey: true },
+      { ctrlKey: true },
+      { shiftKey: true },
+      { altKey: true },
+    ]) {
+      await clickHolding(link, held)
+      await expect(within(document.body).getByRole('dialog')).toBeVisible()
+    }
     await expect(navigations).not.toHaveBeenCalled()
+    await userEvent.click(link)
+    await closesOnto(() =>
+      within(canvasElement).getByRole('heading', { name: 'Portal goals' }),
+    )
+    await expect(navigations).toHaveBeenCalledTimes(1)
   },
+}
+
+/**
+ * No live Portal (none, or drafts only): the one next step is a first Portal,
+ * and any other way out leaves the focus to the page, back to what opened it.
+ */
+async function offersAFirstPortal(canvasElement: HTMLElement) {
+  const dialog = await openWizard(canvasElement)
+  await setGoalAndLand(dialog)
+  await expect(dialog.getByRole('link', { name: 'Create a portal' })).toHaveAttribute(
+    'href',
+    `/properties/${FIXTURE_PROPERTY_ID}/portals/new`,
+  )
+  await expect(dialog.queryByRole('link', { name: 'See your portal goal' })).toBeNull()
+  await userEvent.click(dialog.getByRole('button', { name: 'Go to goals' }))
+  await closesOnto(() =>
+    within(canvasElement).getByRole('button', { name: 'Open the wizard' }),
+  )
+  await expect(navigations).not.toHaveBeenCalled()
+}
+
+export const DoneCreatePortal: Story = {
+  args: { portalNextStep: 'create' },
+  parameters: { viewport: { defaultViewport: 'tablet' } },
+  render: onTheGoalsPage,
+  play: async ({ canvasElement }) => offersAFirstPortal(canvasElement),
+}
+
+/** The same on a staff phone, where the wizard is a sheet. */
+export const DoneCreatePortalOnAPhone: Story = {
+  args: { portalNextStep: 'create' },
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  render: onTheGoalsPage,
+  play: async ({ canvasElement }) => offersAFirstPortal(canvasElement),
 }

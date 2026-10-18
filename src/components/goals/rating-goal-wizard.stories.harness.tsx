@@ -121,6 +121,25 @@ export async function closesOnto(target: () => HTMLElement) {
   await waitFor(() => expect(target()).toHaveFocus())
 }
 
+/**
+ * A click on `target` with the keys in `held` down, as the page receives it.
+ * What the browser itself would do with it after the page (a new tab, a new
+ * window, a download) is held back, so the story stays on screen.
+ */
+export async function clickHolding(target: HTMLElement, held: MouseEventInit) {
+  const holdBack = (event: Event) => event.preventDefault()
+  document.addEventListener('click', holdBack)
+  try {
+    target.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...held }),
+    )
+  } finally {
+    document.removeEventListener('click', holdBack)
+  }
+  // React has drawn whatever the click asked for by the next frame.
+  await new Promise((resolve) => requestAnimationFrame(resolve))
+}
+
 /** The goal's numeral: its value and its sentence. */
 export const numeral = (dialog: Dialog) =>
   dialog.getByRole('spinbutton', { name: 'Goal on Google' })

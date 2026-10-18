@@ -241,7 +241,10 @@ function KeepStep({
  * "See your portal goal" closes the wizard as the page moves to the Portal
  * goals (`#portal-goals`), so the focus goes to their title rather than where
  * the page would put it back (what opened the wizard, or the Google section's
- * heading). Every other way out leaves the focus to the page.
+ * heading). On the Goals page the title is there as the wizard closes; from
+ * another page it is not drawn yet, and the Portal goals take the focus on
+ * arrival (the link's `focusPortalGoals`). Every other way out leaves the focus
+ * to the page.
  */
 function usePortalGoalLanding(props: RatingGoalWizardProps) {
   const taken = useRef(false)

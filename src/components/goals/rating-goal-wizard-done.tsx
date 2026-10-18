@@ -5,7 +5,7 @@
 // ADR 0068). The keep step is the whole wizard for a goal that keeps the number
 // Google shows: its title, one sentence (the dialog's description) and "Start
 // watching".
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CircleCheck } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -21,6 +21,16 @@ import type { RatingGoalReceipt } from './rating-goal-wizard-view'
  */
 export const PORTAL_GOALS_TITLE_ID = 'portal-goals-title'
 
+/**
+ * A click the page follows itself. With Cmd, Ctrl, Shift or Alt held, or
+ * another button, the browser opens the link elsewhere (a new tab or window, a
+ * download) and this page, the wizard with it, stays as it is.
+ */
+function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
+  const held = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+  return event.button === 0 && !held && !event.defaultPrevented
+}
+
 export function RatingGoalDone({
   receipt,
   propertyId,
@@ -30,7 +40,7 @@ export function RatingGoalDone({
   receipt: RatingGoalReceipt
   propertyId: string
   portalNextStep: PortalNextStep
-  /** "See your portal goal" was taken: the wizard closes as the page moves to the card. */
+  /** "See your portal goal" was taken on this page: the wizard closes as the page moves to the card. */
   onSeePortalGoal: () => void
 }>) {
   return (
@@ -53,7 +63,12 @@ export function RatingGoalDone({
               to="/properties/$propertyId/goals"
               params={{ propertyId }}
               hash="portal-goals"
-              onClick={onSeePortalGoal}
+              // From another page the wizard is gone before the Goals page is
+              // drawn: the Portal goals hand their title the focus themselves.
+              state={{ focusPortalGoals: true }}
+              onClick={(event) => {
+                if (isPlainClick(event)) onSeePortalGoal()
+              }}
             >
               See your portal goal
             </Link>
