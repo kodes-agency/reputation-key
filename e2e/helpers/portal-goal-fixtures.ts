@@ -51,6 +51,19 @@ export async function seedPortalGoalProperty(
     slug,
     grantAccessToUserId: managerOne.id,
   })
+  // Publishing also needs a verified Google review destination on the
+  // Property (portal-publication-readiness.ts), as the seed's Properties have
+  // (scripts/seed-e2e-user.ts); a seeded Property starts with none.
+  await dbQuery(
+    `UPDATE properties
+        SET google_review_destination_state = 'verified',
+            google_review_uri = $2,
+            google_review_destination_retrieved_at = now(),
+            google_review_destination_source_epoch = 0,
+            google_review_destination_profile_version = profile_version
+      WHERE id = $1::uuid`,
+    [propertyId, `https://search.google.com/local/writereview?placeid=${slug}`],
+  )
   // A Portal is published from a snapshot of its Property's brand, in every
   // enabled language, so both exist first.
   await callServerFn(page, {
