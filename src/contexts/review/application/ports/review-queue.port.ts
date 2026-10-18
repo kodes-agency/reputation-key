@@ -37,9 +37,13 @@ export type ReviewProviderJobData =
 export type AddSyncJobOptions = Readonly<{
   jobId?: string
   /**
-   * Delay before the job becomes runnable. Set on rate-limited continuations:
-   * that path checkpoints WITHOUT advancing the cursor, so an undelayed
-   * continuation repeats the denied call at queue speed.
+   * Delay before the job becomes runnable. Set by exactly two callers:
+   *  - rate-limited continuations: that path checkpoints WITHOUT advancing the
+   *    cursor, so an undelayed continuation repeats the denied call at queue
+   *    speed;
+   *  - the discover-new-reviews sweep, which staggers the starts of one sweep's
+   *    jobs over a bounded window (domain/discovery-spread.ts).
+   * Push, import and user-initiated syncs enqueue with no delay.
    */
   delayMs?: number
 }>
