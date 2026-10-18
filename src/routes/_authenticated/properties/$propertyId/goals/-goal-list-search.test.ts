@@ -2,20 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { goalListSearchSchema } from './-goal-list-search'
 
 describe('goalListSearchSchema', () => {
-  it('opens the active goals when the address names no view', () => {
+  it("opens the Google section's Active tab when the address names no view", () => {
     expect(goalListSearchSchema.parse({})).toEqual({ view: 'active' })
   })
 
-  it('reads the history view and the result a goal notice links to', () => {
+  it("reads the Google section's History tab and the result a goal notice links to", () => {
     expect(goalListSearchSchema.parse({ view: 'history', result: 'result-1' })).toEqual({
       view: 'history',
       result: 'result-1',
     })
   })
 
-  // Anyone can type an address. A view the page does not have opens the active
-  // goals, as no view does, instead of failing the page.
-  it('opens the active goals for a view it does not know', () => {
+  // Anyone can type an address. A view the page does not have opens the Active
+  // tab, as no view does, instead of failing the page.
+  it('opens the Active tab for a view it does not know', () => {
     expect(goalListSearchSchema.parse({ view: 'all' })).toEqual({ view: 'active' })
     expect(goalListSearchSchema.parse({ view: 7 })).toEqual({ view: 'active' })
   })
@@ -32,6 +32,17 @@ describe('goalListSearchSchema', () => {
       view: 'active',
       start: 'rating-goal',
     })
+  })
+
+  // A request for the wizard never changes the tab: the address keeps both, and
+  // the Google section opens the wizard from its Active tab only.
+  it('keeps the History tab when the address also asks for the wizard', () => {
+    expect(goalListSearchSchema.parse({ view: 'history', start: 'rating-goal' })).toEqual(
+      {
+        view: 'history',
+        start: 'rating-goal',
+      },
+    )
   })
 
   it('drops a start it does not know', () => {

@@ -1,6 +1,8 @@
 // What the Goals page reads from its address.
 //
-// `view` chooses the Active or the History tab. `result` is the monthly result
+// `view` chooses the Google rating goal section's tab, Active or History: the
+// tabs are that section's own (P-7a, ADR 0068), and the Portal goals below it
+// are the same on both. `result` is the monthly result
 // a goal notice links to (notificationLink): the page opens that result's goal.
 // `start` asks the page to open the Google rating goal wizard on arrival (the
 // setup strip's step and the Properties list's "Set goal"); the page drops it

@@ -1,9 +1,10 @@
 // The Portal goals other than the Monthly portal goal's card, under it: each
 // goal's row with its measure, its target, whom it counts and, while a month
-// runs, the month so far. On the History view, the ended goals. The table is
-// the one the Goals page always had; the card above it is now the Portal goals'
-// first state, so no goals draw nothing here, and the goal the card shows is
-// not listed again.
+// runs, the month so far. The goals not ended only, on both of the Google
+// section's views; the ended ones are on the Portal goal results page. The
+// table is the one the Goals page always had; the card above it is now the
+// Portal goals' first state, so no goals draw nothing here, and the goal the
+// card shows is not listed again.
 import { Link } from '@tanstack/react-router'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
@@ -35,8 +36,7 @@ type Props = Readonly<{
   propertyId: string
   /** The Property's time zone, which a month's target is read in. */
   timezone: string
-  view: 'active' | 'history'
-  /** The goals of this view: those not ended, or those ended. */
+  /** The goals not ended. */
   goals: readonly ListedGoal[]
   /** The Program the card shows as the Monthly portal goal; null when it shows none. */
   monthlyGoalId: string | null
@@ -49,8 +49,8 @@ type Props = Readonly<{
   subjectName: (subject: GoalSubject) => string
   now: Date
   /**
-   * Its own "More portal goals" title on the Active view; off where the page
-   * titles the part it sits in (the Monthly portal goal's page).
+   * Its own "More portal goals" title; off where the page titles the part it
+   * sits in (the Monthly portal goal's page).
    */
   titled?: boolean
 }>
@@ -62,8 +62,7 @@ function GoalRow({
   live,
   subjectName,
   now,
-}: Readonly<{ goal: ListedGoal }> &
-  Omit<Props, 'view' | 'goals' | 'monthlyGoalId' | 'titled'>) {
+}: Readonly<{ goal: ListedGoal }> & Omit<Props, 'goals' | 'monthlyGoalId' | 'titled'>) {
   const { program, version, assignments } = goal
   const currentSubjects = assignments
     .filter((assignment) => assignment.programVersionId === version.id)
@@ -119,26 +118,23 @@ function GoalRow({
 }
 
 export function PortalGoalExtras({
-  view,
   goals: listed,
   monthlyGoalId,
   titled = true,
   ...rows
 }: Props) {
   const goals = listed.filter(({ program }) => program.id !== monthlyGoalId)
-  // The card is the Active view's state; the section says an empty History.
+  // The card is the Portal goals' state when there are no others.
   if (goals.length === 0) return null
   return (
     <div className="flex flex-col gap-3">
-      {view === 'active' && titled ? (
-        <SectionTitle level={3}>More portal goals</SectionTitle>
-      ) : null}
+      {titled ? <SectionTitle level={3}>More portal goals</SectionTitle> : null}
       {rows.live.failed ? (
         <p className="text-sm text-muted-foreground">
           This month’s figures can’t be read right now.
         </p>
       ) : null}
-      <DataTable label={view === 'active' ? 'Active goals' : 'Goal history'} from="3xl">
+      <DataTable label="Active goals" from="3xl">
         <DataTableHeader>
           <DataTableHead>Goal</DataTableHead>
           <DataTableHead className="w-40">Status</DataTableHead>

@@ -2,8 +2,9 @@
 // before a goal (PLAN PG-08): the two gates (no Portal, draft Portals only),
 // the first weeks with each Portal's steps and the day the number is ready, a
 // code nobody has scanned, a number ready but not offered yet, nothing counted,
-// a recommendation that cannot be read, a goal (no card yet), a read on its way
-// and one that failed; each before-goal arm at 320 and 1440 px too. The
+// a recommendation that cannot be read, a goal (no card yet), a read on its way,
+// one that failed, and a reader drawn no card; each before-goal arm at 320 and
+// 1440 px too. The
 // Storybook Vitest project compiles no Tailwind, so the plays assert words,
 // roles and links.
 import type { Meta, StoryObj } from '@storybook/react-vite'
@@ -298,15 +299,19 @@ export const ReadError: Story = {
   },
 }
 
-/** The History view draws no card, and says when it has no ended goal to list. */
-export const HistoryWithNoEndedGoal: Story = {
-  args: { card: null, empty: 'No goal history' },
+/**
+ * A reader who cannot set goals is drawn no card: the title and the slots only.
+ * The section has no History of its own (P-7a): the Goals page draws it the
+ * same on both of the Google section's views.
+ */
+export const NoCardDrawn: Story = {
+  args: { card: null },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
       canvas.getByRole('heading', { level: 2, name: 'Portal goals' }),
     ).toBeVisible()
     await expect(canvas.queryByRole('heading', { level: 3 })).toBeNull()
-    await expect(canvas.getByText('No goal history')).toBeVisible()
+    await expect(canvas.queryByText(RATINGS_LINE)).toBeNull()
   },
 }

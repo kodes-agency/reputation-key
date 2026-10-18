@@ -98,12 +98,9 @@ function GoalsRoute() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalsQuery(propertyId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
-  // Ended goals count no month, so the History view reads no figures.
-  const live = useQuery({
-    ...goalsLiveQuery(propertyId),
-    enabled: view === 'active',
-    retry: false,
-  })
+  // The month so far of the Portal goals not ended, which both of the Google
+  // section's views list the same.
+  const live = useQuery({ ...goalsLiveQuery(propertyId), retry: false })
   const liveByProgram = new Map(live.data?.goals.map((goal) => [goal.programId, goal]))
   const goalId = result === undefined ? null : goalForResult(data.programs, result)
   if (goalId !== null) {
@@ -115,9 +112,9 @@ function GoalsRoute() {
       />
     )
   }
-  const goals = data.programs.filter(({ program }) =>
-    view === 'active' ? program.status !== 'ended' : program.status === 'ended',
-  )
+  // `?view=` is the Google section's (P-7a): the Portal goals are the same on
+  // both views, and the ended ones are on the Portal goal results page (`#ended`).
+  const goals = data.programs.filter(({ program }) => program.status !== 'ended')
   const subjectName = (subject: GoalSubject) =>
     goalAssignmentSubjectLabel(
       subject,
@@ -156,12 +153,10 @@ function GoalsRoute() {
       {/* Apart from the Google section above: no shared numbers. */}
       <PortalGoalPanel
         propertyId={propertyId}
-        view={view}
         extras={(monthlyGoalId) => (
           <PortalGoalExtras
             propertyId={propertyId}
             timezone={propData.property.timezone}
-            view={view}
             goals={goals}
             monthlyGoalId={monthlyGoalId}
             live={{
@@ -173,7 +168,6 @@ function GoalsRoute() {
             now={now}
           />
         )}
-        empty={view === 'history' && goals.length === 0 ? 'No goal history' : undefined}
         // Each month's result and the ended goals, on their own page (R-3, R-4).
         results={
           canDo('goal.update') ? (
