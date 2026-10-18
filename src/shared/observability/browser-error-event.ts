@@ -64,16 +64,26 @@ function lastExceptionMechanism(event: unknown): string | undefined {
  * fault.
  *
  * Narrow on both sides: only the SDK's unhandled-rejection mechanism, and only
- * the `AbortError` name. A timeout (`TimeoutError`), a network failure and
- * every other rejection keep reporting. The server has its own single-shape
- * rule beside this one (client-hangup.ts).
+ * the browser's own `DOMException` named `AbortError`. An `Error` that
+ * application code named `AbortError` is not a browser cancel and keeps
+ * reporting, as do a timeout (`TimeoutError`), a network failure and every
+ * other rejection. The server has its own single-shape rule beside this one
+ * (client-hangup.ts).
  */
 export function isCancelledLoadRejection(
   event: unknown,
   hint?: SentryEventHint,
 ): boolean {
-  if (asRecord(hint?.originalException)?.name !== 'AbortError') return false
+  if (!isBrowserAbort(hint?.originalException)) return false
   return lastExceptionMechanism(event)?.endsWith('onunhandledrejection') === true
+}
+
+function isBrowserAbort(value: unknown): boolean {
+  return (
+    typeof DOMException !== 'undefined' &&
+    value instanceof DOMException &&
+    value.name === 'AbortError'
+  )
 }
 
 export function beforeSend<T>(event: T, hint?: SentryEventHint): T | null {

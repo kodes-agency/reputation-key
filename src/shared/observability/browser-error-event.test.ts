@@ -68,6 +68,11 @@ describe('isCancelledLoadRejection', () => {
       cancelledLoad(),
     ],
     [
+      'an error that application code named AbortError (not the browser abort)',
+      unhandledRejectionEvent(),
+      Object.assign(new Error('stopped by the app'), { name: 'AbortError' }),
+    ],
+    [
       'an unhandled rejection that is a TypeError',
       unhandledRejectionEvent(),
       new TypeError('x is undefined'),
