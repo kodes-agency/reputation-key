@@ -224,4 +224,3 @@ export const getPortalGoalSinglePage = createServerFn({ method: 'GET' })
       'goal.getPortalGoalSinglePage',
     ),
   )
-
