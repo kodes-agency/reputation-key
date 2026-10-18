@@ -100,6 +100,24 @@ the decision to the letter would mean dating the poll one sweep short of six
 hours and capping the base at 360 minutes. Neither is done, and whether to do
 it is an open choice: this note records the difference and decides nothing.
 
+## Note 2026-10-18 — discovery polls start spread over ten minutes
+
+The discovery sweep used to hand every due Property to the queue in the same
+second, so the snapshot runs of a Google connection with a few dozen
+Properties read `reviews.list` together and spent its per-minute provider
+quota (30 calls per credential) in the sweep's first seconds. The sync job a
+sweep enqueues now carries a start delay: a stable offset in the first ten
+minutes of the sweep, derived from the Property id (`discovery-spread.ts`).
+Only the sweep delays; Pub/Sub, import and manual syncs start immediately.
+
+This decides nothing about decision 5. The offset moves when a poll starts,
+not when the Property is next due (`next_incremental_at` is still dated from
+the sweep), and it is the same on every sweep, so the polls of a Property stay
+a due interval apart. A poll is shifted, not slowed: a review posted just after
+one poll still waits no longer than the figures in the note above. Ten minutes
+is the sweep cadence less the sweep's own five-minute timeout, so a delayed job
+has always started before the next sweep can enqueue the same Property.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,
