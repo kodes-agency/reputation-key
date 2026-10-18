@@ -16,11 +16,10 @@ import type { listGoalPrograms } from '#/contexts/reporting/server/goal-programs
 import { InlineLink } from '#/components/ui/inline-link'
 import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { SectionTitle } from '#/components/ui/section-title'
-import { goalListSubjectText } from '#/components/goals/goal-assignment-subject-label'
 import { GoalLiveLine, GoalLiveLinePending } from '#/components/goals/goal-live-line'
 import { goalLiveShape } from '#/components/goals/goal-live-view'
-import { goalMetricLabel } from '#/components/goals/goal-metric-label'
 import { cn } from '#/lib/utils'
+import { extrasRows, type PortalGoalExtraRow } from './-portal-goal-extras-view'
 
 type ListedGoal = Awaited<ReturnType<typeof listGoalPrograms>>['programs'][number]
 
@@ -49,29 +48,13 @@ type Props = Readonly<{
   titled?: boolean
 }>
 
-/** "Reception · Private ratings": whom it counts and what; a goal for the Property, what alone. */
-function rowName(
-  subjects: readonly GoalSubject[],
-  metric: ListedGoal['version']['metric'],
-  subjectName: Props['subjectName'],
-): string {
-  const measure = goalMetricLabel(metric)
-  const whom = subjects.every(({ kind }) => kind === 'property')
-    ? null
-    : goalListSubjectText(subjects, subjectName)
-  return whom === null ? measure : `${whom} · ${measure}`
-}
-
 function GoalRow({
-  goal,
+  row: { goal, name, subjects },
   propertyId,
   live,
-  subjectName,
-}: Readonly<{ goal: ListedGoal }> & Pick<Props, 'propertyId' | 'live' | 'subjectName'>) {
-  const { program, version, assignments } = goal
-  const subjects = assignments
-    .filter(({ programVersionId }) => programVersionId === version.id)
-    .map(({ subject }) => subject)
+}: Readonly<{ row: PortalGoalExtraRow<ListedGoal> }> &
+  Pick<Props, 'propertyId' | 'live'>) {
+  const { program, version } = goal
   const liveGoal = live.byProgram.get(program.id)
   // While the month is first being read, keep the room its line will take, so
   // the rows below do not jump when it arrives.
@@ -89,7 +72,7 @@ function GoalRow({
         to="/properties/$propertyId/goals/$goalId"
         params={{ propertyId, goalId: program.id }}
       >
-        {rowName(subjects, version.metric, subjectName)}
+        {name}
       </Link>
       {liveGoal !== undefined ? (
         <GoalLiveLine goal={liveGoal} />
@@ -101,33 +84,39 @@ function GoalRow({
 }
 
 export function PortalGoalExtras({
-  goals: listed,
+  goals,
   monthlyGoalId,
   limit,
   titled = true,
-  ...rows
+  subjectName,
+  propertyId,
+  live,
 }: Props) {
-  const goals = listed.filter(({ program }) => program.id !== monthlyGoalId)
+  const { rows, more } = extrasRows(goals, { monthlyGoalId, subjectName, limit })
   // The card is the Portal goals' state when there are no others.
-  if (goals.length === 0) return null
-  const shown = limit === undefined ? goals : goals.slice(0, limit)
+  if (rows.length === 0) return null
   return (
     <div className="flex flex-col gap-3">
       {titled ? <SectionTitle level={3}>More portal goals</SectionTitle> : null}
-      {rows.live.failed ? (
+      {live.failed ? (
         <p className="text-sm text-muted-foreground">
           This month’s figures can’t be read right now.
         </p>
       ) : null}
       <ul aria-label="Active goals" className="divide-y">
-        {shown.map((goal) => (
-          <GoalRow key={goal.program.id} goal={goal} {...rows} />
+        {rows.map((row) => (
+          <GoalRow
+            key={row.goal.program.id}
+            row={row}
+            propertyId={propertyId}
+            live={live}
+          />
         ))}
       </ul>
-      {shown.length < goals.length ? (
+      {more ? (
         <InlineLink
           to="/properties/$propertyId/goals/portals"
-          params={{ propertyId: rows.propertyId }}
+          params={{ propertyId }}
           className="self-start text-sm"
         >
           See all on the goal page
