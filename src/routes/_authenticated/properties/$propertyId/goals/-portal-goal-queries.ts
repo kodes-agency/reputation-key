@@ -246,3 +246,17 @@ export const portalGoalLineQuery = (propertyId: string, portalId: string) =>
 export const deferPortalGoalPrompt = async (
   input: Parameters<MonthlyPortalGoalServer['deferMonthlyPortalGoalPrompt']>[0],
 ) => (await server()).deferMonthlyPortalGoalPrompt(input)
+
+/**
+ * The page of a goal for one Portal, one Portal Group or the average (PLAN
+ * PG-21), on `$goalId`; a Property count goal answers that its page is
+ * `/goals/portals`. Under the Portal goals' key, so every Portal-goal command
+ * marks it stale with the rest. Fresh as long as a running month's read.
+ */
+export const portalGoalSinglePageQuery = (propertyId: string, programId: string) =>
+  queryOptions({
+    queryKey: goalKeys.portalGoalRead(propertyId, `goal:${programId}`),
+    queryFn: async () =>
+      (await server()).getPortalGoalSinglePage({ data: { propertyId, programId } }),
+    staleTime: PORTAL_GOAL_STALE_MS,
+  })

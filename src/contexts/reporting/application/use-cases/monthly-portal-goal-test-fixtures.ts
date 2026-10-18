@@ -6,7 +6,11 @@ import type {
   RecommendationDayCount,
   RecommendationPortal,
 } from '../../domain/goal-recommendation-types'
-import type { GoalMetricEvaluation, GoalTargetSource } from '../../domain/goal-program'
+import type {
+  GoalMetricEvaluation,
+  GoalSubject,
+  GoalTargetSource,
+} from '../../domain/goal-program'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
@@ -20,13 +24,14 @@ import type {
   PortalGoalPromptDeferral,
   PortalGoalPromptDeferralStore,
 } from '../ports/portal-goal-prompt-deferrals.port'
-import type { GoalActor } from './goal-program-shared'
+import { GoalProgramError, type GoalActor } from './goal-program-shared'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 import type {
   PortalGoalCardView,
   PortalGoalOfCard,
 } from '../dto/monthly-portal-goal.types'
 import type { MonthlyPortalGoalPageDeps } from './monthly-portal-goal-page'
+import type { PortalGoalSinglePageDeps } from './portal-goal-single-page'
 
 export const PROPERTY_ID = 'property-1'
 export const actor: GoalActor = {
@@ -111,6 +116,10 @@ type GoalShape = Readonly<{
   open?: Readonly<{ start: Date; end: Date; target?: number }>
   /** Its other months, earlier ones first. */
   months?: readonly MonthShape[]
+  /** Whom it counts: the Property unless said (a Portal's or a group's goal, PG-21). */
+  subject?: GoalSubject
+  /** What it is called: "Monthly portal goal" unless said. */
+  name?: string
 }>
 
 /** A month's result row: open and updating unless the shape says how far it has got. */
@@ -182,7 +191,7 @@ export function propertyGoal(
       id,
       organizationId: 'org-1',
       propertyId: PROPERTY_ID,
-      name: 'Monthly portal goal',
+      name: shape.name ?? 'Monthly portal goal',
       description: null,
       status: shape.status ?? 'scheduled',
       statusReason: null,
@@ -203,7 +212,7 @@ export function propertyGoal(
         organizationId: 'org-1',
         propertyId: PROPERTY_ID,
         metric,
-        subject: { kind: 'property', propertyId: PROPERTY_ID },
+        subject: shape.subject ?? { kind: 'property', propertyId: PROPERTY_ID },
         effectiveFrom: from,
         effectiveTo: shape.until ?? null,
         createdBy: 'elena',
@@ -406,6 +415,15 @@ export function fakeWorld(world: World = {}) {
         calls.push('programs')
         return world.programs ?? []
       }),
+      // One Program, as the goal's own page reads it: hidden or gone is not found.
+      get: vi.fn(async (input: Readonly<{ programId: string }>) => {
+        calls.push('program')
+        const found = (world.programs ?? []).find(
+          ({ program }) => program.id === input.programId,
+        )
+        if (!found) throw new GoalProgramError('not_found')
+        return found
+      }),
     },
     metrics: {
       queryGoalMetric: vi.fn(
@@ -452,7 +470,7 @@ export function fakeWorld(world: World = {}) {
     },
     logger: { warn: vi.fn() },
     now: () => world.now ?? OCT_17,
-  } satisfies MonthlyPortalGoalPageDeps
+  } satisfies PortalGoalSinglePageDeps
   return { deps, calls }
 }
 

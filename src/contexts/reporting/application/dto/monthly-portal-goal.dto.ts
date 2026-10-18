@@ -5,13 +5,18 @@
 // so nothing here reaches first paint (PLAN E10). Never imported by
 // `goal-program.dto.ts`, which first paint loads; the two rules it shares with
 // the Program commands (the month key and the note) are restated here for that
-// reason, as `goal-month-target.dto.ts` restates them.
+// reason.
 import { z } from 'zod/v4'
 
 const monthKey = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)
 const measure = z.enum(['portal_rating_count', 'qualified_scans'])
 /** A month's number: a whole number of private ratings or scans. */
 const number = z.number().int().min(1).max(1_000_000)
+/**
+ * A changed goal's number: a count's, or the average's level in tenths (PLAN
+ * PG-21). Which the goal takes is the engine's to say, by what it measures.
+ */
+const changedNumber = z.number().min(1).max(1_000_000)
 const targetSource = z.enum(['recommended', 'own'])
 // The manager's note on a change, as the Program commands bound it.
 const note = z.string().trim().max(500).optional()
@@ -73,7 +78,7 @@ const ofTheGoal = { propertyId: z.uuid(), programId: z.uuid() }
 export const changeMonthlyPortalGoalNowSchema = z.object({
   ...ofTheGoal,
   month: monthKey,
-  targetValue: number,
+  targetValue: changedNumber,
   expectedTarget: z.number().finite(),
   expectedVersion: z.number().int().positive(),
   expectedFollowingMonth: monthKey,
@@ -81,11 +86,14 @@ export const changeMonthlyPortalGoalNowSchema = z.object({
   targetSource,
 })
 
-/** "From Dec 1" and "Count scans instead": the goal from the next month the sheet showed. */
+/**
+ * "From Dec 1" and "Count scans instead": the goal from the next month the
+ * sheet showed; the average's level from its next month too.
+ */
 export const reviseMonthlyPortalGoalSchema = z.object({
   ...ofTheGoal,
-  metric: measure,
-  targetValue: number,
+  metric: z.enum(['portal_rating_count', 'qualified_scans', 'portal_rating_average']),
+  targetValue: changedNumber,
   expectedVersion: z.number().int().positive(),
   startMonth: monthKey,
   note,
@@ -108,4 +116,10 @@ export const deferMonthlyPortalGoalPromptSchema = z.object({
 export const monthlyPortalGoalLineSchema = z.object({
   propertyId: z.uuid(),
   portalId: z.uuid(),
+})
+
+/** The page of a goal for one Portal, one Portal Group, or the average (PLAN PG-21). */
+export const portalGoalSinglePageSchema = z.object({
+  propertyId: z.uuid(),
+  programId: z.uuid(),
 })

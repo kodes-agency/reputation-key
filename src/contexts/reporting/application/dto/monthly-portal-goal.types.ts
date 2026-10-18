@@ -428,10 +428,13 @@ export type ChangeMonthlyPortalGoalNowRequest = OfTheGoal &
     targetSource: 'recommended' | 'own'
   }>
 
-/** "From Dec 1" and "Count scans instead": the goal from its next month. */
+/**
+ * "From Dec 1" and "Count scans instead": the goal from its next month; on the
+ * average's own page (PLAN PG-21), its level from its next month.
+ */
 export type ReviseMonthlyPortalGoalRequest = OfTheGoal &
   Readonly<{
-    metric: PortalGoalMeasure
+    metric: PortalGoalMeasure | 'portal_rating_average'
     targetValue: number
     expectedVersion: number
     /**

@@ -13,9 +13,12 @@
 //
 // An average, a goal for a Portal or a Portal Group, and a goal whose month has
 // closed are never it. Every Property count goal, the monthly one or not, has
-// the card for its page (`$goalId` sends it there). Pure and client-safe: it
-// reads only the bundles.
-import type { GoalMetric } from '../domain/goal-program'
+// the card for its page (`$goalId` sends it there). A count goal for one Portal
+// or one Portal Group, and the average, have a page of their own on `$goalId`
+// (PLAN PG-21); so does a goal for several subjects, made before goals had
+// pages, a plain one with Stop. Pure and client-safe: it reads only the
+// bundles.
+import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
 import type {
   GoalProgramBundle,
@@ -37,9 +40,16 @@ const currentAssignments = (bundle: GoalProgramBundle) =>
     (assignment) => assignment.programVersionId === bundle.version.id,
   )
 
-/** A Program that counts private ratings or scans for the Property alone. */
-export type PropertyCountGoal = GoalProgramBundle &
+/** A Program that counts private ratings or scans: the Property's, a Portal's or a group's. */
+export type PortalCountGoal = GoalProgramBundle &
   Readonly<{ version: GoalProgramVersion & Readonly<{ metric: PortalGoalMeasure }> }>
+
+/** A Program that counts private ratings or scans for the Property alone. */
+export type PropertyCountGoal = PortalCountGoal
+
+/** A Program that counts private ratings or scans, for whatever subjects. */
+export const isPortalCountGoal = (bundle: GoalProgramBundle): bundle is PortalCountGoal =>
+  isPortalGoalMeasure(bundle.version.metric)
 
 /** A count goal whose subject, today, is the Property alone. */
 export function isPropertyCountGoal(
@@ -90,4 +100,32 @@ export function monthlyPortalGoalOf(
     .filter((bundle) => stillCounts(bundle, now))
     .sort(byTime(({ program }) => program.updatedAt))
   return ended.at(-1) ?? null
+}
+
+/**
+ * The page `$goalId` draws for a goal (PLAN PG-21): the Monthly portal goal's
+ * own (`/goals/portals`) for a Property count goal; a subject's page for a count
+ * goal for one Portal or one Portal Group; an average's page for the average; a
+ * plain page for a goal that names several subjects now; none for a goal that
+ * names no subject.
+ */
+export function portalGoalPageOf(
+  bundle: GoalProgramBundle,
+):
+  | Readonly<{ kind: 'monthly' }>
+  | Readonly<{ kind: 'subject' | 'average'; subject: GoalSubject }>
+  | Readonly<{ kind: 'several'; subjects: readonly GoalSubject[] }>
+  | null {
+  if (isPropertyCountGoal(bundle)) return { kind: 'monthly' }
+  const assignments = currentAssignments(bundle)
+  const [only, ...more] = assignments
+  if (only === undefined) return null
+  if (more.length > 0) {
+    return { kind: 'several', subjects: assignments.map(({ subject }) => subject) }
+  }
+  const { subject } = only
+  if (bundle.version.metric === 'portal_rating_average') {
+    return { kind: 'average', subject }
+  }
+  return subject.kind === 'property' ? null : { kind: 'subject', subject }
 }

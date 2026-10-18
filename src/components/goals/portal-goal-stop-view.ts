@@ -4,14 +4,36 @@
 // a change would start with (the month after, but for the hour before a
 // month's own is opened); a goal that has not started has counted nothing, so
 // its month is free at once. The verb is "Stop" on the menu item and on the
-// button (X-5). The days are the read's months, printed as calendar days.
-import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+// button (X-5). The days are the read's months, printed as calendar days. A
+// goal for one Portal, a group or the average (PLAN PG-21) is stopped the same
+// way from its own page, which asks to stop "this portal goal".
+import type {
+  PortalGoalLastMonth,
+  PortalGoalOfCard,
+} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import type { GoalRefusalSentences } from './goal-refusal'
 import {
   PORTAL_GOAL_ALREADY_STOPPED,
   PORTAL_SHEET_REFUSALS,
 } from './portal-goal-sheet-refusals'
+import { SINGLE_GOAL_WORDS } from './portal-goal-single-page-view'
 import { dayWords, monthName } from './portal-goal-words'
+
+/**
+ * What a Stop is worded from: the Monthly portal goal on its card, or another
+ * portal goal on its page (the average names no month it still counts).
+ */
+export type PortalGoalStopFacts = Pick<
+  PortalGoalOfCard,
+  'programId' | 'status' | 'startsOn' | 'change'
+> &
+  Readonly<{
+    countingMonth?: Readonly<{ key: string }> | null
+    lastMonth?: Pick<PortalGoalLastMonth, 'key' | 'outcome'> | null
+  }>
+
+/** Which goal a Stop is for: the Monthly portal goal, or one with a page of its own. */
+export type PortalGoalStopKind = 'monthly' | 'single'
 
 /** F-5 (and F-1): a Stop refused because the page is behind. */
 export const PORTAL_STOP_REFUSALS: GoalRefusalSentences = {
@@ -38,21 +60,25 @@ function monthAfter(month: string): string {
  * now; a paused goal's last; or, in the hour before this month's is opened,
  * the month before, still being read (this one then never counts).
  */
-function keptMonthOf(goal: PortalGoalOfCard): string | undefined {
+function keptMonthOf(goal: PortalGoalStopFacts): string | undefined {
   if (goal.change?.now) return goal.change.now.monthKey
-  if (goal.countingMonth !== null) return goal.countingMonth.key
+  if (goal.countingMonth) return goal.countingMonth.key
   return goal.lastMonth?.outcome === 'updating' ? goal.lastMonth.key : undefined
 }
 
 /** X-1…X-4: the question, what happens, and the two buttons. */
-export function stopWords(goal: PortalGoalOfCard): Readonly<{
+export function stopWords(
+  goal: PortalGoalStopFacts,
+  kind: PortalGoalStopKind = 'monthly',
+): Readonly<{
   title: string
   description: string
   cancel: string
   confirm: string
 }> {
   const buttons = {
-    title: 'Stop the monthly portal goal?',
+    title:
+      kind === 'single' ? SINGLE_GOAL_WORDS.stopTitle : 'Stop the monthly portal goal?',
     cancel: 'Keep the goal',
     confirm: 'Stop the goal',
   }

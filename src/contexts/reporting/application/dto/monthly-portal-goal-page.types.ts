@@ -10,6 +10,12 @@ import type { GoalListProgress } from '../use-cases/goal-list-progress'
 import type { PortalGoalMeasure } from './goal-recommendation.types'
 import type { PortalGoalCardView } from './monthly-portal-goal.types'
 
+/**
+ * What a month of the history counted: private ratings or scans, or, on the
+ * average's own page (PLAN PG-21), the average private rating.
+ */
+export type PortalGoalPageMeasure = PortalGoalMeasure | 'portal_rating_average'
+
 /** How a month came out, or how far it has got. */
 export type PortalGoalMonthOutcome =
   'running' | 'updating' | 'met' | 'not_met' | 'unavailable'
@@ -27,7 +33,7 @@ export type PortalGoalPageMonth = Readonly<{
   /** `YYYY-MM`. */
   key: string
   /** What the month counted, under its own version. */
-  measure: PortalGoalMeasure
+  measure: PortalGoalPageMeasure
   /**
    * Running, or still being read: the governed figure so far. Closed: its
    * result, after any correction. Null when it cannot be read, never a zero.
@@ -105,7 +111,7 @@ export type PortalGoalChange =
         /** The first month the number counts. */
         fromMonth: string
         target: number
-        measure: PortalGoalMeasure
+        measure: PortalGoalPageMeasure
         /** The measure changed from the version before. */
         switched: boolean
         source: 'recommended' | 'own' | null
@@ -116,7 +122,7 @@ export type PortalGoalChange =
         kind: 'set_month'
         month: string
         target: number
-        measure: PortalGoalMeasure
+        measure: PortalGoalPageMeasure
         source: 'recommended' | 'own' | null
         note: string | null
       }>)

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
@@ -29,6 +28,9 @@ import { PortalGoalPanel } from './-portal-goal-panel'
 import { PortalGoalAddDoor } from './-portal-goal-add-host'
 import { focusPortalGoalCardTitle } from './-portal-goal-sheet-host'
 import { goalListSearchSchema } from './-goal-list-search'
+
+/** How many other Portal goals the Goals page lists before "See all on the goal page". */
+const EXTRAS_SHOWN = 5
 
 const goalsQuery = (propertyId: string) =>
   queryOptions({
@@ -95,7 +97,6 @@ function GoalsRoute() {
   const { view, result, start } = Route.useSearch()
   const navigate = Route.useNavigate()
   const { can: canDo } = usePermissions()
-  const [now] = useState(() => new Date())
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalsQuery(propertyId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
@@ -157,7 +158,6 @@ function GoalsRoute() {
         extras={(monthlyGoalId) => (
           <PortalGoalExtras
             propertyId={propertyId}
-            timezone={propData.property.timezone}
             goals={goals}
             monthlyGoalId={monthlyGoalId}
             live={{
@@ -166,7 +166,9 @@ function GoalsRoute() {
               failed: live.isError,
             }}
             subjectName={subjectName}
-            now={now}
+            // Compact rows, then "See all on the goal page" (PLAN PG-21), on both
+            // views of the Google section: `?view=` is not the Portal goals'.
+            limit={EXTRAS_SHOWN}
           />
         )}
         // Each month's result and the ended goals, on their own page (R-3, R-4).

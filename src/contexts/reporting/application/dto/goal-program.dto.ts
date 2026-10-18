@@ -1,9 +1,5 @@
 import { z } from 'zod/v4'
-import {
-  GOAL_METRICS,
-  MAX_GOAL_ASSIGNMENT_SELECTIONS,
-  validateGoalTarget,
-} from '../../domain/goal-program'
+import { GOAL_METRICS, MAX_GOAL_ASSIGNMENT_SELECTIONS } from '../../domain/goal-program'
 
 const uuid = z.uuid()
 
@@ -22,58 +18,16 @@ const goalProgramSubjectSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('portal'), portalId: uuid }),
 ])
 
-// A manager's note on a change, as a form holds it: a text field always has a
-// string, and an empty one means no note.
-const goalProgramNoteFieldSchema = z.string().trim().max(500)
-
 /**
  * The note on a command: optional. Without one a version records a default
  * (`revised`, `subjects_changed`) and a status change records nothing.
  */
-const goalProgramReasonSchema = goalProgramNoteFieldSchema.optional()
+const goalProgramReasonSchema = z.string().trim().max(500).optional()
 
 const goalProgramSubjectSelectionSchema = z
   .array(goalProgramSubjectSchema)
   .min(1, 'Select at least one subject')
   .max(MAX_GOAL_ASSIGNMENT_SELECTIONS)
-
-const TARGET_FAULTS = {
-  target_not_finite: 'Enter a valid monthly target',
-  count_target_not_positive_integer: 'Use a positive whole number',
-  average_target_out_of_range: 'Use a rating target from 1 to 5',
-  average_target_precision: 'Use no more than one decimal place',
-} as const
-
-/**
- * What is wrong with a target for its measure, in the words a form prints
- * under the field; null when the measure takes it. One spelling for the single
- * goal form and for each row of the table that sets several goals.
- */
-export function goalTargetFault(
-  metric: z.infer<typeof goalProgramMetricSchema>,
-  targetValue: number,
-): string | null {
-  const target = validateGoalTarget(metric, targetValue)
-  return target.ok ? null : TARGET_FAULTS[target.reason]
-}
-
-/**
- * The measure's own target rule as a form refinement: the issue lands under
- * the target field. Exported for the month-target form (its own module), so
- * both forms word the rule once.
- */
-export function addTargetIssue(
-  input: Readonly<{
-    metric: z.infer<typeof goalProgramMetricSchema>
-    targetValue: number
-  }>,
-  context: z.RefinementCtx,
-): void {
-  const message = goalTargetFault(input.metric, input.targetValue)
-  if (message !== null) {
-    context.addIssue({ code: 'custom', path: ['targetValue'], message })
-  }
-}
 
 export const createGoalProgramSchema = z.object({
   propertyId: uuid,
@@ -97,30 +51,6 @@ export const reviseGoalProgramSchema = z.object({
   // The version the form was opened on. A form that sends it is refused once
   // the goal has changed under it.
   expectedVersion: z.number().int().positive().optional(),
-})
-
-// Interactive forms use the same command fields, with the domain target rule
-// surfaced before submission. The server command DTO deliberately stays a
-// transport-shape validator; the use case remains the final domain authority.
-export const createGoalProgramFormSchema = z
-  .object({
-    name: createGoalProgramSchema.shape.name,
-    description: z.string().trim().max(2_000),
-    metric: createGoalProgramSchema.shape.metric,
-    targetValue: createGoalProgramSchema.shape.targetValue,
-    subjects: createGoalProgramSchema.shape.subjects,
-  })
-  .superRefine(addTargetIssue)
-
-export const reviseGoalProgramFormSchema = reviseGoalProgramSchema
-  .omit({ propertyId: true, programId: true, expectedVersion: true })
-  .extend({ reason: goalProgramNoteFieldSchema })
-  .superRefine(addTargetIssue)
-
-export const goalProgramAssignmentEditorSchema = z.object({
-  subjects: z.array(goalProgramSubjectSchema).max(MAX_GOAL_ASSIGNMENT_SELECTIONS),
-  selectAllCurrentPortals: z.boolean(),
-  reason: goalProgramNoteFieldSchema,
 })
 
 export const changeGoalProgramAssignmentsSchema = z
@@ -170,15 +100,6 @@ export const changeGoalProgramStatusSchema = z.object({
   reason: goalProgramReasonSchema,
 })
 
-/** A goal's name and description, changed in place. No version is written. */
-export const renameGoalProgramSchema = z.object({
-  propertyId: uuid,
-  programId: uuid,
-  name: createGoalProgramSchema.shape.name,
-  // Omitted keeps the description the goal has; null or empty clears it.
-  description: createGoalProgramSchema.shape.description,
-})
-
 export const goalProgramIdentitySchema = z.object({
   propertyId: uuid,
   programId: uuid,
@@ -194,10 +115,6 @@ export const getGoalProgressSchema = z.object({
 
 export type CreateGoalProgramInput = z.infer<typeof createGoalProgramSchema>
 export type ReviseGoalProgramInput = z.infer<typeof reviseGoalProgramSchema>
-export type ReviseGoalProgramFormInput = z.input<typeof reviseGoalProgramFormSchema>
-export type GoalProgramAssignmentEditorInput = z.input<
-  typeof goalProgramAssignmentEditorSchema
->
 export type ChangeGoalProgramAssignmentsInput = z.infer<
   typeof changeGoalProgramAssignmentsSchema
 >

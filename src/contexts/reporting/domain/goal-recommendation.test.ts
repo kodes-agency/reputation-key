@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { propertyWallClockToInstant } from '#/shared/domain/property-calendar'
 import { addLocalDays } from './local-days'
 import {
+  narrowedRecommendation,
   recommendationWindow,
   recommendPortalGoal,
   subjectRecommendation,
@@ -785,5 +786,81 @@ describe('the recommended number for one portal or one group (PG-20)', () => {
       state: 'unreadable',
       fullMonth: { current: null, next: null },
     })
+  })
+})
+
+describe('the recommendation narrowed to one portal or one group (PG-21)', () => {
+  const seaview = recommend({ portals: SEAVIEW_PORTALS, days: SEAVIEW_RATINGS })
+  const named = (name: string) => {
+    const found = seaview.portals.find((portal) => portal.name === name)
+    if (!found) throw new Error(`expected ${name}`)
+    return found
+  }
+  const reception = named('Reception')
+
+  it("a portal's goal stands on its own 11 in 14 days: 24 · 26 · 29 for November", () => {
+    const own = narrowedRecommendation(seaview, {
+      members: [reception],
+      monthToDate: reception.monthToDate,
+      unreadable: new Set(),
+    })
+
+    expect(own.portals).toEqual([reception])
+    expect(own.basis).toEqual({
+      portals: 1,
+      weeks: 2,
+      counts: { portal_rating_count: 11, qualified_scans: 0 },
+    })
+    // 11 in 14 days over November's 30: about 24.
+    expect(own.measures.portal_rating_count.fullMonth.next).toEqual({
+      usual: 24,
+      aBitMore: 26,
+      stretch: 29,
+      about: 24,
+    })
+    expect(own.monthToDate).toEqual({ portal_rating_count: 11, qualified_scans: 0 })
+    expect(own.elsewhere).toEqual({ portal_rating_count: 0, qualified_scans: 0 })
+    expect(own.windowTotals).toEqual({ portal_rating_count: 11, qualified_scans: 0 })
+    expect(own.state).toBe('ready')
+    // The Property's months and the month it offers.
+    expect(own.months).toEqual(seaview.months)
+    expect(own.defaultMonthKey).toBe('2026-11')
+    expect(own.drafts).toEqual([])
+  })
+
+  it("a group's rate is its joined members'; one not joined yet says when its number is ready", () => {
+    const spa = named('Spa')
+    const group = narrowedRecommendation(seaview, {
+      members: [reception, spa],
+      monthToDate: { portal_rating_count: 14, qualified_scans: 0 },
+      unreadable: new Set(),
+    })
+    const newOnly = narrowedRecommendation(seaview, {
+      members: [spa],
+      monthToDate: spa.monthToDate,
+      unreadable: new Set(),
+    })
+
+    expect(group.basis?.portals).toBe(1)
+    expect(group.measures.portal_rating_count.fullMonth.next?.about).toBe(24)
+    expect(group.monthToDate.portal_rating_count).toBe(14)
+    expect(group.readyOn).toBeNull()
+    expect(newOnly.basis).toBeNull()
+    expect(newOnly.state).toBe('getting_ready')
+    expect(newOnly.readyOn).toBe('2026-10-29')
+    expect(newOnly.measures.portal_rating_count.fullMonth.next).toBeNull()
+  })
+
+  it('a measure with a reading it cannot trust has no number and no month so far', () => {
+    const spoiled = narrowedRecommendation(seaview, {
+      members: [reception],
+      monthToDate: reception.monthToDate,
+      unreadable: new Set(['portal_rating_count']),
+    })
+
+    expect(spoiled.measures.portal_rating_count.state).toBe('unreadable')
+    expect(spoiled.monthToDate.portal_rating_count).toBeNull()
+    expect(spoiled.monthToDate.qualified_scans).toBe(0)
+    expect(spoiled.state).toBe('unreadable')
   })
 })

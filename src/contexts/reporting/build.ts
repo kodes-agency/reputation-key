@@ -87,6 +87,10 @@ import {
 import { readPortalGoalAddOptions } from './application/use-cases/portal-goal-add-options'
 import { readMonthlyPortalGoalLine } from './application/use-cases/monthly-portal-goal-line'
 import { createPortalGoalPromptDeferralStore } from './infrastructure/repositories/portal-goal-prompt-deferrals.repository'
+import {
+  readPortalGoalSinglePage,
+  type PortalGoalSinglePageRequestApi,
+} from './application/use-cases/portal-goal-single-page'
 import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
 import {
   createGoalProgramProgressReader,
@@ -481,11 +485,26 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     one: (policy, ...args) => addPortalGoal(portalGoalAddDeps(policy), ...args),
     each: (policy, ...args) => addPortalGoals(portalGoalAddDeps(policy), ...args),
   })
+  // A goal for one Portal, one Portal Group or the average (PLAN PG-21): its own
+  // page on `$goalId`, read like the Monthly portal goal's from its own subject.
+  const portalGoalSingle: PortalGoalSinglePageRequestApi['portalGoalSingle'] =
+    Object.freeze({
+      page: (policy, ...args) =>
+        readPortalGoalSinglePage(
+          {
+            ...monthlyPortalGoalReads(policy),
+            subjectNames: goalProgramSubjects,
+            logger: input.logger,
+          },
+          ...args,
+        ),
+    })
   const programs: GoalProgramRequestApi &
     GoalProgressRequestApi &
     GoalListProgressRequestApi &
     MonthlyPortalGoalRequestApi &
-    PortalGoalAddRequestApi = Object.freeze({
+    PortalGoalAddRequestApi &
+    PortalGoalSinglePageRequestApi = Object.freeze({
     create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
     revise: (policy, ...args) => buildGoalPrograms(policy).revise(...args),
     changeAssignments: (policy, ...args) =>
@@ -501,6 +520,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
     monthlyPortalGoal,
     portalGoalAdd,
+    portalGoalSingle,
   })
 
   return {

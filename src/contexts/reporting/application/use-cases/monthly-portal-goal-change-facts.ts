@@ -23,10 +23,15 @@ import type { PortalGoalChangeFacts } from '../dto/monthly-portal-goal.types'
 import { monthTargetPlan } from '../goal-month-target-plan'
 import { nextRevisionStart } from '../goal-revision-start'
 import type { PropertyCountGoal } from '../monthly-portal-goal-identity'
+import type { GoalProgramBundle } from '../ports/goal-program.repository'
 
-/** What a change is sent against, as of `now`; null once the goal has ended. */
+/**
+ * What a change is sent against, as of `now`; null once the goal has ended.
+ * A Portal's, a group's or the average's goal stops against the same facts
+ * (PLAN PG-21).
+ */
 export function changeFactsOf(
-  bundle: PropertyCountGoal,
+  bundle: GoalProgramBundle,
   now: Date,
   timezone: string,
 ): PortalGoalChangeFacts | null {

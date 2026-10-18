@@ -153,6 +153,10 @@ type SheetHost = Readonly<{
   reread: () => Promise<PortalGoalCardView | undefined>
   /** The page draws a door to the sheet (`portalGoalDoorShown`): its chunk is fetched. */
   doorShown: boolean
+  /** A Portal's or a group's goal (PLAN PG-21): what its change sheet is called. */
+  changeTitle?: string
+  /** False when the goal's subject already holds a goal for the other measure. */
+  canSwitch?: boolean
 }>
 
 /**
@@ -167,6 +171,8 @@ export function usePortalGoalSheet({
   focusTitle,
   reread,
   doorShown,
+  changeTitle,
+  canSwitch,
 }: SheetHost): Readonly<{
   open: (intent: PortalGoalSheetIntent) => void
   sheet: ReactNode
@@ -227,6 +233,8 @@ export function usePortalGoalSheet({
           onBehind={reopenOnTheLatest}
           commands={commands}
           onCloseAutoFocus={focus.returnFocus(opening.open)}
+          changeTitle={changeTitle}
+          canSwitch={canSwitch}
         />
       </Suspense>
     )

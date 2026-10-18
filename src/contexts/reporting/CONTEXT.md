@@ -542,6 +542,28 @@ surface is `programs.portalGoalAdd` (`options`, `one`, `each`), reached through
 The New goal page and its table that set goals for several portals are gone; `/goals/new`
 only redirects to the goal page's add sheet.
 
+A goal for one Portal, one Portal Group or the average has a page of its own on `$goalId`
+(PLAN PG-21): `programs.portalGoalSingle.page`, reached through `getPortalGoalSinglePage` in
+the same lazy server module, asks `goal.create`, reads the one Program asked for (visibility
+applied) and says which page it has before anything else is read. A Property count goal
+answers `monthly` (its page is `/goals/portals`) with nothing more read. A Portal's or a
+group's count goal is read as the Monthly portal goal's page is, from its own subject
+(`application/use-cases/portal-goal-single-page.ts`): the Property's recommendation narrowed
+to the subject (`narrowedRecommendation`) gives its usual, its change sheet's offers and its
+go-lives, the governed read of the subject its months, and the Property's other goals whether
+the subject already holds the other measure from next month (`otherMeasureHeld`: no "Count
+scans instead"). The average reads no recommendation: its level, this month's governed
+average or the ratings it still needs, and its own months and changes in its averages
+(`averageMeasureOf`). A goal for several subjects, made by an older form, has a plain page:
+whom it counts, this month as the Goals list reads it, and Stop. The Monthly portal goal's
+change commands take a goal for one Portal or one group too, its subject kept and its number
+recorded as recommended against its own numbers, and the average, its level in tenths and
+always `own`, never turned into a count or back; Stop takes every goal that names a subject.
+The goal page's old dialogs (rename, subjects, revise, a month's target, pause, resume and
+end) are gone, with the rename, the one-goal progress and the month-target server functions
+(`changeGoalMonthTarget`, its module, DTO and test) and the forms' own schemas; the engine
+keeps those commands, `changeMonthTarget` among them.
+
 The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
 `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
 `getPortalResultsOverview` take the caller's `AuthContext` beside their input and first ask

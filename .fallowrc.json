@@ -278,6 +278,10 @@
         "bqcEntrySchema",
         "bqcStatusManifestSchema"
       ]
+    },
+    {
+      "file": "src/contexts/reporting/server/goal-programs.ts",
+      "exports": ["changeGoalProgramAssignments"]
     }
   ],
   "usedClassMembers": [

@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   keep: vi.fn(),
   defer: vi.fn(),
   line: vi.fn(),
+  singlePage: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -44,6 +45,7 @@ vi.mock('#/composition', () => ({
           one: mocks.addOne,
           each: mocks.addEach,
         },
+        portalGoalSingle: { page: mocks.singlePage },
       },
     },
   }),
@@ -67,6 +69,7 @@ import {
   keepMonthlyPortalGoalSchema,
   monthlyPortalGoalLineSchema,
   monthlyPortalGoalPropertySchema,
+  portalGoalSinglePageSchema,
   reviseMonthlyPortalGoalSchema,
   stopMonthlyPortalGoalSchema,
 } from '../application/dto/monthly-portal-goal.dto'
@@ -81,6 +84,7 @@ import {
   getMonthlyPortalGoalPage,
   getPortalGoalAddOptions,
   keepMonthlyPortalGoal,
+  getPortalGoalSinglePage,
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
@@ -538,6 +542,18 @@ describe('the change and stop commands (PG-14)', () => {
     expect(changeMonthlyPortalGoalNowSchema.safeParse(now).success).toBe(true)
     expect(reviseMonthlyPortalGoalSchema.safeParse(fromNext).success).toBe(true)
     expect(stopMonthlyPortalGoalSchema.safeParse(goal).success).toBe(true)
+    // The average's level, in tenths, now or from its next month (PG-21); a
+    // count's whole number is the engine's to require, by what the goal measures.
+    expect(
+      changeMonthlyPortalGoalNowSchema.safeParse({ ...now, targetValue: 4.6 }).success,
+    ).toBe(true)
+    expect(
+      reviseMonthlyPortalGoalSchema.safeParse({
+        ...fromNext,
+        metric: 'portal_rating_average',
+        targetValue: 4.6,
+      }).success,
+    ).toBe(true)
     for (const refused of [
       { ...now, month: '2026-13' },
       { ...now, targetValue: 0 },
@@ -547,8 +563,8 @@ describe('the change and stop commands (PG-14)', () => {
       expect(changeMonthlyPortalGoalNowSchema.safeParse(refused).success).toBe(false)
     }
     for (const refused of [
-      { ...fromNext, metric: 'portal_rating_average' },
-      { ...fromNext, targetValue: 4.5 },
+      { ...fromNext, metric: 'google_rating' },
+      { ...fromNext, targetValue: 0.5 },
       { ...fromNext, targetSource: 'suggested' },
       // The month it starts with is what the sheet showed, always sent.
       { ...fromNext, startMonth: undefined },
@@ -705,5 +721,49 @@ describe("the Overview prompt's Not now and a Portal's Results line (PG-16)", ()
     ]) {
       expect(monthlyPortalGoalLineSchema.safeParse(refused).success).toBe(false)
     }
+  })
+})
+
+describe('getPortalGoalSinglePage (PG-21)', () => {
+  const PROGRAM_ID = '00000000-0000-4000-8000-000000000004'
+  const ofTheGoal = { propertyId: PROPERTY_ID, programId: PROGRAM_ID }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveTenantContext.mockResolvedValue(manager)
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+  })
+
+  it('authorizes through the execution policy, as the goal page does', async () => {
+    mocks.singlePage.mockImplementation(cardAskingGoalCreate)
+
+    await withStartContext(() => getPortalGoalSinglePage({ data: ofTheGoal }))
+
+    expect(mocks.singlePage).toHaveBeenCalledWith(expect.any(Object), ofTheGoal, manager)
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor: manager,
+      action: 'goal.create',
+      capability: 'goal.use',
+      propertyId: PROPERTY_ID,
+    })
+  })
+
+  it('answers a goal it has no page for with not_found, HTTP 404', async () => {
+    mocks.singlePage.mockRejectedValue(new GoalProgramError('not_found'))
+
+    await expect(
+      withStartContext(() => getPortalGoalSinglePage({ data: ofTheGoal })),
+    ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'not_found', status: 404 })
+  })
+
+  it('reads one goal of one Property by their ids', () => {
+    expect(portalGoalSinglePageSchema.safeParse(ofTheGoal).success).toBe(true)
+    expect(
+      portalGoalSinglePageSchema.safeParse({ ...ofTheGoal, programId: 'monthly' })
+        .success,
+    ).toBe(false)
+    expect(
+      portalGoalSinglePageSchema.safeParse({ propertyId: PROPERTY_ID }).success,
+    ).toBe(false)
   })
 })

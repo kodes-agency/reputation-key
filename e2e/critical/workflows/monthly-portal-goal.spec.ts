@@ -56,14 +56,18 @@
 //   J12. History belongs to the Google section (P-7a): on `?view=history` the
 //       Active / History tabs sit inside the one region named "Google rating
 //       goal", which shows its own History; the Portal goals below it keep the
-//       card, the goal not ended and the way to the ended one, which is not
-//       listed on the Goals page, exactly as on Active; the History view passes
-//       axe.
+//       card, the first five of six goals not ended and "See all on the goal
+//       page" for the rest, and the way to the ended one, which is not listed on
+//       the Goals page, exactly as on Active; the History view passes axe.
 //   J13. a goal for one portal, one click deeper: "Add a portal goal" at the
 //       foot of the section opens the sheet in place; Reception's own number
 //       (the rule on its own rate, worked out with the pure rule) is set for
 //       the month offered and listed under "More portal goals"; the sheet
 //       passes axe; and the old `/goals/new` opens it on the goal page.
+//   J14. a goal for one portal has its own page: `/goals/<id>` is titled for
+//       Reception, counts from it and has no portals' rows; "Change number"
+//       from next month says so in a toast and in the log; Stop asks to stop
+//       this portal goal, stops it and leaves for the Goals page; axe passes.
 //
 // Every Property here is the journey's own (prefix `e2e-pg-`, run id and retry
 // in the slug). Expected days are read from the database clock in the
@@ -888,8 +892,8 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       testInfo.retry,
     )
     seeded.push(propertyId)
-    const [reception, , spa] = portals
-    if (!reception || !spa) throw new Error('E2E Portals are not seeded')
+    const [reception, restaurant, spa] = portals
+    if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
     const GOAL_PROGRAMS = 'src/contexts/reporting/server/goal-programs.ts'
     const startMonth = await nextMonthKey(propertyId)
     const create = (data: Readonly<Record<string, unknown>>) =>
@@ -921,6 +925,46 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
         reason: 'E2E an ended portal goal.',
       },
     })
+    // Five more that have not ended, so six in all: the Goals page lists the
+    // first five by the Program's name (the Average, Reception's two,
+    // Restaurant's two), then the way to see them all; Spa's ratings goal is the
+    // sixth, behind it. Both tabs must show exactly that.
+    await create({
+      name: 'Reception scans',
+      metric: 'qualified_scans',
+      targetValue: 30,
+      subjects: [{ kind: 'portal', portalId: reception.id }],
+    })
+    await create({
+      name: 'Restaurant ratings',
+      metric: 'portal_rating_count',
+      targetValue: 20,
+      subjects: [{ kind: 'portal', portalId: restaurant.id }],
+    })
+    await create({
+      name: 'Restaurant scans',
+      metric: 'qualified_scans',
+      targetValue: 30,
+      subjects: [{ kind: 'portal', portalId: restaurant.id }],
+    })
+    await create({
+      name: 'Spa ratings',
+      metric: 'portal_rating_count',
+      targetValue: 20,
+      subjects: [{ kind: 'portal', portalId: spa.id }],
+    })
+    await callServerFn(page, {
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'addPortalGoal',
+      data: {
+        propertyId,
+        subject: { kind: 'property' },
+        metric: 'portal_rating_average',
+        targetValue: 4.5,
+        startMonth,
+        targetSource: 'own',
+      },
+    })
 
     await page.goto(`/properties/${propertyId}/goals?view=history`)
     await waitForHydration(page)
@@ -939,7 +983,8 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(google.getByText('No Google rating goal history')).toBeVisible()
 
     // The Portal goals, outside the Google section, the same on both tabs: the
-    // card, the goal not ended, and the way to the ended one, not listed here.
+    // card, the first five goals not ended and the way to see them all, and the
+    // way to the ended one, not listed here.
     const section = page.locator('#portal-goals')
     await expect(google.locator('#portal-goals')).toHaveCount(0)
     const expectPortalGoals = async () => {
@@ -948,8 +993,24 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
           .locator('[data-slot="portal-goal-card"]')
           .getByRole('heading', { level: 3, name: 'Monthly portal goal' }),
       ).toBeVisible()
-      await expect(section.getByRole('link', { name: 'Reception ratings' })).toBeVisible()
-      await expect(page.getByRole('link', { name: 'Spa scans' })).toHaveCount(0)
+      // A compact row, named for whom it counts and what (PG-21).
+      await expect(
+        section.getByRole('link', { name: 'Reception · Private ratings', exact: true }),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('link', { name: 'Spa · Scans', exact: true }),
+      ).toHaveCount(0)
+      // Six goals have not ended: five rows, by the Program's name, and the
+      // sixth (Spa's ratings) only behind "See all on the goal page".
+      await expect(
+        section.getByRole('list', { name: 'Active goals' }).getByRole('listitem'),
+      ).toHaveCount(5)
+      await expect(
+        page.getByRole('link', { name: 'Spa · Private ratings', exact: true }),
+      ).toHaveCount(0)
+      await expect(
+        section.getByRole('link', { name: 'See all on the goal page' }),
+      ).toHaveAttribute('href', `/properties/${propertyId}/goals/portals`)
       await expect(
         section.getByRole('link', { name: 'Ended portal goals (1)' }),
       ).toHaveAttribute('href', `/properties/${propertyId}/goals/portal-results#ended`)
@@ -1377,5 +1438,138 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       await expect(line).toHaveCount(0)
     }
     expect(await shiftOf()).toBeLessThan(CLS_BUDGET)
+  })
+
+  test('J14 a goal for one portal has its own page: change it from next month, then stop', async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, portals } = await seedPortalGoalProperty(
+      page,
+      'j14',
+      testInfo.retry,
+    )
+    seeded.push(propertyId)
+    const [reception, restaurant, spa] = portals
+    if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
+    const days = (from: number, to: number) =>
+      Array.from({ length: from - to + 1 }, (_, index) => from - index)
+    const input = await seedPortalHistory(propertyId, [
+      {
+        portal: reception,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(19, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: restaurant,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(10, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: spa,
+        liveDaysAgo: 8,
+        codeDaysAgo: 17,
+        ratingsDaysAgo: [],
+        scansDaysAgo: [],
+      },
+    ])
+    const recommendation = recommendPortalGoal(input)
+    const month = recommendation.months.current.key
+    const next = recommendation.months.next.key
+    const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
+    const nextName = formatMonthName(`${next}-15T12:00:00.000Z`)
+    const nextFirst = formatLocalDate(`${next}-01`, { year: false })
+    const lastDay = formatLocalDate(addLocalDays(`${next}-01`, -1), { year: false })
+    // Numbers of the manager's own: well above what Reception brings in.
+    const target = 60
+    const changed = 67
+
+    // Reception's own goal for this month, added straight through the server function.
+    const { programId } = await callServerFn<{ programId: string }>(page, {
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'addPortalGoal',
+      data: {
+        propertyId,
+        subject: { kind: 'portal', portalId: reception.id },
+        metric: 'portal_rating_count',
+        targetValue: target,
+        startMonth: month,
+        targetSource: 'own',
+      },
+    })
+
+    await page.goto(`/properties/${propertyId}/goals/${programId}`)
+    await waitForHydration(page)
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Reception · portal goal' }),
+    ).toBeVisible()
+    await expect(
+      page.getByText(/^Private ratings from Reception at .+\.$/u),
+    ).toBeVisible()
+    await expect(page.getByRole('heading', { name: `${monthName} so far` })).toBeVisible()
+    // Its own page has no portals' rows and no other goals.
+    await expect(page.getByRole('heading', { name: 'From your portals' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'More portal goals' })).toHaveCount(0)
+    await assertNoAxeViolations(page, "a goal for one portal's page")
+
+    await clickWhenReady(page.getByRole('button', { name: 'Change number' }))
+    const sheet = page.getByRole('dialog', { name: 'Change this portal goal' })
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole('radio', { name: `From ${nextFirst}` }).click()
+    await expect(sheet.getByText(`${monthName} stays at ${target}.`)).toBeVisible()
+    await sheet.getByRole('spinbutton').fill(String(changed))
+    await sheet.getByRole('button', { name: `Set ${changed} from ${nextName}` }).click()
+    await expect(
+      page.getByText(`From ${nextName}: ${changed} private ratings`),
+    ).toBeVisible()
+    await expect(sheet).toHaveCount(0)
+    await expect(
+      page.getByRole('region', { name: 'Changes' }).getByRole('listitem').first(),
+    ).toHaveText(new RegExp(`[Ss]et ${changed} a month from ${nextName}$`, 'u'))
+    // Still Reception's goal: the change kept its one subject.
+    const stored = await callServerFnGet<{
+      version: { targetValue: number }
+      assignments: ReadonlyArray<{
+        programVersionId: string
+        subject: { kind: string; portalId?: string }
+      }>
+      versions: ReadonlyArray<{ id: string; version: number }>
+    }>(page, {
+      file: 'src/contexts/reporting/server/goal-programs.ts',
+      exportName: 'getGoalProgram',
+      data: { propertyId, programId },
+    })
+    expect(stored.version.targetValue).toBe(changed)
+    const head = stored.versions.reduce((latest, version) =>
+      version.version > latest.version ? version : latest,
+    )
+    expect(
+      stored.assignments
+        .filter(({ programVersionId }) => programVersionId === head.id)
+        .map(({ subject }) => subject),
+    ).toEqual([{ kind: 'portal', portalId: reception.id }])
+
+    await dismissToasts(page)
+    await clickWhenReady(
+      page.getByRole('button', { name: 'More actions for Reception · portal goal' }),
+    )
+    await page.getByRole('menuitem', { name: 'Stop this goal…' }).click()
+    const dialog = page.getByRole('alertdialog', { name: 'Stop this portal goal?' })
+    await expect(
+      dialog.getByText(
+        `${monthName} keeps counting to ${lastDay} and keeps its result. You can set a new goal from ${nextName}.`,
+      ),
+    ).toBeVisible()
+    await dialog.getByRole('button', { name: 'Stop the goal' }).click()
+
+    // The Goals page, with or without PG-19's ?view=active.
+    await expect(page).toHaveURL(
+      new RegExp(`/properties/${propertyId}/goals(?:\\?view=active)?$`, 'u'),
+    )
+    await expect(page.getByText('Portal goal stopped')).toBeVisible()
   })
 })

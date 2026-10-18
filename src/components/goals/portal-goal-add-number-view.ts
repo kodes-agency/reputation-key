@@ -105,23 +105,37 @@ function averageSteps(value: number | null) {
   }
 }
 
-const AVERAGE_UNIT = 'average private rating'
+/** The average's unit, under its box. */
+export const AVERAGE_UNIT = 'average private rating'
+
+/** M-14: what an average needs, under its box (and the average's change sheet's). */
+export const AVERAGE_NEEDS = 'Needs 10 private ratings a month.'
+
+/**
+ * The average's box: what was typed, the level it reads as (tenths from 1 to
+ * 5, else none), and its steps. The add sheet's and the change sheet's.
+ */
+export function averageBox(text: string): PortalGoalSheetModel['number'] {
+  const { empty, value } = averageOf(text)
+  return {
+    text,
+    value,
+    invalid: !empty && value === null,
+    valueText: value === null ? null : `${averageWords(value)} ${AVERAGE_UNIT}`,
+    ...averageSteps(value),
+  }
+}
 
 /** M-6, M-14: the average step; its box starts empty, and the number is the manager's own. */
 export function averageModel(options: PortalGoalAddOptions, text: string) {
-  const { empty, value } = averageOf(text)
+  const number = averageBox(text)
+  const { value } = number
   return {
     description: goalMetricLabel(AVERAGE_METRIC),
     band: monthName(options.month),
     unit: AVERAGE_UNIT,
-    status: 'Needs 10 private ratings a month.',
-    number: {
-      text,
-      value,
-      invalid: !empty && value === null,
-      valueText: value === null ? null : `${averageWords(value)} ${AVERAGE_UNIT}`,
-      ...averageSteps(value),
-    } satisfies PortalGoalSheetModel['number'],
+    status: AVERAGE_NEEDS,
+    number,
     primary: primaryOf(options, value === null ? null : averageWords(value)),
     submission:
       value === null
