@@ -900,8 +900,14 @@
 // sheet's chunk grows to 4,208 B): the head measures 307,904 B (entry 49,219 B,
 // styles-ChuBAd4e.css 27,839 B), and its entry is byte for byte the 307,924 B
 // build's once the hashed chunk names are masked, so the -20 B is the names'
-// gzip noise. The line stays at 308,050: 146 B spare, 396 B under the ceiling.
-// Measure again after the rebase onto main.
+// gzip noise. Rebased onto main ed9853789 (PG-18's results page and PG-19's
+// tabs; the line is PG-18's 308,200), fresh production builds measured
+// 308,137 B on main (entry 49,381 B, styles-mDD_TGAT.css 27,845 B) and
+// 308,041 B on the head (entry 49,364 B, styles-ChuBAd4e.css 27,839 B): -96 B,
+// the stacked base's savings again (the server-function stubs -49 B, query keys
+// -20 B, the entry -17 B, the stylesheet -6 B, the rest -4 B). The line stays
+// at 308,200: 159 B spare, 259 B under the build's ceiling of 308,300 (owner,
+// P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
