@@ -725,7 +725,12 @@
 // shared between the card's two words modules (goals-*.js 13,858 B), the final
 // head measured 307,694 B (entry 49,018 B): +17 B, the 3 B more only the hashed
 // chunk names. 156 B spare under 307,850; 606 B under the build's ceiling of
-// 308,300 (owner, P-9).
+// 308,300 (owner, P-9). After the review fixes (a create that deadlocks on the
+// subject is run once more, server only; the subject picker keeps the property
+// offered while the dialog is open; a stopped goal names the month it still
+// counts, in the lazy words), a fresh build of the head measured 307,697 B
+// (entry 49,021 B, same stylesheet): +3 B, the hashed chunk names only. No
+// change to the budget; 153 B spare, 603 B under the ceiling.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
