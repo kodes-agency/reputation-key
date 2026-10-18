@@ -14,6 +14,7 @@ import {
 /** G10, Nov 22: 23 of 40, 22 of 30 days gone, behind. */
 const month = (patch: Partial<PortalGoalRunningMonth> = {}): PortalGoalRunningMonth => ({
   key: '2026-11',
+  measure: 'portal_rating_count',
   target: 40,
   value: 23,
   elapsedDays: 22,
@@ -31,7 +32,7 @@ const figureOf = (words: ReturnType<typeof runningWords>) => {
 
 describe('the running Monthly portal goal, in words', () => {
   it('23 of 40 · 17 to go · 9 days left on Nov 22', () => {
-    const words = figureOf(runningWords(month(), 'portal_rating_count'))
+    const words = figureOf(runningWords(month()))
 
     expect(words.figure).toBe('23 of 40')
     expect(words.unit).toBe('private ratings')
@@ -47,7 +48,10 @@ describe('the running Monthly portal goal, in words', () => {
   })
 
   it('never says on pace', () => {
-    const words = figureOf(runningWords(month({ belowPace: false }), 'qualified_scans'))
+    // The month's own measure: scans.
+    const words = figureOf(
+      runningWords(month({ belowPace: false, measure: 'qualified_scans' })),
+    )
 
     expect(words.pace).toBeNull()
     expect(words.unit).toBe('scans')
@@ -66,7 +70,6 @@ describe('the running Monthly portal goal, in words', () => {
           belowPace: null,
           quietDays: true,
         }),
-        'portal_rating_count',
       ),
     )
 
@@ -77,10 +80,7 @@ describe('the running Monthly portal goal, in words', () => {
 
   it('fewer than 5 expected: no pace word, and the tick still shows the day', () => {
     const words = figureOf(
-      runningWords(
-        month({ target: 10, value: 0, elapsedDays: 14, belowPace: null }),
-        'portal_rating_count',
-      ),
+      runningWords(month({ target: 10, value: 0, elapsedDays: 14, belowPace: null })),
     )
 
     expect(words.pace).toBeNull()
@@ -92,7 +92,6 @@ describe('the running Monthly portal goal, in words', () => {
     const words = figureOf(
       runningWords(
         month({ value: 41, elapsedDays: 27, daysAfterToday: 3, belowPace: false }),
-        'portal_rating_count',
       ),
     )
 
@@ -105,10 +104,7 @@ describe('the running Monthly portal goal, in words', () => {
 
   it('last day', () => {
     const words = figureOf(
-      runningWords(
-        month({ elapsedDays: 30, daysAfterToday: 0, belowPace: true }),
-        'portal_rating_count',
-      ),
+      runningWords(month({ elapsedDays: 30, daysAfterToday: 0, belowPace: true })),
     )
 
     expect(words.line).toBe('17 to go · last day')
@@ -116,21 +112,13 @@ describe('the running Monthly portal goal, in words', () => {
   })
 
   it('counts in the target: one is singular', () => {
-    const words = figureOf(
-      runningWords(
-        month({ target: 1, value: 0, belowPace: null }),
-        'portal_rating_count',
-      ),
-    )
+    const words = figureOf(runningWords(month({ target: 1, value: 0, belowPace: null })))
 
     expect(`${words.figure} ${words.unit}`).toBe('0 of 1 private rating')
   })
 
   it('unreadable shows no bar and no zero', () => {
-    const words = runningWords(
-      month({ value: null, target: 45, belowPace: null }),
-      'portal_rating_count',
-    )
+    const words = runningWords(month({ value: null, target: 45, belowPace: null }))
 
     expect(words).toEqual({
       kind: 'unreadable',
@@ -141,7 +129,7 @@ describe('the running Monthly portal goal, in words', () => {
 
   it('valueText names pace and days', () => {
     const bar = (patch: Partial<PortalGoalRunningMonth>) =>
-      figureOf(runningWords(month(patch), 'portal_rating_count')).bar.valueText
+      figureOf(runningWords(month(patch))).bar.valueText
 
     expect(bar({})).toBe('23 of 40 private ratings, 9 days left, below pace')
     expect(bar({ belowPace: null })).toBe('23 of 40 private ratings, 9 days left')
@@ -222,6 +210,7 @@ describe('a stopped goal and the month before, in words', () => {
 
   const last = (patch: Partial<PortalGoalLastMonth>): PortalGoalLastMonth => ({
     key: '2026-11',
+    measure: 'portal_rating_count',
     value: 36,
     target: 40,
     outcome: 'updating',
@@ -230,31 +219,34 @@ describe('a stopped goal and the month before, in words', () => {
   })
 
   it('the month before is counting its last readings until its final figure', () => {
-    expect(lastMonthWords(last({}), 'portal_rating_count')).toEqual({
+    expect(lastMonthWords(last({}))).toEqual({
       text: 'November: counting the last ratings. Final figure on Dec 2.',
       met: false,
     })
-    expect(lastMonthWords(last({}), 'qualified_scans')?.text).toBe(
+    expect(lastMonthWords(last({ measure: 'qualified_scans' }))?.text).toBe(
       'November: counting the last scans. Final figure on Dec 2.',
     )
   })
 
+  it('names no day once the day its final figure was due has gone', () => {
+    expect(lastMonthWords(last({ finalOn: null }))).toEqual({
+      text: 'November: counting the last ratings.',
+      met: false,
+    })
+  })
+
   it('then met, or not met in neutral words', () => {
-    expect(
-      lastMonthWords(last({ value: 41, outcome: 'met' }), 'portal_rating_count'),
-    ).toEqual({ text: 'November met: 41 of 40', met: true })
-    expect(lastMonthWords(last({ outcome: 'not_met' }), 'portal_rating_count')).toEqual({
+    expect(lastMonthWords(last({ value: 41, outcome: 'met' }))).toEqual({
+      text: 'November met: 41 of 40',
+      met: true,
+    })
+    expect(lastMonthWords(last({ outcome: 'not_met' }))).toEqual({
       text: 'November: 36 of 40 · not met',
       met: false,
     })
   })
 
   it('says nothing of a month with no usable result', () => {
-    expect(
-      lastMonthWords(
-        last({ value: null, outcome: 'unavailable' }),
-        'portal_rating_count',
-      ),
-    ).toBeNull()
+    expect(lastMonthWords(last({ value: null, outcome: 'unavailable' }))).toBeNull()
   })
 })

@@ -14,6 +14,7 @@ import { GOAL_SCHEDULED } from './portal-goal.stories.fixtures'
 /** G10, Nov 22: 23 of 40 with 22 of 30 days gone and 9 left, today counted. */
 const NOVEMBER_22: PortalGoalRunningMonth = {
   key: '2026-11',
+  measure: 'portal_rating_count',
   target: 40,
   value: 23,
   elapsedDays: 22,
@@ -61,6 +62,16 @@ const goalCard = (
 })
 
 export const CARD_RUNNING = goalCard('2026-11-22', {})
+
+/**
+ * Changed on Nov 20 to 55 scans from December: the goal's head counts scans,
+ * and November keeps counting private ratings.
+ */
+export const CARD_CHANGED_TO_SCANS = goalCard('2026-11-22', {
+  version: 2,
+  measure: 'qualified_scans',
+  target: 55,
+})
 
 /** Nov 2: the first days are never judged, and the bar has no tick yet. */
 export const CARD_FIRST_DAYS = goalCard(
@@ -143,6 +154,17 @@ export const CARD_STOPPED_NO_DATE = goalCard('2026-11-22', {
   stopped: { on: null, monthEnd: '2026-11-30' },
 })
 
+/** Each published Portal's count of December so far, as the read returns it. */
+const decemberRows = (reception: number, restaurant: number): PortalGoalRows => ({
+  kind: 'rows',
+  portals: [
+    { portalId: 'portal-reception', name: 'Reception', count: reception },
+    { portalId: 'portal-restaurant', name: 'Restaurant', count: restaurant },
+    { portalId: 'portal-spa', name: 'Spa', count: 0 },
+  ],
+  elsewhere: 0,
+})
+
 /** Dec 1: December's first day, and November is still being read. */
 const DECEMBER_1: Partial<PortalGoalRunningMonth> = {
   key: '2026-12',
@@ -157,9 +179,11 @@ const DECEMBER_1: Partial<PortalGoalRunningMonth> = {
 export const CARD_LAST_MONTH_UPDATING = goalCard(
   '2026-12-01',
   {
-    rows: null,
+    // Nothing in yet: each Portal on 0.
+    rows: decemberRows(0, 0),
     lastMonth: {
       key: '2026-11',
+      measure: 'portal_rating_count',
       value: 38,
       target: 40,
       outcome: 'updating',
@@ -173,9 +197,10 @@ export const CARD_LAST_MONTH_UPDATING = goalCard(
 export const CARD_LAST_MONTH_MET = goalCard(
   '2026-12-03',
   {
-    rows: null,
+    rows: decemberRows(2, 1),
     lastMonth: {
       key: '2026-11',
+      measure: 'portal_rating_count',
       value: 41,
       target: 40,
       outcome: 'met',
@@ -189,9 +214,10 @@ export const CARD_LAST_MONTH_MET = goalCard(
 export const CARD_LAST_MONTH_NOT_MET = goalCard(
   '2026-12-03',
   {
-    rows: null,
+    rows: decemberRows(2, 1),
     lastMonth: {
       key: '2026-11',
+      measure: 'portal_rating_count',
       value: 36,
       target: 40,
       outcome: 'not_met',

@@ -41,11 +41,8 @@ function GoalLines({ goal, today }: Props) {
 }
 
 /** G-21…G-25: the month so far, or that its figure cannot be read. */
-function MonthSoFar({
-  goal,
-  month,
-}: Readonly<{ goal: PortalGoalOfCard; month: PortalGoalRunningMonth }>) {
-  const words = runningWords(month, goal.measure)
+function MonthSoFar({ month }: Readonly<{ month: PortalGoalRunningMonth }>) {
+  const words = runningWords(month)
   if (words.kind === 'unreadable') {
     return (
       <>
@@ -86,7 +83,7 @@ function RunningMonth({
       {/* Two columns only with the counts to put beside the month. */}
       <div className={cn('grid gap-5', goal.rows !== null && '@2xl:grid-cols-2')}>
         <div className="flex flex-col gap-2">
-          <MonthSoFar goal={goal} month={month} />
+          <MonthSoFar month={month} />
           {goal.stopped === null ? null : (
             <p className="text-sm text-muted-foreground">
               {stoppedWords(goal.stopped, month.key)}
@@ -105,8 +102,7 @@ function RunningMonth({
 
 /** G-30 and G-31: the month before, met with a check, otherwise in neutral words. */
 function LastMonth({ goal }: Readonly<{ goal: PortalGoalOfCard }>) {
-  const words =
-    goal.lastMonth === null ? null : lastMonthWords(goal.lastMonth, goal.measure)
+  const words = goal.lastMonth === null ? null : lastMonthWords(goal.lastMonth)
   if (words === null) return null
   return (
     <p

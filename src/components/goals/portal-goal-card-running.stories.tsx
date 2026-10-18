@@ -15,6 +15,7 @@ import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/mo
 import { PortalGoalSection } from './portal-goal-section'
 import { SEAVIEW } from './portal-goal.stories.fixtures'
 import {
+  CARD_CHANGED_TO_SCANS,
   CARD_FIRST_DAYS,
   CARD_FIVE_PORTALS,
   CARD_LAST_DAY,
@@ -208,6 +209,24 @@ export const Passed: Story = {
 export const PassedOnANarrowPhone: Story = {
   ...Passed,
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+/**
+ * Changed on Nov 20 to scans from December: November still counts private
+ * ratings, and says so, whatever the goal counts next.
+ */
+export const ChangedToScans: Story = {
+  args: { card: read(CARD_CHANGED_TO_SCANS) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('23 of 40')).toBeVisible()
+    await expect(canvas.getByText('private ratings')).toBeVisible()
+    await expect(canvas.getByRole('progressbar', { name: BAR_LABEL })).toHaveAttribute(
+      'aria-valuetext',
+      '23 of 40 private ratings, 9 days left, below pace',
+    )
+    await expect(canvas.queryByText(/\bscans\b/u)).toBeNull()
+  },
 }
 
 /** The figure cannot be read: it says so, with no bar and never a zero. */

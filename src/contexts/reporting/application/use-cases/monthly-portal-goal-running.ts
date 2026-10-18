@@ -12,7 +12,9 @@
 // governed figure: a race or a pending fact draws no rows rather than rows that
 // disagree with the headline. And the month before, while its result is being
 // read (with its governed figure so far) and, once closed, through the 7th.
-// Everything here is decided by the server; the card only words it.
+// Each month is worded in the measure of the version it opened under: a change
+// from a coming month ("Count scans instead") leaves the month already counting
+// as it was. Everything here is decided by the server; the card only words it.
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { goalMonthDays, goalPace } from '../../domain/goal-pace'
@@ -26,7 +28,10 @@ import type {
   PortalGoalRunningMonth,
 } from '../dto/monthly-portal-goal.types'
 import { effectiveMonthTarget } from '../goal-effective-month-target'
-import type { PropertyCountGoal } from '../monthly-portal-goal-identity'
+import {
+  isPortalGoalMeasure,
+  type PropertyCountGoal,
+} from '../monthly-portal-goal-identity'
 import type {
   GoalMonthlyResult,
   GoalProgramVersion,
@@ -61,6 +66,13 @@ const propertySubject = (bundle: PropertyCountGoal) =>
 const versionOf = (bundle: PropertyCountGoal, versionId: string): GoalProgramVersion =>
   bundle.versions.find(({ id }) => id === versionId) ?? bundle.version
 
+/**
+ * What a month counts, from the version it opened under; null for a version
+ * that is not a count (an average a Property goal was changed from).
+ */
+const measureOf = (version: GoalProgramVersion): PortalGoalMeasure | null =>
+  isPortalGoalMeasure(version.metric) ? version.metric : null
+
 /** `YYYY-MM` of the local month a period begins. */
 const monthKeyOf = (instant: Date, timezone: string): string =>
   localDateOf(instant, timezone).slice(0, 7)
@@ -87,6 +99,7 @@ function runningMonth(
   const judged = value !== null && (state === 'behind' || state === 'on_pace')
   return {
     key: monthKeyOf(period.start, timezone),
+    measure,
     target,
     value,
     elapsedDays: days.elapsedDays,
@@ -100,16 +113,17 @@ function runningMonth(
 /**
  * Each published Portal's count of the running month, in name order, and what
  * the rest leave (draft, disabled, archived and deleted Portals and readings
- * with no Portal), drawn only when they add up to the governed figure. One
- * Portal that brought in all of it is named; from 5 Portals the card says how
- * many. A month the set read cannot read whole, a list cut at 100 Portals, or
- * no published Portal draws none.
+ * with no Portal), in the month's own measure, drawn only when they add up to
+ * the governed figure. One Portal that brought in all of it is named, but not
+ * while the month has nothing in: 0 is no Portal's doing, so it is a row. From
+ * 5 Portals the card says how many. A month the set read cannot read whole, a
+ * list cut at 100 Portals, or no published Portal draws none.
  */
 function rowsOf(
   recommendation: PortalGoalRecommendation,
-  measure: PortalGoalMeasure,
   month: PortalGoalRunningMonth,
 ): PortalGoalRows | null {
+  const { measure } = month
   const soFar = recommendation.monthToDate[measure]
   if (
     month.value === null ||
@@ -131,7 +145,7 @@ function rowsOf(
   if (portals.length === 0 || listed + elsewhere !== month.value) return null
   if (portals.length >= MANY_PORTALS) return { kind: 'many', count: portals.length }
   const [only] = portals
-  if (only && portals.length === 1 && elsewhere === 0) {
+  if (only && portals.length === 1 && elsewhere === 0 && month.value > 0) {
     return { kind: 'one', name: only.name }
   }
   return { kind: 'rows', portals, elsewhere }
@@ -147,9 +161,13 @@ function countingMonthOf(bundle: PropertyCountGoal): PortalGoalOfCard['countingM
     .filter(({ status }) => status === 'open' || status === 'reconciling')
     .sort((a, b) => b.periodStart.getTime() - a.periodStart.getTime())
   if (!latest) return null
+  const version = versionOf(bundle, latest.programVersionId)
+  const measure = measureOf(version)
+  if (measure === null) return null
   return {
     key: monthKeyOf(latest.periodStart, latest.propertyTimezone),
-    target: effectiveMonthTarget(latest, versionOf(bundle, latest.programVersionId)),
+    measure,
+    target: effectiveMonthTarget(latest, version),
   }
 }
 
@@ -191,6 +209,8 @@ async function stoppedMonthOf(
   const assignment = windowAt(bundle, now)
   if (!assignment) return null
   const version = versionOf(bundle, assignment.programVersionId)
+  const measure = measureOf(version)
+  if (measure === null) return null
   const timezone = version.propertyTimezone
   const period = calendarPeriodRange(now, timezone, 'monthly')
   const result = bundle.results.find(
@@ -207,7 +227,7 @@ async function stoppedMonthOf(
   )
   const value = reading.kind === 'live' ? reading.value : null
   return {
-    month: runningMonth(bundle.version.metric, { period, timezone, target }, value, now),
+    month: runningMonth(measure, { period, timezone, target }, value, now),
     period,
   }
 }
@@ -222,7 +242,8 @@ function outcomeOf(result: GoalMonthlyResult): PortalGoalLastMonth['outcome'] {
 /**
  * The month before this one: while its result is read, its governed figure so
  * far; once closed, its result, through the 7th. Its final figure is due a day
- * and an hour after it ends.
+ * and an hour after it ends; while it is still read after that day, no day is
+ * named.
  */
 async function lastMonthOf(
   deps: MonthlyPortalGoalOnCardDeps,
@@ -238,13 +259,17 @@ async function lastMonthOf(
   )
   if (!result) return null
   const version = versionOf(bundle, result.programVersionId)
+  const measure = measureOf(version)
+  if (measure === null) return null
   const finalAt = new Date(
     result.periodEnd.getTime() + GOAL_RECONCILIATION_DELAY_MS + FINAL_FIGURE_MARGIN_MS,
   )
+  const finalOn = localDateOf(finalAt, result.propertyTimezone)
   const base = {
     key: previousKey,
+    measure,
     target: effectiveMonthTarget(result, version),
-    finalOn: localDateOf(finalAt, result.propertyTimezone),
+    finalOn,
   }
   if (result.status !== 'closed') {
     const reading = await readSubjectMonth(
@@ -256,6 +281,7 @@ async function lastMonthOf(
     )
     return {
       ...base,
+      finalOn: finalOn < today ? null : finalOn,
       value: reading.kind === 'live' ? reading.value : null,
       outcome: 'updating',
     }
@@ -280,16 +306,11 @@ async function countingNow(
     now,
     actor,
   )
-  if (progress === null) return null
-  const { period, timezone, reading, targetValue } = progress
+  if (progress === null || !isPortalGoalMeasure(progress.metric)) return null
+  const { metric, period, timezone, reading, targetValue } = progress
   const value = reading.kind === 'live' ? reading.value : null
   return {
-    month: runningMonth(
-      bundle.version.metric,
-      { period, timezone, target: targetValue },
-      value,
-      now,
-    ),
+    month: runningMonth(metric, { period, timezone, target: targetValue }, value, now),
     period,
   }
 }
@@ -335,7 +356,7 @@ export async function monthlyPortalGoalOnCard(
   return {
     ...goal,
     month,
-    rows: rowsOf(recommendation, measure, month),
+    rows: rowsOf(recommendation, month),
     stopped: stopOf(bundle, period, recommendation.timezone),
     lastMonth,
   }

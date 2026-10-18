@@ -10,6 +10,7 @@ import {
   GOAL_SCHEDULED,
   SHEET_FIRST_WEEKS,
 } from './portal-goal.stories.fixtures'
+import { CARD_CHANGED_TO_SCANS } from './portal-goal-running.stories.fixtures'
 import {
   gateWords,
   goalLines,
@@ -173,6 +174,10 @@ describe('the Monthly portal goal card, in words', () => {
         goal: { ...GOAL_SCHEDULED, measure: 'qualified_scans' },
       }),
     ).toBe('How many scans your portals get each month.')
+    // Changed to scans from December: November, on the card, counts private ratings.
+    expect(line(CARD_CHANGED_TO_SCANS)).toBe(
+      'How many private ratings your portals bring in each month.',
+    )
     expect(line({ state: 'nothing_counted', weeks: 2, sheet: SHEET_FIRST_WEEKS })).toBe(
       'How many private ratings your portals bring in each month.',
     )
@@ -219,13 +224,15 @@ describe('the Monthly portal goal on its card, in words', () => {
   })
 
   it('a stopped goal names the month it still counts, not today’s', () => {
-    // Dec 1: November is still being read for a goal stopped in November.
+    // Dec 1: November is still being read for a goal stopped in November, and
+    // it counted private ratings although the goal was changed to scans.
     expect(
       goalLines(
         {
           ...STARTED,
           status: 'ended',
-          countingMonth: { key: '2026-11', target: 45 },
+          measure: 'qualified_scans',
+          countingMonth: { key: '2026-11', measure: 'portal_rating_count', target: 45 },
         },
         '2026-12-01',
       ),

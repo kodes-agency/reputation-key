@@ -3,8 +3,9 @@
 // left, the pace word, the bar's tick and what a screen reader hears for it,
 // what each Portal brought in, a stop, and the month before. The read decides
 // every state, day and number (PLAN E12): the pace (P-6 included), the first
-// quiet days, whether the counts add up. This only says them, in one place, so
-// the card, its stories and its tests spell each line once. "below pace" is
+// quiet days, whether the counts add up, and what each month counts (its own
+// version's measure, not the goal's latest). This only says them, in one place,
+// so the card, its stories and its tests spell each line once. "below pace" is
 // the one judgement, in quiet amber, and never "on pace". Pure.
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
@@ -62,16 +63,13 @@ function barLabel(measure: PortalGoalMeasure, monthKey: string): string {
 }
 
 /**
- * G-21…G-25 and G-32: the month so far. The tick marks where a steady month
- * would be today; it is not drawn in the first quiet days, once the goal has
- * passed, or with no figure. A figure that cannot be read says so and is never
- * a zero.
+ * G-21…G-25 and G-32: the month so far, in the measure it counts. The tick
+ * marks where a steady month would be today; it is not drawn in the first
+ * quiet days, once the goal has passed, or with no figure. A figure that cannot
+ * be read says so and is never a zero.
  */
-export function runningWords(
-  month: PortalGoalRunningMonth,
-  measure: PortalGoalMeasure,
-): PortalGoalRunningWords {
-  const { value, target } = month
+export function runningWords(month: PortalGoalRunningMonth): PortalGoalRunningWords {
+  const { value, target, measure } = month
   if (value === null) {
     return {
       kind: 'unreadable',
@@ -167,18 +165,22 @@ const LAST_READINGS: Readonly<Record<PortalGoalMeasure, string>> = {
 }
 
 /**
- * G-30 and G-31: the month before, while its last readings are counted, then
- * met (with a check) or not met (neutral, never red). A month with no usable
- * result says nothing here.
+ * G-30 and G-31: the month before, in what it counted, while its last readings
+ * are counted (with the day its final figure is due, until that day has gone),
+ * then met (with a check) or not met (neutral, never red). A month with no
+ * usable result says nothing here.
  */
 export function lastMonthWords(
   lastMonth: PortalGoalLastMonth,
-  measure: PortalGoalMeasure,
 ): Readonly<{ text: string; met: boolean }> | null {
   const name = monthName(lastMonth.key)
   if (lastMonth.outcome === 'updating') {
+    const counting = `${name}: counting the last ${LAST_READINGS[lastMonth.measure]}.`
     return {
-      text: `${name}: counting the last ${LAST_READINGS[measure]}. Final figure on ${dayWords(lastMonth.finalOn)}.`,
+      text:
+        lastMonth.finalOn === null
+          ? counting
+          : `${counting} Final figure on ${dayWords(lastMonth.finalOn)}.`,
       met: false,
     }
   }

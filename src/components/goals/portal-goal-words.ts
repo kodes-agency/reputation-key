@@ -53,6 +53,13 @@ export const portalGoalCount = (measure: PortalGoalMeasure, n: number): string =
 const RATINGS_SECTION_LINE = 'How many private ratings your portals bring in each month.'
 const SCANS_SECTION_LINE = 'How many scans your portals get each month.'
 
+/**
+ * What the card's goal counts as shown: the month it is counting (a change to
+ * scans from next month leaves this one on private ratings), else the goal's.
+ */
+const shownMeasure = (goal: PortalGoalOfCard): PortalGoalMeasure =>
+  goal.month?.measure ?? goal.countingMonth?.measure ?? goal.measure
+
 /** G-2: what the goal counts, under the section's title. None at a gate (G-5 says it). */
 export function portalGoalSectionLine(card: PortalGoalCardView): string | null {
   switch (card.state) {
@@ -63,7 +70,7 @@ export function portalGoalSectionLine(card: PortalGoalCardView): string | null {
     case 'scans_only':
       return SCANS_SECTION_LINE
     case 'goal':
-      return card.goal.measure === 'qualified_scans'
+      return shownMeasure(card.goal) === 'qualified_scans'
         ? SCANS_SECTION_LINE
         : RATINGS_SECTION_LINE
     default:
@@ -212,6 +219,10 @@ export function goalLines(goal: PortalGoalOfCard, today: string): readonly strin
     ]
   }
   // A paused or stopped goal names the month it still counts; else today's.
-  const counting = goal.countingMonth ?? { key: today.slice(0, 7), target: goal.target }
-  return [monthNumberWords(goal.measure, counting.key, counting.target)]
+  const counting = goal.countingMonth ?? {
+    key: today.slice(0, 7),
+    measure: goal.measure,
+    target: goal.target,
+  }
+  return [monthNumberWords(counting.measure, counting.key, counting.target)]
 }

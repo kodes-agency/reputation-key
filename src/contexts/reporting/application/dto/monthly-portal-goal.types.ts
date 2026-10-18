@@ -135,6 +135,11 @@ export type PortalGoalSheetFacts = Readonly<{
 export type PortalGoalRunningMonth = Readonly<{
   /** `YYYY-MM`. */
   key: string
+  /**
+   * What the month counts: its own version's measure, which a change from a
+   * coming month ("Count scans instead") does not touch.
+   */
+  measure: PortalGoalMeasure
   /** The month's own number, else its version's. */
   target: number
   /** The governed figure so far; null when it cannot be read, never a zero. */
@@ -182,6 +187,8 @@ export type PortalGoalRows =
 export type PortalGoalLastMonth = Readonly<{
   /** `YYYY-MM`. */
   key: string
+  /** What that month counted, under its own version. */
+  measure: PortalGoalMeasure
   /**
    * Once closed, its result's figure; while it is read, the governed figure so
    * far. Null when it cannot be read.
@@ -190,8 +197,11 @@ export type PortalGoalLastMonth = Readonly<{
   /** That month's own number. */
   target: number
   outcome: 'updating' | 'met' | 'not_met' | 'unavailable'
-  /** The local day its final figure is due: "Final figure on Dec 2". */
-  finalOn: string
+  /**
+   * The local day its final figure is due: "Final figure on Dec 2". Null while
+   * it is still read after that day, so no day already gone is promised.
+   */
+  finalOn: string | null
 }>
 
 /**
@@ -235,7 +245,12 @@ export type PortalGoalOfCard = Readonly<{
    * still open or being read, as `YYYY-MM` with that month's own target (on
    * Dec 1 a goal stopped in November still counts November); else null.
    */
-  countingMonth: Readonly<{ key: string; target: number }> | null
+  countingMonth: Readonly<{
+    key: string
+    /** What that month counts, under its own version. */
+    measure: PortalGoalMeasure
+    target: number
+  }> | null
 }>
 
 /** An arm the set sheet opens from: what it works from. */

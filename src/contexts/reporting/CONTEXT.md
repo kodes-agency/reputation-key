@@ -178,10 +178,13 @@ metric authority.
   with what the rest bring in (draft, disabled, archived and deleted Portals and readings
   with no Portal) as "Other portals"; the counts are drawn only when they add up to the
   governed figure, so a race or a pending fact draws none rather than rows that disagree
-  with the headline. One Portal that brought in all of it is named; from 5 Portals the card
-  says how many. The month before is shown while its result is read (its governed figure
-  so far; final a day and an hour after it ends) and, once closed, met, not met or with
-  no usable result, through the 7th.
+  with the headline. One Portal that brought in all of it is named (not while the month
+  has nothing in: then it is a row on 0); from 5 Portals the card says how many. The month
+  before is shown while its result is read (its governed figure so far; final a day and an
+  hour after it ends, and no day is named once that day has gone) and, once closed, met,
+  not met or with no usable result, through the 7th. Each month carries the measure of the
+  version it opened under, and is worded and its counts drawn in that measure: a change
+  from a coming month ("Count scans instead") leaves the month already counting as it was.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save
