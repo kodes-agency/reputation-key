@@ -456,6 +456,15 @@ async function pickFromMenu(canvas: Canvas, item: string) {
   )
 }
 
+/** "Stop this goal…" from the menu: the confirmation it opens. */
+async function openStop(canvasElement: HTMLElement) {
+  await pickFromMenu(within(canvasElement), 'Stop this goal…')
+  const dialog = await within(document.body).findByRole('alertdialog', {
+    name: 'Stop the monthly portal goal?',
+  })
+  return { dialog, in: within(dialog) }
+}
+
 /** "Change number" and "Count scans instead" open the change sheet; the measure only from next month. */
 export const Actions: Story = {
   play: async ({ canvasElement, args }) => {
@@ -495,12 +504,7 @@ export const ActionsNotAllowed: Story = {
 export const StopDialog: Story = {
   decorators: [ToasterDecorator],
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await pickFromMenu(canvas, 'Stop this goal…')
-    const dialog = await within(document.body).findByRole('alertdialog', {
-      name: 'Stop the monthly portal goal?',
-    })
-    const inDialog = within(dialog)
+    const { dialog, in: inDialog } = await openStop(canvasElement)
     await expect(
       inDialog.getByText(
         'November keeps counting to Nov 30 and keeps its result. You can set a new goal from December.',
@@ -528,9 +532,8 @@ export const StopDialog: Story = {
 export const StopKept: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await pickFromMenu(canvas, 'Stop this goal…')
-    const dialog = await within(document.body).findByRole('alertdialog')
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep the goal' }))
+    const { dialog, in: inDialog } = await openStop(canvasElement)
+    await userEvent.click(inDialog.getByRole('button', { name: 'Keep the goal' }))
     await waitFor(() => expect(dialog).not.toBeInTheDocument())
     await expect(args.stop.stopMonthlyPortalGoalFn).not.toHaveBeenCalled()
     await waitFor(() =>
@@ -545,9 +548,7 @@ export const StopKept: Story = {
 export const StopScheduled: Story = {
   args: { page: PAGE_SCHEDULED },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await pickFromMenu(canvas, 'Stop this goal…')
-    const dialog = within(await within(document.body).findByRole('alertdialog'))
+    const { in: dialog } = await openStop(canvasElement)
     await expect(
       dialog.getByText(
         'November has not started, so nothing has counted yet. You can set a new goal straight away.',
@@ -575,9 +576,7 @@ export const StopAlreadyStopped: Story = {
     },
   },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await pickFromMenu(canvas, 'Stop this goal…')
-    const dialog = within(await within(document.body).findByRole('alertdialog'))
+    const { in: dialog } = await openStop(canvasElement)
     await userEvent.click(dialog.getByRole('button', { name: 'Stop the goal' }))
     await expect(
       await dialog.findByText('This goal was already stopped. Here is the latest.'),
