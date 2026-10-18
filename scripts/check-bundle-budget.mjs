@@ -730,7 +730,9 @@
 // offered while the dialog is open; a stopped goal names the month it still
 // counts, in the lazy words), a fresh build of the head measured 307,697 B
 // (entry 49,021 B, same stylesheet): +3 B, the hashed chunk names only. No
-// change to the budget; 153 B spare, 603 B under the ceiling.
+// change to the budget; 153 B spare, 603 B under the ceiling. Rebased onto
+// PG-08 on main (5599cd98d) it measured 307,797 B: 53 B spare, 503 B under
+// the ceiling.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
