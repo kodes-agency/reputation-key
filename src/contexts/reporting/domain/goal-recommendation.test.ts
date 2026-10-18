@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { propertyWallClockToInstant } from '#/shared/domain/property-calendar'
 import { addLocalDays } from './local-days'
-import { recommendationWindow, recommendPortalGoal } from './goal-recommendation'
+import {
+  recommendationWindow,
+  recommendPortalGoal,
+  subjectRecommendation,
+} from './goal-recommendation'
 import type {
   PortalGoalMeasure,
   RecommendationDayCount,
@@ -44,6 +48,7 @@ function livePortal(
     liveIntervals: [{ from: since, to: null }],
     codeIssuedAt: since,
     codeReady: true,
+    portalGroupId: null,
     ...patch,
   }
 }
@@ -710,6 +715,75 @@ describe('what the recommendation says about each portal', () => {
       asOf: '2026-10-23T09:00:00.000Z',
       timezone: SOFIA,
       truncated: true,
+    })
+  })
+})
+
+describe('the recommended number for one portal or one group (PG-20)', () => {
+  // Nov 22: the month offered is December (31 days); November has 9 days left.
+  const months = recommend({ now: inSofia('2026-11-22') }).months
+  const reception = {
+    window: { portal_rating_count: 9, qualified_scans: 0 },
+    liveDays: 14,
+  }
+  const spa = { window: { portal_rating_count: 4, qualified_scans: 0 }, liveDays: 14 }
+  const nothingSoFar = { portal_rating_count: 0, qualified_scans: 0 }
+
+  it("a portal's own 9 in 14 days gives 20 · 22 · 24 for December", () => {
+    const own = subjectRecommendation({
+      members: [reception],
+      monthToDate: nothingSoFar,
+      unreadable: new Set(),
+      months,
+    })
+
+    expect(own.portal_rating_count.state).toBe('ready')
+    expect(own.portal_rating_count.fullMonth.next).toMatchObject({
+      usual: 20,
+      aBitMore: 22,
+      stretch: 24,
+    })
+    // No scans: no number for scans.
+    expect(own.qualified_scans).toMatchObject({ state: 'nothing', fromToday: null })
+  })
+
+  it("a group's rate is its members' summed, on top of its own month so far", () => {
+    const group = subjectRecommendation({
+      members: [reception, spa],
+      monthToDate: { portal_rating_count: 12, qualified_scans: 0 },
+      unreadable: new Set(),
+      months,
+    })
+
+    // 13 in 14 days: about 29 in December's 31.
+    expect(group.portal_rating_count.fullMonth.next?.about).toBe(29)
+    // 12 so far, and the 9 days left with today add about 8: 21 · 22 · 23.
+    expect(group.portal_rating_count.fromToday).toEqual({
+      usual: 21,
+      aBitMore: 22,
+      stretch: 23,
+      about: 8,
+    })
+  })
+
+  it('no joined member, or an unreadable measure, offers no number', () => {
+    const none = subjectRecommendation({
+      members: [],
+      monthToDate: nothingSoFar,
+      unreadable: new Set(),
+      months,
+    })
+    const spoiled = subjectRecommendation({
+      members: [reception],
+      monthToDate: nothingSoFar,
+      unreadable: new Set(['portal_rating_count']),
+      months,
+    })
+
+    expect(none.portal_rating_count).toMatchObject({ state: 'nothing', fromToday: null })
+    expect(spoiled.portal_rating_count).toMatchObject({
+      state: 'unreadable',
+      fullMonth: { current: null, next: null },
     })
   })
 })

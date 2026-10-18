@@ -33,6 +33,7 @@ function portal(
     liveIntervals: [{ from: since, to: null }],
     codeIssuedAt: since,
     codeReady: true,
+    portalGroupId: null,
     ...patch,
   }
 }
@@ -41,6 +42,8 @@ const NO_READINGS: GoalRecommendationCounts = {
   days: [],
   unreadable: [],
   lastScanAt: new Map(),
+  groupDays: [],
+  groupUnreadable: [],
 }
 
 function setup(
@@ -219,6 +222,8 @@ describe('readPortalGoalRecommendation', () => {
         ]),
         unreadable: [],
         lastScanAt: new Map(),
+        groupDays: [],
+        groupUnreadable: [],
       },
     })
 

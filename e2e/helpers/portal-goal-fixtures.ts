@@ -318,6 +318,7 @@ export async function seedPortalHistory(
       liveIntervals: [{ from: liveSince, to: null }],
       codeIssuedAt,
       codeReady: true,
+      portalGroupId: null,
     })
     days.push(
       ...dayCounts(portal.id, 'portal_rating_count', ratings, timezone),

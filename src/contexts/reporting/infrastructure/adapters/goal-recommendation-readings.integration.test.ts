@@ -56,11 +56,22 @@ async function seedPortal(
   return id
 }
 
+async function seedGroup(property: string, name: string): Promise<string> {
+  const id = randomUUID()
+  await client.query(
+    `INSERT INTO portal_groups (id, organization_id, property_id, name)
+     VALUES ($1::uuid, $2, $3::uuid, $4)`,
+    [id, ORG, property, name],
+  )
+  return id
+}
+
 type Readings = Readonly<{
   property: string
   count: number
   eventAt: string
   portalId?: string
+  groupId?: string
   metric?: SeededMetric
   dataQuality?: string
   organization?: string
@@ -74,6 +85,7 @@ const readings = (input: Readings) =>
     count: input.count,
     eventAt: input.eventAt,
     portalId: input.portalId,
+    groupId: input.groupId,
     dataQuality: input.dataQuality,
   })
 
@@ -125,6 +137,7 @@ function listed(portalId: string, name: string): RecommendationPortal {
     liveIntervals: [{ from: since, to: null }],
     codeIssuedAt: since,
     codeReady: true,
+    portalGroupId: null,
   }
 }
 
@@ -182,6 +195,77 @@ afterAll(async () => {
 })
 
 describe('the readings behind the recommended number', () => {
+  it('a group counts each reading by the group it was recorded with (G19)', async () => {
+    const property = await seedProperty()
+    const spa = await seedPortal(property, 'Spa')
+    const rooms = await seedGroup(property, 'Rooms')
+    const wellness = await seedGroup(property, 'Wellness')
+    // Spa moved from Rooms to Wellness on Oct 10.
+    await readings({
+      property,
+      portalId: spa,
+      groupId: rooms,
+      count: 2,
+      eventAt: '2026-10-05T09:00:00Z',
+    })
+    await readings({
+      property,
+      portalId: spa,
+      groupId: wellness,
+      count: 3,
+      eventAt: OCT_12,
+    })
+    // A reading of no group is no group's.
+    await readings({ property, portalId: spa, count: 1, eventAt: OCT_12 })
+
+    const { days, groupDays, groupUnreadable } = await countsOf(property)
+
+    expect(ratingsOn(days, spa)).toEqual(
+      expect.arrayContaining([
+        ['2026-10-05', 2],
+        ['2026-10-12', 4],
+      ]),
+    )
+    expect(groupDays).toEqual(
+      expect.arrayContaining([
+        {
+          groupId: rooms,
+          measure: 'portal_rating_count',
+          localDay: '2026-10-05',
+          count: 2,
+        },
+        {
+          groupId: wellness,
+          measure: 'portal_rating_count',
+          localDay: '2026-10-12',
+          count: 3,
+        },
+      ]),
+    )
+    expect(groupDays).toHaveLength(2)
+    expect(groupUnreadable).toEqual([])
+  })
+
+  it("an approximate reading makes its group's day unreadable", async () => {
+    const property = await seedProperty()
+    const spa = await seedPortal(property, 'Spa')
+    const wellness = await seedGroup(property, 'Wellness')
+    await readings({
+      property,
+      portalId: spa,
+      groupId: wellness,
+      count: 1,
+      eventAt: OCT_12,
+      dataQuality: 'approximate',
+    })
+
+    const { groupUnreadable } = await countsOf(property)
+
+    expect(groupUnreadable).toEqual([
+      { groupId: wellness, measure: 'portal_rating_count', localDay: '2026-10-12' },
+    ])
+  })
+
   it('a retracted rating does not count, a replaced one counts once', async () => {
     const property = await seedProperty()
     const reception = await seedPortal(property, 'Reception')

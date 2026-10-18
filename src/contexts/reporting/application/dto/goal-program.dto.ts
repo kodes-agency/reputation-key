@@ -5,12 +5,6 @@ import {
   validateGoalTarget,
 } from '../../domain/goal-program'
 
-// Routes and components may import application, not domain: the start-month
-// helpers the new-goal form shares with the create command. They are
-// re-exported, not used here, so their calendar code loads with the form and
-// stays out of the first-paint bundle this module is part of.
-export { defaultGoalStartMonth, goalStartOptions } from '../../domain/goal-start'
-
 const uuid = z.uuid()
 
 /**
@@ -198,16 +192,8 @@ export const getGoalProgressSchema = z.object({
   subject: goalProgramSubjectSchema,
 })
 
-/** The month so far for one subject and measure, read before a goal exists. */
-export const previewGoalMonthSchema = z.object({
-  propertyId: uuid,
-  metric: goalProgramMetricSchema,
-  subject: goalProgramSubjectSchema,
-})
-
 export type CreateGoalProgramInput = z.infer<typeof createGoalProgramSchema>
 export type ReviseGoalProgramInput = z.infer<typeof reviseGoalProgramSchema>
-export type CreateGoalProgramFormInput = z.input<typeof createGoalProgramFormSchema>
 export type ReviseGoalProgramFormInput = z.input<typeof reviseGoalProgramFormSchema>
 export type GoalProgramAssignmentEditorInput = z.input<
   typeof goalProgramAssignmentEditorSchema

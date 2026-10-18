@@ -7,8 +7,11 @@
 // function joins first paint. Without a goal it shows the card's own state,
 // with its doors to the set sheet (`-portal-goal-sheet-host.tsx`, as on the
 // Goals page); the card draws no title here, so the page's title takes the
-// focus back from the sheet.
-import { useState } from 'react'
+// focus back from the sheet. Under it all, "More portal goals": the other
+// Portal goals, and "Add a portal goal" when it offers something (the M-rule,
+// PLAN PG-20), whose sheet an address opens on a step (`?add=…`, where the old
+// New goal page's links now lead, `-goal-new-redirect.ts`).
+import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -16,7 +19,11 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
-import { InlineLink } from '#/components/ui/inline-link'
+import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
+import {
+  openingOf,
+  type PortalGoalAddAddress,
+} from '#/components/goals/portal-goal-add-view'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
 import {
@@ -25,12 +32,16 @@ import {
 } from '#/components/goals/portal-goal-page'
 import { extrasSubjectName } from '#/components/goals/portal-goal-page-view'
 import { PortalGoalExtras } from './-portal-goal-extras'
+import { PortalGoalAddButton, usePortalGoalAdd } from './-portal-goal-add-host'
+import { portalGoalPageSearchSchema } from './-portal-goal-page-search'
 import {
   markPortalGoalReadsStale,
+  portalGoalAddQuery,
   portalGoalCommands,
   portalGoalPageQuery,
 } from './-portal-goal-queries'
 import { usePortalGoalSheet } from './-portal-goal-sheet-host'
+import { prefilledGoalSubjects } from './-goal-subject-prefill'
 
 const TITLE = 'Monthly portal goal'
 
@@ -38,6 +49,7 @@ export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/goals/portals',
 )({
   staticData: { page: { title: TITLE, under: 'goals' } },
+  validateSearch: portalGoalPageSearchSchema,
   // As the Google rating goal's page asks: of the built-in roles only the two
   // interactive manager roles hold `goal.read`, so the Member is answered here.
   beforeLoad: ({ context }) => {
@@ -49,13 +61,55 @@ export const Route = createFileRoute(
   // read again before the page draws, never shown first.
   loader: async ({ params, context }) => {
     const queries = await import('./-portal-goal-queries')
-    await context.queryClient.fetchQuery(queries.portalGoalPageQuery(params.propertyId))
+    await Promise.all([
+      context.queryClient.fetchQuery(queries.portalGoalPageQuery(params.propertyId)),
+      // "Add a portal goal" is drawn only when it offers something, and an
+      // address may open it: its read comes with the page's.
+      queries.prefetchPortalGoalAdd(context.queryClient, params.propertyId),
+    ])
   },
   component: MonthlyPortalGoalRoute,
 })
 
+/**
+ * The step an address asks the add sheet to open on, with the Portal or group
+ * it names when it is one of this Property's that the sheet offers.
+ */
+function addressedOpening(
+  options: PortalGoalAddOptions | undefined,
+  search: PortalGoalAddAddress,
+) {
+  if (options === undefined) return null
+  const [subject] = prefilledGoalSubjects(search.subject, {
+    groupIds: options.groups.flatMap(({ subject: group }) =>
+      group.kind === 'portal_group' ? [group.portalGroupId] : [],
+    ),
+    portalIds: options.onePortal.flatMap(({ subject: portal }) =>
+      portal.kind === 'portal' ? [portal.portalId] : [],
+    ),
+  })
+  return openingOf(options, {
+    add: search.add,
+    subject:
+      subject === undefined || subject.kind === 'property'
+        ? undefined
+        : subject.kind === 'portal'
+          ? `portal:${subject.portalId}`
+          : `portal_group:${subject.portalGroupId}`,
+  })
+}
+
+/** The page's address without the add sheet's step: once answered, or when it cannot be. */
+const withoutAddress = <T extends PortalGoalAddAddress>(search: T): T => ({
+  ...search,
+  add: undefined,
+  subject: undefined,
+})
+
 function MonthlyPortalGoalRoute() {
   const { propertyId } = Route.useParams()
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
   const { can: canDo } = usePermissions()
   const queryClient = useQueryClient()
   const [now] = useState(() => new Date())
@@ -73,6 +127,26 @@ function MonthlyPortalGoalRoute() {
     onSet: () => markPortalGoalReadsStale(queryClient, propertyId),
   } satisfies PortalGoalCommands
   const sheet = usePortalGoalSheet(propertyId, page.card, set, focusPortalGoalPageTitle)
+  const addRead = useQuery({
+    ...portalGoalAddQuery(propertyId),
+    enabled: canDo('goal.create'),
+    retry: false,
+  })
+  const initial = addressedOpening(addRead.data, search)
+  const add = usePortalGoalAdd({
+    propertyId,
+    options: addRead.data,
+    focusTitle: focusPortalGoalPageTitle,
+    initial,
+    // Answered once: off the address, so a reload or Back does not open it again.
+    onClosed: () => void navigate({ search: withoutAddress, replace: true }),
+  })
+  // An address the sheet cannot answer (nothing to add, the M-rule, or no add
+  // read for this person) opens nothing, and leaves the address too.
+  const unanswered = search.add !== undefined && initial === null
+  useEffect(() => {
+    if (unanswered) void navigate({ search: withoutAddress, replace: true })
+  }, [unanswered, navigate])
   const { name, timezone } = propData.property
   const { extras } = page
   return (
@@ -87,41 +161,40 @@ function MonthlyPortalGoalRoute() {
         commands={{ ...set, openSheet: sheet.open }}
         personName={goalPersonNames(members.data?.members)}
         extras={
-          <PortalGoalExtras
-            propertyId={propertyId}
-            timezone={timezone}
-            goals={extras.goals}
-            monthlyGoalId={null}
-            live={{
-              byProgram: new Map(
-                (extras.progress ?? []).map((goal) => [goal.programId, goal]),
-              ),
-              loading: false,
-              // The read could not say their month so far: the rows say so.
-              failed: extras.progress === null,
-            }}
-            subjectName={(subject) =>
-              extrasSubjectName(subject, name, extras.subjectNames)
-            }
-            now={now}
-            titled={false}
-          />
+          extras.goals.length === 0 ? null : (
+            <PortalGoalExtras
+              propertyId={propertyId}
+              timezone={timezone}
+              goals={extras.goals}
+              monthlyGoalId={null}
+              live={{
+                byProgram: new Map(
+                  (extras.progress ?? []).map((goal) => [goal.programId, goal]),
+                ),
+                loading: false,
+                // The read could not say their month so far: the rows say so.
+                failed: extras.progress === null,
+              }}
+              subjectName={(subject) =>
+                extrasSubjectName(subject, name, extras.subjectNames)
+              }
+              now={now}
+              titled={false}
+            />
+          )
         }
         addLink={
-          canDo('goal.create') ? (
-            // A goal for one Portal, a group or an average (one click deeper,
-            // P-5), on the New goal page until the add sheet replaces it.
-            <InlineLink
-              to="/properties/$propertyId/goals/new"
-              params={{ propertyId }}
-              className="self-start text-sm"
-            >
-              Add a portal goal
-            </InlineLink>
+          // A goal for one Portal, each, a group or the average (one click
+          // deeper, P-5), opened in place.
+          add.offered ? (
+            <PortalGoalAddButton
+              onOpen={() => add.open({ step: 'choose', subject: null })}
+            />
           ) : null
         }
       />
       {sheet.sheet}
+      {add.sheet}
     </>
   )
 }

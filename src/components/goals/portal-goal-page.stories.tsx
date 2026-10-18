@@ -9,9 +9,12 @@
 // At 320, 390, 820 and 1440 px and on the light theme. The Storybook Vitest
 // project compiles no Tailwind, so the plays assert words, roles, the heading
 // outline and the calls. The sheet those doors open, as the page hosts it, is
-// in the route's `-portal-goal-sheet-host.stories.tsx`.
+// in the route's `-portal-goal-sheet-host.stories.tsx`. "More portal goals" has
+// its way to add one, as the route hands it in when the add sheet offers
+// something; with nothing to add and no other goal there is no such block.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { Button } from '#/components/ui/button'
 import { PortalGoalPage } from './portal-goal-page'
 import {
   PAGE_ACROSS_A_STOP,
@@ -44,6 +47,11 @@ const meta: Meta<typeof PortalGoalPage> = {
     // As the route hands them in: before a goal, the card's doors open the set sheet.
     commands: { setMonthlyPortalGoalFn: fn(), onSet: fn(), openSheet: fn() },
     personName,
+    addLink: (
+      <Button type="button" variant="link" size="inline" className="self-start text-sm">
+        Add a portal goal
+      </Button>
+    ),
   },
 }
 
@@ -397,5 +405,18 @@ export const NoGoalAfterAStop: Story = {
     await expect(args.commands.openSheet).toHaveBeenCalledWith({
       measure: 'portal_rating_count',
     })
+  },
+}
+
+/** The M-rule: nothing to add and no other portal goal, so no "More portal goals". */
+export const NothingMoreToAdd: Story = {
+  args: { page: PAGE_NO_GOAL, addLink: null, extras: null },
+  play: async ({ canvasElement }) => {
+    await expect(outline(canvasElement)).toEqual(['h1 Monthly portal goal'])
+    await expect(
+      within(canvasElement).queryByText(
+        'Want a number for one portal as well? Most properties don’t need one.',
+      ),
+    ).toBeNull()
   },
 }

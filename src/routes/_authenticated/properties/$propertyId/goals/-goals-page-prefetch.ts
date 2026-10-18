@@ -2,12 +2,13 @@
 // it primes the Google section and the Portal goals section together, so the
 // page waits for no goal read after another, and their reads and server
 // functions stay out of first paint. Each section says its own failure; a
-// failed read here holds neither back. The Portal goals' card is read only for
-// someone who may set the goal, since that is who it is for.
+// failed read here holds neither back. The Portal goals' card, and what "Add a
+// portal goal" offers, are read only for someone who may set the goal, since
+// that is who they are for.
 import type { QueryClient } from '@tanstack/react-query'
 import { can } from '#/shared/domain/permissions'
 import type { Role } from '#/shared/domain/roles'
-import { prefetchPortalGoalSection } from './-portal-goal-queries'
+import { prefetchPortalGoalAdd, prefetchPortalGoalSection } from './-portal-goal-queries'
 import { prefetchRatingGoalSection } from './-rating-goal-queries'
 
 // The loader calls this through its import, never destructured: that would
@@ -20,7 +21,12 @@ export async function prefetchGoalsPage(
   await Promise.all([
     prefetchRatingGoalSection(queryClient, propertyId),
     can(role, 'goal.create')
-      ? prefetchPortalGoalSection(queryClient, propertyId)
+      ? Promise.all([
+          prefetchPortalGoalSection(queryClient, propertyId),
+          // The section's door to "Add a portal goal" is drawn only when it
+          // offers something (PLAN PG-20), so it is read with the card.
+          prefetchPortalGoalAdd(queryClient, propertyId),
+        ])
       : Promise.resolve(),
   ])
 }

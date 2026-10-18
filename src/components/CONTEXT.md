@@ -117,8 +117,8 @@ and actions supply server state.
   link in it is chosen and its rows are the touch height.
   A page's sibling views are underline tabs, drawn from one recipe
   (`tabs-line-styles.ts`): `LinkTabs` / `LinkTab` when each view is a route or a
-  search value of one (Properties, Goals, the two views of New goal, the Portal
-  workspace and the Notifications filters), and `Tabs variant="line"` when the
+  search value of one (Properties, Goals, the Portal workspace and the
+  Notifications filters), and `Tabs variant="line"` when the
   views swap a panel in the same document (no page does today). `LinkTabs` is a navigation landmark of
   links, not a tablist, and a `LinkTab` is a `NavLink` in a list item: it takes the
   router link's own `to`, `params` and `search` and the one `current` the page gives
@@ -649,7 +649,7 @@ One list of words for what every page repeats.
 
 - **Case.** A label (a button, a menu item, a tab, a nav row, a dialog title, a
   crumb) is sentence case: the first word capitalised, the rest lower case, so a
-  domain noun is a common noun in it ("Archive portal", "New goal", "Back to
+  domain noun is a common noun in it ("Archive portal", "New group", "Back to
   properties", "Open in goals"). Google, a product role name (Account Admin, Property
   Manager) and something a person typed keep their capitals. In a button `&` joins two
   verbs ("Review & publish", "Confirm & publish"); a title or a sentence says "and".
@@ -679,10 +679,10 @@ One list of words for what every page repeats.
 - **Mark all read** on the page, in the popover and in a stack's menu; never "Mark all
   as read". **Dismiss** hides a notification; it is not Delete.
 - **Add, New, Create, Invite, Import.** "New <thing>" starts an entity with a page or
-  a life of its own (New portal, New goal, New group). "Add <thing>" puts a row or a
-  part into a list in place (Add staff, Add link, Add language, Add portal to a
-  group). "Create" is the confirm of a make form that is neither ("Create goal" on the
-  New goal page, "Create template"). "Invite" is for a person who has to accept;
+  a life of its own (New portal, New group). "Add <thing>" puts a row or a part into
+  a list in place (Add staff, Add link, Add language, Add portal to a group, Add a
+  portal goal: a sheet on the page, since the New goal page is gone). "Create" is the
+  confirm of a make form that is neither ("Create template"). "Invite" is for a person who has to accept;
   "Import from Google" brings records in from Google (the header and the sidebar's
   property menu say it so).
 - **Remove, Delete, Archive, End, Disable, Cancel.** By what happens. Remove takes a

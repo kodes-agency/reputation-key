@@ -37,6 +37,11 @@
 //       card, the goal not ended and the way to the ended one, which is not
 //       listed on the Goals page, exactly as on Active; the History view passes
 //       axe.
+//   J13. a goal for one portal, one click deeper: "Add a portal goal" at the
+//       foot of the section opens the sheet in place; Reception's own number
+//       (the rule on its own rate, worked out with the pure rule) is set for
+//       the month offered and listed under "More portal goals"; the sheet
+//       passes axe; and the old `/goals/new` opens it on the goal page.
 //
 // Every Property here is the journey's own (prefix `e2e-pg-`, run id and retry
 // in the slug). Expected days are read from the database clock in the
@@ -67,7 +72,10 @@ import {
   tearDownPortalGoalProperties,
 } from '../../helpers/portal-goal-fixtures'
 import { requireE2eSeedState } from '../../helpers/seed-state'
-import { recommendPortalGoal } from '../../../src/contexts/reporting/domain/goal-recommendation'
+import {
+  recommendPortalGoal,
+  subjectRecommendation,
+} from '../../../src/contexts/reporting/domain/goal-recommendation'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../../src/contexts/reporting/domain/goal-start'
 import { goalMonthDays, goalPace } from '../../../src/contexts/reporting/domain/goal-pace'
 import { addLocalDays } from '../../../src/contexts/reporting/domain/local-days'
@@ -156,10 +164,9 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     // to the old form from the card.
     await expect(card.getByRole('button')).toHaveText(['Set my own number'])
     await expect(card.getByRole('link', { name: /goal/iu })).toHaveCount(0)
-    // The way to other Portal goals stays, as one quiet link.
-    await expect(
-      section.getByRole('link', { name: 'Add a portal goal' }),
-    ).toHaveAttribute('href', `/properties/${propertyId}/goals/new`)
+    // The way to other Portal goals stays, as one quiet door that opens in
+    // place: three live Portals have something to add (PG-20).
+    await expect(section.getByRole('button', { name: 'Add a portal goal' })).toBeVisible()
   })
 
   test('J2 manager-zero and the staff Member are refused the monthly portal goal', async ({
@@ -824,5 +831,103 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     )
     await expect(google.getByText('No Google rating goal history')).toHaveCount(0)
     await expectPortalGoals()
+  })
+
+  test('J13 a goal for one portal, one click deeper; /goals/new redirects', async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, portals } = await seedPortalGoalProperty(
+      page,
+      'j13',
+      testInfo.retry,
+    )
+    seeded.push(propertyId)
+    const [reception, restaurant, spa] = portals
+    if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
+    const days = (from: number, to: number) =>
+      Array.from({ length: from - to + 1 }, (_, index) => from - index)
+    const input = await seedPortalHistory(propertyId, [
+      {
+        portal: reception,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(19, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: restaurant,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(10, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: spa,
+        liveDaysAgo: 8,
+        codeDaysAgo: 17,
+        ratingsDaysAgo: [],
+        scansDaysAgo: [],
+      },
+    ])
+    // Reception's own number: the rule on its own rate, in the month offered.
+    const recommendation = recommendPortalGoal(input)
+    const facts = recommendation.portals.find(({ name }) => name === 'Reception')
+    if (!facts) throw new Error('The rule lists no Reception')
+    const own = subjectRecommendation({
+      members: [facts],
+      monthToDate: facts.monthToDate,
+      unreadable: new Set(),
+      months: recommendation.months,
+    }).portal_rating_count
+    const month = recommendation.defaultMonthKey
+    const offered =
+      month === recommendation.months.current.key ? own.fromToday : own.fullMonth.next
+    if (!offered) throw new Error('Reception has no number of its own')
+    const number = offered.aBitMore
+    const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
+
+    await page.goto(`/properties/${propertyId}/goals`)
+    await waitForHydration(page)
+    const section = page.locator('#portal-goals')
+    await clickWhenReady(section.getByRole('button', { name: 'Add a portal goal' }))
+    const sheet = page.getByRole('dialog', { name: 'Add a portal goal' })
+    await expect(sheet.getByText('What do you want to add?')).toBeVisible()
+    await expect(
+      sheet.getByText('Portal goals are about the spot, not the person who works there.'),
+    ).toBeVisible()
+    await clickWhenReady(sheet.getByRole('radio', { name: /^A goal for one portal/u }))
+    await clickWhenReady(sheet.getByRole('button', { name: 'Next' }))
+    await clickWhenReady(sheet.getByRole('radio', { name: /^Reception/u }))
+    await clickWhenReady(sheet.getByRole('button', { name: 'Next' }))
+    await expect(sheet.getByText(`Reception · ${monthName}`)).toBeVisible()
+    await expect(sheet.getByRole('spinbutton')).toHaveValue(String(number))
+    await dismissToasts(page)
+    await assertNoAxeViolations(page, 'Add a portal goal, the number step')
+
+    await clickWhenReady(
+      sheet.getByRole('button', { name: `Set ${number} for ${monthName}` }),
+    )
+    await expect(
+      page.getByText(`Reception goal set: ${number} private ratings for ${monthName}`),
+    ).toBeVisible()
+    await expect(sheet).toHaveCount(0)
+    // Next to the Monthly portal goal's card, under "More portal goals".
+    await expect(
+      section.getByRole('link', { name: 'Reception · Private ratings', exact: true }),
+    ).toBeVisible()
+
+    // The old address opens the same sheet on the goal page, on its first step.
+    await page.goto(`/properties/${propertyId}/goals/new`)
+    await expect(page).toHaveURL(
+      (url) =>
+        url.pathname === `/properties/${propertyId}/goals/portals` &&
+        url.searchParams.get('add') === 'choose',
+    )
+    await waitForHydration(page)
+    await expect(sheet.getByText('What do you want to add?')).toBeVisible()
+    await clickWhenReady(sheet.getByRole('button', { name: 'Cancel' }))
+    await expect(sheet).toHaveCount(0)
+    await expect(page).toHaveURL((url) => !url.searchParams.has('add'))
   })
 })

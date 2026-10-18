@@ -7,7 +7,7 @@
 // plays assert words, roles, links and their order.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, within } from 'storybook/test'
-import { InlineLink } from '#/components/ui/inline-link'
+import { Button } from '#/components/ui/button'
 import { PortalGoalResultsLinks } from './portal-goal-results-links'
 import {
   SEAVIEW,
@@ -88,8 +88,8 @@ export const Light: Story = {
 
 /**
  * The foot as the Goals page draws it: last in the Portal goals section, under
- * the running card and the way to add a goal (`footer`), as wide as the page
- * draws the section.
+ * the running card and the way to add a goal (`footer`: the door that opens
+ * "Add a portal goal" in place, PG-20), as wide as the page draws the section.
  */
 export const InThePortalGoalsSection: Story = {
   render: (args) => (
@@ -100,13 +100,14 @@ export const InThePortalGoalsSection: Story = {
         canCreatePortal
         commands={{ setMonthlyPortalGoalFn: fn(), onSet: fn() }}
         footer={
-          <InlineLink
-            to="/properties/$propertyId/goals/new"
-            params={{ propertyId: args.propertyId }}
+          <Button
+            type="button"
+            variant="link"
+            size="inline"
             className="self-start text-sm"
           >
             Add a portal goal
-          </InlineLink>
+          </Button>
         }
         results={<PortalGoalResultsLinks {...args} />}
       />
@@ -120,8 +121,15 @@ export const InThePortalGoalsSection: Story = {
       section
         .getAllByRole('link')
         .map((link) => link.textContent ?? '')
-        .slice(-3),
-    ).toEqual(['Add a portal goal', 'All monthly results', 'Ended portal goals (3)'])
+        .slice(-2),
+    ).toEqual(['All monthly results', 'Ended portal goals (3)'])
+    // The way to add a goal comes first, the results last.
+    const add = section.getByRole('button', { name: 'Add a portal goal' })
+    await expect(
+      add.compareDocumentPosition(
+        section.getByRole('link', { name: 'All monthly results' }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     await expect(
       section.getByRole('link', { name: 'Ended portal goals (3)' }),
     ).toHaveAttribute('href', '/properties/property-seaview/goals/portal-results#ended')

@@ -39,6 +39,7 @@ function portal(name: string, since: string): RecommendationPortal {
     liveIntervals: [{ from: at, to: null }],
     codeIssuedAt: at,
     codeReady: true,
+    portalGroupId: null,
   }
 }
 
@@ -131,6 +132,8 @@ function fakeWorld(programs: readonly GoalProgramBundle[] = []) {
       ],
       unreadable: [],
       lastScanAt: new Map(),
+      groupDays: [],
+      groupUnreadable: [],
     })),
   } satisfies GoalRecommendationFactsPort
   const deps = {

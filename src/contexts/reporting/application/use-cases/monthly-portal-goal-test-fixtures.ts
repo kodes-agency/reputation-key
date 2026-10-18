@@ -50,6 +50,7 @@ export function portal(
     liveIntervals: [{ from: at, to: null }],
     codeIssuedAt: at,
     codeReady: true,
+    portalGroupId: null,
     ...patch,
   }
 }
@@ -62,6 +63,7 @@ export const draft = (name: string): RecommendationPortal => ({
   liveIntervals: [],
   codeIssuedAt: null,
   codeReady: false,
+  portalGroupId: null,
 })
 
 /** `count` readings of `measure` at a Portal on each of `days`. */
@@ -334,6 +336,8 @@ export function fakeWorld(world: World = {}) {
         days: world.counts?.days ?? [],
         unreadable: world.counts?.unreadable ?? [],
         lastScanAt: world.counts?.lastScanAt ?? new Map(),
+        groupDays: world.counts?.groupDays ?? [],
+        groupUnreadable: world.counts?.groupUnreadable ?? [],
       }
     }),
   } satisfies GoalRecommendationFactsPort

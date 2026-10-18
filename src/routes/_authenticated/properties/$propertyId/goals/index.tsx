@@ -18,7 +18,6 @@ import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { trailCrumbs } from '#/components/layout/page-identity'
-import { InlineLink } from '#/components/ui/inline-link'
 import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
 import { portalNextStepOf } from '#/components/goals/rating-goal-portal-step'
 import { PortalGoalResultsLinks } from '#/components/goals/portal-goal-results-links'
@@ -27,6 +26,8 @@ import { goalForResult } from './-goal-for-result'
 import { RatingGoalPanel } from './-rating-goal-panel'
 import { PortalGoalExtras } from './-portal-goal-extras'
 import { PortalGoalPanel } from './-portal-goal-panel'
+import { PortalGoalAddDoor } from './-portal-goal-add-host'
+import { focusPortalGoalCardTitle } from './-portal-goal-sheet-host'
 import { goalListSearchSchema } from './-goal-list-search'
 
 const goalsQuery = (propertyId: string) =>
@@ -176,15 +177,13 @@ function GoalsRoute() {
         }
         footer={
           canDo('goal.create') ? (
-            // The way to a goal for one Portal, a group or an average (one click
-            // deeper, P-5), on the New goal page until the add sheet replaces it.
-            <InlineLink
-              to="/properties/$propertyId/goals/new"
-              params={{ propertyId }}
-              className="self-start text-sm"
-            >
-              Add a portal goal
-            </InlineLink>
+            // The way to a goal for one Portal, each, a group or the average
+            // (one click deeper, P-5), opened in place; drawn only when there is
+            // something to add.
+            <PortalGoalAddDoor
+              propertyId={propertyId}
+              focusTitle={focusPortalGoalCardTitle}
+            />
           ) : null
         }
       />

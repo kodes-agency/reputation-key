@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   can: vi.fn(),
   prefetchRatingGoalSection: vi.fn(async () => undefined),
   prefetchPortalGoalSection: vi.fn(async () => undefined),
+  prefetchPortalGoalAdd: vi.fn(async () => undefined),
 }))
 
 vi.mock('#/shared/domain/permissions', () => ({ can: mocks.can }))
@@ -14,6 +15,7 @@ vi.mock('./-rating-goal-queries', () => ({
 }))
 vi.mock('./-portal-goal-queries', () => ({
   prefetchPortalGoalSection: mocks.prefetchPortalGoalSection,
+  prefetchPortalGoalAdd: mocks.prefetchPortalGoalAdd,
 }))
 
 import { prefetchGoalsPage } from './-goals-page-prefetch'
@@ -33,6 +35,8 @@ describe('prefetchGoalsPage', () => {
 
     expect(mocks.prefetchRatingGoalSection).toHaveBeenCalledWith(queryClient, PROPERTY)
     expect(mocks.prefetchPortalGoalSection).toHaveBeenCalledWith(queryClient, PROPERTY)
+    // With what "Add a portal goal" offers, so its door is drawn with the section.
+    expect(mocks.prefetchPortalGoalAdd).toHaveBeenCalledWith(queryClient, PROPERTY)
   })
 
   it('reads the portal goal card only for someone who may set the goal', async () => {
@@ -45,5 +49,6 @@ describe('prefetchGoalsPage', () => {
     expect(mocks.can).toHaveBeenCalledWith('Member', 'goal.create')
     expect(mocks.prefetchRatingGoalSection).toHaveBeenCalledOnce()
     expect(mocks.prefetchPortalGoalSection).not.toHaveBeenCalled()
+    expect(mocks.prefetchPortalGoalAdd).not.toHaveBeenCalled()
   })
 })

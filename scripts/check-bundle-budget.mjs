@@ -878,6 +878,36 @@
 // 49,381 B): +1 B, all in the entry, which is byte-identical to the base's
 // once the hashed chunk names are masked. 63 B spare under 308,200 and 163 B
 // under the build's ceiling of 308,300 (owner, P-9).
+//
+// 2026-10-18 (Monthly portal goal, PG-20: Add a portal goal; /goals/new
+// redirects): no raise, a saving. The New goal page goes: new.tsx keeps only a
+// beforeLoad redirect (-goal-new-redirect.ts) and loses its loader, search
+// schema and component, and the form's own read (previewGoalMonth, its schema
+// in goal-program.dto.ts and goalKeys.monthPreview) goes with it; /goals/portals
+// gains its search schema (-portal-goal-page-search.ts). The add sheet is a lazy
+// chunk of its own (portal-goal-add-sheet-*.js, 4,126 B), fetched while its door
+// is on screen, and its host joins the goal routes' shared lazy chunk
+// (-portal-goal-add-host-*.js); its read and two commands are in the
+// monthly-portal-goals stub chunk, reached only by -portal-goal-queries.ts's
+// own import(). Every class was already in the stylesheet; the form's two
+// columns from the large breakpoint left it (27,839 B, from 27,845; this note
+// does not spell the class, or the scan would keep it). On the
+// stacked base, PG-13's head 840adcde3, fresh production builds measured
+// 307,997 B (entry 49,238 B) and 307,924 B on the head (entry 49,239 B): -73 B,
+// mostly the first-paint server-function stubs (-49 B) and query keys (-20 B).
+// The form's start-month re-export leaving goal-program.dto.ts changed no byte
+// (it was tree-shaken). The review fixes change no first-paint module (the add
+// sheet's chunk grows to 4,208 B): the head measures 307,904 B (entry 49,219 B,
+// styles-ChuBAd4e.css 27,839 B), and its entry is byte for byte the 307,924 B
+// build's once the hashed chunk names are masked, so the -20 B is the names'
+// gzip noise. Rebased onto main ed9853789 (PG-18's results page and PG-19's
+// tabs; the line is PG-18's 308,200), fresh production builds measured
+// 308,137 B on main (entry 49,381 B, styles-mDD_TGAT.css 27,845 B) and
+// 308,041 B on the head (entry 49,364 B, styles-ChuBAd4e.css 27,839 B): -96 B,
+// the stacked base's savings again (the server-function stubs -49 B, query keys
+// -20 B, the entry -17 B, the stylesheet -6 B, the rest -4 B). The line stays
+// at 308,200: 159 B spare, 259 B under the build's ceiling of 308,300 (owner,
+// P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

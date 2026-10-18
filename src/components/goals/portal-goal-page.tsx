@@ -47,9 +47,9 @@ type Props = Readonly<{
   canSeeResults: boolean
   commands: PortalGoalCommands
   personName: (userId: string) => string | null
-  /** The other Portal goals' rows, under "More portal goals". */
+  /** The other Portal goals' rows, under "More portal goals"; null with none. */
   extras?: ReactNode
-  /** The way to add one, for someone who may. */
+  /** The way to add one, when "Add a portal goal" offers something; else null. */
   addLink?: ReactNode
 }>
 
@@ -184,16 +184,24 @@ export function focusPortalGoalPageTitle(): void {
   title.focus()
 }
 
-/** M-1: the other Portal goals, and the way to add one. */
+/**
+ * M-1: the other Portal goals, and the way to add one. The way, and the line
+ * that asks, show only when "Add a portal goal" offers something (the M-rule);
+ * with neither a goal nor a way, there is no block.
+ */
 function MorePortalGoals({ extras, addLink }: Pick<Props, 'extras' | 'addLink'>) {
   const headingId = useId()
+  const hasAdd = addLink !== null && addLink !== undefined
+  if (!hasAdd && (extras === null || extras === undefined)) return null
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <SectionTitle id={headingId}>More portal goals</SectionTitle>
-        <p className="text-sm text-muted-foreground">
-          Want a number for one portal as well? Most properties don’t need one.
-        </p>
+        {hasAdd ? (
+          <p className="text-sm text-muted-foreground">
+            Want a number for one portal as well? Most properties don’t need one.
+          </p>
+        ) : null}
       </div>
       {extras}
       {addLink}

@@ -5,7 +5,9 @@
 // usual (PLAN E12); the only sums here are the box's steps along the goal grid
 // and the note an own number gets, both from Reporting's application layer.
 // Nothing here throws on what was typed: letters, spaces, a 0 or a number too
-// big for a goal make the box invalid and Set unavailable, never an error.
+// big for a goal make the box invalid and Set unavailable, never an error. The
+// box's reading and steps and the three suggestions are the add sheet's too
+// (`portal-goal-add-view.ts`).
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalOffer,
@@ -134,18 +136,18 @@ export function openingDraft(
  * What a typed text reads as: nothing, a whole number (any size, grouping and
  * spaces ignored), or something else.
  */
-type Reading =
+export type Reading =
   | Readonly<{ kind: 'empty' }>
   | Readonly<{ kind: 'whole'; n: number }>
   | Readonly<{ kind: 'other' }>
 
-function readText(text: string): Reading {
+export function readText(text: string): Reading {
   const digits = text.replaceAll(/[\s,]/gu, '')
   if (digits === '') return { kind: 'empty' }
   return /^\d+$/u.test(digits) ? { kind: 'whole', n: Number(digits) } : { kind: 'other' }
 }
 
-const takes = (n: number): boolean =>
+export const takes = (n: number): boolean =>
   Number.isSafeInteger(n) && n >= 1 && n <= HIGHEST_NUMBER
 
 /** Whether the box holds one of the offer's three suggested numbers. */
@@ -203,7 +205,7 @@ const stepTo = (verb: 'Lower' | 'Raise', to: number | null): Step => ({
 })
 
 /** S-11: − and + along the goal grid, from the number typed (or from none). */
-function stepsFrom(reading: Reading): Readonly<{ lower: Step; raise: Step }> {
+export function stepsFrom(reading: Reading): Readonly<{ lower: Step; raise: Step }> {
   if (reading.kind !== 'whole' || reading.n === 0) {
     return { lower: stepTo('Lower', null), raise: stepTo('Raise', 1) }
   }
@@ -217,7 +219,9 @@ function stepsFrom(reading: Reading): Readonly<{ lower: Step; raise: Step }> {
 }
 
 /** S-4: the three suggestions, "a bit more" the recommended one (P-3). */
-function choicesOf(offer: PortalGoalOffer | null): PortalGoalSheetModel['choices'] {
+export function choicesOf(
+  offer: Pick<PortalGoalOffer, 'choices'> | null,
+): PortalGoalSheetModel['choices'] {
   if (offer === null) return null
   const { usual, aBitMore, stretch } = offer.choices
   return [

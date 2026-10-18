@@ -6,7 +6,7 @@ const known = {
   portalIds: ['portal-1'],
 }
 
-// A group's page links to "New goal" with the group already chosen, so the
+// A group's page links to "Add a portal goal" with the group already chosen, so the
 // goal is set where the manager was looking. A value that does not name one of
 // this property's own subjects is ignored, never trusted.
 describe('prefilledGoalSubjects', () => {
