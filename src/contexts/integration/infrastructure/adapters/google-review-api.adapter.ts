@@ -52,8 +52,12 @@ import {
   sameGoogleReviewCursorAuthorization,
   type GoogleReviewCursorAuthorization,
   type GoogleReviewCursorStore,
-  type GoogleReviewCursorUse,
 } from '../google-review-cursor-store'
+import {
+  callCursorStore,
+  createPageCursorSpender,
+  cursorRejectionLogger,
+} from './google-review-page-cursor'
 
 const PAGE_SIZE = 50
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
@@ -196,45 +200,6 @@ function withTimeout(ms: number): Readonly<{
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ms)
   return { signal: controller.signal, clear: () => clearTimeout(timer) }
-}
-
-// Cursor-store rejections are the one failure class that used to leave no
-// trace: every store code is mapped through `cursorFailureCode` here and the
-// sync use case collapses the result again into a single `cursor_failure`. A
-// closed-beta run applied 6 pages / 256 reviews and then died with that code
-// and nothing else on record. Callers therefore report the raw store outcome
-// before the mapped error is thrown.
-type CursorRejectionOperation =
-  'redeem' | 'release' | 'publish_next' | 'discard_run' | 'discard_cursors'
-
-type CursorDiagnostic = Readonly<{
-  phase: 'main' | 'confirmation'
-  pageIndex: number
-  runId: string
-}>
-
-/**
- * The provider plane's proof that `fetch` was never invoked for this call, so
- * Google never saw the page token. Absent or unrecognised evidence is not that
- * proof (see `GoogleProviderDispatch`).
- */
-function neverReachedGoogle(error: unknown): boolean {
-  return (
-    isGoogleReviewApiError(error) &&
-    (error as GoogleReviewApiError).failure?.dispatch === 'not_sent'
-  )
-}
-
-async function callCursorStore<T>(
-  call: () => Promise<T>,
-  onFault: () => void,
-): Promise<T> {
-  try {
-    return await call()
-  } catch {
-    onFault()
-    throw reviewApiError('provider_unavailable', true)
-  }
 }
 
 function exactKeys(input: object, expected: readonly string[]): boolean {
@@ -468,29 +433,11 @@ export const createGoogleReviewApiAdapter = (
   deps: GoogleReviewApiAdapterDeps,
 ): GoogleReviewApiPort => {
   const nowMs = deps.nowMs ?? Date.now
-
-  // Stable, bounded, content-free: identifiers and codes only. Never the page
-  // token, never the cursor ref, never review content — a diagnostic that
-  // leaks the opaque-reference indirection is worse than no diagnostic. `code`
-  // is the raw store outcome, not `cursorFailureCode`'s mapping, because
-  // `conflict` and `unavailable` both collapse onto `provider_unavailable`.
-  const logCursorRejection = (
-    entry: Readonly<{
-      operation: CursorRejectionOperation
-      code: string
-      phase: 'main' | 'confirmation' | null
-      pageIndex: number | null
-      runId: string
-      /** Publication only: which `binding_mismatch` branch the store took. */
-      parentCursorRefPresent?: boolean
-      nextPageIndex?: number
-    }>,
-  ): void => {
-    deps.logger.warn(
-      { event: 'reviews_cursor_rejected', ...entry },
-      'Google reviews cursor store rejected the call',
-    )
-  }
+  const logCursorRejection = cursorRejectionLogger(deps.logger)
+  const underPageCursor = createPageCursorSpender({
+    cursorStore: deps.cursorStore,
+    logRejection: logCursorRejection,
+  })
 
   const resolveProviderContext = async (
     input: Readonly<{
@@ -569,77 +516,6 @@ export const createGoogleReviewApiAdapter = (
     }
   }
 
-  const redeemPageToken = async (
-    use: GoogleReviewCursorUse,
-    diagnostic: CursorDiagnostic,
-  ): Promise<string> => {
-    const redeemed = await callCursorStore(
-      () => deps.cursorStore.redeem(use),
-      () =>
-        logCursorRejection({ operation: 'redeem', code: 'store_threw', ...diagnostic }),
-    )
-    if (!redeemed.ok) {
-      logCursorRejection({ operation: 'redeem', code: redeemed.code, ...diagnostic })
-      throw reviewApiError(
-        cursorFailureCode(redeemed.code),
-        redeemed.code === 'conflict' || redeemed.code === 'unavailable',
-      )
-    }
-    return redeemed.value.pageToken
-  }
-
-  // Best effort, and never the caller's answer: the provider plane's own error
-  // (its code and its wait) is what the snapshot run must act on. A release
-  // that fails leaves the one use spent, which is what happened before release
-  // existed, and the run keeps its remaining budget.
-  const releaseUnsentRedemption = async (
-    use: GoogleReviewCursorUse,
-    diagnostic: CursorDiagnostic,
-  ): Promise<void> => {
-    let code: string
-    try {
-      const released = await deps.cursorStore.release(use)
-      if (released.ok) return
-      code = released.code
-    } catch {
-      code = 'store_threw'
-    }
-    logCursorRejection({ operation: 'release', code, ...diagnostic })
-  }
-
-  /**
-   * One `reviews.list` call, under the page's cursor when it has one. The
-   * redemption is taken before the call because the gateway admits the exact
-   * request, page token included, and it is given back when the call never
-   * reached Google: a `quota_exhausted` wait used to spend one per refusal and
-   * fail the run on its sixth (MAX_CURSOR_REDEMPTIONS in the store).
-   */
-  const requestReviewsPage = async (
-    input: Readonly<{ locationName: string }>,
-    context: ProviderContext,
-    use: GoogleReviewCursorUse | null,
-    diagnostic: CursorDiagnostic,
-  ): Promise<unknown> => {
-    const pageToken = use ? await redeemPageToken(use, diagnostic) : undefined
-    try {
-      return await requestJson(
-        'reviews.list',
-        {
-          routeKey: 'reviews.list',
-          accessToken: context.accessToken,
-          locationName: input.locationName,
-          ...(pageToken ? { pageToken } : {}),
-        },
-        context,
-      )
-    } catch (error) {
-      if (use && neverReachedGoogle(error)) {
-        await releaseUnsentRedemption(use, diagnostic)
-      }
-      throw error
-    }
-  }
-
   const listReviewsPage: GoogleReviewApiPort['listReviewsPage'] = async (input) => {
     assertValidPageRequest(input)
     const context = await resolveProviderContext(input)
@@ -658,17 +534,20 @@ export const createGoogleReviewApiAdapter = (
       pageIndex: input.pageIndex,
       runId: input.runId,
     } as const
-    const raw = await requestReviewsPage(
-      input,
-      context,
-      input.cursorRef
-        ? {
-            cursorRef: input.cursorRef,
-            scope,
-            authorization: context.cursorAuthorization,
-          }
-        : null,
-      cursorDiagnostic,
+    const use = input.cursorRef
+      ? { cursorRef: input.cursorRef, scope, authorization: context.cursorAuthorization }
+      : null
+    const raw = await underPageCursor(use, cursorDiagnostic, (pageToken) =>
+      requestJson(
+        'reviews.list',
+        {
+          routeKey: 'reviews.list',
+          accessToken: context.accessToken,
+          locationName: input.locationName,
+          ...(pageToken ? { pageToken } : {}),
+        },
+        context,
+      ),
     )
     await assertAuthorizationCurrent(input, context.cursorAuthorization)
     const parsed = gbpReviewsPageSchema.safeParse(raw)
