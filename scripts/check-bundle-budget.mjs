@@ -733,6 +733,25 @@
 // change to the budget; 153 B spare, 603 B under the ceiling. Rebased onto
 // PG-08 on main (5599cd98d) it measured 307,797 B: 53 B spare, 503 B under
 // the ceiling.
+//
+// change to the budget; 153 B spare, 603 B under the ceiling.
+//
+// 2026-10-18 (Monthly portal goal, PG-10: the set sheet): no raise. The sheet,
+// its number box, choices, view and the goal grid's step down and note are a
+// lazy chunk of their own (portal-goal-sheet-*.js 4,451 B), fetched while a door
+// to it is on screen; the doors, the host and the card read's sheet facts load
+// with the Goals route's component chunk (goals-*.js 13,930 -> 16,471 B, lazy;
+// about 1 KB of that is the sheet's preload list, 91 chunk names, as the Google
+// wizard host's 96). Every class they use was already in the stylesheet (the
+// same file, styles-_Q6CwAvC.css, 27,811 B). Fresh production builds measured
+// 307,697 B (75 js + 1 css) on the base, PG-09's head 83d5ac4fc, and 307,717 B
+// on the head: +20 B, all in the entry (49,021 -> 49,041 B; a first head build
+// measured 307,703 B, the rest is the hashed chunk names). The sheet imports
+// the card's words from the Goals route chunk, so the bundler now hands the
+// route's component through its namespace (`.then(e=>e.t)`, 13 raw bytes, and
+// the runtime chunk in its preload list), as it already does for the Google
+// rating goal page and the new-goal form. 133 B spare under 307,850; 583 B
+// under the build's ceiling of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
