@@ -856,10 +856,14 @@
 // page and the goal page), not in the goal page's view module, which would have
 // joined the Goals page's lazy load (+1.1 kB there, for 12 B less in first
 // paint). Every class was already in the stylesheet (main's
-// styles-mDD_TGAT.css, 27,845 B, on both). On the stacked base, PG-13's head 840adcde3, fresh production builds
-// measured 307,997 B (75 js + 1 css; entry 49,238 B) and 308,147 B on the head
-// (entry 49,391 B): +150 B, the entry +153 B and the other members -3 B. 53 B
-// spare under 308,200; 153 B under the ceiling.
+// styles-mDD_TGAT.css, 27,845 B, on both). On the stacked base, PG-13's head
+// 840adcde3, fresh production builds measured 307,997 B (75 js + 1 css; entry
+// 49,238 B) and 308,147 B on the head (entry 49,391 B): +150 B, the entry +153 B
+// and the other members -3 B. After review (the matrix reflows below 56rem of
+// card, "Ended portal goals (n)" hands its list the focus, an empty page goes
+// back to the Portal goals), all of it in the page's lazy chunk (3,883 B gzip),
+// a fresh build measured 308,136 B (entry 49,380 B): +139 B on the base, 64 B
+// spare under 308,200 and 164 B under the ceiling. The stylesheet is unchanged.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -871,7 +875,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 308_200, // raised to 308,200 on 2026-10-18 for the Portal goal results page's route (PG-18), measured 308,147 on PG-13's head 840adcde3 (base 307,997), under the build's ceiling of 308,300 (owner, P-9); raised to 308,050 on 2026-10-18 for the Monthly portal goal page's route (PG-13), measured 308,012 on main 6760d5ebb after its rebase (main 307,813), under the build's ceiling of 308,300 (owner, P-9); raised to 307,850 on 2026-10-18 for the Monthly portal goal card (PG-08), measured 307,799 on main b31e4640a (main 307,671), under the build's ceiling of 308,300 (owner, P-9); lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 308_200, // raised to 308,200 on 2026-10-18 for the Portal goal results page's route (PG-18), measured 308,136 on PG-13's head 840adcde3 after review (base 307,997), under the build's ceiling of 308,300 (owner, P-9); raised to 308,050 on 2026-10-18 for the Monthly portal goal page's route (PG-13), measured 308,012 on main 6760d5ebb after its rebase (main 307,813), under the build's ceiling of 308,300 (owner, P-9); raised to 307,850 on 2026-10-18 for the Monthly portal goal card (PG-08), measured 307,799 on main b31e4640a (main 307,671), under the build's ceiling of 308,300 (owner, P-9); lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
