@@ -21,6 +21,7 @@ import {
   type MonthlyPortalGoalChangeDeps,
   type MonthlyPortalGoalSetDeps,
 } from './monthly-portal-goal'
+import { monthlyPortalGoalOf } from '../monthly-portal-goal-identity'
 import { propertyGoal } from './monthly-portal-goal-test-fixtures'
 
 const PROPERTY_ID = 'property-1'
@@ -362,13 +363,16 @@ const runningOctober = () =>
   })
 
 /** The commands over an in-memory Property, with the engine's own commands faked. */
-function changeWorld(programs: readonly GoalProgramBundle[] = [runningOctober()]) {
+function changeWorld(
+  programs: readonly GoalProgramBundle[] = [runningOctober()],
+  now?: Date,
+) {
   const { deps: setDeps, calls } = fakeWorld(programs)
   const deps = {
     policy: setDeps.policy,
     repository: setDeps.repository,
     recommendation: setDeps.recommendation,
-    now: setDeps.now,
+    now: now === undefined ? setDeps.now : () => now,
     programs: {
       changeMonthTarget: vi.fn(async () => {
         calls.push('change month')
@@ -414,6 +418,22 @@ const asked = (deps: MonthlyPortalGoalChangeDeps) =>
   vi.mocked(deps.policy.authorize).mock.calls.map(([request]) => request.action)
 
 describe('changeMonthlyPortalGoalNow', () => {
+  it('the last day still changes now', async () => {
+    // 23:30 on Oct 31 in Sofia: October's last half hour; it locks once it has ended.
+    const { deps } = changeWorld([runningOctober()], new Date('2026-10-31T21:30:00.000Z'))
+
+    await changeMonthlyPortalGoalNow(deps, OCTOBER_45, actor)
+
+    expect(deps.programs.changeMonthTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        month: '2026-10',
+        targetValue: 45,
+        applyToFollowing: true,
+      }),
+      actor,
+    )
+  })
+
   it('change now judges this month and the next against the new number', async () => {
     const { deps, calls } = changeWorld()
 
@@ -599,6 +619,58 @@ describe('reviseMonthlyPortalGoal', () => {
 
 describe('stopMonthlyPortalGoal', () => {
   const STOP = { propertyId: PROPERTY_ID, programId: 'monthly' } as const
+  const DEC_1 = new Date('2026-11-30T22:00:00.000Z')
+  const NOV_22 = new Date('2026-11-22T10:00:00.000Z')
+
+  it('Stop keeps November and frees December', async () => {
+    const running = propertyGoal('monthly', 'portal_rating_count', {
+      status: 'active',
+      open: { start: NOV_1, end: DEC_1 },
+    })
+    const { deps } = changeWorld([running], NOV_22)
+
+    await stopMonthlyPortalGoal(deps, STOP, actor)
+
+    expect(deps.programs.changeStatus).toHaveBeenCalledWith(
+      { propertyId: PROPERTY_ID, programId: 'monthly', status: 'ended' },
+      actor,
+    )
+    // As the engine leaves it: ended, its window closed where November ends,
+    // November still open (integration: monthly-portal-goal-change).
+    const stopped = propertyGoal('monthly', 'portal_rating_count', {
+      status: 'ended',
+      until: DEC_1,
+      endedAt: new Date('2026-11-12T08:00:00.000Z'),
+      open: { start: NOV_1, end: DEC_1 },
+    })
+    // It is still the monthly goal while November counts…
+    expect(monthlyPortalGoalOf([stopped], NOV_22)?.program.id).toBe('monthly')
+    // …and a goal from December is no second goal beside it.
+    const next = fakeWorld([stopped])
+    await setMonthlyPortalGoal(
+      next.deps,
+      { ...NOVEMBER_40, startMonth: '2026-12', targetSource: 'own' },
+      actor,
+    )
+    expect(next.deps.programs.create).toHaveBeenCalledOnce()
+  })
+
+  it('Stop on a scheduled goal frees the month at once', async () => {
+    const { deps } = changeWorld([existing('monthly')])
+
+    await stopMonthlyPortalGoal(deps, STOP, actor)
+
+    expect(deps.programs.changeStatus).toHaveBeenCalledOnce()
+    // As the engine leaves it: ended with the empty window [Nov 1, Nov 1).
+    const stopped = propertyGoal('monthly', 'portal_rating_count', {
+      status: 'ended',
+      until: NOV_1,
+    })
+    expect(monthlyPortalGoalOf([stopped], OCT_23)).toBeNull()
+    const again = fakeWorld([stopped])
+    await setMonthlyPortalGoal(again.deps, NOVEMBER_40, actor)
+    expect(again.deps.programs.create).toHaveBeenCalledOnce()
+  })
 
   it('ends the goal, asked goal.cancel', async () => {
     const { deps, calls } = changeWorld()
