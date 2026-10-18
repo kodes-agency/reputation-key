@@ -21,6 +21,8 @@ type Props = Readonly<{
   small: boolean
   /** Set is on its way: the number holds still. */
   pending: boolean
+  /** A number with a decimal (the average): the keyboard offers its point. */
+  decimal?: boolean
   onType: (text: string) => void
   onCommit: () => void
   onStep: (to: number) => void
@@ -86,6 +88,7 @@ export function PortalGoalNumberTile({
   number,
   small,
   pending,
+  decimal = false,
   ...props
 }: Props) {
   const id = useId()
@@ -123,7 +126,7 @@ export function PortalGoalNumberTile({
         </span>
         <input
           type="text"
-          inputMode="numeric"
+          inputMode={decimal ? 'decimal' : 'numeric'}
           role="spinbutton"
           autoComplete="off"
           data-autofocus=""

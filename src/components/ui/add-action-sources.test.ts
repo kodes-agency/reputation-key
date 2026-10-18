@@ -36,6 +36,8 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'the + stepper of the rating goal setup raises the goal a tenth: an icon-only IconButton beside −, not a button that adds',
   'src/components/goals/portal-goal-number-tile.tsx':
     'the + stepper of the monthly portal goal sheet raises the number a step: an icon-only IconButton beside −, not a button that adds',
+  'src/components/goals/portal-goal-add-each.tsx':
+    'the + stepper of a row of A goal for each portal raises its number a step: an icon-only IconButton beside −, not a button that adds',
 }
 
 const importsPlus = (path: string) =>
