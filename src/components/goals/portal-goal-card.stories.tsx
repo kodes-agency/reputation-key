@@ -1,9 +1,11 @@
 // The Portal goals section of the Goals page and its Monthly portal goal card
 // before a goal (PLAN PG-08): the two gates (no Portal, draft Portals only),
 // the first weeks with each Portal's steps and the day the number is ready, a
-// code nobody has scanned, nothing counted, a recommendation that cannot be
-// read, a read on its way and one that failed. The Storybook Vitest project
-// compiles no Tailwind, so the plays assert words, roles and links.
+// code nobody has scanned, a number ready but not offered yet, nothing counted,
+// a recommendation that cannot be read, a goal (no card yet), a read on its way
+// and one that failed; each before-goal arm at 320 and 1440 px too. The
+// Storybook Vitest project compiles no Tailwind, so the plays assert words,
+// roles and links.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
@@ -13,9 +15,12 @@ import {
   CARD_DRAFTS_TWO,
   CARD_GETTING_READY,
   CARD_GETTING_READY_SILENT,
+  CARD_GOAL,
   CARD_NO_PORTAL,
   CARD_NOTHING,
+  CARD_READY,
   CARD_REC_UNREADABLE,
+  CARD_SCANS_ONLY,
   SEAVIEW,
 } from './portal-goal.stories.fixtures'
 
@@ -91,6 +96,16 @@ export const NoPortal: Story = {
   },
 }
 
+export const NoPortalOnANarrowPhone: Story = {
+  ...NoPortal,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const NoPortalOnADesktop: Story = {
+  ...NoPortal,
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+
 /** Without portal.create the gate is a fact, with no door. */
 export const NoPortalWithoutPortalCreate: Story = {
   args: { card: read(CARD_NO_PORTAL), canCreatePortal: false },
@@ -112,6 +127,16 @@ export const DraftsOnly: Story = {
       `${PORTALS}/portal-spa`,
     )
   },
+}
+
+export const DraftsOnlyOnANarrowPhone: Story = {
+  ...DraftsOnly,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const DraftsOnlyOnADesktop: Story = {
+  ...DraftsOnly,
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
 }
 
 export const DraftsTwo: Story = {
@@ -215,6 +240,16 @@ export const NothingCounted: Story = {
   },
 }
 
+export const NothingCountedOnANarrowPhone: Story = {
+  ...NothingCounted,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const NothingCountedOnADesktop: Story = {
+  ...NothingCounted,
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+
 export const RecommendationUnreadable: Story = {
   args: { card: read(CARD_REC_UNREADABLE) },
   play: async ({ canvasElement }) => {
@@ -223,6 +258,67 @@ export const RecommendationUnreadable: Story = {
     await expect(
       canvas.getByText('Your recommended number can’t be read right now.'),
     ).toBeVisible()
+  },
+}
+
+export const RecommendationUnreadableOnANarrowPhone: Story = {
+  ...RecommendationUnreadable,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const RecommendationUnreadableOnADesktop: Story = {
+  ...RecommendationUnreadable,
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+
+/** Until the card can offer it, a ready number draws the steps and the month so far: no heading, no ready day, no number. */
+async function expectReadyBeforeItsOffer(
+  canvas: Canvas,
+  sectionLine: string,
+  soFar: string,
+) {
+  await expectTitles(canvas)
+  await expect(canvas.getByText(sectionLine)).toBeVisible()
+  await expect(readinessNames(canvas)).toEqual(['Reception', 'Restaurant'])
+  await expect(canvas.getByText(soFar)).toBeVisible()
+  await expect(canvas.queryByText('Getting your portals ready')).toBeNull()
+  await expect(canvas.queryByText(/Your recommended number is ready/u)).toBeNull()
+  await expect(canvas.queryByRole('button')).toBeNull()
+}
+
+export const ScansOnlyBeforeItsOffer: Story = {
+  args: { card: read(CARD_SCANS_ONLY) },
+  play: async ({ canvasElement }) => {
+    await expectReadyBeforeItsOffer(
+      within(canvasElement),
+      'How many scans your portals get each month.',
+      'So far in October: 0 private ratings · 23 scans',
+    )
+  },
+}
+
+export const ReadyBeforeItsOffer: Story = {
+  args: { card: read(CARD_READY) },
+  play: async ({ canvasElement }) => {
+    await expectReadyBeforeItsOffer(
+      within(canvasElement),
+      RATINGS_LINE,
+      'So far in October: 12 private ratings · 47 scans',
+    )
+  },
+}
+
+/** With a goal the card draws nothing yet: the goal is listed with the other Portal goals. */
+export const WithAGoal: Story = {
+  args: { card: read(CARD_GOAL) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('heading', { level: 2, name: 'Portal goals' }),
+    ).toBeVisible()
+    await expect(canvasElement.querySelector('[data-slot="portal-goal-card"]')).toBeNull()
+    await expect(canvas.queryByRole('heading', { level: 3 })).toBeNull()
+    await expect(canvas.queryByText(RATINGS_LINE)).toBeNull()
   },
 }
 

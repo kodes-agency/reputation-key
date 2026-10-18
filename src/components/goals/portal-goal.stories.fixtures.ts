@@ -70,6 +70,34 @@ export const CARD_GETTING_READY_SILENT: PortalGoalCardView = {
   ],
 }
 
+/**
+ * A number ready, drawn with the first weeks until the card can offer it: the
+ * steps and the month so far, with no ready day. Scans only here (P-2), so the
+ * section line counts scans.
+ */
+export const CARD_SCANS_ONLY: PortalGoalCardView = {
+  state: 'scans_only',
+  today: '2026-10-23',
+  month: '2026-10',
+  soFar: { ratings: 0, scans: 23 },
+  portals: [
+    ready('portal-reception', 'Reception'),
+    ready('portal-restaurant', 'Restaurant'),
+  ],
+}
+
+/** The same with private ratings: the number is ready, and not offered yet. */
+export const CARD_READY: PortalGoalCardView = {
+  ...CARD_SCANS_ONLY,
+  state: 'ready',
+  soFar: { ratings: 12, scans: 47 },
+}
+
+export const CARD_GOAL: PortalGoalCardView = {
+  state: 'goal',
+  goal: { programId: 'program-monthly' },
+}
+
 export const CARD_NOTHING: PortalGoalCardView = { state: 'nothing_counted', weeks: 2 }
 
 export const CARD_REC_UNREADABLE: PortalGoalCardView = {
