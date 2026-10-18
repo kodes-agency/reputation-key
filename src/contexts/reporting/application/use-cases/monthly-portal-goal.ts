@@ -217,11 +217,13 @@ function theChangedGoal(
   now: Date,
 ): Changed {
   const asked = programs.find(({ program }) => program.id === programId)
-  const page = asked === undefined ? null : portalGoalPageOf(asked)
-  if (asked !== undefined && page?.kind === 'subject' && isPortalCountGoal(asked)) {
+  // Not among this Property's goals: the same answer as every goal command.
+  if (asked === undefined) throw new GoalProgramError('not_found')
+  const page = portalGoalPageOf(asked)
+  if (page?.kind === 'subject' && isPortalCountGoal(asked)) {
     return { goal: asked, subject: page.subject }
   }
-  if (asked !== undefined && page?.kind === 'average') {
+  if (page?.kind === 'average') {
     return { goal: asked, subject: page.subject }
   }
   const goal = theMonthlyGoal(programs, programId, now)

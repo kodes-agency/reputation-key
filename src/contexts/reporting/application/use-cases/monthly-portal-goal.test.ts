@@ -599,6 +599,15 @@ describe('changeMonthlyPortalGoalNow', () => {
     expect(deps.programs.changeMonthTarget).not.toHaveBeenCalled()
   })
 
+  it('answers not_found for a goal that is not among the Property goals', async () => {
+    const { deps } = changeWorld([runningOctober()])
+
+    await expect(
+      changeMonthlyPortalGoalNow(deps, { ...OCTOBER_45, programId: 'elsewhere' }, actor),
+    ).rejects.toEqual(new GoalProgramError('not_found'))
+    expect(deps.programs.changeMonthTarget).not.toHaveBeenCalled()
+  })
+
   it('a refused actor reads and writes nothing', async () => {
     const { deps, calls } = changeWorld()
     deps.policy.authorize.mockRejectedValueOnce(new GoalProgramError('forbidden'))
