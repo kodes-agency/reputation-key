@@ -1,8 +1,9 @@
 // The Goals page's Portal goals part: the section with the Monthly portal goal's
-// card on the Active view, read from its own query (the loader primes it beside
-// the Google section), and the page's other Portal goals in its slots. The card
-// is read only for someone who may set the goal; a read that failed says so in
-// the section and holds nothing else back. The History view draws no card. The
+// card, read from its own query (the loader primes it beside the Google
+// section), and the page's other Portal goals in its slots. It is the same on
+// both of the Google section's views (`?view=` is the Google section's, P-7a).
+// The card is read only for someone who may set the goal; a read that failed
+// says so in the section and holds nothing else back. The
 // card's Use sends the set command, and its other doors open the set sheet
 // (`-portal-goal-sheet-host.tsx`), which sends the same command; a set (or a
 // refusal that means the card is behind) marks every Portal-goal read stale,
@@ -25,28 +26,18 @@ import { focusPortalGoalCardTitle, usePortalGoalSheet } from './-portal-goal-she
 
 type Props = Readonly<{
   propertyId: string
-  view: 'active' | 'history'
   /** The other Portal goals, under the card, given the monthly goal's Program it leaves out. */
   extras?: (monthlyGoalId: string | null) => ReactNode
-  /** What the section says when it has nothing to show (an empty History). */
-  empty?: string
   /** The way to add one, at the section's foot. */
   footer?: ReactNode
   /** The way to each month's result and the ended goals, under it. */
   results?: ReactNode
 }>
 
-export function PortalGoalPanel({
-  propertyId,
-  view,
-  extras,
-  empty,
-  footer,
-  results,
-}: Props) {
+export function PortalGoalPanel({ propertyId, extras, footer, results }: Props) {
   const { can } = usePermissions()
   const queryClient = useQueryClient()
-  const drawsCard = view === 'active' && can('goal.create')
+  const drawsCard = can('goal.create')
   const card = useQuery({
     ...portalGoalCardQuery(propertyId),
     enabled: drawsCard,
@@ -79,7 +70,6 @@ export function PortalGoalPanel({
         canCreatePortal={can('portal.create')}
         commands={{ ...set, openSheet: sheet.open }}
         extras={extras?.(drawsCard ? monthlyGoalId : null)}
-        empty={empty}
         footer={footer}
         results={results}
       />

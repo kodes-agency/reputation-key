@@ -90,7 +90,6 @@ function MonthlyPortalGoalRoute() {
           <PortalGoalExtras
             propertyId={propertyId}
             timezone={timezone}
-            view="active"
             goals={extras.goals}
             monthlyGoalId={null}
             live={{

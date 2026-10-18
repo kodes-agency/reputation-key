@@ -1,10 +1,11 @@
-// The Goals page's Google part: the Google rating goal section on the Active
-// view, its reached and ended goals on the History view, and the wizard its
-// doors open. Its reads are its own: the loader primes the card, the setup and
-// the History all at once, beside the Portal goals' reads, and a failed one
-// says so in this section and holds nothing else back. The setup and History
-// are drawn from only while there is no active goal (the empty states, the
-// wizard, and a goal reached or ended lately). Arrived at with `?start=`, it
+// The Goals page's Google part: the Google rating goal section with its own
+// Active / History tabs (P-7a, ADR 0068; `?view=` chooses only here), the card
+// on the Active view, its reached and ended goals on the History view, and the
+// wizard its doors open. Its reads are its own: the loader primes the card, the
+// setup and the History all at once, beside the Portal goals' reads, and a
+// failed one says so in this section and holds nothing else back. The setup and
+// History are drawn from only while there is no active goal (the empty states,
+// the wizard, and a goal reached or ended lately). Arrived at with `?start=`, it
 // opens the wizard once both are read, where the page's own door would.
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
@@ -18,6 +19,7 @@ import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wiza
 import { RatingGoalHistory } from '#/components/goals/rating-goal-history'
 import type { PortalNextStep } from '#/components/goals/rating-goal-portal-step'
 import { RatingGoalSection } from '#/components/goals/rating-goal-section'
+import { RatingGoalViews } from '#/components/goals/rating-goal-views'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { ratingGoalHistoryQuery, ratingGoalSetupQuery } from './-rating-goal-queries'
@@ -32,6 +34,7 @@ import {
 type Props = Readonly<{
   propertyId: string
   timezone: string
+  /** The section's tab (`?view=`): the card, or its History. */
   view: 'active' | 'history'
   /** Too few reviews' link: to the Portals when there are any, else to a first one. */
   hasPortals: boolean
@@ -120,21 +123,27 @@ export function RatingGoalPanel({
   }, [doorShown])
   return (
     <>
-      {view === 'active' ? (
-        <RatingGoalSection
-          propertyId={propertyId}
-          timezone={timezone}
-          now={now}
-          card={{ ...regionRead(card), readAt: new Date(card.dataUpdatedAt) }}
-          setup={regionRead(setup)}
-          history={regionRead(history)}
-          hasPortals={hasPortals}
-          onStart={start}
-          recap={recap}
-        />
-      ) : (
-        <RatingGoalHistory history={regionRead(history)} timezone={timezone} now={now} />
-      )}
+      <RatingGoalViews propertyId={propertyId} view={view}>
+        {view === 'active' ? (
+          <RatingGoalSection
+            propertyId={propertyId}
+            timezone={timezone}
+            now={now}
+            card={{ ...regionRead(card), readAt: new Date(card.dataUpdatedAt) }}
+            setup={regionRead(setup)}
+            history={regionRead(history)}
+            hasPortals={hasPortals}
+            onStart={start}
+            recap={recap}
+          />
+        ) : (
+          <RatingGoalHistory
+            history={regionRead(history)}
+            timezone={timezone}
+            now={now}
+          />
+        )}
+      </RatingGoalViews>
       {wizard}
     </>
   )

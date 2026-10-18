@@ -864,6 +864,20 @@
 // back to the Portal goals), all of it in the page's lazy chunk (3,883 B gzip),
 // a fresh build measured 308,136 B (entry 49,380 B): +139 B on the base, 64 B
 // spare under 308,200 and 164 B under the ceiling. The stylesheet is unchanged.
+//
+// 2026-10-18 (Monthly portal goal, PG-19: the Active / History tabs inside the
+// Google rating goal section): no raise. The tabs and the section that holds
+// them (RatingGoalViews) load with the Goals route's component chunk, as the
+// tabs did; the Portal goals lose their History arm, so that chunk shrank
+// (vite's gzip column 4.53 -> 4.48 kB) and so did the sheet host's
+// (10.31 -> 10.29 kB) and the goal page's (4.97 -> 4.96 kB). The route's
+// validateSearch is unchanged (comments only). No class was added: the
+// stylesheet is the base's (styles-mDD_TGAT.css, 27,845 B). On the stacked
+// base, PG-18's head 7f9a8d017, fresh production builds measured 308,136 B
+// (75 js + 1 css; entry 49,380 B) and 308,137 B on the head (entry
+// 49,381 B): +1 B, all in the entry, which is byte-identical to the base's
+// once the hashed chunk names are masked. 63 B spare under 308,200 and 163 B
+// under the build's ceiling of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

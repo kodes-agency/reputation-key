@@ -4,7 +4,9 @@
 // while it is news (from the read that found it, or from History when the
 // snapshot consumer got there first); or, with no goal, the door into the
 // wizard or the reason there is none. A read that is on its way keeps the
-// card's room; one that failed says so here and nowhere else.
+// card's room; one that failed says so here and nowhere else. This is the
+// Active view: the Goals page draws it under the section's Active / History
+// tabs, inside the region `RatingGoalViews` names (P-7a).
 import type {
   RatingGoalCardView,
   RatingGoalHistoryEntry,
@@ -71,14 +73,18 @@ const Pending = () => (
   />
 )
 
-/** The section's title where the card does not bring its own. */
+/**
+ * The section's title where the card does not bring its own. No region of its
+ * own: the Goals page's section (`RatingGoalViews`) is the one named "Google
+ * rating goal", so the name is not given twice.
+ */
 const Titled = ({ children }: Readonly<{ children: React.ReactNode }>) => (
-  <section aria-labelledby={RATING_GOAL_HEADING_ID} className="flex flex-col gap-3">
+  <div className="flex flex-col gap-3">
     <SectionTitle id={RATING_GOAL_HEADING_ID} tabIndex={-1} className="outline-none">
       Google rating goal
     </SectionTitle>
     {children}
-  </section>
+  </div>
 )
 
 /**

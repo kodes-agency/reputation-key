@@ -3,14 +3,12 @@
 // portal goal's card, and three slots, `extras` (the other Portal goals),
 // `footer` (the way to add one) and `results` (the way to each month's result
 // and the ended goals, PG-18). A read on its way keeps the card's room; one
-// that failed says so here and holds nothing else back. A view that draws no
-// card (the History, or a reader who cannot set goals) shows the slots only, or
-// that it has nothing to show.
+// that failed says so here and holds nothing else back. It is the same on both
+// of the Google section's views (P-7a); a reader who cannot set goals gets no
+// card, the slots only.
 import { useEffect, type ReactNode } from 'react'
 import { useRouterState } from '@tanstack/react-router'
-import { Target } from 'lucide-react'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { SectionTitle } from '#/components/ui/section-title'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -51,8 +49,6 @@ type Props = Readonly<{
   /** What the card sends (Use), handed down by the page. */
   commands: PortalGoalCommands
   extras?: ReactNode
-  /** What the section says when neither a card nor `extras` has anything to show. */
-  empty?: string
   footer?: ReactNode
   /** The way to each month's result and the ended goals, at the very foot. */
   results?: ReactNode
@@ -128,7 +124,6 @@ export function PortalGoalSection({
   canCreatePortal,
   commands,
   extras,
-  empty,
   footer,
   results,
 }: Props) {
@@ -157,7 +152,6 @@ export function PortalGoalSection({
         />
       )}
       {extras}
-      {empty === undefined ? null : <EmptyState icon={Target} title={empty} />}
       {footer}
       {results}
     </section>

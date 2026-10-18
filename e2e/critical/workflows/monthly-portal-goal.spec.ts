@@ -31,6 +31,12 @@
 //       the closed month's result in plain words, and the ended goal with the
 //       day it ended, where "Ended portal goals (1)" lands and hands its title
 //       the focus; both themes pass axe.
+//   J12. History belongs to the Google section (P-7a): on `?view=history` the
+//       Active / History tabs sit inside the one region named "Google rating
+//       goal", which shows its own History; the Portal goals below it keep the
+//       card, the goal not ended and the way to the ended one, which is not
+//       listed on the Goals page, exactly as on Active; the History view passes
+//       axe.
 //
 // Every Property here is the journey's own (prefix `e2e-pg-`, run id and retry
 // in the slug). Expected days are read from the database clock in the
@@ -718,5 +724,105 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(
       page.getByRole('heading', { level: 2, name: 'Ended portal goals' }),
     ).toBeFocused()
+  })
+  test('J12 History belongs to the Google section; the portal card stays on ?view=history', async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, portals } = await seedPortalGoalProperty(
+      page,
+      'j12',
+      testInfo.retry,
+    )
+    seeded.push(propertyId)
+    const [reception, , spa] = portals
+    if (!reception || !spa) throw new Error('E2E Portals are not seeded')
+    const GOAL_PROGRAMS = 'src/contexts/reporting/server/goal-programs.ts'
+    const startMonth = await nextMonthKey(propertyId)
+    const create = (data: Readonly<Record<string, unknown>>) =>
+      callServerFn<{ program: { id: string } }>(page, {
+        file: GOAL_PROGRAMS,
+        exportName: 'createGoalProgram',
+        data: { propertyId, description: null, startMonth, ...data },
+      })
+    // A Portal goal that has not ended, and one that has.
+    await create({
+      name: 'Reception ratings',
+      metric: 'portal_rating_count',
+      targetValue: 20,
+      subjects: [{ kind: 'portal', portalId: reception.id }],
+    })
+    const stopped = await create({
+      name: 'Spa scans',
+      metric: 'qualified_scans',
+      targetValue: 30,
+      subjects: [{ kind: 'portal', portalId: spa.id }],
+    })
+    await callServerFn(page, {
+      file: GOAL_PROGRAMS,
+      exportName: 'changeGoalProgramStatus',
+      data: {
+        propertyId,
+        programId: stopped.program.id,
+        status: 'ended',
+        reason: 'E2E an ended portal goal.',
+      },
+    })
+
+    await page.goto(`/properties/${propertyId}/goals?view=history`)
+    await waitForHydration(page)
+
+    // The tabs are the Google section's: inside its one region, and the page's only ones.
+    const google = page.getByRole('region', { name: 'Google rating goal', exact: true })
+    await expect(google).toHaveCount(1)
+    const tabs = google.getByRole('navigation', { name: 'Google rating goal views' })
+    await expect(tabs.getByRole('link', { name: 'History' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    await expect(
+      page.getByRole('navigation', { name: 'Google rating goal views' }),
+    ).toHaveCount(1)
+    await expect(google.getByText('No Google rating goal history')).toBeVisible()
+
+    // The Portal goals, outside the Google section, the same on both tabs: the
+    // card, the goal not ended, and the way to the ended one, not listed here.
+    const section = page.locator('#portal-goals')
+    await expect(google.locator('#portal-goals')).toHaveCount(0)
+    const expectPortalGoals = async () => {
+      await expect(
+        section
+          .locator('[data-slot="portal-goal-card"]')
+          .getByRole('heading', { level: 3, name: 'Monthly portal goal' }),
+      ).toBeVisible()
+      await expect(section.getByRole('link', { name: 'Reception ratings' })).toBeVisible()
+      await expect(page.getByRole('link', { name: 'Spa scans' })).toHaveCount(0)
+      await expect(
+        section.getByRole('link', { name: 'Ended portal goals (1)' }),
+      ).toHaveAttribute('href', `/properties/${propertyId}/goals/portal-results#ended`)
+    }
+    await expectPortalGoals()
+
+    await dismissToasts(page)
+    await assertNoAxeViolations(page, 'the Goals page, History tab')
+    // The landmarks changed (one region named "Google rating goal"): both themes pass axe.
+    await page.evaluate(() => window.localStorage.setItem('theme', 'light'))
+    await page.reload()
+    await waitForHydration(page)
+    await expect(page.locator('html')).toHaveClass(/\blight\b/u)
+    await expectPortalGoals()
+    await assertNoAxeViolations(page, 'the Goals page, History tab (light)')
+
+    // Active: the Google section's own view changes; the Portal goals do not.
+    await clickWhenReady(tabs.getByRole('link', { name: 'Active' }))
+    await expect(page).toHaveURL(
+      new RegExp(`/properties/${propertyId}/goals\\?view=active$`, 'u'),
+    )
+    await expect(tabs.getByRole('link', { name: 'Active' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    await expect(google.getByText('No Google rating goal history')).toHaveCount(0)
+    await expectPortalGoals()
   })
 })

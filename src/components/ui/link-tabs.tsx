@@ -6,7 +6,7 @@
 // below. The look is not part of that split, so it comes from the same recipe
 // as the Radix line tabs (`tabs-line-styles.ts`).
 //
-//   <LinkTabs aria-label="Goal views">
+//   <LinkTabs aria-label="Google rating goal views">
 //     <LinkTab to="/goals" search={{ view: 'active' }} current={view === 'active'}>
 //       Active
 //     </LinkTab>
