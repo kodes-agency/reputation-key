@@ -22,6 +22,7 @@ import type { GoalProgressRequestApi } from '../application/use-cases/goal-progr
 import type { GoalListProgressRequestApi } from '../application/use-cases/goal-list-progress'
 import type { MonthlyPortalGoalRequestApi } from '../application/use-cases/monthly-portal-goal-page'
 import type { PortalGoalAddRequestApi } from '../application/use-cases/portal-goal-add'
+import type { PortalGoalSinglePageRequestApi } from '../application/use-cases/portal-goal-single-page'
 
 export const requestActor = (
   ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
@@ -87,7 +88,8 @@ export async function withGoalPrograms<T>(
       GoalProgressRequestApi &
       GoalListProgressRequestApi &
       MonthlyPortalGoalRequestApi &
-      PortalGoalAddRequestApi,
+      PortalGoalAddRequestApi &
+      PortalGoalSinglePageRequestApi,
     policy: GoalExecutionPolicy,
     actor: GoalActor,
   ) => Promise<T>,

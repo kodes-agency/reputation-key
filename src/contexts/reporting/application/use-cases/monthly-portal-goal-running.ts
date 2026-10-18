@@ -16,7 +16,8 @@
 // from a coming month ("Count scans instead") leaves the month already counting
 // as it was. On the month's first seven local days, the month-start check-in
 // (`monthly-portal-goal-check-in.ts`). Everything here is decided by the
-// server; the card only words it.
+// server; the card only words it. A goal for one Portal or one Portal Group
+// reads its own subject the same way on its page (PLAN PG-21).
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { goalMonthDays, goalPace } from '../../domain/goal-pace'
@@ -31,8 +32,10 @@ import type {
   PortalGoalRunningMonth,
 } from '../dto/monthly-portal-goal.types'
 import { effectiveMonthTarget } from '../goal-effective-month-target'
+import type { GoalSubject } from '../../domain/goal-subject'
 import {
   isPortalGoalMeasure,
+  type PortalCountGoal,
   type PropertyCountGoal,
 } from '../monthly-portal-goal-identity'
 import type {
@@ -65,8 +68,14 @@ const LAST_MONTH_SHOWN_THROUGH_DAY = 7
 /** A closed month's final figure is due this long after its reconciliation window. */
 const FINAL_FIGURE_MARGIN_MS = 60 * 60 * 1_000
 
-const propertySubject = (bundle: PropertyCountGoal) =>
-  ({ kind: 'property', propertyId: bundle.program.propertyId }) as const
+/**
+ * What the goal counts now: the Property for the Monthly portal goal, or the
+ * one Portal or Portal Group a goal was set for.
+ */
+export const subjectOf = (bundle: PortalCountGoal): GoalSubject =>
+  bundle.assignments.find(
+    ({ programVersionId }) => programVersionId === bundle.version.id,
+  )?.subject ?? { kind: 'property', propertyId: bundle.program.propertyId }
 
 export const versionOf = (
   bundle: PropertyCountGoal,
@@ -242,13 +251,7 @@ async function stoppedMonthOf(
       assignmentId === assignment.id && periodStart.getTime() === period.start.getTime(),
   )
   const target = result ? effectiveMonthTarget(result, version) : version.targetValue
-  const reading = await readSubjectMonth(
-    deps,
-    version,
-    propertySubject(bundle),
-    period,
-    actor,
-  )
+  const reading = await readSubjectMonth(deps, version, subjectOf(bundle), period, actor)
   const value = reading.kind === 'live' ? reading.value : null
   return {
     month: runningMonth(measure, { period, timezone, target }, value, now),
@@ -308,7 +311,7 @@ async function lastMonthOf(
     const reading = await readSubjectMonth(
       deps,
       version,
-      propertySubject(bundle),
+      subjectOf(bundle),
       { start: result.periodStart, end: result.periodEnd },
       actor,
     )
@@ -334,14 +337,7 @@ export async function countingNow(
 ): Promise<Readonly<{ month: PortalGoalRunningMonth; period: Period }> | null> {
   const { now, actor } = context
   if (bundle.program.status === 'ended') return stoppedMonthOf(deps, bundle, context)
-  const progress = await progressOf(
-    deps,
-    bundle,
-    propertySubject(bundle),
-    'active',
-    now,
-    actor,
-  )
+  const progress = await progressOf(deps, bundle, subjectOf(bundle), 'active', now, actor)
   if (progress === null || !isPortalGoalMeasure(progress.metric)) return null
   const { metric, period, timezone, reading, targetValue } = progress
   const value = reading.kind === 'live' ? reading.value : null
@@ -351,10 +347,10 @@ export async function countingNow(
   }
 }
 
-/** The goal as its card shows it. */
+/** The goal as its card shows it, or a Portal's or a group's goal as its page does. */
 export async function monthlyPortalGoalOnCard(
   deps: MonthlyPortalGoalOnCardDeps,
-  bundle: PropertyCountGoal,
+  bundle: PortalCountGoal,
   context: MonthlyPortalGoalOnCardContext,
 ): Promise<PortalGoalOfCard> {
   const { program, version } = bundle

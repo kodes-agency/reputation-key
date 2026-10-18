@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GoalMetric } from '../../domain/goal-program'
+import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
 import type {
   RecommendationDayCount,
   RecommendationPortal,
@@ -364,14 +364,31 @@ describe('setMonthlyPortalGoalSchema', () => {
 const OCT_1 = new Date('2026-09-30T21:00:00.000Z')
 const NOV_1 = new Date('2026-10-31T22:00:00.000Z')
 
-/** The monthly goal, running in October at 40, set on Oct 2. */
-const runningOctober = () =>
-  propertyGoal('monthly', 'portal_rating_count', {
+const receptionSubject = { kind: 'portal', portalId: 'portal-reception' } as const
+
+/** The monthly goal (or a goal for one subject), running in October at 40, set on Oct 2. */
+const runningOctober = (id = 'monthly', subject?: GoalSubject) =>
+  propertyGoal(id, 'portal_rating_count', {
     status: 'active',
     from: OCT_1,
     createdAt: new Date('2026-10-02T09:00:00.000Z'),
     open: { start: OCT_1, end: NOV_1 },
+    ...(subject ? { subject } : {}),
   })
+
+/** A goal for Reception and Spa at once, as an old form could make: no page of its own. */
+function severalSubjects(id: string): GoalProgramBundle {
+  const goal = existing(id, { subject: receptionSubject })
+  const [window] = goal.assignments
+  if (!window) throw new Error('expected a window')
+  return {
+    ...goal,
+    assignments: [
+      window,
+      { ...window, id: `${id}-a2`, subject: { kind: 'portal', portalId: 'portal-spa' } },
+    ],
+  }
+}
 
 /** The commands over an in-memory Property, with the engine's own commands faked. */
 function changeWorld(
@@ -499,16 +516,52 @@ describe('changeMonthlyPortalGoalNow', () => {
     )
   })
 
-  it('refuses a goal that is not the monthly portal goal', async () => {
-    const { deps } = changeWorld([
-      runningOctober(),
-      existing('reception', {
-        subject: { kind: 'portal', portalId: 'portal-reception' },
+  it('changes a goal for one portal now, with its own recommended number (PG-21)', async () => {
+    // Reception's own 11 in 14 days, 11 so far in October with 9 days left
+    // with today: 19 · 20 · 21 for the rest of October.
+    const goal = runningOctober('reception', receptionSubject)
+    const recommended = changeWorld([runningOctober(), goal])
+    const property = changeWorld([runningOctober(), goal])
+    const input = {
+      ...OCTOBER_45,
+      programId: 'reception',
+      targetSource: 'recommended',
+    } as const
+
+    await changeMonthlyPortalGoalNow(
+      recommended.deps,
+      { ...input, targetValue: 20 },
+      actor,
+    )
+    // The Property's own recommended number for October is not Reception's.
+    await changeMonthlyPortalGoalNow(property.deps, { ...input, targetValue: 28 }, actor)
+
+    expect(recommended.deps.programs.changeMonthTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        programId: 'reception',
+        targetValue: 20,
+        targetSource: 'recommended',
       }),
-    ])
+      actor,
+    )
+    expect(property.deps.programs.changeMonthTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ targetValue: 28, targetSource: 'own' }),
+      actor,
+    )
+  })
+
+  it.each([
+    ['a goal for several subjects', severalSubjects('other')],
+    ['an average', existing('other', { metric: 'portal_rating_average' })],
+    [
+      'a second Property count goal, set after the monthly one',
+      existing('other', { metric: 'qualified_scans', createdAt: OCT_23 }),
+    ],
+  ])('refuses a goal it does not change (%s)', async (_label, goal) => {
+    const { deps } = changeWorld([runningOctober(), goal])
 
     await expect(
-      changeMonthlyPortalGoalNow(deps, { ...OCTOBER_45, programId: 'reception' }, actor),
+      changeMonthlyPortalGoalNow(deps, { ...OCTOBER_45, programId: 'other' }, actor),
     ).rejects.toEqual(new GoalProgramError('invalid_subject'))
     expect(deps.programs.changeMonthTarget).not.toHaveBeenCalled()
   })
@@ -615,27 +668,72 @@ describe('reviseMonthlyPortalGoal', () => {
     )
   })
 
+  it('From Dec 1 on a goal for one portal keeps the portal its subject (PG-21)', async () => {
+    // Reception's goal starts on Nov 1: changed from Nov 1, its own 24 · 26 · 29.
+    const goal = existing('reception', { subject: receptionSubject })
+    const recommended = changeWorld([goal])
+    const property = changeWorld([goal])
+    const input = {
+      ...FROM_NOVEMBER_45,
+      programId: 'reception',
+      targetSource: 'recommended',
+    } as const
+
+    await reviseMonthlyPortalGoal(recommended.deps, { ...input, targetValue: 26 }, actor)
+    await reviseMonthlyPortalGoal(property.deps, { ...input, targetValue: 40 }, actor)
+
+    expect(recommended.deps.programs.revise).toHaveBeenCalledWith(
+      expect.objectContaining({
+        programId: 'reception',
+        targetValue: 26,
+        subjects: [receptionSubject],
+        targetSource: 'recommended',
+      }),
+      actor,
+    )
+    // 40 is the Property's recommendation, not Reception's.
+    expect(property.deps.programs.revise).toHaveBeenCalledWith(
+      expect.objectContaining({ targetValue: 40, targetSource: 'own' }),
+      actor,
+    )
+  })
+
+  it('Count scans instead on a group goal keeps the group its subject (PG-21)', async () => {
+    const rooms = { kind: 'portal_group', portalGroupId: 'group-rooms' } as const
+    const { deps } = changeWorld([existing('rooms', { subject: rooms })])
+
+    await reviseMonthlyPortalGoal(
+      deps,
+      {
+        ...FROM_NOVEMBER_45,
+        programId: 'rooms',
+        metric: 'qualified_scans',
+        targetValue: 12,
+      },
+      actor,
+    )
+
+    expect(deps.programs.revise).toHaveBeenCalledWith(
+      expect.objectContaining({ metric: 'qualified_scans', subjects: [rooms] }),
+      actor,
+    )
+  })
+
   it.each([
-    [
-      'a goal for one Portal',
-      existing('other', { subject: { kind: 'portal', portalId: 'portal-reception' } }),
-    ],
+    ['a goal for several subjects', severalSubjects('other')],
     ['an average', existing('other', { metric: 'portal_rating_average' })],
     [
       'a second Property count goal, set after the monthly one',
       existing('other', { metric: 'qualified_scans', createdAt: OCT_23 }),
     ],
-  ])(
-    'revise refuses a goal that is not the monthly portal goal (%s)',
-    async (_label, goal) => {
-      const { deps } = changeWorld([runningOctober(), goal])
+  ])('revise refuses a goal it does not change (%s)', async (_label, goal) => {
+    const { deps } = changeWorld([runningOctober(), goal])
 
-      await expect(
-        reviseMonthlyPortalGoal(deps, { ...FROM_NOVEMBER_45, programId: 'other' }, actor),
-      ).rejects.toEqual(new GoalProgramError('invalid_subject'))
-      expect(deps.programs.revise).not.toHaveBeenCalled()
-    },
-  )
+    await expect(
+      reviseMonthlyPortalGoal(deps, { ...FROM_NOVEMBER_45, programId: 'other' }, actor),
+    ).rejects.toEqual(new GoalProgramError('invalid_subject'))
+    expect(deps.programs.revise).not.toHaveBeenCalled()
+  })
 
   it('a refused actor reads and writes nothing', async () => {
     const { deps, calls } = changeWorld()
@@ -733,10 +831,28 @@ describe('stopMonthlyPortalGoal', () => {
     expect(deps.programs.changeStatus).not.toHaveBeenCalled()
   })
 
-  it('refuses a goal that is not a Property count goal', async () => {
-    const { deps } = changeWorld([
-      existing('monthly', { subject: { kind: 'portal', portalId: 'portal-reception' } }),
-    ])
+  it.each([
+    ['a goal for one portal', existing('monthly', { subject: receptionSubject })],
+    [
+      'a goal for a group',
+      existing('monthly', {
+        subject: { kind: 'portal_group', portalGroupId: 'group-rooms' },
+      }),
+    ],
+    ['the average', existing('monthly', { metric: 'portal_rating_average' })],
+  ])('stops %s too (PG-21)', async (_label, goal) => {
+    const { deps } = changeWorld([goal])
+
+    await stopMonthlyPortalGoal(deps, STOP, actor)
+
+    expect(deps.programs.changeStatus).toHaveBeenCalledWith(
+      { propertyId: PROPERTY_ID, programId: 'monthly', status: 'ended' },
+      actor,
+    )
+  })
+
+  it('refuses a goal for several subjects', async () => {
+    const { deps } = changeWorld([severalSubjects('monthly')])
 
     await expect(stopMonthlyPortalGoal(deps, STOP, actor)).rejects.toEqual(
       new GoalProgramError('invalid_subject'),

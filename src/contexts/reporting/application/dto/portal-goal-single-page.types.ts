@@ -1,0 +1,65 @@
+// A goal for one Portal, one Portal Group, or the average private rating — what
+// its page read returns (types only; ADR 0068, PLAN PG-21).
+//
+// No zod and no values: a component imports these with `import type`, so
+// nothing here reaches a bundle (PLAN E10). The server decides every state,
+// day and number; the page only words them (PLAN E12). Days are
+// Property-local `YYYY-MM-DD`, months `YYYY-MM`.
+
+import type { GoalProgressReading } from '../use-cases/goal-progress'
+import type { PortalGoalPageView } from './monthly-portal-goal-page.types'
+import type { PortalGoalChangeFacts } from './monthly-portal-goal.types'
+
+/** Whom the goal counts, and its name; null when Portal could not say it. */
+export type PortalGoalSingleSubject = Readonly<{
+  kind: 'property' | 'portal' | 'portal_group'
+  name: string | null
+}>
+
+/** What the month so far says of an average: the governed figure, or that it needs more ratings. */
+export type PortalGoalAverageReading = Exclude<
+  GoalProgressReading,
+  Readonly<{ kind: 'not_started' }>
+>
+
+/** The average private rating goal on its page: its level, and this month while it counts. */
+export type PortalGoalAverageOfPage = Readonly<{
+  programId: string
+  status: 'scheduled' | 'active' | 'paused' | 'ended'
+  /** Its current version's level: "goal 4.5". */
+  target: number
+  /** Scheduled: the local day its first month begins; else null. */
+  startsOn: string | null
+  /** Active: the month it counts, its own level, and its days; else null. */
+  month: Readonly<{
+    key: string
+    target: number
+    /** The local days still to begin after today ("9 days left" counts today too). */
+    daysAfterToday: number
+    reading: PortalGoalAverageReading
+  }> | null
+  /** What a stop is made against; null once it has been stopped. */
+  change: PortalGoalChangeFacts | null
+}>
+
+/**
+ * `$goalId`'s read. A Property count goal is the Monthly portal goal, whose page
+ * is `/goals/portals`. A count goal for one Portal or one Portal Group has the
+ * Monthly portal goal's page made from its own subject (its card arm is always
+ * the goal, and it has no Portals' rows, quiet Portals or other goals). The
+ * average has a page of its own.
+ */
+export type PortalGoalSinglePageView =
+  | Readonly<{ kind: 'monthly' }>
+  | Readonly<{
+      kind: 'subject'
+      subject: PortalGoalSingleSubject
+      page: PortalGoalPageView
+    }>
+  | Readonly<{
+      kind: 'average'
+      subject: PortalGoalSingleSubject
+      /** Today, the Property's local day. */
+      today: string
+      goal: PortalGoalAverageOfPage
+    }>

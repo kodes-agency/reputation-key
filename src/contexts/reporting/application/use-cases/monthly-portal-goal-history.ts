@@ -44,6 +44,7 @@ import {
   measureOf,
   monthKeyOf,
   outcomeOf,
+  subjectOf,
   versionOf,
   type MonthlyPortalGoalOnCardDeps,
 } from './monthly-portal-goal-running'
@@ -123,10 +124,12 @@ async function figureSoFar(
 ): Promise<number | null> {
   const { bundle, result, version, base } = picked
   if (shown?.key === base.key && shown.measure === base.measure) return shown.value
+  // The subject the month was opened for: the Property, or a goal's one Portal or group.
+  const assignment = bundle.assignments.find(({ id }) => id === result.assignmentId)
   const reading = await readSubjectMonth(
     deps,
     version,
-    { kind: 'property', propertyId: bundle.program.propertyId },
+    assignment?.subject ?? subjectOf(bundle),
     { start: result.periodStart, end: result.periodEnd },
     actor,
   )

@@ -120,7 +120,12 @@ function anchorMonthOf(goal: PortalGoalOfCard, today: string): string {
   )
 }
 
-function tilesOf(
+/**
+ * P-4's tiles beside the month the goal counts or starts; the page of a goal
+ * for one Portal or one group (PG-21) works them out the same way, from its own
+ * numbers.
+ */
+export function tilesOf(
   recommendation: PortalGoalRecommendation,
   goal: PortalGoalOfCard,
   months: PortalGoalPageView['months'],

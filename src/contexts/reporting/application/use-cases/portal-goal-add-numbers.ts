@@ -18,7 +18,14 @@
 // never stands on a reading it cannot trust). Its live days are not told apart
 // here, so a flagged day of the basis on which the Portal was not live counts
 // too: it errs toward no number, never toward a wrong one.
-import { subjectRecommendation } from '../../domain/goal-recommendation'
+//
+// A goal for one Portal or one Portal Group stands on the same scope once it is
+// set (PLAN PG-21): its page's usual and its change sheet's offers come from the
+// Property's recommendation narrowed to it (`narrowedFor`).
+import {
+  narrowedRecommendation,
+  subjectRecommendation,
+} from '../../domain/goal-recommendation'
 import type {
   PerMeasure,
   PortalFacts,
@@ -76,11 +83,16 @@ function flaggedSince(
   )
 }
 
+/** What one subject's numbers stand on: its members, its month so far, and its flagged measures. */
+type SubjectScope = Readonly<{
+  members: readonly PortalFacts[]
+  monthToDate: PerMeasure<number>
+  unreadable: ReadonlySet<PortalGoalMeasure>
+}>
+
 function numbersOf(
   basis: PortalGoalAddBasis,
-  members: readonly PortalFacts[],
-  monthToDate: PerMeasure<number>,
-  unreadable: ReadonlySet<PortalGoalMeasure>,
+  { members, monthToDate, unreadable }: SubjectScope,
 ): SubjectNumbers {
   const { recommendation, measure, current } = basis
   const measures = subjectRecommendation({
@@ -102,20 +114,23 @@ function numbersOf(
 const monthFirstDay = (basis: PortalGoalAddBasis): string =>
   `${basis.recommendation.months.current.key}-01`
 
+function portalScope(basis: PortalGoalAddBasis, portal: PortalFacts): SubjectScope {
+  const flags = basis.facts.counts.unreadable.filter(
+    ({ portalId }) => portalId === portal.portalId,
+  )
+  return {
+    members: [portal],
+    monthToDate: portal.monthToDate,
+    unreadable: flaggedSince(flags, basis.recommendation.window.firstDay),
+  }
+}
+
 /** A Portal's own numbers. */
 export function portalNumbers(
   basis: PortalGoalAddBasis,
   portal: PortalFacts,
 ): SubjectNumbers {
-  const flags = basis.facts.counts.unreadable.filter(
-    ({ portalId }) => portalId === portal.portalId,
-  )
-  return numbersOf(
-    basis,
-    [portal],
-    portal.monthToDate,
-    flaggedSince(flags, basis.recommendation.window.firstDay),
-  )
+  return numbersOf(basis, portalScope(basis, portal))
 }
 
 /** The Portals listed in a group now, in name order. */
@@ -144,8 +159,7 @@ function groupMonthToDate(
   )
 }
 
-/** A Portal Group's numbers: its members' rates, its own month so far. */
-export function groupNumbers(basis: PortalGoalAddBasis, groupId: string): SubjectNumbers {
+function groupScope(basis: PortalGoalAddBasis, groupId: string): SubjectScope {
   const { counts } = basis.facts
   const members = groupMembers(basis, groupId)
   const memberIds = new Set(members.map(({ portalId }) => portalId))
@@ -162,14 +176,51 @@ export function groupNumbers(basis: PortalGoalAddBasis, groupId: string): Subjec
       basis.recommendation.window.firstDay,
     ),
   ])
-  return numbersOf(
-    basis,
+  return {
     members,
-    groupMonthToDate(
+    monthToDate: groupMonthToDate(
       counts.groupDays.filter((day) => day.groupId === groupId),
       from,
     ),
     unreadable,
+  }
+}
+
+/** A Portal Group's numbers: its members' rates, its own month so far. */
+export function groupNumbers(basis: PortalGoalAddBasis, groupId: string): SubjectNumbers {
+  return numbersOf(basis, groupScope(basis, groupId))
+}
+
+/** A Portal Portal no longer lists (a draft again, archived or deleted): nothing to stand on. */
+const UNLISTED: SubjectScope = {
+  members: [],
+  monthToDate: perMeasure(() => 0),
+  unreadable: new Set(['portal_rating_count', 'qualified_scans']),
+}
+
+/**
+ * The Property's recommendation narrowed to one Portal or one Portal Group
+ * (PLAN PG-21): every month and measure of its own numbers, for the page and
+ * the change sheet of a goal set for it. A Portal Portal no longer lists has no
+ * number and no month so far.
+ */
+export function narrowedFor(
+  basis: PortalGoalAddBasis,
+  subject: PortalGoalAddSubject,
+): PortalGoalRecommendation {
+  const { recommendation } = basis
+  if (subject.kind === 'portal_group') {
+    return narrowedRecommendation(
+      recommendation,
+      groupScope(basis, subject.portalGroupId),
+    )
+  }
+  const portal = recommendation.portals.find(
+    ({ portalId }) => portalId === subject.portalId,
+  )
+  return narrowedRecommendation(
+    recommendation,
+    portal ? portalScope(basis, portal) : UNLISTED,
   )
 }
 

@@ -109,3 +109,9 @@ export const monthlyPortalGoalLineSchema = z.object({
   propertyId: z.uuid(),
   portalId: z.uuid(),
 })
+
+/** The page of a goal for one Portal, one Portal Group, or the average (PLAN PG-21). */
+export const portalGoalSinglePageSchema = z.object({
+  propertyId: z.uuid(),
+  programId: z.uuid(),
+})

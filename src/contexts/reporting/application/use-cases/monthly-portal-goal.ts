@@ -40,7 +40,12 @@
 // Property: it hides that month's prompt, never a later month's. A month
 // already gone (a tab left open since) is taken and changes nothing; a month
 // after next month's, which no prompt names, is refused.
-import type { GoalMetric } from '../../domain/goal-program'
+//
+// A goal for one Portal or one Portal Group takes the same changes from its own
+// page (PLAN PG-21), its one subject kept, and its number recorded as
+// recommended against its own numbers (the recommendation narrowed to it);
+// the average takes Stop. A goal for several subjects takes none of them here.
+import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
 import { goalStartOptions, monthKeyOf } from '../../domain/goal-start'
 import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
 import { checkInMonthAt } from '../../domain/portal-goal-check-in'
@@ -52,11 +57,14 @@ import type {
   SetMonthlyPortalGoalRequest,
   StopMonthlyPortalGoalRequest,
 } from '../dto/monthly-portal-goal.types'
+import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
 import {
+  isPortalCountGoal,
   isPortalGoalMeasure,
   isPropertyCountGoal,
   monthlyPortalGoalOf,
-  type PropertyCountGoal,
+  portalGoalPageOf,
+  type PortalCountGoal,
 } from '../monthly-portal-goal-identity'
 import type {
   GoalProgram,
@@ -73,10 +81,13 @@ import {
   type GoalProgramSubjectReader,
 } from './goal-programs'
 import {
+  gatherPortalGoalFacts,
   gatherPortalGoalRecommendation,
+  recommendationFrom,
   type PortalGoalRecommendationReads,
 } from './goal-recommendation-read'
 import { offeredChoices } from './monthly-portal-goal-offer'
+import { narrowedFor, portalGoalAddBasisOf } from './portal-goal-add-numbers'
 
 /** What the goal is called, everywhere it is named. */
 export const MONTHLY_PORTAL_GOAL_NAME = 'Monthly portal goal'
@@ -175,23 +186,54 @@ async function authorizedPrograms(
   return deps.repository.list(organizationId, input.propertyId)
 }
 
-/** The Property's Monthly portal goal, when it is the Program asked for. */
-function theMonthlyGoal(
+/** A goal a change is made to, and the one subject it counts. */
+type Changed = Readonly<{ goal: PortalCountGoal; subject: GoalSubject }>
+
+/**
+ * The Program asked for, when a change is made to it here: the Property's
+ * Monthly portal goal, or a count goal for one Portal or one Portal Group.
+ */
+function theChangedGoal(
   programs: readonly GoalProgramBundle[],
   programId: string,
   now: Date,
-): PropertyCountGoal {
-  const goal = monthlyPortalGoalOf(programs, now)
-  if (goal === null || goal.program.id !== programId) {
+): Changed {
+  const monthly = monthlyPortalGoalOf(programs, now)
+  if (monthly !== null && monthly.program.id === programId) {
+    return {
+      goal: monthly,
+      subject: { kind: 'property', propertyId: monthly.program.propertyId },
+    }
+  }
+  const asked = programs.find(({ program }) => program.id === programId)
+  const page = asked === undefined ? null : portalGoalPageOf(asked)
+  if (asked === undefined || page?.kind !== 'subject' || !isPortalCountGoal(asked)) {
     throw new GoalProgramError('invalid_subject')
   }
-  return goal
+  return { goal: asked, subject: page.subject }
+}
+
+/** The recommendation for `subject`: the Property's, or the Property's narrowed to it. */
+async function recommendationOf(
+  deps: MonthlyPortalGoalChangeDeps,
+  scope: Readonly<{ organizationId: string; propertyId: string }>,
+  subject: GoalSubject,
+): Promise<PortalGoalRecommendation> {
+  const facts = await gatherPortalGoalFacts(deps.recommendation, {
+    ...scope,
+    now: deps.now(),
+  })
+  const recommendation = recommendationFrom(facts)
+  return subject.kind === 'property'
+    ? recommendation
+    : narrowedFor(portalGoalAddBasisOf(facts, recommendation), subject)
 }
 
 /**
  * Whether `targetValue` is the number recommended for the `asked` month and
  * measure, read only when the screen said so (and the month is one of the
- * goal's counts).
+ * goal's counts): the Property's for the Monthly portal goal, its own for a
+ * Portal's or a group's.
  */
 async function recordedSource(
   deps: MonthlyPortalGoalChangeDeps,
@@ -201,15 +243,15 @@ async function recordedSource(
     targetSource: 'recommended' | 'own'
   }>,
   actor: GoalActor,
-  asked: Readonly<{ month: string; metric: GoalMetric }> | null,
+  asked: Readonly<{ month: string; metric: GoalMetric; subject: GoalSubject }> | null,
 ): Promise<'recommended' | 'own'> {
   if (claim.targetSource !== 'recommended') return 'own'
   if (asked === null || !isPortalGoalMeasure(asked.metric)) return 'own'
-  const recommendation = await gatherPortalGoalRecommendation(deps.recommendation, {
-    organizationId: actor.organizationId,
-    propertyId: claim.propertyId,
-    now: deps.now(),
-  })
+  const recommendation = await recommendationOf(
+    deps,
+    { organizationId: actor.organizationId, propertyId: claim.propertyId },
+    asked.subject,
+  )
   const measure: PortalGoalMeasure = asked.metric
   return offeredChoices(recommendation, asked.month, measure)?.aBitMore ===
     claim.targetValue
@@ -218,7 +260,7 @@ async function recordedSource(
 }
 
 /** What the month `month` counts: the measure of the version it opened under. */
-function measureOfMonth(goal: PropertyCountGoal, month: string): GoalMetric | null {
+function measureOfMonth(goal: PortalCountGoal, month: string): GoalMetric | null {
   const result = goal.results.find(
     ({ periodStart, propertyTimezone }) =>
       monthKeyOf(periodStart, propertyTimezone) === month,
@@ -238,13 +280,13 @@ export async function changeMonthlyPortalGoalNow(
   actor: GoalActor,
 ): Promise<GoalMonthTargetChangeResult> {
   const programs = await authorizedPrograms(deps, input, actor, 'goal.update')
-  const goal = theMonthlyGoal(programs, input.programId, deps.now())
+  const { goal, subject } = theChangedGoal(programs, input.programId, deps.now())
   const metric = measureOfMonth(goal, input.month)
   const targetSource = await recordedSource(
     deps,
     input,
     actor,
-    metric === null ? null : { month: input.month, metric },
+    metric === null ? null : { month: input.month, metric, subject },
   )
   return deps.programs.changeMonthTarget(
     {
@@ -265,7 +307,8 @@ export async function changeMonthlyPortalGoalNow(
 
 /**
  * "From Dec 1" and "Count scans instead": the goal from its next month, with
- * the Property its one subject; a goal that has not started is changed from
+ * its one subject kept (the Property, or a goal's Portal or group); a goal
+ * that has not started is changed from
  * its first month. It starts with the month the sheet said, or not at all: a
  * sheet read before the month turned is refused `start_month_changed` by the
  * engine, which works the start out after it has opened the months due.
@@ -276,10 +319,11 @@ export async function reviseMonthlyPortalGoal(
   actor: GoalActor,
 ): Promise<GoalProgramBundle> {
   const programs = await authorizedPrograms(deps, input, actor, 'goal.update')
-  theMonthlyGoal(programs, input.programId, deps.now())
+  const { subject } = theChangedGoal(programs, input.programId, deps.now())
   const targetSource = await recordedSource(deps, input, actor, {
     month: input.startMonth,
     metric: input.metric,
+    subject,
   })
   return deps.programs.revise(
     {
@@ -287,7 +331,7 @@ export async function reviseMonthlyPortalGoal(
       programId: input.programId,
       metric: input.metric,
       targetValue: input.targetValue,
-      subjects: [{ kind: 'property', propertyId: input.propertyId }],
+      subjects: [subject],
       expectedVersion: input.expectedVersion,
       expectedStartMonth: input.startMonth,
       ...(input.note === undefined ? {} : { reason: input.note }),
@@ -300,9 +344,11 @@ export async function reviseMonthlyPortalGoal(
 /**
  * Stop: the goal ends. The month it is counting keeps counting to its last day
  * and keeps its result; a goal that has not started frees its month at once.
- * Any Property count goal may be stopped, and no other goal from here. One
- * already stopped is refused `invalid_transition`: the engine takes ended to
- * ended as a status already reached, and would answer a conflict.
+ * Any Property count goal may be stopped, and any goal with a page of its own
+ * (one Portal's, one group's, the average); a goal for several subjects not
+ * from here. One already stopped is refused `invalid_transition`: the engine
+ * takes ended to ended as a status already reached, and would answer a
+ * conflict.
  */
 export async function stopMonthlyPortalGoal(
   deps: MonthlyPortalGoalChangeDeps,
@@ -311,7 +357,7 @@ export async function stopMonthlyPortalGoal(
 ): Promise<GoalProgram> {
   const programs = await authorizedPrograms(deps, input, actor, 'goal.cancel')
   const asked = programs.find(({ program }) => program.id === input.programId)
-  if (asked !== undefined && !isPropertyCountGoal(asked)) {
+  if (asked !== undefined && portalGoalPageOf(asked) === null) {
     throw new GoalProgramError('invalid_subject')
   }
   if (asked?.program.status === 'ended') throw new GoalProgramError('invalid_transition')

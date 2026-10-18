@@ -6,7 +6,11 @@ import type {
   RecommendationDayCount,
   RecommendationPortal,
 } from '../../domain/goal-recommendation-types'
-import type { GoalMetricEvaluation, GoalTargetSource } from '../../domain/goal-program'
+import type {
+  GoalMetricEvaluation,
+  GoalSubject,
+  GoalTargetSource,
+} from '../../domain/goal-program'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
@@ -111,6 +115,10 @@ type GoalShape = Readonly<{
   open?: Readonly<{ start: Date; end: Date; target?: number }>
   /** Its other months, earlier ones first. */
   months?: readonly MonthShape[]
+  /** Whom it counts: the Property unless said (a Portal's or a group's goal, PG-21). */
+  subject?: GoalSubject
+  /** What it is called: "Monthly portal goal" unless said. */
+  name?: string
 }>
 
 /** A month's result row: open and updating unless the shape says how far it has got. */
@@ -182,7 +190,7 @@ export function propertyGoal(
       id,
       organizationId: 'org-1',
       propertyId: PROPERTY_ID,
-      name: 'Monthly portal goal',
+      name: shape.name ?? 'Monthly portal goal',
       description: null,
       status: shape.status ?? 'scheduled',
       statusReason: null,
@@ -203,7 +211,7 @@ export function propertyGoal(
         organizationId: 'org-1',
         propertyId: PROPERTY_ID,
         metric,
-        subject: { kind: 'property', propertyId: PROPERTY_ID },
+        subject: shape.subject ?? { kind: 'property', propertyId: PROPERTY_ID },
         effectiveFrom: from,
         effectiveTo: shape.until ?? null,
         createdBy: 'elena',

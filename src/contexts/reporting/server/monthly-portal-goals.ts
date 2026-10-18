@@ -28,6 +28,7 @@ import {
   keepMonthlyPortalGoalSchema,
   monthlyPortalGoalLineSchema,
   monthlyPortalGoalPropertySchema,
+  portalGoalSinglePageSchema,
   reviseMonthlyPortalGoalSchema,
   setMonthlyPortalGoalSchema,
   stopMonthlyPortalGoalSchema,
@@ -210,3 +211,18 @@ export const getMonthlyPortalGoalLine = createServerFn({ method: 'GET' })
       'goal.getMonthlyPortalGoalLine',
     ),
   )
+
+/** A goal for one Portal, one Portal Group or the average: its own page (PLAN PG-21). */
+export const getPortalGoalSinglePage = createServerFn({ method: 'GET' })
+  .validator(portalGoalSinglePageSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.portalGoalSingle.page(policy, data, actor),
+        ),
+      'GET',
+      'goal.getPortalGoalSinglePage',
+    ),
+  )
+
