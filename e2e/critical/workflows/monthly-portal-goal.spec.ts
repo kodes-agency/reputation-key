@@ -39,6 +39,14 @@
 //       {month}" with Use, Keep and Other number, and Keep hides it after a
 //       reload; on any other day there is no such region. Both branches
 //       assert; the day is the database's, in the Property's zone.
+//   J9. the Overview slot and a Portal's Results line: with the number
+//       ready, the Overview's prompt (after "How you are doing", before "Guest
+//       voice") names it, "See it" leads to the Portal goals, and "Not now"
+//       hides it, after a reload too; with a goal running this month, the slot
+//       shows the month and each Portal's count, the "Portal goal below pace"
+//       chip (exactly when `goalPace` says behind) leads to `#portal-goals`,
+//       and Reception's Results tab says what it brought in toward the goal.
+//       Neither page shifts (CLS < 0.1).
 //   J11. all monthly results: once a Portal goal's month has closed and another
 //       has ended, the Portal goals section's foot opens `/goals/portal-results`:
 //       the closed month's result in plain words, and the ended goal with the
@@ -91,6 +99,12 @@ import {
   recommendPortalGoal,
   subjectRecommendation,
 } from '../../../src/contexts/reporting/domain/goal-recommendation'
+import {
+  CLS_BUDGET,
+  cumulativeLayoutShift,
+  installWebVitals,
+  readWebVitals,
+} from '../../helpers/web-vitals'
 import { checkInOfferOf } from '../../../src/contexts/reporting/application/use-cases/monthly-portal-goal-offer'
 import { checkInMonthAt } from '../../../src/contexts/reporting/domain/portal-goal-check-in'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../../src/contexts/reporting/domain/goal-start'
@@ -1163,5 +1177,182 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(
       card.getByRole('progressbar', { name: `Private ratings in ${monthName}` }),
     ).toHaveAttribute('aria-valuemax', String(target))
+  })
+
+  test("J9 the Overview slot and the portal's Results line, with no layout shift", async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, portals } = await seedPortalGoalProperty(
+      page,
+      'j9',
+      testInfo.retry,
+    )
+    seeded.push(propertyId)
+    const [reception, restaurant, spa] = portals
+    if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
+    // Ratings up to yesterday, never later today, as in J5: the Portals' counts
+    // of this month then add up to the governed figure.
+    const days = (from: number, to: number) =>
+      Array.from({ length: from - to + 1 }, (_, index) => from - index)
+    const input = await seedPortalHistory(propertyId, [
+      {
+        portal: reception,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(19, 1),
+        scansDaysAgo: days(19, 6),
+      },
+      {
+        portal: restaurant,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(10, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: spa,
+        liveDaysAgo: 8,
+        codeDaysAgo: 17,
+        ratingsDaysAgo: days(3, 1),
+        scansDaysAgo: [],
+      },
+    ])
+    // Everything expected is worked out by the rules themselves.
+    const recommendation = recommendPortalGoal(input)
+    expect(recommendation.state).toBe('ready')
+    const ratings = recommendation.measures.portal_rating_count
+    const offered = recommendation.defaultMonthKey
+    const offeredNumber = (
+      offered === recommendation.months.current.key
+        ? ratings.fromToday
+        : ratings.fullMonth.next
+    )?.aBitMore
+    if (offeredNumber === undefined) throw new Error('The rule offers no number')
+    const nameOf = (month: string) => formatMonthName(`${month}-15T12:00:00.000Z`)
+    const prompt = `Your monthly portal goal for ${nameOf(offered)} is ready: ${offeredNumber} private ratings.`
+    const pathOf = async (link: ReturnType<typeof page.getByRole>) => {
+      const url = new URL((await link.getAttribute('href')) ?? '', BASE_ORIGIN)
+      return `${url.pathname}${url.hash}`
+    }
+    const shiftOf = async () => cumulativeLayoutShift((await readWebVitals(page)).shifts)
+    await installWebVitals(page)
+
+    // The number ready: one line, "See it", and "Not now", which holds after a reload.
+    await page.goto(`/properties/${propertyId}`)
+    await waitForHydration(page)
+    const slot = page.getByRole('region', { name: 'Monthly portal goal' })
+    await expect(slot.getByText(prompt)).toBeVisible()
+    await expect(await pathOf(slot.getByRole('link', { name: 'See it' }))).toBe(
+      `/properties/${propertyId}/goals#portal-goals`,
+    )
+    // Its own place: after "How you are doing" and before "Guest voice".
+    const placed = await slot.evaluate((element) => {
+      const heading = (name: string) =>
+        [...document.querySelectorAll('h2')].find((h2) => h2.textContent === name)
+      const scorecard = heading('How you are doing')
+      const voice = heading('Guest voice')
+      if (!scorecard || !voice) return null
+      return {
+        afterScorecard: Boolean(
+          scorecard.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+        beforeVoice: Boolean(
+          element.compareDocumentPosition(voice) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      }
+    })
+    expect(placed).toEqual({ afterScorecard: true, beforeVoice: true })
+    expect(await shiftOf()).toBeLessThan(CLS_BUDGET)
+
+    await clickWhenReady(slot.getByRole('button', { name: 'Not now' }))
+    await expect(page.getByText(prompt)).toHaveCount(0)
+    await page.reload()
+    await waitForHydration(page)
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'How you are doing' }),
+    ).toBeVisible()
+    await expect(page.getByText(prompt)).toHaveCount(0)
+    const [deferral] = await dbQuery<{ month: string }>(
+      'SELECT month FROM portal_goal_prompt_deferrals WHERE property_id = $1::uuid',
+      [propertyId],
+    )
+    expect(deferral?.month).toBe(offered)
+
+    // A goal for this month, set through the server function as in J5.
+    const month = recommendation.months.current.key
+    const soFar = recommendation.monthToDate.portal_rating_count ?? 0
+    const target = ratings.fromToday?.aBitMore ?? soFar + 10
+    const period = calendarPeriodRange(input.now, input.timezone, 'monthly')
+    const pace = goalPace({
+      metric: 'portal_rating_count',
+      value: soFar,
+      target,
+      period,
+      now: input.now,
+      timezone: input.timezone,
+    })
+    await callServerFn(page, {
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'setMonthlyPortalGoal',
+      data: {
+        propertyId,
+        metric: 'portal_rating_count',
+        targetValue: target,
+        startMonth: month,
+        targetSource: 'own',
+      },
+    })
+
+    // The Overview's slot: the running month, and each Portal's count in name order.
+    await page.goto(`/properties/${propertyId}`)
+    await waitForHydration(page)
+    const card = page.locator('[data-slot="portal-goal-overview"]')
+    await expect(
+      card.getByRole('heading', {
+        level: 2,
+        name: `Monthly portal goal · ${nameOf(month)}`,
+      }),
+    ).toBeVisible()
+    await expect(card.getByText(`${soFar} of ${target}`, { exact: true })).toBeVisible()
+    const counts = PORTAL_NAMES.map((name) => {
+      const facts = recommendation.portals.find((portal) => portal.name === name)
+      if (!facts) throw new Error(`The rule lists no ${name}`)
+      return `${name} ${facts.monthToDate.portal_rating_count}`
+    }).join(' · ')
+    await expect(card.getByText(counts, { exact: true })).toBeVisible()
+    expect(await shiftOf()).toBeLessThan(CLS_BUDGET)
+    // "Portal goal below pace" exactly when the rule says behind, to the Portal goals.
+    const chip = page.getByRole('link', { name: 'Portal goal below pace' })
+    if (pace.state === 'behind') {
+      await expect(chip).toBeVisible()
+      const href = new URL((await chip.getAttribute('href')) ?? '', BASE_ORIGIN)
+      expect(`${href.pathname}${href.hash}`).toBe(
+        `/properties/${propertyId}/goals#portal-goals`,
+      )
+    } else {
+      await expect(chip).toHaveCount(0)
+    }
+
+    // Reception's Results tab: what it brought in toward the goal, above its figures.
+    const receptionFacts = recommendation.portals.find(({ name }) => name === 'Reception')
+    const receptionCount = receptionFacts?.monthToDate.portal_rating_count ?? 0
+    await page.goto(`/properties/${propertyId}/portals/${reception.id}?tab=results`)
+    await waitForHydration(page)
+    const line = page.locator('[data-slot="portal-goal-results-line"]')
+    await expect(
+      line.getByText(
+        `${nameOf(month)} · Reception’s ${receptionCount} private ${
+          receptionCount === 1 ? 'rating counts' : 'ratings count'
+        } toward the monthly portal goal.`,
+      ),
+    ).toBeVisible()
+    await expect(await pathOf(line.getByRole('link', { name: 'Open goal' }))).toBe(
+      `/properties/${propertyId}/goals/portals`,
+    )
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Loading results' }),
+    ).toHaveCount(0)
+    expect(await shiftOf()).toBeLessThan(CLS_BUDGET)
   })
 })
