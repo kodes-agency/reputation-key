@@ -48,19 +48,25 @@ export function GoalSubjectPicker({
     )
   }
   const propertyKey: GoalSubjectKey = `property:${property.id}`
+  // The whole property is never offered: its goal is the Monthly portal goal,
+  // set from its card on the Goals page (ADR 0068). A goal that already counts
+  // it still shows it, so it can be taken off.
+  const showsProperty = selectedSet.has(propertyKey)
 
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
         Select at least one. Standalone portals do not need to belong to a group.
       </p>
-      <SubjectOption
-        id="goal-subject-property"
-        label={property.name}
-        detail="Property"
-        checked={selectedSet.has(propertyKey)}
-        onChange={(checked) => toggle(propertyKey, checked)}
-      />
+      {showsProperty ? (
+        <SubjectOption
+          id="goal-subject-property"
+          label={property.name}
+          detail="Property"
+          checked
+          onChange={(checked) => toggle(propertyKey, checked)}
+        />
+      ) : null}
       {groups.length > 0 ? (
         <SubjectSection title="Portal groups">
           {groups.map((group) => {
