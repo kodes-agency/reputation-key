@@ -64,15 +64,15 @@ export function goalStepDown(value: number): number | null {
   return whole <= 1n ? null : Number(goalStepAtOrBelow(whole - 1n))
 }
 
+type OwnNumberNote =
+  Readonly<{ kind: 'times'; times: number }> | Readonly<{ kind: 'under_half' }>
+
 /**
  * What the sheet says of a number the manager chose for themselves, against the
  * usual for that month: about how many times it is, once it is three times or
  * more (half up: 120 against 34.29 is about 4), or that it is under half; else
  * nothing. Nothing either without a usual to measure against.
  */
-export type OwnNumberNote =
-  Readonly<{ kind: 'times'; times: number }> | Readonly<{ kind: 'under_half' }>
-
 export function ownNumberNote(typed: number, usual: ExactCount): OwnNumberNote | null {
   const own = wholeNumber(typed, 'An own number is a whole number')
   if (usual.den <= 0n || usual.num <= 0n) return null

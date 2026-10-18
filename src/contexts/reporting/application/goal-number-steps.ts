@@ -6,10 +6,4 @@
 // (the card read sends it as decimal integers in lowest terms: JSON has no
 // BigInt). Components import Reporting's values from here, never from the
 // domain (the components boundary in eslint.config.js).
-export {
-  goalStepDown,
-  goalStepUp,
-  ownNumberNote,
-  type ExactCount,
-  type OwnNumberNote,
-} from '../domain/goal-number-steps'
+export { goalStepDown, goalStepUp, ownNumberNote } from '../domain/goal-number-steps'
