@@ -51,6 +51,7 @@ describe('what a change to the Monthly portal goal is made against', () => {
         expectedTarget: 40,
         expectedVersion: 1,
         expectedFollowingMonth: '2026-12',
+        appliesToFollowing: true,
         period: NOVEMBER_PERIOD,
         timezone: 'Europe/Sofia',
       },
@@ -92,6 +93,26 @@ describe('what a change to the Monthly portal goal is made against', () => {
       now: { expectedTarget: 40, expectedVersion: 2, expectedFollowingMonth: '2026-12' },
       nextMonthKey: '2026-12',
     })
+  })
+
+  it("after Count scans instead, a change now is the month's alone: December keeps scans", async () => {
+    const switched = await goalOn(NOV_22, [
+      withNextVersion(runningGoal(), {
+        metric: 'qualified_scans',
+        targetValue: 55,
+        from: DEC_1,
+      }),
+    ])
+    const sameMeasure = await goalOn(NOV_22, [
+      withNextVersion(runningGoal(), { targetValue: 45, from: DEC_1 }),
+    ])
+
+    expect(switched.change?.now).toMatchObject({
+      monthKey: '2026-11',
+      expectedVersion: 2,
+      appliesToFollowing: false,
+    })
+    expect(sameMeasure.change?.now).toMatchObject({ appliesToFollowing: true })
   })
 
   it('a scheduled goal changes from its first month, with no month to change now', async () => {

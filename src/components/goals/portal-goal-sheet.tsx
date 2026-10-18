@@ -1,5 +1,5 @@
 // The Monthly portal goal's sheet (PLAN PG-10, PG-14; copy deck S-1…S-23,
-// F-1…F-4): a dialog on a desktop and a full-screen sheet on a phone
+// F-1…F-5): a dialog on a desktop and a full-screen sheet on a phone
 // (`portal-goal-sheet-frame.tsx`). It sets the goal, or changes it
 // (`portal-goal-change-sheet.tsx`), as the door that opened it says. Setting,
 // it opens on the number the card offered (or an empty box where there is
@@ -71,10 +71,13 @@ export type PortalGoalSheetProps = Readonly<{
   commands: PortalGoalSheetCommands
   /** The goal a change is for, as the sheet opened on it; null when setting. */
   goal?: PortalGoalOfCard | null
-  /** A refusal the sheet opens with: F-1, said again on the latest. */
+  /** A refusal the sheet opens with: F-1, F-2 or F-4, said again on the latest. */
   notice?: unknown
-  /** F-1 on a change: the goal moved on, and the host opens the sheet afresh on it. */
-  onConflict?: (error: unknown) => void
+  /**
+   * F-1, F-2 or F-4 on a change: the sheet is behind the goal, and the host
+   * reads it again and opens the sheet afresh on the latest.
+   */
+  onBehind?: (error: unknown) => void
   /** Where the focus goes on closing: there is no trigger for Radix to return it to. */
   onCloseAutoFocus?: (event: Event) => void
   /** The sheet's clock, for "starts below pace"; now unless a story fixes it. */

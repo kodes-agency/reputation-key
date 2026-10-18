@@ -81,12 +81,13 @@ export const changeMonthlyPortalGoalNowSchema = z.object({
   targetSource,
 })
 
-/** "From Dec 1" and "Count scans instead": the goal from its next month. */
+/** "From Dec 1" and "Count scans instead": the goal from the next month the sheet showed. */
 export const reviseMonthlyPortalGoalSchema = z.object({
   ...ofTheGoal,
   metric: measure,
   targetValue: number,
   expectedVersion: z.number().int().positive(),
+  startMonth: monthKey,
   note,
   targetSource,
 })

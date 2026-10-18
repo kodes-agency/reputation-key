@@ -1759,6 +1759,22 @@ describe('canonical Goal Program service', () => {
       ).resolves.toMatchObject({ version: { version: 3 } })
     })
 
+    it('revise refuses a form whose start month the turn of the month moved on', async () => {
+      const { repository, revise, setNow } = await scansGoal()
+      // Read in March's last minutes: "From Apr 1". Sent once April has begun,
+      // the change would start in May.
+      setNow(new Date('2026-04-01T00:05:00.000Z'))
+
+      await expect(revise({ expectedStartMonth: '2026-04' })).rejects.toMatchObject({
+        code: 'start_month_changed',
+      })
+      expect(repository.revise).not.toHaveBeenCalled()
+
+      await expect(revise({ expectedStartMonth: '2026-05' })).resolves.toMatchObject({
+        version: { version: 2, effectiveFrom: MAY },
+      })
+    })
+
     it('rename changes name only and leaves the version untouched', async () => {
       const { service, repository, policy, created } = await scansGoal()
 

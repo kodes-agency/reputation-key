@@ -12,6 +12,8 @@ import type {
 import {
   CHANGE_DECEMBER,
   CHANGE_NOVEMBER,
+  CHANGE_NOVEMBER_BEFORE_SCANS,
+  CHANGE_WHILE_DECEMBER_OPENS,
   SHEET_DECEMBER,
   SHEET_NOVEMBER_22,
 } from './portal-goal-change.stories.fixtures'
@@ -84,6 +86,7 @@ export const CARD_CHANGED_TO_SCANS = goalCard('2026-11-22', {
   version: 2,
   measure: 'qualified_scans',
   target: 55,
+  change: CHANGE_NOVEMBER_BEFORE_SCANS,
 })
 
 /** Nov 2: the first days are never judged, and the bar has no tick yet. */
@@ -201,6 +204,27 @@ export const CARD_LAST_MONTH_UPDATING = goalCard(
   {
     // Nothing in yet: each Portal on 0.
     rows: decemberRows(0, 0),
+    lastMonth: {
+      key: '2026-11',
+      measure: 'portal_rating_count',
+      value: 38,
+      target: 40,
+      outcome: 'updating',
+      finalOn: '2026-12-02',
+    },
+  },
+  DECEMBER_1,
+)
+
+/**
+ * Dec 1 in its first minutes: December counts, but its month is not opened
+ * yet, so there is no month to change now; November is still being read.
+ */
+export const CARD_WHILE_DECEMBER_OPENS = goalCard(
+  '2026-12-01',
+  {
+    rows: decemberRows(0, 0),
+    change: CHANGE_WHILE_DECEMBER_OPENS,
     lastMonth: {
       key: '2026-11',
       measure: 'portal_rating_count',

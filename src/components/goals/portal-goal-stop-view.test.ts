@@ -5,6 +5,7 @@ import { goalRefusal } from './goal-refusal'
 import {
   CARD_LAST_MONTH_UPDATING,
   CARD_RUNNING,
+  CARD_WHILE_DECEMBER_OPENS,
 } from './portal-goal-running.stories.fixtures'
 import { CARD_SCHEDULED } from './portal-goal.stories.fixtures'
 import { PORTAL_STOP_REFUSALS, stopWords } from './portal-goal-stop-view'
@@ -28,6 +29,23 @@ describe('stopWords', () => {
   it('December runs on Dec 1: it counts to Dec 31, and the next goal is from January', () => {
     expect(stopWords(goalOf(CARD_LAST_MONTH_UPDATING)).description).toBe(
       'December keeps counting to Dec 31 and keeps its result. You can set a new goal from January.',
+    )
+  })
+
+  it('before December is opened, Stop keeps November and frees the month a change could start', () => {
+    // A Stop now closes the goal before December opens: December never counts,
+    // and the first month it leaves whole is January.
+    expect(stopWords(goalOf(CARD_WHILE_DECEMBER_OPENS)).description).toBe(
+      'November keeps counting to Nov 30 and keeps its result. You can set a new goal from January.',
+    )
+  })
+
+  it('a running goal is never told it has not started', () => {
+    const goal = goalOf(CARD_RUNNING)
+    const nothingCounting = { ...goal, month: null, change: null, lastMonth: null }
+
+    expect(stopWords(nothingCounting).description).toBe(
+      'You can set a new goal straight away.',
     )
   })
 

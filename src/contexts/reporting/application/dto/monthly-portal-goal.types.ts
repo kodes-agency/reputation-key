@@ -223,6 +223,12 @@ export type PortalGoalChangeFacts = Readonly<{
     expectedVersion: number
     /** The month the months after take the new number from, `YYYY-MM`. */
     expectedFollowingMonth: string
+    /**
+     * False while a change of the other measure waits for the next month
+     * ("Count scans instead"): the months after keep it, so a change now is
+     * this month's alone.
+     */
+    appliesToFollowing: boolean
     /** The month's first instant and the next one's (ISO), for "starts below pace". */
     period: Readonly<{ start: string; end: string }>
     /** The zone the month's days are drawn in. */
@@ -369,6 +375,11 @@ export type ReviseMonthlyPortalGoalRequest = OfTheGoal &
     metric: PortalGoalMeasure
     targetValue: number
     expectedVersion: number
+    /**
+     * `YYYY-MM`: the month the sheet said the change starts with (the change
+     * facts' `nextMonthKey`); refused once the month has turned since.
+     */
+    startMonth: string
     /** The manager's note, stored on the new version. */
     note?: string
     targetSource: 'recommended' | 'own'

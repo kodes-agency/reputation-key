@@ -4,7 +4,8 @@
 // The sheet's two ways to change the goal are the engine's own commands, so it
 // is told what each of them checks: "November, now" changes the running month
 // and the months after it (the month-target plan: the month, its number now,
-// the version, and the month the months after start with); "From Dec 1" and
+// the version, and the month the months after start with; or the month alone,
+// while a change of the other measure waits for the next); "From Dec 1" and
 // "Count scans instead" change the goal from its next month (the month the
 // next revision starts with). Its last day, a month can still change: a
 // month's number locks only once the month has ended. The sheet opens on now
@@ -39,6 +40,7 @@ export function changeFactsOf(
           expectedTarget: plan.effectiveTarget,
           expectedVersion: bundle.program.currentVersion,
           expectedFollowingMonth: plan.followingMonthKey,
+          appliesToFollowing: plan.canApplyFollowing,
           period: {
             start: plan.period.start.toISOString(),
             end: plan.period.end.toISOString(),

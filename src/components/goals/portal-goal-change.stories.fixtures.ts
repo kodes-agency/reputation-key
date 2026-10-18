@@ -1,7 +1,8 @@
 // What the Monthly portal goal's change works from in the stories (PLAN PG-14):
 // Seaview's goal of 40 private ratings a month, read on Nov 22 (November runs,
-// a change opens on December), on Dec 1 to 3 (December runs, a change opens on
-// December itself) and on Dec 22 (December runs at 45). The sheet's offers for
+// a change opens on December; or after "Count scans instead" from December),
+// on Dec 1 before December's month is opened, on Dec 1 to 3 (December runs, a
+// change opens on December itself) and on Dec 22 (December runs at 45). The sheet's offers for
 // each month and measure are stated, never worked out.
 import type {
   PortalGoalChangeFacts,
@@ -21,6 +22,7 @@ export const CHANGE_NOVEMBER: PortalGoalChangeFacts = {
     expectedTarget: 40,
     expectedVersion: 1,
     expectedFollowingMonth: '2026-12',
+    appliesToFollowing: true,
     period: { start: '2026-10-31T22:00:00.000Z', end: '2026-11-30T22:00:00.000Z' },
     timezone: 'Europe/Sofia',
   },
@@ -99,6 +101,7 @@ export const CHANGE_DECEMBER: PortalGoalChangeFacts = {
     expectedTarget: 40,
     expectedVersion: 1,
     expectedFollowingMonth: '2027-01',
+    appliesToFollowing: true,
     period: { start: '2026-11-30T22:00:00.000Z', end: '2026-12-31T22:00:00.000Z' },
     timezone: 'Europe/Sofia',
   },
@@ -129,6 +132,30 @@ export const SHEET_DECEMBER: PortalGoalSheetFacts = {
     },
   },
   readyOn: null,
+}
+
+/**
+ * Nov 22, after "Count scans instead" from December: November still runs at
+ * 40 private ratings, but a change now is November's alone, since December
+ * keeps its scans.
+ */
+export const CHANGE_NOVEMBER_BEFORE_SCANS: PortalGoalChangeFacts = {
+  ...CHANGE_NOVEMBER,
+  now: CHANGE_NOVEMBER.now && {
+    ...CHANGE_NOVEMBER.now,
+    expectedVersion: 2,
+    appliesToFollowing: false,
+  },
+}
+
+/**
+ * Dec 1 in its first minutes, before December's month is opened: no month to
+ * change now, and a change from a coming month starts in January.
+ */
+export const CHANGE_WHILE_DECEMBER_OPENS: PortalGoalChangeFacts = {
+  now: null,
+  nextMonthKey: '2027-01',
+  opensOn: 'next',
 }
 
 /** Dec 22, December running at 45 after a change: after the 20th a change opens on January. */

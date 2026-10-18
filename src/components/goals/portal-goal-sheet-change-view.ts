@@ -5,7 +5,9 @@
 // what its primary sends. Two ways to change: "November, now", which judges
 // November and the months after it against the new number, and "From Dec 1",
 // which leaves November as it is. A change of measure ("Count scans instead")
-// is always from the next month: a month counts what it opened with. There
+// is always from the next month: a month counts what it opened with, so a
+// change of number keeps each month's own measure, and once the next month
+// counts the other one, a change now is November's alone. There
 // are no suggested numbers to pick, only the line that says what the number
 // is. The read decides the months, the offers and the keys sent back (PLAN
 // E12); the sheet's own judgement is whether a number typed for now starts the
@@ -61,16 +63,13 @@ export type PortalGoalChangeDraft = Readonly<{
   /** What the number box holds, exactly as typed. */
   text: string
   note: Readonly<{ open: boolean; text: string }>
-  /** The running month has ended since the read (F-2): only the next month is left. */
-  nowClosed: boolean
 }>
 
-/** One thing the manager did in the change sheet, or that a refusal did to it. */
+/** One thing the manager did in the change sheet. */
 export type PortalGoalChangeEdit =
   | PortalGoalSheetChange
   | Readonly<{ kind: 'note_open' }>
   | Readonly<{ kind: 'note'; text: string }>
-  | Readonly<{ kind: 'now_closed' }>
 
 export type PortalGoalChangeSubmission =
   | Readonly<{ when: 'now'; data: Omit<ChangeMonthlyPortalGoalNowRequest, 'propertyId'> }>
@@ -89,17 +88,9 @@ export type PortalGoalChangeModel = PortalGoalSheetBodyModel &
 const runningMeasure = (goal: PortalGoalOfCard): PortalGoalMeasure =>
   goal.month?.measure ?? goal.countingMonth?.measure ?? goal.measure
 
-/** "Now" is open while a month runs, for the measure it counts, until it is found ended. */
-function nowOpen(
-  draft: PortalGoalChangeDraft,
-  context: PortalGoalChangeContext,
-): boolean {
-  return (
-    context.change.now !== null &&
-    !draft.nowClosed &&
-    draft.measure === runningMeasure(context.goal)
-  )
-}
+/** "Now" is open while a month runs, for the measure it counts. */
+const nowOpen = (draft: PortalGoalChangeDraft, context: PortalGoalChangeContext) =>
+  context.change.now !== null && draft.measure === runningMeasure(context.goal)
 
 const whenOf = (draft: PortalGoalChangeDraft, context: PortalGoalChangeContext) =>
   draft.when === 'now' && nowOpen(draft, context) ? 'now' : 'next'
@@ -120,26 +111,23 @@ function nextText(measure: PortalGoalMeasure, context: PortalGoalChangeContext):
 }
 
 /**
- * The sheet opens on the measure its door named, on the month the read names
- * (now through the 20th), with the number the goal has there now.
+ * The sheet opens on the month the read names (now through the 20th), with
+ * the number the goal has there now, in that month's own measure. A door that
+ * names the other measure than the goal's ("Count scans instead", or back to
+ * private ratings) is a switch: from the next month only.
  */
 export function openingChangeDraft(
   context: PortalGoalChangeContext,
   measure: PortalGoalMeasure,
 ): PortalGoalChangeDraft {
-  const draft: PortalGoalChangeDraft = {
-    when: context.change.opensOn,
-    measure,
-    text: '',
-    note: { open: false, text: '' },
-    nowClosed: false,
+  const { goal, change } = context
+  const now = measure === goal.measure && change.opensOn === 'now' ? change.now : null
+  const note = { open: false, text: '' }
+  if (now === null) {
+    return { when: 'next', measure, text: nextText(measure, context), note }
   }
-  const when = whenOf(draft, context)
-  const text =
-    when === 'now' && context.change.now !== null
-      ? String(context.change.now.expectedTarget)
-      : nextText(measure, context)
-  return { ...draft, when, text }
+  const own = runningMeasure(goal)
+  return { when: 'now', measure: own, text: String(now.expectedTarget), note }
 }
 
 export function changedChangeDraft(
@@ -170,8 +158,6 @@ export function changedChangeDraft(
       return { ...draft, note: { ...draft.note, open: true } }
     case 'note':
       return { ...draft, note: { open: true, text: edit.text } }
-    case 'now_closed':
-      return { ...draft, when: 'next', nowClosed: true }
   }
 }
 
@@ -182,7 +168,7 @@ function monthsOf(
 ): PortalGoalChangeModel['months'] {
   const { now, nextMonthKey } = context.change
   const next = { value: 'next', label: `From ${dayWords(`${nextMonthKey}-01`)}` }
-  if (now === null || draft.nowClosed) return [next]
+  if (now === null) return [next]
   return [
     {
       value: 'now',
@@ -193,22 +179,38 @@ function monthsOf(
   ]
 }
 
-/** S-16, S-17, S-22, or S-2 for a goal that has not started. */
+/**
+ * The month counting now, which a change from a coming month leaves as it is:
+ * the one to change now, or, in the hour before its month is opened, the
+ * card's; none for a goal that has not started.
+ */
+function runningOf(context: PortalGoalChangeContext) {
+  const { goal, change } = context
+  if (change.now !== null) {
+    return { key: change.now.monthKey, target: change.now.expectedTarget }
+  }
+  return goal.status === 'scheduled' ? null : goal.month
+}
+
+/** S-16 (alone while the next month counts the other measure), S-17, S-22, or S-2. */
 function lineOf(
   when: PortalGoalChangeWhen,
   measure: PortalGoalMeasure,
   context: PortalGoalChangeContext,
 ): string {
-  const { goal, change } = context
-  if (when === 'now' && change.now !== null) {
-    return `${monthName(change.now.monthKey)} is judged against the new number, and so are the months after it.`
+  const { now, nextMonthKey } = context.change
+  if (when === 'now' && now !== null) {
+    const judged = `${monthName(now.monthKey)} is judged against the new number`
+    return now.appliesToFollowing
+      ? `${judged}, and so are the months after it.`
+      : `${judged}.`
   }
-  if (change.now === null) return `Starts on ${dayWords(`${change.nextMonthKey}-01`)}.`
-  const running = monthName(change.now.monthKey)
-  const counts = runningMeasure(goal)
+  const running = runningOf(context)
+  if (running === null) return `Starts on ${dayWords(`${nextMonthKey}-01`)}.`
+  const counts = runningMeasure(context.goal)
   return measure === counts
-    ? `${running} stays at ${formatNumber(change.now.expectedTarget)}.`
-    : `${running} keeps counting ${portalGoalUnit(counts, 2)}.`
+    ? `${monthName(running.key)} stays at ${formatNumber(running.target)}.`
+    : `${monthName(running.key)} keeps counting ${portalGoalUnit(counts, 2)}.`
 }
 
 /** S-18: a number for now that the month so far is already behind. */
@@ -267,6 +269,7 @@ function submissionOf(
         ...shared,
         metric: draft.measure,
         expectedVersion: goal.version,
+        startMonth: change.nextMonthKey,
       },
     }
   }

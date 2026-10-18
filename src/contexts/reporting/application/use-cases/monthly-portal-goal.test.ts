@@ -411,6 +411,7 @@ const FROM_NOVEMBER_45 = {
   metric: 'portal_rating_count',
   targetValue: 45,
   expectedVersion: 1,
+  startMonth: '2026-11',
   targetSource: 'own',
 } as const
 
@@ -527,6 +528,8 @@ describe('reviseMonthlyPortalGoal', () => {
         // The Property alone, as the goal always counts it.
         subjects: [{ kind: 'property', propertyId: PROPERTY_ID }],
         expectedVersion: 1,
+        // The month the sheet said: refused if the month turned since.
+        expectedStartMonth: '2026-11',
         reason: 'Winter',
         targetSource: 'own',
       },
@@ -534,6 +537,23 @@ describe('reviseMonthlyPortalGoal', () => {
     )
     expect(asked(deps)[0]).toBe('goal.update')
     expect(calls.at(-1)).toBe('revise')
+  })
+
+  it('a sheet read before the month turned is refused, never moved a month on', async () => {
+    // Read on Oct 31 at 23:50 in Sofia ("From Nov 1"), sent at 00:05 on Nov 1:
+    // the engine's start is December now, so it refuses the month the sheet said.
+    const { deps } = changeWorld([runningOctober()], new Date('2026-10-31T22:05:00.000Z'))
+    deps.programs.revise.mockRejectedValueOnce(
+      new GoalProgramError('start_month_changed'),
+    )
+
+    await expect(
+      reviseMonthlyPortalGoal(deps, FROM_NOVEMBER_45, actor),
+    ).rejects.toMatchObject({ code: 'start_month_changed' })
+    expect(deps.programs.revise).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedStartMonth: '2026-11' }),
+      actor,
+    )
   })
 
   it('Count scans instead revises from next month', async () => {

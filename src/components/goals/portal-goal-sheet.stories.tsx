@@ -7,8 +7,10 @@
 // Seaview's Oct 23 (goldens G1, G2) unless named. Then the sheet that changes
 // the goal (PLAN PG-14), on Nov 22 with November at 40 and 23 so far: from
 // next month, now (below pace), on the last day, scans instead (from next
-// month only), a month found ended, a goal changed meanwhile, a narrow phone
-// and the light theme; and a stopped goal's way to the next one. The
+// month only), a month found ended, the month turned under a change from the
+// next month, a goal changed meanwhile, a goal stopped meanwhile, at 320, 390,
+// 820 and 1440 px and on the light theme; and a stopped goal's way to the next
+// one. The
 // Storybook Vitest project compiles no Tailwind, so the plays assert words,
 // roles, focus and what each command sends.
 import { useRef, useState } from 'react'
@@ -18,9 +20,16 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { Button } from '#/components/ui/button'
 import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
-import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type {
+  PortalGoalCardView,
+  PortalGoalSheetFacts,
+} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { SHEET_NOVEMBER_22 } from './portal-goal-change.stories.fixtures'
-import { CARD_LAST_DAY, CARD_RUNNING } from './portal-goal-running.stories.fixtures'
+import {
+  CARD_LAST_DAY,
+  CARD_LAST_MONTH_UPDATING,
+  CARD_RUNNING,
+} from './portal-goal-running.stories.fixtures'
 import { PortalGoalSheet, type PortalGoalSheetProps } from './portal-goal-sheet'
 import {
   SEAVIEW,
@@ -56,23 +65,27 @@ const refusal = (code: string) =>
 type HarnessProps = Pick<PortalGoalSheetProps, 'facts' | 'intent'> &
   Partial<Pick<PortalGoalSheetProps, 'commands' | 'goal' | 'now'>> &
   Readonly<{
-    /** The goal read again after F-1, which the sheet opens afresh on. */
-    latest?: PortalGoalSheetProps['goal']
+    /** The card read again after F-1, F-2 or F-4, which the sheet opens afresh on. */
+    latest?: Readonly<{ goal: PortalGoalSheetProps['goal']; facts: PortalGoalSheetFacts }>
   }>
+
+type Shown = Readonly<{
+  goal: PortalGoalSheetProps['goal']
+  facts: PortalGoalSheetFacts
+  notice: unknown
+}>
 
 /**
  * A page with one door the sheet opens from: a fresh sheet for every opening,
  * closed when a goal is set or changed, and the focus handed back to the door
- * as the page's host does. A change refused with F-1 opens afresh on the goal
- * read again (`latest`), still saying why, as the host does.
+ * as the page's host does. A change refused as behind the goal (F-1, F-2,
+ * F-4) opens afresh on the card read again (`latest`), still saying why, as
+ * the host does.
  */
 function Harness({ facts, intent, commands, goal, latest, now }: HarnessProps) {
   const [open, setOpen] = useState(false)
   const [key, setKey] = useState(0)
-  const [shown, setShown] = useState<Readonly<{ goal: typeof goal; notice: unknown }>>({
-    goal,
-    notice: null,
-  })
+  const [shown, setShown] = useState<Shown>({ goal, facts, notice: null })
   const door = useRef<HTMLButtonElement>(null)
   return (
     <>
@@ -81,7 +94,7 @@ function Harness({ facts, intent, commands, goal, latest, now }: HarnessProps) {
         onClick={() => {
           setOpen(true)
           setKey((last) => last + 1)
-          setShown({ goal, notice: null })
+          setShown({ goal, facts, notice: null })
         }}
       >
         Open the sheet
@@ -90,8 +103,8 @@ function Harness({ facts, intent, commands, goal, latest, now }: HarnessProps) {
         key={key}
         goal={shown.goal}
         notice={shown.notice}
-        onConflict={(notice) => {
-          setShown({ goal: latest ?? goal, notice })
+        onBehind={(notice) => {
+          setShown({ goal: latest?.goal ?? goal, facts: latest?.facts ?? facts, notice })
           setKey((last) => last + 1)
         }}
         now={now}
@@ -105,7 +118,7 @@ function Harness({ facts, intent, commands, goal, latest, now }: HarnessProps) {
           setOpen(false)
         }}
         propertyId={SEAVIEW.propertyId}
-        facts={facts}
+        facts={shown.facts}
         intent={intent}
         commands={
           commands ?? { ...CHANGES, setMonthlyPortalGoalFn: setMock, onSet: onSetMock }
@@ -628,6 +641,7 @@ export const ChangeNextMonth: Story = {
         targetSource: 'recommended',
         metric: 'portal_rating_count',
         expectedVersion: 1,
+        startMonth: '2026-12',
       },
     })
     await expect(changeNowMock).not.toHaveBeenCalled()
@@ -715,37 +729,141 @@ export const ChangeScansForcesNext: Story = {
   },
 }
 
-/** F-2: November ended while the sheet was open. It says so, and goes to December. */
+/** The card as it is read on Dec 1, once December runs. */
+const READ_ON_DECEMBER_1 = {
+  goal: goalOf(CARD_LAST_MONTH_UPDATING),
+  facts:
+    CARD_LAST_MONTH_UPDATING.state === 'goal'
+      ? CARD_LAST_MONTH_UPDATING.sheet
+      : SHEET_NOVEMBER_22,
+}
+
+/**
+ * F-2: November ended while the sheet was open on its last day. The card is
+ * read again and the sheet opens afresh on it, on "December, now", saying why.
+ */
 export const RefusedMonthEnded: Story = {
+  args: {
+    ...CHANGING,
+    goal: goalOf(CARD_LAST_DAY),
+    now: new Date('2026-11-30T20:00:00.000Z'),
+    latest: READ_ON_DECEMBER_1,
+    commands: {
+      ...CHANGES,
+      changeMonthlyPortalGoalNowFn: fn<Commands['changeMonthlyPortalGoalNowFn']>(
+        async ({ data }) => {
+          if (data.month === '2026-11') throw refusal('month_locked')
+          return { changed: true }
+        },
+      ),
+      setMonthlyPortalGoalFn: setMock,
+      onSet: onSetMock,
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const { in: sheet } = await openChange(canvasElement)
+    await userEvent.click(sheet.getByRole('radio', { name: 'November, now' }))
+    await typeNumber(sheet, '45')
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 45 for November' }))
+    const fresh = within(
+      await within(document.body).findByRole('dialog', {
+        name: 'Change your monthly portal goal',
+      }),
+    )
+    await expect(
+      await fresh.findByText('November has ended. Set the number for December instead.'),
+    ).toBeVisible()
+    // Opened afresh on the latest read: December runs, at 40.
+    await waitFor(() =>
+      expect(fresh.getByRole('radio', { name: 'December, now' })).toBeChecked(),
+    )
+    await expect(fresh.getByRole('radio', { name: 'From Jan 1' })).toBeVisible()
+    await expect(
+      fresh.getByText(
+        'December is judged against the new number, and so are the months after it.',
+      ),
+    ).toBeVisible()
+    await expect(box(fresh)).toHaveValue('40')
+    await waitFor(() => expect(onSetMock).toHaveBeenCalledOnce())
+    await typeNumber(fresh, '45')
+    await userEvent.click(fresh.getByRole('button', { name: 'Set 45 for December' }))
+    await waitFor(() =>
+      expect(args.commands?.changeMonthlyPortalGoalNowFn).toHaveBeenLastCalledWith({
+        data: expect.objectContaining({
+          month: '2026-12',
+          targetValue: 45,
+          expectedFollowingMonth: '2027-01',
+        }),
+      }),
+    )
+    await expectToast('December goal: 45 private ratings')
+  },
+}
+
+/**
+ * F-4: the month turned while "From Dec 1" was open, so the change would start
+ * in January. It is refused, not moved on; the sheet opens afresh on the latest.
+ */
+export const RefusedStartMonthChanged: Story = {
+  args: {
+    ...CHANGING,
+    latest: READ_ON_DECEMBER_1,
+    commands: {
+      ...CHANGES,
+      reviseMonthlyPortalGoalFn: fn<Commands['reviseMonthlyPortalGoalFn']>(
+        async ({ data }) => {
+          if (data.startMonth === '2026-12') throw refusal('start_month_changed')
+          return { programId: 'program-monthly' }
+        },
+      ),
+      setMonthlyPortalGoalFn: setMock,
+      onSet: onSetMock,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openChange(canvasElement)
+    await typeNumber(sheet, '45')
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 45 from December' }))
+    const fresh = within(
+      await within(document.body).findByRole('dialog', {
+        name: 'Change your monthly portal goal',
+      }),
+    )
+    await expect(
+      await fresh.findByText('The month has changed. Check the start and save again.'),
+    ).toBeVisible()
+    await waitFor(() =>
+      expect(fresh.getByRole('radio', { name: 'From Jan 1' })).toBeVisible(),
+    )
+    await expect(fresh.queryByRole('radio', { name: 'From Dec 1' })).toBeNull()
+    await waitFor(() => expect(onSetMock).toHaveBeenCalledOnce())
+    await expect(onSettledMock).not.toHaveBeenCalled()
+  },
+}
+
+/** F-5: someone stopped the goal meanwhile. Nothing is left to change: the sheet closes and says so. */
+export const RefusedStopped: Story = {
   args: {
     ...CHANGING,
     commands: {
       ...CHANGES,
-      changeMonthlyPortalGoalNowFn: fn(async () => {
-        throw refusal('month_locked')
+      reviseMonthlyPortalGoalFn: fn(async () => {
+        throw refusal('invalid_transition')
       }),
       setMonthlyPortalGoalFn: setMock,
       onSet: onSetMock,
     },
   },
   play: async ({ canvasElement }) => {
-    const { sheet, in: inSheet } = await openChange(canvasElement)
-    await userEvent.click(inSheet.getByRole('radio', { name: 'November, now' }))
-    await typeNumber(inSheet, '45')
-    await userEvent.click(inSheet.getByRole('button', { name: 'Set 45 for November' }))
-    await expect(
-      await inSheet.findByText(
-        'November has ended. Set the number for December instead.',
-      ),
-    ).toBeVisible()
-    // Only December is left: no month to choose, and the number stays.
-    await expect(inSheet.queryByRole('radiogroup', { name: 'Month' })).toBeNull()
-    await expect(inSheet.getByText('November stays at 40.')).toBeVisible()
-    await expect(
-      inSheet.getByRole('button', { name: 'Set 45 from December' }),
-    ).toBeEnabled()
-    await waitFor(() => expect(onSetMock).toHaveBeenCalledOnce())
-    await expect(sheet).toBeInTheDocument()
+    const { in: sheet } = await openChange(canvasElement)
+    await typeNumber(sheet, '45')
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 45 from December' }))
+    await expectToast('This goal was already stopped. Here is the latest.')
+    await waitFor(() => expect(onSettledMock).toHaveBeenCalledOnce())
+    await expect(onSetMock).toHaveBeenCalledOnce()
+    await waitFor(() =>
+      expect(within(document.body).queryByRole('dialog')).not.toBeInTheDocument(),
+    )
   },
 }
 
@@ -753,7 +871,10 @@ export const RefusedMonthEnded: Story = {
 export const RefusedConflict: Story = {
   args: {
     ...CHANGING,
-    latest: { ...RUNNING_GOAL, version: 2, target: 50 },
+    latest: {
+      goal: { ...RUNNING_GOAL, version: 2, target: 50 },
+      facts: SHEET_NOVEMBER_22,
+    },
     commands: {
       ...CHANGES,
       // Refused while it is sent against the version the sheet first opened on.
@@ -806,6 +927,31 @@ export const Change320: Story = {
     await expect(inSheet.getByRole('button', { name: 'Cancel' })).toBeVisible()
   },
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+/** 390 px: still the full-screen sheet. */
+export const ChangeOnAPhone: Story = {
+  ...Change320,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
+
+/** From 820 px the change opens as a dialog, with both months and the note. */
+export const ChangeOnATablet: Story = {
+  args: CHANGING,
+  play: async ({ canvasElement }) => {
+    const { sheet, in: inSheet } = await openChange(canvasElement)
+    await expect(sheet).toHaveAttribute('data-portal-goal-sheet', 'dialog')
+    await expect(inSheet.getByRole('radio', { name: 'From Dec 1' })).toBeChecked()
+    await expect(inSheet.getByText('November stays at 40.')).toBeVisible()
+    await userEvent.click(inSheet.getByRole('button', { name: 'Add a note' }))
+    await expect(inSheet.getByRole('textbox', { name: 'Note' })).toBeVisible()
+  },
+  parameters: { viewport: { defaultViewport: 'tablet' } },
+}
+
+export const ChangeOnADesktop: Story = {
+  ...ChangeOnATablet,
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
 }
 
 export const ChangeLight: Story = {

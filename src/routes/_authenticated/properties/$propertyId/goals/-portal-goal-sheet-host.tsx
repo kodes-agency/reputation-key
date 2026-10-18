@@ -8,9 +8,10 @@
 // chunk of its own, fetched while a door to it is on screen, and it works from
 // the card's own read, so it needs no read of its own. A fresh sheet (a new
 // draft, no old refusal) is mounted for every opening. A change works from the
-// goal as it was when the sheet opened; when someone changed it meanwhile
-// (F-1) the goal is read again and the sheet opens afresh on the latest, still
-// saying why.
+// goal as it was when the sheet opened; when it is behind the goal (someone
+// changed it, F-1; its month ended, F-2; or the month turned, F-4) the goal is
+// read again and the sheet opens afresh on the latest, still saying why, or
+// closes when the latest takes no change (it was stopped).
 //
 // No Radix trigger opens it, so Radix has nowhere to put the focus back when it
 // closes: the host remembers what had the focus when it was opened and returns
@@ -102,7 +103,7 @@ export function useFocusReturn(focusTitle: () => void) {
  * it is first opened). `focusTitle` puts the focus on the goal's title,
  * wherever the page draws it: no default, so a page never sends it to a title
  * it does not have. `reread` reads the card again, for the sheet a change
- * refused with F-1 opens afresh on.
+ * refused as behind the goal opens afresh on.
  */
 export function usePortalGoalSheet(
   propertyId: string,
@@ -133,20 +134,25 @@ export function usePortalGoalSheet(
   }
   const setOpen = (next: boolean) =>
     setOpening((current) => (current === null ? null : { ...current, open: next }))
-  // F-1: the latest goal, and a fresh sheet on it that says why.
+  // F-1, F-2, F-4: the latest goal, and a fresh sheet on it that says why. A
+  // latest goal that takes no change (it was stopped) closes the sheet as it
+  // is, so the focus goes back as on any close.
   const reopenOnTheLatest = (notice: unknown) =>
     void reread().then((latest) =>
-      setOpening((current) =>
-        current === null || !current.open
-          ? current
-          : {
-              ...current,
-              goal: goalOfCard(latest) ?? current.goal,
-              facts: sheetFactsOf(latest) ?? current.facts,
-              notice,
-              key: current.key + 1,
-            },
-      ),
+      setOpening((current) => {
+        if (current === null || !current.open) return current
+        const goal = goalOfCard(latest)
+        if (latest !== undefined && (goal === null || goal.change === null)) {
+          return { ...current, open: false }
+        }
+        return {
+          ...current,
+          goal: goal ?? current.goal,
+          facts: sheetFactsOf(latest) ?? current.facts,
+          notice,
+          key: current.key + 1,
+        }
+      }),
     )
   const changing = opening?.intent.mode === 'change'
   const sheet =
@@ -168,7 +174,7 @@ export function usePortalGoalSheet(
           intent={opening.intent}
           goal={opening.goal}
           notice={opening.notice}
-          onConflict={reopenOnTheLatest}
+          onBehind={reopenOnTheLatest}
           commands={commands}
           onCloseAutoFocus={focus.returnFocus(opening.open)}
         />

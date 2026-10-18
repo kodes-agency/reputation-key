@@ -2,9 +2,10 @@
 // PG-14), through the engine's own commands: "now" changes the running month
 // and the months after it, and still does on the month's last day (a month's
 // number locks only once it has ended); "from next month" and "Count scans
-// instead" write a version from the next month; Stop keeps the running month,
-// with its result, and frees the months after it, while a goal that has not
-// started frees its month at once; a second Stop is refused.
+// instead" write a version from the next month, and only from the month the
+// sheet said; Stop keeps the running month, with its result, and frees the
+// months after it, while a goal that has not started frees its month at once;
+// a second Stop is refused.
 //
 // Monthly results cannot be deleted, so nothing here is committed: every
 // statement runs in one held transaction that is rolled back. The month guard
@@ -194,6 +195,7 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
         metric: 'qualified_scans',
         targetValue: 55,
         expectedVersion: 1,
+        startMonth: nextKey,
         note: 'Codes moved to the rooms',
         targetSource: 'own',
       },
@@ -214,6 +216,29 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
       effectiveFrom: thisMonth.end,
       changeReason: 'Codes moved to the rooms',
     })
+  })
+
+  it('a revision for a month other than the one it would start with is refused', async () => {
+    const propertyId = await propertyFixture()
+    const { program } = await goalFrom(propertyId, thisKey)
+
+    // A sheet read last month said "from this month"; this month has begun.
+    await expect(
+      reviseMonthlyPortalGoal(
+        deps,
+        {
+          propertyId,
+          programId: program.id,
+          metric: 'portal_rating_count',
+          targetValue: 45,
+          expectedVersion: 1,
+          startMonth: thisKey,
+          targetSource: 'own',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'start_month_changed' })
+    expect((await stored(propertyId, program.id)).versions).toHaveLength(1)
   })
 
   it('Stop keeps this month and frees the next', async () => {

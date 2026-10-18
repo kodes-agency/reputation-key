@@ -427,6 +427,7 @@ describe('the change and stop commands (PG-14)', () => {
     metric: 'qualified_scans',
     targetValue: 55,
     expectedVersion: 1,
+    startMonth: '2026-12',
     note: 'Winter',
     targetSource: 'recommended',
   } as const
@@ -509,6 +510,18 @@ describe('the change and stop commands (PG-14)', () => {
     ).rejects.toMatchObject({ name: 'GoalProgramError', code, status })
   })
 
+  it('answers a revision whose month has turned with start_month_changed, HTTP 409', async () => {
+    mocks.revise.mockRejectedValue(new GoalProgramError('start_month_changed'))
+
+    await expect(
+      withStartContext(() => reviseMonthlyPortalGoal({ data: fromNext })),
+    ).rejects.toMatchObject({
+      name: 'GoalProgramError',
+      code: 'start_month_changed',
+      status: 409,
+    })
+  })
+
   it('takes what the sheet showed, and refuses what it never sends', () => {
     expect(changeMonthlyPortalGoalNowSchema.safeParse(now).success).toBe(true)
     expect(reviseMonthlyPortalGoalSchema.safeParse(fromNext).success).toBe(true)
@@ -525,6 +538,9 @@ describe('the change and stop commands (PG-14)', () => {
       { ...fromNext, metric: 'portal_rating_average' },
       { ...fromNext, targetValue: 4.5 },
       { ...fromNext, targetSource: 'suggested' },
+      // The month it starts with is what the sheet showed, always sent.
+      { ...fromNext, startMonth: undefined },
+      { ...fromNext, startMonth: '2026-12-01' },
     ]) {
       expect(reviseMonthlyPortalGoalSchema.safeParse(refused).success).toBe(false)
     }

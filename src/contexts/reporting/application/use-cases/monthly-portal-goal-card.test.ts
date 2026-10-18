@@ -500,6 +500,7 @@ describe('readMonthlyPortalGoalCard', () => {
             expectedTarget: 40,
             expectedVersion: 1,
             expectedFollowingMonth: '2026-12',
+            appliesToFollowing: true,
             period: { start: NOV_1.toISOString(), end: DEC_1.toISOString() },
             timezone: 'Europe/Sofia',
           },

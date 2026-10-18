@@ -35,7 +35,6 @@ import type {
   SetMonthlyPortalGoalRequest,
   StopMonthlyPortalGoalRequest,
 } from '../dto/monthly-portal-goal.types'
-import { nextRevisionStart } from '../goal-revision-start'
 import {
   isPortalGoalMeasure,
   isPropertyCountGoal,
@@ -171,9 +170,9 @@ function theMonthlyGoal(
 }
 
 /**
- * Whether `targetValue` is the number recommended for `month` and `metric`,
- * asked only when the screen said so; `month` is read from the goal against
- * the Property's zone, so the recommendation is read first.
+ * Whether `targetValue` is the number recommended for the `asked` month and
+ * measure, read only when the screen said so (and the month is one of the
+ * goal's counts).
  */
 async function recordedSource(
   deps: MonthlyPortalGoalChangeDeps,
@@ -183,16 +182,15 @@ async function recordedSource(
     targetSource: 'recommended' | 'own'
   }>,
   actor: GoalActor,
-  monthOf: (timezone: string) => Readonly<{ month: string; metric: GoalMetric }> | null,
+  asked: Readonly<{ month: string; metric: GoalMetric }> | null,
 ): Promise<'recommended' | 'own'> {
   if (claim.targetSource !== 'recommended') return 'own'
+  if (asked === null || !isPortalGoalMeasure(asked.metric)) return 'own'
   const recommendation = await gatherPortalGoalRecommendation(deps.recommendation, {
     organizationId: actor.organizationId,
     propertyId: claim.propertyId,
     now: deps.now(),
   })
-  const asked = monthOf(recommendation.timezone)
-  if (asked === null || !isPortalGoalMeasure(asked.metric)) return 'own'
   const measure: PortalGoalMeasure = asked.metric
   return offeredChoices(recommendation, asked.month, measure)?.aBitMore ===
     claim.targetValue
@@ -222,10 +220,13 @@ export async function changeMonthlyPortalGoalNow(
 ): Promise<GoalMonthTargetChangeResult> {
   const programs = await authorizedPrograms(deps, input, actor, 'goal.update')
   const goal = theMonthlyGoal(programs, input.programId, deps.now())
-  const targetSource = await recordedSource(deps, input, actor, () => {
-    const metric = measureOfMonth(goal, input.month)
-    return metric === null ? null : { month: input.month, metric }
-  })
+  const metric = measureOfMonth(goal, input.month)
+  const targetSource = await recordedSource(
+    deps,
+    input,
+    actor,
+    metric === null ? null : { month: input.month, metric },
+  )
   return deps.programs.changeMonthTarget(
     {
       propertyId: input.propertyId,
@@ -246,7 +247,9 @@ export async function changeMonthlyPortalGoalNow(
 /**
  * "From Dec 1" and "Count scans instead": the goal from its next month, with
  * the Property its one subject; a goal that has not started is changed from
- * its first month.
+ * its first month. It starts with the month the sheet said, or not at all: a
+ * sheet read before the month turned is refused `start_month_changed` by the
+ * engine, which works the start out after it has opened the months due.
  */
 export async function reviseMonthlyPortalGoal(
   deps: MonthlyPortalGoalChangeDeps,
@@ -254,12 +257,11 @@ export async function reviseMonthlyPortalGoal(
   actor: GoalActor,
 ): Promise<GoalProgramBundle> {
   const programs = await authorizedPrograms(deps, input, actor, 'goal.update')
-  const now = deps.now()
-  const goal = theMonthlyGoal(programs, input.programId, now)
-  const targetSource = await recordedSource(deps, input, actor, (timezone) => ({
-    month: monthKeyOf(nextRevisionStart(goal, now, timezone).period.start, timezone),
+  theMonthlyGoal(programs, input.programId, deps.now())
+  const targetSource = await recordedSource(deps, input, actor, {
+    month: input.startMonth,
     metric: input.metric,
-  }))
+  })
   return deps.programs.revise(
     {
       propertyId: input.propertyId,
@@ -268,6 +270,7 @@ export async function reviseMonthlyPortalGoal(
       targetValue: input.targetValue,
       subjects: [{ kind: 'property', propertyId: input.propertyId }],
       expectedVersion: input.expectedVersion,
+      expectedStartMonth: input.startMonth,
       ...(input.note === undefined ? {} : { reason: input.note }),
       targetSource,
     },

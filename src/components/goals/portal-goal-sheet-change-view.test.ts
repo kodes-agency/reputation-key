@@ -92,6 +92,8 @@ describe('portalGoalChangeModel', () => {
           metric: 'portal_rating_count',
           targetValue: 45,
           expectedVersion: 1,
+          // The month the sheet said: refused, not moved on, once the month turns.
+          startMonth: '2026-12',
           targetSource: 'recommended',
         },
       },
@@ -246,14 +248,6 @@ describe('portalGoalChangeModel', () => {
     )
   })
 
-  it('a month found ended leaves only the next month', () => {
-    const draft = edit(opened(), { kind: 'month', month: 'now' }, { kind: 'now_closed' })
-    const model = portalGoalChangeModel(draft, RUNNING)
-
-    expect(model.months).toEqual([{ value: 'next', label: 'From Dec 1' }])
-    expect(model.month).toBe('next')
-  })
-
   it('a scheduled goal changes from its first month', () => {
     const scheduled = runningContext(CARD_SCHEDULED, new Date('2026-10-23T09:00:00.000Z'))
     const model = portalGoalChangeModel(
@@ -271,7 +265,10 @@ describe('portalGoalChangeModel', () => {
       band: 'November',
       primary: { label: 'Set 45 from November', disabled: false },
       toast: 'From November: 45 private ratings',
-      submission: { when: 'next', data: { targetValue: 45, targetSource: 'own' } },
+      submission: {
+        when: 'next',
+        data: { targetValue: 45, startMonth: '2026-11', targetSource: 'own' },
+      },
     })
   })
 
