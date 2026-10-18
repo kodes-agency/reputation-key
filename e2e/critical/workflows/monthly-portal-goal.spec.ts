@@ -1265,8 +1265,24 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     expect(placed).toEqual({ afterScorecard: true, beforeVoice: true })
     expect(await shiftOf()).toBeLessThan(CLS_BUDGET)
 
+    // The prompt goes before the command is even sent (the card's read is
+    // written as the server will answer it), and "Not now" shows no toast: the
+    // reload waits for the command's own answer, or it would abort it.
+    const notNowSaved = page.waitForResponse((response) => {
+      const request = response.request()
+      const sent = request.postData() ?? ''
+      return (
+        request.method() === 'POST' &&
+        response.url().includes('/_serverFn/') &&
+        sent.includes(propertyId) &&
+        sent.includes(offered)
+      )
+    })
     await clickWhenReady(slot.getByRole('button', { name: 'Not now' }))
     await expect(page.getByText(prompt)).toHaveCount(0)
+    const notNowAnswer = await notNowSaved
+    expect(notNowAnswer.ok()).toBe(true)
+    await notNowAnswer.finished()
     await page.reload()
     await waitForHydration(page)
     await expect(
