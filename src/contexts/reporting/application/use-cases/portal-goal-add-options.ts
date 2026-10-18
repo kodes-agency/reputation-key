@@ -12,7 +12,8 @@
 // The server decides what is open (PLAN E12):
 // - one Portal and each Portal need 2 or more live Portals (with one, the
 //   Monthly portal goal is that Portal's goal already);
-// - a group, a group with a listed Portal;
+// - a group, a group with a live Portal (a draft or a turned-off Portal brings
+//   it nothing to count);
 // - the average, 10 private ratings in the last 4 weeks (a month needs 10).
 // Each Portal or group gets the rule's numbers on its own (`portal-goal-add-
 // numbers.ts`) in the month and measure the Property's recommendation offers,
@@ -99,14 +100,19 @@ function eachRow(offer: PortalGoalAddOffer): PortalGoalAddEachRow {
   return { offer, ticked: number !== null && offer.heldBy === null, number }
 }
 
-/** The Property's groups with a listed Portal, in Portal's order of their first one. */
-const groupIdsOf = (basis: PortalGoalAddBasis): readonly string[] => [
-  ...new Set(
-    basis.facts.listed.portals.flatMap(({ portalGroupId }) =>
-      portalGroupId === null ? [] : [portalGroupId],
+/** The Property's groups with a live Portal, in Portal's order of their first one. */
+function groupIdsOf(basis: PortalGoalAddBasis): readonly string[] {
+  const live = new Set(
+    livePortalsOf(basis.recommendation).map(({ portalId }) => portalId),
+  )
+  return [
+    ...new Set(
+      basis.facts.listed.portals.flatMap(({ portalId, portalGroupId }) =>
+        portalGroupId === null || !live.has(portalId) ? [] : [portalGroupId],
+      ),
     ),
-  ),
-]
+  ]
+}
 
 function groupOffer(
   basis: PortalGoalAddBasis,

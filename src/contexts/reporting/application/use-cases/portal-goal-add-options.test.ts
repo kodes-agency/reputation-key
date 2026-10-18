@@ -3,6 +3,7 @@ import type { RecommendationGroupDayCount } from '../../domain/goal-recommendati
 import {
   actor,
   days,
+  draft,
   fakeWorld,
   NOV_22,
   portal,
@@ -110,9 +111,148 @@ describe('what Add a portal goal offers', () => {
       ['Rooms', 3],
       ['Wellness', 4],
     ])
-    // The rate is the members' now: Spa's (28 in 28 days) is Wellness's, not Rooms'.
-    const [rooms, wellness] = groups
-    expect(rooms?.choices?.usual).toBeLessThan(wellness?.choices?.usual ?? 0)
+    // The rate is the members' now: Reception's 14 in 28 days is Rooms', Spa's 28
+    // in 28 Wellness's. November's 13 days left with today add 6.5 and 13.
+    expect(groups.map(({ name, choices }) => [name, choices])).toEqual([
+      ['Rooms', { usual: 10, aBitMore: 11, stretch: 12 }],
+      ['Wellness', { usual: 17, aBitMore: 19, stretch: 20 }],
+    ])
+  })
+
+  it('a group with only a draft portal is not offered', async () => {
+    const { options } = read({
+      now: NOV_18,
+      portals: [
+        portal('Reception', '2026-10-01', { portalGroupId: 'group-rooms' }),
+        { ...draft('Bar'), portalGroupId: 'group-bar' },
+      ],
+      subjectNames: {
+        'portal_group:group-rooms': 'Rooms',
+        'portal_group:group-bar': 'Bar',
+      },
+    })
+
+    const { groups } = await options
+
+    expect(groups.map(({ name }) => name)).toEqual(['Rooms'])
+  })
+
+  it("a portal's own month so far counts toward this month's choices", async () => {
+    // Nov 18: November is offered with its 13 days left with today. Reception
+    // has 17 in its 28 live days (Oct 21 to Nov 17), 3 of them this month: the
+    // days left add 7.9, so 3 + 7.9 = 10.9 is its usual. Spa has 28 in 28, 17
+    // this month: 17 + 13 = 30.
+    const { options } = read({
+      now: NOV_18,
+      portals: [portal('Reception', '2026-10-01'), portal('Spa', '2026-10-01')],
+      counts: {
+        days: [
+          ...readings(
+            'portal-reception',
+            'portal_rating_count',
+            days('2026-10-21', 7),
+            2,
+          ),
+          ...readings('portal-reception', 'portal_rating_count', days('2026-11-15', 3)),
+          ...readings('portal-spa', 'portal_rating_count', days('2026-10-21', 28)),
+        ],
+      },
+    })
+
+    const { month, current, onePortal } = await options
+
+    expect({ month, current }).toEqual({ month: '2026-11', current: true })
+    expect(onePortal.map(({ name, choices, soFar }) => [name, choices, soFar])).toEqual([
+      ['Reception', { usual: 11, aBitMore: 12, stretch: 13 }, 3],
+      ['Spa', { usual: 30, aBitMore: 35, stretch: 40 }, 17],
+    ])
+  })
+
+  it('a portal with a reading the governed read would quarantine has no number', async () => {
+    const { options } = read({
+      now: NOV_22,
+      portals: [portal('Reception', '2026-10-01'), portal('Spa', '2026-10-01')],
+      counts: {
+        days: [
+          ...readings('portal-reception', 'portal_rating_count', days('2026-10-25', 28)),
+          ...readings('portal-spa', 'portal_rating_count', days('2026-10-25', 14)),
+        ],
+        // One approximate reading at Reception on Nov 2, in its basis. Spa's
+        // 14 in 28 days is 15.5 in December's 31.
+        unreadable: [
+          {
+            portalId: 'portal-reception',
+            measure: 'portal_rating_count',
+            localDay: '2026-11-02',
+          },
+        ],
+      },
+    })
+
+    const { onePortal } = await options
+
+    expect(onePortal.map(({ name, choices }) => [name, choices])).toEqual([
+      ['Reception', null],
+      ['Spa', { usual: 16, aBitMore: 18, stretch: 19 }],
+    ])
+  })
+
+  it('a group with a reading flagged this month has no number and no month so far', async () => {
+    const { options } = read({
+      now: NOV_18,
+      portals: [
+        portal('Reception', '2026-10-01', { portalGroupId: 'group-rooms' }),
+        portal('Spa', '2026-10-01', { portalGroupId: 'group-wellness' }),
+      ],
+      counts: {
+        days: [
+          ...readings('portal-reception', 'portal_rating_count', days('2026-10-21', 28)),
+          ...readings('portal-spa', 'portal_rating_count', days('2026-10-21', 28)),
+        ],
+        groupDays: [
+          ...groupDays('group-rooms', ['2026-11-03']),
+          ...groupDays('group-wellness', ['2026-11-04']),
+        ],
+        groupUnreadable: [
+          {
+            groupId: 'group-rooms',
+            measure: 'portal_rating_count',
+            localDay: '2026-11-12',
+          },
+        ],
+      },
+      subjectNames: {
+        'portal_group:group-rooms': 'Rooms',
+        'portal_group:group-wellness': 'Wellness',
+      },
+    })
+
+    const { groups } = await options
+
+    expect(groups.map(({ name, choices, soFar }) => [name, choices, soFar])).toEqual([
+      ['Rooms', null, null],
+      // Spa's 28 in 28 days: 1 so far and 13 days left with today.
+      ['Wellness', { usual: 14, aBitMore: 16, stretch: 17 }, 1],
+    ])
+  })
+
+  it('a joined portal with nothing counted has no number', async () => {
+    const { options } = read({
+      now: NOV_22,
+      portals: [portal('Reception', '2026-10-01'), portal('Spa', '2026-10-01')],
+      counts: {
+        days: readings('portal-spa', 'portal_rating_count', days('2026-10-25', 14)),
+      },
+    })
+
+    const { onePortal, eachPortal } = await options
+
+    expect(onePortal[0]).toMatchObject({
+      name: 'Reception',
+      choices: null,
+      readyOn: null,
+    })
+    expect(eachPortal[0]).toMatchObject({ ticked: false, number: null })
   })
 
   it('one portal and each portal need 2 or more live portals', async () => {

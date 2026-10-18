@@ -757,9 +757,13 @@ describe('the recommended number for one portal or one group (PG-20)', () => {
 
     // 13 in 14 days: about 29 in December's 31.
     expect(group.portal_rating_count.fullMonth.next?.about).toBe(29)
-    // 12 so far, and the 9 days left with today add about 8.
-    expect(group.portal_rating_count.fromToday).toMatchObject({ about: 8 })
-    expect(group.portal_rating_count.fromToday?.usual).toBeGreaterThan(12)
+    // 12 so far, and the 9 days left with today add about 8: 21 · 22 · 23.
+    expect(group.portal_rating_count.fromToday).toEqual({
+      usual: 21,
+      aBitMore: 22,
+      stretch: 23,
+      about: 8,
+    })
   })
 
   it('no joined member, or an unreadable measure, offers no number', () => {

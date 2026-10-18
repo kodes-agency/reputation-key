@@ -62,7 +62,7 @@ export type PortalGoalAddOptions = Readonly<{
   onePortal: readonly PortalGoalAddOffer[]
   /** A goal for each Portal: the same Portals, as rows. */
   eachPortal: readonly PortalGoalAddEachRow[]
-  /** A goal for a Portal Group: each group with a Portal, in name order. */
+  /** A goal for a Portal Group: each group with a live Portal, in name order. */
   groups: readonly PortalGoalAddOffer[]
   /** The average private rating for the whole Property. */
   average: Readonly<{

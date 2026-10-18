@@ -217,14 +217,15 @@ metric authority.
 - **Add a portal goal** (ADR 0068, PLAN PG-20; `application/use-cases/portal-goal-add-options.ts`,
   `portal-goal-add-numbers.ts`, `portal-goal-add.ts`): one click deeper than the Monthly
   portal goal, a goal for one Portal, for each Portal (both from 2 live Portals), for a
-  Portal Group (one with a listed Portal), or the Property's average private rating (from 10
+  Portal Group (one with a live Portal), or the Property's average private rating (from 10
   private ratings in the last 4 weeks). The read is authorised for `goal.create` and offers
   the recommendation's month and measure; each Portal and group gets the Monthly portal
   goal's rule on its own: a Portal's rate its own, a group's its members' now summed, and
   this month on top of its own month so far, a group's being every reading recorded with the
   group (`group_id`, the Portal's group at source-event time, from the recommendation's one
   statement), so a Portal that moved counts in its old group before the move and its new one
-  after. A subject with a goal on the measure from that month is "Has a goal". The commands
+  after. A subject with a goal on the measure from that month is "Has a goal", and a choice
+  whose every subject has one is not offered (the M-rule counts only open choices). The commands
   are the engine's own: `createGoal` for one Portal, one group or the average (named
   "Reception · Private ratings", "Average private rating"), and the save for several
   subjects for each Portal; each number is stored as recommended only when it is the one the
