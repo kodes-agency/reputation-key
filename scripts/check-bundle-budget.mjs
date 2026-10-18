@@ -702,6 +702,7 @@
 // main b31e4640a, which measured 307,671 B (PG-07, PG-05, PG-17, #856, #862
 // and #864 on it), it measured 307,799 B: +128 B (entry +94 B), over 307,700,
 // so the budget moves to 307,850. 51 B spare; 501 B left under the ceiling.
+// Rebased onto main b31e4640a it measured 307,806 B. 44 B spare.
 // After the review fixes (the card before a goal goes stale after 5 s, in the
 // lazy -portal-goal-queries chunk; stories and tests otherwise), a fresh build
 // of the stacked head measured 307,677 B (entry 49,001 B): -21 B against
