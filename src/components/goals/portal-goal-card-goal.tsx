@@ -83,7 +83,8 @@ function RunningMonth({
 }: Readonly<{ goal: PortalGoalOfCard; month: PortalGoalRunningMonth }>) {
   return (
     <div className="@container">
-      <div className="grid gap-5 @2xl:grid-cols-2">
+      {/* Two columns only with the counts to put beside the month. */}
+      <div className={cn('grid gap-5', goal.rows !== null && '@2xl:grid-cols-2')}>
         <div className="flex flex-col gap-2">
           <MonthSoFar goal={goal} month={month} />
           {goal.stopped === null ? null : (
