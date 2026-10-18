@@ -10,8 +10,8 @@ import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/mont
 import { Button } from '#/components/ui/button'
 import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
-import type { PortalGoalSheetIntent } from './portal-goal-sheet-view'
-import { switchOf } from './portal-goal-sheet-view'
+import type { PortalGoalSheetIntent } from './portal-goal-sheet-intent'
+import { switchOf } from './portal-goal-words'
 
 type Props = Readonly<{
   goal: PortalGoalOfCard

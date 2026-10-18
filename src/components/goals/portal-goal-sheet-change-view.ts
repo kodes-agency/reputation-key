@@ -29,11 +29,16 @@ import {
   primaryNumber,
   recommendedText,
   statusOf,
-  switchOf,
   type PortalGoalSheetBodyModel,
   type PortalGoalSheetChange,
 } from './portal-goal-sheet-view'
-import { dayWords, monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
+import {
+  dayWords,
+  monthName,
+  portalGoalCount,
+  portalGoalUnit,
+  switchOf,
+} from './portal-goal-words'
 
 /** The longest note the commands keep (the Program commands' own limit). */
 const NOTE_LIMIT = 500

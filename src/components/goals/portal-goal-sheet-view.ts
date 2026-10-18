@@ -23,7 +23,13 @@ import { formatNumber } from '#/lib/format'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
 import type { PortalGoalSetIntent } from './portal-goal-sheet-intent'
 import { countsFromWords } from './portal-goal-offer-words'
-import { dayWords, monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
+import {
+  dayWords,
+  monthName,
+  portalGoalCount,
+  portalGoalUnit,
+  switchOf,
+} from './portal-goal-words'
 
 /** The highest monthly number a goal takes (the set command's own limit). */
 const HIGHEST_NUMBER = 1_000_000
@@ -333,14 +339,6 @@ export function numberOf(
     },
   }
 }
-
-/** S-9: the other measure. */
-export const switchOf = (
-  measure: PortalGoalMeasure,
-): PortalGoalSheetModel['switchMeasure'] =>
-  measure === RATINGS
-    ? { label: 'Count scans instead', measure: 'qualified_scans' }
-    : { label: 'Count private ratings instead', measure: RATINGS }
 
 export function portalGoalSheetModel(
   draft: PortalGoalSheetDraft,
