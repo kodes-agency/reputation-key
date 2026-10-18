@@ -1,7 +1,7 @@
 // Server-only request plumbing for the Goal Program server functions.
 //
-// goal-programs.ts, goal-month-target.ts and monthly-portal-goals.ts run
-// their handlers through `withGoalPrograms`. It
+// goal-programs.ts and monthly-portal-goals.ts run their handlers through
+// `withGoalPrograms`. It
 // reaches the composition root and the server-only error throwers, so it lives
 // in a *.server.ts module: a server-function module that exported it would
 // carry those imports into the client build, which the import protection

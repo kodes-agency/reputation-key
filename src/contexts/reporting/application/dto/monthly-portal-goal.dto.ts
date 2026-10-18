@@ -5,7 +5,7 @@
 // so nothing here reaches first paint (PLAN E10). Never imported by
 // `goal-program.dto.ts`, which first paint loads; the two rules it shares with
 // the Program commands (the month key and the note) are restated here for that
-// reason, as `goal-month-target.dto.ts` restates them.
+// reason.
 import { z } from 'zod/v4'
 
 const monthKey = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)

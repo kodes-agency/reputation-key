@@ -1049,14 +1049,18 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       /error|denied|forbidden|not.?found/i,
     )
 
-    // Changing a month's target is refused across the same boundary: P3 is
+    // Changing a month's number is refused across the same boundary: P3 is
     // not this organization's Property, and this organization's goal cannot be
-    // reached through it. A refusal the command gives inside the tenant (a
-    // month that is not open, an ended goal) is a code that matches none of
-    // these words, so this is the tenant's answer and not the command's.
+    // reached through it. The call is the one the goal's Change sheet makes
+    // (PG-21 retired the dialog and the server function behind it, which no
+    // screen reached and the production build no longer carried: a call to it
+    // answered HTTP 500, "Server function info not found"). A refusal the
+    // command gives inside the tenant (a month that is not open, an ended goal)
+    // is a code that matches none of these words, so this is the tenant's
+    // answer and not the command's.
     const deniedMonthTarget = await callServerFnExpectError(page, {
-      file: 'src/contexts/reporting/server/goal-month-target.ts',
-      exportName: 'changeGoalMonthTarget',
+      file: 'src/contexts/reporting/server/monthly-portal-goals.ts',
+      exportName: 'changeMonthlyPortalGoalNow',
       data: {
         propertyId: seed.p3PropertyId,
         programId: created.program.id,
@@ -1066,7 +1070,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         expectedVersion: 1,
         // A well-formed month: the refusal is the tenant's, not the schema's.
         expectedFollowingMonth: nextMonth,
-        applyToFollowing: false,
+        targetSource: 'own',
       },
     })
     expect(deniedMonthTarget.message ?? deniedMonthTarget.code ?? '').toMatch(

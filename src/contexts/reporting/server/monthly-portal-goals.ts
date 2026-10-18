@@ -13,9 +13,8 @@
 // `goal.create` before anything is read; a change and the check-in's Keep ask
 // it for `goal.update`, and Stop for `goal.cancel`. The Overview prompt's
 // "Not now" and a Portal's Results line ask for `goal.create`, as the card. A
-// change and a stop never reach `server/goal-month-target.ts` or
-// `server/goal-programs.ts`: this module imports no other server-function
-// module (PLAN §0.2, E10).
+// change and a stop never reach `server/goal-programs.ts`: this module imports
+// no other server-function module (PLAN §0.2, E10).
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 // For `.validator(...)` only: never re-exported (an `export … from` would keep
