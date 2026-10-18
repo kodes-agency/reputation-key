@@ -1,7 +1,8 @@
 // The Monthly portal goal card once its number is ready, and the goal it sets
 // (PLAN PG-09): Use for November and for the rest of October, scans first,
 // "How we worked this out", a Use on its way, a refusal, and the scheduled
-// goal, each at 320 and 1440 px and the ready card on the light theme too. The
+// goal (and its "Change", PLAN PG-14), each at 320 and 1440 px and the ready
+// card on the light theme too. The
 // running goal is `portal-goal-card-running.stories.tsx`. The Storybook Vitest
 // project compiles no Tailwind, so the plays assert words, roles and what Use
 // sends.
@@ -294,6 +295,22 @@ async function expectScheduled(canvas: Canvas) {
 export const Scheduled: Story = {
   args: { card: read(CARD_SCHEDULED) },
   play: async ({ canvasElement }) => expectScheduled(within(canvasElement)),
+}
+
+/** Where the page draws the sheet, "Change" changes the goal from its first month. */
+export const ScheduledChange: Story = {
+  args: {
+    card: read(CARD_SCHEDULED),
+    commands: { setMonthlyPortalGoalFn: setMock, onSet: onSetMock, openSheet: fn() },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Change' }))
+    await expect(args.commands.openSheet).toHaveBeenCalledWith({
+      mode: 'change',
+      measure: 'portal_rating_count',
+    })
+  },
 }
 
 export const ScheduledOnANarrowPhone: Story = {

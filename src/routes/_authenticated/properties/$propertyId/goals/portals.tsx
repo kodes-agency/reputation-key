@@ -7,10 +7,13 @@
 // function joins first paint. Without a goal it shows the card's own state,
 // with its doors to the set sheet (`-portal-goal-sheet-host.tsx`, as on the
 // Goals page); the card draws no title here, so the page's title takes the
-// focus back from the sheet. Under it all, "More portal goals": the other
-// Portal goals, and "Add a portal goal" when it offers something (the M-rule,
-// PLAN PG-20), whose sheet an address opens on a step (`?add=…`, where the old
-// New goal page's links now lead, `-goal-new-redirect.ts`).
+// focus back from the sheet. With one, "Change number" and "Count scans
+// instead" open the same sheet to change it (`goal.update`), and Stop
+// (`goal.cancel`) ends it and leaves for the Goals page, where the card says
+// it was stopped. Under it all, "More portal goals": the other Portal goals,
+// and "Add a portal goal" when it offers something (the M-rule, PLAN PG-20),
+// whose sheet an address opens on a step (`?add=…`, where the old New goal
+// page's links now lead, `-goal-new-redirect.ts`).
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
@@ -27,6 +30,7 @@ import {
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
 import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
+import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
 import {
   PortalGoalPage,
   focusPortalGoalPageTitle,
@@ -158,6 +162,15 @@ function MonthlyPortalGoalRoute() {
   useEffect(() => {
     if (unanswered) void navigate({ search: withoutAddress, replace: true })
   }, [unanswered, navigate])
+  // Stopped: the Goals page's card says so, and offers the next goal.
+  const stop = {
+    stopMonthlyPortalGoalFn: portalGoalCommands.stopMonthlyPortalGoal,
+    onStopped: async () => {
+      await markStale()
+      await navigate({ to: '/properties/$propertyId/goals', params: { propertyId } })
+    },
+    onRefused: markStale,
+  } satisfies PortalGoalStopCommands
   const { name, timezone } = propData.property
   const { extras } = page
   return (
@@ -169,7 +182,10 @@ function MonthlyPortalGoalRoute() {
         page={page}
         canCreatePortal={canDo('portal.create')}
         canSeeResults={canDo('goal.update')}
+        canChange={canDo('goal.update')}
+        canStop={canDo('goal.cancel')}
         commands={{ ...set, openSheet: sheet.open }}
+        stop={stop}
         personName={goalPersonNames(members.data?.members)}
         extras={
           extras.goals.length === 0 ? null : (

@@ -2,7 +2,8 @@
 // with its bar and today's tick, what is left to go with the days left and
 // "below pace" only when the read says so, what each Portal brought in (in
 // name order, one Portal, five, and Other portals), the first quiet days, the
-// last day, a goal passed, a figure that cannot be read, a stopped goal, and
+// last day, a goal passed, a figure that cannot be read, a stopped goal (with
+// its way to the next goal), and
 // the month before while it is read and once it closed, and "View details" to
 // the goal's page. Each at 320, 390, 820
 // and 1440 px and on the light theme where the layout changes. The Storybook
@@ -11,7 +12,7 @@
 // too); where Tailwind is compiled they also measure that nothing scrolls
 // sideways.
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { PortalGoalSection } from './portal-goal-section'
 import { SEAVIEW } from './portal-goal.stories.fixtures'
@@ -295,6 +296,27 @@ export const Stopped: Story = {
     ).toBeVisible()
     await expect(canvas.getByText('23 of 40')).toBeVisible()
     await expect(canvas.getByRole('progressbar', { name: BAR_LABEL })).toBeVisible()
+  },
+}
+
+/** Where the page draws the sheet, the next goal can be set from December (PLAN PG-14). */
+export const StoppedSetsTheNextGoal: Story = {
+  args: {
+    card: read(CARD_STOPPED),
+    commands: { setMonthlyPortalGoalFn: fn(), onSet: fn(), openSheet: fn() },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText('Stopped on Nov 12. November still counts to Nov 30.'),
+    ).toBeVisible()
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Set a goal from December' }),
+    )
+    await expect(args.commands.openSheet).toHaveBeenCalledWith({
+      measure: 'portal_rating_count',
+      month: '2026-12',
+    })
   },
 }
 
