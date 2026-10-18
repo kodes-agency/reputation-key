@@ -303,13 +303,3 @@ export function extrasSubjectName(
 
 /** P-13: the disclosure's title. */
 export const HOW_IT_COUNTS_TITLE = 'How this goal counts'
-
-/** P-15: the foot link, once a month of the goal has closed; none before. */
-export const allResultsLink = (anyMonthClosed: boolean): string | null =>
-  anyMonthClosed ? 'All monthly results' : null
-
-/**
- * Where P-15 lands: the Goals page's "Monthly results" (its card's id), until
- * the results have a page of their own.
- */
-export const ALL_RESULTS_HASH = 'monthly-results'

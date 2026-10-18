@@ -27,14 +27,12 @@ type Props = Readonly<{
 }>
 
 /**
- * Each month's result of the Portal goals, newest month first. The Goals page
- * draws it only once a goal has a month, so a first visit has nothing to read.
+ * Each month's result of the Portal goals, newest month first, on their own
+ * page (`/goals/portal-results`), which draws it only once a goal has a month.
  */
 export function GoalResultsMatrix({ matrix, now, personName }: Props) {
   return (
-    // Its id is where "All monthly results" on the Monthly portal goal's page
-    // lands (`ALL_RESULTS_HASH`), until the results have a page of their own.
-    <Card id="monthly-results">
+    <Card>
       <CardHeader>
         <CardTitle as="h2">Monthly results</CardTitle>
         <p className="text-sm text-muted-foreground">

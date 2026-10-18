@@ -32,9 +32,18 @@ type Props = Readonly<{
   empty?: string
   /** The way to add one, at the section's foot. */
   footer?: ReactNode
+  /** The way to each month's result and the ended goals, under it. */
+  results?: ReactNode
 }>
 
-export function PortalGoalPanel({ propertyId, view, extras, empty, footer }: Props) {
+export function PortalGoalPanel({
+  propertyId,
+  view,
+  extras,
+  empty,
+  footer,
+  results,
+}: Props) {
   const { can } = usePermissions()
   const queryClient = useQueryClient()
   const drawsCard = view === 'active' && can('goal.create')
@@ -72,6 +81,7 @@ export function PortalGoalPanel({ propertyId, view, extras, empty, footer }: Pro
         extras={extras?.(drawsCard ? monthlyGoalId : null)}
         empty={empty}
         footer={footer}
+        results={results}
       />
       {sheet.sheet}
     </>

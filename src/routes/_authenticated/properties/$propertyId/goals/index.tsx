@@ -11,22 +11,18 @@ import {
 } from '#/contexts/reporting/server/goal-programs'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
-import {
-  buildGoalResultsMatrix,
-  type GoalSubject,
-} from '#/contexts/reporting/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
-import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { InlineLink } from '#/components/ui/inline-link'
 import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
-import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
-import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import { portalNextStepOf } from '#/components/goals/rating-goal-portal-step'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
+import { PortalGoalResultsLinks } from '#/components/goals/portal-goal-results-links'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { goalForResult } from './-goal-for-result'
 import { RatingGoalPanel } from './-rating-goal-panel'
@@ -103,13 +99,6 @@ function GoalsRoute() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalsQuery(propertyId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
-  // Who changed a month's target, by name, for the matrix. A side read that
-  // never holds the page back: until it is read, the change is told without one.
-  const members = useQuery({
-    ...membersQuery,
-    enabled: canDo('member.list'),
-    retry: false,
-  })
   // Ended goals count no month, so the History view reads no figures.
   const live = useQuery({
     ...goalsLiveQuery(propertyId),
@@ -130,12 +119,6 @@ function GoalsRoute() {
   const goals = data.programs.filter(({ program }) =>
     view === 'active' ? program.status !== 'ended' : program.status === 'ended',
   )
-  const matrix = buildGoalResultsMatrix({
-    programs: data.programs,
-    property: { id: propertyId, name: propData.property.name },
-    portalGroups: subjectNames.groups,
-    portals: subjectNames.portals,
-  })
   const subjectName = (subject: GoalSubject) =>
     goalAssignmentSubjectLabel(
       subject,
@@ -195,6 +178,12 @@ function GoalsRoute() {
           />
         )}
         empty={view === 'history' && goals.length === 0 ? 'No goal history' : undefined}
+        // Each month's result and the ended goals, on their own page (R-3, R-4).
+        results={
+          canDo('goal.update') ? (
+            <PortalGoalResultsLinks propertyId={propertyId} programs={data.programs} />
+          ) : null
+        }
         footer={
           canDo('goal.create') ? (
             // The way to a goal for one Portal, a group or an average (one click
@@ -209,14 +198,6 @@ function GoalsRoute() {
           ) : null
         }
       />
-      {/* Each month's result, once a goal has one: a first visit has none to show. */}
-      {canDo('goal.update') && matrix.months.length > 0 ? (
-        <GoalResultsMatrix
-          matrix={matrix}
-          now={now}
-          personName={goalPersonNames(members.data?.members)}
-        />
-      ) : null}
     </PageShell>
   )
 }
