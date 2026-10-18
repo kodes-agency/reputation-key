@@ -75,12 +75,11 @@ describe('createReloadGuard', () => {
     expect(seenAtReload).toBe(String(now()))
   })
 
-  it('does not reload twice in one page, however often it is asked', () => {
+  it('counts its own ask, so a second ask for the release inside the window is refused (the tab asks once per page: stale-tab.ts)', () => {
     const { guard, reload } = setup()
 
     expect(guard.request(RELEASE)).toBe('reloading')
-    expect(guard.request(RELEASE)).toBe('reloading')
-    expect(guard.request(OTHER)).toBe('reloading')
+    expect(guard.request(RELEASE)).toBe('refused')
     expect(reload).toHaveBeenCalledOnce()
   })
 

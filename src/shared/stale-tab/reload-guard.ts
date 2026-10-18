@@ -29,10 +29,10 @@ export type ReloadGuard = Readonly<{
   request: (release: string, target?: string) => 'reloading' | 'refused'
 }>
 
+// Each ask is counted, so a second one for the same release inside the window is
+// refused. A page asks once (stale-tab.ts keeps the reload that is on its way),
+// and asks again only after its reload failed to replace it.
 export function createReloadGuard(deps: ReloadGuardDeps): ReloadGuard {
-  // Once a reload is on its way the page is leaving: later asks are the same one.
-  let requested = false
-
   function note(release: string): boolean {
     try {
       const store = deps.storage()
@@ -50,9 +50,7 @@ export function createReloadGuard(deps: ReloadGuardDeps): ReloadGuard {
 
   return {
     request(release, target) {
-      if (requested) return 'reloading'
       if (!note(release)) return 'refused'
-      requested = true
       deps.reload(target)
       return 'reloading'
     },

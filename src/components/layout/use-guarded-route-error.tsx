@@ -37,8 +37,6 @@ export type RouteErrorFacts = Readonly<{
   message: string
   /** Whether this failure is worth a report (not an expected 4xx refusal). */
   report: boolean
-  /** The tab's code is older than the server's: loading the page afresh is the cure. */
-  needsFreshCode: boolean
 }>
 
 /**
@@ -54,7 +52,6 @@ export function routeErrorFacts(
     signedOut: httpStatus(error) === UNAUTHENTICATED,
     message: publicErrorMessage(error, isProduction, fallback),
     report: !isExpectedRefusal(error),
-    needsFreshCode: staleTab.needsFreshCode(error),
   }
 }
 
@@ -85,21 +82,19 @@ export function useGuardedRouteError(
     staleTab.isReloading,
     () => false,
   )
-  const { signedOut, message, report, needsFreshCode } = routeErrorFacts(
+  const { signedOut, message, report } = routeErrorFacts(
     error,
     import.meta.env.PROD,
     fallback,
   )
 
   useEffect(() => {
-    if (needsFreshCode) {
-      // Arm the tab too: if the guard refuses now (this release already reloaded
-      // a moment ago) or a mutation is in flight, the next navigation asks again.
-      staleTab.markStale()
-      if (staleTab.reload() === 'reloading') return
-    }
+    // A failure of stale code is cured by the current code, not reported. If
+    // the guard refuses now (this release already reloaded a moment ago) or a
+    // mutation is in flight, the tab stays armed and the next navigation asks.
+    if (staleTab.reloadForFailure(error) === 'reloading') return
     if (report) captureBrowserException(error)
-  }, [error, report, needsFreshCode])
+  }, [error, report])
 
   return { signedOut, message, retry: () => void router.invalidate(), reloading }
 }

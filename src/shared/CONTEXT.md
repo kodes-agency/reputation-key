@@ -76,16 +76,24 @@ runs:
   the call runs.
 
 A tab told it is stale is **armed**; so is a tab that meets a missing chunk
-(`vite:preloadError`, an unhandled chunk-load rejection). An armed tab reloads at
-the next page-to-page navigation (the address bar already holds the target, so
-the reload fetches it afresh), or at once when a route already failed to draw
-because of a stale refusal or a missing chunk (`useGuardedRouteError`). Search and
-hash changes do not reload, so a page keeps its form. It never reloads under a
-mutation in flight (the reload waits for the next moment), and never in a loop:
-`reload-guard.ts` allows one reload per release being left per two minutes,
-remembered in `sessionStorage` before the reload, and refuses when it cannot
-remember. The whole reload path is in first paint because it runs exactly when a
-lazy chunk may be gone.
+(`vite:preloadError`, an unhandled chunk-load rejection). An armed tab turns its
+next page-to-page navigation into a full page load of the target (the router
+announces it before the address bar changes, so the target is named, and only a
+path on this site is loaded), or reloads at once when a route already failed to
+draw (`useGuardedRouteError`): because of a stale refusal, a missing chunk, or any
+failure at all once the tab is armed, since old code meeting a newer answer fails
+in ways no shape can name. Search and hash changes do not reload, so a page keeps
+its form. It never reloads under a mutation in flight (the reload waits for the
+next moment), and never in a loop: `reload-guard.ts` allows one reload per release
+being left per two minutes, remembered in `sessionStorage` before the reload, and
+refuses when it cannot remember. A page still here ten seconds after asking (a
+navigation that was cancelled) draws its failure again instead of a loading state
+that never ends. The whole reload path is in first paint because it runs exactly
+when a lazy chunk may be gone.
+
+A read refused on a page that never changes path (the Inbox selects with search
+parameters) shows the refusal's own sentence ("Reload to continue") in place of
+that read until the person reloads or goes to another page.
 
 Jobs, outbox delivery, health, and observability expose infrastructure mechanics.
 Contexts own handler meaning, source transactions, recovery policy, content

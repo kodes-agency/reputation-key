@@ -4,13 +4,15 @@
 // server says it has moved on (release-skew-middleware.ts) or when code the page
 // needs is gone (a missing chunk). An armed tab reloads at a moment that costs
 // the person nothing:
-//   - the next page-to-page navigation, before the new page loads, so the
-//     address already in the bar is the one the full page load fetches;
-//   - a route that already failed to draw, because it was refused or because
-//     its chunk is gone (use-guarded-route-error.tsx).
+//   - the next page-to-page navigation, which it turns into a full page load
+//     of the navigation's target;
+//   - a route that already failed to draw (use-guarded-route-error.tsx):
+//     refused, missing its chunk, or failing in an already armed tab.
 // It never reloads under a mutation still in flight, never in a loop
 // (reload-guard.ts), and never when it does not know its own release: a
-// development server, a test, Storybook and a server render all stay inert.
+// development server, a test, Storybook and a server render all stay inert. A
+// page still here a while after asking (a cancelled navigation) draws its
+// failure again rather than a loading state that never ends.
 //
 // Everything on the reload path is in first paint on purpose. It runs when a
 // lazy chunk may be gone, so it cannot depend on loading another one.
@@ -55,18 +57,40 @@ export function readReleaseMeta(root: ReleaseDocument): string | undefined {
   )
 }
 
-/** A path on this site (`/x`), never another origin (`//x`, `/\x`, `https:`): else the current address. */
+/**
+ * A path on this site (`/x`), never another origin (`//x`, `/\x`, `https:`):
+ * else the current address. A raw tab, line break or backslash is refused too:
+ * the address parser drops the first two and reads a backslash as a slash, so
+ * `/<tab>/x` would load `//x`. A path the router built has them encoded.
+ */
 function sitePath(href: unknown): string | undefined {
-  return typeof href === 'string' && /^\/(?![/\\])/u.test(href) ? href : undefined
+  return typeof href === 'string' && /^\/(?!\/)/u.test(href) && !/[\t\n\r\\]/u.test(href)
+    ? href
+    : undefined
 }
 
-export function createStaleTab(deps: ReloadGuardDeps) {
+/**
+ * How long a page that asked to be reloaded may still be here before it takes
+ * the reload as not happening (a navigation the browser or the person cancelled)
+ * and draws its failure again. A reload that arrives ends the page first.
+ */
+export const RELOAD_SETTLE_MS = 10_000
+
+export type StaleTabDeps = ReloadGuardDeps &
+  Readonly<{ later: (run: () => void, ms: number) => void }>
+
+export function createStaleTab(deps: StaleTabDeps) {
   const guard = createReloadGuard(deps)
   let release: string | undefined
   let stale = false
   let mutationsInFlight = 0
   let reloading = false
   const watchers = new Set<() => void>()
+
+  function setReloading(value: boolean): void {
+    reloading = value
+    watchers.forEach((watcher) => watcher())
+  }
 
   const tab = {
     /** Keep the release of this page's code. Read once, before any navigation can change the head. */
@@ -97,11 +121,15 @@ export function createStaleTab(deps: ReloadGuardDeps) {
      */
     reload(target?: string): ReloadOutcome {
       if (!release) return 'unavailable'
+      // One reload per page: once it is on its way the page is leaving.
+      if (reloading) return 'reloading'
       if (mutationsInFlight > 0) return 'deferred'
       const outcome = guard.request(release, sitePath(target))
-      if (outcome === 'reloading' && !reloading) {
-        reloading = true
-        watchers.forEach((watcher) => watcher())
+      if (outcome === 'reloading') {
+        setReloading(true)
+        // Still here: the reload did not happen. The guard has counted it, so
+        // a second ask inside its window is refused and the failure is drawn.
+        deps.later(() => setReloading(false), RELOAD_SETTLE_MS)
       }
       return outcome
     },
@@ -112,6 +140,18 @@ export function createStaleTab(deps: ReloadGuardDeps) {
     onReloading(watcher: () => void): () => void {
       watchers.add(watcher)
       return () => void watchers.delete(watcher)
+    },
+
+    /**
+     * A route failed to draw. Load the page afresh when the failure says this
+     * tab's code is stale (a refusal, a missing chunk), arming the tab, or when
+     * the tab already knows it is: old code meeting a newer answer fails in ways
+     * no shape can name, and the page is lost already. A refused or deferred
+     * reload leaves the tab armed, so the next navigation asks again.
+     */
+    reloadForFailure(error: unknown): ReloadOutcome | 'unrelated' {
+      if (tab.needsFreshCode(error)) tab.markStale()
+      return stale ? tab.reload() : 'unrelated'
     },
 
     /** The failures that mean this tab needs the current code: a stale refusal, a missing chunk. */
@@ -165,6 +205,7 @@ export const staleTab: StaleTab = createStaleTab({
     if (target) window.location.assign(target)
     else window.location.reload()
   },
+  later: (run, ms) => void setTimeout(run, ms),
 })
 
 /** Called once by the browser entry, before the page hydrates. */

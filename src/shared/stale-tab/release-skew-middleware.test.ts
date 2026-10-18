@@ -116,6 +116,7 @@ describe('release skew, in the tab', () => {
       storage: () => null,
       now: () => 1,
       reload: vi.fn(),
+      later: vi.fn(),
     })
     tab.remember(release)
     return tab

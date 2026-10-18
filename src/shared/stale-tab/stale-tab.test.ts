@@ -5,13 +5,19 @@
 // that already failed to draw. It never reloads under a mutation in flight.
 import { describe, expect, it, vi } from 'vitest'
 import { STALE_CLIENT_CODE } from './release-skew'
-import { createStaleTab, readReleaseMeta, watchBrowserFailures } from './stale-tab'
+import {
+  RELOAD_SETTLE_MS,
+  createStaleTab,
+  readReleaseMeta,
+  watchBrowserFailures,
+} from './stale-tab'
 
 const RELEASE = 'a'.repeat(40)
 
 function setup(release: string | null = RELEASE) {
   const items = new Map<string, string>()
   const reload = vi.fn()
+  const timers: Array<Readonly<{ run: () => void; ms: number }>> = []
   const tab = createStaleTab({
     storage: () => ({
       getItem: (key) => items.get(key) ?? null,
@@ -19,9 +25,12 @@ function setup(release: string | null = RELEASE) {
     }),
     now: () => 5_000_000,
     reload,
+    later: (run, ms) => void timers.push({ run, ms }),
   })
   if (release !== null) tab.remember(release)
-  return { tab, reload, items }
+  /** Let the time a reload is given to replace the page run out, with the page still here. */
+  const outlive = (): void => timers.splice(0).forEach((timer) => timer.run())
+  return { tab, reload, items, timers, outlive }
 }
 
 const staleClientError = () =>
@@ -141,6 +150,31 @@ describe('reloading', () => {
     expect(heard).not.toHaveBeenCalled()
   })
 
+  it('asks for one reload per page, however often it is asked', () => {
+    const { tab, reload } = setup()
+
+    expect(tab.reload()).toBe('reloading')
+    expect(tab.reload('/elsewhere')).toBe('reloading')
+
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('draws the failure again when the page outlives its reload (a navigation that was cancelled), and never asks twice inside the window', () => {
+    const { tab, reload, timers, outlive } = setup()
+    const heard = vi.fn()
+    tab.onReloading(heard)
+    tab.reload()
+
+    expect(timers.map((timer) => timer.ms)).toEqual([RELOAD_SETTLE_MS])
+    outlive()
+
+    expect(tab.isReloading()).toBe(false)
+    expect(heard).toHaveBeenCalledTimes(2)
+    expect(tab.reload()).toBe('refused')
+    expect(tab.isReloading()).toBe(false)
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
   it('waits while a mutation is in flight, so the call is never cut off', async () => {
     const { tab, reload } = setup()
     let finish: (value: string) => void = () => undefined
@@ -185,6 +219,54 @@ describe('reloading', () => {
     await second
 
     expect(tab.reload()).toBe('reloading')
+  })
+})
+
+describe('reloadForFailure (a route that already failed to draw)', () => {
+  it('reloads for a failure that says the code is stale, and arms the tab', () => {
+    const { tab, reload } = setup()
+
+    expect(tab.reloadForFailure(staleClientError())).toBe('reloading')
+    expect(tab.isStale()).toBe(true)
+    expect(reload).toHaveBeenCalledWith(undefined)
+  })
+
+  it('reloads an armed tab whatever the failure: its code is known to be old and the page is lost already', () => {
+    const { tab, reload } = setup()
+    tab.markStale()
+
+    const outcome = tab.reloadForFailure(
+      new TypeError("Cannot read properties of undefined (reading 'length')"),
+    )
+
+    expect(outcome).toBe('reloading')
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('leaves an ordinary failure of a current tab to the error page', () => {
+    const { tab, reload } = setup()
+
+    expect(tab.reloadForFailure(new Error('boom'))).toBe('unrelated')
+    expect(tab.isStale()).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('leaves every failure to the error page when it does not know its release', () => {
+    const { tab, reload } = setup(null)
+
+    expect(tab.reloadForFailure(new TypeError('Importing a module script failed.'))).toBe(
+      'unrelated',
+    )
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('stays armed when a mutation in flight defers the reload, so the next navigation asks again', () => {
+    const { tab, reload } = setup()
+    void tab.trackMutation(new Promise(() => undefined))
+
+    expect(tab.reloadForFailure(staleClientError())).toBe('deferred')
+    expect(tab.isStale()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
   })
 })
 
@@ -328,6 +410,13 @@ describe('reloading on the next navigation', () => {
     'https://attacker.example/x',
     'properties',
     '',
+    // The address parser drops tabs and line breaks and reads a backslash as a
+    // slash, so the next three would become `//attacker.example`; a path the
+    // router built never holds a raw one of them.
+    '/\t/attacker.example/x',
+    '/\r\n/attacker.example/x',
+    '/\t\\attacker.example/x',
+    '/properties\\x',
   ])(
     'never loads %j: anything that is not a path on this site reloads the current address',
     (target) => {
@@ -341,6 +430,17 @@ describe('reloading on the next navigation', () => {
       expect(reload).toHaveBeenCalledWith(undefined)
     },
   )
+
+  it('loads a path whose odd characters are already encoded', () => {
+    const { tab, reload } = setup()
+    const { router, navigate } = routerWith()
+    tab.reloadOnNavigation(router)
+    tab.markStale()
+
+    navigate(true, '/properties/a%20b?q=%5C%09#x')
+
+    expect(reload).toHaveBeenCalledWith('/properties/a%20b?q=%5C%09#x')
+  })
 
   it('does nothing while the tab is current', () => {
     const { tab, reload } = setup()

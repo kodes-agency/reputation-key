@@ -70,36 +70,20 @@ describe('routeErrorFacts', () => {
     })
   })
 
-  describe('needsFreshCode', () => {
-    it('is true for the refusal a stale tab gets, which is expected and never reported', () => {
-      const facts = routeErrorFacts(staleClientRefusal(), true)
-
-      expect(facts.needsFreshCode).toBe(true)
-      expect(facts.report).toBe(false)
+  describe('a stale tab', () => {
+    // Whether the page is loaded afresh instead is the tab's call
+    // (`staleTab.reloadForFailure`, stale-tab.test.ts); these are what is
+    // reported when it is not.
+    it('never reports the refusal a stale tab gets: it is expected', () => {
+      expect(routeErrorFacts(staleClientRefusal(), true).report).toBe(false)
     })
 
     it.each([
       'Failed to fetch dynamically imported module: https://x/assets/a.js',
       'error loading dynamically imported module: https://x/assets/a.js',
       'Importing a module script failed.',
-    ])(
-      'is true for a missing chunk (%s), which is still reported if the reload is refused',
-      (message) => {
-        const facts = routeErrorFacts(new TypeError(message), true)
-
-        expect(facts.needsFreshCode).toBe(true)
-        expect(facts.report).toBe(true)
-      },
-    )
-
-    it.each([
-      new Error('boom'),
-      new TypeError('Load failed'),
-      withStatus(404),
-      withStatus(500),
-      'Importing a module script failed.',
-    ])('is false for an ordinary failure (%s)', (error) => {
-      expect(routeErrorFacts(error, true).needsFreshCode).toBe(false)
+    ])('still reports a missing chunk (%s) the tab could not reload for', (message) => {
+      expect(routeErrorFacts(new TypeError(message), true).report).toBe(true)
     })
   })
 })
