@@ -28,7 +28,11 @@ export function GoalSubjectsField({
   property,
   groups,
   portals,
-}: Pick<ComponentProps<typeof GoalSubjectPicker>, 'property' | 'groups' | 'portals'> &
+  offersProperty,
+}: Pick<
+  ComponentProps<typeof GoalSubjectPicker>,
+  'property' | 'groups' | 'portals' | 'offersProperty'
+> &
   Readonly<{ field: SubjectsFieldApi }>) {
   const labelId = useId()
   return (
@@ -41,6 +45,7 @@ export function GoalSubjectsField({
         property={property}
         groups={groups}
         portals={portals}
+        offersProperty={offersProperty}
         selected={field.state.value.map(goalSubjectKey)}
         onChange={(keys: GoalSubjectKey[]) =>
           field.handleChange(goalSubjectsFromKeys(keys))

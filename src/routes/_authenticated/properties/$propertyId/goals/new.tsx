@@ -463,6 +463,7 @@ function OneGoalForm() {
                   property={{ id: propertyId, name: propData.property.name }}
                   groups={subjects.groups}
                   portals={subjects.portals}
+                  offersProperty={false}
                   selected={field.state.value.map(goalSubjectKey)}
                   onChange={(keys) => field.handleChange(goalSubjectsFromKeys(keys))}
                 />

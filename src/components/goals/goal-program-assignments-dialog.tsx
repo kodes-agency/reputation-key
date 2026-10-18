@@ -117,6 +117,9 @@ export function GoalProgramAssignmentsDialog(props: Props) {
             property={props.property}
             groups={props.groups}
             portals={props.portals}
+            offersProperty={props.assignments.some(
+              ({ subject }) => subject.kind === 'property',
+            )}
           />
         )}
       </form.Field>

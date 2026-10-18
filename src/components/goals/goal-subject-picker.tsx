@@ -28,6 +28,13 @@ type GoalSubjectPickerProps = Readonly<{
     portalIds: readonly string[]
   }>[]
   portals: readonly Readonly<{ id: string; name: string }>[]
+  /**
+   * The goal as it was opened already counts the whole property, so the
+   * property is offered and can be taken off, and ticked again before saving.
+   * A new goal never offers it: the property's goal is the Monthly portal goal,
+   * set from its card on the Goals page (ADR 0068).
+   */
+  offersProperty: boolean
   selected: readonly GoalSubjectKey[]
   onChange: (selected: GoalSubjectKey[]) => void
 }>
@@ -36,6 +43,7 @@ export function GoalSubjectPicker({
   property,
   groups,
   portals,
+  offersProperty,
   selected,
   onChange,
 }: GoalSubjectPickerProps) {
@@ -48,22 +56,18 @@ export function GoalSubjectPicker({
     )
   }
   const propertyKey: GoalSubjectKey = `property:${property.id}`
-  // The whole property is never offered: its goal is the Monthly portal goal,
-  // set from its card on the Goals page (ADR 0068). A goal that already counts
-  // it still shows it, so it can be taken off.
-  const showsProperty = selectedSet.has(propertyKey)
 
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
         Select at least one. Standalone portals do not need to belong to a group.
       </p>
-      {showsProperty ? (
+      {offersProperty ? (
         <SubjectOption
           id="goal-subject-property"
           label={property.name}
           detail="Property"
-          checked
+          checked={selectedSet.has(propertyKey)}
           onChange={(checked) => toggle(propertyKey, checked)}
         />
       ) : null}
