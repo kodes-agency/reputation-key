@@ -3,8 +3,9 @@
 // day, each Portal's count in name order with the total, each month, what
 // changed and how it counts); set and not yet begun; a quiet Portal; December
 // with November and October closed (each month's facts on its chip); a
-// corrected month; scans; one Portal; across a stop; stopped; and no goal yet,
-// where the page is the card's own state. At 320, 390, 820 and 1440 px and on
+// corrected month; scans; one Portal; across a stop; stopped; many changes;
+// no goal yet, where the page is the card's own state; and no goal after a
+// stop, with that goal's months and changes. At 320, 390, 820 and 1440 px and on
 // the light theme. The Storybook Vitest project compiles no Tailwind, so the
 // plays assert words, roles, the heading outline and the calls.
 import type { Meta, StoryObj } from '@storybook/react-vite'
@@ -14,7 +15,9 @@ import {
   PAGE_ACROSS_A_STOP,
   PAGE_CORRECTED,
   PAGE_LATER,
+  PAGE_MANY_CHANGES,
   PAGE_NO_GOAL,
+  PAGE_NO_GOAL_AFTER_A_STOP,
   PAGE_ONE_PORTAL,
   PAGE_RUNNING,
   PAGE_SCANS,
@@ -224,7 +227,7 @@ export const StripLater: Story = {
     // A month has closed: every month's result is a click away.
     await expect(
       canvas.getByRole('link', { name: 'All monthly results' }),
-    ).toHaveAttribute('href', '/properties/p1/goals')
+    ).toHaveAttribute('href', '/properties/p1/goals#monthly-results')
     await expect(changeTexts(canvas)).toContain(
       'Dec 1 · Elena set December to 45 (recommended)',
     )
@@ -313,14 +316,30 @@ export const Stopped: Story = {
   },
 }
 
+/** Fourteen changes: "Show all" goes once pressed, and the first change it adds takes the focus. */
+export const ManyChanges: Story = {
+  args: { page: PAGE_MANY_CHANGES },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(changeTexts(canvas)).toHaveLength(12)
+    await userEvent.click(canvas.getByRole('button', { name: 'Show all' }))
+    const items = within(canvas.getByRole('region', { name: 'Changes' })).getAllByRole(
+      'listitem',
+    )
+    await expect(items).toHaveLength(14)
+    await waitFor(() => expect(items[12]).toHaveFocus())
+    await expect(canvas.queryByRole('button', { name: 'Show all' })).toBeNull()
+  },
+}
+
 /** No goal yet: the card's own state, with Use, and the other Portal goals below. */
 export const NoGoalYet: Story = {
   args: { page: PAGE_NO_GOAL },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
+    // The page's title names the card: no second "Monthly portal goal".
     await expect(outline(canvasElement)).toEqual([
       'h1 Monthly portal goal',
-      'h2 Monthly portal goal',
       'h2 More portal goals',
     ])
     await userEvent.click(canvas.getByRole('button', { name: 'Use 40' }))
@@ -335,6 +354,36 @@ export const NoGoalYet: Story = {
         },
       }),
     )
+    // The card goes once the goal is read back: the page's title takes the focus.
+    await waitFor(() => expect(canvas.getByRole('heading', { level: 1 })).toHaveFocus())
     await expect(canvas.queryByRole('list', { name: 'Month by month' })).toBeNull()
+  },
+}
+
+/**
+ * Dec 3, the goal stopped on Nov 12 and its November closed: no goal now, so
+ * the card before one, and that goal's months and changes under it.
+ */
+export const NoGoalAfterAStop: Story = {
+  args: { page: PAGE_NO_GOAL_AFTER_A_STOP },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(outline(canvasElement)).toEqual([
+      'h1 Monthly portal goal',
+      'h2 Month by month',
+      'h2 Changes',
+      'h2 More portal goals',
+    ])
+    const strip = within(canvas.getByRole('list', { name: 'Month by month' }))
+    await expect(
+      strip.getAllByRole('button').map((chip) => chip.getAttribute('aria-label')),
+    ).toEqual(['November: 41 of 40 private ratings, met'])
+    await expect(changeTexts(canvas).slice(0, 2)).toEqual([
+      'Nov 12 · Marco stopped the goal',
+      'Oct 23 · Elena set 40 a month from November (recommended)',
+    ])
+    await expect(
+      canvas.getByRole('link', { name: 'All monthly results' }),
+    ).toHaveAttribute('href', '/properties/p1/goals#monthly-results')
   },
 }

@@ -5,14 +5,18 @@
 // the page is whoever may set the goal. It reads what the card reads, once, and
 // returns the card's arm: before a goal it is what the page shows. With a goal,
 // it adds what the page shows beside it: the month before (or that it had no
-// goal) and the usual for this month; every published Portal's count of the
-// running month, drawn only when they add up to the governed figure; the
-// established Portals that have gone quiet; the months of the goal and of the
-// goals it took over from, and what changed (`monthly-portal-goal-history.ts`).
-// And always the other Portal goals, with this month so far of the active ones
-// and their subjects' names. It writes nothing.
+// goal) and the usual for the month the goal counts or starts; every published
+// Portal's count of the running month, drawn only when they add up to the
+// governed figure; and the established Portals that have gone quiet. With a
+// goal or after one, the months of the goal and of the goals it took over from,
+// and what changed (`monthly-portal-goal-history.ts`): a stopped goal whose last
+// month has closed is no goal any more, but its months are still here. And
+// always the other Portal goals, with this month so far of the active ones and
+// their subjects' names: side reads, so a failure there leaves the page whole
+// and says so. It writes nothing.
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { goalSubjectIdentity, type GoalSubject } from '../../domain/goal-subject'
-import { addLocalDays } from '../../domain/local-days'
+import { addLocalDays, localDateOf } from '../../domain/local-days'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
 import type {
   PortalGoalPageExtras,
@@ -27,7 +31,7 @@ import type {
 } from '../dto/monthly-portal-goal.types'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import type { GoalSubjectNameReader } from './goal-bulk-create'
-import { listProgressOf } from './goal-list-progress'
+import { inParallel, listProgressOf } from './goal-list-progress'
 import type { GoalActor, GoalExecutionPolicy } from './goal-programs'
 import {
   gatherMonthlyPortalGoal,
@@ -48,7 +52,15 @@ export type MonthlyPortalGoalPageDeps = MonthlyPortalGoalCardDeps &
   Readonly<{
     /** The names of the other Portal goals' Portal Groups, and of Portals not listed. */
     subjectNames: Pick<GoalSubjectNameReader, 'getSubjectName'>
+    /** A side read that failed: the page still draws, without it. */
+    logger: Pick<LoggerPort, 'warn'>
   }>
+
+/** Subject names asked of Portal at once. */
+const SUBJECT_NAME_CONCURRENCY = 3
+
+/** Before a goal the card shows no month. */
+const NOTHING_SHOWN: ShownMonths = { month: null, lastMonth: null }
 
 const publishedOf = (recommendation: PortalGoalRecommendation) =>
   recommendation.portals.filter(
@@ -109,8 +121,13 @@ function tilesOf(
   months: PortalGoalPageView['months'],
   today: string,
 ): PortalGoalPageTiles {
-  const before = addLocalDays(`${anchorMonthOf(goal, today)}-01`, -1).slice(0, 7)
-  const whole = recommendation.measures[shownMeasure(goal)].fullMonth.current
+  const anchor = anchorMonthOf(goal, today)
+  const before = addLocalDays(`${anchor}-01`, -1).slice(0, 7)
+  // The usual of the month the tiles stand beside: next month's days for a
+  // goal that starts then, as its card offered it.
+  const { fullMonth } = recommendation.measures[shownMeasure(goal)]
+  const whole =
+    anchor === recommendation.months.next.key ? fullMonth.next : fullMonth.current
   return {
     lastMonth: months.find(({ key }) => key === before) ?? {
       key: before,
@@ -125,10 +142,12 @@ function tilesOf(
 
 /**
  * The other Portal goals' subjects by name: a Portal the recommendation lists
- * by its name there, any other Portal and each Portal Group asked of Portal.
+ * by its name there, any other Portal and each Portal Group asked of Portal, a
+ * few at a time. A name that cannot be read is left out (the row says
+ * "Portal" or "Group"), and the failure is logged once.
  */
 async function subjectNamesOf(
-  deps: Pick<MonthlyPortalGoalPageDeps, 'subjectNames'>,
+  deps: Pick<MonthlyPortalGoalPageDeps, 'subjectNames' | 'logger'>,
   goals: readonly GoalProgramBundle[],
   recommendation: PortalGoalRecommendation,
   scope: Readonly<{ organizationId: string; propertyId: string }>,
@@ -149,19 +168,61 @@ async function subjectNamesOf(
   for (const subject of current) {
     if (subject.kind !== 'property') subjects.set(goalSubjectIdentity(subject), subject)
   }
-  const named = await Promise.all(
-    [...subjects].map(async ([key, subject]) => {
-      const name =
-        listed.get(key) ??
-        (await deps.subjectNames.getSubjectName(
+  let failure: unknown = null
+  const named = await inParallel(
+    [...subjects],
+    SUBJECT_NAME_CONCURRENCY,
+    async ([key, subject]) => {
+      const known = listed.get(key)
+      if (known !== undefined) return [[key, known] as const]
+      try {
+        const name = await deps.subjectNames.getSubjectName(
           scope.organizationId,
           scope.propertyId,
           subject,
-        ))
-      return name === null ? [] : [[key, name] as const]
-    }),
+        )
+        return name === null ? [] : [[key, name] as const]
+      } catch (error) {
+        failure = error
+        return []
+      }
+    },
   )
+  if (failure !== null) {
+    // Identifiers stay out of the log: the request's own trace names the page.
+    deps.logger.warn(
+      { error: failure },
+      "A name of the other portal goals' subjects could not be read",
+    )
+  }
   return Object.fromEntries(named.flat())
+}
+
+/**
+ * The other Portal goals, with this month so far of the active ones (null when
+ * it could not be read: their rows say so) and their subjects' names.
+ */
+async function extrasOf(
+  deps: MonthlyPortalGoalPageDeps,
+  goals: readonly GoalProgramBundle[],
+  recommendation: PortalGoalRecommendation,
+  context: Readonly<{ now: Date; actor: GoalActor; propertyId: string }>,
+): Promise<PortalGoalPageExtras> {
+  const { now, actor, propertyId } = context
+  const [progress, subjectNames] = await Promise.all([
+    listProgressOf(deps, goals, now, actor).catch((error: unknown) => {
+      deps.logger.warn(
+        { error },
+        "The other portal goals' month so far could not be read",
+      )
+      return null
+    }),
+    subjectNamesOf(deps, goals, recommendation, {
+      organizationId: actor.organizationId,
+      propertyId,
+    }),
+  ])
+  return { goals, progress, subjectNames }
 }
 
 export async function readMonthlyPortalGoalPage(
@@ -171,49 +232,43 @@ export async function readMonthlyPortalGoalPage(
 ): Promise<PortalGoalPageView> {
   const gathered = await gatherMonthlyPortalGoal(deps, input, actor)
   const { goal, programs, recommendation, now } = gathered
+  const today = localDateOf(now, recommendation.timezone)
   const others = programs.filter(
     ({ program }) => program.status !== 'ended' && program.id !== goal?.program.id,
   )
-  const [card, progress, subjectNames] = await Promise.all([
+  const [card, extras] = await Promise.all([
     monthlyPortalGoalCardOf(deps, gathered, actor),
-    listProgressOf(deps, others, now, actor),
-    subjectNamesOf(deps, others, recommendation, {
-      organizationId: actor.organizationId,
-      propertyId: input.propertyId,
-    }),
+    extrasOf(deps, others, recommendation, { now, actor, propertyId: input.propertyId }),
   ])
+  // After the card: its governed figures are the months it shows, so only a
+  // month it does not show is read again.
+  const succession = successionOf(programs, goal)
+  const shown: ShownMonths =
+    card.state === 'goal'
+      ? { month: card.goal.month, lastMonth: card.goal.lastMonth }
+      : NOTHING_SHOWN
+  const months = await goalMonthsOf(deps, succession, shown, { now, today, actor })
   const page = {
     card,
+    today,
     timezone: recommendation.timezone,
     portals: publishedOf(recommendation).map(({ portalId, name }) => ({
       portalId,
       name,
     })),
     facts: factsOf(recommendation),
-    extras: { goals: others, progress, subjectNames },
-  }
-  if (goal === null || card.state !== 'goal') {
-    return {
-      ...page,
-      tiles: null,
-      rows: null,
-      months: [],
-      changes: [],
-      anyMonthClosed: false,
-    }
-  }
-  const succession = successionOf(programs, goal)
-  const shown: ShownMonths = { month: card.goal.month, lastMonth: card.goal.lastMonth }
-  const months = goalMonthsOf(succession, shown, now)
-  return {
-    ...page,
-    tiles: tilesOf(recommendation, card.goal, months, card.today),
-    rows: rowsOf(recommendation, card.goal.month),
     months,
     changes: goalChangesOf(succession, recommendation),
     anyMonthClosed: succession.some(({ results }) =>
       results.some(({ status }) => status === 'closed'),
     ),
+    extras,
+  }
+  if (card.state !== 'goal') return { ...page, tiles: null, rows: null }
+  return {
+    ...page,
+    tiles: tilesOf(recommendation, card.goal, months, today),
+    rows: rowsOf(recommendation, card.goal.month),
   }
 }
 

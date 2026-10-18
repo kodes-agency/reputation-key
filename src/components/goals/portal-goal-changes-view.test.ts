@@ -4,6 +4,8 @@ import { changeLines } from './portal-goal-changes-view'
 
 const NAMES: Readonly<Record<string, string>> = { elena: 'Elena', marco: 'Marco' }
 const personName = (userId: string): string | null => NAMES[userId] ?? null
+/** The day the page is read. */
+const TODAY = '2026-12-22'
 
 /** Oct 23: Elena set 40 a month from November, as recommended. */
 const set = (patch: Partial<Extract<PortalGoalChange, { kind: 'set_from' }>> = {}) =>
@@ -21,7 +23,9 @@ const set = (patch: Partial<Extract<PortalGoalChange, { kind: 'set_from' }>> = {
   }) as const satisfies PortalGoalChange
 
 const textOf = (change: PortalGoalChange) =>
-  changeLines([change], personName).lines.map(({ date, text }) => `${date} · ${text}`)
+  changeLines([change], personName, TODAY).lines.map(
+    ({ date, text }) => `${date} · ${text}`,
+  )
 
 describe('changeLines', () => {
   it('a recommended set says (recommended)', () => {
@@ -83,7 +87,11 @@ describe('changeLines', () => {
   })
 
   it('a note shows on its own line', () => {
-    const { lines } = changeLines([set({ note: 'Agreed with the GM' })], personName)
+    const { lines } = changeLines(
+      [set({ note: 'Agreed with the GM' })],
+      personName,
+      TODAY,
+    )
 
     expect(lines[0]?.note).toBe('“Agreed with the GM”')
     expect(lines[0]?.text).toBe('Elena set 40 a month from November (recommended)')
@@ -106,13 +114,22 @@ describe('changeLines', () => {
       set({ on: `2026-10-${String(28 - index).padStart(2, '0')}` }),
     )
 
-    const shown = changeLines(changes, personName)
-    const all = changeLines(changes, personName, true)
+    const shown = changeLines(changes, personName, TODAY)
+    const all = changeLines(changes, personName, TODAY, true)
 
     expect(shown.lines).toHaveLength(12)
     expect(shown.lines[0]?.date).toBe('Oct 28')
     expect(shown.more).toBe(true)
     expect(all.lines).toHaveLength(14)
     expect(all.more).toBe(false)
+  })
+
+  it('a change in another year says its year', () => {
+    expect(
+      textOf({ kind: 'went_live', on: '2025-03-03', portals: ['Reception'] }),
+    ).toEqual(['Mar 3, 2025 · Reception went live'])
+    expect(textOf(set())).toEqual([
+      'Oct 23 · Elena set 40 a month from November (recommended)',
+    ])
   })
 })

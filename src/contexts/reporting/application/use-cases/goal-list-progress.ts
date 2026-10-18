@@ -119,7 +119,7 @@ function planPage(programs: readonly GoalProgramBundle[], now: Date): readonly P
 }
 
 /** `run` over `items` with at most `limit` in flight, results in the order of `items`. */
-async function inParallel<T, R>(
+export async function inParallel<T, R>(
   items: readonly T[],
   limit: number,
   run: (item: T) => Promise<R>,

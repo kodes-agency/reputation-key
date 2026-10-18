@@ -395,7 +395,11 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
         readMonthlyPortalGoalCard(monthlyPortalGoalReads(policy), ...args),
       page: (policy, ...args) =>
         readMonthlyPortalGoalPage(
-          { ...monthlyPortalGoalReads(policy), subjectNames: goalProgramSubjects },
+          {
+            ...monthlyPortalGoalReads(policy),
+            subjectNames: goalProgramSubjects,
+            logger: input.logger,
+          },
           ...args,
         ),
       set: (policy, ...args) =>

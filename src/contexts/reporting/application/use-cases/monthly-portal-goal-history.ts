@@ -4,13 +4,18 @@
 // A Property keeps one Monthly portal goal at a time, but a stopped goal is
 // followed by a new one, so the page reads the line of succession: the goal
 // itself, then every earlier Property count goal of the Property that has
-// ended, newest end first. Its months are theirs together, one per month (the
-// goal's own first), newest first: the running month with its governed figure,
-// a month still being read with its figure so far, and each closed month with
-// its result after any correction. Its changes are dated facts: a number set
-// from a month (where it came from, and a note), one month's own number set,
-// the goal stopped, and each published Portal going live. The server decides
-// every one; the page only words them. Pure.
+// ended, newest end first. With no goal now (a stopped goal whose last month
+// has closed) it is those ended goals alone, so a notice or a link about one
+// of them still lands on their months. Its months are theirs together, one per
+// month (the goal's own first), newest first: the running month with its
+// governed figure, a month still being read with its figure so far, and each
+// closed month with its result after any correction. The card's read already
+// has the governed figure of the months it shows; any other month still
+// counting or being read (a stopped goal's November while the next goal waits
+// for December) is read the same governed way, never left without a figure.
+// Its changes are dated facts: a number set from a month (where it came from,
+// and a note), one month's own number set, the goal stopped, and each published
+// Portal going live. The server decides every one; the page only words them.
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
 import type {
   PortalGoalChange,
@@ -22,6 +27,7 @@ import type {
 } from '../dto/monthly-portal-goal.types'
 import { localDateOf } from '../../domain/local-days'
 import { effectiveMonthTarget } from '../goal-effective-month-target'
+import { versionNoteOf } from '../goal-version-reasons'
 import {
   isPropertyCountGoal,
   type PropertyCountGoal,
@@ -29,41 +35,41 @@ import {
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
+  GoalProgramVersion,
 } from '../ports/goal-program.repository'
+import type { GoalActor } from './goal-programs'
+import { readSubjectMonth } from './goal-progress'
 import {
   finalFigureOn,
   measureOf,
   monthKeyOf,
   outcomeOf,
   versionOf,
+  type MonthlyPortalGoalOnCardDeps,
 } from './monthly-portal-goal-running'
 
 /** The most months "Month by month" shows. */
 const MAX_MONTHS = 24
 
-/** A version's change reason that a command wrote, not a note a manager typed. */
-const SYSTEM_REASONS: ReadonlySet<string> = new Set([
-  'created',
-  'revised',
-  'subjects_changed',
-  'target_changed',
-  'metric_correction_reconciliation',
-])
-
-/** The goal, then the Property count goals it took over from, newest end first. */
+/**
+ * The goal, then the Property count goals it took over from, newest end first;
+ * with no goal now, those ended goals alone.
+ */
 export function successionOf(
   programs: readonly GoalProgramBundle[],
-  goal: PropertyCountGoal,
+  goal: PropertyCountGoal | null,
 ): readonly PropertyCountGoal[] {
   const earlier = programs
     .filter(isPropertyCountGoal)
-    .filter(({ program }) => program.status === 'ended' && program.id !== goal.program.id)
+    .filter(
+      ({ program }) => program.status === 'ended' && program.id !== goal?.program.id,
+    )
     .sort(
       (a, b) =>
         b.program.updatedAt.getTime() - a.program.updatedAt.getTime() ||
         a.program.id.localeCompare(b.program.id),
     )
-  return [goal, ...earlier]
+  return goal === null ? earlier : [goal, ...earlier]
 }
 
 /** What the card read already knows of the months it shows. */
@@ -72,11 +78,24 @@ export type ShownMonths = Readonly<{
   lastMonth: PortalGoalLastMonth | null
 }>
 
+/** The clock and the reader the months are read with. */
+export type GoalMonthsContext = Readonly<{
+  now: Date
+  /** Today, the Property's local day. */
+  today: string
+  actor: GoalActor
+}>
+
+/** One month of the line of succession: the goal whose month it is, and its result. */
+type Picked = Readonly<{
+  bundle: PropertyCountGoal
+  result: GoalMonthlyResult
+  version: GoalProgramVersion
+  base: Pick<PortalGoalPageMonth, 'key' | 'measure' | 'target'>
+}>
+
 /** A closed month: its result, the day it arrived, and the latest correction. */
-function closedMonth(
-  result: GoalMonthlyResult,
-  base: Pick<PortalGoalPageMonth, 'key' | 'measure' | 'target'>,
-): PortalGoalPageMonth {
+function closedMonth({ result, base }: Picked): PortalGoalPageMonth {
   const timezone = result.propertyTimezone
   const outcome = outcomeOf(result)
   const value = result.evaluation.value
@@ -92,74 +111,96 @@ function closedMonth(
 }
 
 /**
- * A month still counting or being read: the governed figure the card read, for
- * the month it shows; otherwise no figure, never a zero.
+ * The governed figure so far of a month still counting or being read: the
+ * card's, for a month it shows in the same measure; otherwise read the same
+ * way (`readSubjectMonth`). Null when it cannot be read, never a zero.
  */
-function openMonth(
-  result: GoalMonthlyResult,
-  base: Pick<PortalGoalPageMonth, 'key' | 'measure' | 'target'>,
+async function figureSoFar(
+  deps: MonthlyPortalGoalOnCardDeps,
+  picked: Picked,
+  shown: PortalGoalRunningMonth | PortalGoalLastMonth | null,
+  actor: GoalActor,
+): Promise<number | null> {
+  const { bundle, result, version, base } = picked
+  if (shown?.key === base.key && shown.measure === base.measure) return shown.value
+  const reading = await readSubjectMonth(
+    deps,
+    version,
+    { kind: 'property', propertyId: bundle.program.propertyId },
+    { start: result.periodStart, end: result.periodEnd },
+    actor,
+  )
+  return reading.kind === 'live' ? reading.value : null
+}
+
+/**
+ * A month still counting or being read: its figure so far, and the day its
+ * final figure is due, but no day once that day has gone.
+ */
+async function openMonth(
+  deps: MonthlyPortalGoalOnCardDeps,
+  picked: Picked,
   shown: ShownMonths,
-  now: Date,
-): PortalGoalPageMonth {
-  const running = result.periodEnd.getTime() > now.getTime()
-  const { month, lastMonth } = shown
-  const finalOn = finalFigureOn(result)
-  if (running) {
-    const value = month?.key === base.key ? month.value : null
-    return { ...base, value, outcome: 'running', finalOn, correction: null }
-  }
-  const read = lastMonth?.key === base.key ? lastMonth : null
+  context: GoalMonthsContext,
+): Promise<PortalGoalPageMonth> {
+  const { result, base } = picked
+  const running = result.periodEnd.getTime() > context.now.getTime()
+  const due = finalFigureOn(result)
+  const value = await figureSoFar(
+    deps,
+    picked,
+    running ? shown.month : shown.lastMonth,
+    context.actor,
+  )
   return {
     ...base,
-    value: read?.value ?? null,
-    outcome: 'updating',
-    finalOn: read ? read.finalOn : finalOn,
+    value,
+    outcome: running ? 'running' : 'updating',
+    finalOn: due < context.today ? null : due,
     correction: null,
   }
 }
 
-function pageMonthOf(
-  bundle: PropertyCountGoal,
-  result: GoalMonthlyResult,
-  shown: ShownMonths,
-  now: Date,
-): PortalGoalPageMonth | null {
-  const version = versionOf(bundle, result.programVersionId)
-  const measure = measureOf(version)
-  if (measure === null) return null
-  const base = {
-    key: monthKeyOf(result.periodStart, result.propertyTimezone),
-    measure,
-    target: effectiveMonthTarget(result, version),
-  }
-  return result.status === 'closed'
-    ? closedMonth(result, base)
-    : openMonth(result, base, shown, now)
-}
-
 /** Each month of the line of succession once, the goal's own first, newest first. */
-export function goalMonthsOf(
-  succession: readonly PropertyCountGoal[],
-  shown: ShownMonths,
-  now: Date,
-): readonly PortalGoalPageMonth[] {
-  const byKey = new Map<string, PortalGoalPageMonth>()
+function pickMonths(succession: readonly PropertyCountGoal[]): readonly Picked[] {
+  const byKey = new Map<string, Picked>()
   for (const bundle of succession) {
     for (const result of bundle.results) {
-      const month = pageMonthOf(bundle, result, shown, now)
-      if (month !== null && !byKey.has(month.key)) byKey.set(month.key, month)
+      const version = versionOf(bundle, result.programVersionId)
+      const measure = measureOf(version)
+      const key = monthKeyOf(result.periodStart, result.propertyTimezone)
+      if (measure === null || byKey.has(key)) continue
+      const target = effectiveMonthTarget(result, version)
+      byKey.set(key, { bundle, result, version, base: { key, measure, target } })
     }
   }
   return [...byKey.values()]
-    .sort((a, b) => b.key.localeCompare(a.key))
+    .sort((a, b) => b.base.key.localeCompare(a.base.key))
     .slice(0, MAX_MONTHS)
+}
+
+/**
+ * "Month by month": each month of the line of succession, newest first, up to
+ * 24. Only a month still counting or being read that the card does not show
+ * is read again: a stopped goal's last month, at most one or two.
+ */
+export function goalMonthsOf(
+  deps: MonthlyPortalGoalOnCardDeps,
+  succession: readonly PropertyCountGoal[],
+  shown: ShownMonths,
+  context: GoalMonthsContext,
+): Promise<readonly PortalGoalPageMonth[]> {
+  return Promise.all(
+    pickMonths(succession).map((picked) =>
+      picked.result.status === 'closed'
+        ? closedMonth(picked)
+        : openMonth(deps, picked, shown, context),
+    ),
+  )
 }
 
 /** A change, with the instant it was made for ordering a day's changes. */
 type Dated = Readonly<{ at: number; change: PortalGoalChange }>
-
-const noteOfReason = (reason: string): string | null =>
-  SYSTEM_REASONS.has(reason) ? null : reason
 
 /**
  * The number set from a month: the first version, and each later one with a
@@ -197,7 +238,7 @@ function versionChanges(bundle: PropertyCountGoal, timezone: string): Dated[] {
           measure,
           switched: before !== undefined && before.metric !== version.metric,
           source: version.targetSource ?? null,
-          note: noteOfReason(version.changeReason),
+          note: versionNoteOf(version.changeReason),
         },
       },
     ]
@@ -255,11 +296,15 @@ function goLives(recommendation: PortalGoalRecommendation): Dated[] {
   }))
 }
 
-/** What changed, newest first: the line of succession's changes and the go-lives. */
+/**
+ * What changed, newest first: the line of succession's changes and the
+ * go-lives; nothing before the Property's first goal.
+ */
 export function goalChangesOf(
   succession: readonly PropertyCountGoal[],
   recommendation: PortalGoalRecommendation,
 ): readonly PortalGoalChange[] {
+  if (succession.length === 0) return []
   const { timezone } = recommendation
   const dated = [
     ...succession.flatMap((bundle) => [

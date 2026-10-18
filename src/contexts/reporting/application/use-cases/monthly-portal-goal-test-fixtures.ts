@@ -377,6 +377,7 @@ export function fakeWorld(world: World = {}) {
         },
       ),
     },
+    logger: { warn: vi.fn() },
     now: () => world.now ?? OCT_17,
   } satisfies MonthlyPortalGoalPageDeps
   return { deps, calls }

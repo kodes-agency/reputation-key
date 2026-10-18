@@ -131,19 +131,22 @@ export type PortalGoalChange =
 /** The other Portal goals, with this month so far of the active ones. */
 export type PortalGoalPageExtras = Readonly<{
   goals: readonly GoalProgramBundle[]
-  progress: readonly GoalListProgress[]
+  /** Null when it could not be read: the rows say so, the page still draws. */
+  progress: readonly GoalListProgress[] | null
   /** Each Portal and Portal Group subject's name, by `portal:<id>` or `portal_group:<id>`. */
   subjectNames: Readonly<Record<string, string>>
 }>
 
 /**
  * The Monthly portal goal's page: the card's arm (before a goal, it is what the
- * page shows), and with a goal the tiles, what each Portal brought in, the
- * quiet Portals, the months of this goal and of the ones it took over from,
- * what changed, and the other Portal goals.
+ * page shows), with a goal the tiles, what each Portal brought in and the
+ * quiet Portals; with a goal or after one, the months of this goal and of the
+ * ones it took over from, and what changed; and the other Portal goals.
  */
 export type PortalGoalPageView = Readonly<{
   card: PortalGoalCardView
+  /** Today, the Property's local day: a date of another year says its year. */
+  today: string
   /** The Property's time zone, whose months the goal follows. */
   timezone: string
   /** Published Portals in name order: "from all 3 portals", or the one by name. */
@@ -154,11 +157,14 @@ export type PortalGoalPageView = Readonly<{
   rows: PortalGoalPageRows | null
   /** Each established Portal that has gone quiet; others are absent. */
   facts: Readonly<Record<string, PortalGoalQuietFact>>
-  /** Newest first, up to 24. */
+  /**
+   * Newest first, up to 24: the goal's and those of the goals it took over
+   * from, or with no goal now, the stopped goals' (none before a first goal).
+   */
   months: readonly PortalGoalPageMonth[]
-  /** Newest first. */
+  /** Newest first; none before a first goal. */
   changes: readonly PortalGoalChange[]
   extras: PortalGoalPageExtras
-  /** A month of the goal has closed, so it has results to see. */
+  /** A month of the goal, or of one before it, has closed: it has results to see. */
   anyMonthClosed: boolean
 }>

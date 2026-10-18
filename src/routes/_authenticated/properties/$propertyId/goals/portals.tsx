@@ -83,9 +83,12 @@ function MonthlyPortalGoalRoute() {
           goals={extras.goals}
           monthlyGoalId={null}
           live={{
-            byProgram: new Map(extras.progress.map((goal) => [goal.programId, goal])),
+            byProgram: new Map(
+              (extras.progress ?? []).map((goal) => [goal.programId, goal]),
+            ),
             loading: false,
-            failed: false,
+            // The read could not say their month so far: the rows say so.
+            failed: extras.progress === null,
           }}
           subjectName={(subject) => extrasSubjectName(subject, name, extras.subjectNames)}
           now={now}

@@ -189,17 +189,24 @@ metric authority.
   `application/use-cases/monthly-portal-goal-page.ts`, `/goals/portals`): the card's read
   once more, authorised for `goal.create` the same way, with what the page shows beside
   it. The **line of succession** is the goal itself, then every earlier Property count goal
-  of the Property that has ended, newest end first (`monthly-portal-goal-history.ts`); its
-  months are theirs together, one per month, newest first, up to 24 (the running month and
-  the month still being read with their governed figures, a closed month with its result
-  after any correction), and its changes are dated facts from versions (a new number or
+  of the Property that has ended, newest end first (`monthly-portal-goal-history.ts`); with
+  no Monthly portal goal now (a stopped goal whose last month has closed) it is those ended
+  goals alone, drawn under the card before a goal, so a notice or a link about one lands on
+  its months. Its months are theirs together, one per month, newest first, up to 24: every
+  month still counting or being read with its governed figure (the card's for a month it
+  shows, else read the same way, as a stopped goal's November is while the next goal waits
+  for December; its final day named only until it has passed), a closed month with its
+  result after any correction. Its changes are dated facts from versions (a new number or
   measure from a month, with its source and note; a version that only changed subjects, or
-  that a month's change wrote for the months after it, is not one of its own), month target
-  changes, the stop (`ended_at`, `ended_by`) and each published Portal's current live run.
-  Every published Portal's count of the running month is listed (up to 100) when they add
-  up to the governed figure; an established Portal gone quiet carries its fact. The other
-  Portal goals come with their month so far (`listProgressOf`, the Goals list's own) and
-  their subjects' names. Its types are `application/dto/monthly-portal-goal-page.types.ts`.
+  that a month's change wrote for the months after it, is not one of its own; a version's
+  default reason is told from a note by `application/goal-version-reasons.ts`), month
+  target changes, the stop (`ended_at`, `ended_by`) and each published Portal's current
+  live run. The tiles' usual is the month they stand beside (next month's days for a goal
+  that starts then). Every published Portal's count of the running month is listed (up to 100) when they add up to the governed figure; an established Portal gone quiet carries
+  its fact. The other Portal goals come with their month so far (`listProgressOf`, the
+  Goals list's own) and their subjects' names, side reads: a failure there is logged and
+  leaves the page whole (`progress: null`, a name left out). Its types are
+  `application/dto/monthly-portal-goal-page.types.ts`.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save

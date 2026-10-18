@@ -2,17 +2,21 @@
 // P-10…P-12): each dated fact the read returned, newest first, the person named
 // when the page knows them, "(recommended)" when the number was the one
 // recommended, the unit when the goal switched what it counts, a note on its
-// own line, and each Portal going live. At most 12 until "Show all". Pure.
+// own line, and each Portal going live; a day of another year says its year.
+// At most 12 until "Show all". Pure.
 import type { PortalGoalChange } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
-import { formatNumber } from '#/lib/format'
+import { formatLocalDate, formatNumber } from '#/lib/format'
 import { dayWords, listOfNames, monthName, portalGoalUnit } from './portal-goal-words'
 
 /** How many changes the page lists before "Show all". */
 const CHANGES_SHOWN = 12
 
+/** How many changes the page lists before "Show all": the first one it adds takes the focus. */
+export const FIRST_HIDDEN_CHANGE = CHANGES_SHOWN
+
 export type PortalGoalChangeLine = Readonly<{
   key: string
-  /** "Oct 23" */
+  /** "Oct 23", or "Mar 3, 2025" in another year. */
   date: string
   /** "Elena set 40 a month from November (recommended)" */
   text: string
@@ -54,6 +58,10 @@ function changeText(
   }
 }
 
+/** "Oct 23" this year; "Mar 3, 2025" in another. */
+const changeDay = (day: string, today: string): string =>
+  day.slice(0, 4) === today.slice(0, 4) ? dayWords(day) : (formatLocalDate(day) ?? day)
+
 const noteOf = (change: PortalGoalChange): string | null =>
   (change.kind === 'set_from' || change.kind === 'set_month') && change.note !== null
     ? `“${change.note}”`
@@ -66,13 +74,14 @@ const noteOf = (change: PortalGoalChange): string | null =>
 export function changeLines(
   changes: readonly PortalGoalChange[],
   personName: (userId: string) => string | null,
+  today: string,
   all = false,
 ): Readonly<{ lines: readonly PortalGoalChangeLine[]; more: boolean }> {
   const shown = all ? changes : changes.slice(0, CHANGES_SHOWN)
   return {
     lines: shown.map((change, index) => ({
       key: `${change.on}-${index}`,
-      date: dayWords(change.on),
+      date: changeDay(change.on, today),
       text: changeText(change, personName),
       note: noteOf(change),
     })),

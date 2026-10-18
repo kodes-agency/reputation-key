@@ -18,7 +18,12 @@ import {
   CARD_RUNNING,
   CARD_STOPPED,
 } from './portal-goal-running.stories.fixtures'
-import { CARD_READY, CARD_SCHEDULED, SEAVIEW } from './portal-goal.stories.fixtures'
+import {
+  CARD_NOTHING,
+  CARD_READY,
+  CARD_SCHEDULED,
+  SEAVIEW,
+} from './portal-goal.stories.fixtures'
 
 export { SEAVIEW }
 
@@ -80,6 +85,7 @@ const NO_EXTRAS: PortalGoalPageView['extras'] = {
 /** Nov 22, G10: the mock's day. Spa has 20, Reception 3: still in name order. */
 export const PAGE_RUNNING: PortalGoalPageView = {
   card: CARD_RUNNING,
+  today: '2026-11-22',
   timezone: SEAVIEW.timezone,
   portals: PORTALS,
   tiles: {
@@ -107,6 +113,7 @@ export const PAGE_RUNNING: PortalGoalPageView = {
 export const PAGE_SCHEDULED: PortalGoalPageView = {
   ...PAGE_RUNNING,
   card: CARD_SCHEDULED,
+  today: '2026-10-23',
   tiles: {
     lastMonth: { key: '2026-10', outcome: 'no_goal' },
     usual: { about: 34, weeks: 2 },
@@ -165,6 +172,7 @@ const closedMonth = (
 export const PAGE_LATER: PortalGoalPageView = {
   ...PAGE_RUNNING,
   card: december(12),
+  today: '2026-12-22',
   tiles: {
     lastMonth: closedMonth('2026-11', 41),
     usual: { about: 38, weeks: 4 },
@@ -295,6 +303,7 @@ export const PAGE_STOPPED: PortalGoalPageView = {
 /** No goal yet: the page is the card's own state, the number ready to use. */
 export const PAGE_NO_GOAL: PortalGoalPageView = {
   card: CARD_READY,
+  today: '2026-10-23',
   timezone: SEAVIEW.timezone,
   portals: PORTALS,
   tiles: null,
@@ -304,4 +313,31 @@ export const PAGE_NO_GOAL: PortalGoalPageView = {
   changes: [],
   extras: NO_EXTRAS,
   anyMonthClosed: false,
+}
+
+/**
+ * Dec 3: stopped on Nov 12, and November closed met (41 of 40). It counts no
+ * month any more, so the page is the card before a goal, with its months and
+ * what changed under it.
+ */
+export const PAGE_NO_GOAL_AFTER_A_STOP: PortalGoalPageView = {
+  ...PAGE_NO_GOAL,
+  card: CARD_NOTHING,
+  today: '2026-12-03',
+  months: [closedMonth('2026-11', 41, { finalOn: '2026-12-01' })],
+  changes: [
+    { kind: 'stopped', on: '2026-11-12', by: 'marco' },
+    SET_ON_OCT_23,
+    ...GO_LIVES,
+  ],
+  anyMonthClosed: true,
+}
+
+/** Nov 22 with 14 changes: the first 12, then "Show all". */
+export const PAGE_MANY_CHANGES: PortalGoalPageView = {
+  ...PAGE_RUNNING,
+  changes: Array.from({ length: 14 }, (_, index) => ({
+    ...SET_ON_OCT_23,
+    on: `2026-10-${String(28 - index).padStart(2, '0')}`,
+  })),
 }
