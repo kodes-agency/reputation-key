@@ -19,6 +19,16 @@
 // Redacted envelopes cannot be redriven — the payload is gone; they exist
 // for operator inspection only.
 //
+// A schedule firing is never dead-lettered. Every schedule is
+// enumeration-only, so the next firing repeats the whole pass: a failed firing
+// is not lost work and leaves nothing to redrive. Its own id
+// (repeat:<scheduler>:<timestamp>) is also what made the old dead-letter id
+// invalid; see quarantineJobIdFor. The failure is not hidden: worker.ts captures
+// each terminal one in error monitoring, logs it ('job failed' at error level,
+// plus a warn line saying why there is no dead letter), and BullMQ keeps the
+// job in its retained failed set. The job-runtime report shows repair_required
+// until a later success.
+//
 // Distinct from queue-quarantine.ts (BQC-0.4), which PAUSES a live queue as
 // a containment stop-control — different concept, do not confuse.
 
@@ -31,6 +41,7 @@ import {
   jobEnqueueOptions,
   jobFamilyRow,
 } from './job-policy'
+import { isScheduleFiring } from './schedule-firing'
 
 /** The dead-letter queue name. Created in the worker; never processed. */
 export const QUARANTINE_QUEUE_NAME = 'quarantine'
@@ -238,7 +249,23 @@ function publicationIsConfirmed(
 export type QuarantineOutcome = Readonly<{
   quarantined: boolean
   quarantineJobId?: string
+  /** Why a terminal failure was deliberately not dead-lettered. */
+  skipped?: 'schedule_firing'
 }>
+
+const SCHEDULE_FIRING_NOT_QUARANTINED: QuarantineOutcome = Object.freeze({
+  quarantined: false,
+  skipped: 'schedule_firing',
+})
+
+type QuarantineOrigin = Pick<QuarantineEnvelope, 'originalQueue' | 'originalJobId'>
+
+function originOf(job: Job): QuarantineOrigin {
+  return {
+    originalQueue: job.queueName ?? 'unknown',
+    originalJobId: job.id ?? 'unknown',
+  }
+}
 
 /** Content-safe quarantine envelope: catalogue-known payloads pass through
  * (identifier-only by construction); unknown work is redacted. */
@@ -253,8 +280,7 @@ function buildQuarantineEnvelope(
 ): QuarantineEnvelope {
   const data = isCatalogueKnownWork(job.name) ? job.data : { redacted: true }
   return {
-    originalQueue: job.queueName ?? 'unknown',
-    originalJobId: job.id ?? 'unknown',
+    ...originOf(job),
     jobName: job.name,
     data,
     failedReason: fields.failedReason.slice(0, 200),
@@ -265,9 +291,22 @@ function buildQuarantineEnvelope(
   }
 }
 
-/** Deterministic id: re-quarantining the same job is idempotent. */
-function quarantineJobIdFor(envelope: QuarantineEnvelope): string {
-  return `${QUARANTINE_QUEUE_NAME}:${envelope.originalQueue}:${envelope.originalJobId}`
+/** `:` separates the id's segments; `%` is escaped too so no two ids collide. */
+function idSegment(value: string): string {
+  return value.replace(/[%:]/g, (character) => (character === ':' ? '%3A' : '%25'))
+}
+
+/**
+ * The dead-letter id of an original job, and the only place it is built.
+ * Deterministic, so re-quarantining the same job is idempotent. BullMQ refuses
+ * a custom id that contains `:` unless it has exactly three segments, so the
+ * id is always those three and a `:` inside one is escaped; an id without `:`
+ * or `%` is unchanged.
+ */
+function quarantineJobIdFor(origin: QuarantineOrigin): string {
+  return [QUARANTINE_QUEUE_NAME, origin.originalQueue, origin.originalJobId]
+    .map(idSegment)
+    .join(':')
 }
 
 /**
@@ -281,6 +320,7 @@ export async function quarantineExhaustedJob(
   err: unknown,
 ): Promise<QuarantineOutcome> {
   if (!isAttemptsExhausted(job)) return { quarantined: false }
+  if (isScheduleFiring(job)) return SCHEDULE_FIRING_NOT_QUARANTINED
 
   const envelope = buildQuarantineEnvelope(job, {
     failedReason: sanitizeFailedReason(err),
@@ -305,6 +345,7 @@ export async function quarantineFinalAttemptJob(
   err: unknown,
 ): Promise<QuarantineOutcome> {
   if (!isTerminalFailure(job, err)) return { quarantined: false }
+  if (isScheduleFiring(job)) return SCHEDULE_FIRING_NOT_QUARANTINED
 
   const envelope = buildQuarantineEnvelope(job, {
     failedReason: sanitizeFailedReason(err),
@@ -326,13 +367,14 @@ const CONFIRMED_FAILURE_PROGRESS = Object.freeze({
  * Confirm a provisional copy only after BullMQ emitted `failed`, which means
  * moveToFailed completed. Confirmation is isolated in the job progress field,
  * so it can never overwrite payload redaction racing in the operator scrub.
+ * A schedule firing was never staged, so it has nothing to confirm.
  */
 export async function confirmQuarantineFailure(
   quarantineQueue: QuarantineBarrierPort,
   job: Job,
 ): Promise<boolean> {
-  const quarantineJobId = `${QUARANTINE_QUEUE_NAME}:${job.queueName ?? 'unknown'}:${job.id ?? 'unknown'}`
-  const quarantined = await quarantineQueue.getJob(quarantineJobId)
+  if (isScheduleFiring(job)) return false
+  const quarantined = await quarantineQueue.getJob(quarantineJobIdFor(originOf(job)))
   if (!quarantined) return false
   await quarantined.updateProgress(CONFIRMED_FAILURE_PROGRESS)
   return true

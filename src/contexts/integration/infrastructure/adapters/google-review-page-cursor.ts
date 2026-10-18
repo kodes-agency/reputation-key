@@ -6,6 +6,7 @@ import {
   reviewApiError,
 } from './google-review-api-errors'
 import type {
+  GoogleReviewCursorFailureCode,
   GoogleReviewCursorStore,
   GoogleReviewCursorUse,
 } from '../google-review-cursor-store'
@@ -39,6 +40,8 @@ export type CursorRejection = Readonly<{
   /** Publication only: which `binding_mismatch` branch the store took. */
   parentCursorRefPresent?: boolean
   nextPageIndex?: number
+  /** `not_found` only: when the store started, or null when it could not say. */
+  storeStartedAt?: string | null
 }>
 
 /**
@@ -56,6 +59,57 @@ export function cursorRejectionLogger(
       { event: 'reviews_cursor_rejected', ...entry },
       'Google reviews cursor store rejected the call',
     )
+}
+
+/**
+ * When the cursor store started, or null when it cannot say: a lookup that
+ * fails must not replace the store's own answer with an outage.
+ */
+async function cursorStoreStartedAtMs(
+  cursorStore: Pick<GoogleReviewCursorStore, 'startedAtMs'>,
+): Promise<number | null> {
+  try {
+    const startedAtMs = await cursorStore.startedAtMs()
+    return startedAtMs !== null && Number.isSafeInteger(startedAtMs) ? startedAtMs : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Reports one cursor-store refusal and returns the error to throw for it.
+ *
+ * A `not_found` also carries when the store started. The store keeps nothing
+ * across a restart (ADR 0050), so every deploy that restarts it leaves the runs
+ * then in flight holding refs to cursors that are gone; the snapshot run tells
+ * that loss from a defect by comparing the store's start with its own.
+ */
+export async function cursorRejectionError(
+  deps: Readonly<{
+    cursorStore: Pick<GoogleReviewCursorStore, 'startedAtMs'>
+    logRejection: (entry: CursorRejection) => void
+  }>,
+  code: GoogleReviewCursorFailureCode,
+  entry: Omit<CursorRejection, 'code' | 'storeStartedAt'>,
+): Promise<GoogleReviewApiError> {
+  if (code !== 'not_found') {
+    deps.logRejection({ ...entry, code })
+    return reviewApiError(
+      cursorFailureCode(code),
+      code === 'conflict' || code === 'unavailable',
+    )
+  }
+  const startedAtMs = await cursorStoreStartedAtMs(deps.cursorStore)
+  deps.logRejection({
+    ...entry,
+    code,
+    storeStartedAt: startedAtMs === null ? null : new Date(startedAtMs).toISOString(),
+  })
+  return reviewApiError(
+    'cursor_not_found',
+    false,
+    startedAtMs === null ? {} : { cursorStoreStartedAtMs: startedAtMs },
+  )
 }
 
 /** A store that throws is an outage of the store, reported and retried as one. */
@@ -93,7 +147,7 @@ function neverReachedGoogle(error: unknown): boolean {
  */
 export function createPageCursorSpender(
   deps: Readonly<{
-    cursorStore: Pick<GoogleReviewCursorStore, 'redeem' | 'release'>
+    cursorStore: Pick<GoogleReviewCursorStore, 'redeem' | 'release' | 'startedAtMs'>
     logRejection: (entry: CursorRejection) => void
   }>,
 ) {
@@ -107,11 +161,10 @@ export function createPageCursorSpender(
         deps.logRejection({ operation: 'redeem', code: 'store_threw', ...diagnostic }),
     )
     if (!redeemed.ok) {
-      deps.logRejection({ operation: 'redeem', code: redeemed.code, ...diagnostic })
-      throw reviewApiError(
-        cursorFailureCode(redeemed.code),
-        redeemed.code === 'conflict' || redeemed.code === 'unavailable',
-      )
+      throw await cursorRejectionError(deps, redeemed.code, {
+        operation: 'redeem',
+        ...diagnostic,
+      })
     }
     return redeemed.value.pageToken
   }

@@ -17,6 +17,7 @@ const CONNECTION_ID = '00000000-0000-4000-8000-000000000003'
 const RUN_ID = '00000000-0000-4000-8000-000000000004'
 const LOCATION = GOOGLE_LOCATION_PRIMARY_RESOURCE
 const NOW_MS = Date.parse('2026-08-16T10:00:00.000Z')
+const STORE_STARTED_AT_MS = NOW_MS - 3_600_000
 const OLD_KEY = '11'.repeat(32)
 const NEW_KEY = '22'.repeat(32)
 /** Ten sends of one page token to Google, at most. */
@@ -101,6 +102,7 @@ function createMemoryStore(): ProviderEphemeralStore & {
     remove: async (namespace, entryKey) => {
       values.delete(key(namespace, entryKey))
     },
+    startedAtMs: async () => STORE_STARTED_AT_MS,
   }
 }
 
@@ -406,5 +408,54 @@ describe('GoogleReviewCursorStore', () => {
         authorization,
       }),
     ).resolves.toEqual({ ok: false, code: 'expired' })
+  })
+})
+
+// The backing store keeps nothing across a restart (ADR 0050). A deploy that
+// restarts it mid-run leaves the run holding refs to cursors that are gone, and
+// the sync can only tell that loss from a defect by when the store started.
+describe('GoogleReviewCursorStore after its backing store restarted', () => {
+  it('reports when its backing store started', async () => {
+    const cursors = createStore(createMemoryStore())
+
+    await expect(cursors.startedAtMs()).resolves.toBe(STORE_STARTED_AT_MS)
+  })
+
+  it('answers not_found, not binding_mismatch, when the parent cursor is gone', async () => {
+    const providerStore = createMemoryStore()
+    const cursors = createStore(providerStore)
+    const cursorRef = await publishedSecondPage(cursors)
+    await expect(
+      cursors.redeem({ cursorRef, scope: scope(1), authorization }),
+    ).resolves.toMatchObject({ ok: true })
+    providerStore.values.clear()
+
+    await expect(
+      cursors.publishNext({
+        parentCursorRef: cursorRef,
+        scope: scope(1),
+        nextScope: scope(2),
+        authorization,
+        nextPageToken: 'provider-page-token-2',
+      }),
+    ).resolves.toEqual({ ok: false, code: 'not_found' })
+    await expect(
+      cursors.redeem({ cursorRef, scope: scope(1), authorization }),
+    ).resolves.toEqual({ ok: false, code: 'not_found' })
+  })
+
+  it('still answers binding_mismatch for a parent cursor bound to another page', async () => {
+    const cursors = createStore(createMemoryStore())
+    const cursorRef = await publishedSecondPage(cursors)
+
+    await expect(
+      cursors.publishNext({
+        parentCursorRef: cursorRef,
+        scope: scope(2),
+        nextScope: scope(3),
+        authorization,
+        nextPageToken: 'provider-page-token-3',
+      }),
+    ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
   })
 })

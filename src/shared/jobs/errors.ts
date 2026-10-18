@@ -10,7 +10,8 @@
  * deployment/config failure (stale queue entry, typo'd producer, skewed
  * rollout) — NEVER a success. The job fails, burns its attempts, and lands
  * in the failure quarantine; boot-time readiness (readiness.ts) catches the
- * static form of the same mismatch.
+ * static form of the same mismatch. On-demand work only: a schedule firing is
+ * logged and captured instead (failure-quarantine.ts).
  */
 export class UnknownJobError extends Error {
   readonly jobName: string
@@ -31,7 +32,9 @@ export class UnknownJobError extends Error {
  * (policy_unavailable): protected work must never run without a decision,
  * and an unavailable policy is transient, not a revocation — so the job
  * throws and BullMQ retries with backoff. Carries the gate's deny reason so
- * the failure quarantine can record it as `policyReason`.
+ * the failure quarantine can record it as `policyReason`. On-demand work
+ * only: a schedule firing that exhausts its retries on this reason is logged
+ * and captured instead, never dead-lettered (failure-quarantine.ts).
  */
 export class GateDenyRetryError extends Error {
   readonly reason: string
