@@ -1,12 +1,15 @@
 // Reporting — what the Monthly portal goal's recommended number is read from.
 //
 // Two reads, both bounded: Portal's facts about the Property's Portals (its
-// public API, `listGoalReadinessFacts`), and the Property's goal-count readings
-// in one set-based statement (`infrastructure/adapters/goal-recommendation-readings.ts`).
+// public API, `listGoalReadinessFacts`, with each Portal's group now), and the
+// Property's goal-count readings, per Portal and per Portal Group, in one
+// set-based statement (`infrastructure/adapters/goal-recommendation-readings.ts`).
 // Neither checks a permission; the use case has authorized `goal.create` first.
 
 import type {
   RecommendationDayCount,
+  RecommendationGroupDayCount,
+  RecommendationGroupUnreadableDay,
   RecommendationPortal,
   RecommendationUnreadableDay,
 } from '../../domain/goal-recommendation-types'
@@ -30,6 +33,14 @@ export type GoalRecommendationCounts = Readonly<{
   unreadable: readonly RecommendationUnreadableDay[]
   /** A Portal's last scan in its lookback, when it had one. */
   lastScanAt: ReadonlyMap<string, Date>
+  /**
+   * Each Portal Group's readings per measure and local day, by the group each
+   * reading was recorded with: a Portal that moved counts in its old group
+   * before the move and in its new one after (PLAN PG-20, G19).
+   */
+  groupDays: readonly RecommendationGroupDayCount[]
+  /** Each Portal Group's day with a reading the governed read would quarantine. */
+  groupUnreadable: readonly RecommendationGroupUnreadableDay[]
 }>
 
 export type GoalRecommendationFactsPort = Readonly<{

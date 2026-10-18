@@ -22,7 +22,10 @@ import {
 import type { RecommendationPortal } from '../../domain/goal-recommendation-types'
 import { findMetricVersionById, METRIC_VERSION_IDS } from '../../domain/metric-registry'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
-import type { GoalRecommendationFactsPort } from '../ports/goal-recommendation-facts.port'
+import type {
+  GoalRecommendationCounts,
+  GoalRecommendationFactsPort,
+} from '../ports/goal-recommendation-facts.port'
 import {
   GoalProgramError,
   type GoalActor,
@@ -89,13 +92,26 @@ export type PortalGoalRecommendationReads = Pick<
 >
 
 /**
- * The recommendation at `now`, read for a caller that has already asked the
- * policy for `goal.create` on the Property: it authorizes nothing itself.
+ * What the recommendation is worked out from, as read at `now`: the Property's
+ * time zone, Portal's facts about its Portals (each with its group now), and
+ * the counts per Portal and per Portal Group. The add sheet (PLAN PG-20) works
+ * a number out for each of them from the same facts.
  */
-export async function gatherPortalGoalRecommendation(
+export type PortalGoalFacts = Readonly<{
+  now: Date
+  timezone: string
+  listed: Awaited<ReturnType<GoalRecommendationFactsPort['listPortalReadiness']>>
+  counts: GoalRecommendationCounts
+}>
+
+/**
+ * The facts at `now`, read for a caller that has already asked the policy for
+ * `goal.create` on the Property: it authorizes nothing itself.
+ */
+export async function gatherPortalGoalFacts(
   deps: PortalGoalRecommendationReads,
   input: Readonly<{ organizationId: string; propertyId: string; now: Date }>,
-): Promise<PortalGoalRecommendation> {
+): Promise<PortalGoalFacts> {
   const { organizationId, propertyId, now } = input
   const [timezone, listed] = await Promise.all([
     deps.subjects.getTimezone(organizationId, propertyId),
@@ -111,6 +127,12 @@ export async function gatherPortalGoalRecommendation(
     to: now,
     scanLookback: scanLookbackOf(listed.portals, now),
   })
+  return { now, timezone, listed, counts }
+}
+
+/** The domain's rule on the facts. */
+export function recommendationFrom(facts: PortalGoalFacts): PortalGoalRecommendation {
+  const { now, timezone, listed, counts } = facts
   return recommendPortalGoal({
     now,
     timezone,
@@ -119,6 +141,17 @@ export async function gatherPortalGoalRecommendation(
     truncated: listed.truncated,
     ...counts,
   })
+}
+
+/**
+ * The recommendation at `now`, read for a caller that has already asked the
+ * policy for `goal.create` on the Property: it authorizes nothing itself.
+ */
+export async function gatherPortalGoalRecommendation(
+  deps: PortalGoalRecommendationReads,
+  input: Readonly<{ organizationId: string; propertyId: string; now: Date }>,
+): Promise<PortalGoalRecommendation> {
+  return recommendationFrom(await gatherPortalGoalFacts(deps, input))
 }
 
 export async function readPortalGoalRecommendation(

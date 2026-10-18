@@ -16,6 +16,8 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 // For `.validator(...)` only: never re-exported (an `export … from` would keep
 // the DTO module and its zod calls with this module's importers, #794).
 import {
+  addPortalGoalSchema,
+  addPortalGoalsSchema,
   monthlyPortalGoalPropertySchema,
   setMonthlyPortalGoalSchema,
 } from '../application/dto/monthly-portal-goal.dto'
@@ -61,5 +63,48 @@ export const setMonthlyPortalGoal = createServerFn({ method: 'POST' })
         }),
       'POST',
       'goal.setMonthlyPortalGoal',
+    ),
+  )
+
+/** "Add a portal goal": what it offers for one Portal, each, a group or the average. */
+export const getPortalGoalAddOptions = createServerFn({ method: 'GET' })
+  .validator(monthlyPortalGoalPropertySchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.portalGoalAdd.options(policy, data, actor),
+        ),
+      'GET',
+      'goal.getPortalGoalAddOptions',
+    ),
+  )
+
+/** A goal for one Portal, one Portal Group, or the Property's average. */
+export const addPortalGoal = createServerFn({ method: 'POST' })
+  .validator(addPortalGoalSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms(async (programs, policy, actor) => {
+          const { program } = await programs.portalGoalAdd.one(policy, data, actor)
+          return { programId: program.id }
+        }),
+      'POST',
+      'goal.addPortalGoal',
+    ),
+  )
+
+/** A goal for each ticked Portal: each row saved or not on its own. */
+export const addPortalGoals = createServerFn({ method: 'POST' })
+  .validator(addPortalGoalsSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.portalGoalAdd.each(policy, data, actor),
+        ),
+      'POST',
+      'goal.addPortalGoals',
     ),
   )

@@ -20,6 +20,7 @@ import {
   goalSubjectIdentity,
   type GoalMetric,
   type GoalSubject,
+  type GoalTargetSource,
 } from '../../domain/goal-program'
 import { resolveGoalStart, type GoalMonthlyPeriod } from '../../domain/goal-start'
 import { goalMetricLabel } from '../goal-metric-label'
@@ -43,7 +44,12 @@ export type GoalBulkCreateInput = Readonly<{
    * one. Every goal of the save starts in it.
    */
   startMonth: string
-  items: readonly Readonly<{ subject: GoalSubject; targetValue: number }>[]
+  items: readonly Readonly<{
+    subject: GoalSubject
+    targetValue: number
+    /** Where the row's number came from, stored on its first version; omitted, none is. */
+    targetSource?: GoalTargetSource
+  }>[]
 }>
 
 /** Why a row got no goal. `failed` is a fault, not a refusal: saving again may work. */
@@ -83,7 +89,11 @@ export type GoalBulkCreateDependencies = GoalProgramDependencies &
     logger: LoggerPort
   }>
 
-type GoalBulkRow = Readonly<{ subject: GoalBulkSubject; targetValue: number }>
+type GoalBulkRow = Readonly<{
+  subject: GoalBulkSubject
+  targetValue: number
+  targetSource?: GoalTargetSource
+}>
 
 /**
  * The refusals of `createGoalCore` that are about the row itself. Any other
@@ -108,9 +118,9 @@ function bulkRows(items: GoalBulkCreateInput['items']): readonly GoalBulkRow[] {
   if (items.length > MAX_GOAL_BULK_ITEMS) {
     throw new GoalProgramError('assignment_limit_exceeded')
   }
-  const rows = items.map(({ subject, targetValue }): GoalBulkRow => {
+  const rows = items.map(({ subject, ...row }): GoalBulkRow => {
     if (!isGoalBulkSubject(subject)) throw new GoalProgramError('invalid_subject')
-    return { subject, targetValue }
+    return { subject, ...row }
   })
   const identities = new Set(rows.map((row) => goalSubjectIdentity(row.subject)))
   if (identities.size !== rows.length) throw new GoalProgramError('duplicate_subject')
@@ -120,8 +130,9 @@ function bulkRows(items: GoalBulkCreateInput['items']): readonly GoalBulkRow[] {
 /**
  * `{subject name} · {measure}`. A name too long for a goal loses the end of the
  * subject's name, never the measure: two goals of one subject differ by it.
+ * A goal added for one Portal or Portal Group is named the same way.
  */
-function bulkGoalName(subjectName: string, metric: GoalMetric): string {
+export function subjectGoalName(subjectName: string, metric: GoalMetric): string {
   const suffix = ` · ${goalMetricLabel(metric)}`
   const kept = [...subjectName.trim()].slice(0, MAX_GOAL_NAME_LENGTH - suffix.length)
   return `${kept.join('').trimEnd()}${suffix}`
@@ -134,7 +145,7 @@ async function createGoalForRow(
   start: Readonly<{ now: Date; period: GoalMonthlyPeriod }>,
   row: GoalBulkRow,
 ): Promise<GoalBulkCreateOutcome> {
-  const { subject, targetValue } = row
+  const { subject, targetValue, targetSource } = row
   try {
     const subjectName = await deps.subjectNames.getSubjectName(
       actor.organizationId,
@@ -146,10 +157,11 @@ async function createGoalForRow(
       deps,
       {
         propertyId: input.propertyId,
-        name: bulkGoalName(subjectName, input.metric),
+        name: subjectGoalName(subjectName, input.metric),
         metric: input.metric,
         targetValue,
         subjects: [subject],
+        targetSource,
       },
       actor,
       start,

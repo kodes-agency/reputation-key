@@ -232,14 +232,14 @@ function portalBasisOf(
 
 // ── Choices and states ────────────────────────────────────────────────────
 
+/** A joined Portal's part of a rate: its readings on its live days in the basis. */
+type RateMember = Pick<PortalFacts, 'window' | 'liveDays'>
+
 /** R: each joined Portal's readings on its live days over its live days. */
-function propertyRate(
-  established: readonly PortalBasis[],
-  measure: PortalGoalMeasure,
-): ExactCount {
-  return established.reduce(
-    (rate, { facts }) =>
-      plus(rate, exact(BigInt(facts.window[measure]), BigInt(facts.liveDays))),
+function rateOf(members: readonly RateMember[], measure: PortalGoalMeasure): ExactCount {
+  return members.reduce(
+    (rate, { window, liveDays }) =>
+      plus(rate, exact(BigInt(window[measure]), BigInt(liveDays))),
     whole(0),
   )
 }
@@ -447,7 +447,10 @@ export function recommendPortalGoal(
   const spoiled = spoiledBy(input.unreadable, established, months.firstDay)
   const { month, ...totals } = propertyTotals(input, bases, context, spoiled.month)
   const measures = perMeasure((measure) => {
-    const rate = propertyRate(established, measure)
+    const rate = rateOf(
+      established.map(({ facts }) => facts),
+      measure,
+    )
     const state = measureState(spoiled.measures.has(measure), rate)
     return measureRecommendation(state, rate, months, month[measure])
   })
@@ -474,4 +477,26 @@ export function recommendPortalGoal(
       .map(({ portalId, name }) => ({ portalId, name })),
     truncated: input.truncated,
   }
+}
+
+/**
+ * PG-20: the same rule for one Portal, or one Portal Group, on its own. Its
+ * rate is its joined members' rates summed (a Portal is its own one member),
+ * and this month's choices stand on its own month so far. A measure the caller
+ * found a quarantine-worthy reading in is unreadable; with no joined member,
+ * or nothing counted, a measure has no number.
+ */
+export function subjectRecommendation(
+  input: Readonly<{
+    members: readonly RateMember[]
+    monthToDate: PerMeasure<number>
+    unreadable: ReadonlySet<PortalGoalMeasure>
+    months: PortalGoalRecommendation['months']
+  }>,
+): PerMeasure<MeasureRecommendation> {
+  return perMeasure((measure) => {
+    const rate = rateOf(input.members, measure)
+    const state = measureState(input.unreadable.has(measure), rate)
+    return measureRecommendation(state, rate, input.months, input.monthToDate[measure])
+  })
 }

@@ -15,6 +15,10 @@
 //   from `from` to `to`. There is no Portal filter: a Property goal counts
 //   every reading, so readings with no Portal, and those of draft, disabled,
 //   archived or deleted Portals, come back too;
+// - each Portal Group's count per measure and local day over the same rows, by
+//   the group each reading was recorded with ("the effective Portal Group at
+//   source-event time", as a group goal's governed read attributes it), so a
+//   group's month so far is its own (PLAN PG-20);
 // - each published Portal's last scan that was not retracted, looked for from
 //   its own instant on (its code's date, at most a year back): from the counted
 //   rows when it was scanned in the range, and only otherwise further back, one
@@ -67,6 +71,7 @@ const MEASURE_BY_VERSION: ReadonlyMap<string, PortalGoalMeasure> = new Map([
 type Row = Readonly<{
   row_kind: string
   portal_id: string | null
+  group_id: string | null
   version_id: string | null
   local_day: string | null
   value: string | number | null
@@ -94,6 +99,7 @@ function countsStatement(query: GoalRecommendationCountsQuery): SQL {
     ),
     counted AS (
       SELECT readings.portal_id,
+        readings.group_id,
         spec.version_id,
         readings.event_at,
         (readings.event_at AT TIME ZONE ${query.timezone})::date AS local_day,
@@ -118,6 +124,19 @@ function countsStatement(query: GoalRecommendationCountsQuery): SQL {
         ) AS unreadable
       FROM counted
       GROUP BY portal_id, version_id, local_day
+    ),
+    -- By the group each reading was recorded with, so a Portal that moved
+    -- counts in its old group before the move and in its new one after.
+    group_days AS (
+      SELECT group_id, version_id, local_day,
+        coalesce(sum(effective_value), 0) AS value,
+        coalesce(
+          bool_or(unreadable) FILTER (WHERE effective_value IS NOT NULL),
+          false
+        ) AS unreadable
+      FROM counted
+      WHERE group_id IS NOT NULL
+      GROUP BY group_id, version_id, local_day
     ),
     lookback AS (${lookbackRows(query)}),
     recent_scans AS (
@@ -177,6 +196,7 @@ function countsStatement(query: GoalRecommendationCountsQuery): SQL {
     )
     SELECT 'day' AS row_kind,
       days.portal_id::text AS portal_id,
+      NULL::text AS group_id,
       days.version_id::text AS version_id,
       to_char(days.local_day, 'YYYY-MM-DD') AS local_day,
       days.value::text AS value,
@@ -184,7 +204,15 @@ function countsStatement(query: GoalRecommendationCountsQuery): SQL {
       NULL::timestamptz AS last_scan_at
     FROM days
     UNION ALL
-    SELECT 'last_scan', last_scans.portal_id::text, NULL, NULL, NULL, NULL,
+    SELECT 'group_day', NULL, group_days.group_id::text,
+      group_days.version_id::text,
+      to_char(group_days.local_day, 'YYYY-MM-DD'),
+      group_days.value::text,
+      group_days.unreadable,
+      NULL::timestamptz
+    FROM group_days
+    UNION ALL
+    SELECT 'last_scan', last_scans.portal_id::text, NULL, NULL, NULL, NULL, NULL,
       last_scans.event_at
     FROM last_scans
   `
@@ -196,31 +224,48 @@ function countOf(value: Row['value']): number | null {
   return Number.isSafeInteger(count) && count >= 0 ? count : null
 }
 
-function countsOf(rows: readonly Row[]): GoalRecommendationCounts {
-  const days: GoalRecommendationCounts['days'][number][] = []
-  const unreadable = new Map<string, GoalRecommendationCounts['unreadable'][number]>()
-  const lastScanAt = new Map<string, Date>()
-  for (const row of rows) {
-    if (row.row_kind === 'last_scan') {
-      if (row.portal_id && row.last_scan_at) {
-        lastScanAt.set(row.portal_id, new Date(row.last_scan_at))
-      }
-      continue
-    }
-    const measure = MEASURE_BY_VERSION.get(row.version_id ?? '')
-    if (!measure || !row.local_day) continue
-    const count = countOf(row.value)
-    if (row.unreadable || count === null) {
-      unreadable.set(`${row.portal_id}:${measure}:${row.local_day}`, {
-        portalId: row.portal_id,
-        measure,
-        localDay: row.local_day,
-      })
-    }
-    if (count)
-      days.push({ portalId: row.portal_id, measure, localDay: row.local_day, count })
+type Counts = Readonly<{
+  days: GoalRecommendationCounts['days'][number][]
+  unreadable: GoalRecommendationCounts['unreadable'][number][]
+  lastScanAt: Map<string, Date>
+  groupDays: GoalRecommendationCounts['groupDays'][number][]
+  groupUnreadable: GoalRecommendationCounts['groupUnreadable'][number][]
+}>
+
+/** A Portal's (or no Portal's) day, or a Portal Group's: its count, and whether it is trusted. */
+function addDay(counts: Counts, row: Row): void {
+  const measure = MEASURE_BY_VERSION.get(row.version_id ?? '')
+  if (!measure || !row.local_day) return
+  const localDay = row.local_day
+  const count = countOf(row.value)
+  const trusted = !row.unreadable && count !== null
+  if (row.row_kind === 'group_day') {
+    if (!row.group_id) return
+    const groupId = row.group_id
+    if (!trusted) counts.groupUnreadable.push({ groupId, measure, localDay })
+    if (count) counts.groupDays.push({ groupId, measure, localDay, count })
+    return
   }
-  return { days, unreadable: [...unreadable.values()], lastScanAt }
+  const portalId = row.portal_id
+  if (!trusted) counts.unreadable.push({ portalId, measure, localDay })
+  if (count) counts.days.push({ portalId, measure, localDay, count })
+}
+
+function countsOf(rows: readonly Row[]): GoalRecommendationCounts {
+  const counts: Counts = {
+    days: [],
+    unreadable: [],
+    lastScanAt: new Map(),
+    groupDays: [],
+    groupUnreadable: [],
+  }
+  for (const row of rows) {
+    if (row.row_kind !== 'last_scan') addDay(counts, row)
+    else if (row.portal_id && row.last_scan_at) {
+      counts.lastScanAt.set(row.portal_id, new Date(row.last_scan_at))
+    }
+  }
+  return counts
 }
 
 export async function readGoalRecommendationCounts(

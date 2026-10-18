@@ -114,6 +114,8 @@ export type RecommendationPortal = Readonly<{
   liveIntervals: readonly Readonly<{ from: Date; to: Date | null }>[]
   codeIssuedAt: Date | null
   codeReady: boolean
+  /** Its Portal Group now; null when it is in none. */
+  portalGroupId: string | null
 }>
 
 /** One local day's readings of one measure for one Portal (or none): a whole number. */
@@ -130,6 +132,24 @@ export type RecommendationDayCount = Readonly<{
  */
 export type RecommendationUnreadableDay = Readonly<{
   portalId: string | null
+  measure: PortalGoalMeasure
+  localDay: string
+}>
+
+/**
+ * One local day's readings of one measure for one Portal Group: by the group
+ * each reading was recorded with (the Portal's group at the time), a whole number.
+ */
+export type RecommendationGroupDayCount = Readonly<{
+  groupId: string
+  measure: PortalGoalMeasure
+  localDay: string
+  count: number
+}>
+
+/** A Portal Group's local day holding a reading the governed read would quarantine. */
+export type RecommendationGroupUnreadableDay = Readonly<{
+  groupId: string
   measure: PortalGoalMeasure
   localDay: string
 }>
