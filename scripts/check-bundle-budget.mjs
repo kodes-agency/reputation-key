@@ -1065,9 +1065,11 @@
 // dialogs' own left the stylesheet (27,839 -> 27,832 B). Built on this branch's
 // base ab4f13be3 (PG-20's head b0cb01516 with PG-14's head 3ba71eab4 squashed
 // onto it), fresh production builds measured 307,894 B (75 js + 1 css; entry
-// 49,209 B) and 307,801 B on the head (entry 49,198 B): -93 B. The line stays
-// at 308,050: 249 B spare, 499 B under the ceiling of 308,300 (owner, P-9).
-// Measure again after the rebase onto main.
+// 49,209 B) and 307,801 B on the head (entry 49,198 B): -93 B. The final head
+// (its later commits change no first-paint module) measures 307,788 B (entry
+// 49,185 B, styles-CliEJp3n.css 27,832 B); the -13 B is the hashed chunk
+// names. The line stays at 308,050: 262 B spare, 512 B under the ceiling of
+// 308,300 (owner, P-9). Measure again after the rebase onto main.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
