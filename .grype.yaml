@@ -92,7 +92,10 @@ ignore:
   # a different gcc-14 build is re-scanned; not scoped by name because
   # grype reads a package name as a regular expression and `libstdc++6`
   # never matched. Drop at the first trixie gcc-14 update that fixes it.
-  # expiresAt: 2026-10-17
+  # Renewed 2026-10-18: packages.debian.org still lists trixie gcc-14 at
+  # 14.2.0-19, so there is no newer build to pin, and the scan still matches
+  # only that version (the Debian tracker did not answer that day). Same
+  # horizon as CVE-2026-102010 above. expiresAt: 2026-11-15
   - vulnerability: CVE-2026-95619
     package:
       version: 14.2.0-19
