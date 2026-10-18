@@ -35,10 +35,8 @@ import {
 const HIGHEST_NUMBER = 1_000_000
 const RATINGS: PortalGoalMeasure = 'portal_rating_count'
 
-export type {
-  PortalGoalSetIntent,
-  PortalGoalSheetIntent,
-} from './portal-goal-sheet-intent'
+// The intents (`PortalGoalSetIntent`, `PortalGoalSheetIntent`), types only.
+export type * from './portal-goal-sheet-intent'
 
 /** What the manager has chosen so far: a month, a measure, and the box as typed. */
 export type PortalGoalSheetDraft = Readonly<{
