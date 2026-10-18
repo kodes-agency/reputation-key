@@ -721,8 +721,11 @@
 // 307,677 B (75 js + 1 css) on the base, PG-08's head 6c1a66861, and 307,691 B
 // on the head: +14 B, all in the entry (49,001 -> 49,015 B), which lists the
 // Goals component's preloads by chunk index and now names ten more shared
-// chunks (the popover and the button's pending state). 159 B spare under
-// 307,850; 609 B under the build's ceiling of 308,300 (owner, P-9).
+// chunks (the popover and the button's pending state). After the words were
+// shared between the card's two words modules (goals-*.js 13,858 B), the final
+// head measured 307,694 B (entry 49,018 B): +17 B, the 3 B more only the hashed
+// chunk names. 156 B spare under 307,850; 606 B under the build's ceiling of
+// 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
