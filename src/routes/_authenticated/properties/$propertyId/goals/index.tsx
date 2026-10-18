@@ -166,8 +166,9 @@ function GoalsRoute() {
               failed: live.isError,
             }}
             subjectName={subjectName}
-            // Compact rows, then "See all on the goal page" (PLAN PG-21).
-            limit={EXTRAS_SHOWN}
+            // Compact rows, then "See all on the goal page" (PLAN PG-21); the
+            // goal page lists active goals, so History lists every ended one.
+            limit={view === 'active' ? EXTRAS_SHOWN : undefined}
           />
         )}
         // Each month's result and the ended goals, on their own page (R-3, R-4).
