@@ -14,7 +14,9 @@
 // read (with its governed figure so far) and, once closed, through the 7th.
 // Each month is worded in the measure of the version it opened under: a change
 // from a coming month ("Count scans instead") leaves the month already counting
-// as it was. Everything here is decided by the server; the card only words it.
+// as it was. On the month's first seven local days, the month-start check-in
+// (`monthly-portal-goal-check-in.ts`). Everything here is decided by the
+// server; the card only words it.
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { goalMonthDays, goalPace } from '../../domain/goal-pace'
@@ -41,6 +43,7 @@ import type {
 import type { GoalActor, GoalMetricReadPort } from './goal-programs'
 import { progressOf, readSubjectMonth } from './goal-progress'
 import { changeFactsOf, newGoalFromOf } from './monthly-portal-goal-change-facts'
+import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in'
 
 export type MonthlyPortalGoalOnCardDeps = Readonly<{
   /** The governed read of a month so far. */
@@ -369,6 +372,7 @@ export async function monthlyPortalGoalOnCard(
     countingMonth: null,
     change: changeFactsOf(bundle, now, recommendation.timezone),
     newGoalFrom: null,
+    checkIn: null,
   } satisfies PortalGoalOfCard
   if (program.status === 'scheduled') {
     return {
@@ -398,5 +402,11 @@ export async function monthlyPortalGoalOnCard(
     stopped: stopOf(bundle, period, recommendation.timezone),
     lastMonth,
     newGoalFrom: newGoalFromOf(bundle, recommendation.timezone, recommendation.months),
+    checkIn: monthlyPortalGoalCheckInOf(bundle, {
+      recommendation,
+      now,
+      month,
+      change: goal.change,
+    }),
   }
 }

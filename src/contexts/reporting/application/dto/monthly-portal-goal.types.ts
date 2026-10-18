@@ -294,7 +294,45 @@ export type PortalGoalOfCard = Readonly<{
    * this one counts, when the set sheet offers it; else null.
    */
   newGoalFrom: string | null
+  /** On local days 1 to 7, the month-start check-in, until it is answered; else null. */
+  checkIn: PortalGoalCheckIn | null
 }>
+
+/**
+ * The month-start check-in (PLAN PG-15; copy deck K-1…K-11): on local days 1
+ * to 7 of a month that is not the goal's first, while the goal runs and until
+ * a manager answers it, whether the month keeps its number. Nothing changes
+ * unless a manager chooses. The read decides it all; the card words it.
+ */
+export type PortalGoalCheckIn = Readonly<{
+  /** `YYYY-MM`: the running month it asks about. */
+  month: string
+  /** What that month counts. */
+  measure: PortalGoalMeasure
+  /** The number the month is judged against now: "Keep 40". */
+  target: number
+}> &
+  (
+    | Readonly<{
+        /** "Use 45" (the offer's recommended number), "Keep 40", or another number. */
+        kind: 'offer'
+        /**
+         * The number recommended for the month, worked out for the whole month
+         * from the basis (`current` false: "a 31-day month gets about 38"),
+         * unless what already counts has reached it: then for the rest of the
+         * month, on top of what already counts (`current` true).
+         */
+        offer: PortalGoalOffer
+      }>
+    /** The recommended number is the month's already: one line, and "Change". */
+    | Readonly<{ kind: 'same' }>
+    | Readonly<{
+        /** Nothing of the measure came in over the basis: "Keep 40", or another number. */
+        kind: 'nothing'
+        /** The weeks the basis covers: "in the last 4 weeks". */
+        weeks: 2 | 3 | 4
+      }>
+  )
 
 /** An arm the set sheet opens from: what it works from. */
 type WithSheet = Readonly<{ sheet: PortalGoalSheetFacts }>
@@ -387,3 +425,10 @@ export type ReviseMonthlyPortalGoalRequest = OfTheGoal &
 
 /** Stop: the goal ends, and keeps the month it is counting. */
 export type StopMonthlyPortalGoalRequest = OfTheGoal
+
+/** The check-in's Keep: the month keeps its number, and the check-in is answered. */
+export type KeepMonthlyPortalGoalRequest = OfTheGoal &
+  Readonly<{
+    /** `YYYY-MM`: the month the check-in asked about. */
+    month: string
+  }>

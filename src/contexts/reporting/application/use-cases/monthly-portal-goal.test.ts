@@ -15,10 +15,12 @@ import { GoalProgramError, type GoalActor } from './goal-program-shared'
 import {
   MONTHLY_PORTAL_GOAL_NAME,
   changeMonthlyPortalGoalNow,
+  keepMonthlyPortalGoal,
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
   type MonthlyPortalGoalChangeDeps,
+  type MonthlyPortalGoalKeepDeps,
   type MonthlyPortalGoalSetDeps,
 } from './monthly-portal-goal'
 import { monthlyPortalGoalOf } from '../monthly-portal-goal-identity'
@@ -741,5 +743,227 @@ describe('stopMonthlyPortalGoal', () => {
       code: 'forbidden',
     })
     expect(calls).toEqual([])
+  })
+})
+
+// ─── The month-start check-in (PLAN PG-15) ─────────────────────────────────
+
+describe('keepMonthlyPortalGoal', () => {
+  const DEC_1 = new Date('2026-11-30T22:00:00.000Z')
+  const JAN_1 = new Date('2026-12-31T22:00:00.000Z')
+  /** Dec 3, noon in Sofia. */
+  const DEC_3 = new Date('2026-12-03T10:00:00.000Z')
+  const KEEP = {
+    propertyId: PROPERTY_ID,
+    programId: 'monthly',
+    month: '2026-12',
+  } as const
+
+  /** Running since November at 40; November is being read, December has opened. */
+  const runningDecember = () =>
+    propertyGoal('monthly', 'portal_rating_count', {
+      status: 'active',
+      months: [
+        { start: NOV_1, end: DEC_1, status: 'reconciling' },
+        { start: DEC_1, end: JAN_1 },
+      ],
+    })
+
+  /** Keep over an in-memory Property, with the engine's change commands watched. */
+  function keepWorld(
+    programs: readonly GoalProgramBundle[] = [runningDecember()],
+    now: Date = DEC_3,
+  ) {
+    const { deps: change, calls } = changeWorld(programs, now)
+    const deps = {
+      policy: change.policy,
+      repository: {
+        list: change.repository.list,
+        answerCheckIn: vi.fn(async () => {
+          calls.push('answer')
+          return true
+        }),
+      },
+      now: change.now,
+    } satisfies MonthlyPortalGoalKeepDeps
+    return { deps, calls, change }
+  }
+
+  it('Keep writes the answered month without a version bump', async () => {
+    const { deps, calls, change } = keepWorld()
+
+    await expect(keepMonthlyPortalGoal(deps, KEEP, actor)).resolves.toEqual({
+      month: '2026-12',
+    })
+
+    expect(deps.repository.answerCheckIn).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      propertyId: PROPERTY_ID,
+      programId: 'monthly',
+      month: '2026-12',
+    })
+    // No version and no change row: none of the engine's commands runs.
+    expect(change.programs.changeMonthTarget).not.toHaveBeenCalled()
+    expect(change.programs.revise).not.toHaveBeenCalled()
+    expect(change.programs.changeStatus).not.toHaveBeenCalled()
+    expect(asked(change)).toEqual(['goal.update'])
+    expect(calls).toEqual(['authorize', 'programs', 'answer'])
+  })
+
+  it('Keep twice is idempotent', async () => {
+    const { deps } = keepWorld()
+
+    await keepMonthlyPortalGoal(deps, KEEP, actor)
+    await expect(keepMonthlyPortalGoal(deps, KEEP, actor)).resolves.toEqual({
+      month: '2026-12',
+    })
+
+    expect(vi.mocked(deps.repository.answerCheckIn).mock.calls).toEqual([
+      [
+        {
+          organizationId: 'org-1',
+          propertyId: PROPERTY_ID,
+          programId: 'monthly',
+          month: '2026-12',
+        },
+      ],
+      [
+        {
+          organizationId: 'org-1',
+          propertyId: PROPERTY_ID,
+          programId: 'monthly',
+          month: '2026-12',
+        },
+      ],
+    ])
+  })
+
+  it('Keep on day 8 is check_in_closed', async () => {
+    // 23:59 on Dec 7 in Sofia is the check-in's last minute; midnight closes it.
+    const lastMinute = keepWorld(
+      [runningDecember()],
+      new Date('2026-12-07T21:59:00.000Z'),
+    )
+    const day8 = keepWorld([runningDecember()], new Date('2026-12-07T22:00:00.000Z'))
+
+    await expect(keepMonthlyPortalGoal(lastMinute.deps, KEEP, actor)).resolves.toEqual({
+      month: '2026-12',
+    })
+    await expect(keepMonthlyPortalGoal(day8.deps, KEEP, actor)).rejects.toEqual(
+      new GoalProgramError('check_in_closed'),
+    )
+    expect(day8.deps.repository.answerCheckIn).not.toHaveBeenCalled()
+  })
+
+  it('a month that is not the one running is check_in_closed', async () => {
+    // A card read on Nov 7, pressed on Dec 3.
+    const { deps } = keepWorld()
+
+    await expect(
+      keepMonthlyPortalGoal(deps, { ...KEEP, month: '2026-11' }, actor),
+    ).rejects.toEqual(new GoalProgramError('check_in_closed'))
+    expect(deps.repository.answerCheckIn).not.toHaveBeenCalled()
+  })
+
+  it('a stopped goal takes no Keep', async () => {
+    // Stopped on Dec 2: December still counts, and there is nothing to keep.
+    const stopped = propertyGoal('monthly', 'portal_rating_count', {
+      status: 'ended',
+      until: JAN_1,
+      endedAt: new Date('2026-12-02T08:00:00.000Z'),
+      months: [
+        { start: NOV_1, end: DEC_1, status: 'reconciling' },
+        { start: DEC_1, end: JAN_1 },
+      ],
+    })
+    const { deps } = keepWorld([stopped])
+
+    await expect(keepMonthlyPortalGoal(deps, KEEP, actor)).rejects.toEqual(
+      new GoalProgramError('invalid_transition'),
+    )
+    expect(deps.repository.answerCheckIn).not.toHaveBeenCalled()
+  })
+
+  it('a goal stopped while Keep was on its way is invalid_transition', async () => {
+    const { deps } = keepWorld()
+    deps.repository.answerCheckIn.mockResolvedValueOnce(false)
+
+    await expect(keepMonthlyPortalGoal(deps, KEEP, actor)).rejects.toEqual(
+      new GoalProgramError('invalid_transition'),
+    )
+  })
+
+  it('refuses a goal that is not the monthly portal goal', async () => {
+    const { deps } = keepWorld([
+      runningDecember(),
+      existing('reception', {
+        subject: { kind: 'portal', portalId: 'portal-reception' },
+      }),
+    ])
+
+    await expect(
+      keepMonthlyPortalGoal(deps, { ...KEEP, programId: 'reception' }, actor),
+    ).rejects.toEqual(new GoalProgramError('invalid_subject'))
+    expect(deps.repository.answerCheckIn).not.toHaveBeenCalled()
+  })
+
+  it('a refused actor reads and writes nothing', async () => {
+    const { deps, calls } = keepWorld()
+    deps.policy.authorize.mockRejectedValueOnce(new GoalProgramError('forbidden'))
+
+    await expect(keepMonthlyPortalGoal(deps, KEEP, actor)).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(calls).toEqual([])
+  })
+})
+
+describe("the check-in's Use", () => {
+  // Reception and Restaurant live since Oct 9 with 11 and 5 private ratings.
+  // Nov 3 in Sofia: 16 in 25 live days at each, so a whole 30-day November is
+  // 20 · 22 · 24 (22 recommended), and the rest of it, with nothing in yet,
+  // 18 · 20 · 22 (20 recommended).
+  const NOV_3 = new Date('2026-11-03T10:00:00.000Z')
+  // Nov 8: 14 in 28 days, so 15 · 17 · 18 for all of November and 12 · 13 · 14
+  // for the rest of it; the check-in has closed.
+  const NOV_8 = new Date('2026-11-08T10:00:00.000Z')
+  const DEC_1 = new Date('2026-11-30T22:00:00.000Z')
+  const runningNovember = () =>
+    propertyGoal('monthly', 'portal_rating_count', {
+      status: 'active',
+      from: OCT_1,
+      months: [
+        { start: OCT_1, end: NOV_1, status: 'reconciling' },
+        { start: NOV_1, end: DEC_1 },
+      ],
+    })
+  const NOVEMBER_NOW = {
+    ...OCTOBER_45,
+    month: '2026-11',
+    expectedFollowingMonth: '2026-12',
+    targetSource: 'recommended',
+  } as const
+  /** What a change now to `targetValue`, claimed as recommended, is recorded as. */
+  const recorded = async (now: Date, targetValue: number) => {
+    const { deps } = changeWorld([runningNovember()], now)
+    await changeMonthlyPortalGoalNow(deps, { ...NOVEMBER_NOW, targetValue }, actor)
+    return deps.programs.changeMonthTarget
+  }
+  const as = (targetValue: number, targetSource: 'recommended' | 'own') =>
+    [
+      expect.objectContaining({ month: '2026-11', targetValue, targetSource }),
+      actor,
+    ] as const
+
+  it("records recommended for the check-in's number while the check-in is open", async () => {
+    // Use 22, the whole month's; the sheet's 20 for the rest of it; never 21.
+    expect(await recorded(NOV_3, 22)).toHaveBeenCalledWith(...as(22, 'recommended'))
+    expect(await recorded(NOV_3, 20)).toHaveBeenCalledWith(...as(20, 'recommended'))
+    expect(await recorded(NOV_3, 21)).toHaveBeenCalledWith(...as(21, 'own'))
+  })
+
+  it('records own for the whole month’s number once the check-in has closed', async () => {
+    expect(await recorded(NOV_8, 17)).toHaveBeenCalledWith(...as(17, 'own'))
+    expect(await recorded(NOV_8, 13)).toHaveBeenCalledWith(...as(13, 'recommended'))
   })
 })

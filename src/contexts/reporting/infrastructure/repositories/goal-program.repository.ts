@@ -593,6 +593,26 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
       })
     },
 
+    // Keep, on the Monthly portal goal's month-start check-in: the answered
+    // month alone. Neither `current_version` nor `status` moves, so the
+    // transition guard has nothing to refuse, and `updated_at` stays the time
+    // of the goal's last real change (an ended goal's is when it ended).
+    async answerCheckIn(input) {
+      const answered = await db
+        .update(goalPrograms)
+        .set({ checkInAnsweredMonth: input.month })
+        .where(
+          and(
+            eq(goalPrograms.organizationId, input.organizationId),
+            eq(goalPrograms.propertyId, input.propertyId),
+            eq(goalPrograms.id, input.programId),
+            eq(goalPrograms.status, 'active'),
+          ),
+        )
+        .returning({ id: goalPrograms.id })
+      return answered.length > 0
+    },
+
     async findAssignmentConflicts(input) {
       if (input.subjects.length === 0) return []
       const propertySubjectIds = input.subjects.flatMap((subject) =>

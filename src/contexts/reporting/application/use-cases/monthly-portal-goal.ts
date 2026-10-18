@@ -26,11 +26,21 @@
 // its one subject. Stop ends it (`goal.cancel`): the month it is counting
 // keeps counting to its last day and keeps its result, and the months after
 // are free for a new goal. Each asks the policy first, before anything is read.
+//
+// The month-start check-in (PLAN PG-15): its "Use 45" is the change now, with
+// the number recommended for the whole month, which is recorded as
+// recommended while the check-in is open; its Keep (`goal.update`) records the
+// month it answered and nothing else: no version, no change row, the same
+// again when pressed twice. Keep is taken only on the running month's first
+// seven local days (`check_in_closed` otherwise) and only from a goal that
+// runs.
 import type { GoalMetric } from '../../domain/goal-program'
 import { monthKeyOf } from '../../domain/goal-start'
 import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
+import { checkInMonthAt } from '../../domain/portal-goal-check-in'
 import type {
   ChangeMonthlyPortalGoalNowRequest,
+  KeepMonthlyPortalGoalRequest,
   ReviseMonthlyPortalGoalRequest,
   SetMonthlyPortalGoalRequest,
   StopMonthlyPortalGoalRequest,
@@ -57,7 +67,7 @@ import {
   gatherPortalGoalRecommendation,
   type PortalGoalRecommendationReads,
 } from './goal-recommendation-read'
-import { offeredChoices } from './monthly-portal-goal-offer'
+import { offeredChoices, recommendedNumbersFor } from './monthly-portal-goal-offer'
 
 /** What the goal is called, everywhere it is named. */
 export const MONTHLY_PORTAL_GOAL_NAME = 'Monthly portal goal'
@@ -141,7 +151,7 @@ type Action = 'goal.update' | 'goal.cancel'
 
 /** Asks the policy for `action`, then reads every Program of the Property. */
 async function authorizedPrograms(
-  deps: MonthlyPortalGoalChangeDeps,
+  deps: Pick<MonthlyPortalGoalChangeDeps, 'policy' | 'repository'>,
   input: Readonly<{ propertyId: string }>,
   actor: GoalActor,
   action: Action,
@@ -170,9 +180,9 @@ function theMonthlyGoal(
 }
 
 /**
- * Whether `targetValue` is the number recommended for the `asked` month and
- * measure, read only when the screen said so (and the month is one of the
- * goal's counts).
+ * Whether `targetValue` is a number recommended for the `asked` month and
+ * measure (the card's and the sheet's, or the open check-in's), read only when
+ * the screen said so (and the month is one of the goal's counts).
  */
 async function recordedSource(
   deps: MonthlyPortalGoalChangeDeps,
@@ -192,8 +202,9 @@ async function recordedSource(
     now: deps.now(),
   })
   const measure: PortalGoalMeasure = asked.metric
-  return offeredChoices(recommendation, asked.month, measure)?.aBitMore ===
-    claim.targetValue
+  return recommendedNumbersFor(recommendation, asked.month, measure).includes(
+    claim.targetValue,
+  )
     ? 'recommended'
     : 'own'
 }
@@ -302,6 +313,50 @@ export async function stopMonthlyPortalGoal(
   )
 }
 
+export type MonthlyPortalGoalKeepDeps = Readonly<{
+  policy: GoalExecutionPolicy
+  /** Every Program of the Property, to know which is the monthly goal, and the answer's write. */
+  repository: Pick<GoalProgramRepository, 'list' | 'answerCheckIn'>
+  now: () => Date
+}>
+
+/**
+ * The check-in's Keep: the month keeps its number, and its check-in is
+ * answered for every manager. It is taken while the month the check-in asked
+ * about runs and is on its first seven local days, cut in the zone the month
+ * was cut in; and only from a goal that runs (a goal stopped since, before or
+ * while this is written, is `invalid_transition`).
+ */
+export async function keepMonthlyPortalGoal(
+  deps: MonthlyPortalGoalKeepDeps,
+  input: KeepMonthlyPortalGoalRequest,
+  actor: GoalActor,
+): Promise<Readonly<{ month: string }>> {
+  const programs = await authorizedPrograms(deps, input, actor, 'goal.update')
+  const now = deps.now()
+  const goal = theMonthlyGoal(programs, input.programId, now)
+  if (goal.program.status !== 'active') throw new GoalProgramError('invalid_transition')
+  const running = goal.results.find(
+    ({ status, periodStart, periodEnd }) =>
+      status === 'open' && periodStart <= now && now < periodEnd,
+  )
+  if (
+    running === undefined ||
+    monthKeyOf(running.periodStart, running.propertyTimezone) !== input.month ||
+    checkInMonthAt(now, running.propertyTimezone) !== input.month
+  ) {
+    throw new GoalProgramError('check_in_closed')
+  }
+  const answered = await deps.repository.answerCheckIn({
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    programId: input.programId,
+    month: input.month,
+  })
+  if (!answered) throw new GoalProgramError('invalid_transition')
+  return { month: input.month }
+}
+
 /** Request-facing: each invocation receives its scoped policy, like the Program commands. */
 export type MonthlyPortalGoalChangeRequestApi = Readonly<{
   changeNow: (
@@ -319,4 +374,9 @@ export type MonthlyPortalGoalChangeRequestApi = Readonly<{
     input: StopMonthlyPortalGoalRequest,
     actor: GoalActor,
   ) => Promise<GoalProgram>
+  keep: (
+    policy: GoalExecutionPolicy,
+    input: KeepMonthlyPortalGoalRequest,
+    actor: GoalActor,
+  ) => Promise<Readonly<{ month: string }>>
 }>
