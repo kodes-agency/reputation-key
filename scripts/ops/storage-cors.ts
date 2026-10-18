@@ -23,12 +23,8 @@ import {
 import { pathToFileURL } from 'node:url'
 import { resolve } from 'node:path'
 import { buildS3ClientConfigs } from '../../src/contexts/portal/infrastructure/adapters/s3-storage.adapter'
-import {
-  CLOSED_BETA_IMAGE_SERVICES,
-  defaultCommandRunner,
-  railwayTargetArgs,
-  type CommandRunner,
-} from './deploy-ci-images'
+import { defaultCommandRunner, type CommandRunner } from './command-runner'
+import { CLOSED_BETA_IMAGE_SERVICES, railwayTargetArgs } from './deploy-ci-images'
 import { readRailwayVariables } from './railway-variables'
 
 export type CorsRule = Readonly<{

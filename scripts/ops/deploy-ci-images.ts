@@ -1,18 +1,24 @@
 // Deploy the three immutable production images proved by a successful main CI
 // run. The command reports by default and mutates only with --apply.
 
-import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { resolve } from 'node:path'
 import { z } from 'zod/v4'
+import {
+  type CiImageDigestMap,
+  type CiProductionImageName,
+  downloadCiImageDigestMap,
+  type ImageDigest,
+  SOURCE_REVISION,
+} from './ci-image-digest-map'
+import {
+  checkedOutput,
+  defaultCommandRunner,
+  parseJson,
+  type CommandRunner,
+} from './command-runner'
 import { runGoogleOAuthPreflight } from './google-oauth-preflight'
 
-export const CI_IMAGE_DIGEST_MAP_VERSION = 'repkey-ci-image-digest-map-1' as const
-export const CI_IMAGE_DIGEST_MAP_FILE = 'ci-image-digest-map.json' as const
-export const TRUSTED_REPOSITORY = 'kodes-agency/reputation-key' as const
-export const TRUSTED_CI_WORKFLOW = '.github/workflows/ci.yml' as const
 export const CLOSED_BETA_ENVIRONMENT = 'closed-beta-v2' as const
 export const CLOSED_BETA_PROJECT_ID = '91ab4b88-25a1-404c-9961-4f2b392e2874' as const
 export const CLOSED_BETA_ENVIRONMENT_ID = '500b4fba-5567-49c3-89a5-323abb908d19' as const
@@ -34,27 +40,14 @@ export const CLOSED_BETA_IMAGE_SERVICES = [
     serviceName: 'google-provider-redis',
     serviceId: 'dc955f6c-0775-47f3-8bbc-8a6077edc3d3',
   },
-] as const
+] as const satisfies readonly Readonly<{
+  imageName: CiProductionImageName
+  serviceName: string
+  serviceId: string
+}>[]
 
-export type CiProductionImageName =
-  (typeof CLOSED_BETA_IMAGE_SERVICES)[number]['imageName']
-export const CI_PRODUCTION_IMAGE_NAMES: readonly CiProductionImageName[] =
-  CLOSED_BETA_IMAGE_SERVICES.map(({ imageName }) => imageName)
-
-type ImageDigest = `sha256:${string}`
 type RailwayServiceSource = Readonly<{ repo: string | null; image: string | null }>
 
-export type CommandResult = Readonly<{
-  status: number | null
-  stdout: string
-  stderr: string
-  error?: Error
-}>
-export type CommandRunner = (
-  command: string,
-  args: readonly string[],
-  options?: Readonly<{ cwd?: string }>,
-) => CommandResult
 export type GitRevisionReader = Readonly<{
   resolveCommit: (reference: string) => string
   isAncestor: (ancestor: string, descendant: string) => boolean
@@ -82,50 +75,6 @@ export type ClosedBetaImageDeployment = Readonly<{
   beforeDeploymentId: string
 }>
 
-const SOURCE_REVISION = /^[0-9a-f]{40}$/u
-const IMAGE_DIGEST = /^sha256:[0-9a-f]{64}$/u
-const imageDigest = z
-  .string()
-  .regex(IMAGE_DIGEST)
-  .transform((value) => value as ImageDigest)
-const image = z.strictObject({
-  repository: z.string().min(1),
-  digest: imageDigest,
-  sourceRevision: z.string().regex(SOURCE_REVISION),
-})
-const DIGEST_MAP_SCHEMA = z.strictObject({
-  version: z.literal(CI_IMAGE_DIGEST_MAP_VERSION),
-  sourceRevision: z.string().regex(SOURCE_REVISION),
-  source: z.strictObject({
-    repository: z.literal(TRUSTED_REPOSITORY),
-    ref: z.literal('refs/heads/main'),
-    workflow: z.literal(TRUSTED_CI_WORKFLOW),
-    runId: z.string().regex(/^[1-9][0-9]*$/u),
-    runAttempt: z.number().int().positive(),
-  }),
-  images: z.strictObject({
-    web: image,
-    worker: image,
-    'google-provider-redis': image,
-  }),
-})
-
-export type CiImageDigest = Readonly<z.output<typeof image>>
-export type CiImageDigestMap = Readonly<z.output<typeof DIGEST_MAP_SCHEMA>>
-
-const GITHUB_RUNS_SCHEMA = z.array(
-  z.object({
-    databaseId: z.number().int().positive(),
-    headSha: z.string(),
-    headBranch: z.string(),
-    event: z.string(),
-    conclusion: z.string(),
-    attempt: z.number().int().positive(),
-  }),
-)
-const GITHUB_ARTIFACTS_SCHEMA = z.object({
-  artifacts: z.array(z.object({ name: z.string(), expired: z.boolean() })),
-})
 const nullableString = z.string().min(1).nullable()
 const RAILWAY_INVENTORY_SCHEMA = z.array(
   z.object({
@@ -164,70 +113,6 @@ const WEB_HEALTH_URLS = [
   'https://web-closed-beta-v2.up.railway.app/api/health/started',
 ] as const
 
-function parseJson<T>(content: string, schema: z.ZodType<T>, label: string): T {
-  let value: unknown
-  try {
-    value = JSON.parse(content) as unknown
-  } catch {
-    throw new Error(`${label} is not valid JSON`)
-  }
-  const parsed = schema.safeParse(value)
-  if (!parsed.success) {
-    const issues = parsed.error.issues
-      .map(({ path, message }) => `${path.join('.') || '<root>'}: ${message}`)
-      .join('; ')
-    throw new Error(`${label} is invalid: ${issues}`)
-  }
-  return parsed.data
-}
-
-export function ciImageDigestMapArtifactName(sourceRevision: string): string {
-  if (!SOURCE_REVISION.test(sourceRevision)) {
-    throw new Error('CI image digest artifact revision must be a full lowercase git SHA')
-  }
-  return `ci-image-digest-map-${sourceRevision}`
-}
-
-export function parseCiImageDigestMap(
-  content: string,
-  expectedRevision: string,
-  expectedRun?: Readonly<{ id: string; attempt: number }>,
-): CiImageDigestMap {
-  if (!SOURCE_REVISION.test(expectedRevision)) {
-    throw new Error('expected source revision must be a full lowercase git SHA')
-  }
-  const parsed = parseJson(content, DIGEST_MAP_SCHEMA, 'CI image digest map')
-  if (parsed.sourceRevision !== expectedRevision) {
-    throw new Error(
-      `CI image digest map source revision ${parsed.sourceRevision} does not match ${expectedRevision}`,
-    )
-  }
-  if (
-    expectedRun &&
-    (parsed.source.runId !== expectedRun.id ||
-      parsed.source.runAttempt !== expectedRun.attempt)
-  ) {
-    throw new Error(
-      'CI image digest map workflow run identity does not match its artifact',
-    )
-  }
-  for (const imageName of CI_PRODUCTION_IMAGE_NAMES) {
-    const entry = parsed.images[imageName]
-    const expectedRepository = `ghcr.io/kodes-agency/repkey-${imageName}`
-    if (entry.repository !== expectedRepository) {
-      throw new Error(
-        `CI image digest map repository for ${imageName} must be ${expectedRepository}`,
-      )
-    }
-    if (entry.sourceRevision !== expectedRevision) {
-      throw new Error(
-        `CI image digest map image ${imageName} has the wrong source revision`,
-      )
-    }
-  }
-  return parsed
-}
-
 export function resolveDeploymentRevision(
   requestedRevision: string | undefined,
   git: GitRevisionReader,
@@ -251,38 +136,6 @@ export function resolveDeploymentRevision(
   return revision
 }
 
-export const defaultCommandRunner: CommandRunner = (command, args, options = {}) => {
-  const result = spawnSync(command, [...args], {
-    cwd: options.cwd,
-    encoding: 'utf8',
-    env: process.env,
-    maxBuffer: 16 * 1024 * 1024,
-  })
-  return {
-    status: result.status,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-    ...(result.error ? { error: result.error } : {}),
-  }
-}
-
-function checkedOutput(
-  runner: CommandRunner,
-  command: string,
-  args: readonly string[],
-  options?: Readonly<{ cwd?: string }>,
-): string {
-  const result = runner(command, args, options)
-  if (result.status !== 0) {
-    const detail = result.error?.message || result.stderr.trim() || result.stdout.trim()
-    const status = result.status === null ? '' : ` (${String(result.status)})`
-    throw new Error(
-      `${command} ${args.join(' ')} failed${status}: ${detail || 'no diagnostic output'}`,
-    )
-  }
-  return result.stdout
-}
-
 export function createGitRevisionReader(
   runner: CommandRunner,
   cwd = process.cwd(),
@@ -301,91 +154,6 @@ export function createGitRevisionReader(
       throw new Error(`git ${args.join(' ')} failed: ${detail || 'no diagnostic output'}`)
     },
   }
-}
-
-export function downloadCiImageDigestMap(
-  revision: string,
-  runner: CommandRunner = defaultCommandRunner,
-): CiImageDigestMap {
-  const runs = parseJson(
-    checkedOutput(runner, 'gh', [
-      'run',
-      'list',
-      '--repo',
-      TRUSTED_REPOSITORY,
-      '--workflow',
-      'ci.yml',
-      '--branch',
-      'main',
-      '--commit',
-      revision,
-      '--event',
-      'push',
-      '--status',
-      'success',
-      '--limit',
-      '100',
-      '--json',
-      'databaseId,headSha,headBranch,event,conclusion,attempt',
-    ]),
-    GITHUB_RUNS_SCHEMA,
-    'GitHub CI runs',
-  ).filter(
-    (run) =>
-      run.headSha === revision &&
-      run.headBranch === 'main' &&
-      run.event === 'push' &&
-      run.conclusion === 'success',
-  )
-  if (runs.length === 0) {
-    throw new Error(
-      `no successful main push CI run exists for source revision ${revision}`,
-    )
-  }
-
-  const artifactName = ciImageDigestMapArtifactName(revision)
-  for (const run of runs) {
-    const { artifacts } = parseJson(
-      checkedOutput(runner, 'gh', [
-        'api',
-        `repos/${TRUSTED_REPOSITORY}/actions/runs/${String(run.databaseId)}/artifacts?per_page=100`,
-      ]),
-      GITHUB_ARTIFACTS_SCHEMA,
-      'GitHub run artifacts',
-    )
-    const matches = artifacts.filter(
-      (artifact) => artifact.name === artifactName && !artifact.expired,
-    )
-    if (matches.length > 1) {
-      throw new Error(`GitHub CI run contains duplicate ${artifactName} artifacts`)
-    }
-    if (matches.length === 0) continue
-
-    const directory = mkdtempSync(join(tmpdir(), 'repkey-ci-image-digest-map-'))
-    try {
-      checkedOutput(runner, 'gh', [
-        'run',
-        'download',
-        String(run.databaseId),
-        '--repo',
-        TRUSTED_REPOSITORY,
-        '--name',
-        artifactName,
-        '--dir',
-        directory,
-      ])
-      return parseCiImageDigestMap(
-        readFileSync(join(directory, CI_IMAGE_DIGEST_MAP_FILE), 'utf8'),
-        revision,
-        { id: String(run.databaseId), attempt: run.attempt },
-      )
-    } finally {
-      rmSync(directory, { recursive: true, force: true })
-    }
-  }
-  throw new Error(
-    `no unexpired ${artifactName} artifact exists on a successful main push CI run`,
-  )
 }
 
 export function railwayTargetArgs(serviceId?: string): string[] {

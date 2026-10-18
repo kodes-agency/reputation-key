@@ -1,45 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  CI_PRODUCTION_IMAGE_NAMES,
+  parseCiImageDigestMap,
+  TRUSTED_REPOSITORY,
+} from './ci-image-digest-map'
+import { digestMapValue, REVISION } from './ci-image-digest-map.test-fixtures'
+import type { CommandRunner } from './command-runner'
+import {
   applyClosedBetaImageDeployment,
   buildClosedBetaImageDeploymentPlan,
-  CI_IMAGE_DIGEST_MAP_VERSION,
-  CI_PRODUCTION_IMAGE_NAMES,
   CLOSED_BETA_IMAGE_SERVICES,
-  parseCiImageDigestMap,
   resolveDeploymentRevision,
-  TRUSTED_CI_WORKFLOW,
-  TRUSTED_REPOSITORY,
-  type CommandRunner,
   type GitRevisionReader,
   type RailwayServiceObservation,
 } from './deploy-ci-images'
 
-const REVISION = 'a'.repeat(40)
 const ORIGIN_MAIN = 'b'.repeat(40)
-
-function digestMapValue(): Record<string, unknown> {
-  return {
-    version: CI_IMAGE_DIGEST_MAP_VERSION,
-    sourceRevision: REVISION,
-    source: {
-      repository: TRUSTED_REPOSITORY,
-      ref: 'refs/heads/main',
-      workflow: TRUSTED_CI_WORKFLOW,
-      runId: '33891370093',
-      runAttempt: 1,
-    },
-    images: Object.fromEntries(
-      CI_PRODUCTION_IMAGE_NAMES.map((imageName, index) => [
-        imageName,
-        {
-          repository: `ghcr.io/kodes-agency/repkey-${imageName}`,
-          digest: `sha256:${String(index + 1).repeat(64)}`,
-          sourceRevision: REVISION,
-        },
-      ]),
-    ),
-  }
-}
 
 function gitReader(isAncestor: boolean): GitRevisionReader {
   return {
@@ -70,18 +46,10 @@ function serviceInventory(): RailwayServiceObservation[] {
 }
 
 describe('closed-beta CI image deployment authority', () => {
-  it('accepts exactly the three production digests from the matching main CI run', () => {
-    const parsed = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION, {
-      id: '33891370093',
-      attempt: 1,
-    })
+  it('gives every image main CI proves a fixed service', () => {
+    const served = CLOSED_BETA_IMAGE_SERVICES.map(({ imageName }) => imageName)
 
-    expect(Object.keys(parsed.images)).toEqual(CI_PRODUCTION_IMAGE_NAMES)
-    expect(parsed.images.web).toEqual({
-      repository: 'ghcr.io/kodes-agency/repkey-web',
-      digest: `sha256:${'1'.repeat(64)}`,
-      sourceRevision: REVISION,
-    })
+    expect([...served].sort()).toEqual([...CI_PRODUCTION_IMAGE_NAMES].sort())
   })
 
   it('binds each selected digest to its fixed service without a mutable tag', () => {
@@ -122,16 +90,6 @@ describe('closed-beta CI image deployment authority', () => {
 
     expect(() => buildClosedBetaImageDeploymentPlan(digestMap, withoutWorker)).toThrow(
       'Railway live target does not contain exact service worker',
-    )
-  })
-
-  it('refuses a digest map with a missing production image digest', () => {
-    const value = digestMapValue()
-    const images = value.images as Record<string, Record<string, unknown>>
-    delete images.worker
-
-    expect(() => parseCiImageDigestMap(JSON.stringify(value), REVISION)).toThrow(
-      /worker/u,
     )
   })
 
