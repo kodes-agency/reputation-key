@@ -945,8 +945,22 @@
 // (styles-mDD_TGAT.css, 27,845 B). Lazy chunks, main -> head: the sheet
 // 4.60 -> 6.77 kB, the goal page's route 4.96 -> 6.19 kB, the shared host
 // 10.29 -> 10.91 kB, the stub chunk 0.30 -> 0.46 kB; the results page's chunk
-// is unchanged (3.89 kB). No raise: 58 B spare under 308,200; 158 B under the
-// build's ceiling of 308,300 (owner, P-9).
+// is unchanged (3.89 kB). No raise then: 58 B spare under 308,200. Rebased
+// again over PG-20 (#876, Add a portal goal) onto main bbd204488, under the
+// same line: fresh builds in one session measured 308,041 B on main (75 js + 1
+// css; entry 49,364 B) and 308,035 B on the head 0afa54647 (entry 49,358 B):
+// -6 B, all in the entry. With the hashed chunk names masked, the head's entry
+// is again 15 characters longer than main's (the /goals/portals preload list),
+// so the -6 B is the names' gzip noise. The stylesheet is main's own
+// (styles-ChuBAd4e.css, 27,839 B). Lazy chunks, main -> head: the sheet 1.91
+// -> 4.35 kB, and the set sheet's view, a chunk the add sheet now shares
+// (portal-goal-sheet-refusals-*.js), 4.04 -> 4.26 kB; the goal page's route
+// 5.38 -> 6.57 kB; the goal routes' shared host, now named
+// -portal-goal-add-host-*.js, 10.47 -> 10.96 kB; the stub chunk 0.46 -> 0.61
+// kB. The add sheet's chunk (4.21 kB) and the results page's (3.88 kB) are
+// unchanged, and the starts-below-pace note is still in the sheet's chunk
+// alone. No raise: 165 B spare under 308,200; 265 B under the build's ceiling
+// of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
