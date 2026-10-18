@@ -1,8 +1,9 @@
 // The Monthly portal goal's story fixtures: Seaview Hotel on Sofia time, where
 // Reception and Restaurant went live on Oct 9 and Spa on Oct 15, read on Oct 17
 // (PROPOSAL §4.1); on Oct 23 the number is ready (PLAN goldens G1, G2 and G5),
-// and a goal set from it runs in November. Every shape is the read's own type,
-// from Reporting's application layer; nothing here is worked out, only stated.
+// and a goal set from it runs in November (`portal-goal-running.stories.fixtures.ts`).
+// Every shape is the read's own type, from Reporting's application layer;
+// nothing here is worked out, only stated.
 import type {
   PortalGoalCardView,
   PortalGoalOfCard,
@@ -257,28 +258,6 @@ export const CARD_SCHEDULED: PortalGoalCardView = {
   state: 'goal',
   today: '2026-10-23',
   goal: GOAL_SCHEDULED,
-}
-
-/** G10, Nov 22: 23 of 40 with 9 days left, today counted. */
-export const CARD_RUNNING: PortalGoalCardView = {
-  state: 'goal',
-  today: '2026-11-22',
-  goal: {
-    ...GOAL_SCHEDULED,
-    status: 'active',
-    startsOn: null,
-    month: {
-      key: '2026-11',
-      target: 40,
-      value: 23,
-      elapsedDays: 22,
-      totalDays: 30,
-      daysAfterToday: 8,
-      belowPace: true,
-      quietDays: false,
-    },
-    currentMonthSoFar: null,
-  },
 }
 
 export const CARD_NOTHING: PortalGoalCardView = {

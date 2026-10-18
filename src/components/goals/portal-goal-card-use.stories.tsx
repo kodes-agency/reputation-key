@@ -1,9 +1,10 @@
 // The Monthly portal goal card once its number is ready, and the goal it sets
 // (PLAN PG-09): Use for November and for the rest of October, scans first,
-// "How we worked this out", a Use on its way, a refusal, and the minimal goal
-// card (scheduled and running), each at 320 and 1440 px and the ready card on
-// the light theme too. The Storybook Vitest project compiles no Tailwind, so
-// the plays assert words, roles and what Use sends.
+// "How we worked this out", a Use on its way, a refusal, and the scheduled
+// goal, each at 320 and 1440 px and the ready card on the light theme too. The
+// running goal is `portal-goal-card-running.stories.tsx`. The Storybook Vitest
+// project compiles no Tailwind, so the plays assert words, roles and what Use
+// sends.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
@@ -15,7 +16,6 @@ import { PortalGoalSection } from './portal-goal-section'
 import {
   CARD_READY,
   CARD_READY_OCTOBER,
-  CARD_RUNNING,
   CARD_SCANS_ONLY,
   CARD_SCHEDULED,
   SEAVIEW,
@@ -300,34 +300,4 @@ export const ScheduledOnANarrowPhone: Story = {
 export const ScheduledOnADesktop: Story = {
   ...Scheduled,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-async function expectRunning(canvas: Canvas) {
-  await expect(canvas.getByText('23 of 40 private ratings')).toBeVisible()
-  await expect(canvas.getByText('17 to go · 9 days left')).toBeVisible()
-  // The minimal card: no pace word, no bar, no rows yet.
-  await expect(canvas.queryByText(/pace/u)).toBeNull()
-  await expect(canvas.queryByRole('progressbar')).toBeNull()
-  await expect(canvas.queryByRole('button')).toBeNull()
-}
-
-/** Nov 22: the governed figure of November's number, and what is left to go. */
-export const RunningMinimal: Story = {
-  args: { card: read(CARD_RUNNING) },
-  play: async ({ canvasElement }) => expectRunning(within(canvasElement)),
-}
-
-export const RunningMinimalOnANarrowPhone: Story = {
-  ...RunningMinimal,
-  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-}
-
-export const RunningMinimalOnADesktop: Story = {
-  ...RunningMinimal,
-  parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-export const RunningMinimalLight: Story = {
-  ...RunningMinimal,
-  parameters: { theme: 'light' },
 }
