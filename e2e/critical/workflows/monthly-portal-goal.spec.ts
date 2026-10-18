@@ -18,6 +18,10 @@
 //   J1 (continued). On J1's Property, "Set my own number" opens the set sheet
 //       with the box empty and "Set goal" disabled; 12 typed enables "Set 12
 //       for {month}"; Cancel closes it with nothing set.
+//   J5. the running month: a goal set for this month through the server
+//       function shows the governed figure against its number, what is left
+//       to go with the days left, "below pace" exactly when `goalPace` says
+//       behind, the bar's sentence, and each Portal's count in name order.
 //
 // Every Property here is the journey's own (prefix `e2e-pg-`, run id and retry
 // in the slug). Expected days are read from the database clock in the
@@ -26,7 +30,11 @@
 // between the read and the page; that flake is accepted (PLAN §3.6).
 import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
-import { callServerFnGet, callServerFnGetExpectError } from '../../helpers/fixtures'
+import {
+  callServerFn,
+  callServerFnGet,
+  callServerFnGetExpectError,
+} from '../../helpers/fixtures'
 import { clickWhenReady, waitForHydration } from '../../helpers/interaction'
 import {
   MONTHLY_PORTAL_GOALS,
@@ -39,7 +47,9 @@ import {
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { recommendPortalGoal } from '../../../src/contexts/reporting/domain/goal-recommendation'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../../src/contexts/reporting/domain/goal-start'
+import { goalMonthDays, goalPace } from '../../../src/contexts/reporting/domain/goal-pace'
 import { addLocalDays } from '../../../src/contexts/reporting/domain/local-days'
+import { calendarPeriodRange } from '../../../src/shared/domain/period-range'
 import { formatLocalDate, formatMonthName } from '../../../src/lib/format'
 
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
@@ -340,5 +350,115 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     // back on the door.
     await expect(card.getByText('Getting your portals ready')).toBeVisible()
     await expect(card.getByRole('button', { name: 'Set my own number' })).toBeFocused()
+  })
+
+  test('J5 the running month: count, to go, days left and each portal in name order', async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, portals } = await seedPortalGoalProperty(
+      page,
+      'j5',
+      testInfo.retry,
+    )
+    seeded.push(propertyId)
+    const [reception, restaurant, spa] = portals
+    if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
+    // Ratings up to yesterday, never later today: a reading still ahead of the
+    // clock would be in the governed month and not yet in the Portals' counts.
+    const days = (from: number, to: number) =>
+      Array.from({ length: from - to + 1 }, (_, index) => from - index)
+    const input = await seedPortalHistory(propertyId, [
+      {
+        portal: reception,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(19, 1),
+        scansDaysAgo: days(19, 6),
+      },
+      {
+        portal: restaurant,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(10, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: spa,
+        liveDaysAgo: 8,
+        codeDaysAgo: 17,
+        ratingsDaysAgo: days(3, 1),
+        scansDaysAgo: [],
+      },
+    ])
+    // Everything expected is worked out by the rules themselves.
+    const recommendation = recommendPortalGoal(input)
+    const month = recommendation.months.current.key
+    const soFar = recommendation.monthToDate.portal_rating_count ?? 0
+    const target =
+      recommendation.measures.portal_rating_count.fromToday?.aBitMore ?? soFar + 10
+    const period = calendarPeriodRange(input.now, input.timezone, 'monthly')
+    const { daysLeft } = goalMonthDays(period, input.now, input.timezone)
+    const left = daysLeft + 1 <= 1 ? 'last day' : `${daysLeft + 1} days left`
+    const pace = goalPace({
+      metric: 'portal_rating_count',
+      value: soFar,
+      target,
+      period,
+      now: input.now,
+      timezone: input.timezone,
+    })
+    const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
+
+    // Its own Property sets this month's goal straight through the server function.
+    await callServerFn(page, {
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'setMonthlyPortalGoal',
+      data: {
+        propertyId,
+        metric: 'portal_rating_count',
+        targetValue: target,
+        startMonth: month,
+        targetSource: 'own',
+      },
+    })
+
+    await page.goto(`/properties/${propertyId}/goals`)
+    await waitForHydration(page)
+    const card = page.locator('#portal-goals [data-slot="portal-goal-card"]')
+    await expect(card.getByText(`${soFar} of ${target}`, { exact: true })).toBeVisible()
+    await expect(card.getByText('private ratings', { exact: true })).toBeVisible()
+    await expect(
+      card.getByText(`${target - soFar} to go · ${left}`, { exact: true }),
+    ).toBeVisible()
+    // "below pace" exactly when the rule says behind; never "on pace".
+    await expect(card.getByText('below pace', { exact: true })).toHaveCount(
+      pace.state === 'behind' ? 1 : 0,
+    )
+    await expect(card.getByText(/on pace/u)).toHaveCount(0)
+    await expect(
+      card.getByRole('progressbar', { name: `Private ratings in ${monthName}` }),
+    ).toHaveAttribute(
+      'aria-valuetext',
+      [`${soFar} of ${target} private ratings`, left]
+        .concat(pace.state === 'behind' ? ['below pace'] : [])
+        .join(', '),
+    )
+
+    // Each Portal's count of the month, in name order, never by count.
+    const rows = card
+      .getByRole('list', { name: 'From your portals' })
+      .getByRole('listitem')
+    await expect(rows).toHaveCount(PORTAL_NAMES.length)
+    for (const [index, name] of PORTAL_NAMES.entries()) {
+      const facts = recommendation.portals.find((portal) => portal.name === name)
+      if (!facts) throw new Error(`The rule lists no ${name}`)
+      const row = rows.nth(index)
+      await expect(row.locator('span').first()).toHaveText(name)
+      await expect(row.locator('span').last()).toHaveText(
+        String(facts.monthToDate.portal_rating_count),
+      )
+    }
+    await expect(card.getByText('Other portals')).toHaveCount(0)
   })
 })

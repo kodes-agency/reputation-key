@@ -52,9 +52,10 @@ export async function runAgainAfterDeadlock<T>(write: () => Promise<T>): Promise
 }
 
 /**
- * The Program as the port knows it. The columns migration 0062 added (the
- * answered check-in and who ended it when) are written by their own commands
- * and are not part of it.
+ * The Program as the port knows it. Of the columns migration 0062 added, it
+ * names when the goal was ended, only when that was stored (the Monthly portal
+ * goal's card says the day it was stopped); the answered check-in and who ended
+ * it are written by their own commands and are not part of it.
  */
 export function mapProgram(row: typeof goalPrograms.$inferSelect): GoalProgram {
   return {
@@ -69,6 +70,7 @@ export function mapProgram(row: typeof goalPrograms.$inferSelect): GoalProgram {
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    ...(row.endedAt ? { endedAt: row.endedAt } : {}),
   }
 }
 

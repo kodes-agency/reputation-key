@@ -19,6 +19,12 @@ export type GoalProgram = Readonly<{
   createdBy: string
   createdAt: Date
   updatedAt: Date
+  /**
+   * When the goal was ended (migration 0062). Absent for a goal that has not
+   * ended, and for one ended before 0062 or by an old web server, which
+   * recorded no time. A read names it only when one was stored.
+   */
+  endedAt?: Date
 }>
 
 export type GoalProgramVersion = Readonly<{

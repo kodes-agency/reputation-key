@@ -253,6 +253,35 @@ export function readingOf(
 }
 
 /**
+ * The governed read of one subject's month so far under one version, in the
+ * card's terms. `progressOf` reads an active goal's running month with it, and
+ * the Monthly portal goal's card reads a stopped goal's month the same way: it
+ * still counts to the month's end.
+ */
+export async function readSubjectMonth(
+  deps: Pick<GoalProgressDeps, 'metrics'>,
+  version: Pick<
+    GoalProgramVersion,
+    'propertyId' | 'metric' | 'metricMinimumSample' | 'metricDefinitionVersionId'
+  >,
+  subject: GoalSubject,
+  period: Readonly<{ start: Date; end: Date }>,
+  actor: GoalActor,
+): Promise<Exclude<GoalProgressReading, Readonly<{ kind: 'not_started' }>>> {
+  return readingOf(
+    version,
+    await deps.metrics.queryGoalMetric({
+      organizationId: toOrganizationId(actor.organizationId),
+      propertyId: toPropertyId(version.propertyId),
+      definitionVersionId: version.metricDefinitionVersionId,
+      subject: metricSubject(subject),
+      periodStart: period.start,
+      periodEnd: period.end,
+    }),
+  )
+}
+
+/**
  * One subject's month so far under one goal: the same governed read, the same
  * target and the same wording facts for the goal's page, a group's card and the
  * Goals list.
@@ -278,17 +307,7 @@ export async function progressOf(
     'monthly',
   )
   const reading: GoalProgressReading = started
-    ? readingOf(
-        version,
-        await deps.metrics.queryGoalMetric({
-          organizationId: toOrganizationId(actor.organizationId),
-          propertyId: toPropertyId(bundle.program.propertyId),
-          definitionVersionId: version.metricDefinitionVersionId,
-          subject: metricSubject(subject),
-          periodStart: period.start,
-          periodEnd: period.end,
-        }),
-      )
+    ? await readSubjectMonth(deps, version, subject, period, actor)
     : { kind: 'not_started' }
   const { setAt, setBy } = goalTargetProvenance(bundle, version)
   // A month opens under the assignment's own version, so that is the version
