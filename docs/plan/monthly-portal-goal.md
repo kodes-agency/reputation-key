@@ -233,7 +233,7 @@ Not recorded yet.
 
 ### PG-18 — `/goals/portal-results`
 
-Not recorded yet.
+Each month's result of the Portal goals has its own page, **Goals › Portal goal results** (`/goals/portal-results`), for whoever may change a goal (`goal.update`, the gate the matrix had on the Goals page). It shows the monthly results matrix, moved off the Goals page unchanged (each month a section, newest first), and the ended Portal goals, most recently ended first, each with its measure, number and subjects and "Ended on Nov 12" (just "Ended" for a goal ended before 0062 kept the day). The Portal goals section's foot on the Goals page leads there with "All monthly results" once a Portal goal's month has closed and "Ended portal goals (n)" (to `#ended`) once one has ended; the goal page's "All monthly results" opens it too. Its reads are the Goals page's own (the goals and their subjects' names, under the same keys), defined in `-portal-goal-queries.ts`, which its loader imports on demand. The Goals page's History still lists the ended goals until PG-19.
 
 ### PG-19 — Tabs inside the Google section
 
