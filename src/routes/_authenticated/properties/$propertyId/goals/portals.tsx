@@ -26,6 +26,7 @@ import {
 } from '#/components/goals/portal-goal-add-view'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
+import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
 import {
   PortalGoalPage,
   focusPortalGoalPageTitle,
@@ -114,7 +115,8 @@ function MonthlyPortalGoalRoute() {
   const queryClient = useQueryClient()
   const [now] = useState(() => new Date())
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { data: page } = useSuspenseQuery(portalGoalPageQuery(propertyId))
+  const pageRead = useSuspenseQuery(portalGoalPageQuery(propertyId))
+  const page = pageRead.data
   // Who made each change, by name. A side read that never holds the page back:
   // until it is read, a change is told without a person.
   const members = useQuery({
@@ -122,11 +124,20 @@ function MonthlyPortalGoalRoute() {
     enabled: canDo('member.list'),
     retry: false,
   })
+  const markStale = () => markPortalGoalReadsStale(queryClient, propertyId)
   const set = {
     setMonthlyPortalGoalFn: portalGoalCommands.setMonthlyPortalGoal,
-    onSet: () => markPortalGoalReadsStale(queryClient, propertyId),
-  } satisfies PortalGoalCommands
-  const sheet = usePortalGoalSheet(propertyId, page.card, set, focusPortalGoalPageTitle)
+    changeMonthlyPortalGoalNowFn: portalGoalCommands.changeMonthlyPortalGoalNow,
+    reviseMonthlyPortalGoalFn: portalGoalCommands.reviseMonthlyPortalGoal,
+    onSet: markStale,
+  } satisfies PortalGoalCommands & PortalGoalSheetCommands
+  const sheet = usePortalGoalSheet(
+    propertyId,
+    page.card,
+    set,
+    focusPortalGoalPageTitle,
+    async () => (await pageRead.refetch()).data?.card,
+  )
   const addRead = useQuery({
     ...portalGoalAddQuery(propertyId),
     enabled: canDo('goal.create'),

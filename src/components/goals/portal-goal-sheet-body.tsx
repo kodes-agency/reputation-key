@@ -1,13 +1,16 @@
-// The set sheet's form (copy deck S-2…S-11, G-16): the month, the number box
-// with its band and unit, what the number is (said politely as it changes, and
-// quiet while the box has the focus, whose `aria-valuetext` says it then), the
-// notes (said politely as they appear), the three suggestions, the
-// ask-every-guest line when it counts private ratings, "How we worked this
-// out", the other measure, the refusal and the footer. While Set is on its way
-// nothing in it changes the number. Everything it says is the sheet view's (`portal-goal-sheet-view.ts`);
-// it only draws it and hands each change up.
-import { useId, useState } from 'react'
+// The sheet's form (copy deck S-2…S-11, S-15…S-22, G-16): the month (a choice
+// only when there are two), the number box with its band and unit, what the
+// number is (said politely as it changes, and quiet while the box has the
+// focus, whose `aria-valuetext` says it then), the notes (said politely as they
+// appear), the three suggestions when setting, the ask-every-guest line when
+// it counts private ratings, "How we worked this out", the other measure, the
+// change's note, the refusal and the footer. While the command is on its way
+// nothing in it changes the number. Everything it says is the sheet views'
+// (`portal-goal-sheet-view.ts`, `portal-goal-sheet-change-view.ts`); it only
+// draws it and hands each change up.
+import { useId, useState, type ReactNode } from 'react'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { SegmentedControl } from '#/components/ui/segmented-control'
@@ -15,13 +18,13 @@ import { PortalGoalChoices } from './portal-goal-choices'
 import { PORTAL_ASK_EVERY_GUEST_LINE } from './portal-goal-copy'
 import { PortalGoalNumberTile } from './portal-goal-number-tile'
 import type {
+  PortalGoalSheetBodyModel,
   PortalGoalSheetChange,
-  PortalGoalSheetModel,
 } from './portal-goal-sheet-view'
 import { PortalGoalWorkedOut } from './portal-goal-worked-out'
 
 type Props = Readonly<{
-  model: PortalGoalSheetModel
+  model: PortalGoalSheetBodyModel
   /** A phone: the smaller figures. */
   small: boolean
   /** Set is on its way. */
@@ -30,6 +33,13 @@ type Props = Readonly<{
   error: unknown
   onChange: (change: PortalGoalSheetChange) => void
   onSubmit: () => void
+  /** The change's note, above the refusal; none when setting. */
+  note?: ReactNode
+  /**
+   * A refusal the sheet opened with (F-1, on the latest), said until the next
+   * press: the banner shows only refusals of presses made since it opened.
+   */
+  notice?: unknown
 }>
 
 /** S-5, S-6 and S-7, with S-6's way back to the recommended number. */
@@ -39,7 +49,7 @@ function StatusLine({
   pending,
   onRestore,
 }: Readonly<{
-  status: PortalGoalSheetModel['status']
+  status: PortalGoalSheetBodyModel['status']
   quiet: boolean
   pending: boolean
   onRestore: (value: number) => void
@@ -78,6 +88,8 @@ export function PortalGoalSheetBody({
   error,
   onChange,
   onSubmit,
+  note,
+  notice = null,
 }: Props) {
   const id = useId()
   const [boxFocused, setBoxFocused] = useState(false)
@@ -90,15 +102,17 @@ export function PortalGoalSheetBody({
         if (!model.primary.disabled) onSubmit()
       }}
     >
-      <SegmentedControl
-        touch
-        aria-label="Month"
-        value={model.month}
-        onValueChange={(month) => onChange({ kind: 'month', month })}
-        options={model.months}
-        disabled={pending}
-        className="self-center"
-      />
+      {model.months.length < 2 ? null : (
+        <SegmentedControl
+          touch
+          aria-label="Month"
+          value={model.month}
+          onValueChange={(month) => onChange({ kind: 'month', month })}
+          options={model.months}
+          disabled={pending}
+          className="self-center"
+        />
+      )}
       <PortalGoalNumberTile
         band={model.band}
         unit={model.unit}
@@ -155,7 +169,12 @@ export function PortalGoalSheetBody({
           {model.switchMeasure.label}
         </Button>
       </div>
-      <DialogErrorBanner error={error} />
+      {note}
+      {notice === null ? (
+        <DialogErrorBanner error={error} />
+      ) : (
+        <FormErrorBanner error={notice} />
+      )}
       <DialogFooter>
         <DialogCancel />
         <Button

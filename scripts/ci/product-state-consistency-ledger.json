@@ -762,6 +762,18 @@
       "policy": "Whether Add a portal goal is open, on which step, with the add read it opened on and the key it mounts with. Seeded once from the goal page's address (?add=) when the page is arrived at, then set by the door; it is never server state, the sheet always draws the latest add read while it is there, and closing clears the address so a reload or Back does not open it again."
     },
     {
+      "id": "src/components/goals/portal-goal-change-sheet.tsx:useState(draft)",
+      "classification": "server_draft",
+      "owner": "Monthly portal goal change sheet",
+      "policy": "Now or from next month, the measure, the number box as typed and the note, seeded once when the sheet mounts from the goal it opened on (the month the read names, the goal's number there, or the recommended number of a switched measure). The host mounts a fresh sheet with a new key for every opening and again on the latest goal after a revision_conflict, which is the reset boundary; a month_locked refusal moves it to the next month from the refusal's handler, never from an effect. The keys the change is sent against (month, number, version, the months after) are read from the goal the sheet opened on at the press, and only the primary sends the draft to the server."
+    },
+    {
+      "id": "src/components/goals/portal-goal-change-sheet.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Monthly portal goal change sheet",
+      "policy": "The instant the sheet was opened (or the one a story fixes), taken once so the starts-below-pace note judges the typed number against the same day while the sheet is open; it is not server state and is never written back, and the sheet's remount is its reset boundary."
+    },
+    {
       "id": "src/components/goals/rating-goal-wizard.tsx:useState(step)",
       "classification": "local_runtime",
       "owner": "Google rating goal wizard",

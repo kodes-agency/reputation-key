@@ -3,9 +3,14 @@
 // way back, a number typed far from the usual, the rest of October, an own
 // number in the first weeks (the box starts empty), scans instead, "How we
 // worked this out", a set on its way, a goal set a moment ago elsewhere, the
-// month turning, a narrow phone (with a note), and a five-figure number. On Seaview's Oct 23 (goldens G1, G2) unless
-// named. The Storybook Vitest project compiles no Tailwind, so the plays assert
-// words, roles, focus and what Set sends.
+// month turning, a narrow phone (with a note), and a five-figure number. On
+// Seaview's Oct 23 (goldens G1, G2) unless named. Then the sheet that changes
+// the goal (PLAN PG-14), on Nov 22 with November at 40 and 23 so far: from
+// next month, now (below pace), on the last day, scans instead (from next
+// month only), a month found ended, a goal changed meanwhile, a narrow phone
+// and the light theme; and a stopped goal's way to the next one. The
+// Storybook Vitest project compiles no Tailwind, so the plays assert words,
+// roles, focus and what each command sends.
 import { useRef, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
@@ -13,6 +18,9 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { Button } from '#/components/ui/button'
 import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
+import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import { SHEET_NOVEMBER_22 } from './portal-goal-change.stories.fixtures'
+import { CARD_LAST_DAY, CARD_RUNNING } from './portal-goal-running.stories.fixtures'
 import { PortalGoalSheet, type PortalGoalSheetProps } from './portal-goal-sheet'
 import {
   SEAVIEW,
@@ -29,21 +37,42 @@ const setMock = fn<Commands['setMonthlyPortalGoalFn']>(async () => ({
 const onSetMock = fn<Commands['onSet']>(async () => undefined)
 const onSettledMock = fn<PortalGoalSheetProps['onSettled']>()
 const onOpenChangeMock = fn<PortalGoalSheetProps['onOpenChange']>()
+const changeNowMock = fn<Commands['changeMonthlyPortalGoalNowFn']>(async () => ({
+  changed: true,
+}))
+const reviseMock = fn<Commands['reviseMonthlyPortalGoalFn']>(async () => ({
+  programId: 'program-monthly',
+}))
+
+/** The two changes, which a story that only sets never sends. */
+const CHANGES = {
+  changeMonthlyPortalGoalNowFn: changeNowMock,
+  reviseMonthlyPortalGoalFn: reviseMock,
+} satisfies Partial<Commands>
 
 const refusal = (code: string) =>
   new ServerFunctionError('GoalProgramError', code, code, 409)
 
 type HarnessProps = Pick<PortalGoalSheetProps, 'facts' | 'intent'> &
-  Partial<Pick<PortalGoalSheetProps, 'commands'>>
+  Partial<Pick<PortalGoalSheetProps, 'commands' | 'goal' | 'now'>> &
+  Readonly<{
+    /** The goal read again after F-1, which the sheet opens afresh on. */
+    latest?: PortalGoalSheetProps['goal']
+  }>
 
 /**
  * A page with one door the sheet opens from: a fresh sheet for every opening,
- * closed when a goal is set, and the focus handed back to the door as the
- * page's host does.
+ * closed when a goal is set or changed, and the focus handed back to the door
+ * as the page's host does. A change refused with F-1 opens afresh on the goal
+ * read again (`latest`), still saying why, as the host does.
  */
-function Harness({ facts, intent, commands }: HarnessProps) {
+function Harness({ facts, intent, commands, goal, latest, now }: HarnessProps) {
   const [open, setOpen] = useState(false)
   const [key, setKey] = useState(0)
+  const [shown, setShown] = useState<Readonly<{ goal: typeof goal; notice: unknown }>>({
+    goal,
+    notice: null,
+  })
   const door = useRef<HTMLButtonElement>(null)
   return (
     <>
@@ -52,12 +81,20 @@ function Harness({ facts, intent, commands }: HarnessProps) {
         onClick={() => {
           setOpen(true)
           setKey((last) => last + 1)
+          setShown({ goal, notice: null })
         }}
       >
         Open the sheet
       </Button>
       <PortalGoalSheet
         key={key}
+        goal={shown.goal}
+        notice={shown.notice}
+        onConflict={(notice) => {
+          setShown({ goal: latest ?? goal, notice })
+          setKey((last) => last + 1)
+        }}
+        now={now}
         open={open}
         onOpenChange={(next) => {
           onOpenChangeMock(next)
@@ -70,7 +107,9 @@ function Harness({ facts, intent, commands }: HarnessProps) {
         propertyId={SEAVIEW.propertyId}
         facts={facts}
         intent={intent}
-        commands={commands ?? { setMonthlyPortalGoalFn: setMock, onSet: onSetMock }}
+        commands={
+          commands ?? { ...CHANGES, setMonthlyPortalGoalFn: setMock, onSet: onSetMock }
+        }
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           if (!open) door.current?.focus()
@@ -88,7 +127,14 @@ const meta: Meta<typeof Harness> = {
   beforeEach: () => {
     // Sonner's store outlives a story; a Toaster that mounts replays what still shows.
     toast.dismiss()
-    for (const mock of [setMock, onSetMock, onSettledMock, onOpenChangeMock]) {
+    for (const mock of [
+      setMock,
+      onSetMock,
+      onSettledMock,
+      onOpenChangeMock,
+      changeNowMock,
+      reviseMock,
+    ]) {
       mock.mockClear()
     }
   },
@@ -389,6 +435,7 @@ export const HowWeWorkedThisOut: Story = {
 export const Pending: Story = {
   args: {
     commands: {
+      ...CHANGES,
       setMonthlyPortalGoalFn: fn(() => new Promise<never>(() => undefined)),
       onSet: onSetMock,
     },
@@ -420,6 +467,7 @@ export const Pending: Story = {
 export const RefusedSetRace: Story = {
   args: {
     commands: {
+      ...CHANGES,
       setMonthlyPortalGoalFn: fn(async () => {
         throw refusal('subject_has_goal')
       }),
@@ -442,6 +490,7 @@ export const RefusedSetRace: Story = {
 export const RefusedMonthTurned: Story = {
   args: {
     commands: {
+      ...CHANGES,
       setMonthlyPortalGoalFn: fn(async () => {
         throw refusal('start_month_changed')
       }),
@@ -509,4 +558,285 @@ export const TypeALongNumber: Story = {
     ).toBeEnabled()
   },
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+// ─── Changing the goal (PLAN PG-14) ────────────────────────────────────────
+
+const goalOf = (card: PortalGoalCardView) => {
+  if (card.state !== 'goal') throw new Error('expected a goal')
+  return card.goal
+}
+
+const RUNNING_GOAL = goalOf(CARD_RUNNING)
+const NOV_22 = new Date('2026-11-22T10:00:00.000Z')
+
+/** The change sheet on Nov 22, opened by "Change number". */
+const CHANGING = {
+  facts: SHEET_NOVEMBER_22,
+  intent: { mode: 'change', measure: 'portal_rating_count' },
+  goal: RUNNING_GOAL,
+  now: NOV_22,
+} satisfies Partial<HarnessProps>
+
+const CHANGE_RECOMMENDED = 'Recommended · a bit above your usual over the last 4 weeks'
+
+/** Opens the change sheet from its door and waits for its title. */
+async function openChange(canvasElement: HTMLElement) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: 'Open the sheet' }),
+  )
+  const sheet = await within(document.body).findByRole('dialog', {
+    name: 'Change your monthly portal goal',
+  })
+  return { sheet, in: within(sheet) }
+}
+
+async function typeNumber(sheet: Sheet, text: string) {
+  await userEvent.clear(box(sheet))
+  await userEvent.type(box(sheet), text)
+}
+
+/** After the 20th it opens on December: 45 from December goes through the revision. */
+export const ChangeNextMonth: Story = {
+  args: CHANGING,
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openChange(canvasElement)
+    await waitFor(() => expect(box(sheet)).toHaveFocus())
+    await expect(sheet.getByRole('radio', { name: 'From Dec 1' })).toBeChecked()
+    await expect(sheet.getByText('November stays at 40.')).toBeVisible()
+    await expect(box(sheet)).toHaveValue('40')
+    // No suggested numbers to pick: only what the number is.
+    await expect(
+      sheet.queryByRole('radiogroup', { name: 'Suggested numbers' }),
+    ).toBeNull()
+    await expect(
+      sheet.getByRole('button', { name: 'Set 40 from December' }),
+    ).toBeDisabled()
+    await typeNumber(sheet, '45')
+    await expect(statusLine()).toBe(CHANGE_RECOMMENDED)
+    await userEvent.click(sheet.getByRole('button', { name: 'Add a note' }))
+    const note = sheet.getByRole('textbox', { name: 'Note' })
+    await waitFor(() => expect(note).toHaveFocus())
+    await userEvent.type(note, 'Winter opening hours')
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 45 from December' }))
+    await expect(reviseMock).toHaveBeenCalledWith({
+      data: {
+        propertyId: SEAVIEW.propertyId,
+        programId: 'program-monthly',
+        targetValue: 45,
+        note: 'Winter opening hours',
+        targetSource: 'recommended',
+        metric: 'portal_rating_count',
+        expectedVersion: 1,
+      },
+    })
+    await expect(changeNowMock).not.toHaveBeenCalled()
+    await expectToast('From December: 45 private ratings')
+    await waitFor(() => expect(onSettledMock).toHaveBeenCalledOnce())
+    await expect(onSetMock).toHaveBeenCalledOnce()
+  },
+}
+
+/** "November, now": 45 judges November too, and 23 so far starts it below pace. */
+export const ChangeNowBelowPace: Story = {
+  args: CHANGING,
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openChange(canvasElement)
+    await userEvent.click(sheet.getByRole('radio', { name: 'November, now' }))
+    await expect(
+      sheet.getByText(
+        'November is judged against the new number, and so are the months after it.',
+      ),
+    ).toBeVisible()
+    await typeNumber(sheet, '45')
+    await expect(notesRegion()).toHaveTextContent('At 23 so far, 45 starts below pace.')
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 45 for November' }))
+    await expect(changeNowMock).toHaveBeenCalledWith({
+      data: {
+        propertyId: SEAVIEW.propertyId,
+        programId: 'program-monthly',
+        targetValue: 45,
+        targetSource: 'own',
+        month: '2026-11',
+        expectedTarget: 40,
+        expectedVersion: 1,
+        expectedFollowingMonth: '2026-12',
+      },
+    })
+    await expectToast('November goal: 45 private ratings')
+    await waitFor(() => expect(onSettledMock).toHaveBeenCalledOnce())
+  },
+}
+
+/** Nov 30, the last day: a month locks only once it has ended, so both months are offered. */
+export const ChangeLastDay: Story = {
+  args: {
+    ...CHANGING,
+    goal: goalOf(CARD_LAST_DAY),
+    now: new Date('2026-11-30T20:00:00.000Z'),
+  },
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openChange(canvasElement)
+    await expect(sheet.getByRole('radio', { name: 'November, now' })).toBeEnabled()
+    await expect(sheet.getByRole('radio', { name: 'From Dec 1' })).toBeChecked()
+    await userEvent.click(sheet.getByRole('radio', { name: 'November, now' }))
+    await typeNumber(sheet, '30')
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 30 for November' }))
+    await expect(changeNowMock.mock.calls[0]?.[0].data).toMatchObject({
+      month: '2026-11',
+      targetValue: 30,
+    })
+  },
+}
+
+/** Scans instead: only from December, and November keeps counting private ratings. */
+export const ChangeScansForcesNext: Story = {
+  args: CHANGING,
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openChange(canvasElement)
+    await userEvent.click(sheet.getByRole('radio', { name: 'November, now' }))
+    await userEvent.click(sheet.getByRole('button', { name: 'Count scans instead' }))
+    await expect(sheet.getByRole('radio', { name: 'November, now' })).toBeDisabled()
+    await expect(sheet.getByRole('radio', { name: 'From Dec 1' })).toBeChecked()
+    await expect(
+      sheet.getByText('November keeps counting private ratings.'),
+    ).toBeVisible()
+    await expect(box(sheet)).toHaveValue('55')
+    await expect(sheet.queryByText(ASK_EVERY_GUEST)).toBeNull()
+    await userEvent.click(
+      sheet.getByRole('button', { name: 'Set 55 scans from December' }),
+    )
+    await expect(reviseMock.mock.calls[0]?.[0].data).toMatchObject({
+      metric: 'qualified_scans',
+      targetValue: 55,
+      targetSource: 'recommended',
+    })
+    await expectToast('From December: 55 scans')
+  },
+}
+
+/** F-2: November ended while the sheet was open. It says so, and goes to December. */
+export const RefusedMonthEnded: Story = {
+  args: {
+    ...CHANGING,
+    commands: {
+      ...CHANGES,
+      changeMonthlyPortalGoalNowFn: fn(async () => {
+        throw refusal('month_locked')
+      }),
+      setMonthlyPortalGoalFn: setMock,
+      onSet: onSetMock,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const { sheet, in: inSheet } = await openChange(canvasElement)
+    await userEvent.click(inSheet.getByRole('radio', { name: 'November, now' }))
+    await typeNumber(inSheet, '45')
+    await userEvent.click(inSheet.getByRole('button', { name: 'Set 45 for November' }))
+    await expect(
+      await inSheet.findByText(
+        'November has ended. Set the number for December instead.',
+      ),
+    ).toBeVisible()
+    // Only December is left: no month to choose, and the number stays.
+    await expect(inSheet.queryByRole('radiogroup', { name: 'Month' })).toBeNull()
+    await expect(inSheet.getByText('November stays at 40.')).toBeVisible()
+    await expect(
+      inSheet.getByRole('button', { name: 'Set 45 from December' }),
+    ).toBeEnabled()
+    await waitFor(() => expect(onSetMock).toHaveBeenCalledOnce())
+    await expect(sheet).toBeInTheDocument()
+  },
+}
+
+/** F-1: someone changed the goal meanwhile. The latest is read, and the sheet opens on it. */
+export const RefusedConflict: Story = {
+  args: {
+    ...CHANGING,
+    latest: { ...RUNNING_GOAL, version: 2, target: 50 },
+    commands: {
+      ...CHANGES,
+      // Refused while it is sent against the version the sheet first opened on.
+      reviseMonthlyPortalGoalFn: fn<Commands['reviseMonthlyPortalGoalFn']>(
+        async ({ data }) => {
+          if (data.expectedVersion === 1) throw refusal('revision_conflict')
+          return { programId: 'program-monthly' }
+        },
+      ),
+      setMonthlyPortalGoalFn: setMock,
+      onSet: onSetMock,
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const { in: sheet } = await openChange(canvasElement)
+    await typeNumber(sheet, '45')
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 45 from December' }))
+    const fresh = within(
+      await within(document.body).findByRole('dialog', {
+        name: 'Change your monthly portal goal',
+      }),
+    )
+    await expect(
+      await fresh.findByText(
+        'Someone changed this goal a moment ago. Here is the latest.',
+      ),
+    ).toBeVisible()
+    // Opened afresh on the latest: December is 50 now.
+    await waitFor(() => expect(box(fresh)).toHaveValue('50'))
+    await waitFor(() => expect(onSetMock).toHaveBeenCalledOnce())
+    await typeNumber(fresh, '45')
+    await userEvent.click(fresh.getByRole('button', { name: 'Set 45 from December' }))
+    await waitFor(() =>
+      expect(args.commands?.reviseMonthlyPortalGoalFn).toHaveBeenLastCalledWith({
+        data: expect.objectContaining({ targetValue: 45, expectedVersion: 2 }),
+      }),
+    )
+    await waitFor(() => expect(onSettledMock).toHaveBeenCalledOnce())
+  },
+}
+
+/** 320 px: the full-screen change sheet, its footer and its note. */
+export const Change320: Story = {
+  args: CHANGING,
+  play: async ({ canvasElement }) => {
+    const { sheet, in: inSheet } = await openChange(canvasElement)
+    await expect(sheet).toHaveAttribute('data-portal-goal-sheet', 'sheet')
+    await userEvent.click(inSheet.getByRole('button', { name: 'Add a note' }))
+    await expect(inSheet.getByRole('textbox', { name: 'Note' })).toBeVisible()
+    await expect(inSheet.getByRole('button', { name: 'Cancel' })).toBeVisible()
+  },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const ChangeLight: Story = {
+  args: CHANGING,
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openChange(canvasElement)
+    await expect(sheet.getByText('November stays at 40.')).toBeVisible()
+  },
+  parameters: { theme: 'light' },
+}
+
+/** Stopped in November: "Set a goal from December" opens the set sheet on December alone. */
+export const SetFromAStoppedGoal: Story = {
+  args: {
+    facts: SHEET_NOVEMBER_22,
+    intent: { measure: 'portal_rating_count', month: '2026-12' },
+  },
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openSheet(canvasElement)
+    await expect(sheet.queryByRole('radiogroup', { name: 'Month' })).toBeNull()
+    await expect(sheet.getByText('Starts on Dec 1.')).toBeVisible()
+    await expect(box(sheet)).toHaveValue('45')
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 45 for December' }))
+    await expect(setMock).toHaveBeenCalledWith({
+      data: {
+        propertyId: SEAVIEW.propertyId,
+        metric: 'portal_rating_count',
+        targetValue: 45,
+        startMonth: '2026-12',
+        targetSource: 'recommended',
+      },
+    })
+  },
 }

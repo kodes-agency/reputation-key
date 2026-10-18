@@ -21,6 +21,7 @@ import {
 } from '#/contexts/reporting/application/goal-number-steps'
 import { formatNumber } from '#/lib/format'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
+import type { PortalGoalSetIntent } from './portal-goal-sheet-intent'
 import { countsFromWords } from './portal-goal-offer-words'
 import { dayWords, monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
 
@@ -28,8 +29,10 @@ import { dayWords, monthName, portalGoalCount, portalGoalUnit } from './portal-g
 const HIGHEST_NUMBER = 1_000_000
 const RATINGS: PortalGoalMeasure = 'portal_rating_count'
 
-/** What opens the sheet: the measure its door names. The month is the read's. */
-export type PortalGoalSheetIntent = Readonly<{ measure: PortalGoalMeasure }>
+export type {
+  PortalGoalSetIntent,
+  PortalGoalSheetIntent,
+} from './portal-goal-sheet-intent'
 
 /** What the manager has chosen so far: a month, a measure, and the box as typed. */
 export type PortalGoalSheetDraft = Readonly<{
@@ -37,6 +40,8 @@ export type PortalGoalSheetDraft = Readonly<{
   measure: PortalGoalMeasure
   /** What the number box holds, exactly as typed. */
   text: string
+  /** The one month the sheet sets, when its door named one. */
+  only?: string
 }>
 
 /** One thing the manager did in the sheet. */
@@ -56,8 +61,8 @@ export type PortalGoalSheetModel = Readonly<{
   title: string
   /** S-2: when it starts, or that this month counts from its first day. */
   description: string
-  /** S-2: this month and the next. */
-  months: readonly Readonly<{ value: string; label: string }>[]
+  /** S-2: this month and the next; a control only with two. */
+  months: readonly Readonly<{ value: string; label: string; disabled?: boolean }>[]
   /** The month in effect. */
   month: string
   /** S-3: the tile's band. */
@@ -97,8 +102,11 @@ export type PortalGoalSheetModel = Readonly<{
   submission: Omit<SetMonthlyPortalGoalRequest, 'propertyId'> | null
 }>
 
+/** What the sheet's form draws, whichever way it opened. */
+export type PortalGoalSheetBodyModel = Omit<PortalGoalSheetModel, 'submission'>
+
 /** The offer for a month and a measure, as the read sent it. */
-function offerFor(
+export function offerFor(
   facts: PortalGoalSheetFacts,
   month: string,
   measure: PortalGoalMeasure,
@@ -109,26 +117,34 @@ function offerFor(
   return null
 }
 
+/** The months the sheet offers: this month and the next, or the one its door named. */
+function monthsOf(draft: PortalGoalSheetDraft, facts: PortalGoalSheetFacts): string[] {
+  const { current, next } = facts.ownNumber
+  const keys = [current.key, next.key]
+  return draft.only !== undefined && keys.includes(draft.only) ? [draft.only] : keys
+}
+
 /** The month in effect: the draft's, unless the read no longer offers it. */
 function monthOf(draft: PortalGoalSheetDraft, facts: PortalGoalSheetFacts): string {
-  const { current, next } = facts.ownNumber
-  return draft.month === current.key || draft.month === next.key
-    ? draft.month
-    : facts.month
+  const keys = monthsOf(draft, facts)
+  if (keys.includes(draft.month)) return draft.month
+  return keys.includes(facts.month) ? facts.month : (keys[0] ?? facts.month)
 }
 
 /** The box with the offer's recommended number in it, or empty without one. */
-const recommendedText = (offer: PortalGoalOffer | null): string =>
+export const recommendedText = (offer: PortalGoalOffer | null): string =>
   offer === null ? '' : String(offer.choices.aBitMore)
 
 export function openingDraft(
   facts: PortalGoalSheetFacts,
-  intent: PortalGoalSheetIntent,
+  intent: PortalGoalSetIntent,
 ): PortalGoalSheetDraft {
+  const month = intent.month ?? facts.month
   return {
-    month: facts.month,
+    month,
     measure: intent.measure,
-    text: recommendedText(offerFor(facts, facts.month, intent.measure)),
+    text: recommendedText(offerFor(facts, month, intent.measure)),
+    ...(intent.month === undefined ? {} : { only: intent.month }),
   }
 }
 
@@ -190,13 +206,17 @@ export function changedDraft(
       return { ...draft, text: String(change.value) }
     case 'type':
       return { ...draft, text: change.text }
-    case 'commit': {
-      const reading = readText(draft.text)
-      return reading.kind === 'whole' && Number.isSafeInteger(reading.n)
-        ? { ...draft, text: String(reading.n) }
-        : draft
-    }
+    case 'commit':
+      return { ...draft, text: committedText(draft.text) }
   }
+}
+
+/** Enter, or the box left: a whole number as the grid writes it; anything else as typed. */
+export function committedText(text: string): string {
+  const reading = readText(text)
+  return reading.kind === 'whole' && Number.isSafeInteger(reading.n)
+    ? String(reading.n)
+    : text
 }
 
 const stepTo = (verb: 'Lower' | 'Raise', to: number | null): Step => ({
@@ -235,8 +255,8 @@ export function choicesOf(
   ]
 }
 
-/** S-5, S-6 and S-7: what the number is. */
-function statusOf(
+/** S-5, S-6 and S-7 (S-23 when changing): what the number is. */
+export function statusOf(
   offer: PortalGoalOffer | null,
   value: number | null,
   facts: PortalGoalSheetFacts,
@@ -263,7 +283,10 @@ function statusOf(
 }
 
 /** S-8: how far an own number is from the month's usual, when it is far. */
-function notesOf(offer: PortalGoalOffer | null, value: number | null): readonly string[] {
+export function notesOf(
+  offer: PortalGoalOffer | null,
+  value: number | null,
+): readonly string[] {
   if (offer === null || value === null) return []
   const { num, den } = offer.usualExact
   const note = ownNumberNote(value, { num: BigInt(num), den: BigInt(den) })
@@ -275,6 +298,10 @@ function notesOf(offer: PortalGoalOffer | null, value: number | null): readonly 
   ]
 }
 
+/** "40" for private ratings, "55 scans" for scans: a primary's number (S-10, S-20). */
+export const primaryNumber = (measure: PortalGoalMeasure, value: number): string =>
+  measure === RATINGS ? formatNumber(value) : portalGoalCount(measure, value)
+
 /** S-10: "Set 40 for November", "Set 55 scans for November"; "Set goal" with no number. */
 function primaryOf(
   measure: PortalGoalMeasure,
@@ -282,10 +309,38 @@ function primaryOf(
   value: number | null,
 ): PortalGoalSheetModel['primary'] {
   if (value === null) return { label: 'Set goal', disabled: true }
-  const number =
-    measure === RATINGS ? formatNumber(value) : portalGoalCount(measure, value)
-  return { label: `Set ${number} for ${monthName(month)}`, disabled: false }
+  return {
+    label: `Set ${primaryNumber(measure, value)} for ${monthName(month)}`,
+    disabled: false,
+  }
 }
+
+/** The box, read: the number it holds (null when none a goal takes) and how it is drawn. */
+export function numberOf(
+  measure: PortalGoalMeasure,
+  text: string,
+): Readonly<{ value: number | null; number: PortalGoalSheetModel['number'] }> {
+  const reading = readText(text)
+  const value = reading.kind === 'whole' && takes(reading.n) ? reading.n : null
+  return {
+    value,
+    number: {
+      text,
+      value,
+      invalid: reading.kind !== 'empty' && value === null,
+      valueText: value === null ? null : portalGoalCount(measure, value),
+      ...stepsFrom(reading),
+    },
+  }
+}
+
+/** S-9: the other measure. */
+export const switchOf = (
+  measure: PortalGoalMeasure,
+): PortalGoalSheetModel['switchMeasure'] =>
+  measure === RATINGS
+    ? { label: 'Count scans instead', measure: 'qualified_scans' }
+    : { label: 'Count private ratings instead', measure: RATINGS }
 
 export function portalGoalSheetModel(
   draft: PortalGoalSheetDraft,
@@ -293,10 +348,9 @@ export function portalGoalSheetModel(
 ): PortalGoalSheetModel {
   const { measure } = draft
   const month = monthOf(draft, facts)
-  const { current, next } = facts.ownNumber
+  const { current } = facts.ownNumber
   const offer = offerFor(facts, month, measure)
-  const reading = readText(draft.text)
-  const value = reading.kind === 'whole' && takes(reading.n) ? reading.n : null
+  const { value, number } = numberOf(measure, draft.text)
   const soFar = measure === RATINGS ? current.soFar.ratings : current.soFar.scans
   const choices = choicesOf(offer)
   return {
@@ -305,27 +359,18 @@ export function portalGoalSheetModel(
       month === current.key
         ? countsFromWords(month, soFar)
         : `Starts on ${dayWords(`${month}-01`)}.`,
-    months: [current.key, next.key].map((key) => ({ value: key, label: monthName(key) })),
+    months: monthsOf(draft, facts).map((key) => ({ value: key, label: monthName(key) })),
     month,
     band: monthName(month),
     unit: portalGoalUnit(measure, value ?? 0),
-    number: {
-      text: draft.text,
-      value,
-      invalid: reading.kind !== 'empty' && value === null,
-      valueText: value === null ? null : portalGoalCount(measure, value),
-      ...stepsFrom(reading),
-    },
+    number,
     choices,
     chosen: choices?.find((choice) => choice.value === value)?.value ?? null,
     status: statusOf(offer, value, facts),
     notes: notesOf(offer, value),
     asksEveryGuest: measure === RATINGS,
     offer,
-    switchMeasure:
-      measure === RATINGS
-        ? { label: 'Count scans instead', measure: 'qualified_scans' }
-        : { label: 'Count private ratings instead', measure: RATINGS },
+    switchMeasure: switchOf(measure),
     primary: primaryOf(measure, month, value),
     submission:
       value === null

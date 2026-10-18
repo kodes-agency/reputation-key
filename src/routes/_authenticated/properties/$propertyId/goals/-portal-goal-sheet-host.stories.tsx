@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { PortalGoalPageView } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
+import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
 import {
   PortalGoalPage,
   focusPortalGoalPageTitle,
@@ -29,6 +30,8 @@ const setMock = fn<PortalGoalCommands['setMonthlyPortalGoalFn']>(async () => ({
   programId: 'program-monthly',
 }))
 const onSetMock = fn<PortalGoalCommands['onSet']>(async () => undefined)
+const changeNowMock = fn<PortalGoalSheetCommands['changeMonthlyPortalGoalNowFn']>()
+const reviseMock = fn<PortalGoalSheetCommands['reviseMonthlyPortalGoalFn']>()
 
 type HarnessProps = Readonly<{
   page: PortalGoalPageView
@@ -41,16 +44,19 @@ function GoalPageWithItsSheet({ page: first, afterSet }: HarnessProps) {
   const [page, setPage] = useState(first)
   const set = {
     setMonthlyPortalGoalFn: setMock,
+    changeMonthlyPortalGoalNowFn: changeNowMock,
+    reviseMonthlyPortalGoalFn: reviseMock,
     onSet: async () => {
       await onSetMock()
       setPage(afterSet)
     },
-  } satisfies PortalGoalCommands
+  } satisfies PortalGoalCommands & PortalGoalSheetCommands
   const sheet = usePortalGoalSheet(
     SEAVIEW.propertyId,
     page.card,
     set,
     focusPortalGoalPageTitle,
+    async () => page.card,
   )
   return (
     <>

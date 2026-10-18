@@ -11,7 +11,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalSection } from './portal-goal-section'
-import { PortalGoalSheet } from './portal-goal-sheet'
+import { PortalGoalSheet, type PortalGoalSheetCommands } from './portal-goal-sheet'
 import type { PortalGoalSheetIntent } from './portal-goal-sheet-view'
 import {
   CARD_DRAFTS_ONE,
@@ -29,6 +29,8 @@ const setMock = fn<PortalGoalCommands['setMonthlyPortalGoalFn']>(async () => ({
 }))
 const onSetMock = fn<PortalGoalCommands['onSet']>(async () => undefined)
 const openSheetMock = fn<NonNullable<PortalGoalCommands['openSheet']>>()
+const changeNowMock = fn<PortalGoalSheetCommands['changeMonthlyPortalGoalNowFn']>()
+const reviseMock = fn<PortalGoalSheetCommands['reviseMonthlyPortalGoalFn']>()
 
 /** The card in its section, its doors opening the sheet on the card's own read. */
 function Doors({ card }: Readonly<{ card: PortalGoalCardView }>) {
@@ -37,8 +39,10 @@ function Doors({ card }: Readonly<{ card: PortalGoalCardView }>) {
     open: boolean
     key: number
   } | null>(null)
-  const commands: PortalGoalCommands = {
+  const commands: PortalGoalCommands & PortalGoalSheetCommands = {
     setMonthlyPortalGoalFn: setMock,
+    changeMonthlyPortalGoalNowFn: changeNowMock,
+    reviseMonthlyPortalGoalFn: reviseMock,
     onSet: onSetMock,
     openSheet: (intent) => {
       openSheetMock(intent)
