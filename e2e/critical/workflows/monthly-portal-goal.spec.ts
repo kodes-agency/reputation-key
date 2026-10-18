@@ -56,9 +56,9 @@
 //   J12. History belongs to the Google section (P-7a): on `?view=history` the
 //       Active / History tabs sit inside the one region named "Google rating
 //       goal", which shows its own History; the Portal goals below it keep the
-//       card, the goal not ended and the way to the ended one, which is not
-//       listed on the Goals page, exactly as on Active; the History view passes
-//       axe.
+//       card, the first five of six goals not ended and "See all on the goal
+//       page" for the rest, and the way to the ended one, which is not listed on
+//       the Goals page, exactly as on Active; the History view passes axe.
 //   J13. a goal for one portal, one click deeper: "Add a portal goal" at the
 //       foot of the section opens the sheet in place; Reception's own number
 //       (the rule on its own rate, worked out with the pure rule) is set for
@@ -892,8 +892,8 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       testInfo.retry,
     )
     seeded.push(propertyId)
-    const [reception, , spa] = portals
-    if (!reception || !spa) throw new Error('E2E Portals are not seeded')
+    const [reception, restaurant, spa] = portals
+    if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
     const GOAL_PROGRAMS = 'src/contexts/reporting/server/goal-programs.ts'
     const startMonth = await nextMonthKey(propertyId)
     const create = (data: Readonly<Record<string, unknown>>) =>
@@ -925,6 +925,46 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
         reason: 'E2E an ended portal goal.',
       },
     })
+    // Five more that have not ended, so six in all: the Goals page lists the
+    // first five by the Program's name (the Average, Reception's two,
+    // Restaurant's two), then the way to see them all; Spa's ratings goal is the
+    // sixth, behind it. Both tabs must show exactly that.
+    await create({
+      name: 'Reception scans',
+      metric: 'qualified_scans',
+      targetValue: 30,
+      subjects: [{ kind: 'portal', portalId: reception.id }],
+    })
+    await create({
+      name: 'Restaurant ratings',
+      metric: 'portal_rating_count',
+      targetValue: 20,
+      subjects: [{ kind: 'portal', portalId: restaurant.id }],
+    })
+    await create({
+      name: 'Restaurant scans',
+      metric: 'qualified_scans',
+      targetValue: 30,
+      subjects: [{ kind: 'portal', portalId: restaurant.id }],
+    })
+    await create({
+      name: 'Spa ratings',
+      metric: 'portal_rating_count',
+      targetValue: 20,
+      subjects: [{ kind: 'portal', portalId: spa.id }],
+    })
+    await callServerFn(page, {
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'addPortalGoal',
+      data: {
+        propertyId,
+        subject: { kind: 'property' },
+        metric: 'portal_rating_average',
+        targetValue: 4.5,
+        startMonth,
+        targetSource: 'own',
+      },
+    })
 
     await page.goto(`/properties/${propertyId}/goals?view=history`)
     await waitForHydration(page)
@@ -943,7 +983,8 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(google.getByText('No Google rating goal history')).toBeVisible()
 
     // The Portal goals, outside the Google section, the same on both tabs: the
-    // card, the goal not ended, and the way to the ended one, not listed here.
+    // card, the first five goals not ended and the way to see them all, and the
+    // way to the ended one, not listed here.
     const section = page.locator('#portal-goals')
     await expect(google.locator('#portal-goals')).toHaveCount(0)
     const expectPortalGoals = async () => {
@@ -959,6 +1000,17 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       await expect(
         page.getByRole('link', { name: 'Spa · Scans', exact: true }),
       ).toHaveCount(0)
+      // Six goals have not ended: five rows, by the Program's name, and the
+      // sixth (Spa's ratings) only behind "See all on the goal page".
+      await expect(
+        section.getByRole('list', { name: 'Active goals' }).getByRole('listitem'),
+      ).toHaveCount(5)
+      await expect(
+        page.getByRole('link', { name: 'Spa · Private ratings', exact: true }),
+      ).toHaveCount(0)
+      await expect(
+        section.getByRole('link', { name: 'See all on the goal page' }),
+      ).toHaveAttribute('href', `/properties/${propertyId}/goals/portals`)
       await expect(
         section.getByRole('link', { name: 'Ended portal goals (1)' }),
       ).toHaveAttribute('href', `/properties/${propertyId}/goals/portal-results#ended`)
