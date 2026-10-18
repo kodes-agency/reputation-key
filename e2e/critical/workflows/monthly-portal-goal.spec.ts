@@ -725,7 +725,9 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     ).toBeVisible()
     await dialog.getByRole('button', { name: 'Stop the goal' }).click()
 
-    await expect(page).toHaveURL(new RegExp(`/properties/${propertyId}/goals$`, 'u'))
+    await expect(page).toHaveURL(
+      new RegExp(`/properties/${propertyId}/goals(?:\\?view=active)?$`, 'u'),
+    )
     await expect(page.getByText('Monthly portal goal stopped')).toBeVisible()
     await waitForHydration(page)
     const card = page.locator('#portal-goals [data-slot="portal-goal-card"]')
