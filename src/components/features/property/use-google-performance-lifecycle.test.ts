@@ -3,7 +3,9 @@
 // removes the query, which aborts the request in flight). The browser answers an
 // abort by rejecting the pending call with an `AbortError`, and that rejection
 // must have a handler: an unhandled one reaches error monitoring as an issue for
-// what is a normal navigation (Sentry JAVASCRIPT-TANSTACKSTART-REACT-Y).
+// what is a normal navigation (Sentry JAVASCRIPT-TANSTACKSTART-REACT-Y). An
+// AbortError that still reaches the window unhandled is dropped by error
+// monitoring (browser-error-event.ts).
 //
 // The unit project has no DOM, so the hook is mounted on React DOM's real
 // reconciler over a stand-in document that has only what the hook touches: an
