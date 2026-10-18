@@ -100,6 +100,8 @@ describe.sequential('Monthly portal goal change and stop (integration)', () => {
             days: [],
             unreadable: [],
             lastScanAt: new Map(),
+            groupDays: [],
+            groupUnreadable: [],
           }),
         },
       },
