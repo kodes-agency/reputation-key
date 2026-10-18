@@ -810,8 +810,10 @@
 // Fresh production builds measured 307,700 B (75 js + 1 css) on the base,
 // PG-12's stacked head 4801bd782, and 307,893 B on the head: +193 B, of which
 // +189 B is the entry (49,024 -> 49,213 B). A route with nothing but its row
-// measured +102 B; the rest is its component's preload list. Over 307,850, so
-// the line moves to 307,950 (57 B spare). PG-09..12 measure about 307,800 B on
+// measured +102 B; the rest is its component's preload list. The final head,
+// after the counts' width fix and a shared month-counts read, measured
+// 307,895 B (entry 49,215 B), the hashed chunk names only. Over 307,850, so
+// the line moves to 307,950 (55 B spare). PG-09..12 measure about 307,800 B on
 // main, so expect about 307,995 B once this branch is rebased there: measure
 // again then and set the line from that build, still under 308,300.
 
