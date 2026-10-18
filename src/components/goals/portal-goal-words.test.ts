@@ -236,4 +236,19 @@ describe('the Monthly portal goal on its card, in words', () => {
       ),
     ).toEqual(['November · 40 scans'])
   })
+
+  it('a stopped goal names the month it still counts, not today’s', () => {
+    // Dec 1: November is still being read for a goal stopped in November.
+    expect(
+      goalLines(
+        {
+          ...RUNNING,
+          status: 'ended',
+          month: null,
+          countingMonth: { key: '2026-11', target: 45 },
+        },
+        '2026-12-01',
+      ),
+    ).toEqual(['November · 45 private ratings'])
+  })
 })

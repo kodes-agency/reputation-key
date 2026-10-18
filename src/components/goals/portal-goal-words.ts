@@ -188,7 +188,8 @@ const monthTarget = (goal: PortalGoalOfCard, month: string, target: number): str
  * its bar, rows and pace. Scheduled: the first month and its number, the day it
  * starts and this month so far. Running: the figure of the month's own target,
  * and what is left to go (or that it has passed) with the days left, today
- * counted. A figure that cannot be read says so and is never a zero.
+ * counted. A figure that cannot be read says so and is never a zero. Paused or
+ * stopped: the month it still counts and its number.
  */
 export function goalLines(goal: PortalGoalOfCard, today: string): readonly string[] {
   const { month } = goal
@@ -202,7 +203,11 @@ export function goalLines(goal: PortalGoalOfCard, today: string): readonly strin
       `Starts on ${dayWords(goal.startsOn)}${soFar}`,
     ]
   }
-  if (month === null) return [monthTarget(goal, today.slice(0, 7), goal.target)]
+  if (month === null) {
+    // A paused or stopped goal names the month it still counts; else today's.
+    const counting = goal.countingMonth ?? { key: today.slice(0, 7), target: goal.target }
+    return [monthTarget(goal, counting.key, counting.target)]
+  }
   if (month.value === null) {
     return [
       monthTarget(goal, month.key, month.target),

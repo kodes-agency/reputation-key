@@ -14,6 +14,7 @@
 // when only scans came in), nothing counted, or a recommendation that cannot be
 // read. It writes nothing.
 import { goalMonthDays } from '../../domain/goal-pace'
+import { effectiveMonthTarget } from '../goal-effective-month-target'
 import type { PortalFacts } from '../../domain/goal-recommendation-types'
 import { localDateOf } from '../../domain/local-days'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
@@ -109,6 +110,24 @@ function beforeGoal(
 }
 
 /**
+ * A paused or stopped goal's month: the latest of its months still open or
+ * being read, with that month's own target. On Dec 1 and 2 a goal stopped in
+ * November still counts November, whatever today's month is.
+ */
+function countingMonthOf(bundle: PropertyCountGoal): PortalGoalOfCard['countingMonth'] {
+  const [latest] = bundle.results
+    .filter(({ status }) => status === 'open' || status === 'reconciling')
+    .sort((a, b) => b.periodStart.getTime() - a.periodStart.getTime())
+  if (!latest) return null
+  const version =
+    bundle.versions.find(({ id }) => id === latest.programVersionId) ?? bundle.version
+  return {
+    key: localDateOf(latest.periodStart, latest.propertyTimezone).slice(0, 7),
+    target: effectiveMonthTarget(latest, version),
+  }
+}
+
+/**
  * The goal as its card shows it. Only an active goal reads a figure, and that
  * is the governed read of the month it is counting.
  */
@@ -133,6 +152,7 @@ async function goalOnTheCard(
     startsOn: null,
     month: null,
     currentMonthSoFar: null,
+    countingMonth: null,
   } satisfies PortalGoalOfCard
   if (program.status === 'scheduled') {
     return {
@@ -141,7 +161,8 @@ async function goalOnTheCard(
       currentMonthSoFar: recommendation.monthToDate[measure],
     }
   }
-  if (program.status !== 'active') return goal
+  if (program.status !== 'active')
+    return { ...goal, countingMonth: countingMonthOf(bundle) }
   const progress = await progressOf(
     deps,
     bundle,

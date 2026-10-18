@@ -123,6 +123,12 @@ export type PortalGoalOfCard = Readonly<{
   }> | null
   /** Scheduled: this month so far at the Property; null when it cannot be read. */
   currentMonthSoFar: number | null
+  /**
+   * Paused or ended: the latest month of it still open or being read, as
+   * `YYYY-MM` with that month's own target (on Dec 1 a goal stopped in November
+   * still counts November); else null.
+   */
+  countingMonth: Readonly<{ key: string; target: number }> | null
 }>
 
 /**

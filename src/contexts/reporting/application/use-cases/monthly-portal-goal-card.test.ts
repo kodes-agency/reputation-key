@@ -490,6 +490,7 @@ describe('readMonthlyPortalGoalCard', () => {
         startsOn: '2026-11-01',
         month: null,
         currentMonthSoFar: 12,
+        countingMonth: null,
       },
     })
     // Nothing is running, so no governed figure is read.
@@ -526,6 +527,7 @@ describe('readMonthlyPortalGoalCard', () => {
         startsOn: null,
         month: { key: '2026-11', target: 40, value: 23, daysAfterToday: 8 },
         currentMonthSoFar: null,
+        countingMonth: null,
       },
     })
     expect(deps.metrics.queryGoalMetric).toHaveBeenCalledWith(
@@ -570,7 +572,47 @@ describe('readMonthlyPortalGoalCard', () => {
     })
 
     await expect(read(deps)).resolves.toMatchObject({
-      goal: { status: 'paused', startsOn: null, month: null, currentMonthSoFar: null },
+      goal: {
+        status: 'paused',
+        startsOn: null,
+        month: null,
+        currentMonthSoFar: null,
+        countingMonth: { key: '2026-11', target: 40 },
+      },
+    })
+    expect(calls).not.toContain('figure')
+  })
+
+  it('a goal stopped in November names November on Dec 1, while it is read', async () => {
+    const stopped = propertyGoal('monthly', 'portal_rating_count', {
+      status: 'ended',
+      open: { start: NOV_1, end: DEC_1, target: 45 },
+    })
+    const { deps, calls } = fakeWorld({
+      now: new Date('2026-12-01T10:00:00.000Z'),
+      programs: [
+        {
+          ...stopped,
+          assignments: stopped.assignments.map((assignment) => ({
+            ...assignment,
+            effectiveTo: DEC_1,
+          })),
+          results: stopped.results.map((result) => ({
+            ...result,
+            status: 'reconciling' as const,
+          })),
+        },
+      ],
+    })
+
+    await expect(read(deps)).resolves.toMatchObject({
+      state: 'goal',
+      today: '2026-12-01',
+      goal: {
+        status: 'ended',
+        month: null,
+        countingMonth: { key: '2026-11', target: 45 },
+      },
     })
     expect(calls).not.toContain('figure')
   })

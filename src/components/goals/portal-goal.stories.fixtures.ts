@@ -147,6 +147,7 @@ export const GOAL_SCHEDULED: PortalGoalOfCard = {
   startsOn: '2026-11-01',
   month: null,
   currentMonthSoFar: 12,
+  countingMonth: null,
 }
 
 export const CARD_SCHEDULED: PortalGoalCardView = {

@@ -141,7 +141,8 @@ metric authority.
   it stands on: the Portals in it with their counts and live days, and the live Portals that
   join later. With a goal the card shows it: a scheduled goal's first day and this month so
   far, or an active goal's running month with its own target and the governed figure
-  (`progressOf`), never the recommendation's count. The set command
+  (`progressOf`), never the recommendation's count, or a paused or stopped goal's month it
+  still counts (on Dec 1 a goal stopped in November names November). The set command
   (`application/use-cases/monthly-portal-goal.ts`) makes an ordinary Program named "Monthly
   portal goal" with the Property as its one subject, from the month the card named. It
   authorizes `goal.create`, then refuses `subject_has_goal` while any Property count goal that
