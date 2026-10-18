@@ -34,6 +34,11 @@ export type MeasureRecommendation = Readonly<{
   fullMonth: Readonly<{ current: Choices | null; next: Choices | null }>
   /** The rest of the current month, on top of what already counts. */
   fromToday: Choices | null
+  /**
+   * S + R × the days left with today, exact: the usual `fromToday` rounds to
+   * ("23 · your usual"), what an own number for this month is measured against.
+   */
+  usualFromToday: PortalGoalRatio | null
 }>
 
 export type PortalGoalRecommendationState =

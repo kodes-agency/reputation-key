@@ -123,7 +123,8 @@ export const OFFER_OCTOBER: PortalGoalOffer = {
   days: 31,
   choices: { usual: 23, aBitMore: 24, stretch: 25 },
   usualAbout: 35,
-  usualExact: { num: '248', den: '7' },
+  // What "23 · your usual" stands for: the 12 so far and 72 / 7 for the 9 days left.
+  usualExact: { num: '156', den: '7' },
   soFar: 12,
   rest: { daysLeft: 9, about: 10 },
 }
@@ -171,7 +172,8 @@ const SEAVIEW_SCANS_OCTOBER: PortalGoalOffer = {
   days: 31,
   choices: { usual: 45, aBitMore: 50, stretch: 55 },
   usualAbout: 51,
-  usualExact: { num: '713', den: '14' },
+  // The 30 so far and 207 / 14 for the 9 days left.
+  usualExact: { num: '627', den: '14' },
   soFar: 30,
   rest: { daysLeft: 9, about: 15 },
 }

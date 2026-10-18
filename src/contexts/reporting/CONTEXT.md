@@ -160,7 +160,9 @@ metric authority.
   weeks, the number ready, scans first, nothing counted, an unreadable recommendation) also
   carries what it works from (`portalGoalSheetFactsOf`): the month the card offers, this
   month and the next with this month so far, and each measure's offers for both months,
-  each with the exact usual an own number is measured against. The sheet's steps and its
+  each with the exact usual an own number is measured against: the one its "your usual"
+  is rounded from, so this month's is what already counts plus the days left at the usual
+  (`usualFromToday`), never the whole month's. The sheet's steps and its
   note on an own number (about how many times the usual, half up, once it is three times
   or more; or under half) are `goalStepDown` and `ownNumberNote` of the one grid, which
   `application/goal-number-steps.ts` hands to components with `goalStepUp`.

@@ -486,7 +486,9 @@ describe('readMonthlyPortalGoalCard', () => {
 
   it('the sheet opens on the offered month, with each measure offered for this month and the next', async () => {
     // G1 and G2 on Oct 23: 16 private ratings in October so far, 9 days left
-    // with today; the whole of November is 240 / 7, October's 31 days 248 / 7.
+    // with today; the whole of November is 240 / 7. October's own numbers are
+    // measured against what its "your usual" stands for: the 16 so far and 72 / 7
+    // for the 9 days left, 184 / 7 (not its 31 days' 248 / 7).
     const { deps } = fakeWorld({
       now: OCT_23,
       portals: [
@@ -526,7 +528,7 @@ describe('readMonthlyPortalGoalCard', () => {
       // 16 so far, and 72 / 7 at the usual for the 9 days left.
       choices: { usual: 27, aBitMore: 28, stretch: 29 },
       usualAbout: 35,
-      usualExact: { num: '248', den: '7' },
+      usualExact: { num: '184', den: '7' },
       basis: {
         weeks: 2,
         days: 14,

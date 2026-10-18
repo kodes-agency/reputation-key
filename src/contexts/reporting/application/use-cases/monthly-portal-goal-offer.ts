@@ -10,7 +10,8 @@
 // question of the month and measure it was sent, so "recommended" means the
 // number this read would offer. The set sheet (PLAN PG-10) is offered the same
 // numbers for both months and both measures, with the exact usual an own
-// number is measured against. Pure.
+// number is measured against: the one its "your usual" is rounded from, so for
+// this month what already counts plus the days left at the usual. Pure.
 import type {
   Choices,
   PortalGoalMeasure,
@@ -46,9 +47,11 @@ function portalGoalOfferFor(
   const { months, basis } = recommendation
   const current = month === months.current.key
   const choices = offeredChoices(recommendation, month, measure)
-  const { fullMonth, usualPerMonth } = recommendation.measures[measure]
+  const { fullMonth, usualPerMonth, usualFromToday } = recommendation.measures[measure]
   const whole = current ? fullMonth.current : fullMonth.next
-  const usualExact = current ? usualPerMonth.current : usualPerMonth.next
+  // What the offer's "your usual" stands for: this month's from today (what
+  // already counts and the days left), the next month's for all of it.
+  const usualExact = current ? usualFromToday : usualPerMonth.next
   if (choices === null || whole === null || usualExact === null || basis === null) {
     return null
   }

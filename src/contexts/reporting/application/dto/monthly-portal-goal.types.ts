@@ -84,7 +84,11 @@ export type PortalGoalOffer = Readonly<{
   choices: Readonly<{ usual: number; aBitMore: number; stretch: number }>
   /** The usual for the whole offered month, rounded half up: "about 34 a month". */
   usualAbout: number
-  /** The same usual, exact: what an own number is measured against ("about 4 times"). */
+  /**
+   * The usual "your usual" is rounded from, exact: what an own number is
+   * measured against ("about 4 times"). The next month's is the whole month's;
+   * this month's is what already counts plus the days left at the usual.
+   */
   usualExact: PortalGoalRatio
   basis: PortalGoalOfferBasis
   /** Live Portals not in the number yet, in name order. */

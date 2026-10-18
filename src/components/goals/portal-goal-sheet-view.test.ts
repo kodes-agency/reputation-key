@@ -173,6 +173,21 @@ describe('portalGoalSheetModel', () => {
     expect(portalGoalSheetModel(typed(opening, '60'), READY).notes).toEqual([])
   })
 
+  it('an October note measures against the 23 its usual stands for, not the whole month', () => {
+    // G2: 12 so far and 8 / 7 a day for the 9 days left, 156 / 7 (about 22.29).
+    const october = changedDraft(
+      openingDraft(READY, ratings),
+      { kind: 'month', month: '2026-10' },
+      READY,
+    )
+    const noteOf = (text: string) =>
+      portalGoalSheetModel(typed(october, text), READY).notes
+
+    expect(noteOf('17')).toEqual([])
+    expect(noteOf('70')).toEqual(['That is about 3 times your usual.'])
+    expect(noteOf('10')).toEqual(['That is under half your usual.'])
+  })
+
   it('the October option says Counts from Oct 1 · 12 already count', () => {
     const october = changedDraft(
       openingDraft(READY, ratings),

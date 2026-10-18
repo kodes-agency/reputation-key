@@ -180,6 +180,13 @@ describe('the recommended number for a monthly portal goal', () => {
       // What the 9 days left add at the usual.
       about: 10,
     })
+    // The usual the 23 stands for, exact: the 12 so far and 8 / 7 a day for the
+    // 9 days left, 156 / 7 (about 22.29). An own number for October is measured
+    // against it, not against the whole month's 248 / 7.
+    expect(october.measures.portal_rating_count.usualFromToday).toEqual({
+      num: '156',
+      den: '7',
+    })
     expect(october.measures.portal_rating_count.fullMonth.next).toMatchObject({
       usual: 35,
       aBitMore: 40,
@@ -268,6 +275,7 @@ describe('the recommended number for a monthly portal goal', () => {
       usualPerMonth: { current: null, next: null },
       fullMonth: { current: null, next: null },
       fromToday: null,
+      usualFromToday: null,
     })
     expect(early.portals[0]).toMatchObject({
       liveSince: '2026-10-09',
@@ -359,6 +367,7 @@ describe('the recommended number for a monthly portal goal', () => {
       usualPerMonth: { current: null, next: null },
       fullMonth: { current: null, next: null },
       fromToday: null,
+      usualFromToday: null,
     })
     expect(recommendation.measures.qualified_scans.state).toBe('ready')
     expect(recommendation.measures.qualified_scans.fullMonth.next).toMatchObject({
@@ -455,6 +464,7 @@ describe('the recommended number for a monthly portal goal', () => {
         usualPerMonth: { current: null, next: null },
         fullMonth: { current: null, next: null },
         fromToday: null,
+        usualFromToday: null,
       })
     }
   })
