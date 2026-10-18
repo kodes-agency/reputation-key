@@ -247,7 +247,8 @@ function statusOf(
 /** S-8: how far an own number is from the month's usual, when it is far. */
 function notesOf(offer: PortalGoalOffer | null, value: number | null): readonly string[] {
   if (offer === null || value === null) return []
-  const note = ownNumberNote(value, offer.usualExact)
+  const { num, den } = offer.usualExact
+  const note = ownNumberNote(value, { num: BigInt(num), den: BigInt(den) })
   if (note === null) return []
   return [
     note.kind === 'times'
