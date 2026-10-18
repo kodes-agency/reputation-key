@@ -34,8 +34,7 @@ describe('goalListSearchSchema', () => {
     })
   })
 
-  // A request for the wizard never changes the tab: the address keeps both, and
-  // the Google section opens the wizard from its Active tab only.
+  // A request for the wizard does not change the tab: the address keeps both.
   it('keeps the History tab when the address also asks for the wizard', () => {
     expect(goalListSearchSchema.parse({ view: 'history', start: 'rating-goal' })).toEqual(
       {

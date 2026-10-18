@@ -805,6 +805,13 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
 
     await dismissToasts(page)
     await assertNoAxeViolations(page, 'the Goals page, History tab')
+    // The landmarks changed (one region named "Google rating goal"): both themes pass axe.
+    await page.evaluate(() => window.localStorage.setItem('theme', 'light'))
+    await page.reload()
+    await waitForHydration(page)
+    await expect(page.locator('html')).toHaveClass(/\blight\b/u)
+    await expectPortalGoals()
+    await assertNoAxeViolations(page, 'the Goals page, History tab (light)')
 
     // Active: the Google section's own view changes; the Portal goals do not.
     await clickWhenReady(tabs.getByRole('link', { name: 'Active' }))
