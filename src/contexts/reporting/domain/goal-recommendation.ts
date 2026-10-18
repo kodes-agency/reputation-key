@@ -273,18 +273,19 @@ function measureRecommendation(
       usualPerMonth: { current: null, next: null },
       fullMonth: { current: null, next: null },
       fromToday: null,
+      usualFromToday: null,
     }
   }
   const current = times(rate, whole(months.current.days))
   const next = times(rate, whole(months.next.days))
+  const already = Math.max(0, soFar)
+  const rest = times(rate, whole(months.current.daysLeftWithToday))
   return {
     state,
     usualPerMonth: { current: onTheWire(current), next: onTheWire(next) },
     fullMonth: { current: liftedChoices(null, current), next: liftedChoices(null, next) },
-    fromToday: liftedChoices(
-      Math.max(0, soFar),
-      times(rate, whole(months.current.daysLeftWithToday)),
-    ),
+    fromToday: liftedChoices(already, rest),
+    usualFromToday: onTheWire(plus(whole(already), rest)),
   }
 }
 

@@ -1,15 +1,16 @@
 // The Monthly portal goal card's words when the number is ready (copy deck
-// G-13…G-18, W-1…W-5, F-3): what is recommended and for which month, what it
-// stands on, the Portals that join later, the Use button and its toast, and
-// "How we worked this out". The read decides every number, month and day
-// (PLAN E12); this only says them. Days arrive as Property-local `YYYY-MM-DD`,
-// months as `YYYY-MM`, and are printed as those days.
+// G-13…G-18, W-1…W-5): what is recommended and for which month, what it stands
+// on, the Portals that join later, the Use button and its toast, and "How we
+// worked this out". The set sheet says its month and its toast in the same
+// words. The read decides every number, month and day (PLAN E12); this only
+// says them. Days arrive as Property-local `YYYY-MM-DD`, months as `YYYY-MM`,
+// and are printed as those days.
 import type {
   PortalGoalNewPortal,
   PortalGoalOffer,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import { formatNumber } from '#/lib/format'
-import type { GoalRefusalSentences } from './goal-refusal'
 import {
   dayWords,
   listOfNames,
@@ -28,6 +29,18 @@ const alreadyCount = (n: number): string =>
 
 const plural = (n: number, one: string, many: string): string =>
   `${formatNumber(n)} ${n === 1 ? one : many}`
+
+/**
+ * G-17 and S-2: this month counts from its first day, with what already counts
+ * ("Counts from Oct 1 · 12 already count."); without the count when it cannot
+ * be read.
+ */
+export const countsFromWords = (month: string, soFar: number | null): string =>
+  `Counts from ${dayWords(`${month}-01`)}${soFar === null ? '' : ` · ${alreadyCount(soFar)}`}.`
+
+/** G-17: "November goal set: 40 private ratings", after Use or the sheet's Set. */
+export const goalSetToast = (month: string, measure: PortalGoalMeasure, n: number) =>
+  `${monthName(month)} goal set: ${portalGoalCount(measure, n)}`
 
 /** The measure as a new Portal's sentence says it: "Its ratings count from day one". */
 const READINGS: Readonly<Record<PortalGoalOffer['measure'], string>> = {
@@ -62,6 +75,11 @@ export type PortalGoalOfferWords = Readonly<{
   use: string
   /** G-17: "November goal set: 40 private ratings". */
   setToast: string
+  /**
+   * The way into the set sheet, on the measure it opens on: G-17's "Change"; with
+   * scans first, G-18's "Set a private ratings number".
+   */
+  door: Readonly<{ label: string; measure: PortalGoalMeasure }>
 }>
 
 /** The ready card's words for its offer. */
@@ -78,13 +96,14 @@ export function offerWords(offer: PortalGoalOffer): PortalGoalOfferWords {
     lead: ratings
       ? `A bit above your usual: about ${formatNumber(offer.usualAbout)} a month, from the last ${offer.basis.weeks} weeks at ${portals}.`
       : `Your portals had ${countOf(offer, offer.basis.count)} but no private ratings in the last ${offer.basis.weeks} weeks. Start by counting scans: ${countOf(offer, aBitMore)} in ${month}.`,
-    countsFrom: offer.current
-      ? `Counts from ${dayWords(`${offer.month}-01`)}${offer.soFar === null ? '' : ` · ${alreadyCount(offer.soFar)}`}.`
-      : null,
+    countsFrom: offer.current ? countsFromWords(offer.month, offer.soFar) : null,
     newPortals: newPortalsWords(offer),
     asksEveryGuest: ratings,
     use: ratings ? `Use ${formatNumber(aBitMore)}` : `Use ${countOf(offer, aBitMore)}`,
-    setToast: `${month} goal set: ${countOf(offer, aBitMore)}`,
+    setToast: goalSetToast(offer.month, offer.measure, aBitMore),
+    door: ratings
+      ? { label: 'Change', measure: offer.measure }
+      : { label: 'Set a private ratings number', measure: 'portal_rating_count' },
   }
 }
 
@@ -136,12 +155,4 @@ export function workedOutWords(offer: PortalGoalOffer): Readonly<{
     ],
     foot: workedOutFoot(offer),
   }
-}
-
-/**
- * F-3: a set the server refused because a goal was set a moment ago; the card
- * is read again with it. Every other refusal keeps the goal commands' sentence.
- */
-export const PORTAL_SET_REFUSALS: GoalRefusalSentences = {
-  subject_has_goal: 'A monthly portal goal was set a moment ago. Here is the latest.',
 }

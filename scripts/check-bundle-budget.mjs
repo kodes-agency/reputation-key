@@ -733,7 +733,32 @@
 // change to the budget; 153 B spare, 603 B under the ceiling. Rebased onto
 // PG-08 on main (5599cd98d) it measured 307,797 B: 53 B spare, 503 B under
 // the ceiling.
-
+//
+// change to the budget; 153 B spare, 603 B under the ceiling.
+//
+// 2026-10-18 (Monthly portal goal, PG-10: the set sheet): no raise. The sheet,
+// its number box, choices, view and the goal grid's step down and note are a
+// lazy chunk of their own (portal-goal-sheet-*.js 4,574 B), fetched while a door
+// to it is on screen; the doors, the host and the card read's sheet facts load
+// with the Goals route's component chunk (goals-*.js 13,877 -> 16,439 B, lazy;
+// about 1 KB of that is the sheet's preload list, 91 chunk names, as the Google
+// wizard host's 96). Every class they use was already in the stylesheet. The
+// sheet imports the card's words from the Goals route chunk, so the bundler now
+// hands the route's component through its namespace (`.then(e=>e.t)`, 13 raw
+// bytes in the entry, and the runtime chunk in its preload list), as it already
+// does for the Google rating goal page and the new-goal form: 2 to 20 B gzip,
+// depending on the hashed chunk names around it, with no cheap way out.
+// Measured after the review fixes, each from a clean build (`.output`, `dist`,
+// `node_modules/.nitro` and `node_modules/.vite` removed first: a stale
+// `.nitro` from another commit's build changed the stylesheet's scan by 34 B):
+//   - stacked on PG-09's head 83d5ac4fc: base 307,697 B, head 307,699 B (75 js
+//     + 1 css; entry 49,021 -> 49,023 B; the same styles-_Q6CwAvC.css, 27,811 B);
+//     +2 B (the first head build, before the fixes, measured +20 B);
+//   - applied onto main c7213c060 (PG-09 merged), where this lands: main
+//     307,797 B, PG-10 307,810 B (entry 49,038 -> 49,051 B; the same
+//     styles-mDD_TGAT.css, 27,845 B): +13 B, 40 B spare under 307,850 and
+//     490 B under the build's ceiling of 308,300 (owner, P-9). Re-measure
+//     after the rebase onto main.
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'

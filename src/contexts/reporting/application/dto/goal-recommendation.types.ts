@@ -7,5 +7,6 @@
 
 export type {
   PortalGoalMeasure,
+  PortalGoalRatio,
   PortalGoalRecommendation,
 } from '../../domain/goal-recommendation-types'

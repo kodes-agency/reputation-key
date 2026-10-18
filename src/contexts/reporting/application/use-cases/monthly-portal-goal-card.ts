@@ -40,7 +40,7 @@ import {
   type PortalGoalRecommendationReads,
 } from './goal-recommendation-read'
 import type { MonthlyPortalGoalSetRequestApi } from './monthly-portal-goal'
-import { portalGoalOfferOf } from './monthly-portal-goal-offer'
+import { portalGoalOfferOf, portalGoalSheetFactsOf } from './monthly-portal-goal-offer'
 
 export type MonthlyPortalGoalCardDeps = Readonly<{
   policy: GoalExecutionPolicy
@@ -79,33 +79,39 @@ function firstWeeksOf(
   }
 }
 
-/** The card before a goal: the recommendation's state, as the card draws it. */
+/**
+ * The card before a goal: the recommendation's state, as the card draws it.
+ * Once a Portal is live, the set sheet opens from it with what it works from.
+ */
 function beforeGoal(
   recommendation: PortalGoalRecommendation,
   now: Date,
 ): PortalGoalCardView {
+  if (recommendation.state === 'no_live_portal') {
+    return recommendation.drafts.length > 0
+      ? { state: 'drafts_only', drafts: recommendation.drafts }
+      : { state: 'no_portal' }
+  }
+  const sheet = portalGoalSheetFactsOf(recommendation)
   switch (recommendation.state) {
-    case 'no_live_portal':
-      return recommendation.drafts.length > 0
-        ? { state: 'drafts_only', drafts: recommendation.drafts }
-        : { state: 'no_portal' }
     case 'getting_ready':
       return {
         state: 'getting_ready',
         ...firstWeeksOf(recommendation, now),
         readyOn: recommendation.readyOn,
+        sheet,
       }
     case 'ready':
     case 'scans_only': {
       const offer = portalGoalOfferOf(recommendation)
       return offer === null
-        ? { state: 'recommendation_unreadable' }
-        : { state: recommendation.state, offer }
+        ? { state: 'recommendation_unreadable', sheet }
+        : { state: recommendation.state, offer, sheet }
     }
     case 'nothing_counted':
-      return { state: 'nothing_counted', weeks: recommendation.basis?.weeks ?? 2 }
+      return { state: 'nothing_counted', weeks: recommendation.basis?.weeks ?? 2, sheet }
     case 'unreadable':
-      return { state: 'recommendation_unreadable' }
+      return { state: 'recommendation_unreadable', sheet }
   }
 }
 

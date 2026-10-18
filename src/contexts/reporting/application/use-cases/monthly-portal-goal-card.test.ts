@@ -246,6 +246,20 @@ function fakeWorld(world: World = {}) {
 const read = (deps: MonthlyPortalGoalCardDeps) =>
   readMonthlyPortalGoalCard(deps, { propertyId: PROPERTY_ID }, actor)
 
+/** The card as it is drawn; what its set sheet works from is asserted on its own. */
+async function drawn(deps: MonthlyPortalGoalCardDeps) {
+  const card = await read(deps)
+  if (!('sheet' in card)) return card
+  const { sheet: _sheet, ...rest } = card
+  return rest
+}
+
+/** What the card's set sheet works from; none for an arm without a door to it. */
+async function sheetOf(deps: MonthlyPortalGoalCardDeps) {
+  const card = await read(deps)
+  return 'sheet' in card ? card.sheet : null
+}
+
 /** Each local day from `first` for `count` days. */
 function days(first: string, count: number): string[] {
   const start = new Date(`${first}T00:00:00.000Z`).getTime()
@@ -298,7 +312,7 @@ describe('readMonthlyPortalGoalCard', () => {
       },
     })
 
-    await expect(read(deps)).resolves.toEqual({
+    await expect(drawn(deps)).resolves.toEqual({
       state: 'getting_ready',
       today: '2026-10-17',
       month: '2026-10',
@@ -356,7 +370,7 @@ describe('readMonthlyPortalGoalCard', () => {
       portals: [portal('Reception', '2026-10-03')],
     })
 
-    await expect(read(deps)).resolves.toEqual({ state: 'nothing_counted', weeks: 2 })
+    await expect(drawn(deps)).resolves.toEqual({ state: 'nothing_counted', weeks: 2 })
   })
 
   it('a recommendation that cannot be read says so', async () => {
@@ -375,7 +389,7 @@ describe('readMonthlyPortalGoalCard', () => {
       },
     })
 
-    await expect(read(deps)).resolves.toEqual({ state: 'recommendation_unreadable' })
+    await expect(drawn(deps)).resolves.toEqual({ state: 'recommendation_unreadable' })
   })
 
   it('offers next month after the 20th: about 34, 35 · 40 · 45, Spa joins Oct 29', async () => {
@@ -396,7 +410,7 @@ describe('readMonthlyPortalGoalCard', () => {
       },
     })
 
-    await expect(read(deps)).resolves.toEqual({
+    await expect(drawn(deps)).resolves.toEqual({
       state: 'ready',
       offer: {
         month: '2026-11',
@@ -405,6 +419,8 @@ describe('readMonthlyPortalGoalCard', () => {
         measure: 'portal_rating_count',
         choices: { usual: 35, aBitMore: 40, stretch: 45 },
         usualAbout: 34,
+        // 16 in 14 live days, for 30 days: 240 / 7, about 34.29.
+        usualExact: { num: '240', den: '7' },
         basis: {
           weeks: 2,
           days: 14,
@@ -466,6 +482,156 @@ describe('readMonthlyPortalGoalCard', () => {
         basis: { weeks: 2, count: 14 },
       },
     })
+  })
+
+  it('the sheet opens on the offered month, with each measure offered for this month and the next', async () => {
+    // G1 and G2 on Oct 23: 16 private ratings in October so far, 9 days left
+    // with today; the whole of November is 240 / 7. October's own numbers are
+    // measured against what its "your usual" stands for: the 16 so far and 72 / 7
+    // for the 9 days left, 184 / 7 (not its 31 days' 248 / 7).
+    const { deps } = fakeWorld({
+      now: OCT_23,
+      portals: [
+        portal('Reception', '2026-10-09'),
+        portal('Restaurant', '2026-10-09'),
+        portal('Spa', '2026-10-15'),
+      ],
+      counts: {
+        days: [
+          ...readings('portal-reception', 'portal_rating_count', days('2026-10-09', 11)),
+          ...readings('portal-restaurant', 'portal_rating_count', days('2026-10-12', 5)),
+        ],
+      },
+    })
+
+    const card = await read(deps)
+    const sheet = await sheetOf(deps)
+
+    expect(sheet).toMatchObject({
+      month: '2026-11',
+      readyOn: null,
+      ownNumber: {
+        current: { key: '2026-10', soFar: { ratings: 16, scans: 0 } },
+        next: { key: '2026-11' },
+      },
+      offers: { qualified_scans: { current: null, next: null } },
+    })
+    // The month the card offers is the sheet's November, word for word.
+    expect(card.state === 'ready' ? card.offer : null).toEqual(
+      sheet?.offers.portal_rating_count.next,
+    )
+    expect(sheet?.offers.portal_rating_count.current).toEqual({
+      month: '2026-10',
+      current: true,
+      days: 31,
+      measure: 'portal_rating_count',
+      // 16 so far, and 72 / 7 at the usual for the 9 days left.
+      choices: { usual: 27, aBitMore: 28, stretch: 29 },
+      usualAbout: 35,
+      usualExact: { num: '184', den: '7' },
+      basis: {
+        weeks: 2,
+        days: 14,
+        lastDay: '2026-10-22',
+        count: 16,
+        portals: [
+          { name: 'Reception', count: 11, liveDays: 14 },
+          { name: 'Restaurant', count: 5, liveDays: 14 },
+        ],
+      },
+      newPortals: [{ name: 'Spa', liveDays: 8, joinsOn: '2026-10-29' }],
+      soFar: 16,
+      rest: { daysLeft: 9, about: 10 },
+      timezone: 'Europe/Sofia',
+    })
+  })
+
+  it('an own number in the first weeks: both months, this month so far, the day the number is ready', async () => {
+    const { deps } = fakeWorld({
+      portals: [portal('Reception', '2026-10-09'), portal('Restaurant', '2026-10-09')],
+      counts: {
+        days: [
+          ...readings('portal-reception', 'portal_rating_count', days('2026-10-09', 5)),
+          ...readings('portal-restaurant', 'qualified_scans', days('2026-10-09', 3), 5),
+        ],
+      },
+    })
+
+    await expect(sheetOf(deps)).resolves.toEqual({
+      month: '2026-10',
+      ownNumber: {
+        current: { key: '2026-10', soFar: { ratings: 5, scans: 15 } },
+        next: { key: '2026-11' },
+      },
+      offers: {
+        portal_rating_count: { current: null, next: null },
+        qualified_scans: { current: null, next: null },
+      },
+      readyOn: '2026-10-23',
+    })
+  })
+
+  it('nothing counted: the sheet offers no number for either measure', async () => {
+    const { deps } = fakeWorld({
+      now: OCT_23,
+      portals: [portal('Reception', '2026-10-03')],
+    })
+
+    await expect(sheetOf(deps)).resolves.toMatchObject({
+      month: '2026-11',
+      readyOn: null,
+      offers: {
+        portal_rating_count: { current: null, next: null },
+        qualified_scans: { current: null, next: null },
+      },
+    })
+  })
+
+  it('private ratings that cannot be read keep the scans offered in the sheet', async () => {
+    // G13: one rating the governed read would quarantine; 14 days of scans.
+    const { deps } = fakeWorld({
+      now: OCT_23,
+      portals: [portal('Reception', '2026-10-03')],
+      counts: {
+        days: [
+          ...readings('portal-reception', 'portal_rating_count', days('2026-10-05', 14)),
+          ...readings('portal-reception', 'qualified_scans', days('2026-10-05', 14), 2),
+        ],
+        unreadable: [
+          {
+            portalId: 'portal-reception',
+            measure: 'portal_rating_count',
+            localDay: '2026-10-21',
+          },
+        ],
+      },
+    })
+
+    const card = await read(deps)
+    const sheet = await sheetOf(deps)
+
+    expect(card.state).toBe('recommendation_unreadable')
+    expect(sheet?.offers.portal_rating_count).toEqual({ current: null, next: null })
+    expect(sheet?.offers.qualified_scans.next).toMatchObject({
+      month: '2026-11',
+      measure: 'qualified_scans',
+      basis: { count: 28 },
+    })
+    expect(sheet?.offers.qualified_scans.current).toMatchObject({
+      month: '2026-10',
+      current: true,
+      measure: 'qualified_scans',
+    })
+  })
+
+  it('a goal has no sheet to set another', async () => {
+    const { deps } = fakeWorld({
+      now: OCT_23,
+      portals: [portal('Reception', '2026-10-09')],
+      programs: [propertyGoal('monthly', 'portal_rating_count')],
+    })
+
+    await expect(sheetOf(deps)).resolves.toBeNull()
   })
 
   it('a scheduled goal says when it starts and what this month has so far', async () => {

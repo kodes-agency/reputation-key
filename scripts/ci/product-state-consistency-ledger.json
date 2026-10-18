@@ -733,6 +733,12 @@
       "policy": "defaultOpen seeds the open state of a dialog opened by its own trigger; a controlled open prop remains the render authority when supplied."
     },
     {
+      "id": "src/components/goals/portal-goal-sheet.tsx:useState(draft)",
+      "classification": "server_draft",
+      "owner": "Monthly portal goal set sheet",
+      "policy": "The month, the measure and the number box as typed, seeded once when the sheet mounts from the card read's sheet facts (the month it opens on, and the recommended number of the measure its door named, or an empty box where there is none). The host mounts a fresh sheet with a new key for every opening, which is the reset boundary, so a card refetch while it is open (after a refusal, or a month that turned) never overwrites what the manager chose: the months and offers shown are derived from the latest facts on every render, a draft month the read no longer offers falls back to the one it opens on, and only Set sends the draft to the server."
+    },
+    {
       "id": "src/components/goals/rating-goal-wizard.tsx:useState(step)",
       "classification": "local_runtime",
       "owner": "Google rating goal wizard",

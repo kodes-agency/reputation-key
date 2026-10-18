@@ -3,9 +3,11 @@
 // stands on with "How we worked this out", the Portals that join later, the
 // ask-every-guest line when it counts private ratings, and Use. With scans
 // first (P-2) one sentence says it all. Use sets the goal in one tap, exactly
-// as offered: that month, that measure, that number. The command comes from
-// the page that draws the card (components import no routes); a set, or a
-// refusal that means the card is behind, reads the Portal goals again.
+// as offered: that month, that measure, that number; "Change" (with scans
+// first, "Set a private ratings number") opens the set sheet instead. The
+// commands come from the page that draws the card (components import no
+// routes); a set, or a refusal that means the card is behind, reads the
+// Portal goals again.
 import { useRef } from 'react'
 import type {
   PortalGoalOffer,
@@ -18,7 +20,9 @@ import {
 import { Button } from '#/components/ui/button'
 import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
 import { PORTAL_ASK_EVERY_GUEST_LINE } from './portal-goal-copy'
-import { PORTAL_SET_REFUSALS, offerWords } from './portal-goal-offer-words'
+import { offerWords } from './portal-goal-offer-words'
+import { PORTAL_GOAL_BEHIND, PORTAL_SHEET_REFUSALS } from './portal-goal-sheet-refusals'
+import type { PortalGoalSheetIntent } from './portal-goal-sheet-view'
 import { PortalGoalWorkedOut } from './portal-goal-worked-out'
 
 /** The commands the card sends, handed down by the page. */
@@ -28,10 +32,12 @@ export type PortalGoalCommands = Readonly<{
   ) => Promise<unknown>
   /** Reads the Portal goals again: after a set, and after a refusal that means the card is behind. */
   onSet: () => Promise<void>
+  /**
+   * Opens the set sheet on a measure. A page that draws no sheet leaves it
+   * out, and the card then draws no door to it.
+   */
+  openSheet?: (intent: PortalGoalSheetIntent) => void
 }>
-
-/** Refusals that mean the card is behind the server: read it again. */
-const BEHIND = new Set(['subject_has_goal', 'start_month_changed'])
 
 type Props = Readonly<{
   propertyId: string
@@ -44,13 +50,13 @@ function useSetFromOffer({ propertyId, offer, commands }: Props) {
   const words = offerWords(offer)
   const sending = useRef(false)
   const set = useActionMutation(
-    withGoalRefusals(commands.setMonthlyPortalGoalFn, PORTAL_SET_REFUSALS),
+    withGoalRefusals(commands.setMonthlyPortalGoalFn, PORTAL_SHEET_REFUSALS),
     {
       successMessage: words.setToast,
       errorMessage: actionErrorMessage,
       onSuccess: commands.onSet,
       onError: (error) => {
-        if (BEHIND.has(goalRefusalCode(error) ?? '')) void commands.onSet()
+        if (PORTAL_GOAL_BEHIND.has(goalRefusalCode(error) ?? '')) void commands.onSet()
       },
     },
   )
@@ -75,9 +81,34 @@ function useSetFromOffer({ propertyId, offer, commands }: Props) {
   return { words, use, pending: set.isPending }
 }
 
+/** "Change" beside Use; with scans first, a link to private ratings under it. */
+function SheetDoor({
+  door,
+  openSheet,
+  beside,
+}: Readonly<{
+  door: ReturnType<typeof offerWords>['door']
+  openSheet: NonNullable<PortalGoalCommands['openSheet']>
+  beside: boolean
+}>) {
+  const open = () => openSheet({ measure: door.measure })
+  return beside ? (
+    <Button variant="outline" onClick={open}>
+      {door.label}
+    </Button>
+  ) : (
+    <Button variant="link" size="inline" touch className="self-start" onClick={open}>
+      {door.label}
+    </Button>
+  )
+}
+
 export function PortalGoalCardReady(props: Props) {
   const { offer } = props
+  const { openSheet } = props.commands
   const { words, use, pending } = useSetFromOffer(props)
+  // With scans first the door is to the other measure: a link, not a second button.
+  const beside = offer.measure === 'portal_rating_count'
   return (
     <div className="flex flex-col gap-4">
       {words.heading === null || words.figure === null ? null : (
@@ -105,14 +136,17 @@ export function PortalGoalCardReady(props: Props) {
           <p className="text-muted-foreground">{PORTAL_ASK_EVERY_GUEST_LINE}</p>
         ) : null}
       </div>
-      <Button
-        className="self-start"
-        pending={pending}
-        pendingLabel="Saving…"
-        onClick={use}
-      >
-        {words.use}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button pending={pending} pendingLabel="Saving…" onClick={use}>
+          {words.use}
+        </Button>
+        {openSheet && beside ? (
+          <SheetDoor door={words.door} openSheet={openSheet} beside />
+        ) : null}
+      </div>
+      {openSheet && !beside ? (
+        <SheetDoor door={words.door} openSheet={openSheet} beside={false} />
+      ) : null}
     </div>
   )
 }

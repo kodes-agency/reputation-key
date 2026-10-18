@@ -9,12 +9,14 @@ import {
   CARD_SCANS_ONLY,
   CARD_SCHEDULED,
   GOAL_SCHEDULED,
+  SHEET_FIRST_WEEKS,
 } from './portal-goal.stories.fixtures'
 import {
   gateWords,
   goalLines,
   listOfNames,
   nothingCountedWords,
+  ownNumberDoorWords,
   portalGoalSectionLine,
   portalGoalUnit,
   readinessWords,
@@ -136,6 +138,12 @@ describe('the Monthly portal goal card, in words', () => {
     )
   })
 
+  it('offers a number of their own before one is recommended', () => {
+    expect(ownNumberDoorWords('getting_ready')).toBe('Set my own number')
+    expect(ownNumberDoorWords('recommendation_unreadable')).toBe('Set my own number')
+    expect(ownNumberDoorWords('nothing_counted')).toBe('Set a number anyway')
+  })
+
   it('names the weeks nothing came in', () => {
     expect(nothingCountedWords(2)).toEqual({
       text: 'No scans in the last 2 weeks. Check that each code is where guests can see it.',
@@ -146,9 +154,14 @@ describe('the Monthly portal goal card, in words', () => {
   it('says what the goal counts under the section title, except at a gate', () => {
     const line = (card: PortalGoalCardView) => portalGoalSectionLine(card)
 
-    expect(line({ state: 'getting_ready', readyOn: '2026-10-23', ...FIRST_WEEKS })).toBe(
-      'How many private ratings your portals bring in each month.',
-    )
+    expect(
+      line({
+        state: 'getting_ready',
+        readyOn: '2026-10-23',
+        ...FIRST_WEEKS,
+        sheet: SHEET_FIRST_WEEKS,
+      }),
+    ).toBe('How many private ratings your portals bring in each month.')
     expect(line(CARD_SCANS_ONLY)).toBe('How many scans your portals get each month.')
     // With a goal, its own measure.
     expect(line(CARD_SCHEDULED)).toBe(
@@ -161,7 +174,7 @@ describe('the Monthly portal goal card, in words', () => {
         goal: { ...GOAL_SCHEDULED, measure: 'qualified_scans' },
       }),
     ).toBe('How many scans your portals get each month.')
-    expect(line({ state: 'nothing_counted', weeks: 2 })).toBe(
+    expect(line({ state: 'nothing_counted', weeks: 2, sheet: SHEET_FIRST_WEEKS })).toBe(
       'How many private ratings your portals bring in each month.',
     )
     expect(line({ state: 'no_portal' })).toBeNull()

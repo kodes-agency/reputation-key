@@ -5,7 +5,7 @@
 // day and number; the card only words them (PLAN E12). Days are
 // Property-local `YYYY-MM-DD`, months `YYYY-MM`.
 
-import type { PortalGoalMeasure } from './goal-recommendation.types'
+import type { PortalGoalMeasure, PortalGoalRatio } from './goal-recommendation.types'
 
 /** One published Portal's steps before the number is ready (P-4). */
 export type PortalReadinessRow = Readonly<{
@@ -84,6 +84,12 @@ export type PortalGoalOffer = Readonly<{
   choices: Readonly<{ usual: number; aBitMore: number; stretch: number }>
   /** The usual for the whole offered month, rounded half up: "about 34 a month". */
   usualAbout: number
+  /**
+   * The usual "your usual" is rounded from, exact: what an own number is
+   * measured against ("about 4 times"). The next month's is the whole month's;
+   * this month's is what already counts plus the days left at the usual.
+   */
+  usualExact: PortalGoalRatio
   basis: PortalGoalOfferBasis
   /** Live Portals not in the number yet, in name order. */
   newPortals: readonly PortalGoalNewPortal[]
@@ -93,6 +99,32 @@ export type PortalGoalOffer = Readonly<{
   rest: Readonly<{ daysLeft: number; about: number }> | null
   /** The Property's time zone, whose months the goal follows. */
   timezone: string
+}>
+
+/** One measure's numbers for the set sheet; null where it has none to offer. */
+export type PortalGoalMeasureOffers = Readonly<{
+  /** The rest of this month, on top of what already counts. */
+  current: PortalGoalOffer | null
+  /** The whole of the next month. */
+  next: PortalGoalOffer | null
+}>
+
+/**
+ * What the set sheet works from (PLAN PG-10): the month it opens on, the two
+ * months a goal may start in with this month so far (for a number of the
+ * manager's own, which the sheet starts empty), each measure's offers for both
+ * months, and, in the first weeks, the day the recommended number is ready.
+ */
+export type PortalGoalSheetFacts = Readonly<{
+  /** The month the card offers: this month through the 20th local day, else the next. */
+  month: string
+  ownNumber: Readonly<{
+    current: Readonly<{ key: string; soFar: PortalGoalSoFar }>
+    next: Readonly<{ key: string }>
+  }>
+  offers: Readonly<Record<PortalGoalMeasure, PortalGoalMeasureOffers>>
+  /** While the first weeks last: when the recommended number is ready; else null. */
+  readyOn: string | null
 }>
 
 /**
@@ -131,11 +163,14 @@ export type PortalGoalOfCard = Readonly<{
   countingMonth: Readonly<{ key: string; target: number }> | null
 }>
 
+/** An arm the set sheet opens from: what it works from. */
+type WithSheet = Readonly<{ sheet: PortalGoalSheetFacts }>
+
 /**
  * The card's arm. Before a goal: no Portal at all (or none live and no draft),
  * draft Portals only, the first weeks, a number ready to use (with scans only,
- * scans first), nothing counted, or a recommendation that cannot be read. With
- * one: the goal.
+ * scans first), nothing counted, or a recommendation that cannot be read; each
+ * of the last four opens the set sheet. With one: the goal.
  */
 export type PortalGoalCardView =
   | Readonly<{ state: 'no_portal' }>
@@ -144,18 +179,20 @@ export type PortalGoalCardView =
       drafts: readonly Readonly<{ portalId: string; name: string }>[]
     }>
   | (PortalGoalFirstWeeks &
+      WithSheet &
       Readonly<{
         state: 'getting_ready'
         /** When the closest live Portal has 2 weeks live; null when that is not known. */
         readyOn: string | null
       }>)
-  | Readonly<{ state: 'ready' | 'scans_only'; offer: PortalGoalOffer }>
-  | Readonly<{
-      state: 'nothing_counted'
-      /** The weeks the basis covers: "No scans in the last 2 weeks." */
-      weeks: 2 | 3 | 4
-    }>
-  | Readonly<{ state: 'recommendation_unreadable' }>
+  | (WithSheet & Readonly<{ state: 'ready' | 'scans_only'; offer: PortalGoalOffer }>)
+  | (WithSheet &
+      Readonly<{
+        state: 'nothing_counted'
+        /** The weeks the basis covers: "No scans in the last 2 weeks." */
+        weeks: 2 | 3 | 4
+      }>)
+  | (WithSheet & Readonly<{ state: 'recommendation_unreadable' }>)
   | Readonly<{
       state: 'goal'
       /** The Property's local day today, for the header tile. */
