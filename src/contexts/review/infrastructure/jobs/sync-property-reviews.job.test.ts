@@ -142,32 +142,75 @@ describe('sync-property-reviews snapshot handler', () => {
     },
   )
 
-  it.each(['source_changed', 'malformed_page', 'observation_failed'] as const)(
-    'still retries at the discovery interval after %s',
-    async (code) => {
-      const discoveryRepo = makeDiscoveryState()
-      const handler = createSyncPropertyReviewsHandler({
-        runSnapshot: vi.fn(async () => ({
-          status: 'failed' as const,
-          runId: '44444444-4444-4444-8444-444444444444',
-          code,
-        })),
-        propertySourceEpoch,
-        enqueueContinuation: vi.fn(async () => undefined),
-        ...ladderDeps(makeSyncActivity(), discoveryRepo),
-      })
+  // A deploy restarts the ephemeral cursor store and drops every cursor in it,
+  // so a run caught mid-scan is lost, not broken. Failing the job for it put a
+  // Sentry error, a dead letter and three alerts on every deploy.
+  it('starts a fresh run at once, without a failure, when the cursor store lost the run', async () => {
+    const discoveryRepo = makeDiscoveryState()
+    const enqueueContinuation = vi.fn(async () => undefined)
+    const lostRunId = '44444444-4444-4444-8444-444444444444'
+    const initiator = { kind: 'system', id: GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID }
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot: vi.fn(async () => ({
+        status: 'failed' as const,
+        runId: lostRunId,
+        code: 'cursor_lost' as const,
+      })),
+      propertySourceEpoch,
+      enqueueContinuation,
+      ...ladderDeps(makeSyncActivity(), discoveryRepo),
+    })
 
-      await expect(
-        handler({ id: 'job-transient', data: JOB_DATA } as never),
-      ).rejects.toMatchObject({ name: 'ReviewProviderSnapshotFailure', message: code })
-      expect(discoveryRepo.markDiscoveryDeferred).toHaveBeenCalledWith(
-        JOB_DATA.propertyId,
-        NOW,
-        new Date(NOW.getTime() + HOT_INTERVAL_MS),
+    await expect(
+      handler({
+        id: 'job-cursor-lost',
+        data: { ...JOB_DATA, initiator, sourceEpoch: 7, runId: lostRunId },
+      } as never),
+    ).resolves.toMatchObject({ status: 'failed', code: 'cursor_lost' })
+
+    // No runId: the next step starts (or joins) a run from page 0 under the
+    // same initiator, so an interrupted import stays an import.
+    expect(enqueueContinuation).toHaveBeenCalledTimes(1)
+    expect(enqueueContinuation).toHaveBeenCalledWith({
+      ...JOB_DATA,
+      initiator,
+      sourceEpoch: 7,
+    })
+    // Not a coded failure: `sync.failed-nonzero` stays quiet.
+    expect(discoveryRepo.markDiscoveryDeferred).not.toHaveBeenCalled()
+    expect(discoveryRepo.markSyncSucceeded).not.toHaveBeenCalled()
+  })
+
+  // `cursor_failure` is what the use case answers when the cursor vanished
+  // with no store restart to explain it: a defect, so it still fails loudly.
+  it.each([
+    'source_changed',
+    'malformed_page',
+    'observation_failed',
+    'cursor_failure',
+  ] as const)('still retries at the discovery interval after %s', async (code) => {
+    const discoveryRepo = makeDiscoveryState()
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot: vi.fn(async () => ({
+        status: 'failed' as const,
+        runId: '44444444-4444-4444-8444-444444444444',
         code,
-      )
-    },
-  )
+      })),
+      propertySourceEpoch,
+      enqueueContinuation: vi.fn(async () => undefined),
+      ...ladderDeps(makeSyncActivity(), discoveryRepo),
+    })
+
+    await expect(
+      handler({ id: 'job-transient', data: JOB_DATA } as never),
+    ).rejects.toMatchObject({ name: 'ReviewProviderSnapshotFailure', message: code })
+    expect(discoveryRepo.markDiscoveryDeferred).toHaveBeenCalledWith(
+      JOB_DATA.propertyId,
+      NOW,
+      new Date(NOW.getTime() + HOT_INTERVAL_MS),
+      code,
+    )
+  })
 
   it('clears prior sync failure state only after a completed run', async () => {
     const discoveryRepo = makeDiscoveryState()

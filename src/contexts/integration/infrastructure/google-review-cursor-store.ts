@@ -160,6 +160,12 @@ export type GoogleReviewCursorStore = Readonly<{
       runId: string
     }>,
   ): Promise<boolean>
+  /**
+   * When the backing store started, or null when it cannot tell. It keeps
+   * nothing across a restart (ADR 0050), so a cursor `not_found` after that
+   * instant may have been lost to the restart; before it, it was not.
+   */
+  startedAtMs(): Promise<number | null>
 }>
 
 const authorizationSchema = z
@@ -590,8 +596,10 @@ export const createGoogleReviewCursorStore = (
           return { ok: false, code: 'binding_mismatch' }
         }
         if (input.parentCursorRef) {
+          // Gone, not mismatched: a store restart between the redeem of this
+          // page and this publication drops the parent with everything else.
+          if (!parent) return { ok: false, code: 'not_found' }
           if (
-            !parent ||
             !sameObject(parent.record.scope, input.scope) ||
             !sameObject(parent.record.authorization, input.authorization)
           ) {
@@ -784,6 +792,8 @@ export const createGoogleReviewCursorStore = (
       }
       return true
     },
+
+    startedAtMs: () => deps.store.startedAtMs(),
   })
 }
 
@@ -794,5 +804,6 @@ export const createUnavailableGoogleReviewCursorStore = (): GoogleReviewCursorSt
     release: async () => unavailable,
     publishNext: async () => unavailable,
     discardRun: async () => false,
+    startedAtMs: async () => null,
   })
 }

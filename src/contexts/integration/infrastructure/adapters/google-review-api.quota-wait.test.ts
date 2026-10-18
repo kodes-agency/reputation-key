@@ -247,6 +247,7 @@ describe('a review page cursor at the adapter seam', () => {
       release: vi.fn(async () => ({ ok: false as const, code: 'conflict' as const })),
       publishNext: vi.fn(),
       discardRun: vi.fn(),
+      startedAtMs: vi.fn(async () => null),
     })
     const faulting = createAdapter(execute, {
       redeem: vi.fn(async () => ({
@@ -258,6 +259,7 @@ describe('a review page cursor at the adapter seam', () => {
       }),
       publishNext: vi.fn(),
       discardRun: vi.fn(),
+      startedAtMs: vi.fn(async () => null),
     })
 
     for (const { api, warn, code } of [
@@ -296,6 +298,7 @@ describe('a review page cursor at the adapter seam', () => {
       release,
       publishNext: vi.fn(),
       discardRun: vi.fn(),
+      startedAtMs: vi.fn(async () => null),
     })
 
     await api.listReviewsPage(listInput(`v1.${'d'.repeat(43)}`, 1))
