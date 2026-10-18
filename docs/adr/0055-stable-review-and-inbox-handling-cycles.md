@@ -100,6 +100,31 @@ the decision to the letter would mean dating the poll one sweep short of six
 hours and capping the base at 360 minutes. Neither is done, and whether to do
 it is an open choice: this note records the difference and decides nothing.
 
+## Note 2026-10-18 — when full reconciliation may detect deletion
+
+Decision 5 has full reconciliation detect deletion. As implemented, a snapshot
+run removes a Review that vanished from Google only after Google's own total
+(`totalReviewCount`, the same on every page of both scans) matched the unique
+reviews the list returned, a missed review is confirmed by a targeted read, and
+two separate runs saw it missing. Until 2026-10-18 any difference between the
+total and the list failed the run as `set_mismatch`, so a location whose
+numbers never agree (82 counted, 81 listed, on every read) never completed a
+sync.
+
+The owner decided: accept a small gap, complete the run, and remove nothing.
+A run whose total and list differ by at most 2% of the total (rounded down, at
+least 1, and always under one 50-review page), whose pages before the last all
+came back full, and whose confirmation scan listed exactly the same reviews
+again, completes. It records no removal candidate and no first miss, and its
+apply step refuses any candidate it finds. A wider gap still fails as
+`set_mismatch`. A listing that disagrees with Google's total is never grounds
+for removing anything. The cost is that a location whose numbers keep
+disagreeing has no deletion detected until they agree again; content expiry
+still removes provider content on its own clock. The completed run publishes
+Google's own count and average as usual, and the worker logs
+`review_snapshot_completed_with_count_gap` with the three counts only
+(`application/snapshot-count-gap.ts`).
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

@@ -787,4 +787,86 @@ describe('runReviewProviderSnapshot', () => {
     )
     expect(deps.repository.applyDeletionBatch).toHaveBeenCalledWith({ runId, limit: 100 })
   })
+
+  describe("when Google's total and its list differ by a small amount", () => {
+    const completedWith = (
+      listing: Readonly<{ expected: number; unique: number; pages: number }>,
+    ) => {
+      const deps = makeDeps({ currentRun: run({ state: 'deleting', phase: 'apply' }) })
+      vi.mocked(deps.repository.applyDeletionBatch).mockResolvedValue({
+        run: run({
+          state: 'completed',
+          phase: 'terminal',
+          expectedProviderTotal: listing.expected,
+          expectedProviderAverageRating: 4.5,
+          mainUniqueCount: listing.unique,
+          mainPageIndex: listing.pages,
+        }),
+        applied: 0,
+        observed: 0,
+        done: true,
+      })
+      return deps
+    }
+
+    it('completes the run and logs the gap as counts only', async () => {
+      const deps = completedWith({ expected: 82, unique: 81, pages: 2 })
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'completed', runId })
+
+      expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledTimes(1)
+      expect(deps.logger.warn).toHaveBeenCalledTimes(1)
+      expect(deps.logger.warn).toHaveBeenCalledWith(
+        {
+          event: 'review_snapshot_completed_with_count_gap',
+          expected: 82,
+          unique: 81,
+          gap: 1,
+        },
+        expect.any(String),
+      )
+    })
+
+    it('logs a list longer than the total the same way', async () => {
+      const deps = completedWith({ expected: 19, unique: 20, pages: 1 })
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'completed', runId })
+
+      expect(deps.logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ expected: 19, unique: 20, gap: 1 }),
+        expect.any(String),
+      )
+    })
+
+    it('logs nothing when the list matches the total', async () => {
+      const deps = completedWith({ expected: 81, unique: 81, pages: 2 })
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'completed', runId })
+
+      expect(deps.logger.warn).not.toHaveBeenCalled()
+    })
+
+    it('fails the run and discards its cursors when the store refuses the gap', async () => {
+      const deps = makeDeps()
+      vi.mocked(deps.repository.finishMainScan).mockResolvedValue({
+        status: 'failed',
+        run: run({ state: 'failed', phase: 'terminal', failureCode: 'set_mismatch' }),
+        code: 'set_mismatch',
+      })
+
+      await expect(runReviewProviderSnapshot(deps)(request)).resolves.toEqual({
+        status: 'failed',
+        runId,
+        code: 'set_mismatch',
+      })
+      expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledTimes(1)
+      expect(deps.logger.warn).not.toHaveBeenCalled()
+    })
+  })
 })
