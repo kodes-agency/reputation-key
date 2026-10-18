@@ -780,6 +780,17 @@
 // (entry 49,038 B, the base's order); kept the one tested rule for 1 B. No
 // change to the budget; 52 B spare under 307,850, 502 B under the build's
 // ceiling of 308,300 (owner, P-9).
+//
+// 2026-10-18 (Monthly portal goal, PG-12: the running card): no raise. The bar
+// with its tick, each Portal's count, the stopped and last-month lines and
+// their words load with the Goals route's component chunk (goals-*.js 14,961 B
+// on the head, lazy; vite's gzip column 13.97 -> 15.06 kB). The card read's
+// running month, rows and last month are server only. Every class they use was
+// already in the stylesheet (the same file, styles-_Q6CwAvC.css, byte for
+// byte). Fresh production builds measured 307,697 B (75 js + 1 css) on the
+// base, PG-09's head 83d5ac4fc, and 307,687 B on the head: -10 B, all in the
+// entry (49,021 -> 49,011 B), the hashed chunk names only. 163 B spare under
+// 307,850; 613 B under the build's ceiling of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
