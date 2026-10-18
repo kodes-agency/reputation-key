@@ -122,6 +122,22 @@ export const CARD_CHECK_IN_CLOSED_NOT_MET = withGoal(CARD_LAST_MONTH_NOT_MET, {
 export const CARD_CHECK_IN_SAME = withGoal(CARD_LAST_MONTH_UPDATING, {
   lastMonth: NOVEMBER_SO_FAR,
   checkIn: CHECK_IN_SAME,
+  // December's own number is 45, from a change in November.
+  ...(CARD_LAST_MONTH_UPDATING.state === 'goal'
+    ? {
+        month: CARD_LAST_MONTH_UPDATING.goal.month && {
+          ...CARD_LAST_MONTH_UPDATING.goal.month,
+          target: 45,
+        },
+        change: CARD_LAST_MONTH_UPDATING.goal.change && {
+          ...CARD_LAST_MONTH_UPDATING.goal.change,
+          now: CARD_LAST_MONTH_UPDATING.goal.change.now && {
+            ...CARD_LAST_MONTH_UPDATING.goal.change.now,
+            expectedTarget: 45,
+          },
+        },
+      }
+    : {}),
 })
 
 /** Dec 1, nothing came in over the 4 weeks: Keep 40, or another number. */
