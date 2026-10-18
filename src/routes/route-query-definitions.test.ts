@@ -94,6 +94,8 @@ describe('route query options', () => {
 
     expect(keys).toContain('identityKeys.members()')
     expect(keys).toContain('propertyKeys.list()')
+    // The Monthly portal goal's card, in the Goals route's queries module only.
+    expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'card')")
   })
 
   it('are defined once, and imported by every route that reads them', () => {

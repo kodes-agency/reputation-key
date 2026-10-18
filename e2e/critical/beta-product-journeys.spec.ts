@@ -1190,15 +1190,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         },
       })
 
-      // The way in is the Goals list.
-      await page.goto(`/properties/${seed.p1PropertyId}/goals`)
+      // Straight to the table: the Goals page's header buttons gave way to the
+      // Monthly portal goal card and one "Add a portal goal" link (PG-08).
+      await page.goto(`/properties/${seed.p1PropertyId}/goals/new?mode=several`)
       await waitForHydration(page)
-      await clickWhenReady(
-        page.getByRole('link', { name: 'Set goals for several portals' }),
-      )
-      await expect(page).toHaveURL(
-        new RegExp(`/properties/${seed.p1PropertyId}/goals/new\\?mode=several$`),
-      )
       await expect(
         page
           .getByRole('navigation', { name: 'New goal views' })

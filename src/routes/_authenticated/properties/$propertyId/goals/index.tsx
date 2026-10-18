@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { createFileRoute, Link, Navigate } from '@tanstack/react-router'
+import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
@@ -16,44 +15,22 @@ import {
   buildGoalResultsMatrix,
   type GoalSubject,
 } from '#/contexts/reporting/application/public-api'
-import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { trailCrumbs } from '#/components/layout/page-identity'
-import { AddActionLink } from '#/components/ui/add-action'
-import { Button } from '#/components/ui/button'
-import { SectionTitle } from '#/components/ui/section-title'
-import {
-  DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeader,
-  DataTableRow,
-} from '#/components/ui/data-table'
-import { EmptyState } from '#/components/ui/empty-state'
-import { StatusBadge } from '#/components/ui/status-badge'
-import { ROW_NAME_LINK } from '#/components/ui/row-link'
-import { cn } from '#/lib/utils'
-import { GOAL_STATUS } from '#/components/goals/goal-status'
-import { goalMetricLabel } from '#/components/goals/goal-metric-label'
-import {
-  goalAssignmentSubjectLabel,
-  goalListSubjectText,
-} from '#/components/goals/goal-assignment-subject-label'
-import { goalListTarget } from '#/components/goals/goal-month-target-view'
+import { InlineLink } from '#/components/ui/inline-link'
+import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
-import { GoalLiveLine, GoalLiveLinePending } from '#/components/goals/goal-live-line'
-import { goalListSummary, goalLiveShape } from '#/components/goals/goal-live-view'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { formatShortDate } from '#/lib/format'
 import { goalForResult } from './-goal-for-result'
 import { RatingGoalPanel } from './-rating-goal-panel'
+import { PortalGoalExtras } from './-portal-goal-extras'
+import { PortalGoalPanel } from './-portal-goal-panel'
 import { goalListSearchSchema } from './-goal-list-search'
 
 const goalsQuery = (propertyId: string) =>
@@ -101,11 +78,15 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
     await Promise.all([
       context.queryClient.ensureQueryData(goalsQuery(propertyId)),
       context.queryClient.ensureQueryData(subjectNamesQuery(propertyId)),
-      // The Google section, from a module fetched on demand: its reads and their
-      // server functions stay out of first paint, and a failure stays in its
-      // own region.
-      import('./-rating-goal-queries').then((queries) =>
-        queries.prefetchRatingGoalSection(context.queryClient, propertyId),
+      // The Google section and the Portal goals section, from one module fetched
+      // on demand: their reads and server functions stay out of first paint,
+      // and a failure stays in its own section.
+      import('./-goals-page-prefetch').then((prefetch) =>
+        prefetch.prefetchGoalsPage(
+          context.queryClient,
+          propertyId,
+          (context as AuthRouteContext).role,
+        ),
       ),
     ])
   },
@@ -166,7 +147,7 @@ function GoalsRoute() {
     <PageShell tier="dashboard">
       <PageHeader
         title="Goals"
-        description="Your Google rating goal, and monthly targets for this property, its portal groups and its portals."
+        description="Your Google rating goal and your monthly portal goal."
         breadcrumbs={trailCrumbs(
           'property',
           { propertyId, propertyName: propData.property.name },
@@ -191,112 +172,40 @@ function GoalsRoute() {
           }
         />
       </div>
-      <section aria-labelledby="portal-goals-title" className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <SectionTitle id="portal-goals-title">Portal goals</SectionTitle>
-          {canDo('goal.create') ? (
-            <div className="flex flex-wrap gap-2">
-              {/* The table on the New goal page: one number per Portal, a goal each. */}
-              <Button asChild variant="outline">
-                <Link
-                  to="/properties/$propertyId/goals/new"
-                  params={{ propertyId }}
-                  search={{ mode: 'several' }}
-                >
-                  Set goals for several portals
-                </Link>
-              </Button>
-              <AddActionLink
-                to="/properties/$propertyId/goals/new"
-                params={{ propertyId }}
-              >
-                New goal
-              </AddActionLink>
-            </div>
-          ) : null}
-        </div>
-        {live.isError ? (
-          <p className="text-sm text-muted-foreground">
-            This month’s figures can’t be read right now.
-          </p>
-        ) : null}
-        {goals.length === 0 ? (
-          <EmptyState
-            icon={Target}
-            title={view === 'active' ? 'No active goals' : 'No goal history'}
+      {/* Apart from the Google section above: no shared numbers. */}
+      <PortalGoalPanel
+        propertyId={propertyId}
+        view={view}
+        extras={
+          <PortalGoalExtras
+            propertyId={propertyId}
+            timezone={propData.property.timezone}
+            view={view}
+            goals={goals}
+            live={{
+              byProgram: liveByProgram,
+              loading: live.isLoading,
+              failed: live.isError,
+            }}
+            subjectName={subjectName}
+            now={now}
           />
-        ) : (
-          <DataTable
-            label={view === 'active' ? 'Active goals' : 'Goal history'}
-            from="3xl"
-          >
-            <DataTableHeader>
-              <DataTableHead>Goal</DataTableHead>
-              <DataTableHead className="w-40">Status</DataTableHead>
-            </DataTableHeader>
-            <DataTableBody>
-              {goals.map((goal) => {
-                const { program, version, assignments } = goal
-                const currentSubjects = assignments
-                  .filter((assignment) => assignment.programVersionId === version.id)
-                  .map((assignment) => assignment.subject)
-                // This month's target while a month runs, with its marker when
-                // it was changed; "set on" ends the row only where the target's
-                // own text does not already say when.
-                const calendar = { timezone: version.propertyTimezone, now }
-                const target = goalListTarget(
-                  goal,
-                  monthTargetPlan(goal, now, propData.property.timezone),
-                  calendar,
-                )
-                const setOn =
-                  target.setAt === null
-                    ? null
-                    : `set on ${formatShortDate(target.setAt, calendar.timezone, now) ?? 'an unknown date'}`
-                const liveGoal = liveByProgram.get(program.id)
-                // While the month is first being read, keep the room its line
-                // will take, so the rows below do not jump when it arrives.
-                const pendingShape = live.isLoading
-                  ? goalLiveShape({
-                      status: program.status,
-                      metric: target.metric,
-                      subjectCount: currentSubjects.length,
-                    })
-                  : null
-                return (
-                  <DataTableRow key={program.id}>
-                    <DataTableCell className="min-w-0 whitespace-normal">
-                      <Link
-                        className={cn('font-medium', ROW_NAME_LINK)}
-                        to="/properties/$propertyId/goals/$goalId"
-                        params={{ propertyId, goalId: program.id }}
-                      >
-                        {program.name}
-                      </Link>
-                      <p className="text-sm text-muted-foreground">
-                        {goalListSummary([
-                          goalMetricLabel(target.metric),
-                          target.text,
-                          goalListSubjectText(currentSubjects, subjectName),
-                          setOn,
-                        ])}
-                      </p>
-                      {liveGoal !== undefined ? (
-                        <GoalLiveLine goal={liveGoal} />
-                      ) : pendingShape !== null ? (
-                        <GoalLiveLinePending shape={pendingShape} />
-                      ) : null}
-                    </DataTableCell>
-                    <DataTableCell className="col-start-2 row-start-1 justify-self-end">
-                      <StatusBadge status={program.status} map={GOAL_STATUS} />
-                    </DataTableCell>
-                  </DataTableRow>
-                )
-              })}
-            </DataTableBody>
-          </DataTable>
-        )}
-      </section>
+        }
+        empty={view === 'history' && goals.length === 0 ? 'No goal history' : undefined}
+        footer={
+          canDo('goal.create') ? (
+            // The way to a goal for one Portal, a group or an average (one click
+            // deeper, P-5), on the New goal page until the add sheet replaces it.
+            <InlineLink
+              to="/properties/$propertyId/goals/new"
+              params={{ propertyId }}
+              className="self-start text-sm"
+            >
+              Add a portal goal
+            </InlineLink>
+          ) : null
+        }
+      />
       {/* Each month's result, once a goal has one: a first visit has none to show. */}
       {canDo('goal.update') && matrix.months.length > 0 ? (
         <GoalResultsMatrix

@@ -83,6 +83,8 @@ describe('route permission checks', () => {
   const LOADER_HELPERS: Readonly<Record<string, string>> = {
     '_authenticated/properties/import-google/-route-access.ts':
       'requireGoogleImportRole, called by the beforeLoad of both import routes',
+    '_authenticated/properties/$propertyId/goals/-goals-page-prefetch.ts':
+      'prefetchGoalsPage, called by the Goals page loader: the Monthly portal goal card is primed only for goal.create',
   }
   const asksStaticTable = ROUTES.map((file) => ({
     file: pathOf(file),

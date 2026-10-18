@@ -121,6 +121,23 @@ metric authority.
   `infrastructure/adapters/goal-count-readings.sql.ts`. An integration test holds its
   month to `queryGoalAggregate` for the Property, readings with no Portal and an archived
   Portal's included.
+- **Monthly portal goal** (ADR 0068; `application/monthly-portal-goal-identity.ts`): not a
+  kind of Program but the Property's count goal, the one whose subject is the Property alone
+  and whose measure is private ratings or scans. One per Property is a screen rule, decided
+  by Program in `monthlyPortalGoalOf`: the earliest-created one that has not ended, else the
+  most recently ended one that still counts a month (its window holds days after now, or a
+  month of it is still open or reconciling: a goal stopped on Nov 12 is still it until
+  November closes). An average and a goal for a Portal or a Portal Group never are. The
+  Goals page card (`application/use-cases/monthly-portal-goal-card.ts`) is one composed
+  read: it authorizes `goal.create`, reads the clock once, then the Programs the actor may
+  see and the recommendation together (`gatherPortalGoalRecommendation`, which asks the
+  policy nothing itself), and answers the goal by Program or the state before one: no
+  Portal (or none live and no draft), draft Portals only, the first weeks (today, this
+  month so far, the ready day and each published Portal's steps; a disabled Portal takes
+  no row), nothing counted (with the basis weeks) or an unreadable recommendation. A number
+  that is ready is drawn with the first weeks until the card can offer it. Its types are
+  `application/dto/monthly-portal-goal.types.ts`; its server function is in
+  `server/monthly-portal-goals.ts`, a module no other module imports statically.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save
@@ -387,9 +404,12 @@ the normal domain/application/infrastructure layer rules.
 
 The Monthly portal goal's recommendation reads Portal's `listGoalReadinessFacts`
 (`PortalPublicApi`): each non-archived Portal's state, live since and live intervals, code
-date and marker, in name order, at most 100. It has no request surface yet; the reporting
-context composes it as `internal.useCases.goalRecommendation`, and the card read (PG-08)
-is its first caller.
+date and marker, in name order, at most 100. Its request surface is the Monthly portal
+goal's card (`programs.monthlyPortalGoal.card`, `getMonthlyPortalGoalCard`), which gathers
+it after its own `goal.create` check; the reporting context also composes the authorized
+read on its own as `internal.useCases.goalRecommendation`. The Goals route reaches
+`server/monthly-portal-goals.ts` only by its own `import()` (`-portal-goal-queries.ts`),
+so its server functions stay out of first paint (`route-server-fn-bundles.test.ts`).
 
 The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
 `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and

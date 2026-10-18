@@ -72,6 +72,10 @@ import {
   type PortalGoalRecommendationRequestApi,
 } from './application/use-cases/goal-recommendation-read'
 import type { GoalRecommendationFactsPort } from './application/ports/goal-recommendation-facts.port'
+import {
+  readMonthlyPortalGoalCard,
+  type MonthlyPortalGoalRequestApi,
+} from './application/use-cases/monthly-portal-goal-card'
 import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
 import {
   createGoalProgramProgressReader,
@@ -371,11 +375,27 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     read: (policy, ...args) =>
       readPortalGoalRecommendation(goalRecommendationDeps(policy), ...args),
   })
+  // The Monthly portal goal's composed reads: the Programs the actor may see
+  // and the recommendation, after one `goal.create` check of their own.
+  const monthlyPortalGoal: MonthlyPortalGoalRequestApi['monthlyPortalGoal'] =
+    Object.freeze({
+      card: (policy, ...args) =>
+        readMonthlyPortalGoalCard(
+          {
+            policy,
+            reads: readGoalPrograms(policy),
+            recommendation: goalRecommendationDeps(policy),
+            now: input.clock,
+          },
+          ...args,
+        ),
+    })
   const programs: GoalProgramRequestApi &
     GoalProgressRequestApi &
     GoalListProgressRequestApi &
     GoalMonthPreviewRequestApi &
-    GoalBulkCreateRequestApi = Object.freeze({
+    GoalBulkCreateRequestApi &
+    MonthlyPortalGoalRequestApi = Object.freeze({
     create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
     createForSubjects: (policy, ...args) =>
       createGoalsForSubjects(
@@ -408,6 +428,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
         },
         ...args,
       ),
+    monthlyPortalGoal,
   })
 
   return {
@@ -430,8 +451,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       repos: { goalProgramRepo } satisfies Readonly<{
         goalProgramRepo: GoalProgramRepository
       }>,
-      // No request surface yet: the Monthly portal goal's card read (PG-08) is
-      // its first caller.
+      // The recommendation on its own, with its own `goal.create` check. The
+      // request surface reads it only inside the Monthly portal goal's card.
       useCases: { goalRecommendation },
     },
   } as const
