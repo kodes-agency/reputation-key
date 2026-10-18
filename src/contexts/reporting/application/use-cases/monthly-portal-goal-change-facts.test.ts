@@ -3,10 +3,12 @@
 // a change from a coming month starts with, and the month the sheet opens on;
 // and, once the goal was stopped, the month a new goal can start in.
 import { describe, expect, it } from 'vitest'
+import { isPropertyCountGoal } from '../monthly-portal-goal-identity'
 import {
   readMonthlyPortalGoalCard,
   type MonthlyPortalGoalCardDeps,
 } from './monthly-portal-goal-card'
+import { changeFactsOf, newGoalFromOf } from './monthly-portal-goal-change-facts'
 import {
   DEC_1,
   NOV_1,
@@ -121,5 +123,51 @@ describe('what a change to the Monthly portal goal is made against', () => {
 
     expect(nov22).toMatchObject({ change: null, newGoalFrom: '2026-12' })
     expect(dec1).toMatchObject({ change: null, newGoalFrom: '2026-12' })
+  })
+})
+
+describe('changeFactsOf and newGoalFromOf', () => {
+  const months = {
+    current: { key: '2026-11', days: 30, daysLeftWithToday: 9 },
+    next: { key: '2026-12', days: 31 },
+  } as const
+
+  it('an ended goal takes no change', () => {
+    const ended = propertyGoal('monthly', 'portal_rating_count', {
+      status: 'ended',
+      until: DEC_1,
+      open: { start: NOV_1, end: DEC_1 },
+    })
+
+    if (!isPropertyCountGoal(ended)) throw new Error('expected a Property count goal')
+    expect(changeFactsOf(ended, NOV_22, 'Europe/Sofia')).toBeNull()
+  })
+
+  it('only a stopped goal has a way to the next, and only to a month the sheet offers', () => {
+    const counting = (key: string) =>
+      ({ key, measure: 'portal_rating_count', target: 40 }) as const
+
+    expect(
+      newGoalFromOf(
+        { status: 'active', month: null, countingMonth: counting('2026-11') },
+        months,
+      ),
+    ).toBeNull()
+    expect(
+      newGoalFromOf(
+        { status: 'ended', month: null, countingMonth: counting('2026-11') },
+        months,
+      ),
+    ).toBe('2026-12')
+    // December's last month counted is no month this sheet can set.
+    expect(
+      newGoalFromOf(
+        { status: 'ended', month: null, countingMonth: counting('2026-12') },
+        months,
+      ),
+    ).toBeNull()
+    expect(
+      newGoalFromOf({ status: 'ended', month: null, countingMonth: null }, months),
+    ).toBeNull()
   })
 })
