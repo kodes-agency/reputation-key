@@ -91,6 +91,8 @@ export type PortalGoalOffer = Readonly<{
   soFar: number | null
   /** This month offered: its days left with today, and what they add at the usual. */
   rest: Readonly<{ daysLeft: number; about: number }> | null
+  /** The Property's time zone, whose months the goal follows. */
+  timezone: string
 }>
 
 /**
@@ -156,3 +158,14 @@ export type PortalGoalCardView =
     }>
 
 export type PortalGoalCardState = PortalGoalCardView['state']
+
+/** What the card's Use (and the set sheet) sends: one number, one measure, from one month. */
+export type SetMonthlyPortalGoalRequest = Readonly<{
+  propertyId: string
+  metric: PortalGoalMeasure
+  targetValue: number
+  /** `YYYY-MM`: the month the card or the sheet named. */
+  startMonth: string
+  /** What the screen offered; recorded only as far as the recommendation bears it out. */
+  targetSource: 'recommended' | 'own'
+}>

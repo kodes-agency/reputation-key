@@ -15,8 +15,7 @@
 // now, otherwise `own`, whatever the request said. The engine (`createGoal`)
 // refuses a target or a month it does not take, an Organization that is
 // closing, and decides scheduled or active.
-import type { GoalTargetSource } from '../../domain/goal-program'
-import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
+import type { SetMonthlyPortalGoalRequest } from '../dto/monthly-portal-goal.types'
 import { isPortalGoalMeasure, isPropertyCountGoal } from '../monthly-portal-goal-identity'
 import type {
   GoalProgramBundle,
@@ -37,16 +36,6 @@ import { offeredChoices } from './monthly-portal-goal-offer'
 /** What the goal is called, everywhere it is named. */
 export const MONTHLY_PORTAL_GOAL_NAME = 'Monthly portal goal'
 
-export type SetMonthlyPortalGoalInput = Readonly<{
-  propertyId: string
-  metric: PortalGoalMeasure
-  targetValue: number
-  /** `YYYY-MM`: the month the card or the sheet named. */
-  startMonth: string
-  /** What the screen offered; recorded only as far as the recommendation bears it out. */
-  targetSource: GoalTargetSource
-}>
-
 export type MonthlyPortalGoalSetDeps = Readonly<{
   policy: GoalExecutionPolicy
   /** Every Program of the Property, for the pre-check: nothing is hidden from it. */
@@ -61,7 +50,7 @@ const isRunning = (bundle: GoalProgramBundle): boolean =>
 
 export async function setMonthlyPortalGoal(
   deps: MonthlyPortalGoalSetDeps,
-  input: SetMonthlyPortalGoalInput,
+  input: SetMonthlyPortalGoalRequest,
   actor: GoalActor,
 ): Promise<GoalProgramBundle> {
   const { organizationId } = actor
@@ -108,7 +97,7 @@ export async function setMonthlyPortalGoal(
 export type MonthlyPortalGoalSetRequestApi = Readonly<{
   set: (
     policy: GoalExecutionPolicy,
-    input: SetMonthlyPortalGoalInput,
+    input: SetMonthlyPortalGoalRequest,
     actor: GoalActor,
   ) => Promise<GoalProgramBundle>
 }>

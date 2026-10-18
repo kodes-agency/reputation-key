@@ -2,7 +2,8 @@
 // goal's row with its measure, its target, whom it counts and, while a month
 // runs, the month so far. On the History view, the ended goals. The table is
 // the one the Goals page always had; the card above it is now the Portal goals'
-// first state, so no goals draw nothing here.
+// first state, so no goals draw nothing here, and the goal the card shows is
+// not listed again.
 import { Link } from '@tanstack/react-router'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
@@ -37,6 +38,8 @@ type Props = Readonly<{
   view: 'active' | 'history'
   /** The goals of this view: those not ended, or those ended. */
   goals: readonly ListedGoal[]
+  /** The Program the card shows as the Monthly portal goal; null when it shows none. */
+  monthlyGoalId: string | null
   /** The month so far of the active goals, read apart from the list. */
   live: Readonly<{
     byProgram: ReadonlyMap<string, GoalListProgress>
@@ -54,7 +57,7 @@ function GoalRow({
   live,
   subjectName,
   now,
-}: Readonly<{ goal: ListedGoal }> & Omit<Props, 'view' | 'goals'>) {
+}: Readonly<{ goal: ListedGoal }> & Omit<Props, 'view' | 'goals' | 'monthlyGoalId'>) {
   const { program, version, assignments } = goal
   const currentSubjects = assignments
     .filter((assignment) => assignment.programVersionId === version.id)
@@ -109,7 +112,8 @@ function GoalRow({
   )
 }
 
-export function PortalGoalExtras({ view, goals, ...rows }: Props) {
+export function PortalGoalExtras({ view, goals: listed, monthlyGoalId, ...rows }: Props) {
+  const goals = listed.filter(({ program }) => program.id !== monthlyGoalId)
   // The card is the Active view's state; the section says an empty History.
   if (goals.length === 0) return null
   return (

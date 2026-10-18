@@ -15,12 +15,9 @@ import {
   CARD_DRAFTS_TWO,
   CARD_GETTING_READY,
   CARD_GETTING_READY_SILENT,
-  CARD_GOAL,
   CARD_NO_PORTAL,
   CARD_NOTHING,
-  CARD_READY,
   CARD_REC_UNREADABLE,
-  CARD_SCANS_ONLY,
   SEAVIEW,
 } from './portal-goal.stories.fixtures'
 
@@ -44,6 +41,7 @@ const meta: Meta<typeof PortalGoalSection> = {
     propertyId: SEAVIEW.propertyId,
     card: read(CARD_GETTING_READY),
     canCreatePortal: true,
+    commands: { setMonthlyPortalGoalFn: fn(), onSet: fn() },
   },
   // As wide as the Goals page draws the section.
   render: (args) => (
@@ -269,57 +267,6 @@ export const RecommendationUnreadableOnANarrowPhone: Story = {
 export const RecommendationUnreadableOnADesktop: Story = {
   ...RecommendationUnreadable,
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
-}
-
-/** Until the card can offer it, a ready number draws the steps and the month so far: no heading, no ready day, no number. */
-async function expectReadyBeforeItsOffer(
-  canvas: Canvas,
-  sectionLine: string,
-  soFar: string,
-) {
-  await expectTitles(canvas)
-  await expect(canvas.getByText(sectionLine)).toBeVisible()
-  await expect(readinessNames(canvas)).toEqual(['Reception', 'Restaurant'])
-  await expect(canvas.getByText(soFar)).toBeVisible()
-  await expect(canvas.queryByText('Getting your portals ready')).toBeNull()
-  await expect(canvas.queryByText(/Your recommended number is ready/u)).toBeNull()
-  await expect(canvas.queryByRole('button')).toBeNull()
-}
-
-export const ScansOnlyBeforeItsOffer: Story = {
-  args: { card: read(CARD_SCANS_ONLY) },
-  play: async ({ canvasElement }) => {
-    await expectReadyBeforeItsOffer(
-      within(canvasElement),
-      'How many scans your portals get each month.',
-      'So far in October: 0 private ratings · 23 scans',
-    )
-  },
-}
-
-export const ReadyBeforeItsOffer: Story = {
-  args: { card: read(CARD_READY) },
-  play: async ({ canvasElement }) => {
-    await expectReadyBeforeItsOffer(
-      within(canvasElement),
-      RATINGS_LINE,
-      'So far in October: 12 private ratings · 47 scans',
-    )
-  },
-}
-
-/** With a goal the card draws nothing yet: the goal is listed with the other Portal goals. */
-export const WithAGoal: Story = {
-  args: { card: read(CARD_GOAL) },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByRole('heading', { level: 2, name: 'Portal goals' }),
-    ).toBeVisible()
-    await expect(canvasElement.querySelector('[data-slot="portal-goal-card"]')).toBeNull()
-    await expect(canvas.queryByRole('heading', { level: 3 })).toBeNull()
-    await expect(canvas.queryByText(RATINGS_LINE)).toBeNull()
-  },
 }
 
 /** A read on its way keeps the card's room, and says nothing it does not know yet. */

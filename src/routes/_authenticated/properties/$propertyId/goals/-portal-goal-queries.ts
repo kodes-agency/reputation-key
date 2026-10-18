@@ -1,7 +1,7 @@
 // The Monthly portal goal's reads, defined once for every page that draws it
-// (route-query-definitions.test.ts), and the one function every Portal-goal
-// command marks them stale through (the product-state ledger's goalKeys
-// policy); its first caller is the card's Use.
+// (route-query-definitions.test.ts), its commands, and the one function every
+// Portal-goal command marks them stale through (the product-state ledger's
+// goalKeys policy); its first caller is the card's Use.
 //
 // None of it may reach first paint (scripts/check-bundle-budget.mjs):
 //
@@ -53,6 +53,16 @@ export async function prefetchPortalGoalSection(
 ): Promise<void> {
   // `prefetchQuery` never throws: a failed read is the section's to say.
   await queryClient.prefetchQuery(portalGoalCardQuery(propertyId))
+}
+
+/**
+ * The Monthly portal goal's commands, each fetched with its first use like the
+ * reads: a component is handed these, never the server module.
+ */
+export const portalGoalCommands = {
+  setMonthlyPortalGoal: async (
+    input: Parameters<MonthlyPortalGoalServer['setMonthlyPortalGoal']>[0],
+  ) => (await server()).setMonthlyPortalGoal(input),
 }
 
 /**

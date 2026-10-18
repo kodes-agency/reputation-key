@@ -5,6 +5,7 @@ import type {
   RecommendationPortal,
 } from '../../domain/goal-recommendation-types'
 import { setMonthlyPortalGoalSchema } from '../dto/monthly-portal-goal.dto'
+import type { SetMonthlyPortalGoalRequest } from '../dto/monthly-portal-goal.types'
 import type {
   GoalProgramBundle,
   GoalProgramVersion,
@@ -15,7 +16,6 @@ import {
   MONTHLY_PORTAL_GOAL_NAME,
   setMonthlyPortalGoal,
   type MonthlyPortalGoalSetDeps,
-  type SetMonthlyPortalGoalInput,
 } from './monthly-portal-goal'
 
 const PROPERTY_ID = 'property-1'
@@ -160,7 +160,7 @@ function fakeWorld(programs: readonly GoalProgramBundle[] = []) {
   return { deps, calls }
 }
 
-const NOVEMBER_40: SetMonthlyPortalGoalInput = {
+const NOVEMBER_40: SetMonthlyPortalGoalRequest = {
   propertyId: PROPERTY_ID,
   metric: 'portal_rating_count',
   targetValue: 40,
@@ -221,7 +221,11 @@ describe('setMonthlyPortalGoal', () => {
 
     expect(setMonthlyPortalGoalSchema.safeParse(average).success).toBe(false)
     await expect(
-      setMonthlyPortalGoal(deps, average as unknown as SetMonthlyPortalGoalInput, actor),
+      setMonthlyPortalGoal(
+        deps,
+        average as unknown as SetMonthlyPortalGoalRequest,
+        actor,
+      ),
     ).rejects.toMatchObject({ code: 'invalid_target' })
     expect(deps.programs.create).not.toHaveBeenCalled()
   })

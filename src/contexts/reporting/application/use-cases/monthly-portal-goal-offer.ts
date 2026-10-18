@@ -72,5 +72,6 @@ export function portalGoalOfferOf(
     rest: current
       ? { daysLeft: months.current.daysLeftWithToday, about: choices.about }
       : null,
+    timezone: recommendation.timezone,
   }
 }

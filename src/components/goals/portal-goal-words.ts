@@ -1,15 +1,18 @@
 // The Monthly portal goal card's words, before a goal (copy deck G-2, G-5…G-11,
-// G-19). The read decides every state, day and number (PLAN E12); this only
-// says them, in one place, so a card, its stories and its tests spell each line
+// G-19) and, until the running card arrives, with one (G-20…G-22, G-24, G-25).
+// The read decides every state, day and number (PLAN E12); this only says
+// them, in one place, so a card, its stories and its tests spell each line
 // once. Days arrive as Property-local `YYYY-MM-DD`, months as `YYYY-MM`, and
 // are printed as those days: no reader's zone can move them.
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalCardView,
+  PortalGoalOfCard,
   PortalGoalSoFar,
   PortalReadinessRow,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { formatLocalDate, formatMonthName, formatNumber } from '#/lib/format'
+import { daysLeftWords } from './goal-live-view'
 import { PORTAL_NO_SCAN_HINT } from './portal-goal-copy'
 
 /** Each measure's unit, one and many. */
@@ -42,18 +45,24 @@ const monthName = (month: string): string =>
 /** "Oct 23", for the Property-local day `2026-10-23`. */
 const dayWords = (day: string): string => formatLocalDate(day, { year: false }) ?? day
 
+const RATINGS_SECTION_LINE = 'How many private ratings your portals bring in each month.'
+const SCANS_SECTION_LINE = 'How many scans your portals get each month.'
+
 /** G-2: what the goal counts, under the section's title. None at a gate (G-5 says it). */
 export function portalGoalSectionLine(card: PortalGoalCardView): string | null {
   switch (card.state) {
-    // At a gate the fact says it; a goal's measure arrives with its own card.
+    // At a gate the fact says it.
     case 'no_portal':
     case 'drafts_only':
-    case 'goal':
       return null
     case 'scans_only':
-      return 'How many scans your portals get each month.'
+      return SCANS_SECTION_LINE
+    case 'goal':
+      return card.goal.measure === 'qualified_scans'
+        ? SCANS_SECTION_LINE
+        : RATINGS_SECTION_LINE
     default:
-      return 'How many private ratings your portals bring in each month.'
+      return RATINGS_SECTION_LINE
   }
 }
 
@@ -161,3 +170,45 @@ export function nothingCountedWords(weeks: number): Readonly<{
 /** G-19: the recommendation could not be read. */
 export const RECOMMENDATION_UNREADABLE_WORDS =
   'Your recommended number can’t be read right now.'
+
+/** "40 private ratings", "1 scan". */
+const countOf = (goal: PortalGoalOfCard, n: number): string =>
+  `${formatNumber(n)} ${portalGoalUnit(goal.measure, n)}`
+
+/** "November · 40 private ratings": the month and the number it counts against. */
+const monthTarget = (goal: PortalGoalOfCard, month: string, target: number): string =>
+  `${monthName(month)} · ${countOf(goal, target)}`
+
+/**
+ * G-20…G-22, G-24 and G-25: the goal on its card, until the running card draws
+ * its bar, rows and pace. Scheduled: the first month and its number, the day it
+ * starts and this month so far. Running: the figure of the month's own target,
+ * and what is left to go (or that it has passed) with the days left, today
+ * counted. A figure that cannot be read says so and is never a zero.
+ */
+export function goalLines(goal: PortalGoalOfCard, today: string): readonly string[] {
+  const { month } = goal
+  if (goal.status === 'scheduled' && goal.startsOn !== null) {
+    const soFar =
+      goal.currentMonthSoFar === null
+        ? ''
+        : ` · ${monthName(today.slice(0, 7))} so far: ${formatNumber(goal.currentMonthSoFar)}`
+    return [
+      monthTarget(goal, goal.startsOn.slice(0, 7), goal.target),
+      `Starts on ${dayWords(goal.startsOn)}${soFar}`,
+    ]
+  }
+  if (month === null) return [monthTarget(goal, today.slice(0, 7), goal.target)]
+  if (month.value === null) {
+    return [
+      monthTarget(goal, month.key, month.target),
+      'This month’s figure can’t be read right now.',
+    ]
+  }
+  const left = daysLeftWords(month.daysAfterToday)
+  const toGo = month.target - month.value
+  return [
+    `${formatNumber(month.value)} of ${countOf(goal, month.target)}`,
+    toGo > 0 ? `${formatNumber(toGo)} to go · ${left}` : `Goal passed · ${left}`,
+  ]
+}

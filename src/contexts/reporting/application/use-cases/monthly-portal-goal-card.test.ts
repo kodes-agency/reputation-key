@@ -418,6 +418,7 @@ describe('readMonthlyPortalGoalCard', () => {
         newPortals: [{ name: 'Spa', liveDays: 8, joinsOn: '2026-10-29' }],
         soFar: null,
         rest: null,
+        timezone: 'Europe/Sofia',
       },
     })
   })

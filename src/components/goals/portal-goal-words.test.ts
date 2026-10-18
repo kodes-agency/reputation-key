@@ -5,7 +5,14 @@ import type {
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { PORTAL_NO_SCAN_HINT } from './portal-goal-copy'
 import {
+  CARD_RUNNING,
+  CARD_SCANS_ONLY,
+  CARD_SCHEDULED,
+  GOAL_SCHEDULED,
+} from './portal-goal.stories.fixtures'
+import {
   gateWords,
+  goalLines,
   listOfNames,
   nothingCountedWords,
   portalGoalSectionLine,
@@ -142,9 +149,18 @@ describe('the Monthly portal goal card, in words', () => {
     expect(line({ state: 'getting_ready', readyOn: '2026-10-23', ...FIRST_WEEKS })).toBe(
       'How many private ratings your portals bring in each month.',
     )
-    expect(line({ state: 'scans_only', ...FIRST_WEEKS })).toBe(
-      'How many scans your portals get each month.',
+    expect(line(CARD_SCANS_ONLY)).toBe('How many scans your portals get each month.')
+    // With a goal, its own measure.
+    expect(line(CARD_SCHEDULED)).toBe(
+      'How many private ratings your portals bring in each month.',
     )
+    expect(
+      line({
+        state: 'goal',
+        today: '2026-10-23',
+        goal: { ...GOAL_SCHEDULED, measure: 'qualified_scans' },
+      }),
+    ).toBe('How many scans your portals get each month.')
     expect(line({ state: 'nothing_counted', weeks: 2 })).toBe(
       'How many private ratings your portals bring in each month.',
     )
@@ -164,5 +180,60 @@ describe('the Monthly portal goal card, in words', () => {
     expect(timeZoneCity('America/New_York')).toBe('New York')
     expect(timeZoneCity('America/Argentina/Buenos_Aires')).toBe('Buenos Aires')
     expect(timeZoneCity('UTC')).toBe('UTC')
+  })
+})
+
+describe('the Monthly portal goal on its card, in words', () => {
+  const RUNNING = CARD_RUNNING.state === 'goal' ? CARD_RUNNING.goal : GOAL_SCHEDULED
+  const running = (month: Partial<NonNullable<typeof RUNNING.month>>) => ({
+    ...RUNNING,
+    month: { key: '2026-11', target: 40, value: 23, daysAfterToday: 8, ...month },
+  })
+
+  it('a scheduled goal says its month, when it starts and this month so far', () => {
+    expect(goalLines(GOAL_SCHEDULED, '2026-10-23')).toEqual([
+      'November · 40 private ratings',
+      'Starts on Nov 1 · October so far: 12',
+    ])
+    expect(
+      goalLines({ ...GOAL_SCHEDULED, currentMonthSoFar: null }, '2026-10-23'),
+    ).toEqual(['November · 40 private ratings', 'Starts on Nov 1'])
+  })
+
+  it('a running goal says its figure, what is left to go and the days left', () => {
+    expect(goalLines(RUNNING, '2026-11-22')).toEqual([
+      '23 of 40 private ratings',
+      '17 to go · 9 days left',
+    ])
+    expect(goalLines(running({ daysAfterToday: 0 }), '2026-11-30')).toEqual([
+      '23 of 40 private ratings',
+      '17 to go · last day',
+    ])
+    expect(goalLines({ ...running({ target: 1, value: 0 }) }, '2026-11-22')[0]).toBe(
+      '0 of 1 private rating',
+    )
+  })
+
+  it('a goal passed says so, never a negative to go', () => {
+    expect(goalLines(running({ value: 41, daysAfterToday: 3 }), '2026-11-27')).toEqual([
+      '41 of 40 private ratings',
+      'Goal passed · 4 days left',
+    ])
+  })
+
+  it('a figure that cannot be read is never a zero', () => {
+    expect(goalLines(running({ value: null, target: 45 }), '2026-11-22')).toEqual([
+      'November · 45 private ratings',
+      'This month’s figure can’t be read right now.',
+    ])
+  })
+
+  it('a goal with no month running says its number', () => {
+    expect(
+      goalLines(
+        { ...RUNNING, status: 'paused', month: null, measure: 'qualified_scans' },
+        '2026-11-22',
+      ),
+    ).toEqual(['November · 40 scans'])
   })
 })
