@@ -157,9 +157,26 @@ function countingMonthOf(bundle: PropertyCountGoal): PortalGoalOfCard['countingM
 const windowAt = (bundle: PropertyCountGoal, now: Date): GoalSubjectAssignment | null =>
   bundle.assignments.find(
     ({ effectiveFrom, effectiveTo }) =>
-      effectiveFrom <= now &&
-      (effectiveTo === null || (effectiveTo > now && effectiveTo > effectiveFrom)),
+      effectiveFrom <= now && (effectiveTo === null || effectiveTo > now),
   ) ?? null
+
+/**
+ * A stopped goal's stop, while its month still counts: the local day it was
+ * stopped (none for an end before migration 0062 recorded one) and the
+ * month's last day.
+ */
+function stopOf(
+  bundle: PropertyCountGoal,
+  period: Period,
+  timezone: string,
+): PortalGoalOfCard['stopped'] {
+  const { status, endedAt } = bundle.program
+  if (status !== 'ended') return null
+  return {
+    on: endedAt ? localDateOf(endedAt, timezone) : null,
+    monthEnd: localDateOf(new Date(period.end.getTime() - 1), timezone),
+  }
+}
 
 /**
  * A stopped goal's month while it still counts: its window holds now, so this
@@ -315,23 +332,11 @@ export async function monthlyPortalGoalOnCard(
     return { ...goal, lastMonth, countingMonth: countingMonthOf(bundle) }
   }
   const { month, period } = counting
-  const stopped =
-    program.status === 'ended'
-      ? {
-          on: program.endedAt
-            ? localDateOf(program.endedAt, recommendation.timezone)
-            : null,
-          monthEnd: localDateOf(
-            new Date(period.end.getTime() - 1),
-            recommendation.timezone,
-          ),
-        }
-      : null
   return {
     ...goal,
     month,
     rows: rowsOf(recommendation, measure, month),
-    stopped,
+    stopped: stopOf(bundle, period, recommendation.timezone),
     lastMonth,
   }
 }
