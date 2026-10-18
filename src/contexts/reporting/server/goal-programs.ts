@@ -12,7 +12,6 @@ import {
   getGoalProgressSchema,
   goalProgramIdentitySchema,
   listGoalProgramsSchema,
-  previewGoalMonthSchema,
   reviseGoalProgramSchema,
 } from '../application/dto/goal-program.dto'
 import { withGoalPrograms } from './goal-program-request.server'
@@ -134,19 +133,5 @@ export const getGoalProgramProgress = createServerFn({ method: 'GET' })
         })),
       'GET',
       'goal.getGoalProgramProgress',
-    ),
-  )
-
-/** The month so far for one subject and measure, before its goal is saved. */
-export const previewGoalMonth = createServerFn({ method: 'GET' })
-  .validator(previewGoalMonthSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => ({
-          preview: await programs.monthPreview(policy, data, actor),
-        })),
-      'GET',
-      'goal.previewGoalMonth',
     ),
   )

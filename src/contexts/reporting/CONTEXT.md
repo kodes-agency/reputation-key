@@ -214,6 +214,21 @@ metric authority.
   and measure. A row that cannot be saved is reported with its reason and never holds back
   the others, and a row reached after the chosen month has ended is not written. There is no
   target that subjects share and no Property total.
+- **Add a portal goal** (ADR 0068, PLAN PG-20; `application/use-cases/portal-goal-add-options.ts`,
+  `portal-goal-add-numbers.ts`, `portal-goal-add.ts`): one click deeper than the Monthly
+  portal goal, a goal for one Portal, for each Portal (both from 2 live Portals), for a
+  Portal Group (one with a listed Portal), or the Property's average private rating (from 10
+  private ratings in the last 4 weeks). The read is authorised for `goal.create` and offers
+  the recommendation's month and measure; each Portal and group gets the Monthly portal
+  goal's rule on its own: a Portal's rate its own, a group's its members' now summed, and
+  this month on top of its own month so far, a group's being every reading recorded with the
+  group (`group_id`, the Portal's group at source-event time, from the recommendation's one
+  statement), so a Portal that moved counts in its old group before the move and its new one
+  after. A subject with a goal on the measure from that month is "Has a goal". The commands
+  are the engine's own: `createGoal` for one Portal, one group or the average (named
+  "Reception · Private ratings", "Average private rating"), and the save for several
+  subjects for each Portal; each number is stored as recommended only when it is the one the
+  read offers that subject now. A count goal for the Property alone is never made here.
 - **Property Google rating goal**: a Property's target for the one-decimal rating Google
   shows, with a planned quality (the average stars it assumes new Google reviews bring) and
   a chosen weekly pace of new Google reviews (a climb goal), or a watch that
@@ -481,6 +496,13 @@ number sent as recommended; the reporting context also composes the authorized
 read on its own as `internal.useCases.goalRecommendation`. The Goals route reaches
 `server/monthly-portal-goals.ts` only by its own `import()` (`-portal-goal-queries.ts`),
 so its server functions stay out of first paint (`route-server-fn-bundles.test.ts`).
+
+"Add a portal goal" reads Portal's `listGoalReadinessFacts` too (each Portal's group now)
+and names the Property's Portal Groups through the Goal Program subject reader. Its request
+surface is `programs.portalGoalAdd` (`options`, `one`, `each`), reached through
+`getPortalGoalAddOptions`, `addPortalGoal` and `addPortalGoals` in the same lazy server module.
+The New goal page and its table that set goals for several portals are gone; `/goals/new`
+only redirects to the goal page's add sheet.
 
 The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
 `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and

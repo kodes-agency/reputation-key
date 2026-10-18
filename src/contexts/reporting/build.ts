@@ -61,10 +61,6 @@ import {
 import { withGoalProgramVisibility } from './application/use-cases/goal-program-visibility'
 import { createGoalsForSubjects } from './application/use-cases/goal-bulk-create'
 import {
-  readGoalMonthPreview,
-  type GoalMonthPreviewRequestApi,
-} from './application/use-cases/goal-month-preview'
-import {
   readPortalGoalRecommendation,
   type PortalGoalRecommendationRequestApi,
 } from './application/use-cases/goal-recommendation-read'
@@ -454,7 +450,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
   const programs: GoalProgramRequestApi &
     GoalProgressRequestApi &
     GoalListProgressRequestApi &
-    GoalMonthPreviewRequestApi &
     MonthlyPortalGoalRequestApi &
     PortalGoalAddRequestApi = Object.freeze({
     create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
@@ -470,16 +465,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
     programProgress: (policy, ...args) => readGoalProgramProgress(policy)(...args),
     listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
-    monthPreview: (policy, ...args) =>
-      readGoalMonthPreview(
-        {
-          policy,
-          subjects: goalProgramSubjects,
-          metrics: metricApi,
-          now: input.clock,
-        },
-        ...args,
-      ),
     monthlyPortalGoal,
     portalGoalAdd,
   })

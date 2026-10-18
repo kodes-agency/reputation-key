@@ -149,18 +149,6 @@ describe('goal query keys', () => {
     )
   })
 
-  it('keys a month preview by property, measure and subject', () => {
-    expect(
-      goalKeys.monthPreview('property-1', 'qualified_scans', 'portal:portal-1'),
-    ).toEqual([
-      'goals',
-      'month-preview',
-      'property-1',
-      'qualified_scans',
-      'portal:portal-1',
-    ])
-  })
-
   it('keeps every read of a Property Google rating goal under one key of that Property', () => {
     const family = goalKeys.ratingGoal('property-1')
 

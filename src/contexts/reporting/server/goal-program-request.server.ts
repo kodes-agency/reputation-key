@@ -18,7 +18,6 @@ import {
   type GoalExecutionPolicy,
   type GoalProgramRequestApi,
 } from '../application/use-cases/goal-programs'
-import type { GoalMonthPreviewRequestApi } from '../application/use-cases/goal-month-preview'
 import type { GoalProgressRequestApi } from '../application/use-cases/goal-progress'
 import type { GoalListProgressRequestApi } from '../application/use-cases/goal-list-progress'
 import type { MonthlyPortalGoalRequestApi } from '../application/use-cases/monthly-portal-goal-page'
@@ -86,7 +85,6 @@ export async function withGoalPrograms<T>(
     programs: GoalProgramRequestApi &
       GoalProgressRequestApi &
       GoalListProgressRequestApi &
-      GoalMonthPreviewRequestApi &
       MonthlyPortalGoalRequestApi &
       PortalGoalAddRequestApi,
     policy: GoalExecutionPolicy,

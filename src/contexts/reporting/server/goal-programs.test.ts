@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   progress: vi.fn(),
   programProgress: vi.fn(),
   listProgress: vi.fn(),
-  monthPreview: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -30,7 +29,6 @@ vi.mock('#/composition', () => ({
         progress: mocks.progress,
         programProgress: mocks.programProgress,
         listProgress: mocks.listProgress,
-        monthPreview: mocks.monthPreview,
       },
     },
   }),
@@ -50,7 +48,6 @@ import {
   changeGoalProgramAssignmentsSchema,
   createGoalProgramSchema,
   getGoalProgressSchema,
-  previewGoalMonthSchema,
 } from '../application/dto/goal-program.dto'
 import {
   changeGoalProgramAssignments,
@@ -61,7 +58,6 @@ import {
   getGoalProgramProgress,
   getGoalProgress,
   listGoalPrograms,
-  previewGoalMonth,
   reviseGoalProgram,
 } from './goal-programs'
 
@@ -251,36 +247,6 @@ describe('canonical Goal Program server functions', () => {
       identity,
       actor,
     )
-  })
-
-  it('reads the month so far for one subject before a goal exists', async () => {
-    const preview = { metric: 'qualified_scans', reading: { kind: 'live', value: 412 } }
-    mocks.monthPreview.mockResolvedValue(preview)
-    const input = {
-      propertyId: PROPERTY_ID,
-      metric: 'qualified_scans' as const,
-      subject: { kind: 'portal' as const, portalId: PORTAL_ID },
-    }
-
-    await withStartContext(() => previewGoalMonth({ data: input }))
-
-    expect(mocks.monthPreview).toHaveBeenCalledWith(expect.any(Object), input, actor)
-  })
-
-  it('accepts a month preview only for a known measure and a subject that is an id', () => {
-    const subject = { kind: 'portal' as const, portalId: PORTAL_ID }
-    const base = { propertyId: PROPERTY_ID, metric: 'qualified_scans', subject }
-
-    expect(previewGoalMonthSchema.safeParse(base).success).toBe(true)
-    expect(
-      previewGoalMonthSchema.safeParse({ ...base, metric: 'google_rating' }).success,
-    ).toBe(false)
-    expect(
-      previewGoalMonthSchema.safeParse({
-        ...base,
-        subject: { kind: 'portal', portalId: 'not-an-id' },
-      }).success,
-    ).toBe(false)
   })
 
   it('accepts a progress read only for a subject that is an id', () => {

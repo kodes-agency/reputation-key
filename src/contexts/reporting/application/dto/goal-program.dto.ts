@@ -198,16 +198,8 @@ export const getGoalProgressSchema = z.object({
   subject: goalProgramSubjectSchema,
 })
 
-/** The month so far for one subject and measure, read before a goal exists. */
-export const previewGoalMonthSchema = z.object({
-  propertyId: uuid,
-  metric: goalProgramMetricSchema,
-  subject: goalProgramSubjectSchema,
-})
-
 export type CreateGoalProgramInput = z.infer<typeof createGoalProgramSchema>
 export type ReviseGoalProgramInput = z.infer<typeof reviseGoalProgramSchema>
-export type CreateGoalProgramFormInput = z.input<typeof createGoalProgramFormSchema>
 export type ReviseGoalProgramFormInput = z.input<typeof reviseGoalProgramFormSchema>
 export type GoalProgramAssignmentEditorInput = z.input<
   typeof goalProgramAssignmentEditorSchema
