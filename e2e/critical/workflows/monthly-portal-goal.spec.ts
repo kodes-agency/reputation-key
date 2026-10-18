@@ -952,8 +952,13 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
           .locator('[data-slot="portal-goal-card"]')
           .getByRole('heading', { level: 3, name: 'Monthly portal goal' }),
       ).toBeVisible()
-      await expect(section.getByRole('link', { name: 'Reception ratings' })).toBeVisible()
-      await expect(page.getByRole('link', { name: 'Spa scans' })).toHaveCount(0)
+      // A compact row, named for whom it counts and what (PG-21).
+      await expect(
+        section.getByRole('link', { name: 'Reception · Private ratings', exact: true }),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('link', { name: 'Spa · Scans', exact: true }),
+      ).toHaveCount(0)
       await expect(
         section.getByRole('link', { name: 'Ended portal goals (1)' }),
       ).toHaveAttribute('href', `/properties/${propertyId}/goals/portal-results#ended`)

@@ -22,6 +22,7 @@ import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
 import type { PortalGoalChangeFacts } from '../dto/monthly-portal-goal.types'
 import { monthTargetPlan } from '../goal-month-target-plan'
 import { nextRevisionStart } from '../goal-revision-start'
+import type { PropertyCountGoal } from '../monthly-portal-goal-identity'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 
 /**

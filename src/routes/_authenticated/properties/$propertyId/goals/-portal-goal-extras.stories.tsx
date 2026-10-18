@@ -3,7 +3,8 @@
 // page, with this month so far while it runs. The Goals page lists the first
 // five, then "See all on the goal page"; while the months are first read each
 // running row keeps the room its line will take; a month that cannot be read
-// says so once, above the rows; the History view lists every ended goal. At
+// says so once, above the rows; the goals not ended only, on both of the Google
+// section's views (the ended ones are on the Portal goal results page). At
 // 320, 390, 820 and 1440 px and on the light theme. The Storybook Vitest
 // project compiles no Tailwind, so the plays assert words, roles and links.
 import type { ComponentProps } from 'react'
@@ -135,7 +136,6 @@ const meta: Meta<typeof PortalGoalExtras> = {
   parameters: { layout: 'padded', viewport: { defaultViewport: 'desktopManager' } },
   args: {
     propertyId: PROPERTY_ID,
-    view: 'active',
     goals: SIX,
     monthlyGoalId: null,
     live: LIVE,
@@ -202,28 +202,6 @@ export const MonthsUnreadable: Story = {
       within(canvasElement).getByText('This month’s figures can’t be read right now.'),
     ).toBeVisible()
     await expect(rowNames(canvasElement)).toHaveLength(5)
-  },
-}
-
-/** The History view lists every ended goal, with no title and no See all. */
-export const History: Story = {
-  args: {
-    view: 'history',
-    goals: SIX.map((each) => ({
-      ...each,
-      program: { ...each.program, status: 'ended' as const },
-    })),
-    limit: undefined,
-  },
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('heading', { name: 'More portal goals' })).toBeNull()
-    await expect(canvas.getByRole('list', { name: 'Goal history' })).toBeVisible()
-    await expect(rowNames(canvasElement)).toHaveLength(6)
-    await expect(
-      canvas.queryByRole('link', { name: 'See all on the goal page' }),
-    ).toBeNull()
   },
 }
 
