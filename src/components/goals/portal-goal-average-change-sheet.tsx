@@ -4,7 +4,7 @@
 // The primary sends "now" as a change of the running month and the months
 // after it, and "from next month" as a revision; a toast says what was saved.
 // It is the Monthly portal goal's sheet frame, with no suggestions: there is no
-// recommended average.
+// recommended average. Its form is `portal-goal-average-change-body.tsx`.
 //
 // It works from the goal as the sheet opened on it. A refusal is said in the
 // banner above the footer. When the sheet is behind the goal (someone changed
@@ -20,24 +20,18 @@ import type {
   ReviseMonthlyPortalGoalRequest,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import type { PortalGoalAverageOfPage } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
-import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import { Button } from '#/components/ui/button'
-import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
-import { SegmentedControl } from '#/components/ui/segmented-control'
 import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
+import { PortalGoalAverageChangeBody } from './portal-goal-average-change-body'
 import {
   changedAverageDraft,
   openingAverageDraft,
   portalGoalAverageChangeModel,
   type PortalGoalAverageChangeSubmission,
 } from './portal-goal-average-change-view'
-import { PortalGoalNoteField } from './portal-goal-note-field'
-import { PortalGoalNumberTile } from './portal-goal-number-tile'
 import { PortalGoalSheetFrame } from './portal-goal-sheet-frame'
 import { changeRefusals, PORTAL_CHANGE_REOPENS } from './portal-goal-sheet-refusals'
 import { SINGLE_GOAL_WORDS } from './portal-goal-single-page-view'
@@ -140,63 +134,19 @@ export function PortalGoalAverageChangeSheet(props: PortalGoalAverageChangeSheet
       onCloseAutoFocus={props.onCloseAutoFocus}
     >
       {(phone) => (
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault()
+        <PortalGoalAverageChangeBody
+          model={model}
+          small={phone}
+          pending={pending}
+          error={error}
+          notice={notice}
+          onChange={edit}
+          onSubmit={() => {
             if (model.submission !== null && model.toast !== null) {
               send({ submission: model.submission, toast: model.toast })
             }
           }}
-        >
-          {model.months.length < 2 ? null : (
-            <SegmentedControl
-              touch
-              aria-label="Month"
-              value={model.month}
-              onValueChange={(month) => edit({ kind: 'month', month })}
-              options={model.months}
-              disabled={pending}
-              className="self-center"
-            />
-          )}
-          <PortalGoalNumberTile
-            band={model.band}
-            unit={model.unit}
-            number={model.number}
-            small={phone}
-            pending={pending}
-            decimal
-            onType={(text) => edit({ kind: 'type', text })}
-            onCommit={() => edit({ kind: 'commit' })}
-            onStep={(value) => edit({ kind: 'number', value })}
-            onFocusChange={() => undefined}
-          />
-          <p className="text-center text-sm text-muted-foreground">{model.status}</p>
-          <PortalGoalNoteField
-            note={model.note}
-            pending={pending}
-            onOpen={() => edit({ kind: 'note_open' })}
-            onType={(text) => edit({ kind: 'note', text })}
-          />
-          {notice === null ? (
-            <DialogErrorBanner error={error} />
-          ) : (
-            <FormErrorBanner error={notice} />
-          )}
-          <DialogFooter>
-            <DialogCancel />
-            <Button
-              type="submit"
-              disabled={model.primary.disabled}
-              pending={pending}
-              pendingLabel="Saving…"
-              className="whitespace-normal"
-            >
-              {model.primary.label}
-            </Button>
-          </DialogFooter>
-        </form>
+        />
       )}
     </PortalGoalSheetFrame>
   )
