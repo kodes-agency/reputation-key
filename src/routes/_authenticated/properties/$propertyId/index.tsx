@@ -23,6 +23,7 @@ import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { portalOverviewQuery } from './portals/-portal-overview-data'
 import { OverviewRatingGoal } from './goals/-rating-goal-overview'
+import { OverviewPortalGoal } from './goals/-portal-goal-overview'
 import { useRatingGoalNotNow } from './goals/-rating-goal-not-now'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 
@@ -44,9 +45,11 @@ const overviewQuery = (propertyId: string, timeRange: TimeRangePreset) =>
   })
 
 /**
- * How long the Overview waits for the Google rating goal once its own reads are
- * in. The goal is read beside them and is usually there by then, so nothing
- * below it moves; a slower goal follows on its own, and never holds the page.
+ * How long the Overview waits for its goals once its own reads are in: the
+ * Google rating goal and the Monthly portal goal, read together beside them,
+ * so it waits for the slower of the two, never longer. They are usually there
+ * by then, so nothing below them moves; a slower one follows on its own, and
+ * never holds the page.
  */
 const RATING_GOAL_GRACE_MS = 300
 
@@ -55,13 +58,15 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/')(
   staleTime: 60_000,
   loader: async ({ params: { propertyId }, context }) => {
     const { role, capabilities } = context as AuthRouteContext
-    // The Google rating goal, from a module fetched on demand so its reads
-    // stay out of first paint; a failed read leaves the goal out, no more.
+    // The Google rating goal and the Monthly portal goal, from one module
+    // fetched on demand so their reads stay out of first paint (the Goals
+    // page's, which re-exports `-overview-goals-prefetch`); a failed read
+    // leaves its goal out, no more.
     const goal =
       can(role, 'goal.read') && capabilities.allowed.includes('goal.use')
-        ? import('./goals/-rating-goal-queries')
-            .then((queries) =>
-              queries.prefetchRatingGoalOverview(context.queryClient, propertyId),
+        ? import('./goals/-goals-page-prefetch')
+            .then((prefetch) =>
+              prefetch.prefetchOverviewGoals(context.queryClient, propertyId, role),
             )
             .catch(() => undefined)
         : null
@@ -69,7 +74,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/')(
       context.queryClient.ensureQueryData(overviewQuery(propertyId, LIFETIME)),
       context.queryClient.ensureQueryData(overviewQuery(propertyId, PULSE)),
     ])
-    // The goal's promise never rejects (its failure is caught above).
+    // The goals' promise never rejects (a failure is caught above).
     if (goal !== null) {
       await Promise.race([
         goal,
@@ -119,6 +124,7 @@ function PropertyOverviewRoute() {
           />
         ) : null
       }
+      portalGoal={goals ? <OverviewPortalGoal propertyId={propertyId} /> : null}
       guestVoiceFns={{
         getTrend: getPropertyAiTrendFn,
         getAggregates: getPropertyAiAggregatesFn,
@@ -157,7 +163,10 @@ function usePortalSummary(
   }
 }
 
-/** The Google rating goal is the viewer's to see: `goal.read`, with Goals on. */
+/**
+ * The goals are the viewer's to see: `goal.read`, with Goals on. The Monthly
+ * portal goal's slot asks `goal.create` of its own.
+ */
 function useGoalsShown(): boolean {
   const { can } = usePermissions()
   const { has } = useCapabilities()

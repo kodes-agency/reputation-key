@@ -85,6 +85,8 @@ describe('route permission checks', () => {
       'requireGoogleImportRole, called by the beforeLoad of both import routes',
     '_authenticated/properties/$propertyId/goals/-goals-page-prefetch.ts':
       'prefetchGoalsPage, called by the Goals page loader: the Monthly portal goal card is primed only for goal.create',
+    '_authenticated/properties/$propertyId/-overview-goals-prefetch.ts':
+      'prefetchOverviewGoals, called by the Overview loader: the Monthly portal goal card is primed only for goal.create',
   }
   const asksStaticTable = ROUTES.map((file) => ({
     file: pathOf(file),

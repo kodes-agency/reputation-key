@@ -97,3 +97,15 @@ export const stopMonthlyPortalGoalSchema = z.object(ofTheGoal)
 
 /** The month-start check-in's Keep, for the month it asked about. */
 export const keepMonthlyPortalGoalSchema = z.object({ ...ofTheGoal, month: monthKey })
+
+/** The Overview prompt's "Not now", for the month it named. */
+export const deferMonthlyPortalGoalPromptSchema = z.object({
+  propertyId: z.uuid(),
+  month: monthKey,
+})
+
+/** A Portal's Results line. */
+export const monthlyPortalGoalLineSchema = z.object({
+  propertyId: z.uuid(),
+  portalId: z.uuid(),
+})

@@ -1,8 +1,10 @@
 // Portal Results tab — the range and the comparison are a viewing preference
 // that follows the reader from portal to portal; the figures come from one
-// server read per (range, comparison).
+// server read per (range, comparison). Above them, the Monthly portal goal's
+// line when the route hands one in; the tab keeps its loading state while that
+// line is read, so the line never pushes the figures down once they are drawn.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import { portalKeys } from '#/shared/queries/query-keys'
@@ -29,6 +31,10 @@ type Props = Readonly<{
    * that is not has nothing to count, and its empty state says to publish.
    */
   pageIsLive?: boolean
+  /** The Monthly portal goal's line, above everything the tab shows. */
+  goalLine?: ReactNode
+  /** The line is still being read: the tab shows its loading state until it is. */
+  goalLinePending?: boolean
 }>
 
 // Intentionally global, not per-portal: the selected range is a user-level
@@ -70,11 +76,26 @@ function remember(key: string, value: string): void {
 }
 
 export function PortalAnalyticsTab({
+  goalLine,
+  goalLinePending = false,
+  ...props
+}: Props) {
+  if (goalLine === undefined && !goalLinePending) return <ResultsBody {...props} />
+  return (
+    <div className="space-y-8">
+      {goalLinePending ? null : goalLine}
+      <ResultsBody {...props} holding={goalLinePending} />
+    </div>
+  )
+}
+
+function ResultsBody({
   portalId,
   propertyId,
   getPortalAnalytics,
   pageIsLive = true,
-}: Props) {
+  holding = false,
+}: Omit<Props, 'goalLine' | 'goalLinePending'> & Readonly<{ holding?: boolean }>) {
   const { can } = usePermissions()
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
   const [compare, setCompare] = useState<boolean>(readStoredCompare)
@@ -96,7 +117,7 @@ export function PortalAnalyticsTab({
   // pending, and the panel must stay, its button busy, rather than give way to the
   // skeleton and drop focus.
   const failed = hasFailed(query)
-  if (loading && !failed) return <PortalResultsLoading />
+  if ((loading || holding) && !failed) return <PortalResultsLoading />
 
   // getPortalAnalyticsFn authorizes on `dashboard.read`, a different capability
   // from the `portal.read` that got the reader onto this page — so a deliberate

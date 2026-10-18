@@ -74,6 +74,8 @@ export interface PropertyOverviewProps {
    * wizard; between the attention band and "How you are doing".
    */
   ratingGoal?: ReactNode
+  /** The Monthly portal goal: after "How you are doing", never beside the Google goal. */
+  portalGoal?: ReactNode
 }
 
 /** "812 reviews on Google", and Google's date while its numbers are not current. */
@@ -218,6 +220,7 @@ export function PropertyOverview({
   profileViewsFns,
   setupStrip,
   ratingGoal,
+  portalGoal,
 }: PropertyOverviewProps) {
   const [now] = useState(() => new Date())
   return (
@@ -256,6 +259,8 @@ export function PropertyOverview({
           Last 30 days against the 30 before · the rating is Google’s own.
         </p>
       </section>
+
+      {portalGoal}
 
       <OverviewGuestVoice propertyId={propertyId} serverFns={guestVoiceFns} />
 

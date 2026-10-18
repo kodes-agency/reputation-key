@@ -34,12 +34,19 @@
 // again when pressed twice. Keep is taken only on the running month's first
 // seven local days (`check_in_closed` otherwise) and only from a goal that
 // runs.
+//
+// The Overview's "Not now" on the ready prompt (PLAN PG-16; `goal.create`, as
+// the read that shows the prompt) records the month the prompt named, for the
+// Property: it hides that month's prompt, never a later month's. A month
+// already gone (a tab left open since) is taken and changes nothing; a month
+// after next month's, which no prompt names, is refused.
 import type { GoalMetric } from '../../domain/goal-program'
-import { monthKeyOf } from '../../domain/goal-start'
+import { goalStartOptions, monthKeyOf } from '../../domain/goal-start'
 import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
 import { checkInMonthAt } from '../../domain/portal-goal-check-in'
 import type {
   ChangeMonthlyPortalGoalNowRequest,
+  DeferMonthlyPortalGoalPromptRequest,
   KeepMonthlyPortalGoalRequest,
   ReviseMonthlyPortalGoalRequest,
   SetMonthlyPortalGoalRequest,
@@ -56,12 +63,14 @@ import type {
   GoalProgramBundle,
   GoalProgramRepository,
 } from '../ports/goal-program.repository'
+import type { PortalGoalPromptDeferralStore } from '../ports/portal-goal-prompt-deferrals.port'
 import type { GoalMonthTargetChangeResult } from './goal-month-target'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
   type GoalProgramService,
+  type GoalProgramSubjectReader,
 } from './goal-programs'
 import {
   gatherPortalGoalRecommendation,
@@ -376,6 +385,58 @@ export type MonthlyPortalGoalChangeRequestApi = Readonly<{
   keep: (
     policy: GoalExecutionPolicy,
     input: KeepMonthlyPortalGoalRequest,
+    actor: GoalActor,
+  ) => Promise<Readonly<{ month: string }>>
+}>
+
+export type MonthlyPortalGoalPromptDeps = Readonly<{
+  policy: GoalExecutionPolicy
+  /** The Property's time zone, whose months the prompt names. */
+  subjects: Pick<GoalProgramSubjectReader, 'getTimezone'>
+  prompts: Pick<PortalGoalPromptDeferralStore, 'defer'>
+  now: () => Date
+}>
+
+/**
+ * The Overview prompt's "Not now": the prompt for `month` (and any earlier
+ * month's) is not shown again; a later month's still is. It sets and changes no
+ * goal, and the Goals page's card still offers the number.
+ */
+export async function deferMonthlyPortalGoalPrompt(
+  deps: MonthlyPortalGoalPromptDeps,
+  input: DeferMonthlyPortalGoalPromptRequest,
+  actor: GoalActor,
+): Promise<Readonly<{ month: string }>> {
+  const { organizationId } = actor
+  const { propertyId, month } = input
+  await deps.policy.authorize({
+    actor,
+    organizationId,
+    propertyId,
+    action: 'goal.create',
+  })
+  const timezone = await deps.subjects.getTimezone(organizationId, propertyId)
+  if (!timezone) throw new GoalProgramError('not_found')
+  const now = deps.now()
+  // A prompt names this month or the next; months are `YYYY-MM`, ordered as strings.
+  if (month > goalStartOptions(now, timezone).next.monthKey) {
+    throw new GoalProgramError('start_month_changed')
+  }
+  await deps.prompts.defer({
+    organizationId,
+    propertyId,
+    month,
+    deferredBy: actor.userId,
+    deferredAt: now,
+  })
+  return { month }
+}
+
+/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
+export type MonthlyPortalGoalPromptRequestApi = Readonly<{
+  defer: (
+    policy: GoalExecutionPolicy,
+    input: DeferMonthlyPortalGoalPromptRequest,
     actor: GoalActor,
   ) => Promise<Readonly<{ month: string }>>
 }>

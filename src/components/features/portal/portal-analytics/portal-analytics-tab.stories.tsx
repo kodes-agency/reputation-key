@@ -3,14 +3,35 @@
 // themselves are Portal/Analytics/Results. The read is injected, so each story
 // scripts what the server function answers.
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, waitFor } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import type { PortalGoalLineView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import { PortalGoalResultsLine } from '#/components/goals/portal-goal-results-line'
 import { PortalAnalyticsTab } from './portal-analytics-tab'
 import { RESULTS_HEALTHY } from './portal-results-stories-data'
 
 type Read = React.ComponentProps<typeof PortalAnalyticsTab>['getPortalAnalytics']
 
 const asRead = (read: () => Promise<unknown>) => fn(read) as unknown as Read
+
+const PROPERTY_ID = '22222222-2222-4222-8222-222222222222'
+
+/** The Monthly portal goal's line as the route hands it in, for Reception. */
+const goalLineOf = (line: PortalGoalLineView) => (
+  <PortalGoalResultsLine line={line} portalName="Reception" propertyId={PROPERTY_ID} />
+)
+
+/** Stands in for the utilities layer, which this runner does not compile: a link in a sentence stays underlined (axe link-in-text-block). */
+const UTILITY_LAYER = `@layer utilities {
+  .underline { text-decoration-line: underline; }
+}`
+
+const withUtilityLayer = (Story: () => React.ReactNode) => (
+  <>
+    <style>{UTILITY_LAYER}</style>
+    <Story />
+  </>
+)
 
 const meta = {
   title: 'Portal/Analytics/Results tab',
@@ -20,7 +41,7 @@ const meta = {
   parameters: { layout: 'padded' },
   args: {
     portalId: '11111111-1111-4111-8111-111111111111',
-    propertyId: '22222222-2222-4222-8222-222222222222',
+    propertyId: PROPERTY_ID,
     getPortalAnalytics: asRead(async () => RESULTS_HEALTHY),
   },
 } satisfies Meta<typeof PortalAnalyticsTab>
@@ -131,5 +152,86 @@ export const FailedLight: Story = {
   parameters: { theme: 'light' },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('button', { name: 'Try again' })).toBeVisible()
+  },
+}
+
+/** The figures are drawn: the toolbar's range control is on screen. */
+const figuresDrawn = async (canvas: ReturnType<typeof within>) =>
+  waitFor(() => expect(canvas.queryByRole('status')).toBeNull())
+
+const above = (a: Node, b: Node) =>
+  Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+/** R-1: November, what Reception brought in toward the monthly goal, above the figures. */
+export const WithPortalGoalLine: Story = {
+  decorators: [withUtilityLayer],
+  args: {
+    goalLine: goalLineOf({
+      month: '2026-11',
+      monthlyGoal: { measure: 'portal_rating_count', count: 13 },
+      ownGoal: null,
+    }),
+  },
+  play: async ({ canvas }) => {
+    await figuresDrawn(canvas)
+    const line = canvas.getByText(
+      'November · Reception’s 13 private ratings count toward the monthly portal goal.',
+    )
+    await expect(line).toBeVisible()
+    await expect(above(line, canvas.getByLabelText('Portal results'))).toBe(true)
+    await expect(canvas.getByRole('link', { name: 'Open goal' })).toHaveAttribute(
+      'href',
+      `/properties/${PROPERTY_ID}/goals/portals`,
+    )
+  },
+}
+
+/** R-2: Reception's own goal, its month so far against its number, and the way to it. */
+export const WithOwnGoal: Story = {
+  decorators: [withUtilityLayer],
+  args: {
+    goalLine: goalLineOf({
+      month: '2026-11',
+      monthlyGoal: { measure: 'portal_rating_count', count: 13 },
+      ownGoal: {
+        programId: 'program-reception',
+        measure: 'portal_rating_count',
+        value: 14,
+        target: 20,
+      },
+    }),
+  },
+  play: async ({ canvas }) => {
+    await figuresDrawn(canvas)
+    await expect(
+      canvas.getByText('November goal: 14 of 20 private ratings · 6 to go'),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/count toward the monthly portal goal/)).toBeNull()
+    await expect(canvas.getByRole('link', { name: 'Open goal' })).toHaveAttribute(
+      'href',
+      `/properties/${PROPERTY_ID}/goals/program-reception`,
+    )
+  },
+}
+
+export const WithPortalGoalLinePhone320: Story = {
+  ...WithPortalGoalLine,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const WithOwnGoalLight: Story = {
+  ...WithOwnGoal,
+  parameters: { theme: 'light' },
+}
+
+/**
+ * While the line is read the tab keeps its loading state, figures or not, so a
+ * line that arrives never pushes the figures down.
+ */
+export const HoldsWhileTheLineIsRead: Story = {
+  args: { goalLinePending: true },
+  play: async ({ canvas, args }) => {
+    await waitFor(() => expect(args.getPortalAnalytics).toHaveBeenCalled())
+    await expect(canvas.getByRole('status')).toHaveTextContent('Loading results…')
   },
 }

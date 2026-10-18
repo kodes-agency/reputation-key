@@ -19,12 +19,21 @@ import {
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
+  deferMonthlyPortalGoalPrompt,
   type MonthlyPortalGoalChangeDeps,
   type MonthlyPortalGoalKeepDeps,
+  type MonthlyPortalGoalPromptDeps,
   type MonthlyPortalGoalSetDeps,
 } from './monthly-portal-goal'
+import { readMonthlyPortalGoalCard } from './monthly-portal-goal-card'
 import { monthlyPortalGoalOf } from '../monthly-portal-goal-identity'
-import { propertyGoal } from './monthly-portal-goal-test-fixtures'
+import {
+  days as localDays,
+  fakeWorld as seaviewWorld,
+  portal as livePortal,
+  propertyGoal,
+  readings as dayReadings,
+} from './monthly-portal-goal-test-fixtures'
 
 const PROPERTY_ID = 'property-1'
 const actor: GoalActor = {
@@ -957,5 +966,144 @@ describe("the check-in's Use", () => {
     expect(await recorded(NOV_3, 20)).toHaveBeenCalledWith(...as(20, 'recommended'))
     expect(await recorded(NOV_3, 22)).toHaveBeenCalledWith(...as(22, 'own'))
     expect(await recorded(NOV_3, 21)).toHaveBeenCalledWith(...as(21, 'own'))
+  })
+})
+
+describe("the Overview prompt's Not now (PG-16)", () => {
+  // Seaview on Sofia time: Reception live since Sep 20 with a private rating a
+  // day, so its number is ready all October. Through the 20th the prompt names
+  // October; from the 21st, November.
+  const OCT_10 = new Date('2026-10-10T09:00:00.000Z')
+  const world = (now: Date = OCT_10) => {
+    const { deps, calls } = seaviewWorld({
+      now,
+      portals: [livePortal('Reception', '2026-09-20')],
+      counts: {
+        days: dayReadings(
+          'portal-reception',
+          'portal_rating_count',
+          localDays('2026-09-20', 20),
+        ),
+      },
+    })
+    const command = {
+      policy: deps.policy,
+      subjects: deps.recommendation.subjects,
+      prompts: deps.prompts,
+      now: deps.now,
+    } satisfies MonthlyPortalGoalPromptDeps
+    return { deps, command, calls }
+  }
+  const promptOf = async (deps: ReturnType<typeof world>['deps'], now: Date) => {
+    const card = await readMonthlyPortalGoalCard(
+      { ...deps, now: () => now },
+      { propertyId: PROPERTY_ID },
+      actor,
+    )
+    return card.state === 'ready' ? card.prompt : null
+  }
+
+  it("Not now hides this month's prompt and not next month's", async () => {
+    const { deps, command } = world()
+    await expect(promptOf(deps, OCT_10)).resolves.toMatchObject({
+      month: '2026-10',
+      deferred: false,
+    })
+
+    await deferMonthlyPortalGoalPrompt(
+      command,
+      { propertyId: PROPERTY_ID, month: '2026-10' },
+      actor,
+    )
+
+    await expect(promptOf(deps, OCT_10)).resolves.toMatchObject({
+      month: '2026-10',
+      deferred: true,
+    })
+    // After the 20th the prompt names November, which nobody put off.
+    await expect(promptOf(deps, OCT_23)).resolves.toMatchObject({
+      month: '2026-11',
+      deferred: false,
+    })
+  })
+
+  it('asks goal.create first, then records the month it named, by whom and when', async () => {
+    const { command, calls } = world()
+
+    await expect(
+      deferMonthlyPortalGoalPrompt(
+        command,
+        { propertyId: PROPERTY_ID, month: '2026-10' },
+        actor,
+      ),
+    ).resolves.toEqual({ month: '2026-10' })
+
+    expect(calls).toEqual(['authorize', 'defer'])
+    expect(command.policy.authorize).toHaveBeenCalledWith({
+      actor,
+      organizationId: 'org-1',
+      propertyId: PROPERTY_ID,
+      action: 'goal.create',
+    })
+    expect(command.prompts.defer).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      propertyId: PROPERTY_ID,
+      month: '2026-10',
+      deferredBy: 'elena',
+      deferredAt: OCT_10,
+    })
+  })
+
+  it("takes a month already gone (a tab left open), and never a month after next month's", async () => {
+    const { command } = world(OCT_23)
+
+    await deferMonthlyPortalGoalPrompt(
+      command,
+      { propertyId: PROPERTY_ID, month: '2026-10' },
+      actor,
+    )
+    await deferMonthlyPortalGoalPrompt(
+      command,
+      { propertyId: PROPERTY_ID, month: '2026-11' },
+      actor,
+    )
+    await expect(
+      deferMonthlyPortalGoalPrompt(
+        command,
+        { propertyId: PROPERTY_ID, month: '2026-12' },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'start_month_changed' })
+
+    expect(
+      vi.mocked(command.prompts.defer).mock.calls.map(([{ month }]) => month),
+    ).toEqual(['2026-10', '2026-11'])
+  })
+
+  it('a refused actor and a Property with no time zone write nothing', async () => {
+    const refused = world()
+    vi.mocked(refused.command.policy.authorize).mockRejectedValueOnce(
+      new GoalProgramError('forbidden'),
+    )
+    await expect(
+      deferMonthlyPortalGoalPrompt(
+        refused.command,
+        { propertyId: PROPERTY_ID, month: '2026-10' },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    const unknown = world()
+    vi.mocked(unknown.command.subjects.getTimezone).mockResolvedValueOnce(null)
+    await expect(
+      deferMonthlyPortalGoalPrompt(
+        unknown.command,
+        { propertyId: PROPERTY_ID, month: '2026-10' },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(refused.command.prompts.defer).not.toHaveBeenCalled()
+    expect(unknown.command.prompts.defer).not.toHaveBeenCalled()
   })
 })

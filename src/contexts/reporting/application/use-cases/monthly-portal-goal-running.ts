@@ -323,8 +323,11 @@ async function lastMonthOf(
   return { ...base, value: result.evaluation.value, outcome: outcomeOf(result) }
 }
 
-/** The month the goal is counting now: an active goal's, or a stopped goal's last one. */
-async function countingNow(
+/**
+ * The month the goal is counting now: an active goal's, or a stopped goal's
+ * last one (the card's, and a Portal's Results line's).
+ */
+export async function countingNow(
   deps: MonthlyPortalGoalOnCardDeps,
   bundle: PropertyCountGoal,
   context: MonthlyPortalGoalOnCardContext,

@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   addOne: vi.fn(),
   addEach: vi.fn(),
   keep: vi.fn(),
+  defer: vi.fn(),
+  line: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -34,6 +36,8 @@ vi.mock('#/composition', () => ({
           revise: mocks.revise,
           stop: mocks.stop,
           keep: mocks.keep,
+          defer: mocks.defer,
+          line: mocks.line,
         },
         portalGoalAdd: {
           options: mocks.addOptions,
@@ -59,7 +63,9 @@ import {
   addPortalGoalSchema,
   addPortalGoalsSchema,
   changeMonthlyPortalGoalNowSchema,
+  deferMonthlyPortalGoalPromptSchema,
   keepMonthlyPortalGoalSchema,
+  monthlyPortalGoalLineSchema,
   monthlyPortalGoalPropertySchema,
   reviseMonthlyPortalGoalSchema,
   stopMonthlyPortalGoalSchema,
@@ -69,7 +75,9 @@ import {
   addPortalGoal,
   addPortalGoals,
   changeMonthlyPortalGoalNow,
+  deferMonthlyPortalGoalPrompt,
   getMonthlyPortalGoalCard,
+  getMonthlyPortalGoalLine,
   getMonthlyPortalGoalPage,
   getPortalGoalAddOptions,
   keepMonthlyPortalGoal,
@@ -611,6 +619,91 @@ describe("the month-start check-in's Keep (PG-15)", () => {
       { ...keep, programId: 'monthly' },
     ]) {
       expect(keepMonthlyPortalGoalSchema.safeParse(refused).success).toBe(false)
+    }
+  })
+})
+
+describe("the Overview prompt's Not now and a Portal's Results line (PG-16)", () => {
+  const notNow = { propertyId: PROPERTY_ID, month: '2026-11' } as const
+  const line = {
+    propertyId: PROPERTY_ID,
+    portalId: '00000000-0000-4000-8000-000000000004',
+  } as const
+
+  /** A use case that asks `goal.create` first, as both of these do. */
+  const askingGoalCreate =
+    (answer: unknown) =>
+    async (
+      policy: GoalExecutionPolicy,
+      data: Readonly<{ propertyId: string }>,
+      actor: GoalActor,
+    ) => {
+      await policy.authorize({
+        actor,
+        organizationId: actor.organizationId,
+        propertyId: data.propertyId,
+        action: 'goal.create',
+      })
+      return answer
+    }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveTenantContext.mockResolvedValue(manager)
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+  })
+
+  it('Not now authorizes goal.create through the execution policy', async () => {
+    mocks.defer.mockImplementation(askingGoalCreate({ month: '2026-11' }))
+
+    await withStartContext(() => deferMonthlyPortalGoalPrompt({ data: notNow }))
+
+    expect(mocks.defer).toHaveBeenCalledWith(expect.any(Object), notNow, manager)
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor: manager,
+      action: 'goal.create',
+      capability: 'goal.use',
+      propertyId: PROPERTY_ID,
+    })
+  })
+
+  it('the Results line authorizes goal.create through the execution policy', async () => {
+    mocks.line.mockImplementation(askingGoalCreate({ month: '2026-11' }))
+
+    await withStartContext(() => getMonthlyPortalGoalLine({ data: line }))
+
+    expect(mocks.line).toHaveBeenCalledWith(expect.any(Object), line, manager)
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor: manager,
+      action: 'goal.create',
+      capability: 'goal.use',
+      propertyId: PROPERTY_ID,
+    })
+  })
+
+  it('answers a month no prompt names with HTTP 409', async () => {
+    mocks.defer.mockRejectedValue(new GoalProgramError('start_month_changed'))
+
+    await expect(
+      withStartContext(() => deferMonthlyPortalGoalPrompt({ data: notNow })),
+    ).rejects.toMatchObject({ code: 'start_month_changed', status: 409 })
+  })
+
+  it('takes a Property and a month, and a Property and a Portal', () => {
+    expect(deferMonthlyPortalGoalPromptSchema.safeParse(notNow).success).toBe(true)
+    expect(monthlyPortalGoalLineSchema.safeParse(line).success).toBe(true)
+    for (const refused of [
+      { ...notNow, month: '2026-13' },
+      { ...notNow, month: undefined },
+      { ...notNow, propertyId: 'seaview' },
+    ]) {
+      expect(deferMonthlyPortalGoalPromptSchema.safeParse(refused).success).toBe(false)
+    }
+    for (const refused of [
+      { ...line, portalId: 'reception' },
+      { propertyId: PROPERTY_ID },
+    ]) {
+      expect(monthlyPortalGoalLineSchema.safeParse(refused).success).toBe(false)
     }
   })
 })

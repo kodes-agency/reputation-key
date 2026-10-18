@@ -15,6 +15,7 @@ import { getPortalPrintKit } from '#/contexts/portal/server/portal-print-kit'
 import { PortalDetailPage } from '#/components/features/portal/portal-detail/portal-detail-page'
 import { usePortalDetailActions } from '../-portal-detail-actions'
 import { usePortalDetailData } from '../-portal-detail-data'
+import { usePortalGoalLine } from '../-portal-goal-line'
 
 /** The History tab's reads: server functions are handed to components, never imported by them. */
 const HISTORY_READS = {
@@ -40,6 +41,8 @@ function PortalWorkspaceEditor() {
   if (!portal) throw notFound()
   const ctx = Route.useRouteContext()
   const actions = usePortalDetailActions(propertyId, portalId)
+  // The Monthly portal goal's line on the Results tab (PG-16).
+  const goal = usePortalGoalLine({ propertyId, portal, onResults: tab === 'results' })
 
   return (
     <PortalDetailPage
@@ -70,6 +73,8 @@ function PortalWorkspaceEditor() {
       getPortalPrintKit={getPortalPrintKit}
       downloadPrintKitMutation={actions.downloadPrintKit}
       getPortalAnalytics={getPortalAnalyticsFn}
+      goalLine={goal.line}
+      goalLinePending={goal.pending}
       getPortalPreview={getPortalPreview}
       completeReviewMutation={actions.completeReview}
       responsibleManagers={data.responsibleManagers}

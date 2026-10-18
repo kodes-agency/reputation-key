@@ -11,9 +11,11 @@
 // Each handler runs through `withGoalPrograms`, so every read and the set ask
 // the execution policy (capability `goal.use`, the Property grant) for
 // `goal.create` before anything is read; a change and the check-in's Keep ask
-// it for `goal.update`, and Stop for `goal.cancel`. A change and a stop never reach
-// `server/goal-month-target.ts` or `server/goal-programs.ts`: this module
-// imports no other server-function module (PLAN §0.2, E10).
+// it for `goal.update`, and Stop for `goal.cancel`. The Overview prompt's
+// "Not now" and a Portal's Results line ask for `goal.create`, as the card. A
+// change and a stop never reach `server/goal-month-target.ts` or
+// `server/goal-programs.ts`: this module imports no other server-function
+// module (PLAN §0.2, E10).
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 // For `.validator(...)` only: never re-exported (an `export … from` would keep
@@ -22,7 +24,9 @@ import {
   addPortalGoalSchema,
   addPortalGoalsSchema,
   changeMonthlyPortalGoalNowSchema,
+  deferMonthlyPortalGoalPromptSchema,
   keepMonthlyPortalGoalSchema,
+  monthlyPortalGoalLineSchema,
   monthlyPortalGoalPropertySchema,
   reviseMonthlyPortalGoalSchema,
   setMonthlyPortalGoalSchema,
@@ -176,5 +180,33 @@ export const keepMonthlyPortalGoal = createServerFn({ method: 'POST' })
         ),
       'POST',
       'goal.keepMonthlyPortalGoal',
+    ),
+  )
+
+/** The Overview prompt's "Not now": that month's prompt is not shown again. */
+export const deferMonthlyPortalGoalPrompt = createServerFn({ method: 'POST' })
+  .validator(deferMonthlyPortalGoalPromptSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.monthlyPortalGoal.defer(policy, data, actor),
+        ),
+      'POST',
+      'goal.deferMonthlyPortalGoalPrompt',
+    ),
+  )
+
+/** A Portal's Results line: its count toward the goal, or its own goal; null for none. */
+export const getMonthlyPortalGoalLine = createServerFn({ method: 'GET' })
+  .validator(monthlyPortalGoalLineSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.monthlyPortalGoal.line(policy, data, actor),
+        ),
+      'GET',
+      'goal.getMonthlyPortalGoalLine',
     ),
   )

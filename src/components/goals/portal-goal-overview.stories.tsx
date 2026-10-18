@@ -1,0 +1,209 @@
+// The Monthly portal goal on the Property Overview (PLAN PG-16; copy deck
+// O-1…O-6): the number ready to use in one line ("See it", "Not now", which
+// hides it), the running month with each Portal's count in one line, the
+// month-start check-in, and nothing for a goal that has not started. At 320,
+// 390, 820 and 1440 px and on the light theme. The Storybook Vitest project
+// compiles no Tailwind, so the plays assert words, roles, links and what is
+// sent.
+import { useState } from 'react'
+import type { Meta, StoryObj } from '@storybook/react-vite'
+import { toast } from 'sonner'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
+import type { PortalGoalCheckInCommands } from './portal-goal-check-in'
+import { CARD_CHECK_IN } from './portal-goal-check-in.stories.fixtures'
+import { PortalGoalOverview } from './portal-goal-overview'
+import { overviewPortalGoalView } from './portal-goal-overview-view'
+import { CARD_RUNNING } from './portal-goal-running.stories.fixtures'
+import { CARD_READY, CARD_SCHEDULED, SEAVIEW } from './portal-goal.stories.fixtures'
+
+const notNowMock = fn<(month: string) => void>()
+const changeNowMock = fn<PortalGoalCheckInCommands['changeMonthlyPortalGoalNowFn']>(
+  async () => ({ changed: true }),
+)
+const keepMock = fn<PortalGoalCheckInCommands['keepMonthlyPortalGoalFn']>(async () => ({
+  month: '2026-12',
+}))
+const onAnsweredMock = fn(async () => undefined)
+const openSheetMock = fn()
+
+/**
+ * The slot as the Overview's host draws it for a manager: the view worked out
+ * from the card's read, and "Not now" hiding the prompt at once.
+ */
+function Slot({ card }: Readonly<{ card: PortalGoalCardView }>) {
+  const [putOff, setPutOff] = useState(false)
+  const view = putOff
+    ? ({ kind: 'nothing' } as const)
+    : overviewPortalGoalView({ card, canSet: true, canChange: true })
+  return (
+    <div className="max-w-5xl">
+      <PortalGoalOverview
+        view={view}
+        propertyId={SEAVIEW.propertyId}
+        onNotNow={(month) => {
+          notNowMock(month)
+          setPutOff(true)
+        }}
+        notNowPending={false}
+        checkIn={{
+          commands: {
+            changeMonthlyPortalGoalNowFn: changeNowMock,
+            keepMonthlyPortalGoalFn: keepMock,
+          },
+          onAnswered: onAnsweredMock,
+        }}
+        openSheet={openSheetMock}
+      />
+    </div>
+  )
+}
+
+const meta: Meta<typeof Slot> = {
+  title: 'Goals/PortalGoalOverview',
+  component: Slot,
+  parameters: { layout: 'padded' },
+  args: { card: CARD_RUNNING },
+  decorators: [ToasterDecorator],
+  beforeEach: () => {
+    toast.dismiss()
+    notNowMock.mockClear()
+    changeNowMock.mockClear()
+    keepMock.mockClear()
+    onAnsweredMock.mockClear()
+    openSheetMock.mockClear()
+  },
+}
+
+export default meta
+type Story = StoryObj<typeof meta>
+
+const PROMPT = 'Your monthly portal goal for November is ready: 40 private ratings.'
+
+/** O-1: one line, "See it" to the Goals page's card, and "Not now", which hides it. */
+export const Ready: Story = {
+  args: { card: CARD_READY },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const prompt = canvas.getByRole('region', { name: 'Monthly portal goal' })
+    await expect(within(prompt).getByText(PROMPT)).toBeVisible()
+    const seeIt = within(prompt).getByRole('link', { name: 'See it' })
+    const href = new URL(seeIt.getAttribute('href') ?? '', 'http://localhost')
+    await expect(href.pathname).toBe(`/properties/${SEAVIEW.propertyId}/goals`)
+    await expect(href.hash).toBe('#portal-goals')
+
+    await userEvent.click(within(prompt).getByRole('button', { name: 'Not now' }))
+
+    await expect(notNowMock).toHaveBeenCalledOnce()
+    await expect(notNowMock).toHaveBeenCalledWith('2026-11')
+    await waitFor(() => expect(canvas.queryByText(PROMPT)).toBeNull())
+  },
+}
+
+/** O-2: the running month as the card says it, each Portal's count in one line, View details. */
+export const Running: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('heading', { level: 2, name: 'Monthly portal goal · November' }),
+    ).toBeVisible()
+    await expect(canvas.getByText('23 of 40', { exact: true })).toBeVisible()
+    await expect(canvas.getByText('17 to go · 9 days left')).toBeVisible()
+    await expect(canvas.getByText('below pace', { exact: true })).toBeVisible()
+    await expect(canvas.queryByText(/on pace/)).toBeNull()
+    // Name order, never by count (P-1).
+    await expect(canvas.getByText('Reception 3 · Restaurant 0 · Spa 20')).toBeVisible()
+    const details = canvas.getByRole('link', { name: 'View details' })
+    await expect(details).toHaveAttribute(
+      'href',
+      `/properties/${SEAVIEW.propertyId}/goals/portals`,
+    )
+  },
+}
+
+/** O-3…O-6: on Dec 1 the check-in, under the goal's name; Keep is sent once. */
+export const CheckIn: Story = {
+  args: { card: CARD_CHECK_IN },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('heading', { level: 2, name: 'Monthly portal goal' }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText('November: 36 of 40 so far. Final figure on Dec 2.'),
+    ).toBeVisible()
+    const region = within(canvas.getByRole('region', { name: 'For December' }))
+    await expect(region.getByRole('button', { name: 'Use 45' })).toBeVisible()
+    await expect(region.getByRole('button', { name: 'Other number' })).toBeVisible()
+    await expect(
+      region.getByText(
+        'Nothing changes unless you choose. December counts against 40 until then.',
+      ),
+    ).toBeVisible()
+
+    await userEvent.click(region.getByRole('button', { name: 'Keep 40' }))
+
+    await waitFor(() => expect(onAnsweredMock).toHaveBeenCalledOnce())
+    await expect(keepMock).toHaveBeenCalledOnce()
+    await expect(keepMock).toHaveBeenCalledWith({
+      data: {
+        propertyId: SEAVIEW.propertyId,
+        programId: 'program-monthly',
+        month: '2026-12',
+      },
+    })
+    await expect(changeNowMock).not.toHaveBeenCalled()
+  },
+}
+
+/** A goal that has not started: the Overview says nothing of it. */
+export const Scheduled: Story = {
+  args: { card: CARD_SCHEDULED },
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector('[data-slot^="portal-goal"]')).toBeNull()
+  },
+}
+
+/** No room is lost sideways on a 320 px phone. */
+const fitsTheWidth: Story['play'] = async ({ canvasElement }) => {
+  const page = canvasElement.ownerDocument.documentElement
+  await expect(page.scrollWidth).toBeLessThanOrEqual(page.clientWidth)
+}
+
+export const Phone320: Story = {
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  play: async (context) => {
+    await Running.play?.(context)
+    await fitsTheWidth(context)
+  },
+}
+
+export const ReadyPhone320: Story = {
+  ...Ready,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  play: async (context) => {
+    await fitsTheWidth(context)
+    await Ready.play?.(context)
+  },
+}
+
+export const RunningOnAPhone: Story = {
+  ...Running,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
+
+export const RunningOnATablet: Story = {
+  ...Running,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
+}
+
+export const RunningOnADesktop: Story = {
+  ...Running,
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+
+export const RunningLight: Story = {
+  ...Running,
+  parameters: { theme: 'light' },
+}

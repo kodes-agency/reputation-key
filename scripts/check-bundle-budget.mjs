@@ -1027,6 +1027,31 @@
 // gzip noise, to the nearest 100. That is above the 308,300 B ceiling the owner
 // set for the portal goal series (P-9). The owner delegated this raise on
 // 2026-10-18 ("do as you think is best"), and this is that call.
+//
+// 2026-10-18 (Monthly portal goal, PG-16: the Overview slot and Not now, the
+// chip and list links, a Portal's Results line): no raise; first paint grows
+// 96 B, all of it in the entry. Rebased onto main 1c1458c59 (PG-15 as merged,
+// after PG-13, PG-14, PG-18, PG-19 and PG-20), under PG-18's line of 308,200:
+// fresh production builds (rm -rf node_modules/.nitro .output) in one session
+// measured 308,043 B on main (75 js + 1 css; entry 49,366 B) and 308,139 B on
+// the head (entry 49,462 B), the head twice. The stylesheet is main's own file
+// (styles-ChuBAd4e.css, 27,839 B: every class was already in it), and the
+// other 75 files of the closure have the same gzip size on both. The entry
+// differs in two places: the Overview loader imports the Goals page's
+// -goals-page-prefetch chunk (0.22 -> 0.26 kB), which now primes the Google
+// rating goal and the Monthly portal goal together, and the preload map names
+// five more chunks and one fewer (portal-goal-words, period-range, goal-so-far,
+// portal-goal-sheet-view and the sheet host in; progress-bar out): the Overview
+// slot and the Results line share modules with the Goals page, which now take
+// chunks of their own. Lazy chunks, gzip, main -> head: the Overview's route
+// chunk (_propertyId-*.js) 6.00 -> 7.44 kB, the Portal workspace's
+// (_portalId-*.js) 54.46 -> 55.20 kB, the goal routes' shared host
+// (-portal-goal-add-host-*.js) 12.05 -> 5.75 kB. Two alternatives were
+// measured on the earlier base (PG-15's head before it merged), not again
+// here: a chunk of its own for the Overview's loader cost 26 B more, and
+// leaving the change sheet off the Overview's check-in saved 18 B, not worth
+// losing "Other number" there. The line stays at 308,200: 61 B spare, 161 B
+// under the build's ceiling of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

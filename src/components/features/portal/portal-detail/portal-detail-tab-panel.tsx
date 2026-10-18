@@ -83,12 +83,19 @@ function AnalyticsPanel({
   portal,
   propertyId,
   getPortalAnalytics,
-}: Pick<PortalDetailResources, 'portal' | 'propertyId' | 'getPortalAnalytics'>) {
+  goalLine,
+  goalLinePending,
+}: Pick<
+  PortalDetailResources,
+  'portal' | 'propertyId' | 'getPortalAnalytics' | 'goalLine' | 'goalLinePending'
+>) {
   return (
     <PortalAnalyticsTab
       portalId={portal.id}
       propertyId={propertyId}
       getPortalAnalytics={getPortalAnalytics}
+      goalLine={goalLine}
+      goalLinePending={goalLinePending}
     />
   )
 }
