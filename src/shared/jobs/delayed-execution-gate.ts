@@ -48,6 +48,7 @@ import { GateDenyRetryError, JobTimeoutError, UnknownJobError } from './errors'
 import type { GateDeniedExecutionKind, GateDeniedResult } from './gate-denial'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
+import { isScheduleFiring } from './schedule-firing'
 
 /**
  * Sentinel organization for tenant_cross/none-scope work that has no org at
@@ -360,17 +361,6 @@ export async function gateDispatcherConsumer(
 // ── Gated worker dispatch ────────────────────────────────────────────
 
 /**
- * BullMQ Job Scheduler firings carry the stable scheduler ID in repeatJobKey.
- * The jobId fallback keeps already-enqueued legacy repeat firings classified
- * correctly during the one-time reconciliation cutover.
- */
-function isScheduleFiring(job: Job): boolean {
-  if (job.repeatJobKey) return true
-  const stableId = job.opts?.jobId ?? job.id ?? ''
-  return typeof stableId === 'string' && stableId.includes('-recurring')
-}
-
-/**
  * BQC-3.6: enforce the catalogue-declared job timeout. BullMQ v5 removed the
  * job-level `timeout` option, so the race lives here. The handler promise is
  * NOT cancelled on timeout (no AbortController threading) — handlers must
@@ -443,7 +433,9 @@ export function createGatedJobHandler(
     if (!handler) {
       // BQC-3.6: an unknown job name is a deployment/config failure, never a
       // silent ack — throw so the job fails, burns attempts, and lands in the
-      // failure quarantine (§4). Boot-time readiness catches the static form.
+      // failure quarantine (§4). On-demand work only: a schedule firing is
+      // logged and captured instead (failure-quarantine.ts). Boot-time
+      // readiness catches the static form.
       logger.error(
         { jobName: job.name },
         'no handler registered for job — failing as deployment/config error',
