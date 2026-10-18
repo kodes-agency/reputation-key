@@ -1,13 +1,15 @@
 // The add sheet's choosing steps (copy deck M-2…M-9): what to add, as radio
 // cards, with a closed one and the fact that closes it ("Your portals had 6 in
-// the last 4 weeks."); then which Portal or group, where one that has a goal
-// is closed with "Has a goal" and a link to that goal. Everything they say is
+// the last 4 weeks.", or the average's "Has a goal" and a link to that goal);
+// then which Portal or group, where one that has a goal is closed with "Has a
+// goal" and a link to that goal. Everything they say is
 // the add view's (`portal-goal-add-view.ts`); they draw it and hand each pick up.
 import { useId, type ReactNode } from 'react'
 import { InlineLink } from '#/components/ui/inline-link'
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
 import { PORTAL_SPOT_NOT_PERSON_LINE } from './portal-goal-copy'
+import type { PortalGoalAddHeld } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
 import type {
   chooseModel,
   PortalGoalAddKind,
@@ -45,7 +47,28 @@ function RadioCard({
   )
 }
 
+/** M-9: the goal that holds a closed card, linked under it. */
+function HeldLink({
+  propertyId,
+  held,
+}: Readonly<{ propertyId: string; held: PortalGoalAddHeld | null }>) {
+  if (held === null) return null
+  return (
+    // Lined up with the label, past the radio and its gap.
+    <div className="pl-7">
+      <InlineLink
+        to="/properties/$propertyId/goals/$goalId"
+        params={{ propertyId, goalId: held.programId }}
+        className="text-sm"
+      >
+        {held.name}
+      </InlineLink>
+    </div>
+  )
+}
+
 type ChooseProps = Readonly<{
+  propertyId: string
   model: ReturnType<typeof chooseModel>
   picked: PortalGoalAddKind | null
   onPick: (kind: PortalGoalAddKind) => void
@@ -53,7 +76,13 @@ type ChooseProps = Readonly<{
 }>
 
 /** M-2…M-7: what to add. */
-export function PortalGoalAddChoose({ model, picked, onPick, disabled }: ChooseProps) {
+export function PortalGoalAddChoose({
+  propertyId,
+  model,
+  picked,
+  onPick,
+  disabled,
+}: ChooseProps) {
   const id = useId()
   return (
     <div className="flex flex-col gap-4">
@@ -73,6 +102,7 @@ export function PortalGoalAddChoose({ model, picked, onPick, disabled }: ChooseP
             id={`${id}-${choice.kind}`}
             value={choice.kind}
             disabled={choice.disabled}
+            after={<HeldLink propertyId={propertyId} held={choice.held} />}
           >
             <span className="text-sm font-medium">{choice.title}</span>
             <span className="text-sm text-muted-foreground">{choice.description}</span>
@@ -124,20 +154,7 @@ export function PortalGoalAddWhich({
           id={`${id}-${index}`}
           value={row.key}
           disabled={row.disabled}
-          after={
-            row.held === null ? null : (
-              // Lined up with the label, past the radio and its gap.
-              <div className="pl-7">
-                <InlineLink
-                  to="/properties/$propertyId/goals/$goalId"
-                  params={{ propertyId, goalId: row.held.programId }}
-                  className="text-sm"
-                >
-                  {row.held.name}
-                </InlineLink>
-              </div>
-            )
-          }
+          after={<HeldLink propertyId={propertyId} held={row.held} />}
         >
           <span className="text-sm font-medium">{row.name}</span>
           {row.note === null ? null : (

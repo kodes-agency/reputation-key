@@ -11,7 +11,7 @@
 // Portal goals, and "Add a portal goal" when it offers something (the M-rule,
 // PLAN PG-20), whose sheet an address opens on a step (`?add=…`, where the old
 // New goal page's links now lead, `-goal-new-redirect.ts`).
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -99,6 +99,13 @@ function addressedOpening(
   })
 }
 
+/** The page's address without the add sheet's step: once answered, or when it cannot be. */
+const withoutAddress = <T extends PortalGoalAddAddress>(search: T): T => ({
+  ...search,
+  add: undefined,
+  subject: undefined,
+})
+
 function MonthlyPortalGoalRoute() {
   const { propertyId } = Route.useParams()
   const search = Route.useSearch()
@@ -125,18 +132,21 @@ function MonthlyPortalGoalRoute() {
     enabled: canDo('goal.create'),
     retry: false,
   })
+  const initial = addressedOpening(addRead.data, search)
   const add = usePortalGoalAdd({
     propertyId,
     options: addRead.data,
     focusTitle: focusPortalGoalPageTitle,
-    initial: addressedOpening(addRead.data, search),
+    initial,
     // Answered once: off the address, so a reload or Back does not open it again.
-    onClosed: () =>
-      void navigate({
-        search: (prev) => ({ ...prev, add: undefined, subject: undefined }),
-        replace: true,
-      }),
+    onClosed: () => void navigate({ search: withoutAddress, replace: true }),
   })
+  // An address the sheet cannot answer (nothing to add, the M-rule, or no add
+  // read for this person) opens nothing, and leaves the address too.
+  const unanswered = search.add !== undefined && initial === null
+  useEffect(() => {
+    if (unanswered) void navigate({ search: withoutAddress, replace: true })
+  }, [unanswered, navigate])
   const { name, timezone } = propData.property
   const { extras } = page
   return (

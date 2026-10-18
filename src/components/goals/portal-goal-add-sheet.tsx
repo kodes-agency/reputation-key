@@ -7,7 +7,9 @@
 // always leads to the choice.
 //
 // A chunk of its own, loaded when its door is on screen. It owns its drafts (the
-// host mounts it afresh, with a key, for every opening) and the two commands; it
+// host mounts it afresh, with a key, for every opening): the step, the rows of
+// each Portal and the number box, above the frame, so a phone turned on its side
+// (a sheet becoming a dialog) keeps what was typed. It owns the two commands; it
 // works from the add read the host hands it, the latest one, so a refusal that
 // means the read is behind reads it again and the steps follow. A refusal is
 // said once, in the banner above the footer; a save for each Portal that kept
@@ -34,7 +36,11 @@ import {
   type PortalGoalAddPlace,
 } from './portal-goal-add-body'
 import { eachDraftOf, eachToast } from './portal-goal-add-each-view'
-import { addedToast, type PortalGoalAddStep } from './portal-goal-add-view'
+import {
+  addedSubjectKeys,
+  addedToast,
+  type PortalGoalAddStep,
+} from './portal-goal-add-view'
 import { PORTAL_GOAL_BEHIND } from './portal-goal-sheet-refusals'
 
 export type PortalGoalAddCommands = Readonly<{
@@ -42,8 +48,11 @@ export type PortalGoalAddCommands = Readonly<{
   addPortalGoalsFn: (
     input: Readonly<{ data: AddPortalGoalsRequest }>,
   ) => Promise<AddPortalGoalsResult>
-  /** A goal was added, or a refusal says the read is behind: read the goals again. */
-  onAdded: () => Promise<void>
+  /**
+   * Goals were added for these subjects (`portal:<id>`, `portal_group:<id>`),
+   * or a refusal says the read is behind (none): read the goals again.
+   */
+  onAdded: (subjects: readonly string[]) => Promise<void>
 }>
 
 /** Where the sheet opens: a step, and the Portal or group an address named. */
@@ -96,27 +105,32 @@ function useAddCommands(
 ) {
   const { commands, onSettled } = props
   const sending = useRef(false)
-  const settle = async (message: string) => {
+  const settle = async (message: string, subjects: readonly string[]) => {
     toast.success(message)
-    await commands.onAdded()
+    await commands.onAdded(subjects)
     onSettled()
   }
   const behind = (error: unknown) => {
-    if (PORTAL_GOAL_BEHIND.has(goalRefusalCode(error) ?? '')) void commands.onAdded()
+    if (PORTAL_GOAL_BEHIND.has(goalRefusalCode(error) ?? '')) void commands.onAdded([])
   }
   const one = useActionMutation(withGoalRefusals(commands.addPortalGoalFn), {
-    onSuccess: (_output, { data }) => settle(addedToast(props.options, data)),
+    onSuccess: (_output, { data }) =>
+      settle(addedToast(props.options, data), addedSubjectKeys(data.subject)),
     onError: behind,
   })
   const each = useActionMutation(withGoalRefusals(commands.addPortalGoalsFn), {
     onSuccess: async ({ outcomes }) => {
-      const saved = outcomes.filter((outcome) => outcome.saved).length
+      const saved = outcomes.flatMap((outcome) =>
+        outcome.saved
+          ? addedSubjectKeys({ kind: 'portal', portalId: outcome.portalId })
+          : [],
+      )
       const notSaved = new Set(
         outcomes.filter((outcome) => !outcome.saved).map(({ portalId }) => portalId),
       )
-      if (notSaved.size === 0) return settle(eachToast(saved))
-      if (saved > 0) toast.success(eachToast(saved))
-      await commands.onAdded()
+      if (notSaved.size === 0) return settle(eachToast(saved.length), saved)
+      if (saved.length > 0) toast.success(eachToast(saved.length))
+      await commands.onAdded(saved)
       onSomeNotSaved(notSaved)
     },
     onError: behind,
@@ -144,6 +158,7 @@ export function PortalGoalAddSheet(props: PortalGoalAddSheetProps) {
   const phone = useIsMobile()
   const [place, setPlace] = useState(() => placeOf(props.opening))
   const [each, setEach] = useState(() => eachDraftOf(options))
+  const [box, setBox] = useState('')
   const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set())
   const { sendOne, sendEach, pending, error } = useAddCommands(props, setFailed)
   const body = (
@@ -152,11 +167,13 @@ export function PortalGoalAddSheet(props: PortalGoalAddSheetProps) {
       options={options}
       place={place}
       each={each}
+      box={box}
       failed={failed}
       small={phone}
       pending={pending}
       onPlace={setPlace}
       onEach={setEach}
+      onBox={setBox}
       onSendOne={(data) => sendOne({ propertyId, ...data })}
       onSendEach={(data) => sendEach({ propertyId, ...data })}
       error={<DialogErrorBanner error={error} />}

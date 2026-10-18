@@ -2,8 +2,9 @@
 // the choice (with the average closed under 10 private ratings), a goal for one
 // portal from its number step (Reception · December, 20 · 22 · 24), each portal
 // (a new Spa unticked, and a row the save could not keep), a group, the average,
-// an old link's step, a portal that has a goal, and no door at all where there
-// is nothing to add. On Seaview's Nov 22 (December offered) unless named. The
+// an old link's step, a portal that has a goal (and one taken while its number
+// step was open), the average held, and no door at all where there is nothing
+// to add. On Seaview's Nov 22 (December offered) unless named. The
 // Storybook Vitest project compiles no Tailwind, so the plays assert words,
 // roles, focus and what Set sends.
 import { useRef, useState } from 'react'
@@ -12,6 +13,7 @@ import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
 import { Button } from '#/components/ui/button'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
 import {
   PortalGoalAddSheet,
@@ -38,9 +40,14 @@ const addEachMock = fn<PortalGoalAddCommands['addPortalGoalsFn']>(async ({ data 
 }))
 const onAddedMock = fn<PortalGoalAddCommands['onAdded']>(async () => undefined)
 
+const refusal = (code: string) =>
+  new ServerFunctionError('GoalProgramError', code, code, 409)
+
 type HarnessProps = Readonly<{
   options: PortalGoalAddOptions
   opening?: PortalGoalAddOpening
+  /** What the page does once goals were added: read them again. */
+  onAdded?: PortalGoalAddCommands['onAdded']
 }>
 
 /**
@@ -48,7 +55,11 @@ type HarnessProps = Readonly<{
  * add, the M-rule): a fresh sheet for every opening, closed once a goal is
  * added, and the focus handed back to the door.
  */
-function Harness({ options, opening = { step: 'choose', subject: null } }: HarnessProps) {
+function Harness({
+  options,
+  opening = { step: 'choose', subject: null },
+  onAdded = onAddedMock,
+}: HarnessProps) {
   const [open, setOpen] = useState(false)
   const [key, setKey] = useState(0)
   const door = useRef<HTMLButtonElement>(null)
@@ -77,7 +88,7 @@ function Harness({ options, opening = { step: 'choose', subject: null } }: Harne
         commands={{
           addPortalGoalFn: addOneMock,
           addPortalGoalsFn: addEachMock,
-          onAdded: onAddedMock,
+          onAdded,
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault()
@@ -237,6 +248,7 @@ export const OnePortal: Story = {
     })
     await expectToast('Reception goal set: 22 private ratings for December')
     await expect(onAddedMock).toHaveBeenCalledOnce()
+    await expect(onAddedMock).toHaveBeenCalledWith([`portal:${ADD_IDS.RECEPTION}`])
     await waitFor(() =>
       expect(
         within(document.body).queryByRole('dialog', { name: 'Add a portal goal' }),
@@ -311,7 +323,9 @@ export const EachPortalRowFailed: Story = {
     await userEvent.click(sheet.getByRole('button', { name: 'Set 2 goals' }))
     await expect(await sheet.findByText('Not saved, try again')).toBeVisible()
     await expectToast('1 portal goal set')
+    // Only the row that was kept has a goal to read again.
     await expect(onAddedMock).toHaveBeenCalledOnce()
+    await expect(onAddedMock).toHaveBeenCalledWith([`portal:${ADD_IDS.RECEPTION}`])
     await expect(
       sheet.getByRole('button', { name: 'Raise Reception to 27' }),
     ).toBeVisible()
@@ -335,6 +349,9 @@ export const Group: Story = {
       }),
     })
     await expectToast('Rooms goal set: 35 private ratings for December')
+    // The group page's own goal card is read again with the Portal-goal reads.
+    await expect(onAddedMock).toHaveBeenCalledOnce()
+    await expect(onAddedMock).toHaveBeenCalledWith([`portal_group:${ADD_IDS.ROOMS}`])
   },
 }
 
@@ -388,6 +405,77 @@ export const PortalHasAGoal: Story = {
     ).toHaveAttribute(
       'href',
       `/properties/${PROPERTY_ID}/goals/c0000000-0000-4000-8000-000000000001`,
+    )
+  },
+}
+
+/**
+ * The read again after a refusal: the read now finds Reception with a goal, so
+ * its number step goes back to the list, where its row says so.
+ */
+function ReadAgainHarness() {
+  const [options, setOptions] = useState<PortalGoalAddOptions>(ADD_EACH_OCT_23)
+  return (
+    <Harness
+      options={options}
+      onAdded={async (subjects) => {
+        await onAddedMock(subjects)
+        setOptions(ADD_RECEPTION_HELD)
+      }}
+    />
+  )
+}
+
+/** M-9 after a race: Reception was taken while its number step was open. */
+export const PortalTakenAMomentAgo: Story = {
+  render: () => <ReadAgainHarness />,
+  play: async ({ canvasElement }) => {
+    addOneMock.mockImplementationOnce(async () => {
+      throw refusal('subject_has_goal')
+    })
+    const { in: sheet } = await openSheet(canvasElement)
+    await choose(sheet, /^A goal for one portal/u)
+    await choose(sheet, /^Reception/u)
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 26 for November' }))
+    await expect(
+      await sheet.findByText('A subject you chose already has a goal for this measure.'),
+    ).toBeVisible()
+    await expect(onAddedMock).toHaveBeenCalledOnce()
+    await expect(onAddedMock).toHaveBeenCalledWith([])
+    await expect(await sheet.findByText('Which portal?')).toBeVisible()
+    await expect(sheet.getByRole('radio', { name: /^Reception/u })).toBeDisabled()
+    await expect(sheet.getByText('Has a goal')).toBeVisible()
+    await expect(sheet.queryByRole('button', { name: /^Set /u })).toBeNull()
+    await expect(sheet.getByRole('button', { name: 'Next' })).toBeDisabled()
+  },
+}
+
+/** M-9 on the choice: an average that has a goal is closed, with a link to it. */
+export const AverageHasAGoal: Story = {
+  args: {
+    options: {
+      ...ADD_SEAVIEW,
+      average: {
+        available: true,
+        last4Weeks: 40,
+        heldBy: {
+          programId: 'c0000000-0000-4000-8000-000000000002',
+          name: 'Average private rating',
+        },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openSheet(canvasElement)
+    await expect(
+      sheet.getByRole('radio', { name: /^Average private rating/u }),
+    ).toBeDisabled()
+    await expect(sheet.getByText('Has a goal')).toBeVisible()
+    await expect(
+      sheet.getByRole('link', { name: 'Average private rating' }),
+    ).toHaveAttribute(
+      'href',
+      `/properties/${PROPERTY_ID}/goals/c0000000-0000-4000-8000-000000000002`,
     )
   },
 }

@@ -10,7 +10,8 @@
 // No Radix trigger opens it, so the host remembers what had the focus and
 // returns it there on closing, or to the page's goal title when that is gone
 // (`useFocusReturn`, as the set sheet's host does). An added goal marks every
-// Portal-goal read stale, never the Google rating goal's.
+// Portal-goal read stale, and its group's goal card, never the Google rating
+// goal's reads.
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
@@ -22,7 +23,7 @@ import { portalGoalAddOffered } from '#/components/goals/portal-goal-add-view'
 import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
-  markPortalGoalReadsStale,
+  markPortalGoalAddedStale,
   portalGoalAddCommands,
   portalGoalAddQuery,
 } from './-portal-goal-queries'
@@ -84,7 +85,7 @@ export function usePortalGoalAdd(input: Input) {
     // The sheet's rows are read-only; the server function takes its own copy.
     addPortalGoalsFn: ({ data }) =>
       portalGoalAddCommands.addPortalGoals({ data: { ...data, items: [...data.items] } }),
-    onAdded: () => markPortalGoalReadsStale(queryClient, propertyId),
+    onAdded: (subjects) => markPortalGoalAddedStale(queryClient, propertyId, subjects),
   }
   const sheet: ReactNode =
     opening === null ? null : (

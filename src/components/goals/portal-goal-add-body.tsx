@@ -2,8 +2,10 @@
 // manager is on, the refusal, and the footer with Back (Cancel on the first
 // step) and the step's own primary. It moves between steps and hands each send
 // up; every word, number and state is the add views'. Moving to a step puts the
-// focus on its first control, so a keyboard never loses its place.
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+// focus on its first control, so a keyboard never loses its place. It keeps no
+// draft of its own: the sheet holds them, since a phone turned on its side
+// swaps the frame this is drawn in and mounts it afresh.
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
 import { DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { PortalGoalAddEach } from './portal-goal-add-each'
@@ -16,15 +18,18 @@ import {
 import { PortalGoalAddAverage, PortalGoalAddNumber } from './portal-goal-add-number'
 import { PortalGoalAddChoose, PortalGoalAddWhich } from './portal-goal-add-steps'
 import {
-  ADD_TITLE,
   averageModel,
-  chooseModel,
   committedText,
   numberModel,
+  type PortalGoalAddSubmission,
+} from './portal-goal-add-number-view'
+import {
+  ADD_TITLE,
+  chooseModel,
+  numberOfferOf,
   offerOf,
   whichModel,
   type PortalGoalAddKind,
-  type PortalGoalAddSubmission,
 } from './portal-goal-add-view'
 
 /** Where the manager is: a step, and what it has picked there. */
@@ -42,6 +47,8 @@ type Props = Readonly<{
   options: PortalGoalAddOptions
   place: PortalGoalAddPlace
   each: PortalGoalAddEachDraft
+  /** The number box as typed, on the number step and the average's. */
+  box: string
   /** The Portals the last save for each could not keep. */
   failed: ReadonlySet<string>
   /** A phone: the smaller figures, and a title clear of the corner close. */
@@ -50,6 +57,7 @@ type Props = Readonly<{
   pending: boolean
   onPlace: (place: PortalGoalAddPlace) => void
   onEach: (each: PortalGoalAddEachDraft) => void
+  onBox: (text: string) => void
   onSendOne: (data: PortalGoalAddSubmission) => void
   onSendEach: (data: NonNullable<ReturnType<typeof eachModel>['submission']>) => void
   /** The refusal, above the footer. */
@@ -57,6 +65,20 @@ type Props = Readonly<{
   /** The footer: Back (null on the first step, which has Cancel) and the primary. */
   footer: (back: (() => void) | null, primary: Primary) => ReactNode
 }>
+
+/**
+ * The place drawn: the number step goes back to its list once the read says
+ * its Portal or group has a goal (it was taken a moment ago), so its row says
+ * "Has a goal" and Set cannot be refused again.
+ */
+function shownPlace(
+  options: PortalGoalAddOptions,
+  place: PortalGoalAddPlace,
+): PortalGoalAddPlace {
+  return place.step === 'number' && numberOfferOf(options, place.key) === null
+    ? { step: place.of, picked: null }
+    : place
+}
 
 /** The step that came before, for Back. */
 function backOf(place: PortalGoalAddPlace): PortalGoalAddPlace | null {
@@ -110,22 +132,22 @@ type Step = Readonly<{
   submit: () => void
 }>
 
-/** The number box's draft, shared by the number step and the average's. */
-function useBox(pending: boolean) {
-  const [text, setText] = useState('')
+/** The number box, shared by the number step and the average's; the sheet holds its text. */
+function boxOf(props: Props) {
+  const { box: text, onBox: setText, pending } = props
   return {
     text,
     start: (value: number | null) => setText(value === null ? '' : String(value)),
     props: (average: boolean) => ({
       pending,
       onType: setText,
-      onCommit: () => setText((current) => committedText(current, average)),
+      onCommit: () => setText(committedText(text, average)),
       onStep: (to: number) => setText(average ? to.toFixed(1) : String(to)),
     }),
   }
 }
 
-function stepOf(props: Props, box: ReturnType<typeof useBox>): Step {
+function stepOf(props: Props, box: ReturnType<typeof boxOf>): Step {
   const { options, place, pending, small } = props
   switch (place.step) {
     case 'choose': {
@@ -134,6 +156,7 @@ function stepOf(props: Props, box: ReturnType<typeof useBox>): Step {
         description: model.description,
         content: (
           <PortalGoalAddChoose
+            propertyId={props.propertyId}
             model={model}
             picked={place.picked}
             onPick={(kind) => props.onPlace({ step: 'choose', picked: kind })}
@@ -176,9 +199,9 @@ function stepOf(props: Props, box: ReturnType<typeof useBox>): Step {
       }
     }
     case 'number': {
-      const offer = offerOf(options, place.key)
+      const offer = numberOfferOf(options, place.key)
       if (offer === null) {
-        // The read no longer offers it (it was taken a moment ago): choose again.
+        // Taken a moment ago (`shownPlace` draws its list instead): choose again.
         return stepOf({ ...props, place: { step: place.of, picked: null } }, box)
       }
       const model = numberModel(options, offer, box.text)
@@ -229,10 +252,10 @@ function stepOf(props: Props, box: ReturnType<typeof useBox>): Step {
 }
 
 export function PortalGoalAddBody(props: Props) {
-  const box = useBox(props.pending)
-  const step = stepOf(props, box)
-  const ref = useStepFocus(props.place.step)
-  const back = backOf(props.place)
+  const place = shownPlace(props.options, props.place)
+  const step = stepOf({ ...props, place }, boxOf(props))
+  const ref = useStepFocus(place.step)
+  const back = backOf(place)
   return (
     <>
       <DialogHeader>

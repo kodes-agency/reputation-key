@@ -1,10 +1,10 @@
 // "Add a portal goal", worked out (PLAN PG-20; copy deck M-1…M-14): from what
 // the add read sent (`PortalGoalAddOptions`) and what the manager has chosen,
-// every word, number and state of the sheet's steps but "A goal for each
-// portal" (`portal-goal-add-each-view.ts`), and what Set sends. The read
-// decides which choices are open, every number, and "Has a goal" (PLAN E12);
-// the only sums here are the box's steps (the goal grid for a count, tenths for
-// the average). Nothing here throws on what was typed.
+// every word and state of the sheet's choosing steps, what an address opens,
+// and what Set says once done. The number steps are
+// `portal-goal-add-number-view.ts`, and "A goal for each portal"
+// `portal-goal-add-each-view.ts`. The read decides which choices are open,
+// every number, and "Has a goal" (PLAN E12).
 import type {
   AddPortalGoalRequest,
   PortalGoalAddHeld,
@@ -13,15 +13,12 @@ import type {
 } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
 import { formatNumber } from '#/lib/format'
 import { goalMetricLabel } from './goal-metric-label'
-import { countsFromWords } from './portal-goal-offer-words'
 import {
-  choicesOf,
-  readText,
-  stepsFrom,
-  takes,
-  type PortalGoalSheetModel,
-} from './portal-goal-sheet-view'
-import { dayWords, monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'
+  AVERAGE_METRIC,
+  averageWords,
+  type PortalGoalAddSubmission,
+} from './portal-goal-add-number-view'
+import { dayWords, monthName, portalGoalCount } from './portal-goal-words'
 
 /** What the sheet adds: a goal for one Portal, for each, for a group, or the average. */
 export type PortalGoalAddKind = 'portal' | 'each' | 'group' | 'average'
@@ -34,21 +31,6 @@ export const ADD_TITLE = 'Add a portal goal'
 /** M-9: a subject that takes no second goal on the measure. */
 const HAS_A_GOAL = 'Has a goal'
 
-const AVERAGE: AddPortalGoalRequest['metric'] = 'portal_rating_average'
-
-/** What a goal for one Portal, one group or the average sends; the host adds the Property. */
-export type PortalGoalAddSubmission = Omit<AddPortalGoalRequest, 'propertyId'>
-
-/** M-rule: whether anything can be added, so whether "More portal goals" says so. */
-export function portalGoalAddOffered(options: PortalGoalAddOptions): boolean {
-  const { onePortal, groups, average } = options
-  return (
-    onePortal.length > 0 ||
-    groups.length > 0 ||
-    (average.available && average.heldBy === null)
-  )
-}
-
 type Choice = Readonly<{
   kind: PortalGoalAddKind
   title: string
@@ -56,9 +38,19 @@ type Choice = Readonly<{
   disabled: boolean
   /** Why it is closed, when that is a fact to tell. */
   fact: string | null
+  /** The goal that closes it, for "Has a goal"'s link (the average's). */
+  held: PortalGoalAddHeld | null
 }>
 
-/** M-3…M-6: the choices the read opens, in the screens' order. */
+/** Some Portal or group of these still takes a goal: one without "Has a goal". */
+const someOpen = (offers: readonly PortalGoalAddOffer[]): boolean =>
+  offers.some(({ heldBy }) => heldBy === null)
+
+/**
+ * M-3…M-6: the choices the read opens, in the screens' order. A goal for one
+ * Portal, for each, or for a group is drawn while one of its Portals or groups
+ * can still take a goal; with every one held there is nothing to pick there.
+ */
 function choicesFor(options: PortalGoalAddOptions): readonly Choice[] {
   const { average } = options
   const open = (kind: PortalGoalAddKind, title: string, description: string): Choice => ({
@@ -67,9 +59,10 @@ function choicesFor(options: PortalGoalAddOptions): readonly Choice[] {
     description,
     disabled: false,
     fact: null,
+    held: null,
   })
   return [
-    ...(options.onePortal.length > 0
+    ...(someOpen(options.onePortal)
       ? [
           open(
             'portal',
@@ -78,10 +71,10 @@ function choicesFor(options: PortalGoalAddOptions): readonly Choice[] {
           ),
         ]
       : []),
-    ...(options.eachPortal.length > 0
+    ...(someOpen(options.eachPortal.map(({ offer }) => offer))
       ? [open('each', 'A goal for each portal', 'One recommended number per portal.')]
       : []),
-    ...(options.groups.length > 0
+    ...(someOpen(options.groups)
       ? [
           open(
             'group',
@@ -92,7 +85,7 @@ function choicesFor(options: PortalGoalAddOptions): readonly Choice[] {
       : []),
     {
       kind: 'average',
-      title: goalMetricLabel(AVERAGE),
+      title: goalMetricLabel(AVERAGE_METRIC),
       description:
         'A level to hold for the whole property. Needs 10 private ratings a month.',
       disabled: !average.available || average.heldBy !== null,
@@ -102,8 +95,17 @@ function choicesFor(options: PortalGoalAddOptions): readonly Choice[] {
           : average.available
             ? null
             : `Your portals had ${formatNumber(average.last4Weeks)} in the last 4 weeks.`,
+      held: average.heldBy,
     },
   ]
+}
+
+/**
+ * M-rule: whether anything can be added (a choice that is open), so whether
+ * "More portal goals" asks and the Goals page draws the door.
+ */
+export function portalGoalAddOffered(options: PortalGoalAddOptions): boolean {
+  return choicesFor(options).some(({ disabled }) => !disabled)
 }
 
 /** M-2…M-8: the first step, with the choice picked so far. */
@@ -125,6 +127,15 @@ const keyOfSubject = (subject: PortalGoalAddOffer['subject']): string =>
   subject.kind === 'portal'
     ? `portal:${subject.portalId}`
     : `portal_group:${subject.portalGroupId}`
+
+/**
+ * The subjects a save added a goal for, as the reads of their goals' month so
+ * far name them (a Portal Group page's goal card reads `portal_group:<id>`);
+ * the average's Property has no such read apart from the Portal-goal reads.
+ */
+export const addedSubjectKeys = (
+  subject: AddPortalGoalRequest['subject'],
+): readonly string[] => (subject.kind === 'property' ? [] : [keyOfSubject(subject)])
 
 const subjectKey = (offer: PortalGoalAddOffer): string => keyOfSubject(offer.subject)
 
@@ -183,138 +194,17 @@ export function offerOf(
   )
 }
 
-/** The Set button: "Set 22 for December", "Set 55 scans for December"; "Set goal" with no number. */
-function primaryOf(
+/**
+ * The offer the number step is for, while it can still take a goal: null once
+ * the read no longer offers it or says it has a goal (it was taken a moment
+ * ago), so the step goes back to its list, where its row says so.
+ */
+export function numberOfferOf(
   options: PortalGoalAddOptions,
-  number: string | null,
-): Readonly<{ label: string; disabled: boolean }> {
-  return number === null
-    ? { label: 'Set goal', disabled: true }
-    : { label: `Set ${number} for ${monthName(options.month)}`, disabled: false }
-}
-
-/** M-10: the number step of a goal for one Portal or one group. */
-export function numberModel(
-  options: PortalGoalAddOptions,
-  offer: PortalGoalAddOffer,
-  text: string,
-) {
-  const { measure, month } = options
-  const reading = readText(text)
-  const value = reading.kind === 'whole' && takes(reading.n) ? reading.n : null
-  const choices = offer.choices === null ? null : choicesOf({ choices: offer.choices })
-  const submission: PortalGoalAddSubmission | null =
-    value === null
-      ? null
-      : {
-          subject: offer.subject,
-          metric: measure,
-          targetValue: value,
-          startMonth: month,
-          targetSource: value === offer.choices?.aBitMore ? 'recommended' : 'own',
-        }
-  return {
-    band: `${offer.name} · ${monthName(month)}`,
-    description: options.current
-      ? countsFromWords(month, offer.soFar)
-      : `Starts on ${dayWords(`${month}-01`)}.`,
-    unit: portalGoalUnit(measure, value ?? 0),
-    number: {
-      text,
-      value,
-      invalid: reading.kind !== 'empty' && value === null,
-      valueText: value === null ? null : portalGoalCount(measure, value),
-      ...stepsFrom(reading),
-    } satisfies PortalGoalSheetModel['number'],
-    choices,
-    chosen: choices?.find((choice) => choice.value === value)?.value ?? null,
-    primary: primaryOf(
-      options,
-      value === null
-        ? null
-        : measure === 'portal_rating_count'
-          ? formatNumber(value)
-          : portalGoalCount(measure, value),
-    ),
-    submission,
-  }
-}
-
-/** The average's box: tenths from 1 to 5. */
-const LOWEST_AVERAGE = 1
-const HIGHEST_AVERAGE = 5
-const TENTHS = 10
-
-/** A typed average: a number from 1 to 5 with at most one decimal (a comma or a point). */
-function averageOf(text: string): Readonly<{ empty: boolean; value: number | null }> {
-  const typed = text.trim().replace(',', '.')
-  if (typed === '') return { empty: true, value: null }
-  if (!/^\d(\.\d)?$/u.test(typed)) return { empty: false, value: null }
-  const value = Number(typed)
-  return {
-    empty: false,
-    value: value >= LOWEST_AVERAGE && value <= HIGHEST_AVERAGE ? value : null,
-  }
-}
-
-const tenth = (value: number): number => Math.round(value * TENTHS) / TENTHS
-const averageWords = (value: number): string => value.toFixed(1)
-
-function averageSteps(value: number | null) {
-  const step = (verb: 'Lower' | 'Raise', to: number | null) => ({
-    label: to === null ? verb : `${verb} to ${averageWords(to)}`,
-    to,
-  })
-  if (value === null) {
-    return { lower: step('Lower', null), raise: step('Raise', LOWEST_AVERAGE) }
-  }
-  return {
-    lower: step('Lower', value <= LOWEST_AVERAGE ? null : tenth(value - 1 / TENTHS)),
-    raise: step('Raise', value >= HIGHEST_AVERAGE ? null : tenth(value + 1 / TENTHS)),
-  }
-}
-
-const AVERAGE_UNIT = 'average private rating'
-
-/** M-6, M-14: the average step; its box starts empty, and the number is the manager's own. */
-export function averageModel(options: PortalGoalAddOptions, text: string) {
-  const { empty, value } = averageOf(text)
-  return {
-    description: goalMetricLabel(AVERAGE),
-    band: monthName(options.month),
-    unit: AVERAGE_UNIT,
-    status: 'Needs 10 private ratings a month.',
-    number: {
-      text,
-      value,
-      invalid: !empty && value === null,
-      valueText: value === null ? null : `${averageWords(value)} ${AVERAGE_UNIT}`,
-      ...averageSteps(value),
-    } satisfies PortalGoalSheetModel['number'],
-    primary: primaryOf(options, value === null ? null : averageWords(value)),
-    submission:
-      value === null
-        ? null
-        : ({
-            subject: { kind: 'property' },
-            metric: AVERAGE,
-            targetValue: value,
-            startMonth: options.month,
-            targetSource: 'own',
-          } satisfies PortalGoalAddSubmission),
-  }
-}
-
-/** The box as Enter or leaving it writes it: a whole count plainly, an average to tenths. */
-export function committedText(text: string, average: boolean): string {
-  if (average) {
-    const { value } = averageOf(text)
-    return value === null ? text : averageWords(value)
-  }
-  const reading = readText(text)
-  return reading.kind === 'whole' && Number.isSafeInteger(reading.n)
-    ? String(reading.n)
-    : text
+  key: string | null,
+): PortalGoalAddOffer | null {
+  const offer = offerOf(options, key)
+  return offer === null || offer.heldBy !== null ? null : offer
 }
 
 /** M-12: "Reception goal set: 22 private ratings for December"; the average's by its name. */
@@ -325,7 +215,7 @@ export function addedToast(
   const month = monthName(options.month)
   const { subject, targetValue } = sent
   if (subject.kind === 'property') {
-    return `${goalMetricLabel(AVERAGE)} goal set: ${averageWords(targetValue)} for ${month}`
+    return `${goalMetricLabel(AVERAGE_METRIC)} goal set: ${averageWords(targetValue)} for ${month}`
   }
   const name = offerOf(options, keyOfSubject(subject))?.name ?? ''
   return `${name} goal set: ${portalGoalCount(options.measure, targetValue)} for ${month}`
@@ -339,20 +229,21 @@ export type PortalGoalAddAddress = Readonly<{
 
 /**
  * The step an address opens, with its subject when that is one the read offers
- * (anyone can type an address); a step the read does not offer opens the
- * choice. No `add`, no sheet.
+ * and it can still take a goal (anyone can type an address); a step the read
+ * does not offer opens the choice. No `add`, or nothing to add (the M-rule),
+ * no sheet.
  */
 export function openingOf(
   options: PortalGoalAddOptions,
   address: PortalGoalAddAddress,
 ): Readonly<{ step: PortalGoalAddStep; subject: string | null }> | null {
   const { add } = address
-  if (add === undefined) return null
+  if (add === undefined || !portalGoalAddOffered(options)) return null
   if (add === 'choose') return { step: 'choose', subject: null }
   const open = choicesFor(options).find(({ kind }) => kind === add)
   if (open === undefined || open.disabled) return { step: 'choose', subject: null }
   if (add !== 'portal' && add !== 'group') return { step: add, subject: null }
-  const offered = offerOf(options, address.subject ?? null)
+  const offered = numberOfferOf(options, address.subject ?? null)
   const fits =
     offered !== null &&
     offered.subject.kind === (add === 'portal' ? 'portal' : 'portal_group')

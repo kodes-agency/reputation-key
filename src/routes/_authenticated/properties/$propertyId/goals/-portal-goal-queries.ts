@@ -191,3 +191,23 @@ export const portalGoalAddCommands = {
     input: Parameters<MonthlyPortalGoalServer['addPortalGoals']>[0],
   ) => (await server()).addPortalGoals(input),
 }
+
+/**
+ * What an added goal marks stale (PLAN PG-20): every Portal-goal read, through
+ * `markPortalGoalReadsStale`, and the month so far of the goals that target each
+ * subject it was added for (`progress(propertyId, 'portal_group:<id>')`, a Portal
+ * Group page's goal card), which sits under no Portal-goal key. Never the Goals
+ * family root.
+ */
+export async function markPortalGoalAddedStale(
+  queryClient: QueryClient,
+  propertyId: string,
+  subjects: readonly string[],
+): Promise<void> {
+  await Promise.all([
+    markPortalGoalReadsStale(queryClient, propertyId),
+    ...subjects.map((subject) =>
+      queryClient.invalidateQueries({ queryKey: goalKeys.progress(propertyId, subject) }),
+    ),
+  ])
+}

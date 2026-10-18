@@ -15,6 +15,7 @@ vi.mock('#/contexts/reporting/server/monthly-portal-goals', () => ({
 }))
 
 import {
+  markPortalGoalAddedStale,
   markPortalGoalReadsStale,
   portalGoalAddCommands,
   portalGoalAddQuery,
@@ -154,6 +155,34 @@ describe('Add a portal goal (PG-20)', () => {
     await expect(
       prefetchPortalGoalAdd(new QueryClient(), 'property-2'),
     ).resolves.toBeUndefined()
+  })
+
+  it("marks the added subjects' goal cards stale with the Portal-goal reads, never the root", async () => {
+    const queryClient = new QueryClient()
+    const keys = {
+      add: goalKeys.portalGoalRead(PROPERTY, 'add'),
+      rooms: goalKeys.progress(PROPERTY, 'portal_group:rooms'),
+      wellness: goalKeys.progress(PROPERTY, 'portal_group:wellness'),
+      roomsElsewhere: goalKeys.progress('property-2', 'portal_group:rooms'),
+      ratingGoal: goalKeys.ratingGoalRead(PROPERTY, 'card'),
+    }
+    for (const key of Object.values(keys)) queryClient.setQueryData(key, { read: true })
+
+    await markPortalGoalAddedStale(queryClient, PROPERTY, ['portal_group:rooms'])
+
+    const stale = Object.fromEntries(
+      Object.entries(keys).map(([name, key]) => [
+        name,
+        queryClient.getQueryState(key)?.isInvalidated,
+      ]),
+    )
+    expect(stale).toEqual({
+      add: true,
+      rooms: true,
+      wellness: false,
+      roomsElsewhere: false,
+      ratingGoal: false,
+    })
   })
 
   it('sends its commands to the server functions as they are', async () => {

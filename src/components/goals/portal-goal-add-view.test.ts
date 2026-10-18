@@ -6,17 +6,18 @@ import {
   ADD_NOTHING,
   ADD_RECEPTION_HELD,
   ADD_SEAVIEW,
-  ADD_THIS_MONTH,
 } from './portal-goal-add.stories.fixtures'
 import {
-  addedToast,
-  averageModel,
   chooseModel,
-  numberModel,
+  numberOfferOf,
   openingOf,
   portalGoalAddOffered,
   whichModel,
 } from './portal-goal-add-view'
+import type {
+  PortalGoalAddOffer,
+  PortalGoalAddOptions,
+} from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
 import {
   eachDraftOf,
   eachModel,
@@ -26,6 +27,24 @@ import {
 
 const kinds = (options: typeof ADD_SEAVIEW) =>
   chooseModel(options, null).choices.map(({ kind, disabled }) => [kind, disabled])
+
+const HELD = { programId: 'c0000000-0000-4000-8000-000000000009', name: 'A goal' }
+const held = (offer: PortalGoalAddOffer): PortalGoalAddOffer => ({
+  ...offer,
+  heldBy: HELD,
+})
+
+/** Every Portal and group has a goal already, as after "A goal for each portal". */
+const allHeld = (options: PortalGoalAddOptions): PortalGoalAddOptions => ({
+  ...options,
+  onePortal: options.onePortal.map(held),
+  eachPortal: options.eachPortal.map((row) => ({
+    ...row,
+    offer: held(row.offer),
+    ticked: false,
+  })),
+  groups: options.groups.map(held),
+})
 
 describe('Add a portal goal, worded', () => {
   it('one portal and each portal need 2+ live portals', () => {
@@ -62,6 +81,7 @@ describe('Add a portal goal, worded', () => {
         'A level to hold for the whole property. Needs 10 private ratings a month.',
       disabled: true,
       fact: 'Your portals had 6 in the last 4 weeks.',
+      held: null,
     })
     expect(chooseModel(ADD_SEAVIEW, null).choices.at(-1)).toMatchObject({
       disabled: false,
@@ -169,91 +189,43 @@ describe('Add a portal goal, worded', () => {
     ).toBe(true)
   })
 
-  it('the number step: Reception · December, its own usual, and Set 22 for December', () => {
-    const [reception] = ADD_SEAVIEW.onePortal
-    if (!reception) throw new Error('expected Reception')
-    const model = numberModel(ADD_SEAVIEW, reception, '22')
+  it('every portal has a goal, nothing else open: no door', () => {
+    const taken = allHeld(ADD_AVERAGE_DISABLED)
 
-    expect(model).toMatchObject({
-      band: 'Reception · December',
-      description: 'Starts on Dec 1.',
-      unit: 'private ratings',
-      chosen: 22,
-      primary: { label: 'Set 22 for December', disabled: false },
-      submission: {
-        subject: { kind: 'portal', portalId: ADD_IDS.RECEPTION },
-        metric: 'portal_rating_count',
-        targetValue: 22,
-        startMonth: '2026-12',
-        targetSource: 'recommended',
-      },
-    })
-    expect(model.choices?.map(({ label }) => label)).toEqual([
-      '20 · your usual',
-      '22 · a bit more',
-      '24 · stretch',
+    expect(portalGoalAddOffered(taken)).toBe(false)
+    // Nothing left to pick for one Portal or each: those choices are not drawn.
+    expect(kinds(taken)).toEqual([['average', true]])
+    expect(openingOf(taken, { add: 'choose' })).toBeNull()
+    // A group that has a goal closes its choice the same way.
+    expect(kinds(allHeld(ADD_SEAVIEW))).toEqual([['average', false]])
+    expect(portalGoalAddOffered({ ...taken, groups: ADD_SEAVIEW.groups })).toBe(true)
+  })
+
+  it('one portal still open keeps both portal choices', () => {
+    expect(kinds(ADD_RECEPTION_HELD).slice(0, 2)).toEqual([
+      ['portal', false],
+      ['each', false],
     ])
-    expect(model.submission && addedToast(ADD_SEAVIEW, model.submission)).toBe(
-      'Reception goal set: 22 private ratings for December',
-    )
   })
 
-  it('this month counts from its first day, with what already counts', () => {
-    const [reception] = ADD_THIS_MONTH.onePortal
-    if (!reception) throw new Error('expected Reception')
+  it('a held average links to its goal', () => {
+    const average = chooseModel(
+      { ...ADD_SEAVIEW, average: { available: true, last4Weeks: 40, heldBy: HELD } },
+      null,
+    ).choices.at(-1)
 
-    expect(numberModel(ADD_THIS_MONTH, reception, '10').description).toBe(
-      'Counts from Nov 1 · 3 already count.',
-    )
+    expect(average).toMatchObject({ disabled: true, fact: 'Has a goal', held: HELD })
+    expect(chooseModel(ADD_SEAVIEW, null).choices.at(-1)).toMatchObject({ held: null })
   })
 
-  it('no number yet: the box starts empty and Set waits for one', () => {
-    const [, , spa] = ADD_EACH_OCT_23.onePortal
-    if (!spa) throw new Error('expected Spa')
-    const empty = numberModel(ADD_EACH_OCT_23, spa, '')
-    const typed = numberModel(ADD_EACH_OCT_23, spa, '7')
+  it('a subject taken a moment ago leaves the number step for its list', () => {
+    const reception = `portal:${ADD_IDS.RECEPTION}`
+    const restaurant = `portal:${ADD_IDS.RESTAURANT}`
 
-    expect(empty).toMatchObject({
-      choices: null,
-      primary: { label: 'Set goal', disabled: true },
-      submission: null,
-    })
-    expect(typed.submission).toMatchObject({ targetValue: 7, targetSource: 'own' })
-    expect(numberModel(ADD_EACH_OCT_23, spa, '0').number.invalid).toBe(true)
-  })
-
-  it('the average starts empty, takes one decimal from 1 to 5, and is its own', () => {
-    expect(averageModel(ADD_SEAVIEW, '')).toMatchObject({
-      description: 'Average private rating',
-      band: 'December',
-      status: 'Needs 10 private ratings a month.',
-      primary: { label: 'Set goal', disabled: true },
-      submission: null,
-    })
-    const typed = averageModel(ADD_SEAVIEW, '4,5')
-    expect(typed).toMatchObject({
-      number: {
-        value: 4.5,
-        valueText: '4.5 average private rating',
-        lower: { label: 'Lower to 4.4', to: 4.4 },
-        raise: { label: 'Raise to 4.6', to: 4.6 },
-      },
-      primary: { label: 'Set 4.5 for December', disabled: false },
-      submission: {
-        subject: { kind: 'property' },
-        metric: 'portal_rating_average',
-        targetValue: 4.5,
-        startMonth: '2026-12',
-        targetSource: 'own',
-      },
-    })
-    for (const text of ['0.9', '5.1', '4.55', 'four']) {
-      expect(averageModel(ADD_SEAVIEW, text).number.invalid).toBe(true)
-    }
-    expect(averageModel(ADD_SEAVIEW, '5').number.raise.to).toBeNull()
-    expect(typed.submission && addedToast(ADD_SEAVIEW, typed.submission)).toBe(
-      'Average private rating goal set: 4.5 for December',
-    )
+    // The read again after a refusal: Reception has a goal now.
+    expect(numberOfferOf(ADD_RECEPTION_HELD, reception)).toBeNull()
+    expect(numberOfferOf(ADD_RECEPTION_HELD, restaurant)?.name).toBe('Restaurant')
+    expect(numberOfferOf(ADD_RECEPTION_HELD, 'portal:elsewhere')).toBeNull()
   })
 
   it('an old link opens the step it names, with its subject when it is offered', () => {
@@ -274,10 +246,24 @@ describe('Add a portal goal, worded', () => {
       step: 'portal',
       subject: null,
     })
-    expect(openingOf(ADD_NOTHING, { add: 'each' })).toEqual({
-      step: 'choose',
-      subject: null,
-    })
+    expect(
+      openingOf({ ...ADD_SEAVIEW, onePortal: [], eachPortal: [] }, { add: 'each' }),
+    ).toEqual({ step: 'choose', subject: null })
     expect(openingOf(ADD_SEAVIEW, {})).toBeNull()
+  })
+
+  it('an address opens nothing when nothing can be added, and never picks a held subject', () => {
+    // One live Portal and 6 private ratings: /goals/new's ?add=choose opens no sheet.
+    expect(openingOf(ADD_NOTHING, { add: 'choose' })).toBeNull()
+    expect(
+      openingOf(ADD_NOTHING, { add: 'portal', subject: `portal:${ADD_IDS.RECEPTION}` }),
+    ).toBeNull()
+    // Reception has a goal: the list opens with nothing picked, its row says so.
+    expect(
+      openingOf(ADD_RECEPTION_HELD, {
+        add: 'portal',
+        subject: `portal:${ADD_IDS.RECEPTION}`,
+      }),
+    ).toEqual({ step: 'portal', subject: null })
   })
 })
