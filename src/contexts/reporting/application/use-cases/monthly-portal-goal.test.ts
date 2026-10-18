@@ -922,11 +922,8 @@ describe("the check-in's Use", () => {
   // Reception and Restaurant live since Oct 9 with 11 and 5 private ratings.
   // Nov 3 in Sofia: 16 in 25 live days at each, so a whole 30-day November is
   // 20 · 22 · 24 (22 recommended), and the rest of it, with nothing in yet,
-  // 18 · 20 · 22 (20 recommended).
+  // 18 · 20 · 22 (20 recommended). The check-in offers what the sheet does.
   const NOV_3 = new Date('2026-11-03T10:00:00.000Z')
-  // Nov 8: 14 in 28 days, so 15 · 17 · 18 for all of November and 12 · 13 · 14
-  // for the rest of it; the check-in has closed.
-  const NOV_8 = new Date('2026-11-08T10:00:00.000Z')
   const DEC_1 = new Date('2026-11-30T22:00:00.000Z')
   const runningNovember = () =>
     propertyGoal('monthly', 'portal_rating_count', {
@@ -955,15 +952,10 @@ describe("the check-in's Use", () => {
       actor,
     ] as const
 
-  it("records recommended for the check-in's number while the check-in is open", async () => {
-    // Use 22, the whole month's; the sheet's 20 for the rest of it; never 21.
-    expect(await recorded(NOV_3, 22)).toHaveBeenCalledWith(...as(22, 'recommended'))
+  it('records recommended for the one number recommended for the rest of the month', async () => {
+    // Use 20, as the sheet offers it; the whole month's 22 is a number of one's own.
     expect(await recorded(NOV_3, 20)).toHaveBeenCalledWith(...as(20, 'recommended'))
+    expect(await recorded(NOV_3, 22)).toHaveBeenCalledWith(...as(22, 'own'))
     expect(await recorded(NOV_3, 21)).toHaveBeenCalledWith(...as(21, 'own'))
-  })
-
-  it('records own for the whole month’s number once the check-in has closed', async () => {
-    expect(await recorded(NOV_8, 17)).toHaveBeenCalledWith(...as(17, 'own'))
-    expect(await recorded(NOV_8, 13)).toHaveBeenCalledWith(...as(13, 'recommended'))
   })
 })

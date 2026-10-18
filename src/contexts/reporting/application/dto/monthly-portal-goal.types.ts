@@ -317,10 +317,10 @@ export type PortalGoalCheckIn = Readonly<{
         /** "Use 45" (the offer's recommended number), "Keep 40", or another number. */
         kind: 'offer'
         /**
-         * The number recommended for the month, worked out for the whole month
-         * from the basis (`current` false: "a 31-day month gets about 38"),
-         * unless what already counts has reached it: then for the rest of the
-         * month, on top of what already counts (`current` true).
+         * The number recommended for the month now, the sheet's: the rest of
+         * the month on top of what already counts (`current` true); on its
+         * first day with nothing in yet, the same numbers worked out for the
+         * whole month (`current` false: "a 31-day month gets about 38").
          */
         offer: PortalGoalOffer
       }>

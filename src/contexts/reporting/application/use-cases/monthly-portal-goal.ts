@@ -28,8 +28,8 @@
 // are free for a new goal. Each asks the policy first, before anything is read.
 //
 // The month-start check-in (PLAN PG-15): its "Use 45" is the change now, with
-// the number recommended for the whole month, which is recorded as
-// recommended while the check-in is open; its Keep (`goal.update`) records the
+// the number the sheet recommends for the month now, so it is recorded as
+// recommended like any other; its Keep (`goal.update`) records the
 // month it answered and nothing else: no version, no change row, the same
 // again when pressed twice. Keep is taken only on the running month's first
 // seven local days (`check_in_closed` otherwise) and only from a goal that
@@ -67,7 +67,7 @@ import {
   gatherPortalGoalRecommendation,
   type PortalGoalRecommendationReads,
 } from './goal-recommendation-read'
-import { offeredChoices, recommendedNumbersFor } from './monthly-portal-goal-offer'
+import { offeredChoices } from './monthly-portal-goal-offer'
 
 /** What the goal is called, everywhere it is named. */
 export const MONTHLY_PORTAL_GOAL_NAME = 'Monthly portal goal'
@@ -180,9 +180,9 @@ function theMonthlyGoal(
 }
 
 /**
- * Whether `targetValue` is a number recommended for the `asked` month and
- * measure (the card's and the sheet's, or the open check-in's), read only when
- * the screen said so (and the month is one of the goal's counts).
+ * Whether `targetValue` is the number recommended for the `asked` month and
+ * measure, read only when the screen said so (and the month is one of the
+ * goal's counts).
  */
 async function recordedSource(
   deps: MonthlyPortalGoalChangeDeps,
@@ -202,9 +202,8 @@ async function recordedSource(
     now: deps.now(),
   })
   const measure: PortalGoalMeasure = asked.metric
-  return recommendedNumbersFor(recommendation, asked.month, measure).includes(
-    claim.targetValue,
-  )
+  return offeredChoices(recommendation, asked.month, measure)?.aBitMore ===
+    claim.targetValue
     ? 'recommended'
     : 'own'
 }

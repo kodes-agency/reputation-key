@@ -216,15 +216,16 @@ metric authority.
   no change row, no new `updated_at`; the same again when pressed twice; `check_in_closed`
   outside the running month's days 1 to 7, cut in the zone the month was cut in), and a
   change of this month's own number since it began (Use, or another number through the
-  sheet) answers it as well. Its number is the recommendation's for the whole month in the
-  measure the month counts (G4: Use 45, Keep 40 for a 31-day December), never at or below
-  what already counts (then the rest of the month's, on top of it); with that number the
-  month's already it is one line, with nothing of the measure over the basis it offers no
-  number (Keep and another number, with the basis weeks), and with no recommendation that
-  can be read it asks nothing. Use is the change now (`changeMonthlyPortalGoalNow`), and
-  its number is recorded as `recommended` while the check-in is open
-  (`recommendedNumbersFor`). Nothing is automatic and nothing is sent: an ignored check-in
-  keeps the number and folds away after the 7th.
+  sheet) answers it as well. Its number is the month's one recommended number in the
+  measure the month counts, the one the change sheet offers for it now: the rest of the
+  month on top of what already counts (PLAN E6), worked out as a whole month only on its
+  first day with nothing in yet (G4: Use 45, Keep 40 for a 31-day December). With that
+  number the month's already it is one line, with nothing of the measure over the basis it
+  offers no number (Keep and another number, with the basis weeks), and with no
+  recommendation that can be read it asks nothing. Use is the change now
+  (`changeMonthlyPortalGoalNow`), recorded as `recommended` as any change to that number
+  is. Nothing is automatic and nothing is sent: an ignored check-in keeps the number and
+  folds away after the 7th.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save

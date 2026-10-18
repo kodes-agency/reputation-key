@@ -124,6 +124,58 @@ describe("the card's month-start check-in", () => {
     })
   })
 
+  it('Dec 1 with ratings in already: the rest of December, on top of them', async () => {
+    // Two came in this morning: December is no longer all ahead.
+    const today = readings('portal-reception', 'portal_rating_count', ['2026-12-01'], 2)
+
+    const checkIn = await checkInAt(DEC_1_NOON, undefined, [
+      ...NOVEMBER_RATINGS,
+      ...today,
+    ])
+
+    expect(checkIn).toMatchObject({
+      kind: 'offer',
+      offer: {
+        current: true,
+        choices: { usual: 40, aBitMore: 45, stretch: 50 },
+        usualAbout: 38,
+        soFar: 2,
+        rest: { daysLeft: 31, about: 38 },
+      },
+    })
+  })
+
+  it('Dec 3: Use is the number the change sheet offers for December now, not a whole month’s', async () => {
+    // The 4 weeks to Dec 2 brought in 28 (13, 7 and 8), and nothing counts in
+    // December yet: the 29 days left give 29 · 35 · 40, so Use 35. A whole
+    // 31-day December would be 35 · 40 · 45, and 40 is the goal's already.
+    const { deps } = fakeWorld({
+      now: new Date('2026-12-03T10:00:00.000Z'),
+      portals: SEAVIEW_PORTALS,
+      counts: { days: NOVEMBER_RATINGS },
+      programs: [runningSinceNovember()],
+      figures: { [NOV_1.toISOString()]: governed(36) },
+    })
+
+    const card = await readMonthlyPortalGoalCard(deps, { propertyId: PROPERTY_ID }, actor)
+
+    if (card.state !== 'goal') throw new Error('expected a goal')
+    expect(card.goal.checkIn).toMatchObject({
+      kind: 'offer',
+      target: 40,
+      offer: {
+        current: true,
+        choices: { usual: 29, aBitMore: 35, stretch: 40 },
+        soFar: 0,
+        rest: { daysLeft: 29, about: 29 },
+      },
+    })
+    // One recommended number for the month: what "Other number" opens on.
+    expect(card.goal.checkIn).toMatchObject({
+      offer: card.sheet.offers.portal_rating_count.current,
+    })
+  })
+
   it('on days 1 to 7 only', async () => {
     // 23:59 on Dec 7 in Sofia, then midnight.
     await expect(checkInAt(new Date('2026-12-07T21:59:00.000Z'))).resolves.toMatchObject({
@@ -216,7 +268,7 @@ describe("the card's month-start check-in", () => {
   it('never offers a number at or below what already counts', async () => {
     // Dec 3: Reception brought in 20 on each of Dec 1 and 2 (the 40 of the
     // basis) and 30 today, so 70 already count: more than the 50 a whole
-    // December would be offered. The rest of it, on top of the 70: 120 · 130 · 140.
+    // December would be. The rest of it, on top of the 70: 120 · 130 · 140.
     const busy: RecommendationDayCount[] = [
       ...readings(
         'portal-reception',

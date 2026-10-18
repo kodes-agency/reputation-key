@@ -12,16 +12,15 @@
 // numbers for both months and both measures, with the exact usual an own
 // number is measured against: the one its "your usual" is rounded from, so for
 // this month what already counts plus the days left at the usual. The
-// month-start check-in (PLAN PG-15) asks about the month that has just begun
-// as a whole month ("a 31-day month gets about 38"), unless what already
-// counts has reached that number; a change of this month's number to it is
-// recommended too while the check-in is open. Pure.
+// month-start check-in (PLAN PG-15) offers this month's one recommended
+// number, the sheet's (PLAN E6), worked out as a whole month ("a 31-day month
+// gets about 38") only while the rest of the month is all of it: on its first
+// day with nothing in yet, when the two are the same numbers. Pure.
 import type {
   Choices,
   PortalGoalMeasure,
   PortalGoalRecommendation,
 } from '../../domain/goal-recommendation-types'
-import { checkInMonthAt } from '../../domain/portal-goal-check-in'
 import type {
   PortalGoalMeasureOffers,
   PortalGoalOffer,
@@ -123,39 +122,20 @@ export function portalGoalOfferOf(
 }
 
 /**
- * The number the month-start check-in recommends for this month, in
- * `measure`: the whole month's (G4: 40 · 45 · 50 for a 31-day December, 45
- * recommended), never at or below what already counts; once what already
- * counts has reached it, the rest of the month's, on top of what counts.
+ * What the month-start check-in offers for this month, in `measure`: the
+ * number the sheet offers for it now, on top of what already counts (PLAN E6).
+ * On the month's first day with nothing in yet that is the whole month's (G4:
+ * 40 · 45 · 50 for a 31-day December, 45 recommended), and it is worked out
+ * as one ("a 31-day month gets about 38").
  */
 export function checkInOfferOf(
   recommendation: PortalGoalRecommendation,
   measure: PortalGoalMeasure,
 ): PortalGoalOffer | null {
   const month = recommendation.months.current.key
-  const whole = portalGoalOfferFor(recommendation, month, measure, true)
-  const soFar = recommendation.monthToDate[measure]
-  if (whole === null || soFar === null || soFar < whole.choices.aBitMore) return whole
-  return portalGoalOfferFor(recommendation, month, measure)
-}
-
-/**
- * Each number recommended now for `month` and `measure`: the one the card and
- * the sheet offer (`offeredChoices`) and, while this month's check-in is open,
- * the check-in's.
- */
-export function recommendedNumbersFor(
-  recommendation: PortalGoalRecommendation,
-  month: string,
-  measure: PortalGoalMeasure,
-): readonly number[] {
-  const offered = offeredChoices(recommendation, month, measure)?.aBitMore
-  const checkInOpen =
-    checkInMonthAt(new Date(recommendation.asOf), recommendation.timezone) === month
-  const checkIn = checkInOpen
-    ? checkInOfferOf(recommendation, measure)?.choices.aBitMore
-    : undefined
-  return [offered, checkIn].filter((n): n is number => n !== undefined)
+  const rest = portalGoalOfferFor(recommendation, month, measure)
+  if (rest === null || rest.soFar !== 0 || rest.rest?.daysLeft !== rest.days) return rest
+  return portalGoalOfferFor(recommendation, month, measure, true) ?? rest
 }
 
 /** What the set sheet works from: both months, both measures, and the month it opens on. */

@@ -319,13 +319,28 @@ export const CheckInRefusedClosed: Story = {
   },
 }
 
-/** Dec 3: November closed and met, with a check; December still asks. */
+/**
+ * Dec 3: November closed and met, with a check; December still asks, for the
+ * rest of it on top of what counts (W-5), as the change sheet offers it.
+ */
 export const CheckInClosedMet: Story = {
   args: { card: read(CARD_CHECK_IN_CLOSED_MET) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('November met: 41 of 40')).toBeVisible()
-    await expect(regionOf(canvas).getByRole('button', { name: 'Use 45' })).toBeVisible()
+    const region = regionOf(canvas)
+    await expect(region.getByRole('button', { name: 'Use 45' })).toBeVisible()
+    await userEvent.click(region.getByRole('button', { name: 'How we worked this out' }))
+    const popover = within(
+      await within(document.body).findByRole('dialog', {
+        name: 'How we worked this out',
+      }),
+    )
+    await expect(
+      popover.getByText(
+        '3 already count this month. At your usual, the 29 days left add about 35. A bit more, rounded up: 45.',
+      ),
+    ).toBeVisible()
   },
 }
 

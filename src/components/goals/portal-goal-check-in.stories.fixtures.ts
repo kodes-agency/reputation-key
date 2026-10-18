@@ -1,9 +1,10 @@
 // The month-start check-in's story fixtures (PLAN PG-15, golden G4): Seaview's
 // goal of 40 private ratings a month, running since November, read on Dec 1 to
 // 8. The 4 weeks to Nov 30 at Reception, Restaurant and Spa brought in 34, so a
-// 31-day December gets about 38: Use 45, Keep 40. Every shape is the read's own
-// type, from Reporting's application layer; nothing here is worked out, only
-// stated.
+// 31-day December gets about 38: Use 45, Keep 40. On Dec 3 the offer is the
+// rest of December on top of the 3 that count, and still 45. Every shape is the
+// read's own type, from Reporting's application layer; nothing here is worked
+// out, only stated.
 import type {
   PortalGoalCardView,
   PortalGoalCheckIn,
@@ -39,6 +40,17 @@ const DECEMBER_WHOLE: PortalGoalOffer = {
     ],
   },
   newPortals: [],
+}
+
+/** W-5 on Dec 3: the 29 days left on top of the 3 that count, from the 4 weeks to Dec 2. */
+const DECEMBER_REST: PortalGoalOffer = {
+  ...DECEMBER_WHOLE,
+  current: true,
+  // The 3 so far and 34 / 28 for the 29 days left.
+  usualExact: { num: '535', den: '14' },
+  basis: { ...DECEMBER_WHOLE.basis, lastDay: '2026-12-02' },
+  soFar: 3,
+  rest: { daysLeft: 29, about: 35 },
 }
 
 const DECEMBER = { month: '2026-12', measure: 'portal_rating_count', target: 40 } as const
@@ -78,6 +90,12 @@ export const CHECK_IN_SCANS: Extract<PortalGoalCheckIn, { kind: 'offer' }> = {
   },
 }
 
+/** Dec 3: Use 45 for the rest of December, Keep 40. */
+const CHECK_IN_OFFER_DEC_3: Extract<PortalGoalCheckIn, { kind: 'offer' }> = {
+  ...CHECK_IN_OFFER,
+  offer: DECEMBER_REST,
+}
+
 /** A card of the goal, with its goal changed as said. */
 function withGoal(
   card: PortalGoalCardView,
@@ -110,12 +128,12 @@ export const CARD_CHECK_IN = withGoal(CARD_LAST_MONTH_UPDATING, {
 
 /** Dec 3: November closed, met (K-6, G-31), and December still asks. */
 export const CARD_CHECK_IN_CLOSED_MET = withGoal(CARD_LAST_MONTH_MET, {
-  checkIn: CHECK_IN_OFFER,
+  checkIn: CHECK_IN_OFFER_DEC_3,
 })
 
 /** Dec 3: November closed, not met: neutral, never red. */
 export const CARD_CHECK_IN_CLOSED_NOT_MET = withGoal(CARD_LAST_MONTH_NOT_MET, {
-  checkIn: CHECK_IN_OFFER,
+  checkIn: CHECK_IN_OFFER_DEC_3,
 })
 
 /** Dec 1, December at 45 already: one line under the running card. */
