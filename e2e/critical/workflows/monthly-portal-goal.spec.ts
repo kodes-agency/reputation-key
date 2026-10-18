@@ -33,6 +33,12 @@
 //       offers a goal from next month; the stopped goal is an ended one, so the
 //       section's foot leads to it as "Ended portal goals (1)" (PG-18). A goal
 //       is never stopped and set again in the same month here.
+//   J8. the month-start check-in: on a Property whose goal has run since last
+//       month (set from next month, then moved back, and this month opened by
+//       the maintenance job), on local days 1 to 7 the card asks "For
+//       {month}" with Use, Keep and Other number, and Keep hides it after a
+//       reload; on any other day there is no such region. Both branches
+//       assert; the day is the database's, in the Property's zone.
 //   J11. all monthly results: once a Portal goal's month has closed and another
 //       has ended, the Portal goals section's foot opens `/goals/portal-results`:
 //       the closed month's result in plain words, and the ended goal with the
@@ -61,6 +67,7 @@ import {
   callServerFn,
   callServerFnGet,
   callServerFnGetExpectError,
+  dbQuery,
 } from '../../helpers/fixtures'
 import { assertNoAxeViolations } from '../../helpers/a11y'
 import {
@@ -74,6 +81,7 @@ import {
   closePortalGoalMonth,
   localToday,
   nextMonthKey,
+  runMonthlyGoalSinceLastMonth,
   seedPortalGoalProperty,
   seedPortalHistory,
   tearDownPortalGoalProperties,
@@ -83,6 +91,8 @@ import {
   recommendPortalGoal,
   subjectRecommendation,
 } from '../../../src/contexts/reporting/domain/goal-recommendation'
+import { checkInOfferOf } from '../../../src/contexts/reporting/application/use-cases/monthly-portal-goal-offer'
+import { checkInMonthAt } from '../../../src/contexts/reporting/domain/portal-goal-check-in'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../../src/contexts/reporting/domain/goal-start'
 import { goalMonthDays, goalPace } from '../../../src/contexts/reporting/domain/goal-pace'
 import { addLocalDays } from '../../../src/contexts/reporting/domain/local-days'
@@ -1050,5 +1060,108 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await clickWhenReady(sheet.getByRole('button', { name: 'Cancel' }))
     await expect(sheet).toHaveCount(0)
     await expect(page).toHaveURL((url) => !url.searchParams.has('add'))
+  })
+  test('J8 the month-start check-in offers Use, Keep and Other number on days 1–7 only', async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, portals } = await seedPortalGoalProperty(
+      page,
+      'j8',
+      testInfo.retry,
+    )
+    seeded.push(propertyId)
+    const [reception, restaurant, spa] = portals
+    if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
+    const days = (from: number, to: number) =>
+      Array.from({ length: from - to + 1 }, (_, index) => from - index)
+    // Reception and Restaurant live for the whole basis, Spa not yet two weeks.
+    const input = await seedPortalHistory(propertyId, [
+      {
+        portal: reception,
+        liveDaysAgo: 40,
+        codeDaysAgo: 41,
+        ratingsDaysAgo: days(27, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: restaurant,
+        liveDaysAgo: 40,
+        codeDaysAgo: 41,
+        ratingsDaysAgo: days(13, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: spa,
+        liveDaysAgo: 8,
+        codeDaysAgo: 17,
+        ratingsDaysAgo: [],
+        scansDaysAgo: [],
+      },
+    ])
+    // Everything expected is worked out by the rules themselves.
+    const recommendation = recommendPortalGoal(input)
+    const month = recommendation.months.current.key
+    const offer = checkInOfferOf(recommendation, 'portal_rating_count')
+    if (!offer) throw new Error('The rule offers no number for this month')
+    const recommended = offer.choices.aBitMore
+    // A number of the manager's own, never the recommended one.
+    const target = recommended + 5
+    const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
+
+    // Set from next month, then run since last month: this month is not its first.
+    const { programId } = await callServerFn<{ programId: string }>(page, {
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'setMonthlyPortalGoal',
+      data: {
+        propertyId,
+        metric: 'portal_rating_count',
+        targetValue: target,
+        startMonth: recommendation.months.next.key,
+        targetSource: 'own',
+      },
+    })
+    await runMonthlyGoalSinceLastMonth({
+      propertyId,
+      programId,
+      timezone: input.timezone,
+      now: input.now,
+    })
+
+    await page.goto(`/properties/${propertyId}/goals`)
+    await waitForHydration(page)
+    const card = page.locator('#portal-goals [data-slot="portal-goal-card"]')
+    const checkIn = card.getByRole('region', { name: `For ${monthName}` })
+    if (checkInMonthAt(input.now, input.timezone) === month) {
+      await expect(
+        checkIn.getByRole('button', { name: `Use ${recommended}` }),
+      ).toBeVisible()
+      await expect(checkIn.getByRole('button', { name: 'Other number' })).toBeVisible()
+      await expect(
+        checkIn.getByText(
+          `Nothing changes unless you choose. ${monthName} counts against ${target} until then.`,
+        ),
+      ).toBeVisible()
+      await clickWhenReady(checkIn.getByRole('button', { name: `Keep ${target}` }))
+      await expect(page.getByText(`${monthName} stays at ${target}`)).toBeVisible()
+      await expect(checkIn).toHaveCount(0)
+      // The answer is the goal's, so it stays answered after a reload.
+      await page.reload()
+      await waitForHydration(page)
+      await expect(checkIn).toHaveCount(0)
+      const [kept] = await dbQuery<{ month: string | null }>(
+        'SELECT check_in_answered_month AS month FROM goal_programs WHERE id = $1::uuid',
+        [programId],
+      )
+      expect(kept?.month).toBe(month)
+    } else {
+      // After the 7th the check-in has folded away; the number stays.
+      await expect(checkIn).toHaveCount(0)
+      await expect(card.getByRole('button', { name: `Keep ${target}` })).toHaveCount(0)
+    }
+    // Either way the card shows this month against the goal's own number.
+    await expect(
+      card.getByRole('progressbar', { name: `Private ratings in ${monthName}` }),
+    ).toHaveAttribute('aria-valuemax', String(target))
   })
 })
