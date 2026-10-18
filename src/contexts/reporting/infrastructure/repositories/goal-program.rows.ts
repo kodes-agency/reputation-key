@@ -3,7 +3,8 @@
 // A leaf: it imports no sibling repository module, so goal-program.repository.ts
 // and goal-monthly-result.repository.ts can each depend on it without a cycle.
 // It maps database rows to the port's types, builds insert values from them,
-// and holds the Postgres error helper and the revision-conflict signal.
+// and holds the Postgres error helpers (the SQLSTATE test and the one rerun of
+// a deadlock victim) and the revision-conflict signal.
 import type {
   goalMonthlyResults,
   goalPrograms,
@@ -31,6 +32,23 @@ export function hasPostgresErrorCode(error: unknown, code: string): boolean {
     candidate = (candidate as { cause?: unknown }).cause
   }
   return false
+}
+
+/**
+ * Runs a write transaction once more when PostgreSQL ended it as a deadlock
+ * victim (40P01); the aborted run wrote nothing. Two inserts that conflict on
+ * an exclusion constraint at the same moment each wait on the other inside the
+ * check, so PostgreSQL ends one of them that way instead of with the conflict
+ * (23P01). By the second run the other insert holds its row, and the check
+ * waits for it and meets the conflict. A second deadlock is thrown as it is.
+ */
+export async function runAgainAfterDeadlock<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write()
+  } catch (error) {
+    if (!hasPostgresErrorCode(error, '40P01')) throw error
+    return write()
+  }
 }
 
 /**

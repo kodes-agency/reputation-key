@@ -7,8 +7,10 @@
 // and this pre-check, not a lock or a database rule: while any Property count
 // goal that has not ended exists, on either measure, a set is refused
 // `subject_has_goal`. Two sets in the same second on one measure meet the
-// database's no-overlap rule instead, which refuses the second the same way; on
-// two measures both can land, and the earliest-created is the monthly goal.
+// database's no-overlap rule instead, which refuses the second the same way
+// (when the two inserts deadlock in that check, the repository runs the victim
+// once more, and it meets the winner); on two measures both can land, and the
+// earliest-created is the monthly goal.
 //
 // The number's source is stored for learning (decision 11): `recommended` only
 // when the number is the one the card would offer for that month and measure

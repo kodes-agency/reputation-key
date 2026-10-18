@@ -146,7 +146,9 @@ metric authority.
   portal goal" with the Property as its one subject, from the month the card named. It
   authorizes `goal.create`, then refuses `subject_has_goal` while any Property count goal that
   has not ended exists on either measure (a pre-check over every Program of the Property, no
-  lock); two sets in the same second on one measure meet the no-overlap rule instead. It
+  lock); two sets in the same second on one measure meet the no-overlap rule instead, and
+  the second is refused the same way (a deadlock between the two inserts in that check is
+  run once more by the repository, so it meets the first and is refused). It
   records the number's source as `recommended` only when the number is the one the card would
   offer for that month and measure now, else `own`. Every Property count goal's `$goalId`
   page sends the reader to the card (`isPropertyCountGoal`), and the old new-goal form no

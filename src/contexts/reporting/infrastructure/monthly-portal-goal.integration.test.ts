@@ -1,7 +1,9 @@
 // The Monthly portal goal's set command on PostgreSQL (ADR 0068 decision 1,
 // PLAN PG-09): one per Property is a pre-check, not a lock. Two sets that both
 // pass it at the same moment meet the database's no-overlap rule on one
-// measure, which keeps the first and refuses the second `subject_has_goal`; on
+// measure, which keeps the first and refuses the second `subject_has_goal` (the
+// two inserts often deadlock in that check; the repository runs the victim once
+// more, and it meets the first); on
 // two measures both land, and the earliest-created is the monthly goal (the
 // accepted race, watched by the beta count of PLAN §3.8).
 import { randomUUID } from 'node:crypto'
