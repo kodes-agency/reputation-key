@@ -5,8 +5,10 @@
 // last day, a goal passed, a figure that cannot be read, a stopped goal, and
 // the month before while it is read and once it closed. Each at 320, 390, 820
 // and 1440 px and on the light theme where the layout changes. The Storybook
-// Vitest project compiles no Tailwind, so the plays assert words, roles and
-// the tick's place.
+// Vitest project compiles no Tailwind, so the plays assert words, roles, the
+// tick's place and the bar's own clip on x (inline style, so it holds there
+// too); where Tailwind is compiled they also measure that nothing scrolls
+// sideways.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, within } from 'storybook/test'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
@@ -63,6 +65,19 @@ const BAR_LABEL = 'Private ratings in November'
 const tickOf = (canvasElement: HTMLElement) =>
   canvasElement.querySelector<HTMLElement>('[data-slot="portal-goal-bar-tick"]')
 
+/**
+ * The tick's layer hangs past the bar's end by the tick's share of the bar:
+ * the bar clips it at its sides only, so the page never scrolls sideways and
+ * the tick still stands above and below the track.
+ */
+async function expectNoSidewaysScroll(canvasElement: HTMLElement) {
+  const bar = canvasElement.querySelector<HTMLElement>('[data-slot="portal-goal-bar"]')
+  if (!bar) throw new Error('expected the bar')
+  await expect(getComputedStyle(bar).overflowX).toBe('clip')
+  await expect(getComputedStyle(bar).overflowY).toBe('visible')
+  await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
+}
+
 /** Each row of "From your portals", name and count, in the order drawn. */
 function portalRows(canvas: Canvas): string[][] {
   const list = canvas.getByRole('list', { name: 'From your portals' })
@@ -93,6 +108,7 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
   await expect(tickOf(canvasElement)?.style.transform).toMatch(
     /^translateX\(73\.3+\d*%\)$/u,
   )
+  await expectNoSidewaysScroll(canvasElement)
   // Name order, even with Spa on 20 and Reception on 3.
   await expect(portalRows(canvas)).toEqual([
     ['Reception', '3'],
@@ -161,7 +177,13 @@ export const LastDay: Story = {
       '23 of 40 private ratings, last day, below pace',
     )
     await expect(tickOf(canvasElement)?.style.transform).toBe('translateX(100%)')
+    await expectNoSidewaysScroll(canvasElement)
   },
+}
+
+export const LastDayOnANarrowPhone: Story = {
+  ...LastDay,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
 /** Nov 27: 41 of 40, passed with 4 days left: a full bar, no tick, no celebration. */

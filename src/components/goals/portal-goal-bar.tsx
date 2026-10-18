@@ -5,6 +5,13 @@
 // a layer over the bar rather than the bar's own notch, so it can stand proud
 // of the track in foreground ink; both move by transform only. It is drawn
 // only; the bar's sentence says the days and the pace.
+//
+// The layer is as wide as the bar and moved right by the tick's share of it, so
+// most of it hangs past the bar's right edge. A transformed box still widens
+// its scroll container, and nothing between here and the page's scrolling
+// `<main>` clips, so the wrapper clips on x alone: the page never scrolls
+// sideways, and the tick still stands above and below the track. On the last
+// day the tick sits on the bar's end, and its outer half is clipped.
 import { ProgressBar } from '#/components/ui/progress-bar'
 
 type Props = Readonly<{
@@ -21,9 +28,12 @@ type Props = Readonly<{
 /** How far the tick stands above and below the 8px track. */
 const TICK_REACH = { top: -4, bottom: -4 } as const
 
+/** Clip the tick's layer at the bar's sides, never above or below it. */
+const CLIP_SIDES = { overflowX: 'clip' } as const
+
 export function PortalGoalBar({ value, max, tick, label, valueText }: Props) {
   return (
-    <div className="relative" data-slot="portal-goal-bar">
+    <div className="relative" data-slot="portal-goal-bar" style={CLIP_SIDES}>
       <ProgressBar
         value={value}
         max={max}
