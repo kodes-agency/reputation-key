@@ -894,8 +894,10 @@
 // stacked base, PG-13's head 840adcde3, fresh production builds measured
 // 307,997 B (entry 49,238 B) and 307,924 B on the head (entry 49,239 B): -73 B,
 // mostly the first-paint server-function stubs (-49 B) and query keys (-20 B).
-// The line stays at 308,050: 126 B spare, 376 B under the ceiling. Measure
-// again after the rebase onto main.
+// With the form's start-month re-export also gone from goal-program.dto.ts the
+// final head measured 307,918 B (entry 49,227 B): -79 B in all. The line stays
+// at 308,050: 132 B spare, 382 B under the ceiling. Measure again after the
+// rebase onto main.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
