@@ -1,298 +1,33 @@
 import { describe, expect, it, vi } from 'vitest'
-import type {
-  RecommendationDayCount,
-  RecommendationPortal,
-} from '../../domain/goal-recommendation-types'
-import type { GoalMetricEvaluation } from '../../domain/goal-program'
-import type {
-  GoalMonthlyResult,
-  GoalProgramBundle,
-  GoalProgramVersion,
-} from '../ports/goal-program.repository'
-import type {
-  GoalRecommendationCounts,
-  GoalRecommendationFactsPort,
-} from '../ports/goal-recommendation-facts.port'
-import { GoalProgramError, type GoalActor } from './goal-program-shared'
-import type { GovernedGoalMetricResult } from './query-goal-metric'
-import type {
-  PortalGoalCardView,
-  PortalGoalOfCard,
-} from '../dto/monthly-portal-goal.types'
+import type { GoalProgramBundle } from '../ports/goal-program.repository'
+import type { RecommendationPortal } from '../../domain/goal-recommendation-types'
+import { GoalProgramError } from './goal-program-shared'
 import {
   readMonthlyPortalGoalCard,
   type MonthlyPortalGoalCardDeps,
 } from './monthly-portal-goal-card'
-
-const PROPERTY_ID = 'property-1'
-const actor: GoalActor = {
-  organizationId: 'org-1',
-  userId: 'elena',
-  role: 'PropertyManager',
-}
-// Seaview, on Sofia time (UTC+3 until Oct 25).
-const OCT_17 = new Date('2026-10-17T09:00:00.000Z')
-const OCT_23 = new Date('2026-10-23T09:00:00.000Z')
-const AT_NOON = 'T09:00:00.000Z'
-
-/** A published Portal, live and with its code made on `since` (local noon). */
-function portal(
-  name: string,
-  since: string,
-  patch: Partial<RecommendationPortal> = {},
-): RecommendationPortal {
-  const at = new Date(`${since}${AT_NOON}`)
-  return {
-    portalId: `portal-${name.toLowerCase()}`,
-    name,
-    publicationState: 'published',
-    liveSince: at,
-    liveIntervals: [{ from: at, to: null }],
-    codeIssuedAt: at,
-    codeReady: true,
-    ...patch,
-  }
-}
-
-const draft = (name: string): RecommendationPortal => ({
-  portalId: `portal-${name.toLowerCase()}`,
-  name,
-  publicationState: 'draft',
-  liveSince: null,
-  liveIntervals: [],
-  codeIssuedAt: null,
-  codeReady: false,
-})
-
-/** `count` readings of `measure` at a Portal on each of `days`. */
-const readings = (
-  portalId: string | null,
-  measure: RecommendationDayCount['measure'],
-  days: readonly string[],
-  count = 1,
-): RecommendationDayCount[] =>
-  days.map((localDay) => ({ portalId, measure, localDay, count }))
-
-/** November on Sofia time. */
-const NOV_1 = new Date('2026-10-31T22:00:00.000Z')
-const DEC_1 = new Date('2026-11-30T22:00:00.000Z')
-const NOV_22 = new Date('2026-11-22T10:00:00.000Z')
-
-/** One month of a goal: its first and last instants, and how far its result has got. */
-type MonthShape = Readonly<{
-  start: Date
-  end: Date
-  target?: number
-  status?: GoalMonthlyResult['status']
-  evaluation?: Partial<GoalMetricEvaluation>
-}>
-
-type GoalShape = Readonly<{
-  status?: GoalProgramBundle['program']['status']
-  /** When its first month begins. */
-  from?: Date
-  /** Where its window ends: an ended goal's runs to the end of the month it was stopped in. */
-  until?: Date
-  /** When it was ended, as migration 0062 records it. */
-  endedAt?: Date
-  /** The month that is open, while it runs: its first and last instants. */
-  open?: Readonly<{ start: Date; end: Date; target?: number }>
-  /** Its other months, earlier ones first. */
-  months?: readonly MonthShape[]
-}>
-
-/** A month's result row: open and updating unless the shape says how far it has got. */
-function monthResult(
-  programId: string,
-  programVersionId: string,
-  assignmentId: string,
-  month: MonthShape,
-  index: number,
-): GoalMonthlyResult {
-  return {
-    id: `${programId}-m${index + 1}`,
-    assignmentId,
-    programId,
-    programVersionId,
-    organizationId: 'org-1',
-    propertyId: PROPERTY_ID,
-    periodStart: month.start,
-    periodEnd: month.end,
-    propertyTimezone: 'Europe/Sofia',
-    status: month.status ?? 'open',
-    targetValue: month.target ?? null,
-    evaluation: {
-      state: 'updating',
-      value: null,
-      sampleCount: 0,
-      achieved: null,
-      reason: 'period_open',
-      ...month.evaluation,
-    },
-    sourceCompleteThrough: null,
-    evaluationWatermark: null,
-    closedAt: month.status === 'closed' ? month.end : null,
-    createdAt: month.start,
-    updatedAt: month.start,
-  }
-}
-
-/** A Property count goal with the Property as its one subject, 40 a month. */
-function propertyGoal(
-  id: string,
-  metric: GoalProgramVersion['metric'],
-  shape: GoalShape = {},
-) {
-  const from = shape.from ?? NOV_1
-  const version: GoalProgramVersion = {
-    id: `${id}-v1`,
-    programId: id,
-    organizationId: 'org-1',
-    propertyId: PROPERTY_ID,
-    version: 1,
-    metricDefinitionId: 'definition-1',
-    metricDefinitionVersionId: 'definition-version-1',
-    metric,
-    metricMinimumSample: 0,
-    targetValue: 40,
-    propertyTimezone: 'Europe/Sofia',
-    effectiveFrom: from,
-    effectiveTo: shape.until ?? null,
-    changeReason: 'created',
-    createdBy: 'elena',
-    createdAt: OCT_23,
-  }
-  const assignmentId = `${id}-a1`
-  return {
-    program: {
-      id,
-      organizationId: 'org-1',
-      propertyId: PROPERTY_ID,
-      name: 'Monthly portal goal',
-      description: null,
-      status: shape.status ?? 'scheduled',
-      statusReason: null,
-      currentVersion: 1,
-      createdBy: 'elena',
-      createdAt: OCT_23,
-      updatedAt: shape.endedAt ?? OCT_23,
-      ...(shape.endedAt ? { endedAt: shape.endedAt } : {}),
-    },
-    version,
-    versions: [version],
-    assignments: [
-      {
-        id: assignmentId,
-        programId: id,
-        programVersionId: version.id,
-        organizationId: 'org-1',
-        propertyId: PROPERTY_ID,
-        metric,
-        subject: { kind: 'property', propertyId: PROPERTY_ID },
-        effectiveFrom: from,
-        effectiveTo: shape.until ?? null,
-        createdBy: 'elena',
-        createdAt: OCT_23,
-      },
-    ],
-    results: [...(shape.open ? [shape.open] : []), ...(shape.months ?? [])].map(
-      (month, index) => monthResult(id, version.id, assignmentId, month, index),
-    ),
-  } satisfies GoalProgramBundle
-}
-
-/** The governed read of a month so far, as the metric context answers it. */
-const governed = (
-  exactValue: number | null,
-  state: GovernedGoalMetricResult['state'] = 'eligible',
-): GovernedGoalMetricResult => ({
-  definitionVersionId: 'definition-version-1',
-  metricKey: null,
-  state,
-  exactValue,
-  sampleCount: exactValue ?? 0,
-  minimumSample: 0,
-  sourceCompleteThrough: null,
-  reason: null,
-})
-
-/** Running in November, 40 a month unless November's own number says otherwise. */
-const runningGoal = (november: Readonly<{ target?: number }> = {}) =>
-  propertyGoal('monthly', 'portal_rating_count', {
-    status: 'active',
-    open: { start: NOV_1, end: DEC_1, ...november },
-  })
-
-/** Seaview's three Portals, live since October. */
-const SEAVIEW_PORTALS = [
-  portal('Reception', '2026-10-09'),
-  portal('Restaurant', '2026-10-09'),
-  portal('Spa', '2026-10-15'),
-]
-
-type AuthorizeRequest = Parameters<MonthlyPortalGoalCardDeps['policy']['authorize']>[0]
-
-type World = Readonly<{
-  now?: Date
-  timezone?: string | null
-  portals?: readonly RecommendationPortal[]
-  counts?: Partial<GoalRecommendationCounts>
-  programs?: readonly GoalProgramBundle[]
-  /** What the governed read says of a running month so far. */
-  figure?: GovernedGoalMetricResult
-  /** What it says of each month, by the month's first instant (ISO): it wins over `figure`. */
-  figures?: Readonly<Record<string, GovernedGoalMetricResult>>
-}>
-
-/** The card's reads over an in-memory Property, recording what was asked in order. */
-function fakeWorld(world: World = {}) {
-  const calls: string[] = []
-  const facts = {
-    listPortalReadiness: vi.fn(async () => {
-      calls.push('portals')
-      return { portals: world.portals ?? [], truncated: false }
-    }),
-    readDailyCounts: vi.fn(async () => {
-      calls.push('counts')
-      return {
-        days: world.counts?.days ?? [],
-        unreadable: world.counts?.unreadable ?? [],
-        lastScanAt: world.counts?.lastScanAt ?? new Map(),
-      }
-    }),
-  } satisfies GoalRecommendationFactsPort
-  const deps = {
-    policy: {
-      authorize: vi.fn(async (_request: AuthorizeRequest) => {
-        calls.push('authorize')
-      }),
-    },
-    reads: {
-      list: vi.fn(async () => {
-        calls.push('programs')
-        return world.programs ?? []
-      }),
-    },
-    metrics: {
-      queryGoalMetric: vi.fn(async (query: Readonly<{ periodStart: Date }>) => {
-        calls.push('figure')
-        return (
-          world.figures?.[query.periodStart.toISOString()] ?? world.figure ?? governed(0)
-        )
-      }),
-    },
-    recommendation: {
-      subjects: {
-        getTimezone: vi.fn(async () =>
-          world.timezone === undefined ? 'Europe/Sofia' : world.timezone,
-        ),
-      },
-      facts,
-    },
-    now: () => world.now ?? OCT_17,
-  } satisfies MonthlyPortalGoalCardDeps
-  return { deps, calls }
-}
+import {
+  AT_NOON,
+  DEC_1,
+  NOV_1,
+  NOV_22,
+  OCT_17,
+  OCT_23,
+  PROPERTY_ID,
+  SEAVIEW_PORTALS,
+  actor,
+  days,
+  draft,
+  fakeWorld,
+  goalOf,
+  governed,
+  portal,
+  propertyGoal,
+  readings,
+  runningGoal,
+  withNextVersion,
+  type MonthShape,
+} from './monthly-portal-goal-test-fixtures'
 
 const read = (deps: MonthlyPortalGoalCardDeps) =>
   readMonthlyPortalGoalCard(deps, { propertyId: PROPERTY_ID }, actor)
@@ -309,20 +44,6 @@ async function drawn(deps: MonthlyPortalGoalCardDeps) {
 async function sheetOf(deps: MonthlyPortalGoalCardDeps) {
   const card = await read(deps)
   return 'sheet' in card ? card.sheet : null
-}
-
-/** The goal on a card that has one. */
-function goalOf(card: PortalGoalCardView): PortalGoalOfCard {
-  if (card.state !== 'goal') throw new Error(`expected a goal, got ${card.state}`)
-  return card.goal
-}
-
-/** Each local day from `first` for `count` days. */
-function days(first: string, count: number): string[] {
-  const start = new Date(`${first}T00:00:00.000Z`).getTime()
-  return Array.from({ length: count }, (_, index) =>
-    new Date(start + index * 86_400_000).toISOString().slice(0, 10),
-  )
 }
 
 describe('readMonthlyPortalGoalCard', () => {
@@ -1276,44 +997,16 @@ describe('readMonthlyPortalGoalCard', () => {
       status: GoalProgramBundle['program']['status'],
       november: MonthShape,
       december?: MonthShape,
-    ) => {
-      const base = propertyGoal('monthly', 'portal_rating_count', {
-        status,
-        until: DEC_1,
-        months: [november],
-      })
-      const [ratings] = base.assignments
-      if (!ratings) throw new Error('expected the ratings window')
-      const scans: GoalProgramVersion = {
-        ...base.version,
-        id: 'monthly-v2',
-        version: 2,
-        metric: 'qualified_scans',
-        metricDefinitionVersionId: 'definition-version-2',
-        targetValue: 55,
-        effectiveFrom: DEC_1,
-        effectiveTo: null,
-        changeReason: 'revised',
-      }
-      const window = {
-        ...ratings,
-        id: 'monthly-a2',
-        programVersionId: scans.id,
-        metric: 'qualified_scans' as const,
-        effectiveFrom: DEC_1,
-        effectiveTo: null,
-      }
-      return {
-        ...base,
-        program: { ...base.program, currentVersion: 2 },
-        version: scans,
-        versions: [base.version, scans],
-        assignments: [ratings, window],
-        results: december
-          ? [...base.results, monthResult('monthly', scans.id, window.id, december, 1)]
-          : base.results,
-      } satisfies GoalProgramBundle
-    }
+    ) =>
+      withNextVersion(
+        propertyGoal('monthly', 'portal_rating_count', {
+          status,
+          until: DEC_1,
+          months: [november],
+        }),
+        { metric: 'qualified_scans', targetValue: 55, from: DEC_1 },
+        december ? [december] : [],
+      )
     const NOVEMBER_COUNTS = {
       days: [
         ...readings('portal-reception', 'portal_rating_count', days('2026-11-01', 13)),

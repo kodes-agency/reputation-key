@@ -39,6 +39,8 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'a number the rating goal climbs to that is still ahead',
   'src/components/goals/rating-goal-slots.tsx':
     'one empty square per new review a rating goal still needs, a count and not a message',
+  'src/components/goals/portal-goal-month-strip.tsx':
+    'a month chip of the monthly portal goal still counting or being read, not a message',
 }
 
 /** A dashed edge, as the utility or as an arbitrary property. */

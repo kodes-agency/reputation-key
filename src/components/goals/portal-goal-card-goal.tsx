@@ -5,13 +5,15 @@
 // quiet amber (G-21…G-25); beside it from 42rem of card, under it below that,
 // what each Portal brought in (G-26, G-27). A stopped goal says so, and that
 // its month still counts (G-29). Under it all, the month before while it is
-// read and through the 7th (G-30, G-31). The figure is the governed read's,
-// never a forecast; the words are the views'.
+// read and through the 7th (G-30, G-31), and "View details" to the goal's page
+// (G-28). The figure is the governed read's, never a forecast; the words are
+// the views'.
 import { Check } from 'lucide-react'
 import type {
   PortalGoalOfCard,
   PortalGoalRunningMonth,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import { InlineLink } from '#/components/ui/inline-link'
 import { TONE_INK } from '#/components/ui/tone'
 import { cn } from '#/lib/utils'
 import { PortalGoalBar } from './portal-goal-bar'
@@ -23,10 +25,11 @@ type Props = Readonly<{
   goal: PortalGoalOfCard
   /** The Property's local day today. */
   today: string
+  propertyId: string
 }>
 
 /** G-20: the month and its number, with the day it starts while scheduled. */
-function GoalLines({ goal, today }: Props) {
+function GoalLines({ goal, today }: Omit<Props, 'propertyId'>) {
   const [headline, ...rest] = goalLines(goal, today)
   return (
     <div className="flex flex-col gap-1">
@@ -40,8 +43,17 @@ function GoalLines({ goal, today }: Props) {
   )
 }
 
-/** G-21…G-25: the month so far, or that its figure cannot be read. */
-function MonthSoFar({ month }: Readonly<{ month: PortalGoalRunningMonth }>) {
+/**
+ * G-21…G-25: the month so far, or that its figure cannot be read; on the goal's
+ * page, with the month's first and last day under the bar.
+ */
+export function PortalGoalMonthSoFar({
+  month,
+  axis,
+}: Readonly<{
+  month: PortalGoalRunningMonth
+  axis?: Readonly<{ from: string; to: string }>
+}>) {
   const words = runningWords(month)
   if (words.kind === 'unreadable') {
     return (
@@ -59,7 +71,7 @@ function MonthSoFar({ month }: Readonly<{ month: PortalGoalRunningMonth }>) {
         </span>{' '}
         <span className="text-sm text-muted-foreground">{words.unit}</span>
       </p>
-      <PortalGoalBar {...words.bar} />
+      <PortalGoalBar {...words.bar} axis={axis} />
       <p className="text-sm text-muted-foreground tabular-nums">
         <span>{words.line}</span>
         {words.pace === null ? null : (
@@ -77,13 +89,18 @@ function MonthSoFar({ month }: Readonly<{ month: PortalGoalRunningMonth }>) {
 function RunningMonth({
   goal,
   month,
-}: Readonly<{ goal: PortalGoalOfCard; month: PortalGoalRunningMonth }>) {
+  propertyId,
+}: Readonly<{
+  goal: PortalGoalOfCard
+  month: PortalGoalRunningMonth
+  propertyId: string
+}>) {
   return (
     <div className="@container">
       {/* Two columns only with the counts to put beside the month. */}
       <div className={cn('grid gap-5', goal.rows !== null && '@2xl:grid-cols-2')}>
         <div className="flex flex-col gap-2">
-          <MonthSoFar month={month} />
+          <PortalGoalMonthSoFar month={month} />
           {goal.stopped === null ? null : (
             <p className="text-sm text-muted-foreground">
               {stoppedWords(goal.stopped, month.key)}
@@ -92,7 +109,7 @@ function RunningMonth({
         </div>
         {goal.rows === null ? null : (
           <div className="@2xl:border-l @2xl:pl-6">
-            <PortalGoalPortalCounts rows={goal.rows} />
+            <PortalGoalPortalCounts rows={goal.rows} propertyId={propertyId} />
           </div>
         )}
       </div>
@@ -119,15 +136,23 @@ function LastMonth({ goal }: Readonly<{ goal: PortalGoalOfCard }>) {
   )
 }
 
-export function PortalGoalCardGoal({ goal, today }: Props) {
+export function PortalGoalCardGoal({ goal, today, propertyId }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {goal.month === null ? (
         <GoalLines goal={goal} today={today} />
       ) : (
-        <RunningMonth goal={goal} month={goal.month} />
+        <RunningMonth goal={goal} month={goal.month} propertyId={propertyId} />
       )}
       <LastMonth goal={goal} />
+      {/* G-28: the goal's page. */}
+      <InlineLink
+        to="/properties/$propertyId/goals/portals"
+        params={{ propertyId }}
+        className="self-start text-sm"
+      >
+        View details
+      </InlineLink>
     </div>
   )
 }

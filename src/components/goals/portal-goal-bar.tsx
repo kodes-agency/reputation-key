@@ -23,6 +23,8 @@ type Props = Readonly<{
   label: string
   /** "23 of 40 private ratings, 9 days left, below pace" */
   valueText: string
+  /** The month's first and last day under the bar ("Nov 1" … "Nov 30"), on the goal's page. */
+  axis?: Readonly<{ from: string; to: string }>
 }>
 
 /** How far the tick stands above and below the 8px track. */
@@ -31,7 +33,24 @@ const TICK_REACH = { top: -4, bottom: -4 } as const
 /** Clip the tick's layer at the bar's sides, never above or below it. */
 const CLIP_SIDES = { overflowX: 'clip' } as const
 
-export function PortalGoalBar({ value, max, tick, label, valueText }: Props) {
+export function PortalGoalBar({ axis, ...bar }: Props) {
+  if (axis === undefined) return <Bar {...bar} />
+  return (
+    <div className="flex flex-col gap-1">
+      <Bar {...bar} />
+      {/* The days are drawn only: the bar's sentence says how many are left. */}
+      <p
+        aria-hidden="true"
+        className="flex justify-between text-xs text-muted-foreground tabular-nums"
+      >
+        <span>{axis.from}</span>
+        <span>{axis.to}</span>
+      </p>
+    </div>
+  )
+}
+
+function Bar({ value, max, tick, label, valueText }: Omit<Props, 'axis'>) {
   return (
     <div className="relative" data-slot="portal-goal-bar" style={CLIP_SIDES}>
       <ProgressBar

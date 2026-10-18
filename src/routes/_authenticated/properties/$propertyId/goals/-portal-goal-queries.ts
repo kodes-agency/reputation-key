@@ -1,4 +1,5 @@
-// The Monthly portal goal's reads, defined once for every page that draws it
+// The Monthly portal goal's reads (the Goals page's card and the goal's own
+// page), defined once for every page that draws them
 // (route-query-definitions.test.ts), its commands, and the one function every
 // Portal-goal command marks them stale through (the product-state ledger's
 // goalKeys policy); its first caller is the card's Use.
@@ -6,7 +7,8 @@
 // None of it may reach first paint (scripts/check-bundle-budget.mjs):
 //
 // - The loader that primes the card imports this module on demand, through
-//   `-goals-page-prefetch.ts`: a route's loader is first-paint code.
+//   `-goals-page-prefetch.ts`, and the goal page's loader imports it the same
+//   way: a route's loader is first-paint code.
 // - The server functions are fetched with their first use, never imported:
 //   `#/contexts/reporting/server/monthly-portal-goals` is reached only by the
 //   `import()` below, so it stays a chunk of its own, fetched beside the first
@@ -40,6 +42,21 @@ export const portalGoalCardQuery = (propertyId: string) =>
       (await server()).getMonthlyPortalGoalCard({ data: { propertyId } }),
     staleTime: (query) =>
       query.state.data?.state === 'goal' ? PORTAL_GOAL_STALE_MS : BEFORE_GOAL_STALE_MS,
+  })
+
+/**
+ * The goal's page (`/goals/portals`): the card's arm, and with a goal its months,
+ * changes and Portals. Fresh as long as a running month's read.
+ */
+export const portalGoalPageQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: goalKeys.portalGoalRead(propertyId, 'page'),
+    queryFn: async () =>
+      (await server()).getMonthlyPortalGoalPage({ data: { propertyId } }),
+    staleTime: (query) =>
+      query.state.data?.card.state === 'goal'
+        ? PORTAL_GOAL_STALE_MS
+        : BEFORE_GOAL_STALE_MS,
   })
 
 /**

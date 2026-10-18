@@ -22,6 +22,7 @@ import {
 import type { GovernedMetricVersion } from '../../domain/metric-registry'
 import { effectiveMonthTarget } from '../goal-effective-month-target'
 import { monthTargetPlan, type GoalMonthTargetPlan } from '../goal-month-target-plan'
+import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
 import type {
   GoalMonthlyResult,
   GoalMonthTargetFollowingOutcome,
@@ -162,9 +163,6 @@ function followingIntent(
     supersedeRowlessHead: plan.pendingHead !== null,
   }
 }
-
-/** What a version records when its change left no note of its own on it. */
-const TARGET_CHANGED = 'target_changed'
 
 type RevisionFacts = Readonly<{
   current: GoalProgramBundle
@@ -411,8 +409,8 @@ async function changeOnce(
     target: next,
     // A month that changes logs the note with its change. When only the months
     // after change there is no log row, so the version carries the note, as
-    // the version of an ordinary revision does.
-    changeReason: alreadySet ? (note ?? TARGET_CHANGED) : TARGET_CHANGED,
+    // the version of an ordinary revision does; else the kind of change.
+    changeReason: (alreadySet ? note : null) ?? GOAL_VERSION_REASONS.targetChanged,
     targetSource: input.targetSource,
     timezone,
     now,

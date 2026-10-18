@@ -185,14 +185,15 @@ describe('what each portal brought in, in words', () => {
     expect(portalCountsWords({ kind: 'one', name: 'Reception' })).toEqual({
       kind: 'sentence',
       text: 'All from Reception.',
+      seeEach: null,
     })
   })
 
-  it('five portals: From 5 portals', () => {
-    // "See each" comes with the goal page it opens (PG-13).
+  it('five portals: From 5 portals · See each', () => {
     expect(portalCountsWords({ kind: 'many', count: 5 })).toEqual({
       kind: 'sentence',
       text: 'From 5 portals',
+      seeEach: 'See each',
     })
   })
 })

@@ -5,7 +5,8 @@
 // (`portal-goal-card-ready.tsx`); then the goal (`portal-goal-card-goal.tsx`).
 // Every arm once a Portal is live has a door to the set sheet. The title takes
 // the focus back from a sheet that closes, and after a set, wherever the card
-// is drawn.
+// is drawn. On the goal's own page the page's title names it, so the card
+// draws none (one heading per name) and the page's title takes the focus back.
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
@@ -23,8 +24,11 @@ type Props = Readonly<{
   /** The no-portal gate's "Create a portal" needs portal.create. */
   canCreatePortal: boolean
   commands: PortalGoalCommands
-  /** The title's level: a part of the Goals page's "Portal goals" section. */
-  titleAs?: 'h2' | 'h3'
+  /**
+   * The title's level: a part of the Goals page's "Portal goals" section; null
+   * where the page's own title names the card.
+   */
+  titleAs?: 'h2' | 'h3' | null
 }>
 
 /**
@@ -55,7 +59,9 @@ function CardBody({
 }: Omit<Props, 'titleAs'>) {
   switch (card.state) {
     case 'goal':
-      return <PortalGoalCardGoal goal={card.goal} today={card.today} />
+      return (
+        <PortalGoalCardGoal goal={card.goal} today={card.today} propertyId={propertyId} />
+      )
     case 'ready':
     case 'scans_only':
       return (
@@ -90,17 +96,21 @@ export function PortalGoalCard({ titleAs = 'h3', commands, ...props }: Props) {
   }
   return (
     <Card data-slot="portal-goal-card" data-state={card.state} className="gap-4">
-      <CardHeader className="flex items-start justify-between gap-3">
-        <CardTitle
-          as={titleAs}
-          id={PORTAL_GOAL_TITLE_ID}
-          tabIndex={-1}
-          className="outline-none"
-        >
-          {PORTAL_GOAL_NAME}
-        </CardTitle>
-        {day === null ? null : <PortalGoalMonthTile day={day} />}
-      </CardHeader>
+      {titleAs === null && day === null ? null : (
+        <CardHeader className="flex items-start justify-between gap-3">
+          {titleAs === null ? null : (
+            <CardTitle
+              as={titleAs}
+              id={PORTAL_GOAL_TITLE_ID}
+              tabIndex={-1}
+              className="outline-none"
+            >
+              {PORTAL_GOAL_NAME}
+            </CardTitle>
+          )}
+          {day === null ? null : <PortalGoalMonthTile day={day} />}
+        </CardHeader>
+      )}
       <CardContent>
         <CardBody {...props} commands={focusingCommands} />
       </CardContent>

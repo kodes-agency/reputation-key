@@ -32,7 +32,9 @@ type Props = Readonly<{
  */
 export function GoalResultsMatrix({ matrix, now, personName }: Props) {
   return (
-    <Card>
+    // Its id is where "All monthly results" on the Monthly portal goal's page
+    // lands (`ALL_RESULTS_HASH`), until the results have a page of their own.
+    <Card id="monthly-results">
       <CardHeader>
         <CardTitle as="h2">Monthly results</CardTitle>
         <p className="text-sm text-muted-foreground">
