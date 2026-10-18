@@ -22,6 +22,7 @@
 // author's change, and a month change that wrote it still applies.
 import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import type { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
+import { versionNoteOf } from '#/contexts/reporting/application/goal-version-reasons'
 import { formatMonthName } from '#/lib/format'
 import { goalDay } from './goal-detail-view'
 import { goalMetricLabel } from './goal-metric-label'
@@ -46,14 +47,6 @@ export type GoalTargetChangeEntry = Readonly<{
   /** For `<time dateTime>`. */
   occurredAt: string
 }>
-
-/** What a version records when its author left no note. */
-const DEFAULT_REASONS: ReadonlySet<string> = new Set([
-  'created',
-  'revised',
-  'subjects_changed',
-  'target_changed',
-])
 
 /** A plan replaced or ended before any month opened under it. */
 const neverInForce = (version: Version): boolean =>
@@ -208,7 +201,7 @@ function versionEntry(
             `to ${goalMetricLabel(version.metric)}, with a target of ${target}`,
           ),
     detail: `Applies from ${goalDay(from, frame)}.`,
-    note: reason === '' || DEFAULT_REASONS.has(reason) ? null : reason,
+    note: reason === '' ? null : versionNoteOf(reason),
     dateLabel: goalDay(version.createdAt, frame),
     occurredAt: version.createdAt.toISOString(),
   }

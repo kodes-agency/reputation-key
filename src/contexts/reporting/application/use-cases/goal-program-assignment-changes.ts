@@ -16,6 +16,7 @@ import {
   type GoalAssignmentChangeOutcome,
 } from '../goal-assignment-selection'
 import { nextRevisionStart } from '../goal-revision-start'
+import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
 import { loadCaughtUpProgram } from './goal-program-maintenance'
 import {
   assignmentFor,
@@ -175,7 +176,7 @@ export async function changeAssignments(
     version: current.version.version + 1,
     effectiveFrom,
     effectiveTo: null,
-    changeReason: noteOf(input.reason) ?? 'subjects_changed',
+    changeReason: noteOf(input.reason) ?? GOAL_VERSION_REASONS.subjectsChanged,
     createdBy: actor.userId,
     createdAt: selectedAt,
     // The number stays the head's, so where it came from does too.

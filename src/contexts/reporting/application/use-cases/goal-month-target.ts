@@ -22,6 +22,7 @@ import {
 import type { GovernedMetricVersion } from '../../domain/metric-registry'
 import { effectiveMonthTarget } from '../goal-effective-month-target'
 import { monthTargetPlan, type GoalMonthTargetPlan } from '../goal-month-target-plan'
+import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
 import type {
   GoalMonthlyResult,
   GoalMonthTargetFollowingOutcome,
@@ -164,7 +165,7 @@ function followingIntent(
 }
 
 /** What a version records when its change left no note of its own on it. */
-const TARGET_CHANGED = 'target_changed'
+const TARGET_CHANGED = GOAL_VERSION_REASONS.targetChanged
 
 type RevisionFacts = Readonly<{
   current: GoalProgramBundle
