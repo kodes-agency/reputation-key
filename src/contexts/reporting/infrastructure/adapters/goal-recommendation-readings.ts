@@ -43,6 +43,10 @@
 // whole fleet's readings in the range, not the Property's. An index on
 // (organization_id, property_id, definition_version_id, event_at) would bound
 // them; none is added in v1.
+//
+// The Portal Groups' rows (PLAN PG-20) aggregate the same counted rows: EXPLAIN
+// on 2026-10-18 shows `counted` materialized once and scanned by the days, the
+// group days and the recent scans alike, so the readings are still read once.
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
