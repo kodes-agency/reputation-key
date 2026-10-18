@@ -4,7 +4,11 @@ import type {
   GoalProgramBundle,
 } from '../ports/goal-program.repository'
 import type { RecommendationDayCount } from '../../domain/goal-recommendation-types'
-import { readMonthlyPortalGoalCard } from './monthly-portal-goal-card'
+import {
+  gatherMonthlyPortalGoal,
+  readMonthlyPortalGoalCard,
+} from './monthly-portal-goal-card'
+import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in'
 import {
   DEC_1,
   NOV_1,
@@ -261,5 +265,44 @@ describe("the card's month-start check-in", () => {
     await expect(
       checkInAt(new Date('2026-11-30T22:30:00.000Z'), [opening]),
     ).resolves.toBeNull()
+  })
+
+  it('asks only about the month the change facts name, the one shown', async () => {
+    const { deps } = fakeWorld({
+      now: DEC_1_NOON,
+      portals: SEAVIEW_PORTALS,
+      counts: { days: NOVEMBER_RATINGS },
+      programs: [runningSinceNovember()],
+    })
+    const gathered = await gatherMonthlyPortalGoal(
+      deps,
+      { propertyId: PROPERTY_ID },
+      actor,
+    )
+    const card = goalOf(
+      await readMonthlyPortalGoalCard(deps, { propertyId: PROPERTY_ID }, actor),
+    )
+    if (gathered.goal === null || card.month === null) throw new Error('expected a goal')
+    const context = {
+      recommendation: gathered.recommendation,
+      now: DEC_1_NOON,
+      month: card.month,
+      change: card.change,
+    }
+
+    expect(monthlyPortalGoalCheckInOf(gathered.goal, context)).toMatchObject({
+      kind: 'offer',
+      month: '2026-12',
+    })
+    // A card that shows another month than the one a change now is for asks nothing.
+    expect(
+      monthlyPortalGoalCheckInOf(gathered.goal, {
+        ...context,
+        month: { ...card.month, key: '2026-11' },
+      }),
+    ).toBeNull()
+    expect(
+      monthlyPortalGoalCheckInOf(gathered.goal, { ...context, change: null }),
+    ).toBeNull()
   })
 })
