@@ -207,6 +207,13 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     input: ReviewProviderSnapshotPageCommit,
   ): Promise<ReviewProviderSnapshotPageCommitResult>
 
+  /**
+   * End the main listing. One whose unique reviews match the frozen Google
+   * total moves to confirmation with its removal candidates; one within the
+   * small count gap (`application/snapshot-count-gap.ts`) moves to
+   * confirmation with none and records no miss; anything else fails as
+   * `set_mismatch`.
+   */
   finishMainScan(
     input: Readonly<{
       runId: string
