@@ -1509,7 +1509,10 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     ).toBeVisible()
     await dialog.getByRole('button', { name: 'Stop the goal' }).click()
 
-    await expect(page).toHaveURL(new RegExp(`/properties/${propertyId}/goals$`, 'u'))
+    // The Goals page, with or without PG-19's ?view=active.
+    await expect(page).toHaveURL(
+      new RegExp(`/properties/${propertyId}/goals(?:\\?view=active)?$`, 'u'),
+    )
     await expect(page.getByText('Portal goal stopped')).toBeVisible()
   })
 })
