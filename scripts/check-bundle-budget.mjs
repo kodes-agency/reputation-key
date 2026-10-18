@@ -928,14 +928,25 @@
 // builds (rm -rf node_modules/.nitro .output), the stacked base, PG-13's head
 // 840adcde3, measured 307,997 B (75 js + 1 css; entry 49,238 B), that head
 // 1728c638c 308,005 B (entry 49,246 B), and the head after the review fixes,
-// 66b6bb5c1, 308,012 B (entry 49,253 B): +15 B, all in the entry. With the
+// 66b6bb5c1, 308,012 B (entry 49,253 B): +15 B, all in the entry (both shas
+// from before the rebase; 0c8df4f57 and 5f25ab32a on main). With the
 // hashed chunk names masked, the review head's entry is byte-identical to
 // 1728c638c's (the 7 B between them is hash naming), and 15 characters longer
 // than the base's: /goals/portals now preloads the shared chunks its actions
 // and the Stop dialog need. Lazy chunks on the final head: the sheet 6.76 kB,
 // the page's route 6.22 kB, the shared host 10.82 kB (the review fixes moved
-// them by 0.06, 0.06 and 0.18 kB). No raise: 38 B spare under 308,050; 288 B
-// under the build's ceiling of 308,300 (owner, P-9).
+// them by 0.06, 0.06 and 0.18 kB). No raise then: 38 B spare under 308,050.
+// Rebased onto main ed9853789 (PG-18's results page, PG-19's tabs), under
+// PG-18's line of 308,200: fresh builds in one session measured 308,137 B on
+// main (75 js + 1 css; entry 49,381 B) and 308,142 B on the rebased head
+// 34c7a0064 (entry 49,386 B): +5 B, all in the entry. With the hashed chunk
+// names masked, the head's entry is again 15 characters longer than main's, the
+// same /goals/portals preload list. The stylesheet is main's own
+// (styles-mDD_TGAT.css, 27,845 B). Lazy chunks, main -> head: the sheet
+// 4.60 -> 6.77 kB, the goal page's route 4.96 -> 6.19 kB, the shared host
+// 10.29 -> 10.91 kB, the stub chunk 0.30 -> 0.46 kB; the results page's chunk
+// is unchanged (3.89 kB). No raise: 58 B spare under 308,200; 158 B under the
+// build's ceiling of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
