@@ -6,7 +6,7 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from './ports/goal-program.repository'
-import { monthlyPortalGoalOf } from './monthly-portal-goal-identity'
+import { isPropertyCountGoal, monthlyPortalGoalOf } from './monthly-portal-goal-identity'
 
 // Seaview, Sofia time: November runs from Oct 31 22:00 UTC to Nov 30 22:00 UTC.
 const OCT_23 = new Date('2026-10-23T09:00:00.000Z')
@@ -185,5 +185,29 @@ describe('monthlyPortalGoalOf', () => {
     // Never started, so it ended where it would have begun and holds no month.
     const neverStarted = goal({ id: 'never', status: 'ended', until: NOV_1 })
     expect(monthlyPortalGoalOf([neverStarted], OCT_23)).toBeNull()
+  })
+})
+
+describe('isPropertyCountGoal', () => {
+  it('a count goal for the Property alone, on either measure', () => {
+    expect(isPropertyCountGoal(goal({ id: 'ratings' }))).toBe(true)
+    expect(isPropertyCountGoal(goal({ id: 'scans', metric: 'qualified_scans' }))).toBe(
+      true,
+    )
+    // Stopped or not, it is still a Property count goal: its page is the card.
+    expect(isPropertyCountGoal(stoppedOnNov12('stopped'))).toBe(true)
+  })
+
+  it('never an average, a Portal or a group goal, or one with the Property among others', () => {
+    expect(
+      isPropertyCountGoal(goal({ id: 'average', metric: 'portal_rating_average' })),
+    ).toBe(false)
+    expect(isPropertyCountGoal(goal({ id: 'reception', subjects: [reception] }))).toBe(
+      false,
+    )
+    expect(isPropertyCountGoal(goal({ id: 'rooms', subjects: [rooms] }))).toBe(false)
+    expect(
+      isPropertyCountGoal(goal({ id: 'mixed', subjects: [property, reception] })),
+    ).toBe(false)
   })
 })

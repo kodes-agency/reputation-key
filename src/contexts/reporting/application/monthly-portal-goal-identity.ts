@@ -12,14 +12,24 @@
 //   months is still open or reconciling (November is read on Dec 1 and 2).
 //
 // An average, a goal for a Portal or a Portal Group, and a goal whose month has
-// closed are never it. Pure and client-safe: it reads only the bundles.
+// closed are never it. Every Property count goal, the monthly one or not, has
+// the card for its page (`$goalId` sends it there). Pure and client-safe: it
+// reads only the bundles.
 import type { GoalMetric } from '../domain/goal-program'
-import type { GoalProgramBundle } from './ports/goal-program.repository'
+import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
+import type {
+  GoalProgramBundle,
+  GoalProgramVersion,
+} from './ports/goal-program.repository'
 
 const COUNT_MEASURES: ReadonlySet<GoalMetric> = new Set([
   'portal_rating_count',
   'qualified_scans',
 ])
+
+/** Private ratings or scans: a measure a Monthly portal goal can count. */
+export const isPortalGoalMeasure = (metric: GoalMetric): metric is PortalGoalMeasure =>
+  COUNT_MEASURES.has(metric)
 
 /** The current version's subjects, as the goal names them now. */
 const currentAssignments = (bundle: GoalProgramBundle) =>
@@ -27,9 +37,15 @@ const currentAssignments = (bundle: GoalProgramBundle) =>
     (assignment) => assignment.programVersionId === bundle.version.id,
   )
 
+/** A Program that counts private ratings or scans for the Property alone. */
+export type PropertyCountGoal = GoalProgramBundle &
+  Readonly<{ version: GoalProgramVersion & Readonly<{ metric: PortalGoalMeasure }> }>
+
 /** A count goal whose subject, today, is the Property alone. */
-function isPropertyCountGoal(bundle: GoalProgramBundle): boolean {
-  if (!COUNT_MEASURES.has(bundle.version.metric)) return false
+export function isPropertyCountGoal(
+  bundle: GoalProgramBundle,
+): bundle is PropertyCountGoal {
+  if (!isPortalGoalMeasure(bundle.version.metric)) return false
   const subjects = currentAssignments(bundle)
   return (
     subjects.length > 0 &&
@@ -54,15 +70,15 @@ function stillCounts(bundle: GoalProgramBundle, now: Date): boolean {
 }
 
 const byTime =
-  (time: (bundle: GoalProgramBundle) => Date) =>
-  (a: GoalProgramBundle, b: GoalProgramBundle): number =>
+  (time: (bundle: PropertyCountGoal) => Date) =>
+  (a: PropertyCountGoal, b: PropertyCountGoal): number =>
     time(a).getTime() - time(b).getTime() || a.program.id.localeCompare(b.program.id)
 
 /** The Property's Monthly portal goal among its Programs at `now`, or none. */
 export function monthlyPortalGoalOf(
   programs: readonly GoalProgramBundle[],
   now: Date,
-): GoalProgramBundle | null {
+): PropertyCountGoal | null {
   const candidates = programs.filter(isPropertyCountGoal)
   const [running] = candidates
     .filter(({ program }) => program.status !== 'ended')

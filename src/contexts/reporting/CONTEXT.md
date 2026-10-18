@@ -134,9 +134,24 @@ metric authority.
   policy nothing itself), and answers the goal by Program or the state before one: no
   Portal (or none live and no draft), draft Portals only, the first weeks (today, this
   month so far, the ready day and each published Portal's steps; a disabled Portal takes
-  no row), nothing counted (with the basis weeks) or an unreadable recommendation. A number
-  that is ready is drawn with the first weeks until the card can offer it. Its types are
-  `application/dto/monthly-portal-goal.types.ts`; its server function is in
+  no row), the number ready to use, nothing counted (with the basis weeks) or an unreadable
+  recommendation. The number offered (`application/use-cases/monthly-portal-goal-offer.ts`) is
+  the recommendation's own for its default month and measure (this month through the 20th
+  with what already counts, else the next; scans first when only scans came in), with what
+  it stands on: the Portals in it with their counts and live days, and the live Portals that
+  join later. With a goal the card shows it: a scheduled goal's first day and this month so
+  far, or an active goal's running month with its own target and the governed figure
+  (`progressOf`), never the recommendation's count. The set command
+  (`application/use-cases/monthly-portal-goal.ts`) makes an ordinary Program named "Monthly
+  portal goal" with the Property as its one subject, from the month the card named. It
+  authorizes `goal.create`, then refuses `subject_has_goal` while any Property count goal that
+  has not ended exists on either measure (a pre-check over every Program of the Property, no
+  lock); two sets in the same second on one measure meet the no-overlap rule instead. It
+  records the number's source as `recommended` only when the number is the one the card would
+  offer for that month and measure now, else `own`. Every Property count goal's `$goalId`
+  page sends the reader to the card (`isPropertyCountGoal`), and the old new-goal form no
+  longer offers the Property as a subject. Its types are
+  `application/dto/monthly-portal-goal.types.ts`; its server functions are in
   `server/monthly-portal-goals.ts`, a module no other module imports statically.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
@@ -406,7 +421,9 @@ The Monthly portal goal's recommendation reads Portal's `listGoalReadinessFacts`
 (`PortalPublicApi`): each non-archived Portal's state, live since and live intervals, code
 date and marker, in name order, at most 100. Its request surface is the Monthly portal
 goal's card (`programs.monthlyPortalGoal.card`, `getMonthlyPortalGoalCard`), which gathers
-it after its own `goal.create` check; the reporting context also composes the authorized
+it after its own `goal.create` check, and its set command
+(`programs.monthlyPortalGoal.set`, `setMonthlyPortalGoal`), which reads it only to check a
+number sent as recommended; the reporting context also composes the authorized
 read on its own as `internal.useCases.goalRecommendation`. The Goals route reaches
 `server/monthly-portal-goals.ts` only by its own `import()` (`-portal-goal-queries.ts`),
 so its server functions stay out of first paint (`route-server-fn-bundles.test.ts`).

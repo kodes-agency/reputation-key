@@ -12,6 +12,7 @@ import type {
   GoalRecommendationFactsPort,
 } from '../ports/goal-recommendation-facts.port'
 import { GoalProgramError, type GoalActor } from './goal-program-shared'
+import type { GovernedGoalMetricResult } from './query-goal-metric'
 import {
   readMonthlyPortalGoalCard,
   type MonthlyPortalGoalCardDeps,
@@ -66,9 +67,25 @@ const readings = (
 ): RecommendationDayCount[] =>
   days.map((localDay) => ({ portalId, measure, localDay, count }))
 
-/** A Property count goal with the Property as its one subject. */
-function propertyGoal(id: string, metric: GoalProgramVersion['metric']) {
-  const from = new Date('2026-10-31T22:00:00.000Z')
+/** November on Sofia time. */
+const NOV_1 = new Date('2026-10-31T22:00:00.000Z')
+const DEC_1 = new Date('2026-11-30T22:00:00.000Z')
+
+type GoalShape = Readonly<{
+  status?: GoalProgramBundle['program']['status']
+  /** When its first month begins. */
+  from?: Date
+  /** The month that is open, while it runs: its first and last instants. */
+  open?: Readonly<{ start: Date; end: Date; target?: number }>
+}>
+
+/** A Property count goal with the Property as its one subject, 40 a month. */
+function propertyGoal(
+  id: string,
+  metric: GoalProgramVersion['metric'],
+  shape: GoalShape = {},
+) {
+  const from = shape.from ?? NOV_1
   const version: GoalProgramVersion = {
     id: `${id}-v1`,
     programId: id,
@@ -87,6 +104,7 @@ function propertyGoal(id: string, metric: GoalProgramVersion['metric']) {
     createdBy: 'elena',
     createdAt: OCT_23,
   }
+  const assignmentId = `${id}-a1`
   return {
     program: {
       id,
@@ -94,7 +112,7 @@ function propertyGoal(id: string, metric: GoalProgramVersion['metric']) {
       propertyId: PROPERTY_ID,
       name: 'Monthly portal goal',
       description: null,
-      status: 'scheduled',
+      status: shape.status ?? 'scheduled',
       statusReason: null,
       currentVersion: 1,
       createdBy: 'elena',
@@ -105,7 +123,7 @@ function propertyGoal(id: string, metric: GoalProgramVersion['metric']) {
     versions: [version],
     assignments: [
       {
-        id: `${id}-a1`,
+        id: assignmentId,
         programId: id,
         programVersionId: version.id,
         organizationId: 'org-1',
@@ -118,9 +136,52 @@ function propertyGoal(id: string, metric: GoalProgramVersion['metric']) {
         createdAt: OCT_23,
       },
     ],
-    results: [],
+    results: shape.open
+      ? [
+          {
+            id: `${id}-m1`,
+            assignmentId,
+            programId: id,
+            programVersionId: version.id,
+            organizationId: 'org-1',
+            propertyId: PROPERTY_ID,
+            periodStart: shape.open.start,
+            periodEnd: shape.open.end,
+            propertyTimezone: 'Europe/Sofia',
+            status: 'open',
+            targetValue: shape.open.target ?? null,
+            evaluation: {
+              state: 'updating',
+              value: null,
+              sampleCount: 0,
+              achieved: null,
+              reason: 'period_open',
+            },
+            sourceCompleteThrough: null,
+            evaluationWatermark: null,
+            closedAt: null,
+            createdAt: shape.open.start,
+            updatedAt: shape.open.start,
+          },
+        ]
+      : [],
   } satisfies GoalProgramBundle
 }
+
+/** The governed read of a month so far, as the metric context answers it. */
+const governed = (
+  exactValue: number | null,
+  state: GovernedGoalMetricResult['state'] = 'eligible',
+): GovernedGoalMetricResult => ({
+  definitionVersionId: 'definition-version-1',
+  metricKey: null,
+  state,
+  exactValue,
+  sampleCount: exactValue ?? 0,
+  minimumSample: 0,
+  sourceCompleteThrough: null,
+  reason: null,
+})
 
 type AuthorizeRequest = Parameters<MonthlyPortalGoalCardDeps['policy']['authorize']>[0]
 
@@ -130,6 +191,8 @@ type World = Readonly<{
   portals?: readonly RecommendationPortal[]
   counts?: Partial<GoalRecommendationCounts>
   programs?: readonly GoalProgramBundle[]
+  /** What the governed read says of a running month so far. */
+  figure?: GovernedGoalMetricResult
 }>
 
 /** The card's reads over an in-memory Property, recording what was asked in order. */
@@ -159,6 +222,12 @@ function fakeWorld(world: World = {}) {
       list: vi.fn(async () => {
         calls.push('programs')
         return world.programs ?? []
+      }),
+    },
+    metrics: {
+      queryGoalMetric: vi.fn(async () => {
+        calls.push('figure')
+        return world.figure ?? governed(0)
       }),
     },
     recommendation: {
@@ -309,7 +378,77 @@ describe('readMonthlyPortalGoalCard', () => {
     await expect(read(deps)).resolves.toEqual({ state: 'recommendation_unreadable' })
   })
 
-  it('a number ready is drawn with the first weeks until the offer arrives', async () => {
+  it('offers next month after the 20th: about 34, 35 · 40 · 45, Spa joins Oct 29', async () => {
+    // G1. Oct 23: Reception and Restaurant live since Oct 9 (14 live days to Oct
+    // 22) with 11 and 5 private ratings; Spa live since Oct 15 (8 days).
+    const { deps } = fakeWorld({
+      now: OCT_23,
+      portals: [
+        portal('Reception', '2026-10-09'),
+        portal('Restaurant', '2026-10-09'),
+        portal('Spa', '2026-10-15'),
+      ],
+      counts: {
+        days: [
+          ...readings('portal-reception', 'portal_rating_count', days('2026-10-09', 11)),
+          ...readings('portal-restaurant', 'portal_rating_count', days('2026-10-12', 5)),
+        ],
+      },
+    })
+
+    await expect(read(deps)).resolves.toEqual({
+      state: 'ready',
+      offer: {
+        month: '2026-11',
+        current: false,
+        days: 30,
+        measure: 'portal_rating_count',
+        choices: { usual: 35, aBitMore: 40, stretch: 45 },
+        usualAbout: 34,
+        basis: {
+          weeks: 2,
+          days: 14,
+          lastDay: '2026-10-22',
+          count: 16,
+          portals: [
+            { name: 'Reception', count: 11, liveDays: 14 },
+            { name: 'Restaurant', count: 5, liveDays: 14 },
+          ],
+        },
+        newPortals: [{ name: 'Spa', liveDays: 8, joinsOn: '2026-10-29' }],
+        soFar: null,
+        rest: null,
+      },
+    })
+  })
+
+  it('offers the current month on the 20th with what already counts', async () => {
+    // Oct 20: Reception live since Oct 6, so 14 live days to Oct 19, with one
+    // private rating a day. October has 14 so far and 12 days left with today.
+    const { deps } = fakeWorld({
+      now: new Date('2026-10-20T09:00:00.000Z'),
+      portals: [portal('Reception', '2026-10-06')],
+      counts: {
+        days: readings('portal-reception', 'portal_rating_count', days('2026-10-06', 14)),
+      },
+    })
+
+    await expect(read(deps)).resolves.toMatchObject({
+      state: 'ready',
+      offer: {
+        month: '2026-10',
+        current: true,
+        days: 31,
+        choices: { usual: 26, aBitMore: 28, stretch: 29 },
+        usualAbout: 31,
+        soFar: 14,
+        rest: { daysLeft: 12, about: 12 },
+        newPortals: [],
+      },
+    })
+  })
+
+  it('offers scans first when there are scans and no private ratings', async () => {
     const { deps } = fakeWorld({
       now: OCT_23,
       portals: [portal('Reception', '2026-10-03')],
@@ -320,21 +459,119 @@ describe('readMonthlyPortalGoalCard', () => {
 
     await expect(read(deps)).resolves.toMatchObject({
       state: 'scans_only',
-      today: '2026-10-23',
-      month: '2026-10',
-      soFar: { ratings: 0, scans: 14 },
+      offer: {
+        month: '2026-11',
+        measure: 'qualified_scans',
+        basis: { weeks: 2, count: 14 },
+      },
     })
   })
 
-  it('with a monthly goal, names it by Program', async () => {
-    const { deps } = fakeWorld({
+  it('a scheduled goal says when it starts and what this month has so far', async () => {
+    const { deps, calls } = fakeWorld({
+      now: OCT_23,
+      portals: [portal('Reception', '2026-10-09')],
+      counts: {
+        days: readings('portal-reception', 'portal_rating_count', days('2026-10-09', 12)),
+      },
       programs: [propertyGoal('monthly', 'portal_rating_count')],
     })
 
     await expect(read(deps)).resolves.toEqual({
       state: 'goal',
-      goal: { programId: 'monthly' },
+      today: '2026-10-23',
+      goal: {
+        programId: 'monthly',
+        version: 1,
+        measure: 'portal_rating_count',
+        status: 'scheduled',
+        target: 40,
+        startsOn: '2026-11-01',
+        month: null,
+        currentMonthSoFar: 12,
+      },
     })
+    // Nothing is running, so no governed figure is read.
+    expect(calls).not.toContain('figure')
+  })
+
+  it('a running goal reads the governed figure', async () => {
+    // Nov 22: November's own target is 40, and the governed read says 23.
+    const { deps } = fakeWorld({
+      now: new Date('2026-11-22T10:00:00.000Z'),
+      portals: [portal('Reception', '2026-10-09')],
+      counts: {
+        // The recommendation's own count of November differs: never shown.
+        days: readings('portal-reception', 'portal_rating_count', days('2026-11-01', 30)),
+      },
+      programs: [
+        propertyGoal('monthly', 'portal_rating_count', {
+          status: 'active',
+          open: { start: NOV_1, end: DEC_1 },
+        }),
+      ],
+      figure: governed(23),
+    })
+
+    await expect(read(deps)).resolves.toEqual({
+      state: 'goal',
+      today: '2026-11-22',
+      goal: {
+        programId: 'monthly',
+        version: 1,
+        measure: 'portal_rating_count',
+        status: 'active',
+        target: 40,
+        startsOn: null,
+        month: { key: '2026-11', target: 40, value: 23, daysAfterToday: 8 },
+        currentMonthSoFar: null,
+      },
+    })
+    expect(deps.metrics.queryGoalMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: { kind: 'property', propertyId: PROPERTY_ID },
+        periodStart: NOV_1,
+        periodEnd: DEC_1,
+      }),
+    )
+  })
+
+  it("a running month's own target, and a figure that cannot be read", async () => {
+    const { deps } = fakeWorld({
+      now: new Date('2026-11-30T10:00:00.000Z'),
+      programs: [
+        propertyGoal('monthly', 'qualified_scans', {
+          status: 'active',
+          open: { start: NOV_1, end: DEC_1, target: 45 },
+        }),
+      ],
+      figure: governed(null, 'quarantined'),
+    })
+
+    await expect(read(deps)).resolves.toMatchObject({
+      goal: {
+        measure: 'qualified_scans',
+        target: 40,
+        month: { key: '2026-11', target: 45, value: null, daysAfterToday: 0 },
+      },
+    })
+  })
+
+  it('a paused or stopped goal reads no figure', async () => {
+    const { deps, calls } = fakeWorld({
+      now: new Date('2026-11-22T10:00:00.000Z'),
+      programs: [
+        propertyGoal('monthly', 'portal_rating_count', {
+          status: 'paused',
+          open: { start: NOV_1, end: DEC_1 },
+        }),
+      ],
+    })
+
+    await expect(read(deps)).resolves.toMatchObject({
+      goal: { status: 'paused', startsOn: null, month: null, currentMonthSoFar: null },
+    })
+    expect(calls).not.toContain('figure')
   })
 
   it('a goal.read-only actor is refused', async () => {
