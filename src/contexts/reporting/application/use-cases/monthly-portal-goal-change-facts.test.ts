@@ -145,6 +145,21 @@ describe('what a change to the Monthly portal goal is made against', () => {
     expect(nov22).toMatchObject({ change: null, newGoalFrom: '2026-12' })
     expect(dec1).toMatchObject({ change: null, newGoalFrom: '2026-12' })
   })
+
+  it('stopped before December was opened, the goal holds Dec 1 to the stop: the next goal is from January', async () => {
+    // Stopped at 00:05 on Dec 1 in Sofia: its window ends there, so a goal
+    // from Dec 1 would meet it; January is the first month it leaves whole.
+    const stoppedEarly = propertyGoal('monthly', 'portal_rating_count', {
+      status: 'ended',
+      until: new Date('2026-11-30T22:05:00.000Z'),
+      endedAt: new Date('2026-11-30T22:05:00.000Z'),
+      months: [{ start: NOV_1, end: DEC_1, status: 'reconciling' }],
+    })
+
+    const dec1 = await goalOn(new Date('2026-12-01T10:00:00.000Z'), [stoppedEarly])
+
+    expect(dec1).toMatchObject({ change: null, newGoalFrom: '2027-01' })
+  })
 })
 
 describe('changeFactsOf and newGoalFromOf', () => {
@@ -165,30 +180,29 @@ describe('changeFactsOf and newGoalFromOf', () => {
   })
 
   it('only a stopped goal has a way to the next, and only to a month the sheet offers', () => {
-    const counting = (key: string) =>
-      ({ key, measure: 'portal_rating_count', target: 40 }) as const
+    const goal = (shape: Parameters<typeof propertyGoal>[2]) => {
+      const bundle = propertyGoal('monthly', 'portal_rating_count', shape)
+      if (!isPropertyCountGoal(bundle)) throw new Error('expected a Property count goal')
+      return bundle
+    }
+    const stoppedUntil = (until: Date) =>
+      goal({ status: 'ended', until, open: { start: NOV_1, end: DEC_1 } })
 
     expect(
       newGoalFromOf(
-        { status: 'active', month: null, countingMonth: counting('2026-11') },
+        goal({ status: 'active', open: { start: NOV_1, end: DEC_1 } }),
+        'Europe/Sofia',
         months,
       ),
     ).toBeNull()
+    expect(newGoalFromOf(stoppedUntil(DEC_1), 'Europe/Sofia', months)).toBe('2026-12')
+    // Its windows held all of December: January is no month this sheet can set.
     expect(
       newGoalFromOf(
-        { status: 'ended', month: null, countingMonth: counting('2026-11') },
+        stoppedUntil(new Date('2026-12-31T22:00:00.000Z')),
+        'Europe/Sofia',
         months,
       ),
-    ).toBe('2026-12')
-    // December's last month counted is no month this sheet can set.
-    expect(
-      newGoalFromOf(
-        { status: 'ended', month: null, countingMonth: counting('2026-12') },
-        months,
-      ),
-    ).toBeNull()
-    expect(
-      newGoalFromOf({ status: 'ended', month: null, countingMonth: null }, months),
     ).toBeNull()
   })
 })

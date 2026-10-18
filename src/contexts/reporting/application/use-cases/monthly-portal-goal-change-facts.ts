@@ -11,15 +11,15 @@
 // month's number locks only once the month has ended. The sheet opens on now
 // through the 20th local day, as a new goal does, and on the next month after
 // it, so a raise late in a month never makes it "below pace" unasked. A
-// stopped goal takes no change; once its last month is over a new goal can
+// stopped goal takes no change; once its windows have ended a new goal can
 // start, which the stopped card offers when the set sheet has that month. Pure.
-import { defaultGoalStartMonth, monthKeyOf } from '../../domain/goal-start'
-import { addLocalDays } from '../../domain/local-days'
+import {
+  defaultGoalStartMonth,
+  firstFullMonthlyPeriodAtOrAfter,
+  monthKeyOf,
+} from '../../domain/goal-start'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
-import type {
-  PortalGoalChangeFacts,
-  PortalGoalOfCard,
-} from '../dto/monthly-portal-goal.types'
+import type { PortalGoalChangeFacts } from '../dto/monthly-portal-goal.types'
 import { monthTargetPlan } from '../goal-month-target-plan'
 import { nextRevisionStart } from '../goal-revision-start'
 import type { PropertyCountGoal } from '../monthly-portal-goal-identity'
@@ -59,20 +59,22 @@ export function changeFactsOf(
   }
 }
 
-/** The month after `YYYY-MM`: four days on from its 28th is always the next one. */
-const monthAfter = (month: string): string => addLocalDays(`${month}-28`, 4).slice(0, 7)
-
 /**
- * A stopped goal's way on: the month after the last one it counts, when the
- * set sheet offers it (this month or the next); else null.
+ * A stopped goal's way on: the first whole month after its windows end, when
+ * the set sheet offers it (this month or the next); else null. Its windows
+ * end with the last month it counts, or at the stop itself when that came
+ * before this month was opened: a goal from that month would meet it.
  */
 export function newGoalFromOf(
-  goal: Pick<PortalGoalOfCard, 'status' | 'month' | 'countingMonth'>,
+  bundle: PropertyCountGoal,
+  timezone: string,
   months: PortalGoalRecommendation['months'],
 ): string | null {
-  if (goal.status !== 'ended') return null
-  const last = goal.month?.key ?? goal.countingMonth?.key
-  if (last === undefined) return null
-  const free = monthAfter(last)
+  if (bundle.program.status !== 'ended') return null
+  const ends = bundle.assignments.map(({ effectiveTo }) => effectiveTo)
+  if (ends.length === 0 || ends.some((end) => end === null)) return null
+  const end = Math.max(...ends.map((at) => at?.getTime() ?? 0))
+  const { start } = firstFullMonthlyPeriodAtOrAfter(new Date(end), timezone)
+  const free = monthKeyOf(start, timezone)
   return free === months.current.key || free === months.next.key ? free : null
 }

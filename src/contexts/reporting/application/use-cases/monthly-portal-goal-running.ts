@@ -387,10 +387,7 @@ export async function monthlyPortalGoalOnCard(
       ...goal,
       lastMonth,
       countingMonth,
-      newGoalFrom: newGoalFromOf(
-        { status: program.status, month: null, countingMonth },
-        recommendation.months,
-      ),
+      newGoalFrom: newGoalFromOf(bundle, recommendation.timezone, recommendation.months),
     }
   }
   const { month, period } = counting
@@ -400,9 +397,6 @@ export async function monthlyPortalGoalOnCard(
     rows: rowsOf(recommendation, month),
     stopped: stopOf(bundle, period, recommendation.timezone),
     lastMonth,
-    newGoalFrom: newGoalFromOf(
-      { status: program.status, month, countingMonth: null },
-      recommendation.months,
-    ),
+    newGoalFrom: newGoalFromOf(bundle, recommendation.timezone, recommendation.months),
   }
 }
