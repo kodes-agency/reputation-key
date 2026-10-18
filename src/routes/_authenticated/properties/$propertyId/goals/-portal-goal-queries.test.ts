@@ -3,14 +3,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
 
 const getMonthlyPortalGoalCard = vi.hoisted(() => vi.fn())
+const add = vi.hoisted(() => ({
+  getPortalGoalAddOptions: vi.fn(),
+  addPortalGoal: vi.fn(),
+  addPortalGoals: vi.fn(),
+}))
 
 vi.mock('#/contexts/reporting/server/monthly-portal-goals', () => ({
   getMonthlyPortalGoalCard,
+  ...add,
 }))
 
 import {
   markPortalGoalReadsStale,
+  portalGoalAddCommands,
+  portalGoalAddQuery,
   portalGoalCardQuery,
+  prefetchPortalGoalAdd,
   prefetchPortalGoalSection,
 } from './-portal-goal-queries'
 
@@ -91,6 +100,7 @@ describe('the Monthly portal goal reads', () => {
     const queryClient = new QueryClient()
     const keys = {
       card: goalKeys.portalGoalRead(PROPERTY, 'card'),
+      add: goalKeys.portalGoalRead(PROPERTY, 'add'),
       line: goalKeys.portalGoalLine(PROPERTY, 'portal-1'),
       listProgress: goalKeys.listProgress(PROPERTY),
       list: goalKeys.list({ propertyId: PROPERTY, model: 'program' }),
@@ -111,6 +121,7 @@ describe('the Monthly portal goal reads', () => {
     )
     expect(stale).toEqual({
       card: true,
+      add: true,
       line: true,
       listProgress: true,
       list: true,
@@ -119,5 +130,61 @@ describe('the Monthly portal goal reads', () => {
       ratingGoal: false,
       otherProperty: false,
     })
+  })
+})
+
+describe('Add a portal goal (PG-20)', () => {
+  beforeEach(() => {
+    for (const fn of Object.values(add)) fn.mockReset()
+  })
+
+  it('primes what it offers for one Property, and leaves a failed read out', async () => {
+    const queryClient = new QueryClient()
+    add.getPortalGoalAddOptions.mockResolvedValueOnce({ onePortal: [] })
+
+    await prefetchPortalGoalAdd(queryClient, PROPERTY)
+
+    expect(add.getPortalGoalAddOptions).toHaveBeenCalledWith({
+      data: { propertyId: PROPERTY },
+    })
+    expect(queryClient.getQueryData(portalGoalAddQuery(PROPERTY).queryKey)).toEqual({
+      onePortal: [],
+    })
+    add.getPortalGoalAddOptions.mockRejectedValueOnce(new Error('unavailable'))
+    await expect(
+      prefetchPortalGoalAdd(new QueryClient(), 'property-2'),
+    ).resolves.toBeUndefined()
+  })
+
+  it('sends its commands to the server functions as they are', async () => {
+    const one = {
+      data: {
+        propertyId: PROPERTY,
+        subject: { kind: 'property' as const },
+        metric: 'portal_rating_average' as const,
+        targetValue: 4.5,
+        startMonth: '2026-12',
+        targetSource: 'own' as const,
+      },
+    }
+    const each = {
+      data: {
+        propertyId: PROPERTY,
+        metric: 'portal_rating_count' as const,
+        startMonth: '2026-12',
+        items: [{ portalId: 'p1', targetValue: 22, targetSource: 'own' as const }],
+      },
+    }
+    add.addPortalGoal.mockResolvedValueOnce({ programId: 'program-1' })
+    add.addPortalGoals.mockResolvedValueOnce({ outcomes: [] })
+
+    await expect(portalGoalAddCommands.addPortalGoal(one)).resolves.toEqual({
+      programId: 'program-1',
+    })
+    await expect(portalGoalAddCommands.addPortalGoals(each)).resolves.toEqual({
+      outcomes: [],
+    })
+    expect(add.addPortalGoal).toHaveBeenCalledWith(one)
+    expect(add.addPortalGoals).toHaveBeenCalledWith(each)
   })
 })

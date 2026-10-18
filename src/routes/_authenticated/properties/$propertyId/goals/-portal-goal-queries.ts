@@ -158,3 +158,36 @@ export async function prefetchPortalGoalResults(
     queryClient.ensureQueryData(queries.subjectNames),
   ])
 }
+
+/**
+ * What "Add a portal goal" offers (PLAN PG-20): made of Portal's facts as much
+ * as the goals, so it goes stale as soon as the card before a goal does; every
+ * Portal-goal command marks it stale with the rest (`portalGoal(propertyId)`).
+ */
+export const portalGoalAddQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: goalKeys.portalGoalRead(propertyId, 'add'),
+    queryFn: async () =>
+      (await server()).getPortalGoalAddOptions({ data: { propertyId } }),
+    staleTime: BEFORE_GOAL_STALE_MS,
+  })
+
+/**
+ * Primes "Add a portal goal", so its door is drawn with the section, never
+ * after it. A failure leaves the door out; nothing else waits on it.
+ */
+export async function prefetchPortalGoalAdd(
+  queryClient: QueryClient,
+  propertyId: string,
+): Promise<void> {
+  await queryClient.prefetchQuery(portalGoalAddQuery(propertyId))
+}
+
+/** "Add a portal goal"'s commands, fetched with their first use like the reads. */
+export const portalGoalAddCommands = {
+  addPortalGoal: async (input: Parameters<MonthlyPortalGoalServer['addPortalGoal']>[0]) =>
+    (await server()).addPortalGoal(input),
+  addPortalGoals: async (
+    input: Parameters<MonthlyPortalGoalServer['addPortalGoals']>[0],
+  ) => (await server()).addPortalGoals(input),
+}

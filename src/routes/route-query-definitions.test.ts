@@ -79,11 +79,11 @@ const GOALS = '_authenticated/properties/$propertyId/goals'
  * goal results page keeps its copies in a module its loader imports on demand
  * (`-portal-goal-queries.ts`), so they add nothing to first paint.
  */
+// The New goal page's copy of the goal list went with the page (PG-20).
 const LEAF_COPIES: Readonly<Record<string, readonly string[]>> = {
   "goalKeys.list({ propertyId, model: 'program' })": [
     `${GOALS}/-portal-goal-queries.ts`,
     `${GOALS}/index.tsx`,
-    `${GOALS}/new.tsx`,
   ],
   'portalKeys.goalSubjectNames(propertyId)': [
     `${GOALS}/$goalId.tsx`,
@@ -101,6 +101,7 @@ describe('route query options', () => {
     // The Monthly portal goal's card and page, in the Goals route's queries module only.
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'card')")
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'page')")
+    expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'add')")
   })
 
   it('are defined once, and imported by every route that reads them', () => {

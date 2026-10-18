@@ -65,9 +65,9 @@ export function PortalGroupMenu({
             return (
               <RowActionsItem key={entry.id} asChild>
                 <Link
-                  to="/properties/$propertyId/goals/new"
+                  to="/properties/$propertyId/goals/portals"
                   params={{ propertyId }}
-                  search={{ subject: `portal_group:${group.id}` }}
+                  search={{ add: 'group', subject: `portal_group:${group.id}` }}
                 >
                   {entry.label}
                 </Link>

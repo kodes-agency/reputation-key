@@ -63,9 +63,9 @@ export function PortalGroupGoals({
             canSetGoal ? (
               <Button asChild variant="link" size="sm" className="px-0">
                 <Link
-                  to="/properties/$propertyId/goals/new"
+                  to="/properties/$propertyId/goals/portals"
                   params={{ propertyId }}
-                  search={{ subject: `portal_group:${groupId}` }}
+                  search={{ add: 'group', subject: `portal_group:${groupId}` }}
                 >
                   Set a goal
                 </Link>

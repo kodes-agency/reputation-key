@@ -58,9 +58,10 @@ export const focusPortalGoalCardTitle = (): void =>
  * Puts the focus back where the sheet was opened from, or on the goal's title.
  * Radix also fires `onCloseAutoFocus` when a phone turns and the sheet gives way
  * to the dialog; the sheet is still open then (`open`, as the frame that is
- * leaving last drew it), and its new frame keeps the focus.
+ * leaving last drew it), and its new frame keeps the focus. "Add a portal goal"
+ * returns the focus the same way (`-portal-goal-add-host.tsx`).
  */
-function useFocusReturn(focusTitle: () => void) {
+export function useFocusReturn(focusTitle: () => void) {
   const opener = useRef<HTMLElement | null>(null)
   const toTitle = useRef(false)
   return {
