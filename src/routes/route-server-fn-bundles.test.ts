@@ -23,7 +23,7 @@
 // contract; a value property is the bug, and it fails silently and remotely.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { walk } from '#/shared/testing/source-tree'
@@ -101,7 +101,23 @@ describe('route server-fn bundles', () => {
 // (PLAN §0.2, §3.3). Its one way in is its own `import()` in the Goals route's
 // queries module.
 describe('the Monthly portal goal server functions', () => {
-  const MODULE = /^(?:#\/contexts\/reporting\/server|\.)\/monthly-portal-goals$/u
+  /** The module, without its extension, from the repository root. */
+  const MODULE = join('src', 'contexts', 'reporting', 'server', 'monthly-portal-goals')
+
+  /**
+   * Whether `specifier`, written in `file` (from the repository root), names the
+   * module: through the `#/` alias or a relative path from any folder, with or
+   * without an extension.
+   */
+  function namesModule(file: string, specifier: string): boolean {
+    const bare = specifier.replace(/\.[cm]?[jt]sx?$/u, '')
+    const target = bare.startsWith('#/')
+      ? join('src', bare.slice(2))
+      : bare.startsWith('.')
+        ? join(dirname(file), bare)
+        : null
+    return target === MODULE || target === join(MODULE, 'index')
+  }
 
   /** How a file reaches the module: statically (a value import or re-export), or by import(). */
   function reaches(file: string, text: string) {
@@ -112,7 +128,7 @@ describe('the Monthly portal goal server functions', () => {
         (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
         node.moduleSpecifier &&
         ts.isStringLiteral(node.moduleSpecifier) &&
-        MODULE.test(node.moduleSpecifier.text)
+        namesModule(file, node.moduleSpecifier.text)
       ) {
         const typeOnly = ts.isImportDeclaration(node)
           ? node.importClause?.isTypeOnly === true
@@ -124,7 +140,7 @@ describe('the Monthly portal goal server functions', () => {
         node.expression.kind === ts.SyntaxKind.ImportKeyword &&
         node.arguments[0] !== undefined &&
         ts.isStringLiteral(node.arguments[0]) &&
-        MODULE.test(node.arguments[0].text)
+        namesModule(file, node.arguments[0].text)
       ) {
         found.dynamically = true
       }
@@ -140,6 +156,31 @@ describe('the Monthly portal goal server functions', () => {
       const file = relative(ROOT, full)
       return { file, ...reaches(file, readFileSync(full, 'utf8')) }
     })
+
+  it.each([
+    [
+      'src/routes/a/-queries.ts',
+      '#/contexts/reporting/server/monthly-portal-goals',
+      true,
+    ],
+    ['src/contexts/reporting/build.ts', './server/monthly-portal-goals', true],
+    [
+      'src/contexts/reporting/application/a.ts',
+      '../server/monthly-portal-goals.ts',
+      true,
+    ],
+    ['src/contexts/reporting/server/a.ts', './monthly-portal-goals.js', true],
+    [
+      'src/contexts/reporting/server/a.ts',
+      '#/contexts/reporting/server/monthly-portal-goals/index',
+      true,
+    ],
+    ['src/routes/a.ts', './monthly-portal-goals', false],
+    ['src/contexts/reporting/build.ts', './server/monthly-portal-goals-later', false],
+    ['src/contexts/reporting/build.ts', 'monthly-portal-goals', false],
+  ] as const)('from %s, %s names the module: %s', (file, specifier, named) => {
+    expect(namesModule(file, specifier)).toBe(named)
+  })
 
   it('are reached only by their own import()', () => {
     expect(sources.filter((source) => source.statically).map(({ file }) => file)).toEqual(
