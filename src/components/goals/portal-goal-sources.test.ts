@@ -20,10 +20,14 @@ import {
 
 const GOALS_ROUTE = 'src/routes/_authenticated/properties/$propertyId/goals/'
 const COPY_FILE = 'src/components/goals/portal-goal-copy.ts'
+/** A Portal's Results line, read beside the Portal's own route (PG-16). */
+const RESULTS_LINE_HOST =
+  'src/routes/_authenticated/properties/$propertyId/portals/-portal-goal-line.tsx'
 
 /** A Portal goal source: its components, its route modules and its pages. */
 function isPortalGoalSource(path: string): boolean {
   if (/^src\/components\/goals\/portal-goal-[^/]+\.tsx?$/u.test(path)) return true
+  if (path === RESULTS_LINE_HOST) return true
   if (!path.startsWith(GOALS_ROUTE)) return false
   const name = path.slice(GOALS_ROUTE.length)
   return /^(-portal-goal-[^/]+\.tsx?|portals\.tsx|portal-results\.tsx)$/u.test(name)
@@ -81,6 +85,8 @@ describe('the Monthly portal goal sources', () => {
     expect(paths).toContain(COPY_FILE)
     expect(paths).toContain('src/components/goals/portal-goal-section.tsx')
     expect(paths).toContain(`${GOALS_ROUTE}-portal-goal-queries.ts`)
+    expect(paths).toContain(RESULTS_LINE_HOST)
+    expect(paths).toContain(`${GOALS_ROUTE}-portal-goal-overview.tsx`)
   })
 
   it('never imports the Google rating goal', () => {
