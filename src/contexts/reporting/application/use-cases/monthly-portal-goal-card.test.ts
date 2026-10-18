@@ -214,6 +214,7 @@ describe('readMonthlyPortalGoalCard', () => {
         rest: null,
         timezone: 'Europe/Sofia',
       },
+      prompt: { month: '2026-11', number: 40, deferred: false },
     })
   })
 
@@ -259,6 +260,81 @@ describe('readMonthlyPortalGoalCard', () => {
         measure: 'qualified_scans',
         basis: { weeks: 2, count: 14 },
       },
+    })
+  })
+
+  describe("the Overview's prompt (PG-16)", () => {
+    /** G1's Seaview on Oct 23: November is offered, 40 recommended. */
+    const seaview = (deferredMonth?: string) =>
+      fakeWorld({
+        now: OCT_23,
+        portals: SEAVIEW_PORTALS,
+        counts: {
+          days: [
+            ...readings(
+              'portal-reception',
+              'portal_rating_count',
+              days('2026-10-09', 11),
+            ),
+            ...readings(
+              'portal-restaurant',
+              'portal_rating_count',
+              days('2026-10-12', 5),
+            ),
+          ],
+        },
+        ...(deferredMonth === undefined ? {} : { deferredMonth }),
+      })
+
+    it('names the offered month and its recommended number', async () => {
+      const { deps } = seaview()
+
+      await expect(read(deps)).resolves.toMatchObject({
+        state: 'ready',
+        prompt: { month: '2026-11', number: 40, deferred: false },
+      })
+    })
+
+    it("is put off by a Not now for the offered month or a later one, not an earlier month's", async () => {
+      const deferred = async (month: string) => {
+        const card = await read(seaview(month).deps)
+        return card.state === 'ready' ? card.prompt.deferred : null
+      }
+
+      await expect(deferred('2026-11')).resolves.toBe(true)
+      await expect(deferred('2026-12')).resolves.toBe(true)
+      await expect(deferred('2026-10')).resolves.toBe(false)
+    })
+
+    it('with scans first, names the scans number', async () => {
+      const { deps } = fakeWorld({
+        now: OCT_23,
+        portals: [portal('Reception', '2026-10-03')],
+        counts: {
+          days: readings('portal-reception', 'qualified_scans', days('2026-10-05', 14)),
+        },
+      })
+
+      const card = await read(deps)
+
+      expect(card.state).toBe('scans_only')
+      if (card.state !== 'scans_only') return
+      expect(card.prompt).toEqual({
+        month: '2026-11',
+        number: card.offer.choices.aBitMore,
+        deferred: false,
+      })
+    })
+
+    it('reads no Not now before a number is ready, or with a goal', async () => {
+      const gettingReady = fakeWorld({ portals: [portal('Reception', '2026-10-15')] })
+      const withGoal = fakeWorld({ now: NOV_22, programs: [runningGoal()] })
+
+      await read(gettingReady.deps)
+      await read(withGoal.deps)
+
+      expect(gettingReady.calls).not.toContain('prompt')
+      expect(withGoal.calls).not.toContain('prompt')
     })
   })
 

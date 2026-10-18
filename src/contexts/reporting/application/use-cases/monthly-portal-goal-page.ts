@@ -41,8 +41,10 @@ import {
 } from './monthly-portal-goal-card'
 import type {
   MonthlyPortalGoalChangeRequestApi,
+  MonthlyPortalGoalPromptRequestApi,
   MonthlyPortalGoalSetRequestApi,
 } from './monthly-portal-goal'
+import type { MonthlyPortalGoalLineRequestApi } from './monthly-portal-goal-line'
 import {
   goalChangesOf,
   goalMonthsOf,
@@ -286,5 +288,7 @@ export type MonthlyPortalGoalRequestApi = Readonly<{
       ) => Promise<PortalGoalPageView>
     }> &
     MonthlyPortalGoalSetRequestApi &
-    MonthlyPortalGoalChangeRequestApi
+    MonthlyPortalGoalChangeRequestApi &
+    MonthlyPortalGoalPromptRequestApi &
+    MonthlyPortalGoalLineRequestApi
 }>

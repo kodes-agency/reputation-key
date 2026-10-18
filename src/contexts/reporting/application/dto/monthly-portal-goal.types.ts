@@ -334,6 +334,21 @@ export type PortalGoalCheckIn = Readonly<{
       }>
   )
 
+/**
+ * The Overview's prompt for the number ready to use (PLAN PG-16; copy deck
+ * O-1): "Your monthly portal goal for November is ready: 40 private ratings."
+ * The month and the number are the offer's (its recommended number); the
+ * measure is the offer's.
+ */
+export type PortalGoalPrompt = Readonly<{
+  /** `YYYY-MM`: the month offered. */
+  month: string
+  /** The recommended number for it. */
+  number: number
+  /** A manager chose "Not now" for this month (or a later one): the Overview shows nothing. */
+  deferred: boolean
+}>
+
 /** An arm the set sheet opens from: what it works from. */
 type WithSheet = Readonly<{ sheet: PortalGoalSheetFacts }>
 
@@ -358,7 +373,13 @@ export type PortalGoalCardView =
         /** When the closest live Portal has 2 weeks live; null when that is not known. */
         readyOn: string | null
       }>)
-  | (WithSheet & Readonly<{ state: 'ready' | 'scans_only'; offer: PortalGoalOffer }>)
+  | (WithSheet &
+      Readonly<{
+        state: 'ready' | 'scans_only'
+        offer: PortalGoalOffer
+        /** What the Overview says of it, and whether a manager put that off. */
+        prompt: PortalGoalPrompt
+      }>)
   | (WithSheet &
       Readonly<{
         state: 'nothing_counted'
@@ -432,3 +453,44 @@ export type KeepMonthlyPortalGoalRequest = OfTheGoal &
     /** `YYYY-MM`: the month the check-in asked about. */
     month: string
   }>
+
+/** The Overview prompt's "Not now", for the month it named. */
+export type DeferMonthlyPortalGoalPromptRequest = Readonly<{
+  propertyId: string
+  /** `YYYY-MM`: the month the prompt named. */
+  month: string
+}>
+
+/** A Portal's Results line: which Portal, at which Property. */
+export type MonthlyPortalGoalLineRequest = Readonly<{
+  propertyId: string
+  portalId: string
+}>
+
+/**
+ * The line at the top of a Portal's Results tab (PLAN PG-16; copy deck R-1,
+ * R-2): this month, what the Portal brought in toward the Monthly portal goal,
+ * and the Portal's own goal when it has one. Null (no line) for a draft Portal,
+ * and when neither goal is counting this month.
+ */
+export type PortalGoalLineView = Readonly<{
+  /** `YYYY-MM`: this month, on the Property's calendar. */
+  month: string
+  /**
+   * The Portal's count of the month the Monthly portal goal is counting, in
+   * that month's measure: only when every Portal's count adds up to the
+   * goal's governed figure (as the card's rows are); else null.
+   */
+  monthlyGoal: Readonly<{ measure: PortalGoalMeasure; count: number }> | null
+  /**
+   * The goal for this Portal alone, when one is counting this month and its
+   * governed figure can be read: its month so far against the month's number;
+   * else null.
+   */
+  ownGoal: Readonly<{
+    programId: string
+    measure: PortalGoalMeasure
+    value: number
+    target: number
+  }> | null
+}>

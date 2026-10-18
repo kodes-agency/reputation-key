@@ -15,7 +15,10 @@
 // Without one it is the recommendation's state, worded by the card: the gates
 // (no Portal, draft Portals only), the first weeks with each Portal's steps,
 // the number ready to use (scans first when only scans came in), nothing
-// counted, or a recommendation that cannot be read. It writes nothing.
+// counted, or a recommendation that cannot be read. With the number ready, what
+// the Overview says of it (PLAN PG-16): the month and the recommended number,
+// and whether a manager chose "Not now" for that month (or a later one), read
+// only then. It writes nothing.
 import type { PortalFacts } from '../../domain/goal-recommendation-types'
 import { localDateOf } from '../../domain/local-days'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
@@ -29,6 +32,7 @@ import {
   type PropertyCountGoal,
 } from '../monthly-portal-goal-identity'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
+import type { PortalGoalPromptDeferralStore } from '../ports/portal-goal-prompt-deferrals.port'
 import type {
   GoalActor,
   GoalExecutionPolicy,
@@ -49,6 +53,8 @@ export type MonthlyPortalGoalCardDeps = Readonly<{
   /** The governed read of a running month so far. */
   metrics: Pick<GoalMetricReadPort, 'queryGoalMetric'>
   recommendation: PortalGoalRecommendationReads
+  /** "Not now" on the Overview's prompt, read only once a number is ready. */
+  prompts: Pick<PortalGoalPromptDeferralStore, 'deferredMonth'>
   now: () => Date
 }>
 
@@ -82,11 +88,15 @@ function firstWeeksOf(
 /**
  * The card before a goal: the recommendation's state, as the card draws it.
  * Once a Portal is live, the set sheet opens from it with what it works from.
+ * The number ready to use carries the Overview's prompt for it: put off while a
+ * manager's "Not now" names its month or a later one.
  */
-function beforeGoal(
+async function beforeGoal(
+  deps: Pick<MonthlyPortalGoalCardDeps, 'prompts'>,
   recommendation: PortalGoalRecommendation,
-  now: Date,
-): PortalGoalCardView {
+  scope: Readonly<{ organizationId: string; propertyId: string; now: Date }>,
+): Promise<PortalGoalCardView> {
+  const { now } = scope
   if (recommendation.state === 'no_live_portal') {
     return recommendation.drafts.length > 0
       ? { state: 'drafts_only', drafts: recommendation.drafts }
@@ -104,9 +114,18 @@ function beforeGoal(
     case 'ready':
     case 'scans_only': {
       const offer = portalGoalOfferOf(recommendation)
-      return offer === null
-        ? { state: 'recommendation_unreadable', sheet }
-        : { state: recommendation.state, offer, sheet }
+      if (offer === null) return { state: 'recommendation_unreadable', sheet }
+      const deferredMonth = await deps.prompts.deferredMonth(
+        scope.organizationId,
+        scope.propertyId,
+      )
+      const prompt = {
+        month: offer.month,
+        number: offer.choices.aBitMore,
+        // Months are `YYYY-MM`, so their order is the strings'.
+        deferred: deferredMonth !== null && deferredMonth >= offer.month,
+      }
+      return { state: recommendation.state, offer, prompt, sheet }
     }
     case 'nothing_counted':
       return { state: 'nothing_counted', weeks: recommendation.basis?.weeks ?? 2, sheet }
@@ -117,6 +136,7 @@ function beforeGoal(
 
 /** What the card (and the goal's page) is made from, read once. */
 export type MonthlyPortalGoalGathered = Readonly<{
+  propertyId: string
   now: Date
   /** The Programs the actor may see. */
   programs: readonly GoalProgramBundle[]
@@ -130,7 +150,7 @@ export type MonthlyPortalGoalGathered = Readonly<{
  * clock once, and the Programs and the recommendation together.
  */
 export async function gatherMonthlyPortalGoal(
-  deps: Omit<MonthlyPortalGoalCardDeps, 'metrics'>,
+  deps: Pick<MonthlyPortalGoalCardDeps, 'policy' | 'reads' | 'recommendation' | 'now'>,
   input: Readonly<{ propertyId: string }>,
   actor: GoalActor,
 ): Promise<MonthlyPortalGoalGathered> {
@@ -151,17 +171,29 @@ export async function gatherMonthlyPortalGoal(
       now,
     }),
   ])
-  return { now, programs, recommendation, goal: monthlyPortalGoalOf(programs, now) }
+  return {
+    propertyId,
+    now,
+    programs,
+    recommendation,
+    goal: monthlyPortalGoalOf(programs, now),
+  }
 }
 
 /** The card from what was gathered: the goal, or the state before one. */
 export async function monthlyPortalGoalCardOf(
-  deps: Pick<MonthlyPortalGoalCardDeps, 'metrics'>,
+  deps: Pick<MonthlyPortalGoalCardDeps, 'metrics' | 'prompts'>,
   gathered: MonthlyPortalGoalGathered,
   actor: GoalActor,
 ): Promise<PortalGoalCardView> {
   const { goal, recommendation, now } = gathered
-  if (goal === null) return beforeGoal(recommendation, now)
+  if (goal === null) {
+    return beforeGoal(deps, recommendation, {
+      organizationId: actor.organizationId,
+      propertyId: gathered.propertyId,
+      now,
+    })
+  }
   return {
     state: 'goal',
     today: localDateOf(now, recommendation.timezone),

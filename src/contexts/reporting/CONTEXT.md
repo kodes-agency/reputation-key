@@ -226,6 +226,23 @@ metric authority.
   (`changeMonthlyPortalGoalNow`), recorded as `recommended` as any change to that number
   is. Nothing is automatic and nothing is sent: an ignored check-in keeps the number and
   folds away after the 7th.
+- **Monthly portal goal, on the Overview and a Portal's Results tab** (ADR 0068; PLAN
+  PG-16): the card's number ready to use also carries the Overview's prompt for it, the
+  month offered and its recommended number, put off while a manager's "Not now" names that
+  month or a later one (`portal_goal_prompt_deferrals`, read only for that arm). "Not now"
+  (`deferMonthlyPortalGoalPrompt`, `goal.create`) records the month the prompt named, by
+  whom and when, in the Property's one row, which only moves on: a later month replaces it,
+  an earlier or the same month (a tab left open since) changes nothing, and a month after
+  next month's, which no prompt names, is refused `start_month_changed`. It sets no goal: the
+  Goals page's card still offers the number, and next month's prompt is shown. A Portal's
+  Results line (`application/use-cases/monthly-portal-goal-line.ts`, `goal.create`) is the
+  card's read once more, for one Portal this month: its count toward the Monthly portal goal
+  while that goal counts the month (active, or stopped with the month still counting), from
+  the set read and only when every Portal's count adds up to the governed figure, as the
+  card's rows are (a disabled Portal's readings still count, so it has one too); and the
+  goal for that Portal alone when one runs, with its own governed figure against the month's
+  number (none when that figure cannot be read). A draft Portal, and a Portal neither goal
+  counts this month, have no line (`null`).
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save

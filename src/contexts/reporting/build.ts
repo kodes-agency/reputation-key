@@ -72,6 +72,7 @@ import {
 } from './application/use-cases/monthly-portal-goal-page'
 import {
   changeMonthlyPortalGoalNow,
+  deferMonthlyPortalGoalPrompt,
   keepMonthlyPortalGoal,
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
@@ -84,6 +85,8 @@ import {
   type PortalGoalAddRequestApi,
 } from './application/use-cases/portal-goal-add'
 import { readPortalGoalAddOptions } from './application/use-cases/portal-goal-add-options'
+import { readMonthlyPortalGoalLine } from './application/use-cases/monthly-portal-goal-line'
+import { createPortalGoalPromptDeferralStore } from './infrastructure/repositories/portal-goal-prompt-deferrals.repository'
 import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
 import {
   createGoalProgramProgressReader,
@@ -387,12 +390,15 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
   // actor may see, the recommendation and a running month's governed figure;
   // its page, the same read with its months, changes and the other Portal
   // goals; and its set command, a Program created after a pre-check of every
-  // Program of the Property. Each asks `goal.create` itself first.
+  // Program of the Property. Each asks `goal.create` itself first. The card's
+  // ready arm reads the Overview prompt's "Not now" (PLAN PG-16).
+  const portalGoalPrompts = createPortalGoalPromptDeferralStore(input.db)
   const monthlyPortalGoalReads = (policy: GoalExecutionPolicy) => ({
     policy,
     reads: readGoalPrograms(policy),
     metrics: metricApi,
     recommendation: goalRecommendationDeps(policy),
+    prompts: portalGoalPrompts,
     now: input.clock,
   })
   // Its commands: the set, and the change and the stop (PLAN PG-14), each over
@@ -428,6 +434,19 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
         stopMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
       keep: (policy, ...args) =>
         keepMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
+      // The Overview prompt's "Not now", and a Portal's Results line (PLAN PG-16).
+      defer: (policy, ...args) =>
+        deferMonthlyPortalGoalPrompt(
+          {
+            policy,
+            subjects: goalProgramSubjects,
+            prompts: portalGoalPrompts,
+            now: input.clock,
+          },
+          ...args,
+        ),
+      line: (policy, ...args) =>
+        readMonthlyPortalGoalLine(monthlyPortalGoalReads(policy), ...args),
     })
   // Add a portal goal (PLAN PG-20): what it offers, read like the card, and its
   // two commands, the engine's own create and its save for several subjects.
