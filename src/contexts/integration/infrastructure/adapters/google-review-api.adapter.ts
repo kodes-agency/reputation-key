@@ -39,7 +39,6 @@ import {
   providerStatusError,
 } from './google-provider-adapter'
 import {
-  cursorFailureCode,
   executorErrorToReviewApiError,
   invalidRequest,
   isAcceptedNonJsonWrite,
@@ -56,6 +55,7 @@ import {
 import {
   callCursorStore,
   createPageCursorSpender,
+  cursorRejectionError,
   cursorRejectionLogger,
 } from './google-review-page-cursor'
 
@@ -603,20 +603,19 @@ export const createGoogleReviewApiAdapter = (
           }),
       )
       if (!published.ok) {
-        logCursorRejection({
-          operation: 'publish_next',
-          code: published.code,
-          // `binding_mismatch` has three distinct causes inside the store: a
-          // scope field diverging, a null parent ref anywhere but page 0, and a
-          // next page index that is not scope + 1. The code alone cannot tell
-          // them apart, so carry the two the adapter controls.
-          parentCursorRefPresent: input.cursorRef !== null,
-          nextPageIndex: input.pageIndex + 1,
-          ...cursorDiagnostic,
-        })
-        throw reviewApiError(
-          cursorFailureCode(published.code),
-          published.code === 'conflict' || published.code === 'unavailable',
+        throw await cursorRejectionError(
+          { cursorStore: deps.cursorStore, logRejection: logCursorRejection },
+          published.code,
+          {
+            operation: 'publish_next',
+            // `binding_mismatch` has three distinct causes inside the store: a
+            // scope field diverging, a null parent ref anywhere but page 0, and
+            // a next page index that is not scope + 1. The code alone cannot
+            // tell them apart, so carry the two the adapter controls.
+            parentCursorRefPresent: input.cursorRef !== null,
+            nextPageIndex: input.pageIndex + 1,
+            ...cursorDiagnostic,
+          },
         )
       }
       nextCursorRef = published.value.nextCursorRef

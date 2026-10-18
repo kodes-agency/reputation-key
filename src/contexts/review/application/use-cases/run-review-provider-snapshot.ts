@@ -135,6 +135,26 @@ const isRecoverableProviderError = (error: unknown): boolean =>
   'code' in error &&
   (error.code === 'provider_rate_limited' || error.code === 'provider_unavailable')
 
+/**
+ * The page cursor went with a cursor store restart. The store keeps nothing
+ * across one (ADR 0050), so a deploy that restarts it drops the cursor of
+ * every run then in flight: `cursor_not_found` from a store that started after
+ * this run did. One that has been up since before the run began did not lose
+ * the cursor that way, and neither did one that cannot say when it started:
+ * those stay `cursor_failure`, which fails loudly.
+ */
+const lostToCursorStoreRestart = (
+  error: unknown,
+  run: Pick<ReviewProviderSnapshotRun, 'startedAt'>,
+): boolean =>
+  typeof error === 'object' &&
+  error != null &&
+  'code' in error &&
+  error.code === 'cursor_not_found' &&
+  'cursorStoreStartedAtMs' in error &&
+  typeof error.cursorStoreStartedAtMs === 'number' &&
+  error.cursorStoreStartedAtMs > run.startedAt.getTime()
+
 /** The provider's own backoff hint, when the adapter forwarded one. */
 const retryHintMs = (error: unknown): number | undefined =>
   typeof error === 'object' &&
@@ -435,6 +455,21 @@ const fetchListPage = async (
       return {
         ok: false,
         outcome: checkpointInPhase(run.id, position.phase, retryHintMs(error)),
+      }
+    }
+    if (lostToCursorStoreRestart(error, run)) {
+      deps.logger.warn(
+        {
+          event: 'review_snapshot_cursor_lost',
+          runId: run.id,
+          phase: position.phase,
+          pageIndex: position.pageIndex,
+        },
+        'Review snapshot lost its page cursor to a cursor store restart',
+      )
+      return {
+        ok: false,
+        outcome: await failAndDiscard(deps, input, run.id, 'cursor_lost'),
       }
     }
     return {

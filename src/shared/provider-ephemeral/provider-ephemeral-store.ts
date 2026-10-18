@@ -129,14 +129,35 @@ export type ProviderEphemeralStore = Readonly<{
     entries: readonly ProviderEphemeralCompareAndSwapEntry[],
   ) => Promise<boolean>
   remove: (namespace: ProviderEphemeralNamespace, key: string) => Promise<void>
+  /**
+   * When this store instance started, in epoch ms, or null when it cannot
+   * tell. It keeps nothing across a restart (ADR 0050), so no value it holds
+   * was written earlier: a reader that finds a value gone can tell a restart
+   * from a deletion by comparing this with when the value was written.
+   */
+  startedAtMs: () => Promise<number | null>
 }>
+
+/** Longer than any server has run: a larger uptime is not a reading. */
+const MAX_PLAUSIBLE_UPTIME_SECONDS = 10 * 365 * 24 * 60 * 60
+
+/** `uptime_in_seconds` from `INFO server`, or null when it is not a count. */
+function uptimeSeconds(info: string): number | null {
+  const match = /^uptime_in_seconds:(\d{1,10})\r?$/mu.exec(info)
+  if (!match) return null
+  const seconds = Number(match[1])
+  return seconds <= MAX_PLAUSIBLE_UPTIME_SECONDS ? seconds : null
+}
 
 function redisKey(namespace: ProviderEphemeralNamespace, key: string): string {
   assertProviderEphemeralLocation(namespace, key)
   return `provider-ephemeral:{${namespace}}:${key}`
 }
 
-export function createRedisProviderEphemeralStore(redis: Redis): ProviderEphemeralStore {
+export function createRedisProviderEphemeralStore(
+  redis: Redis,
+  nowMs: () => number = Date.now,
+): ProviderEphemeralStore {
   return Object.freeze({
     putIfAbsent: async (namespace, key, value, ttlSeconds) => {
       assertProviderEphemeralTtl(ttlSeconds)
@@ -202,6 +223,12 @@ export function createRedisProviderEphemeralStore(redis: Redis): ProviderEphemer
     },
     remove: async (namespace, key) => {
       await redis.del(redisKey(namespace, key))
+    },
+    // The provider Redis ACL grants INFO (services/google-provider-redis/
+    // entrypoint.sh); the runtime verification reads it at boot as well.
+    startedAtMs: async () => {
+      const seconds = uptimeSeconds(await redis.info('server'))
+      return seconds === null ? null : nowMs() - seconds * 1_000
     },
   })
 }

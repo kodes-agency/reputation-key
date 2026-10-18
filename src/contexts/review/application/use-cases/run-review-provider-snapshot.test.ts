@@ -773,6 +773,83 @@ describe('runReviewProviderSnapshot', () => {
     )
   })
 
+  // The cursor store is ephemeral by design (ADR 0050): a deploy that restarts
+  // it drops every published page cursor. A run caught mid-scan then finds its
+  // next cursor gone. That is a lost run to start again, not a broken one.
+  describe('when the page cursor is gone from the store', () => {
+    const RUN_STARTED_AT = new Date('2026-08-21T11:50:00.000Z')
+    const cursorNotFound = (cursorStoreStartedAtMs?: number) =>
+      Object.assign(new Error('Google review API request failed'), {
+        _tag: 'GoogleReviewApiError' as const,
+        code: 'cursor_not_found' as const,
+        recoverable: false,
+        ...(cursorStoreStartedAtMs === undefined ? {} : { cursorStoreStartedAtMs }),
+      })
+    const midScan = () =>
+      makeDeps({
+        currentRun: run({
+          startedAt: RUN_STARTED_AT,
+          mainPageIndex: 44,
+          mainCursorRef: 'v1.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        }),
+      })
+
+    it('ends the run as cursor_lost when the store restarted after the run began', async () => {
+      const deps = midScan()
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+        cursorNotFound(RUN_STARTED_AT.getTime() + 5 * 60_000),
+      )
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'failed', runId, code: 'cursor_lost' })
+      expect(deps.repository.failRun).toHaveBeenCalledWith({
+        runId,
+        organizationId,
+        code: 'cursor_lost',
+      })
+      expect(deps.repository.commitPage).not.toHaveBeenCalled()
+      // Expected after every deploy: a warning with the execution identity,
+      // never an error.
+      expect(deps.logger.warn).toHaveBeenCalledWith(
+        {
+          event: 'review_snapshot_cursor_lost',
+          runId,
+          phase: 'main',
+          pageIndex: 44,
+        },
+        'Review snapshot lost its page cursor to a cursor store restart',
+      )
+      expect(deps.logger.error).not.toHaveBeenCalled()
+    })
+
+    // No restart since the run began, yet the cursor is gone: something
+    // dropped it, and that must stay as loud as it was.
+    it('stays cursor_failure when the store has been up since before the run began', async () => {
+      const deps = midScan()
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+        cursorNotFound(RUN_STARTED_AT.getTime() - 60 * 60_000),
+      )
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'failed', runId, code: 'cursor_failure' })
+      expect(deps.logger.warn).not.toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'review_snapshot_cursor_lost' }),
+        expect.anything(),
+      )
+    })
+
+    it('stays cursor_failure when the store could not say when it started', async () => {
+      const deps = midScan()
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(cursorNotFound())
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'failed', runId, code: 'cursor_failure' })
+    })
+  })
+
   it('applies only the fixed 100-row deletion batch and resumes until complete', async () => {
     const deps = makeDeps({ currentRun: run({ state: 'deleting', phase: 'apply' }) })
     vi.mocked(deps.repository.applyDeletionBatch).mockResolvedValue({
