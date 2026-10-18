@@ -1052,6 +1052,22 @@
 // leaving the change sheet off the Overview's check-in saved 18 B, not worth
 // losing "Other number" there. The line stays at 308,200: 61 B spare, 161 B
 // under the build's ceiling of 308,300 (owner, P-9).
+//
+// 2026-10-18 (Monthly portal goal, PG-21: a goal for one portal, one group or
+// the average has its own page; the old goal page's dialogs retired): no raise,
+// a saving. $goalId's loader now imports -portal-goal-queries.ts on demand and
+// reads its page there, so the route file loses its module-level queries and
+// its static server-function imports, and goalKeys loses the old page's detail
+// and month-so-far keys. The page is the Monthly portal goal's, a lazy chunk the
+// two routes share (portal-goal-page-*.js, 6.20 kB); the $goalId route chunk
+// falls from 10.95 to 1.30 kB (vite's gzip column), and its read is in the
+// monthly-portal-goals stub chunk (0.61 -> 0.67 kB). No class was added; the
+// dialogs' own left the stylesheet (27,839 -> 27,832 B). Built on this branch's
+// base ab4f13be3 (PG-20's head b0cb01516 with PG-14's head 3ba71eab4 squashed
+// onto it), fresh production builds measured 307,894 B (75 js + 1 css; entry
+// 49,209 B) and 307,801 B on the head (entry 49,198 B): -93 B. The line stays
+// at 308,050: 249 B spare, 499 B under the ceiling of 308,300 (owner, P-9).
+// Measure again after the rebase onto main.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
