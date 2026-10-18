@@ -125,6 +125,16 @@ run writes is that proof, read before this run writes its own. A failure also
 requires the run's own origin to be `historical_onboarding`, so an ordinary
 poll failing on an imported Property is not the import failing.
 
+A snapshot run removes a Review only after a listing that agrees with Google's
+own total. Google's total and its list do not always agree, so a small gap
+(`application/snapshot-count-gap.ts`: at most 2% of the total, at least 1,
+always under one page, no more pages than the reviews fill) still completes the run,
+but `finishMainScan` then records no removal candidate and no first miss, and
+`applyDeletionBatch` refuses any candidate on such a run. A wider gap fails as
+`set_mismatch`. The completed run verifies Google's count and average as usual;
+the use case logs `review_snapshot_completed_with_count_gap` with the counts
+only (ADR 0055, note 2026-10-18).
+
 An internal Reply moves from draft through approval and a numbered publication
 cycle. Provider acknowledgement enters `pending_observation`; only an exact current
 Google Reply Observation proves publication. Publication authorizations, attempts,

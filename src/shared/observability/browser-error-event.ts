@@ -49,7 +49,45 @@ function currentFacts(): BrowserFacts {
   }
 }
 
+function lastExceptionMechanism(event: unknown): string | undefined {
+  const values = asRecord(asRecord(event)?.exception)?.values
+  if (!Array.isArray(values)) return undefined
+  const mechanism = asRecord(asRecord(values[values.length - 1])?.mechanism)
+  return typeof mechanism?.type === 'string' ? mechanism.type : undefined
+}
+
+/**
+ * A browser request that was cancelled on purpose, whose rejection nobody
+ * handled: the page's own code aborted it (a component left the screen and its
+ * query was cancelled), and the browser rejected the pending call with an
+ * `AbortError`. An `AbortError` is the browser's answer to a cancel, never a
+ * fault.
+ *
+ * Narrow on both sides: only the SDK's unhandled-rejection mechanism, and only
+ * the browser's own `DOMException` named `AbortError`. An `Error` that
+ * application code named `AbortError` is not a browser cancel and keeps
+ * reporting, as do a timeout (`TimeoutError`), a network failure and every
+ * other rejection. The server has its own single-shape rule beside this one
+ * (client-hangup.ts).
+ */
+export function isCancelledLoadRejection(
+  event: unknown,
+  hint?: SentryEventHint,
+): boolean {
+  if (!isBrowserAbort(hint?.originalException)) return false
+  return lastExceptionMechanism(event)?.endsWith('onunhandledrejection') === true
+}
+
+function isBrowserAbort(value: unknown): boolean {
+  return (
+    typeof DOMException !== 'undefined' &&
+    value instanceof DOMException &&
+    value.name === 'AbortError'
+  )
+}
+
 export function beforeSend<T>(event: T, hint?: SentryEventHint): T | null {
+  if (isCancelledLoadRejection(event, hint)) return null
   return dropExpectedRefusals<T>((candidate, candidateHint) =>
     scrubErrorEvent(withBrowserFacts(candidate, currentFacts()), candidateHint),
   )(event, hint)

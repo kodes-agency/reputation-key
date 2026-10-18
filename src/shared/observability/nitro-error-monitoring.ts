@@ -4,6 +4,7 @@ import type {
   ObservabilityService,
 } from './telemetry'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
+import { isIncomingRequestAbort } from './client-hangup'
 
 interface NitroErrorMonitor {
   initialize(service: ObservabilityService): ObservabilityInitResult
@@ -21,7 +22,8 @@ interface NitroErrorMonitoringApp {
 
 /**
  * Register the Nitro error hook without forwarding its request or route
- * context. Expected 4xx responses are product/security outcomes, not issues.
+ * context. Expected 4xx responses are product/security outcomes, not issues,
+ * and neither is a visitor closing the connection while the page is answered.
  */
 export function createNitroErrorMonitoringPlugin(
   monitor: NitroErrorMonitor,
@@ -29,7 +31,7 @@ export function createNitroErrorMonitoringPlugin(
   return (app) => {
     monitor.initialize('web')
     app.hooks.hook('error', (error) => {
-      if (isExpectedRefusal(error)) return
+      if (isExpectedRefusal(error) || isIncomingRequestAbort(error)) return
       monitor.captureException(error, { source: 'nitro' })
     })
   }

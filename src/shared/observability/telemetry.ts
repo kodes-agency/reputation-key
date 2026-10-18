@@ -24,6 +24,7 @@ import {
   type SentryBreadcrumb,
   type SentryEventHint,
 } from './sentry-event-scrub'
+import { dropClientHangups } from './client-hangup'
 import { type FeedbackReporter, withFeedbackReporter } from './feedback-reporter'
 
 const ERROR_MONITOR_FLUSH_BUDGET_MS = 1_500
@@ -272,7 +273,10 @@ export function createErrorMonitor(deps: {
                   integration.name !== 'LocalVariablesAsync' &&
                   integration.name !== 'ContextLines',
               ),
-            beforeSend: dropExpectedRefusals(scrubErrorEvent),
+            // A visitor who closes the connection mid-answer is no failure of
+            // ours; every other reset (our own Postgres, Redis, Google
+            // sockets) still reports (client-hangup.ts).
+            beforeSend: dropClientHangups(dropExpectedRefusals(scrubErrorEvent)),
             beforeSendTransaction: filterAndScrubSentryTransaction,
             beforeBreadcrumb: scrubSentryBreadcrumb,
           })

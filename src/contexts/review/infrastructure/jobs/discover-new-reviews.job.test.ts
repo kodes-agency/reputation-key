@@ -6,11 +6,17 @@
 // per-property due-time filtering and advance, bounded batches, and
 // enqueue-failure semantics (cursor held, failure recorded, rethrown).
 
+import { createHash } from 'node:crypto'
 import { describe, it, expect, vi } from 'vitest'
 import type {
+  AddSyncJobOptions,
   ReviewQueuePort,
   SyncPropertyReviewsJobData,
 } from '../../application/ports/review-queue.port'
+import {
+  DISCOVERY_SPREAD_WINDOW_MS,
+  DISCOVERY_SWEEP_CADENCE_MS,
+} from '../../domain/discovery-spread'
 import {
   createFakeReviewDiscoveryRepository,
   fakeDiscoveryProperty,
@@ -45,27 +51,32 @@ function makeDeps(
     batchSize?: number
     maxBatches?: number
     intervalMs?: number
+    spreadWindowMs?: number
+    clock?: () => Date
   } = {},
 ) {
   const discoveryRepo = createFakeReviewDiscoveryRepository(rows)
   const findSpy = vi.spyOn(discoveryRepo, 'findDuePropertiesBatch')
   const enqueued: SyncPropertyReviewsJobData[] = []
+  const enqueuedOptions: (AddSyncJobOptions | undefined)[] = []
   const queue: ReviewQueuePort = {
-    addSyncJob: async (data) => {
+    addSyncJob: async (data, options) => {
       if (opts.failEnqueue) throw new Error('Redis down')
       enqueued.push(data)
+      enqueuedOptions.push(options)
     },
   }
   const handler = createDiscoverNewReviewsHandler({
     discoveryRepo,
     queue,
-    clock: () => NOW,
+    clock: opts.clock ?? (() => NOW),
     logger: { info: vi.fn(), warn: vi.fn() },
     batchSize: opts.batchSize ?? 2,
     maxBatches: opts.maxBatches ?? 10,
     ...(opts.intervalMs === undefined ? {} : { intervalMs: opts.intervalMs }),
+    ...(opts.spreadWindowMs === undefined ? {} : { spreadWindowMs: opts.spreadWindowMs }),
   })
-  return { handler, discoveryRepo, enqueued, findSpy, rows }
+  return { handler, discoveryRepo, enqueued, enqueuedOptions, findSpy, rows }
 }
 
 describe('discover-new-reviews sweep', () => {
@@ -244,5 +255,151 @@ describe('discover-new-reviews sweep', () => {
 
     expect(enqueued).toHaveLength(0)
     expect(findSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+// The sweep used to enqueue every due property in the same second, so a
+// connection with many properties spent its per-minute reviews.list quota in
+// one burst. The jobs are now handed to the queue with a stable per-property
+// start delay, inside a window shorter than the sweep's own cadence.
+describe('discover-new-reviews sweep: spreading start times', () => {
+  // Random-looking ids, like production uuids; sequential literals would not
+  // exercise the spread.
+  const crowd = (count: number): FakeDiscoveryPropertyRow[] =>
+    Array.from({ length: count }, (_, i) => {
+      const hex = createHash('sha256').update(`spread-${i}`).digest('hex')
+      return fakeDiscoveryProperty({
+        propertyId: `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`,
+        connectionId: `bb000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+        gbpLocationId: `location-${i}`,
+        // Active just now: the hot rung, so the next due time is the base interval.
+        lastNewReviewAt: NOW,
+      })
+    })
+
+  /** Start delay handed to the queue for each enqueued job, in enqueue order. */
+  const startDelays = (result: ReturnType<typeof makeDeps>): number[] =>
+    result.enqueuedOptions.map((options) => options?.delayMs ?? 0)
+
+  const delayOf = (result: ReturnType<typeof makeDeps>, propertyId: string): number => {
+    const index = result.enqueued.findIndex((d) => d.propertyId === propertyId)
+    return result.enqueuedOptions[index]?.delayMs ?? 0
+  }
+
+  it('hands each property to the queue with a start delay inside the spread window', async () => {
+    const deps = makeDeps(crowd(23), { batchSize: 50 })
+
+    await deps.handler({} as never)
+
+    expect(deps.enqueued).toHaveLength(23)
+    const delays = startDelays(deps)
+    for (const delay of delays) {
+      expect(delay).toBeGreaterThanOrEqual(0)
+      expect(delay).toBeLessThan(DISCOVERY_SPREAD_WINDOW_MS)
+    }
+    // Not all at once: the starts are spread over most of the window.
+    expect(new Set(delays).size).toBeGreaterThan(20)
+    expect(Math.max(...delays) - Math.min(...delays)).toBeGreaterThan(
+      DISCOVERY_SPREAD_WINDOW_MS / 2,
+    )
+  })
+
+  it('gives a property the same delay on every sweep', async () => {
+    const rows = crowd(5)
+    const first = makeDeps(rows, { batchSize: 50 })
+    await first.handler({} as never)
+    const firstDelays = first.enqueued.map((d) => delayOf(first, d.propertyId))
+    expect(Math.max(...firstDelays)).toBeGreaterThan(0)
+
+    // Same properties, due again.
+    const second = makeDeps(
+      rows.map((row) => ({ ...row, nextDueAt: null })),
+      { batchSize: 50 },
+    )
+    await second.handler({} as never)
+    const secondDelays = second.enqueued.map((d) => delayOf(second, d.propertyId))
+
+    expect(secondDelays).toEqual(firstDelays)
+  })
+
+  it('leaves the per-property due time exactly where the ladder priced it', async () => {
+    const deps = makeDeps(crowd(8), { batchSize: 50 })
+
+    await deps.handler({} as never)
+
+    // The delay moves when the job starts, never when the property is next
+    // due: a delayed start must not push a property past the next sweep.
+    expect(Math.max(...startDelays(deps))).toBeGreaterThan(0)
+    for (const row of deps.rows) {
+      expect(row.nextDueAt).toEqual(
+        new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
+      )
+    }
+  })
+
+  it('cannot re-enqueue a property while its previous job is still waiting', async () => {
+    let current = NOW
+    const deps = makeDeps(crowd(6), { batchSize: 50, clock: () => current })
+
+    await deps.handler({} as never)
+    const firstSweep = deps.enqueued.length
+    const longestWait = Math.max(...startDelays(deps))
+    expect(longestWait).toBeGreaterThan(0)
+
+    // One millisecond before the property is due again: nothing is enqueued.
+    current = new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS - 1)
+    await deps.handler({} as never)
+    expect(deps.enqueued).toHaveLength(firstSweep)
+
+    // The earliest instant the next sweep may enqueue it again is after the
+    // longest delay the first sweep handed out, so the earlier job has
+    // already been promoted: the delay never overlaps the next cycle.
+    expect(longestWait).toBeLessThan(DEFAULT_DISCOVERY_INTERVAL_MS)
+    current = new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS)
+    await deps.handler({} as never)
+    expect(deps.enqueued).toHaveLength(firstSweep * 2)
+  })
+
+  it('keeps the window strictly shorter than a base interval the operator shortened', async () => {
+    const deps = makeDeps(crowd(30), { batchSize: 50, intervalMs: 5 * MINUTE })
+
+    await deps.handler({} as never)
+
+    const delays = startDelays(deps)
+    expect(Math.max(...delays)).toBeGreaterThan(0)
+    for (const delay of delays) expect(delay).toBeLessThan(5 * MINUTE)
+  })
+
+  it('keeps the window strictly shorter than the sweep cadence, even when asked for more', async () => {
+    const deps = makeDeps(crowd(30), {
+      batchSize: 50,
+      intervalMs: 24 * 60 * MINUTE,
+      spreadWindowMs: 3 * 60 * MINUTE,
+    })
+
+    await deps.handler({} as never)
+
+    const delays = startDelays(deps)
+    expect(Math.max(...delays)).toBeGreaterThan(0)
+    for (const delay of delays) expect(delay).toBeLessThan(DISCOVERY_SWEEP_CADENCE_MS)
+  })
+
+  it('does not delay anything when the spread window is switched off', async () => {
+    const deps = makeDeps(crowd(5), { batchSize: 50, spreadWindowMs: 0 })
+
+    await deps.handler({} as never)
+
+    expect(deps.enqueued).toHaveLength(5)
+    // Not even `delayMs: 0`: the job options stay exactly what they were.
+    expect(deps.enqueuedOptions.every((options) => options === undefined)).toBe(true)
+  })
+
+  it('never sets a job id, so the queue-level behaviour of a sweep job is unchanged', async () => {
+    const deps = makeDeps(crowd(5), { batchSize: 50 })
+
+    await deps.handler({} as never)
+
+    expect(startDelays(deps).some((delay) => delay > 0)).toBe(true)
+    for (const options of deps.enqueuedOptions) expect(options?.jobId).toBeUndefined()
   })
 })

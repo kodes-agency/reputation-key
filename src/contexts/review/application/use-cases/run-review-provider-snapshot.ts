@@ -24,6 +24,7 @@ import {
   type ReviewProviderSnapshotRun,
 } from '../ports/review-provider-snapshot.repository'
 import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
+import { snapshotRunCountAgreement } from '../snapshot-count-gap'
 import type { ReviewProviderObservationOrigin } from '../ports/response-target-authority.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
@@ -646,6 +647,29 @@ const confirmTargetedCandidate = async (
   return failAndDiscard(deps, input, run.id, 'confirmation_set_changed')
 }
 
+/**
+ * A run that completed although Google's total and its list differed by a
+ * small amount removed nothing (`snapshot-count-gap.ts`). Say so, with the
+ * three counts and nothing else: no identifier, so the line is content-free,
+ * and the run row (`expected_total <> main_unique_count`) says which Property.
+ */
+const logCountGap = (
+  deps: RunReviewProviderSnapshotDeps,
+  run: ReviewProviderSnapshotRun,
+): void => {
+  const agreement = snapshotRunCountAgreement(run)
+  if (agreement.kind !== 'gap') return
+  deps.logger.warn(
+    {
+      event: 'review_snapshot_completed_with_count_gap',
+      expected: agreement.expected,
+      unique: agreement.unique,
+      gap: agreement.gap,
+    },
+    'Review snapshot completed with a Google count gap; no removals applied',
+  )
+}
+
 export type RunReviewProviderSnapshot = (
   input: RunReviewProviderSnapshotInput,
 ) => Promise<RunReviewProviderSnapshotResult>
@@ -722,6 +746,7 @@ export const runReviewProviderSnapshot =
           sourceEpoch: input.sourceEpoch,
           runId: run.id,
         })
+        logCountGap(deps, batch.run)
         return { status: 'completed', runId: run.id }
       }
       return { status: 'deleting', runId: run.id, applied: batch.applied }
