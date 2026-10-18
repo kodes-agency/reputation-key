@@ -102,7 +102,8 @@ when a lazy chunk may be gone.
 
 A read refused outside that window on a page that stays put (a focus refetch on
 the Inbox) shows the refusal's own sentence ("Reload to continue") in place of
-that read until the person reloads or selects or opens anything, which reloads.
+that read until the person's next navigation (another item or another page),
+which reloads.
 
 Jobs, outbox delivery, health, and observability expose infrastructure mechanics.
 Contexts own handler meaning, source transactions, recovery policy, content
