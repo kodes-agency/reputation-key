@@ -5,13 +5,14 @@
 // a number anyway" when nothing came in, and "Set a goal from December" once
 // a goal was stopped; to change it, "Change" on a goal that has not started,
 // and the page's "Change number" and "Count scans instead". The sheet is a
-// chunk of its own, fetched while a door to it is on screen, and it works from
-// the card's own read, so it needs no read of its own. A fresh sheet (a new
-// draft, no old refusal) is mounted for every opening. A change works from the
-// goal as it was when the sheet opened; when it is behind the goal (someone
-// changed it, F-1; its month ended, F-2; or the month turned, F-4) the goal is
-// read again and the sheet opens afresh on the latest, still saying why, or
-// closes when the latest takes no change (it was stopped).
+// chunk of its own, fetched while a door to it is on screen (each page says
+// whether it draws one), and it works from the card's own read, so it needs no
+// read of its own. A fresh sheet (a new draft, no old refusal) is mounted for
+// every opening. A change works from the goal as it was when the sheet opened;
+// when it is behind the goal (someone changed it, F-1; its month ended, F-2;
+// or the month turned, F-4) the goal is read again and the sheet opens afresh
+// on the latest, still saying why, or closes when the latest takes no change
+// (it was stopped).
 //
 // No Radix trigger opens it, so Radix has nowhere to put the focus back when it
 // closes: the host remembers what had the focus when it was opened and returns
@@ -59,6 +60,26 @@ const sheetFactsOf = (
 const goalOfCard = (card: PortalGoalCardView | undefined): PortalGoalOfCard | null =>
   card?.state === 'goal' ? card.goal : null
 
+/**
+ * Whether the card (on the Goals page) or the goal's page draws a door to the
+ * sheet: every arm before a goal does; with a goal, a stopped goal's way to the
+ * next one, and, for someone who may change it, "Change" while it waits for its
+ * first month on the card, or "Change number" and the other measure on the
+ * page while it takes a change. A running goal's card draws none.
+ */
+export function portalGoalDoorShown(
+  card: PortalGoalCardView | undefined,
+  canChange: boolean,
+  where: 'card' | 'page',
+): boolean {
+  if (card === undefined) return false
+  if (card.state !== 'goal') return 'sheet' in card
+  const { goal } = card
+  if (goal.newGoalFrom !== null) return true
+  if (!canChange) return false
+  return where === 'page' ? goal.change !== null : goal.status === 'scheduled'
+}
+
 /** What had the focus, unless it was nothing in particular. */
 function focusedElement(): HTMLElement | null {
   const active = document.activeElement
@@ -97,25 +118,40 @@ export function useFocusReturn(focusTitle: () => void) {
   }
 }
 
+type SheetHost = Readonly<{
+  propertyId: string
+  card: PortalGoalCardView | undefined
+  commands: PortalGoalSheetCommands
+  /**
+   * Puts the focus on the goal's title, wherever the page draws it: no
+   * default, so a page never sends it to a title it does not have.
+   */
+  focusTitle: () => void
+  /** Reads the card again, for the sheet a change refused as behind opens afresh on. */
+  reread: () => Promise<PortalGoalCardView | undefined>
+  /** The page draws a door to the sheet (`portalGoalDoorShown`): its chunk is fetched. */
+  doorShown: boolean
+}>
+
 /**
  * The sheet of the goal's card: `open` opens it to set the goal on a measure,
  * or to change it, and `sheet` is the element the page draws (nothing until
- * it is first opened). `focusTitle` puts the focus on the goal's title,
- * wherever the page draws it: no default, so a page never sends it to a title
- * it does not have. `reread` reads the card again, for the sheet a change
- * refused as behind the goal opens afresh on.
+ * it is first opened).
  */
-export function usePortalGoalSheet(
-  propertyId: string,
-  card: PortalGoalCardView | undefined,
-  commands: PortalGoalSheetCommands,
-  focusTitle: () => void,
-  reread: () => Promise<PortalGoalCardView | undefined>,
-): Readonly<{ open: (intent: PortalGoalSheetIntent) => void; sheet: ReactNode }> {
+export function usePortalGoalSheet({
+  propertyId,
+  card,
+  commands,
+  focusTitle,
+  reread,
+  doorShown,
+}: SheetHost): Readonly<{
+  open: (intent: PortalGoalSheetIntent) => void
+  sheet: ReactNode
+}> {
   const [opening, setOpening] = useState<Opening | null>(null)
   const focus = useFocusReturn(focusTitle)
   const facts = sheetFactsOf(card)
-  const doorShown = facts !== null
   useEffect(() => {
     if (doorShown) preloadPortalGoalSheet()
   }, [doorShown])

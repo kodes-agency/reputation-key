@@ -45,7 +45,7 @@ import {
   portalGoalCommands,
   portalGoalPageQuery,
 } from './-portal-goal-queries'
-import { usePortalGoalSheet } from './-portal-goal-sheet-host'
+import { portalGoalDoorShown, usePortalGoalSheet } from './-portal-goal-sheet-host'
 import { prefilledGoalSubjects } from './-goal-subject-prefill'
 
 const TITLE = 'Monthly portal goal'
@@ -135,13 +135,14 @@ function MonthlyPortalGoalRoute() {
     reviseMonthlyPortalGoalFn: portalGoalCommands.reviseMonthlyPortalGoal,
     onSet: markStale,
   } satisfies PortalGoalCommands & PortalGoalSheetCommands
-  const sheet = usePortalGoalSheet(
+  const sheet = usePortalGoalSheet({
     propertyId,
-    page.card,
-    set,
-    focusPortalGoalPageTitle,
-    async () => (await pageRead.refetch()).data?.card,
-  )
+    card: page.card,
+    commands: set,
+    focusTitle: focusPortalGoalPageTitle,
+    reread: async () => (await pageRead.refetch()).data?.card,
+    doorShown: portalGoalDoorShown(page.card, canDo('goal.update'), 'page'),
+  })
   const addRead = useQuery({
     ...portalGoalAddQuery(propertyId),
     enabled: canDo('goal.create'),

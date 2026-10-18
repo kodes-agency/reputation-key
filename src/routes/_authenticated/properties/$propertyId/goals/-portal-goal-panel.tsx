@@ -24,7 +24,11 @@ import {
   portalGoalCardQuery,
   portalGoalCommands,
 } from './-portal-goal-queries'
-import { focusPortalGoalCardTitle, usePortalGoalSheet } from './-portal-goal-sheet-host'
+import {
+  focusPortalGoalCardTitle,
+  portalGoalDoorShown,
+  usePortalGoalSheet,
+} from './-portal-goal-sheet-host'
 
 type Props = Readonly<{
   propertyId: string
@@ -59,13 +63,15 @@ export function PortalGoalPanel({ propertyId, extras, footer, results }: Props) 
     reviseMonthlyPortalGoalFn: portalGoalCommands.reviseMonthlyPortalGoal,
     onSet: () => markPortalGoalReadsStale(queryClient, propertyId),
   } satisfies PortalGoalCommands & PortalGoalSheetCommands
-  const sheet = usePortalGoalSheet(
+  const shown = drawsCard ? card.data : undefined
+  const sheet = usePortalGoalSheet({
     propertyId,
-    drawsCard ? card.data : undefined,
-    set,
-    focusPortalGoalCardTitle,
-    async () => (await card.refetch()).data,
-  )
+    card: shown,
+    commands: set,
+    focusTitle: focusPortalGoalCardTitle,
+    reread: async () => (await card.refetch()).data,
+    doorShown: portalGoalDoorShown(shown, can('goal.update'), 'card'),
+  })
   const monthlyGoalId = card.data?.state === 'goal' ? card.data.goal.programId : null
   return (
     <>

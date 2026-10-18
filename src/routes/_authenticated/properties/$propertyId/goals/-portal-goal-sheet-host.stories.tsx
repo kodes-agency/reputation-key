@@ -25,7 +25,7 @@ import {
   SEAVIEW,
   personName,
 } from '#/components/goals/portal-goal-page.stories.fixtures'
-import { usePortalGoalSheet } from './-portal-goal-sheet-host'
+import { portalGoalDoorShown, usePortalGoalSheet } from './-portal-goal-sheet-host'
 
 const setMock = fn<PortalGoalCommands['setMonthlyPortalGoalFn']>(async () => ({
   programId: 'program-monthly',
@@ -57,13 +57,14 @@ function GoalPageWithItsSheet({ page: first, afterSet }: HarnessProps) {
       setPage(afterSet)
     },
   } satisfies PortalGoalCommands & PortalGoalSheetCommands
-  const sheet = usePortalGoalSheet(
-    SEAVIEW.propertyId,
-    page.card,
-    set,
-    focusPortalGoalPageTitle,
-    async () => page.card,
-  )
+  const sheet = usePortalGoalSheet({
+    propertyId: SEAVIEW.propertyId,
+    card: page.card,
+    commands: set,
+    focusTitle: focusPortalGoalPageTitle,
+    reread: async () => page.card,
+    doorShown: portalGoalDoorShown(page.card, true, 'page'),
+  })
   return (
     <>
       <PortalGoalPage
