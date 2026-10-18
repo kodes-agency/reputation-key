@@ -107,7 +107,10 @@ export function PortalGoalSection({
       style={{ scrollMarginTop: ANCHOR_MARGIN }}
     >
       <div className="flex flex-col gap-1">
-        <SectionTitle id="portal-goals-title">Portal goals</SectionTitle>
+        {/* Focusable, so a link that leads here (`#portal-goals`) can hand it the focus. */}
+        <SectionTitle id="portal-goals-title" tabIndex={-1} className="outline-none">
+          Portal goals
+        </SectionTitle>
         {line === null ? null : <p className="text-sm text-muted-foreground">{line}</p>}
       </div>
       {card === null ? null : (

@@ -1,9 +1,10 @@
 // The wizard's last screen and its keep step. Done says what was set in two or
-// three lines and offers ONE next step: a Portal when the Property has none,
-// otherwise its portal goals. No number is carried over to Portal goals, which
-// stay Google-free (ADR 0067). The keep step is the whole wizard for a goal that
-// keeps the number Google shows: its title, one sentence (the dialog's
-// description) and "Start watching".
+// three lines and offers ONE next step on the portal side (PLAN PG-11): the
+// monthly portal goal's card once a Portal is live, otherwise a first Portal.
+// No number is carried over to Portal goals, which stay Google-free (ADR 0067,
+// ADR 0068). The keep step is the whole wizard for a goal that keeps the number
+// Google shows: its title, one sentence (the dialog's description) and "Start
+// watching".
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CircleCheck } from 'lucide-react'
@@ -11,13 +12,27 @@ import { Button } from '#/components/ui/button'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { RatingGoalCancel } from './rating-goal-wizard-cancel'
 import { TONE_INK } from '#/components/ui/tone'
+import type { PortalNextStep } from './rating-goal-portal-step'
 import type { RatingGoalReceipt } from './rating-goal-wizard-view'
+
+/**
+ * The title of the Goals page's Portal goals section, where "See your portal
+ * goal" lands (`#portal-goals`): the wizard hands it the focus as it closes.
+ */
+export const PORTAL_GOALS_TITLE_ID = 'portal-goals-title'
 
 export function RatingGoalDone({
   receipt,
   propertyId,
-  hasPortals,
-}: Readonly<{ receipt: RatingGoalReceipt; propertyId: string; hasPortals: boolean }>) {
+  portalNextStep,
+  onSeePortalGoal,
+}: Readonly<{
+  receipt: RatingGoalReceipt
+  propertyId: string
+  portalNextStep: PortalNextStep
+  /** "See your portal goal" was taken: the wizard closes as the page moves to the card. */
+  onSeePortalGoal: () => void
+}>) {
   return (
     <>
       <div className="flex flex-col items-start gap-2">
@@ -33,13 +48,14 @@ export function RatingGoalDone({
       <DialogFooter className="mt-auto">
         <DialogCancel>Go to goals</DialogCancel>
         <Button asChild>
-          {hasPortals ? (
+          {portalNextStep === 'see' ? (
             <Link
-              to="/properties/$propertyId/goals/new"
+              to="/properties/$propertyId/goals"
               params={{ propertyId }}
-              search={{ mode: 'several' }}
+              hash="portal-goals"
+              onClick={onSeePortalGoal}
             >
-              Set portal goals
+              See your portal goal
             </Link>
           ) : (
             <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>

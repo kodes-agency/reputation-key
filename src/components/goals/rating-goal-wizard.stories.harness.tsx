@@ -57,7 +57,7 @@ export function Harness(props: HarnessProps) {
         propertyId={FIXTURE_PROPERTY_ID}
         propertyName="Harborline Suites"
         setup={read(setupViewOf(HARBORLINE))}
-        hasPortals
+        portalNextStep="see"
         setRatingGoalFn={setMock}
         changeRatingGoalFn={changeMock}
         // As the page's host does: no trigger, so the focus is handed back here.

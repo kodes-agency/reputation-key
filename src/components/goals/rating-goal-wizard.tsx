@@ -27,7 +27,12 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { dashboardKeys, goalKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { withRatingGoalRefusals } from './rating-goal-refusal'
 import type { RegionRead } from './rating-goal-section'
-import { RatingGoalDone, RatingGoalKeepStep } from './rating-goal-wizard-done'
+import type { PortalNextStep } from './rating-goal-portal-step'
+import {
+  PORTAL_GOALS_TITLE_ID,
+  RatingGoalDone,
+  RatingGoalKeepStep,
+} from './rating-goal-wizard-done'
 import { RatingGoalWizardFrame } from './rating-goal-wizard-frame'
 import { draftFromGoal, type SetupDraft } from './rating-goal-setup-draft'
 import { RatingGoalSetupStep } from './rating-goal-setup-step'
@@ -50,8 +55,8 @@ export type RatingGoalWizardProps = Readonly<{
   propertyName?: string
   intent: RatingGoalWizardIntent
   setup: RegionRead<RatingGoalSetupView>
-  /** The done screen offers portal goals when there are Portals, a Portal when not. */
-  hasPortals: boolean
+  /** The done screen's one next step: the monthly portal goal once a Portal is live, else a first Portal. */
+  portalNextStep: PortalNextStep
   setRatingGoalFn: CommandOf<typeof setRatingGoal>
   changeRatingGoalFn: CommandOf<typeof changeRatingGoal>
   /** Where the focus goes when the wizard closes: the page knows what opened it. */
@@ -232,11 +237,34 @@ function KeepStep({
   )
 }
 
+/**
+ * "See your portal goal" closes the wizard as the page moves to the Portal
+ * goals (`#portal-goals`), so the focus goes to their title rather than where
+ * the page would put it back (what opened the wizard, or the Google section's
+ * heading). Every other way out leaves the focus to the page.
+ */
+function usePortalGoalLanding(props: RatingGoalWizardProps) {
+  const taken = useRef(false)
+  return {
+    see: () => {
+      taken.current = true
+      props.onOpenChange(false)
+    },
+    onCloseAutoFocus: (event: Event) => {
+      const title = taken.current ? document.getElementById(PORTAL_GOALS_TITLE_ID) : null
+      if (title === null) return props.onCloseAutoFocus?.(event)
+      event.preventDefault()
+      title.focus()
+    },
+  }
+}
+
 /** What the frame holds: the done screen, the read still going, Keep, or the one screen. */
 function WizardBody({
   props,
   flow,
-}: Readonly<{ props: RatingGoalWizardProps; flow: Flow }>) {
+  onSeePortalGoal,
+}: Readonly<{ props: RatingGoalWizardProps; flow: Flow; onSeePortalGoal: () => void }>) {
   const { intent, setup } = props
   const small = useIsMobile()
   if (flow.step === 'done' && flow.receipt !== null) {
@@ -244,7 +272,8 @@ function WizardBody({
       <RatingGoalDone
         receipt={flow.receipt}
         propertyId={props.propertyId}
-        hasPortals={props.hasPortals}
+        portalNextStep={props.portalNextStep}
+        onSeePortalGoal={onSeePortalGoal}
       />
     )
   }
@@ -270,6 +299,7 @@ function WizardBody({
 export function RatingGoalWizard(props: RatingGoalWizardProps) {
   const { intent, setup } = props
   const flow = useWizardFlow(props)
+  const landing = usePortalGoalLanding(props)
   return (
     <RatingGoalWizardFrame
       open={props.open}
@@ -284,10 +314,10 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
         flow.receipt?.pace === null,
       )}
       titleRef={flow.titleRef}
-      onCloseAutoFocus={props.onCloseAutoFocus}
+      onCloseAutoFocus={landing.onCloseAutoFocus}
       inline={props.inline}
     >
-      <WizardBody props={props} flow={flow} />
+      <WizardBody props={props} flow={flow} onSeePortalGoal={landing.see} />
     </RatingGoalWizardFrame>
   )
 }

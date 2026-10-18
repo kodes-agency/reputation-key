@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RatingGoalOverview } from '#/components/goals/rating-goal-overview'
+import type { PortalNextStep } from '#/components/goals/rating-goal-portal-step'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { ratingGoalHistoryQuery, ratingGoalSetupQuery } from './-rating-goal-queries'
 import {
@@ -20,8 +21,8 @@ type Props = Readonly<{
   /** Named in the wizard's header. */
   propertyName: string
   timezone: string
-  /** The wizard's done screen offers portal goals when there are Portals, a Portal when not. */
-  hasPortals: boolean
+  /** The wizard's done screen: the monthly portal goal once a Portal is live, else a first Portal. */
+  portalNextStep: PortalNextStep
   /**
    * A manager chose "Not now" for the goal (the setup checklist the Overview
    * reads): the prompt then says nothing. Undefined until it is read.
@@ -33,7 +34,7 @@ export function OverviewRatingGoal({
   propertyId,
   propertyName,
   timezone,
-  hasPortals,
+  portalNextStep,
   notNowChosen,
 }: Props) {
   const { card, noActiveGoal } = useRatingGoalCard(propertyId)
@@ -49,7 +50,10 @@ export function OverviewRatingGoal({
     enabled: noActiveGoal,
     retry: false,
   })
-  const { start, wizard } = useRatingGoalWizard(propertyId, { hasPortals, propertyName })
+  const { start, wizard } = useRatingGoalWizard(propertyId, {
+    portalNextStep,
+    propertyName,
+  })
   const recap = useRatingGoalRecapCommands(propertyId)
   // A door to the wizard is on screen: fetch its chunk now, so the click opens it at once.
   const doorShown = can('goal.create') && noActiveGoal
