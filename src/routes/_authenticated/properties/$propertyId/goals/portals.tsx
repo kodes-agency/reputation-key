@@ -14,7 +14,7 @@
 // and "Add a portal goal" when it offers something (the M-rule, PLAN PG-20),
 // whose sheet an address opens on a step (`?add=…`, where the old New goal
 // page's links now lead, `-goal-new-redirect.ts`).
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -117,7 +117,6 @@ function MonthlyPortalGoalRoute() {
   const navigate = Route.useNavigate()
   const { can: canDo } = usePermissions()
   const queryClient = useQueryClient()
-  const [now] = useState(() => new Date())
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const pageRead = useSuspenseQuery(portalGoalPageQuery(propertyId))
   const page = pageRead.data
@@ -172,7 +171,7 @@ function MonthlyPortalGoalRoute() {
     },
     onRefused: markStale,
   } satisfies PortalGoalStopCommands
-  const { name, timezone } = propData.property
+  const { name } = propData.property
   const { extras } = page
   return (
     <>
@@ -192,7 +191,6 @@ function MonthlyPortalGoalRoute() {
           extras.goals.length === 0 ? null : (
             <PortalGoalExtras
               propertyId={propertyId}
-              timezone={timezone}
               goals={extras.goals}
               monthlyGoalId={null}
               live={{
@@ -206,7 +204,6 @@ function MonthlyPortalGoalRoute() {
               subjectName={(subject) =>
                 extrasSubjectName(subject, name, extras.subjectNames)
               }
-              now={now}
               titled={false}
             />
           )

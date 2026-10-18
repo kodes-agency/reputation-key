@@ -63,7 +63,7 @@ const refusal = (code: string) =>
   new ServerFunctionError('GoalProgramError', code, code, 409)
 
 type HarnessProps = Pick<PortalGoalSheetProps, 'facts' | 'intent'> &
-  Partial<Pick<PortalGoalSheetProps, 'commands' | 'goal' | 'now'>> &
+  Partial<Pick<PortalGoalSheetProps, 'commands' | 'goal' | 'now' | 'canSwitch'>> &
   Readonly<{
     /** The card read again after F-1, F-2 or F-4, which the sheet opens afresh on. */
     latest?: Readonly<{ goal: PortalGoalSheetProps['goal']; facts: PortalGoalSheetFacts }>
@@ -82,7 +82,15 @@ type Shown = Readonly<{
  * F-4) opens afresh on the card read again (`latest`), still saying why, as
  * the host does.
  */
-function Harness({ facts, intent, commands, goal, latest, now }: HarnessProps) {
+function Harness({
+  facts,
+  intent,
+  commands,
+  goal,
+  latest,
+  now,
+  canSwitch,
+}: HarnessProps) {
   const [open, setOpen] = useState(false)
   const [key, setKey] = useState(0)
   const [shown, setShown] = useState<Shown>({ goal, facts, notice: null })
@@ -108,6 +116,7 @@ function Harness({ facts, intent, commands, goal, latest, now }: HarnessProps) {
           setKey((last) => last + 1)
         }}
         now={now}
+        canSwitch={canSwitch}
         open={open}
         onOpenChange={(next) => {
           onOpenChangeMock(next)
@@ -731,6 +740,20 @@ export const ChangeLastDay: Story = {
       month: '2026-11',
       targetValue: 30,
     })
+  },
+}
+
+/**
+ * A Portal's goal whose Portal already holds a scans goal from December (PLAN
+ * PG-21): its change sheet offers no "Count scans instead", which would be
+ * refused.
+ */
+export const ChangeScansHeld: Story = {
+  args: { ...CHANGING, canSwitch: false },
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openChange(canvasElement)
+    await expect(box(sheet)).toHaveValue('40')
+    await expect(sheet.queryByRole('button', { name: 'Count scans instead' })).toBeNull()
   },
 }
 

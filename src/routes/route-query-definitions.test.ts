@@ -86,7 +86,8 @@ const LEAF_COPIES: Readonly<Record<string, readonly string[]>> = {
     `${GOALS}/index.tsx`,
   ],
   'portalKeys.goalSubjectNames(propertyId)': [
-    `${GOALS}/$goalId.tsx`,
+    // The goal page's copy went with its old dialogs (PG-21): each goal page's
+    // read is the Portal goals' own now.
     `${GOALS}/-portal-goal-queries.ts`,
     `${GOALS}/index.tsx`,
   ],
@@ -102,6 +103,8 @@ describe('route query options', () => {
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'card')")
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'page')")
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'add')")
+    // A goal's own page (PG-21): one Portal's, one group's or the average's.
+    expect(keys).toContain('goalKeys.portalGoalRead(propertyId, `goal:${programId}`)')
   })
 
   it('are defined once, and imported by every route that reads them', () => {

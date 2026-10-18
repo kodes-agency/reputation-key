@@ -224,17 +224,12 @@ export const goalKeys = {
   all: ['goals'] as const,
   list: (args: Readonly<Record<string, unknown>>) =>
     [...goalKeys.all, 'list', args] as const,
-  detail: (propertyId: string, goalId: string) =>
-    [...goalKeys.all, 'detail', propertyId, goalId] as const,
   /** The live month to date of the goals that target one subject (`portal_group:<id>`). */
   progress: (propertyId: string, subject: string) =>
     [...goalKeys.all, 'progress', propertyId, subject] as const,
   /** The live month to date of every active goal of a Property (the Goals list). */
   listProgress: (propertyId: string) =>
     [...goalKeys.all, 'list-progress', propertyId] as const,
-  /** The live month to date of every current subject of one goal. */
-  programProgress: (propertyId: string, goalId: string) =>
-    [...goalKeys.all, 'program-progress', propertyId, goalId] as const,
   /**
    * The Property's Google rating goal. Its four reads sit under this key, so one
    * invalidation after a set, change or end refreshes them all.
@@ -251,8 +246,11 @@ export const goalKeys = {
    */
   portalGoal: (propertyId: string) =>
     [...goalKeys.all, 'portal-goal', propertyId] as const,
-  portalGoalRead: (propertyId: string, read: 'card' | 'page' | 'add') =>
-    [...goalKeys.portalGoal(propertyId), read] as const,
+  /** Its reads; `goal:<programId>` is a goal's own page, one Portal's, one group's or the average. */
+  portalGoalRead: (
+    propertyId: string,
+    read: 'card' | 'page' | 'add' | `goal:${string}`,
+  ) => [...goalKeys.portalGoal(propertyId), read] as const,
   portalGoalLine: (propertyId: string, portalId: string) =>
     [...goalKeys.portalGoal(propertyId), 'line', portalId] as const,
 }

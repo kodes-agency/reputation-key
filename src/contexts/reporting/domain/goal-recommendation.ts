@@ -322,14 +322,14 @@ function monthsOf(now: Date, timezone: string): Months & Readonly<{ firstDay: st
   }
 }
 
-function basisOf(established: readonly PortalBasis[]): PortalGoalRecommendation['basis'] {
+function basisOf(established: readonly PortalFacts[]): PortalGoalRecommendation['basis'] {
   if (established.length === 0) return null
-  const longest = Math.max(...established.map(({ facts }) => facts.liveDays))
+  const longest = Math.max(...established.map(({ liveDays }) => liveDays))
   return {
     portals: established.length,
     weeks: BASIS_WEEKS.filter((weeks) => weeks * DAYS_PER_WEEK <= longest).at(-1) ?? 2,
     counts: perMeasure((measure) =>
-      established.reduce((sum, { facts }) => sum + facts.window[measure], 0),
+      established.reduce((sum, { window }) => sum + window[measure], 0),
     ),
   }
 }
@@ -467,7 +467,7 @@ export function recommendPortalGoal(
     defaultMeasure: state === 'scans_only' ? 'qualified_scans' : 'portal_rating_count',
     defaultMonthKey: defaultGoalStartMonth(now, timezone),
     readyOn: state === 'getting_ready' ? readyOnOf(bases, window.today) : null,
-    basis: basisOf(established),
+    basis: basisOf(established.map(({ facts }) => facts)),
     months: { current: months.current, next: months.next },
     measures,
     ...totals,
@@ -499,4 +499,52 @@ export function subjectRecommendation(
     const state = measureState(input.unreadable.has(measure), rate)
     return measureRecommendation(state, rate, input.months, input.monthToDate[measure])
   })
+}
+
+/**
+ * PG-21: the Property's recommendation narrowed to one Portal or one Portal
+ * Group, for a goal of its own: its members (the Portal, or the group's Portals
+ * now), the rule on its joined members' rates (`subjectRecommendation`), its own
+ * month so far and the basis those members stand on, and, while none of them
+ * has joined, the day the first one does. Its window, its months and the month
+ * it offers stay the Property's. A measure the caller found a quarantine-worthy
+ * reading in has no number and no month so far.
+ */
+export function narrowedRecommendation(
+  recommendation: PortalGoalRecommendation,
+  scope: Readonly<{
+    members: readonly PortalFacts[]
+    monthToDate: PerMeasure<number>
+    unreadable: ReadonlySet<PortalGoalMeasure>
+  }>,
+): PortalGoalRecommendation {
+  const { members, monthToDate, unreadable } = scope
+  const joined = members.filter(({ inBasis }) => inBasis)
+  const measures = subjectRecommendation({
+    members: joined,
+    monthToDate,
+    unreadable,
+    months: recommendation.months,
+  })
+  const [firstToJoin] = members.flatMap(({ joinsOn }) => joinsOn ?? []).sort()
+  return {
+    ...recommendation,
+    state: recommendationState(
+      perMeasure((measure) => measures[measure].state),
+      members.some(({ liveSince }) => liveSince !== null),
+      joined.length > 0,
+    ),
+    readyOn: joined.length > 0 ? null : (firstToJoin ?? null),
+    basis: basisOf(joined),
+    measures,
+    monthToDate: perMeasure((measure) =>
+      unreadable.has(measure) ? null : monthToDate[measure],
+    ),
+    elsewhere: perMeasure(() => 0),
+    windowTotals: perMeasure((measure) =>
+      members.reduce((sum, { window }) => sum + window[measure], 0),
+    ),
+    portals: members,
+    drafts: [],
+  }
 }

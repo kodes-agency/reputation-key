@@ -5,7 +5,8 @@
 // own line, and each Portal going live; a day of another year says its year.
 // At most 12 until "Show all". Pure.
 import type { PortalGoalChange } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
-import { formatLocalDate, formatNumber } from '#/lib/format'
+import { formatLocalDate } from '#/lib/format'
+import { goalFigure } from './goal-so-far'
 import { dayWords, listOfNames, monthName, portalGoalUnit } from './portal-goal-words'
 
 /** How many changes the page lists before "Show all". */
@@ -42,13 +43,19 @@ function changeText(
   switch (change.kind) {
     case 'set_from': {
       const name = personName(change.by)
-      const number = `${formatNumber(change.target)} a month from ${monthName(change.fromMonth)}`
+      const from = monthName(change.fromMonth)
+      const { measure } = change
+      // The average's level is no number a month: "Elena set 4.5 from November".
+      if (measure === 'portal_rating_average') {
+        return `${doer(name, 'set')} ${goalFigure(measure, change.target)} from ${from}`
+      }
+      const number = `${goalFigure(measure, change.target)} a month from ${from}`
       return change.switched
-        ? `${doer(name, 'switched')} to ${portalGoalUnit(change.measure, 2)}: ${number}${recommended(change.source)}`
+        ? `${doer(name, 'switched')} to ${portalGoalUnit(measure, 2)}: ${number}${recommended(change.source)}`
         : `${doer(name, 'set')} ${number}${recommended(change.source)}`
     }
     case 'set_month':
-      return `${doer(personName(change.by), 'set')} ${monthName(change.month)} to ${formatNumber(change.target)}${recommended(change.source)}`
+      return `${doer(personName(change.by), 'set')} ${monthName(change.month)} to ${goalFigure(change.measure, change.target)}${recommended(change.source)}`
     case 'stopped': {
       const name = personName(change.by)
       return name === null ? 'The goal was stopped' : `${name} stopped the goal`

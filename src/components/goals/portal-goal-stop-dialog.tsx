@@ -6,15 +6,20 @@
 // a refusal is said in the dialog, which stays open, and the page is read
 // again (F-5: the goal was already stopped). The dialog is held by the page,
 // outside the menu that opens it, and words the goal as it was when it opened.
-import type {
-  PortalGoalOfCard,
-  StopMonthlyPortalGoalRequest,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+// A goal for one Portal, a group or the average is stopped from its own page
+// the same way (PLAN PG-21), as "this portal goal".
+import type { StopMonthlyPortalGoalRequest } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
 import { PORTAL_GOAL_BEHIND } from './portal-goal-sheet-refusals'
-import { PORTAL_STOP_REFUSALS, stopWords } from './portal-goal-stop-view'
+import { SINGLE_GOAL_WORDS } from './portal-goal-single-page-view'
+import {
+  PORTAL_STOP_REFUSALS,
+  stopWords,
+  type PortalGoalStopFacts,
+  type PortalGoalStopKind,
+} from './portal-goal-stop-view'
 
 /** What Stop sends, and what follows it, handed down by the page. */
 export type PortalGoalStopCommands = Readonly<{
@@ -32,7 +37,9 @@ type Props = Readonly<{
   onOpenChange: (open: boolean) => void
   propertyId: string
   /** The goal as it was when the dialog opened. */
-  goal: PortalGoalOfCard
+  goal: PortalGoalStopFacts
+  /** The Monthly portal goal, or a goal with a page of its own. */
+  kind?: PortalGoalStopKind
   commands: PortalGoalStopCommands
   /** Where the focus goes on closing, for a dialog opened from a menu. */
   onCloseAutoFocus?: (event: Event) => void
@@ -43,15 +50,17 @@ export function PortalGoalStopDialog({
   onOpenChange,
   propertyId,
   goal,
+  kind = 'monthly',
   commands,
   onCloseAutoFocus,
 }: Props) {
-  const words = stopWords(goal)
+  const words = stopWords(goal, kind)
   // No error toast: the dialog says a refusal where the button was pressed.
   const stop = useActionMutation(
     withGoalRefusals(commands.stopMonthlyPortalGoalFn, PORTAL_STOP_REFUSALS),
     {
-      successMessage: 'Monthly portal goal stopped',
+      successMessage:
+        kind === 'single' ? SINGLE_GOAL_WORDS.stopped : 'Monthly portal goal stopped',
       onSuccess: commands.onStopped,
       onError: (error) => {
         const code = goalRefusalCode(error) ?? ''

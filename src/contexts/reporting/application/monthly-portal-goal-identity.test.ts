@@ -6,7 +6,11 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from './ports/goal-program.repository'
-import { isPropertyCountGoal, monthlyPortalGoalOf } from './monthly-portal-goal-identity'
+import {
+  isPropertyCountGoal,
+  monthlyPortalGoalOf,
+  portalGoalPageOf,
+} from './monthly-portal-goal-identity'
 
 // Seaview, Sofia time: November runs from Oct 31 22:00 UTC to Nov 30 22:00 UTC.
 const OCT_23 = new Date('2026-10-23T09:00:00.000Z')
@@ -209,5 +213,45 @@ describe('isPropertyCountGoal', () => {
     expect(
       isPropertyCountGoal(goal({ id: 'mixed', subjects: [property, reception] })),
     ).toBe(false)
+  })
+})
+
+describe('portalGoalPageOf (PG-21)', () => {
+  it('a Property count goal is the Monthly portal goal: its page is /goals/portals', () => {
+    expect(portalGoalPageOf(goal({ id: 'ratings' }))).toEqual({ kind: 'monthly' })
+    expect(portalGoalPageOf(stoppedOnNov12('stopped'))).toEqual({ kind: 'monthly' })
+  })
+
+  it('a count goal for one Portal or one group has the page of its subject', () => {
+    expect(portalGoalPageOf(goal({ id: 'reception', subjects: [reception] }))).toEqual({
+      kind: 'subject',
+      subject: reception,
+    })
+    expect(
+      portalGoalPageOf(
+        goal({ id: 'rooms', subjects: [rooms], metric: 'qualified_scans' }),
+      ),
+    ).toEqual({ kind: 'subject', subject: rooms })
+  })
+
+  it('the average has the page of an average, whatever its one subject', () => {
+    expect(
+      portalGoalPageOf(goal({ id: 'average', metric: 'portal_rating_average' })),
+    ).toEqual({ kind: 'average', subject: property })
+  })
+
+  it('a goal for several subjects has a plain page that names them all', () => {
+    expect(
+      portalGoalPageOf(goal({ id: 'mixed', subjects: [property, reception] })),
+    ).toEqual({ kind: 'several', subjects: [property, reception] })
+    expect(
+      portalGoalPageOf(
+        goal({
+          id: 'two',
+          subjects: [reception, rooms],
+          metric: 'portal_rating_average',
+        }),
+      ),
+    ).toEqual({ kind: 'several', subjects: [reception, rooms] })
   })
 })

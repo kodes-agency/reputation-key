@@ -42,6 +42,9 @@ export const reviseGoalProgram = createServerFn({ method: 'POST' })
     ),
   )
 
+// No screen changes a goal's subjects since the goal page's old dialogs went
+// (PLAN PG-21): the engine keeps assignment changes (ADR 0068), so this stays,
+// listed in `.fallowrc.json`'s ignoreExports.
 export const changeGoalProgramAssignments = createServerFn({ method: 'POST' })
   .validator(changeGoalProgramAssignmentsSchema)
   .handler(
@@ -119,19 +122,5 @@ export const getGoalListProgress = createServerFn({ method: 'GET' })
         })),
       'GET',
       'goal.getGoalListProgress',
-    ),
-  )
-
-/** The month so far for every current subject of one goal (the goal's page). */
-export const getGoalProgramProgress = createServerFn({ method: 'GET' })
-  .validator(goalProgramIdentitySchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor) => ({
-          subjects: await programs.programProgress(policy, data, actor),
-        })),
-      'GET',
-      'goal.getGoalProgramProgress',
     ),
   )
