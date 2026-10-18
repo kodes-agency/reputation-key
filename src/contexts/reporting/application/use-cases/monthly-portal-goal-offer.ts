@@ -8,13 +8,19 @@
 // but no private ratings). This month's choices are on top of what already
 // counts; the next month's are a whole month's. The set command asks the same
 // question of the month and measure it was sent, so "recommended" means the
-// number this read would offer. Pure.
+// number this read would offer. The set sheet (PLAN PG-10) is offered the same
+// numbers for both months and both measures, with the exact usual an own
+// number is measured against. Pure.
 import type {
   Choices,
   PortalGoalMeasure,
   PortalGoalRecommendation,
 } from '../../domain/goal-recommendation-types'
-import type { PortalGoalOffer } from '../dto/monthly-portal-goal.types'
+import type {
+  PortalGoalMeasureOffers,
+  PortalGoalOffer,
+  PortalGoalSheetFacts,
+} from '../dto/monthly-portal-goal.types'
 
 /**
  * The three choices for `month` and `measure`: the rest of this month, or the
@@ -31,17 +37,21 @@ export function offeredChoices(
   return null
 }
 
-/** What the ready card offers; null when the recommendation has no number to offer. */
-export function portalGoalOfferOf(
+/** The offer for `month` and `measure`; null where the recommendation has no number. */
+function portalGoalOfferFor(
   recommendation: PortalGoalRecommendation,
+  month: string,
+  measure: PortalGoalMeasure,
 ): PortalGoalOffer | null {
-  const { months, basis, defaultMeasure: measure } = recommendation
-  const month = recommendation.defaultMonthKey
+  const { months, basis } = recommendation
   const current = month === months.current.key
   const choices = offeredChoices(recommendation, month, measure)
-  const fullMonth = recommendation.measures[measure].fullMonth
+  const { fullMonth, usualPerMonth } = recommendation.measures[measure]
   const whole = current ? fullMonth.current : fullMonth.next
-  if (choices === null || whole === null || basis === null) return null
+  const usualExact = current ? usualPerMonth.current : usualPerMonth.next
+  if (choices === null || whole === null || usualExact === null || basis === null) {
+    return null
+  }
   const joined = recommendation.portals.filter(({ inBasis }) => inBasis)
   return {
     month,
@@ -54,6 +64,7 @@ export function portalGoalOfferOf(
       stretch: choices.stretch,
     },
     usualAbout: whole.about,
+    usualExact,
     basis: {
       weeks: basis.weeks,
       days: Math.max(...joined.map(({ liveDays }) => liveDays)),
@@ -73,5 +84,45 @@ export function portalGoalOfferOf(
       ? { daysLeft: months.current.daysLeftWithToday, about: choices.about }
       : null,
     timezone: recommendation.timezone,
+  }
+}
+
+/** What the ready card offers; null when the recommendation has no number to offer. */
+export function portalGoalOfferOf(
+  recommendation: PortalGoalRecommendation,
+): PortalGoalOffer | null {
+  return portalGoalOfferFor(
+    recommendation,
+    recommendation.defaultMonthKey,
+    recommendation.defaultMeasure,
+  )
+}
+
+/** What the set sheet works from: both months, both measures, and the month it opens on. */
+export function portalGoalSheetFactsOf(
+  recommendation: PortalGoalRecommendation,
+): PortalGoalSheetFacts {
+  const { months, monthToDate } = recommendation
+  const offersOf = (measure: PortalGoalMeasure): PortalGoalMeasureOffers => ({
+    current: portalGoalOfferFor(recommendation, months.current.key, measure),
+    next: portalGoalOfferFor(recommendation, months.next.key, measure),
+  })
+  return {
+    month: recommendation.defaultMonthKey,
+    ownNumber: {
+      current: {
+        key: months.current.key,
+        soFar: {
+          ratings: monthToDate.portal_rating_count,
+          scans: monthToDate.qualified_scans,
+        },
+      },
+      next: { key: months.next.key },
+    },
+    offers: {
+      portal_rating_count: offersOf('portal_rating_count'),
+      qualified_scans: offersOf('qualified_scans'),
+    },
+    readyOn: recommendation.readyOn,
   }
 }

@@ -7,6 +7,7 @@ import type {
   PortalGoalCardView,
   PortalGoalOfCard,
   PortalGoalOffer,
+  PortalGoalSheetFacts,
   PortalReadinessRow,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 
@@ -50,12 +51,27 @@ export const CARD_DRAFTS_TWO: PortalGoalCardView = {
   ],
 }
 
+/** What the set sheet works from on Oct 17: no number yet, both months open to an own one. */
+export const SHEET_FIRST_WEEKS: PortalGoalSheetFacts = {
+  month: '2026-10',
+  ownNumber: {
+    current: { key: '2026-10', soFar: { ratings: 8, scans: 47 } },
+    next: { key: '2026-11' },
+  },
+  offers: {
+    portal_rating_count: { current: null, next: null },
+    qualified_scans: { current: null, next: null },
+  },
+  readyOn: '2026-10-23',
+}
+
 export const CARD_GETTING_READY: PortalGoalCardView = {
   state: 'getting_ready',
   today: SEAVIEW.today,
   month: '2026-10',
   soFar: { ratings: 8, scans: 47 },
   readyOn: '2026-10-23',
+  sheet: SHEET_FIRST_WEEKS,
   portals: [
     ready('portal-reception', 'Reception'),
     ready('portal-restaurant', 'Restaurant'),
@@ -81,6 +97,8 @@ export const OFFER_NOVEMBER: PortalGoalOffer = {
   measure: 'portal_rating_count',
   choices: { usual: 35, aBitMore: 40, stretch: 45 },
   usualAbout: 34,
+  // 16 in 14 live days, for 30 days.
+  usualExact: { num: '240', den: '7' },
   basis: {
     weeks: 2,
     days: 14,
@@ -105,6 +123,7 @@ export const OFFER_OCTOBER: PortalGoalOffer = {
   days: 31,
   choices: { usual: 23, aBitMore: 24, stretch: 25 },
   usualAbout: 35,
+  usualExact: { num: '248', den: '7' },
   soFar: 12,
   rest: { daysLeft: 9, about: 10 },
 }
@@ -115,6 +134,8 @@ export const OFFER_SCANS: PortalGoalOffer = {
   measure: 'qualified_scans',
   choices: { usual: 50, aBitMore: 55, stretch: 60 },
   usualAbout: 49,
+  // 23 in 14 live days, for 30 days.
+  usualExact: { num: '345', den: '7' },
   basis: {
     weeks: 2,
     days: 14,
@@ -125,16 +146,93 @@ export const OFFER_SCANS: PortalGoalOffer = {
   newPortals: [],
 }
 
-export const CARD_READY: PortalGoalCardView = { state: 'ready', offer: OFFER_NOVEMBER }
+/**
+ * Seaview's scans on Oct 23, for "Count scans instead": 23 in 14 days at
+ * Reception and Restaurant, so 50 · 55 · 60 for November and, on top of the 30
+ * already in October, 45 · 50 · 55 for its 9 days left.
+ */
+const SEAVIEW_SCANS_NOVEMBER: PortalGoalOffer = {
+  ...OFFER_SCANS,
+  basis: {
+    ...OFFER_NOVEMBER.basis,
+    count: 23,
+    portals: [
+      { name: 'Reception', count: 15, liveDays: 14 },
+      { name: 'Restaurant', count: 8, liveDays: 14 },
+    ],
+  },
+  newPortals: OFFER_NOVEMBER.newPortals,
+}
+
+const SEAVIEW_SCANS_OCTOBER: PortalGoalOffer = {
+  ...SEAVIEW_SCANS_NOVEMBER,
+  month: '2026-10',
+  current: true,
+  days: 31,
+  choices: { usual: 45, aBitMore: 50, stretch: 55 },
+  usualAbout: 51,
+  usualExact: { num: '713', den: '14' },
+  soFar: 30,
+  rest: { daysLeft: 9, about: 15 },
+}
+
+/** What the set sheet works from on Oct 23: each measure, October's rest and all of November. */
+export const SHEET_READY: PortalGoalSheetFacts = {
+  month: '2026-11',
+  ownNumber: {
+    current: { key: '2026-10', soFar: { ratings: 12, scans: 30 } },
+    next: { key: '2026-11' },
+  },
+  offers: {
+    portal_rating_count: { current: OFFER_OCTOBER, next: OFFER_NOVEMBER },
+    qualified_scans: { current: SEAVIEW_SCANS_OCTOBER, next: SEAVIEW_SCANS_NOVEMBER },
+  },
+  readyOn: null,
+}
+
+/** Scans first: private ratings have no number, scans 50 · 55 · 60 for November. */
+export const SHEET_SCANS_ONLY: PortalGoalSheetFacts = {
+  ...SHEET_READY,
+  ownNumber: {
+    current: { key: '2026-10', soFar: { ratings: 0, scans: 30 } },
+    next: { key: '2026-11' },
+  },
+  offers: {
+    portal_rating_count: { current: null, next: null },
+    qualified_scans: {
+      current: { ...SEAVIEW_SCANS_OCTOBER, basis: OFFER_SCANS.basis, newPortals: [] },
+      next: OFFER_SCANS,
+    },
+  },
+}
+
+/** Nothing came in: no number for either measure. */
+const SHEET_NOTHING: PortalGoalSheetFacts = {
+  ...SHEET_FIRST_WEEKS,
+  month: '2026-11',
+  ownNumber: {
+    current: { key: '2026-10', soFar: { ratings: 0, scans: 0 } },
+    next: { key: '2026-11' },
+  },
+  readyOn: null,
+}
+
+export const CARD_READY: PortalGoalCardView = {
+  state: 'ready',
+  offer: OFFER_NOVEMBER,
+  sheet: SHEET_READY,
+}
 
 export const CARD_READY_OCTOBER: PortalGoalCardView = {
   state: 'ready',
   offer: OFFER_OCTOBER,
+  sheet: { ...SHEET_READY, month: '2026-10' },
 }
 
 export const CARD_SCANS_ONLY: PortalGoalCardView = {
   state: 'scans_only',
   offer: OFFER_SCANS,
+  sheet: SHEET_SCANS_ONLY,
 }
 
 /** Set from the ready card on Oct 23: November, 40 private ratings, 12 so far in October. */
@@ -169,8 +267,19 @@ export const CARD_RUNNING: PortalGoalCardView = {
   },
 }
 
-export const CARD_NOTHING: PortalGoalCardView = { state: 'nothing_counted', weeks: 2 }
+export const CARD_NOTHING: PortalGoalCardView = {
+  state: 'nothing_counted',
+  weeks: 2,
+  sheet: SHEET_NOTHING,
+}
 
 export const CARD_REC_UNREADABLE: PortalGoalCardView = {
   state: 'recommendation_unreadable',
+  sheet: {
+    ...SHEET_NOTHING,
+    ownNumber: {
+      current: { key: '2026-10', soFar: { ratings: null, scans: 30 } },
+      next: { key: '2026-11' },
+    },
+  },
 }
