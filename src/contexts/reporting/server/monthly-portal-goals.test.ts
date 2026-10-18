@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   card: vi.fn(),
   page: vi.fn(),
   set: vi.fn(),
+  changeNow: vi.fn(),
+  revise: vi.fn(),
+  stop: vi.fn(),
   addOptions: vi.fn(),
   addOne: vi.fn(),
   addEach: vi.fn(),
@@ -22,7 +25,14 @@ vi.mock('#/composition', () => ({
   getContainer: () => ({
     goalPublicApi: {
       programs: {
-        monthlyPortalGoal: { card: mocks.card, page: mocks.page, set: mocks.set },
+        monthlyPortalGoal: {
+          card: mocks.card,
+          page: mocks.page,
+          set: mocks.set,
+          changeNow: mocks.changeNow,
+          revise: mocks.revise,
+          stop: mocks.stop,
+        },
         portalGoalAdd: {
           options: mocks.addOptions,
           one: mocks.addOne,
@@ -46,16 +56,22 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   addPortalGoalSchema,
   addPortalGoalsSchema,
+  changeMonthlyPortalGoalNowSchema,
   monthlyPortalGoalPropertySchema,
+  reviseMonthlyPortalGoalSchema,
+  stopMonthlyPortalGoalSchema,
 } from '../application/dto/monthly-portal-goal.dto'
 import { GoalProgramError } from '../application/use-cases/goal-programs'
 import {
   addPortalGoal,
   addPortalGoals,
+  changeMonthlyPortalGoalNow,
   getMonthlyPortalGoalCard,
   getMonthlyPortalGoalPage,
   getPortalGoalAddOptions,
+  reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
+  stopMonthlyPortalGoal,
 } from './monthly-portal-goals'
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001'
@@ -390,6 +406,130 @@ describe('Add a portal goal (PG-20)', () => {
     expect(
       addPortalGoalsSchema.safeParse({ ...each, metric: 'portal_rating_average' })
         .success,
+    ).toBe(false)
+  })
+})
+
+describe('the change and stop commands (PG-14)', () => {
+  const PROGRAM_ID = '00000000-0000-4000-8000-000000000003'
+  const goal = { propertyId: PROPERTY_ID, programId: PROGRAM_ID }
+  const now = {
+    ...goal,
+    month: '2026-11',
+    targetValue: 45,
+    expectedTarget: 40,
+    expectedVersion: 1,
+    expectedFollowingMonth: '2026-12',
+    targetSource: 'own',
+  } as const
+  const fromNext = {
+    ...goal,
+    metric: 'qualified_scans',
+    targetValue: 55,
+    expectedVersion: 1,
+    note: 'Winter',
+    targetSource: 'recommended',
+  } as const
+
+  /**
+   * A command as its use case runs it: the policy asked `action` first, then
+   * an answer of the shape each command has (a month change, a bundle, a Program).
+   */
+  const asking =
+    (action: 'goal.update' | 'goal.cancel') =>
+    async (policy: GoalExecutionPolicy, data: typeof goal, actor: GoalActor) => {
+      await policy.authorize({
+        actor,
+        organizationId: actor.organizationId,
+        propertyId: data.propertyId,
+        action,
+      })
+      return { month: 'unchanged', program: { id: PROGRAM_ID }, id: PROGRAM_ID }
+    }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveTenantContext.mockResolvedValue(manager)
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+  })
+
+  it.each([
+    [
+      'change now',
+      () => changeMonthlyPortalGoalNow({ data: now }).then(() => undefined),
+      mocks.changeNow,
+      now,
+      'goal.update',
+    ],
+    [
+      'revise',
+      () => reviseMonthlyPortalGoal({ data: fromNext }).then(() => undefined),
+      mocks.revise,
+      fromNext,
+      'goal.update',
+    ],
+    [
+      'stop',
+      () => stopMonthlyPortalGoal({ data: goal }).then(() => undefined),
+      mocks.stop,
+      goal,
+      'goal.cancel',
+    ],
+  ] as const)(
+    '%s authorizes through the execution policy',
+    async (_label, call, command, data, action) => {
+      command.mockImplementation(asking(action))
+
+      await withStartContext(call)
+
+      expect(command).toHaveBeenCalledWith(expect.any(Object), data, manager)
+      expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+        actor: manager,
+        action,
+        capability: 'goal.use',
+        propertyId: PROPERTY_ID,
+      })
+    },
+  )
+
+  it.each([
+    ['revision_conflict', 409],
+    ['month_locked', 409],
+    ['invalid_transition', 409],
+    ['invalid_subject', 400],
+  ] as const)('answers %s with HTTP %i', async (code, status) => {
+    mocks.changeNow.mockRejectedValue(new GoalProgramError(code))
+    mocks.stop.mockRejectedValue(new GoalProgramError(code))
+
+    await expect(
+      withStartContext(() => changeMonthlyPortalGoalNow({ data: now })),
+    ).rejects.toMatchObject({ name: 'GoalProgramError', code, status })
+    await expect(
+      withStartContext(() => stopMonthlyPortalGoal({ data: goal })),
+    ).rejects.toMatchObject({ name: 'GoalProgramError', code, status })
+  })
+
+  it('takes what the sheet showed, and refuses what it never sends', () => {
+    expect(changeMonthlyPortalGoalNowSchema.safeParse(now).success).toBe(true)
+    expect(reviseMonthlyPortalGoalSchema.safeParse(fromNext).success).toBe(true)
+    expect(stopMonthlyPortalGoalSchema.safeParse(goal).success).toBe(true)
+    for (const refused of [
+      { ...now, month: '2026-13' },
+      { ...now, targetValue: 0 },
+      { ...now, expectedVersion: 0 },
+      { ...now, note: 'x'.repeat(501) },
+    ]) {
+      expect(changeMonthlyPortalGoalNowSchema.safeParse(refused).success).toBe(false)
+    }
+    for (const refused of [
+      { ...fromNext, metric: 'portal_rating_average' },
+      { ...fromNext, targetValue: 4.5 },
+      { ...fromNext, targetSource: 'suggested' },
+    ]) {
+      expect(reviseMonthlyPortalGoalSchema.safeParse(refused).success).toBe(false)
+    }
+    expect(
+      stopMonthlyPortalGoalSchema.safeParse({ ...goal, programId: 'p1' }).success,
     ).toBe(false)
   })
 })

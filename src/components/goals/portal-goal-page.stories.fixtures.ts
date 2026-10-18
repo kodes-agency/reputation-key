@@ -14,6 +14,11 @@ import type {
   PortalGoalOfCard,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import {
+  CHANGE_DECEMBER_22,
+  SHEET_DECEMBER,
+  SHEET_NOVEMBER_22,
+} from './portal-goal-change.stories.fixtures'
+import {
   CARD_ONE_PORTAL,
   CARD_RUNNING,
   CARD_STOPPED,
@@ -132,10 +137,12 @@ const december = (value: number, patch: Partial<PortalGoalOfCard> = {}) => {
   const card: PortalGoalCardView = {
     state: 'goal',
     today: '2026-12-22',
+    sheet: SHEET_DECEMBER,
     goal: {
       ...goalOf(CARD_RUNNING),
       target: 45,
       rows: null,
+      change: CHANGE_DECEMBER_22,
       ...patch,
       month: {
         key: '2026-12',
@@ -235,6 +242,7 @@ export const PAGE_SCANS: PortalGoalPageView = {
   card: {
     state: 'goal',
     today: '2026-11-22',
+    sheet: SHEET_NOVEMBER_22,
     goal: {
       ...RUNNING_GOAL,
       measure: 'qualified_scans',

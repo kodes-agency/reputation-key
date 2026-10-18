@@ -402,14 +402,20 @@ describe('readMonthlyPortalGoalCard', () => {
     })
   })
 
-  it('a goal has no sheet to set another', async () => {
+  it("a goal's sheet is for changing it: no new goal can be set beside it", async () => {
     const { deps } = fakeWorld({
       now: OCT_23,
       portals: [portal('Reception', '2026-10-09')],
       programs: [propertyGoal('monthly', 'portal_rating_count')],
     })
 
-    await expect(sheetOf(deps)).resolves.toBeNull()
+    // The change sheet's months and offers, as before a goal (PG-14)…
+    await expect(sheetOf(deps)).resolves.toMatchObject({
+      month: '2026-11',
+      ownNumber: { current: { key: '2026-10' }, next: { key: '2026-11' } },
+    })
+    // …and no way to a second goal while this one has not been stopped.
+    expect(goalOf(await read(deps)).newGoalFrom).toBeNull()
   })
 
   it('a scheduled goal says when it starts and what this month has so far', async () => {
@@ -422,7 +428,7 @@ describe('readMonthlyPortalGoalCard', () => {
       programs: [propertyGoal('monthly', 'portal_rating_count')],
     })
 
-    await expect(read(deps)).resolves.toEqual({
+    await expect(drawn(deps)).resolves.toEqual({
       state: 'goal',
       today: '2026-10-23',
       goal: {
@@ -438,6 +444,9 @@ describe('readMonthlyPortalGoalCard', () => {
         lastMonth: null,
         currentMonthSoFar: 12,
         countingMonth: null,
+        // Changed from its first month: nothing is running yet.
+        change: { now: null, nextMonthKey: '2026-11', opensOn: 'next' },
+        newGoalFrom: null,
       },
     })
     // Nothing is running, so no governed figure is read.
@@ -457,7 +466,7 @@ describe('readMonthlyPortalGoalCard', () => {
       figure: governed(23),
     })
 
-    await expect(read(deps)).resolves.toEqual({
+    await expect(drawn(deps)).resolves.toEqual({
       state: 'goal',
       today: '2026-11-22',
       goal: {
@@ -485,6 +494,19 @@ describe('readMonthlyPortalGoalCard', () => {
         lastMonth: null,
         currentMonthSoFar: null,
         countingMonth: null,
+        change: {
+          now: {
+            monthKey: '2026-11',
+            expectedTarget: 40,
+            expectedVersion: 1,
+            expectedFollowingMonth: '2026-12',
+            period: { start: NOV_1.toISOString(), end: DEC_1.toISOString() },
+            timezone: 'Europe/Sofia',
+          },
+          nextMonthKey: '2026-12',
+          opensOn: 'next',
+        },
+        newGoalFrom: null,
       },
     })
     expect(deps.metrics.queryGoalMetric).toHaveBeenCalledWith(

@@ -40,6 +40,7 @@ import type {
 } from '../ports/goal-program.repository'
 import type { GoalActor, GoalMetricReadPort } from './goal-programs'
 import { progressOf, readSubjectMonth } from './goal-progress'
+import { changeFactsOf, newGoalFromOf } from './monthly-portal-goal-change-facts'
 
 export type MonthlyPortalGoalOnCardDeps = Readonly<{
   /** The governed read of a month so far. */
@@ -351,7 +352,7 @@ export async function monthlyPortalGoalOnCard(
   context: MonthlyPortalGoalOnCardContext,
 ): Promise<PortalGoalOfCard> {
   const { program, version } = bundle
-  const { recommendation } = context
+  const { recommendation, now } = context
   const measure = version.metric
   const goal = {
     programId: program.id,
@@ -366,6 +367,8 @@ export async function monthlyPortalGoalOnCard(
     lastMonth: null,
     currentMonthSoFar: null,
     countingMonth: null,
+    change: changeFactsOf(bundle, now, recommendation.timezone),
+    newGoalFrom: null,
   } satisfies PortalGoalOfCard
   if (program.status === 'scheduled') {
     return {
@@ -379,7 +382,16 @@ export async function monthlyPortalGoalOnCard(
     lastMonthOf(deps, bundle, context),
   ])
   if (counting === null) {
-    return { ...goal, lastMonth, countingMonth: countingMonthOf(bundle) }
+    const countingMonth = countingMonthOf(bundle)
+    return {
+      ...goal,
+      lastMonth,
+      countingMonth,
+      newGoalFrom: newGoalFromOf(
+        { status: program.status, month: null, countingMonth },
+        recommendation.months,
+      ),
+    }
   }
   const { month, period } = counting
   return {
@@ -388,5 +400,9 @@ export async function monthlyPortalGoalOnCard(
     rows: rowsOf(recommendation, month),
     stopped: stopOf(bundle, period, recommendation.timezone),
     lastMonth,
+    newGoalFrom: newGoalFromOf(
+      { status: program.status, month, countingMonth: null },
+      recommendation.months,
+    ),
   }
 }

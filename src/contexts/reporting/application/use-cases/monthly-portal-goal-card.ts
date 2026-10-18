@@ -10,11 +10,12 @@
 // day it starts and this month so far; while it runs, or after it was stopped
 // to the end of that month, the month it is counting with the governed figure,
 // never the recommendation's own count, its pace, each Portal's count and the
-// month before. Without one it is the recommendation's state, worded by the
-// card: the gates (no Portal, draft Portals only), the first weeks with each
-// Portal's steps, the number ready to use (scans first when only scans came
-// in), nothing counted, or a recommendation that cannot be read. It writes
-// nothing.
+// month before, with what a change to it is made against (and the set sheet's
+// facts, for the change's offers and a stopped goal's way to the next one).
+// Without one it is the recommendation's state, worded by the card: the gates
+// (no Portal, draft Portals only), the first weeks with each Portal's steps,
+// the number ready to use (scans first when only scans came in), nothing
+// counted, or a recommendation that cannot be read. It writes nothing.
 import type { PortalFacts } from '../../domain/goal-recommendation-types'
 import { localDateOf } from '../../domain/local-days'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
@@ -165,6 +166,8 @@ export async function monthlyPortalGoalCardOf(
     state: 'goal',
     today: localDateOf(now, recommendation.timezone),
     goal: await monthlyPortalGoalOnCard(deps, goal, { recommendation, now, actor }),
+    // The change sheet's offers, and a stopped goal's way to the next one.
+    sheet: portalGoalSheetFactsOf(recommendation),
   }
 }
 

@@ -3,8 +3,18 @@
 // A lazy module: only `server/monthly-portal-goals.ts` imports it, for
 // `.validator(...)`, and that module is reached only by its own dynamic import,
 // so nothing here reaches first paint (PLAN E10). Never imported by
-// `goal-program.dto.ts`, which first paint loads.
+// `goal-program.dto.ts`, which first paint loads; the two rules it shares with
+// the Program commands (the month key and the note) are restated here for that
+// reason, as `goal-month-target.dto.ts` restates them.
 import { z } from 'zod/v4'
+
+const monthKey = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+const measure = z.enum(['portal_rating_count', 'qualified_scans'])
+/** A month's number: a whole number of private ratings or scans. */
+const number = z.number().int().min(1).max(1_000_000)
+const targetSource = z.enum(['recommended', 'own'])
+// The manager's note on a change, as the Program commands bound it.
+const note = z.string().trim().max(500).optional()
 
 /** A read of one Property's Monthly portal goal. */
 export const monthlyPortalGoalPropertySchema = z.object({
@@ -14,14 +24,11 @@ export const monthlyPortalGoalPropertySchema = z.object({
 /** The card's Use (and the set sheet): one number, one measure, from one month. */
 export const setMonthlyPortalGoalSchema = z.object({
   propertyId: z.uuid(),
-  metric: z.enum(['portal_rating_count', 'qualified_scans']),
-  targetValue: z.number().int().min(1).max(1_000_000),
-  startMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
-  targetSource: z.enum(['recommended', 'own']),
+  metric: measure,
+  targetValue: number,
+  startMonth: monthKey,
+  targetSource,
 })
-
-const startMonthKey = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)
-const numberSource = z.enum(['recommended', 'own'])
 
 /**
  * "Add a portal goal" (PLAN PG-20): one Portal or Portal Group, counting
@@ -38,23 +45,51 @@ export const addPortalGoalSchema = z.object({
   ]),
   metric: z.enum(['portal_rating_count', 'qualified_scans', 'portal_rating_average']),
   targetValue: z.number().min(1).max(1_000_000),
-  startMonth: startMonthKey,
-  targetSource: numberSource,
+  startMonth: monthKey,
+  targetSource,
 })
 
 /** "A goal for each portal": one row per ticked Portal, at most the 100 the sheet lists. */
 export const addPortalGoalsSchema = z.object({
   propertyId: z.uuid(),
   metric: z.enum(['portal_rating_count', 'qualified_scans']),
-  startMonth: startMonthKey,
+  startMonth: monthKey,
   items: z
     .array(
       z.object({
         portalId: z.uuid(),
         targetValue: z.number().int().min(1).max(1_000_000),
-        targetSource: numberSource,
+        targetSource,
       }),
     )
     .min(1)
     .max(100),
 })
+
+/** The goal a change or a stop is for. */
+const ofTheGoal = { propertyId: z.uuid(), programId: z.uuid() }
+
+/** "November, now": the running month's number, against what the sheet showed. */
+export const changeMonthlyPortalGoalNowSchema = z.object({
+  ...ofTheGoal,
+  month: monthKey,
+  targetValue: number,
+  expectedTarget: z.number().finite(),
+  expectedVersion: z.number().int().positive(),
+  expectedFollowingMonth: monthKey,
+  note,
+  targetSource,
+})
+
+/** "From Dec 1" and "Count scans instead": the goal from its next month. */
+export const reviseMonthlyPortalGoalSchema = z.object({
+  ...ofTheGoal,
+  metric: measure,
+  targetValue: number,
+  expectedVersion: z.number().int().positive(),
+  note,
+  targetSource,
+})
+
+/** Stop. */
+export const stopMonthlyPortalGoalSchema = z.object(ofTheGoal)
