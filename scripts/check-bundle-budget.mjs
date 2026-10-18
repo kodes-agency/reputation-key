@@ -972,18 +972,22 @@
 //
 // 2026-10-18 (Monthly portal goal, PG-15: the month-start check-in): no raise,
 // and first paint unchanged. The check-in (its component and its words) loads
-// with the card, in the shared -portal-goal-sheet-host-*.js (lazy; vite's gzip
-// column 10.82 -> 11.92 kB); Keep's server function with the Monthly portal
-// goal's own stub chunk (0.46 -> 0.51 kB); the set sheet's chunk (6.75 kB) and
-// the goal page's route chunk (6.22 kB) as they were. The new refusal
+// with the card, in the goal routes' shared host (lazy;
+// -portal-goal-add-host-*.js, vite's gzip column 10.91 -> 12.05 kB); Keep's
+// server function with the Monthly portal goal's own stub chunk (0.61 -> 0.66
+// kB); the set sheet's view (portal-goal-sheet-refusals-*.js, 4.25 kB) and the
+// goal page's route chunk (6.58 -> 6.57 kB) as they were. The new refusal
 // sentence (check_in_closed) is in goal-refusal.ts, which first paint does not
-// load. Every class was already in the stylesheet (the same file,
-// styles-mDD_TGAT.css). The stacked base, PG-14's head d856fff96, is the code
-// of 66b6bb5c1 (only this file changed since), measured above at 308,012 B
-// (75 js + 1 css; entry 49,253 B); this head, in a fresh production build (a
-// new worktree, no .output or node_modules/.nitro), 308,012 B, entry 49,253 B.
-// The line stays at 308,050: 38 B spare, 288 B under the build's ceiling of
-// 308,300 (owner, P-9).
+// load. Every class was already in the stylesheet (main's own file,
+// styles-ChuBAd4e.css, 27,839 B). Rebased onto main 723bf0d55 (PG-14 as
+// merged, after PG-18, PG-19 and PG-20), under PG-18's line of 308,200: fresh
+// production builds (rm -rf node_modules/.nitro .output) in one session
+// measured 308,032 B on main (75 js + 1 css; entry 49,355 B) and 308,043 B on
+// the head 727a8c9af (entry 49,366 B): +11 B, all in the entry. With the
+// hashed chunk names masked, the two entries are byte-identical (157,928
+// characters each), so the +11 B is the names' gzip noise, not code. The line
+// stays at 308,200: 157 B spare, 257 B under the build's ceiling of 308,300
+// (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
