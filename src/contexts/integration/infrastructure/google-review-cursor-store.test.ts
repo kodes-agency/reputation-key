@@ -19,6 +19,8 @@ const LOCATION = GOOGLE_LOCATION_PRIMARY_RESOURCE
 const NOW_MS = Date.parse('2026-08-16T10:00:00.000Z')
 const OLD_KEY = '11'.repeat(32)
 const NEW_KEY = '22'.repeat(32)
+/** Ten sends of one page token to Google, at most. */
+const REDEMPTION_BUDGET = 10
 
 const authorization: GoogleReviewCursorAuthorization = {
   connectionLifecycleVersion: 7,
@@ -114,6 +116,20 @@ function createStore(
     nowMs,
     randomNonce: () => Buffer.alloc(32, ++nonce).toString('base64url'),
   })
+}
+
+async function publishedSecondPage(
+  cursors: ReturnType<typeof createStore>,
+): Promise<string> {
+  const published = await cursors.publishNext({
+    parentCursorRef: null,
+    scope: scope(0),
+    nextScope: scope(1),
+    authorization,
+    nextPageToken: 'provider-page-token',
+  })
+  if (!published.ok) throw new Error('fixture publication failed')
+  return published.value.nextCursorRef
 }
 
 describe('GoogleReviewCursorStore', () => {
@@ -224,7 +240,7 @@ describe('GoogleReviewCursorStore', () => {
     })
     if (!published.ok) throw new Error('fixture publication failed')
 
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < REDEMPTION_BUDGET; attempt += 1) {
       await expect(
         cursors.redeem({
           cursorRef: published.value.nextCursorRef,
@@ -240,6 +256,99 @@ describe('GoogleReviewCursorStore', () => {
         authorization,
       }),
     ).resolves.toEqual({ ok: false, code: 'exhausted' })
+  })
+
+  it('takes back a redemption whose page token never left, and only one', async () => {
+    const providerStore = createMemoryStore()
+    const cursors = createStore(providerStore)
+    const cursorRef = await publishedSecondPage(cursors)
+    const use = { cursorRef, scope: scope(1), authorization }
+
+    for (let attempt = 0; attempt < REDEMPTION_BUDGET; attempt += 1) {
+      await expect(cursors.redeem(use)).resolves.toMatchObject({ ok: true })
+    }
+    await expect(cursors.release(use)).resolves.toEqual({ ok: true, value: null })
+
+    await expect(cursors.redeem(use)).resolves.toMatchObject({ ok: true })
+    await expect(cursors.redeem(use)).resolves.toEqual({ ok: false, code: 'exhausted' })
+  })
+
+  it('never raises the budget above its bound', async () => {
+    // A release with no redemption behind it would turn bounded replay into
+    // unbounded replay one call at a time.
+    const providerStore = createMemoryStore()
+    const cursors = createStore(providerStore)
+    const cursorRef = await publishedSecondPage(cursors)
+    const use = { cursorRef, scope: scope(1), authorization }
+
+    await expect(cursors.release(use)).resolves.toEqual({ ok: false, code: 'conflict' })
+
+    for (let attempt = 0; attempt < REDEMPTION_BUDGET; attempt += 1) {
+      await expect(cursors.redeem(use)).resolves.toMatchObject({ ok: true })
+    }
+    await expect(cursors.redeem(use)).resolves.toEqual({ ok: false, code: 'exhausted' })
+  })
+
+  it('releases only under the scope and authorization it was redeemed with', async () => {
+    const providerStore = createMemoryStore()
+    let atMs = NOW_MS
+    const cursors = createStore(providerStore, undefined, () => atMs)
+    const cursorRef = await publishedSecondPage(cursors)
+    await cursors.redeem({ cursorRef, scope: scope(1), authorization })
+
+    await expect(
+      cursors.release({ cursorRef, scope: scope(2), authorization }),
+    ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
+    await expect(
+      cursors.release({
+        cursorRef,
+        scope: scope(1),
+        authorization: {
+          ...authorization,
+          connectionLifecycleVersion: authorization.connectionLifecycleVersion + 1,
+        },
+      }),
+    ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
+    await expect(
+      cursors.release({
+        cursorRef: `v1.${'z'.repeat(43)}`,
+        scope: scope(1),
+        authorization,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'not_found' })
+    atMs += 30 * 60 * 1_000
+    await expect(
+      cursors.release({ cursorRef, scope: scope(1), authorization }),
+    ).resolves.toEqual({ ok: false, code: 'expired' })
+  })
+
+  it('keeps a racing redemption when the release loses the compare-and-swap', async () => {
+    // Two workers on one cursor: A redeemed and its call was refused before
+    // dispatch; B redeemed between A's read and A's write. A must retry on
+    // the new record, so B's use stays spent and only A's comes back.
+    const providerStore = createMemoryStore()
+    const cursors = createStore(providerStore)
+    const cursorRef = await publishedSecondPage(cursors)
+    const use = { cursorRef, scope: scope(1), authorization }
+    await cursors.redeem(use)
+    let raced = false
+    const racing = createStore({
+      ...providerStore,
+      replaceIfEquals: async (...args) => {
+        if (!raced) {
+          raced = true
+          await expect(cursors.redeem(use)).resolves.toMatchObject({ ok: true })
+        }
+        return providerStore.replaceIfEquals(...args)
+      },
+    })
+
+    await expect(racing.release(use)).resolves.toEqual({ ok: true, value: null })
+
+    for (let attempt = 0; attempt < REDEMPTION_BUDGET - 1; attempt += 1) {
+      await expect(cursors.redeem(use)).resolves.toMatchObject({ ok: true })
+    }
+    await expect(cursors.redeem(use)).resolves.toEqual({ ok: false, code: 'exhausted' })
   })
 
   it('accepts a retained-key cursor after rotation and cleans every version index', async () => {
