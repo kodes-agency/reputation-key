@@ -174,7 +174,7 @@ function goalSubjectOf(subject: PortalGoalSingleSubject): GoalSubject {
  * "Reception and 2 more" (the Property by its name, a nameless one as the row
  * says it).
  */
-export function severalSubjectsWords(
+function severalSubjectsWords(
   subjects: readonly PortalGoalSingleSubject[],
   propertyName: string,
 ): string {

@@ -9,11 +9,7 @@
 // always the manager's own. It never changes what the goal measures. The read
 // decides the months and the keys sent back (PLAN E12). Nothing here throws on
 // what was typed. Pure.
-import type {
-  ChangeMonthlyPortalGoalNowRequest,
-  PortalGoalChangeFacts,
-  ReviseMonthlyPortalGoalRequest,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import type { PortalGoalChangeFacts } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import type { PortalGoalAverageOfPage } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
 import {
   AVERAGE_METRIC,
@@ -23,6 +19,10 @@ import {
   averageWords,
   committedText,
 } from './portal-goal-add-number-view'
+import {
+  changeSubmissionOf,
+  type PortalGoalChangeSubmission,
+} from './portal-goal-change-submission'
 import type { PortalGoalSheetModel } from './portal-goal-sheet-view'
 import { dayWords, monthName } from './portal-goal-words'
 
@@ -52,10 +52,6 @@ export type PortalGoalAverageChangeEdit =
   | Readonly<{ kind: 'note_open' }>
   | Readonly<{ kind: 'note'; text: string }>
 
-export type PortalGoalAverageChangeSubmission =
-  | Readonly<{ when: 'now'; data: Omit<ChangeMonthlyPortalGoalNowRequest, 'propertyId'> }>
-  | Readonly<{ when: 'next'; data: Omit<ReviseMonthlyPortalGoalRequest, 'propertyId'> }>
-
 export type PortalGoalAverageChangeModel = Pick<
   PortalGoalSheetModel,
   'description' | 'months' | 'month' | 'band' | 'unit' | 'number' | 'primary'
@@ -65,7 +61,7 @@ export type PortalGoalAverageChangeModel = Pick<
     status: string
     /** S-19: "Add a note", then the field. */
     note: Readonly<{ open: boolean; text: string; limit: number }>
-    submission: PortalGoalAverageChangeSubmission | null
+    submission: PortalGoalChangeSubmission | null
     /** What is said once it is saved. */
     toast: string | null
   }>
@@ -142,44 +138,26 @@ function lineOf(when: When, context: PortalGoalAverageChangeContext): string {
   return `${monthName(now.monthKey)} stays at ${averageWords(now.expectedTarget)}.`
 }
 
+/** There is no recommended average: the level sent is always the manager's own. */
 function submissionOf(
   when: When,
   draft: PortalGoalAverageChangeDraft,
   value: number,
   context: PortalGoalAverageChangeContext,
-): PortalGoalAverageChangeSubmission | null {
+): PortalGoalChangeSubmission | null {
   const { goal, change } = context
-  const note = draft.note.text.trim()
-  // There is no recommended average: the level is always the manager's own.
-  const shared = {
-    programId: goal.programId,
-    targetValue: value,
-    ...(note === '' ? {} : { note }),
-    targetSource: 'own' as const,
-  }
-  if (when === 'next') {
-    return {
+  return changeSubmissionOf(
+    {
       when,
-      data: {
-        ...shared,
-        metric: AVERAGE_METRIC,
-        expectedVersion: goal.version,
-        startMonth: change.nextMonthKey,
-      },
-    }
-  }
-  if (change.now === null) return null
-  const { monthKey, expectedTarget, expectedVersion, expectedFollowingMonth } = change.now
-  return {
-    when,
-    data: {
-      ...shared,
-      month: monthKey,
-      expectedTarget,
-      expectedVersion,
-      expectedFollowingMonth,
+      programId: goal.programId,
+      version: goal.version,
+      metric: AVERAGE_METRIC,
+      targetValue: value,
+      note: draft.note.text,
+      targetSource: 'own',
     },
-  }
+    change,
+  )
 }
 
 export function portalGoalAverageChangeModel(

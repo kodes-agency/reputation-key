@@ -11,29 +11,23 @@
 // it, F-1; its month ended, F-2; or the month turned, F-4) the page reads the
 // goal again and opens the sheet afresh on the latest, still saying why. A goal
 // stopped a moment ago (F-5) leaves nothing to change: the sheet closes on the
-// latest and a toast says why. A chunk of its own, loaded on the way to it.
-import { useRef, useState } from 'react'
-import { toast } from 'sonner'
+// latest and a toast says why (`portal-goal-change-command.ts`, the Monthly
+// portal goal's sheet's too). A chunk of its own, loaded on the way to it.
+import { useState } from 'react'
 import type {
   ChangeMonthlyPortalGoalNowRequest,
   PortalGoalChangeFacts,
   ReviseMonthlyPortalGoalRequest,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import type { PortalGoalAverageOfPage } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
-import {
-  actionErrorMessage,
-  useActionMutation,
-} from '#/components/hooks/use-action-mutation'
-import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
 import { PortalGoalAverageChangeBody } from './portal-goal-average-change-body'
 import {
   changedAverageDraft,
   openingAverageDraft,
   portalGoalAverageChangeModel,
-  type PortalGoalAverageChangeSubmission,
 } from './portal-goal-average-change-view'
+import { usePortalGoalChangeCommand } from './portal-goal-change-command'
 import { PortalGoalSheetFrame } from './portal-goal-sheet-frame'
-import { changeRefusals, PORTAL_CHANGE_REOPENS } from './portal-goal-sheet-refusals'
 import { SINGLE_GOAL_WORDS } from './portal-goal-single-page-view'
 
 /** What the sheet sends, and what follows it, handed down by the page. */
@@ -65,65 +59,23 @@ export type PortalGoalAverageChangeSheetProps = Readonly<{
   onCloseAutoFocus?: (event: Event) => void
 }>
 
-type Sent = Readonly<{ submission: PortalGoalAverageChangeSubmission; toast: string }>
-
-/** The change, sent once however often it is pressed, and what follows it. */
-function useAverageChange(props: PortalGoalAverageChangeSheetProps) {
-  const sending = useRef(false)
-  const [sent, setSent] = useState(false)
-  const { commands, change, propertyId } = props
-  const settle = async () => {
-    await commands.onChanged()
-    props.onSettled()
-  }
-  const run = ({ submission }: Sent) =>
-    submission.when === 'now'
-      ? commands.changeMonthlyPortalGoalNowFn({
-          data: { propertyId, ...submission.data },
-        })
-      : commands.reviseMonthlyPortalGoalFn({ data: { propertyId, ...submission.data } })
-  const month = change.now?.monthKey ?? change.nextMonthKey
-  const save = useActionMutation(
-    withGoalRefusals(run, changeRefusals(month, change.nextMonthKey)),
-    {
-      onSuccess: async (_output, { toast: text }) => {
-        toast.success(text)
-        await settle()
-      },
-      onError: (error) => {
-        const code = goalRefusalCode(error) ?? ''
-        if (code === 'invalid_transition') {
-          // F-5: stopped meanwhile; the page shows the stopped goal.
-          void settle().then(() => toast.error(actionErrorMessage(error)))
-          return
-        }
-        if (PORTAL_CHANGE_REOPENS.has(code)) props.onBehind(error)
-      },
-    },
-  )
-  const send = (input: Sent) => {
-    if (sending.current) return
-    sending.current = true
-    setSent(true)
-    void save(input)
-      // Held by the mutation: the banner says it above the footer.
-      .catch(() => undefined)
-      .finally(() => {
-        sending.current = false
-      })
-  }
-  const notice = sent ? null : (props.notice ?? null)
-  const error = goalRefusalCode(save.error) === 'invalid_transition' ? null : save.error
-  return { send, pending: save.isPending, error, notice }
-}
-
+// Used through the average page's on-demand import, which fallow does not follow.
+// fallow-ignore-next-line unused-export
 export function PortalGoalAverageChangeSheet(props: PortalGoalAverageChangeSheetProps) {
   const context = { goal: props.goal, change: props.change }
   const [draft, setDraft] = useState(() => openingAverageDraft(context))
   const model = portalGoalAverageChangeModel(draft, context)
   const edit = (next: Parameters<typeof changedAverageDraft>[1]) =>
     setDraft((current) => changedAverageDraft(current, next))
-  const { send, pending, error, notice } = useAverageChange(props)
+  const { send, pending, error, notice } = usePortalGoalChangeCommand({
+    commands: props.commands,
+    propertyId: props.propertyId,
+    change: props.change,
+    markStale: props.commands.onChanged,
+    onSettled: props.onSettled,
+    onBehind: props.onBehind,
+    notice: props.notice,
+  })
   return (
     <PortalGoalSheetFrame
       open={props.open}

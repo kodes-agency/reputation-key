@@ -88,18 +88,35 @@ function useGoalCommands(subjectKeys: readonly string[]) {
   return { markStale, stop }
 }
 
-/** A goal for one Portal or one group: the Monthly portal goal's page, from its subject. */
-function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
+/**
+ * What a goal's own page reads beside its goal: the Property, the page's read
+ * (to read again after a refusal), and who made each change, by name, a side
+ * read that never holds the page back.
+ */
+function useGoalPageReads() {
   const { propertyId, goalId } = Route.useParams()
   const { can: canDo } = usePermissions()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const pageRead = useSuspenseQuery(portalGoalSinglePageQuery(propertyId, goalId))
-  // Who made each change, by name. A side read that never holds the page back.
   const members = useQuery({
     ...membersQuery,
     enabled: canDo('member.list'),
     retry: false,
   })
+  return {
+    propertyId,
+    goalId,
+    canDo,
+    propertyName: propData.property.name,
+    pageRead,
+    personName: goalPersonNames(members.data?.members),
+  }
+}
+
+/** A goal for one Portal or one group: the Monthly portal goal's page, from its subject. */
+function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
+  const { propertyId, goalId, canDo, propertyName, pageRead, personName } =
+    useGoalPageReads()
   const { markStale, stop } = useGoalCommands([view.subject.key])
   const commands = {
     setMonthlyPortalGoalFn: portalGoalCommands.setMonthlyPortalGoal,
@@ -126,7 +143,7 @@ function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
       <PortalGoalPage
         key={`${propertyId}:${goalId}`}
         propertyId={propertyId}
-        propertyName={propData.property.name}
+        propertyName={propertyName}
         page={view.page}
         canCreatePortal={canDo('portal.create')}
         canSeeResults={canDo('goal.update')}
@@ -134,7 +151,7 @@ function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
         canStop={canDo('goal.cancel')}
         commands={{ ...commands, openSheet: sheet.open }}
         stop={stop}
-        personName={goalPersonNames(members.data?.members)}
+        personName={personName}
         single={{
           title: singleGoalTitle(view.subject),
           name: singleSubjectWords(view.subject),
@@ -149,21 +166,14 @@ function SubjectGoalPage({ view }: Readonly<{ view: SubjectView }>) {
 
 /** The average: the same page without a bar, with its own "Change number" and Stop. */
 function AverageGoalPage({ view }: Readonly<{ view: AverageView }>) {
-  const { propertyId, goalId } = Route.useParams()
-  const { can: canDo } = usePermissions()
-  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const pageRead = useSuspenseQuery(portalGoalSinglePageQuery(propertyId, goalId))
-  const members = useQuery({
-    ...membersQuery,
-    enabled: canDo('member.list'),
-    retry: false,
-  })
+  const { propertyId, goalId, canDo, propertyName, pageRead, personName } =
+    useGoalPageReads()
   const { markStale, stop } = useGoalCommands([view.subject.key])
   return (
     <PortalGoalAveragePage
       key={`${propertyId}:${goalId}`}
       propertyId={propertyId}
-      propertyName={propData.property.name}
+      propertyName={propertyName}
       view={view}
       canChange={canDo('goal.update')}
       canStop={canDo('goal.cancel')}
@@ -177,7 +187,7 @@ function AverageGoalPage({ view }: Readonly<{ view: AverageView }>) {
         },
       }}
       stop={stop}
-      personName={goalPersonNames(members.data?.members)}
+      personName={personName}
     />
   )
 }

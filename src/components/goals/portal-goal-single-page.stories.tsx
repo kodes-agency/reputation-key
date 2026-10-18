@@ -20,6 +20,12 @@ import { PortalGoalPage } from './portal-goal-page'
 import { SEAVIEW, personName } from './portal-goal-page.stories.fixtures'
 import { PortalGoalSeveralPage } from './portal-goal-several-page'
 import {
+  changeTexts,
+  expectStopAloneInMenu,
+  outline,
+  tilesOf,
+} from './portal-goal.stories.play'
+import {
   AVERAGE_RECEPTION,
   AVERAGE_RUNNING,
   AVERAGE_SCHEDULED,
@@ -97,25 +103,6 @@ const meta: Meta<typeof PortalGoalAveragePage> = {
 export default meta
 type Story = StoryObj<typeof meta>
 type Canvas = ReturnType<typeof within>
-
-/** The page's headings, in document order, as "h2 Changes". */
-const outline = (canvasElement: HTMLElement): string[] =>
-  [...canvasElement.querySelectorAll('h1, h2, h3')].map(
-    (heading) => `${heading.tagName.toLowerCase()} ${heading.textContent ?? ''}`,
-  )
-
-function tilesOf(canvasElement: HTMLElement): Canvas {
-  const strip = canvasElement.querySelector<HTMLElement>('[data-slot="metric-strip"]')
-  if (!strip) throw new Error('expected the tiles')
-  return within(strip)
-}
-
-function changeTexts(canvas: Canvas): string[] {
-  const section = canvas.getByRole('region', { name: 'Changes' })
-  return within(section)
-    .getAllByRole('listitem')
-    .map((item) => item.textContent ?? '')
-}
 
 /** Opens the average's change sheet from "Change number"; its chunk loads first. */
 async function openChange(canvasElement: HTMLElement) {
@@ -317,15 +304,7 @@ export const SinglePortalScansHeld: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Change number' })).toBeVisible()
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'More actions for Reception · portal goal' }),
-    )
-    const body = within(document.body)
-    await expect(
-      await body.findByRole('menuitem', { name: 'Stop this goal…' }),
-    ).toBeVisible()
-    await expect(body.queryByRole('menuitem', { name: /instead/u })).toBeNull()
-    await userEvent.keyboard('{Escape}')
+    await expectStopAloneInMenu(canvas, 'Reception · portal goal')
   },
 }
 

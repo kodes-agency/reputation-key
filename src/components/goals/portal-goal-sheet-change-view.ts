@@ -15,14 +15,16 @@
 // what was typed.
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
-  ChangeMonthlyPortalGoalNowRequest,
   PortalGoalChangeFacts,
   PortalGoalOfCard,
   PortalGoalSheetFacts,
-  ReviseMonthlyPortalGoalRequest,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { goalPace } from '#/contexts/reporting/application/goal-pace'
 import { formatNumber } from '#/lib/format'
+import {
+  changeSubmissionOf,
+  type PortalGoalChangeSubmission,
+} from './portal-goal-change-submission'
 import {
   committedCount,
   notesOf,
@@ -70,10 +72,6 @@ export type PortalGoalChangeEdit =
   | PortalGoalSheetChange
   | Readonly<{ kind: 'note_open' }>
   | Readonly<{ kind: 'note'; text: string }>
-
-export type PortalGoalChangeSubmission =
-  | Readonly<{ when: 'now'; data: Omit<ChangeMonthlyPortalGoalNowRequest, 'propertyId'> }>
-  | Readonly<{ when: 'next'; data: Omit<ReviseMonthlyPortalGoalRequest, 'propertyId'> }>
 
 export type PortalGoalChangeModel = PortalGoalSheetBodyModel &
   Readonly<{
@@ -255,36 +253,18 @@ function submissionOf(
   recommended: boolean,
 ): PortalGoalChangeSubmission | null {
   const { goal, change } = context
-  const note = draft.note.text.trim()
-  const shared = {
-    programId: goal.programId,
-    targetValue: value,
-    ...(note === '' ? {} : { note }),
-    targetSource: recommended ? ('recommended' as const) : ('own' as const),
-  }
-  if (when === 'next') {
-    return {
+  return changeSubmissionOf(
+    {
       when,
-      data: {
-        ...shared,
-        metric: draft.measure,
-        expectedVersion: goal.version,
-        startMonth: change.nextMonthKey,
-      },
-    }
-  }
-  if (change.now === null) return null
-  const { monthKey, expectedTarget, expectedVersion, expectedFollowingMonth } = change.now
-  return {
-    when,
-    data: {
-      ...shared,
-      month: monthKey,
-      expectedTarget,
-      expectedVersion,
-      expectedFollowingMonth,
+      programId: goal.programId,
+      version: goal.version,
+      metric: draft.measure,
+      targetValue: value,
+      note: draft.note.text,
+      targetSource: recommended ? 'recommended' : 'own',
     },
-  }
+    change,
+  )
 }
 
 export function portalGoalChangeModel(

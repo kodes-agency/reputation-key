@@ -46,7 +46,14 @@ import {
   SEAVIEW,
   personName,
 } from './portal-goal-page.stories.fixtures'
-import { portalRows } from './portal-goal.stories.play'
+import {
+  changeTexts,
+  chipNames,
+  expectStopAloneInMenu,
+  outline,
+  portalRows,
+  tilesOf,
+} from './portal-goal.stories.play'
 import {
   AVERAGE_MORE_NEEDED,
   AVERAGE_RUNNING,
@@ -100,33 +107,6 @@ const meta: Meta<typeof PortalGoalPage> = {
 export default meta
 type Story = StoryObj<typeof meta>
 type Canvas = ReturnType<typeof within>
-
-/** The page's headings, in document order, as "h2 Changes". */
-const outline = (canvasElement: HTMLElement): string[] =>
-  [...canvasElement.querySelectorAll('h1, h2, h3')].map(
-    (heading) => `${heading.tagName.toLowerCase()} ${heading.textContent ?? ''}`,
-  )
-
-/** The tiles: a description list named after the goal. */
-function tilesOf(canvasElement: HTMLElement): Canvas {
-  const strip = canvasElement.querySelector<HTMLElement>('[data-slot="metric-strip"]')
-  if (!strip) throw new Error('expected the tiles')
-  return within(strip)
-}
-
-/** Each chip of "Month by month", by its name. */
-function chipNames(canvas: Canvas): (string | null)[] {
-  const strip = within(canvas.getByRole('list', { name: 'Month by month' }))
-  return strip.getAllByRole('button').map((chip) => chip.getAttribute('aria-label'))
-}
-
-/** Each line of "Changes", as the page reads it out. */
-function changeTexts(canvas: Canvas): string[] {
-  const section = canvas.getByRole('region', { name: 'Changes' })
-  return within(section)
-    .getAllByRole('listitem')
-    .map((item) => item.textContent ?? '')
-}
 
 async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
   await expect(outline(canvasElement)).toEqual([
@@ -779,15 +759,7 @@ export const AverageGoal: Story = {
     ])
     await expect(changeTexts(canvas)).toEqual(['Sep 28 · Elena set 4.5 from October'])
     await expect(canvas.getByRole('button', { name: 'Change number' })).toBeVisible()
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'More actions for Average private rating' }),
-    )
-    const body = within(document.body)
-    await expect(
-      await body.findByRole('menuitem', { name: 'Stop this goal…' }),
-    ).toBeVisible()
-    await expect(body.queryByRole('menuitem', { name: /instead/u })).toBeNull()
-    await userEvent.keyboard('{Escape}')
+    await expectStopAloneInMenu(canvas, 'Average private rating')
   },
 }
 

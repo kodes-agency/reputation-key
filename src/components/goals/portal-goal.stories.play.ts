@@ -1,8 +1,9 @@
 // What the plays of the Monthly portal goal's stories share: reading each
-// Portal's count of the month, as the card and the goal's page draw it; and
-// what follows an answer on the card: its toast, the card read again, and the
-// focus on the card's title.
-import { expect, waitFor, within } from 'storybook/test'
+// Portal's count of the month, as the card and the goal's page draw it; the
+// goal page's headings, tiles, month chips and changes (the Monthly portal
+// goal's page and a goal's own, PLAN PG-21); and what follows an answer on the
+// card: its toast, the card read again, and the focus on the card's title.
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 
 type Scope = ReturnType<typeof within>
 
@@ -28,4 +29,42 @@ export async function expectAnsweredOnTheCard(
   await waitFor(() =>
     expect(document.activeElement).toHaveAttribute('id', 'portal-goal-title'),
   )
+}
+
+/** The page's headings, in document order, as "h2 Changes". */
+export const outline = (canvasElement: HTMLElement): string[] =>
+  [...canvasElement.querySelectorAll('h1, h2, h3')].map(
+    (heading) => `${heading.tagName.toLowerCase()} ${heading.textContent ?? ''}`,
+  )
+
+/** The tiles: a description list named after the goal. */
+export function tilesOf(canvasElement: HTMLElement): Scope {
+  const strip = canvasElement.querySelector<HTMLElement>('[data-slot="metric-strip"]')
+  if (!strip) throw new Error('expected the tiles')
+  return within(strip)
+}
+
+/** Each chip of "Month by month", by its name. */
+export function chipNames(scope: Scope): (string | null)[] {
+  const strip = within(scope.getByRole('list', { name: 'Month by month' }))
+  return strip.getAllByRole('button').map((chip) => chip.getAttribute('aria-label'))
+}
+
+/** Each line of "Changes", as the page reads it out. */
+export function changeTexts(scope: Scope): string[] {
+  const section = scope.getByRole('region', { name: 'Changes' })
+  return within(section)
+    .getAllByRole('listitem')
+    .map((item) => item.textContent ?? '')
+}
+
+/** The goal's menu, named for it, offers Stop and no other measure; closed again. */
+export async function expectStopAloneInMenu(scope: Scope, name: string): Promise<void> {
+  await userEvent.click(scope.getByRole('button', { name: `More actions for ${name}` }))
+  const body = within(document.body)
+  await expect(
+    await body.findByRole('menuitem', { name: 'Stop this goal…' }),
+  ).toBeVisible()
+  await expect(body.queryByRole('menuitem', { name: /instead/u })).toBeNull()
+  await userEvent.keyboard('{Escape}')
 }
