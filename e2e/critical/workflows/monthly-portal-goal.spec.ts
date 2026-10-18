@@ -64,6 +64,10 @@
 //       (the rule on its own rate, worked out with the pure rule) is set for
 //       the month offered and listed under "More portal goals"; the sheet
 //       passes axe; and the old `/goals/new` opens it on the goal page.
+//   J14. a goal for one portal has its own page: `/goals/<id>` is titled for
+//       Reception, counts from it and has no portals' rows; "Change number"
+//       from next month says so in a toast and in the log; Stop asks to stop
+//       this portal goal, stops it and leaves for the Goals page; axe passes.
 //
 // Every Property here is the journey's own (prefix `e2e-pg-`, run id and retry
 // in the slug). Expected days are read from the database clock in the
@@ -1377,5 +1381,135 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       await expect(line).toHaveCount(0)
     }
     expect(await shiftOf()).toBeLessThan(CLS_BUDGET)
+  })
+
+  test('J14 a goal for one portal has its own page: change it from next month, then stop', async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, portals } = await seedPortalGoalProperty(
+      page,
+      'j14',
+      testInfo.retry,
+    )
+    seeded.push(propertyId)
+    const [reception, restaurant, spa] = portals
+    if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
+    const days = (from: number, to: number) =>
+      Array.from({ length: from - to + 1 }, (_, index) => from - index)
+    const input = await seedPortalHistory(propertyId, [
+      {
+        portal: reception,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(19, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: restaurant,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(10, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: spa,
+        liveDaysAgo: 8,
+        codeDaysAgo: 17,
+        ratingsDaysAgo: [],
+        scansDaysAgo: [],
+      },
+    ])
+    const recommendation = recommendPortalGoal(input)
+    const month = recommendation.months.current.key
+    const next = recommendation.months.next.key
+    const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
+    const nextName = formatMonthName(`${next}-15T12:00:00.000Z`)
+    const nextFirst = formatLocalDate(`${next}-01`, { year: false })
+    const lastDay = formatLocalDate(addLocalDays(`${next}-01`, -1), { year: false })
+    // Numbers of the manager's own: well above what Reception brings in.
+    const target = 60
+    const changed = 67
+
+    // Reception's own goal for this month, added straight through the server function.
+    const { programId } = await callServerFn<{ programId: string }>(page, {
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'addPortalGoal',
+      data: {
+        propertyId,
+        subject: { kind: 'portal', portalId: reception.id },
+        metric: 'portal_rating_count',
+        targetValue: target,
+        startMonth: month,
+        targetSource: 'own',
+      },
+    })
+
+    await page.goto(`/properties/${propertyId}/goals/${programId}`)
+    await waitForHydration(page)
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Reception · portal goal' }),
+    ).toBeVisible()
+    await expect(
+      page.getByText(/^Private ratings from Reception at .+\.$/u),
+    ).toBeVisible()
+    await expect(page.getByRole('heading', { name: `${monthName} so far` })).toBeVisible()
+    // Its own page has no portals' rows and no other goals.
+    await expect(page.getByRole('heading', { name: 'From your portals' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'More portal goals' })).toHaveCount(0)
+    await assertNoAxeViolations(page, "a goal for one portal's page")
+
+    await clickWhenReady(page.getByRole('button', { name: 'Change number' }))
+    const sheet = page.getByRole('dialog', { name: 'Change this portal goal' })
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole('radio', { name: `From ${nextFirst}` }).click()
+    await expect(sheet.getByText(`${monthName} stays at ${target}.`)).toBeVisible()
+    await sheet.getByRole('spinbutton').fill(String(changed))
+    await sheet.getByRole('button', { name: `Set ${changed} from ${nextName}` }).click()
+    await expect(
+      page.getByText(`From ${nextName}: ${changed} private ratings`),
+    ).toBeVisible()
+    await expect(sheet).toHaveCount(0)
+    await expect(
+      page.getByRole('region', { name: 'Changes' }).getByRole('listitem').first(),
+    ).toHaveText(new RegExp(`[Ss]et ${changed} a month from ${nextName}$`, 'u'))
+    // Still Reception's goal: the change kept its one subject.
+    const stored = await callServerFnGet<{
+      version: { targetValue: number }
+      assignments: ReadonlyArray<{
+        programVersionId: string
+        subject: { kind: string; portalId?: string }
+      }>
+      versions: ReadonlyArray<{ id: string; version: number }>
+    }>(page, {
+      file: 'src/contexts/reporting/server/goal-programs.ts',
+      exportName: 'getGoalProgram',
+      data: { propertyId, programId },
+    })
+    expect(stored.version.targetValue).toBe(changed)
+    const head = stored.versions.reduce((latest, version) =>
+      version.version > latest.version ? version : latest,
+    )
+    expect(
+      stored.assignments
+        .filter(({ programVersionId }) => programVersionId === head.id)
+        .map(({ subject }) => subject),
+    ).toEqual([{ kind: 'portal', portalId: reception.id }])
+
+    await dismissToasts(page)
+    await clickWhenReady(
+      page.getByRole('button', { name: 'More actions for Reception · portal goal' }),
+    )
+    await page.getByRole('menuitem', { name: 'Stop this goal…' }).click()
+    const dialog = page.getByRole('alertdialog', { name: 'Stop this portal goal?' })
+    await expect(
+      dialog.getByText(
+        `${monthName} keeps counting to ${lastDay} and keeps its result. You can set a new goal from ${nextName}.`,
+      ),
+    ).toBeVisible()
+    await dialog.getByRole('button', { name: 'Stop the goal' }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/properties/${propertyId}/goals$`, 'u'))
+    await expect(page.getByText('Portal goal stopped')).toBeVisible()
   })
 })

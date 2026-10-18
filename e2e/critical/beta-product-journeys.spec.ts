@@ -114,7 +114,7 @@ async function nextGoalStartMonth(propertyId: string): Promise<string> {
 /**
  * The month that is running on a Property's own calendar, as the `YYYY-MM`
  * key. A goal created with it opens that month at once, which is the month
- * "Change this month's target" changes.
+ * its Change sheet changes now.
  */
 async function currentGoalStartMonth(propertyId: string): Promise<string> {
   return (await goalStartMonths(propertyId)).current
@@ -1254,7 +1254,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     }
   })
 
-  test("changing this month's target shows the old value and applies next month", async ({
+  test("the single-portal goal's Change sheet changes this month and the months after", async ({
     page,
   }, testInfo) => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
@@ -1262,19 +1262,21 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // starts this month, and once ended it holds its subject until the month
     // is over. The `e2e-rotating-` slug puts the Portal in the afterAll clean-up.
     const suffix = `${e2eRunId.slice(-8)}-${testInfo.retry}`
-    const goalName = `E2E Month Target Goal ${suffix}`
+    const portalName = `E2E Target Portal ${suffix}`
     const { portal } = await callServerFn<{ portal: { id: string } }>(page, {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'createPortal',
       data: {
         propertyId: seed.p1PropertyId,
-        name: `E2E Target Portal ${suffix}`,
+        name: portalName,
         slug: `e2e-rotating-target-${suffix}`,
-        description: 'The subject of a goal whose running month is retargeted.',
+        description: 'The subject of a goal whose running month is changed.',
       },
     })
     // The month is named, never assumed: a goal that starts in the month that
     // is running has that month open from the moment it is created.
+    const month = await currentGoalStartMonth(seed.p1PropertyId)
+    const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
       {
@@ -1282,11 +1284,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         exportName: 'createGoalProgram',
         data: {
           propertyId: seed.p1PropertyId,
-          name: goalName,
+          name: `${portalName} · Private ratings`,
           metric: 'portal_rating_count',
           targetValue: 5,
           subjects: [{ kind: 'portal', portalId: portal.id }],
-          startMonth: await currentGoalStartMonth(seed.p1PropertyId),
+          startMonth: month,
         },
       },
     )
@@ -1294,96 +1296,60 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     try {
       expect(created.program.status).toBe('active')
+      // Its own page (PG-21): titled for its Portal, with the same Change sheet
+      // as the Monthly portal goal's.
       await page.goto(`/properties/${seed.p1PropertyId}/goals/${goalId}`)
       await waitForHydration(page)
-      await expect(page.getByRole('heading', { level: 1, name: goalName })).toBeVisible()
-      const card = (title: string) =>
-        page.locator('[data-slot="card"]').filter({
-          has: page.getByRole('heading', { level: 2, name: title, exact: true }),
-        })
-      const thisMonth = card('Program').getByText('This month:', { exact: true })
-      const monthsAfter = card('Program').getByText(
-        /^From [A-Z][a-z]{2} 1(?:, \d\d\d\d)?:$/,
-      )
-      // Before the change the month and the months after share the target the
-      // goal was set with, and nothing is listed as changed.
-      await expect(thisMonth.locator('..')).toHaveText('This month: 5')
-      await expect(monthsAfter.locator('..')).toHaveText(
-        /^From [A-Z][a-z]{2} 1(?:, \d\d\d\d)?: 5$/,
-      )
       await expect(
-        card('Target changes').getByText('This goal’s target has not been changed.'),
+        page.getByRole('heading', { level: 1, name: `${portalName} · portal goal` }),
       ).toBeVisible()
-
-      await clickWhenReady(
-        page.getByRole('button', { name: 'Change this month’s target' }),
-      )
-      const dialog = page.getByRole('dialog', { name: 'Change this month’s target' })
-      const target = dialog.getByRole('spinbutton', { name: /^Target for [A-Z][a-z]+$/ })
-      await expect(target).toHaveValue('5')
-      // Nothing waits for next month, so the months after take the target
-      // too: the box is ticked and its name carries the real first day.
+      await clickWhenReady(page.getByRole('button', { name: 'Change number' }))
+      const sheet = page.getByRole('dialog', { name: 'Change this portal goal' })
+      await expect(sheet).toBeVisible()
+      // Nothing waits for next month, so the months after take the number too.
+      await sheet.getByRole('radio', { name: `${monthName}, now` }).click()
       await expect(
-        dialog.getByRole('checkbox', {
-          name: /^Also use this target from [A-Z][a-z]{2} 1(?:, \d\d\d\d)?$/,
-        }),
-      ).toBeChecked()
-      await target.fill('3')
-      await dialog
-        .getByRole('textbox', { name: /^Note/ })
-        .fill('E2E: fewer guests this month.')
-      await clickWhenReady(dialog.getByRole('button', { name: 'Save target' }))
-      // The dialog stays open on its receipt, which says both halves.
-      await expect(
-        dialog.getByText(
-          /^Target saved\. It also applies from [A-Z][a-z]{2} 1(?:, \d\d\d\d)?\.$/,
+        sheet.getByText(
+          `${monthName} is judged against the new number, and so are the months after it.`,
         ),
       ).toBeVisible()
-      // The footer's own Close: the corner control carries the same name.
-      await dialog.getByText('Close', { exact: true }).click()
-      await expect(dialog).toBeHidden()
+      await sheet.getByRole('spinbutton').fill('3')
+      await clickWhenReady(sheet.getByRole('button', { name: `Set 3 for ${monthName}` }))
+      await expect(page.getByText(`${monthName} goal: 3 private ratings`)).toBeVisible()
+      await expect(sheet).toHaveCount(0)
 
-      // The month shows its new target with the old value beside it and who
-      // changed it; the months after carry the target from the first of the
-      // next month. Both survive a reload.
-      const changedBy = `Changed by ${seed.managerName} on `
+      // The log says the month's own number, and survives a reload.
       for (const attempt of ['after saving', 'after a reload']) {
-        if (attempt === 'after a reload') await page.reload()
-        await expect(thisMonth.locator('..')).toContainText('This month: 3')
-        await expect(thisMonth.locator('..')).toContainText(changedBy)
-        await expect(thisMonth.locator('..')).toContainText(', started at 5')
-        await expect(monthsAfter.locator('..')).toContainText(': 3')
+        if (attempt === 'after a reload') {
+          await page.reload()
+          await waitForHydration(page)
+        }
+        await expect(
+          page.getByRole('region', { name: 'Changes' }).getByRole('listitem').first(),
+        ).toHaveText(new RegExp(`set ${monthName} to 3$`, 'u'))
       }
-      // The month's own row under Monthly results says the same.
-      await expect(
-        card('Monthly results').getByText(
-          /^Changed by .+ on [A-Z][a-z]{2} \d{1,2}, started at 5$/,
-        ),
-      ).toBeVisible()
-      // The change is on the record with who, old and new value, what it did
-      // for the months after, and the note.
-      const changes = card('Target changes')
-      const changeLine = changes.getByText(/ changed [A-Z][a-z]+’s target from 5 to 3/)
-      await expect(changeLine).toBeVisible()
-      await expect(changeLine).toContainText(`${seed.managerName} changed `)
-      await expect(
-        changes.getByText(/^Also applies from [A-Z][a-z]{2} 1(?:, \d\d\d\d)?\.$/),
-      ).toBeVisible()
-      await expect(
-        changes.getByText('Note: E2E: fewer guests this month.', { exact: true }),
-      ).toBeVisible()
 
-      // What was written: the month carries its own target, one change is
+      // What was written: the month carries its own number, one change is
       // logged with the old and the new value, and a version with the new
-      // target waits for next month.
+      // number waits for next month, still for the one Portal.
       const after = await callServerFnGet<{
-        version: { targetValue: number; changeReason: string; effectiveFrom: Date }
+        version: {
+          id: string
+          targetValue: number
+          changeReason: string
+          effectiveFrom: Date
+        }
+        assignments: ReadonlyArray<{
+          programVersionId: string
+          subject: { kind: string; portalId?: string }
+        }>
         results: ReadonlyArray<{ status: string; targetValue: number | null }>
         targetChanges: ReadonlyArray<{
           previousTargetValue: number
           newTargetValue: number
           followingOutcome: string
           followingVersionId: string | null
+          targetSource: string | null
         }>
       }>(page, {
         file: 'src/contexts/reporting/server/goal-programs.ts',
@@ -1398,6 +1364,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           previousTargetValue: 5,
           newTargetValue: 3,
           followingOutcome: 'applied',
+          targetSource: 'own',
         }),
       ])
       expect(after.targetChanges[0]?.followingVersionId).toBeTruthy()
@@ -1406,13 +1373,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         changeReason: 'target_changed',
       })
       expect(new Date(after.version.effectiveFrom).getTime()).toBeGreaterThan(Date.now())
-
-      // The goals list says this month's target and that it was changed.
-      await page.goto(`/properties/${seed.p1PropertyId}/goals`)
-      const listed = page.getByRole('link', { name: goalName, exact: true }).locator('..')
-      await expect(listed).toContainText(
-        /target 3 this month · changed [A-Z][a-z]{2} \d{1,2}, started at 5/,
-      )
+      expect(
+        after.assignments
+          .filter(({ programVersionId }) => programVersionId === after.version.id)
+          .map(({ subject }) => subject),
+      ).toEqual([{ kind: 'portal', portalId: portal.id }])
     } finally {
       // End the goal whatever happened above, as an operator would: a goal left
       // active here would outlive the Portal the afterAll archives.
@@ -1423,7 +1388,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           propertyId: seed.p1PropertyId,
           programId: goalId,
           status: 'ended',
-          reason: 'E2E end of the month target goal.',
+          reason: 'E2E end of the single-portal goal.',
         },
       })
     }
