@@ -9,6 +9,14 @@ import type {
   PortalGoalRows,
   PortalGoalRunningMonth,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import {
+  CHANGE_DECEMBER,
+  CHANGE_NOVEMBER,
+  CHANGE_NOVEMBER_BEFORE_SCANS,
+  CHANGE_WHILE_DECEMBER_OPENS,
+  SHEET_DECEMBER,
+  SHEET_NOVEMBER_22,
+} from './portal-goal-change.stories.fixtures'
 import { GOAL_SCHEDULED } from './portal-goal.stories.fixtures'
 
 /** G10, Nov 22: 23 of 40 with 22 of 30 days gone and 9 left, today counted. */
@@ -45,21 +53,28 @@ const RUNNING: PortalGoalOfCard = {
   month: NOVEMBER_22,
   rows: ROWS,
   currentMonthSoFar: null,
+  change: CHANGE_NOVEMBER,
 }
 
 const goalCard = (
   today: string,
   goal: Partial<PortalGoalOfCard>,
   month: Partial<PortalGoalRunningMonth> = {},
-): PortalGoalCardView => ({
-  state: 'goal',
-  today,
-  goal: {
-    ...RUNNING,
-    ...goal,
-    month: { ...NOVEMBER_22, ...month },
-  },
-})
+): PortalGoalCardView => {
+  // From Dec 1 December runs: what a change is made against moves with it.
+  const december = today >= '2026-12-01'
+  return {
+    state: 'goal',
+    today,
+    goal: {
+      ...RUNNING,
+      ...(december ? { change: CHANGE_DECEMBER } : {}),
+      ...goal,
+      month: { ...NOVEMBER_22, ...month },
+    },
+    sheet: december ? SHEET_DECEMBER : SHEET_NOVEMBER_22,
+  }
+}
 
 export const CARD_RUNNING = goalCard('2026-11-22', {})
 
@@ -71,6 +86,7 @@ export const CARD_CHANGED_TO_SCANS = goalCard('2026-11-22', {
   version: 2,
   measure: 'qualified_scans',
   target: 55,
+  change: CHANGE_NOVEMBER_BEFORE_SCANS,
 })
 
 /** Nov 2: the first days are never judged, and the bar has no tick yet. */
@@ -142,16 +158,23 @@ export const CARD_OTHER_PORTALS = goalCard('2026-11-22', {
   },
 })
 
-/** Stopped on Nov 12: November still counts to its end. */
+/**
+ * Stopped on Nov 12: November still counts to its end, it takes no change, and
+ * a new goal can start in December.
+ */
 export const CARD_STOPPED = goalCard('2026-11-22', {
   status: 'ended',
   stopped: { on: '2026-11-12', monthEnd: '2026-11-30' },
+  change: null,
+  newGoalFrom: '2026-12',
 })
 
 /** Stopped before the day was recorded. */
 export const CARD_STOPPED_NO_DATE = goalCard('2026-11-22', {
   status: 'ended',
   stopped: { on: null, monthEnd: '2026-11-30' },
+  change: null,
+  newGoalFrom: '2026-12',
 })
 
 /** Each published Portal's count of December so far, as the read returns it. */
@@ -181,6 +204,27 @@ export const CARD_LAST_MONTH_UPDATING = goalCard(
   {
     // Nothing in yet: each Portal on 0.
     rows: decemberRows(0, 0),
+    lastMonth: {
+      key: '2026-11',
+      measure: 'portal_rating_count',
+      value: 38,
+      target: 40,
+      outcome: 'updating',
+      finalOn: '2026-12-02',
+    },
+  },
+  DECEMBER_1,
+)
+
+/**
+ * Dec 1 in its first minutes: December counts, but its month is not opened
+ * yet, so there is no month to change now; November is still being read.
+ */
+export const CARD_WHILE_DECEMBER_OPENS = goalCard(
+  '2026-12-01',
+  {
+    rows: decemberRows(0, 0),
+    change: CHANGE_WHILE_DECEMBER_OPENS,
     lastMonth: {
       key: '2026-11',
       measure: 'portal_rating_count',

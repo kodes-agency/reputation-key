@@ -46,6 +46,18 @@ export const monthName = (month: string): string =>
 export const dayWords = (day: string): string =>
   formatLocalDate(day, { year: false }) ?? day
 
+/**
+ * S-9 and P-3: the other measure, in the sheet and in the goal page's menu
+ * ("Count scans instead"). Here, not in the sheet's view, so the page's menu
+ * does not pull the sheet into its own chunk.
+ */
+export const switchOf = (
+  measure: PortalGoalMeasure,
+): Readonly<{ label: string; measure: PortalGoalMeasure }> =>
+  measure === 'portal_rating_count'
+    ? { label: 'Count scans instead', measure: 'qualified_scans' }
+    : { label: 'Count private ratings instead', measure: 'portal_rating_count' }
+
 /** "40 private ratings", "1 scan". */
 export const portalGoalCount = (measure: PortalGoalMeasure, n: number): string =>
   `${formatNumber(n)} ${portalGoalUnit(measure, n)}`

@@ -9,12 +9,20 @@
 // At 320, 390, 820 and 1440 px and on the light theme. The Storybook Vitest
 // project compiles no Tailwind, so the plays assert words, roles, the heading
 // outline and the calls. The sheet those doors open, as the page hosts it, is
-// in the route's `-portal-goal-sheet-host.stories.tsx`. "More portal goals" has
-// its way to add one, as the route hands it in when the add sheet offers
-// something; with nothing to add and no other goal there is no such block.
+// in the route's `-portal-goal-sheet-host.stories.tsx`. Its actions (PLAN
+// PG-14): "Change number" and the menu's other measure open the change sheet,
+// and Stop asks first, in the destructive tone (at 320 and 820 px too), then
+// stops, says so and hands over to the route (which leaves for the Goals
+// page); a goal that has not started is told it frees its month at once; a
+// second Stop is said in place. "More portal goals" has its way to add one, as
+// the route hands it in when the add sheet offers something; with nothing to
+// add and no other goal there is no such block.
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { Button } from '#/components/ui/button'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
 import { PortalGoalPage } from './portal-goal-page'
 import {
   PAGE_ACROSS_A_STOP,
@@ -34,6 +42,10 @@ import {
 } from './portal-goal-page.stories.fixtures'
 import { portalRows } from './portal-goal.stories.play'
 
+const stopMock = fn(async () => ({ programId: 'program-monthly' }))
+const onStoppedMock = fn(async () => undefined)
+const onRefusedMock = fn(async () => undefined)
+
 const meta: Meta<typeof PortalGoalPage> = {
   title: 'Goals/PortalGoalPage',
   component: PortalGoalPage,
@@ -44,14 +56,27 @@ const meta: Meta<typeof PortalGoalPage> = {
     page: PAGE_RUNNING,
     canCreatePortal: true,
     canSeeResults: true,
+    canChange: true,
+    canStop: true,
     // As the route hands them in: before a goal, the card's doors open the set sheet.
     commands: { setMonthlyPortalGoalFn: fn(), onSet: fn(), openSheet: fn() },
+    stop: {
+      stopMonthlyPortalGoalFn: stopMock,
+      onStopped: onStoppedMock,
+      onRefused: onRefusedMock,
+    },
     personName,
     addLink: (
       <Button type="button" variant="link" size="inline" className="self-start text-sm">
         Add a portal goal
       </Button>
     ),
+  },
+  beforeEach: () => {
+    // Sonner's store outlives a story: no toast of a stop here reaches another.
+    toast.dismiss()
+    for (const mock of [stopMock, onStoppedMock, onRefusedMock]) mock.mockClear()
+    return () => void toast.dismiss()
   },
 }
 
@@ -418,5 +443,181 @@ export const NothingMoreToAdd: Story = {
         'Want a number for one portal as well? Most properties don’t need one.',
       ),
     ).toBeNull()
+  },
+}
+
+/** Opens the goal's menu and picks an item, which hands over once the menu has closed. */
+async function pickFromMenu(canvas: Canvas, item: string) {
+  await userEvent.click(
+    canvas.getByRole('button', { name: 'More actions for Monthly portal goal' }),
+  )
+  await userEvent.click(
+    await within(document.body).findByRole('menuitem', { name: item }),
+  )
+}
+
+/** "Stop this goal…" from the menu: the confirmation it opens. */
+async function openStop(canvasElement: HTMLElement) {
+  await pickFromMenu(within(canvasElement), 'Stop this goal…')
+  const dialog = await within(document.body).findByRole('alertdialog', {
+    name: 'Stop the monthly portal goal?',
+  })
+  return { dialog, in: within(dialog) }
+}
+
+/** "Change number" and "Count scans instead" open the change sheet; the measure only from next month. */
+export const Actions: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Change number' }))
+    await expect(args.commands.openSheet).toHaveBeenLastCalledWith({
+      mode: 'change',
+      measure: 'portal_rating_count',
+    })
+    await pickFromMenu(canvas, 'Count scans instead…')
+    await waitFor(() =>
+      expect(args.commands.openSheet).toHaveBeenLastCalledWith({
+        mode: 'change',
+        measure: 'qualified_scans',
+      }),
+    )
+    // The menu's trigger keeps the focus for the sheet to hand back.
+    await expect(
+      canvas.getByRole('button', { name: 'More actions for Monthly portal goal' }),
+    ).toHaveFocus()
+  },
+}
+
+/** Without goal.update or goal.cancel the actions are not drawn. */
+export const ActionsNotAllowed: Story = {
+  args: { canChange: false, canStop: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.queryByRole('button', { name: 'Change number' })).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: 'More actions for Monthly portal goal' }),
+    ).toBeNull()
+  },
+}
+
+/** Stop asks first; the focus stays in the dialog; then it stops, says so and hands over. */
+export const StopDialog: Story = {
+  decorators: [ToasterDecorator],
+  play: async ({ canvasElement, args }) => {
+    const { dialog, in: inDialog } = await openStop(canvasElement)
+    await expect(
+      inDialog.getByText(
+        'November keeps counting to Nov 30 and keeps its result. You can set a new goal from December.',
+      ),
+    ).toBeVisible()
+    await waitFor(() =>
+      expect(dialog).toContainElement(document.activeElement as HTMLElement),
+    )
+    await userEvent.tab()
+    await expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    await userEvent.tab()
+    await expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    await userEvent.click(inDialog.getByRole('button', { name: 'Stop the goal' }))
+    await expect(args.stop.stopMonthlyPortalGoalFn).toHaveBeenCalledWith({
+      data: { propertyId: SEAVIEW.propertyId, programId: 'program-monthly' },
+    })
+    const said = await within(document.body).findByText('Monthly portal goal stopped')
+    await waitFor(() => expect(said).toBeVisible())
+    // The route leaves for the Goals page from here.
+    await waitFor(() => expect(args.stop.onStopped).toHaveBeenCalledOnce())
+  },
+}
+
+/** 320 px: the question, what happens and both buttons, in the destructive dialog. */
+export const StopDialogOnANarrowPhone: Story = {
+  play: async ({ canvasElement }) => {
+    const { in: inDialog } = await openStop(canvasElement)
+    await expect(
+      inDialog.getByText(
+        'November keeps counting to Nov 30 and keeps its result. You can set a new goal from December.',
+      ),
+    ).toBeVisible()
+    await expect(inDialog.getByRole('button', { name: 'Keep the goal' })).toBeVisible()
+    await expect(inDialog.getByRole('button', { name: 'Stop the goal' })).toBeVisible()
+  },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const StopDialogOnATablet: Story = {
+  ...StopDialogOnANarrowPhone,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
+}
+
+/** "Keep the goal" stops nothing, and the focus goes back to the menu's trigger. */
+export const StopKept: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const { dialog, in: inDialog } = await openStop(canvasElement)
+    await userEvent.click(inDialog.getByRole('button', { name: 'Keep the goal' }))
+    await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    await expect(args.stop.stopMonthlyPortalGoalFn).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'More actions for Monthly portal goal' }),
+      ).toHaveFocus(),
+    )
+  },
+}
+
+/** A goal that has not started frees its month at once. */
+export const StopScheduled: Story = {
+  args: { page: PAGE_SCHEDULED },
+  play: async ({ canvasElement, args }) => {
+    const { in: dialog } = await openStop(canvasElement)
+    await expect(
+      dialog.getByText(
+        'November has not started, so nothing has counted yet. You can set a new goal straight away.',
+      ),
+    ).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: 'Stop the goal' }))
+    await waitFor(() => expect(args.stop.onStopped).toHaveBeenCalledOnce())
+  },
+}
+
+/** F-5: stopped a moment ago elsewhere. The dialog says so and the page is read again. */
+export const StopAlreadyStopped: Story = {
+  args: {
+    stop: {
+      stopMonthlyPortalGoalFn: fn(async () => {
+        throw new ServerFunctionError(
+          'GoalProgramError',
+          'invalid_transition',
+          'invalid_transition',
+          409,
+        )
+      }),
+      onStopped: fn(async () => undefined),
+      onRefused: fn(async () => undefined),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const { in: dialog } = await openStop(canvasElement)
+    await userEvent.click(dialog.getByRole('button', { name: 'Stop the goal' }))
+    await expect(
+      await dialog.findByText('This goal was already stopped. Here is the latest.'),
+    ).toBeVisible()
+    await expect(args.stop.onRefused).toHaveBeenCalledOnce()
+    await expect(args.stop.onStopped).not.toHaveBeenCalled()
+  },
+}
+
+/** A stopped goal takes no change and no second stop: no actions; the next goal from December. */
+export const StoppedHasNoActions: Story = {
+  args: { page: PAGE_STOPPED },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.queryByRole('button', { name: 'Change number' })).toBeNull()
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Set a goal from December' }),
+    )
+    await expect(args.commands.openSheet).toHaveBeenCalledWith({
+      measure: 'portal_rating_count',
+      month: '2026-12',
+    })
   },
 }

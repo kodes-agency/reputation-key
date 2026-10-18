@@ -10,7 +10,10 @@
 //
 // Each handler runs through `withGoalPrograms`, so every read and the set ask
 // the execution policy (capability `goal.use`, the Property grant) for
-// `goal.create` before anything is read.
+// `goal.create` before anything is read; a change asks it for `goal.update`,
+// and Stop for `goal.cancel`. A change and a stop never reach
+// `server/goal-month-target.ts` or `server/goal-programs.ts`: this module
+// imports no other server-function module (PLAN §0.2, E10).
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 // For `.validator(...)` only: never re-exported (an `export … from` would keep
@@ -18,8 +21,11 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
   addPortalGoalSchema,
   addPortalGoalsSchema,
+  changeMonthlyPortalGoalNowSchema,
   monthlyPortalGoalPropertySchema,
+  reviseMonthlyPortalGoalSchema,
   setMonthlyPortalGoalSchema,
+  stopMonthlyPortalGoalSchema,
 } from '../application/dto/monthly-portal-goal.dto'
 import { withGoalPrograms } from './goal-program-request.server'
 
@@ -106,5 +112,54 @@ export const addPortalGoals = createServerFn({ method: 'POST' })
         ),
       'POST',
       'goal.addPortalGoals',
+    ),
+  )
+
+/** "November, now": the running month's number, and the months after it. */
+export const changeMonthlyPortalGoalNow = createServerFn({ method: 'POST' })
+  .validator(changeMonthlyPortalGoalNowSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms(async (programs, policy, actor) => {
+          const { month } = await programs.monthlyPortalGoal.changeNow(
+            policy,
+            data,
+            actor,
+          )
+          return { changed: month !== 'unchanged' }
+        }),
+      'POST',
+      'goal.changeMonthlyPortalGoalNow',
+    ),
+  )
+
+/** "From Dec 1" and "Count scans instead": the goal from its next month. */
+export const reviseMonthlyPortalGoal = createServerFn({ method: 'POST' })
+  .validator(reviseMonthlyPortalGoalSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms(async (programs, policy, actor) => {
+          const { program } = await programs.monthlyPortalGoal.revise(policy, data, actor)
+          return { programId: program.id }
+        }),
+      'POST',
+      'goal.reviseMonthlyPortalGoal',
+    ),
+  )
+
+/** Stop: the goal ends, and the month it is counting keeps counting. */
+export const stopMonthlyPortalGoal = createServerFn({ method: 'POST' })
+  .validator(stopMonthlyPortalGoalSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms(async (programs, policy, actor) => {
+          const program = await programs.monthlyPortalGoal.stop(policy, data, actor)
+          return { programId: program.id }
+        }),
+      'POST',
+      'goal.stopMonthlyPortalGoal',
     ),
   )

@@ -17,12 +17,36 @@
 // now, otherwise `own`, whatever the request said. The engine (`createGoal`)
 // refuses a target or a month it does not take, an Organization that is
 // closing, and decides scheduled or active.
-import type { SetMonthlyPortalGoalRequest } from '../dto/monthly-portal-goal.types'
-import { isPortalGoalMeasure, isPropertyCountGoal } from '../monthly-portal-goal-identity'
+//
+// Changing it (PLAN PG-14) is the engine's own commands, each wrapped to work
+// on the Monthly portal goal only, and to record the number's source the same
+// way: "November, now" changes the running month and the months after it
+// (`changeMonthTarget`, `goal.update`); "From Dec 1" and "Count scans instead"
+// change it from its next month (`revise`, `goal.update`), the Property still
+// its one subject. Stop ends it (`goal.cancel`): the month it is counting
+// keeps counting to its last day and keeps its result, and the months after
+// are free for a new goal. Each asks the policy first, before anything is read.
+import type { GoalMetric } from '../../domain/goal-program'
+import { monthKeyOf } from '../../domain/goal-start'
+import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
 import type {
+  ChangeMonthlyPortalGoalNowRequest,
+  ReviseMonthlyPortalGoalRequest,
+  SetMonthlyPortalGoalRequest,
+  StopMonthlyPortalGoalRequest,
+} from '../dto/monthly-portal-goal.types'
+import {
+  isPortalGoalMeasure,
+  isPropertyCountGoal,
+  monthlyPortalGoalOf,
+  type PropertyCountGoal,
+} from '../monthly-portal-goal-identity'
+import type {
+  GoalProgram,
   GoalProgramBundle,
   GoalProgramRepository,
 } from '../ports/goal-program.repository'
+import type { GoalMonthTargetChangeResult } from './goal-month-target'
 import {
   GoalProgramError,
   type GoalActor,
@@ -102,4 +126,197 @@ export type MonthlyPortalGoalSetRequestApi = Readonly<{
     input: SetMonthlyPortalGoalRequest,
     actor: GoalActor,
   ) => Promise<GoalProgramBundle>
+}>
+
+export type MonthlyPortalGoalChangeDeps = Readonly<{
+  policy: GoalExecutionPolicy
+  /** Every Program of the Property, to know which is the monthly goal. */
+  repository: Pick<GoalProgramRepository, 'list'>
+  programs: Pick<GoalProgramService, 'changeMonthTarget' | 'revise' | 'changeStatus'>
+  recommendation: PortalGoalRecommendationReads
+  now: () => Date
+}>
+
+type Action = 'goal.update' | 'goal.cancel'
+
+/** Asks the policy for `action`, then reads every Program of the Property. */
+async function authorizedPrograms(
+  deps: MonthlyPortalGoalChangeDeps,
+  input: Readonly<{ propertyId: string }>,
+  actor: GoalActor,
+  action: Action,
+): Promise<readonly GoalProgramBundle[]> {
+  const { organizationId } = actor
+  await deps.policy.authorize({
+    actor,
+    organizationId,
+    propertyId: input.propertyId,
+    action,
+  })
+  return deps.repository.list(organizationId, input.propertyId)
+}
+
+/** The Property's Monthly portal goal, when it is the Program asked for. */
+function theMonthlyGoal(
+  programs: readonly GoalProgramBundle[],
+  programId: string,
+  now: Date,
+): PropertyCountGoal {
+  const goal = monthlyPortalGoalOf(programs, now)
+  if (goal === null || goal.program.id !== programId) {
+    throw new GoalProgramError('invalid_subject')
+  }
+  return goal
+}
+
+/**
+ * Whether `targetValue` is the number recommended for the `asked` month and
+ * measure, read only when the screen said so (and the month is one of the
+ * goal's counts).
+ */
+async function recordedSource(
+  deps: MonthlyPortalGoalChangeDeps,
+  claim: Readonly<{
+    propertyId: string
+    targetValue: number
+    targetSource: 'recommended' | 'own'
+  }>,
+  actor: GoalActor,
+  asked: Readonly<{ month: string; metric: GoalMetric }> | null,
+): Promise<'recommended' | 'own'> {
+  if (claim.targetSource !== 'recommended') return 'own'
+  if (asked === null || !isPortalGoalMeasure(asked.metric)) return 'own'
+  const recommendation = await gatherPortalGoalRecommendation(deps.recommendation, {
+    organizationId: actor.organizationId,
+    propertyId: claim.propertyId,
+    now: deps.now(),
+  })
+  const measure: PortalGoalMeasure = asked.metric
+  return offeredChoices(recommendation, asked.month, measure)?.aBitMore ===
+    claim.targetValue
+    ? 'recommended'
+    : 'own'
+}
+
+/** What the month `month` counts: the measure of the version it opened under. */
+function measureOfMonth(goal: PropertyCountGoal, month: string): GoalMetric | null {
+  const result = goal.results.find(
+    ({ periodStart, propertyTimezone }) =>
+      monthKeyOf(periodStart, propertyTimezone) === month,
+  )
+  const version = goal.versions.find(({ id }) => id === result?.programVersionId)
+  return version?.metric ?? null
+}
+
+/**
+ * "November, now": the running month's number, and the months after it, which
+ * are always given the new number too. The month locks only once it has ended,
+ * so its last day still changes now.
+ */
+export async function changeMonthlyPortalGoalNow(
+  deps: MonthlyPortalGoalChangeDeps,
+  input: ChangeMonthlyPortalGoalNowRequest,
+  actor: GoalActor,
+): Promise<GoalMonthTargetChangeResult> {
+  const programs = await authorizedPrograms(deps, input, actor, 'goal.update')
+  const goal = theMonthlyGoal(programs, input.programId, deps.now())
+  const metric = measureOfMonth(goal, input.month)
+  const targetSource = await recordedSource(
+    deps,
+    input,
+    actor,
+    metric === null ? null : { month: input.month, metric },
+  )
+  return deps.programs.changeMonthTarget(
+    {
+      propertyId: input.propertyId,
+      programId: input.programId,
+      month: input.month,
+      targetValue: input.targetValue,
+      expectedTarget: input.expectedTarget,
+      expectedVersion: input.expectedVersion,
+      expectedFollowingMonth: input.expectedFollowingMonth,
+      applyToFollowing: true,
+      ...(input.note === undefined ? {} : { note: input.note }),
+      targetSource,
+    },
+    actor,
+  )
+}
+
+/**
+ * "From Dec 1" and "Count scans instead": the goal from its next month, with
+ * the Property its one subject; a goal that has not started is changed from
+ * its first month. It starts with the month the sheet said, or not at all: a
+ * sheet read before the month turned is refused `start_month_changed` by the
+ * engine, which works the start out after it has opened the months due.
+ */
+export async function reviseMonthlyPortalGoal(
+  deps: MonthlyPortalGoalChangeDeps,
+  input: ReviseMonthlyPortalGoalRequest,
+  actor: GoalActor,
+): Promise<GoalProgramBundle> {
+  const programs = await authorizedPrograms(deps, input, actor, 'goal.update')
+  theMonthlyGoal(programs, input.programId, deps.now())
+  const targetSource = await recordedSource(deps, input, actor, {
+    month: input.startMonth,
+    metric: input.metric,
+  })
+  return deps.programs.revise(
+    {
+      propertyId: input.propertyId,
+      programId: input.programId,
+      metric: input.metric,
+      targetValue: input.targetValue,
+      subjects: [{ kind: 'property', propertyId: input.propertyId }],
+      expectedVersion: input.expectedVersion,
+      expectedStartMonth: input.startMonth,
+      ...(input.note === undefined ? {} : { reason: input.note }),
+      targetSource,
+    },
+    actor,
+  )
+}
+
+/**
+ * Stop: the goal ends. The month it is counting keeps counting to its last day
+ * and keeps its result; a goal that has not started frees its month at once.
+ * Any Property count goal may be stopped, and no other goal from here. One
+ * already stopped is refused `invalid_transition`: the engine takes ended to
+ * ended as a status already reached, and would answer a conflict.
+ */
+export async function stopMonthlyPortalGoal(
+  deps: MonthlyPortalGoalChangeDeps,
+  input: StopMonthlyPortalGoalRequest,
+  actor: GoalActor,
+): Promise<GoalProgram> {
+  const programs = await authorizedPrograms(deps, input, actor, 'goal.cancel')
+  const asked = programs.find(({ program }) => program.id === input.programId)
+  if (asked !== undefined && !isPropertyCountGoal(asked)) {
+    throw new GoalProgramError('invalid_subject')
+  }
+  if (asked?.program.status === 'ended') throw new GoalProgramError('invalid_transition')
+  return deps.programs.changeStatus(
+    { propertyId: input.propertyId, programId: input.programId, status: 'ended' },
+    actor,
+  )
+}
+
+/** Request-facing: each invocation receives its scoped policy, like the Program commands. */
+export type MonthlyPortalGoalChangeRequestApi = Readonly<{
+  changeNow: (
+    policy: GoalExecutionPolicy,
+    input: ChangeMonthlyPortalGoalNowRequest,
+    actor: GoalActor,
+  ) => Promise<GoalMonthTargetChangeResult>
+  revise: (
+    policy: GoalExecutionPolicy,
+    input: ReviseMonthlyPortalGoalRequest,
+    actor: GoalActor,
+  ) => Promise<GoalProgramBundle>
+  stop: (
+    policy: GoalExecutionPolicy,
+    input: StopMonthlyPortalGoalRequest,
+    actor: GoalActor,
+  ) => Promise<GoalProgram>
 }>

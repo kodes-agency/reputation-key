@@ -26,6 +26,13 @@
 //       what it counts, the tiles, each Portal's count with the total, the
 //       month on its strip, and the change log (the set, as recommended, and
 //       each Portal going live); both themes pass axe.
+//   J7. change from next month, then stop: on the goal page, "Change number",
+//       "From {next month} 1" and a new number set from next month say so in a
+//       toast; Stop asks first, stops, and the Goals page's card says the goal
+//       was stopped today, that this month still counts to its last day, and
+//       offers a goal from next month; the stopped goal is an ended one, so the
+//       section's foot leads to it as "Ended portal goals (1)" (PG-18). A goal
+//       is never stopped and set again in the same month here.
 //   J11. all monthly results: once a Portal goal's month has closed and another
 //       has ended, the Portal goals section's foot opens `/goals/portal-results`:
 //       the closed month's result in plain words, and the ended goal with the
@@ -622,6 +629,120 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(page.locator('html')).toHaveClass(/\blight\b/u)
     await expect(rows).toHaveCount(PORTAL_NAMES.length + 1)
     await assertNoAxeViolations(page, 'the monthly portal goal page (light)')
+  })
+
+  test('J7 change from next month, then stop', async ({ page }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, portals } = await seedPortalGoalProperty(
+      page,
+      'j7',
+      testInfo.retry,
+    )
+    seeded.push(propertyId)
+    const [reception, restaurant, spa] = portals
+    if (!reception || !restaurant || !spa) throw new Error('E2E Portals are not seeded')
+    const days = (from: number, to: number) =>
+      Array.from({ length: from - to + 1 }, (_, index) => from - index)
+    const input = await seedPortalHistory(propertyId, [
+      {
+        portal: reception,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(19, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: restaurant,
+        liveDaysAgo: 20,
+        codeDaysAgo: 21,
+        ratingsDaysAgo: days(10, 1),
+        scansDaysAgo: [],
+      },
+      {
+        portal: spa,
+        liveDaysAgo: 8,
+        codeDaysAgo: 17,
+        ratingsDaysAgo: [],
+        scansDaysAgo: [],
+      },
+    ])
+    const recommendation = recommendPortalGoal(input)
+    const month = recommendation.months.current.key
+    const next = recommendation.months.next.key
+    const soFar = recommendation.monthToDate.portal_rating_count ?? 0
+    const target = soFar + 10
+    // A number no recommendation can be: it is the manager's own.
+    const changed = target + 7
+    const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
+    const nextName = formatMonthName(`${next}-15T12:00:00.000Z`)
+    const nextFirst = formatLocalDate(`${next}-01`, { year: false })
+    const lastDay = formatLocalDate(addLocalDays(`${next}-01`, -1), { year: false })
+    const today = await localToday(propertyId)
+
+    // This month's goal, set straight through the server function.
+    await callServerFn(page, {
+      file: MONTHLY_PORTAL_GOALS,
+      exportName: 'setMonthlyPortalGoal',
+      data: {
+        propertyId,
+        metric: 'portal_rating_count',
+        targetValue: target,
+        startMonth: month,
+        targetSource: 'own',
+      },
+    })
+
+    await page.goto(`/properties/${propertyId}/goals/portals`)
+    await waitForHydration(page)
+    await clickWhenReady(page.getByRole('button', { name: 'Change number' }))
+    const sheet = page.getByRole('dialog', { name: 'Change your monthly portal goal' })
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole('radio', { name: `From ${nextFirst}` }).click()
+    await expect(sheet.getByText(`${monthName} stays at ${target}.`)).toBeVisible()
+    await sheet.getByRole('spinbutton').fill(String(changed))
+    await sheet.getByRole('button', { name: `Set ${changed} from ${nextName}` }).click()
+    await expect(
+      page.getByText(`From ${nextName}: ${changed} private ratings`),
+    ).toBeVisible()
+    await expect(sheet).toHaveCount(0)
+    // This month is unchanged; the log has the change from next month.
+    await expect(
+      page.getByRole('region', { name: 'Changes' }).getByRole('listitem').first(),
+    ).toHaveText(new RegExp(`[Ss]et ${changed} a month from ${nextName}$`, 'u'))
+
+    await dismissToasts(page)
+    await clickWhenReady(
+      page.getByRole('button', { name: 'More actions for Monthly portal goal' }),
+    )
+    await page.getByRole('menuitem', { name: 'Stop this goal…' }).click()
+    const dialog = page.getByRole('alertdialog', {
+      name: 'Stop the monthly portal goal?',
+    })
+    await expect(
+      dialog.getByText(
+        `${monthName} keeps counting to ${lastDay} and keeps its result. You can set a new goal from ${nextName}.`,
+      ),
+    ).toBeVisible()
+    await dialog.getByRole('button', { name: 'Stop the goal' }).click()
+
+    await expect(page).toHaveURL(
+      new RegExp(`/properties/${propertyId}/goals(?:\\?view=active)?$`, 'u'),
+    )
+    await expect(page.getByText('Monthly portal goal stopped')).toBeVisible()
+    await waitForHydration(page)
+    const card = page.locator('#portal-goals [data-slot="portal-goal-card"]')
+    await expect(
+      card.getByText(
+        `Stopped on ${formatLocalDate(today, { year: false })}. ${monthName} still counts to ${lastDay}.`,
+      ),
+    ).toBeVisible()
+    await expect(
+      card.getByRole('button', { name: `Set a goal from ${nextName}` }),
+    ).toBeVisible()
+    // A stopped goal is an ended one: the section's foot leads to it (PG-18).
+    await expect(
+      page.locator('#portal-goals').getByRole('link', { name: 'Ended portal goals (1)' }),
+    ).toHaveAttribute('href', `/properties/${propertyId}/goals/portal-results#ended`)
   })
   test('J11 all monthly results: a closed month and an ended goal on their own page; both themes pass axe', async ({
     page,

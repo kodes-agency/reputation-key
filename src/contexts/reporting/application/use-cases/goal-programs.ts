@@ -14,6 +14,7 @@ import {
   type GoalSubject,
   type GoalTargetSource,
 } from '../../domain/goal-program'
+import { monthKeyOf } from '../../domain/goal-start'
 import { nextRevisionStart } from '../goal-revision-start'
 import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
 import {
@@ -74,6 +75,12 @@ type ReviseGoalInput = Readonly<{
    * the head has moved, instead of changing a goal it never showed.
    */
   expectedVersion?: number
+  /**
+   * The month the form said the change starts with, as `YYYY-MM`. A form that
+   * sends it is refused once that start has moved (the month turned while it
+   * was open), instead of starting the change a month later than it said.
+   */
+  expectedStartMonth?: string
   /** Where the new number came from, stored on the new version; omitted, none is. */
   targetSource?: GoalTargetSource
 }>
@@ -159,6 +166,12 @@ async function reviseGoal(
   // later and the skipped local month is not evaluated under either
   // version. The caller shows the returned start date.
   const { head, period } = nextRevisionStart(current, now, timezone)
+  if (
+    input.expectedStartMonth !== undefined &&
+    monthKeyOf(period.start, timezone) !== input.expectedStartMonth
+  ) {
+    throw new GoalProgramError('start_month_changed')
+  }
   await assertSubjectsAreFree(deps, {
     organizationId: actor.organizationId,
     propertyId: input.propertyId,

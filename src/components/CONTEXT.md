@@ -689,7 +689,8 @@ One list of words for what every page repeats.
   thing out of a place and it can come back or still exists (a member, a language, a
   portal from a group, a property from the workspace for 30 days). Delete erases it
   (a link, an unsent draft). Archive retires what is kept for history (a portal, a
-  group, a participation, a property). End closes what does not resume (a goal).
+  group, a participation, a property). End closes what does not resume (a goal);
+  a monthly portal goal stops: it keeps its running month.
   Disable switches a public surface off and keeps it. Cancel as a verb withdraws
   something pending that never took effect ("Cancel invitation"). The menu item that
   opens a confirmation says the same verb as the confirmation's button.

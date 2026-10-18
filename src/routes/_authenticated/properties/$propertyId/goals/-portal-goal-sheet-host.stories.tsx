@@ -12,6 +12,8 @@ import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { PortalGoalPageView } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
+import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
+import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
 import {
   PortalGoalPage,
   focusPortalGoalPageTitle,
@@ -23,12 +25,19 @@ import {
   SEAVIEW,
   personName,
 } from '#/components/goals/portal-goal-page.stories.fixtures'
-import { usePortalGoalSheet } from './-portal-goal-sheet-host'
+import { portalGoalDoorShown, usePortalGoalSheet } from './-portal-goal-sheet-host'
 
 const setMock = fn<PortalGoalCommands['setMonthlyPortalGoalFn']>(async () => ({
   programId: 'program-monthly',
 }))
 const onSetMock = fn<PortalGoalCommands['onSet']>(async () => undefined)
+const changeNowMock = fn<PortalGoalSheetCommands['changeMonthlyPortalGoalNowFn']>()
+const reviseMock = fn<PortalGoalSheetCommands['reviseMonthlyPortalGoalFn']>()
+const stop = {
+  stopMonthlyPortalGoalFn: fn(),
+  onStopped: fn(async () => undefined),
+  onRefused: fn(async () => undefined),
+} satisfies PortalGoalStopCommands
 
 type HarnessProps = Readonly<{
   page: PortalGoalPageView
@@ -41,17 +50,21 @@ function GoalPageWithItsSheet({ page: first, afterSet }: HarnessProps) {
   const [page, setPage] = useState(first)
   const set = {
     setMonthlyPortalGoalFn: setMock,
+    changeMonthlyPortalGoalNowFn: changeNowMock,
+    reviseMonthlyPortalGoalFn: reviseMock,
     onSet: async () => {
       await onSetMock()
       setPage(afterSet)
     },
-  } satisfies PortalGoalCommands
-  const sheet = usePortalGoalSheet(
-    SEAVIEW.propertyId,
-    page.card,
-    set,
-    focusPortalGoalPageTitle,
-  )
+  } satisfies PortalGoalCommands & PortalGoalSheetCommands
+  const sheet = usePortalGoalSheet({
+    propertyId: SEAVIEW.propertyId,
+    card: page.card,
+    commands: set,
+    focusTitle: focusPortalGoalPageTitle,
+    reread: async () => page.card,
+    doorShown: portalGoalDoorShown(page.card, true, 'page'),
+  })
   return (
     <>
       <PortalGoalPage
@@ -60,7 +73,10 @@ function GoalPageWithItsSheet({ page: first, afterSet }: HarnessProps) {
         page={page}
         canCreatePortal
         canSeeResults
+        canChange
+        canStop
         commands={{ ...set, openSheet: sheet.open }}
+        stop={stop}
         personName={personName}
       />
       {sheet.sheet}

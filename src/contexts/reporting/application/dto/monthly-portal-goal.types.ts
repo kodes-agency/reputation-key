@@ -205,6 +205,42 @@ export type PortalGoalLastMonth = Readonly<{
 }>
 
 /**
+ * What a change to the goal is made against (PLAN PG-14), from the plan the
+ * month-target command follows: the running month while its number can still
+ * change (to its last day), and the month a change from a coming month starts
+ * with. The sheet sends these back with the change, so a sheet left open over
+ * a change made elsewhere, or over the end of a month, is refused rather than
+ * changing what it never showed.
+ */
+export type PortalGoalChangeFacts = Readonly<{
+  /** The running month; null with none running (not started, or it has ended). */
+  now: Readonly<{
+    /** `YYYY-MM`. */
+    monthKey: string
+    /** The number the month is judged against now. */
+    expectedTarget: number
+    /** The version the change is made against. */
+    expectedVersion: number
+    /** The month the months after take the new number from, `YYYY-MM`. */
+    expectedFollowingMonth: string
+    /**
+     * False while a change of the other measure waits for the next month
+     * ("Count scans instead"): the months after keep it, so a change now is
+     * this month's alone.
+     */
+    appliesToFollowing: boolean
+    /** The month's first instant and the next one's (ISO), for "starts below pace". */
+    period: Readonly<{ start: string; end: string }>
+    /** The zone the month's days are drawn in. */
+    timezone: string
+  }> | null
+  /** The first month a change from a coming month counts for: "From Dec 1". */
+  nextMonthKey: string
+  /** The month the sheet opens on: this one through the 20th local day, else the next. */
+  opensOn: 'now' | 'next'
+}>
+
+/**
  * The Property's Monthly portal goal on its card: while it waits for its first
  * month, the day it starts and this month so far; while it runs (or after it
  * was stopped, to the end of the month it still counts), that month with the
@@ -251,6 +287,13 @@ export type PortalGoalOfCard = Readonly<{
     measure: PortalGoalMeasure
     target: number
   }> | null
+  /** What a change is made against; null once the goal has been stopped. */
+  change: PortalGoalChangeFacts | null
+  /**
+   * Stopped: the month a new goal can start in, the one after the last month
+   * this one counts, when the set sheet offers it; else null.
+   */
+  newGoalFrom: string | null
 }>
 
 /** An arm the set sheet opens from: what it works from. */
@@ -260,7 +303,9 @@ type WithSheet = Readonly<{ sheet: PortalGoalSheetFacts }>
  * The card's arm. Before a goal: no Portal at all (or none live and no draft),
  * draft Portals only, the first weeks, a number ready to use (with scans only,
  * scans first), nothing counted, or a recommendation that cannot be read; each
- * of the last four opens the set sheet. With one: the goal.
+ * of the last four opens the set sheet. With one: the goal, with the same
+ * facts for the sheet that changes it (its offers) and, once it is stopped,
+ * sets the next one.
  */
 export type PortalGoalCardView =
   | Readonly<{ state: 'no_portal' }>
@@ -283,12 +328,13 @@ export type PortalGoalCardView =
         weeks: 2 | 3 | 4
       }>)
   | (WithSheet & Readonly<{ state: 'recommendation_unreadable' }>)
-  | Readonly<{
-      state: 'goal'
-      /** The Property's local day today, for the header tile. */
-      today: string
-      goal: PortalGoalOfCard
-    }>
+  | (WithSheet &
+      Readonly<{
+        state: 'goal'
+        /** The Property's local day today, for the header tile. */
+        today: string
+        goal: PortalGoalOfCard
+      }>)
 
 export type PortalGoalCardState = PortalGoalCardView['state']
 
@@ -302,3 +348,42 @@ export type SetMonthlyPortalGoalRequest = Readonly<{
   /** What the screen offered; recorded only as far as the recommendation bears it out. */
   targetSource: 'recommended' | 'own'
 }>
+
+/** The goal a change or a stop is for. */
+type OfTheGoal = Readonly<{ propertyId: string; programId: string }>
+
+/**
+ * "November, now" (and the month-start check-in's Use): the running month's
+ * number, and the months after it, from the change facts' `now`.
+ */
+export type ChangeMonthlyPortalGoalNowRequest = OfTheGoal &
+  Readonly<{
+    /** `YYYY-MM`: the running month the sheet showed. */
+    month: string
+    targetValue: number
+    expectedTarget: number
+    expectedVersion: number
+    expectedFollowingMonth: string
+    /** The manager's note, stored with the change. */
+    note?: string
+    targetSource: 'recommended' | 'own'
+  }>
+
+/** "From Dec 1" and "Count scans instead": the goal from its next month. */
+export type ReviseMonthlyPortalGoalRequest = OfTheGoal &
+  Readonly<{
+    metric: PortalGoalMeasure
+    targetValue: number
+    expectedVersion: number
+    /**
+     * `YYYY-MM`: the month the sheet said the change starts with (the change
+     * facts' `nextMonthKey`); refused once the month has turned since.
+     */
+    startMonth: string
+    /** The manager's note, stored on the new version. */
+    note?: string
+    targetSource: 'recommended' | 'own'
+  }>
+
+/** Stop: the goal ends, and keeps the month it is counting. */
+export type StopMonthlyPortalGoalRequest = OfTheGoal

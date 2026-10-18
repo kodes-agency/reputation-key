@@ -8,8 +8,10 @@
 // month has closed is no goal any more, so its months and changes sit under the
 // card before a goal. Under it all, the other Portal goals and the way to add
 // one, which the route hands in (a component imports no routes). Its actions
-// ("Change number" and the menu) come with the change and the stop.
-import { useId, type ReactNode } from 'react'
+// (P-3: "Change number", and the menu with the other measure and Stop) are in
+// the header while the goal can change; the Stop dialog is held here, outside
+// the menu and the header, so a refusal that reads the page again keeps it.
+import { useId, useRef, useState, type ReactNode } from 'react'
 import type { PortalGoalPageView } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { PageHeader } from '#/components/layout/page-header'
@@ -18,7 +20,7 @@ import { PageShell } from '#/components/layout/page-shell'
 import { InlineLink } from '#/components/ui/inline-link'
 import { SectionTitle } from '#/components/ui/section-title'
 import { PortalGoalCard } from './portal-goal-card'
-import { PortalGoalMonthSoFar } from './portal-goal-card-goal'
+import { PortalGoalMonthSoFar, PortalGoalStopped } from './portal-goal-card-goal'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalChanges } from './portal-goal-changes'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
@@ -33,8 +35,12 @@ import {
   portalGoalTiles,
   stripChips,
 } from './portal-goal-page-view'
+import { PortalGoalPageActions } from './portal-goal-page-actions'
 import { allResultsLink } from './portal-goal-results-foot'
-import { stoppedWords } from './portal-goal-running-view'
+import {
+  PortalGoalStopDialog,
+  type PortalGoalStopCommands,
+} from './portal-goal-stop-dialog'
 import { PortalGoalTiles } from './portal-goal-tiles'
 import { shownMeasure } from './portal-goal-words'
 
@@ -45,7 +51,12 @@ type Props = Readonly<{
   canCreatePortal: boolean
   /** "All monthly results" is for someone who may see every month's result. */
   canSeeResults: boolean
+  /** `goal.update`: "Change number" and the other measure. */
+  canChange: boolean
+  /** `goal.cancel`: "Stop this goal". */
+  canStop: boolean
   commands: PortalGoalCommands
+  stop: PortalGoalStopCommands
   personName: (userId: string) => string | null
   /** The other Portal goals' rows, under "More portal goals"; null with none. */
   extras?: ReactNode
@@ -54,19 +65,18 @@ type Props = Readonly<{
 }>
 
 /** P-5: the month so far, with its first and last day, and a stop. */
-function MonthSoFarSection({ goal }: Readonly<{ goal: PortalGoalOfCard }>) {
+function MonthSoFarSection({
+  goal,
+  openSheet,
+}: Readonly<{ goal: PortalGoalOfCard; openSheet: PortalGoalCommands['openSheet'] }>) {
   const headingId = useId()
-  const { month, stopped } = goal
+  const { month } = goal
   if (month === null) return null
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
       <SectionTitle id={headingId}>{monthSoFarHeading(month.key)}</SectionTitle>
       <PortalGoalMonthSoFar month={month} axis={monthAxis(month)} />
-      {stopped === null ? null : (
-        <p className="text-sm text-muted-foreground">
-          {stoppedWords(stopped, month.key)}
-        </p>
-      )}
+      <PortalGoalStopped goal={goal} monthKey={month.key} openSheet={openSheet} />
     </section>
   )
 }
@@ -106,9 +116,9 @@ function MonthsAndChanges({ page, personName }: HistoryProps) {
 function GoalBody({
   goal,
   ...props
-}: Omit<Props, 'commands' | 'canCreatePortal' | 'extras' | 'addLink'> &
+}: Omit<Props, 'canCreatePortal' | 'extras' | 'addLink'> &
   Readonly<{ goal: PortalGoalOfCard }>) {
-  const { page, propertyId, propertyName } = props
+  const { page, propertyId, propertyName, commands } = props
   const measure = shownMeasure(goal)
   return (
     <div className="flex flex-col gap-6">
@@ -122,7 +132,7 @@ function GoalBody({
       {page.tiles === null ? null : (
         <PortalGoalTiles tiles={portalGoalTiles(goal, page.tiles, page.today)} />
       )}
-      <MonthSoFarSection goal={goal} />
+      <MonthSoFarSection goal={goal} openSheet={commands.openSheet} />
       <PortalGoalFromPortals
         propertyId={propertyId}
         words={fromPortalsWords(page.rows, page.facts, page.portals)}
@@ -209,9 +219,54 @@ function MorePortalGoals({ extras, addLink }: Pick<Props, 'extras' | 'addLink'>)
   )
 }
 
+/**
+ * P-3: the page's actions while its goal can change, and the Stop dialog they
+ * open, on the goal as it was when it opened.
+ */
+function usePageActions(
+  props: Props,
+): Readonly<{ actions: ReactNode; dialog: ReactNode }> {
+  const [stopping, setStopping] = useState<Readonly<{
+    goal: PortalGoalOfCard
+    open: boolean
+  }> | null>(null)
+  const menuTrigger = useRef<HTMLButtonElement>(null)
+  const { card } = props.page
+  const { openSheet } = props.commands
+  const actions =
+    card.state === 'goal' && openSheet !== undefined ? (
+      <PortalGoalPageActions
+        goal={card.goal}
+        canChange={props.canChange}
+        canStop={props.canStop}
+        openSheet={openSheet}
+        onStop={() => setStopping({ goal: card.goal, open: true })}
+        triggerRef={menuTrigger}
+      />
+    ) : null
+  const dialog =
+    stopping === null ? null : (
+      <PortalGoalStopDialog
+        open={stopping.open}
+        onOpenChange={(open) => setStopping({ ...stopping, open })}
+        propertyId={props.propertyId}
+        goal={stopping.goal}
+        commands={props.stop}
+        // Back to the menu it was opened from, or to the title once that is gone.
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          if (menuTrigger.current?.isConnected) menuTrigger.current.focus()
+          else focusPortalGoalPageTitle()
+        }}
+      />
+    )
+  return { actions, dialog }
+}
+
 export function PortalGoalPage(props: Props) {
   const { page, propertyId, propertyName } = props
   const { card } = page
+  const { actions, dialog } = usePageActions(props)
   return (
     <PageShell>
       <div id={PAGE_HEADER_ID}>
@@ -222,6 +277,7 @@ export function PortalGoalPage(props: Props) {
             { propertyId, propertyName },
             PORTAL_GOAL_NAME,
           )}
+          actions={actions}
         />
       </div>
       {card.state === 'goal' ? (
@@ -230,6 +286,7 @@ export function PortalGoalPage(props: Props) {
         <BeforeGoal {...props} />
       )}
       <MorePortalGoals extras={props.extras} addLink={props.addLink} />
+      {dialog}
     </PageShell>
   )
 }

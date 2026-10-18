@@ -60,7 +60,12 @@ function CardBody({
   switch (card.state) {
     case 'goal':
       return (
-        <PortalGoalCardGoal goal={card.goal} today={card.today} propertyId={propertyId} />
+        <PortalGoalCardGoal
+          goal={card.goal}
+          today={card.today}
+          propertyId={propertyId}
+          openSheet={commands.openSheet}
+        />
       )
     case 'ready':
     case 'scans_only':

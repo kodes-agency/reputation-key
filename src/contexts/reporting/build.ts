@@ -70,7 +70,12 @@ import {
   readMonthlyPortalGoalPage,
   type MonthlyPortalGoalRequestApi,
 } from './application/use-cases/monthly-portal-goal-page'
-import { setMonthlyPortalGoal } from './application/use-cases/monthly-portal-goal'
+import {
+  changeMonthlyPortalGoalNow,
+  reviseMonthlyPortalGoal,
+  setMonthlyPortalGoal,
+  stopMonthlyPortalGoal,
+} from './application/use-cases/monthly-portal-goal'
 import {
   addPortalGoal,
   addPortalGoals,
@@ -389,6 +394,15 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     recommendation: goalRecommendationDeps(policy),
     now: input.clock,
   })
+  // Its commands: the set, and the change and the stop (PLAN PG-14), each over
+  // every Program of the Property and the engine's own commands.
+  const monthlyPortalGoalCommands = (policy: GoalExecutionPolicy) => ({
+    policy,
+    repository: goalProgramRepo,
+    programs: buildGoalPrograms(policy),
+    recommendation: goalRecommendationDeps(policy),
+    now: input.clock,
+  })
   const monthlyPortalGoal: MonthlyPortalGoalRequestApi['monthlyPortalGoal'] =
     Object.freeze({
       card: (policy, ...args) =>
@@ -403,16 +417,13 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
           ...args,
         ),
       set: (policy, ...args) =>
-        setMonthlyPortalGoal(
-          {
-            policy,
-            repository: goalProgramRepo,
-            programs: buildGoalPrograms(policy),
-            recommendation: goalRecommendationDeps(policy),
-            now: input.clock,
-          },
-          ...args,
-        ),
+        setMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
+      changeNow: (policy, ...args) =>
+        changeMonthlyPortalGoalNow(monthlyPortalGoalCommands(policy), ...args),
+      revise: (policy, ...args) =>
+        reviseMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
+      stop: (policy, ...args) =>
+        stopMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
     })
   // Add a portal goal (PLAN PG-20): what it offers, read like the card, and its
   // two commands, the engine's own create and its save for several subjects.

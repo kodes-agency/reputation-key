@@ -908,6 +908,67 @@
 // -20 B, the entry -17 B, the stylesheet -6 B, the rest -4 B). The line stays
 // at 308,200: 159 B spare, 259 B under the build's ceiling of 308,300 (owner,
 // P-9).
+//
+// 2026-10-18 (Monthly portal goal, PG-14: change number, count scans instead,
+// stop): no raise. The change sheet (its view, the note field, and the pace
+// rule through Reporting's application re-export of goalPace) loads with the
+// set sheet's own chunk (portal-goal-sheet-*.js, lazy; vite's gzip column
+// 4.60 -> 6.70 kB), and goalPace is in no other chunk. The page's actions, the
+// Stop dialog and its words load with the page's route chunk (portals-*.js,
+// lazy; 4.99 -> 6.16 kB); the card's "Change" and next-goal links with the
+// shared -portal-goal-sheet-host-*.js (10.21 -> 10.64 kB); the three commands'
+// server functions with the Monthly portal goal's own stub chunk (0.30 ->
+// 0.46 kB). The menu's "Count scans instead" lives in portal-goal-words.ts,
+// so the page does not pull the sheet's view into a chunk of its own: a first
+// head that imported it from the view measured 308,011 B, +14 B of preload
+// names in the entry. Every class was already in the stylesheet (the base's
+// own file, styles-mDD_TGAT.css, 27,845 B). The figures first noted here
+// (307,991 B on the head, -6 B) were measured before the build's last commit
+// and did not reproduce: re-measured in one session with fresh production
+// builds (rm -rf node_modules/.nitro .output), the stacked base, PG-13's head
+// 840adcde3, measured 307,997 B (75 js + 1 css; entry 49,238 B), that head
+// 1728c638c 308,005 B (entry 49,246 B), and the head after the review fixes,
+// 66b6bb5c1, 308,012 B (entry 49,253 B): +15 B, all in the entry (both shas
+// from before the rebase; 0c8df4f57 and 5f25ab32a after it). With the
+// hashed chunk names masked, the review head's entry is byte-identical to
+// 1728c638c's (the 7 B between them is hash naming), and 15 characters longer
+// than the base's: /goals/portals now preloads the shared chunks its actions
+// and the Stop dialog need. Lazy chunks on the final head: the sheet 6.76 kB,
+// the page's route 6.22 kB, the shared host 10.82 kB (the review fixes moved
+// them by 0.06, 0.06 and 0.18 kB). No raise then: 38 B spare under 308,050.
+// Rebased onto main ed9853789 (PG-18's results page, PG-19's tabs), under
+// PG-18's line of 308,200: fresh builds in one session measured 308,137 B on
+// main (75 js + 1 css; entry 49,381 B) and 308,142 B on the rebased head
+// 34c7a0064 (entry 49,386 B): +5 B, all in the entry. With the hashed chunk
+// names masked, the head's entry is again 15 characters longer than main's, the
+// same /goals/portals preload list. The stylesheet is main's own
+// (styles-mDD_TGAT.css, 27,845 B). Lazy chunks, main -> head: the sheet
+// 4.60 -> 6.77 kB, the goal page's route 4.96 -> 6.19 kB, the shared host
+// 10.29 -> 10.91 kB, the stub chunk 0.30 -> 0.46 kB; the results page's chunk
+// is unchanged (3.89 kB). No raise then: 58 B spare under 308,200. Rebased
+// again over PG-20 (#876, Add a portal goal) onto main bbd204488, under the
+// same line: fresh builds in one session measured 308,041 B on main (75 js + 1
+// css; entry 49,364 B) and 308,035 B on the head 0afa54647 (entry 49,358 B):
+// -6 B, all in the entry. With the hashed chunk names masked, the head's entry
+// is again 15 characters longer than main's (the /goals/portals preload list),
+// so the -6 B is the names' gzip noise. The stylesheet is main's own
+// (styles-ChuBAd4e.css, 27,839 B). Lazy chunks, main -> head: the sheet 1.91
+// -> 4.35 kB, and the set sheet's view, a chunk the add sheet now shares
+// (portal-goal-sheet-refusals-*.js), 4.04 -> 4.26 kB; the goal page's route
+// 5.38 -> 6.57 kB; the goal routes' shared host, now named
+// -portal-goal-add-host-*.js, 10.47 -> 10.96 kB; the stub chunk 0.46 -> 0.61
+// kB. The add sheet's chunk (4.21 kB) and the results page's (3.88 kB) are
+// unchanged, and the starts-below-pace note is still in the sheet's chunk
+// alone. The review's two clean-ups (the add sheet's number step reads its box
+// with the set sheet's helpers, and both goal hosts open and close their
+// sheets with one pair of steps) change no first-paint module: fresh builds in
+// one session measured 308,035 B on b259a15fc again (entry 49,358 B) and
+// 308,032 B, twice, on the review head (entry 49,355 B): -3 B. With the hashed
+// chunk names masked the two entries are byte-identical, so the -3 B is the
+// names' gzip noise. Lazy chunks: the set sheet's view
+// (portal-goal-sheet-refusals-*.js) 4.26 -> 4.25 kB, the goal routes' shared
+// host 10.96 -> 10.91 kB. No raise: 168 B spare under 308,200; 268 B under the
+// build's ceiling of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

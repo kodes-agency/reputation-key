@@ -9,6 +9,7 @@ import {
   CARD_SCHEDULED,
   GOAL_SCHEDULED,
   SHEET_FIRST_WEEKS,
+  SHEET_READY,
 } from './portal-goal.stories.fixtures'
 import { CARD_CHANGED_TO_SCANS } from './portal-goal-running.stories.fixtures'
 import {
@@ -172,6 +173,7 @@ describe('the Monthly portal goal card, in words', () => {
         state: 'goal',
         today: '2026-10-23',
         goal: { ...GOAL_SCHEDULED, measure: 'qualified_scans' },
+        sheet: SHEET_READY,
       }),
     ).toBe('How many scans your portals get each month.')
     // Changed to scans from December: November, on the card, counts private ratings.
