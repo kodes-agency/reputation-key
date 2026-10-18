@@ -114,7 +114,10 @@ export class GoalProgramError extends Error {
       | 'no_open_month'
       // The Organization's closure is requested or in progress, or was
       // cancelled and awaits reactivation: no goal starts, resumes or is created.
-      | 'organization_closing',
+      | 'organization_closing'
+      // The Monthly portal goal's month-start check-in is not open: it is
+      // past the month's 7th local day, or the month is not the one running.
+      | 'check_in_closed',
   ) {
     super(code)
     this.name = 'GoalProgramError'

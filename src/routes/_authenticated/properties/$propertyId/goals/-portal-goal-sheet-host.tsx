@@ -65,7 +65,9 @@ const goalOfCard = (card: PortalGoalCardView | undefined): PortalGoalOfCard | nu
  * sheet: every arm before a goal does; with a goal, a stopped goal's way to the
  * next one, and, for someone who may change it, "Change" while it waits for its
  * first month on the card, or "Change number" and the other measure on the
- * page while it takes a change. A running goal's card draws none.
+ * page while it takes a change. A running goal's card draws none, except on
+ * the month's first seven days: the check-in's "Other number" (or, with the
+ * number the recommended one already, "Change").
  */
 export function portalGoalDoorShown(
   card: PortalGoalCardView | undefined,
@@ -77,7 +79,9 @@ export function portalGoalDoorShown(
   const { goal } = card
   if (goal.newGoalFrom !== null) return true
   if (!canChange) return false
-  return where === 'page' ? goal.change !== null : goal.status === 'scheduled'
+  return where === 'page'
+    ? goal.change !== null
+    : goal.status === 'scheduled' || goal.checkIn !== null
 }
 
 /** What had the focus, unless it was nothing in particular. */

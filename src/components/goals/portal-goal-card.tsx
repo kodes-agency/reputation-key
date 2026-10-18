@@ -5,8 +5,9 @@
 // (`portal-goal-card-ready.tsx`); then the goal (`portal-goal-card-goal.tsx`).
 // Every arm once a Portal is live has a door to the set sheet. The title takes
 // the focus back from a sheet that closes, and after a set, wherever the card
-// is drawn. On the goal's own page the page's title names it, so the card
-// draws none (one heading per name) and the page's title takes the focus back.
+// is drawn, and after the month-start check-in is answered. On the goal's own
+// page the page's title names it, so the card draws none (one heading per
+// name) and the page's title takes the focus back.
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
@@ -50,13 +51,17 @@ function tileDay(card: PortalGoalCardView): string | null {
   }
 }
 
+/** A heading under the card's title: one level below it, under the page's title without one. */
+const HEADING_BELOW = { h2: 'h3', h3: 'h4' } as const
+
 /** The arm the read decided. */
 function CardBody({
   card,
   propertyId,
   canCreatePortal,
   commands,
-}: Omit<Props, 'titleAs'>) {
+  titleAs,
+}: Omit<Props, 'titleAs'> & Readonly<{ titleAs: 'h2' | 'h3' | null }>) {
   switch (card.state) {
     case 'goal':
       return (
@@ -65,6 +70,13 @@ function CardBody({
           today={card.today}
           propertyId={propertyId}
           openSheet={commands.openSheet}
+          checkIn={
+            commands.checkIn && {
+              commands: commands.checkIn,
+              onAnswered: commands.onSet,
+              headingAs: titleAs === null ? 'h2' : HEADING_BELOW[titleAs],
+            }
+          }
         />
       )
     case 'ready':
@@ -117,7 +129,7 @@ export function PortalGoalCard({ titleAs = 'h3', commands, ...props }: Props) {
         </CardHeader>
       )}
       <CardContent>
-        <CardBody {...props} commands={focusingCommands} />
+        <CardBody {...props} titleAs={titleAs} commands={focusingCommands} />
       </CardContent>
     </Card>
   )

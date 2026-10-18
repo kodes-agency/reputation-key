@@ -11,7 +11,26 @@ import type { GoogleConnection } from '../domain/types'
 
 const NAMESPACE = 'opaque-reference' as const
 const CURSOR_TTL_SECONDS = 30 * 60
-const MAX_CURSOR_REDEMPTIONS = 5
+/**
+ * How many times one page token may be SENT to Google: the replay bound. A
+ * `redeem` takes one before the request goes out, and `release` gives it back
+ * only when the provider plane proves the request never left (dispatch
+ * `not_sent`: a quota or permit refusal, a deadline that elapsed before
+ * `fetch`). So a quota wait of any length spends nothing. On the closed beta
+ * (2026-10-16..18) every `quota_exhausted` refusal spent one, and the sixth
+ * retry of a page failed its run as `cursor_failure` (126 runs).
+ *
+ * A request that reached Google, or may have (`answered`, including Google's
+ * own 429 and 5xx, or `unknown` after a transport failure), keeps its use:
+ * Google saw the token, and that is what the bound counts. Ten is one fetch
+ * plus nine dispatched retries of the same page. Each retry waits at least the
+ * provider plane's 5 s floor and honours Retry-After up to 300 s, so nine in a
+ * row inside the cursor's 30-minute life is a sustained fault rather than a
+ * burst, and the run fails and starts afresh. Raised from 5 on 2026-10-18.
+ */
+const MAX_CURSOR_REDEMPTIONS = 10
+/** A release lost to a racing redeem re-reads the record and tries again. */
+const MAX_RELEASE_ATTEMPTS = 3
 const MAX_RUN_RECORDS = 1_024
 const MAX_RUN_BYTES = 4 * 1024 * 1024
 const MAX_ORGANIZATION_RECORDS = 10_000
@@ -104,14 +123,26 @@ export type GoogleReviewCursorResult<T> =
   | Readonly<{ ok: true; value: T }>
   | Readonly<{ ok: false; code: GoogleReviewCursorFailureCode }>
 
+/** One use of a cursor: the handle and the binding it must be used under. */
+export type GoogleReviewCursorUse = Readonly<{
+  cursorRef: string
+  scope: GoogleReviewCursorScope
+  authorization: GoogleReviewCursorAuthorization
+}>
+
 export type GoogleReviewCursorStore = Readonly<{
+  /** Takes one redemption (see MAX_CURSOR_REDEMPTIONS) and returns the token. */
   redeem(
-    input: Readonly<{
-      cursorRef: string
-      scope: GoogleReviewCursorScope
-      authorization: GoogleReviewCursorAuthorization
-    }>,
+    input: GoogleReviewCursorUse,
   ): Promise<GoogleReviewCursorResult<Readonly<{ pageToken: string }>>>
+  /**
+   * Gives back the redemption `redeem` took for a request the provider plane
+   * refused before it reached Google (dispatch `not_sent`), and nothing else.
+   * It is bound exactly as `redeem` is, compare-and-swap safe against a
+   * racing redeem, and never lifts the budget above MAX_CURSOR_REDEMPTIONS, so
+   * a release with no redemption behind it is refused as `conflict`.
+   */
+  release(input: GoogleReviewCursorUse): Promise<GoogleReviewCursorResult<null>>
   publishNext(
     input: Readonly<{
       parentCursorRef: string | null
@@ -221,6 +252,17 @@ function parseJson<T>(encoded: string, schema: z.ZodType<T>): T | null {
 
 function sameObject(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function isExpired(record: CursorRecord, atMs: number): boolean {
+  return record.expiresAtMs <= atMs || record.issuedAtMs > atMs + MAX_CLOCK_SKEW_MS
+}
+
+function isBoundTo(record: CursorRecord, use: GoogleReviewCursorUse): boolean {
+  return (
+    sameObject(record.scope, use.scope) &&
+    sameObject(record.authorization, use.authorization)
+  )
 }
 
 function assertScope(scope: GoogleReviewCursorScope): void {
@@ -364,6 +406,20 @@ export const createGoogleReviewCursorStore = (
     return { key, encoded, record }
   }
 
+  /** Compare-and-swap of one cursor's budget; the rest of the record is kept. */
+  const replaceRemaining = (
+    loaded: Readonly<{ key: string; encoded: string; record: CursorRecord }>,
+    remainingRedemptions: number,
+    atMs: number,
+  ) =>
+    deps.store.replaceIfEquals(
+      NAMESPACE,
+      loaded.key,
+      loaded.encoded,
+      encode({ ...loaded.record, remainingRedemptions } satisfies CursorRecord),
+      ttlSeconds(loaded.record.expiresAtMs, atMs),
+    )
+
   return Object.freeze({
     redeem: async (input) => {
       assertScope(input.scope)
@@ -371,34 +427,49 @@ export const createGoogleReviewCursorStore = (
       const loaded = await loadCursor(input.cursorRef)
       if (!loaded) return { ok: false, code: 'not_found' }
       const atMs = nowMs()
-      if (
-        loaded.record.expiresAtMs <= atMs ||
-        loaded.record.issuedAtMs > atMs + MAX_CLOCK_SKEW_MS
-      ) {
+      if (isExpired(loaded.record, atMs)) {
         await deps.store.consumeIfEquals(NAMESPACE, loaded.key, loaded.encoded)
         return { ok: false, code: 'expired' }
       }
-      if (
-        !sameObject(loaded.record.scope, input.scope) ||
-        !sameObject(loaded.record.authorization, input.authorization)
-      ) {
+      if (!isBoundTo(loaded.record, input)) {
         return { ok: false, code: 'binding_mismatch' }
       }
       if (loaded.record.remainingRedemptions === 0)
         return { ok: false, code: 'exhausted' }
-      const next: CursorRecord = {
-        ...loaded.record,
-        remainingRedemptions: loaded.record.remainingRedemptions - 1,
-      }
-      const replaced = await deps.store.replaceIfEquals(
-        NAMESPACE,
-        loaded.key,
-        loaded.encoded,
-        encode(next),
-        ttlSeconds(next.expiresAtMs, atMs),
+      const replaced = await replaceRemaining(
+        loaded,
+        loaded.record.remainingRedemptions - 1,
+        atMs,
       )
       if (replaced !== 'replaced') return { ok: false, code: 'conflict' }
       return { ok: true, value: { pageToken: loaded.record.pageToken } }
+    },
+
+    // Exactly the inverse of one redeem. The read-check-write runs again when a
+    // racing redeem moved the record first, so that worker's use stays spent.
+    release: async (input) => {
+      assertScope(input.scope)
+      assertAuthorization(input.authorization)
+      for (let attempt = 0; attempt < MAX_RELEASE_ATTEMPTS; attempt += 1) {
+        const loaded = await loadCursor(input.cursorRef)
+        if (!loaded) return { ok: false, code: 'not_found' }
+        const atMs = nowMs()
+        if (isExpired(loaded.record, atMs)) return { ok: false, code: 'expired' }
+        if (!isBoundTo(loaded.record, input)) {
+          return { ok: false, code: 'binding_mismatch' }
+        }
+        if (loaded.record.remainingRedemptions >= MAX_CURSOR_REDEMPTIONS) {
+          return { ok: false, code: 'conflict' }
+        }
+        const replaced = await replaceRemaining(
+          loaded,
+          loaded.record.remainingRedemptions + 1,
+          atMs,
+        )
+        if (replaced === 'replaced') return { ok: true, value: null }
+        if (replaced === 'not_found') return { ok: false, code: 'not_found' }
+      }
+      return { ok: false, code: 'conflict' }
     },
 
     publishNext: async (input) => {
@@ -720,6 +791,7 @@ export const createUnavailableGoogleReviewCursorStore = (): GoogleReviewCursorSt
   const unavailable = Object.freeze({ ok: false as const, code: 'unavailable' as const })
   return Object.freeze({
     redeem: async () => unavailable,
+    release: async () => unavailable,
     publishNext: async () => unavailable,
     discardRun: async () => false,
   })

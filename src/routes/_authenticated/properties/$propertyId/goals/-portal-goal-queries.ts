@@ -1,7 +1,8 @@
 // The Monthly portal goal's reads (the Goals page's card and the goal's own
 // page), defined once for every page that draws them
 // (route-query-definitions.test.ts), its commands (set, change now, change
-// from next month, stop), and the one function every Portal-goal command marks
+// from next month, stop, the check-in's Keep), and the one function every
+// Portal-goal command marks
 // them stale through (the product-state ledger's goalKeys policy); its first
 // caller is the card's Use.
 //
@@ -100,6 +101,9 @@ export const portalGoalCommands = {
   stopMonthlyPortalGoal: async (
     input: Parameters<MonthlyPortalGoalServer['stopMonthlyPortalGoal']>[0],
   ) => (await server()).stopMonthlyPortalGoal(input),
+  keepMonthlyPortalGoal: async (
+    input: Parameters<MonthlyPortalGoalServer['keepMonthlyPortalGoal']>[0],
+  ) => (await server()).keepMonthlyPortalGoal(input),
 }
 
 /**
