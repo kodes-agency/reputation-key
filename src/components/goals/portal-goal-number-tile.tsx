@@ -3,9 +3,11 @@
 // and +. The number is a spinbutton the manager can also type into: ArrowUp and
 // ArrowDown step along the goal grid, and Enter or leaving the box writes the
 // number plainly (what is half-typed stays as typed). At an end − or + stays
-// in the tab order (`aria-disabled`), so the focus is never lost on a press.
-// The one-off sizes (56 px, 48 px on a phone) are inline: a utility of its own
-// would grow the one stylesheet every page loads first.
+// in the tab order (`aria-disabled`), so the focus is never lost on a press;
+// while Set is on its way the box is read-only and both steps wait the same
+// way, so the number shown is the number sent. The one-off sizes (56 px, 48 px
+// on a phone) are inline: a utility of its own would grow the one stylesheet
+// every page loads first.
 import { useId, type KeyboardEvent } from 'react'
 import { Minus, Plus, type LucideIcon } from 'lucide-react'
 import { IconButton } from '#/components/ui/icon-button'
@@ -17,6 +19,8 @@ type Props = Readonly<{
   number: PortalGoalSheetModel['number']
   /** A phone: the smaller figures. */
   small: boolean
+  /** Set is on its way: the number holds still. */
+  pending: boolean
   onType: (text: string) => void
   onCommit: () => void
   onStep: (to: number) => void
@@ -24,17 +28,40 @@ type Props = Readonly<{
   onFocusChange: (focused: boolean) => void
 }>
 
-/** The figures' size, and the room the box keeps for six of them. */
+/** The figures' full size. */
 const FIGURE_SIZE = { large: 56, small: 48 } as const
-const FIGURE_WIDTH = '4.5ch'
+/**
+ * The box is as wide as four figures at full size (and half of one for the
+ * caret); a longer number shrinks to the same width, so it never hides behind
+ * the box's edge or pushes − and + apart, down to the nine characters of
+ * "1,000,000", the most a goal takes. Past that the box scrolls, as any does.
+ */
+const FULL_SIZE_FIGURES = 4
+const MOST_FIGURES = 9
+const CARET_ROOM = 0.5
+
+function figureStyle(text: string, small: boolean) {
+  const full = small ? FIGURE_SIZE.small : FIGURE_SIZE.large
+  const room =
+    Math.min(Math.max(text.length, FULL_SIZE_FIGURES), MOST_FIGURES) + CARET_ROOM
+  return {
+    fontSize: (full * (FULL_SIZE_FIGURES + CARET_ROOM)) / room,
+    // The box keeps its height as the figures shrink.
+    height: full,
+    width: `${room}ch`,
+  }
+}
 
 function Stepper({
   step,
   icon: Icon,
+  waits,
   onStep,
 }: Readonly<{
   step: PortalGoalSheetModel['number']['lower']
   icon: LucideIcon
+  /** Set is on its way. */
+  waits: boolean
   onStep: (to: number) => void
 }>) {
   const { to } = step
@@ -43,9 +70,9 @@ function Stepper({
       label={step.label}
       variant="outline"
       size="icon-lg"
-      aria-disabled={to === null}
+      aria-disabled={waits || to === null}
       onClick={() => {
-        if (to !== null) onStep(to)
+        if (!waits && to !== null) onStep(to)
       }}
     >
       <Icon aria-hidden="true" />
@@ -53,7 +80,14 @@ function Stepper({
   )
 }
 
-export function PortalGoalNumberTile({ band, unit, number, small, ...props }: Props) {
+export function PortalGoalNumberTile({
+  band,
+  unit,
+  number,
+  small,
+  pending,
+  ...props
+}: Props) {
   const id = useId()
   const bandId = `${id}-band`
   const unitId = `${id}-unit`
@@ -66,7 +100,7 @@ export function PortalGoalNumberTile({ band, unit, number, small, ...props }: Pr
           : undefined
     if (to !== undefined) {
       event.preventDefault()
-      if (to !== null) props.onStep(to)
+      if (!pending && to !== null) props.onStep(to)
       return
     }
     if (event.key !== 'Enter') return
@@ -76,7 +110,7 @@ export function PortalGoalNumberTile({ band, unit, number, small, ...props }: Pr
   }
   return (
     <div className="flex items-center justify-center gap-4">
-      <Stepper step={number.lower} icon={Minus} onStep={props.onStep} />
+      <Stepper step={number.lower} icon={Minus} waits={pending} onStep={props.onStep} />
       <div
         data-slot="portal-goal-number-tile"
         className="flex flex-col items-center overflow-hidden rounded-md border"
@@ -98,6 +132,7 @@ export function PortalGoalNumberTile({ band, unit, number, small, ...props }: Pr
           aria-valuemin={1}
           aria-valuetext={number.valueText ?? undefined}
           aria-invalid={number.invalid || undefined}
+          readOnly={pending}
           value={number.text}
           onChange={(event) => props.onType(event.target.value)}
           onKeyDown={onKeyDown}
@@ -107,16 +142,13 @@ export function PortalGoalNumberTile({ band, unit, number, small, ...props }: Pr
             props.onCommit()
           }}
           className="display-title focus-ring mx-2 mt-1 rounded-md bg-transparent text-center leading-none font-semibold tabular-nums"
-          style={{
-            fontSize: small ? FIGURE_SIZE.small : FIGURE_SIZE.large,
-            width: FIGURE_WIDTH,
-          }}
+          style={figureStyle(number.text, small)}
         />
         <span id={unitId} className="px-3 pb-2 text-sm text-muted-foreground">
           {unit}
         </span>
       </div>
-      <Stepper step={number.raise} icon={Plus} onStep={props.onStep} />
+      <Stepper step={number.raise} icon={Plus} waits={pending} onStep={props.onStep} />
     </div>
   )
 }

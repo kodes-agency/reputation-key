@@ -1,9 +1,10 @@
 // The set sheet's form (copy deck S-2…S-11, G-16): the month, the number box
 // with its band and unit, what the number is (said politely as it changes, and
 // quiet while the box has the focus, whose `aria-valuetext` says it then), the
-// notes, the three suggestions, the ask-every-guest line when it counts private
-// ratings, "How we worked this out", the other measure, the refusal and the
-// footer. Everything it says is the sheet view's (`portal-goal-sheet-view.ts`);
+// notes (said politely as they appear), the three suggestions, the
+// ask-every-guest line when it counts private ratings, "How we worked this
+// out", the other measure, the refusal and the footer. While Set is on its way
+// nothing in it changes the number. Everything it says is the sheet view's (`portal-goal-sheet-view.ts`);
 // it only draws it and hands each change up.
 import { useId, useState } from 'react'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
@@ -35,10 +36,12 @@ type Props = Readonly<{
 function StatusLine({
   status,
   quiet,
+  pending,
   onRestore,
 }: Readonly<{
   status: PortalGoalSheetModel['status']
   quiet: boolean
+  pending: boolean
   onRestore: (value: number) => void
 }>) {
   const { restore } = status
@@ -57,6 +60,7 @@ function StatusLine({
             variant="link"
             size="inline"
             touch
+            disabled={pending}
             onClick={() => onRestore(restore.value)}
           >
             {restore.label}
@@ -100,17 +104,30 @@ export function PortalGoalSheetBody({
         unit={model.unit}
         number={model.number}
         small={small}
+        pending={pending}
         onType={(text) => onChange({ kind: 'type', text })}
         onCommit={() => onChange({ kind: 'commit' })}
         onStep={setNumber}
         onFocusChange={setBoxFocused}
       />
-      <StatusLine status={model.status} quiet={boxFocused} onRestore={setNumber} />
-      {model.notes.map((note) => (
-        <p key={note} className="text-center text-sm">
-          {note}
-        </p>
-      ))}
+      <div>
+        <StatusLine
+          status={model.status}
+          quiet={boxFocused}
+          pending={pending}
+          onRestore={setNumber}
+        />
+        {/* Always on the page and never quiet, so a note is said as it appears,
+            the box's focus or not: its value text says only the number. Inside
+            the status line's block, so an empty region adds no gap. */}
+        <div data-slot="portal-goal-notes" aria-live="polite">
+          {model.notes.map((note) => (
+            <p key={note} className="mt-4 text-center text-sm">
+              {note}
+            </p>
+          ))}
+        </div>
+      </div>
       {model.choices === null ? null : (
         <PortalGoalChoices
           choices={model.choices}

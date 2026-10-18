@@ -3,7 +3,7 @@
 // way back, a number typed far from the usual, the rest of October, an own
 // number in the first weeks (the box starts empty), scans instead, "How we
 // worked this out", a set on its way, a goal set a moment ago elsewhere, the
-// month turning, and a narrow phone. On Seaview's Oct 23 (goldens G1, G2) unless
+// month turning, a narrow phone (with a note), and a five-figure number. On Seaview's Oct 23 (goldens G1, G2) unless
 // named. The Storybook Vitest project compiles no Tailwind, so the plays assert
 // words, roles, focus and what Set sends.
 import { useRef, useState } from 'react'
@@ -115,6 +115,9 @@ async function openSheet(canvasElement: HTMLElement) {
 type Sheet = Awaited<ReturnType<typeof openSheet>>['in']
 
 const box = (sheet: Sheet) => sheet.getByRole('spinbutton')
+
+/** The region the notes are said in. */
+const notesRegion = () => document.body.querySelector('[data-slot="portal-goal-notes"]')
 
 /** The line that says what the number is, as one text. */
 const statusLine = (): string =>
@@ -241,6 +244,9 @@ export const TypeNumber: Story = {
     await expect(sheet.getByRole('button', { name: 'Set goal' })).toBeDisabled()
     await userEvent.type(box(sheet), '120')
     await expect(sheet.getByText('That is about 4 times your usual.')).toBeVisible()
+    // The note is said as it appears, the box's focus or not.
+    await expect(notesRegion()).toHaveAttribute('aria-live', 'polite')
+    await expect(notesRegion()).toHaveTextContent('That is about 4 times your usual.')
     // No suggestion holds it, and the line offers the way back.
     await expect(sheet.queryByRole('radio', { checked: true, name: /·/u })).toBeNull()
     await expect(statusLine()).toBe('Your own number · Back to 40, recommended')
@@ -397,6 +403,16 @@ export const Pending: Story = {
     await expect(sheet).toBeInTheDocument()
     await expect(onOpenChangeMock).not.toHaveBeenCalledWith(false)
     await expect(args.commands?.setMonthlyPortalGoalFn).toHaveBeenCalledOnce()
+    // The number sent holds still: the box is read-only and − and + wait.
+    await expect(box(inSheet)).toHaveAttribute('readonly')
+    for (const name of ['Lower to 35', 'Raise to 45']) {
+      const step = inSheet.getByRole('button', { name })
+      await expect(step).toHaveAttribute('aria-disabled', 'true')
+      await userEvent.click(step)
+    }
+    await userEvent.click(box(inSheet))
+    await userEvent.keyboard('{ArrowUp}')
+    await expect(box(inSheet)).toHaveValue('40')
   },
 }
 
@@ -444,19 +460,53 @@ export const RefusedMonthTurned: Story = {
   },
 }
 
-/** 320 px: the full-screen sheet keeps its footer on screen, and a long Set fits. */
+/**
+ * 320 px: the full-screen sheet, with the long "Set 55 scans for November".
+ * That its footer stays pinned and the label wraps is the screenshot pass's to
+ * show (320 × 568, scrolled): this project compiles no Tailwind, so a play
+ * measuring the sheet would measure nothing.
+ */
 export const Phone320: Story = {
   args: { facts: SHEET_SCANS_ONLY, intent: { measure: 'qualified_scans' } },
   play: async ({ canvasElement }) => {
     const { sheet, in: inSheet } = await openSheet(canvasElement)
     await expect(sheet).toHaveAttribute('data-portal-goal-sheet', 'sheet')
-    const set = inSheet.getByRole('button', { name: 'Set 55 scans for November' })
-    await expect(set).toBeVisible()
-    const button = set.getBoundingClientRect()
-    await expect(button.right).toBeLessThanOrEqual(window.innerWidth)
-    await expect(button.bottom).toBeLessThanOrEqual(window.innerHeight)
-    await expect(sheet.scrollWidth).toBeLessThanOrEqual(sheet.clientWidth)
+    await expect(
+      inSheet.getByRole('button', { name: 'Set 55 scans for November' }),
+    ).toBeVisible()
     await expect(inSheet.getByRole('button', { name: 'Cancel' })).toBeVisible()
+  },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+/** 320 px, private ratings with a note: the longest sheet, for the pinned footer's screenshot. */
+export const NoteOnANarrowPhone: Story = {
+  play: async ({ canvasElement }) => {
+    const { sheet, in: inSheet } = await openSheet(canvasElement)
+    await expect(sheet).toHaveAttribute('data-portal-goal-sheet', 'sheet')
+    await userEvent.clear(box(inSheet))
+    await userEvent.type(box(inSheet), '120')
+    await expect(notesRegion()).toHaveTextContent('That is about 4 times your usual.')
+    await expect(inSheet.getByText(ASK_EVERY_GUEST)).toBeVisible()
+    await expect(
+      inSheet.getByRole('button', { name: 'Set 120 for November' }),
+    ).toBeEnabled()
+  },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+/** A five-figure number: written plainly in the box, grouped where it is said. */
+export const TypeALongNumber: Story = {
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openSheet(canvasElement)
+    await userEvent.clear(box(sheet))
+    await userEvent.type(box(sheet), '12,000{Enter}')
+    await expect(box(sheet)).toHaveValue('12000')
+    await expect(box(sheet)).toHaveAttribute('aria-valuetext', '12,000 private ratings')
+    await expect(sheet.getByText('That is about 350 times your usual.')).toBeVisible()
+    await expect(
+      sheet.getByRole('button', { name: 'Set 12,000 for November' }),
+    ).toBeEnabled()
   },
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
