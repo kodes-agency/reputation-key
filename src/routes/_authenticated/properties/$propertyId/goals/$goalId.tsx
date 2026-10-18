@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -20,6 +20,7 @@ import { effectiveMonthTarget } from '#/contexts/reporting/application/goal-effe
 import { monthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
 import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
+import { isPropertyCountGoal } from '#/contexts/reporting/application/monthly-portal-goal-identity'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
@@ -100,7 +101,29 @@ export const Route = createFileRoute(
   component: GoalDetailRoute,
 })
 
+/**
+ * A count goal for the Property alone is the Monthly portal goal, or one set
+ * beside it in a race: its page is the card on the Goals page, where a notice
+ * about it lands too (`?result=` comes here). Every other goal has this page.
+ */
 function GoalDetailRoute() {
+  const { propertyId, goalId } = Route.useParams()
+  const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
+  if (isPropertyCountGoal(data)) {
+    return (
+      <Navigate
+        to="/properties/$propertyId/goals"
+        params={{ propertyId }}
+        search={{ view: 'active' }}
+        hash="portal-goals"
+        replace
+      />
+    )
+  }
+  return <GoalDetailPage />
+}
+
+function GoalDetailPage() {
   const { propertyId, goalId } = Route.useParams()
   const { can: canDo } = usePermissions()
   const [now] = useState(() => new Date())

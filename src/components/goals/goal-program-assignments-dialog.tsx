@@ -117,6 +117,7 @@ export function GoalProgramAssignmentsDialog(props: Props) {
             property={props.property}
             groups={props.groups}
             portals={props.portals}
+            assignments={props.assignments}
           />
         )}
       </form.Field>

@@ -147,6 +147,7 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
             property={props.property}
             groups={props.groups}
             portals={props.portals}
+            assignments={props.assignments}
           />
         )}
       </form.Field>

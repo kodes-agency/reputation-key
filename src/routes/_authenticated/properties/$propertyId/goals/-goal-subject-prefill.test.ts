@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { prefilledGoalSubjects } from './-goal-subject-prefill'
 
 const known = {
-  propertyId: 'property-1',
   groupIds: ['group-1', 'group-2'],
   portalIds: ['portal-1'],
 }
@@ -17,19 +16,21 @@ describe('prefilledGoalSubjects', () => {
     ])
   })
 
-  it('chooses a portal or the property the same way', () => {
+  it('chooses a portal the same way', () => {
     expect(prefilledGoalSubjects('portal:portal-1', known)).toEqual([
       { kind: 'portal', portalId: 'portal-1' },
     ])
-    expect(prefilledGoalSubjects('property:property-1', known)).toEqual([
-      { kind: 'property', propertyId: 'property-1' },
-    ])
+  })
+
+  // The Property's own goal is the Monthly portal goal, set from its card on
+  // the Goals page (ADR 0068): this form makes a goal for a Portal or a group.
+  it('no longer prefills the whole property', () => {
+    expect(prefilledGoalSubjects('property:property-1', known)).toEqual([])
   })
 
   it.each([
     ['nothing', undefined],
     ['a group of another property', 'portal_group:group-9'],
-    ['another property', 'property:property-2'],
     ['a kind that does not exist', 'organization:group-1'],
     ['no id', 'portal_group:'],
     ['text with no kind', 'group-1'],

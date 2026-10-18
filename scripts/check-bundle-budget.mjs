@@ -708,6 +708,31 @@
 // of the stacked head measured 307,677 B (entry 49,001 B): -21 B against
 // 307,698, from the hashed chunk names the entry carries. No change to the
 // budget.
+//
+// 2026-10-18 (Monthly portal goal, PG-09: the ready card, Use and the minimal
+// goal card): no raise. The ready card, "How we worked this out", the goal card
+// and their words load with the Goals route's component chunk (goals-*.js
+// 11,618 -> 13,870 B, lazy); the set server function joins the card's stub
+// chunk (192 -> 257 B), and the commands the lazy -portal-goal-queries chunk
+// (451 -> 555 B). The goal page's redirect is in its own component chunk
+// (_goalId-*.js 8,956 -> 9,136 B) and the new-goal form's chunk shrinks
+// (5,997 -> 5,989 B). Every class they use was already in the stylesheet (the
+// same file, styles-_Q6CwAvC.css, 27,811 B). Fresh production builds measured
+// 307,677 B (75 js + 1 css) on the base, PG-08's head 6c1a66861, and 307,691 B
+// on the head: +14 B, all in the entry (49,001 -> 49,015 B), which lists the
+// Goals component's preloads by chunk index and now names ten more shared
+// chunks (the popover and the button's pending state). After the words were
+// shared between the card's two words modules (goals-*.js 13,858 B), the final
+// head measured 307,694 B (entry 49,018 B): +17 B, the 3 B more only the hashed
+// chunk names. 156 B spare under 307,850; 606 B under the build's ceiling of
+// 308,300 (owner, P-9). After the review fixes (a create that deadlocks on the
+// subject is run once more, server only; the subject picker keeps the property
+// offered while the dialog is open; a stopped goal names the month it still
+// counts, in the lazy words), a fresh build of the head measured 307,697 B
+// (entry 49,021 B, same stylesheet): +3 B, the hashed chunk names only. No
+// change to the budget; 153 B spare, 603 B under the ceiling. Rebased onto
+// PG-08 on main (5599cd98d) it measured 307,797 B: 53 B spare, 503 B under
+// the ceiling.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

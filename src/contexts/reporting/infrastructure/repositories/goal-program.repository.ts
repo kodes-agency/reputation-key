@@ -36,6 +36,7 @@ import {
   mapVersion,
   programValues,
   resultValues,
+  runAgainAfterDeadlock,
   versionValues,
 } from './goal-program.rows'
 
@@ -350,8 +351,8 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
   return {
     async create(input) {
       const { bundle } = input
-      try {
-        await db.transaction(async (tx) => {
+      const write = () =>
+        db.transaction(async (tx) => {
           await tx.insert(goalPrograms).values(programValues(bundle.program))
           await tx.insert(goalProgramVersions).values(versionValues(bundle.version))
           if (bundle.assignments.length > 0) {
@@ -376,6 +377,11 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             },
           })
         })
+      try {
+        // Two creates inserting the same subject and metric at once can end
+        // as a deadlock inside the no-overlap check; the victim runs once
+        // more, meets the other's row and is refused like any late create.
+        await runAgainAfterDeadlock(write)
       } catch (error) {
         // A new Program has one version, so the only no-overlap constraint it
         // can meet is the subject's: another goal took the subject and metric

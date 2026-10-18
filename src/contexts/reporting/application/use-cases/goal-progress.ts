@@ -258,7 +258,7 @@ export function readingOf(
  * Goals list.
  */
 export async function progressOf(
-  deps: GoalProgressDeps,
+  deps: Pick<GoalProgressDeps, 'metrics'>,
   bundle: GoalProgramBundle,
   subject: GoalSubject,
   status: ShownStatus,

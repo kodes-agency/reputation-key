@@ -164,3 +164,63 @@ export const SaysWhenTheChangesApply: Story = {
     expect(changeAssignmentsMock.mock.calls[0]?.[0].data.reason).toBeUndefined()
   },
 }
+
+/**
+ * A goal that does not count the whole property is never offered it: the
+ * property's goal is the Monthly portal goal, set from its card (ADR 0068).
+ */
+export const NeverOffersTheProperty: Story = {
+  play: async ({ canvasElement }) => {
+    const dialog = await openGoalProgramDialog(
+      canvasElement,
+      'Manage assignments',
+      /takes a one-time snapshot when you submit/i,
+    )
+
+    expect(dialog.queryByRole('checkbox', { name: /Riverside Hotel/i })).toBeNull()
+    await expect(dialog.getByRole('checkbox', { name: /Front desk QR/i })).toBeChecked()
+  },
+}
+
+/**
+ * A goal that already counts the whole property offers it for as long as the
+ * dialog is open: taken off, it can be ticked again before anything is saved.
+ */
+export const ThePropertyCanBeTakenOffAndTickedAgain: Story = {
+  args: {
+    assignments: [
+      {
+        id: '50000000-0000-4000-8000-000000000002',
+        programId: PROGRAM_ID,
+        programVersionId: VERSION_ID,
+        organizationId: 'org-1',
+        propertyId: PROPERTY_ID,
+        metric: 'portal_rating_count',
+        subject: { kind: 'property', propertyId: PROPERTY_ID },
+        effectiveFrom: new Date('2026-08-01T00:00:00.000Z'),
+        effectiveTo: null,
+        createdBy: 'manager-1',
+        createdAt: new Date('2026-07-15T08:00:00.000Z'),
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const dialog = await openGoalProgramDialog(
+      canvasElement,
+      'Manage assignments',
+      /takes a one-time snapshot when you submit/i,
+    )
+    const save = dialog.getByRole('button', { name: 'Review and schedule' })
+    const property = () => dialog.getByRole('checkbox', { name: /Riverside Hotel/i })
+    await expect(property()).toBeChecked()
+
+    await userEvent.click(property())
+    await expect(property()).not.toBeChecked()
+    await expect(save).toBeEnabled()
+
+    await userEvent.click(property())
+    await expect(property()).toBeChecked()
+    // Back as it was opened: there is nothing to save.
+    await expect(save).toBeDisabled()
+  },
+}

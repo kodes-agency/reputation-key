@@ -1,9 +1,8 @@
-// The Monthly portal goal card before a goal (P-4, copy deck G-5…G-11, G-19):
-// the gates, each stated as a fact with the one way on; the first weeks, with
-// each Portal's steps, the month so far and the day the number is ready;
-// nothing counted; and a recommendation that cannot be read. A number that is
-// ready is drawn with the first weeks (no ready day) until the card can offer
-// it. No number is invented and nothing is in a warning colour.
+// The Monthly portal goal card before its number is ready (P-4, copy deck
+// G-5…G-11, G-19): the gates, each stated as a fact with the one way on; the
+// first weeks, with each Portal's steps, the month so far and the day the
+// number is ready; nothing counted; and a recommendation that cannot be read.
+// No number is invented and nothing is in a warning colour.
 import { Link } from '@tanstack/react-router'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { Button } from '#/components/ui/button'
@@ -18,8 +17,11 @@ import {
   type PortalGoalGateAction,
 } from './portal-goal-words'
 
-/** The card's arms before a goal. */
-export type PortalGoalBeforeView = Exclude<PortalGoalCardView, { state: 'goal' }>
+/** The card's arms before a goal and before its number is ready. */
+export type PortalGoalBeforeView = Exclude<
+  PortalGoalCardView,
+  { state: 'goal' | 'ready' | 'scans_only' }
+>
 
 type Props = Readonly<{
   card: PortalGoalBeforeView
@@ -28,10 +30,7 @@ type Props = Readonly<{
   canCreatePortal: boolean
 }>
 
-type FirstWeeksView = Extract<
-  PortalGoalBeforeView,
-  { state: 'getting_ready' | 'ready' | 'scans_only' }
->
+type FirstWeeksView = Extract<PortalGoalBeforeView, { state: 'getting_ready' }>
 
 function GateAction({
   action,
@@ -86,13 +85,11 @@ function FirstWeeks({
 }: Readonly<{ card: FirstWeeksView; propertyId: string }>) {
   return (
     <div className="flex flex-col gap-4">
-      {card.state === 'getting_ready' ? (
-        <p className="text-sm text-muted-foreground">{GETTING_READY_WORDS}</p>
-      ) : null}
+      <p className="text-sm text-muted-foreground">{GETTING_READY_WORDS}</p>
       <PortalGoalReadiness propertyId={propertyId} portals={card.portals} />
       <div className="flex flex-col gap-2 border-t pt-4 text-sm">
         <p className="text-muted-foreground">{soFarWords(card.month, card.soFar)}</p>
-        {card.state === 'getting_ready' ? <p>{readyOnWords(card.readyOn)}</p> : null}
+        <p>{readyOnWords(card.readyOn)}</p>
       </div>
     </div>
   )
@@ -106,8 +103,6 @@ export function PortalGoalCardBefore({ card, propertyId, canCreatePortal }: Prop
         <Gate card={card} propertyId={propertyId} canCreatePortal={canCreatePortal} />
       )
     case 'getting_ready':
-    case 'ready':
-    case 'scans_only':
       return <FirstWeeks card={card} propertyId={propertyId} />
     case 'nothing_counted': {
       const words = nothingCountedWords(card.weeks)

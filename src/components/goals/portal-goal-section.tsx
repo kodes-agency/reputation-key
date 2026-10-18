@@ -13,6 +13,7 @@ import { RegionError } from '#/components/ui/region-error'
 import { SectionTitle } from '#/components/ui/section-title'
 import { Skeleton } from '#/components/ui/skeleton'
 import { PortalGoalCard } from './portal-goal-card'
+import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { portalGoalSectionLine } from './portal-goal-words'
 
 /** The section's anchor: a link to the goal lands here (`#portal-goals`). */
@@ -31,6 +32,8 @@ type Props = Readonly<{
   /** The card's read; null where no card is drawn. */
   card: PortalGoalRead | null
   canCreatePortal: boolean
+  /** What the card sends (Use), handed down by the page. */
+  commands: PortalGoalCommands
   extras?: ReactNode
   /** What the section says when neither a card nor `extras` has anything to show. */
   empty?: string
@@ -66,9 +69,13 @@ function Pending() {
 
 function SectionCard({
   card,
-  propertyId,
-  canCreatePortal,
-}: Readonly<{ card: PortalGoalRead; propertyId: string; canCreatePortal: boolean }>) {
+  ...props
+}: Readonly<{
+  card: PortalGoalRead
+  propertyId: string
+  canCreatePortal: boolean
+  commands: PortalGoalCommands
+}>) {
   if (card.failed) {
     return (
       <RegionError
@@ -79,19 +86,14 @@ function SectionCard({
     )
   }
   if (card.data === undefined) return <Pending />
-  return (
-    <PortalGoalCard
-      card={card.data}
-      propertyId={propertyId}
-      canCreatePortal={canCreatePortal}
-    />
-  )
+  return <PortalGoalCard card={card.data} {...props} />
 }
 
 export function PortalGoalSection({
   propertyId,
   card,
   canCreatePortal,
+  commands,
   extras,
   empty,
   footer,
@@ -113,6 +115,7 @@ export function PortalGoalSection({
           card={card}
           propertyId={propertyId}
           canCreatePortal={canCreatePortal}
+          commands={commands}
         />
       )}
       {extras}

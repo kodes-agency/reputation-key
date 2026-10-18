@@ -19,8 +19,9 @@ export type GoalProgramStatus = 'scheduled' | 'active' | 'paused' | 'ended'
 export type GoalMonthlyResultStatus = 'open' | 'reconciling' | 'closed'
 /**
  * Where a goal's number came from (ADR 0068): the number RepKey recommended
- * for that month and measure, or one the manager typed. It is stored as the
- * command was told; no server check compares it with a recommendation yet.
+ * for that month and measure, or one the manager typed. The Monthly portal
+ * goal's set command records `recommended` only when the number is the one its
+ * card would offer; the Program commands store it as they are told.
  */
 export type GoalTargetSource = 'recommended' | 'own'
 

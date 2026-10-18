@@ -76,6 +76,7 @@ import {
   readMonthlyPortalGoalCard,
   type MonthlyPortalGoalRequestApi,
 } from './application/use-cases/monthly-portal-goal-card'
+import { setMonthlyPortalGoal } from './application/use-cases/monthly-portal-goal'
 import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
 import {
   createGoalProgramProgressReader,
@@ -375,8 +376,10 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     read: (policy, ...args) =>
       readPortalGoalRecommendation(goalRecommendationDeps(policy), ...args),
   })
-  // The Monthly portal goal's composed reads: the Programs the actor may see
-  // and the recommendation, after one `goal.create` check of their own.
+  // The Monthly portal goal: its card, a composed read of the Programs the
+  // actor may see, the recommendation and a running month's governed figure;
+  // and its set command, a Program created after a pre-check of every Program
+  // of the Property. Each asks `goal.create` itself first.
   const monthlyPortalGoal: MonthlyPortalGoalRequestApi['monthlyPortalGoal'] =
     Object.freeze({
       card: (policy, ...args) =>
@@ -384,6 +387,18 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
           {
             policy,
             reads: readGoalPrograms(policy),
+            metrics: metricApi,
+            recommendation: goalRecommendationDeps(policy),
+            now: input.clock,
+          },
+          ...args,
+        ),
+      set: (policy, ...args) =>
+        setMonthlyPortalGoal(
+          {
+            policy,
+            repository: goalProgramRepo,
+            programs: buildGoalPrograms(policy),
             recommendation: goalRecommendationDeps(policy),
             now: input.clock,
           },

@@ -2,22 +2,29 @@
 // card on the Active view, read from its own query (the loader primes it beside
 // the Google section), and the page's other Portal goals in its slots. The card
 // is read only for someone who may set the goal; a read that failed says so in
-// the section and holds nothing else back. The History view draws no card.
+// the section and holds nothing else back. The History view draws no card. The
+// card's Use sends the set command; a set (or a refusal that means the card is
+// behind) marks every Portal-goal read stale, never the Google rating goal's.
 import type { ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
+import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
 import {
   PortalGoalSection,
   type PortalGoalRead,
 } from '#/components/goals/portal-goal-section'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { portalGoalCardQuery } from './-portal-goal-queries'
+import {
+  markPortalGoalReadsStale,
+  portalGoalCardQuery,
+  portalGoalCommands,
+} from './-portal-goal-queries'
 
 type Props = Readonly<{
   propertyId: string
   view: 'active' | 'history'
-  /** The other Portal goals, under the card. */
-  extras?: ReactNode
+  /** The other Portal goals, under the card, given the monthly goal's Program it leaves out. */
+  extras?: (monthlyGoalId: string | null) => ReactNode
   /** What the section says when it has nothing to show (an empty History). */
   empty?: string
   /** The way to add one, at the section's foot. */
@@ -26,6 +33,7 @@ type Props = Readonly<{
 
 export function PortalGoalPanel({ propertyId, view, extras, empty, footer }: Props) {
   const { can } = usePermissions()
+  const queryClient = useQueryClient()
   const drawsCard = view === 'active' && can('goal.create')
   const card = useQuery({
     ...portalGoalCardQuery(propertyId),
@@ -40,12 +48,18 @@ export function PortalGoalPanel({ propertyId, view, extras, empty, footer }: Pro
         retry: () => void card.refetch(),
       }
     : null
+  const commands: PortalGoalCommands = {
+    setMonthlyPortalGoalFn: portalGoalCommands.setMonthlyPortalGoal,
+    onSet: () => markPortalGoalReadsStale(queryClient, propertyId),
+  }
+  const monthlyGoalId = card.data?.state === 'goal' ? card.data.goal.programId : null
   return (
     <PortalGoalSection
       propertyId={propertyId}
       card={read}
       canCreatePortal={can('portal.create')}
-      extras={extras}
+      commands={commands}
+      extras={extras?.(drawsCard ? monthlyGoalId : null)}
       empty={empty}
       footer={footer}
     />

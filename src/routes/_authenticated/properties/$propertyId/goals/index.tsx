@@ -176,12 +176,13 @@ function GoalsRoute() {
       <PortalGoalPanel
         propertyId={propertyId}
         view={view}
-        extras={
+        extras={(monthlyGoalId) => (
           <PortalGoalExtras
             propertyId={propertyId}
             timezone={propData.property.timezone}
             view={view}
             goals={goals}
+            monthlyGoalId={monthlyGoalId}
             live={{
               byProgram: liveByProgram,
               loading: live.isLoading,
@@ -190,7 +191,7 @@ function GoalsRoute() {
             subjectName={subjectName}
             now={now}
           />
-        }
+        )}
         empty={view === 'history' && goals.length === 0 ? 'No goal history' : undefined}
         footer={
           canDo('goal.create') ? (

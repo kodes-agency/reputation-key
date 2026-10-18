@@ -3,7 +3,10 @@
 // the `field` its `form.Field` renders.
 
 import { useId, type ComponentProps } from 'react'
-import type { GoalSubject } from '#/contexts/reporting/application/public-api'
+import type {
+  GoalSubject,
+  GoalSubjectAssignment,
+} from '#/contexts/reporting/application/public-api'
 import { Field, FieldError } from '#/components/ui/field'
 import { FormTextarea, type BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import {
@@ -28,8 +31,13 @@ export function GoalSubjectsField({
   property,
   groups,
   portals,
+  assignments,
 }: Pick<ComponentProps<typeof GoalSubjectPicker>, 'property' | 'groups' | 'portals'> &
-  Readonly<{ field: SubjectsFieldApi }>) {
+  Readonly<{
+    field: SubjectsFieldApi
+    /** The goal's subjects as it was opened: the whole property is offered only if it is one. */
+    assignments: readonly Pick<GoalSubjectAssignment, 'subject'>[]
+  }>) {
   const labelId = useId()
   return (
     <Field data-invalid={!field.state.meta.isValid} aria-labelledby={labelId}>
@@ -41,6 +49,7 @@ export function GoalSubjectsField({
         property={property}
         groups={groups}
         portals={portals}
+        offersProperty={assignments.some(({ subject }) => subject.kind === 'property')}
         selected={field.state.value.map(goalSubjectKey)}
         onChange={(keys: GoalSubjectKey[]) =>
           field.handleChange(goalSubjectsFromKeys(keys))
