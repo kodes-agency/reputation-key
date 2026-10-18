@@ -794,6 +794,8 @@
 // are masked. 150 B spare under 307,850; 600 B under the build's ceiling of
 // 308,300 (owner, P-9). PG-09 measured 307,797 B on main after its own rebase
 // (28d4a874c), so measure again once this branch is rebased onto main.
+// Rebased onto PG-10 and PG-11 (main 7c736c3e8) it measured 307,813 B: 37 B
+// under 307,850, 487 B under the ceiling.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
