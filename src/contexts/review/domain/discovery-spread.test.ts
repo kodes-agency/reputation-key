@@ -31,9 +31,12 @@ const uuidsFromSeed = (count: number, seed: number): string[] => {
   )
 }
 
+/** One id, typed as a string (a destructured array read may be undefined). */
+const uuidFromSeed = (seed: number): string => uuidsFromSeed(1, seed).join('')
+
 describe('discoverySpreadDelayMs', () => {
   it('is deterministic: a property gets the same offset on every sweep', () => {
-    const [id] = uuidsFromSeed(1, 7)
+    const id = uuidFromSeed(7)
 
     expect(discoverySpreadDelayMs(id, DISCOVERY_SPREAD_WINDOW_MS)).toBe(
       discoverySpreadDelayMs(id, DISCOVERY_SPREAD_WINDOW_MS),
@@ -54,8 +57,11 @@ describe('discoverySpreadDelayMs', () => {
     const delays = uuidsFromSeed(600, 23).map((id) =>
       discoverySpreadDelayMs(id, DISCOVERY_SPREAD_WINDOW_MS),
     )
-    const perMinute = new Array<number>(DISCOVERY_SPREAD_WINDOW_MS / MINUTE).fill(0)
-    for (const delay of delays) perMinute[Math.floor(delay / MINUTE)]++
+    const perMinute = Array.from(
+      { length: DISCOVERY_SPREAD_WINDOW_MS / MINUTE },
+      (_, minute) =>
+        delays.filter((delay) => Math.floor(delay / MINUTE) === minute).length,
+    )
 
     // 600 properties over ten one-minute buckets average 60 each. Every
     // bucket is used and none carries more than twice its fair share.
@@ -76,7 +82,7 @@ describe('discoverySpreadDelayMs', () => {
   })
 
   it('does not delay anything when there is no window', () => {
-    const [id] = uuidsFromSeed(1, 3)
+    const id = uuidFromSeed(3)
 
     expect(discoverySpreadDelayMs(id, 0)).toBe(0)
     expect(discoverySpreadDelayMs(id, -1)).toBe(0)
