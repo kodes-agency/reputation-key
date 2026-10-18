@@ -65,6 +65,7 @@ import {
   monthlyPortalGoalOf,
   portalGoalPageOf,
   type PortalCountGoal,
+  type PropertyCountGoal,
 } from '../monthly-portal-goal-identity'
 import type {
   GoalProgram,
@@ -186,31 +187,39 @@ async function authorizedPrograms(
   return deps.repository.list(organizationId, input.propertyId)
 }
 
+/** The Property's Monthly portal goal, when it is the Program asked for. */
+function theMonthlyGoal(
+  programs: readonly GoalProgramBundle[],
+  programId: string,
+  now: Date,
+): PropertyCountGoal {
+  const goal = monthlyPortalGoalOf(programs, now)
+  if (goal === null || goal.program.id !== programId) {
+    throw new GoalProgramError('invalid_subject')
+  }
+  return goal
+}
+
 /** A goal a change is made to, and the one subject it counts. */
 type Changed = Readonly<{ goal: PortalCountGoal; subject: GoalSubject }>
 
 /**
- * The Program asked for, when a change is made to it here: the Property's
- * Monthly portal goal, or a count goal for one Portal or one Portal Group.
+ * The Program asked for, when a change is made to it here (PLAN PG-21): a count
+ * goal for one Portal or one Portal Group, or else the Property's Monthly
+ * portal goal. Its number is recorded as recommended against the subject's own.
  */
 function theChangedGoal(
   programs: readonly GoalProgramBundle[],
   programId: string,
   now: Date,
 ): Changed {
-  const monthly = monthlyPortalGoalOf(programs, now)
-  if (monthly !== null && monthly.program.id === programId) {
-    return {
-      goal: monthly,
-      subject: { kind: 'property', propertyId: monthly.program.propertyId },
-    }
-  }
   const asked = programs.find(({ program }) => program.id === programId)
   const page = asked === undefined ? null : portalGoalPageOf(asked)
-  if (asked === undefined || page?.kind !== 'subject' || !isPortalCountGoal(asked)) {
-    throw new GoalProgramError('invalid_subject')
+  if (asked !== undefined && page?.kind === 'subject' && isPortalCountGoal(asked)) {
+    return { goal: asked, subject: page.subject }
   }
-  return { goal: asked, subject: page.subject }
+  const goal = theMonthlyGoal(programs, programId, now)
+  return { goal, subject: { kind: 'property', propertyId: goal.program.propertyId } }
 }
 
 /** The recommendation for `subject`: the Property's, or the Property's narrowed to it. */
@@ -232,8 +241,7 @@ async function recommendationOf(
 /**
  * Whether `targetValue` is the number recommended for the `asked` month and
  * measure, read only when the screen said so (and the month is one of the
- * goal's counts): the Property's for the Monthly portal goal, its own for a
- * Portal's or a group's.
+ * goal's counts).
  */
 async function recordedSource(
   deps: MonthlyPortalGoalChangeDeps,
@@ -260,7 +268,7 @@ async function recordedSource(
 }
 
 /** What the month `month` counts: the measure of the version it opened under. */
-function measureOfMonth(goal: PortalCountGoal, month: string): GoalMetric | null {
+function measureOfMonth(goal: PropertyCountGoal, month: string): GoalMetric | null {
   const result = goal.results.find(
     ({ periodStart, propertyTimezone }) =>
       monthKeyOf(periodStart, propertyTimezone) === month,
