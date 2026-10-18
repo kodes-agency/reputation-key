@@ -188,35 +188,34 @@ export const Light: Story = {
 
 type ResultsProps = Parameters<typeof PortalGoalResults>[0]
 
+/** The ways to `#ended` and away, each a button: its words and where it goes. */
+const ARRIVALS = [
+  { label: 'Leave', hash: 'elsewhere' },
+  { label: 'Arrive by the address', hash: 'ended' },
+  {
+    label: 'Arrive asking for the focus',
+    hash: 'ended',
+    state: { focusEndedPortalGoals: true },
+  },
+] as const
+
 /**
  * A page drawn only at `#ended`, so each arrival draws it afresh, as the results
  * page is drawn after the Goals page the link left.
  */
 function Arrivals(props: ResultsProps) {
   const navigate = useNavigate()
-  const hash = useRouterState({ select: (state) => state.location.hash })
+  const atEnded = useRouterState({ select: (state) => state.location.hash === 'ended' })
   return (
     <div className="flex flex-col gap-4">
       <div className="flex gap-2">
-        <Button onClick={() => void navigate({ to: '.', hash: 'elsewhere' })}>
-          Leave
-        </Button>
-        <Button onClick={() => void navigate({ to: '.', hash: 'ended' })}>
-          Arrive by the address
-        </Button>
-        <Button
-          onClick={() =>
-            void navigate({
-              to: '.',
-              hash: 'ended',
-              state: { focusEndedPortalGoals: true },
-            })
-          }
-        >
-          Arrive asking for the focus
-        </Button>
+        {ARRIVALS.map(({ label, ...to }) => (
+          <Button key={label} onClick={() => void navigate({ to: '.', ...to })}>
+            {label}
+          </Button>
+        ))}
       </div>
-      {hash === 'ended' ? <PortalGoalResults {...props} /> : null}
+      {atEnded ? <PortalGoalResults {...props} /> : null}
     </div>
   )
 }
