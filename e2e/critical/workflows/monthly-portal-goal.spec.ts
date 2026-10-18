@@ -15,6 +15,9 @@
 //       month the rule names, and Use sets it in one tap: the goal is the
 //       Property's "Monthly portal goal", stored as recommended, and its own
 //       page is the card.
+//   J1 (continued). On J1's Property, "Set my own number" opens the set sheet
+//       with the box empty and "Set goal" disabled; 12 typed enables "Set 12
+//       for {month}"; Cancel closes it with nothing set.
 //
 // Every Property here is the journey's own (prefix `e2e-pg-`, run id and retry
 // in the slug). Expected days are read from the database clock in the
@@ -35,6 +38,7 @@ import {
 } from '../../helpers/portal-goal-fixtures'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { recommendPortalGoal } from '../../../src/contexts/reporting/domain/goal-recommendation'
+import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../../src/contexts/reporting/domain/goal-start'
 import { addLocalDays } from '../../../src/contexts/reporting/domain/local-days'
 import { formatLocalDate, formatMonthName } from '../../../src/lib/format'
 
@@ -112,8 +116,9 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
         `Your recommended number is ready on ${readyOn}, after 2 weeks live.`,
       ),
     ).toBeVisible()
-    // No number is offered before then, and no way to the old form from the card.
-    await expect(card.getByRole('button')).toHaveCount(0)
+    // No number is offered before then (only a number of one's own), and no way
+    // to the old form from the card.
+    await expect(card.getByRole('button')).toHaveText(['Set my own number'])
     await expect(card.getByRole('link', { name: /goal/iu })).toHaveCount(0)
     // The way to other Portal goals stays, as one quiet link.
     await expect(
@@ -291,5 +296,49 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       new RegExp(`/properties/${propertyId}/goals(\\?view=active)?#portal-goals$`, 'u'),
     )
     await expect(page.locator('[data-slot="portal-goal-card"]')).toBeVisible()
+  })
+
+  test("J1 (continued) a number of one's own: the sheet starts empty, and 12 can be set", async ({
+    page,
+  }) => {
+    const propertyId = seeded[0]
+    if (!propertyId) throw new Error("J1's Property is not seeded")
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const today = await localToday(propertyId)
+    // The sheet opens on the month the card would offer: this one through the
+    // 20th local day, else the next. Both branches assert what they draw.
+    const [year = 0, month = 1, day = 1] = today.split('-').map(Number)
+    const opensOn =
+      day <= GOAL_CURRENT_MONTH_CUTOFF_DAY
+        ? today.slice(0, 7)
+        : month === 12
+          ? `${year + 1}-01`
+          : `${year}-${String(month + 1).padStart(2, '0')}`
+    const monthName = formatMonthName(`${opensOn}-15T12:00:00.000Z`)
+
+    await page.goto(`/properties/${propertyId}/goals`)
+    await waitForHydration(page)
+    const card = page.locator('#portal-goals [data-slot="portal-goal-card"]')
+    await clickWhenReady(card.getByRole('button', { name: 'Set my own number' }))
+
+    const sheet = page.getByRole('dialog', { name: 'Monthly portal goal' })
+    const box = sheet.getByRole('spinbutton')
+    await expect(box).toBeFocused()
+    await expect(box).toHaveValue('')
+    await expect(sheet.getByRole('button', { name: 'Set goal' })).toBeDisabled()
+    await expect(
+      sheet.getByText(/^No recommendation yet\. Your number is ready on /u),
+    ).toBeVisible()
+    await box.fill('12')
+    await expect(
+      sheet.getByRole('button', { name: `Set 12 for ${monthName}` }),
+    ).toBeEnabled()
+
+    await sheet.getByRole('button', { name: 'Cancel' }).click()
+    await expect(sheet).toHaveCount(0)
+    // Nothing was set: the card still shows the first weeks, and the focus is
+    // back on the door.
+    await expect(card.getByText('Getting your portals ready')).toBeVisible()
+    await expect(card.getByRole('button', { name: 'Set my own number' })).toBeFocused()
   })
 })
