@@ -19,6 +19,30 @@ type LineHost = Readonly<{
   onResults: boolean
 }>
 
+type LineAccess = Readonly<{
+  can: (permission: 'goal.create') => boolean
+  has: (capability: 'goal.use' | 'dashboard.use') => boolean
+}>
+
+/**
+ * Whether the line is read at all: on the Results tab, for someone who may set
+ * the Monthly portal goal (`goal.create`), with Goals and Results on, and for a
+ * Portal that is not a draft.
+ */
+export function portalGoalLineShown(
+  onResults: boolean,
+  publicationState: PortalDetailPortal['publicationState'],
+  { can, has }: LineAccess,
+): boolean {
+  return (
+    onResults &&
+    publicationState !== 'draft' &&
+    can('goal.create') &&
+    has('goal.use') &&
+    has('dashboard.use')
+  )
+}
+
 export function usePortalGoalLine({
   propertyId,
   portal,
@@ -26,12 +50,7 @@ export function usePortalGoalLine({
 }: LineHost): Readonly<{ line: ReactNode; pending: boolean }> {
   const { can } = usePermissions()
   const { has } = useCapabilities()
-  const shown =
-    onResults &&
-    can('goal.create') &&
-    has('goal.use') &&
-    has('dashboard.use') &&
-    portal.publicationState !== 'draft'
+  const shown = portalGoalLineShown(onResults, portal.publicationState, { can, has })
   const read = useQuery({
     ...portalGoalLineQuery(propertyId, portal.id),
     enabled: shown,

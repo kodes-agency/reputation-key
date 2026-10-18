@@ -36,9 +36,10 @@ const focusTitle = (): void =>
 
 /**
  * The card's read with the prompt for `month` put off, as the server answers
- * once "Not now" is saved; the thunk puts back what was there.
+ * once "Not now" is saved; the thunk puts back what was there. A read with no
+ * prompt, or a prompt for another month, is left as it is (no thunk).
  */
-function putOff(
+export function putOffPortalGoalPrompt(
   queryClient: QueryClient,
   propertyId: string,
   month: string,
@@ -74,7 +75,7 @@ export function OverviewPortalGoal({ propertyId }: Readonly<{ propertyId: string
   })
   const markStale = () => markPortalGoalReadsStale(queryClient, propertyId)
   const notNow = useActionMutation(withGoalRefusals(deferPortalGoalPrompt), {
-    optimistic: ({ data }) => putOff(queryClient, propertyId, data.month),
+    optimistic: ({ data }) => putOffPortalGoalPrompt(queryClient, propertyId, data.month),
     onSuccess: markStale,
     errorMessage: actionErrorMessage,
   })
