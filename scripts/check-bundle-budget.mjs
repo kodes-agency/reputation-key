@@ -922,10 +922,20 @@
 // so the page does not pull the sheet's view into a chunk of its own: a first
 // head that imported it from the view measured 308,011 B, +14 B of preload
 // names in the entry. Every class was already in the stylesheet (the base's
-// own file, styles-mDD_TGAT.css, 27,845 B). On the stacked base, PG-13's head
-// 840adcde3, fresh production builds measured 307,997 B (75 js + 1 css; entry
-// 49,238 B) and 307,991 B on the head (entry 49,232 B): -6 B. 59 B spare under
-// 308,050; 309 B under the build's ceiling of 308,300 (owner, P-9).
+// own file, styles-mDD_TGAT.css, 27,845 B). The figures first noted here
+// (307,991 B on the head, -6 B) were measured before the build's last commit
+// and did not reproduce: re-measured in one session with fresh production
+// builds (rm -rf node_modules/.nitro .output), the stacked base, PG-13's head
+// 840adcde3, measured 307,997 B (75 js + 1 css; entry 49,238 B), that head
+// 1728c638c 308,005 B (entry 49,246 B), and the head after the review fixes,
+// 66b6bb5c1, 308,012 B (entry 49,253 B): +15 B, all in the entry. With the
+// hashed chunk names masked, the review head's entry is byte-identical to
+// 1728c638c's (the 7 B between them is hash naming), and 15 characters longer
+// than the base's: /goals/portals now preloads the shared chunks its actions
+// and the Stop dialog need. Lazy chunks on the final head: the sheet 6.76 kB,
+// the page's route 6.22 kB, the shared host 10.82 kB (the review fixes moved
+// them by 0.06, 0.06 and 0.18 kB). No raise: 38 B spare under 308,050; 288 B
+// under the build's ceiling of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
