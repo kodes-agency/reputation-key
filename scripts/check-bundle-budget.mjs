@@ -878,6 +878,24 @@
 // 49,381 B): +1 B, all in the entry, which is byte-identical to the base's
 // once the hashed chunk names are masked. 63 B spare under 308,200 and 163 B
 // under the build's ceiling of 308,300 (owner, P-9).
+//
+// 2026-10-18 (Monthly portal goal, PG-20: Add a portal goal; /goals/new
+// redirects): no raise, a saving. The New goal page goes: new.tsx keeps only a
+// beforeLoad redirect (-goal-new-redirect.ts) and loses its loader, search
+// schema and component, and the form's own read (previewGoalMonth, its schema
+// in goal-program.dto.ts and goalKeys.monthPreview) goes with it; /goals/portals
+// gains its search schema (-portal-goal-page-search.ts). The add sheet is a lazy
+// chunk of its own (portal-goal-add-sheet-*.js, 4,126 B), fetched while its door
+// is on screen, and its host joins the goal routes' shared lazy chunk
+// (-portal-goal-add-host-*.js); its read and two commands are in the
+// monthly-portal-goals stub chunk, reached only by -portal-goal-queries.ts's
+// own import(). Every class was already in the stylesheet; the form's
+// lg:grid-cols-2 left it (styles-ChuBAd4e.css, 27,839 B, from 27,845). On the
+// stacked base, PG-13's head 840adcde3, fresh production builds measured
+// 307,997 B (entry 49,238 B) and 307,924 B on the head (entry 49,239 B): -73 B,
+// mostly the first-paint server-function stubs (-49 B) and query keys (-20 B).
+// The line stays at 308,050: 126 B spare, 376 B under the ceiling. Measure
+// again after the rebase onto main.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
