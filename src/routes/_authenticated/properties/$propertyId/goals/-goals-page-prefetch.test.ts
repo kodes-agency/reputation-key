@@ -18,6 +18,8 @@ vi.mock('./-portal-goal-queries', () => ({
   prefetchPortalGoalAdd: mocks.prefetchPortalGoalAdd,
 }))
 
+import { prefetchOverviewGoals } from '../-overview-goals-prefetch'
+import * as goalsPagePrefetch from './-goals-page-prefetch'
 import { prefetchGoalsPage } from './-goals-page-prefetch'
 
 const PROPERTY = 'property-1'
@@ -50,5 +52,9 @@ describe('prefetchGoalsPage', () => {
     expect(mocks.prefetchRatingGoalSection).toHaveBeenCalledOnce()
     expect(mocks.prefetchPortalGoalSection).not.toHaveBeenCalled()
     expect(mocks.prefetchPortalGoalAdd).not.toHaveBeenCalled()
+  })
+
+  it("is also the Overview loader's import, for one chunk of both loaders' priming", () => {
+    expect(goalsPagePrefetch.prefetchOverviewGoals).toBe(prefetchOverviewGoals)
   })
 })

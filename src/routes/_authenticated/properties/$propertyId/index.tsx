@@ -59,11 +59,12 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/')(
   loader: async ({ params: { propertyId }, context }) => {
     const { role, capabilities } = context as AuthRouteContext
     // The Google rating goal and the Monthly portal goal, from one module
-    // fetched on demand so their reads stay out of first paint; a failed read
+    // fetched on demand so their reads stay out of first paint (the Goals
+    // page's, which re-exports `-overview-goals-prefetch`); a failed read
     // leaves its goal out, no more.
     const goal =
       can(role, 'goal.read') && capabilities.allowed.includes('goal.use')
-        ? import('./-overview-goals-prefetch')
+        ? import('./goals/-goals-page-prefetch')
             .then((prefetch) =>
               prefetch.prefetchOverviewGoals(context.queryClient, propertyId, role),
             )

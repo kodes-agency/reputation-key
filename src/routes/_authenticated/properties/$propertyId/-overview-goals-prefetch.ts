@@ -1,5 +1,7 @@
-// The Overview loader's one on-demand import (PLAN §0.2 "Loader imports", PG-16):
-// it primes the Google rating goal and the Monthly portal goal together, so
+// The Overview loader's priming (PLAN §0.2 "Loader imports", PG-16), reached
+// through its one on-demand import, the Goals page's `-goals-page-prefetch`,
+// which re-exports it so the two loaders share one chunk. It primes the Google
+// rating goal and the Monthly portal goal together, so
 // their reads and server functions stay out of first paint and neither waits
 // for the other. It settles once both have, whichever way: a failed read leaves
 // its goal out of the Overview, never the page in an error. The loader holds
