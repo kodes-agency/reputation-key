@@ -908,6 +908,24 @@
 // -20 B, the entry -17 B, the stylesheet -6 B, the rest -4 B). The line stays
 // at 308,200: 159 B spare, 259 B under the build's ceiling of 308,300 (owner,
 // P-9).
+//
+// 2026-10-18 (Monthly portal goal, PG-14: change number, count scans instead,
+// stop): no raise. The change sheet (its view, the note field, and the pace
+// rule through Reporting's application re-export of goalPace) loads with the
+// set sheet's own chunk (portal-goal-sheet-*.js, lazy; vite's gzip column
+// 4.60 -> 6.70 kB), and goalPace is in no other chunk. The page's actions, the
+// Stop dialog and its words load with the page's route chunk (portals-*.js,
+// lazy; 4.99 -> 6.16 kB); the card's "Change" and next-goal links with the
+// shared -portal-goal-sheet-host-*.js (10.21 -> 10.64 kB); the three commands'
+// server functions with the Monthly portal goal's own stub chunk (0.30 ->
+// 0.46 kB). The menu's "Count scans instead" lives in portal-goal-words.ts,
+// so the page does not pull the sheet's view into a chunk of its own: a first
+// head that imported it from the view measured 308,011 B, +14 B of preload
+// names in the entry. Every class was already in the stylesheet (the base's
+// own file, styles-mDD_TGAT.css, 27,845 B). On the stacked base, PG-13's head
+// 840adcde3, fresh production builds measured 307,997 B (75 js + 1 css; entry
+// 49,238 B) and 307,991 B on the head (entry 49,232 B): -6 B. 59 B spare under
+// 308,050; 309 B under the build's ceiling of 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
