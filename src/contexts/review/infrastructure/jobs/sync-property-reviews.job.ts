@@ -168,6 +168,19 @@ async function runTargetedFetchStep(
   return result
 }
 
+/**
+ * The first step of a fresh run for the same Property, source epoch and
+ * initiator: no `runId`, so the use case starts a run from page 0 or joins
+ * the one already active, and an interrupted first import stays an import.
+ */
+function freshRunStep(
+  data: SyncPropertyReviewsJobData,
+  sourceEpoch: number,
+): SyncPropertyReviewsJobData {
+  const { runId: _lostRunId, ...rest } = data
+  return { ...rest, sourceEpoch }
+}
+
 /** One bounded page, confirmation, or deletion batch of a provider snapshot
  * run, plus the continuation that carries the run forward. */
 async function runSnapshotStep(
@@ -206,6 +219,14 @@ async function runSnapshotStep(
       { ...data, sourceEpoch: scope.sourceEpoch, runId: result.runId },
       result,
     )
+  }
+  // A deploy that restarts the cursor store drops the cursors of every run in
+  // flight (ADR 0050 keeps nothing across a restart). That run is lost, not
+  // broken: start again now, with no coded failure, retry or dead letter. The
+  // use case answers `cursor_failure` instead when no restart explains the loss.
+  if (result.status === 'failed' && result.code === 'cursor_lost') {
+    await deps.enqueueContinuation(freshRunStep(data, scope.sourceEpoch))
+    return result
   }
   if (result.status === 'failed') {
     const now = deps.clock()

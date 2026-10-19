@@ -18,6 +18,7 @@ const FAILURE_CODES = {
   stale_source: true,
   provider_failure: true,
   cursor_failure: true,
+  cursor_lost: true,
   malformed_page: true,
   total_changed: true,
   average_changed: true,
