@@ -15,7 +15,11 @@
  *  - It refuses while the family still has a dead letter or a retained failed
  *    job newer than its latest success, so it cannot hide a failure someone
  *    can still see. The operator discards or redrives those first.
- *  - It writes the time of the newest failure it saw, not the clock's now, and
+ *  - It refuses while the failure it would answer is newer than the family's
+ *    latest success, though BullMQ's bounded failed set no longer shows it:
+ *    nothing shows the cause fixed. This also keeps the stamp at or before the
+ *    latest success, so it can never answer a stall recorded after it.
+ *  - It writes the time of the newest on-demand failure it saw, not the clock's now, and
  *    no other field. A failure that lands after the read is later than that
  *    time and latches again; an operator's clock cannot put the head in the
  *    future, which the report reads as an invalid observation.
@@ -63,6 +67,8 @@ export type JobRepairBlockers = Readonly<{
   deadLetterIds: readonly string[]
   /** Retained failed jobs of the family newer than its latest success. */
   unrecoveredFailures: number
+  /** The on-demand failure it would answer is newer than the latest success. */
+  failureNewerThanLatestSuccess: boolean
 }>
 
 export type JobRepairAssessment =
@@ -188,11 +194,16 @@ export function createJobRepairAcknowledger(
       evidence.failures.get(jobName) ?? [],
       observation.lastSucceededAt,
     )
-    if (deadLetterIds.length > 0 || unrecoveredFailures > 0) {
+    const failureNewerThanLatestSuccess = isLater(failure, observation.lastSucceededAt)
+    if (
+      deadLetterIds.length > 0 ||
+      unrecoveredFailures > 0 ||
+      failureNewerThanLatestSuccess
+    ) {
       return {
         outcome: 'blocked',
         family,
-        blockers: { deadLetterIds, unrecoveredFailures },
+        blockers: { deadLetterIds, unrecoveredFailures, failureNewerThanLatestSuccess },
       }
     }
     return { outcome: 'acknowledgeable', family, setsLastRepairAt: failure.toISOString() }

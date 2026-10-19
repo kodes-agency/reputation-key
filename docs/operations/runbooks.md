@@ -222,7 +222,7 @@ Only on-demand work lands here. A schedule firing is never dead-lettered: every 
 
 **Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then match each entry's job family to the event-job catalogue. For an enabled family, first run `ops:quarantine redrive <id> --operator <registered-operator>` for the dry-run report, then add `--reason <incident-reason> --apply`; redrive returns the job to its original queue. For a blocked or quarantined family, never redrive: first run `ops:quarantine discard <id> --operator <registered-operator>`, record the identifiers and disposition in the incident, then add `--reason <incident-reason> --apply --yes ops:quarantine`. Discard permanently removes the quarantined job without executing or re-enqueuing it, which is why it alone needs the typed confirmation. An entry of an enabled family that a redrive cannot repair, because it continues a run that already failed and so fails again, is discarded the same way once the incident record says why; the family's `repair_required` is then acknowledged (§17). For `pending_failure`, the redrive apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at the redrive boundary, so a concurrent privacy-verification scan cannot miss content moved between queues.
 
-**Verification:** `queue.quarantine.depth` returns to 0, redriven jobs complete in their original queue, and discarded jobs were never executed or re-enqueued. A discard, like the TTL sweep's expiry, does not clear the family's `repair_required` (§17): when the cause is fixed and the family's later runs completed, acknowledge the failure with `pnpm ops jobs acknowledge-repair <jobName> --operator <registered-operator>` (dry run first, then `--reason <incident-reason> --apply`), which refuses while any of the family's dead letters remains.
+**Verification:** `queue.quarantine.depth` returns to 0, redriven jobs complete in their original queue, and discarded jobs were never executed or re-enqueued. A discard, like the TTL sweep's expiry, does not clear the family's `repair_required` (§17): when the cause is fixed and the family's later runs completed, acknowledge the failure with `pnpm ops jobs acknowledge-repair <jobName> --operator <registered-operator>` (dry run first, then `--reason <incident-reason> --apply`), which refuses while any of the family's dead letters remains or no success has followed the failure.
 
 **Escalation:** Bozhidar Denev. Any quarantined entry that cannot be safely redriven or deliberately discarded is a data-loss event and needs written sign-off.
 
@@ -635,7 +635,10 @@ each family. It contains no tenant or payload content.
    reasons, and add `--reason <incident-reason> --apply`. The command refuses, and says
    which, while the family still has a dead letter or a retained failed job
    newer than its latest success: those are failures that can still be seen,
-   and it will not hide them. It sets `lastRepairAt` to the time of the newest
+   and it will not hide them. It also refuses while the failure it would answer
+   is newer than the family's latest success, even once BullMQ has trimmed that
+   job from its failed set: nothing shows the cause fixed, so wait for a later
+   run to succeed. It sets `lastRepairAt` to the time of the newest on-demand
    failure it saw and changes no other field, so a failure after that time
    latches again; a failed firing is not its to answer (a later success does).
    Its printed record (operator, reason, correlation id, the head before and

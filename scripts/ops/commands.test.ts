@@ -69,6 +69,7 @@ describe('pnpm ops jobs acknowledge-repair', () => {
 
     expect(entry).toContain('dead letter')
     expect(entry).toContain('retained failed job')
+    expect(entry).toContain('latest on-demand failure is newer than its latest success')
     expect(entry).toContain('`--reason <text> --apply`')
   })
 })

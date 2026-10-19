@@ -137,7 +137,10 @@ describe('what ops:jobs acknowledge-repair prints', () => {
       set: { lastRepairAt: FAILED },
       family: FAMILY,
     })
-    expect(io.outLines.join('\n')).toContain('--reason <text> --apply')
+    expect(io.outLines.join('\n')).toContain(
+      `report only — re-run with --reason <text> --apply to set lastRepairAt on '${JOB}' ` +
+        `to ${FAILED}, the time of the failure it acknowledges. A failure after that time stays latched.`,
+    )
   })
 
   it('on apply, records the operator, reason, correlation id and the head before and after', async () => {
@@ -179,6 +182,7 @@ describe('what ops:jobs acknowledge-repair prints', () => {
       blockers: {
         deadLetterIds: ['quarantine:default:1', 'quarantine:default:2'],
         unrecoveredFailures: 1,
+        failureNewerThanLatestSuccess: false,
       },
     }
 
@@ -208,13 +212,46 @@ describe('what ops:jobs acknowledge-repair prints', () => {
       acknowledger: acknowledgerFor({
         outcome: 'blocked',
         family: FAMILY,
-        blockers: { deadLetterIds: [], unrecoveredFailures: 2 },
+        blockers: {
+          deadLetterIds: [],
+          unrecoveredFailures: 2,
+          failureNewerThanLatestSuccess: false,
+        },
       }),
       io,
     })
 
     expect(io.errLines.join('\n')).not.toContain('dead letter')
     expect(io.errLines.join('\n')).toContain('2 retained failed job(s)')
+  })
+
+  it('refuses a failure newer than the latest success that no retained job shows', async () => {
+    const io = memoryIO()
+    const failedLater = '2026-10-19T10:00:00.000Z'
+
+    const code = await runJobRepairCommand({
+      ctx: { ...CTX, dryRun: true },
+      jobName: JOB,
+      acknowledger: acknowledgerFor({
+        outcome: 'blocked',
+        family: { ...FAMILY, lastOnDemandFailureAt: failedLater },
+        blockers: {
+          deadLetterIds: [],
+          unrecoveredFailures: 0,
+          failureNewerThanLatestSuccess: true,
+        },
+      }),
+      io,
+    })
+
+    expect(code).toBe(1)
+    const refusal = io.errLines.join('\n')
+    expect(refusal).toContain(
+      `its latest on-demand failure (${failedLater}) is newer than its latest success (${FAMILY.lastSucceededAt})`,
+    )
+    expect(refusal).toContain('acknowledge after a later run of the family succeeds')
+    expect(refusal).not.toContain('dead letter')
+    expect(refusal).not.toContain('retained failed job')
   })
 
   it('refuses an unknown job and lists the governed families', async () => {
@@ -265,7 +302,10 @@ describe('what ops:jobs acknowledge-repair prints', () => {
 
     expect(code).toBe(0)
     expect(printed(io)).toMatchObject({ outcome: 'nothing_to_acknowledge' })
-    expect(io.outLines.join('\n')).toContain('still unready (scheduler_missing)')
+    expect(io.outLines.join('\n')).toContain(
+      "'sync-property-reviews' is still unready (scheduler_missing); " +
+        'this command acknowledges only a failed on-demand run',
+    )
   })
 })
 

@@ -175,7 +175,7 @@ describe('acknowledging a failed family once its cause is fixed', () => {
       expect(await redis.hgetall(KEY)).toEqual(before)
     })
 
-    it('sets lastRepairAt to the failure it setsLastRepairAt, touches no other field, and makes the family ready', async () => {
+    it('sets lastRepairAt to the failure it acknowledges, touches no other field, and makes the family ready', async () => {
       const { redis, store, acknowledger, failOnDemand } = await setup(world)
       await failOnDemand(FAILED)
       const before = await redis.hgetall(KEY)
@@ -203,7 +203,7 @@ describe('acknowledging a failed family once its cause is fixed', () => {
       expect((await store.read(FAMILY))?.observation.lastRepairAt).toEqual(FAILED)
     })
 
-    it('setsLastRepairAt a failure recorded before failures were split by execution kind', async () => {
+    it('acknowledges a failure recorded before failures were split by execution kind', async () => {
       const { redis, acknowledger } = await setup(world)
       await redis.hset(KEY, 'lastTerminalFailureAt', FAILED.toISOString())
 
@@ -217,7 +217,7 @@ describe('acknowledging a failed family once its cause is fixed', () => {
       })
     })
 
-    // The failure it setsLastRepairAt is the newest it saw, not the clock's now: a
+    // The failure it acknowledges is the newest it saw, not the clock's now: a
     // failure that lands after the read is later than lastRepairAt, so the
     // acknowledgement cannot hide it.
     it('leaves a failure that lands afterwards latched', async () => {
@@ -338,6 +338,59 @@ describe('acknowledging a failed family once its cause is fixed', () => {
       })
     })
 
+    // BullMQ keeps a bounded failed set, so the head can hold a failure no
+    // retained job shows any more. Nothing shows its cause fixed, and stamping
+    // its time would also answer a stall recorded before it.
+    it('refuses a head failure newer than the latest success that BullMQ no longer retains', async () => {
+      const { redis, store, acknowledger, failOnDemand } = await setup({
+        completed: [completedAt(FAMILY, SUCCEEDED)],
+      })
+      await store.recordStarted({
+        queue: 'default',
+        jobName: FAMILY,
+        jobId: 'stuck-1',
+        at: new Date('2026-10-19T09:20:00.000Z'),
+      })
+      await store.recordStalled({
+        queue: 'default',
+        jobId: 'stuck-1',
+        at: new Date('2026-10-19T09:30:00.000Z'),
+      })
+      await failOnDemand(LATER_FAILURE)
+      const before = await redis.hgetall(KEY)
+
+      const result = await acknowledger.acknowledge(FAMILY)
+
+      expect(result).toMatchObject({
+        written: false,
+        assessment: {
+          outcome: 'blocked',
+          blockers: {
+            deadLetterIds: [],
+            unrecoveredFailures: 0,
+            failureNewerThanLatestSuccess: true,
+          },
+          family: {
+            reasons: ['repair_required', 'stalled_work_observed'],
+            lastOnDemandFailureAt: LATER_FAILURE.toISOString(),
+            lastSucceededAt: SUCCEEDED.toISOString(),
+          },
+        },
+      })
+      expect(await redis.hgetall(KEY)).toEqual(before)
+    })
+
+    it('does not flag a failure that a later success followed', async () => {
+      const { acknowledger, failOnDemand } = await setup({
+        completed: [completedAt(FAMILY, SUCCEEDED)],
+      })
+      await failOnDemand(FAILED)
+
+      expect(await acknowledger.assess(FAMILY)).toMatchObject({
+        outcome: 'acknowledgeable',
+      })
+    })
+
     it('does not count a failed job that a later success followed', async () => {
       const { acknowledger, failOnDemand } = await setup({
         completed: [completedAt(FAMILY, SUCCEEDED)],
@@ -453,7 +506,7 @@ describe('acknowledging a failed family once its cause is fixed', () => {
         })
       })
 
-      it('setsLastRepairAt a failed manual run without answering the firing', async () => {
+      it('acknowledges a failed manual run without answering the firing', async () => {
         const { store, acknowledger, failOnDemand } = await setup(world)
         await failOnDemand(FAILED)
         await failFiring(store)

@@ -57,9 +57,9 @@ const BLOCKED_NEXT_STEPS = {
   deadLetters:
     'discard or redrive each dead letter first: `pnpm ops quarantine discard <id>` ' +
     '(or `redrive <id>`) --operator <registered-operator>, runbooks §14',
-  unrecoveredFailures:
-    'a retained failed job is newer than the latest success, so the cause is not ' +
-    'shown to be fixed: acknowledge after a later run of the family succeeds',
+  noLaterSuccess:
+    'no success followed that failure, so the cause is not shown to be fixed: ' +
+    'acknowledge after a later run of the family succeeds',
 } as const
 
 function printRefusal(
@@ -79,7 +79,9 @@ function printRefusal(
       )
       return
     case 'blocked': {
-      const { deadLetterIds, unrecoveredFailures } = assessment.blockers
+      const { deadLetterIds, unrecoveredFailures, failureNewerThanLatestSuccess } =
+        assessment.blockers
+      const { lastOnDemandFailureAt, lastSucceededAt } = assessment.family
       io.err(`refused: '${jobName}' still has failures an operator can see.`)
       if (deadLetterIds.length > 0) {
         io.err(
@@ -91,7 +93,15 @@ function printRefusal(
         io.err(
           `  ${String(unrecoveredFailures)} retained failed job(s) newer than the latest success`,
         )
-        io.err(`  ${BLOCKED_NEXT_STEPS.unrecoveredFailures}`)
+      }
+      if (failureNewerThanLatestSuccess) {
+        io.err(
+          `  its latest on-demand failure (${String(lastOnDemandFailureAt)}) is newer than ` +
+            `its latest success (${lastSucceededAt ?? 'none on record'})`,
+        )
+      }
+      if (unrecoveredFailures > 0 || failureNewerThanLatestSuccess) {
+        io.err(`  ${BLOCKED_NEXT_STEPS.noLaterSuccess}`)
       }
       return
     }
@@ -121,7 +131,7 @@ function report(
       })
       io.out(
         `report only — re-run with --reason <text> --apply to set lastRepairAt on '${jobName}' ` +
-          `to ${assessment.setsLastRepairAt}, the failure it setsLastRepairAt. A failure after that time stays latched.`,
+          `to ${assessment.setsLastRepairAt}, the time of the failure it acknowledges. A failure after that time stays latched.`,
       )
       return 0
     case 'nothing_to_acknowledge':
@@ -129,7 +139,7 @@ function report(
       if (!assessment.family.ready) {
         io.out(
           `'${jobName}' is still unready (${assessment.family.reasons.join(', ')}); ` +
-            'this command setsLastRepairAt only a failed on-demand run',
+            'this command acknowledges only a failed on-demand run',
         )
       }
       return 0

@@ -41,6 +41,13 @@ describe('what the runbooks tell an operator to do', () => {
     expect(prose(section(14))).toContain(command)
     expect(prose(section(17))).toContain(command)
     expect(prose(section(17))).not.toContain('no `pnpm ops` command acknowledges')
+    // What it refuses on, as the command does (src/shared/jobs/repair-acknowledgement.ts).
+    expect(prose(section(17))).toContain(
+      'a dead letter or a retained failed job newer than its latest success',
+    )
+    expect(prose(section(17))).toContain(
+      "while the failure it would answer is newer than the family's latest success",
+    )
   })
 
   // §5 sent the operator to `gbp_import_jobs`, a table the import rewrite

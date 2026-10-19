@@ -27,7 +27,7 @@
 // the ticket. The printed line is the only trace it leaves, a fact the command
 // commits carries the correlation id as its command id, and a command that
 // needs a durable record of its operator writes one itself (ctx.operatorId,
-// ctx.ticket). No command reads ctx.reason today.
+// ctx.ticket). Only ops:jobs reads ctx.reason, to print it in its record.
 //
 // Capability gates: a command spec MAY declare the capability its work
 // depends on (e.g. inbox.use for a projection rebuild) — the policy then
