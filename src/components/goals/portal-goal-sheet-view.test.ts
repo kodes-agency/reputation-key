@@ -40,13 +40,13 @@ describe('portalGoalSheetModel', () => {
         { value: '2026-11', label: 'November' },
       ],
       month: '2026-11',
-      band: 'November',
-      unit: 'private ratings',
+      unit: 'private ratings in November',
+      counts: 'We count private ratings each calendar month.',
       chosen: 40,
-      status: {
-        text: 'Recommended · a bit above your usual over the last 2 weeks',
-        restore: null,
-      },
+      status: [
+        { kind: 'tag', text: 'Recommended' },
+        { kind: 'text', text: 'a bit above your usual over the last 2 weeks' },
+      ],
       notes: [],
       asksEveryGuest: true,
       offer: RATINGS_NOVEMBER,
@@ -68,9 +68,9 @@ describe('portalGoalSheetModel', () => {
       raise: { label: 'Raise to 45', to: 45 },
     })
     expect(model.choices).toEqual([
-      { value: 35, label: '35 · your usual', recommended: false },
-      { value: 40, label: '40 · a bit more', recommended: true },
-      { value: 45, label: '45 · stretch', recommended: false },
+      { value: 35, figure: '35', words: 'your usual', recommended: false },
+      { value: 40, figure: '40', words: 'a bit more', recommended: true },
+      { value: 45, figure: '45', words: 'stretch', recommended: false },
     ])
   })
 
@@ -82,10 +82,10 @@ describe('portalGoalSheetModel', () => {
     )
     const model = portalGoalSheetModel(draft, READY)
 
-    expect(model.status).toEqual({
-      text: 'Your own number',
-      restore: { label: 'Back to 40, recommended', value: 40 },
-    })
+    expect(model.status).toEqual([
+      { kind: 'text', text: 'Your own number' },
+      { kind: 'link', text: 'Back to 40, recommended', action: 40 },
+    ])
     expect(model.chosen).toBe(45)
     expect(model.primary).toEqual({ label: 'Set 45 for November', disabled: false })
     expect(model.submission).toMatchObject({ targetValue: 45, targetSource: 'own' })
@@ -96,17 +96,17 @@ describe('portalGoalSheetModel', () => {
   it('the link restores 40 and recommended', () => {
     const own = typed(openingDraft(READY, ratings), '52')
     const ownModel = portalGoalSheetModel(own, READY)
-    const restore = ownModel.status.restore
+    const restore = ownModel.status.find((part) => part.kind === 'link')
     expect(ownModel.chosen).toBeNull()
-    if (restore === null) throw new Error('An own number offers the way back')
+    if (restore === undefined) throw new Error('An own number offers the way back')
 
     const model = portalGoalSheetModel(
-      changedDraft(own, { kind: 'number', value: restore.value }, READY),
+      changedDraft(own, { kind: 'number', value: restore.action }, READY),
       READY,
     )
 
     expect(model.chosen).toBe(40)
-    expect(model.status.restore).toBeNull()
+    expect(model.status.some((part) => part.kind === 'link')).toBe(false)
     expect(model.submission).toMatchObject({
       targetValue: 40,
       targetSource: 'recommended',
@@ -128,10 +128,9 @@ describe('portalGoalSheetModel', () => {
     expect(model.submission).toBeNull()
     expect(model.choices).toBeNull()
     expect(model.offer).toBeNull()
-    expect(model.status).toEqual({
-      text: 'No recommendation yet. Your number is ready on Oct 23.',
-      restore: null,
-    })
+    expect(model.status).toEqual([
+      { kind: 'text', text: 'No recommendation yet. Your number is ready on Oct 23.' },
+    ])
     // The first weeks open on this month, with what already counts.
     expect(model.description).toBe('Counts from Oct 1 · 8 already count.')
   })
@@ -156,9 +155,9 @@ describe('portalGoalSheetModel', () => {
   it('says only that no number is recommended yet when no ready day is known', () => {
     const facts: PortalGoalSheetFacts = { ...FIRST_WEEKS, readyOn: null }
 
-    expect(portalGoalSheetModel(openingDraft(facts, ratings), facts).status.text).toBe(
-      'No recommendation yet.',
-    )
+    expect(portalGoalSheetModel(openingDraft(facts, ratings), facts).status).toEqual([
+      { kind: 'text', text: 'No recommendation yet.' },
+    ])
   })
 
   it('notes about 4 times and under half', () => {
@@ -199,16 +198,16 @@ describe('portalGoalSheetModel', () => {
     expect(model).toMatchObject({
       description: 'Counts from Oct 1 · 12 already count.',
       month: '2026-10',
-      band: 'October',
+      unit: 'private ratings in October',
       chosen: 24,
       offer: RATINGS_OCTOBER,
       primary: { label: 'Set 24 for October', disabled: false },
       submission: { startMonth: '2026-10', targetValue: 24, targetSource: 'recommended' },
     })
-    expect(model.choices?.map(({ label }) => label)).toEqual([
-      '23 · your usual',
-      '24 · a bit more',
-      '25 · stretch',
+    expect(model.choices?.map(({ figure, words }) => `${figure} ${words}`)).toEqual([
+      '23 your usual',
+      '24 a bit more',
+      '25 stretch',
     ])
   })
 
@@ -237,7 +236,8 @@ describe('portalGoalSheetModel', () => {
     )
 
     expect(model).toMatchObject({
-      unit: 'scans',
+      unit: 'scans in November',
+      counts: 'We count scans each calendar month.',
       chosen: 55,
       offer: SCANS_NOVEMBER,
       asksEveryGuest: false,
@@ -253,10 +253,10 @@ describe('portalGoalSheetModel', () => {
       },
     })
     expect(model.number.valueText).toBe('55 scans')
-    expect(model.choices?.map(({ label }) => label)).toEqual([
-      '50 · your usual',
-      '55 · a bit more',
-      '60 · stretch',
+    expect(model.choices?.map(({ figure, words }) => `${figure} ${words}`)).toEqual([
+      '50 your usual',
+      '55 a bit more',
+      '60 stretch',
     ])
   })
 
@@ -270,7 +270,7 @@ describe('portalGoalSheetModel', () => {
 
     expect(portalGoalSheetModel(opened, scansOnly)).toMatchObject({
       number: { text: '', value: null },
-      status: { text: 'No recommendation yet.', restore: null },
+      status: [{ kind: 'text', text: 'No recommendation yet.' }],
       asksEveryGuest: true,
     })
     const switched = changedDraft(

@@ -101,7 +101,7 @@ describe('the set sheet number box', () => {
   it('one rating is singular', () => {
     const model = portalGoalSheetModel(typed(openingDraft(READY, ratings), '1'), READY)
 
-    expect(model.unit).toBe('private rating')
+    expect(model.unit).toBe('private rating in November')
     expect(model.number.valueText).toBe('1 private rating')
   })
 })

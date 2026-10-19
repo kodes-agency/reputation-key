@@ -72,7 +72,7 @@ describe('after Count scans instead from December', () => {
         { value: 'next', label: 'From Dec 1' },
       ],
       month: 'now',
-      unit: 'private ratings',
+      unit: 'private ratings in November',
       // December keeps its scans: no word of the months after.
       description: 'November is judged against the new number.',
       submission: { when: 'now', data: { month: '2026-11', expectedVersion: 2 } },
@@ -87,7 +87,7 @@ describe('after Count scans instead from December', () => {
 
     expect(model).toMatchObject({
       month: 'next',
-      unit: 'scans',
+      unit: 'scans in December',
       number: { text: '55' },
       description: 'November keeps counting private ratings.',
     })
@@ -101,8 +101,8 @@ describe('after Count scans instead from December', () => {
 
     expect(model).toMatchObject({
       month: 'next',
-      band: 'December',
-      unit: 'private ratings',
+      unit: 'private ratings in December',
+      counts: 'We count private ratings each calendar month.',
       number: { text: '45' },
       description: 'November stays at 40.',
       primary: { label: 'Set 45 from December', disabled: false },

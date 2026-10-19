@@ -19,6 +19,7 @@ import type {
   PortalGoalOfCard,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { useState } from 'react'
+import { GoalSheetFrame } from './goal-sheet-frame'
 import { usePortalGoalChangeCommand } from './portal-goal-change-command'
 import type { PortalGoalSheetProps } from './portal-goal-sheet'
 import { PortalGoalNoteField } from './portal-goal-note-field'
@@ -29,7 +30,6 @@ import {
   portalGoalChangeModel,
   type PortalGoalChangeContext,
 } from './portal-goal-sheet-change-view'
-import { PortalGoalSheetFrame } from './portal-goal-sheet-frame'
 
 type Props = PortalGoalSheetProps &
   Readonly<{
@@ -56,10 +56,11 @@ export function PortalGoalChangeSheet(props: Props) {
     notice: props.notice,
   })
   return (
-    <PortalGoalSheetFrame
+    <GoalSheetFrame
       open={props.open}
       onOpenChange={props.onOpenChange}
       busy={pending}
+      marker="data-portal-goal-sheet"
       title={props.changeTitle ?? model.title}
       description={model.description}
       onCloseAutoFocus={props.onCloseAutoFocus}
@@ -88,6 +89,6 @@ export function PortalGoalChangeSheet(props: Props) {
           }
         />
       )}
-    </PortalGoalSheetFrame>
+    </GoalSheetFrame>
   )
 }

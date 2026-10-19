@@ -1,10 +1,10 @@
 // "Add a portal goal"'s number steps, worked out (PLAN PG-20; copy deck M-6,
-// M-10, M-14): a goal for one Portal or one group (its band "Reception ·
-// December", its own three suggestions, and Set), and the average (a box of
-// tenths that starts empty, the number always the manager's own), with what
-// each Set sends. The read decides every number (PLAN E12); the only sums here
-// are the box's steps (the goal grid for a count, tenths for the average).
-// Nothing here throws on what was typed.
+// M-10, M-14): a goal for one Portal or one group (its unit line "Reception ·
+// private ratings in December", its own three suggestions, and Set), and the
+// average (a box of tenths that starts empty, the number always the manager's
+// own), with what each Set sends. The read decides every number (PLAN E12); the
+// only sums here are the box's steps (the goal grid for a count, tenths for the
+// average). Nothing here throws on what was typed.
 import type {
   AddPortalGoalRequest,
   PortalGoalAddOffer,
@@ -13,13 +13,13 @@ import type {
 import { goalMetricLabel } from './goal-metric-label'
 import { countsFromWords } from './portal-goal-offer-words'
 import {
-  choicesOf,
   committedCount,
   numberOf,
   primaryNumber,
   type PortalGoalSheetModel,
 } from './portal-goal-sheet-view'
-import { dayWords, monthName, portalGoalUnit } from './portal-goal-words'
+import { choicesOf } from './portal-goal-sheet-words'
+import { dayWords, monthName, portalGoalUnit, unitInMonth } from './portal-goal-words'
 
 /** The average private rating, the one goal of the sheet that is not a count. */
 export const AVERAGE_METRIC: AddPortalGoalRequest['metric'] = 'portal_rating_average'
@@ -57,11 +57,11 @@ export function numberModel(
           targetSource: value === offer.choices?.aBitMore ? 'recommended' : 'own',
         }
   return {
-    band: `${offer.name} · ${monthName(month)}`,
     description: options.current
       ? countsFromWords(month, offer.soFar)
       : `Starts on ${dayWords(`${month}-01`)}.`,
-    unit: portalGoalUnit(measure, value ?? 0),
+    // U-S1 with the subject, which the heading does not name: "Reception · private ratings in December".
+    unit: `${offer.name} · ${unitInMonth(portalGoalUnit(measure, value ?? 0), month)}`,
     number,
     choices,
     chosen: choices?.find((choice) => choice.value === value)?.value ?? null,
@@ -132,8 +132,7 @@ export function averageModel(options: PortalGoalAddOptions, text: string) {
   const { value } = number
   return {
     description: goalMetricLabel(AVERAGE_METRIC),
-    band: monthName(options.month),
-    unit: AVERAGE_UNIT,
+    unit: unitInMonth(AVERAGE_UNIT, options.month),
     status: AVERAGE_NEEDS,
     number,
     primary: primaryOf(options, value === null ? null : averageWords(value)),

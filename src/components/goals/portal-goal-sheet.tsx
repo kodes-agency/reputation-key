@@ -1,6 +1,6 @@
 // The Monthly portal goal's sheet (PLAN PG-10, PG-14; copy deck S-1…S-23,
 // F-1…F-5): a dialog on a desktop and a full-screen sheet on a phone
-// (`portal-goal-sheet-frame.tsx`). It sets the goal, or changes it
+// (the shared `goal-sheet-frame.tsx`). It sets the goal, or changes it
 // (`portal-goal-change-sheet.tsx`), as the door that opened it says. Setting,
 // it opens on the number the card offered (or an empty box where there is
 // none yet), with the focus in the box; Set sends that month, that measure and
@@ -27,11 +27,11 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
+import { GoalSheetFrame } from './goal-sheet-frame'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalChangeSheet } from './portal-goal-change-sheet'
 import { goalSetToast } from './portal-goal-offer-words'
 import { PortalGoalSheetBody } from './portal-goal-sheet-body'
-import { PortalGoalSheetFrame } from './portal-goal-sheet-frame'
 import { PORTAL_GOAL_BEHIND, PORTAL_SHEET_REFUSALS } from './portal-goal-sheet-refusals'
 import {
   changedDraft,
@@ -145,10 +145,11 @@ function PortalGoalSetSheet(
   const onChange = (change: PortalGoalSheetChange) =>
     setDraft((current) => changedDraft(current, change, facts))
   return (
-    <PortalGoalSheetFrame
+    <GoalSheetFrame
       open={props.open}
       onOpenChange={props.onOpenChange}
       busy={pending}
+      marker="data-portal-goal-sheet"
       title={model.title}
       description={model.description}
       onCloseAutoFocus={props.onCloseAutoFocus}
@@ -165,7 +166,7 @@ function PortalGoalSetSheet(
           }}
         />
       )}
-    </PortalGoalSheetFrame>
+    </GoalSheetFrame>
   )
 }
 

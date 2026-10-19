@@ -211,20 +211,37 @@ async function expectSettled(text: string) {
   )
 }
 
+/** U-S3: how the goal counts, before the links; a phone leaves it out. */
+const COUNTS_SENTENCE = 'We count private ratings each calendar month.'
+
+/** The row under the choices: how the number was worked out, and the other measure. */
+async function expectLinksRow(sheet: Sheet) {
+  await expect(
+    sheet.getByRole('button', { name: 'How we worked this out' }),
+  ).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'Count scans instead' })).toBeVisible()
+}
+
 async function expectRecommendedNovember(sheet: Sheet) {
   await expect(sheet.getByText('Starts on Nov 1.')).toBeVisible()
   await expect(sheet.getByRole('radio', { name: 'November' })).toBeChecked()
   await expect(box(sheet)).toHaveValue('40')
-  await expect(box(sheet)).toHaveAccessibleName('November private ratings')
+  await expect(box(sheet)).toHaveAccessibleName('private ratings in November')
   await expect(box(sheet)).toHaveAttribute('aria-valuetext', '40 private ratings')
-  await expect(sheet.getByRole('radio', { name: /^40 · a bit more/u })).toBeChecked()
+  await expect(sheet.getByRole('radio', { name: /^40 a bit more/u })).toBeChecked()
   await expect(
-    sheet.getByRole('radio', { name: '40 · a bit more Recommended' }),
+    sheet.getByRole('radio', { name: '40 a bit more Recommended' }),
   ).toBeVisible()
   await expect(sheet.getByRole('button', { name: 'Lower to 35' })).toBeVisible()
   await expect(sheet.getByRole('button', { name: 'Raise to 45' })).toBeVisible()
   await expect(statusLine()).toBe(RECOMMENDED)
   await expect(sheet.getByText(ASK_EVERY_GUEST)).toBeVisible()
+  // The panel holding the rows and the asking line has no name of its own: the
+  // radio group is already "Suggested numbers", and one landmark carries one name.
+  await expect(sheet.queryByRole('region')).toBeNull()
+  await expect(
+    sheet.getAllByRole('radiogroup', { name: 'Suggested numbers' }),
+  ).toHaveLength(1)
   await expect(sheet.getByRole('button', { name: 'Set 40 for November' })).toBeEnabled()
 }
 
@@ -253,6 +270,9 @@ export const SetRecommendedOnANarrowPhone: Story = {
     const { sheet, in: inSheet } = await openSheet(canvasElement)
     await expect(sheet).toHaveAttribute('data-portal-goal-sheet', 'sheet')
     await expectRecommendedNovember(inSheet)
+    // The sentence goes where the room is short; the links stay.
+    await expect(inSheet.queryByText(COUNTS_SENTENCE)).toBeNull()
+    await expectLinksRow(inSheet)
   },
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
@@ -267,6 +287,8 @@ export const SetRecommendedOnATablet: Story = {
     const { sheet, in: inSheet } = await openSheet(canvasElement)
     await expect(sheet).toHaveAttribute('data-portal-goal-sheet', 'dialog')
     await expectRecommendedNovember(inSheet)
+    await expect(inSheet.getByText(COUNTS_SENTENCE)).toBeVisible()
+    await expectLinksRow(inSheet)
   },
   parameters: { viewport: { defaultViewport: 'tablet' } },
 }
@@ -287,7 +309,7 @@ export const StepOwnNumber: Story = {
     const { in: sheet } = await openSheet(canvasElement)
     await userEvent.click(sheet.getByRole('button', { name: 'Raise to 45' }))
     await expect(box(sheet)).toHaveValue('45')
-    await expect(sheet.getByRole('radio', { name: '45 · stretch' })).toBeChecked()
+    await expect(sheet.getByRole('radio', { name: '45 stretch' })).toBeChecked()
     await expect(statusLine()).toBe('Your own number · Back to 40, recommended')
     await expect(sheet.getByRole('button', { name: 'Raise to 50' })).toBeVisible()
     // The keyboard steps along the same grid.
@@ -321,7 +343,12 @@ export const TypeNumber: Story = {
     await expect(notesRegion()).toHaveAttribute('aria-live', 'polite')
     await expect(notesRegion()).toHaveTextContent('That is about 4 times your usual.')
     // No suggestion holds it, and the line offers the way back.
-    await expect(sheet.queryByRole('radio', { checked: true, name: /·/u })).toBeNull()
+    await expect(
+      sheet.queryByRole('radio', {
+        checked: true,
+        name: / (your usual|a bit more|stretch)/u,
+      }),
+    ).toBeNull()
     await expect(statusLine()).toBe('Your own number · Back to 40, recommended')
     // Enter writes the number; it sends nothing.
     await userEvent.type(box(sheet), '{Enter}')
@@ -356,8 +383,8 @@ export const SetCurrentMonth: Story = {
     await userEvent.click(sheet.getByRole('radio', { name: 'October' }))
     await expect(sheet.getByText('Counts from Oct 1 · 12 already count.')).toBeVisible()
     await expect(box(sheet)).toHaveValue('24')
-    await expect(box(sheet)).toHaveAccessibleName('October private ratings')
-    for (const name of ['23 · your usual', /^24 · a bit more/u, '25 · stretch']) {
+    await expect(box(sheet)).toHaveAccessibleName('private ratings in October')
+    for (const name of ['23 your usual', /^24 a bit more/u, '25 stretch']) {
       await expect(sheet.getByRole('radio', { name })).toBeVisible()
     }
     await userEvent.click(sheet.getByRole('button', { name: 'Set 24 for October' }))
@@ -416,9 +443,9 @@ export const CountScansInstead: Story = {
     const { in: sheet } = await openSheet(canvasElement)
     await userEvent.click(sheet.getByRole('button', { name: 'Count scans instead' }))
     await expect(box(sheet)).toHaveValue('55')
-    await expect(box(sheet)).toHaveAccessibleName('November scans')
+    await expect(box(sheet)).toHaveAccessibleName('scans in November')
     await expect(box(sheet)).toHaveAttribute('aria-valuetext', '55 scans')
-    await expect(sheet.getByRole('radio', { name: /^55 · a bit more/u })).toBeChecked()
+    await expect(sheet.getByRole('radio', { name: /^55 a bit more/u })).toBeChecked()
     await expect(sheet.queryByText(ASK_EVERY_GUEST)).toBeNull()
     await expect(
       sheet.getByRole('button', { name: 'Count private ratings instead' }),

@@ -9,15 +9,14 @@ import { averageModel, committedText, numberModel } from './portal-goal-add-numb
 import { addedToast } from './portal-goal-add-view'
 
 describe("Add a portal goal's number steps, worded", () => {
-  it('the number step: Reception · December, its own usual, and Set 22 for December', () => {
+  it('the number step: Reception · private ratings in December, its own usual, and Set 22 for December', () => {
     const [reception] = ADD_SEAVIEW.onePortal
     if (!reception) throw new Error('expected Reception')
     const model = numberModel(ADD_SEAVIEW, reception, '22')
 
     expect(model).toMatchObject({
-      band: 'Reception · December',
       description: 'Starts on Dec 1.',
-      unit: 'private ratings',
+      unit: 'Reception · private ratings in December',
       chosen: 22,
       primary: { label: 'Set 22 for December', disabled: false },
       submission: {
@@ -28,10 +27,10 @@ describe("Add a portal goal's number steps, worded", () => {
         targetSource: 'recommended',
       },
     })
-    expect(model.choices?.map(({ label }) => label)).toEqual([
-      '20 · your usual',
-      '22 · a bit more',
-      '24 · stretch',
+    expect(model.choices?.map(({ figure, words }) => `${figure} ${words}`)).toEqual([
+      '20 your usual',
+      '22 a bit more',
+      '24 stretch',
     ])
     expect(model.submission && addedToast(ADD_SEAVIEW, model.submission)).toBe(
       'Reception goal set: 22 private ratings for December',
@@ -65,7 +64,7 @@ describe("Add a portal goal's number steps, worded", () => {
   it('the average starts empty, takes one decimal from 1 to 5, and is its own', () => {
     expect(averageModel(ADD_SEAVIEW, '')).toMatchObject({
       description: 'Average private rating',
-      band: 'December',
+      unit: 'average private rating in December',
       status: 'Needs 10 private ratings a month.',
       primary: { label: 'Set goal', disabled: true },
       submission: null,

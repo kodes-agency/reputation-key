@@ -1,7 +1,7 @@
 // The average's change sheet's form (PLAN PG-21; copy deck S-15, S-19, S-20,
-// M-14): the month (a choice only when there are two), the box of tenths with
-// its band and unit, what an average needs, "Add a note", the refusal and the
-// footer. While the command is on its way nothing in it changes the level.
+// M-14, U-S1): the month (a choice only when there are two), the box of tenths as
+// the hero with its unit under it, what an average needs, "Add a note", the
+// refusal and the footer. While the command is on its way nothing in it changes the level.
 // Everything it says is the change view's
 // (`portal-goal-average-change-view.ts`); it only draws it and hands each
 // change up. The sheet owns the command (`portal-goal-average-change-sheet.tsx`).
@@ -60,7 +60,6 @@ export function PortalGoalAverageChangeBody({
         />
       )}
       <PortalGoalNumberTile
-        band={model.band}
         unit={model.unit}
         number={model.number}
         small={small}

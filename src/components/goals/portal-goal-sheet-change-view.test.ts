@@ -52,7 +52,7 @@ describe('portalGoalChangeModel', () => {
         { value: 'next', label: 'From Dec 1' },
       ],
       month: 'next',
-      band: 'December',
+      unit: 'private ratings in December',
       number: { text: '40', value: 40 },
       // Nothing to change yet.
       primary: { label: 'Set 40 from December', disabled: true },
@@ -65,10 +65,10 @@ describe('portalGoalChangeModel', () => {
 
     expect(model.choices).toBeNull()
     expect(model.chosen).toBeNull()
-    expect(model.status).toEqual({
-      text: 'Your own number',
-      restore: { label: 'Back to 45, recommended', value: 45 },
-    })
+    expect(model.status).toEqual([
+      { kind: 'text', text: 'Your own number' },
+      { kind: 'link', text: 'Back to 45, recommended', action: 45 },
+    ])
   })
 
   it('next month says November stays at 40', () => {
@@ -79,10 +79,10 @@ describe('portalGoalChangeModel', () => {
 
     expect(model).toMatchObject({
       description: 'November stays at 40.',
-      status: {
-        text: 'Recommended · a bit above your usual over the last 4 weeks',
-        restore: null,
-      },
+      status: [
+        { kind: 'tag', text: 'Recommended' },
+        { kind: 'text', text: 'a bit above your usual over the last 4 weeks' },
+      ],
       primary: { label: 'Set 45 from December', disabled: false },
       toast: 'From December: 45 private ratings',
       submission: {
@@ -112,7 +112,7 @@ describe('portalGoalChangeModel', () => {
       description:
         'November is judged against the new number, and so are the months after it.',
       month: 'now',
-      band: 'November',
+      unit: 'private ratings in November',
       // 23 × 30 × 100 = 69,000 < 90 × 45 × 22 = 89,100.
       notes: ['At 23 so far, 45 starts below pace.'],
       primary: { label: 'Set 45 for November', disabled: false },
@@ -153,9 +153,10 @@ describe('portalGoalChangeModel', () => {
       RUNNING,
     )
 
-    expect(model.status.text).toBe(
-      'Recommended · a bit above your usual over the last 4 weeks',
-    )
+    expect(model.status).toEqual([
+      { kind: 'tag', text: 'Recommended' },
+      { kind: 'text', text: 'a bit above your usual over the last 4 weeks' },
+    ])
     expect(model.submission?.data.targetSource).toBe('recommended')
   })
 
@@ -200,7 +201,8 @@ describe('portalGoalChangeModel', () => {
       ],
       month: 'next',
       description: 'November keeps counting private ratings.',
-      unit: 'scans',
+      unit: 'scans in December',
+      counts: 'We count scans each calendar month.',
       number: { text: '55' },
       asksEveryGuest: false,
       switchMeasure: {
@@ -262,7 +264,7 @@ describe('portalGoalChangeModel', () => {
     expect(model).toMatchObject({
       months: [{ value: 'next', label: 'From Nov 1' }],
       description: 'Starts on Nov 1.',
-      band: 'November',
+      unit: 'private ratings in November',
       primary: { label: 'Set 45 from November', disabled: false },
       toast: 'From November: 45 private ratings',
       submission: {

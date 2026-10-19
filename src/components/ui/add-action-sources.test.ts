@@ -34,8 +34,6 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'the glyph of a "created" event in a history line, not a button',
   'src/components/goals/goal-setup-parts.tsx':
     'the + stepper of a goal setup raises the goal a step: an icon-only IconButton beside −, not a button that adds',
-  'src/components/goals/portal-goal-number-tile.tsx':
-    'the + stepper of the monthly portal goal sheet raises the number a step: an icon-only IconButton beside −, not a button that adds',
   'src/components/goals/portal-goal-add-each.tsx':
     'the + stepper of a row of A goal for each portal raises its number a step: an icon-only IconButton beside −, not a button that adds',
 }

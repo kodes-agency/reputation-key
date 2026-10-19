@@ -17,13 +17,20 @@ import { WORKED_OUT_TITLE, workedOutWords } from './portal-goal-offer-words'
 const POPOVER_WIDTH = 520
 const PHONE_WIDTH = 'calc(100vw - 2rem)'
 
-export function PortalGoalWorkedOut({ offer }: Readonly<{ offer: PortalGoalOffer }>) {
+export function PortalGoalWorkedOut({
+  offer,
+  triggerClassName,
+}: Readonly<{
+  offer: PortalGoalOffer
+  /** Where it is a link of its own (the sheet's row of links) and not a term in a sentence. */
+  triggerClassName?: string
+}>) {
   const words = workedOutWords(offer)
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
       {/* In the sentence it explains, like a glossary term: no tap height of its own. */}
-      <ExplainTrigger>{WORKED_OUT_TITLE}</ExplainTrigger>
+      <ExplainTrigger className={triggerClassName}>{WORKED_OUT_TITLE}</ExplainTrigger>
       <PopoverContent
         side="top"
         aria-label={WORKED_OUT_TITLE}

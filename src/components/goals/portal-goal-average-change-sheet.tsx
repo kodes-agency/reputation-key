@@ -3,8 +3,9 @@
 // "From Dec 1", the box of tenths, what an average needs, and "Add a note".
 // The primary sends "now" as a change of the running month and the months
 // after it, and "from next month" as a revision; a toast says what was saved.
-// It is the Monthly portal goal's sheet frame, with no suggestions: there is no
-// recommended average. Its form is `portal-goal-average-change-body.tsx`.
+// It is the Monthly portal goal's sheet frame (the shared
+// `goal-sheet-frame.tsx`), with no suggestions: there is no recommended average.
+// Its form is `portal-goal-average-change-body.tsx`.
 //
 // It works from the goal as the sheet opened on it. A refusal is said in the
 // banner above the footer. When the sheet is behind the goal (someone changed
@@ -20,6 +21,7 @@ import type {
   ReviseMonthlyPortalGoalRequest,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import type { PortalGoalAverageOfPage } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
+import { GoalSheetFrame } from './goal-sheet-frame'
 import { PortalGoalAverageChangeBody } from './portal-goal-average-change-body'
 import {
   changedAverageDraft,
@@ -27,7 +29,6 @@ import {
   portalGoalAverageChangeModel,
 } from './portal-goal-average-change-view'
 import { usePortalGoalChangeCommand } from './portal-goal-change-command'
-import { PortalGoalSheetFrame } from './portal-goal-sheet-frame'
 import { SINGLE_GOAL_WORDS } from './portal-goal-single-page-view'
 
 /** What the sheet sends, and what follows it, handed down by the page. */
@@ -77,10 +78,11 @@ export function PortalGoalAverageChangeSheet(props: PortalGoalAverageChangeSheet
     notice: props.notice,
   })
   return (
-    <PortalGoalSheetFrame
+    <GoalSheetFrame
       open={props.open}
       onOpenChange={props.onOpenChange}
       busy={pending}
+      marker="data-portal-goal-sheet"
       title={SINGLE_GOAL_WORDS.changeTitle}
       description={model.description}
       onCloseAutoFocus={props.onCloseAutoFocus}
@@ -100,6 +102,6 @@ export function PortalGoalAverageChangeSheet(props: PortalGoalAverageChangeSheet
           }}
         />
       )}
-    </PortalGoalSheetFrame>
+    </GoalSheetFrame>
   )
 }

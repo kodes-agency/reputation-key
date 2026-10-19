@@ -52,7 +52,7 @@ describe('the set sheet month', () => {
     expect(toOctober(opened)).toMatchObject({
       month: '2026-10',
       number: { text: '', value: null },
-      status: { text: 'No recommendation yet.', restore: null },
+      status: [{ kind: 'text', text: 'No recommendation yet.' }],
       primary: { label: 'Set goal', disabled: true },
       submission: null,
     })

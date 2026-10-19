@@ -24,7 +24,7 @@ import {
   type PortalGoalChangeSubmission,
 } from './portal-goal-change-submission'
 import type { PortalGoalSheetModel } from './portal-goal-sheet-view'
-import { dayWords, monthName } from './portal-goal-words'
+import { dayWords, monthName, unitInMonth } from './portal-goal-words'
 
 /** The longest note the commands keep (the Program commands' own limit). */
 const NOTE_LIMIT = 500
@@ -54,7 +54,7 @@ export type PortalGoalAverageChangeEdit =
 
 export type PortalGoalAverageChangeModel = Pick<
   PortalGoalSheetModel,
-  'description' | 'months' | 'month' | 'band' | 'unit' | 'number' | 'primary'
+  'description' | 'months' | 'month' | 'unit' | 'number' | 'primary'
 > &
   Readonly<{
     /** M-14: what an average needs. */
@@ -176,8 +176,7 @@ export function portalGoalAverageChangeModel(
     description: lineOf(when, context),
     months: monthsOf(context.change),
     month: when,
-    band: monthName(month),
-    unit: AVERAGE_UNIT,
+    unit: unitInMonth(AVERAGE_UNIT, month),
     number,
     status: AVERAGE_NEEDS,
     primary: {

@@ -1,19 +1,27 @@
-// The sheet's form (copy deck S-2…S-11, S-15…S-22, G-16): the month (a choice
-// only when there are two), the number box with its band and unit, what the
-// number is (said politely as it changes, and quiet while the box has the
-// focus, whose `aria-valuetext` says it then), the notes (said politely as they
-// appear), the three suggestions when setting, the ask-every-guest line when
-// it counts private ratings, "How we worked this out", the other measure, the
-// change's note, the refusal and the footer. While the command is on its way
-// nothing in it changes the number. Everything it says is the sheet views'
-// (`portal-goal-sheet-view.ts`, `portal-goal-sheet-change-view.ts`); it only
-// draws it and hands each change up.
+// The sheet's form (copy deck S-2…S-11, S-15…S-22, G-16, U-S1…U-S3): the month
+// (a choice only when there are two), the number as the hero with what it counts
+// under it, what the number is (said politely as it changes, and quiet while the
+// box has the focus, whose `aria-valuetext` says it then), the notes (said
+// politely as they appear), the three suggestions when setting, in a panel with
+// the ask-every-guest line when it counts private ratings, the row of links ("How
+// we worked this out" and the other measure), the change's note, the refusal and
+// the footer. It is drawn with the shared setup parts (`goal-setup-parts.tsx`).
+// While the command is on its way nothing in it changes the number. Everything it
+// says is the sheet views' (`portal-goal-sheet-view.ts`,
+// `portal-goal-sheet-change-view.ts`); it only draws it and hands each change up.
 import { useId, useState, type ReactNode } from 'react'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { SegmentedControl } from '#/components/ui/segmented-control'
+import {
+  GOAL_SETUP_LINK,
+  GoalAside,
+  GoalSetupLinks,
+  GoalSetupPanel,
+  GoalSetupStatusLine,
+} from './goal-setup-parts'
 import { PortalGoalChoices } from './portal-goal-choices'
 import { PORTAL_ASK_EVERY_GUEST_LINE } from './portal-goal-copy'
 import { PortalGoalNumberTile } from './portal-goal-number-tile'
@@ -43,45 +51,6 @@ type Props = Readonly<{
   /** The other measure is offered: not where the subject already holds a goal for it. */
   canSwitch?: boolean
 }>
-
-/** S-5, S-6 and S-7, with S-6's way back to the recommended number. */
-function StatusLine({
-  status,
-  quiet,
-  pending,
-  onRestore,
-}: Readonly<{
-  status: PortalGoalSheetBodyModel['status']
-  quiet: boolean
-  pending: boolean
-  onRestore: (value: number) => void
-}>) {
-  const { restore } = status
-  return (
-    <p
-      data-slot="portal-goal-status"
-      aria-live={quiet ? 'off' : 'polite'}
-      className="flex flex-wrap items-center justify-center gap-x-2 text-center text-sm text-muted-foreground"
-    >
-      <span>{status.text}</span>
-      {restore === null ? null : (
-        <>
-          <span aria-hidden="true">·</span>
-          <Button
-            type="button"
-            variant="link"
-            size="inline"
-            touch
-            disabled={pending}
-            onClick={() => onRestore(restore.value)}
-          >
-            {restore.label}
-          </Button>
-        </>
-      )}
-    </p>
-  )
-}
 
 export function PortalGoalSheetBody({
   model,
@@ -117,7 +86,6 @@ export function PortalGoalSheetBody({
         />
       )}
       <PortalGoalNumberTile
-        band={model.band}
         unit={model.unit}
         number={model.number}
         small={small}
@@ -127,12 +95,14 @@ export function PortalGoalSheetBody({
         onStep={setNumber}
         onFocusChange={setBoxFocused}
       />
-      <div>
-        <StatusLine
-          status={model.status}
-          quiet={boxFocused}
-          pending={pending}
-          onRestore={setNumber}
+      <div className="flex flex-col items-center">
+        <GoalSetupStatusLine
+          slot="portal-goal-status"
+          parts={model.status}
+          small={small}
+          live={boxFocused ? 'off' : 'polite'}
+          disabled={pending}
+          onAction={setNumber}
         />
         {/* Always on the page and never quiet, so a note is said as it appears,
             the box's focus or not: its value text says only the number. Inside
@@ -145,35 +115,45 @@ export function PortalGoalSheetBody({
           ))}
         </div>
       </div>
-      {model.choices === null ? null : (
-        <PortalGoalChoices
-          choices={model.choices}
-          chosen={model.chosen}
-          idPrefix={`${id}-choice`}
-          onChoose={setNumber}
-          disabled={pending}
-        />
+      {model.choices === null && !model.asksEveryGuest ? null : (
+        // No label of its own: the suggestions are a group already named for a screen reader.
+        <GoalSetupPanel small={small}>
+          {model.choices === null ? null : (
+            <PortalGoalChoices
+              choices={model.choices}
+              chosen={model.chosen}
+              idPrefix={`${id}-choice`}
+              onChoose={setNumber}
+              disabled={pending}
+            />
+          )}
+          {model.asksEveryGuest ? (
+            <GoalAside>{PORTAL_ASK_EVERY_GUEST_LINE}</GoalAside>
+          ) : null}
+        </GoalSetupPanel>
       )}
-      {model.asksEveryGuest ? (
-        <p className="text-sm text-muted-foreground">{PORTAL_ASK_EVERY_GUEST_LINE}</p>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        {model.offer === null ? null : <PortalGoalWorkedOut offer={model.offer} />}
-        {canSwitch ? (
-          <Button
-            type="button"
-            variant="link"
-            size="inline"
-            touch
-            disabled={pending}
-            onClick={() =>
-              onChange({ kind: 'measure', measure: model.switchMeasure.measure })
-            }
-          >
-            {model.switchMeasure.label}
-          </Button>
-        ) : null}
-      </div>
+      {model.offer === null && !canSwitch ? null : (
+        <GoalSetupLinks sentence={model.counts} small={small}>
+          {model.offer === null ? null : (
+            <PortalGoalWorkedOut offer={model.offer} triggerClassName={GOAL_SETUP_LINK} />
+          )}
+          {model.offer !== null && canSwitch ? <span aria-hidden="true">·</span> : null}
+          {canSwitch ? (
+            <Button
+              type="button"
+              variant="link"
+              size="inline"
+              touch
+              disabled={pending}
+              onClick={() =>
+                onChange({ kind: 'measure', measure: model.switchMeasure.measure })
+              }
+            >
+              {model.switchMeasure.label}
+            </Button>
+          ) : null}
+        </GoalSetupLinks>
+      )}
       {note}
       {notice === null ? (
         <DialogErrorBanner error={error} />
