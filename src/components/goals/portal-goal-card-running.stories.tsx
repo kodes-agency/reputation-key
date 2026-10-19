@@ -288,6 +288,15 @@ export const Unreadable: Story = {
     // Nothing is judged without a figure: no pill, no headline.
     await expect(canvas.queryByText(/pace|getting started| to 40$/iu)).toBeNull()
     await expect(canvas.queryByRole('list', { name: 'From your portals' })).toBeNull()
+    // No meter to put in a column of its own, so the card is one column of
+    // lines, and the way on is still the goal's page, under them.
+    await expect(
+      canvasElement.querySelector('[data-slot="portal-goal-month-meter"]'),
+    ).toBeNull()
+    const details = canvas.getByRole('link', { name: 'View details' })
+    await expect(details).toHaveAttribute('href', '/properties/p1/goals/portals')
+    // Not alone in a side column behind a divider, next to the lines.
+    await expect(details.closest('[class~="@2xl:border-l"]')).toBeNull()
   },
 }
 

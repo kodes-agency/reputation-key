@@ -6,31 +6,34 @@
 // under them, the month so far as the meter with today's tick beside or under
 // it (U-C5…U-C8), what each Portal brought in as the list in a column of its own
 // from 48rem of card and one line under the days left below that (G-26, G-27),
-// and "View details" to the goal's page (G-28). While it waits for its first
-// month, or has no month running, its month and number (G-20), with "Change"
-// while it waits, for someone who may change it. A stopped goal says so, that
-// its month still counts, and offers the next goal from the month after (G-29).
-// Under it all, the month before while it is read and through the 7th (G-30,
-// G-31). On the month's first seven days, for someone who may change the goal,
-// the month-start check-in takes the card's body (`portal-goal-check-in.tsx`)
-// and the card wears no pill; when the recommended number is the month's
-// already, it is one line under the month instead (K-7). The figure is the
-// governed read's, never a forecast; the words are the views'.
-import { Link } from '@tanstack/react-router'
-import { Check } from 'lucide-react'
+// and "View details" to the goal's page (G-28). A month whose figure cannot be
+// read has no meter, so its lines stand in one column with "View details"
+// under them, as a goal with no month running does (G-25). While it waits for
+// its first month, or has no month running, its month and number (G-20), with
+// "Change" while it waits, for someone who may change it. A stopped goal says
+// so, that its month still counts, and offers the next goal from the month
+// after (G-29). Under it all, the month before while it is read and through
+// the 7th (G-30, G-31). On the month's first seven days, for someone who may
+// change the goal, the month-start check-in takes the card's body
+// (`portal-goal-check-in.tsx`) and the card wears no pill; when the
+// recommended number is the month's already, it is one line under the month
+// instead (K-7). The figure is the governed read's, never a forecast; the
+// words are the views'.
 import type {
   PortalGoalCheckIn as Asking,
   PortalGoalOfCard,
   PortalGoalRunningMonth,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import { Button } from '#/components/ui/button'
 import { CardContent } from '#/components/ui/card'
-import { TONE_INK } from '#/components/ui/tone'
-import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { GoalCardActions, GoalCardColumns, GoalCardFrame } from './goal-card-frame'
+import { GoalCardColumns, GoalCardFrame } from './goal-card-frame'
 import { PortalGoalCheckIn, type PortalGoalCheckInCommands } from './portal-goal-check-in'
-import { sameNumberWords } from './portal-goal-check-in-view'
+import {
+  Details,
+  LastMonthLine,
+  SameNumberLine,
+  SheetLink,
+} from './portal-goal-card-lines'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
 import {
   PortalGoalMonthHeadline,
@@ -38,7 +41,12 @@ import {
   PortalGoalMonthUnreadable,
 } from './portal-goal-month-meter'
 import { PortalGoalPortalCounts } from './portal-goal-portal-counts'
-import { countsLine, lastMonthWords, stoppedWords } from './portal-goal-running-view'
+import {
+  countsLine,
+  lastMonthWords,
+  runningWords,
+  stoppedWords,
+} from './portal-goal-running-view'
 import type { PortalGoalSheetIntent } from './portal-goal-sheet-intent'
 import { portalGoalPace } from './portal-goal-status-view'
 import { goalLines, monthName, shownMeasure } from './portal-goal-words'
@@ -67,15 +75,6 @@ type Props = Readonly<{
     headingAs: 'h2' | 'h3' | 'h4'
   }>
 }>
-
-/** A door to the sheet, in the card's line. */
-function SheetLink({ label, onClick }: Readonly<{ label: string; onClick: () => void }>) {
-  return (
-    <Button variant="link" size="inline" touch className="self-start" onClick={onClick}>
-      {label}
-    </Button>
-  )
-}
 
 /**
  * G-29: a stopped goal still counts to the end of its month (when one is
@@ -139,58 +138,6 @@ function GoalLines({
   )
 }
 
-/** G-30 and G-31: the month before, met with a check, otherwise in neutral words. */
-function LastMonthLine({
-  words,
-}: Readonly<{ words: NonNullable<ReturnType<typeof lastMonthWords>> }>) {
-  return (
-    <p
-      className={cn(
-        'flex items-center gap-1.5 border-t pt-4 text-sm tabular-nums',
-        words.met ? 'text-foreground' : 'text-muted-foreground',
-      )}
-    >
-      {words.met ? (
-        <Check className={cn('size-4 shrink-0', TONE_INK.positive)} aria-hidden="true" />
-      ) : null}
-      <span>{words.text}</span>
-    </p>
-  )
-}
-
-/** K-7: December keeps the recommended number it has, and "Change" to the sheet. */
-function SameNumberLine({
-  goal,
-  openSheet,
-}: Readonly<{ goal: PortalGoalOfCard; openSheet?: OpenSheet }>) {
-  if (goal.checkIn?.kind !== 'same') return null
-  const words = sameNumberWords(goal.checkIn)
-  return (
-    <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground">
-      <span>{words.text}</span>
-      {openSheet === undefined ? null : (
-        <SheetLink
-          label={words.change}
-          onClick={() => openSheet({ mode: 'change', measure: goal.measure })}
-        />
-      )}
-    </p>
-  )
-}
-
-/** G-28: the goal's page, as a tap target like the first goal's. */
-function Details({ propertyId }: Readonly<{ propertyId: string }>) {
-  return (
-    <GoalCardActions>
-      <Button asChild variant="outline">
-        <Link to="/properties/$propertyId/goals/portals" params={{ propertyId }}>
-          View details
-        </Link>
-      </Button>
-    </GoalCardActions>
-  )
-}
-
 /**
  * G-26 and G-27: each Portal's count. The list is the card's signature visual,
  * drawn in a column of its own from 48rem of card; a card too narrow for it says
@@ -207,56 +154,94 @@ function StoryCounts({
   return <p className="text-sm text-muted-foreground tabular-nums @3xl:hidden">{line}</p>
 }
 
-/** The running month: its headline and what is stopped, its meter, and the Portals' counts beside them. */
-function RunningBody({
-  goal,
-  month,
-  propertyId,
-  openSheet,
-  sameNumber,
-}: Readonly<{
+/**
+ * Air between the list and the headline beside it: the list fills its column,
+ * so without it the counts end at the grid gap from the headline's figure.
+ * Inline, because a new utility class would grow the stylesheet in first paint.
+ */
+const SIGNATURE_AIR = { paddingInlineEnd: '1.5rem' } as const
+
+type RunningProps = Readonly<{
   goal: PortalGoalOfCard
   month: PortalGoalRunningMonth
   propertyId: string
   openSheet?: OpenSheet
   sameNumber: boolean
-}>) {
+}>
+
+/** The running month: its headline and what is stopped, its meter, and the Portals' counts beside them. */
+function MonthColumns({ goal, month, propertyId, openSheet, sameNumber }: RunningProps) {
   const { rows } = goal
-  const last = goal.lastMonth === null ? null : lastMonthWords(goal.lastMonth)
   // A column of its own only with a list of Portals to put in it.
   const listed = rows !== null && countsLine(rows) !== null
   return (
+    <GoalCardColumns
+      wide={listed}
+      signature={
+        listed ? (
+          <div className="hidden @3xl:block" style={SIGNATURE_AIR}>
+            <PortalGoalPortalCounts rows={rows} propertyId={propertyId} />
+          </div>
+        ) : null
+      }
+      story={
+        <>
+          <PortalGoalMonthHeadline month={month} />
+          <StoryCounts rows={rows} propertyId={propertyId} />
+          <PortalGoalStopped goal={goal} monthKey={month.key} openSheet={openSheet} />
+          {sameNumber ? <SameNumberLine goal={goal} openSheet={openSheet} /> : null}
+        </>
+      }
+      side={
+        <>
+          <PortalGoalMonthMeter month={month} />
+          <Details propertyId={propertyId} />
+        </>
+      }
+    />
+  )
+}
+
+/**
+ * G-25: a month whose figure cannot be read has no meter to put in a column of
+ * its own, so it takes the shape of a goal with no month running: one column
+ * of lines, then "View details" under them.
+ */
+function UnreadableMonth({
+  goal,
+  month,
+  propertyId,
+  openSheet,
+  sameNumber,
+}: RunningProps) {
+  return (
+    <CardContent className="flex flex-col gap-4">
+      <PortalGoalMonthUnreadable month={month} />
+      <PortalGoalStopped goal={goal} monthKey={month.key} openSheet={openSheet} />
+      {sameNumber ? <SameNumberLine goal={goal} openSheet={openSheet} /> : null}
+      <Details propertyId={propertyId} />
+    </CardContent>
+  )
+}
+
+/** G-30 and G-31: the month before, under whichever body the card draws. */
+function MonthBefore({ goal }: Readonly<{ goal: PortalGoalOfCard }>) {
+  const last = goal.lastMonth === null ? null : lastMonthWords(goal.lastMonth)
+  if (last === null) return null
+  return (
+    <CardContent>
+      <LastMonthLine words={last} />
+    </CardContent>
+  )
+}
+
+/** The running month: a figure in columns, or the lines of one that cannot be read. */
+function RunningBody(props: RunningProps) {
+  const unreadable = runningWords(props.month).kind === 'unreadable'
+  return (
     <>
-      <GoalCardColumns
-        wide={listed}
-        signature={
-          listed ? (
-            <div className="hidden @3xl:block">
-              <PortalGoalPortalCounts rows={rows} propertyId={propertyId} />
-            </div>
-          ) : null
-        }
-        story={
-          <>
-            <PortalGoalMonthHeadline month={month} />
-            <PortalGoalMonthUnreadable month={month} />
-            <StoryCounts rows={rows} propertyId={propertyId} />
-            <PortalGoalStopped goal={goal} monthKey={month.key} openSheet={openSheet} />
-            {sameNumber ? <SameNumberLine goal={goal} openSheet={openSheet} /> : null}
-          </>
-        }
-        side={
-          <>
-            <PortalGoalMonthMeter month={month} />
-            <Details propertyId={propertyId} />
-          </>
-        }
-      />
-      {last === null ? null : (
-        <CardContent>
-          <LastMonthLine words={last} />
-        </CardContent>
-      )}
+      {unreadable ? <UnreadableMonth {...props} /> : <MonthColumns {...props} />}
+      <MonthBefore goal={props.goal} />
     </>
   )
 }
@@ -324,7 +309,10 @@ export function PortalGoalCardGoal({
             openSheet={openSheet}
             headingAs={checkIn.headingAs}
           />
-          <Details propertyId={propertyId} />
+          {/* Set apart, so it does not read as a fourth choice; U3 moves the check-in above the card. */}
+          <div className="border-t pt-4">
+            <Details propertyId={propertyId} />
+          </div>
         </CardContent>
       ) : goal.month === null ? (
         <WaitingBody
