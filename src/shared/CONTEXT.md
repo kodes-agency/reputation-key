@@ -105,6 +105,17 @@ the Inbox) shows the refusal's own sentence ("Reload to continue") in place of
 that read until the person's next navigation (another item or another page),
 which reloads.
 
+A call can also name a server function the new release no longer has (removed or
+renamed; production ids are a hash of file and function name, so an unchanged
+function keeps its id across deploys). Start looks the id up before any function
+middleware, so the release check never sees it. `unknown-server-function.ts`
+answers it at the request level with a plain `404` (body `Unknown server
+function`, no id), as a response rather than an exception, so Sentry's request
+middleware has nothing to capture; the same answer goes to a probe or bot with
+any other id. The tab's client reads it as an ordinary failed call (an `Error` whose message
+is that body), as it read the old 500: it does not arm the tab. Doing that would
+put code in first paint, against the closure budget.
+
 Jobs, outbox delivery, health, and observability expose infrastructure mechanics.
 Contexts own handler meaning, source transactions, recovery policy, content
 classification, and mutation authority.
