@@ -15,8 +15,8 @@ import {
   runRequestChain,
   serverFnChainRequest,
 } from '#/shared/testing/request-middleware-chain'
+import { UNKNOWN_SERVER_FUNCTION_BODY } from './release-skew'
 import {
-  UNKNOWN_SERVER_FUNCTION_BODY,
   isUnknownServerFunctionError,
   isUnknownServerFunctionId,
   unknownServerFunctionMiddleware,

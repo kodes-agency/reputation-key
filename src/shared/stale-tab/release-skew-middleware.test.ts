@@ -6,7 +6,11 @@
 // navigation instead of losing the call.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
-import { RELEASE_HEADER, STALE_CLIENT_CODE } from './release-skew'
+import {
+  RELEASE_HEADER,
+  STALE_CLIENT_CODE,
+  UNKNOWN_SERVER_FUNCTION_BODY,
+} from './release-skew'
 // Static on purpose: vi.mock and vi.hoisted are hoisted above it, so the module
 // loads with the mocks in place, and the changed-code gate reads the import.
 import {
@@ -14,7 +18,7 @@ import {
   releaseSkewServerMiddleware,
   sendWithRelease,
 } from './release-skew-middleware'
-import { createStaleTab } from './stale-tab'
+import { FRESH_VIEW_MS, createStaleTab } from './stale-tab'
 
 const hoisted = vi.hoisted(() => ({
   release: 'b'.repeat(40) as string | undefined,
@@ -38,6 +42,11 @@ vi.mock('#/shared/config/request-runtime-config', () => ({
 
 const OLD = 'a'.repeat(40)
 const NEW = 'b'.repeat(40)
+
+type NavigationEvent = Readonly<{
+  pathChanged: boolean
+  toLocation: Readonly<{ publicHref: string; searchStr: string }>
+}>
 
 type ServerRunner = (input: {
   method: 'GET' | 'POST'
@@ -126,6 +135,36 @@ describe('release skew, in the tab', () => {
     return tab
   }
 
+  /**
+   * A tab on OLD with the router wired in. `navigate` is the router announcing a
+   * navigation to another view; `clock` is the time the tab reads.
+   */
+  function tabWithRouter() {
+    const reload = vi.fn()
+    const items = new Map<string, string>()
+    const clock = { now: 1_000 }
+    const tab = createStaleTab({
+      storage: () => ({
+        getItem: (key) => items.get(key) ?? null,
+        setItem: (key, value) => void items.set(key, value),
+      }),
+      now: () => clock.now,
+      reload,
+      later: vi.fn(),
+    })
+    tab.remember(OLD)
+    let announce: (event: NavigationEvent) => void = () => undefined
+    tab.reloadOnNavigation({
+      subscribe: (_type, listener) => {
+        announce = listener
+        return () => undefined
+      },
+    })
+    const navigate = (href: string): void =>
+      announce({ pathChanged: true, toLocation: { searchStr: '', publicHref: href } })
+    return { tab, reload, clock, navigate }
+  }
+
   it('states the release its code came from', async () => {
     const tab = tabOn(OLD)
     const next = vi.fn(async (_options?: unknown) => ({ context: {} }))
@@ -183,28 +222,8 @@ describe('release skew, in the tab', () => {
   })
 
   it('reloads straight away when the refusal answers a view a navigation has just drawn', async () => {
-    const reload = vi.fn()
-    const items = new Map<string, string>()
-    const tab = createStaleTab({
-      storage: () => ({
-        getItem: (key) => items.get(key) ?? null,
-        setItem: (key, value) => void items.set(key, value),
-      }),
-      now: () => 1_000,
-      reload,
-      later: vi.fn(),
-    })
-    tab.remember(OLD)
-    tab.reloadOnNavigation({
-      subscribe: (_type, listener) => {
-        listener({
-          pathChanged: false,
-          fromLocation: { searchStr: '?itemId=1' },
-          toLocation: { searchStr: '?itemId=2', publicHref: '/inbox?itemId=2' },
-        })
-        return () => undefined
-      },
-    })
+    const { tab, reload, navigate } = tabWithRouter()
+    navigate('/inbox?itemId=2')
     const refusal = Object.assign(new Error('Reload'), {
       _tag: 'StaleClient',
       code: STALE_CLIENT_CODE,
@@ -218,6 +237,118 @@ describe('release skew, in the tab', () => {
 
     expect(reload).toHaveBeenCalledOnce()
     expect(reload).toHaveBeenCalledWith(undefined)
+  })
+
+  // A deploy removed the function this tab still calls, so the server answers
+  // with a plain 404 (unknown-server-function.ts) and Start's client throws it
+  // as an Error. A current client never asks for an id the build lacks, so no
+  // release comparison is needed: the tab's code is older than the server's.
+  const unknownFunction = () => new Error(UNKNOWN_SERVER_FUNCTION_BODY)
+
+  it('arms the tab when a read asks for a function the server no longer has, and lets the caller see it', async () => {
+    const tab = tabOn(OLD)
+    const error = unknownFunction()
+    const next = vi.fn(async (_options?: unknown) => {
+      throw error
+    })
+
+    await expect(sendWithRelease(tab, 'GET', next)).rejects.toBe(error)
+
+    expect(tab.isStale()).toBe(true)
+  })
+
+  it('reloads straight away when that read answers a view a navigation has just drawn', async () => {
+    const { tab, reload, navigate } = tabWithRouter()
+    navigate('/inbox?itemId=2')
+    const error = unknownFunction()
+    const next = vi.fn(async (_options?: unknown) => {
+      throw error
+    })
+
+    await expect(sendWithRelease(tab, 'GET', next)).rejects.toBe(error)
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(reload).toHaveBeenCalledWith(undefined)
+  })
+
+  it('only arms the tab when that read comes after the view was drawn, as a refused read does', async () => {
+    const { tab, reload, clock, navigate } = tabWithRouter()
+    navigate('/inbox?itemId=2')
+    clock.now += FRESH_VIEW_MS
+    const error = unknownFunction()
+    const next = vi.fn(async (_options?: unknown) => {
+      throw error
+    })
+
+    await expect(sendWithRelease(tab, 'GET', next)).rejects.toBe(error)
+
+    expect(tab.isStale()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('arms the tab, without reloading it, when a mutation asks for a function the server no longer has', async () => {
+    const { tab, reload, navigate } = tabWithRouter()
+    navigate('/inbox?itemId=2')
+    const error = unknownFunction()
+    const next = vi.fn(async (_options?: unknown) => {
+      throw error
+    })
+
+    await expect(sendWithRelease(tab, 'POST', next)).rejects.toBe(error)
+
+    // Whatever the person was filling in stays on screen.
+    expect(tab.isStale()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('reloads at the next navigation after such a mutation', async () => {
+    const { tab, reload, navigate } = tabWithRouter()
+    const error = unknownFunction()
+    const next = vi.fn(async (_options?: unknown) => {
+      throw error
+    })
+    await expect(sendWithRelease(tab, 'POST', next)).rejects.toBe(error)
+
+    navigate('/properties')
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(reload).toHaveBeenCalledWith('/properties')
+  })
+
+  it.each(['GET', 'POST'])(
+    'does nothing about that failure in a tab that does not know its release (%s)',
+    async (method) => {
+      const tab = tabOn(undefined)
+      const error = unknownFunction()
+      const next = vi.fn(async (_options?: unknown) => {
+        throw error
+      })
+
+      await expect(sendWithRelease(tab, method, next)).rejects.toBe(error)
+
+      expect(tab.isStale()).toBe(false)
+    },
+  )
+
+  it.each([
+    ['GET', 'Not Found'],
+    ['POST', 'Not Found'],
+    ['GET', 'Unknown server function: x'],
+    ['POST', 'unknown server function'],
+    ['GET', 'Internal Server Error'],
+    ['POST', ''],
+  ])('leaves the tab alone for a %s that fails with "%s"', async (method, message) => {
+    const { tab, reload, navigate } = tabWithRouter()
+    navigate('/inbox?itemId=2')
+    const error = new Error(message)
+    const next = vi.fn(async (_options?: unknown) => {
+      throw error
+    })
+
+    await expect(sendWithRelease(tab, method, next)).rejects.toBe(error)
+
+    expect(tab.isStale()).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
   })
 
   it('leaves the tab alone for any other failure', async () => {
