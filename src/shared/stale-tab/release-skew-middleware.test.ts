@@ -260,11 +260,12 @@ describe('release skew, in the tab', () => {
   it('reloads straight away when that read answers a view a navigation has just drawn', async () => {
     const { tab, reload, navigate } = tabWithRouter()
     navigate('/inbox?itemId=2')
+    const error = unknownFunction()
     const next = vi.fn(async (_options?: unknown) => {
-      throw unknownFunction()
+      throw error
     })
 
-    await expect(sendWithRelease(tab, 'GET', next)).rejects.toThrow()
+    await expect(sendWithRelease(tab, 'GET', next)).rejects.toBe(error)
 
     expect(reload).toHaveBeenCalledOnce()
     expect(reload).toHaveBeenCalledWith(undefined)
@@ -274,11 +275,12 @@ describe('release skew, in the tab', () => {
     const { tab, reload, clock, navigate } = tabWithRouter()
     navigate('/inbox?itemId=2')
     clock.now += FRESH_VIEW_MS
+    const error = unknownFunction()
     const next = vi.fn(async (_options?: unknown) => {
-      throw unknownFunction()
+      throw error
     })
 
-    await expect(sendWithRelease(tab, 'GET', next)).rejects.toThrow()
+    await expect(sendWithRelease(tab, 'GET', next)).rejects.toBe(error)
 
     expect(tab.isStale()).toBe(true)
     expect(reload).not.toHaveBeenCalled()
@@ -301,10 +303,11 @@ describe('release skew, in the tab', () => {
 
   it('reloads at the next navigation after such a mutation', async () => {
     const { tab, reload, navigate } = tabWithRouter()
+    const error = unknownFunction()
     const next = vi.fn(async (_options?: unknown) => {
-      throw unknownFunction()
+      throw error
     })
-    await expect(sendWithRelease(tab, 'POST', next)).rejects.toThrow()
+    await expect(sendWithRelease(tab, 'POST', next)).rejects.toBe(error)
 
     navigate('/properties')
 
