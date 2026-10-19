@@ -1,7 +1,9 @@
 // The three auxiliary alert reads degrade one by one, and each says so: a read
 // that failed hands its alert `monitorAvailable: false`, never a reading that
-// looks healthy. The real SQL is proven against PostgreSQL in
-// src/shared/jobs/infrastructure/repositories/alert-injection.test.ts.
+// looks healthy. (The triage read feeds no alert while
+// beta-feedback.triage-backlog is off for the closed beta; it keeps the same
+// contract, so the alert can return unchanged.) The real SQL is proven against
+// PostgreSQL in src/shared/jobs/infrastructure/repositories/alert-injection.test.ts.
 
 import type pino from 'pino'
 import { describe, expect, it, vi } from 'vitest'

@@ -125,7 +125,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 ## Alerts (BQC-7.4)
 
-Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner, severity per ADR 0038, threshold/window) and evaluated by the health-check job every 5 minutes against the OperationsSnapshot plus the aux reads (retention runs, content-free beta-feedback triage age/count, and content-free Review Analysis coverage/enrollment counts).
+Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner, severity per ADR 0038, threshold/window) and evaluated by the health-check job every 5 minutes against the OperationsSnapshot plus the aux reads (retention runs and content-free Review Analysis coverage/enrollment counts; the content-free beta-feedback triage age/count is read and logged too, but no alert evaluates it).
 
 **Dispatch:** every firing alert emits a schema-conformant structured `error` log line (`[alert] <name> firing`, fields: alert/severity/owner/runbook/value/threshold/windowMs/detail/firedAt — content-free) and, when `ALERT_WEBHOOK_URL` is set, POSTs the same payload to that operator webhook (3s timeout, best-effort — the log line is the durable record).
 
@@ -158,7 +158,15 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `notification.email-complaints`                | P2  | any spam complaint in the trailing 24h                                                                                            | §15     |
 | `notification.email-retry-exhausted`           | P2  | any email whose transient retry budget ran out in the trailing 24h (the delivery path gave up)                                    | §15     |
 | `notification.email-provider-feedback-missing` | P2  | more than two accepted emails (7-day lookback) with no provider outcome 6h after acceptance — silent webhook or capture transport | §15     |
-| `beta-feedback.triage-backlog`                 | P2  | oldest delivered unresolved local feedback receipt > 72h, or aggregate observation unavailable                                    | §16     |
+
+**Off for the closed beta: `beta-feedback.triage-backlog` (P2, §16).** It paged when
+the oldest delivered unresolved local feedback receipt was older than 72h, or
+when its aggregate observation was unavailable; Sentry titled its issue
+"[alert] beta-feedback.triage-backlog". On 2026-10-19 the owner treated the
+72-hour triage ledger as ceremony for the closed beta, so the alert is not
+defined and nothing pages for it. The ledger, `pnpm ops triage-beta-feedback`
+and the content-free aux read (logged by every health check) stay. It returns
+before general availability by the steps in ADR 0059's note of 2026-10-19.
 
 Defined but not yet implemented (registered with owner/severity/runbook; the signal source lands in a later slice — injection happens there, before BQC-8 acceptance):
 

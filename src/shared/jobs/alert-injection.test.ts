@@ -21,7 +21,6 @@ import { describe, it, expect, vi } from 'vitest'
 import pino from 'pino'
 import {
   ALERT_DEFINITIONS,
-  BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
   evaluateAlerts,
   OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
   QUARANTINE_REDRIVE_SLA_ALERT_MS,
@@ -246,7 +245,6 @@ describe('alert registry contract (BQC-7.4)', () => {
       'ai.review-analysis-empty-enrollment',
       'ai.review-analysis-stalled',
       'backup.pitr',
-      'beta-feedback.triage-backlog',
       'db.pool-exhaustion',
       'guest.observation-loss',
       'notification.email-bounce-rate',
@@ -620,21 +618,6 @@ const BREACHES: readonly Breach[] = [
     value: 100_000, // seconds until the nearest hard expiry — below the 2d mark
     apply: (s) => {
       s.reviews = { ...s.reviews, refreshDueCount: 3, oldestDueAgeSeconds: 100_000 }
-    },
-  },
-  {
-    name: 'beta-feedback.triage-backlog',
-    severity: 'P2',
-    runbook: 'runbooks.md §16',
-    threshold: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
-    windowMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
-    value: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS + 1,
-    apply: (_s, aux) => {
-      aux.betaFeedbackTriage = {
-        monitorAvailable: true,
-        deliveredUnresolvedCount: 2,
-        oldestDeliveredUnresolvedAgeMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS + 1,
-      }
     },
   },
   {

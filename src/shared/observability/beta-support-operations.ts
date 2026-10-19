@@ -8,7 +8,6 @@ export type BetaCriticalJourney =
   | 'reply_publish_and_reconcile'
   | 'portal_review_gateway'
   | 'beta_feedback_delivery'
-  | 'beta_feedback_triage'
 
 export type BetaCriticalJourneySignal = Readonly<{
   journey: BetaCriticalJourney
@@ -110,17 +109,10 @@ export const BETA_CRITICAL_JOURNEY_SIGNALS: readonly BetaCriticalJourneySignal[]
         'alert_injection_receipt',
       ],
     }),
-    signal({
-      journey: 'beta_feedback_triage',
-      signalName: 'beta-feedback.triage-backlog',
-      status: 'implemented_application_signal',
-      severity: 'P2',
-      evidence: [
-        'content_free_queue_age_signal',
-        'named_owner_coverage',
-        'local_alert_injection_test',
-      ],
-    }),
+    // No `beta_feedback_triage` journey while the beta-feedback.triage-backlog
+    // alert is off for the closed beta (owner decision 2026-10-19; ADR 0059,
+    // note 2026-10-19): triage happens in Sentry, and the 72-hour ledger age is
+    // not paged. The journey returns with the alert for general availability.
   ])
 
 export const BETA_SUPPORT_POLICY = Object.freeze({

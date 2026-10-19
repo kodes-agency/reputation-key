@@ -74,9 +74,14 @@ export type AlertAuxReads = Readonly<{
     monitorAvailable: boolean
     failedSubjects: readonly string[]
   }>
-  /** Content-free age/count of delivered native feedback awaiting resolution. */
+  /**
+   * Content-free age/count of delivered native feedback awaiting resolution.
+   * Logged on every health check; no alert evaluates it while
+   * `beta-feedback.triage-backlog` is off for the closed beta (see the note at
+   * the end of the registry).
+   */
   betaFeedbackTriage: Readonly<{
-    /** false means the PostgreSQL observation failed and must alert fail-visible. */
+    /** false means the PostgreSQL observation failed (the read logs why). */
     monitorAvailable: boolean
     deliveredUnresolvedCount: number
     oldestDeliveredUnresolvedAgeMs: number | null
@@ -260,14 +265,6 @@ export const REPLY_AMBIGUOUS_ALERT_MS = 15 * 60 * 1000
  * sweep can act on its two-hour missing-receipt horizon.
  */
 export const REVIEW_ANALYSIS_STALLED_ALERT_MS = 15 * 60 * 1000
-
-/**
- * A delivered native-feedback report unresolved for three days is an
- * operational backlog. The support target remains a next-business-day
- * expectation rather than an SLA; 72h avoids a permanent weekend page while
- * still making an abandoned queue visible.
- */
-export const BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS = 72 * 60 * 60 * 1000
 
 /** Redis monitor retention/read window for suppressed Guest observations. */
 const GUEST_OBSERVATION_LOSS_ALERT_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -996,39 +993,6 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     },
   }),
 
-  // ── native beta-feedback triage backlog ──
-  // Only the content-free local receipt is observed here. Report text and
-  // attachment bytes remain outside PostgreSQL and cannot enter the event.
-  define({
-    name: 'beta-feedback.triage-backlog',
-    severity: 'P2',
-    runbook: 'runbooks.md §16',
-    windowMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
-    threshold: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
-    read: (_snapshot, aux) => {
-      const triage = aux.betaFeedbackTriage
-      if (!triage.monitorAvailable) {
-        return {
-          value: -1,
-          detail: 'beta-feedback triage backlog monitor unavailable',
-        }
-      }
-      if (triage.deliveredUnresolvedCount <= 0) return null
-      const ageMs = triage.oldestDeliveredUnresolvedAgeMs
-      if (ageMs == null) {
-        return {
-          value: -1,
-          detail: 'beta-feedback triage backlog monitor returned an incomplete reading',
-        }
-      }
-      if (ageMs <= BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS) return null
-      return {
-        value: ageMs,
-        detail: `${triage.deliveredUnresolvedCount} delivered unresolved beta-feedback report(s); oldest age ${ageMs}ms`,
-      }
-    },
-  }),
-
   // ── publication ambiguity ──
   define({
     name: 'reply.ambiguous-aging',
@@ -1103,6 +1067,15 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     windowMs: 24 * 60 * 60 * 1000,
     threshold: 0,
   }),
+
+  // ── beta-feedback.triage-backlog: OFF for the closed beta (2026-10-19) ──
+  // Not defined, on purpose. It paged (P2, runbooks.md §16) when the oldest
+  // delivered, still-unresolved beta_feedback_triage receipt was older than 72h,
+  // or when its aux read failed. The owner treats that 72-hour ledger as
+  // ceremony for the closed beta: feedback is triaged in Sentry. The ledger,
+  // `pnpm ops triage-beta-feedback` and the `betaFeedbackTriage` aux read all
+  // stay; only the page goes. General availability brings it back by a
+  // recorded decision — ADR 0059, note 2026-10-19, lists the steps.
 ]
 
 /** Names of the alerts the health-check job evaluates and tracks state for. */
