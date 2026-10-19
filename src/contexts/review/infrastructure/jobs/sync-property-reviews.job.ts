@@ -17,6 +17,7 @@ import type {
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { RunTargetedGoogleReviewFetch } from '../../application/use-cases/run-targeted-google-review-fetch'
+import { ReviewProviderSnapshotFailure } from './review-provider-snapshot-failure'
 
 export const JOB_NAME = 'sync-property-reviews' as const
 
@@ -245,9 +246,7 @@ async function runSnapshotStep(
       result.code,
     )
     if (tooLarge) return result
-    throw Object.assign(new Error(result.code), {
-      name: 'ReviewProviderSnapshotFailure',
-    })
+    throw new ReviewProviderSnapshotFailure(result.code)
   }
   if (result.status === 'completed') {
     await deps.discoveryRepo.markSyncSucceeded(data.propertyId)

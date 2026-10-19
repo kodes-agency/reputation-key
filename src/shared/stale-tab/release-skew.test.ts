@@ -7,9 +7,11 @@ import { httpStatus, isExpectedRefusal } from '#/shared/security/expected-refusa
 import {
   RELEASE_HEADER,
   STALE_CLIENT_CODE,
+  UNKNOWN_SERVER_FUNCTION_BODY,
   answerSkew,
   concreteRelease,
   isStaleClientError,
+  isUnknownServerFunctionReply,
 } from './release-skew'
 import { staleClientRefusal } from './stale-client-refusal'
 
@@ -128,6 +130,30 @@ describe('the refusal', () => {
     ['nothing', undefined],
   ])('is not confused with %s', (_label, value) => {
     expect(isStaleClientError(value)).toBe(false)
+  })
+})
+
+describe('the answer to a function the build lacks', () => {
+  it('is recognised by the message Start’s client makes of the plain 404', () => {
+    expect(isUnknownServerFunctionReply(new Error(UNKNOWN_SERVER_FUNCTION_BODY))).toBe(
+      true,
+    )
+    expect(isUnknownServerFunctionReply(new Error('Unknown server function'))).toBe(true)
+  })
+
+  it.each([
+    ['another message', new Error('Not Found')],
+    ['the message with more after it', new Error('Unknown server function: x')],
+    ['the message in another case', new Error('unknown server function')],
+    ['a message that only contains it', new Error('Error: Unknown server function')],
+    ['a plain error', new TypeError('Load failed')],
+    ['the stale refusal', Object.assign(new Error('x'), { code: STALE_CLIENT_CODE })],
+    ['a string', UNKNOWN_SERVER_FUNCTION_BODY],
+    ['an object with no message', {}],
+    ['null', null],
+    ['nothing', undefined],
+  ])('is not confused with %s', (_label, value) => {
+    expect(isUnknownServerFunctionReply(value)).toBe(false)
   })
 })
 

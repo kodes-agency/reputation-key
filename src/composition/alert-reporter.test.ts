@@ -39,4 +39,27 @@ describe('reportAlertToObservability', () => {
       },
     )
   })
+
+  it('hands the monitor the content-free facts the alert was raised on', () => {
+    reportAlertToObservability({
+      name: 'sync.failed-nonzero',
+      severity: 'P2',
+      owner: 'Platform',
+      runbook: 'runbooks.md §13',
+      value: 3,
+      threshold: 0,
+      windowMs: 300_000,
+      detail: '3 Review sync(s) have a coded failure whose retry is due',
+      facts: { count: 3, codes: { provider_failure: 2, source_changed: 1 } },
+    })
+
+    expect(mocks.captureObservabilityException).toHaveBeenCalledWith(expect.any(Error), {
+      source: 'alert-dispatcher',
+      alert: {
+        name: 'sync.failed-nonzero',
+        severity: 'P2',
+        facts: { count: 3, codes: { provider_failure: 2, source_changed: 1 } },
+      },
+    })
+  })
 })

@@ -105,6 +105,22 @@ the Inbox) shows the refusal's own sentence ("Reload to continue") in place of
 that read until the person's next navigation (another item or another page),
 which reloads.
 
+A call can also name a server function the new release no longer has (removed or
+renamed; production ids are a hash of file and function name, so an unchanged
+function keeps its id across deploys). Start looks the id up before any function
+middleware, so the release check never sees it. `unknown-server-function.ts`
+answers it at the request level with a plain `404` (body `Unknown server
+function`, no id), as a response rather than an exception, so Sentry's request
+middleware has nothing to capture; the same answer goes to a probe or bot with
+any other id. Start's client throws it as an `Error` whose message is that body,
+and the tab takes that as proof its code is older than the server's: a current
+client never asks for an id its build lacks, so no release comparison is needed
+(`isUnknownServerFunctionReply`, in `release-skew.ts` beside the body constant
+because it is in first paint; the server module is not). From a read it acts as
+the `stale_client` refusal does (arms the tab, and reloads a view just drawn);
+from a mutation it only arms the tab, so what the person typed stays until their
+next navigation. The caller still sees the failure either way.
+
 Jobs, outbox delivery, health, and observability expose infrastructure mechanics.
 Contexts own handler meaning, source transactions, recovery policy, content
 classification, and mutation authority.

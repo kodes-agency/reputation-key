@@ -44,11 +44,17 @@ const ALLOWED_EVENT_TAGS: Readonly<Record<string, true>> = {
   job_name: true,
   alert: true,
   alert_severity: true,
+  // What an alert was raised on, as machine names and counts (alert-facts.ts).
+  alert_jobs: true,
+  alert_reasons: true,
+  alert_codes: true,
+  alert_count: true,
   // Content-free facts about an error event: the page's route template and
   // the codes read from the thrown error (error-facts.ts).
   route: true,
   error_code: true,
   cause_code: true,
+  failure_code: true,
   error_kind: true,
   db_code: true,
   db_constraint: true,

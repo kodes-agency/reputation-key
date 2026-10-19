@@ -13,7 +13,12 @@ import { createMiddleware } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { getReleaseSha } from '#/shared/config/env'
 import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
-import { RELEASE_HEADER, answerSkew, isStaleClientError } from './release-skew'
+import {
+  RELEASE_HEADER,
+  answerSkew,
+  isStaleClientError,
+  isUnknownServerFunctionReply,
+} from './release-skew'
 import { staleClientRefusal } from './stale-client-refusal'
 import { staleTab, type StaleTab } from './stale-tab'
 
@@ -57,15 +62,24 @@ export async function sendWithRelease<R extends Settled>(
 ): Promise<R> {
   const release = tab.release()
   if (!release) return next()
+  const mutation = method === 'POST'
   const call = next({ headers: { [RELEASE_HEADER]: release } })
   try {
-    const result = await (method === 'POST' ? tab.trackMutation(call) : call)
+    const result = await (mutation ? tab.trackMutation(call) : call)
     if (isFlagged(result)) tab.markStale()
     return result
   } catch (error) {
     // A refused read arms the tab, and reloads it when the read belongs to a
-    // view a navigation has just drawn. The caller still sees the refusal.
+    // view a navigation has just drawn. So does a read of a function a deploy
+    // removed: only code older than the server asks for one, so no release
+    // comparison is needed. A mutation of one only arms the tab, so the
+    // reload waits for the next navigation and what the person typed stays.
+    // The caller still sees the failure.
     if (isStaleClientError(error)) tab.readRefused()
+    else if (isUnknownServerFunctionReply(error)) {
+      if (mutation) tab.markStale()
+      else tab.readRefused()
+    }
     throw error
   }
 }

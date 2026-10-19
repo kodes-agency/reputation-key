@@ -227,6 +227,7 @@ function zeroHealthSignals(): HealthSignalValues {
     sync: {
       dueForIncrementalCount: 0,
       failedSyncCount: 0,
+      failedSyncCodes: {},
       oldestDueAgeMs: null,
       gbpPushEnabled: false,
     },
