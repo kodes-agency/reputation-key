@@ -127,13 +127,15 @@ poll failing on an imported Property is not the import failing.
 
 A snapshot run removes a Review only after a listing that agrees with Google's
 own total. Google's total and its list do not always agree, so a small gap
-(`application/snapshot-count-gap.ts`: at most 2% of the total, at least 1,
-always under one page, no more pages than the reviews fill) still completes the run,
+(`application/snapshot-count-gap.ts`: at most 5 reviews or 2% of the total,
+whichever is more, never above 10% of the total, at least 1, always under one
+page, no more pages than the reviews fill; 86 counted allows 5, 2,600 allows 49,
+10 or fewer allow 1) still completes the run,
 but `finishMainScan` then records no removal candidate and no first miss, and
 `applyDeletionBatch` refuses any candidate on such a run. A wider gap fails as
 `set_mismatch`. The completed run verifies Google's count and average as usual;
 the use case logs `review_snapshot_completed_with_count_gap` with the counts
-only (ADR 0055, note 2026-10-18).
+only (ADR 0055, notes 2026-10-18 and 2026-10-19).
 
 A run whose confirmation listing finds a different set than its main listing
 (a review the main listing did not have, one it had that is now missing, or a

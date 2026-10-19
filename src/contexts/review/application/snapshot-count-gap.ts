@@ -17,6 +17,12 @@
 // complete the run, and remove nothing. A listing that disagrees with Google's
 // total is never grounds for removing anything; removals resume on the first
 // run whose numbers agree again.
+//
+// The first tolerance, 2% of the total, was too tight for a small location: on
+// 2026-10-19 one reporting 86 listed 84 unique reviews over two pages, a gap of
+// 2 where 2% allowed 1, and its sync failed as `set_mismatch` after two earlier
+// runs that day (gaps of 1) had completed. The owner's decision of that day
+// widened it to five reviews, or 2% on a big location, still under one page.
 
 import {
   REVIEW_PROVIDER_SNAPSHOT_PAGE_SIZE,
@@ -24,14 +30,29 @@ import {
 } from './ports/review-provider-snapshot.repository'
 
 /**
- * A gap may reach 2% of Google's total, rounded down. Proportional because a
- * large location drifts by more than a small one, and small: two counts that
- * disagree by more than this are not Google's bookkeeping, they are a listing
- * that went wrong.
+ * The gap a location of any size may show: at least this many reviews. Google
+ * miscounts by a few reviews whatever the size of the location, so a flat
+ * figure serves the small and middling ones; 2% of the total would allow only
+ * 1 below a total of 100.
+ */
+const SNAPSHOT_COUNT_GAP_FLAT = 5
+
+/**
+ * A big location drifts by more than a small one, so past the flat figure the
+ * gap may reach 2% of Google's total, rounded down (it overtakes the flat 5 at
+ * a total of 300).
  */
 const SNAPSHOT_COUNT_GAP_PERCENT = 2
 
-/** One review is always allowed, so a small location is not held to 0. */
+/**
+ * The safety limit on a small total: the gap never reaches more than 10% of
+ * it, rounded down. Without it a flat 5 on a location of 10 would pass a list
+ * missing half its reviews; that is not Google's bookkeeping, so it stays a
+ * loud failure. It binds below a total of 50 (5 is 10% of 50).
+ */
+const SNAPSHOT_COUNT_GAP_SAFETY_PERCENT = 10
+
+/** One review is always allowed, so a tiny location is not held to 0. */
 const SNAPSHOT_COUNT_GAP_MIN = 1
 
 /**
@@ -50,13 +71,30 @@ export type SnapshotCountAgreement =
 const EXACT: SnapshotCountAgreement = { kind: 'exact' }
 const MISMATCH: SnapshotCountAgreement = { kind: 'mismatch' }
 
-/** The largest gap accepted for a Google total of `expected`. */
+const wholePercentOf = (total: number, percent: number): number =>
+  Math.floor((total * percent) / 100)
+
+/**
+ * The largest gap accepted for a Google total of `expected`:
+ *
+ *     max(1, min(49, max(5, floor(2% x total)), floor(10% x total)))
+ *
+ * Read from the inside: the gap may reach 5 reviews, or 2% of the total on a
+ * big location (whichever is more); never 10% of the total, so a tiny location
+ * cannot pass mostly unlisted; never a whole page (49); and never less than 1.
+ * It gives 1 up to a total of 19, 2 at 20, 3 at 30, 5 from 50 to 299 (86 -> 5),
+ * 2% from 300, and 49 from 2,450 up (2,600 -> 49).
+ */
 export const snapshotCountGapTolerance = (expected: number): number =>
-  Math.min(
-    SNAPSHOT_COUNT_GAP_MAX,
-    Math.max(
-      SNAPSHOT_COUNT_GAP_MIN,
-      Math.floor((expected * SNAPSHOT_COUNT_GAP_PERCENT) / 100),
+  Math.max(
+    SNAPSHOT_COUNT_GAP_MIN,
+    Math.min(
+      SNAPSHOT_COUNT_GAP_MAX,
+      Math.max(
+        SNAPSHOT_COUNT_GAP_FLAT,
+        wholePercentOf(expected, SNAPSHOT_COUNT_GAP_PERCENT),
+      ),
+      wholePercentOf(expected, SNAPSHOT_COUNT_GAP_SAFETY_PERCENT),
     ),
   )
 

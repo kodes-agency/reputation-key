@@ -1064,6 +1064,19 @@ describe('runReviewProviderSnapshot', () => {
       )
     })
 
+    it('logs a gap of two the same way (86 counted, 84 listed)', async () => {
+      const deps = completedWith({ expected: 86, unique: 84, pages: 2 })
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'completed', runId })
+
+      expect(deps.logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ expected: 86, unique: 84, gap: 2 }),
+        expect.any(String),
+      )
+    })
+
     it('logs nothing when the list matches the total', async () => {
       const deps = completedWith({ expected: 81, unique: 81, pages: 2 })
 
