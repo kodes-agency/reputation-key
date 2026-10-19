@@ -286,7 +286,8 @@ export const Unreadable: Story = {
     await expect(canvas.queryByRole('progressbar')).toBeNull()
     await expect(canvas.queryByText(/\b0 of\b/u)).toBeNull()
     // Nothing is judged without a figure: no pill, no headline.
-    await expect(canvas.queryByText(/pace|getting started| to 40$/iu)).toBeNull()
+    await expect(canvas.queryByText(/pace|getting started/iu)).toBeNull()
+    await expect(canvas.queryByText(/ to 40$/u)).toBeNull()
     await expect(canvas.queryByRole('list', { name: 'From your portals' })).toBeNull()
     // No meter to put in a column of its own, so the card is one column of
     // lines, and the way on is still the goal's page, under them.
