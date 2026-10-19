@@ -1,8 +1,8 @@
 // The Monthly portal goal on the Property Overview (PLAN PG-16; copy deck
 // O-1…O-6): the number ready to use in one line ("See it", "Not now", which
 // hides it), the running month as the Goals page's card draws it (with each
-// Portal's count in one line in a narrow slot), the month-start check-in, and
-// nothing for a goal that has not started. At 320,
+// Portal's count in one line in a narrow slot), the month-start check-in as the
+// strip above that card, and nothing for a goal that has not started. At 320,
 // 390, 820 and 1440 px and on the light theme. The Storybook Vitest project
 // compiles no Tailwind, so the plays assert words, roles, links and what is
 // sent.
@@ -129,7 +129,7 @@ export const Running: Story = {
   },
 }
 
-/** O-3…O-6: on Dec 1 the check-in, under the goal's name; Keep is sent once. */
+/** O-3…O-6: on Dec 1 the check-in, the strip above the card; Keep is sent once. */
 export const CheckIn: Story = {
   args: { card: CARD_CHECK_IN },
   play: async ({ canvasElement }) => {
@@ -138,7 +138,20 @@ export const CheckIn: Story = {
     await expect(
       canvas.getByText('November: 36 of 40 so far. Final figure on Dec 2.'),
     ).toBeVisible()
-    const region = within(canvas.getByRole('region', { name: 'For December' }))
+    const strip = canvas.getByRole('region', { name: 'For December' })
+    // Not a heading, and right above the slot's card, which stays: December's first day.
+    await expect(canvas.queryByRole('heading', { name: 'For December' })).toBeNull()
+    const card = canvasElement.querySelector('[data-slot="portal-goal-overview"]')
+    await expect(card).not.toBeNull()
+    await expect(card?.previousElementSibling).toBe(strip)
+    await expect(card).not.toContainElement(strip)
+    await expect(
+      canvas.getByRole('progressbar', { name: 'Private ratings in December' }),
+    ).toBeVisible()
+    await expect(canvas.getByText('Getting started', { exact: true })).toBeVisible()
+    await expect(canvas.getByRole('link', { name: 'View details' })).toBeVisible()
+
+    const region = within(strip)
     await expect(region.getByRole('button', { name: 'Use 45' })).toBeVisible()
     await expect(region.getByRole('button', { name: 'Other number' })).toBeVisible()
     await expect(

@@ -1,12 +1,13 @@
-// The Monthly portal goal's month-start check-in on its card (PLAN PG-15; copy
-// deck K-1…K-11): Dec 1 with November still read, Use 45 (sent once, as the
-// change now, recommended) and Keep 40 (then gone), "Other number", "How we
-// worked this out", November closed met and not met, December at the
-// recommended number already (one line), nothing counted, a refusal, someone
-// who may not change the goal, and Dec 8 (folded away). At 320, 390, 820 and
-// 1440 px and on the light theme. The Storybook Vitest project compiles no
-// Tailwind, so the plays assert words, roles, what is sent, where the focus
-// goes, and the classes that wrap the buttons and keep them touch-sized.
+// The Monthly portal goal's month-start check-in, the strip above its card (PLAN
+// PG-15; copy deck K-1…K-11; U-K1…U-K3): Dec 1 with November still read, Use 45
+// (sent once, as the change now, recommended, first) and Keep 40 (then gone),
+// "Other number", "How we worked this out", November closed met and not met,
+// December at the recommended number already (one line under the card), nothing
+// counted, a refusal, someone who may not change the goal, and Dec 8 (folded
+// away). At 320, 390, 820 and 1440 px and on the light theme. The Storybook
+// Vitest project compiles no Tailwind, so the plays assert words, roles, order,
+// what is sent, where the focus goes, and the classes that wrap the buttons and
+// keep them touch-sized.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
@@ -100,29 +101,63 @@ async function expectToast(text: string) {
 const regionOf = (canvas: Canvas) =>
   within(canvas.getByRole('region', { name: 'For December' }))
 
+/** The card the strip is above: found by its title, whichever page draws it. */
+const cardOf = (canvas: Canvas) =>
+  canvas
+    .getByRole('heading', { level: 3, name: 'Monthly portal goal' })
+    .closest('[data-slot="portal-goal-card"]')
+
+/** The strip is outside the card and right before it, as the Google goal's Monday check-in is. */
+async function expectAboveTheCard(canvas: Canvas) {
+  const strip = canvas.getByRole('region', { name: 'For December' })
+  const card = cardOf(canvas)
+  await expect(card).not.toBeNull()
+  if (card === null) return
+  await expect(card).not.toContainElement(strip)
+  await expect(card.previousElementSibling).toBe(strip)
+}
+
 async function expectCheckIn(canvas: Canvas) {
   await expect(
     canvas.getByRole('heading', { level: 3, name: 'Monthly portal goal' }),
   ).toBeVisible()
+  // A region named by its title, not a heading in the page's outline.
+  await expect(canvas.queryByRole('heading', { name: 'For December' })).toBeNull()
+  await expectAboveTheCard(canvas)
+  // Said once: the card under the strip leaves the month before to it.
   await expect(
     canvas.getByText('November: 36 of 40 so far. Final figure on Dec 2.'),
   ).toBeVisible()
-  await expect(
-    canvas.getByRole('heading', { level: 4, name: 'For December' }),
-  ).toBeVisible()
   const region = regionOf(canvas)
-  await expect(region.getByRole('button', { name: 'Use 45' })).toBeVisible()
   await expect(
-    region.getByText('Recommended · a bit above your usual of about 38', {
-      exact: false,
-    }),
+    region.getByText(
+      'Your goal is 40 a month. 45 is recommended for December, a bit above your usual of about 38.',
+    ),
   ).toBeVisible()
+  await expect(region.getByRole('button', { name: 'Use 45' })).toBeVisible()
   await expect(region.getByRole('button', { name: 'Keep 40' })).toBeVisible()
   await expect(region.getByRole('button', { name: 'Other number' })).toBeVisible()
+  // Recommended first, as the one to take; the others outlined.
+  const choices = region
+    .getAllByRole('button')
+    .filter((button) => button.textContent !== 'How we worked this out')
+  await expect(choices.map((button) => button.textContent)).toEqual([
+    'Use 45',
+    'Keep 40',
+    'Other number',
+  ])
+  await expect(choices.map((button) => button.dataset.variant)).toEqual([
+    'default',
+    'outline',
+    'outline',
+  ])
   await expect(region.getByText(FOOT)).toBeVisible()
   await expect(canvas.queryByRole('region', { name: 'Last week' })).toBeNull()
-  // It takes the card's body: December's bar waits until it is answered.
-  await expect(canvas.queryByRole('progressbar')).toBeNull()
+  // The card under it is the running month, from its first day, with its pill.
+  await expect(
+    canvas.getByRole('progressbar', { name: 'Private ratings in December' }),
+  ).toBeVisible()
+  await expect(canvas.getByText('Getting started', { exact: true })).toBeVisible()
   await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
     'href',
     '/properties/p1/goals/portals',
@@ -291,6 +326,7 @@ export const CheckInPending: Story = {
     const busy = await region.findByRole('button', { name: 'Saving…' })
     await expect(busy).toHaveAttribute('aria-busy', 'true')
     await expect(region.getByRole('button', { name: 'Keep 40' })).toBeDisabled()
+    await expect(region.getByRole('button', { name: 'Other number' })).toBeDisabled()
     await expect(
       args.commands?.checkIn?.changeMonthlyPortalGoalNowFn,
     ).toHaveBeenCalledOnce()
@@ -387,8 +423,15 @@ export const CheckInNothingCounted: Story = {
       ),
     ).toBeVisible()
     await expect(region.queryByRole('button', { name: /^Use/u })).toBeNull()
-    await expect(region.getByRole('button', { name: 'Keep 40' })).toBeVisible()
-    await expect(region.getByRole('button', { name: 'Other number' })).toBeVisible()
+    // With no number to use, Keep is the one to take.
+    await expect(region.getByRole('button', { name: 'Keep 40' })).toHaveAttribute(
+      'data-variant',
+      'default',
+    )
+    await expect(region.getByRole('button', { name: 'Other number' })).toHaveAttribute(
+      'data-variant',
+      'outline',
+    )
     await expect(region.getByText(FOOT)).toBeVisible()
   },
 }

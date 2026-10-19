@@ -14,11 +14,12 @@
 // so, that its month still counts, and offers the next goal from the month
 // after (G-29). Under it all, the month before while it is read and through
 // the 7th (G-30, G-31). On the month's first seven days, for someone who may
-// change the goal, the month-start check-in takes the card's body
-// (`portal-goal-check-in.tsx`) and the card wears no pill; when the
-// recommended number is the month's already, it is one line under the month
-// instead (K-7). The figure is the governed read's, never a forecast; the
-// words are the views'.
+// change the goal, the month-start check-in is the strip above the card
+// (`portal-goal-check-in.tsx`, `GoalWithCheckIn`): the card under it is the
+// running month, wears its pill, and leaves the month before to the strip's
+// headline; when the recommended number is the month's already, it is one line
+// under the month instead (K-7). The figure is the governed read's, never a
+// forecast; the words are the views'.
 import type {
   PortalGoalCheckIn as Asking,
   PortalGoalOfCard,
@@ -27,6 +28,7 @@ import type {
 import { CardContent } from '#/components/ui/card'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { GoalCardColumns, GoalCardFrame } from './goal-card-frame'
+import { GoalWithCheckIn } from './goal-check-in'
 import { PortalGoalCheckIn, type PortalGoalCheckInCommands } from './portal-goal-check-in'
 import {
   Details,
@@ -71,8 +73,6 @@ type Props = Readonly<{
     commands: PortalGoalCheckInCommands
     /** Reads the card again once it is answered. */
     onAnswered: () => Promise<void>
-    /** Its region heading's level: one below the card's title. */
-    headingAs: 'h2' | 'h3' | 'h4'
   }>
 }>
 
@@ -167,6 +167,8 @@ type RunningProps = Readonly<{
   propertyId: string
   openSheet?: OpenSheet
   sameNumber: boolean
+  /** The check-in strip is above the card: it says the month before, so the card does not. */
+  asking: boolean
 }>
 
 /** The running month: its headline and what is stopped, its meter, and the Portals' counts beside them. */
@@ -241,7 +243,7 @@ function RunningBody(props: RunningProps) {
   return (
     <>
       {unreadable ? <UnreadableMonth {...props} /> : <MonthColumns {...props} />}
-      <MonthBefore goal={props.goal} />
+      {props.asking ? null : <MonthBefore goal={props.goal} />}
     </>
   )
 }
@@ -253,14 +255,16 @@ function WaitingBody({
   propertyId,
   openSheet,
   sameNumber,
+  asking,
 }: Readonly<{
   goal: PortalGoalOfCard
   today: string
   propertyId: string
   openSheet?: OpenSheet
   sameNumber: boolean
+  asking: boolean
 }>) {
-  const last = goal.lastMonth === null ? null : lastMonthWords(goal.lastMonth)
+  const last = goal.lastMonth === null || asking ? null : lastMonthWords(goal.lastMonth)
   return (
     <CardContent className="flex flex-col gap-4">
       <GoalLines goal={goal} today={today} openSheet={openSheet} />
@@ -270,6 +274,14 @@ function WaitingBody({
     </CardContent>
   )
 }
+
+/**
+ * The strip's place while none asks: an empty fragment and not null, so the card
+ * keeps its place in the tree when the strip is answered and goes. The title
+ * that takes the focus once the card is read again is then the one on the page,
+ * not one that a new tree has put in its place.
+ */
+const NO_STRIP = <></>
 
 export function PortalGoalCardGoal({
   goal,
@@ -287,40 +299,25 @@ export function PortalGoalCardGoal({
     checkIn !== undefined && can('goal.update') ? goal.checkIn : null
   const question = asked !== null && asked.kind !== 'same' ? asked : null
   const sameNumber = asked !== null
-  return (
+  const asking = question !== null
+  const card = (
     <GoalCardFrame
       slot={slot}
       title={titleAs === null ? null : PORTAL_GOAL_NAME}
       titleAs={titleAs ?? 'h3'}
       titleId={titleId}
-      // The check-in takes the card's body and no running month is drawn, so no pace is said.
-      status={question === null ? portalGoalPace(goal.month) : null}
+      status={portalGoalPace(goal.month)}
       container
       dataState="goal"
     >
-      {checkIn && question !== null ? (
-        <CardContent className="flex flex-col gap-4">
-          <PortalGoalCheckIn
-            goal={goal}
-            checkIn={question}
-            propertyId={propertyId}
-            commands={checkIn.commands}
-            onAnswered={checkIn.onAnswered}
-            openSheet={openSheet}
-            headingAs={checkIn.headingAs}
-          />
-          {/* Set apart, so it does not read as a fourth choice; U3 moves the check-in above the card. */}
-          <div className="border-t pt-4">
-            <Details propertyId={propertyId} />
-          </div>
-        </CardContent>
-      ) : goal.month === null ? (
+      {goal.month === null ? (
         <WaitingBody
           goal={goal}
           today={today}
           propertyId={propertyId}
           openSheet={openSheet}
           sameNumber={sameNumber}
+          asking={asking}
         />
       ) : (
         <RunningBody
@@ -329,8 +326,29 @@ export function PortalGoalCardGoal({
           propertyId={propertyId}
           openSheet={openSheet}
           sameNumber={sameNumber}
+          asking={asking}
         />
       )}
     </GoalCardFrame>
+  )
+  return (
+    <GoalWithCheckIn
+      checkIn={
+        checkIn !== undefined && question !== null ? (
+          <PortalGoalCheckIn
+            goal={goal}
+            checkIn={question}
+            propertyId={propertyId}
+            commands={checkIn.commands}
+            onAnswered={checkIn.onAnswered}
+            openSheet={openSheet}
+          />
+        ) : (
+          NO_STRIP
+        )
+      }
+    >
+      {card}
+    </GoalWithCheckIn>
   )
 }
