@@ -84,7 +84,10 @@ export function GoalCheckIn({
 
 /**
  * The goal's card with its check-in strip above it while one is due; the card
- * alone, drawn as it always is, when `checkIn` is null.
+ * alone, drawn as it always is, when `checkIn` is null. A goal that reads its
+ * card again as the strip is answered passes an empty fragment, not null, when
+ * none is due: the wrapper then stays, and the card keeps its place in the tree
+ * instead of being drawn anew with the focus lost.
  */
 export function GoalWithCheckIn({
   checkIn,

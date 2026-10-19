@@ -2,7 +2,7 @@
 // strip a headline, a line, its choices and a refusal; the branches below are the
 // ones a goal that passes less (no headline, a pending choice, no refusal to
 // draw) takes, and a branch no test names would change under it unseen.
-import { createElement } from 'react'
+import { createElement, Fragment } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { GoalCheckIn, GoalWithCheckIn } from './goal-check-in'
@@ -145,5 +145,15 @@ describe('GoalWithCheckIn', () => {
 
   it('draws the card alone, in no wrapper, when no strip is due', () => {
     expect(withStrip(null)).toBe('<section>the card</section>')
+  })
+
+  // The keep-mounted contract: a goal whose strip comes and goes while its card
+  // is read again passes an empty fragment, not null, so the wrapper stays and
+  // the card is not re-created when the strip is answered (a title that held the
+  // focus would otherwise be dropped with the old tree).
+  it('keeps the wrapper, and the card in it, when the strip is an empty fragment', () => {
+    expect(withStrip(createElement(Fragment))).toBe(
+      '<div class="flex flex-col gap-3"><section>the card</section></div>',
+    )
   })
 })

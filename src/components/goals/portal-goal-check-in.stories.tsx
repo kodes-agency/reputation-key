@@ -417,6 +417,10 @@ export const CheckInNothingCounted: Story = {
   args: { card: read(CARD_CHECK_IN_NOTHING) },
   play: async ({ canvasElement }) => {
     const region = regionOf(within(canvasElement))
+    // The month before has nothing either: the headline agrees with the fact under it.
+    await expect(
+      region.getByText('November: 0 of 40 so far. Final figure on Dec 2.'),
+    ).toBeVisible()
     await expect(
       region.getByText(
         'No recommendation this month: no private ratings in the last 4 weeks.',

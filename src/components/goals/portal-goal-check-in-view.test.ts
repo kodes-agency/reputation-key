@@ -72,9 +72,11 @@ describe('the month-start check-in, worded', () => {
   })
 
   it('nothing counted keeps Keep and Other number, and says why there is no number', () => {
-    expect(checkInWords(CHECK_IN_NOTHING, NOVEMBER_UPDATING)).toEqual({
+    // The 4 weeks end yesterday and cover almost all of November, so November has
+    // nothing either: the headline and the fact under it cannot disagree.
+    expect(checkInWords(CHECK_IN_NOTHING, { ...NOVEMBER_UPDATING, value: 0 })).toEqual({
       label: 'For December',
-      headline: 'November: 36 of 40 so far. Final figure on Dec 2.',
+      headline: 'November: 0 of 40 so far. Final figure on Dec 2.',
       sub: 'No recommendation this month: no private ratings in the last 4 weeks.',
       use: null,
       keep: { label: 'Keep 40', toast: 'December stays at 40' },
