@@ -1,6 +1,6 @@
 // "Add a portal goal" (PLAN PG-20; copy deck M-2…M-14): a dialog on a desktop
-// and a full-screen sheet on a phone, built on the dialog primitives as the set
-// sheet is. It asks what to add (a goal for one Portal, for each, for a group,
+// and a full-screen sheet on a phone, in the shared sheet frame as the set sheet
+// is (it draws its own title, which changes with the step). It asks what to add (a goal for one Portal, for each, for a group,
 // or the average), then which Portal or group and its number, or the rows of
 // each Portal, or the average's number, and sends it (`portal-goal-add-body.tsx`).
 // An address can open it on a step (`?add=portal&subject=portal:<id>`); Back
@@ -25,11 +25,10 @@ import type {
 } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { useIsMobile } from '#/components/hooks/use-mobile'
 import { Button } from '#/components/ui/button'
-import { Dialog, DialogCancel, DialogContent, DialogFooter } from '#/components/ui/dialog'
-import { SheetContent } from '#/components/ui/sheet'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { goalRefusalCode, withGoalRefusals } from './goal-refusal'
+import { GoalSheetFrame } from './goal-sheet-frame'
 import {
   PortalGoalAddBody,
   stepControl,
@@ -155,74 +154,58 @@ function useAddCommands(
 
 export function PortalGoalAddSheet(props: PortalGoalAddSheetProps) {
   const { options, propertyId } = props
-  const phone = useIsMobile()
   const [place, setPlace] = useState(() => placeOf(props.opening))
   const [each, setEach] = useState(() => eachDraftOf(options))
   const [box, setBox] = useState('')
   const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set())
   const { sendOne, sendEach, pending, error } = useAddCommands(props, setFailed)
-  const body = (
-    <PortalGoalAddBody
-      propertyId={propertyId}
-      options={options}
-      place={place}
-      each={each}
-      box={box}
-      failed={failed}
-      small={phone}
-      pending={pending}
-      onPlace={setPlace}
-      onEach={setEach}
-      onBox={setBox}
-      onSendOne={(data) => sendOne({ propertyId, ...data })}
-      onSendEach={(data) => sendEach({ propertyId, ...data })}
-      error={<DialogErrorBanner error={error} />}
-      footer={(back, primary) => (
-        <DialogFooter>
-          {back === null ? (
-            <DialogCancel />
-          ) : (
-            <Button type="button" variant="outline" disabled={pending} onClick={back}>
-              Back
-            </Button>
-          )}
-          <Button
-            type="submit"
-            disabled={primary.disabled}
-            pending={pending}
-            pendingLabel="Saving…"
-            className="whitespace-normal"
-          >
-            {primary.label}
-          </Button>
-        </DialogFooter>
-      )}
-    />
-  )
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange} busy={pending}>
-      {phone ? (
-        // Full screen: the sheet is the window's height, scrolls inside, and
-        // keeps the dialog's padding variable so the footer pins the same way.
-        <SheetContent
-          side="bottom"
-          data-portal-goal-add="sheet"
-          onOpenAutoFocus={focusTheStep}
-          onCloseAutoFocus={props.onCloseAutoFocus}
-          className="h-dvh gap-4 overflow-y-auto p-(--dialog-pad) [--dialog-pad:1rem]"
-        >
-          {body}
-        </SheetContent>
-      ) : (
-        <DialogContent
-          size="md"
-          data-portal-goal-add="dialog"
-          onOpenAutoFocus={focusTheStep}
-          onCloseAutoFocus={props.onCloseAutoFocus}
-        >
-          {body}
-        </DialogContent>
+    <GoalSheetFrame
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      busy={pending}
+      marker="data-portal-goal-add"
+      onOpenAutoFocus={focusTheStep}
+      onCloseAutoFocus={props.onCloseAutoFocus}
+    >
+      {(phone) => (
+        <PortalGoalAddBody
+          propertyId={propertyId}
+          options={options}
+          place={place}
+          each={each}
+          box={box}
+          failed={failed}
+          small={phone}
+          pending={pending}
+          onPlace={setPlace}
+          onEach={setEach}
+          onBox={setBox}
+          onSendOne={(data) => sendOne({ propertyId, ...data })}
+          onSendEach={(data) => sendEach({ propertyId, ...data })}
+          error={<DialogErrorBanner error={error} />}
+          footer={(back, primary) => (
+            <DialogFooter>
+              {back === null ? (
+                <DialogCancel />
+              ) : (
+                <Button type="button" variant="outline" disabled={pending} onClick={back}>
+                  Back
+                </Button>
+              )}
+              <Button
+                type="submit"
+                disabled={primary.disabled}
+                pending={pending}
+                pendingLabel="Saving…"
+                className="whitespace-normal"
+              >
+                {primary.label}
+              </Button>
+            </DialogFooter>
+          )}
+        />
       )}
-    </Dialog>
+    </GoalSheetFrame>
   )
 }
