@@ -4,8 +4,8 @@
 // goal or a server context, and it says no product word, so a goal puts its own
 // words in and the other goal's words can never come out. These read every
 // shared part with no exemption and fail with the file named.
-import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
+import { importedModules, writtenTexts } from '#/shared/testing/source-texts'
 import { readUiSources, type SourceFile } from '#/shared/testing/source-tree'
 
 /**
@@ -29,41 +29,6 @@ const PARTS_DIR = 'src/components/goals/'
 const SOURCES = readUiSources({ includeTs: true }).filter((file) =>
   SHARED_PARTS.some((name) => file.path === `${PARTS_DIR}${name}`),
 )
-
-/** Every text the file writes out: string and template literals, and JSX text. */
-function writtenTexts(file: SourceFile): string[] {
-  const source = ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true)
-  const texts: string[] = []
-  const visit = (node: ts.Node): void => {
-    // A module's path is where it lives, not what it says.
-    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return
-    if (
-      ts.isStringLiteral(node) ||
-      ts.isNoSubstitutionTemplateLiteral(node) ||
-      ts.isTemplateHead(node) ||
-      ts.isTemplateMiddle(node) ||
-      ts.isTemplateTail(node) ||
-      ts.isJsxText(node)
-    ) {
-      texts.push(node.text)
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(source)
-  return texts
-}
-
-/** The module specifiers a file imports or re-exports from. */
-function importedModules(file: SourceFile): string[] {
-  const source = ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true)
-  return source.statements.flatMap((statement) =>
-    (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
-    statement.moduleSpecifier &&
-    ts.isStringLiteral(statement.moduleSpecifier)
-      ? [statement.moduleSpecifier.text]
-      : [],
-  )
-}
 
 /** The files among `files` for which `offends` holds. */
 const offenders = (

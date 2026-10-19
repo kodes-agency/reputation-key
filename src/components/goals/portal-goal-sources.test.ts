@@ -6,8 +6,8 @@
 // components, its route modules, and its pages once they exist) with no
 // exemption, and fail with the file named. The three lines the owner approved
 // (P-8) are spelled in `portal-goal-copy.ts` only, as approved.
-import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
+import { importedModules, writtenTexts } from '#/shared/testing/source-texts'
 import { readUiSources, type SourceFile } from '#/shared/testing/source-tree'
 import {
   HOW_TO_ASK_LINE,
@@ -40,42 +40,6 @@ function isPortalGoalSource(path: string): boolean {
 
 const ALL_SOURCES = readUiSources({ includeTs: true })
 const SOURCES = ALL_SOURCES.filter((file) => isPortalGoalSource(file.path))
-
-/** Every text the file writes out: string and template literals, and JSX text. */
-function writtenTexts(file: SourceFile): string[] {
-  const source = ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true)
-  const texts: string[] = []
-  const visit = (node: ts.Node): void => {
-    // A module's path is where it lives, not what it says.
-    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return
-    if (
-      ts.isStringLiteral(node) ||
-      ts.isNoSubstitutionTemplateLiteral(node) ||
-      ts.isTemplateHead(node) ||
-      ts.isTemplateMiddle(node) ||
-      ts.isTemplateTail(node)
-    ) {
-      texts.push(node.text)
-    } else if (ts.isJsxText(node)) {
-      texts.push(node.text)
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(source)
-  return texts
-}
-
-/** The module specifiers a file imports or re-exports from. */
-function importedModules(file: SourceFile): string[] {
-  const source = ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true)
-  return source.statements.flatMap((statement) =>
-    (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
-    statement.moduleSpecifier &&
-    ts.isStringLiteral(statement.moduleSpecifier)
-      ? [statement.moduleSpecifier.text]
-      : [],
-  )
-}
 
 /** The files among `files` for which `offends` holds. */
 const offenders = (
