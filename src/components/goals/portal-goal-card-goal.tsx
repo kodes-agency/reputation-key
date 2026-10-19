@@ -248,23 +248,25 @@ function RunningBody(props: RunningProps) {
   )
 }
 
-/** A goal with no month running: its month and number, and the month before. */
+/**
+ * A goal with no month running: its month and number, and the month before. No
+ * strip asks here: the read asks only of a running month, so the month before is
+ * always the card's to say.
+ */
 function WaitingBody({
   goal,
   today,
   propertyId,
   openSheet,
   sameNumber,
-  asking,
 }: Readonly<{
   goal: PortalGoalOfCard
   today: string
   propertyId: string
   openSheet?: OpenSheet
   sameNumber: boolean
-  asking: boolean
 }>) {
-  const last = goal.lastMonth === null || asking ? null : lastMonthWords(goal.lastMonth)
+  const last = goal.lastMonth === null ? null : lastMonthWords(goal.lastMonth)
   return (
     <CardContent className="flex flex-col gap-4">
       <GoalLines goal={goal} today={today} openSheet={openSheet} />
@@ -317,7 +319,6 @@ export function PortalGoalCardGoal({
           propertyId={propertyId}
           openSheet={openSheet}
           sameNumber={sameNumber}
-          asking={asking}
         />
       ) : (
         <RunningBody
