@@ -75,8 +75,11 @@ describe('the Monthly portal goal sources', () => {
     ).toEqual([])
   })
 
-  it('keeps the number in foreground ink', () => {
-    // The link ink is for links (InlineLink, a link Button), never a figure.
+  it('writes no link ink: the headline’s target gets it through GoalHeadline', () => {
+    // The link ink is for links (InlineLink, a link Button) and for the one
+    // figure a goal leads with, which the shared headline owns
+    // (`goal-shared-sources.test.ts`). No Portal figure takes it by a class
+    // of its own.
     expect(
       offenders(SOURCES, (file) =>
         writtenTexts(file).some((text) => /\btext-link\b/u.test(text)),
