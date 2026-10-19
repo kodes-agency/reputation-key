@@ -227,10 +227,10 @@ how the goals are drawn, and nothing else in them.
    check-in strip are drawn by neutral modules, `src/components/goals/goal-*`,
    that the Google rating goal calls today and the Monthly portal goal moves
    onto (its card, Overview slot and page header draw with the first three, its
-   month-start check-in with the strip). The setup sheet frame and its parts,
-   the detail-page layout, the tiles and the History list will be drawn by such
-   modules too, each cut from the Google rating goal in the step that gives it
-   its first Portal caller. A
+   month-start check-in with the strip, its set, change and add sheets with the
+   sheet frame and the setup parts). The detail-page layout, the tiles and the
+   History list will be drawn by such modules too, each cut from the Google
+   rating goal in the step that gives it its first Portal caller. A
    shared part imports no `rating-goal-*` or `portal-goal-*` module and no
    server context, and says no product word: a goal passes in its own words, so
    the other goal's words cannot come out (`goal-shared-sources.test.ts`). The
@@ -266,6 +266,15 @@ how the goals are drawn, and nothing else in them.
    running month and its pill and leaves the month before to the strip. What the
    check-in does is unchanged: nothing is automatic, a refusal is a toast, and
    Use and Keep send the same commands.
+6. **The setup sheets are one frame.** The set, change and add sheets are the
+   Google rating goal's setup frame (`goal-sheet-frame.tsx`: a dialog on a
+   desktop, a full-screen sheet on a phone) and its parts (`goal-setup-parts.tsx`):
+   the number as the hero between round steppers with what it counts under it,
+   the line under it (the recommendation's tag and its words, or the way back),
+   the suggested numbers as radio rows in a muted panel with the asking line
+   quoted in it, and a row of links. The number stays a typed box (the arrow
+   keys step along the goal grid, Enter writes it), what Set sends is unchanged,
+   and the rows of "a goal for each portal" keep their small square steppers.
 
 ## Rejected alternatives
 

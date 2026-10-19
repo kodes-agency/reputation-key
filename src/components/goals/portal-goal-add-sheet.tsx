@@ -1,8 +1,9 @@
 // "Add a portal goal" (PLAN PG-20; copy deck M-2…M-14): a dialog on a desktop
 // and a full-screen sheet on a phone, in the shared sheet frame as the set sheet
-// is (it draws its own title, which changes with the step). It asks what to add (a goal for one Portal, for each, for a group,
-// or the average), then which Portal or group and its number, or the rows of
-// each Portal, or the average's number, and sends it (`portal-goal-add-body.tsx`).
+// is (it draws its own title, which changes with the step). It asks what to add
+// (a goal for one Portal, for each, for a group, or the average), then which
+// Portal or group and its number, or the rows of each Portal, or the average's
+// number, and sends it (`portal-goal-add-body.tsx`).
 // An address can open it on a step (`?add=portal&subject=portal:<id>`); Back
 // always leads to the choice.
 //
