@@ -36,6 +36,7 @@ import {
   recordMissingFromListing,
   refuseRemovalWithoutExactListing,
 } from './review-provider-snapshot-listing'
+import { recordedFailureCode } from './review-provider-snapshot-listing-change'
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
   createRunReviewSourceContentLifecycle,
@@ -207,12 +208,15 @@ async function recordHistoryImportFinished(
   await insertOutboxRow(tx, finished, { recordedAt: finishedAt })
 }
 
+/** A set change is recorded as `listing_changed` until it repeats
+ * (review-provider-snapshot-listing-change.ts). */
 async function failLockedRun(
   tx: Tx,
   row: RunRow,
-  code: ReviewProviderSnapshotFailureCode,
+  requested: ReviewProviderSnapshotFailureCode,
 ): Promise<RunRow> {
   if (row.state === 'completed' || row.state === 'failed') return row
+  const code = await recordedFailureCode(tx, row, requested)
   if (await endsFirstHistoryImport(tx, row, 'failed')) {
     await recordHistoryImportFinished(tx, row, { outcome: 'failed', code })
   }
@@ -241,6 +245,17 @@ async function failLockedRun(
       'Snapshot run disappeared while failing',
     )
   return terminal[0]
+}
+
+/** Fail the locked run and answer with the code the run holds: the one
+ * recorded, or the one it already ended with. */
+async function failedResult(
+  tx: Tx,
+  row: RunRow,
+  code: ReviewProviderSnapshotFailureCode,
+) {
+  const failed = fromRunRow(await failLockedRun(tx, row, code))
+  return { status: 'failed' as const, run: failed, code: failed.failureCode ?? code }
 }
 
 type StartOrResumeInput = Parameters<ReviewProviderSnapshotRepository['startOrResume']>[0]
@@ -1018,12 +1033,7 @@ export const createReviewProviderSnapshotRepository = (
         input.phase === 'confirmation' &&
         !(await isWithinConfirmationDeadline(tx, run))
       ) {
-        const failed = await failLockedRun(tx, run, 'confirmation_deadline_elapsed')
-        return {
-          status: 'failed' as const,
-          run: fromRunRow(failed),
-          code: 'confirmation_deadline_elapsed' as const,
-        }
+        return failedResult(tx, run, 'confirmation_deadline_elapsed')
       }
       try {
         const conflict = pageCommitConflictCode(run, input)
@@ -1055,9 +1065,7 @@ export const createReviewProviderSnapshotRepository = (
           finalPage: input.nextCursorRef == null,
         }
       } catch (error) {
-        const code = failCode(error)
-        const failed = await failLockedRun(tx, run, code)
-        return { status: 'failed' as const, run: fromRunRow(failed), code }
+        return failedResult(tx, run, failCode(error))
       }
     }),
 
@@ -1084,12 +1092,7 @@ export const createReviewProviderSnapshotRepository = (
         !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating) ||
         agreement.kind === 'mismatch'
       ) {
-        const failed = await failLockedRun(tx, run, 'set_mismatch')
-        return {
-          status: 'failed' as const,
-          run: fromRunRow(failed),
-          code: 'set_mismatch' as const,
-        }
+        return failedResult(tx, run, 'set_mismatch')
       }
 
       // Only a listing that agrees with Google's total says anything about
@@ -1296,8 +1299,7 @@ export const createReviewProviderSnapshotRepository = (
           run.confirmationDeadline != null && now >= run.confirmationDeadline
             ? 'confirmation_deadline_elapsed'
             : 'confirmation_set_changed'
-        const failed = await failLockedRun(tx, run, code)
-        return { status: 'failed' as const, run: fromRunRow(failed), code }
+        return failedResult(tx, run, code)
       }
       await tx
         .update(reviewProviderDeletionCandidates)
@@ -1319,14 +1321,7 @@ export const createReviewProviderSnapshotRepository = (
           ),
         )
         .limit(1)
-      if (pending.length > 0) {
-        const failed = await failLockedRun(tx, run, 'confirmation_set_changed')
-        return {
-          status: 'failed' as const,
-          run: fromRunRow(failed),
-          code: 'confirmation_set_changed' as const,
-        }
-      }
+      if (pending.length > 0) return failedResult(tx, run, 'confirmation_set_changed')
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
         .set({

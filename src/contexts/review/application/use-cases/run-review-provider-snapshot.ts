@@ -177,6 +177,34 @@ const sameScope = async (
   return scope != null && scope.sourceEpoch === input.sourceEpoch
 }
 
+/**
+ * The failure as the store recorded it, which for a set change depends on the
+ * Property's earlier runs (`snapshot-listing-change.ts`). A `listing_changed`
+ * run is expected and the sync job starts again at once, so it is a warning
+ * with the three counts and nothing else: no identifier, so the line is
+ * content-free, and the run row (`failure_code = 'listing_changed'`) says which
+ * Property. `confirmed` is how far the confirmation got before the change.
+ */
+const failedOutcome = (
+  deps: RunReviewProviderSnapshotDeps,
+  run: ReviewProviderSnapshotRun,
+  code: ReviewProviderSnapshotFailureCode,
+): RunReviewProviderSnapshotResult => {
+  const recorded = run.failureCode ?? code
+  if (recorded === 'listing_changed') {
+    deps.logger.warn(
+      {
+        event: 'review_snapshot_listing_changed',
+        expected: run.expectedProviderTotal,
+        listed: run.mainUniqueCount,
+        confirmed: run.confirmationUniqueCount,
+      },
+      'Review snapshot listing changed between its two scans; no removals applied',
+    )
+  }
+  return { status: 'failed', runId: run.id, code: recorded }
+}
+
 const failAndDiscard = async (
   deps: RunReviewProviderSnapshotDeps,
   input: RunReviewProviderSnapshotInput,
@@ -194,7 +222,7 @@ const failAndDiscard = async (
     organizationId: input.organizationId,
     code,
   })
-  return { status: 'failed', runId: run.id, code: run.failureCode ?? code }
+  return failedOutcome(deps, run, code)
 }
 
 const failForProviderError = async (
@@ -383,7 +411,7 @@ const finishPhase = async (
     organizationId: input.organizationId,
   })
   if (finished.status === 'failed') {
-    return { status: 'failed', runId: run.id, code: finished.code }
+    return failedOutcome(deps, finished.run, finished.code)
   }
   return { status: 'deleting', runId: run.id, applied: 0 }
 }

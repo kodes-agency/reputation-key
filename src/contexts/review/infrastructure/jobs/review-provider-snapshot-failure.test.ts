@@ -30,6 +30,7 @@ const FAILURE_CODES = {
   set_mismatch: true,
   confirmation_deadline_elapsed: true,
   confirmation_set_changed: true,
+  listing_changed: true,
   observation_failed: true,
 } as const satisfies Record<ReviewProviderSnapshotFailureCode, true>
 

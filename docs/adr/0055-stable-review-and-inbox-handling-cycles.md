@@ -144,6 +144,40 @@ one poll still waits no longer than the figures in the note on what decision
 five-minute timeout, so a delayed job has always started before the next sweep
 can enqueue the same Property.
 
+## Note 2026-10-19 — a listing that changes between a run's two scans
+
+The note on when full reconciliation may detect deletion requires a run's
+confirmation scan to list exactly the reviews its main scan did. A run whose
+confirmation finds a different set cannot complete, and until 2026-10-19 it
+always failed as `confirmation_set_changed`: a Sentry error, an alert, a dead
+letter and a repair latch. On the closed beta the largest location (3,714
+reviews, about three minutes a listing) failed that way once in 189 overnight
+runs, most likely a guest posting while the run was between its two listings,
+and its next run completed.
+
+As implemented now, such a run ends as `listing_changed`. It removes nothing,
+since it never reaches its apply step; the worker logs
+`review_snapshot_listing_changed` with Google's total and the two listings'
+counts only; and the sync job starts a fresh run at once under the same
+initiator and records no failure, so nothing retries, dead-letters or alerts.
+When the Property's two runs before it in the same source epoch also ended
+with a changed set, the run is recorded as `confirmation_set_changed` and
+fails loudly as before, and so does every later one until a run completes or
+ends some other way. A run lost to a cursor store restart (`cursor_lost`) is
+skipped in that count: it ended before it could compare its listings. Two
+quiet runs, because a change is rare (two in a row by chance is about 1 in
+36,000 at the rate seen) but not independent (the fresh run covers the next
+minutes of the same check-out wave or portal campaign), while a defect changes
+the listing on every run and is loud on the third, minutes after the first
+(`application/snapshot-listing-change.ts`).
+
+A changed run keeps what its main listing recorded, as any failed run does.
+Its removal candidates are never applied. A first miss it recorded leads to a
+removal only through a later run that starts at least 15 minutes after it,
+misses the review again in a listing that agrees with Google's total, finds it
+gone with a targeted read, and lists the same set twice; the fresh run started
+at once is never that run.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

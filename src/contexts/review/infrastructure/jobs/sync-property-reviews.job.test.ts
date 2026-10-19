@@ -1,6 +1,7 @@
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
   GBP_PUSH_SYNC_INITIATOR_ID,
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
 } from '../../application/ports/review-queue.port'
@@ -182,13 +183,54 @@ describe('sync-property-reviews snapshot handler', () => {
     expect(discoveryRepo.markSyncSucceeded).not.toHaveBeenCalled()
   })
 
+  // A guest who posts while a run is between its two listings changes the set
+  // the confirmation must find again. The run removes nothing and is simply
+  // run again: failing the job for it put a Sentry error, a dead letter, an
+  // alert and a repair latch on the largest Property (2026-10-19).
+  it('starts a fresh run at once, without a failure, when the listing changed between the scans', async () => {
+    const discoveryRepo = makeDiscoveryState()
+    const enqueueContinuation = vi.fn(async () => undefined)
+    const changedRunId = '44444444-4444-4444-8444-444444444444'
+    const initiator = { kind: 'system', id: DISCOVERY_SWEEP_SYNC_INITIATOR_ID }
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot: vi.fn(async () => ({
+        status: 'failed' as const,
+        runId: changedRunId,
+        code: 'listing_changed' as const,
+      })),
+      propertySourceEpoch,
+      enqueueContinuation,
+      ...ladderDeps(makeSyncActivity(), discoveryRepo),
+    })
+
+    await expect(
+      handler({
+        id: 'job-listing-changed',
+        data: { ...JOB_DATA, initiator, sourceEpoch: 7, runId: changedRunId },
+      } as never),
+    ).resolves.toMatchObject({ status: 'failed', code: 'listing_changed' })
+
+    expect(enqueueContinuation).toHaveBeenCalledTimes(1)
+    expect(enqueueContinuation).toHaveBeenCalledWith({
+      ...JOB_DATA,
+      initiator,
+      sourceEpoch: 7,
+    })
+    expect(discoveryRepo.markDiscoveryDeferred).not.toHaveBeenCalled()
+    expect(discoveryRepo.markSyncSucceeded).not.toHaveBeenCalled()
+  })
+
   // `cursor_failure` is what the use case answers when the cursor vanished
   // with no store restart to explain it: a defect, so it still fails loudly.
+  // `confirmation_set_changed` is what the store records once a Property's
+  // listing has changed under several runs in a row: a paging defect, not a
+  // guest posting, so it fails loudly too.
   it.each([
     'source_changed',
     'malformed_page',
     'observation_failed',
     'cursor_failure',
+    'confirmation_set_changed',
   ] as const)('still retries at the discovery interval after %s', async (code) => {
     const discoveryRepo = makeDiscoveryState()
     const handler = createSyncPropertyReviewsHandler({

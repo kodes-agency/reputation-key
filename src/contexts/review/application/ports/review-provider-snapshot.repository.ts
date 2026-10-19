@@ -44,7 +44,19 @@ export type ReviewProviderSnapshotFailureCode =
   | 'review_cap_exceeded'
   | 'set_mismatch'
   | 'confirmation_deadline_elapsed'
+  /**
+   * The confirmation listing found a different set of reviews than the main
+   * one, and the Property's runs just before also did
+   * (`snapshot-listing-change.ts`): a listing that keeps changing, so loud.
+   */
   | 'confirmation_set_changed'
+  /**
+   * The confirmation listing found a different set of reviews than the main
+   * one, most likely a guest posting mid-run. Nothing is removed and the sync
+   * job starts a fresh run instead of failing. The store records it in place
+   * of `confirmation_set_changed` until that repeats.
+   */
+  | 'listing_changed'
   | 'observation_failed'
 
 export type ReviewProviderSnapshotRun = Readonly<{
@@ -247,6 +259,14 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     }>,
   ): Promise<'confirmed' | 'stale' | 'run_failed'>
 
+  /**
+   * A removal candidate Google returned after all: the run's set changed, so
+   * the run fails. A set change is recorded as `listing_changed`, or as
+   * `confirmation_set_changed` once it repeats (`snapshot-listing-change.ts`),
+   * here and wherever else one is found (`commitPage`,
+   * `finishConfirmationScan`, `failRun`), and each answers with the code it
+   * recorded.
+   */
   recordCandidateObservation(
     input: Readonly<{
       runId: string

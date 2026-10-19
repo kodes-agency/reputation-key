@@ -10,6 +10,7 @@ import type { PropertySourceEpochPort } from '../../application/ports/property-s
 import { historyImportFailureReason } from '../../application/historical-import-outcome'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
 import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
+import type { ReviewProviderSnapshotFailureCode } from '../../application/ports/review-provider-snapshot.repository'
 import type {
   ContinuableSnapshotResult,
   RunReviewProviderSnapshot,
@@ -169,6 +170,23 @@ async function runTargetedFetchStep(
 }
 
 /**
+ * Failures that lose a run rather than break it, so the sync starts a fresh
+ * run at once instead of failing:
+ *
+ * - `cursor_lost`: a deploy that restarts the cursor store drops the cursors
+ *   of every run in flight (ADR 0050 keeps nothing across a restart). The use
+ *   case answers `cursor_failure` instead when no restart explains the loss.
+ * - `listing_changed`: Google's listing changed between the run's two scans,
+ *   most likely a guest posting mid-run, so the run removed nothing. The store
+ *   records `confirmation_set_changed` instead once the Property's runs keep
+ *   changing (application/snapshot-listing-change.ts).
+ */
+const RESTARTED_AT_ONCE: ReadonlySet<ReviewProviderSnapshotFailureCode> = new Set([
+  'cursor_lost',
+  'listing_changed',
+])
+
+/**
  * The first step of a fresh run for the same Property, source epoch and
  * initiator: no `runId`, so the use case starts a run from page 0 or joins
  * the one already active, and an interrupted first import stays an import.
@@ -220,11 +238,9 @@ async function runSnapshotStep(
       result,
     )
   }
-  // A deploy that restarts the cursor store drops the cursors of every run in
-  // flight (ADR 0050 keeps nothing across a restart). That run is lost, not
-  // broken: start again now, with no coded failure, retry or dead letter. The
-  // use case answers `cursor_failure` instead when no restart explains the loss.
-  if (result.status === 'failed' && result.code === 'cursor_lost') {
+  // A run lost, not broken: start again now, with no coded failure, retry or
+  // dead letter (RESTARTED_AT_ONCE).
+  if (result.status === 'failed' && RESTARTED_AT_ONCE.has(result.code)) {
     await deps.enqueueContinuation(freshRunStep(data, scope.sourceEpoch))
     return result
   }

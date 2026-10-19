@@ -21,6 +21,7 @@ const ALL_CODES: ReadonlyArray<ReviewProviderSnapshotFailureCode> = [
   'set_mismatch',
   'confirmation_deadline_elapsed',
   'confirmation_set_changed',
+  'listing_changed',
   'observation_failed',
 ]
 
@@ -48,6 +49,7 @@ describe('history import failure reason', () => {
     expect(historyImportFailureReason('provider_failure')).toBe('temporary')
     expect(historyImportFailureReason('cursor_failure')).toBe('temporary')
     expect(historyImportFailureReason('confirmation_deadline_elapsed')).toBe('temporary')
+    expect(historyImportFailureReason('listing_changed')).toBe('temporary')
   })
 
   it('answers for every failure code the snapshot run can end with', () => {
