@@ -261,11 +261,13 @@ export type ReviewProviderSnapshotRepository = Readonly<{
 
   /**
    * A removal candidate Google returned after all: the run's set changed, so
-   * the run fails. A set change is recorded as `listing_changed`, or as
-   * `confirmation_set_changed` once it repeats (`snapshot-listing-change.ts`),
-   * here and wherever else one is found (`commitPage`,
-   * `finishConfirmationScan`, `failRun`), and each answers with the code it
-   * recorded.
+   * the run fails. Wherever a set change is found (here, `commitPage`,
+   * `finishConfirmationScan`, or `failRun` asked for
+   * `confirmation_set_changed`) it is recorded as `listing_changed`, or as
+   * `confirmation_set_changed` once it repeats (`snapshot-listing-change.ts`).
+   * `commitPage`, `finishConfirmationScan` and `failRun` answer with the code
+   * recorded; this one answers a status, and the caller reads the code back
+   * from `failRun`.
    */
   recordCandidateObservation(
     input: Readonly<{

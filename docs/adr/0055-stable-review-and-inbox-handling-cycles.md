@@ -175,8 +175,10 @@ A changed run keeps what its main listing recorded, as any failed run does.
 Its removal candidates are never applied. A first miss it recorded leads to a
 removal only through a later run that starts at least 15 minutes after it,
 misses the review again in a listing that agrees with Google's total, finds it
-gone with a targeted read, and lists the same set twice; the fresh run started
-at once is never that run.
+gone with a targeted read, and lists the same set twice. The fresh run started
+at once begins about one listing after that first miss (minutes on the largest
+location), so it normally falls short of the 15 minutes; one that does not still
+has to pass every other check itself, on its own two listings.
 
 ## Merged from ADR 0003
 

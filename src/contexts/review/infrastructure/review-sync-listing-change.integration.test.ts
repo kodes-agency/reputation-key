@@ -37,6 +37,7 @@ import type {
 import type { ReviewProviderSubjectKeyService } from '../application/provider-subject-keyring'
 import {
   DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
+  GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
   type SyncPropertyReviewsJobData,
 } from '../application/ports/review-queue.port'
 import { createReviewProviderObservationWriter } from '../application/use-cases/sync-reviews'
@@ -76,7 +77,9 @@ const observationWriter = createReviewProviderObservationWriter({
   historyCutoffs: snapshotRepository,
 })
 
-type Listing = Readonly<{ main: GoogleReviewPage; confirmation: GoogleReviewPage }>
+/** One scan of a listing: a single page, or each of its pages in order. */
+type Scan = GoogleReviewPage | readonly GoogleReviewPage[]
+type Listing = Readonly<{ main: Scan; confirmation: Scan }>
 
 /**
  * What Google lists for each run, in the order the runs start: the first run
@@ -89,11 +92,14 @@ let runOrder: string[] = []
 let readable: readonly GoogleReview[] = []
 
 const googleReviewApi: GoogleReviewApiPort = {
-  listReviewsPage: vi.fn(async ({ runId, phase }) => {
+  listReviewsPage: vi.fn(async ({ runId, phase, pageIndex }) => {
     if (!runOrder.includes(runId)) runOrder.push(runId)
     const listing = listings[Math.min(runOrder.indexOf(runId), listings.length - 1)]
     if (!listing) throw new Error('No listing for this run')
-    return phase === 'main' ? listing.main : listing.confirmation
+    const scan = phase === 'main' ? listing.main : listing.confirmation
+    const found = 'reviews' in scan ? scan : scan[pageIndex]
+    if (!found) throw new Error('No such page in this listing')
+    return found
   }),
   getReview: vi.fn(async ({ reviewName }) => {
     const found = readable.find((review) => review.reviewName === reviewName)
@@ -182,21 +188,31 @@ type Sync = Readonly<{
   thrown: unknown
 }>
 
-/** One sync as the worker runs it: each queued step in turn, until none is left
- * or a step fails the job. */
-async function sync(): Promise<Sync> {
-  queued = [SYNC]
+/** The queued steps as the worker runs them, one after the other, until none
+ * is left or a step fails the job. `untilFailed` stops after the first run that
+ * ends failed, leaving the step it queued for the next call. */
+async function drain(untilFailed = false): Promise<Sync> {
   const outcomes: unknown[] = []
   for (let steps = 0; queued.length > 0; steps += 1) {
     if (steps === MAX_STEPS) throw new Error('The sync never settled')
     const data = queued.shift()
     try {
-      outcomes.push(await handler({ id: `step-${steps}`, data } as never))
+      const outcome = await handler({ id: `step-${steps}`, data } as never)
+      outcomes.push(outcome)
+      if (untilFailed && (outcome as { status?: unknown }).status === 'failed') {
+        return { outcomes, thrown: null }
+      }
     } catch (error) {
       return { outcomes, thrown: error }
     }
   }
   return { outcomes, thrown: null }
+}
+
+/** One sync as the worker runs it, from its first step. */
+function sync(start: SyncPropertyReviewsJobData = SYNC): Promise<Sync> {
+  queued = [start]
+  return drain()
 }
 
 function guestReview(slug: string): GoogleReview {
@@ -219,11 +235,18 @@ function guestReview(slug: string): GoogleReview {
   }
 }
 
-const page = (reviews: readonly GoogleReview[], total: number): GoogleReviewPage => ({
+/** A cursor the snapshot tables accept; the fake listing ignores its value. */
+const NEXT_PAGE = `v1.${'A'.repeat(43)}`
+
+const page = (
+  reviews: readonly GoogleReview[],
+  total: number,
+  nextCursorRef: string | null = null,
+): GoogleReviewPage => ({
   reviews,
   totalReviewCount: total,
   averageRating: 5,
-  nextCursorRef: null,
+  nextCursorRef,
 })
 
 /** Google lists `reviews` twice over, as it counts them. */
@@ -498,5 +521,152 @@ describe('a listing that changes between the two scans of a run (real PostgreSQL
     await expect(
       snapshotRepository.applyDeletionBatch({ runId: changedRunId ?? '', limit: 100 }),
     ).rejects.toMatchObject({ code: 'snapshot_run_not_deleting' })
+  })
+
+  // The run is part-way through a confirmation of two pages when the second one
+  // shows a review the main listing did not have. Its removal candidate was
+  // already confirmed missing, and stays so on a run that is over: only a run
+  // whose own two listings agree may remove it.
+  it('removes a vanished review only on the fresh run whose listings agree, never on the changed one', async () => {
+    const hidden = guestReview('listing-change-hidden')
+    listings = [steady([first, second, hidden])]
+    await expect(sync()).resolves.toMatchObject({ thrown: null })
+    // An earlier run missed it two days ago, so the next run may make it a
+    // candidate, and a targeted read finds it gone from Google.
+    await db.execute(sql`
+      UPDATE review_provider_subjects s
+      SET first_missing_at = now() - ${`${2 * DAY_MS} milliseconds`}::interval,
+          first_missing_snapshot_run_id = ${crypto.randomUUID()}
+      FROM reviews r
+      WHERE r.id = s.review_id AND r.organization_id = ${ORG}
+        AND r.external_id = ${hidden.externalId}
+    `)
+
+    runOrder = []
+    listings = [
+      {
+        main: [page([first], 2, NEXT_PAGE), page([second], 2)],
+        confirmation: [page([first], 2, NEXT_PAGE), page([second, posted], 2)],
+      },
+      steady([first, second, posted]),
+    ]
+    queued = [SYNC]
+    const changed = await drain(true)
+
+    expect(changed.thrown).toBeNull()
+    expect(changed.outcomes.at(-1)).toMatchObject({
+      status: 'failed',
+      code: 'listing_changed',
+    })
+    expect(await runCodes()).toEqual(['completed', 'listing_changed'])
+    expect(await storedSourceState(hidden)).toMatchObject({
+      source_content_state: 'active',
+    })
+
+    const { outcomes, thrown } = await drain()
+
+    expect(thrown).toBeNull()
+    expect(outcomes.at(-1)).toMatchObject({ status: 'completed' })
+    expect(await runCodes()).toEqual(['completed', 'listing_changed', 'completed'])
+    const [changedRunId, freshRunId] = runOrder
+    const candidates = await db.execute(sql`
+      SELECT c.run_id, c.state FROM review_provider_deletion_candidates c
+      JOIN review_provider_snapshot_runs run ON run.id = c.run_id
+      WHERE run.organization_id = ${ORG} ORDER BY run.started_at
+    `)
+    expect(candidates.rows).toEqual([
+      { run_id: changedRunId, state: 'confirmed_missing' },
+      { run_id: freshRunId, state: 'confirmed_missing' },
+    ])
+    // The changed run confirmed the candidate but never applied it: the review
+    // went only when the fresh run, whose two listings agreed, completed.
+    expect(await storedSourceState(hidden)).toBeUndefined()
+    await expect(
+      snapshotRepository.applyDeletionBatch({ runId: changedRunId ?? '', limit: 100 }),
+    ).rejects.toMatchObject({ code: 'snapshot_run_not_deleting' })
+
+    // A step of the changed run still queued when it ended finds it over,
+    // applies nothing and starts one more fresh run rather than resuming it.
+    queued = []
+    const stale = await handler({
+      id: 'step-stale',
+      data: { ...SYNC, runId: changedRunId },
+    } as never)
+    expect(stale).toMatchObject({ status: 'failed', code: 'listing_changed' })
+    expect(queued).toEqual([{ ...SYNC, sourceEpoch: 0 }])
+    expect(await runCodes()).toEqual(['completed', 'listing_changed', 'completed'])
+  })
+
+  // Only the Property's own runs in its own source epoch count: another
+  // Property, or the Property's earlier epoch, hitting a changed listing says
+  // nothing about this one.
+  it('counts only the runs of the same Property and source epoch', async () => {
+    const other = propertyId('75000000-0000-4000-8000-00000000a002')
+    await db.execute(sql`
+      INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch)
+      VALUES (${other}, ${ORG}, 'Listing change neighbour', 'listing-change-2', 'UTC', 0)
+    `)
+    const changedRun = async (property: typeof PROPERTY, sourceEpoch: number) => {
+      const run = await snapshotRepository.startOrResume({
+        organizationId: ORG,
+        propertyId: property,
+        sourceEpoch,
+        observationOrigin: 'ongoing',
+      })
+      const failed = await snapshotRepository.failRun({
+        runId: run.id,
+        organizationId: ORG,
+        code: 'confirmation_set_changed',
+      })
+      return failed.failureCode
+    }
+
+    await expect(changedRun(other, 0)).resolves.toBe('listing_changed')
+    await expect(changedRun(other, 0)).resolves.toBe('listing_changed')
+    await expect(changedRun(other, 0)).resolves.toBe('confirmation_set_changed')
+
+    await expect(changedRun(PROPERTY, 1)).resolves.toBe('listing_changed')
+    await expect(changedRun(PROPERTY, 1)).resolves.toBe('listing_changed')
+    await expect(changedRun(PROPERTY, 1)).resolves.toBe('confirmation_set_changed')
+
+    // Neither neighbour's three changes nor the other epoch's count here.
+    await expect(changedRun(PROPERTY, 0)).resolves.toBe('listing_changed')
+    await expect(changedRun(PROPERTY, 0)).resolves.toBe('listing_changed')
+    await expect(changedRun(PROPERTY, 0)).resolves.toBe('confirmation_set_changed')
+  })
+
+  // The first import is the only sync a person waits for. Its quiet restart
+  // stays an import, and no notice reaches them: the run that failed says so
+  // as a temporary failure, which Feed ignores, and the fresh run completes.
+  it('keeps a first import an import across the restart and ends it as completed', async () => {
+    listings = [POSTED_MID_RUN, steady([first, second, posted])]
+    const initiator = {
+      kind: 'system' as const,
+      id: GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
+    }
+
+    const { thrown, outcomes } = await sync({ ...SYNC, initiator })
+
+    expect(thrown).toBeNull()
+    expect(outcomes.at(-1)).toMatchObject({ status: 'completed' })
+    const origins = await db.execute(sql`
+      SELECT observation_origin, failure_code FROM review_provider_snapshot_runs
+      WHERE organization_id = ${ORG} ORDER BY started_at
+    `)
+    expect(origins.rows).toEqual([
+      { observation_origin: 'historical_onboarding', failure_code: 'listing_changed' },
+      { observation_origin: 'historical_onboarding', failure_code: null },
+    ])
+    const facts = await db.execute(sql`
+      SELECT payload->>'outcome' AS outcome, payload->>'failureReason' AS reason
+      FROM outbox_events
+      WHERE event_type = 'review.property_history_import.finished'
+        AND organization_id = ${ORG}
+      ORDER BY created_at, id
+    `)
+    expect(facts.rows).toEqual([
+      { outcome: 'failed', reason: 'temporary' },
+      { outcome: 'completed', reason: null },
+    ])
   })
 })

@@ -23,9 +23,14 @@ type RunRow = typeof reviewProviderSnapshotRuns.$inferSelect
  *
  * Reads at most `LISTING_CHANGE_QUIET_RUNS` of the Property's earlier runs of
  * this source epoch, newest first. A run lost to a cursor store restart is
- * skipped: it ended before it could compare its two listings. The table has no index for failed runs, so
- * this scans the Property's runs of the last 30 days; it runs only when a set
- * has changed, once in a few hundred runs.
+ * skipped: it ended before it could compare its two listings.
+ *
+ * The table has no index for failed runs (only for active and completed ones),
+ * so this reads the whole table, which holds 30 days of every Property's runs.
+ * It runs only when a set has changed, once in a few hundred runs, and the
+ * lock it runs under is the failing run's own. If the table grows enough to
+ * make that slow, a sidecar index over (organization_id, property_id,
+ * source_epoch, started_at) serves it.
  */
 export async function recordedFailureCode(
   tx: Tx,
