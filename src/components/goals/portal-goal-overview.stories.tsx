@@ -17,7 +17,7 @@ import { CARD_CHECK_IN } from './portal-goal-check-in.stories.fixtures'
 import { PortalGoalOverview } from './portal-goal-overview'
 import { overviewPortalGoalView } from './portal-goal-overview-view'
 import { CARD_RUNNING } from './portal-goal-running.stories.fixtures'
-import { headlineOf } from './portal-goal.stories.play'
+import { expectRunningCardUnderTheStrip, headlineOf } from './portal-goal.stories.play'
 import { CARD_READY, CARD_SCHEDULED, SEAVIEW } from './portal-goal.stories.fixtures'
 
 const notNowMock = fn<(month: string) => void>()
@@ -145,11 +145,7 @@ export const CheckIn: Story = {
     await expect(card).not.toBeNull()
     await expect(card?.previousElementSibling).toBe(strip)
     await expect(card).not.toContainElement(strip)
-    await expect(
-      canvas.getByRole('progressbar', { name: 'Private ratings in December' }),
-    ).toBeVisible()
-    await expect(canvas.getByText('Getting started', { exact: true })).toBeVisible()
-    await expect(canvas.getByRole('link', { name: 'View details' })).toBeVisible()
+    await expectRunningCardUnderTheStrip(canvas)
 
     const region = within(strip)
     await expect(region.getByRole('button', { name: 'Use 45' })).toBeVisible()

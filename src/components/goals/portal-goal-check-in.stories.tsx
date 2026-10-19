@@ -29,7 +29,10 @@ import {
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalSection } from './portal-goal-section'
 import { SEAVIEW } from './portal-goal.stories.fixtures'
-import { expectAnsweredOnTheCard } from './portal-goal.stories.play'
+import {
+  expectAnsweredOnTheCard,
+  expectRunningCardUnderTheStrip,
+} from './portal-goal.stories.play'
 
 const changeNowMock = fn<PortalGoalCheckInCommands['changeMonthlyPortalGoalNowFn']>(
   async () => ({ changed: true }),
@@ -154,10 +157,7 @@ async function expectCheckIn(canvas: Canvas) {
   await expect(region.getByText(FOOT)).toBeVisible()
   await expect(canvas.queryByRole('region', { name: 'Last week' })).toBeNull()
   // The card under it is the running month, from its first day, with its pill.
-  await expect(
-    canvas.getByRole('progressbar', { name: 'Private ratings in December' }),
-  ).toBeVisible()
-  await expect(canvas.getByText('Getting started', { exact: true })).toBeVisible()
+  await expectRunningCardUnderTheStrip(canvas)
   await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
     'href',
     '/properties/p1/goals/portals',

@@ -540,7 +540,9 @@ export const WithPortalGoal: Story = {
     expect(following(portal, voice)).toBe(true)
     expect(following(google, scorecard)).toBe(true)
     // Directly after the scorecard: nothing of the Google goal sits beside it.
+    // The card stands in the wrapper its check-in strip is stacked in, and the
+    // wrapper is what follows the scorecard.
     const slot = portal.closest('[data-slot="portal-goal-overview"]')
-    expect(slot?.previousElementSibling).toBe(scorecard.closest('section'))
+    expect(slot?.parentElement?.previousElementSibling).toBe(scorecard.closest('section'))
   },
 }

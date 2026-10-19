@@ -41,6 +41,18 @@ export async function expectAnsweredOnTheCard(
   )
 }
 
+/**
+ * The card under the month-start check-in's strip: the running month from its
+ * first day (December's bar, its pill) and the way to the goal's page.
+ */
+export async function expectRunningCardUnderTheStrip(scope: Scope): Promise<void> {
+  await expect(
+    scope.getByRole('progressbar', { name: 'Private ratings in December' }),
+  ).toBeVisible()
+  await expect(scope.getByText('Getting started', { exact: true })).toBeVisible()
+  await expect(scope.getByRole('link', { name: 'View details' })).toBeVisible()
+}
+
 /** The page's headings, in document order, as "h2 Changes". */
 export const outline = (canvasElement: HTMLElement): string[] =>
   [...canvasElement.querySelectorAll('h1, h2, h3')].map(
