@@ -68,6 +68,44 @@ describe('the runbooks', () => {
   })
 })
 
+// Sentry showed "[alert] beta-feedback.triage-backlog" on 2026-10-19 and the
+// owner switched the alert off for the closed beta. Whoever finds that name in
+// an old issue or an old note must learn, from the documents, that it is off
+// and how it comes back.
+describe('the beta-feedback triage backlog alert', () => {
+  const NAME = 'beta-feedback.triage-backlog'
+  const ADR = readFileSync(
+    'docs/adr/0059-organization-scoped-report-outcome-notice.md',
+    'utf8',
+  )
+  /** The first paragraph that names the alert, on one line (prose wraps). */
+  const mentions = (text: string): string =>
+    (text.split('\n\n').find((paragraph) => paragraph.includes(`\`${NAME}\``)) ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+  it('is not defined, and is not listed as an alert in the guide', () => {
+    expect(ALERT_DEFINITIONS.map(({ name }) => name)).not.toContain(NAME)
+    expect(
+      documentedAlerts(/^\| Alert +\| Sev \| Threshold/m).map(({ name }) => name),
+    ).not.toContain(NAME)
+  })
+
+  it.each([
+    ['the alert guide', ALERT_GUIDE],
+    ['runbooks.md §16', RUNBOOKS],
+    ['ADR 0059', ADR],
+  ])(
+    'is recorded in %s as off for the closed beta, with how to bring it back',
+    (_where, text) => {
+      const paragraph = mentions(text)
+
+      expect(paragraph).toMatch(/off for the closed beta/i)
+      expect(paragraph).toContain('general availability')
+    },
+  )
+})
+
 describe('the beta contract on how a stop condition is noticed', () => {
   /** The §7 bullet, one line of the page. */
   const passage =

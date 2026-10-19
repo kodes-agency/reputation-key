@@ -12,7 +12,6 @@ import { readFileSync } from 'node:fs'
 import {
   ALERT_DEFINITIONS,
   evaluateAlerts,
-  BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
   NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
@@ -549,7 +548,6 @@ const READS_NO_HEALTH_SIGNAL: Readonly<Record<string, string>> = {
   'ai.review-analysis-stalled': 'aux reads — fires when the monitor is unavailable',
   'ai.review-analysis-empty-enrollment': 'aux reads',
   'retention.failure': 'aux reads — fires when the monitor is unavailable',
-  'beta-feedback.triage-backlog': 'aux reads — fires when the monitor is unavailable',
   'db.pool-exhaustion': 'runtime — the in-process pool gauge',
 }
 
@@ -1303,52 +1301,60 @@ describe('retention.failure', () => {
   })
 })
 
-describe('beta-feedback.triage-backlog', () => {
-  it('fires on a delivered unresolved report older than the bounded backlog window', () => {
-    const event = evaluateOne('beta-feedback.triage-backlog', healthy(), {
-      ...AUX,
-      betaFeedbackTriage: {
+// The 72-hour triage-backlog alert is off for the closed beta (owner decision
+// 2026-10-19; ADR 0059 note). The ledger it watched and the aux read behind it
+// stay; only the page goes. Bringing it back for general availability is a
+// recorded decision that replaces this block with the alert's own tests.
+describe('beta-feedback.triage-backlog is off for the closed beta', () => {
+  const NAME = 'beta-feedback.triage-backlog'
+  const HUNDRED_DAYS_MS = 100 * 24 * 60 * 60 * 1000
+
+  it('is not a defined alert', () => {
+    expect(ALERT_DEFINITIONS.map((definition) => definition.name)).not.toContain(NAME)
+  })
+
+  it.each([
+    [
+      'a delivered report left unresolved for months',
+      {
         monitorAvailable: true,
-        deliveredUnresolvedCount: 3,
-        oldestDeliveredUnresolvedAgeMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS + 1,
+        deliveredUnresolvedCount: 6,
+        oldestDeliveredUnresolvedAgeMs: HUNDRED_DAYS_MS,
       },
-    })
-
-    expect(event).toMatchObject({
-      name: 'beta-feedback.triage-backlog',
-      severity: 'P2',
-      value: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS + 1,
-      threshold: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
-      runbook: 'runbooks.md §16',
-    })
-    expect(event!.detail).toContain('3 delivered unresolved')
-  })
-
-  it('stays quiet for an empty queue and at the exact age boundary', () => {
-    expect(evaluateOne('beta-feedback.triage-backlog', healthy())).toBeNull()
-    expect(
-      evaluateOne('beta-feedback.triage-backlog', healthy(), {
-        ...AUX,
-        betaFeedbackTriage: {
-          monitorAvailable: true,
-          deliveredUnresolvedCount: 1,
-          oldestDeliveredUnresolvedAgeMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
-        },
-      }),
-    ).toBeNull()
-  })
-
-  it('fails visible without exposing report or tenant content when its DB read fails', () => {
-    const event = evaluateOne('beta-feedback.triage-backlog', healthy(), {
-      ...AUX,
-      betaFeedbackTriage: {
+    ],
+    [
+      'an unavailable triage monitor',
+      {
         monitorAvailable: false,
         deliveredUnresolvedCount: 0,
         oldestDeliveredUnresolvedAgeMs: null,
       },
-    })
+    ],
+    [
+      'an incomplete reading',
+      {
+        monitorAvailable: true,
+        deliveredUnresolvedCount: 2,
+        oldestDeliveredUnresolvedAgeMs: null,
+      },
+    ],
+  ])('dispatches nothing for %s', (_label, betaFeedbackTriage) => {
+    const evaluation = evaluateAlerts(
+      healthy(),
+      { ...AUX, betaFeedbackTriage },
+      new Set(),
+      new Set(),
+    )
 
-    expect(event).toMatchObject({ value: -1 })
-    expect(event!.detail).toBe('beta-feedback triage backlog monitor unavailable')
+    expect(evaluation.toDispatch).toEqual([])
+    expect(evaluation.firing).toEqual([])
+    expect(evaluation.pending).toEqual([])
+  })
+
+  it('leaves a firing mark left by an earlier release to expire, never re-paging it', () => {
+    const evaluation = evaluateAlerts(healthy(), AUX, new Set([NAME]), new Set([NAME]))
+
+    expect(evaluation.toDispatch).toEqual([])
+    expect(evaluation.firing).not.toContain(NAME)
   })
 })

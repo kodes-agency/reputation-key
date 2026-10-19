@@ -534,15 +534,31 @@ by a capability toggle.
 
 The exact one-cell journey-monitoring and support contract lives in
 `src/shared/observability/beta-support-operations.ts`. Google sync and ambiguous
-reply aging already have application signals. The content-free
-`beta-feedback.triage-backlog` application alert fires when the oldest delivered,
-unresolved local receipt is older than 72 hours, or fails visible when its
-aggregate database observation is unavailable. It reports only count and age;
-the next-business-day review target remains an expectation rather than an SLA.
-Invitation/onboarding, Google connection/import, Inbox, Portal gateway, and
-native-feedback delivery still require external synthetic configuration. Those
-external rows and the alert-delivery drill remain **external evidence required**,
-not a claim that a dashboard or alert route is deployed.
+reply aging already have application signals. The next-business-day review
+target remains an expectation rather than an SLA. Invitation/onboarding, Google
+connection/import, Inbox, Portal gateway, and native-feedback delivery still
+require external synthetic configuration. Those external rows and the
+alert-delivery drill remain **external evidence required**, not a claim that a
+dashboard or alert route is deployed.
+
+**The 72-hour triage backlog page is off for the closed beta (2026-10-19).** The
+alert named `beta-feedback.triage-backlog`, at P2, paged when the oldest
+delivered, unresolved local receipt was older than 72 hours, or when its
+aggregate database observation was unavailable. Sentry titled its issue
+"[alert] beta-feedback.triage-backlog" (JAVASCRIPT-TANSTACKSTART-REACT-15). It
+fired because six reports that had been triaged and fixed in Sentry were never
+recorded in the ledger. The owner treats that ledger deadline as ceremony for
+the closed beta, as the SAFE-01 signer and drill ceremony was, so the alert is
+no longer defined and nothing pages for an old receipt. Reports still arrive in
+Sentry, where the owner triages them and has an alert rule for new feedback. The
+ledger, `pnpm ops triage-beta-feedback`, and the content-free count and age read
+(written to the health-check log as `betaFeedbackTriage`) all stay. Record a
+transition when the reporter should hear the outcome: the bell notice of ADR
+0059 is sent from the ledger transition, so a report never recorded there gets
+none. Before general availability, restore the alert, its row in
+`docs/operations/alerts-and-security-posture.md` and the `beta_feedback_triage`
+journey in `beta-support-operations.ts`, following ADR 0059's note of
+2026-10-19.
 
 For local verification, submit one Bug and one Suggestion from manager
 fixtures; prove the Suggestion cannot carry an attachment; exercise consent,

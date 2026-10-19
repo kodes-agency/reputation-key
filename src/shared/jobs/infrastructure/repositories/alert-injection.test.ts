@@ -16,9 +16,10 @@
 //   (b) RETENTION FAILURE — a real retention_runs row with outcome='failed'
 //       as the subject's latest run: the aux DISTINCT-ON read reports it and
 //       retention.failure dispatches naming the subject.
-//   (c) BETA-FEEDBACK TRIAGE BACKLOG — one delivered, unresolved content-free
-//       receipt older than 72h: the aux aggregate reports count + oldest age
-//       and beta-feedback.triage-backlog dispatches without report content.
+//   (d) BETA-FEEDBACK TRIAGE LEDGER — one delivered, unresolved content-free
+//       receipt older than 72h: the aux aggregate still reports count + oldest
+//       age (the health check logs it), and nothing pages for it, because the
+//       beta-feedback.triage-backlog alert is off for the closed beta.
 //   (e) REVIEW ANALYSIS — enabled coverage with four unsettled sequences and
 //       an actionable empty enrollment whose fenced eligible set is non-empty.
 //
@@ -39,10 +40,7 @@ import {
   createAlertDispatcher,
   type AlertFetchFn,
 } from '#/shared/observability/alert-dispatcher'
-import {
-  BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
-  REVIEW_ANALYSIS_STALLED_ALERT_MS,
-} from '#/shared/observability/alert-definitions'
+import { REVIEW_ANALYSIS_STALLED_ALERT_MS } from '#/shared/observability/alert-definitions'
 import { isBannedLogKey } from '#/shared/observability/metrics-schema'
 import type { AlertStateStore } from '#/shared/health/alert-state'
 import type { RedisHeartbeatPort } from '#/shared/health/worker-heartbeat'
@@ -64,6 +62,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 const MARKER_ORG = 'org-bqc74-alert-injection'
 const RETENTION_SUBJECT = 'bqc74.test-subject'
+const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000
 const FEEDBACK_REFERENCE = '6108c5d6-3f73-4f06-9b62-1121eeea052f'
 const ANALYSIS_ORG = 'org-bqc74-review-analysis-alert'
 const STALLED_ANALYSIS_PROPERTY = '6208c5d6-3f73-4f06-9b62-1121eeea0501'
@@ -269,7 +268,7 @@ describe('BQC-7.4 alert injection — real reads', () => {
     expect(warn.mock.calls.filter((c) => String(c[1]).match(/alert-aux/))).toEqual([])
   })
 
-  it('(d) a real content-free feedback receipt dispatches beta-feedback.triage-backlog', async () => {
+  it('(d) a real receipt unresolved past 72h is read by the aux monitor and pages nothing', async () => {
     const { handler, fetchFn, warn } = realEvaluationHarness()
 
     await db.execute(sql`
@@ -284,19 +283,21 @@ describe('BQC-7.4 alert injection — real reads', () => {
          NOW() - INTERVAL '73 hours', NOW() - INTERVAL '73 hours')
     `)
 
+    // The real aggregate still sees the receipt: the ledger and its read stay.
+    const reading = (
+      await createAlertAuxReader({ db, logger: pino({ level: 'silent' }) }).read()
+    ).betaFeedbackTriage
+    expect(reading.monitorAvailable).toBe(true)
+    expect(reading.deliveredUnresolvedCount).toBeGreaterThanOrEqual(1)
+    expect(reading.oldestDeliveredUnresolvedAgeMs).toBeGreaterThan(SEVENTY_TWO_HOURS_MS)
+
     const result = await handler({ id: 'bqc74-d', data: {} } as never)
 
-    expect(result.alerts?.dispatched).toContain('beta-feedback.triage-backlog')
+    expect(result.alerts?.dispatched ?? []).not.toContain('beta-feedback.triage-backlog')
     const payloads = dispatchedPayloads(fetchFn)
-    const backlog = payloads.find(
-      (payload) => payload.alert === 'beta-feedback.triage-backlog',
-    )
-    expect(backlog).toMatchObject({
-      severity: 'P2',
-      runbook: 'runbooks.md §16',
-      threshold: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
-    })
-    expect(Number(backlog?.value)).toBeGreaterThan(BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS)
+    expect(
+      payloads.filter((payload) => payload.alert === 'beta-feedback.triage-backlog'),
+    ).toEqual([])
     expectNoBannedKeys(payloads)
     expect(warn.mock.calls.filter((c) => String(c[1]).match(/alert-aux/))).toEqual([])
   })

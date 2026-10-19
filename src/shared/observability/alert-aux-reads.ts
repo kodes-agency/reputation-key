@@ -7,7 +7,9 @@
 //     DISTINCT ON (subject), content-free: subject names + outcome only;
 //   - delivered, unresolved native-feedback receipts: count and oldest age
 //     only. Report text, provider content, identifiers, and attachment bytes
-//     are not present in the local triage authority and cannot enter the read;
+//     are not present in the local triage authority and cannot enter the read.
+//     No alert evaluates it while beta-feedback.triage-backlog is off for the
+//     closed beta (alert-definitions.ts); the health check still logs it;
 //   - enabled Review Analysis coverage and actionable empty-enrollment
 //     mismatches: property/review counts and oldest progress age only.
 //

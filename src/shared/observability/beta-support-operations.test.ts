@@ -13,7 +13,6 @@ describe('OBS-01 beta support operations authority', () => {
     expect(BETA_CRITICAL_JOURNEY_SIGNALS.map((signal) => signal.journey).sort()).toEqual(
       [
         'beta_feedback_delivery',
-        'beta_feedback_triage',
         'google_connection_and_import',
         'google_review_sync',
         'invitation_and_onboarding',
@@ -44,21 +43,20 @@ describe('OBS-01 beta support operations authority', () => {
     }
   })
 
-  it('uses the content-free local triage alert without claiming external delivery', () => {
+  it('has no triage-backlog signal while that alert is off for the closed beta', () => {
     expect(
-      BETA_CRITICAL_JOURNEY_SIGNALS.find(
-        (signal) => signal.journey === 'beta_feedback_triage',
+      BETA_CRITICAL_JOURNEY_SIGNALS.filter(
+        (signal) =>
+          signal.journey === ('beta_feedback_triage' as string) ||
+          signal.signalName === 'beta-feedback.triage-backlog',
       ),
-    ).toMatchObject({
-      signalName: 'beta-feedback.triage-backlog',
-      status: 'implemented_application_signal',
-      severity: 'P2',
-      evidence: [
-        'content_free_queue_age_signal',
-        'named_owner_coverage',
-        'local_alert_injection_test',
-      ],
-    })
+    ).toEqual([])
+    expect(ALERT_DEFINITIONS.map((alert) => alert.name)).not.toContain(
+      'beta-feedback.triage-backlog',
+    )
+  })
+
+  it('keeps alert delivery an external evidence gate that repository proof cannot close', () => {
     expect(
       OBS01_EXTERNAL_EVIDENCE_GATES.find((gate) => gate.id === 'alert_delivery_drill'),
     ).toMatchObject({
