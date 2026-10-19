@@ -668,7 +668,7 @@ pace starts afresh, and the Monday check-in is a card on the page only.
 The card's frame (title and status pill), its headline, its This-week meter and
 the three pace pills are drawn by neutral modules, `goal-card-frame.tsx`,
 `goal-headline.tsx`, `goal-meter.tsx` and `goal-pace-status.ts`, that the Monthly
-portal goal also uses ([ADR 0068](0068-monthly-portal-goal.md), amended
+portal goal moves onto ([ADR 0068](0068-monthly-portal-goal.md), amended
 2026-10-19). Nothing on the Google rating goal's screens changed.
 
 ## Rejected alternatives

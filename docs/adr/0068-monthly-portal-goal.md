@@ -222,24 +222,28 @@ rounds. This changes what "The two goals stay apart" and decision 13 mean for
 how the goals are drawn, and nothing else in them.
 
 1. **Design parts are shared; data, names, notices and rhythm are not.** The
-   card frame (title and status pill), the headline, the progress meter, the
-   check-in strip, the setup sheet frame and its parts, the detail-page layout,
-   the tiles and the History list are drawn by neutral modules,
-   `src/components/goals/goal-*`, that both goals call. A shared part imports no
-   `rating-goal-*` or `portal-goal-*` module and no server context, and says no
-   product word: a goal passes in its own words, so the other goal's words
-   cannot come out (`goal-shared-sources.test.ts`). The Portal goal's own sources
-   still import nothing of the Google rating goal and say none of its words or
-   lines (`portal-goal-sources.test.ts`). Names, calendar months against Mon–Sun
-   weeks, notices, Overview slots, server modules and query keys stay apart, and
-   no number of one goal is derived from the other (decision 13).
+   card frame (title and status pill), the headline and the progress meter are
+   drawn by neutral modules, `src/components/goals/goal-*`, that the Google
+   rating goal calls today and the Monthly portal goal moves onto. The check-in
+   strip, the setup sheet frame and its parts, the detail-page layout, the tiles
+   and the History list will be drawn by such modules too, each cut from the
+   Google rating goal in the step that gives it its first Portal caller. A
+   shared part imports no `rating-goal-*` or `portal-goal-*` module and no
+   server context, and says no product word: a goal passes in its own words, so
+   the other goal's words cannot come out (`goal-shared-sources.test.ts`). The
+   Portal goal's own sources still import nothing of the Google rating goal and
+   say none of its words or lines (`portal-goal-sources.test.ts`). Names,
+   calendar months against Mon–Sun weeks, notices, Overview slots, server
+   modules and query keys stay apart, and no number of one goal is derived from
+   the other (decision 13).
 2. **"Below pace" is one pill.** The Portal goal shows the Google rating goal's
    status pill with the three pace states (`GOAL_PACE_STATUS`: Getting started,
    On pace, Below pace), including a green "On pace". This replaces the Portal
-   goal's inline amber "below pace" word and its rule that it never shows green
-   (decision 7; U-1), when the Portal card moves onto the pill. The two pace
-   rules stay separate: `goalPace` with the P-6 guard here, `rating-goal-status.ts`
-   there.
+   goal's inline amber "below pace" word and its rule that it is never "on
+   pace" (`portal-goal-running-view.ts`; U-1), when the Portal card moves onto
+   the pill. Decision 7 still holds: after the quiet days a month that is not
+   yet judged shows no pill. The two pace rules stay separate: `goalPace` with
+   the P-6 guard here, `rating-goal-status.ts` there.
 3. **One signature visual per goal.** The Google rating goal keeps its ladder and
    its climb chart; the Portal goal keeps its month meter and its per-Portal
    counts. Both headlines say what is left ("18 new reviews to 4.1", "17 private
