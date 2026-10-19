@@ -43,6 +43,13 @@ describe('the shared goal design parts', () => {
     )
   })
 
+  it('reads the modules a part imports, or the next test would pass on nothing', () => {
+    // A control: a helper that found no import would let every part through.
+    const frame = SOURCES.find(({ path }) => path === `${PARTS_DIR}goal-card-frame.tsx`)
+
+    expect(frame && importedModules(frame)).toContain('#/components/ui/card')
+  })
+
   it('imports neither goal nor a server context', () => {
     expect(
       offenders(SOURCES, (file) =>
