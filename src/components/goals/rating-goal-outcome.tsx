@@ -12,11 +12,11 @@ import {
   KEEP_FIRST_FROM_TENTHS,
 } from '#/contexts/reporting/application/rating-goal-setup-plan'
 import { Button } from '#/components/ui/button'
-import { Card, CardContent } from '#/components/ui/card'
-import { StatusBadge } from '#/components/ui/status-badge'
+import { CardContent } from '#/components/ui/card'
 import { formatShortDate } from '#/lib/format'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { RatingGoalCardHeader } from './rating-goal-card-header'
+import { GoalCardActions, GoalCardFrame } from './goal-card-frame'
+import { RATING_GOAL_HEADING_ID, RATING_GOAL_TITLE } from './rating-goal-card-header'
 import { endedSentence, ratingText, type RatingGoalOutcomeView } from './rating-goal-view'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
@@ -85,10 +85,12 @@ export function RatingGoalOutcome({
   const { can } = usePermissions()
   const day = formatShortDate(outcome.at, timezone, now)
   return (
-    <Card data-slot="rating-goal-outcome" className="gap-4">
-      <RatingGoalCardHeader>
-        <StatusBadge {...OUTCOME[outcome.state]} />
-      </RatingGoalCardHeader>
+    <GoalCardFrame
+      slot="rating-goal-outcome"
+      title={RATING_GOAL_TITLE}
+      titleId={RATING_GOAL_HEADING_ID}
+      status={OUTCOME[outcome.state]}
+    >
       <CardContent className="flex flex-col gap-4">
         <p className="text-lg font-semibold">
           {outcome.state === 'reached'
@@ -96,11 +98,11 @@ export function RatingGoalOutcome({
             : `${endedSentence(outcome.endedReason)}. Your goal was ${ratingText(outcome.target)} on Google.`}
         </p>
         {can('goal.create') && canSetNext ? (
-          <div className="flex flex-wrap gap-2">
+          <GoalCardActions>
             <NextSteps outcome={outcome} onStart={onStart} />
-          </div>
+          </GoalCardActions>
         ) : null}
       </CardContent>
-    </Card>
+    </GoalCardFrame>
   )
 }

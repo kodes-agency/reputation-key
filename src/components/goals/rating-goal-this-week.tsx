@@ -5,7 +5,7 @@
 // a day instead. Drawn only on a card at least 48rem wide (D2): a narrower one
 // says this week in the card's one line (D4).
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { ProgressBar } from '#/components/ui/progress-bar'
+import { GoalMeter } from './goal-meter'
 import { thisWeekOf } from './rating-goal-tracking-words'
 
 export function RatingGoalThisWeek({ card }: Readonly<{ card: RatingGoalCardView }>) {
@@ -13,16 +13,18 @@ export function RatingGoalThisWeek({ card }: Readonly<{ card: RatingGoalCardView
   if (week === null) return null
   if (week.kind === 'aim') return <p className="hidden text-sm @3xl:block">{week.text}</p>
   return (
-    <div data-slot="rating-goal-this-week" className="hidden flex-col gap-1.5 @3xl:flex">
-      <p className="text-sm text-muted-foreground">This week</p>
-      <p className="text-lg font-semibold tabular-nums">{week.value}</p>
-      <ProgressBar
-        value={week.count}
-        max={week.target}
-        label="New reviews this week"
-        valueText={week.valueText}
-      />
-      <p className="text-xs text-muted-foreground">{week.foot}</p>
-    </div>
+    <GoalMeter
+      slot="rating-goal-this-week"
+      wideOnly
+      caption="This week"
+      figure={week.value}
+      bar={{
+        value: week.count,
+        max: week.target,
+        label: 'New reviews this week',
+        valueText: week.valueText,
+      }}
+      foot={week.foot}
+    />
   )
 }
