@@ -5,8 +5,9 @@
 // of these codes or under `other`; the stored text itself never leaves the
 // database. The list mirrors what the discovery repository writes
 // (ReviewProviderSnapshotFailureCode plus `enqueue_failed`); a review-context
-// test fails if the two drift. `cursor_lost` is listed for completeness: the
-// sync job restarts that run without recording a failure, so it is never stored.
+// test fails if the two drift. `cursor_lost` and `listing_changed` are listed
+// for completeness: the sync job restarts those runs without recording a
+// failure, so they are never stored.
 
 export const SYNC_FAILURE_CODES = [
   'source_changed',
@@ -28,6 +29,7 @@ export const SYNC_FAILURE_CODES = [
   'set_mismatch',
   'confirmation_deadline_elapsed',
   'confirmation_set_changed',
+  'listing_changed',
   'observation_failed',
   'enqueue_failed',
 ] as const
