@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { describe, expect, it, vi } from 'vitest'
-import type { CommandRunner } from './deploy-ci-images'
+import type { CommandRunner } from './command-runner'
 import {
   createCorsStore,
   desiredCorsRule,

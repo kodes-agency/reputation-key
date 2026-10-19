@@ -5,7 +5,8 @@ import type { SchedulePropertyTrendsResult } from '../../application/use-cases/s
 
 export const SCHEDULE_PROPERTY_TRENDS_JOB_NAME = 'schedule-property-ai-trends'
 
-// Empty but for what a quarantine redrive adds (the family's repair command).
+// Empty but for what a quarantine redrive adds. That applies to on-demand or
+// legacy dead letters only: a firing of this schedule is never dead-lettered.
 const schedulePropertyTrendsJobData = z
   .object({ redriveMetadata: redriveMetadataSchema.optional() })
   .strict()

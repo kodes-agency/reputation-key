@@ -15,9 +15,11 @@ other day. A register makes the cost countable, which is what justifies fixing
 
 - `retries: 1` in CI (`playwright.config.ts`). A flake reports as `flaky`
   instead of failing the job, so nobody pays a manual rerun to classify it.
-- Pushes to `main` add `--fail-on-flaky-tests`: the release path refuses a suite
-  that only passes on retry. A flake therefore cannot accumulate silently — it
-  blocks the release until it is fixed or explicitly quarantined.
+- Pushes to `main` add `--fail-on-flaky-tests`: a suite that only passes on
+  retry turns the run red. A flake therefore cannot pass silently — the commit
+  deploys only once a re-run of the failed jobs goes green (README, Deploy), and
+  that re-run is what this register counts. A flake that keeps costing re-runs
+  is fixed or explicitly quarantined.
 - Locally `retries: 0`, so a flake is visible while you work on it.
 - The exhaustive `critical` and `full` projects remain Chromium-based. A
   bounded, read-only compatibility project set separately covers desktop

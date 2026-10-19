@@ -69,6 +69,7 @@ function cursorStore(
       value: { nextCursorRef: `v1.${'a'.repeat(43)}` },
     })),
     discardRun: vi.fn(async () => true),
+    startedAtMs: vi.fn(async () => null),
     ...overrides,
   }
 }

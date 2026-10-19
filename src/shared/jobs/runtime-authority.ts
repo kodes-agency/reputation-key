@@ -212,6 +212,30 @@ function invalidObservation(observation: JobRuntimeObservation, now: Date): bool
   )
 }
 
+/**
+ * Whether a later success answers the family's terminal failure. On-demand work
+ * is one unit that only a governed quarantine redrive runs again, so only that
+ * redrive repairs it. An active schedule is enumeration-only and is never
+ * dead-lettered: its next firing repeats the whole pass, so a later success is
+ * the repair — the rule a denied firing already follows. A quarantined family
+ * has no firing, so it keeps the redrive rule.
+ */
+export function isRepairedByNextSuccess(
+  contract: Pick<JobOperationalContract, 'posture' | 'schedule'>,
+): boolean {
+  return contract.posture === 'active' && isScheduled(contract.schedule)
+}
+
+/** When the family's latest terminal failure was last answered. */
+function repairedAt(
+  contract: JobOperationalContract,
+  observation: JobRuntimeObservation,
+): Date | null {
+  const { lastRepairAt, lastSucceededAt } = observation
+  if (!isRepairedByNextSuccess(contract)) return lastRepairAt
+  return after(lastSucceededAt, lastRepairAt) ? lastSucceededAt : lastRepairAt
+}
+
 function appendWorkHealthReasons(
   contract: JobOperationalContract,
   observation: JobRuntimeObservation,
@@ -224,7 +248,7 @@ function appendWorkHealthReasons(
   ) {
     reasons.push('queue_age_objective_missed')
   }
-  if (after(observation.lastTerminalFailureAt, observation.lastRepairAt)) {
+  if (after(observation.lastTerminalFailureAt, repairedAt(contract, observation))) {
     reasons.push('repair_required')
   }
   if (

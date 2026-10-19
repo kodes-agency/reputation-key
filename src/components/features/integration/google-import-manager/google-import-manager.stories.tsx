@@ -328,3 +328,24 @@ export const ConfirmDetailsHidesTheConnection: Story = {
     ).toBeVisible()
   },
 }
+
+/**
+ * Google answered the consent with Business Profile access left unticked. The
+ * page says so once, under the connect button, as the callback's own outcome
+ * rather than an import failure.
+ */
+export const CallbackWithoutBusinessProfileAccess: Story = {
+  args: {
+    importFns: discoveryFns,
+    initialConnectionId: connection.id,
+    initialError: 'scope_not_granted',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.findByText(/tick the business profile permission on google’s screen/i),
+    ).resolves.toBeVisible()
+    await expect(canvas.getAllByText(/didn’t give repkey access/i)).toHaveLength(1)
+    await expect(canvas.queryByText('Import unavailable')).toBeNull()
+  },
+}

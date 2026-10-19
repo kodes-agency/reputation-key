@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CommandRunner } from './deploy-ci-images'
+import type { CommandRunner } from './command-runner'
 import {
   checkGoogleOAuth,
   decodeGoogleAuthError,

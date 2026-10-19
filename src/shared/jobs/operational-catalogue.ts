@@ -14,6 +14,7 @@ import {
 } from '#/shared/governance/event-job-catalogue'
 import { jobEnqueueOptions } from './job-policy'
 import {
+  isRepairedByNextSuccess,
   validateJobOperationalContracts,
   type JobOperationalContract,
 } from './runtime-authority'
@@ -22,6 +23,9 @@ import type { JobSchedulerRegistration } from './job-schedulers'
 const DEFAULT_MAXIMUM_QUEUE_AGE_MS = 15 * 60_000
 const GENERIC_REPAIR_COMMAND =
   'pnpm ops quarantine redrive <quarantineJobId> --operator <registered-operator> --reason <incident-reason> --apply'
+// A firing is never dead-lettered, so an active schedule has nothing to redrive.
+const SCHEDULED_REPAIR_COMMAND =
+  'fix the cause; the next successful firing clears repair_required (docs/operations/runbooks.md §17)'
 const GENERIC_RUNBOOK = 'docs/operations/runbooks.md'
 
 /**
@@ -111,7 +115,17 @@ function lastSuccessObjective(row: JobFamilyRow): number | null {
   return interval * 2 + row.timeoutMs
 }
 
+function repairCommandFor(
+  posture: JobOperationalContract['posture'],
+  schedule: string,
+): string {
+  return isRepairedByNextSuccess({ posture, schedule })
+    ? SCHEDULED_REPAIR_COMMAND
+    : GENERIC_REPAIR_COMMAND
+}
+
 function operationalContract(row: JobFamilyRow): JobOperationalContract {
+  const posture = postureFor(row.registration)
   return {
     jobName: row.jobName,
     owner: ownerFor(row),
@@ -125,11 +139,11 @@ function operationalContract(row: JobFamilyRow): JobOperationalContract {
     workerConcurrency: JOB_OPERATIONAL_QUEUE_CONCURRENCY[row.queue],
     retention: 'completed:100,failed:50',
     routing: 'cell_local',
-    posture: postureFor(row.registration),
+    posture,
     schedule: row.schedule,
     lastSuccessObjectiveMs: lastSuccessObjective(row),
     maximumQueueAgeMs: DEFAULT_MAXIMUM_QUEUE_AGE_MS,
-    repairCommand: GENERIC_REPAIR_COMMAND,
+    repairCommand: repairCommandFor(posture, row.schedule),
     runbook: GENERIC_RUNBOOK,
   }
 }

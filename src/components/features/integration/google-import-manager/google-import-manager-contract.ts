@@ -11,6 +11,7 @@ import type {
   GoogleImportReviewDraftInput,
 } from '#/contexts/integration/application/dto/google-import-v2.dto'
 import type { ImportReviewDraft } from './google-import-review-model'
+import type { ConnectionCallbackError } from './google-import-callback-errors'
 import type {
   cancelPropertyImportV2,
   getPropertyImportV2Status,
@@ -101,7 +102,7 @@ export type GoogleImportManagerProps = Readonly<{
   initialConnectionId?: string
   initialProgress?: ImportProgressDto | null
   initialRequestId?: string
-  initialError?: 'connection_failed' | 'denied' | 'account_already_connected'
+  initialError?: ConnectionCallbackError
   importFns: GoogleImportFns
   setupFns: GoogleImportSetupFns
   /** The importing admin, the default responsible manager (decision 2). */
