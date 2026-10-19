@@ -1077,9 +1077,10 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
   })
 
   // Google's total and its list do not always agree. A location can report 82
-  // and list 81 unique reviews on every read, or report 19 and list 20. Such a
-  // run used to fail as `set_mismatch` every time. A small gap now completes
-  // the run, but nothing is removed on the strength of that listing.
+  // and list 81 unique reviews on every read, report 19 and list 20, or report
+  // 86 and list 84. Such a run used to fail as `set_mismatch` every time. A
+  // small gap (up to 5, or 2% on a big location) now completes the run, but
+  // nothing is removed on the strength of that listing.
   describe('a Google total that disagrees with its list by a small amount', () => {
     const GAP_RUN_ID = '72000000-0000-4000-8000-00000000000a'
     const PRIOR_RUN_ID = '72000000-0000-4000-8000-00000000000b'
@@ -1252,6 +1253,20 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     it.each([
       { expected: 82, unique: 81, pages: 2, case: 'one review fewer than Google counts' },
       { expected: 19, unique: 20, pages: 1, case: 'one review more than Google counts' },
+      // JAVASCRIPT-TANSTACKSTART-REACT-4: 86 counted, 84 unique over 2 pages,
+      // a gap of 2 that the 2% rule failed.
+      {
+        expected: 86,
+        unique: 84,
+        pages: 2,
+        case: 'two reviews fewer (86 counted, 84 listed)',
+      },
+      {
+        expected: 86,
+        unique: 81,
+        pages: 2,
+        case: 'the widest gap a small total allows (5)',
+      },
     ])('completes a listing with $case and removes nothing', async (listing) => {
       await resetGapScope()
       const startedAt = await seedListing(listing)
@@ -1335,8 +1350,9 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     })
 
     it.each([
-      { expected: 82, unique: 70, pages: 2, case: 'a gap beyond 2% of the total' },
-      { expected: 82, unique: 80, pages: 2, case: 'a gap one review past the tolerance' },
+      { expected: 82, unique: 70, pages: 2, case: 'a gap far beyond the tolerance' },
+      { expected: 86, unique: 80, pages: 2, case: 'a gap one review past the tolerance' },
+      { expected: 20, unique: 17, pages: 1, case: 'a gap over 10% of a small total' },
       { expected: 2_600, unique: 2_550, pages: 51, case: 'a missing full page' },
       { expected: 82, unique: 81, pages: 3, case: 'a short page before the last' },
     ])('still fails $case as set_mismatch', async (listing) => {
