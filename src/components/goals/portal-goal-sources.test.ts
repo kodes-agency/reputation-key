@@ -1,9 +1,11 @@
-// The Monthly portal goal shares nothing with the Google rating goal (ADR 0068,
-// PLAN §3.4): not a module, not a word, not a line, not the link ink its
-// numeral wears. These read every Portal goal source (its components, its
-// route modules, and its pages once they exist) with no exemption, and fail
-// with the file named. The three lines the owner approved (P-8) are spelled in
-// `portal-goal-copy.ts` only, as approved.
+// The Monthly portal goal shares no module of the Google rating goal, no word of
+// it and no line of it, and writes no link ink of its own (ADR 0068, "The two
+// goals stay apart", amended 2026-10-19). It may draw with the neutral
+// `goal-*` design parts, which `goal-shared-sources.test.ts` holds to the same
+// rule from the other side. These read every Portal goal source (its
+// components, its route modules, and its pages once they exist) with no
+// exemption, and fail with the file named. The three lines the owner approved
+// (P-8) are spelled in `portal-goal-copy.ts` only, as approved.
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { readUiSources, type SourceFile } from '#/shared/testing/source-tree'

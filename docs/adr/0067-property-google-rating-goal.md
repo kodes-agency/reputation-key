@@ -663,6 +663,14 @@ pace starts afresh, and the Monday check-in is a card on the page only.
    bell row or an email (Q11 stands): one card on the Goals page and the
    Property Overview, read with the card (no new query, no new read).
 
+## Note 2026-10-19 — the card's frame is shared
+
+The card's frame (title and status pill), its headline, its This-week meter and
+the three pace pills are drawn by neutral modules, `goal-card-frame.tsx`,
+`goal-headline.tsx`, `goal-meter.tsx` and `goal-pace-status.ts`, that the Monthly
+portal goal also uses ([ADR 0068](0068-monthly-portal-goal.md), amended
+2026-10-19). Nothing on the Google rating goal's screens changed.
+
 ## Rejected alternatives
 
 - **A fourth Goal measure for the Google rating.** It would put Google data into
