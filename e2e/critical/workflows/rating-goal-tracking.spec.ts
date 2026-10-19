@@ -50,6 +50,7 @@ import {
 } from '../../helpers/fixtures'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { assertNoAxeViolations } from '../../helpers/a11y'
+import { clickWhenReady, waitForHydration } from '../../helpers/interaction'
 
 const PREFIX = 'e2e-rg-'
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
@@ -346,11 +347,14 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
 
     await signIn(page)
     await page.goto(`/properties/${propertyId}/goals`)
+    // The server-rendered buttons are clickable before React hydrates, and a
+    // press in that window sends nothing: wait it out after every load.
+    await waitForHydration(page)
     const recap = page.getByRole('region', { name: 'Last week' })
     await expect(recap.getByText('Nothing changes unless you choose.')).toBeVisible()
     await assertNoAxeViolations(page, 'Goals page with the Monday check-in')
 
-    await recap.getByRole('button', { name: 'Keep 1 a day' }).click()
+    await clickWhenReady(recap.getByRole('button', { name: 'Keep 1 a day' }))
     await expect(recap).toHaveCount(0)
     await page.reload()
     await expect(
@@ -373,10 +377,12 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
       [seed.organizationId, propertyId],
     )
     await page.reload()
-    await page
-      .getByRole('region', { name: 'Last week' })
-      .getByRole('button', { name: 'Raise to 2 a day' })
-      .click()
+    await waitForHydration(page)
+    await clickWhenReady(
+      page
+        .getByRole('region', { name: 'Last week' })
+        .getByRole('button', { name: 'Raise to 2 a day' }),
+    )
     await expect(page.getByRole('region', { name: 'Last week' })).toHaveCount(0)
     await expect(
       page.locator('[data-slot="rating-goal-card"]').getByText('Getting started'),

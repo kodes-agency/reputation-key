@@ -146,6 +146,7 @@ function adapterGiven(permit: object) {
       release: vi.fn(),
       publishNext: vi.fn(),
       discardRun: vi.fn(),
+      startedAtMs: vi.fn(),
     },
     executor: { execute },
     authorizeReplyPublicationProviderCall,

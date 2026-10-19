@@ -1147,7 +1147,14 @@ satisfies the new one.
 
 **Order: web first, then the worker.** `pnpm ops deploy-ci-images` rolls web,
 then the worker, then provider Redis, each settling healthy at its digest before
-the next moves. It takes `--sha` and `--apply` and has no option for another
+the next moves. Provider Redis moves only when something it is built from
+changed (`Dockerfile.google-provider-redis`, `services/google-provider-redis/`):
+it keeps nothing across a restart (ADR 0050), so each redeploy drops the page
+cursors of the Google review syncs in flight and the OAuth state of any Google
+connect in progress. It stays on its release when it is healthy, that release
+is an ancestor of the target, those files are identical, and the image it runs
+is the one CI built for its `RELEASE_SHA`; the command says `kept at <sha>`.
+Anything it cannot prove moves it as before. It takes `--sha` and `--apply` and has no option for another
 order, and it is the only supported deploy path (`docs/BETA.md` §7). So a release
 whose new facts an older worker refuses has a window between the two, and the
 command cannot roll the worker first to avoid it. In the 2026-09-28 release a

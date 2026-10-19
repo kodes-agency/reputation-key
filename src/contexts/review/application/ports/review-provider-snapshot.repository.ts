@@ -28,6 +28,12 @@ export type ReviewProviderSnapshotFailureCode =
   | 'stale_source'
   | 'provider_failure'
   | 'cursor_failure'
+  /**
+   * The run's page cursor went with a cursor store restart: the store keeps
+   * nothing across one (ADR 0050) and started after the run did. Expected on
+   * every deploy, so the sync job starts a fresh run instead of failing.
+   */
+  | 'cursor_lost'
   | 'malformed_page'
   | 'total_changed'
   | 'average_changed'

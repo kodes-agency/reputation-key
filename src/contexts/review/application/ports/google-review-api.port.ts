@@ -66,6 +66,12 @@ export type GoogleReviewApiError = Error &
     retryAfterMs?: number
     /** Absent when the error carries no dispatch evidence (treated as unknown). */
     failure?: GoogleReviewApiFailure
+    /**
+     * On `cursor_not_found` only: when the cursor store started, in epoch ms,
+     * when it could tell. It keeps nothing across a restart, so a cursor of a
+     * run that began before this instant was lost to the restart.
+     */
+    cursorStoreStartedAtMs?: number
   }>
 
 export type GoogleReviewPageRequest = Readonly<{
