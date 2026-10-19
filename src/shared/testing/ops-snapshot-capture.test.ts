@@ -40,6 +40,7 @@ function fakeSnapshot(overrides: Partial<OperationsSnapshot> = {}): OperationsSn
     sync: {
       dueForIncrementalCount: 2,
       failedSyncCount: 0,
+      failedSyncCodes: {},
       oldestDueAgeMs: null,
       gbpPushEnabled: false,
     },

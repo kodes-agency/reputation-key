@@ -358,6 +358,11 @@ or chat transcript.
      first code in its `cause` chain. An unexpected server-function failure
      keeps the original as the cause of its `InternalError`, so the event
      carries both stacks.
+   - `failure_code`: the code a typed job failure carries, from the closed set
+     it is raised from. `ReviewProviderSnapshotFailure` reads
+     `failure_code=authorization_denied`, `provider_failure`, `malformed_page`
+     and so on (`ReviewProviderSnapshotFailureCode`), the same value as
+     `review_provider_snapshot_runs.failure_code`.
    - `db_code`, `db_constraint`, `db_table`, `db_column`: a Postgres refusal's
      SQLSTATE and schema names, never its values.
    - `error_kind`: `chunk_load` (a code file the tab asked for is gone, often
@@ -408,7 +413,16 @@ does not substitute for provider inspection.
 **Alerts in Sentry.** Every firing alert also reaches Sentry as an issue
 titled `[alert] <name>`, tagged `alert=<name>`, `alert_severity=p1|p2` and
 `runtime_source=alert-dispatcher`, one issue per alert name (the scrubber
-rebuilds the fingerprint `['alert', <name>]` from the allow-listed tag).
+rebuilds the fingerprint `['alert', <name>]` from the allow-listed tag). The
+alert's detail text is replaced like any message, so what it was raised on
+travels as tags (src/shared/observability/alert-facts.ts), each a machine name
+or a count: `alert_jobs` (the governed job families: unready for
+`worker.job-runtime-unready`, holding dead letters for the two quarantine
+alerts), `alert_reasons` (their readiness reasons, such as `repair_required` and
+`dead_letter_present`, or `report_unavailable`), `alert_codes` (failure codes
+with a count each, `provider_failure:2,source_changed:1`, for
+`sync.failed-nonzero`) and `alert_count`. A list too long for a tag ends in
+`,+N`; the detail text is in the log line.
 Production has no `ALERT_WEBHOOK_URL`, so Sentry is the only push channel:
 configure a Sentry alert rule on new issues, or on
 `runtime_source:alert-dispatcher` and `runtime_source:email-provider` (an

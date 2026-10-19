@@ -99,6 +99,7 @@ describe('sync-property-reviews snapshot handler', () => {
     ).rejects.toMatchObject({
       name: 'ReviewProviderSnapshotFailure',
       message: 'authorization_denied',
+      failureCode: 'authorization_denied',
     })
     expect(discoveryRepo.markDiscoveryDeferred).toHaveBeenCalledWith(
       JOB_DATA.propertyId,
@@ -203,7 +204,11 @@ describe('sync-property-reviews snapshot handler', () => {
 
     await expect(
       handler({ id: 'job-transient', data: JOB_DATA } as never),
-    ).rejects.toMatchObject({ name: 'ReviewProviderSnapshotFailure', message: code })
+    ).rejects.toMatchObject({
+      name: 'ReviewProviderSnapshotFailure',
+      message: code,
+      failureCode: code,
+    })
     expect(discoveryRepo.markDiscoveryDeferred).toHaveBeenCalledWith(
       JOB_DATA.propertyId,
       NOW,

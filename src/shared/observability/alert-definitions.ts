@@ -27,6 +27,8 @@
 
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import type { SnapshotSection } from '#/shared/observability/metrics-schema'
+import type { AlertFacts } from './alert-facts'
+import { quarantineFacts, unreadyJobFacts } from './alert-snapshot-facts'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -53,6 +55,11 @@ export type AlertEvent = Readonly<{
   windowMs: number
   /** Content-free human summary for the log line / webhook payload. */
   detail: string
+  /**
+   * What the alert was raised on, as machine names and counts. Sent to error
+   * monitoring as tags, because the monitor replaces `detail` (alert-facts.ts).
+   */
+  facts?: AlertFacts
 }>
 
 /**
@@ -279,7 +286,7 @@ function percentOf(part: number, whole: number): number {
 }
 
 /** The per-evaluation reading a definition produces when it breaches. */
-type AlertReading = Readonly<{ value: number; detail: string }>
+type AlertReading = Readonly<{ value: number; detail: string; facts?: AlertFacts }>
 
 /**
  * Build an implemented definition: the static identity (name/severity/
@@ -309,7 +316,13 @@ function define(
     evaluate: (snapshot, aux) => {
       const reading = read(snapshot, aux)
       if (reading === null) return null
-      return { ...statics, owner: OWNER, value: reading.value, detail: reading.detail }
+      return {
+        ...statics,
+        owner: OWNER,
+        value: reading.value,
+        detail: reading.detail,
+        ...(reading.facts ? { facts: reading.facts } : {}),
+      }
     },
   }
 }
@@ -386,6 +399,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
           value: 1,
           detail:
             'governed job runtime report unavailable — registration, freshness, dark-work, and repair state are unknown',
+          facts: { reasons: ['report_unavailable'] },
         }
       }
       if (jobs.ready) return null
@@ -403,6 +417,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
           `missedObjectives=${jobs.missedObjectives}, ` +
           `queueAgeMissed=${jobs.queueAgeMissed}, stalled=${jobs.stalled}, ` +
           `repairRequired=${jobs.repairRequired}, deadLetters=${jobs.deadLetters}`,
+        facts: unreadyJobFacts(jobs),
       }
     },
   }),
@@ -530,6 +545,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: q.oldestAgeMs,
         detail: `oldest of ${q.count} quarantined job(s) is ${q.oldestAgeMs}ms old — past the 24h operator redrive SLA`,
+        facts: quarantineFacts(snapshot, q.count),
       }
     },
   }),
@@ -554,6 +570,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: q.oldestAgeMs,
         detail: `${q.count} job(s) sitting in the unconsumed quarantine, oldest ${q.oldestAgeMs}ms — dropped work: no worker drains it and the TTL sweep deletes it`,
+        facts: quarantineFacts(snapshot, q.count),
       }
     },
   }),
@@ -595,6 +612,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: count,
         detail: `${count} Review sync(s) have a coded failure whose retry is due`,
+        facts: { count, codes: snapshot.sync.failedSyncCodes },
       }
     },
   }),

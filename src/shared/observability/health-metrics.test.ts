@@ -249,6 +249,7 @@ describe('health checker content safety (BQC-4.3)', () => {
         {
           due: 3,
           failed: 1,
+          failed_codes: ['SECRET_REVIEWER_NAME'],
           oldest_due_age_ms: 900_000,
           lastError: 'SECRET_REPLY_TEXT',
         },
@@ -319,6 +320,7 @@ describe('health checker content safety (BQC-4.3)', () => {
       sync: {
         dueForIncrementalCount: 3,
         failedSyncCount: 1,
+        failedSyncCodes: { other: 1 },
         oldestDueAgeMs: 900_000,
         gbpPushEnabled: false,
       },
@@ -426,6 +428,64 @@ describe('health checker sync freshness', () => {
     const snapshot = await createHealthChecker(db).check()
 
     expect(snapshot.sync.failedSyncCount).toBe(2)
+  })
+
+  it('counts the due Review sync failures by the code each failed with', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      [
+        {
+          due: 1,
+          failed: 3,
+          failed_codes: ['provider_failure', 'source_changed', 'provider_failure'],
+          oldest_due_age_ms: 60_000,
+        },
+      ],
+      PUBLICATION_ROW,
+      NOTIFICATION_ROW,
+    ])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.sync.failedSyncCodes).toEqual({
+      provider_failure: 2,
+      source_changed: 1,
+    })
+  })
+
+  it('counts a stored error class outside the known codes as other, never by its text', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      [
+        {
+          due: 1,
+          failed: 3,
+          failed_codes: ['provider_failure', 'Hilton-Paris', 'jsmith.london'],
+          oldest_due_age_ms: 60_000,
+        },
+      ],
+      PUBLICATION_ROW,
+      NOTIFICATION_ROW,
+    ])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.sync.failedSyncCodes).toEqual({ provider_failure: 1, other: 2 })
+    expect(JSON.stringify(snapshot)).not.toContain('Hilton')
+    expect(JSON.stringify(snapshot)).not.toContain('jsmith')
+  })
+
+  it('reports no failure codes when no sync failure is due', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      [{ due: 1, failed: 0, failed_codes: null, oldest_due_age_ms: 60_000 }],
+      PUBLICATION_ROW,
+      NOTIFICATION_ROW,
+    ])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.sync.failedSyncCodes).toEqual({})
   })
 
   it('reports a null overdue age when nothing is due', async () => {

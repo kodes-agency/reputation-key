@@ -24,6 +24,7 @@ import {
   type SentryBreadcrumb,
   type SentryEventHint,
 } from './sentry-event-scrub'
+import { type AlertFacts, alertFactTags } from './alert-facts'
 import { dropClientHangups } from './client-hangup'
 import { type FeedbackReporter, withFeedbackReporter } from './feedback-reporter'
 
@@ -115,9 +116,15 @@ export interface ErrorCaptureContext {
   /**
    * A dispatched alert's content-free identity. The exception message is
    * redacted in transit, so without it every alert reads as the same
-   * "Error: [REDACTED]" and groups into one issue.
+   * "Error: [REDACTED]" and groups into one issue. `facts` say what it was
+   * raised on (job families, reasons, failure codes, counts); each is checked
+   * against a closed shape before it becomes a tag (alert-facts.ts).
    */
-  readonly alert?: Readonly<{ name: string; severity: 'P0' | 'P1' | 'P2' | 'P3' }>
+  readonly alert?: Readonly<{
+    name: string
+    severity: 'P0' | 'P1' | 'P2' | 'P3'
+    facts?: AlertFacts
+  }>
 }
 
 export interface FeedbackCaptureParams {
@@ -325,7 +332,11 @@ export function createErrorMonitor(deps: {
             ...(queue ? { queue } : {}),
             ...(jobName ? { job_name: jobName } : {}),
             ...(alert && context.alert
-              ? { alert, alert_severity: context.alert.severity.toLowerCase() }
+              ? {
+                  alert,
+                  alert_severity: context.alert.severity.toLowerCase(),
+                  ...alertFactTags(context.alert.facts),
+                }
               : {}),
           },
         })
