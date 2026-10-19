@@ -233,21 +233,38 @@ export function firesOnSchedule(
   return contract.posture === 'active' && isScheduled(contract.schedule)
 }
 
+export type RepairLatches = Readonly<{
+  /** Failed on-demand work that no governed repair has answered. */
+  onDemand: boolean
+  /** A failed firing that no later success has answered. */
+  schedule: boolean
+}>
+
 /**
  * On-demand work and firings keep separate latches. On-demand work is one unit
- * that only a governed quarantine redrive runs again, so no plain success
- * answers it, a firing's included. A failed firing is answered by any later
- * success, for as long as the family still fires.
+ * that only a governed repair answers (a successful quarantine redrive, or an
+ * operator acknowledging the failure once its cause is fixed), so no plain
+ * success answers it, a firing's included. A failed firing is answered by any
+ * later success, for as long as the family still fires.
  */
+export function heldRepairLatches(
+  contract: JobOperationalContract,
+  observation: JobRuntimeObservation,
+): RepairLatches {
+  return {
+    onDemand: after(observation.lastOnDemandFailureAt, observation.lastRepairAt),
+    schedule:
+      firesOnSchedule(contract) &&
+      after(observation.lastScheduleFailureAt, observation.lastSucceededAt),
+  }
+}
+
 function repairRequired(
   contract: JobOperationalContract,
   observation: JobRuntimeObservation,
 ): boolean {
-  if (after(observation.lastOnDemandFailureAt, observation.lastRepairAt)) return true
-  return (
-    firesOnSchedule(contract) &&
-    after(observation.lastScheduleFailureAt, observation.lastSucceededAt)
-  )
+  const latches = heldRepairLatches(contract, observation)
+  return latches.onDemand || latches.schedule
 }
 
 function appendWorkHealthReasons(

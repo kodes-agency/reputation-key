@@ -18,6 +18,7 @@ export const COMMANDS: Readonly<
   'google-admission-role': ['scripts/ops/provision-google-admission-role.ts'],
   inspect: ['scripts/ops/inspect-decision.ts'],
   'import-reply-templates': ['scripts/ops/import-reply-templates.ts'],
+  jobs: ['scripts/ops/job-repair.ts'],
   'permit-start-deadline-fence': ['scripts/ops/permit-start-deadline-backfill.ts'],
   'privacy-request': ['scripts/ops/privacy-request.ts'],
   'property-erase': ['scripts/ops/property-erase.ts'],

@@ -82,6 +82,14 @@ export type StoredJobRuntimeObservation = Readonly<{
 
 export type JobRuntimeObservationStore = JobRuntimeObservationSink &
   Readonly<{
+    /**
+     * An operator's acknowledgement that a family's failure is answered: it
+     * writes `lastRepairAt` and nothing else. The worker never calls it; a
+     * governed redrive's success writes the same field through `recordSucceeded`.
+     */
+    recordRepairAcknowledged(
+      event: Readonly<{ jobName: string; at: Date }>,
+    ): Promise<void>
     recordBoot(
       input: Readonly<{
         contracts: readonly JobOperationalContract[]
@@ -206,6 +214,10 @@ export function createJobRuntimeObservationStore(
       await redis.del(activeJobKey(event.queue, event.jobId))
     },
 
+    async recordRepairAcknowledged(event) {
+      await redis.hset(observationKey(event.jobName), 'lastRepairAt', asIso(event.at))
+    },
+
     async recordStalled(event) {
       const jobName = await redis.get(activeJobKey(event.queue, event.jobId))
       if (!jobName) return
@@ -285,14 +297,17 @@ export type JobRuntimeQueuePort = Readonly<{
   ): Promise<JobRuntimeQueueJob[]>
 }>
 
-type QueueEvidence = {
+export type QueueEvidence = {
   schedulerNames: Set<string>
   lastStartedAt: Map<string, Date>
   lastSucceededAt: Map<string, Date>
   lastOnDemandFailureAt: Map<string, Date>
   lastScheduleFailureAt: Map<string, Date>
-  /** Retained failed jobs, firings and on-demand runs alike, per family. */
-  failedCount: Map<string, number>
+  /**
+   * When each retained failed job of a family finished (null when BullMQ
+   * recorded no time), firings and on-demand runs alike.
+   */
+  failures: Map<string, Array<Date | null>>
   lastDeniedAt: Map<string, Date>
   lastScheduleDeniedAt: Map<string, Date>
   /** Retained completed jobs the gate denied, per family. */
@@ -337,6 +352,13 @@ function increment(map: Map<string, number>, name: string): void {
   map.set(name, (map.get(name) ?? 0) + 1)
 }
 
+/** Add to a family's list in place: a quarantine can hold thousands of entries. */
+function appendTo<T>(map: Map<string, T[]>, name: string, value: T): void {
+  const list = map.get(name)
+  if (list) list.push(value)
+  else map.set(name, [value])
+}
+
 function keepOldest(map: Map<string, Date>, name: string, candidate: Date | null): void {
   if (!candidate) return
   const current = map.get(name)
@@ -371,17 +393,19 @@ function recordCompletion(evidence: QueueEvidence, job: JobRuntimeQueueJob): voi
 
 /** A retained failed job failed terminally; the kind of run decides its latch. */
 function recordFailure(evidence: QueueEvidence, job: JobRuntimeQueueJob): void {
-  increment(evidence.failedCount, job.name)
+  const finishedAt = dateFromEpoch(job.finishedOn)
+  appendTo(evidence.failures, job.name, finishedAt)
   keepLatest(
     executionKindOf(job) === 'schedule'
       ? evidence.lastScheduleFailureAt
       : evidence.lastOnDemandFailureAt,
     job.name,
-    dateFromEpoch(job.finishedOn),
+    finishedAt,
   )
 }
 
-async function readQueueEvidence(
+/** What the live queues show: schedulers, and every retained job by outcome. */
+export async function readQueueEvidence(
   queues: ReadonlyArray<JobRuntimeQueuePort>,
   now: Date,
 ): Promise<QueueEvidence> {
@@ -391,7 +415,7 @@ async function readQueueEvidence(
     lastSucceededAt: new Map(),
     lastOnDemandFailureAt: new Map(),
     lastScheduleFailureAt: new Map(),
-    failedCount: new Map(),
+    failures: new Map(),
     lastDeniedAt: new Map(),
     lastScheduleDeniedAt: new Map(),
     deniedCount: new Map(),
@@ -429,17 +453,18 @@ async function readQueueEvidence(
   return evidence
 }
 
-async function deadLettersByJob(
+/** The quarantine entries of each family: the dead letters nothing consumes. */
+export async function deadLettersByJob(
   quarantine: JobRuntimeQueuePort | null,
-): Promise<Map<string, number>> {
-  const counts = new Map<string, number>()
-  if (!quarantine) return counts
+): Promise<Map<string, string[]>> {
+  const ids = new Map<string, string[]>()
+  if (!quarantine) return ids
   for (const state of ['waiting', 'delayed', 'prioritized'] as const) {
     await scanState(quarantine, state, (job) => {
-      counts.set(job.name, (counts.get(job.name) ?? 0) + 1)
+      appendTo(ids, job.name, job.id ?? 'unknown')
     })
   }
-  return counts
+  return ids
 }
 
 function latest(left: Date | null, right: Date | null | undefined): Date | null {
@@ -462,6 +487,51 @@ function unsplitFailure(
   return contract.schedule === 'none'
     ? { onDemand: record.unsplitFailureAt, schedule: null }
     : { onDemand: null, schedule: record.unsplitFailureAt }
+}
+
+/**
+ * One family's observation: its durable head joined to what the live queues
+ * show. Where a time is in both, the later one wins, so a head that missed an
+ * event (a worker that died before writing it) never hides a retained job.
+ */
+export function observeFamily(
+  contract: JobOperationalContract,
+  record: StoredJobRuntimeObservation,
+  evidence: QueueEvidence,
+  deadLetterCount: number,
+): JobRuntimeObservation {
+  const unsplit = unsplitFailure(contract, record)
+  const { jobName } = contract
+  return {
+    ...record.observation,
+    schedulerRegistered: evidence.schedulerNames.has(jobName),
+    lastStartedAt: latest(
+      record.observation.lastStartedAt,
+      evidence.lastStartedAt.get(jobName),
+    ),
+    lastSucceededAt: latest(
+      record.observation.lastSucceededAt,
+      evidence.lastSucceededAt.get(jobName),
+    ),
+    lastOnDemandFailureAt: latest(
+      latest(record.observation.lastOnDemandFailureAt, unsplit.onDemand),
+      evidence.lastOnDemandFailureAt.get(jobName),
+    ),
+    lastScheduleFailureAt: latest(
+      latest(record.observation.lastScheduleFailureAt, unsplit.schedule),
+      evidence.lastScheduleFailureAt.get(jobName),
+    ),
+    lastDeniedAt: latest(
+      record.observation.lastDeniedAt,
+      evidence.lastDeniedAt.get(jobName),
+    ),
+    lastScheduleDeniedAt: latest(
+      record.observation.lastScheduleDeniedAt,
+      evidence.lastScheduleDeniedAt.get(jobName),
+    ),
+    oldestWaitingAt: evidence.oldestWaitingAt.get(jobName) ?? null,
+    deadLetterCount,
+  }
 }
 
 export type JobRuntimeReportRow = Readonly<{
@@ -583,38 +653,13 @@ export function createJobRuntimeReportReader(
       const now = input.clock()
       const rows = input.contracts.map((contract, index): JobRuntimeReportRow => {
         const record = stored[index] ?? null
-        const unsplit = record ? unsplitFailure(contract, record) : null
         const observation = record
-          ? {
-              ...record.observation,
-              schedulerRegistered: evidence.schedulerNames.has(contract.jobName),
-              lastStartedAt: latest(
-                record.observation.lastStartedAt,
-                evidence.lastStartedAt.get(contract.jobName),
-              ),
-              lastSucceededAt: latest(
-                record.observation.lastSucceededAt,
-                evidence.lastSucceededAt.get(contract.jobName),
-              ),
-              lastOnDemandFailureAt: latest(
-                latest(record.observation.lastOnDemandFailureAt, unsplit?.onDemand),
-                evidence.lastOnDemandFailureAt.get(contract.jobName),
-              ),
-              lastScheduleFailureAt: latest(
-                latest(record.observation.lastScheduleFailureAt, unsplit?.schedule),
-                evidence.lastScheduleFailureAt.get(contract.jobName),
-              ),
-              lastDeniedAt: latest(
-                record.observation.lastDeniedAt,
-                evidence.lastDeniedAt.get(contract.jobName),
-              ),
-              lastScheduleDeniedAt: latest(
-                record.observation.lastScheduleDeniedAt,
-                evidence.lastScheduleDeniedAt.get(contract.jobName),
-              ),
-              oldestWaitingAt: evidence.oldestWaitingAt.get(contract.jobName) ?? null,
-              deadLetterCount: deadLetters.get(contract.jobName) ?? 0,
-            }
+          ? observeFamily(
+              contract,
+              record,
+              evidence,
+              deadLetters.get(contract.jobName)?.length ?? 0,
+            )
           : null
         const readiness = assessJobRuntime({
           contract,
@@ -646,7 +691,7 @@ export function createJobRuntimeReportReader(
             observation?.lastOnDemandFailureAt?.toISOString() ?? null,
           lastScheduleFailureAt:
             observation?.lastScheduleFailureAt?.toISOString() ?? null,
-          failedCount: evidence.failedCount.get(contract.jobName) ?? 0,
+          failedCount: evidence.failures.get(contract.jobName)?.length ?? 0,
           lastDeniedAt: observation?.lastDeniedAt?.toISOString() ?? null,
           deniedCount: evidence.deniedCount.get(contract.jobName) ?? 0,
           oldestWaitingAt: observation?.oldestWaitingAt?.toISOString() ?? null,
