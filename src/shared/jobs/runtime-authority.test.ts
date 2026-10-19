@@ -44,7 +44,8 @@ function observation(
     schedulerRegistered: true,
     lastStartedAt: new Date('2026-08-27T02:56:00.000Z'),
     lastSucceededAt: new Date('2026-08-27T02:57:00.000Z'),
-    lastTerminalFailureAt: null,
+    lastOnDemandFailureAt: null,
+    lastScheduleFailureAt: null,
     lastRepairAt: null,
     lastStalledAt: null,
     lastDeniedAt: null,
@@ -143,7 +144,7 @@ describe('job runtime authority', () => {
         contract: scheduledContract({ posture: 'quarantined' }),
         observation: observation({
           schedulerRegistered: false,
-          lastTerminalFailureAt: new Date('2026-08-27T02:58:00.000Z'),
+          lastOnDemandFailureAt: new Date('2026-08-27T02:58:00.000Z'),
           deadLetterCount: 1,
         }),
         runtimeStartedAt: STARTED,
@@ -233,7 +234,7 @@ describe('job runtime authority', () => {
   it('keeps a poison item visible until a later repair is observed', () => {
     const failedAt = new Date('2026-08-27T02:58:00.000Z')
     const poisoned = observation({
-      lastTerminalFailureAt: failedAt,
+      lastOnDemandFailureAt: failedAt,
       deadLetterCount: 1,
     })
 
@@ -260,117 +261,113 @@ describe('job runtime authority', () => {
     ).toEqual({ ready: true, reasons: [] })
   })
 
-  describe('a terminal failure followed by a success', () => {
-    const failedThenSucceeded = observation({
-      lastTerminalFailureAt: new Date('2026-08-27T02:56:30.000Z'),
+  // A firing and an on-demand run fail into separate latches. A firing is never
+  // dead-lettered and the next one repeats the whole pass, so a later success
+  // answers it while the family is an active schedule. On-demand work is
+  // dead-lettered, so only a governed quarantine redrive answers it.
+  describe('terminal failures, by execution kind', () => {
+    const FAILED_AT = new Date('2026-08-27T02:56:30.000Z')
+    const REDRIVEN_AT = new Date('2026-08-27T02:57:00.000Z')
+    const onDemand = scheduledContract({ schedule: 'none', lastSuccessObjectiveMs: null })
+    const assess = (contract: JobOperationalContract, observed: JobRuntimeObservation) =>
+      assessJobRuntime({
+        contract,
+        observation: observed,
+        runtimeStartedAt: STARTED,
+        now: NOW,
+      })
+    const firingFailedThenSucceeded = observation({
+      lastScheduleFailureAt: FAILED_AT,
       lastSucceededAt: new Date('2026-08-27T02:57:00.000Z'),
     })
 
-    it('clears repair for an active schedule, whose next firing repeats the pass', () => {
-      expect(
-        assessJobRuntime({
-          contract: scheduledContract(),
-          observation: failedThenSucceeded,
-          runtimeStartedAt: STARTED,
-          now: NOW,
-        }),
-      ).toEqual({ ready: true, reasons: [] })
-    })
-
-    it('keeps an active schedule in repair while its latest firing is the failed one', () => {
-      expect(
-        assessJobRuntime({
-          contract: scheduledContract(),
-          observation: {
-            ...failedThenSucceeded,
-            lastTerminalFailureAt: new Date('2026-08-27T02:58:00.000Z'),
-          },
-          runtimeStartedAt: STARTED,
-          now: NOW,
-        }),
-      ).toEqual({ ready: false, reasons: ['repair_required'] })
-    })
-
-    it('keeps on-demand work in repair until a governed redrive succeeds', () => {
-      const onDemand = scheduledContract({
-        schedule: 'none',
-        lastSuccessObjectiveMs: null,
+    it('clears a failed firing of an active schedule on a later success', () => {
+      expect(assess(scheduledContract(), firingFailedThenSucceeded)).toEqual({
+        ready: true,
+        reasons: [],
       })
-      const unrelatedSuccess = { ...failedThenSucceeded, schedulerRegistered: false }
+    })
 
+    it('keeps an active schedule in repair while its latest run is the failed firing', () => {
       expect(
-        assessJobRuntime({
-          contract: onDemand,
-          observation: unrelatedSuccess,
-          runtimeStartedAt: STARTED,
-          now: NOW,
+        assess(scheduledContract(), {
+          ...firingFailedThenSucceeded,
+          lastScheduleFailureAt: new Date('2026-08-27T02:58:00.000Z'),
         }),
       ).toEqual({ ready: false, reasons: ['repair_required'] })
+    })
 
+    it('keeps on-demand work in repair after a plain success, until a governed redrive succeeds', () => {
+      const failed = observation({
+        schedulerRegistered: false,
+        lastOnDemandFailureAt: FAILED_AT,
+      })
+
+      expect(assess(onDemand, failed)).toEqual({
+        ready: false,
+        reasons: ['repair_required'],
+      })
+      expect(assess(onDemand, { ...failed, lastRepairAt: REDRIVEN_AT })).toEqual({
+        ready: true,
+        reasons: [],
+      })
+    })
+
+    // `pnpm ops refresh` and `pnpm ops purge` enqueue a scheduled family's job
+    // on demand. That run is dead-lettered like any on-demand work, and a later
+    // firing succeeding does not answer it.
+    it('keeps a failed manual run of an active schedule in repair after a firing succeeds', () => {
+      const manualRunFailed = observation({ lastOnDemandFailureAt: FAILED_AT })
+
+      expect(assess(scheduledContract(), manualRunFailed)).toEqual({
+        ready: false,
+        reasons: ['repair_required'],
+      })
       expect(
-        assessJobRuntime({
-          contract: onDemand,
-          observation: {
-            ...unrelatedSuccess,
-            lastRepairAt: new Date('2026-08-27T02:57:00.000Z'),
-          },
-          runtimeStartedAt: STARTED,
-          now: NOW,
-        }),
+        assess(scheduledContract(), { ...manualRunFailed, lastRepairAt: REDRIVEN_AT }),
       ).toEqual({ ready: true, reasons: [] })
     })
 
-    it('keeps a quarantined family in repair: it has no firing to repeat the pass', () => {
+    it('does not let a later firing failure and success hide an unanswered on-demand failure', () => {
       expect(
-        assessJobRuntime({
-          contract: scheduledContract({ posture: 'quarantined' }),
-          observation: { ...failedThenSucceeded, schedulerRegistered: false },
-          runtimeStartedAt: STARTED,
-          now: NOW,
+        assess(scheduledContract(), {
+          ...firingFailedThenSucceeded,
+          lastOnDemandFailureAt: new Date('2026-08-27T02:56:00.000Z'),
         }),
       ).toEqual({ ready: false, reasons: ['repair_required'] })
     })
 
-    // Runbook §17 ("a scheduled family that stops being active") is written
-    // against this: a firing failed, then the family left the active schedule.
-    // No later plain success answers that failure, a firing was never
-    // dead-lettered so there is nothing to redrive, and only returning the
-    // family to the active schedule lets a success clear it.
+    // The dead end the first fix left: a firing failed, then a release moved the
+    // family out of the active schedule. No firing could succeed after that, and
+    // the failed firing left no dead letter to redrive.
     describe.each([
       ['quarantined', { posture: 'quarantined' }],
       ['made on-demand', { schedule: 'none', lastSuccessObjectiveMs: null }],
-    ] as const)('a family that was %s after the failed firing', (_, change) => {
+    ] as const)('a family %s after a failed firing', (_, change) => {
       const left = scheduledContract(change)
-      const stale = { ...failedThenSucceeded, schedulerRegistered: false }
-      const assess = (
-        contract: JobOperationalContract,
-        observed: JobRuntimeObservation,
-      ) =>
-        assessJobRuntime({
-          contract,
-          observation: observed,
-          runtimeStartedAt: STARTED,
-          now: NOW,
-        })
-
-      it('stays in repair after a later success, a manual run included', () => {
-        expect(assess(left, stale)).toEqual({
-          ready: false,
-          reasons: ['repair_required'],
-        })
+      const firingFailedLast = observation({
+        schedulerRegistered: false,
+        lastScheduleFailureAt: new Date('2026-08-27T02:58:00.000Z'),
       })
 
-      it('is cleared once it is an active schedule again and a success is on record', () => {
-        expect(assess(scheduledContract(), failedThenSucceeded)).toEqual({
-          ready: true,
-          reasons: [],
-        })
+      it('is not held in repair by the old firing failure', () => {
+        expect(assess(left, firingFailedLast)).toEqual({ ready: true, reasons: [] })
       })
 
-      it('is cleared by a governed redrive success, the one answer outside the schedule', () => {
-        const redriven = { ...stale, lastRepairAt: new Date('2026-08-27T02:57:00.000Z') }
+      it('still waits for a redrive of its own on-demand failure', () => {
+        expect(
+          assess(left, {
+            ...firingFailedLast,
+            lastOnDemandFailureAt: FAILED_AT,
+            deadLetterCount: 1,
+          }),
+        ).toEqual({ ready: false, reasons: ['repair_required', 'dead_letter_present'] })
+      })
 
-        expect(assess(left, redriven)).toEqual({ ready: true, reasons: [] })
+      it('counts the firing failure again once it is an active schedule, until a success', () => {
+        expect(
+          assess(scheduledContract(), { ...firingFailedLast, schedulerRegistered: true }),
+        ).toEqual({ ready: false, reasons: ['repair_required'] })
       })
     })
   })
@@ -443,6 +440,20 @@ describe('job runtime authority', () => {
       }),
     ).toEqual({ ready: true, reasons: [] })
   })
+
+  it.each(['lastOnDemandFailureAt', 'lastScheduleFailureAt'] as const)(
+    'treats a %s head from the future as an invalid observation',
+    (field) => {
+      expect(
+        assessJobRuntime({
+          contract: scheduledContract(),
+          observation: observation({ [field]: new Date(NOW.getTime() + 60_000) }),
+          runtimeStartedAt: STARTED,
+          now: NOW,
+        }),
+      ).toEqual({ ready: false, reasons: ['invalid_observation'] })
+    },
+  )
 
   it('treats a denial head from the future as an invalid observation', () => {
     expect(

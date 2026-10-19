@@ -48,7 +48,7 @@ import { GateDenyRetryError, JobTimeoutError, UnknownJobError } from './errors'
 import type { GateDeniedExecutionKind, GateDeniedResult } from './gate-denial'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
-import { isScheduleFiring } from './schedule-firing'
+import { executionKindOf } from './schedule-firing'
 
 /**
  * Sentinel organization for tenant_cross/none-scope work that has no org at
@@ -442,9 +442,7 @@ export function createGatedJobHandler(
       )
       throw new UnknownJobError(job.name, job.id)
     }
-    const executionKind: GateDeniedExecutionKind = isScheduleFiring(job)
-      ? 'schedule'
-      : 'worker'
+    const executionKind = executionKindOf(job)
     const outcome = await gateJob(
       job.name,
       job.data,

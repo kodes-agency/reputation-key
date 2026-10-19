@@ -202,6 +202,7 @@ function healthySnapshot(): MutableSnapshot {
       repairRequired: 0,
       deadLetters: 0,
       gateDenials: 0,
+      terminalFailures: 0,
       rows: [],
     },
     guestObservationLoss: {

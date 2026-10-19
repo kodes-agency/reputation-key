@@ -16,6 +16,7 @@ import {
   type JobRuntimeObservation,
   type JobRuntimeReadinessReason,
 } from './runtime-authority'
+import { executionKindOf, type JobExecutionKind } from './schedule-firing'
 
 const OBSERVATION_VERSION = '1'
 const ACTIVE_JOB_INDEX_TTL_MS = 7 * 24 * 60 * 60_000
@@ -48,12 +49,21 @@ type JobRuntimeDenialEvent = JobRuntimeEvent &
     executionKind: GateDeniedExecutionKind
   }>
 
+type JobRuntimeFailureEvent = JobRuntimeEvent &
+  Readonly<{
+    /**
+     * A failed firing is answered by any later success; failed on-demand work
+     * is dead-lettered and answered only by its redrive.
+     */
+    executionKind: JobExecutionKind
+  }>
+
 export type JobRuntimeObservationSink = Readonly<{
   recordStarted(event: JobRuntimeEvent): Promise<void>
   recordSucceeded(event: JobRuntimeSuccessEvent): Promise<void>
   /** A terminal gate denial: BullMQ completed the job, but nothing ran. */
   recordDenied(event: JobRuntimeDenialEvent): Promise<void>
-  recordTerminalFailure(event: JobRuntimeEvent): Promise<void>
+  recordTerminalFailure(event: JobRuntimeFailureEvent): Promise<void>
   recordStalled(
     event: Readonly<{ queue: string; jobId: string; at: Date }>,
   ): Promise<void>
@@ -62,6 +72,12 @@ export type JobRuntimeObservationSink = Readonly<{
 export type StoredJobRuntimeObservation = Readonly<{
   observation: JobRuntimeObservation
   runtimeStartedAt: Date
+  /**
+   * A terminal failure recorded before failures were split by execution kind,
+   * in the head's old `lastTerminalFailureAt` field. Which kind it was is not
+   * recorded; the report reads it by the family's schedule.
+   */
+  unsplitFailureAt: Date | null
 }>
 
 export type JobRuntimeObservationStore = JobRuntimeObservationSink &
@@ -113,7 +129,7 @@ export function createJobRuntimeObservationStore(
 
   const writeEvent = async (
     event: JobRuntimeEvent,
-    field: 'lastStartedAt' | 'lastSucceededAt' | 'lastTerminalFailureAt',
+    field: 'lastStartedAt' | 'lastOnDemandFailureAt' | 'lastScheduleFailureAt',
   ): Promise<void> => {
     const at = asIso(event.at)
     await redis.hset(observationKey(event.jobName), field, at)
@@ -181,7 +197,12 @@ export function createJobRuntimeObservationStore(
     },
 
     async recordTerminalFailure(event) {
-      await writeEvent(event, 'lastTerminalFailureAt')
+      await writeEvent(
+        event,
+        event.executionKind === 'schedule'
+          ? 'lastScheduleFailureAt'
+          : 'lastOnDemandFailureAt',
+      )
       await redis.del(activeJobKey(event.queue, event.jobId))
     },
 
@@ -204,13 +225,15 @@ export function createJobRuntimeObservationStore(
       if (runtimeStartedAt === null) return null
       return {
         runtimeStartedAt,
+        unsplitFailureAt: parseDate(row.lastTerminalFailureAt),
         observation: {
           jobName,
           handlerRegistered: row.handlerRegistered === '1',
           schedulerRegistered: row.schedulerRegisteredAtBoot === '1',
           lastStartedAt: parseDate(row.lastStartedAt),
           lastSucceededAt: parseDate(row.lastSucceededAt),
-          lastTerminalFailureAt: parseDate(row.lastTerminalFailureAt),
+          lastOnDemandFailureAt: parseDate(row.lastOnDemandFailureAt),
+          lastScheduleFailureAt: parseDate(row.lastScheduleFailureAt),
           lastRepairAt: parseDate(row.lastRepairAt),
           lastStalledAt: parseDate(row.lastStalledAt),
           lastDeniedAt: parseDate(row.lastDeniedAt),
@@ -234,11 +257,14 @@ type RuntimeJobState =
 
 export type JobRuntimeQueueJob = Readonly<{
   name: string
+  id?: string
+  /** Set on a scheduler firing; tells a failed firing from failed on-demand work. */
+  repeatJobKey?: string
   timestamp?: number
   /** BullMQ delay from timestamp; only overdue delayed work contributes age. */
   delay?: number
   /** Add-time options. BullMQ zeroes `delay` on promotion; `opts.delay` keeps it. */
-  opts?: Readonly<{ delay?: number }>
+  opts?: Readonly<{ delay?: number; jobId?: string }>
   processedOn?: number
   finishedOn?: number
   /** A completed job's result; a gate denial marks a completion that did not run. */
@@ -263,7 +289,10 @@ type QueueEvidence = {
   schedulerNames: Set<string>
   lastStartedAt: Map<string, Date>
   lastSucceededAt: Map<string, Date>
-  lastTerminalFailureAt: Map<string, Date>
+  lastOnDemandFailureAt: Map<string, Date>
+  lastScheduleFailureAt: Map<string, Date>
+  /** Retained failed jobs, firings and on-demand runs alike, per family. */
+  failedCount: Map<string, number>
   lastDeniedAt: Map<string, Date>
   lastScheduleDeniedAt: Map<string, Date>
   /** Retained completed jobs the gate denied, per family. */
@@ -304,6 +333,10 @@ function keepLatest(map: Map<string, Date>, name: string, candidate: Date | null
   if (!current || candidate.getTime() > current.getTime()) map.set(name, candidate)
 }
 
+function increment(map: Map<string, number>, name: string): void {
+  map.set(name, (map.get(name) ?? 0) + 1)
+}
+
 function keepOldest(map: Map<string, Date>, name: string, candidate: Date | null): void {
   if (!candidate) return
   const current = map.get(name)
@@ -329,11 +362,23 @@ function recordCompletion(evidence: QueueEvidence, job: JobRuntimeQueueJob): voi
     keepLatest(evidence.lastSucceededAt, job.name, finishedAt)
     return
   }
-  evidence.deniedCount.set(job.name, (evidence.deniedCount.get(job.name) ?? 0) + 1)
+  increment(evidence.deniedCount, job.name)
   keepLatest(evidence.lastDeniedAt, job.name, finishedAt)
   if (job.returnvalue.executionKind === 'schedule') {
     keepLatest(evidence.lastScheduleDeniedAt, job.name, finishedAt)
   }
+}
+
+/** A retained failed job failed terminally; the kind of run decides its latch. */
+function recordFailure(evidence: QueueEvidence, job: JobRuntimeQueueJob): void {
+  increment(evidence.failedCount, job.name)
+  keepLatest(
+    executionKindOf(job) === 'schedule'
+      ? evidence.lastScheduleFailureAt
+      : evidence.lastOnDemandFailureAt,
+    job.name,
+    dateFromEpoch(job.finishedOn),
+  )
 }
 
 async function readQueueEvidence(
@@ -344,7 +389,9 @@ async function readQueueEvidence(
     schedulerNames: new Set(),
     lastStartedAt: new Map(),
     lastSucceededAt: new Map(),
-    lastTerminalFailureAt: new Map(),
+    lastOnDemandFailureAt: new Map(),
+    lastScheduleFailureAt: new Map(),
+    failedCount: new Map(),
     lastDeniedAt: new Map(),
     lastScheduleDeniedAt: new Map(),
     deniedCount: new Map(),
@@ -373,13 +420,7 @@ async function readQueueEvidence(
           scanState(queue, state, (job) => {
             keepLatest(evidence.lastStartedAt, job.name, dateFromEpoch(job.processedOn))
             if (state === 'completed') recordCompletion(evidence, job)
-            if (state === 'failed') {
-              keepLatest(
-                evidence.lastTerminalFailureAt,
-                job.name,
-                dateFromEpoch(job.finishedOn),
-              )
-            }
+            if (state === 'failed') recordFailure(evidence, job)
           }),
         ),
       ])
@@ -401,10 +442,26 @@ async function deadLettersByJob(
   return counts
 }
 
-function latest(left: Date | null, right: Date | undefined): Date | null {
+function latest(left: Date | null, right: Date | null | undefined): Date | null {
   if (!right) return left
   if (!left || right.getTime() > left.getTime()) return right
   return left
+}
+
+/**
+ * Before failures were split by execution kind, one head field held both. A
+ * scheduled family's was judged as a firing then, so it still is; an
+ * unscheduled family runs only on demand. A family whose schedule was removed
+ * after a firing failed keeps that old failure as on-demand work; at the split
+ * the closed beta's only such latch was `sync-property-reviews`, a real one.
+ */
+function unsplitFailure(
+  contract: JobOperationalContract,
+  record: StoredJobRuntimeObservation,
+): Readonly<{ onDemand: Date | null; schedule: Date | null }> {
+  return contract.schedule === 'none'
+    ? { onDemand: record.unsplitFailureAt, schedule: null }
+    : { onDemand: null, schedule: record.unsplitFailureAt }
 }
 
 export type JobRuntimeReportRow = Readonly<{
@@ -427,6 +484,16 @@ export type JobRuntimeReportRow = Readonly<{
   ready: boolean
   reasons: readonly JobRuntimeReadinessReason[]
   lastSucceededAt: string | null
+  /** Latest terminal failure of on-demand work, a manual run included. */
+  lastOnDemandFailureAt: string | null
+  /** Latest terminal failure of a schedule firing. */
+  lastScheduleFailureAt: string | null
+  /**
+   * Retained failed jobs of the family, firings and on-demand runs alike;
+   * counted, never paged on. It keeps a schedule that fails most firings
+   * visible after a success answers the latest one.
+   */
+  failedCount: number
   lastDeniedAt: string | null
   /** Retained completed jobs the gate denied; counted, never paged on. */
   deniedCount: number
@@ -463,6 +530,11 @@ export type JobRuntimeReport = Readonly<{
    * capability), so only `scheduleDenied` affects readiness.
    */
   gateDenials: number
+  /**
+   * Retained failed jobs, across families. Informational, like `gateDenials`:
+   * an unanswered failure already fails readiness as `repair_required`.
+   */
+  terminalFailures: number
   rows: readonly JobRuntimeReportRow[]
 }>
 
@@ -511,6 +583,7 @@ export function createJobRuntimeReportReader(
       const now = input.clock()
       const rows = input.contracts.map((contract, index): JobRuntimeReportRow => {
         const record = stored[index] ?? null
+        const unsplit = record ? unsplitFailure(contract, record) : null
         const observation = record
           ? {
               ...record.observation,
@@ -523,9 +596,13 @@ export function createJobRuntimeReportReader(
                 record.observation.lastSucceededAt,
                 evidence.lastSucceededAt.get(contract.jobName),
               ),
-              lastTerminalFailureAt: latest(
-                record.observation.lastTerminalFailureAt,
-                evidence.lastTerminalFailureAt.get(contract.jobName),
+              lastOnDemandFailureAt: latest(
+                latest(record.observation.lastOnDemandFailureAt, unsplit?.onDemand),
+                evidence.lastOnDemandFailureAt.get(contract.jobName),
+              ),
+              lastScheduleFailureAt: latest(
+                latest(record.observation.lastScheduleFailureAt, unsplit?.schedule),
+                evidence.lastScheduleFailureAt.get(contract.jobName),
               ),
               lastDeniedAt: latest(
                 record.observation.lastDeniedAt,
@@ -565,6 +642,11 @@ export function createJobRuntimeReportReader(
           ready: readiness.ready,
           reasons: readiness.reasons,
           lastSucceededAt: observation?.lastSucceededAt?.toISOString() ?? null,
+          lastOnDemandFailureAt:
+            observation?.lastOnDemandFailureAt?.toISOString() ?? null,
+          lastScheduleFailureAt:
+            observation?.lastScheduleFailureAt?.toISOString() ?? null,
+          failedCount: evidence.failedCount.get(contract.jobName) ?? 0,
           lastDeniedAt: observation?.lastDeniedAt?.toISOString() ?? null,
           deniedCount: evidence.deniedCount.get(contract.jobName) ?? 0,
           oldestWaitingAt: observation?.oldestWaitingAt?.toISOString() ?? null,
@@ -600,6 +682,7 @@ export function createJobRuntimeReportReader(
         repairRequired: countReason(rows, 'repair_required'),
         deadLetters: rows.reduce((sum, row) => sum + row.deadLetterCount, 0),
         gateDenials: rows.reduce((sum, row) => sum + row.deniedCount, 0),
+        terminalFailures: rows.reduce((sum, row) => sum + row.failedCount, 0),
         rows,
       }
     },

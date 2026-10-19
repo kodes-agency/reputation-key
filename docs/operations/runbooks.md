@@ -212,7 +212,7 @@ definitions and security controls live in
 
 **What it means:** the quarantine is a dead-letter queue with **no consumer** — nothing drains it, and the daily `quarantine-ttl-sweep` DELETES entries after `QUARANTINE_TTL_DAYS` (default 30d). A job that lands there is lost work that no retry will ever pick up. If it was a review sync, a notification fan-out, or a reply publication, that unit of work simply never happened and nobody was told. Fifteen minutes is three health-check evaluation cadences: long enough that an operator actively redriving right now does not trip it, short enough that the loss is still recoverable.
 
-Only on-demand work lands here. A schedule firing is never dead-lettered: every schedule is enumeration-only, so its next firing repeats the whole pass and nothing is lost, and there is no unit of work to redrive. A firing that fails past its retry budget is logged (`job failed` at error level, then `terminal schedule firing failure — not dead-lettered, the next firing repeats the pass` as a warning), captured in error monitoring, kept in BullMQ's retained failed set, and shown as `repair_required` on its family's job-runtime row until a later success (§17).
+Only on-demand work lands here. A schedule firing is never dead-lettered: every schedule is enumeration-only, so its next firing repeats the whole pass and nothing is lost, and there is no unit of work to redrive. A firing that fails past its retry budget is logged (`job failed` at error level, then `terminal schedule firing failure — not dead-lettered, the next firing repeats the pass` as a warning), captured in error monitoring, kept in BullMQ's retained failed set, and shown as `repair_required` on its family's job-runtime row until a later success, for as long as the family is active with a schedule; the row's `lastScheduleFailureAt` and `failedCount` keep the record after that (§17). A manual run of a scheduled family (`pnpm ops refresh`, `pnpm ops purge`) is on-demand work and lands here like any other.
 
 **First three things to check:**
 
@@ -574,13 +574,26 @@ without retrying, but nothing ran: it is recorded as a denial (`lastDeniedAt`),
 never as a success, so it cannot keep a dead family fresh. `jobs.gateDenials`
 and each row's `deniedCount` count gate-denied jobs among the retained completed
 jobs; they never page, because a denied on-demand job (a suspended
-organization, a disabled capability) is routine. `repair_required` means the
-family's latest terminal failure has not been answered. For on-demand work the
-only answer is a successful quarantine redrive of the dead letter. An active
-scheduled family's firings are never dead-lettered (§14), so it has nothing to
-redrive: its next successful firing is the answer, the same rule
-`schedule_denied` follows, and the reason clears by itself once the cause is
-gone. The report retains the
+organization, a disabled capability) is routine. `repair_required` means a
+terminal failure has not been answered, and each kind of run has its own
+answer. On-demand work, a manual run of a scheduled family included, is
+dead-lettered (§14): only a successful quarantine redrive of it answers the
+failure, never a later plain success or firing. A schedule firing is never
+dead-lettered, so it has nothing to redrive: any later success of the family
+answers it, the same rule `schedule_denied` follows, and the reason clears by
+itself once the cause is gone. A failed firing counts only while the family is
+active with a schedule, so a release that moves a family to `quarantined` or
+sets its schedule to `none` no longer leaves it held by firings that failed
+before (a quarantined family that kept its scheduler is
+`quarantined_scheduler_registered`). Each row
+says which latch holds: `lastOnDemandFailureAt` and `lastScheduleFailureAt` are
+the latest failure of each kind, and `failedCount` counts the family's jobs
+among the retained failed jobs, so a schedule that fails most of its firings
+stays visible after one success answers the latest. `jobs.terminalFailures`
+totals them and, like `jobs.gateDenials`, never pages. A head written before
+failures were split by kind kept one time for both; the report reads it as a
+firing for a scheduled family and as on-demand work otherwise. The report
+retains the
 observed cell, owner, processor, action, capability, queue policy, cadence,
 timeout, concurrency, freshness objectives, runbook, and repair command for
 each family. It contains no tenant or payload content.
@@ -604,14 +617,15 @@ each family. It contains no tenant or payload content.
 3. For missed objectives, stalled work, repair-required state, or dead letters,
    inspect the original queue and run `pnpm ops quarantine list --operator
 <registered-operator>` before applying the row's exact repair command.
-   An active scheduled row (`posture` is `active`, `schedule` is not `none`)
-   that shows `repair_required` has no quarantine entry for the failed firing,
-   so its `repairCommand` names no redrive: read the worker's `job failed`
-   error and the error-monitoring event for that job name. If the reason
+   The row's failure times say which latch holds. On an active scheduled row
+   (`posture` is `active`, `schedule` is not `none`), a `lastScheduleFailureAt`
+   later than `lastSucceededAt` is a failed firing. It has no quarantine entry,
+   so read the worker's `job failed` error and the error-monitoring event for
+   that job name. If the reason
    outlives one cadence plus the family's retry budget (`retryAttempts` ×
    (`timeoutMs` + the `retryBackoff` delay), all on the row), the firings are
-   still failing. Once the cause is fixed, any later success clears the reason,
-   so a daily family need not wait a day where an enqueue command exists:
+   still failing. Once the cause is fixed, any later success clears a failed
+   firing, so a daily family need not wait a day where an enqueue command exists:
    `pnpm ops purge retention --operator <registered-operator> --reason
 <incident-reason> --apply --yes ops:purge` reruns `retention-sweep` (§10), and
    `pnpm ops refresh reviews --operator <registered-operator> --reason
@@ -619,47 +633,34 @@ each family. It contains no tenant or payload content.
    other daily families, `quarantine-ttl-sweep` and
    `reconcile-gbp-notification-subscriptions`, have no rerun command
    (`pnpm ops gbp-subscribe` only reports and refuses `--apply`), so they wait
-   for their next firing.
+   for their next firing. Otherwise the latch is `lastOnDemandFailureAt`: a
+   dead-lettered on-demand job, or a failed manual run of a scheduled family,
+   listed by `pnpm ops quarantine list`. Only its successful redrive (§14)
+   clears it; a later firing does not, and neither does discarding the dead
+   letter or its expiry under `quarantine-ttl-sweep`. A row whose dead letter
+   is gone keeps `repair_required` until a run of that work is redriven, and no
+   `pnpm ops` command acknowledges it yet: escalate it rather than editing Queue
+   Redis. A ready row with a growing `failedCount` is a schedule that fails
+   between successes: read the same errors.
 
 **Remediate:** repair configuration/handler/scheduler drift by promoting a
 reviewed immutable release; never register an ad-hoc handler or repeat entry in
 Redis. Remove forbidden dark/quarantined schedules through normal scheduler
 reconciliation and discard their queued work without executing it. For an
 active poison item, fix the handler cause first, review the quarantine report,
-then execute the row's report-linked redrive command. An active scheduled
-family needs no command: fix the cause and its next successful firing clears
-`repair_required`. A domain-specific
+then execute the row's report-linked redrive command. A failed firing needs no
+command: fix the cause and the family's next success clears `repair_required`.
+A failed manual run of a scheduled family is on-demand work: redrive its dead
+letter. A domain-specific
 reconciliation or rebuild remains authoritative when its runbook says replaying
 one queue item cannot reconstruct the projection.
-
-**A scheduled family that stops being active.** A later success answers
-`repair_required` only while the family is an active schedule. If a release
-moves a family to `quarantined`, or sets its schedule to `none`, after a firing
-failed terminally and before a firing succeeded, the row keeps `repair_required`
-and `worker.job-runtime-unready` keeps firing: the failed firing left no dead
-letter, so there is nothing to redrive, and an inactive family has no firing to
-succeed. A manual run does not clear it either, because for these postures only
-a successful quarantine redrive counts. No `pnpm ops` command clears it today,
-and Queue Redis is not edited by hand to silence a row.
-
-1. Prevent it. Before a release takes a scheduled family out of the active
-   schedule, read its row. If it shows `repair_required`, fix the cause and let
-   one success land first.
-2. If the family should run again, return it to `active` with its schedule in a
-   reviewed release. The next success, a firing or a manual run, clears the row.
-3. If it must stay inactive, the row stays unready until the owner decides.
-   Escalate to Bozhidar Denev and record it in the incident. A family being
-   retired is removed from the catalogue with a scheduler tombstone
-   (`RETIRED_SCHEDULER_JOB_NAMES`), which removes its row. The missing piece is
-   an audited operator command that acknowledges a stale `repair_required` after
-   the cause is fixed, recording operator and reason like the other `ops`
-   commands. It is a follow-up and does not exist yet.
 
 **Verification:** `jobs.ready` is true; `jobs.failing`, missing handler/scheduler,
 schedule-denied, forbidden-dark-work, missed-objective, queue-age, stalled,
 repair-required, and dead-letter counts are all zero; every active scheduled row
 has a recent `lastSucceededAt`; and a second health-check cadence remains green
-after a worker restart.
+after a worker restart. `jobs.terminalFailures` is informational: it falls only
+as BullMQ trims its retained failed jobs, so watch that it stops growing.
 
 **Escalation:** Bozhidar Denev. A dark family that executed, or an active family
 that cannot be deterministically repaired, is a release blocker.
