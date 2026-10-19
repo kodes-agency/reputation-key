@@ -12,6 +12,7 @@ import {
 import { getSecurityHeaders } from '#/shared/security/security-headers'
 import { serverFunctionErrorAdapter } from '#/shared/auth/server-function-error'
 import { releaseSkewClientMiddleware } from '#/shared/stale-tab/release-skew-middleware'
+import { unknownServerFunctionMiddleware } from '#/shared/stale-tab/unknown-server-function'
 // Policy administration is an operator-facing server surface rather than a
 // route component. Import it here so its createServerFn handlers are present
 // in the production server manifest.
@@ -77,7 +78,16 @@ export const startInstance = createStart(() => {
   const sentry = sentryGlobalMiddleware()
   return {
     serializationAdapters: [serverFunctionErrorAdapter],
-    requestMiddleware: [...sentry.request, csrfMiddleware, cspNonceMiddleware],
+    // Sentry first, so it wraps everything below. CSRF next: only a same-origin
+    // caller learns anything from what follows. The unknown-function answer sits
+    // ahead of the nonce so that a request for a function this build lacks is a
+    // 404 response, not an exception for Sentry to capture on its way out.
+    requestMiddleware: [
+      ...sentry.request,
+      csrfMiddleware,
+      unknownServerFunctionMiddleware,
+      cspNonceMiddleware,
+    ],
     // Sentry first, as for requests. The release check follows it and still runs
     // ahead of everything the function itself has: a read from a tab whose code
     // is older than this server is refused before its validator, its own

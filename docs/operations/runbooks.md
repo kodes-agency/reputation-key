@@ -220,9 +220,9 @@ Only on-demand work lands here. A schedule firing is never dead-lettered: every 
 2. The quarantine reason. `ops:quarantine list` prints it under each entry: the error name and its first message line, followed by `(policy: policy_unavailable)` when the attempt that exhausted the job was refused by the delayed-execution gate because it could not read the policy. That one is a policy outage, not a handler bug: restore the policy read before any redrive. It never appears for a schedule firing: a firing whose retries were all spent on an unreadable policy is not dead-lettered, so look for `delayed execution denied — retry (policy_unavailable)` in the worker's `job failed` log and for `repair_required` on the family's row (§17) instead. Anything else is a handler that threw past its retry budget. No region or routing reason exists, and no alert watches for one.
 3. `queue.quarantine.oldest_age_ms` versus `QUARANTINE_TTL_DAYS`. This tells you how much time is left before the TTL sweep deletes the evidence along with the work. The gauge, the listing, and the TTL sweep all read the quarantine oldest-first, so a burst of fresh dead letters cannot hide an aged one.
 
-**Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then match each entry's job family to the event-job catalogue. For an enabled family, first run `ops:quarantine redrive <id> --operator <registered-operator>` for the dry-run report, then add `--reason <incident-reason> --apply`; redrive returns the job to its original queue. For a blocked or quarantined family, never redrive: first run `ops:quarantine discard <id> --operator <registered-operator>`, record the identifiers and disposition in the incident, then add `--reason <incident-reason> --apply --yes ops:quarantine`. Discard permanently removes the quarantined job without executing or re-enqueuing it, which is why it alone needs the typed confirmation. For `pending_failure`, the redrive apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at the redrive boundary, so a concurrent privacy-verification scan cannot miss content moved between queues.
+**Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then match each entry's job family to the event-job catalogue. For an enabled family, first run `ops:quarantine redrive <id> --operator <registered-operator>` for the dry-run report, then add `--reason <incident-reason> --apply`; redrive returns the job to its original queue. For a blocked or quarantined family, never redrive: first run `ops:quarantine discard <id> --operator <registered-operator>`, record the identifiers and disposition in the incident, then add `--reason <incident-reason> --apply --yes ops:quarantine`. Discard permanently removes the quarantined job without executing or re-enqueuing it, which is why it alone needs the typed confirmation. An entry of an enabled family that a redrive cannot repair, because it continues a run that already failed and so fails again, is discarded the same way once the incident record says why; the family's `repair_required` is then acknowledged (§17). For `pending_failure`, the redrive apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at the redrive boundary, so a concurrent privacy-verification scan cannot miss content moved between queues.
 
-**Verification:** `queue.quarantine.depth` returns to 0, redriven jobs complete in their original queue, and discarded jobs were never executed or re-enqueued.
+**Verification:** `queue.quarantine.depth` returns to 0, redriven jobs complete in their original queue, and discarded jobs were never executed or re-enqueued. A discard, like the TTL sweep's expiry, does not clear the family's `repair_required` (§17): when the cause is fixed and the family's later runs completed, acknowledge the failure with `pnpm ops jobs acknowledge-repair <jobName> --operator <registered-operator>` (dry run first, then `--reason <incident-reason> --apply`), which refuses while any of the family's dead letters remains or no success has followed the failure.
 
 **Escalation:** Bozhidar Denev. Any quarantined entry that cannot be safely redriven or deliberately discarded is a data-loss event and needs written sign-off.
 
@@ -577,7 +577,8 @@ jobs; they never page, because a denied on-demand job (a suspended
 organization, a disabled capability) is routine. `repair_required` means a
 terminal failure has not been answered, and each kind of run has its own
 answer. On-demand work, a manual run of a scheduled family included, is
-dead-lettered (§14): only a successful quarantine redrive of it answers the
+dead-lettered (§14): only a successful quarantine redrive of it, or an
+operator acknowledging it once the cause is fixed (step 3), answers the
 failure, never a later plain success or firing. A schedule firing is never
 dead-lettered, so it has nothing to redrive: any later success of the family
 answers it, the same rule `schedule_denied` follows, and the reason clears by
@@ -635,13 +636,29 @@ each family. It contains no tenant or payload content.
    (`pnpm ops gbp-subscribe` only reports and refuses `--apply`), so they wait
    for their next firing. Otherwise the latch is `lastOnDemandFailureAt`: a
    dead-lettered on-demand job, or a failed manual run of a scheduled family,
-   listed by `pnpm ops quarantine list`. Only its successful redrive (§14)
+   listed by `pnpm ops quarantine list`. A successful redrive of it (§14)
    clears it; a later firing does not, and neither does discarding the dead
-   letter or its expiry under `quarantine-ttl-sweep`. A row whose dead letter
-   is gone keeps `repair_required` until a run of that work is redriven, and no
-   `pnpm ops` command acknowledges it yet: escalate it rather than editing Queue
-   Redis. A ready row with a growing `failedCount` is a schedule that fails
-   between successes: read the same errors.
+   letter or its expiry under `quarantine-ttl-sweep`. A redrive cannot succeed
+   when the dead letter continues a run that already failed (a snapshot sync's
+   continuations do): it fails again, so nothing would ever repair the family
+   and the alert would outlive the incident. Once the cause is fixed and the
+   family's later runs complete, acknowledge the failure instead. First
+   discard the family's dead letters (§14), then run
+   `pnpm ops jobs acknowledge-repair <jobName> --operator <registered-operator>`
+   for the dry run, which prints the row's failure and repair times and its
+   reasons, and add `--reason <incident-reason> --apply`. The command refuses, and says
+   which, while the family still has a dead letter or a retained failed job
+   newer than its latest success: those are failures that can still be seen,
+   and it will not hide them. It also refuses while the failure it would answer
+   is newer than the family's latest success, even once BullMQ has trimmed that
+   job from its failed set: nothing shows the cause fixed, so wait for a later
+   run to succeed. It sets `lastRepairAt` to the time of the newest on-demand
+   failure it saw and changes no other field, so a failure after that time
+   latches again; a failed firing is not its to answer (a later success does).
+   Its printed record (operator, reason, correlation id, the head before and
+   after) is the only audit trail: copy it into the incident record. Never
+   edit Queue Redis by hand. A ready row with a growing `failedCount` is a
+   schedule that fails between successes: read the same errors.
 
 **Remediate:** repair configuration/handler/scheduler drift by promoting a
 reviewed immutable release; never register an ad-hoc handler or repeat entry in
@@ -651,7 +668,8 @@ active poison item, fix the handler cause first, review the quarantine report,
 then execute the row's report-linked redrive command. A failed firing needs no
 command: fix the cause and the family's next success clears `repair_required`.
 A failed manual run of a scheduled family is on-demand work: redrive its dead
-letter. A domain-specific
+letter, or, when a redrive cannot succeed, discard it and acknowledge the
+failure (step 3). A domain-specific
 reconciliation or rebuild remains authoritative when its runbook says replaying
 one queue item cannot reconstruct the projection.
 

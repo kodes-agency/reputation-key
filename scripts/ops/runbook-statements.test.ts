@@ -29,6 +29,27 @@ describe('what the runbooks tell an operator to do', () => {
     expect(section(24)).toContain(`**Order: ${first} first, then the ${second}.**`)
   })
 
+  // §17 told the operator that a row whose dead letter was gone kept
+  // `repair_required` until a redrive, and that no `pnpm ops` command could
+  // acknowledge it: the alert for a family every later run had repaired could
+  // only be escalated.
+  it('§14 and §17 give the command that acknowledges a repair a redrive cannot make', () => {
+    // §17 is hard-wrapped, so compare the prose with its line breaks folded.
+    const prose = (text: string): string => text.replace(/\s+/g, ' ')
+    const command = 'pnpm ops jobs acknowledge-repair <jobName>'
+
+    expect(prose(section(14))).toContain(command)
+    expect(prose(section(17))).toContain(command)
+    expect(prose(section(17))).not.toContain('no `pnpm ops` command acknowledges')
+    // What it refuses on, as the command does (src/shared/jobs/repair-acknowledgement.ts).
+    expect(prose(section(17))).toContain(
+      'a dead letter or a retained failed job newer than its latest success',
+    )
+    expect(prose(section(17))).toContain(
+      "while the failure it would answer is newer than the family's latest success",
+    )
+  })
+
   // §5 sent the operator to `gbp_import_jobs`, a table the import rewrite
   // replaced, and told them to cancel a job no command can cancel.
   it('names only import tables the schema has', () => {

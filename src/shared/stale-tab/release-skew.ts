@@ -7,11 +7,22 @@
 // it, so a tab opened before a deploy talks to newer handlers with older code.
 // It sends its release with every call; the server compares it with its own
 // before any handler runs.
+//
+// A second sign of the same thing never reaches that comparison: a tab whose
+// code calls a function a deploy removed gets a plain 404 from a layer in front
+// of the function middleware (unknown-server-function.ts).
 
 export const RELEASE_HEADER = 'x-repkey-release'
 
 /** The `code` of the refusal a stale tab gets. */
 export const STALE_CLIENT_CODE = 'stale_client'
+
+/**
+ * The whole body of the plain 404 a request for a function the build lacks is
+ * answered with. Text, so Start's client reads it as the error's message, and
+ * why the tab can know it again by that message alone.
+ */
+export const UNKNOWN_SERVER_FUNCTION_BODY = 'Unknown server function'
 
 /** A commit hash, full or abbreviated. Anything else (`unknown`, `local-dev`) names no release. */
 const RELEASE = /^[0-9a-f]{7,64}$/u
@@ -63,4 +74,18 @@ export function isStaleClientError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false
   const { code, status } = error as { code?: unknown; status?: unknown }
   return code === STALE_CLIENT_CODE && status === 409
+}
+
+/**
+ * Whether an error is Start's client reading that 404: it throws the body as
+ * the message of a plain Error. A current client never asks for an id its build
+ * lacks, so this alone proves the tab's code is older than the server's. By
+ * message, like `isStaleClientError` by shape, and for the same reason: nothing
+ * to import into first paint.
+ */
+export function isUnknownServerFunctionReply(error: unknown): boolean {
+  return (
+    (error as { message?: unknown } | null | undefined)?.message ===
+    UNKNOWN_SERVER_FUNCTION_BODY
+  )
 }
