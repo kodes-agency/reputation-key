@@ -113,7 +113,8 @@ sync.
 
 The owner decided: accept a small gap, complete the run, and remove nothing.
 A run whose total and list differ by at most 2% of the total (rounded down, at
-least 1, and always under one 50-review page), whose listing took no more
+least 1, and always under one 50-review page; widened on 2026-10-19, see the
+note below), whose listing took no more
 pages than its reviews fill at 50 a page, and whose confirmation scan listed
 exactly the same reviews again, completes. It records no removal candidate and no first miss, and its
 apply step refuses any candidate it finds. A wider gap still fails as
@@ -179,6 +180,35 @@ gone with a targeted read, and lists the same set twice. The fresh run started
 at once begins about one listing after that first miss (minutes on the largest
 location), so it normally falls short of the 15 minutes; one that does not still
 has to pass every other check itself, on its own two listings.
+
+## Note 2026-10-19 — a wider count gap for small locations
+
+The 2% rule in the note on when full reconciliation may detect deletion was too
+tight for a small location. On the closed beta on 2026-10-19 one reported 86
+reviews and listed 84 unique ones over two pages; 2% of 86 rounds down to 1, so
+the run failed as `set_mismatch` (Sentry JAVASCRIPT-TANSTACKSTART-REACT-4), after
+two earlier runs that day with gaps of 1 (85 against 84, 86 against 85) had
+completed. Google's miscount is a few reviews whatever the size of the
+location; a percentage only fits the big ones.
+
+The owner decided: allow a gap of up to 5 reviews, or 2% on a big location,
+always under one page. The tolerance is now
+
+    max(1, min(49, max(5, floor(2% x total)), floor(10% x total)))
+
+Read from the inside: 5 reviews, or 2% of the total where that is more (from a
+total of 300); never 10% of the total, so a tiny location stays loud (a gap of
+5 on a location of 10 would mean half its reviews unlisted); never a whole
+50-review page (the cap stays at 49); never below 1. A total of
+86 allows 5, 2,600 allows 49, 30 allows 3, 20 allows 2, and 10 or fewer allow 1,
+as before.
+
+Nothing else changed. A gap run still completes without removing anything: it
+records no removal candidate and no first miss, and its apply step refuses any
+candidate it finds, so a wider gap costs no data safety. The run is still
+refused when either count is 0, when its pages are not `ceil(unique / 50)`, and
+when its confirmation scan lists a different set than its main scan
+(`application/snapshot-count-gap.ts`).
 
 ## Merged from ADR 0003
 
