@@ -16,6 +16,16 @@ export function portalRows(scope: Scope): string[][] {
 }
 
 /**
+ * The headline of a running goal, whole: its figure, its words and its target
+ * sit in three elements, so it is found by what its paragraph reads.
+ */
+export const headlineOf = (scope: Scope, text: string): HTMLElement =>
+  scope.getByText(
+    (_: string, element: Element | null) =>
+      element?.tagName === 'P' && element.textContent === text,
+  )
+
+/**
  * Once a command on the card is answered: `said` in a toast (once it has faded
  * in), the card read again (`reread`), and the focus on the card's title.
  */

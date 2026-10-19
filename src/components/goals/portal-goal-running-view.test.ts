@@ -1,15 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type {
   PortalGoalLastMonth,
-  PortalGoalRows,
   PortalGoalRunningMonth,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import {
-  lastMonthWords,
-  portalCountsWords,
-  runningWords,
-  stoppedWords,
-} from './portal-goal-running-view'
+import { lastMonthWords, runningWords, stoppedWords } from './portal-goal-running-view'
 
 /** G10, Nov 22: 23 of 40, 22 of 30 days gone, behind. */
 const month = (patch: Partial<PortalGoalRunningMonth> = {}): PortalGoalRunningMonth => ({
@@ -35,31 +29,98 @@ describe('the running Monthly portal goal, in words', () => {
     const words = figureOf(runningWords(month()))
 
     expect(words.figure).toBe('23 of 40')
-    expect(words.unit).toBe('private ratings')
+    // The detail page's first tile reads these two, as they always were.
     expect(words.line).toBe('17 to go · 9 days left')
-    expect(words.pace).toBe('below pace')
     expect(words.bar).toEqual({
       value: 23,
       max: 40,
       tick: 22 / 30,
       label: 'Private ratings in November',
-      valueText: '23 of 40 private ratings, 9 days left, below pace',
+      valueText: '23 of 40 private ratings, 9 days left',
     })
   })
 
-  it('never says on pace', () => {
+  it('leads with what is left: 17 private ratings to 40', () => {
+    const words = figureOf(runningWords(month()))
+
+    expect(words.headline).toEqual({
+      kind: 'left',
+      count: '17',
+      words: 'private ratings to',
+      target: '40',
+    })
+    expect(words.passed).toBe(false)
+  })
+
+  it('counts what is left in its own unit: one is singular, scans are scans', () => {
+    const left = (patch: Partial<PortalGoalRunningMonth>) => {
+      const words = figureOf(runningWords(month(patch)))
+      if (words.headline.kind !== 'left') throw new Error('expected what is left')
+      return `${words.headline.count} ${words.headline.words} ${words.headline.target}`
+    }
+
+    expect(left({ value: 39, belowPace: null })).toBe('1 private rating to 40')
+    expect(left({ measure: 'qualified_scans', target: 55, value: 43 })).toBe(
+      '12 scans to 55',
+    )
+    expect(left({ value: 0, target: 1 })).toBe('1 private rating to 1')
+  })
+
+  it('says a passed month in the unit of what it has: Goal passed: 43 private ratings', () => {
+    const words = figureOf(
+      runningWords(month({ value: 43, belowPace: false, daysAfterToday: 3 })),
+    )
+
+    expect(words.headline).toEqual({
+      kind: 'passed',
+      text: 'Goal passed: 43 private ratings',
+    })
+    expect(words.passed).toBe(true)
+    expect(
+      figureOf(runningWords(month({ value: 1, target: 1, belowPace: false }))).headline,
+    ).toEqual({ kind: 'passed', text: 'Goal passed: 1 private rating' })
+  })
+
+  it('names the days left in the month, and the last day by its name', () => {
+    const line = (patch: Partial<PortalGoalRunningMonth>) =>
+      figureOf(runningWords(month(patch))).daysLine
+
+    expect(line({})).toBe('9 days left in November')
+    expect(line({ daysAfterToday: 1 })).toBe('2 days left in November')
+    expect(line({ daysAfterToday: 0 })).toBe('Last day of November')
+    expect(line({ key: '2026-12', daysAfterToday: 0 })).toBe('Last day of December')
+  })
+
+  it('agrees with "17 to go · last day" on which day is the last, for every day of a month', () => {
+    for (let after = 0; after < 31; after += 1) {
+      const words = figureOf(runningWords(month({ daysAfterToday: after })))
+
+      expect(words.daysLine.startsWith('Last day')).toBe(words.line.endsWith('last day'))
+    }
+  })
+
+  it('captions the meter and dates its foot from the days that have begun', () => {
+    const words = figureOf(runningWords(month()))
+
+    expect(words.caption).toBe('November so far')
+    expect(words.foot).toBe('It’s Nov 22')
+    expect(figureOf(runningWords(month({ key: '2026-12', elapsedDays: 3 }))).foot).toBe(
+      'It’s Dec 3',
+    )
+  })
+
+  it('the scans month: its own unit on the bar, the label and the headline', () => {
     // The month's own measure: scans.
     const words = figureOf(
       runningWords(month({ belowPace: false, measure: 'qualified_scans' })),
     )
 
-    expect(words.pace).toBeNull()
-    expect(words.unit).toBe('scans')
     expect(words.bar.label).toBe('Scans in November')
     expect(words.bar.valueText).toBe('23 of 40 scans, 9 days left')
+    expect(words.headline).toMatchObject({ words: 'scans to' })
   })
 
-  it('no pace word in the quiet days', () => {
+  it('no tick in the quiet days', () => {
     // Nov 2: the first days are never judged, and the bar has no tick yet.
     const words = figureOf(
       runningWords(
@@ -73,17 +134,17 @@ describe('the running Monthly portal goal, in words', () => {
       ),
     )
 
-    expect(words.pace).toBeNull()
     expect(words.line).toBe('39 to go · 29 days left')
+    expect(words.headline).toMatchObject({ count: '39' })
+    expect(words.daysLine).toBe('29 days left in November')
     expect(words.bar.tick).toBeNull()
   })
 
-  it('fewer than 5 expected: no pace word, and the tick still shows the day', () => {
+  it('fewer than 5 expected: the tick still shows the day', () => {
     const words = figureOf(
       runningWords(month({ target: 10, value: 0, elapsedDays: 14, belowPace: null })),
     )
 
-    expect(words.pace).toBeNull()
     expect(words.bar.tick).toBe(14 / 30)
   })
 
@@ -97,7 +158,6 @@ describe('the running Monthly portal goal, in words', () => {
 
     expect(words.figure).toBe('41 of 40')
     expect(words.line).toBe('Goal passed · 4 days left')
-    expect(words.passed).toBe(true)
     expect(words.bar).toMatchObject({ value: 41, max: 40, tick: null })
     expect(words.bar.valueText).toBe('41 of 40 private ratings, goal passed, 4 days left')
   })
@@ -108,13 +168,13 @@ describe('the running Monthly portal goal, in words', () => {
     )
 
     expect(words.line).toBe('17 to go · last day')
-    expect(words.bar.valueText).toBe('23 of 40 private ratings, last day, below pace')
+    expect(words.bar.valueText).toBe('23 of 40 private ratings, last day')
   })
 
   it('counts in the target: one is singular', () => {
     const words = figureOf(runningWords(month({ target: 1, value: 0, belowPace: null })))
 
-    expect(`${words.figure} ${words.unit}`).toBe('0 of 1 private rating')
+    expect(words.bar.valueText).toBe('0 of 1 private rating, 9 days left')
   })
 
   it('unreadable shows no bar and no zero', () => {
@@ -127,74 +187,17 @@ describe('the running Monthly portal goal, in words', () => {
     })
   })
 
-  it('valueText names pace and days', () => {
-    const bar = (patch: Partial<PortalGoalRunningMonth>) =>
+  it('never says the pace in a word: the pill says it (Q-5)', () => {
+    // Behind, on the way, not judged and in the quiet days read the same.
+    const spoken = (patch: Partial<PortalGoalRunningMonth>) =>
       figureOf(runningWords(month(patch))).bar.valueText
 
-    expect(bar({})).toBe('23 of 40 private ratings, 9 days left, below pace')
-    expect(bar({ belowPace: null })).toBe('23 of 40 private ratings, 9 days left')
-    expect(bar({ daysAfterToday: 1, belowPace: false })).toBe(
+    expect(spoken({ belowPace: true })).toBe('23 of 40 private ratings, 9 days left')
+    expect(spoken({ belowPace: false })).toBe('23 of 40 private ratings, 9 days left')
+    expect(spoken({ belowPace: null })).toBe('23 of 40 private ratings, 9 days left')
+    expect(spoken({ daysAfterToday: 1, belowPace: false })).toBe(
       '23 of 40 private ratings, 2 days left',
     )
-  })
-})
-
-describe('what each portal brought in, in words', () => {
-  const rows = (patch: Partial<Extract<PortalGoalRows, { kind: 'rows' }>> = {}) =>
-    ({
-      kind: 'rows',
-      portals: [
-        { portalId: 'portal-reception', name: 'Reception', count: 3 },
-        { portalId: 'portal-restaurant', name: 'Restaurant', count: 0 },
-        { portalId: 'portal-spa', name: 'Spa', count: 20 },
-      ],
-      elsewhere: 0,
-      ...patch,
-    }) satisfies PortalGoalRows
-
-  it("rows stay in the read's name order", () => {
-    // Spa has the most and Reception the fewest: the order is the read's.
-    expect(portalCountsWords(rows())).toEqual({
-      kind: 'rows',
-      heading: 'From your portals',
-      rows: [
-        { key: 'portal-reception', name: 'Reception', count: '3' },
-        { key: 'portal-restaurant', name: 'Restaurant', count: '0' },
-        { key: 'portal-spa', name: 'Spa', count: '20' },
-      ],
-    })
-  })
-
-  it('Other portals only when something came from them', () => {
-    const words = portalCountsWords(rows({ elsewhere: 2 }))
-
-    expect(words.kind === 'rows' ? words.rows.map(({ name }) => name) : []).toEqual([
-      'Reception',
-      'Restaurant',
-      'Spa',
-      'Other portals',
-    ])
-    expect(words.kind === 'rows' ? words.rows.at(-1) : null).toEqual({
-      key: 'elsewhere',
-      name: 'Other portals',
-      count: '2',
-    })
-  })
-
-  it('one portal: All from Reception.', () => {
-    expect(portalCountsWords({ kind: 'one', name: 'Reception' })).toEqual({
-      kind: 'sentence',
-      text: 'All from Reception.',
-      seeEach: null,
-    })
-  })
-
-  it('five portals: From 5 portals · See each', () => {
-    expect(portalCountsWords({ kind: 'many', count: 5 })).toEqual({
-      kind: 'sentence',
-      text: 'From 5 portals',
-      seeEach: 'See each',
-    })
   })
 })
 

@@ -1,7 +1,8 @@
 // The Monthly portal goal on the Property Overview (PLAN PG-16; copy deck
 // O-1…O-6): the number ready to use in one line ("See it", "Not now", which
-// hides it), the running month with each Portal's count in one line, the
-// month-start check-in, and nothing for a goal that has not started. At 320,
+// hides it), the running month as the Goals page's card draws it (with each
+// Portal's count in one line in a narrow slot), the month-start check-in, and
+// nothing for a goal that has not started. At 320,
 // 390, 820 and 1440 px and on the light theme. The Storybook Vitest project
 // compiles no Tailwind, so the plays assert words, roles, links and what is
 // sent.
@@ -16,6 +17,7 @@ import { CARD_CHECK_IN } from './portal-goal-check-in.stories.fixtures'
 import { PortalGoalOverview } from './portal-goal-overview'
 import { overviewPortalGoalView } from './portal-goal-overview-view'
 import { CARD_RUNNING } from './portal-goal-running.stories.fixtures'
+import { headlineOf } from './portal-goal.stories.play'
 import { CARD_READY, CARD_SCHEDULED, SEAVIEW } from './portal-goal.stories.fixtures'
 
 const notNowMock = fn<(month: string) => void>()
@@ -79,6 +81,12 @@ const meta: Meta<typeof Slot> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** The slot's title: the goal's name, a level-2 heading, whichever card draws under it. */
+const expectTitle = (canvas: ReturnType<typeof within>) =>
+  expect(
+    canvas.getByRole('heading', { level: 2, name: 'Monthly portal goal' }),
+  ).toBeVisible()
+
 const PROMPT = 'Your monthly portal goal for November is ready: 40 private ratings.'
 
 /** O-1: one line, "See it" to the Goals page's card, and "Not now", which hides it. */
@@ -101,18 +109,17 @@ export const Ready: Story = {
   },
 }
 
-/** O-2: the running month as the card says it, each Portal's count in one line, View details. */
+/** O-2: the running month as the Goals page's card says it, and View details. */
 export const Running: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(
-      canvas.getByRole('heading', { level: 2, name: 'Monthly portal goal · November' }),
-    ).toBeVisible()
+    await expectTitle(canvas)
+    await expect(canvas.getByText('Below pace', { exact: true })).toBeVisible()
+    await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
+    await expect(canvas.getByText('9 days left in November')).toBeVisible()
     await expect(canvas.getByText('23 of 40', { exact: true })).toBeVisible()
-    await expect(canvas.getByText('17 to go · 9 days left')).toBeVisible()
-    await expect(canvas.getByText('below pace', { exact: true })).toBeVisible()
-    await expect(canvas.queryByText(/on pace/)).toBeNull()
-    // Name order, never by count (P-1).
+    await expect(canvas.queryByText(/on pace/iu)).toBeNull()
+    // Name order, never by count (P-1): the one line a narrow slot says it in.
     await expect(canvas.getByText('Reception 3 · Restaurant 0 · Spa 20')).toBeVisible()
     const details = canvas.getByRole('link', { name: 'View details' })
     await expect(details).toHaveAttribute(
@@ -127,9 +134,7 @@ export const CheckIn: Story = {
   args: { card: CARD_CHECK_IN },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(
-      canvas.getByRole('heading', { level: 2, name: 'Monthly portal goal' }),
-    ).toBeVisible()
+    await expectTitle(canvas)
     await expect(
       canvas.getByText('November: 36 of 40 so far. Final figure on Dec 2.'),
     ).toBeVisible()

@@ -2,29 +2,22 @@
 // O-1…O-6): its own slot after "How you are doing" and above "Guest voice",
 // never beside the Google rating goal. One line when the number is ready, with
 // "See it" to the Goals page's card and "Not now"; the running month as the
-// card draws it, with each Portal's count in one line and "View details"; or,
-// on the month's first seven days, the month-start check-in. Nothing otherwise
-// (`overviewPortalGoalView`, which the host works out). Presentational: the
-// host hands it the view, Not now and the check-in's commands.
+// Goals page draws its card (ADR 0068, amended 2026-10-19: the same card, which
+// goes compact by its own width: the Portals' counts in one line in a narrow
+// slot); or, on the month's first seven days, the month-start check-in. Nothing
+// otherwise (`overviewPortalGoalView`, which the host works out).
+// Presentational: the host hands it the view, Not now and the check-in's
+// commands.
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
-import type {
-  PortalGoalRows,
-  PortalGoalRunningMonth,
-} from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { InlineLink } from '#/components/ui/inline-link'
-import { PortalGoalMonthSoFar } from './portal-goal-card-goal'
+import { PortalGoalCardGoal } from './portal-goal-card-goal'
 import { PortalGoalCheckIn, type PortalGoalCheckInCommands } from './portal-goal-check-in'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
-import {
-  overviewCountsLine,
-  overviewTitle,
-  type OverviewPortalGoalView,
-} from './portal-goal-overview-view'
-import { PortalGoalPortalCounts } from './portal-goal-portal-counts'
+import type { OverviewPortalGoalView } from './portal-goal-overview-view'
 import type { PortalGoalSheetIntent } from './portal-goal-sheet-intent'
 
 /** The slot's title: the focus goes back to it once the check-in is answered. */
@@ -88,12 +81,11 @@ function Prompt({
   )
 }
 
-/** The slot's frame: its title, what the view says, and "View details" (G-28). */
-function Frame({
-  title,
+/** The slot while the check-in asks: the goal's name, what the check-in says, and "View details" (G-28). */
+function CheckInFrame({
   propertyId,
   children,
-}: Readonly<{ title: string; propertyId: string; children: ReactNode }>) {
+}: Readonly<{ propertyId: string; children: ReactNode }>) {
   return (
     <Card data-slot="portal-goal-overview" className="gap-4">
       <CardHeader>
@@ -103,7 +95,7 @@ function Frame({
           tabIndex={-1}
           className="outline-none"
         >
-          {title}
+          {PORTAL_GOAL_NAME}
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -117,31 +109,6 @@ function Frame({
         </InlineLink>
       </CardContent>
     </Card>
-  )
-}
-
-/** O-2: the running month, then each Portal's count in one line. */
-function Running({
-  month,
-  rows,
-  propertyId,
-}: Readonly<{
-  month: PortalGoalRunningMonth
-  rows: PortalGoalRows | null
-  propertyId: string
-}>) {
-  const line = rows === null ? null : overviewCountsLine(rows)
-  return (
-    <Frame title={overviewTitle(month.key)} propertyId={propertyId}>
-      <div className="flex flex-col gap-2">
-        <PortalGoalMonthSoFar month={month} />
-      </div>
-      {line !== null ? (
-        <p className="text-sm text-muted-foreground tabular-nums">{line}</p>
-      ) : rows === null ? null : (
-        <PortalGoalPortalCounts rows={rows} propertyId={propertyId} />
-      )}
-    </Frame>
   )
 }
 
@@ -167,11 +134,22 @@ export function PortalGoalOverview({
         />
       )
     case 'card':
-      return <Running month={view.month} rows={view.goal.rows} propertyId={propertyId} />
+      // O-2: the card the Goals page draws, in this slot.
+      return (
+        <PortalGoalCardGoal
+          goal={view.goal}
+          today={view.today}
+          propertyId={propertyId}
+          slot="portal-goal-overview"
+          titleId={PORTAL_GOAL_OVERVIEW_TITLE_ID}
+          titleAs="h2"
+          openSheet={openSheet}
+        />
+      )
     case 'check_in':
       // O-3…O-6: the card's check-in, under the goal's name.
       return (
-        <Frame title={PORTAL_GOAL_NAME} propertyId={propertyId}>
+        <CheckInFrame propertyId={propertyId}>
           <PortalGoalCheckIn
             goal={view.goal}
             checkIn={view.checkIn}
@@ -181,7 +159,7 @@ export function PortalGoalOverview({
             openSheet={openSheet}
             headingAs="h3"
           />
-        </Frame>
+        </CheckInFrame>
       )
   }
 }

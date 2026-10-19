@@ -10,24 +10,13 @@ import {
   CARD_SCANS_ONLY,
   CARD_SCHEDULED,
 } from './portal-goal.stories.fixtures'
-import {
-  CARD_FIVE_PORTALS,
-  CARD_ONE_PORTAL,
-  CARD_OTHER_PORTALS,
-  CARD_RUNNING,
-  CARD_STOPPED,
-} from './portal-goal-running.stories.fixtures'
+import { CARD_RUNNING, CARD_STOPPED } from './portal-goal-running.stories.fixtures'
 import {
   CARD_CHECK_IN,
   CARD_CHECK_IN_NOTHING,
   CARD_CHECK_IN_SAME,
 } from './portal-goal-check-in.stories.fixtures'
-import {
-  overviewCountsLine,
-  overviewPortalGoalView,
-  overviewPromptWords,
-  overviewTitle,
-} from './portal-goal-overview-view'
+import { overviewPortalGoalView, overviewPromptWords } from './portal-goal-overview-view'
 
 const MAY_ALL: Readonly<{ canSet: boolean; canChange: boolean }> = {
   canSet: true,
@@ -83,6 +72,7 @@ describe('overviewPortalGoalView', () => {
     if (view.kind !== 'card' || CARD_RUNNING.state !== 'goal') return
     expect(view.goal).toBe(CARD_RUNNING.goal)
     expect(view.month).toBe(CARD_RUNNING.goal.month)
+    expect(view.today).toBe(CARD_RUNNING.today)
     // A stopped goal's month still counts on the Goals page, not here.
     expect(viewOf(CARD_STOPPED)).toEqual({ kind: 'nothing' })
   })
@@ -104,25 +94,6 @@ describe('overviewPortalGoalView', () => {
 })
 
 describe('the Overview slot, worded', () => {
-  it('names the goal and the month it counts', () => {
-    expect(overviewTitle('2026-11')).toBe('Monthly portal goal · November')
-  })
-
-  it("says each portal's count in one line, in the read's order", () => {
-    const rowsOf = (card: PortalGoalCardView) =>
-      card.state === 'goal' && card.goal.rows !== null
-        ? overviewCountsLine(card.goal.rows)
-        : undefined
-
-    expect(rowsOf(CARD_RUNNING)).toBe('Reception 3 · Restaurant 0 · Spa 20')
-    expect(rowsOf(CARD_OTHER_PORTALS)).toBe(
-      'Reception 13 · Restaurant 6 · Spa 2 · Other portals 2',
-    )
-    // "All from Reception." and "From 5 portals" are the card's own sentences.
-    expect(rowsOf(CARD_ONE_PORTAL)).toBeNull()
-    expect(rowsOf(CARD_FIVE_PORTALS)).toBeNull()
-  })
-
   it('the prompt says the number in its own unit', () => {
     expect(
       overviewPromptWords(

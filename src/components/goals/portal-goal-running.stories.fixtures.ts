@@ -106,6 +106,39 @@ export const CARD_FIRST_DAYS = goalCard(
   { value: 1, elapsedDays: 2, daysAfterToday: 28, belowPace: null, quietDays: true },
 )
 
+/** Nov 22: 30 of 40, on the way: "On pace", with Spa on 23. */
+export const CARD_ON_PACE = goalCard(
+  '2026-11-22',
+  {
+    rows: {
+      kind: 'rows',
+      portals: [
+        { portalId: 'portal-reception', name: 'Reception', count: 5 },
+        { portalId: 'portal-restaurant', name: 'Restaurant', count: 2 },
+        { portalId: 'portal-spa', name: 'Spa', count: 23 },
+      ],
+      elsewhere: 0,
+    },
+  },
+  { value: 30, belowPace: false },
+)
+
+/**
+ * P-6, Nov 29: a goal of 4 expects fewer than 5 by today, so the rule judges
+ * nothing: no pill, though the bar still has its tick.
+ */
+export const CARD_NOT_JUDGED = goalCard(
+  '2026-11-29',
+  { rows: { kind: 'one', name: 'Reception' } },
+  {
+    target: 4,
+    value: 1,
+    elapsedDays: 29,
+    daysAfterToday: 1,
+    belowPace: null,
+  },
+)
+
 /** Nov 30: the last day, still below pace. */
 export const CARD_LAST_DAY = goalCard(
   '2026-11-30',

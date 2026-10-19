@@ -1,16 +1,17 @@
-// The running Monthly portal goal on its card (PLAN PG-12): the month so far
-// with its bar and today's tick, what is left to go with the days left and
-// "below pace" only when the read says so, what each Portal brought in (in
-// name order, one Portal, five, and Other portals), the first quiet days, the
-// last day, a goal passed, a figure that cannot be read, a stopped goal (with
-// its way to the next goal), and
-// the month before while it is read and once it closed, and "View details" to
-// the goal's page. Each at 320, 390, 820
-// and 1440 px and on the light theme where the layout changes. The Storybook
-// Vitest project compiles no Tailwind, so the plays assert words, roles, the
-// tick's place and the bar's own clip on x (inline style, so it holds there
-// too); where Tailwind is compiled they also measure that nothing scrolls
-// sideways.
+// The running Monthly portal goal on its card (PLAN PG-12; ADR 0068 amended
+// 2026-10-19): the shared card frame with the pace pill in its corner (Getting
+// started, On pace, Below pace, or none for a month the rule does not judge),
+// what is left to the number as the headline with the days left under it, the
+// month so far as the meter with today's tick and date, what each Portal
+// brought in (in name order, one Portal, five, and Other portals), the first
+// quiet days, the last day, a goal passed, a figure that cannot be read, a
+// stopped goal (with its way to the next goal), the month before while it is
+// read and once it closed, and "View details" to the goal's page. Each at 320,
+// 390, 820 and 1440 px and on the light theme where the layout changes. The
+// Storybook Vitest project compiles no Tailwind, so the plays assert words,
+// roles, the tick's place and the bar's own clip on x (inline style, so it
+// holds there too); where Tailwind is compiled they also measure that nothing
+// scrolls sideways.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
@@ -24,6 +25,8 @@ import {
   CARD_LAST_MONTH_MET,
   CARD_LAST_MONTH_NOT_MET,
   CARD_LAST_MONTH_UPDATING,
+  CARD_NOT_JUDGED,
+  CARD_ON_PACE,
   CARD_ONE_PORTAL,
   CARD_OTHER_PORTALS,
   CARD_PASSED,
@@ -32,7 +35,7 @@ import {
   CARD_STOPPED_NO_DATE,
   CARD_UNREADABLE,
 } from './portal-goal-running.stories.fixtures'
-import { portalRows } from './portal-goal.stories.play'
+import { headlineOf, portalRows } from './portal-goal.stories.play'
 
 const read = (data: PortalGoalCardView) => ({
   data,
@@ -67,7 +70,7 @@ const BAR_LABEL = 'Private ratings in November'
 
 /** The tick's layer, when one is drawn. */
 const tickOf = (canvasElement: HTMLElement) =>
-  canvasElement.querySelector<HTMLElement>('[data-slot="portal-goal-bar-tick"]')
+  canvasElement.querySelector<HTMLElement>('[data-slot="goal-meter-tick"]')
 
 /**
  * The tick's layer hangs past the bar's end by the tick's share of the bar:
@@ -75,7 +78,7 @@ const tickOf = (canvasElement: HTMLElement) =>
  * the tick still stands above and below the track.
  */
 async function expectNoSidewaysScroll(canvasElement: HTMLElement) {
-  const bar = canvasElement.querySelector<HTMLElement>('[data-slot="portal-goal-bar"]')
+  const bar = canvasElement.querySelector<HTMLElement>('[data-slot="goal-meter-bar"]')
   if (!bar) throw new Error('expected the bar')
   await expect(getComputedStyle(bar).overflowX).toBe('clip')
   await expect(getComputedStyle(bar).overflowY).toBe('visible')
@@ -89,14 +92,20 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
   await expect(
     canvas.getByText('How many private ratings your portals bring in each month.'),
   ).toBeVisible()
+  // Behind: the pill in the corner says so, and nothing else does.
+  await expect(canvas.getByText('Below pace', { exact: true })).toBeVisible()
+  await expect(canvas.queryByText(/on pace/iu)).toBeNull()
+  // What is left, led by its figure, with the days left in the month under it.
+  await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
+  await expect(canvas.getByText('9 days left in November')).toBeVisible()
+  // The month so far: caption, figure, the bar and today's date.
+  await expect(canvas.getByText('November so far')).toBeVisible()
   await expect(canvas.getByText('23 of 40')).toBeVisible()
-  await expect(canvas.getByText('private ratings')).toBeVisible()
-  await expect(canvas.getByText('17 to go · 9 days left')).toBeVisible()
-  await expect(canvas.getByText('below pace')).toBeVisible()
+  await expect(canvas.getByText('It’s Nov 22')).toBeVisible()
   const bar = canvas.getByRole('progressbar', { name: BAR_LABEL })
   await expect(bar).toHaveAttribute(
     'aria-valuetext',
-    '23 of 40 private ratings, 9 days left, below pace',
+    '23 of 40 private ratings, 9 days left',
   )
   await expect(bar).toHaveAttribute('aria-valuenow', '23')
   await expect(bar).toHaveAttribute('aria-valuemax', '40')
@@ -105,15 +114,17 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
     /^translateX\(73\.3+\d*%\)$/u,
   )
   await expectNoSidewaysScroll(canvasElement)
-  // Name order, even with Spa on 20 and Reception on 3.
+  // Name order, even with Spa on 20 and Reception on 3: the list on a wide
+  // card, and the same counts in one line under the days on a narrow one.
   await expect(portalRows(canvas)).toEqual([
     ['Reception', '3'],
     ['Restaurant', '0'],
     ['Spa', '20'],
   ])
-  // Never a verdict in green, and nothing to press on the card yet: the way
-  // on is the goal's page.
-  await expect(canvas.queryByText(/on pace/u)).toBeNull()
+  await expect(
+    canvas.getByText('Reception 3 · Restaurant 0 · Spa 20'),
+  ).toBeInTheDocument()
+  // Nothing to press on the card yet: the way on is the goal's page, a link.
   await expect(canvas.queryByRole('button')).toBeNull()
   await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
     'href',
@@ -151,14 +162,41 @@ export const RunningLight: Story = {
   parameters: { theme: 'light' },
 }
 
-/** Nov 2: the first days are never judged, so no pace word and no tick. */
+/** Nov 22: 30 of 40, on the way: the pill says On pace, in the words of the first goal. */
+export const OnPace: Story = {
+  args: { card: read(CARD_ON_PACE) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('On pace', { exact: true })).toBeVisible()
+    await expect(canvas.queryByText(/below pace|getting started/iu)).toBeNull()
+    await expect(headlineOf(canvas, '10 private ratings to 40')).toBeVisible()
+    await expect(canvas.getByText('30 of 40')).toBeVisible()
+    await expect(tickOf(canvasElement)).not.toBeNull()
+  },
+}
+
+/** A goal of 4 on Nov 29: too few expected to judge, so no pill, and the tick still marks the day. */
+export const NotJudged: Story = {
+  args: { card: read(CARD_NOT_JUDGED) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(headlineOf(canvas, '3 private ratings to 4')).toBeVisible()
+    await expect(canvas.getByText('2 days left in November')).toBeVisible()
+    await expect(canvas.queryByText(/pace|getting started/iu)).toBeNull()
+    await expect(tickOf(canvasElement)).not.toBeNull()
+  },
+}
+
+/** Nov 2: the first days are never judged: "Getting started", and no tick. */
 export const FirstDays: Story = {
   args: { card: read(CARD_FIRST_DAYS) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    await expect(canvas.getByText('Getting started', { exact: true })).toBeVisible()
+    await expect(canvas.queryByText(/below pace/iu)).toBeNull()
+    await expect(headlineOf(canvas, '39 private ratings to 40')).toBeVisible()
+    await expect(canvas.getByText('29 days left in November')).toBeVisible()
     await expect(canvas.getByText('1 of 40')).toBeVisible()
-    await expect(canvas.getByText('39 to go · 29 days left')).toBeVisible()
-    await expect(canvas.queryByText('below pace')).toBeNull()
     await expect(canvas.getByRole('progressbar', { name: BAR_LABEL })).toHaveAttribute(
       'aria-valuetext',
       '1 of 40 private ratings, 29 days left',
@@ -172,10 +210,12 @@ export const LastDay: Story = {
   args: { card: read(CARD_LAST_DAY) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('17 to go · last day')).toBeVisible()
+    await expect(canvas.getByText('Last day of November')).toBeVisible()
+    await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
+    await expect(canvas.getByText('It’s Nov 30')).toBeVisible()
     await expect(canvas.getByRole('progressbar', { name: BAR_LABEL })).toHaveAttribute(
       'aria-valuetext',
-      '23 of 40 private ratings, last day, below pace',
+      '23 of 40 private ratings, last day',
     )
     await expect(tickOf(canvasElement)?.style.transform).toBe('translateX(100%)')
     await expectNoSidewaysScroll(canvasElement)
@@ -187,13 +227,18 @@ export const LastDayOnANarrowPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }
 
-/** Nov 27: 41 of 40, passed with 4 days left: a full bar, no tick, no celebration. */
+/**
+ * Nov 27: 41 of 40, passed with 4 days left: "On pace" in green, a headline
+ * that says so, a full bar, no tick, no celebration.
+ */
 export const Passed: Story = {
   args: { card: read(CARD_PASSED) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    await expect(canvas.getByText('On pace', { exact: true })).toBeVisible()
+    await expect(headlineOf(canvas, 'Goal passed: 41 private ratings')).toBeVisible()
+    await expect(canvas.getByText('4 days left in November')).toBeVisible()
     await expect(canvas.getByText('41 of 40')).toBeVisible()
-    await expect(canvas.getByText('Goal passed · 4 days left')).toBeVisible()
     const bar = canvas.getByRole('progressbar', { name: BAR_LABEL })
     await expect(bar).toHaveAttribute(
       'aria-valuetext',
@@ -220,10 +265,10 @@ export const ChangedToScans: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('23 of 40')).toBeVisible()
-    await expect(canvas.getByText('private ratings')).toBeVisible()
+    await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
     await expect(canvas.getByRole('progressbar', { name: BAR_LABEL })).toHaveAttribute(
       'aria-valuetext',
-      '23 of 40 private ratings, 9 days left, below pace',
+      '23 of 40 private ratings, 9 days left',
     )
     await expect(canvas.queryByText(/\bscans\b/u)).toBeNull()
   },
@@ -240,6 +285,8 @@ export const Unreadable: Story = {
     ).toBeVisible()
     await expect(canvas.queryByRole('progressbar')).toBeNull()
     await expect(canvas.queryByText(/\b0 of\b/u)).toBeNull()
+    // Nothing is judged without a figure: no pill, no headline.
+    await expect(canvas.queryByText(/pace|getting started| to 40$/iu)).toBeNull()
     await expect(canvas.queryByRole('list', { name: 'From your portals' })).toBeNull()
   },
 }
@@ -347,8 +394,9 @@ export const LastMonthUpdating: Story = {
     await expect(
       canvas.getByText('November: counting the last ratings. Final figure on Dec 2.'),
     ).toBeVisible()
-    // December's first days are not judged.
-    await expect(canvas.queryByText('below pace')).toBeNull()
+    // December's first days are not judged: Getting started, never Below pace.
+    await expect(canvas.getByText('Getting started', { exact: true })).toBeVisible()
+    await expect(canvas.queryByText(/below pace/iu)).toBeNull()
   },
 }
 

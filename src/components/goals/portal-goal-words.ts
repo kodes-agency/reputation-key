@@ -42,6 +42,10 @@ export function listOfNames(names: readonly string[]): string {
 export const monthName = (month: string): string =>
   formatMonthName(`${month}-15T12:00:00.000Z`) ?? month
 
+/** P-5, U-C5: "November so far", the running month's section title and its meter's caption. */
+export const monthSoFarHeading = (monthKey: string): string =>
+  `${monthName(monthKey)} so far`
+
 /** "Oct 23", for the Property-local day `2026-10-23`. */
 export const dayWords = (day: string): string =>
   formatLocalDate(day, { year: false }) ?? day
