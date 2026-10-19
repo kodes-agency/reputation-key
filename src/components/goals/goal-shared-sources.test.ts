@@ -20,6 +20,8 @@ const SHARED_PARTS = [
   'goal-headline.tsx',
   'goal-meter.tsx',
   'goal-pace-status.ts',
+  'goal-setup-parts.tsx',
+  'goal-sheet-frame.tsx',
 ] as const
 
 /** The only shared parts that may write the link ink: it is the colour of the one figure a goal leads with. */

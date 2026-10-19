@@ -10,6 +10,7 @@ import { Button } from '#/components/ui/button'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Slider } from '#/components/ui/slider'
 import { cn } from '#/lib/utils'
+import { GoalAside, GoalRecommendedTag } from './goal-setup-parts'
 import { HOW_TO_ASK_LINE } from './rating-goal-copy'
 import { paceText } from './rating-goal-pace-words'
 import { paceNote } from './rating-goal-setup-copy'
@@ -106,7 +107,7 @@ function Stops({ plan, unit, ownOn, onChip }: Props) {
         >
           <span>{stopLabel(chip.tenthsPerWeek, unit)}</span>
           {index === recommendedIndex ? (
-            <span className="text-xs font-semibold text-link">Recommended</span>
+            <GoalRecommendedTag>Recommended</GoalRecommendedTag>
           ) : null}
         </Button>
       ))}
@@ -182,13 +183,7 @@ export function RatingGoalPaceControl(props: Props) {
           {ownOn ? 'Back to options' : 'Your own'}
         </Button>
       </div>
-      <p
-        className="mt-2 pl-3 text-xs text-muted-foreground"
-        style={{ borderInlineStart: '2px solid var(--border)' }}
-      >
-        <b className="font-semibold text-foreground">{HOW_TO_ASK_LINE.lead}</b>{' '}
-        {HOW_TO_ASK_LINE.text}
-      </p>
+      <GoalAside lead={HOW_TO_ASK_LINE.lead}>{HOW_TO_ASK_LINE.text}</GoalAside>
     </div>
   )
 }

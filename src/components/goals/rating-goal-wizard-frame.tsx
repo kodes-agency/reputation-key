@@ -1,28 +1,18 @@
 // The frame the Google rating goal wizard sits in: a dialog on a desktop and a
 // full-screen sheet on a phone (ADR 0067, decision 10), one component and one
-// set of steps. Both are the same Radix dialog underneath, so the app's `Dialog`
-// root holds either: a request in flight keeps it from being dismissed (`busy`),
-// and its title and description name it for a screen reader. At the end of a
-// Google import it sits inside the setup frame instead (`inline`): the same
-// steps on the page, no overlay and nothing to dismiss, and each step's way out
-// reads "Not now". The `Dialog` root is still there, not modal and with no
-// content of its own, so the steps' titles and buttons work as they do in it.
-//
-// The step's title takes the focus when the step changes (`titleRef`, tabIndex
-// -1), so a keyboard or screen-reader user hears where they are now instead of
-// being left on a button that is gone. The frame opens on the step's own first
-// stop (`data-autofocus`: the setup's goal numeral) when it has one, not on the
-// first button above it; a step without one opens as Radix opens it.
+// set of steps. The dialog and the sheet are the shared `GoalSheetFrame` (a
+// request in flight keeps it from being dismissed, the title and description
+// name it for a screen reader, the step's title takes the focus when the step
+// changes, and it opens on the step's own first stop: the setup's goal numeral).
+// At the end of a Google import it sits inside the setup frame instead
+// (`inline`): the same steps on the page, no overlay and nothing to dismiss, and
+// each step's way out reads "Not now". The `Dialog` root is still there, not
+// modal and with no content of its own, so the steps' titles and buttons work as
+// they do in it.
 import type { ReactNode, Ref } from 'react'
 import { useIsMobile } from '#/components/hooks/use-mobile'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '#/components/ui/dialog'
-import { SheetContent } from '#/components/ui/sheet'
+import { Dialog } from '#/components/ui/dialog'
+import { GoalSheetFrame, GoalSheetHeader } from './goal-sheet-frame'
 import { RatingGoalInlineCancelLabel } from './rating-goal-wizard-cancel'
 
 type Props = Readonly<{
@@ -42,16 +32,6 @@ type Props = Readonly<{
   children: ReactNode
 }>
 
-/** Opening: the focus goes to the step's own first stop (the goal's numeral), when it has one. */
-function focusStepStart(event: Event): void {
-  const content = event.currentTarget
-  if (!(content instanceof HTMLElement)) return
-  const start = content.querySelector<HTMLElement>('[data-autofocus]')
-  if (start === null) return
-  event.preventDefault()
-  start.focus()
-}
-
 export function RatingGoalWizardFrame({
   open,
   onOpenChange,
@@ -64,18 +44,6 @@ export function RatingGoalWizardFrame({
   children,
 }: Props) {
   const phone = useIsMobile()
-  const header = (
-    <DialogHeader>
-      <DialogTitle
-        ref={titleRef}
-        tabIndex={-1}
-        className={phone ? 'pe-12 outline-none' : 'outline-none'}
-      >
-        {title}
-      </DialogTitle>
-      <DialogDescription>{description}</DialogDescription>
-    </DialogHeader>
-  )
   if (inline) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange} busy={busy} modal={false}>
@@ -88,7 +56,12 @@ export function RatingGoalWizardFrame({
             <p className="text-sm font-medium text-muted-foreground">
               Google rating goal
             </p>
-            {header}
+            <GoalSheetHeader
+              title={title}
+              description={description}
+              titleRef={titleRef}
+              phone={phone}
+            />
             {children}
           </section>
         </RatingGoalInlineCancelLabel>
@@ -96,31 +69,17 @@ export function RatingGoalWizardFrame({
     )
   }
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} busy={busy}>
-      {phone ? (
-        // Full screen: the sheet is the height of the window, scrolls inside, and
-        // keeps the dialog's padding variable so the footer pins the same way.
-        <SheetContent
-          side="bottom"
-          data-wizard-frame="sheet"
-          onOpenAutoFocus={focusStepStart}
-          onCloseAutoFocus={onCloseAutoFocus}
-          className="h-dvh gap-4 overflow-y-auto p-(--dialog-pad) [--dialog-pad:1rem]"
-        >
-          {header}
-          {children}
-        </SheetContent>
-      ) : (
-        <DialogContent
-          size="lg"
-          data-wizard-frame="dialog"
-          onOpenAutoFocus={focusStepStart}
-          onCloseAutoFocus={onCloseAutoFocus}
-        >
-          {header}
-          {children}
-        </DialogContent>
-      )}
-    </Dialog>
+    <GoalSheetFrame
+      open={open}
+      onOpenChange={onOpenChange}
+      busy={busy}
+      marker="data-wizard-frame"
+      title={title}
+      description={description}
+      titleRef={titleRef}
+      onCloseAutoFocus={onCloseAutoFocus}
+    >
+      {children}
+    </GoalSheetFrame>
   )
 }

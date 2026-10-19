@@ -5,10 +5,10 @@
 // never rewinds; reduced motion stops the roll. At an end − or + stays
 // pressable (`aria-disabled`) so the press can say why in the status line. The
 // mock's one-off sizes (128 px, 88 px on a phone) are inline: a utility of its
-// own would grow the one stylesheet every page loads first.
+// own would grow the one stylesheet every page loads first. The − and + are the
+// shared hero stepper (`goal-setup-parts.tsx`), the number between them this one's.
 import { useState, type KeyboardEvent, type Ref } from 'react'
-import { Minus, Plus } from 'lucide-react'
-import { IconButton } from '#/components/ui/icon-button'
+import { GoalHeroStepper } from './goal-setup-parts'
 
 const WHOLE_DIGITS = Array.from({ length: 10 }, (_, digit) => digit)
 /** Five runs of 0–9: the tenths strip moves by the goal in tenths. */
@@ -90,17 +90,19 @@ export function RatingGoalGoalNumeral({ spinRef, ...props }: Props) {
   }
   return (
     <>
-      <div className="flex items-center" style={{ gap: small ? 16 : 40 }}>
-        <IconButton
-          label={labels.lower}
-          size="icon-lg"
-          variant="outline"
-          className="rounded-full"
-          aria-disabled={labels.atLowest}
-          onClick={props.onLower}
-        >
-          <Minus aria-hidden="true" />
-        </IconButton>
+      <GoalHeroStepper
+        small={small}
+        lower={{
+          label: labels.lower,
+          inert: labels.atLowest,
+          onPress: props.onLower,
+        }}
+        raise={{
+          label: labels.raise,
+          inert: labels.atHighest,
+          onPress: props.onRaise,
+        }}
+      >
         <span
           ref={spinRef}
           role="spinbutton"
@@ -128,17 +130,7 @@ export function RatingGoalGoalNumeral({ spinRef, ...props }: Props) {
             <Strip digits={TENTH_DIGITS} at={targetTenths} />
           </span>
         </span>
-        <IconButton
-          label={labels.raise}
-          size="icon-lg"
-          variant="outline"
-          className="rounded-full"
-          aria-disabled={labels.atHighest}
-          onClick={props.onRaise}
-        >
-          <Plus aria-hidden="true" />
-        </IconButton>
-      </div>
+      </GoalHeroStepper>
       <span
         data-slot="rating-goal-live"
         className="sr-only"

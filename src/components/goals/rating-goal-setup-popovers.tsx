@@ -10,6 +10,7 @@ import type { RatingGoalSetupInputs } from '#/contexts/reporting/application/dto
 import { ExplainTrigger } from '#/components/ui/explain-trigger'
 import { IconButton } from '#/components/ui/icon-button'
 import { Popover, PopoverContent } from '#/components/ui/popover'
+import { GOAL_SETUP_LINK } from './goal-setup-parts'
 import { PLAN_POLICY_LINE, UNASKED_REVIEWS_LINE } from './rating-goal-copy'
 import { workedOutParagraphs } from './rating-goal-setup-copy'
 import type { PaceUnit, SetupPlan } from './rating-goal-setup-draft'
@@ -41,9 +42,7 @@ function Explanation({
 }>) {
   return (
     <Popover open={props.open === which} onOpenChange={() => props.onToggle(which)}>
-      <ExplainTrigger className="text-link max-md:min-h-(--control-touch)">
-        {label}
-      </ExplainTrigger>
+      <ExplainTrigger className={GOAL_SETUP_LINK}>{label}</ExplainTrigger>
       <PopoverContent
         side="top"
         aria-label={title}
