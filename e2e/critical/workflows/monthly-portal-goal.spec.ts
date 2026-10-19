@@ -37,9 +37,9 @@
 //       is never stopped and set again in the same month here.
 //   J8. the month-start check-in: on a Property whose goal has run since last
 //       month (set from next month, then moved back, and this month opened by
-//       the maintenance job), on local days 1 to 7 the card asks "For
-//       {month}" with Use, Keep and Other number, and Keep hides it after a
-//       reload; on any other day there is no such region. Both branches
+//       the maintenance job), on local days 1 to 7 a strip above the card asks
+//       "For {month}" with Use, Keep and Other number, and Keep hides it after
+//       a reload; on any other day there is no such region. Both branches
 //       assert; the day is the database's, in the Property's zone.
 //   J9. the Overview slot and a Portal's Results line: with the number
 //       ready, the Overview's prompt (after "How you are doing", before "Guest
@@ -1243,8 +1243,10 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
 
     await page.goto(`/properties/${propertyId}/goals`)
     await waitForHydration(page)
-    const card = page.locator('#portal-goals [data-slot="portal-goal-card"]')
-    const checkIn = card.getByRole('region', { name: `For ${monthName}` })
+    // The check-in is a strip above the card, in the Portal goals section.
+    const section = page.locator('#portal-goals')
+    const card = section.locator('[data-slot="portal-goal-card"]')
+    const checkIn = section.getByRole('region', { name: `For ${monthName}` })
     if (checkInMonthAt(input.now, input.timezone) === month) {
       await expect(
         checkIn.getByRole('button', { name: `Use ${recommended}` }),
@@ -1255,6 +1257,11 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
           `Nothing changes unless you choose. ${monthName} counts against ${target} until then.`,
         ),
       ).toBeVisible()
+      // Above the card, not in it, and not a heading of the page's outline.
+      await expect(card.getByRole('region', { name: `For ${monthName}` })).toHaveCount(0)
+      await expect(
+        section.getByRole('heading', { name: `For ${monthName}` }),
+      ).toHaveCount(0)
       await clickWhenReady(checkIn.getByRole('button', { name: `Keep ${target}` }))
       await expect(page.getByText(`${monthName} stays at ${target}`)).toBeVisible()
       await expect(checkIn).toHaveCount(0)
@@ -1270,7 +1277,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     } else {
       // After the 7th the check-in has folded away; the number stays.
       await expect(checkIn).toHaveCount(0)
-      await expect(card.getByRole('button', { name: `Keep ${target}` })).toHaveCount(0)
+      await expect(section.getByRole('button', { name: `Keep ${target}` })).toHaveCount(0)
     }
     // Either way the card shows this month against the goal's own number.
     await expect(
