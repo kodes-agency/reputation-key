@@ -158,6 +158,7 @@ function healthy(): MutableSnapshot {
       repairRequired: 0,
       deadLetters: 0,
       gateDenials: 0,
+      terminalFailures: 0,
       rows: [],
     },
     guestObservationLoss: {
@@ -311,6 +312,7 @@ describe('worker.job-runtime-unready', () => {
       repairRequired: 0,
       deadLetters: 0,
       gateDenials: 3,
+      terminalFailures: 4,
       rows: [],
     }
 
@@ -330,8 +332,7 @@ describe('worker.job-runtime-unready', () => {
   })
 
   it('stays silent when ready and fails visible when the authority is unavailable', () => {
-    const ready = healthy()
-    ready.jobs = {
+    const readyJobs = {
       ready: true,
       total: 0,
       active: 0,
@@ -351,9 +352,16 @@ describe('worker.job-runtime-unready', () => {
       repairRequired: 0,
       deadLetters: 0,
       gateDenials: 0,
+      terminalFailures: 0,
       rows: [],
     }
+    const ready = healthy()
+    ready.jobs = readyJobs
     expect(evaluateOne('worker.job-runtime-unready', ready)).toBeNull()
+    // Retained failures are history: an unanswered one is already repair_required.
+    const withHistory = healthy()
+    withHistory.jobs = { ...readyJobs, terminalFailures: 9 }
+    expect(evaluateOne('worker.job-runtime-unready', withHistory)).toBeNull()
 
     const unavailable = healthy()
     delete unavailable.jobs

@@ -137,11 +137,17 @@ describe('job operational catalogue', () => {
     })
 
     // A firing is never dead-lettered, so a redrive command would send the
-    // operator to a quarantine that holds nothing for it.
-    it('sends an active scheduled family to its next successful firing, not to a redrive', () => {
+    // operator to a quarantine that holds nothing for it. Only a manual run of
+    // the family is dead-lettered, and the row's own times say which failed.
+    it('sends an active scheduled family to a later success, a manual run to its dead letter', () => {
       for (const contract of activeScheduled) {
         expect(contract.repairCommand).not.toContain('quarantine redrive')
-        expect(contract.repairCommand).toContain('next successful firing')
+        expect(contract.repairCommand).toContain(
+          'a later success clears a failed firing (lastScheduleFailureAt)',
+        )
+        expect(contract.repairCommand).toContain(
+          'a failed manual run (lastOnDemandFailureAt) needs its dead letter redriven',
+        )
         expect(contract.repairCommand).toContain('docs/operations/runbooks.md §17')
         expect(contract.repairCommand).not.toBe('none')
       }

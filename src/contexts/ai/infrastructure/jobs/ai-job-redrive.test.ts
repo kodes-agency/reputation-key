@@ -1,6 +1,6 @@
 // A quarantine redrive is the repair command the catalogue names for every
-// on-demand job family (`pnpm ops quarantine redrive`); an active scheduled
-// family is repaired by its next successful firing instead. It puts the
+// on-demand job family (`pnpm ops quarantine redrive`); a failed firing of an
+// active scheduled family is answered by a later success instead. It puts the
 // dead-lettered payload back on its queue with a `redriveMetadata` entry added.
 // The four AI handlers parse their payload strictly, so each is read here
 // through the real redrive: a handler that refuses what the redrive adds can
