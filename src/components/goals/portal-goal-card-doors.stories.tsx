@@ -108,7 +108,7 @@ export const ReadyChange: Story = {
     const sheet = await openThrough(canvasElement, 'Change')
     await expect(openSheetMock).toHaveBeenCalledWith({ measure: 'portal_rating_count' })
     await expect(sheet.getByRole('spinbutton')).toHaveValue('40')
-    await expect(sheet.getByRole('radio', { name: /^40 · a bit more/u })).toBeChecked()
+    await expect(sheet.getByRole('radio', { name: /^40 a bit more/u })).toBeChecked()
     await userEvent.click(sheet.getByRole('button', { name: 'Cancel' }))
     await waitFor(() =>
       expect(within(document.body).queryByRole('dialog')).not.toBeInTheDocument(),
