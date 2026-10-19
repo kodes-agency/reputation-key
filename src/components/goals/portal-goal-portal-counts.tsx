@@ -39,13 +39,13 @@ export function PortalGoalPortalCounts({ rows, propertyId }: Props) {
   }
   return (
     <div className="flex flex-col gap-2" data-slot="portal-goal-portal-counts">
-      <p id={headingId} className="text-sm font-medium">
+      <p id={headingId} className="text-sm text-muted-foreground">
         {words.heading}
       </p>
       <ul aria-labelledby={headingId} className="flex flex-col gap-1 text-sm">
         {words.rows.map((row) => (
           <li key={row.key} className="flex justify-between gap-3">
-            <span className="min-w-0 truncate">{row.name}</span>
+            <span className="min-w-0 truncate text-muted-foreground">{row.name}</span>
             <span className="tabular-nums">{row.count}</span>
           </li>
         ))}

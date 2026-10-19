@@ -1,7 +1,9 @@
 // The Monthly portal goal's page, `/goals/portals` (ADR 0068; copy deck P-1…P-15,
 // M-1). Before a goal it is the card's own state, as on the Goals page, under
-// the page's title (the card draws none). With a goal: what it counts and from
-// where, the tiles, the month so far with its first and last day under the bar,
+// the page's title (the card draws none). With a goal: the pace as the pill in
+// the page's header (ADR 0068, amended 2026-10-19: where the Google rating
+// goal's page wears its own), what it counts and from where, the tiles, the
+// month so far with its first and last day under the bar,
 // what each Portal brought in and the quiet ones, each month (of this goal and
 // the ones it took over from), what changed, and how the goal counts; once a
 // month has closed, the way to every month's result. A stopped goal whose last
@@ -25,18 +27,22 @@ import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { InlineLink } from '#/components/ui/inline-link'
 import { SectionTitle } from '#/components/ui/section-title'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { PortalGoalCard } from './portal-goal-card'
-import { PortalGoalMonthSoFar, PortalGoalStopped } from './portal-goal-card-goal'
+import { PortalGoalStopped } from './portal-goal-card-goal'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalChanges } from './portal-goal-changes'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
 import { PortalGoalFromPortals } from './portal-goal-from-portals'
 import { PortalGoalHowItCounts } from './portal-goal-how-it-counts'
+import {
+  PortalGoalMonthMeter,
+  PortalGoalMonthUnreadable,
+} from './portal-goal-month-meter'
 import { PortalGoalMonthStrip } from './portal-goal-month-strip'
 import {
   fromPortalsWords,
   monthAxis,
-  monthSoFarHeading,
   pageBodyLine,
   portalGoalTiles,
   stripChips,
@@ -44,8 +50,9 @@ import {
 import { usePortalGoalPageActions } from './portal-goal-page-actions'
 import { allResultsLink } from './portal-goal-results-foot'
 import type { PortalGoalStopCommands } from './portal-goal-stop-dialog'
+import { portalGoalPace } from './portal-goal-status-view'
 import { PortalGoalTiles } from './portal-goal-tiles'
-import { shownMeasure } from './portal-goal-words'
+import { monthSoFarHeading, shownMeasure } from './portal-goal-words'
 
 type Props = Readonly<{
   propertyId: string
@@ -83,7 +90,8 @@ function MonthSoFarSection({
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
       <SectionTitle id={headingId}>{monthSoFarHeading(month.key)}</SectionTitle>
-      <PortalGoalMonthSoFar month={month} axis={monthAxis(month)} />
+      <PortalGoalMonthMeter month={month} axis={monthAxis(month)} captioned={false} />
+      <PortalGoalMonthUnreadable month={month} />
       <PortalGoalStopped goal={goal} monthKey={month.key} openSheet={openSheet} />
     </section>
   )
@@ -259,11 +267,14 @@ export function PortalGoalPage(props: Props) {
   const { card } = page
   const { actions, dialog } = usePageActions(props)
   const title = props.single?.title ?? PORTAL_GOAL_NAME
+  // The pace the card wears in its corner, where the Google rating goal's page wears its own.
+  const pace = card.state === 'goal' ? portalGoalPace(card.goal.month) : null
   return (
     <PageShell>
       <div id={PAGE_HEADER_ID}>
         <PageHeader
           title={title}
+          meta={pace === null ? undefined : [<StatusBadge key="pace" {...pace} />]}
           breadcrumbs={trailCrumbs('goals', { propertyId, propertyName }, title)}
           actions={actions}
         />

@@ -532,7 +532,7 @@ export const WithPortalGoal: Story = {
     const google = canvas.getByRole('heading', { name: 'Google rating goal', level: 2 })
     const scorecard = canvas.getByRole('heading', { name: 'How you are doing', level: 2 })
     const portal = canvas.getByRole('heading', {
-      name: 'Monthly portal goal · November',
+      name: 'Monthly portal goal',
       level: 2,
     })
     const voice = canvas.getByRole('heading', { name: 'Guest voice', level: 2 })

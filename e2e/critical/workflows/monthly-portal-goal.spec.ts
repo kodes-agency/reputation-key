@@ -20,12 +20,14 @@
 //       for {month}"; Cancel closes it with nothing set.
 //   J5. the running month: a goal set for this month through the server
 //       function shows the governed figure against its number, what is left
-//       to go with the days left, "below pace" exactly when `goalPace` says
-//       behind, the bar's sentence, and each Portal's count in name order.
+//       to the number as the headline with the days left in the month under
+//       it, the pill in the card's corner named for what `goalPace` says
+//       (Below pace, On pace, Getting started, or none for a month it does not
+//       judge), the bar's sentence, and each Portal's count in name order.
 //   J6. the goal page: "View details" on the card opens `/goals/portals`, with
-//       what it counts, the tiles, each Portal's count with the total, the
-//       month on its strip, and the change log (the set, as recommended, and
-//       each Portal going live); both themes pass axe.
+//       what it counts, the pace pill in its header, the tiles, each Portal's
+//       count with the total, the month on its strip, and the change log (the
+//       set, as recommended, and each Portal going live); both themes pass axe.
 //   J7. change from next month, then stop: on the goal page, "Change number",
 //       "From {next month} 1" and a new number set from next month say so in a
 //       toast; Stop asks first, stops, and the Goals page's card says the goal
@@ -43,7 +45,8 @@
 //       ready, the Overview's prompt (after "How you are doing", before "Guest
 //       voice") names it, "See it" leads to the Portal goals, and "Not now"
 //       hides it, after a reload too; with a goal running this month, the slot
-//       shows the month and each Portal's count, the "Portal goal below pace"
+//       draws the Goals page's card (the month, and each Portal's count in the
+//       list "From your portals"), the "Portal goal below pace"
 //       chip (exactly when `goalPace` says behind) leads to `#portal-goals`,
 //       and Reception's Results tab says what it brought in toward the goal
 //       (no line on the month's first day, when it has brought nothing in).
@@ -121,6 +124,16 @@ import {
   formatMonthName,
   formatMonthYear,
 } from '../../../src/lib/format'
+
+/**
+ * The pill the card wears for what `goalPace` says (U-1): none for a month the
+ * rule does not judge (`too_few_expected`).
+ */
+const PACE_PILL: Readonly<Record<string, string | undefined>> = {
+  behind: 'Below pace',
+  on_pace: 'On pace',
+  too_early: 'Getting started',
+}
 
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const seed = requireE2eSeedState()
@@ -333,7 +346,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     ).toBeVisible()
     // The card now shows the goal it set, and offers nothing more.
     if (current) {
-      await expect(card.getByText(`${soFar} of ${number} private ratings`)).toBeVisible()
+      await expect(card.getByText(`${soFar} of ${number}`, { exact: true })).toBeVisible()
     } else {
       await expect(
         card.getByText(`${monthName} · ${number} private ratings`),
@@ -480,6 +493,13 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       timezone: input.timezone,
     })
     const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
+    const daysLine =
+      daysLeft + 1 <= 1
+        ? `Last day of ${monthName}`
+        : `${daysLeft + 1} days left in ${monthName}`
+    const leftCount = target - soFar
+    // The one pill, by the rule's verdict: none for a month it does not judge.
+    const pill = PACE_PILL[pace.state]
 
     // Its own Property sets this month's goal straight through the server function.
     await callServerFn(page, {
@@ -498,23 +518,22 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await waitForHydration(page)
     const card = page.locator('#portal-goals [data-slot="portal-goal-card"]')
     await expect(card.getByText(`${soFar} of ${target}`, { exact: true })).toBeVisible()
-    await expect(card.getByText('private ratings', { exact: true })).toBeVisible()
+    // What is left, led by its figure, then the days left in the month.
     await expect(
-      card.getByText(`${target - soFar} to go · ${left}`, { exact: true }),
+      card.getByText(
+        `${leftCount} ${leftCount === 1 ? 'private rating' : 'private ratings'} to ${target}`,
+        { exact: true },
+      ),
     ).toBeVisible()
-    // "below pace" exactly when the rule says behind; never "on pace".
-    await expect(card.getByText('below pace', { exact: true })).toHaveCount(
-      pace.state === 'behind' ? 1 : 0,
-    )
-    await expect(card.getByText(/on pace/u)).toHaveCount(0)
+    await expect(card.getByText(daysLine, { exact: true })).toBeVisible()
+    // One pill in the corner, named for the rule's verdict, and no pace in words.
+    const paceBadge = card.getByText(/^(Getting started|On pace|Below pace)$/u)
+    await expect(paceBadge).toHaveCount(pill === undefined ? 0 : 1)
+    if (pill !== undefined) await expect(paceBadge).toHaveText(pill)
+    await expect(card.getByText(/below pace/u)).toHaveCount(0)
     await expect(
       card.getByRole('progressbar', { name: `Private ratings in ${monthName}` }),
-    ).toHaveAttribute(
-      'aria-valuetext',
-      [`${soFar} of ${target} private ratings`, left]
-        .concat(pace.state === 'behind' ? ['below pace'] : [])
-        .join(', '),
-    )
+    ).toHaveAttribute('aria-valuetext', `${soFar} of ${target} private ratings, ${left}`)
 
     // Each Portal's count of the month, in name order, never by count.
     const rows = card
@@ -577,6 +596,18 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     const recommended = recommendation.measures.portal_rating_count.fromToday?.aBitMore
     const target = recommended ?? soFar + 10
     const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
+    // The pill in the page's header, by the rule's verdict: none for a month it does not judge.
+    const pill =
+      PACE_PILL[
+        goalPace({
+          metric: 'portal_rating_count',
+          value: soFar,
+          target,
+          period: calendarPeriodRange(input.now, input.timezone, 'monthly'),
+          now: input.now,
+          timezone: input.timezone,
+        }).state
+      ]
     const today = await localToday(propertyId)
     const dayOf = (daysAgo: number) =>
       formatLocalDate(addLocalDays(today, -daysAgo), { year: false })
@@ -604,6 +635,12 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Monthly portal goal' }),
     ).toBeVisible()
+    // The pace, as the pill in the header: the same one the card wore.
+    const headerPill = page
+      .locator('[data-slot="page-header-meta"]')
+      .getByText(/^(Getting started|On pace|Below pace)$/u)
+    await expect(headerPill).toHaveCount(pill === undefined ? 0 : 1)
+    if (pill !== undefined) await expect(headerPill).toHaveText(pill)
     await expect(
       page.getByText(/^Private ratings from all 3 portals at .+\.$/u),
     ).toBeVisible()
@@ -1382,23 +1419,29 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       },
     })
 
-    // The Overview's slot: the running month, and each Portal's count in name order.
+    // The Overview's slot: the card the Goals page draws, with the running
+    // month and each Portal's count in name order. At this width the card is
+    // wider than 48rem, so the counts are the list "From your portals"; a narrow
+    // slot says them in one line instead (the story at 390 px asserts that form).
     await page.goto(`/properties/${propertyId}`)
     await waitForHydration(page)
     const card = page.locator('[data-slot="portal-goal-overview"]')
     await expect(
-      card.getByRole('heading', {
-        level: 2,
-        name: `Monthly portal goal · ${nameOf(month)}`,
-      }),
+      card.getByRole('heading', { level: 2, name: 'Monthly portal goal' }),
     ).toBeVisible()
     await expect(card.getByText(`${soFar} of ${target}`, { exact: true })).toBeVisible()
-    const counts = PORTAL_NAMES.map((name) => {
+    const rows = card
+      .getByRole('list', { name: 'From your portals' })
+      .getByRole('listitem')
+    await expect(rows).toHaveCount(PORTAL_NAMES.length)
+    for (const [index, name] of PORTAL_NAMES.entries()) {
       const facts = recommendation.portals.find((portal) => portal.name === name)
       if (!facts) throw new Error(`The rule lists no ${name}`)
-      return `${name} ${facts.monthToDate.portal_rating_count}`
-    }).join(' · ')
-    await expect(card.getByText(counts, { exact: true })).toBeVisible()
+      await expect(rows.nth(index).locator('span').first()).toHaveText(name)
+      await expect(rows.nth(index).locator('span').last()).toHaveText(
+        String(facts.monthToDate.portal_rating_count),
+      )
+    }
     expect(await shiftOf()).toBeLessThan(CLS_BUDGET)
     // "Portal goal below pace" exactly when the rule says behind, to the Portal goals.
     const chip = page.getByRole('link', { name: 'Portal goal below pace' })

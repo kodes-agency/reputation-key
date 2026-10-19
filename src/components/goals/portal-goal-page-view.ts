@@ -145,10 +145,6 @@ export function monthAxis(
   }
 }
 
-/** P-5: "November so far". */
-export const monthSoFarHeading = (monthKey: string): string =>
-  `${monthName(monthKey)} so far`
-
 export type PortalGoalQuietWords = Readonly<{
   portalId: string
   text: string

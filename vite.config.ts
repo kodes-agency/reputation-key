@@ -157,6 +157,32 @@ const config = defineConfig(({ mode }) => {
                     entriesAware: true,
                     includeDependenciesRecursively: false,
                   },
+                  {
+                    // The goal design parts that the Google rating goal and the
+                    // Portal goals both load lazily. Left to default splitting,
+                    // each part used by a lazy chunk of each goal got a chunk of
+                    // its own, and the entry's preload map names every lazy
+                    // chunk, and its hashes do not compress: a name costs
+                    // first paint up to about 26 B gzip. One chunk turns the
+                    // names into one (U2: goal-headline and goal-pace-status
+                    // merged recovered about 6 B). The entry's gzip also moves
+                    // by up to about 10 B with this chunk's name, so compare
+                    // closures by rebuilding, not by arithmetic.
+                    //
+                    // The test is an explicit list of file names, NOT `goal-*`:
+                    // that would drag goal-live-view, goal-metric-label,
+                    // goal-so-far and others in, and a broad components group
+                    // re-joins eager route leaves with lazy feature trees (see
+                    // above). Add a part here in the commit that makes it
+                    // shared by both goals, and check the built goal-parts chunk
+                    // imports only vendor-react, the runtime and ui chunks,
+                    // never the entry or a goal chunk. No `$initial` tag: these
+                    // parts are never first paint.
+                    name: 'goal-parts',
+                    test: /[\\/]src[\\/]components[\\/]goals[\\/]goal-(?:headline|pace-status)\.tsx?$/,
+                    priority: 5,
+                    includeDependenciesRecursively: false,
+                  },
                 ],
               },
             },

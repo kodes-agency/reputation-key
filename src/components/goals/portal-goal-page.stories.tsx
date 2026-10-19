@@ -135,14 +135,21 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
   await expect(tiles.getByText('Your usual')).toBeVisible()
   await expect(tiles.getByText('About 34 a month')).toBeVisible()
   await expect(tiles.getByText('last 4 weeks')).toBeVisible()
-  // November so far, with the month's first and last day under its bar.
+  // November so far, with the month's first and last day under its bar, and
+  // today's date under that.
   const month = within(canvas.getByRole('region', { name: 'November so far' }))
   await expect(
     month.getByRole('progressbar', { name: 'Private ratings in November' }),
-  ).toHaveAttribute('aria-valuetext', '23 of 40 private ratings, 9 days left, below pace')
+  ).toHaveAttribute('aria-valuetext', '23 of 40 private ratings, 9 days left')
   await expect(month.getByText('Nov 1')).toBeVisible()
   await expect(month.getByText('Nov 30')).toBeVisible()
-  await expect(month.getByText('below pace')).toBeVisible()
+  await expect(month.getByText('It’s Nov 22')).toBeVisible()
+  await expect(month.queryByText(/pace/iu)).toBeNull()
+  // The pace is the pill in the page's header, where the first goal's page wears its own.
+  const header = within(
+    canvasElement.querySelector<HTMLElement>('#portal-goal-page-header') ?? canvasElement,
+  )
+  await expect(header.getByText('Below pace', { exact: true })).toBeVisible()
   // Name order, even with Spa on 20 and Reception on 3; then the total.
   await expect(portalRows(canvas)).toEqual([
     ['Reception', '3'],
@@ -158,7 +165,7 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
   await expect(
     canvas.getByRole('button', { name: 'How this goal counts' }),
   ).toHaveAttribute('aria-expanded', 'false')
-  // No month has closed yet, so no results to see; never "on pace".
+  // No month has closed yet, so no results to see; behind, so never "on pace".
   await expect(canvas.queryByRole('link', { name: 'All monthly results' })).toBeNull()
   await expect(canvas.queryByText(/on pace/u)).toBeNull()
   // The other Portal goals, one click deeper (P-5).
