@@ -13,16 +13,15 @@ import type {
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { StatusMap, StatusPresentation } from '#/components/ui/status-badge'
 import { formatNumber, formatShortDate } from '#/lib/format'
+import { GOAL_PACE_STATUS } from './goal-pace-status'
 import { paceChangeText, paceText } from './rating-goal-pace-words'
 
-/** How a rating goal's status reads as a pill. */
+/** How a rating goal's status reads as a pill. The three paces are every goal's (`goal-pace-status.ts`). */
 export const RATING_GOAL_STATUS: StatusMap<RatingGoalStatus> = {
+  ...GOAL_PACE_STATUS,
   waiting_for_google: { label: 'Waiting for Google', tone: 'neutral' },
   reached: { label: 'Reached', tone: 'positive' },
   reviews_too_low: { label: 'New reviews too low', tone: 'warn' },
-  getting_started: { label: 'Getting started', tone: 'neutral' },
-  on_pace: { label: 'On pace', tone: 'positive' },
-  below_pace: { label: 'Below pace', tone: 'warn' },
   holding: { label: 'Holding', tone: 'positive' },
   dropped_below: { label: 'Dropped below', tone: 'warn' },
 }

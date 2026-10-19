@@ -3,6 +3,7 @@
 // large and the number it counts to in the link ink (V23); or "Google should
 // show 4.1 soon" once the reviews have earned the goal.
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
+import { GoalHeadline } from './goal-headline'
 import { headlineOf } from './rating-goal-tracking-words'
 
 export function RatingGoalClimbHeadline({
@@ -14,9 +15,10 @@ export function RatingGoalClimbHeadline({
     return <p className="text-2xl font-semibold">{headline.text}</p>
   }
   return (
-    <p className="text-2xl leading-tight font-semibold">
-      <span className="tabular-nums">{headline.count}</span> {headline.words}{' '}
-      <span className="text-link tabular-nums">{headline.target}</span>
-    </p>
+    <GoalHeadline
+      count={headline.count}
+      words={headline.words}
+      target={headline.target}
+    />
   )
 }

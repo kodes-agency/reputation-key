@@ -1,11 +1,13 @@
-// The Monthly portal goal shares nothing with the Google rating goal (ADR 0068,
-// PLAN §3.4): not a module, not a word, not a line, not the link ink its
-// numeral wears. These read every Portal goal source (its components, its
-// route modules, and its pages once they exist) with no exemption, and fail
-// with the file named. The three lines the owner approved (P-8) are spelled in
-// `portal-goal-copy.ts` only, as approved.
-import ts from 'typescript'
+// The Monthly portal goal shares no module of the Google rating goal, no word of
+// it and no line of it, and writes no link ink of its own (ADR 0068, "The two
+// goals stay apart", amended 2026-10-19). It may draw with the neutral
+// `goal-*` design parts, which `goal-shared-sources.test.ts` holds to the same
+// rule from the other side. These read every Portal goal source (its
+// components, its route modules, and its pages once they exist) with no
+// exemption, and fail with the file named. The three lines the owner approved
+// (P-8) are spelled in `portal-goal-copy.ts` only, as approved.
 import { describe, expect, it } from 'vitest'
+import { importedModules, writtenTexts } from '#/shared/testing/source-texts'
 import { readUiSources, type SourceFile } from '#/shared/testing/source-tree'
 import {
   HOW_TO_ASK_LINE,
@@ -38,42 +40,6 @@ function isPortalGoalSource(path: string): boolean {
 
 const ALL_SOURCES = readUiSources({ includeTs: true })
 const SOURCES = ALL_SOURCES.filter((file) => isPortalGoalSource(file.path))
-
-/** Every text the file writes out: string and template literals, and JSX text. */
-function writtenTexts(file: SourceFile): string[] {
-  const source = ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true)
-  const texts: string[] = []
-  const visit = (node: ts.Node): void => {
-    // A module's path is where it lives, not what it says.
-    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return
-    if (
-      ts.isStringLiteral(node) ||
-      ts.isNoSubstitutionTemplateLiteral(node) ||
-      ts.isTemplateHead(node) ||
-      ts.isTemplateMiddle(node) ||
-      ts.isTemplateTail(node)
-    ) {
-      texts.push(node.text)
-    } else if (ts.isJsxText(node)) {
-      texts.push(node.text)
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(source)
-  return texts
-}
-
-/** The module specifiers a file imports or re-exports from. */
-function importedModules(file: SourceFile): string[] {
-  const source = ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true)
-  return source.statements.flatMap((statement) =>
-    (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
-    statement.moduleSpecifier &&
-    ts.isStringLiteral(statement.moduleSpecifier)
-      ? [statement.moduleSpecifier.text]
-      : [],
-  )
-}
 
 /** The files among `files` for which `offends` holds. */
 const offenders = (

@@ -4,9 +4,9 @@
 import { Link } from '@tanstack/react-router'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { Button } from '#/components/ui/button'
-import { Card, CardContent, CardFooter } from '#/components/ui/card'
-import { StatusBadge } from '#/components/ui/status-badge'
-import { RatingGoalCardHeader } from './rating-goal-card-header'
+import { CardContent, CardFooter } from '#/components/ui/card'
+import { GoalCardFrame } from './goal-card-frame'
+import { RATING_GOAL_HEADING_ID, RATING_GOAL_TITLE } from './rating-goal-card-header'
 import { RatingGoalHeadline } from './rating-goal-headline'
 import { ratingGoalStatusBadge, ratingText, waitingSentence } from './rating-goal-view'
 
@@ -21,10 +21,12 @@ type Props = Readonly<{
 export function RatingGoalKeepCard({ card, propertyId, timezone, now }: Props) {
   const waiting = card.status === 'waiting_for_google'
   return (
-    <Card data-slot="rating-goal-card" className="gap-4">
-      <RatingGoalCardHeader>
-        <StatusBadge {...ratingGoalStatusBadge(card)} />
-      </RatingGoalCardHeader>
+    <GoalCardFrame
+      slot="rating-goal-card"
+      title={RATING_GOAL_TITLE}
+      titleId={RATING_GOAL_HEADING_ID}
+      status={ratingGoalStatusBadge(card)}
+    >
       <CardContent className="flex flex-col gap-3">
         <p className="text-lg font-semibold">
           Keeping {ratingText(card.target)} on Google
@@ -44,6 +46,6 @@ export function RatingGoalKeepCard({ card, propertyId, timezone, now }: Props) {
           </Link>
         </Button>
       </CardFooter>
-    </Card>
+    </GoalCardFrame>
   )
 }

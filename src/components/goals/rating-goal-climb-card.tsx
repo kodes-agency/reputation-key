@@ -11,8 +11,6 @@ import { Link } from '@tanstack/react-router'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import { Card, CardContent } from '#/components/ui/card'
-import { StatusBadge } from '#/components/ui/status-badge'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
@@ -20,7 +18,8 @@ import {
   possibleSentence,
   shortArrival,
 } from './rating-goal-arrival-words'
-import { RatingGoalCardHeader } from './rating-goal-card-header'
+import { GoalCardActions, GoalCardColumns, GoalCardFrame } from './goal-card-frame'
+import { RATING_GOAL_HEADING_ID, RATING_GOAL_TITLE } from './rating-goal-card-header'
 import { RatingGoalClimbHeadline } from './rating-goal-climb-headline'
 import { PLAN_POLICY_LINE } from './rating-goal-copy'
 import { RatingGoalLadder } from './rating-goal-ladder'
@@ -110,7 +109,7 @@ function Story(props: Omit<Props, 'propertyId'>) {
 function Links({ propertyId }: Pick<Props, 'propertyId'>) {
   const { can } = usePermissions()
   return (
-    <div className="flex flex-wrap gap-2">
+    <GoalCardActions>
       <Button asChild variant="outline">
         <Link to="/properties/$propertyId/goals/google-rating" params={{ propertyId }}>
           View details
@@ -123,7 +122,7 @@ function Links({ propertyId }: Pick<Props, 'propertyId'>) {
           </Link>
         </Button>
       ) : null}
-    </div>
+    </GoalCardActions>
   )
 }
 
@@ -133,23 +132,26 @@ export function RatingGoalClimbCard({ card, propertyId, timezone, now }: Props) 
   const firstStep = firstStepText(card)
   const narrow = narrowWeekLine(card)
   return (
-    <Card data-slot="rating-goal-card" className="@container gap-4">
-      <RatingGoalCardHeader>
-        <StatusBadge {...ratingGoalStatusBadge(card)} />
-      </RatingGoalCardHeader>
-      <CardContent
-        className={cn(
-          'grid gap-5',
-          rungs.length > 0 && '@3xl:grid-cols-[14rem_minmax(0,1fr)]',
-        )}
-      >
-        <RatingGoalLadder rungs={rungs} orientation="upright" current={current} />
-        <div className="grid gap-5 @2xl:grid-cols-2">
-          <div className="flex min-w-0 flex-col gap-3">
+    <GoalCardFrame
+      slot="rating-goal-card"
+      title={RATING_GOAL_TITLE}
+      titleId={RATING_GOAL_HEADING_ID}
+      status={ratingGoalStatusBadge(card)}
+      container
+    >
+      <GoalCardColumns
+        wide={rungs.length > 0}
+        signature={
+          <RatingGoalLadder rungs={rungs} orientation="upright" current={current} />
+        }
+        story={
+          <>
             <RatingGoalLadder rungs={rungs} orientation="across" current={current} />
             <Story card={card} timezone={timezone} now={now} />
-          </div>
-          <div className="flex min-w-0 flex-col gap-4 @2xl:border-l @2xl:pl-6">
+          </>
+        }
+        side={
+          <>
             <RatingGoalThisWeek card={card} />
             {narrow === null ? null : <p className="text-sm @3xl:hidden">{narrow}</p>}
             {firstStep === null ? null : (
@@ -160,9 +162,9 @@ export function RatingGoalClimbCard({ card, propertyId, timezone, now }: Props) 
               </div>
             )}
             <Links propertyId={propertyId} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+          </>
+        }
+      />
+    </GoalCardFrame>
   )
 }

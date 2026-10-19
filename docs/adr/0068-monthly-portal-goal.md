@@ -38,7 +38,8 @@ Three facts shaped the redesign.
   against Mon–Sun weeks), numbers, places and notices, and neither feeds the
   other. Four things were still shared: the `goal.use` switch, the "Goals"
   notification row, the Active/History tabs, and the words "below pace" with
-  their 90 % rule.
+  their 90 % rule. (Amended 2026-10-19: the goals share their design parts
+  too, never their data; see below.)
 
 A Portal often has one person behind it: there is at most one active Primary
 Staff Participant per Portal, and each guest response snapshots that person
@@ -152,6 +153,8 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
     `goal.use` stays one switch (Consequences), and "below pace" stays a word
     both goals use over two separate rules, `goalPace` with the P-6 guard here
     (decision 7) and the Google rating goal's own (`rating-goal-status.ts`).
+    (Amended 2026-10-19: "below pace" is now one shared pill over those two
+    rules; see below.)
 14. **The results table has its own page.** The monthly results table of Portal
     goals moves off the Goals page to its own page, `/goals/portal-results`,
     which also lists the ended Portal goals.
@@ -209,6 +212,46 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
   stop.
 - **`goal.use` stays one switch** for both goals (ADR 0067; open question 8 of
   the Google rating goal plan).
+
+## Amended 2026-10-19 — one goal design system
+
+After a side-by-side audit of the two goals' screens the owner decided (U-1 to
+U-3, "Proceed with the recommendations") that the Monthly portal goal moves onto
+the look of the Google rating goal, the reference that was approved over five
+rounds. This changes what "The two goals stay apart" and decision 13 mean for
+how the goals are drawn, and nothing else in them.
+
+1. **Design parts are shared; data, names, notices and rhythm are not.** The
+   card frame (title and status pill), the headline and the progress meter are
+   drawn by neutral modules, `src/components/goals/goal-*`, that the Google
+   rating goal calls today and the Monthly portal goal moves onto. The check-in
+   strip, the setup sheet frame and its parts, the detail-page layout, the tiles
+   and the History list will be drawn by such modules too, each cut from the
+   Google rating goal in the step that gives it its first Portal caller. A
+   shared part imports no `rating-goal-*` or `portal-goal-*` module and no
+   server context, and says no product word: a goal passes in its own words, so
+   the other goal's words cannot come out (`goal-shared-sources.test.ts`). The
+   Portal goal's own sources still import nothing of the Google rating goal and
+   say none of its words or lines (`portal-goal-sources.test.ts`). Names,
+   calendar months against Mon–Sun weeks, notices, Overview slots, server
+   modules and query keys stay apart, and no number of one goal is derived from
+   the other (decision 13).
+2. **"Below pace" is one pill.** The Portal goal shows the Google rating goal's
+   status pill with the three pace states (`GOAL_PACE_STATUS`: Getting started,
+   On pace, Below pace), including a green "On pace". This replaces the Portal
+   goal's inline amber "below pace" word and its rule that it is never "on
+   pace" (`portal-goal-running-view.ts`; U-1), when the Portal card moves onto
+   the pill. Decision 7 still holds: after the quiet days a month that is not
+   yet judged shows no pill. The two pace rules stay separate: `goalPace` with
+   the P-6 guard here, `rating-goal-status.ts` there.
+3. **One signature visual per goal.** The Google rating goal keeps its ladder and
+   its climb chart; the Portal goal keeps its month meter and its per-Portal
+   counts. Both headlines say what is left ("18 new reviews to 4.1", "17 private
+   ratings to 40", U-2).
+4. **A part is cut from the Google rating goal first.** Each shared part is
+   extracted from the Google files in a commit that changes none of their output
+   (checked by a DOM and pixel comparison of every Google goal story), in the
+   slice of its first Portal caller; the Portal then calls it.
 
 ## Rejected alternatives
 
