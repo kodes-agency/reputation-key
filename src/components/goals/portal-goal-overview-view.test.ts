@@ -73,23 +73,31 @@ describe('overviewPortalGoalView', () => {
     expect(view.goal).toBe(CARD_RUNNING.goal)
     expect(view.month).toBe(CARD_RUNNING.goal.month)
     expect(view.today).toBe(CARD_RUNNING.today)
+    // No check-in asks on a plain running month.
+    expect(view.checkIn).toBeNull()
     // A stopped goal's month still counts on the Goals page, not here.
     expect(viewOf(CARD_STOPPED)).toEqual({ kind: 'nothing' })
   })
 
-  it('the check-in on days 1–7', () => {
+  it('the card carries the check-in that asks on days 1–7, to draw above it', () => {
     expect(viewOf(CARD_CHECK_IN)).toMatchObject({
-      kind: 'check_in',
+      kind: 'card',
       checkIn: { kind: 'offer', month: '2026-12' },
     })
     expect(viewOf(CARD_CHECK_IN_NOTHING)).toMatchObject({
-      kind: 'check_in',
+      kind: 'card',
       checkIn: { kind: 'nothing' },
     })
+  })
+
+  it('draws the running month, not a question, when none asks', () => {
     // The recommended number the month's already, or a viewer who cannot
-    // change the goal: the running month, not a question.
-    expect(viewOf(CARD_CHECK_IN_SAME).kind).toBe('card')
-    expect(viewOf(CARD_CHECK_IN, { canSet: true, canChange: false }).kind).toBe('card')
+    // change the goal.
+    expect(viewOf(CARD_CHECK_IN_SAME)).toMatchObject({ kind: 'card', checkIn: null })
+    expect(viewOf(CARD_CHECK_IN, { canSet: true, canChange: false })).toMatchObject({
+      kind: 'card',
+      checkIn: null,
+    })
   })
 })
 

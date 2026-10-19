@@ -4,18 +4,16 @@
 // "See it" to the Goals page's card and "Not now"; the running month as the
 // Goals page draws its card (ADR 0068, amended 2026-10-19: the same card, which
 // goes compact by its own width: the Portals' counts in one line in a narrow
-// slot); or, on the month's first seven days, the month-start check-in. Nothing
-// otherwise (`overviewPortalGoalView`, which the host works out).
+// slot), with the month-start check-in as the strip above it on the month's
+// first seven days. Nothing otherwise (`overviewPortalGoalView`, which the host
+// works out).
 // Presentational: the host hands it the view, Not now and the check-in's
 // commands.
-import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
-import { InlineLink } from '#/components/ui/inline-link'
 import { PortalGoalCardGoal } from './portal-goal-card-goal'
-import { PortalGoalCheckIn, type PortalGoalCheckInCommands } from './portal-goal-check-in'
+import type { PortalGoalCheckInCommands } from './portal-goal-check-in'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
 import type { OverviewPortalGoalView } from './portal-goal-overview-view'
 import type { PortalGoalSheetIntent } from './portal-goal-sheet-intent'
@@ -81,37 +79,6 @@ function Prompt({
   )
 }
 
-/** The slot while the check-in asks: the goal's name, what the check-in says, and "View details" (G-28). */
-function CheckInFrame({
-  propertyId,
-  children,
-}: Readonly<{ propertyId: string; children: ReactNode }>) {
-  return (
-    <Card data-slot="portal-goal-overview" className="gap-4">
-      <CardHeader>
-        <CardTitle
-          as="h2"
-          id={PORTAL_GOAL_OVERVIEW_TITLE_ID}
-          tabIndex={-1}
-          className="outline-none"
-        >
-          {PORTAL_GOAL_NAME}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {children}
-        <InlineLink
-          to="/properties/$propertyId/goals/portals"
-          params={{ propertyId }}
-          className="self-start text-sm"
-        >
-          View details
-        </InlineLink>
-      </CardContent>
-    </Card>
-  )
-}
-
 export function PortalGoalOverview({
   view,
   propertyId,
@@ -134,7 +101,8 @@ export function PortalGoalOverview({
         />
       )
     case 'card':
-      // O-2: the card the Goals page draws, in this slot.
+      // O-2: the card the Goals page draws, in this slot; O-3…O-6: with the
+      // check-in above it while one asks.
       return (
         <PortalGoalCardGoal
           goal={view.goal}
@@ -144,22 +112,8 @@ export function PortalGoalOverview({
           titleId={PORTAL_GOAL_OVERVIEW_TITLE_ID}
           titleAs="h2"
           openSheet={openSheet}
+          checkIn={view.checkIn === null ? undefined : checkIn}
         />
-      )
-    case 'check_in':
-      // O-3…O-6: the card's check-in, under the goal's name.
-      return (
-        <CheckInFrame propertyId={propertyId}>
-          <PortalGoalCheckIn
-            goal={view.goal}
-            checkIn={view.checkIn}
-            propertyId={propertyId}
-            commands={checkIn.commands}
-            onAnswered={checkIn.onAnswered}
-            openSheet={openSheet}
-            headingAs="h3"
-          />
-        </CheckInFrame>
       )
   }
 }

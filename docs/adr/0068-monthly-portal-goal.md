@@ -122,7 +122,8 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
    may arrive up to 24 hours after the month ends
    (`append_by_source_event_time_reconcile_24h_after_month_end`). That is
    accepted: the previous month's own result still waits for them, and the next
-   check-in or a change corrects the number.
+   check-in or a change corrects the number. (Amended 2026-10-19: it is a strip
+   above the card, not the card's body; see below.)
 9. **Stop only.** A goal can be stopped, not paused: resuming would judge the
    paused months. A stopped goal keeps its running month and stays the
    Property's monthly goal until that month closes. Who stopped it and when is
@@ -222,12 +223,14 @@ rounds. This changes what "The two goals stay apart" and decision 13 mean for
 how the goals are drawn, and nothing else in them.
 
 1. **Design parts are shared; data, names, notices and rhythm are not.** The
-   card frame (title and status pill), the headline and the progress meter are
-   drawn by neutral modules, `src/components/goals/goal-*`, that the Google
-   rating goal calls today and the Monthly portal goal moves onto. The check-in
-   strip, the setup sheet frame and its parts, the detail-page layout, the tiles
-   and the History list will be drawn by such modules too, each cut from the
-   Google rating goal in the step that gives it its first Portal caller. A
+   card frame (title and status pill), the headline, the progress meter and the
+   check-in strip are drawn by neutral modules, `src/components/goals/goal-*`,
+   that the Google rating goal calls today and the Monthly portal goal moves
+   onto (its card, Overview slot and page header draw with the first three, its
+   month-start check-in with the strip). The setup sheet frame and its parts,
+   the detail-page layout, the tiles and the History list will be drawn by such
+   modules too, each cut from the Google rating goal in the step that gives it
+   its first Portal caller. A
    shared part imports no `rating-goal-*` or `portal-goal-*` module and no
    server context, and says no product word: a goal passes in its own words, so
    the other goal's words cannot come out (`goal-shared-sources.test.ts`). The
@@ -252,6 +255,17 @@ how the goals are drawn, and nothing else in them.
    extracted from the Google files in a commit that changes none of their output
    (checked by a DOM and pixel comparison of every Google goal story), in the
    slice of its first Portal caller; the Portal then calls it.
+5. **The month-start check-in is a strip above the card (decision 8).** On local
+   days 1 to 7 it is drawn as the Google rating goal's Monday check-in is, as
+   a strip above the card on the Goals page and the Overview slot, where it took
+   the card's body before (`goal-check-in.tsx`). It is a region named for the
+   month ("For December"), not a heading in the page's outline. It says how the
+   month before went, what is recommended and what it stands on, and offers
+   "Use N" (the one to take), "Keep N" and "Other number", in that order; with no
+   number to use, "Keep N" is the one to take. The card under it shows the
+   running month and its pill and leaves the month before to the strip. What the
+   check-in does is unchanged: nothing is automatic, a refusal is a toast, and
+   Use and Keep send the same commands.
 
 ## Rejected alternatives
 

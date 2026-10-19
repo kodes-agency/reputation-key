@@ -5,9 +5,9 @@
 // empty, never the Overview in an error. "Not now" hides the prompt at once
 // (the card's read is written as the server will answer it, and put back with
 // a toast when the command fails), then marks every Portal-goal read stale. On
-// the month's first seven days the check-in sends the change now (Use) or Keep,
-// and "Other number" opens the change sheet; once answered, the slot's title
-// takes the focus.
+// the month's first seven days the check-in, the strip above the card, sends the
+// change now (Use) or Keep, and "Other number" opens the change sheet; once
+// answered, the slot's title takes the focus.
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { withGoalRefusals } from '#/components/goals/goal-refusal'
@@ -92,7 +92,7 @@ export function OverviewPortalGoal({ propertyId }: Readonly<{ propertyId: string
     focusTitle,
     reread: async () => (await card.refetch()).data,
     // The check-in's "Other number" is the slot's one door to the sheet.
-    doorShown: view.kind === 'check_in',
+    doorShown: view.kind === 'card' && view.checkIn !== null,
   })
   return (
     <>

@@ -3,12 +3,13 @@
 // doing" and above "Guest voice", never beside the Google rating goal's. It
 // says at most one thing, from the card's own read: the number ready to use, in
 // one line, until a manager chooses "Not now" for its month (O-1); the running
-// month, as the Goals page's card draws it (O-2); on the month's first seven
-// days, for someone who may change the goal, the month-start check-in
-// (O-3…O-6, the card's K-1…K-5). Nothing in the first weeks and at the gates, after "Not
-// now", for a goal that has not started, once a goal was stopped, and while the
-// read is on its way or failed: the goal never holds the Overview back. The
-// read decides every state and number (PLAN E12); this only says them.
+// month, as the Goals page's card draws it (O-2), with the month-start check-in
+// as the strip above it on the month's first seven days, for someone who may
+// change the goal (O-3…O-6, the card's K-1…K-5; ADR 0068 amended 2026-10-19).
+// Nothing in the first weeks and at the gates, after "Not now", for a goal that
+// has not started, once a goal was stopped, and while the read is on its way or
+// failed: the goal never holds the Overview back. The read decides every state
+// and number (PLAN E12); this only says them.
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalCardView,
@@ -34,11 +35,8 @@ export type OverviewPortalGoalView =
       month: PortalGoalRunningMonth
       /** The Property's local day today. */
       today: string
-    }>
-  | Readonly<{
-      kind: 'check_in'
-      goal: PortalGoalOfCard
-      checkIn: Extract<PortalGoalCheckIn, { kind: 'offer' | 'nothing' }>
+      /** O-3…O-6: the check-in that asks, drawn as the strip above the card; null when none does. */
+      checkIn: Extract<PortalGoalCheckIn, { kind: 'offer' | 'nothing' }> | null
     }>
 
 type OverviewPortalGoalReads = Readonly<{
@@ -73,10 +71,14 @@ export function overviewPortalGoalView({
       // Scheduled, stopped, or with no month to show: the Goals page says it.
       if (goal.status !== 'active' || goal.month === null) return NOTHING
       const { checkIn } = goal
-      if (canChange && checkIn !== null && checkIn.kind !== 'same') {
-        return { kind: 'check_in', goal, checkIn }
+      return {
+        kind: 'card',
+        goal,
+        month: goal.month,
+        today: card.today,
+        checkIn:
+          canChange && checkIn !== null && checkIn.kind !== 'same' ? checkIn : null,
       }
-      return { kind: 'card', goal, month: goal.month, today: card.today }
     }
     default:
       return NOTHING

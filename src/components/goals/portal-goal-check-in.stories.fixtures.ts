@@ -158,9 +158,13 @@ export const CARD_CHECK_IN_SAME = withGoal(CARD_LAST_MONTH_UPDATING, {
     : {}),
 })
 
-/** Dec 1, nothing came in over the 4 weeks: Keep 40, or another number. */
+/**
+ * Dec 1, nothing came in over the 4 weeks: Keep 40, or another number. November
+ * has nothing either, 0 of 40 so far: the 4 weeks end yesterday and cover almost
+ * all of it, so the strip's headline and the fact under it cannot disagree.
+ */
 export const CARD_CHECK_IN_NOTHING = withGoal(CARD_LAST_MONTH_UPDATING, {
-  lastMonth: NOVEMBER_SO_FAR,
+  lastMonth: { ...NOVEMBER_SO_FAR, value: 0 },
   checkIn: CHECK_IN_NOTHING,
 })
 

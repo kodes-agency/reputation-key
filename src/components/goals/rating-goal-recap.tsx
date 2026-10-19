@@ -7,17 +7,15 @@
 // Goals page and the Property Overview), as the wizard's do; once one is
 // answered the page reads the goal again, the check-in is gone, and the focus
 // goes to the card's title.
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import type {
   RatingGoalCardView,
   RatingGoalKeepResult,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { GoalCheckIn, GoalWithCheckIn } from './goal-check-in'
 import { RatingGoalCard } from './rating-goal-card'
 import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import { withRatingGoalRefusals } from './rating-goal-refusal'
@@ -103,69 +101,48 @@ function useRecapCommands({ card, propertyId, commands }: Props) {
   }
 }
 
-function ChoiceButton({
-  choice,
-  primary,
-  pending,
-  onPress,
-}: Readonly<{
-  choice: RecapChoice | null
-  primary?: boolean
-  pending: boolean
-  onPress: (pace: number) => void
-}>) {
-  if (choice === null) return null
-  return (
-    <Button
-      variant={primary ? 'default' : 'outline'}
-      touch
-      disabled={pending}
-      onClick={() => onPress(choice.paceTenthsPerWeek)}
-    >
-      {choice.label}
-    </Button>
-  )
+/** Raise and Ease: the same command at the pace each names; none where there is no such choice. */
+function paceChoice(
+  key: string,
+  choice: RecapChoice | null,
+  change: (pace: number) => Promise<unknown>,
+) {
+  return choice === null
+    ? []
+    : [{ key, label: choice.label, onPress: () => void change(choice.paceTenthsPerWeek) }]
 }
 
 function RatingGoalRecap(props: Props) {
-  const labelId = useId()
   const words = recapWords(props.card)
   const commands = useRecapCommands(props)
   const recap = props.card.recap
   if (words === null || recap === null) return null
+  const keep =
+    words.keep === null
+      ? []
+      : [
+          {
+            key: 'keep',
+            label: words.keep.label,
+            primary: true,
+            onPress: () => void commands.keep(recap.weekStart),
+          },
+        ]
   return (
-    <Alert
-      variant="info"
-      role="region"
-      aria-labelledby={labelId}
-      data-slot="rating-goal-recap"
-    >
-      <AlertTitle id={labelId}>{words.label}</AlertTitle>
-      <AlertDescription className="gap-2">
-        <p className="text-base font-semibold text-foreground">{words.headline}</p>
-        <p>{words.sub}</p>
-        <div className="flex flex-wrap gap-2">
-          <ChoiceButton
-            choice={words.keep}
-            primary
-            pending={commands.pending}
-            onPress={() => void commands.keep(recap.weekStart)}
-          />
-          <ChoiceButton
-            choice={words.raise}
-            pending={commands.pending}
-            onPress={(pace) => void commands.change(pace)}
-          />
-          <ChoiceButton
-            choice={words.ease}
-            pending={commands.pending}
-            onPress={(pace) => void commands.change(pace)}
-          />
-        </div>
-        <p>{words.note}</p>
-        <FormErrorBanner error={commands.error} />
-      </AlertDescription>
-    </Alert>
+    <GoalCheckIn
+      slot="rating-goal-recap"
+      label={words.label}
+      headline={words.headline}
+      sub={words.sub}
+      choices={[
+        ...keep,
+        ...paceChoice('raise', words.raise, commands.change),
+        ...paceChoice('ease', words.ease, commands.change),
+      ]}
+      busy={commands.pending}
+      note={words.note}
+      error={commands.error}
+    />
   )
 }
 
@@ -185,12 +162,20 @@ type CardProps = Readonly<{
  */
 export function RatingGoalCardWithRecap({ recap, ...props }: CardProps) {
   const { can } = usePermissions()
-  const card = <RatingGoalCard {...props} />
-  if (props.card.recap === null || recap === undefined || !can('goal.update')) return card
+  const due = props.card.recap !== null && can('goal.update')
   return (
-    <div className="flex flex-col gap-3">
-      <RatingGoalRecap card={props.card} propertyId={props.propertyId} commands={recap} />
-      {card}
-    </div>
+    <GoalWithCheckIn
+      checkIn={
+        due && recap !== undefined ? (
+          <RatingGoalRecap
+            card={props.card}
+            propertyId={props.propertyId}
+            commands={recap}
+          />
+        ) : null
+      }
+    >
+      <RatingGoalCard {...props} />
+    </GoalWithCheckIn>
   )
 }
