@@ -52,6 +52,114 @@ type Props = Readonly<{
   canSwitch?: boolean
 }>
 
+/** What the number is (S-5…S-7) and the notes on it (S-8), said politely as they change. */
+function NumberLine({
+  model,
+  small,
+  pending,
+  quiet,
+  onRestore,
+}: Readonly<{
+  model: PortalGoalSheetBodyModel
+  small: boolean
+  pending: boolean
+  /** The box has the focus: its value text says the number, so the line is quiet. */
+  quiet: boolean
+  onRestore: (value: number) => void
+}>) {
+  return (
+    <div className="flex flex-col items-center">
+      <GoalSetupStatusLine
+        slot="portal-goal-status"
+        parts={model.status}
+        small={small}
+        live={quiet ? 'off' : 'polite'}
+        disabled={pending}
+        onAction={onRestore}
+      />
+      {/* Always on the page and never quiet, so a note is said as it appears,
+          the box's focus or not: its value text says only the number. Inside
+          the status line's block, so an empty region adds no gap. */}
+      <div data-slot="portal-goal-notes" aria-live="polite">
+        {model.notes.map((note) => (
+          <p key={note} className="mt-4 text-center text-sm">
+            {note}
+          </p>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** U-S2: the suggestions as rows, and the asking line quoted under them; none with neither. */
+function ChoicesPanel({
+  model,
+  small,
+  pending,
+  onChoose,
+}: Readonly<{
+  model: PortalGoalSheetBodyModel
+  small: boolean
+  pending: boolean
+  onChoose: (value: number) => void
+}>) {
+  const id = useId()
+  if (model.choices === null && !model.asksEveryGuest) return null
+  // No label of its own: the suggestions are a group already named for a screen reader.
+  return (
+    <GoalSetupPanel small={small}>
+      {model.choices === null ? null : (
+        <PortalGoalChoices
+          choices={model.choices}
+          chosen={model.chosen}
+          idPrefix={`${id}-choice`}
+          onChoose={onChoose}
+          disabled={pending}
+        />
+      )}
+      {model.asksEveryGuest ? <GoalAside>{PORTAL_ASK_EVERY_GUEST_LINE}</GoalAside> : null}
+    </GoalSetupPanel>
+  )
+}
+
+/** U-S3: how the goal counts, then how the number was worked out and the other measure. */
+function LinksRow({
+  model,
+  small,
+  pending,
+  canSwitch,
+  onSwitch,
+}: Readonly<{
+  model: PortalGoalSheetBodyModel
+  small: boolean
+  pending: boolean
+  canSwitch: boolean
+  onSwitch: () => void
+}>) {
+  const { offer } = model
+  if (offer === null && !canSwitch) return null
+  return (
+    <GoalSetupLinks sentence={model.counts} small={small}>
+      {offer === null ? null : (
+        <PortalGoalWorkedOut offer={offer} triggerClassName={GOAL_SETUP_LINK} />
+      )}
+      {offer !== null && canSwitch ? <span aria-hidden="true">·</span> : null}
+      {canSwitch ? (
+        <Button
+          type="button"
+          variant="link"
+          size="inline"
+          touch
+          disabled={pending}
+          onClick={onSwitch}
+        >
+          {model.switchMeasure.label}
+        </Button>
+      ) : null}
+    </GoalSetupLinks>
+  )
+}
+
 export function PortalGoalSheetBody({
   model,
   small,
@@ -63,7 +171,6 @@ export function PortalGoalSheetBody({
   notice = null,
   canSwitch = true,
 }: Props) {
-  const id = useId()
   const [boxFocused, setBoxFocused] = useState(false)
   const setNumber = (value: number) => onChange({ kind: 'number', value })
   return (
@@ -95,65 +202,23 @@ export function PortalGoalSheetBody({
         onStep={setNumber}
         onFocusChange={setBoxFocused}
       />
-      <div className="flex flex-col items-center">
-        <GoalSetupStatusLine
-          slot="portal-goal-status"
-          parts={model.status}
-          small={small}
-          live={boxFocused ? 'off' : 'polite'}
-          disabled={pending}
-          onAction={setNumber}
-        />
-        {/* Always on the page and never quiet, so a note is said as it appears,
-            the box's focus or not: its value text says only the number. Inside
-            the status line's block, so an empty region adds no gap. */}
-        <div data-slot="portal-goal-notes" aria-live="polite">
-          {model.notes.map((note) => (
-            <p key={note} className="mt-4 text-center text-sm">
-              {note}
-            </p>
-          ))}
-        </div>
-      </div>
-      {model.choices === null && !model.asksEveryGuest ? null : (
-        // No label of its own: the suggestions are a group already named for a screen reader.
-        <GoalSetupPanel small={small}>
-          {model.choices === null ? null : (
-            <PortalGoalChoices
-              choices={model.choices}
-              chosen={model.chosen}
-              idPrefix={`${id}-choice`}
-              onChoose={setNumber}
-              disabled={pending}
-            />
-          )}
-          {model.asksEveryGuest ? (
-            <GoalAside>{PORTAL_ASK_EVERY_GUEST_LINE}</GoalAside>
-          ) : null}
-        </GoalSetupPanel>
-      )}
-      {model.offer === null && !canSwitch ? null : (
-        <GoalSetupLinks sentence={model.counts} small={small}>
-          {model.offer === null ? null : (
-            <PortalGoalWorkedOut offer={model.offer} triggerClassName={GOAL_SETUP_LINK} />
-          )}
-          {model.offer !== null && canSwitch ? <span aria-hidden="true">·</span> : null}
-          {canSwitch ? (
-            <Button
-              type="button"
-              variant="link"
-              size="inline"
-              touch
-              disabled={pending}
-              onClick={() =>
-                onChange({ kind: 'measure', measure: model.switchMeasure.measure })
-              }
-            >
-              {model.switchMeasure.label}
-            </Button>
-          ) : null}
-        </GoalSetupLinks>
-      )}
+      <NumberLine
+        model={model}
+        small={small}
+        pending={pending}
+        quiet={boxFocused}
+        onRestore={setNumber}
+      />
+      <ChoicesPanel model={model} small={small} pending={pending} onChoose={setNumber} />
+      <LinksRow
+        model={model}
+        small={small}
+        pending={pending}
+        canSwitch={canSwitch}
+        onSwitch={() =>
+          onChange({ kind: 'measure', measure: model.switchMeasure.measure })
+        }
+      />
       {note}
       {notice === null ? (
         <DialogErrorBanner error={error} />
