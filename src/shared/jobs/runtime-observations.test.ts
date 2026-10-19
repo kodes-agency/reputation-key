@@ -257,6 +257,7 @@ describe('durable job runtime observations', () => {
       jobName: 'health-check',
       jobId: 'poison-1',
       at: new Date('2026-08-27T05:59:30.000Z'),
+      executionKind: 'worker',
     })
 
     const healthyScheduler = queue({
@@ -292,6 +293,64 @@ describe('durable job runtime observations', () => {
       clock: () => NOW,
     }).read()
     expect(repaired.rows[0]).toMatchObject({ ready: true, reasons: [] })
+  })
+
+  it('lets a later firing clear a failed schedule, but not failed on-demand work', async () => {
+    // The closed beta's case, as the worker now records it: a firing that
+    // failed terminally days ago, no dead letter to redrive, and the same
+    // schedule completing every minute.
+    const redis = new MemoryRedis()
+    const store = createJobRuntimeObservationStore({ redis })
+    const contracts = [
+      contract(),
+      contract({
+        jobName: 'sync-property-reviews',
+        queue: 'default',
+        schedule: 'none',
+        lastSuccessObjectiveMs: null,
+      }),
+    ]
+    await store.recordBoot({
+      contracts,
+      registeredHandlers: new Set(['health-check', 'sync-property-reviews']),
+      registeredSchedulers: new Set(['health-check']),
+      runtimeStartedAt: new Date('2026-08-27T05:50:00.000Z'),
+    })
+    for (const jobName of ['health-check', 'sync-property-reviews']) {
+      await store.recordTerminalFailure({
+        queue: 'background',
+        jobName,
+        jobId: `${jobName}-failed`,
+        at: new Date('2026-08-20T05:03:00.000Z'),
+        executionKind: jobName === 'health-check' ? 'schedule' : 'worker',
+      })
+      await store.recordSucceeded({
+        queue: 'background',
+        jobName,
+        jobId: `${jobName}-later`,
+        at: new Date('2026-08-27T05:59:00.000Z'),
+        repair: false,
+      })
+    }
+
+    const report = await createJobRuntimeReportReader({
+      contracts,
+      store,
+      queues: {
+        background: queue({
+          schedulers: [{ key: 'health-check-recurring', name: 'health-check' }],
+        }),
+        default: null,
+      },
+      quarantine: null,
+      clock: () => NOW,
+    }).read()
+
+    expect(report.rows).toMatchObject([
+      { jobName: 'health-check', ready: true, reasons: [] },
+      { jobName: 'sync-property-reviews', ready: false, reasons: ['repair_required'] },
+    ])
+    expect(report).toMatchObject({ failing: 1, repairRequired: 1, deadLetters: 0 })
   })
 
   describe('terminal gate denials', () => {
@@ -443,6 +502,230 @@ describe('durable job runtime observations', () => {
         lastDeniedAt: '2026-08-27T05:55:02.000Z',
         deniedCount: 1,
       })
+    })
+  })
+
+  describe('terminal failure evidence', () => {
+    const scheduled = [{ key: 'health-check-recurring', name: 'health-check' }]
+    type RetainedJobs = Partial<
+      Record<'completed' | 'failed', Array<Record<string, unknown>>>
+    >
+
+    async function booted(contracts = [contract()]) {
+      const redis = new MemoryRedis()
+      const store = createJobRuntimeObservationStore({ redis })
+      await store.recordBoot({
+        contracts,
+        registeredHandlers: new Set(contracts.map((c) => c.jobName)),
+        registeredSchedulers: new Set(contracts.map((c) => c.jobName)),
+        runtimeStartedAt: new Date('2026-08-27T05:00:00.000Z'),
+      })
+      const read = (jobs: RetainedJobs = {}, schedulers = scheduled) =>
+        createJobRuntimeReportReader({
+          contracts,
+          store,
+          queues: { background: queue({ schedulers, jobs }), default: null },
+          quarantine: null,
+          clock: () => NOW,
+        }).read()
+      return { redis, store, read }
+    }
+
+    /** A retained `health-check` job; a scheduler firing carries its scheduler key. */
+    function retained(at: string, kind: 'firing' | 'on-demand') {
+      const finishedOn = Date.parse(at)
+      return {
+        name: 'health-check',
+        timestamp: finishedOn - 2_000,
+        processedOn: finishedOn - 1_000,
+        finishedOn,
+        ...(kind === 'firing' ? { repeatJobKey: 'health-check-recurring' } : {}),
+      }
+    }
+
+    it('shows a schedule that fails most firings, though its latest firing succeeded', async () => {
+      const { read } = await booted()
+      const failedFirings = Array.from({ length: 9 }, (_, index) =>
+        retained(`2026-08-27T05:${10 + index}:00.000Z`, 'firing'),
+      )
+
+      const report = await read({
+        failed: failedFirings,
+        completed: [retained('2026-08-27T05:55:00.000Z', 'firing')],
+      })
+
+      // Readiness asks whether the cadence works now; the count keeps the history.
+      expect(report).toMatchObject({
+        ready: true,
+        repairRequired: 0,
+        terminalFailures: 9,
+      })
+      expect(report.rows[0]).toMatchObject({
+        ready: true,
+        reasons: [],
+        lastSucceededAt: '2026-08-27T05:55:00.000Z',
+        lastScheduleFailureAt: '2026-08-27T05:18:00.000Z',
+        lastOnDemandFailureAt: null,
+        failedCount: 9,
+      })
+    })
+
+    it('keeps a retained failed manual run in repair after a later firing succeeds', async () => {
+      const { read } = await booted()
+
+      const report = await read({
+        failed: [retained('2026-08-27T05:40:00.000Z', 'on-demand')],
+        completed: [retained('2026-08-27T05:55:00.000Z', 'firing')],
+      })
+
+      expect(report).toMatchObject({
+        ready: false,
+        repairRequired: 1,
+        terminalFailures: 1,
+      })
+      expect(report.rows[0]).toMatchObject({
+        reasons: ['repair_required'],
+        lastScheduleFailureAt: null,
+        lastOnDemandFailureAt: '2026-08-27T05:40:00.000Z',
+        failedCount: 1,
+      })
+    })
+
+    it('keeps the heads of a failed firing and a failed manual run apart', async () => {
+      const { store, read } = await booted()
+      await store.recordTerminalFailure({
+        queue: 'background',
+        jobName: 'health-check',
+        jobId: 'repeat:health-check-recurring:1',
+        at: new Date('2026-08-27T05:30:00.000Z'),
+        executionKind: 'schedule',
+      })
+      await store.recordTerminalFailure({
+        queue: 'background',
+        jobName: 'health-check',
+        jobId: 'manual-1',
+        at: new Date('2026-08-27T05:40:00.000Z'),
+        executionKind: 'worker',
+      })
+      await store.recordSucceeded({
+        queue: 'background',
+        jobName: 'health-check',
+        jobId: 'repeat:health-check-recurring:2',
+        at: new Date('2026-08-27T05:50:00.000Z'),
+        repair: false,
+      })
+
+      const failed = await read()
+      expect(failed.rows[0]).toMatchObject({
+        ready: false,
+        reasons: ['repair_required'],
+        lastScheduleFailureAt: '2026-08-27T05:30:00.000Z',
+        lastOnDemandFailureAt: '2026-08-27T05:40:00.000Z',
+        // Counted from the retained failed set only; the heads keep the times.
+        failedCount: 0,
+      })
+
+      await store.recordSucceeded({
+        queue: 'background',
+        jobName: 'health-check',
+        jobId: 'redrive-1',
+        at: new Date('2026-08-27T05:52:00.000Z'),
+        repair: true,
+      })
+      expect((await read()).rows[0]).toMatchObject({ ready: true, reasons: [] })
+    })
+
+    it('does not hold a family that left the active schedule on its failed firings', async () => {
+      const { store, read } = await booted([contract({ posture: 'quarantined' })])
+      await store.recordTerminalFailure({
+        queue: 'background',
+        jobName: 'health-check',
+        jobId: 'repeat:health-check-recurring:1',
+        at: new Date('2026-08-27T05:30:00.000Z'),
+        executionKind: 'schedule',
+      })
+
+      const report = await read(
+        { failed: [retained('2026-08-27T05:31:00.000Z', 'firing')] },
+        [],
+      )
+
+      expect(report).toMatchObject({
+        ready: true,
+        repairRequired: 0,
+        terminalFailures: 1,
+      })
+      expect(report.rows[0]).toMatchObject({
+        ready: true,
+        reasons: [],
+        lastScheduleFailureAt: '2026-08-27T05:31:00.000Z',
+        failedCount: 1,
+      })
+    })
+
+    // Before the split, one head field held every terminal failure. A scheduled
+    // family's was judged as a firing, an unscheduled family's as on-demand work.
+    it('reads a failure recorded before the split by the family schedule', async () => {
+      const onDemand = contract({
+        jobName: 'sync-property-reviews',
+        queue: 'default',
+        schedule: 'none',
+        lastSuccessObjectiveMs: null,
+      })
+      const leftSchedule = contract({ jobName: 'purge-exports', posture: 'quarantined' })
+      const { redis, store, read } = await booted([contract(), leftSchedule, onDemand])
+      const jobNames = ['health-check', 'purge-exports', 'sync-property-reviews']
+      for (const jobName of jobNames) {
+        await redis.hset(
+          `repkey:job-runtime:v1:${jobName}`,
+          'lastTerminalFailureAt',
+          '2026-08-27T05:30:00.000Z',
+        )
+      }
+
+      // Unanswered, the active schedule's old failure still holds it.
+      expect((await read()).rows).toMatchObject([
+        {
+          jobName: 'health-check',
+          reasons: ['success_never_observed', 'repair_required'],
+        },
+        { jobName: 'purge-exports', ready: true },
+        { jobName: 'sync-property-reviews', reasons: ['repair_required'] },
+      ])
+
+      for (const jobName of jobNames) {
+        await store.recordSucceeded({
+          queue: 'background',
+          jobName,
+          jobId: `${jobName}-later`,
+          at: new Date('2026-08-27T05:50:00.000Z'),
+          repair: false,
+        })
+      }
+
+      const report = await read()
+
+      expect(report.rows).toMatchObject([
+        {
+          jobName: 'health-check',
+          ready: true,
+          lastScheduleFailureAt: '2026-08-27T05:30:00.000Z',
+          lastOnDemandFailureAt: null,
+        },
+        {
+          jobName: 'purge-exports',
+          ready: true,
+          lastScheduleFailureAt: '2026-08-27T05:30:00.000Z',
+          lastOnDemandFailureAt: null,
+        },
+        {
+          jobName: 'sync-property-reviews',
+          ready: false,
+          reasons: ['repair_required'],
+          lastScheduleFailureAt: null,
+          lastOnDemandFailureAt: '2026-08-27T05:30:00.000Z',
+        },
+      ])
     })
   })
 

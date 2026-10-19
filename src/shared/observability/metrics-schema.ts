@@ -24,6 +24,7 @@ import {
   SENSITIVE_OBSERVABILITY_FIELD_NAMES,
   isSensitiveObservabilityField,
 } from '#/shared/observability/sensitive-field-policy'
+import { JOB_RUNTIME_METRIC_DEFINITIONS } from '#/shared/observability/job-runtime-metrics'
 
 // ── Label policy ─────────────────────────────────────────────────
 
@@ -358,63 +359,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     emitted: true,
     description: 'Job handlers registered at worker boot (boot log field).',
   }),
-  def({
-    name: 'worker.job_runtime.ready',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['jobs.ready'],
-    emitted: true,
-    description: '1 when every governed job family satisfies its runtime contract.',
-  }),
-  def({
-    name: 'worker.job_runtime.families',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: [
-      'jobs.total',
-      'jobs.active',
-      'jobs.dark',
-      'jobs.quarantined',
-      'jobs.failing',
-    ],
-    emitted: true,
-    description: 'Governed job families by operational posture and readiness.',
-  }),
-  def({
-    name: 'worker.job_runtime.failures',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: [
-      'jobs.missingObservations',
-      'jobs.invalidObservations',
-      'jobs.handlerMissing',
-      'jobs.schedulerMissing',
-      'jobs.scheduleDenied',
-      'jobs.forbiddenDarkWork',
-      'jobs.quarantinedSchedulers',
-      'jobs.missedObjectives',
-      'jobs.queueAgeMissed',
-      'jobs.stalled',
-      'jobs.repairRequired',
-      'jobs.deadLetters',
-    ],
-    emitted: true,
-    description:
-      'Job runtime contract failures, including missed work and repair ownership.',
-  }),
-  def({
-    name: 'worker.job_runtime.gate_denials',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['jobs.gateDenials'],
-    emitted: true,
-    description:
-      'Retained completed jobs the delayed-execution gate denied. Counted, never paged: a denied on-demand job is routine; a denied schedule firing fails readiness.',
-  }),
+  ...JOB_RUNTIME_METRIC_DEFINITIONS,
   def({
     name: 'worker.runtime.version',
     kind: 'gauge',

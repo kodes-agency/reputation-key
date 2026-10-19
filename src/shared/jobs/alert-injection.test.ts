@@ -105,6 +105,7 @@ function healthySnapshot(): MutableSnapshot {
     sync: {
       dueForIncrementalCount: 0,
       failedSyncCount: 0,
+      failedSyncCodes: {},
       oldestDueAgeMs: null,
       gbpPushEnabled: false,
     },
@@ -201,6 +202,7 @@ function healthySnapshot(): MutableSnapshot {
       repairRequired: 0,
       deadLetters: 0,
       gateDenials: 0,
+      terminalFailures: 0,
       rows: [],
     },
     guestObservationLoss: {

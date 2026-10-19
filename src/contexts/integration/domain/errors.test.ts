@@ -18,6 +18,7 @@ describe('integrationError', () => {
       'connection_disconnected',
       'oauth_failed',
       'oauth_denied',
+      'scope_not_granted',
       'token_refresh_failed',
       'gbp_api_error',
       'gbp_api_rate_limited',

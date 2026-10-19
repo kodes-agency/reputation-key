@@ -358,10 +358,10 @@
       "policy": "The sign-in attempt just made (a counter and the address typed), written from the form's own submit handler. Its id keys the unverified-email notice so each attempt starts a fresh one. It is not server state, and nothing copies a server value into it."
     },
     {
-      "id": "src/components/features/integration/google-import-manager/google-import-manager.tsx:useState(startError)",
+      "id": "src/components/features/integration/google-import-manager/google-import-manager.tsx:useState(callbackError)",
       "classification": "local_runtime",
-      "owner": "Google import callback recovery",
-      "policy": "A route callback error seeds one dismissible client banner; recovery and new discovery actions explicitly clear or replace it."
+      "owner": "Google import callback notice",
+      "policy": "The route's callback error code seeds one client notice under the connect button; changing the Google account or starting an import clears it. It is not server state, and nothing copies a server value into it."
     },
     {
       "id": "src/components/features/integration/google-import-manager/use-google-import.ts:useState(lifecycle)",

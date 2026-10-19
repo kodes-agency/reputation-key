@@ -1,8 +1,10 @@
 // A quarantine redrive is the repair command the catalogue names for every
-// job family (`pnpm ops quarantine redrive`). It puts the dead-lettered payload
-// back on its queue with a `redriveMetadata` entry added. The four AI handlers
-// parse their payload strictly, so each is read here through the real redrive:
-// a handler that refuses what the redrive adds can never be repaired by it.
+// on-demand job family (`pnpm ops quarantine redrive`); a failed firing of an
+// active scheduled family is answered by a later success instead. It puts the
+// dead-lettered payload back on its queue with a `redriveMetadata` entry added.
+// The four AI handlers parse their payload strictly, so each is read here
+// through the real redrive: a handler that refuses what the redrive adds can
+// never be repaired by it.
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Job, JobProgress, JobsOptions } from 'bullmq'
@@ -134,6 +136,8 @@ describe('AI job handlers after a quarantine redrive', () => {
     })
   })
 
+  // Models an on-demand or legacy dead letter: firings of this schedule-only
+  // family are no longer dead-lettered, so a new one cannot arise from a firing.
   it('runs the redriven backlog drain', async () => {
     const drain = vi.fn(async () => ({
       claimed: 0,
@@ -154,6 +158,8 @@ describe('AI job handlers after a quarantine redrive', () => {
     expect(drain).toHaveBeenCalledExactlyOnceWith({ authorizeScope })
   })
 
+  // Models an on-demand or legacy dead letter: firings of this schedule-only
+  // family are no longer dead-lettered, so a new one cannot arise from a firing.
   it('runs the redriven trend schedule', async () => {
     const schedulePropertyTrends = vi.fn(async () => ({}) as never)
     const job = await redriven(SCHEDULE_PROPERTY_TRENDS_JOB_NAME, {})

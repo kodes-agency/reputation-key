@@ -49,12 +49,17 @@ export function GoogleImportManager({
   const pendingRequestId = useRef<string | null>(null)
   const recoveryStartedRequestId = useRef<string | null>(null)
   const [startPending, setStartPending] = useState(false)
-  // Mirrors the route banner so the same callback never reads as two outcomes.
-  const [startError, setStartError] = useState<string | null>(() =>
+  // The page's only notice for the OAuth callback's outcome. It is not an
+  // import failure, so it never reaches the review form's start error.
+  const [callbackError, setCallbackError] = useState<string | null>(() =>
     connectionCallbackErrorMessage(initialError),
   )
+  const [startError, setStartError] = useState<string | null>(null)
   const [isRecoveringRequest, setIsRecoveringRequest] = useState(false)
-  const clearStartError = useCallback(() => setStartError(null), [])
+  const clearStartError = useCallback(() => {
+    setStartError(null)
+    setCallbackError(null)
+  }, [])
   const discovery = useGoogleImport({
     organizationId,
     connections,
@@ -153,6 +158,7 @@ export function GoogleImportManager({
     ownedRequestId.current = requestId
     setStartPending(true)
     setStartError(null)
+    setCallbackError(null)
     try {
       const outcome = await startGoogleImport({
         requestId,
@@ -244,6 +250,7 @@ export function GoogleImportManager({
         discovery={discovery}
         startPending={startPending}
         startError={startError}
+        callbackError={callbackError}
         onSubmit={submitImport}
       />
     </SetupWizard>

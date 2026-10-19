@@ -172,6 +172,21 @@ describe('sync freshness aggregate (real reads)', () => {
     expect(after.failedSyncCount).toBe(baseline.failedSyncCount + 1)
   })
 
+  it('counts the due failures by code, and a code outside the known set as other', async () => {
+    const baseline = (await checker.check()).sync
+
+    await seedSyncState(await seedSyncProperty({ suffix: '08' }), 30, 'provider_failure')
+    await seedSyncState(await seedSyncProperty({ suffix: '09' }), 30, 'provider_failure')
+    await seedSyncState(await seedSyncProperty({ suffix: '0a' }), 30, 'Hilton-Paris')
+
+    const after = (await checker.check()).sync
+    const codes = (sync: typeof after, code: string) => sync.failedSyncCodes[code] ?? 0
+    expect(codes(after, 'provider_failure')).toBe(codes(baseline, 'provider_failure') + 2)
+    expect(codes(after, 'other')).toBe(codes(baseline, 'other') + 1)
+    expect(after.failedSyncCount).toBe(baseline.failedSyncCount + 3)
+    expect(Object.keys(after.failedSyncCodes)).not.toContain('Hilton-Paris')
+  })
+
   it.each([
     ['archived', { lifecycleState: 'archived' }],
     ['suspended', { lifecycleState: 'suspended' }],

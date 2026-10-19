@@ -196,6 +196,15 @@ function parseGrantedScopes(
   if (unique.size !== scopes.length) {
     throw integrationError('oauth_failed', 'Google OAuth granted scopes were duplicated')
   }
+  // Google's consent screen lets a person untick Business Profile access and
+  // still answers 2xx. Only a fresh consent with the box ticked recovers that,
+  // so it gets its own code rather than the generic retryable failure.
+  if (exactV2 && !unique.has(GOOGLE_BUSINESS_MANAGE_SCOPE)) {
+    throw integrationError(
+      'scope_not_granted',
+      'Google OAuth grant did not include Business Profile access',
+    )
+  }
   if (
     exactV2 &&
     !EXACT_V2_GRANTS.some(
@@ -498,13 +507,15 @@ export const createGoogleOAuthAdapter = (config: {
       throw parsed.error
     }
     const data = parsed.data
+    // Scopes first: a grant without Business Profile access is the one refusal
+    // the person can fix, so it must not be masked by a later check.
+    const scopes = parseGrantedScopes(data.scope, true)
     if (!data.refresh_token) {
       throw integrationError(
         'oauth_failed',
         'Google OAuth refresh credential was missing; the one-use code must not be exchanged again',
       )
     }
-    const scopes = parseGrantedScopes(data.scope, true)
 
     if (!data.id_token) {
       throw integrationError('oauth_failed', 'Google OAuth ID token was missing')

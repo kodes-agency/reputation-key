@@ -372,6 +372,68 @@ describe('error monitoring runtime', () => {
     })
   })
 
+  it('tags an alert with the content-free facts it was raised on', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+
+    monitor.captureException(new Error('alert'), {
+      source: 'alert-dispatcher',
+      alert: {
+        name: 'worker.job-runtime-unready',
+        severity: 'P1',
+        facts: {
+          jobs: ['sync-property-reviews'],
+          reasons: ['repair_required', 'dead_letter_present'],
+          count: 1,
+        },
+      },
+    })
+
+    expect(sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
+      tags: {
+        runtime_source: 'alert-dispatcher',
+        alert: 'worker.job-runtime-unready',
+        alert_severity: 'p1',
+        alert_jobs: 'sync-property-reviews',
+        alert_reasons: 'dead_letter_present,repair_required',
+        alert_count: '1',
+      },
+    })
+  })
+
+  it('sends no alert fact that is not shaped like a machine name or a count', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+
+    monitor.captureException(new Error('alert'), {
+      source: 'alert-dispatcher',
+      alert: {
+        name: 'sync.failed-nonzero',
+        severity: 'P2',
+        facts: {
+          jobs: ['guest@example.invalid'],
+          reasons: ['a review that said "never again"'],
+          codes: { 'free text from a row': 2 },
+        },
+      },
+    })
+
+    expect(sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
+      tags: {
+        runtime_source: 'alert-dispatcher',
+        alert: 'sync.failed-nonzero',
+        alert_severity: 'p2',
+        alert_codes: 'other:2',
+      },
+    })
+    expect(JSON.stringify(sentry.captureException.mock.calls)).not.toContain('guest@')
+    expect(JSON.stringify(sentry.captureException.mock.calls)).not.toContain(
+      'never again',
+    )
+  })
+
   it('allows only bounded machine-readable queue and job tags', () => {
     const sentry = sdk()
     const monitor = createErrorMonitor({ sentry, logger: logger() })

@@ -212,10 +212,12 @@ definitions and security controls live in
 
 **What it means:** the quarantine is a dead-letter queue with **no consumer** — nothing drains it, and the daily `quarantine-ttl-sweep` DELETES entries after `QUARANTINE_TTL_DAYS` (default 30d). A job that lands there is lost work that no retry will ever pick up. If it was a review sync, a notification fan-out, or a reply publication, that unit of work simply never happened and nobody was told. Fifteen minutes is three health-check evaluation cadences: long enough that an operator actively redriving right now does not trip it, short enough that the loss is still recoverable.
 
+Only on-demand work lands here. A schedule firing is never dead-lettered: every schedule is enumeration-only, so its next firing repeats the whole pass and nothing is lost, and there is no unit of work to redrive. A firing that fails past its retry budget is logged (`job failed` at error level, then `terminal schedule firing failure — not dead-lettered, the next firing repeats the pass` as a warning), captured in error monitoring, kept in BullMQ's retained failed set, and shown as `repair_required` on its family's job-runtime row until a later success, for as long as the family is active with a schedule; the row's `lastScheduleFailureAt` and `failedCount` keep the record after that (§17). A manual run of a scheduled family (`pnpm ops refresh`, `pnpm ops purge`) is on-demand work and lands here like any other.
+
 **First three things to check:**
 
 1. `ops:quarantine list` — what is in there (the oldest 100 entries, oldest first, so the entry the age alerts page about is always listed; redrive and discard look their target up by id, so any entry is reachable, listed or not), how many distinct job names, and is each entry `confirmed_failed`? One entry is a poison payload; a growing pile of one job name is a systemic handler failure. `pending_failure` means the worker staged evidence before rejecting but did not observe BullMQ's completed failed transition; redrive requires fresh proof that the original remains failed, so a recovered/completed original cannot be duplicated.
-2. The quarantine reason. `ops:quarantine list` prints it under each entry: the error name and its first message line, followed by `(policy: policy_unavailable)` when the attempt that exhausted the job was refused by the delayed-execution gate because it could not read the policy. That one is a policy outage, not a handler bug: restore the policy read before any redrive. Anything else is a handler that threw past its retry budget. No region or routing reason exists, and no alert watches for one.
+2. The quarantine reason. `ops:quarantine list` prints it under each entry: the error name and its first message line, followed by `(policy: policy_unavailable)` when the attempt that exhausted the job was refused by the delayed-execution gate because it could not read the policy. That one is a policy outage, not a handler bug: restore the policy read before any redrive. It never appears for a schedule firing: a firing whose retries were all spent on an unreadable policy is not dead-lettered, so look for `delayed execution denied — retry (policy_unavailable)` in the worker's `job failed` log and for `repair_required` on the family's row (§17) instead. Anything else is a handler that threw past its retry budget. No region or routing reason exists, and no alert watches for one.
 3. `queue.quarantine.oldest_age_ms` versus `QUARANTINE_TTL_DAYS`. This tells you how much time is left before the TTL sweep deletes the evidence along with the work. The gauge, the listing, and the TTL sweep all read the quarantine oldest-first, so a burst of fresh dead letters cannot hide an aged one.
 
 **Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then match each entry's job family to the event-job catalogue. For an enabled family, first run `ops:quarantine redrive <id> --operator <registered-operator>` for the dry-run report, then add `--reason <incident-reason> --apply`; redrive returns the job to its original queue. For a blocked or quarantined family, never redrive: first run `ops:quarantine discard <id> --operator <registered-operator>`, record the identifiers and disposition in the incident, then add `--reason <incident-reason> --apply --yes ops:quarantine`. Discard permanently removes the quarantined job without executing or re-enqueuing it, which is why it alone needs the typed confirmation. For `pending_failure`, the redrive apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at the redrive boundary, so a concurrent privacy-verification scan cannot miss content moved between queues.
@@ -356,6 +358,11 @@ or chat transcript.
      first code in its `cause` chain. An unexpected server-function failure
      keeps the original as the cause of its `InternalError`, so the event
      carries both stacks.
+   - `failure_code`: the code a typed job failure carries, from the closed set
+     it is raised from. `ReviewProviderSnapshotFailure` reads
+     `failure_code=authorization_denied`, `provider_failure`, `malformed_page`
+     and so on (`ReviewProviderSnapshotFailureCode`), the same value as
+     `review_provider_snapshot_runs.failure_code`.
    - `db_code`, `db_constraint`, `db_table`, `db_column`: a Postgres refusal's
      SQLSTATE and schema names, never its values.
    - `error_kind`: `chunk_load` (a code file the tab asked for is gone, often
@@ -406,7 +413,16 @@ does not substitute for provider inspection.
 **Alerts in Sentry.** Every firing alert also reaches Sentry as an issue
 titled `[alert] <name>`, tagged `alert=<name>`, `alert_severity=p1|p2` and
 `runtime_source=alert-dispatcher`, one issue per alert name (the scrubber
-rebuilds the fingerprint `['alert', <name>]` from the allow-listed tag).
+rebuilds the fingerprint `['alert', <name>]` from the allow-listed tag). The
+alert's detail text is replaced like any message, so what it was raised on
+travels as tags (src/shared/observability/alert-facts.ts), each a machine name
+or a count: `alert_jobs` (the governed job families: unready for
+`worker.job-runtime-unready`, holding dead letters for the two quarantine
+alerts), `alert_reasons` (their readiness reasons, such as `repair_required` and
+`dead_letter_present`, or `report_unavailable`), `alert_codes` (failure codes
+with a count each, `provider_failure:2,source_changed:1`, for
+`sync.failed-nonzero`) and `alert_count`. A list too long for a tag ends in
+`,+N`; the detail text is in the log line.
 Production has no `ALERT_WEBHOOK_URL`, so Sentry is the only push channel:
 configure a Sentry alert rule on new issues, or on
 `runtime_source:alert-dispatcher` and `runtime_source:email-provider` (an
@@ -558,7 +574,26 @@ without retrying, but nothing ran: it is recorded as a denial (`lastDeniedAt`),
 never as a success, so it cannot keep a dead family fresh. `jobs.gateDenials`
 and each row's `deniedCount` count gate-denied jobs among the retained completed
 jobs; they never page, because a denied on-demand job (a suspended
-organization, a disabled capability) is routine. The report retains the
+organization, a disabled capability) is routine. `repair_required` means a
+terminal failure has not been answered, and each kind of run has its own
+answer. On-demand work, a manual run of a scheduled family included, is
+dead-lettered (§14): only a successful quarantine redrive of it answers the
+failure, never a later plain success or firing. A schedule firing is never
+dead-lettered, so it has nothing to redrive: any later success of the family
+answers it, the same rule `schedule_denied` follows, and the reason clears by
+itself once the cause is gone. A failed firing counts only while the family is
+active with a schedule, so a release that moves a family to `quarantined` or
+sets its schedule to `none` no longer leaves it held by firings that failed
+before (a quarantined family that kept its scheduler is
+`quarantined_scheduler_registered`). Each row
+says which latch holds: `lastOnDemandFailureAt` and `lastScheduleFailureAt` are
+the latest failure of each kind, and `failedCount` counts the family's jobs
+among the retained failed jobs, so a schedule that fails most of its firings
+stays visible after one success answers the latest. `jobs.terminalFailures`
+totals them and, like `jobs.gateDenials`, never pages. A head written before
+failures were split by kind kept one time for both; the report reads it as a
+firing for a scheduled family and as on-demand work otherwise. The report
+retains the
 observed cell, owner, processor, action, capability, queue policy, cadence,
 timeout, concurrency, freshness objectives, runbook, and repair command for
 each family. It contains no tenant or payload content.
@@ -582,13 +617,41 @@ each family. It contains no tenant or payload content.
 3. For missed objectives, stalled work, repair-required state, or dead letters,
    inspect the original queue and run `pnpm ops quarantine list --operator
 <registered-operator>` before applying the row's exact repair command.
+   The row's failure times say which latch holds. On an active scheduled row
+   (`posture` is `active`, `schedule` is not `none`), a `lastScheduleFailureAt`
+   later than `lastSucceededAt` is a failed firing. It has no quarantine entry,
+   so read the worker's `job failed` error and the error-monitoring event for
+   that job name. If the reason
+   outlives one cadence plus the family's retry budget (`retryAttempts` ×
+   (`timeoutMs` + the `retryBackoff` delay), all on the row), the firings are
+   still failing. Once the cause is fixed, any later success clears a failed
+   firing, so a daily family need not wait a day where an enqueue command exists:
+   `pnpm ops purge retention --operator <registered-operator> --reason
+<incident-reason> --apply --yes ops:purge` reruns `retention-sweep` (§10), and
+   `pnpm ops refresh reviews --operator <registered-operator> --reason
+<incident-reason> --apply` reruns the hourly `refresh-expiring-reviews`. The
+   other daily families, `quarantine-ttl-sweep` and
+   `reconcile-gbp-notification-subscriptions`, have no rerun command
+   (`pnpm ops gbp-subscribe` only reports and refuses `--apply`), so they wait
+   for their next firing. Otherwise the latch is `lastOnDemandFailureAt`: a
+   dead-lettered on-demand job, or a failed manual run of a scheduled family,
+   listed by `pnpm ops quarantine list`. Only its successful redrive (§14)
+   clears it; a later firing does not, and neither does discarding the dead
+   letter or its expiry under `quarantine-ttl-sweep`. A row whose dead letter
+   is gone keeps `repair_required` until a run of that work is redriven, and no
+   `pnpm ops` command acknowledges it yet: escalate it rather than editing Queue
+   Redis. A ready row with a growing `failedCount` is a schedule that fails
+   between successes: read the same errors.
 
 **Remediate:** repair configuration/handler/scheduler drift by promoting a
 reviewed immutable release; never register an ad-hoc handler or repeat entry in
 Redis. Remove forbidden dark/quarantined schedules through normal scheduler
 reconciliation and discard their queued work without executing it. For an
 active poison item, fix the handler cause first, review the quarantine report,
-then execute the row's report-linked redrive command. A domain-specific
+then execute the row's report-linked redrive command. A failed firing needs no
+command: fix the cause and the family's next success clears `repair_required`.
+A failed manual run of a scheduled family is on-demand work: redrive its dead
+letter. A domain-specific
 reconciliation or rebuild remains authoritative when its runbook says replaying
 one queue item cannot reconstruct the projection.
 
@@ -596,7 +659,8 @@ one queue item cannot reconstruct the projection.
 schedule-denied, forbidden-dark-work, missed-objective, queue-age, stalled,
 repair-required, and dead-letter counts are all zero; every active scheduled row
 has a recent `lastSucceededAt`; and a second health-check cadence remains green
-after a worker restart.
+after a worker restart. `jobs.terminalFailures` is informational: it falls only
+as BullMQ trims its retained failed jobs, so watch that it stops growing.
 
 **Escalation:** Bozhidar Denev. A dark family that executed, or an active family
 that cannot be deterministically repaired, is a release blocker.
@@ -1097,7 +1161,14 @@ satisfies the new one.
 
 **Order: web first, then the worker.** `pnpm ops deploy-ci-images` rolls web,
 then the worker, then provider Redis, each settling healthy at its digest before
-the next moves. It takes `--sha` and `--apply` and has no option for another
+the next moves. Provider Redis moves only when something it is built from
+changed (`Dockerfile.google-provider-redis`, `services/google-provider-redis/`):
+it keeps nothing across a restart (ADR 0050), so each redeploy drops the page
+cursors of the Google review syncs in flight and the OAuth state of any Google
+connect in progress. It stays on its release when it is healthy, that release
+is an ancestor of the target, those files are identical, and the image it runs
+is the one CI built for its `RELEASE_SHA`; the command says `kept at <sha>`.
+Anything it cannot prove moves it as before. It takes `--sha` and `--apply` and has no option for another
 order, and it is the only supported deploy path (`docs/BETA.md` §7). So a release
 whose new facts an older worker refuses has a window between the two, and the
 command cannot roll the worker first to avoid it. In the 2026-09-28 release a

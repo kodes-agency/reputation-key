@@ -6,7 +6,8 @@
 // custom strategy would override the job-level backoff (with jitter) that the
 // event/job family catalogue declares. Terminal jobs are staged in the
 // dead-letter quarantine queue before leaving the active set and become
-// redrivable only after BullMQ confirms the failed transition.
+// redrivable only after BullMQ confirms the failed transition. A schedule
+// firing is the exception: it is never dead-lettered (failure-quarantine.ts).
 
 import { Worker, type Job, type Queue } from 'bullmq'
 import { getEnv } from '#/shared/config/env'
@@ -23,6 +24,7 @@ import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
 import { getJobRedisUrl } from './redis-topology'
 import type { JobRuntimeObservationSink } from './runtime-observations'
+import { executionKindOf } from './schedule-firing'
 import {
   JOB_OPERATIONAL_QUEUE_CONCURRENCY,
   JOB_OPERATIONAL_QUEUE_RATE_LIMIT,
@@ -161,6 +163,11 @@ export function createJobWorker<T>(
                   { queue: name, jobName: job.name },
                   'terminal job failure — staged quarantine candidate',
                 )
+              } else if (outcome.skipped === 'schedule_firing') {
+                logger.warn(
+                  { queue: name, jobName: job.name },
+                  'terminal schedule firing failure — not dead-lettered, the next firing repeats the pass',
+                )
               }
             } catch (quarantineErr: unknown) {
               // The original failure still proceeds; report the independent
@@ -277,6 +284,7 @@ export function createJobWorker<T>(
             jobName: job.name,
             jobId: job.id ?? 'unknown',
             at: clock(),
+            executionKind: executionKindOf(job),
           }),
         )
       }

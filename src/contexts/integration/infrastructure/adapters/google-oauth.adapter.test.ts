@@ -232,7 +232,55 @@ describe('createGoogleOAuthAdapter', () => {
         email: 'owner@meridian.example',
         emailVerified: true,
       }),
+    ).rejects.toMatchObject({ code: 'scope_not_granted' })
+  })
+
+  it('refuses a grant without Business Profile access with its own code, before preserving it', async () => {
+    const preserveSuccessfulResult = vi.fn(async () => undefined)
+    const exchange = (body: Record<string, unknown>) => {
+      fetchMock.mockReset().mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          expires_in: 3600,
+          id_token: 'unverified-id-token',
+          ...body,
+        }),
+      )
+      return createGoogleOAuthAdapter(CONFIG).exchangeCode({
+        contractVersion: 'v2',
+        code: 'authorization-code',
+        redirectUri: 'https://app.example.test/api/auth/google/callback',
+        codeVerifier: 'pkce-verifier',
+        oidcNonce: 'oidc-nonce',
+        preserveSuccessfulResult,
+      })
+    }
+
+    // Google's granular consent screen with the Business Profile box unticked.
+    await expect(
+      exchange({ refresh_token: 'refresh-token', scope: `openid ${EMAIL_SCOPE}` }),
+    ).rejects.toMatchObject({ code: 'scope_not_granted' })
+    // Only the token endpoint was read: no JWKS fetch for a refused grant.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await expect(
+      exchange({ refresh_token: 'refresh-token', scope: 'email openid' }),
+    ).rejects.toMatchObject({ code: 'scope_not_granted' })
+    // The missing permission is reported even when another check would also fail.
+    await expect(exchange({ scope: `openid ${EMAIL_SCOPE}` })).rejects.toMatchObject({
+      code: 'scope_not_granted',
+    })
+    // Malformed scope answers stay generic failures.
+    await expect(exchange({ refresh_token: 'refresh-token' })).rejects.toMatchObject({
+      code: 'oauth_failed',
+    })
+    await expect(
+      exchange({
+        refresh_token: 'refresh-token',
+        scope: `openid ${EMAIL_SCOPE} ${EMAIL_SCOPE}`,
+      }),
     ).rejects.toMatchObject({ code: 'oauth_failed' })
+
+    expect(preserveSuccessfulResult).not.toHaveBeenCalled()
   })
 
   it('fails closed when the signed nonce or exact granted scopes do not match', async () => {

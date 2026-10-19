@@ -10,6 +10,7 @@ export function createInMemoryProviderEphemeralStore(
   nowMs: () => number = Date.now,
 ): ProviderEphemeralStore {
   const entries = new Map<string, { value: string; expiresAtMs: number }>()
+  const startedAtMs = nowMs()
   const composite = (namespace: ProviderEphemeralNamespace, key: string) => {
     assertProviderEphemeralLocation(namespace, key)
     return `${namespace}:${key}`
@@ -113,5 +114,6 @@ export function createInMemoryProviderEphemeralStore(
     remove: async (namespace, key) => {
       entries.delete(composite(namespace, key))
     },
+    startedAtMs: async () => startedAtMs,
   })
 }

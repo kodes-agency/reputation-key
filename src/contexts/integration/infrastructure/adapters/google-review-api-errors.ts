@@ -26,6 +26,8 @@ type ReviewApiErrorDetails = Readonly<{
   failure?: GoogleReviewApiFailure
   /** The code or kind the message leads with; defaults to the review code. */
   failureLabel?: string
+  /** `cursor_not_found` only: when the cursor store started. */
+  cursorStoreStartedAtMs?: number
 }>
 
 /** Reaches BullMQ's failedReason, so codes, dispatch and status only. */
@@ -83,6 +85,9 @@ export function reviewApiError(
     ...(failure === undefined
       ? {}
       : { failure: defineEnumerable(Object.freeze({ ...failure })) }),
+    ...(details.cursorStoreStartedAtMs === undefined
+      ? {}
+      : { cursorStoreStartedAtMs: defineEnumerable(details.cursorStoreStartedAtMs) }),
   })
   return error
 }

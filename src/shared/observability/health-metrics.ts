@@ -28,6 +28,7 @@ import {
   notificationDigestBatchMembers,
   notificationEmailQueue,
 } from '#/shared/db/schema/notification.schema'
+import { syncFailureCode } from '#/shared/observability/sync-failure-codes'
 import { trace } from '#/shared/observability/trace'
 
 /**
@@ -209,6 +210,13 @@ export type HealthSnapshot = Readonly<{
   sync: Readonly<{
     dueForIncrementalCount: number
     failedSyncCount: number
+    /**
+     * `failedSyncCount` broken down by the code each sync failed with, from the
+     * closed set in sync-failure-codes.ts (anything else counts as `other`;
+     * the stored text never leaves the database). Empty when nothing is
+     * failing.
+     */
+    failedSyncCodes: Readonly<Record<string, number>>
     /**
      * Age (ms) of the OLDEST past-due next_incremental_at — how far behind
      * the discovery sweep has fallen, not how many properties are waiting.
@@ -939,6 +947,16 @@ async function readReviewContentMetrics(
   }
 }
 
+/** How many of the stored codes fall under each snapshot code (sync-failure-codes.ts). */
+function countByCode(codes: readonly string[]): Readonly<Record<string, number>> {
+  const counts = new Map<string, number>()
+  for (const stored of codes) {
+    const code = syncFailureCode(stored)
+    counts.set(code, (counts.get(code) ?? 0) + 1)
+  }
+  return Object.fromEntries(counts)
+}
+
 /**
  * Discovery sweep health: how many properties are past their poll time, how
  * many are in error backoff, and how far behind the sweep has fallen
@@ -967,6 +985,14 @@ async function readSyncStateMetrics(
             AND ${reviewSyncState.errorRetryAt} < NOW()
         )::int
       `,
+      // The same rows by the code each failed with, for the alert that pages on them.
+      failed_codes: sql<string[] | null>`
+        array_agg(${reviewSyncState.errorClass}) FILTER (
+          WHERE ${reviewSyncState.errorClass} IS NOT NULL
+            AND ${reviewSyncState.errorRetryAt} IS NOT NULL
+            AND ${reviewSyncState.errorRetryAt} < NOW()
+        )
+      `,
       // How far behind the discovery sweep is: the age of the oldest
       // past-due poll time. next_incremental_at is always written in
       // the future by the sync/backoff path, so a positive age here is
@@ -994,6 +1020,7 @@ async function readSyncStateMetrics(
   return {
     dueForIncrementalCount: row?.due ?? 0,
     failedSyncCount: row?.failed ?? 0,
+    failedSyncCodes: countByCode(row?.failed_codes ?? []),
     oldestDueAgeMs:
       row?.oldest_due_age_ms != null ? Math.round(Number(row.oldest_due_age_ms)) : null,
     gbpPushEnabled,

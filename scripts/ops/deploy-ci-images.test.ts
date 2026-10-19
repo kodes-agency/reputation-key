@@ -1,45 +1,27 @@
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  CI_PRODUCTION_IMAGE_NAMES,
+  parseCiImageDigestMap,
+  TRUSTED_REPOSITORY,
+} from './ci-image-digest-map'
+import { digestMapValue, REVISION } from './ci-image-digest-map.test-fixtures'
+import type { CommandRunner } from './command-runner'
 import {
   applyClosedBetaImageDeployment,
   buildClosedBetaImageDeploymentPlan,
-  CI_IMAGE_DIGEST_MAP_VERSION,
-  CI_PRODUCTION_IMAGE_NAMES,
   CLOSED_BETA_IMAGE_SERVICES,
-  parseCiImageDigestMap,
+  createProviderRedisKeepCheck,
+  PROVIDER_REDIS_IMAGE_SOURCES,
+  providerRedisKeptRevision,
   resolveDeploymentRevision,
-  TRUSTED_CI_WORKFLOW,
-  TRUSTED_REPOSITORY,
-  type CommandRunner,
+  type ClosedBetaImageDeployment,
   type GitRevisionReader,
+  type ProviderRedisKeepCheck,
   type RailwayServiceObservation,
 } from './deploy-ci-images'
 
-const REVISION = 'a'.repeat(40)
 const ORIGIN_MAIN = 'b'.repeat(40)
-
-function digestMapValue(): Record<string, unknown> {
-  return {
-    version: CI_IMAGE_DIGEST_MAP_VERSION,
-    sourceRevision: REVISION,
-    source: {
-      repository: TRUSTED_REPOSITORY,
-      ref: 'refs/heads/main',
-      workflow: TRUSTED_CI_WORKFLOW,
-      runId: '33891370093',
-      runAttempt: 1,
-    },
-    images: Object.fromEntries(
-      CI_PRODUCTION_IMAGE_NAMES.map((imageName, index) => [
-        imageName,
-        {
-          repository: `ghcr.io/kodes-agency/repkey-${imageName}`,
-          digest: `sha256:${String(index + 1).repeat(64)}`,
-          sourceRevision: REVISION,
-        },
-      ]),
-    ),
-  }
-}
 
 function gitReader(isAncestor: boolean): GitRevisionReader {
   return {
@@ -70,18 +52,10 @@ function serviceInventory(): RailwayServiceObservation[] {
 }
 
 describe('closed-beta CI image deployment authority', () => {
-  it('accepts exactly the three production digests from the matching main CI run', () => {
-    const parsed = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION, {
-      id: '33891370093',
-      attempt: 1,
-    })
+  it('gives every image main CI proves a fixed service', () => {
+    const served = CLOSED_BETA_IMAGE_SERVICES.map(({ imageName }) => imageName)
 
-    expect(Object.keys(parsed.images)).toEqual(CI_PRODUCTION_IMAGE_NAMES)
-    expect(parsed.images.web).toEqual({
-      repository: 'ghcr.io/kodes-agency/repkey-web',
-      digest: `sha256:${'1'.repeat(64)}`,
-      sourceRevision: REVISION,
-    })
+    expect([...served].sort()).toEqual([...CI_PRODUCTION_IMAGE_NAMES].sort())
   })
 
   it('binds each selected digest to its fixed service without a mutable tag', () => {
@@ -122,16 +96,6 @@ describe('closed-beta CI image deployment authority', () => {
 
     expect(() => buildClosedBetaImageDeploymentPlan(digestMap, withoutWorker)).toThrow(
       'Railway live target does not contain exact service worker',
-    )
-  })
-
-  it('refuses a digest map with a missing production image digest', () => {
-    const value = digestMapValue()
-    const images = value.images as Record<string, Record<string, unknown>>
-    delete images.worker
-
-    expect(() => parseCiImageDigestMap(JSON.stringify(value), REVISION)).toThrow(
-      /worker/u,
     )
   })
 
@@ -303,6 +267,238 @@ describe('closed-beta CI image deployment authority', () => {
     )
     expect(calls.find((call) => call[1] === 'variable' && call[2] === 'set')).toContain(
       `RELEASE_SHA=${REVISION}`,
+    )
+  })
+})
+
+// google-provider-redis keeps nothing across a restart (ADR 0050): every
+// redeploy drops the cursors of the Google review syncs in flight and the
+// OAuth state of any Google connect in progress. Its image differs on every
+// commit only by the revision CI bakes in, so the deploy leaves it running
+// when nothing it is built from changed, and only when that can be proved.
+describe('keeping google-provider-redis when its image sources did not change', () => {
+  const RUNNING = 'c'.repeat(40)
+  const RUNNING_IMAGE = `ghcr.io/kodes-agency/repkey-google-provider-redis@sha256:${'9'.repeat(64)}`
+
+  const planFor = (serviceName: string): ClosedBetaImageDeployment => {
+    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
+    return buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).find(
+      (service) => service.serviceName === serviceName,
+    )!
+  }
+  const running = (
+    overrides: Partial<RailwayServiceObservation> = {},
+  ): RailwayServiceObservation => ({
+    ...serviceInventory().find(({ name }) => name === 'google-provider-redis')!,
+    source: { repo: null, image: RUNNING_IMAGE },
+    ...overrides,
+  })
+  const provable = (
+    overrides: Partial<ProviderRedisKeepCheck> = {},
+  ): ProviderRedisKeepCheck => ({
+    isAncestor: vi.fn(() => true),
+    imageSourcesUnchanged: vi.fn(() => true),
+    ciImageReference: vi.fn(() => RUNNING_IMAGE),
+    ...overrides,
+  })
+
+  it('names every file the image is built from', () => {
+    const dockerfile = readFileSync('Dockerfile.google-provider-redis', 'utf8')
+    const copied = dockerfile
+      .split('\n')
+      .filter((line) => /^(COPY|ADD)\s/u.test(line))
+      .flatMap((line) => {
+        const operands = line
+          .split(/\s+/u)
+          .slice(1)
+          .filter((part) => !part.startsWith('--'))
+        return operands.slice(0, -1)
+      })
+
+    expect(copied.length).toBeGreaterThan(0)
+    for (const source of copied) {
+      expect(
+        PROVIDER_REDIS_IMAGE_SOURCES.some(
+          (path) => source === path || source.startsWith(`${path}/`),
+        ),
+      ).toBe(true)
+    }
+    expect(PROVIDER_REDIS_IMAGE_SOURCES).toContain('Dockerfile.google-provider-redis')
+    for (const path of PROVIDER_REDIS_IMAGE_SOURCES) expect(existsSync(path)).toBe(true)
+  })
+
+  it('keeps the revision it runs when nothing it is built from changed', () => {
+    const check = provable()
+
+    expect(
+      providerRedisKeptRevision(
+        planFor('google-provider-redis'),
+        running(),
+        RUNNING,
+        check,
+      ),
+    ).toBe(RUNNING)
+    expect(check.imageSourcesUnchanged).toHaveBeenCalledWith(RUNNING, REVISION)
+    expect(check.ciImageReference).toHaveBeenCalledWith(RUNNING)
+  })
+
+  it('moves it when its Dockerfile or entrypoint changed', () => {
+    expect(
+      providerRedisKeptRevision(
+        planFor('google-provider-redis'),
+        running(),
+        RUNNING,
+        provable({ imageSourcesUnchanged: () => false }),
+      ),
+    ).toBeNull()
+  })
+
+  // An interrupted deploy writes RELEASE_SHA before it connects the image.
+  // Keeping that service would leave a release identity its image does not
+  // carry, and the entrypoint refuses to boot on the next restart.
+  it('moves it when the image it runs is not the one CI built for its release identity', () => {
+    for (const ciImageReference of [
+      () => `ghcr.io/kodes-agency/repkey-google-provider-redis@sha256:${'8'.repeat(64)}`,
+      () => null,
+    ]) {
+      expect(
+        providerRedisKeptRevision(
+          planFor('google-provider-redis'),
+          running(),
+          RUNNING,
+          provable({ ciImageReference }),
+        ),
+      ).toBeNull()
+    }
+  })
+
+  it('moves it when it is not healthy, has no release identity, or is being rolled back', () => {
+    const service = planFor('google-provider-redis')
+
+    expect(
+      providerRedisKeptRevision(
+        service,
+        running({ crashedReplicas: 1 }),
+        RUNNING,
+        provable(),
+      ),
+    ).toBeNull()
+    expect(providerRedisKeptRevision(service, running(), null, provable())).toBeNull()
+    expect(
+      providerRedisKeptRevision(
+        service,
+        running(),
+        RUNNING,
+        provable({ isAncestor: () => false }),
+      ),
+    ).toBeNull()
+  })
+
+  it('never keeps web or worker', () => {
+    for (const serviceName of ['web', 'worker']) {
+      expect(
+        providerRedisKeptRevision(planFor(serviceName), running(), RUNNING, provable()),
+      ).toBeNull()
+    }
+  })
+
+  it('leaves a kept google-provider-redis untouched during the deploy', async () => {
+    const service = planFor('google-provider-redis')
+    const plan = [{ ...service, beforeSource: { repo: null, image: RUNNING_IMAGE } }]
+    const calls: string[][] = []
+    const runner: CommandRunner = (command, args) => {
+      calls.push([command, ...args])
+      if (args[0] === 'variable' && args[1] === 'list') {
+        return { status: 0, stdout: `RELEASE_SHA=${RUNNING}\n`, stderr: '' }
+      }
+      if (args[0] === 'service' && args[1] === 'list') {
+        return {
+          status: 0,
+          stdout: JSON.stringify(
+            serviceInventory().map((observed) => ({
+              id: observed.id,
+              name: observed.name,
+              source:
+                observed.name === 'google-provider-redis'
+                  ? { repo: null, image: RUNNING_IMAGE }
+                  : observed.source,
+              status: 'SUCCESS',
+              deploymentStopped: false,
+              latestDeployment: { id: observed.deploymentId },
+              replicas: { configured: 1, running: 1, crashed: 0 },
+            })),
+          ),
+          stderr: '',
+        }
+      }
+      throw new Error(`unexpected command ${[command, ...args].join(' ')}`)
+    }
+    const lines: string[] = []
+    const fetchStub = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }))
+
+    try {
+      await expect(
+        applyClosedBetaImageDeployment({
+          plan,
+          runner,
+          out: (line) => lines.push(line),
+          keepProviderRedis: provable(),
+        }),
+      ).resolves.toEqual([
+        { serviceName: 'google-provider-redis', deploymentId: 'deployment-2' },
+      ])
+    } finally {
+      fetchStub.mockRestore()
+    }
+
+    expect(calls.some((call) => call[1] === 'variable' && call[2] === 'set')).toBe(false)
+    expect(
+      calls.some(
+        (call) =>
+          call[1] === 'redeploy' || (call[1] === 'service' && call[2] === 'source'),
+      ),
+    ).toBe(false)
+    expect(lines).toContain(
+      `google-provider-redis: kept at ${RUNNING}; nothing it is built from changed, and a redeploy would empty the provider-ephemeral store`,
+    )
+  })
+
+  it('compares the image sources between the two revisions with git', () => {
+    const calls: string[][] = []
+    const answers = [0, 1, 128]
+    const runner: CommandRunner = (command, args) => {
+      calls.push([command, ...args])
+      return { status: answers.shift() ?? 0, stdout: '', stderr: '' }
+    }
+    const check = createProviderRedisKeepCheck(runner, () => {})
+
+    expect(check.imageSourcesUnchanged(RUNNING, REVISION)).toBe(true)
+    expect(check.imageSourcesUnchanged(RUNNING, REVISION)).toBe(false)
+    // A revision git cannot read proves nothing, so the service moves.
+    expect(check.imageSourcesUnchanged(RUNNING, REVISION)).toBe(false)
+    expect(calls[0]).toEqual([
+      'git',
+      'diff',
+      '--quiet',
+      RUNNING,
+      REVISION,
+      '--',
+      ...PROVIDER_REDIS_IMAGE_SOURCES,
+    ])
+  })
+
+  it('cannot prove the running image when its release has no CI digest map', () => {
+    const lines: string[] = []
+    const check = createProviderRedisKeepCheck(
+      () => ({ status: 0, stdout: '[]', stderr: '' }),
+      (line) => lines.push(line),
+    )
+
+    expect(check.ciImageReference(RUNNING)).toBeNull()
+    expect(lines.join('\n')).toContain(
+      `google-provider-redis: cannot prove the image CI built for ${RUNNING}`,
     )
   })
 })
