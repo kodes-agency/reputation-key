@@ -1,42 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { JobOperationalContract } from './runtime-authority'
 import {
+  createFakeJobRuntimeRedis,
+  fakeRuntimeQueue as queue,
+} from '#/shared/testing/fake-job-runtime'
+import {
   createJobRuntimeObservationStore,
   createJobRuntimeReportReader,
-  type JobRuntimeRedisPort,
-  type JobRuntimeQueuePort,
 } from './runtime-observations'
-
-class MemoryRedis implements JobRuntimeRedisPort {
-  readonly hashes = new Map<string, Map<string, string>>()
-  readonly strings = new Map<string, string>()
-
-  async hset(key: string, ...fields: string[]): Promise<number> {
-    const hash = this.hashes.get(key) ?? new Map<string, string>()
-    for (let index = 0; index < fields.length; index += 2) {
-      hash.set(fields[index]!, fields[index + 1]!)
-    }
-    this.hashes.set(key, hash)
-    return fields.length / 2
-  }
-
-  async hgetall(key: string): Promise<Record<string, string>> {
-    return Object.fromEntries(this.hashes.get(key) ?? [])
-  }
-
-  async set(key: string, value: string, _mode: 'PX', _ttl: number): Promise<'OK'> {
-    this.strings.set(key, value)
-    return 'OK'
-  }
-
-  async get(key: string): Promise<string | null> {
-    return this.strings.get(key) ?? null
-  }
-
-  async del(key: string): Promise<number> {
-    return this.strings.delete(key) ? 1 : 0
-  }
-}
 
 const NOW = new Date('2026-08-27T06:00:00.000Z')
 
@@ -67,25 +38,9 @@ function contract(
   }
 }
 
-function queue(
-  options: Readonly<{
-    schedulers?: Array<{ key: string; name: string }>
-    jobs?: Partial<Record<string, Array<Record<string, unknown>>>>
-  }> = {},
-): JobRuntimeQueuePort {
-  return {
-    getJobSchedulers: async () => options.schedulers ?? [],
-    getJobs: async (types, start = 0, end = -1) => {
-      const type = (Array.isArray(types) ? types[0] : types) ?? 'waiting'
-      const rows = options.jobs?.[type] ?? []
-      return rows.slice(start, end < 0 ? undefined : end + 1) as never
-    },
-  }
-}
-
 describe('durable job runtime observations', () => {
   it('preserves the latest success across a worker restart', async () => {
-    const redis = new MemoryRedis()
+    const redis = createFakeJobRuntimeRedis()
     const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
 
@@ -124,7 +79,7 @@ describe('durable job runtime observations', () => {
   })
 
   it('uses the live scheduler set instead of trusting a stale boot flag', async () => {
-    const redis = new MemoryRedis()
+    const redis = createFakeJobRuntimeRedis()
     const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
     await store.recordBoot({
@@ -160,7 +115,7 @@ describe('durable job runtime observations', () => {
   })
 
   it('detects missed success and over-age queued work from retained BullMQ state', async () => {
-    const redis = new MemoryRedis()
+    const redis = createFakeJobRuntimeRedis()
     const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
     await store.recordBoot({
@@ -206,7 +161,7 @@ describe('durable job runtime observations', () => {
   })
 
   it('does not count a future delayed execution as queue backlog', async () => {
-    const redis = new MemoryRedis()
+    const redis = createFakeJobRuntimeRedis()
     const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
     await store.recordBoot({
@@ -242,7 +197,7 @@ describe('durable job runtime observations', () => {
   })
 
   it('keeps poison work assigned to repair until a later successful redrive', async () => {
-    const redis = new MemoryRedis()
+    const redis = createFakeJobRuntimeRedis()
     const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
     const startedAt = new Date('2026-08-27T05:59:00.000Z')
@@ -295,11 +250,45 @@ describe('durable job runtime observations', () => {
     expect(repaired.rows[0]).toMatchObject({ ready: true, reasons: [] })
   })
 
+  it('records an acknowledged repair in lastRepairAt and in no other field of the head', async () => {
+    const redis = createFakeJobRuntimeRedis()
+    const store = createJobRuntimeObservationStore({ redis })
+    await store.recordBoot({
+      contracts: [contract()],
+      registeredHandlers: new Set(['health-check']),
+      registeredSchedulers: new Set(['health-check']),
+      runtimeStartedAt: new Date('2026-08-27T05:59:00.000Z'),
+    })
+    await store.recordTerminalFailure({
+      queue: 'background',
+      jobName: 'health-check',
+      jobId: 'poison-1',
+      at: new Date('2026-08-27T05:59:30.000Z'),
+      executionKind: 'worker',
+    })
+    const key = 'repkey:job-runtime:v1:health-check'
+    const before = await redis.hgetall(key)
+
+    await store.recordRepairAcknowledged({
+      jobName: 'health-check',
+      at: new Date('2026-08-27T05:59:30.000Z'),
+    })
+
+    expect(await redis.hgetall(key)).toEqual({
+      ...before,
+      lastRepairAt: '2026-08-27T05:59:30.000Z',
+    })
+    const stored = await store.read('health-check')
+    expect(stored?.observation.lastRepairAt?.toISOString()).toBe(
+      '2026-08-27T05:59:30.000Z',
+    )
+  })
+
   it('lets a later firing clear a failed schedule, but not failed on-demand work', async () => {
     // The closed beta's case, as the worker now records it: a firing that
     // failed terminally days ago, no dead letter to redrive, and the same
     // schedule completing every minute.
-    const redis = new MemoryRedis()
+    const redis = createFakeJobRuntimeRedis()
     const store = createJobRuntimeObservationStore({ redis })
     const contracts = [
       contract(),
@@ -362,7 +351,7 @@ describe('durable job runtime observations', () => {
     } as const
 
     async function booted(contracts = [contract()]) {
-      const redis = new MemoryRedis()
+      const redis = createFakeJobRuntimeRedis()
       const store = createJobRuntimeObservationStore({ redis })
       await store.recordBoot({
         contracts,
@@ -512,7 +501,7 @@ describe('durable job runtime observations', () => {
     >
 
     async function booted(contracts = [contract()]) {
-      const redis = new MemoryRedis()
+      const redis = createFakeJobRuntimeRedis()
       const store = createJobRuntimeObservationStore({ redis })
       await store.recordBoot({
         contracts,
@@ -730,7 +719,7 @@ describe('durable job runtime observations', () => {
   })
 
   it('allows a quarantined safety handler but rejects its scheduler', async () => {
-    const redis = new MemoryRedis()
+    const redis = createFakeJobRuntimeRedis()
     const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract({ posture: 'quarantined' })]
     await store.recordBoot({
@@ -751,7 +740,7 @@ describe('durable job runtime observations', () => {
   })
 
   it('surfaces forbidden queued or started work for a dark family', async () => {
-    const redis = new MemoryRedis()
+    const redis = createFakeJobRuntimeRedis()
     const store = createJobRuntimeObservationStore({ redis })
     const contracts = [
       contract({
@@ -802,7 +791,7 @@ describe('durable job runtime observations', () => {
 
   describe('while work runs during the read', () => {
     async function bootedHealthCheck() {
-      const redis = new MemoryRedis()
+      const redis = createFakeJobRuntimeRedis()
       const store = createJobRuntimeObservationStore({ redis })
       const contracts = [contract()]
       await store.recordBoot({

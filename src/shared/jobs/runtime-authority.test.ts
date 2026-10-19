@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   assessJobRuntime,
+  heldRepairLatches,
   validateJobOperationalContracts,
   type JobOperationalContract,
   type JobRuntimeObservation,
@@ -369,6 +370,71 @@ describe('job runtime authority', () => {
           assess(scheduledContract(), { ...firingFailedLast, schedulerRegistered: true }),
         ).toEqual({ ready: false, reasons: ['repair_required'] })
       })
+    })
+  })
+
+  // `repair_required` is one reason with two causes. Which latch holds decides
+  // what answers it: a redrive (or an operator's acknowledgement) for on-demand
+  // work, a later success for a failed firing.
+  describe('which repair latch holds', () => {
+    const FAILED_AT = new Date('2026-08-27T02:56:30.000Z')
+    const AFTER_FAILURE = new Date('2026-08-27T02:57:00.000Z')
+    const onDemand = scheduledContract({ schedule: 'none', lastSuccessObjectiveMs: null })
+    const held = (
+      contract: JobOperationalContract,
+      overrides: Partial<JobRuntimeObservation>,
+    ) => heldRepairLatches(contract, observation(overrides))
+
+    it('holds neither latch for a family with no failure', () => {
+      expect(held(scheduledContract(), {})).toEqual({ onDemand: false, schedule: false })
+    })
+
+    it('holds the on-demand latch from a failure that no repair has answered', () => {
+      expect(held(onDemand, { lastOnDemandFailureAt: FAILED_AT })).toEqual({
+        onDemand: true,
+        schedule: false,
+      })
+      // A plain success is not a repair.
+      expect(
+        held(onDemand, {
+          lastOnDemandFailureAt: FAILED_AT,
+          lastSucceededAt: AFTER_FAILURE,
+        }).onDemand,
+      ).toBe(true)
+    })
+
+    it('releases the on-demand latch once a repair is as recent as the failure', () => {
+      expect(
+        held(onDemand, { lastOnDemandFailureAt: FAILED_AT, lastRepairAt: FAILED_AT })
+          .onDemand,
+      ).toBe(false)
+    })
+
+    it('holds the schedule latch only for an active schedule, until a later success', () => {
+      const failedFiring = { lastScheduleFailureAt: FAILED_AT, lastSucceededAt: null }
+
+      expect(held(scheduledContract(), failedFiring)).toEqual({
+        onDemand: false,
+        schedule: true,
+      })
+      expect(
+        held(scheduledContract(), { ...failedFiring, lastSucceededAt: AFTER_FAILURE })
+          .schedule,
+      ).toBe(false)
+      expect(held(onDemand, failedFiring).schedule).toBe(false)
+      expect(
+        held(scheduledContract({ posture: 'quarantined' }), failedFiring).schedule,
+      ).toBe(false)
+    })
+
+    it('holds both when a manual run and a firing both failed unanswered', () => {
+      expect(
+        held(scheduledContract(), {
+          lastOnDemandFailureAt: FAILED_AT,
+          lastScheduleFailureAt: FAILED_AT,
+          lastSucceededAt: null,
+        }),
+      ).toEqual({ onDemand: true, schedule: true })
     })
   })
 

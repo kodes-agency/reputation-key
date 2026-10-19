@@ -10,6 +10,7 @@ import {
 } from '../../src/shared/auth/beta-capabilities'
 import { capabilityForPermission } from '../../src/shared/auth/capability-for-permission'
 import { GOOGLE_PROVIDER_OPERATOR_COMMANDS } from '../../src/shared/ops/google-provider-commands'
+import { jobRepairCommandSpec } from '../../src/shared/ops/job-repair-command'
 import { COMMANDS } from './commands'
 
 const ROOT = resolve(import.meta.dirname, '../..')
@@ -45,6 +46,30 @@ describe('pnpm ops command table', () => {
       .filter(([, [file]]) => !existsSync(resolve(ROOT, file)))
       .map(([name, [file]]) => `${name}: ${file}`)
     expect(missing).toEqual([])
+  })
+})
+
+// The repair a redrive cannot give: a job family latched by a dead letter that
+// fails again when redriven stays unready, and its alert keeps firing, until an
+// operator acknowledges the failure. The runbooks said no command did.
+describe('pnpm ops jobs acknowledge-repair', () => {
+  it('is dispatched to its script and invoked as the guides spell it', () => {
+    expect(COMMANDS.jobs).toEqual(['scripts/ops/job-repair.ts'])
+    expect(jobRepairCommandSpec.name).toBe('ops:jobs')
+    expect(jobRepairCommandSpec.usage).toContain('pnpm ops jobs acknowledge-repair')
+  })
+
+  it('is listed in the command list, with what it refuses', () => {
+    const entry = readFileSync(
+      resolve(ROOT, 'docs/operations/operator-commands.md'),
+      'utf8',
+    )
+      .split('\n')
+      .find((line) => line.startsWith('- `ops:jobs acknowledge-repair '))
+
+    expect(entry).toContain('dead letter')
+    expect(entry).toContain('retained failed job')
+    expect(entry).toContain('`--reason <text> --apply`')
   })
 })
 

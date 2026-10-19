@@ -39,6 +39,7 @@
     "scripts/ops/feedback-sync.ts",
     "scripts/ops/gbp-subscribe.ts",
     "scripts/ops/inspect-decision.ts",
+    "scripts/ops/job-repair.ts",
     "scripts/ops/permit-start-deadline-backfill.ts",
     "scripts/ops/privacy-request.ts",
     "scripts/ops/property-erase.ts",
