@@ -7,8 +7,8 @@
 // fresh Google's numbers are and who sees this page. The rows say in words
 // what the chart draws, so the chart is never the only way to know it.
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { InlineLink } from '#/components/ui/inline-link'
+import { GoalHistoryList } from './goal-history-list'
 import { freshnessText } from './rating-goal-detail-view'
 import { movedRows, type MovedContext, type MovedRow } from './rating-goal-moved-view'
 
@@ -71,23 +71,14 @@ function RowText({ row, propertyId }: Readonly<{ row: MovedRow; propertyId: stri
 
 export function RatingGoalMovedList({ detail, readAt, propertyId, ...context }: Props) {
   return (
-    <Card className="gap-4">
-      <CardHeader>
-        <CardTitle as="h2">What moved you</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <ul className="flex flex-col divide-y text-sm">
-          {movedRows(detail, context).map((row) => (
-            <li key={row.key} className="flex gap-x-4 py-2 first:pt-0 last:pb-0">
-              <span className="w-20 shrink-0 text-muted-foreground tabular-nums">
-                {row.when}
-              </span>
-              <RowText row={row} propertyId={propertyId} />
-            </li>
-          ))}
-        </ul>
-        <Foot detail={detail} readAt={readAt} />
-      </CardContent>
-    </Card>
+    <GoalHistoryList
+      title="What moved you"
+      rows={movedRows(detail, context).map((row) => ({
+        key: row.key,
+        when: row.when,
+        content: <RowText row={row} propertyId={propertyId} />,
+      }))}
+      foot={<Foot detail={detail} readAt={readAt} />}
+    />
   )
 }

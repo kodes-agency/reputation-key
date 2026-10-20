@@ -1,18 +1,21 @@
 // The Monthly portal goal's page, `/goals/portals` (ADR 0068; copy deck P-1…P-15,
 // M-1). Before a goal it is the card's own state, as on the Goals page, under
-// the page's title (the card draws none). With a goal: the pace as the pill in
-// the page's header (ADR 0068, amended 2026-10-19: where the Google rating
-// goal's page wears its own), what it counts and from where, the tiles, the
-// month so far with its first and last day under the bar,
-// what each Portal brought in and the quiet ones, each month (of this goal and
-// the ones it took over from), what changed, and how the goal counts; once a
-// month has closed, the way to every month's result. A stopped goal whose last
-// month has closed is no goal any more, so its months and changes sit under the
-// card before a goal. Under it all, the other Portal goals and the way to add
-// one, which the route hands in (a component imports no routes). Its actions
-// (P-3: "Change number", and the menu with the other measure and Stop) are in
-// the header while the goal can change; the Stop dialog is held here, outside
-// the menu and the header, so a refusal that reads the page again keeps it.
+// the page's title (the card draws none). With a goal it is laid out as the
+// Google rating goal's page is, on the shared detail layout, in its order (ADR
+// 0068, amended 2026-10-19: one goal design system): the pace as the pill in the
+// page's header; a stopped goal's notice; what is left to the month's number and
+// the days left, what the goal counts and from where; the month so far with its
+// first and last day under the bar, in a card as the Google goal's climb is; the
+// tiles ("Your goal, so far"); what each Portal brought in and the quiet ones,
+// each month (of this goal and the ones it took over from); what changed, in the
+// shared History list; and how the goal counts; once a month has closed, the way
+// to every month's result. A stopped goal whose last month has closed is no goal
+// any more, so its months and changes sit under the card before a goal. Under it
+// all, the other Portal goals and the way to add one, which the route hands in (a
+// component imports no routes). Its actions (P-3: "Change number", and the menu
+// with the other measure and Stop) are in the header while the goal can change;
+// the Stop dialog is held here, outside the menu and the header, so a refusal
+// that reads the page again keeps it.
 //
 // A goal for one Portal or one Portal Group has this page too, on `$goalId`
 // (PLAN PG-21): titled for its subject ("Reception · portal goal"), counting
@@ -25,9 +28,11 @@ import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/mont
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
+import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { InlineLink } from '#/components/ui/inline-link'
 import { SectionTitle } from '#/components/ui/section-title'
 import { StatusBadge } from '#/components/ui/status-badge'
+import { GoalDetailLayout, GoalTiles } from './goal-detail-layout'
 import { PortalGoalCard } from './portal-goal-card'
 import { PortalGoalStopped } from './portal-goal-card-goal'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
@@ -36,11 +41,14 @@ import { PORTAL_GOAL_NAME } from './portal-goal-copy'
 import { PortalGoalFromPortals } from './portal-goal-from-portals'
 import { PortalGoalHowItCounts } from './portal-goal-how-it-counts'
 import {
+  PortalGoalMonthHeadline,
   PortalGoalMonthMeter,
   PortalGoalMonthUnreadable,
 } from './portal-goal-month-meter'
 import { PortalGoalMonthStrip } from './portal-goal-month-strip'
 import {
+  TILES_LABEL,
+  TILES_TITLE,
   fromPortalsWords,
   monthAxis,
   pageBodyLine,
@@ -51,7 +59,6 @@ import { usePortalGoalPageActions } from './portal-goal-page-actions'
 import { allResultsLink } from './portal-goal-results-foot'
 import type { PortalGoalStopCommands } from './portal-goal-stop-dialog'
 import { portalGoalPace } from './portal-goal-status-view'
-import { PortalGoalTiles } from './portal-goal-tiles'
 import { monthSoFarHeading, shownMeasure } from './portal-goal-words'
 
 type Props = Readonly<{
@@ -79,21 +86,27 @@ type Props = Readonly<{
   single?: Readonly<{ title: string; name: string; where: string; canSwitch: boolean }>
 }>
 
-/** P-5: the month so far, with its first and last day, and a stop. */
-function MonthSoFarSection({
-  goal,
-  openSheet,
-}: Readonly<{ goal: PortalGoalOfCard; openSheet: PortalGoalCommands['openSheet'] }>) {
+/**
+ * P-5: the month so far, with its first and last day under the bar, in a card
+ * with the Climb's own frame (the Google rating goal's page draws its signature
+ * visual the same way), named by its title.
+ */
+function MonthSoFarSection({ goal }: Readonly<{ goal: PortalGoalOfCard }>) {
   const headingId = useId()
   const { month } = goal
   if (month === null) return null
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-2">
-      <SectionTitle id={headingId}>{monthSoFarHeading(month.key)}</SectionTitle>
-      <PortalGoalMonthMeter month={month} axis={monthAxis(month)} captioned={false} />
-      <PortalGoalMonthUnreadable month={month} />
-      <PortalGoalStopped goal={goal} monthKey={month.key} openSheet={openSheet} />
-    </section>
+    <Card className="gap-4" role="region" aria-labelledby={headingId}>
+      <CardHeader>
+        <CardTitle as="h2" id={headingId}>
+          {monthSoFarHeading(month.key)}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <PortalGoalMonthMeter month={month} axis={monthAxis(month)} captioned={false} />
+        <PortalGoalMonthUnreadable month={month} />
+      </CardContent>
+    </Card>
   )
 }
 
@@ -129,29 +142,55 @@ function MonthsAndChanges({ page, personName }: HistoryProps) {
   )
 }
 
+/** What the goal counts and from where, under what is left to the number. */
+function GoalHeader({
+  goal,
+  page,
+  propertyName,
+  single,
+}: Pick<Props, 'page' | 'propertyName' | 'single'> &
+  Readonly<{ goal: PortalGoalOfCard }>) {
+  return (
+    <div className="flex flex-col gap-2">
+      {goal.month === null ? null : <PortalGoalMonthHeadline month={goal.month} />}
+      <p className="text-sm text-muted-foreground">
+        {pageBodyLine(
+          shownMeasure(goal),
+          single ? [single.name] : page.portals.map(({ name }) => name),
+          propertyName,
+        )}
+      </p>
+    </div>
+  )
+}
+
 function GoalBody({
   goal,
   ...props
 }: Omit<Props, 'canCreatePortal' | 'extras' | 'addLink'> &
   Readonly<{ goal: PortalGoalOfCard }>) {
   const { page, propertyId, propertyName, commands, single } = props
-  const measure = shownMeasure(goal)
+  const tilesId = useId()
   return (
-    <div className="flex flex-col gap-6">
-      <p className="text-sm text-muted-foreground">
-        {pageBodyLine(
-          measure,
-          single ? [single.name] : page.portals.map(({ name }) => name),
-          propertyName,
-        )}
-      </p>
-      {page.tiles === null ? null : (
-        <PortalGoalTiles
-          tiles={portalGoalTiles(goal, page.tiles, page.today)}
-          label={single?.title}
+    <GoalDetailLayout slot="portal-goal-detail">
+      {goal.month === null ? null : (
+        <PortalGoalStopped
+          goal={goal}
+          monthKey={goal.month.key}
+          openSheet={commands.openSheet}
+          notice
         />
       )}
-      <MonthSoFarSection goal={goal} openSheet={commands.openSheet} />
+      <GoalHeader goal={goal} page={page} propertyName={propertyName} single={single} />
+      <MonthSoFarSection goal={goal} />
+      {page.tiles === null ? null : (
+        <GoalTiles
+          title={TILES_TITLE}
+          headingId={tilesId}
+          label={TILES_LABEL}
+          tiles={portalGoalTiles(goal, page.tiles, page.today)}
+        />
+      )}
       {single ? null : (
         <PortalGoalFromPortals
           propertyId={propertyId}
@@ -160,12 +199,12 @@ function GoalBody({
       )}
       <MonthsAndChanges {...props} />
       <PortalGoalHowItCounts
-        measure={measure}
+        measure={shownMeasure(goal)}
         timezone={page.timezone}
         where={single?.where}
       />
       <AllResultsLink {...props} />
-    </div>
+    </GoalDetailLayout>
   )
 }
 

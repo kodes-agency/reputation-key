@@ -231,6 +231,7 @@ export const AverageScheduled: Story = {
     const canvas = within(canvasElement)
     await expect(outline(canvasElement)).toEqual([
       'h1 Average private rating',
+      'h2 Your goal, so far',
       'h2 Changes',
     ])
     const tiles = tilesOf(canvasElement)
@@ -248,8 +249,17 @@ export const AverageStopped: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Stopped on Nov 12.')).toBeVisible()
+    // The state is the first thing the page says, as a notice; there is no pill and no tile.
+    await expect(
+      within(canvas.getByRole('status')).getByText('Stopped on Nov 12.'),
+    ).toBeVisible()
     await expect(canvasElement.querySelector('[data-slot="metric-strip"]')).toBeNull()
+    await expect(canvasElement.querySelector('[data-slot="page-header-meta"]')).toBeNull()
+    await expect(outline(canvasElement)).toEqual([
+      'h1 Average private rating',
+      'h2 Month by month',
+      'h2 Changes',
+    ])
     await expect(
       within(canvas.getByRole('list', { name: 'Month by month' })).getAllByRole('button'),
     ).toHaveLength(2)

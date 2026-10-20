@@ -47,9 +47,12 @@ import {
   personName,
 } from './portal-goal-page.stories.fixtures'
 import {
+  changeCells,
+  changeDateWidths,
   changeTexts,
   chipNames,
   expectStopAloneInMenu,
+  headlineOf,
   outline,
   portalRows,
   tilesOf,
@@ -112,20 +115,32 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
   await expect(outline(canvasElement)).toEqual([
     'h1 Monthly portal goal',
     'h2 November so far',
+    'h2 Your goal, so far',
     'h2 From your portals',
     'h2 Month by month',
     'h2 Changes',
     'h2 More portal goals',
   ])
+  // What is left comes first, as on the first goal's page: the headline, the days left, then what it counts.
+  const headline = headlineOf(canvas, '17 private ratings to 40')
+  const days = canvas.getByText('9 days left in November')
+  const counts = canvas.getByText('Private ratings from all 3 portals at Seaview Hotel.')
+  await expect(headline).toBeVisible()
+  await expect(days).toBeVisible()
+  await expect(counts).toBeVisible()
   await expect(
-    canvas.getByText('Private ratings from all 3 portals at Seaview Hotel.'),
-  ).toBeVisible()
+    headline.compareDocumentPosition(days) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
+  await expect(
+    days.compareDocumentPosition(counts) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
   const trail = within(canvas.getByRole('navigation', { name: 'breadcrumb' }))
   await expect(trail.getByRole('link', { name: 'Goals' })).toHaveAttribute(
     'href',
     '/properties/p1/goals',
   )
   // The tiles: November so far, October before the goal, the usual.
+  await expect(canvas.getByRole('region', { name: 'Your goal, so far' })).toBeVisible()
   const tiles = tilesOf(canvasElement)
   await expect(tiles.getByText('November')).toBeVisible()
   await expect(tiles.getByText('23 of 40')).toBeVisible()
@@ -157,11 +172,14 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
     ['Spa', '20'],
     ['All portals', '23'],
   ])
-  await expect(changeTexts(canvas)).toEqual([
-    'Oct 23 · Elena set 40 a month from November (recommended)',
-    'Oct 15 · Spa went live',
-    'Oct 9 · Reception and Restaurant went live',
+  // The History list: the date in its cell, the words in theirs.
+  await expect(changeCells(canvas)).toEqual([
+    ['Oct 23', 'Elena set 40 a month from November (recommended)'],
+    ['Oct 15', 'Spa went live'],
+    ['Oct 9', 'Reception and Restaurant went live'],
   ])
+  // Every date is of this year: the cells keep their class's five rem.
+  await expect(changeDateWidths(canvas)).toEqual(['', '', ''])
   await expect(
     canvas.getByRole('button', { name: 'How this goal counts' }),
   ).toHaveAttribute('aria-expanded', 'false')
@@ -216,7 +234,7 @@ export const Scheduled: Story = {
     await expect(tiles.getByText('40 private ratings')).toBeVisible()
     await expect(tiles.getByText('Starts on Nov 1')).toBeVisible()
     await expect(tiles.getByText('No goal yet')).toBeVisible()
-    await expect(canvas.queryByRole('region', { name: /so far$/u })).toBeNull()
+    await expect(canvas.queryByRole('region', { name: 'November so far' })).toBeNull()
     await expect(canvas.queryByRole('region', { name: 'Month by month' })).toBeNull()
     await expect(canvas.getByRole('region', { name: 'Changes' })).toBeVisible()
   },
@@ -352,10 +370,40 @@ export const Stopped: Story = {
   args: { page: PAGE_STOPPED },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    // A notice, the first thing the page says, with the way to the next goal in it.
+    const notice = within(canvas.getByRole('status'))
     await expect(
-      canvas.getByText('Stopped on Nov 12. November still counts to Nov 30.'),
+      notice.getByText('Stopped on Nov 12. November still counts to Nov 30.'),
+    ).toBeVisible()
+    await expect(
+      notice.getByRole('button', { name: 'Set a goal from December' }),
     ).toBeVisible()
     await expect(changeTexts(canvas)).toContain('Nov 12 · Marco stopped the goal')
+  },
+}
+
+/** Nov 22 with changes from the year before: their dates say their year. */
+const PAGE_CHANGES_ACROSS_A_YEAR: typeof PAGE_RUNNING = {
+  ...PAGE_RUNNING,
+  changes: [
+    ...PAGE_RUNNING.changes.slice(0, 1),
+    { kind: 'went_live', on: '2025-12-28', portals: ['Spa'] },
+    { kind: 'went_live', on: '2025-03-03', portals: ['Reception', 'Restaurant'] },
+  ],
+}
+
+/** A change of another year says its year, and the date column has room for it in every row. */
+export const ChangesAcrossAYear: Story = {
+  args: { page: PAGE_CHANGES_ACROSS_A_YEAR },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(changeCells(canvas)).toEqual([
+      ['Oct 23', 'Elena set 40 a month from November (recommended)'],
+      ['Dec 28, 2025', 'Spa went live'],
+      ['Mar 3, 2025', 'Reception and Restaurant went live'],
+    ])
+    await expect(changeDateWidths(canvas)).toEqual(['6rem', '6rem', '6rem'])
   },
 }
 
@@ -641,7 +689,12 @@ const singleArgs = (view: typeof SINGLE_RECEPTION) => ({
   addLink: null,
 })
 
-const SINGLE_OUTLINE = ['h2 November so far', 'h2 Month by month', 'h2 Changes']
+const SINGLE_OUTLINE = [
+  'h2 November so far',
+  'h2 Your goal, so far',
+  'h2 Month by month',
+  'h2 Changes',
+]
 
 /** Reception's own goal: its month and changes, no Portals' rows, and the same actions. */
 export const SinglePortalGoal: Story = {
@@ -747,6 +800,7 @@ export const AverageGoal: Story = {
     const canvas = within(canvasElement)
     await expect(outline(canvasElement)).toEqual([
       'h1 Average private rating',
+      'h2 Your goal, so far',
       'h2 Month by month',
       'h2 Changes',
     ])

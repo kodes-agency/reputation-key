@@ -4,8 +4,7 @@
 // reached and next. Three tiles, never two and one: stacked until there is
 // room for all three.
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
-import { SectionTitle } from '#/components/ui/section-title'
+import { GoalTiles } from './goal-detail-layout'
 import { planSoFarTiles } from './rating-goal-detail-view'
 
 const HEADING_ID = 'rating-goal-plan-so-far'
@@ -13,23 +12,12 @@ const HEADING_ID = 'rating-goal-plan-so-far'
 export function RatingGoalPlanSoFar({
   detail,
 }: Readonly<{ detail: RatingGoalDetailView }>) {
-  const tiles = planSoFarTiles(detail)
-  if (tiles.length === 0) return null
   return (
-    <section aria-labelledby={HEADING_ID} className="flex flex-col gap-3">
-      <SectionTitle id={HEADING_ID}>Your plan, so far</SectionTitle>
-      <MetricStrip
-        aria-label="Your plan, so far, in numbers"
-        variant="tiles"
-        columns={3}
-        className="@max-2xl:grid-cols-1"
-      >
-        {tiles.map((tile) => (
-          <Metric key={tile.label} label={tile.label}>
-            <MetricValue value={tile.value} detail={tile.detail} />
-          </Metric>
-        ))}
-      </MetricStrip>
-    </section>
+    <GoalTiles
+      title="Your plan, so far"
+      headingId={HEADING_ID}
+      label="Your plan, so far, in numbers"
+      tiles={planSoFarTiles(detail).map((tile) => ({ key: tile.label, ...tile }))}
+    />
   )
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalGoalChange } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
-import { changeLines } from './portal-goal-changes-view'
+import { anyChangeInAnotherYear, changeLines } from './portal-goal-changes-view'
 
 const NAMES: Readonly<Record<string, string>> = { elena: 'Elena', marco: 'Marco' }
 const personName = (userId: string): string | null => NAMES[userId] ?? null
@@ -149,5 +149,22 @@ describe('changeLines', () => {
     expect(textOf(set())).toEqual([
       'Oct 23 · Elena set 40 a month from November (recommended)',
     ])
+  })
+})
+
+describe('anyChangeInAnotherYear', () => {
+  it('is false while every change is of the year of today', () => {
+    expect(anyChangeInAnotherYear([set(), set({ on: '2026-01-02' })], TODAY)).toBe(false)
+    expect(anyChangeInAnotherYear([], TODAY)).toBe(false)
+  })
+
+  it('is true when any change is of another year, shown or not', () => {
+    const changes = [
+      ...Array.from({ length: 12 }, () => set()),
+      set({ on: '2025-12-28' }),
+    ]
+
+    expect(changeLines(changes, personName, TODAY).lines).toHaveLength(12)
+    expect(anyChangeInAnotherYear(changes, TODAY)).toBe(true)
   })
 })

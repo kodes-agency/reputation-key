@@ -95,6 +95,10 @@ const OUTCOME_WORDS: Readonly<Record<PortalGoalPageMonth['outcome'], string>> = 
   unavailable: 'no usable result',
 }
 
+/** U5: the tiles' title on the shared detail layout, and the strip's name for a screen reader. */
+export const TILES_TITLE = 'Your goal, so far'
+export const TILES_LABEL = 'Your goal, so far, in numbers'
+
 /** P-4: the month counting, the month before, and the usual. */
 export function portalGoalTiles(
   goal: PortalGoalOfCard,

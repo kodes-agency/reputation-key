@@ -228,9 +228,9 @@ how the goals are drawn, and nothing else in them.
    that the Google rating goal calls today and the Monthly portal goal moves
    onto (its card, Overview slot and page header draw with the first three, its
    month-start check-in with the strip, its set, change and add sheets with the
-   sheet frame and the setup parts). The detail-page layout, the tiles and the
-   History list will be drawn by such modules too, each cut from the Google
-   rating goal in the step that gives it its first Portal caller. A
+   sheet frame and the setup parts, its pages with the detail layout, the tiles
+   and the History list). Each part was cut from the Google rating goal in the
+   step that gave it its first Portal caller. A
    shared part imports no `rating-goal-*` or `portal-goal-*` module and no
    server context, and says no product word: a goal passes in its own words, so
    the other goal's words cannot come out (`goal-shared-sources.test.ts`). The
@@ -275,6 +275,21 @@ how the goals are drawn, and nothing else in them.
    quoted in it, and a row of links. The number stays a typed box (the arrow
    keys step along the goal grid, Enter writes it), what Set sends is unchanged,
    and the rows of "a goal for each portal" keep their small square steppers.
+7. **The goal pages are one layout.** The Monthly portal goal's page (and a
+   Portal's or a group's goal on `$goalId`) and the average's page are laid out
+   as the Google rating goal's page (`goal-detail-layout.tsx`, `goal-history-list.tsx`):
+   a column of blocks that the page orders itself, here in the Google page's order:
+   a stopped goal's state first, as a notice; what is left to the number
+   and the days left, then what the goal counts and from where; the signature
+   visual (the month meter, with its first and last day, in a card titled by the
+   month so far, as the Google goal's climb chart is); the tiles, titled "Your
+   goal, so far"; what each Portal brought in and each month; the History list;
+   and how the goal counts. The pace is the pill in the page's header (the
+   average has none: a month's average is not judged against a pace). What changed
+   is the shared History list, a card with each date in a column of its own and the
+   words beside it, still the region named "Changes", with "Show all" after twelve.
+   Its words, rows, the "How this goal counts" disclosure, "More portal goals" and
+   the plain page of a goal for several subjects are the Portal goal's own.
 
 ## Rejected alternatives
 
