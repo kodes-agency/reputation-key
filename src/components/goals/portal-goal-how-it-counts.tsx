@@ -1,7 +1,9 @@
 // "How this goal counts" on the Monthly portal goal's page (copy deck P-13,
 // P-14): closed until asked, in what the goal counts now, on the Property's
 // time; on a Portal's or a group's own page, where it counts (PLAN PG-21). The
-// words are `howItCountsWords`'.
+// words are `howItCountsWords`'. The Button's own `px-3` (its icon rule) outranks
+// the `px-1` here, so `-ml-3` pulls the chevron back onto the column's edge, as
+// every other block of the page starts; the hover fill reaches back into the gutter.
 import { ChevronRight } from 'lucide-react'
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import { Button } from '#/components/ui/button'
@@ -26,7 +28,7 @@ export function PortalGoalHowItCounts({ measure, timezone, where }: Props) {
         <Button
           type="button"
           variant="ghost"
-          className="group h-auto w-full justify-start gap-3 px-1 py-3 text-left font-normal"
+          className="group -ml-3 h-auto w-full justify-start gap-3 px-1 py-3 text-left font-normal"
         >
           <ChevronRight
             aria-hidden="true"

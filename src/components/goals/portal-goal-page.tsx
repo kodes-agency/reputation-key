@@ -5,16 +5,17 @@
 // 0068, amended 2026-10-19: one goal design system): the pace as the pill in the
 // page's header; a stopped goal's notice; what is left to the month's number and
 // the days left, what the goal counts and from where; the month so far with its
-// first and last day under the bar; the tiles ("Your goal, so far"); what each
-// Portal brought in and the quiet ones, each month (of this goal and the ones it
-// took over from); what changed, in the shared History list; and how the goal
-// counts; once a month has closed, the way to every month's result. A stopped
-// goal whose last month has closed is no goal any more, so its months and changes
-// sit under the card before a goal. Under it all, the other Portal goals and the
-// way to add one, which the route hands in (a component imports no routes). Its
-// actions (P-3: "Change number", and the menu with the other measure and Stop)
-// are in the header while the goal can change; the Stop dialog is held here,
-// outside the menu and the header, so a refusal that reads the page again keeps it.
+// first and last day under the bar, in a card as the Google goal's climb is; the
+// tiles ("Your goal, so far"); what each Portal brought in and the quiet ones,
+// each month (of this goal and the ones it took over from); what changed, in the
+// shared History list; and how the goal counts; once a month has closed, the way
+// to every month's result. A stopped goal whose last month has closed is no goal
+// any more, so its months and changes sit under the card before a goal. Under it
+// all, the other Portal goals and the way to add one, which the route hands in (a
+// component imports no routes). Its actions (P-3: "Change number", and the menu
+// with the other measure and Stop) are in the header while the goal can change;
+// the Stop dialog is held here, outside the menu and the header, so a refusal
+// that reads the page again keeps it.
 //
 // A goal for one Portal or one Portal Group has this page too, on `$goalId`
 // (PLAN PG-21): titled for its subject ("Reception · portal goal"), counting
@@ -27,6 +28,7 @@ import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/mont
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
+import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { InlineLink } from '#/components/ui/inline-link'
 import { SectionTitle } from '#/components/ui/section-title'
 import { StatusBadge } from '#/components/ui/status-badge'
@@ -84,17 +86,27 @@ type Props = Readonly<{
   single?: Readonly<{ title: string; name: string; where: string; canSwitch: boolean }>
 }>
 
-/** P-5: the month so far, with its first and last day under the bar. */
+/**
+ * P-5: the month so far, with its first and last day under the bar, in a card
+ * with the Climb's own frame (the Google rating goal's page draws its signature
+ * visual the same way), named by its title.
+ */
 function MonthSoFarSection({ goal }: Readonly<{ goal: PortalGoalOfCard }>) {
   const headingId = useId()
   const { month } = goal
   if (month === null) return null
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-2">
-      <SectionTitle id={headingId}>{monthSoFarHeading(month.key)}</SectionTitle>
-      <PortalGoalMonthMeter month={month} axis={monthAxis(month)} captioned={false} />
-      <PortalGoalMonthUnreadable month={month} />
-    </section>
+    <Card className="gap-4" role="region" aria-labelledby={headingId}>
+      <CardHeader>
+        <CardTitle as="h2" id={headingId}>
+          {monthSoFarHeading(month.key)}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <PortalGoalMonthMeter month={month} axis={monthAxis(month)} captioned={false} />
+        <PortalGoalMonthUnreadable month={month} />
+      </CardContent>
+    </Card>
   )
 }
 

@@ -281,7 +281,8 @@ how the goals are drawn, and nothing else in them.
    a column of blocks that the page orders itself, here in the Google page's order:
    a stopped goal's state first, as a notice; what is left to the number
    and the days left, then what the goal counts and from where; the signature
-   visual (the month meter, with its first and last day); the tiles, titled "Your
+   visual (the month meter, with its first and last day, in a card titled by the
+   month so far, as the Google goal's climb chart is); the tiles, titled "Your
    goal, so far"; what each Portal brought in and each month; the History list;
    and how the goal counts. The pace is the pill in the page's header (the
    average has none: a month's average is not judged against a pace). What changed
