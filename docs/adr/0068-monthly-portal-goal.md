@@ -290,6 +290,19 @@ how the goals are drawn, and nothing else in them.
    words beside it, still the region named "Changes", with "Show all" after twelve.
    Its words, rows, the "How this goal counts" disclosure, "More portal goals" and
    the plain page of a goal for several subjects are the Portal goal's own.
+8. **The Goals page's rows wear the pill too.** A row of a Portal goal with one
+   subject on a count measure (`GoalLiveLine`) draws the same pill where `goalPace`
+   judged the month, "On pace" or "Below pace", in place of the quiet amber
+   "below pace" note: on the sentence's own line where the row's cell has room,
+   beside the bar where it has not, and in a row kept as high as the pill whether
+   it is there or not, so the placeholder shown while the month is read is as high
+   as the line that replaces it. A month the rule does not judge (the first days,
+   too few expected by today), an average and a figure that cannot be read have no
+   pill. "Getting started" stays the card's and the page's: a row's read carries no
+   flag for the quiet days and adding one is a server change. A goal with several
+   subjects keeps "3 subjects · 2 below pace" as words (it has several paces, a pill
+   is one), and the attention band's "Portal goal below pace" chip and the
+   Properties list keep their words.
 
 ## Rejected alternatives
 

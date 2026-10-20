@@ -1,12 +1,13 @@
 // The Portal goals other than the Monthly portal goal's card, under it, as
 // compact rows (PLAN PG-21): whom each counts and what, a link to its own page
 // ("Reception · Private ratings", the average by its measure alone), and, while
-// a month runs, the month so far (`GoalLiveLine`). The goals not ended only, on
-// both of the Google section's views; the ended ones are on the Portal goal
-// results page. The Goals page lists the first few, then the way to see them
-// all on the Monthly portal goal's page, which lists every one. The card above
-// is the Portal goals' first state, so no goals draw nothing here, and the goal
-// the card shows is not listed again.
+// a month runs, the month so far (`GoalLiveLine`: its words, and for a count
+// with one subject whose pace was judged the same pace pill as the card's). The
+// goals not ended only, on both of the Google section's views; the ended ones
+// are on the Portal goal results page. The Goals page lists the first few, then
+// the way to see them all on the Monthly portal goal's page, which lists every
+// one. The card above is the Portal goals' first state, so no goals draw
+// nothing here, and the goal the card shows is not listed again.
 import { Link } from '@tanstack/react-router'
 import type {
   GoalListProgress,
