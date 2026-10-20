@@ -2,19 +2,22 @@
 // goal passes the tiles a full strip; the branches below are the ones a goal that
 // passes less (no tiles to show, a tile with no figure) takes, and a branch no
 // test names would change under it unseen.
-import { createElement } from 'react'
+import { createElement, Fragment } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { GoalDetailLayout, GoalTiles } from './goal-detail-layout'
 
 const layout = () =>
   renderToStaticMarkup(
-    createElement(
-      GoalDetailLayout,
-      { slot: 'a-goal-detail' },
-      createElement('p', null, 'first'),
-      createElement('p', null, 'second'),
-    ),
+    createElement(GoalDetailLayout, {
+      slot: 'a-goal-detail',
+      children: createElement(
+        Fragment,
+        null,
+        createElement('p', null, 'first'),
+        createElement('p', null, 'second'),
+      ),
+    }),
   )
 
 const tiles = (props: Partial<Parameters<typeof GoalTiles>[0]> = {}) =>
