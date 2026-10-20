@@ -124,9 +124,10 @@ export const OneCountSubjectOnPace: Story = {
 }
 
 /**
- * In the cell of a row on a 375 px phone (about 230 px) the sentence and the
- * pill do not fit one line, so the pill sits beside the bar and the row keeps its
- * height. The geometry is measured in Storybook proper
+ * In a cell narrower than 24 rem (230 px here; a 320 px phone's row is 288 px and
+ * a 390 px phone's 358 px, the page's gutters being all that is taken off) the
+ * sentence and the pill do not fit one line, so the pill sits beside the bar and
+ * the row keeps its height. The geometry is measured in Storybook proper
  * (`e2e/storybook-metrics/goal-live-line.metrics.ts`).
  */
 export const NarrowCellBelowPace: Story = {
