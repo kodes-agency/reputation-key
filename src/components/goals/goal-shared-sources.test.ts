@@ -17,7 +17,9 @@ import { readUiSources, type SourceFile } from '#/shared/testing/source-tree'
 const SHARED_PARTS = [
   'goal-card-frame.tsx',
   'goal-check-in.tsx',
+  'goal-detail-layout.tsx',
   'goal-headline.tsx',
+  'goal-history-list.tsx',
   'goal-meter.tsx',
   'goal-pace-status.ts',
   'goal-setup-parts.tsx',

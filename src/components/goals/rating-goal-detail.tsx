@@ -13,6 +13,7 @@ import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Skeleton } from '#/components/ui/skeleton'
+import { GoalDetailLayout } from './goal-detail-layout'
 import { climbChartModel, type ClimbChartModel } from './rating-goal-climb-chart-view'
 import { RatingGoalDetailHeader } from './rating-goal-detail-header'
 import { RatingGoalMovedList } from './rating-goal-moved-list'
@@ -129,7 +130,7 @@ export function RatingGoalDetail(props: Props) {
   const { detail } = props
   const model = climbChartModel(detail)
   return (
-    <div data-slot="rating-goal-detail" className="flex flex-col gap-6">
+    <GoalDetailLayout slot="rating-goal-detail">
       <Moved detail={detail} />
       <RatingGoalDetailHeader detail={detail} timezone={props.timezone} now={props.now} />
       {model === null ? null : <Climb model={model} />}
@@ -142,7 +143,7 @@ export function RatingGoalDetail(props: Props) {
         timezone={props.timezone}
         now={props.now}
       />
-    </div>
+    </GoalDetailLayout>
   )
 }
 
