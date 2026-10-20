@@ -1144,7 +1144,10 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await clickWhenReady(sheet.getByRole('button', { name: 'Next' }))
     await clickWhenReady(sheet.getByRole('radio', { name: /^Reception/u }))
     await clickWhenReady(sheet.getByRole('button', { name: 'Next' }))
-    await expect(sheet.getByText(`Reception · ${monthName}`)).toBeVisible()
+    // The unit says one or many by the number in the box.
+    await expect(
+      sheet.getByText(new RegExp(`^Reception · private ratings? in ${monthName}$`, 'u')),
+    ).toBeVisible()
     await expect(sheet.getByRole('spinbutton')).toHaveValue(String(number))
     await dismissToasts(page)
     await assertNoAxeViolations(page, 'Add a portal goal, the number step')

@@ -27,21 +27,21 @@ import {
 } from './portal-goal-change-submission'
 import {
   committedCount,
-  notesOf,
   numberOf,
   offerFor,
   primaryNumber,
   recommendedText,
-  statusOf,
   type PortalGoalSheetBodyModel,
   type PortalGoalSheetChange,
 } from './portal-goal-sheet-view'
+import { countsLine, notesOf, statusOf } from './portal-goal-sheet-words'
 import {
   dayWords,
   monthName,
   portalGoalCount,
   portalGoalUnit,
   switchOf,
+  unitInMonth,
 } from './portal-goal-words'
 
 /** The longest note the commands keep (the Program commands' own limit). */
@@ -288,8 +288,7 @@ export function portalGoalChangeModel(
     description: lineOf(when, measure, context),
     months: monthsOf(draft, context),
     month: when,
-    band: monthName(month),
-    unit: portalGoalUnit(measure, value ?? 0),
+    unit: unitInMonth(portalGoalUnit(measure, value ?? 0), month),
     number,
     choices: null,
     chosen: null,
@@ -297,6 +296,7 @@ export function portalGoalChangeModel(
     notes: [...notesOf(offer, value), ...(below === null ? [] : [below])],
     asksEveryGuest: measure === 'portal_rating_count',
     offer,
+    counts: countsLine(measure),
     switchMeasure: switchOf(measure),
     primary: ready
       ? { label: `Set ${count} ${verb}`, disabled: false }

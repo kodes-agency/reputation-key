@@ -225,12 +225,12 @@ export const OnePortal: Story = {
     await choose(sheet, /^A goal for one portal/u)
     await expect(sheet.getByText('Which portal?')).toBeVisible()
     await choose(sheet, /^Reception/u)
-    await expect(sheet.getByText('Reception · December')).toBeVisible()
+    await expect(sheet.getByText('Reception · private ratings in December')).toBeVisible()
     await expect(sheet.getByText('Starts on Dec 1.')).toBeVisible()
     await expect(sheet.getByRole('spinbutton')).toHaveValue('22')
     await expect(sheet.getByRole('spinbutton')).toHaveFocus()
-    await expect(sheet.getByRole('radio', { name: /^22 · a bit more/u })).toBeChecked()
-    for (const label of ['20 · your usual', '24 · stretch']) {
+    await expect(sheet.getByRole('radio', { name: /^22 a bit more/u })).toBeChecked()
+    for (const label of ['20 your usual', '24 stretch']) {
       await expect(
         sheet.getByRole('radio', { name: (name) => name.startsWith(label) }),
       ).toBeVisible()
@@ -264,7 +264,7 @@ export const Phone320: Story = {
     await expect(sheet).toHaveAttribute('data-portal-goal-add', 'sheet')
     await choose(inSheet, /^A goal for one portal/u)
     await choose(inSheet, /^Spa/u)
-    await expect(inSheet.getByText('Spa · December')).toBeVisible()
+    await expect(inSheet.getByText('Spa · private ratings in December')).toBeVisible()
     await expect(
       inSheet.getByRole('button', { name: 'Set 10 for December' }),
     ).toBeVisible()
@@ -339,7 +339,7 @@ export const Group: Story = {
     await choose(sheet, /^A goal for a portal group/u)
     await expect(sheet.getByText('Which group?')).toBeVisible()
     await choose(sheet, /^Rooms/u)
-    await expect(sheet.getByText('Rooms · December')).toBeVisible()
+    await expect(sheet.getByText('Rooms · private ratings in December')).toBeVisible()
     await userEvent.click(sheet.getByRole('button', { name: 'Set 35 for December' }))
     await expect(addOneMock).toHaveBeenCalledWith({
       data: expect.objectContaining({

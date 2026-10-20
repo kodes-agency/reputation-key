@@ -8,6 +8,7 @@
 //   4. "Recommended", with its reason only when nothing came before it, or the
 //      way back to it when the goal is pinned elsewhere.
 import { formatNumber } from '#/lib/format'
+import type { GoalStatusPart } from './goal-setup-parts'
 import type { PaceUnit, SetupDraft, SetupPlan } from './rating-goal-setup-draft'
 import { paceText } from './rating-goal-pace-words'
 import { spanText, whenText } from './rating-goal-setup-time'
@@ -17,10 +18,7 @@ export type StatusAction =
   | Readonly<{ kind: 'faster'; chipIndex: number; pinTenths: number }>
   | Readonly<{ kind: 'recommended' }>
 
-export type StatusPart =
-  | Readonly<{ kind: 'tag'; text: string }>
-  | Readonly<{ kind: 'text'; text: string }>
-  | Readonly<{ kind: 'link'; text: string; action: StatusAction }>
+export type StatusPart = GoalStatusPart<StatusAction>
 
 const PERFECT_TENTHS = 50
 

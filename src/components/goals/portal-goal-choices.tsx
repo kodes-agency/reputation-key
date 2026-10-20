@@ -1,14 +1,16 @@
-// The set sheet's three suggested numbers (copy deck S-4): "your usual", "a bit
-// more" (the recommended one, P-3, with its neutral badge) and "stretch", as
-// radio cards. The card that holds the box's number is checked; an own number
-// checks none. Choosing one puts it in the box.
-import type { ReactNode } from 'react'
-import { Badge } from '#/components/ui/badge'
+// The set sheet's three suggested numbers (copy deck U-S2, from S-4): "your
+// usual", "a bit more" (the recommended one, P-3, with the shared recommendation
+// tag) and "stretch", as radio rows in the panel the sheet draws around them. The
+// row that holds the box's number is checked and wears the weight; the others are
+// muted. An own number checks none. Choosing one puts it in the box.
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
-import type { PortalGoalSheetModel } from './portal-goal-sheet-view'
+import { cn } from '#/lib/utils'
+import { GoalRecommendedTag } from './goal-setup-parts'
+import type { PortalGoalChoice } from './portal-goal-sheet-words'
+import { RECOMMENDED_TAG } from './portal-goal-words'
 
-type Choices = NonNullable<PortalGoalSheetModel['choices']>
+type Choices = readonly PortalGoalChoice[]
 
 type Props = Readonly<{
   choices: Choices
@@ -18,24 +20,6 @@ type Props = Readonly<{
   onChoose: (value: number) => void
   disabled?: boolean
 }>
-
-function ChoiceCard({
-  id,
-  value,
-  children,
-}: Readonly<{ id: string; value: number; children: ReactNode }>) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border p-3 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
-      <RadioGroupItem value={String(value)} id={id} />
-      <Label
-        htmlFor={id}
-        className="flex flex-1 items-center justify-between gap-2 font-normal"
-      >
-        {children}
-      </Label>
-    </div>
-  )
-}
 
 export function PortalGoalChoices({
   choices,
@@ -53,20 +37,45 @@ export function PortalGoalChoices({
         if (choice) onChoose(choice.value)
       }}
       disabled={disabled}
-      className="gap-2"
+      // Room for the line quoted under the last row.
+      className="mb-1"
     >
-      {choices.map(({ value, label, recommended }) => (
-        <ChoiceCard key={value} id={`${idPrefix}-${value}`} value={value}>
-          <span className="text-sm tabular-nums">{label}</span>
-          {/* Said apart from the number: "40 · a bit more Recommended". */}
-          {recommended ? (
-            <>
-              {' '}
-              <Badge variant="neutral">Recommended</Badge>
-            </>
-          ) : null}
-        </ChoiceCard>
-      ))}
+      {choices.map(({ value, figure, words, recommended }, index) => {
+        const id = `${idPrefix}-${value}`
+        return (
+          // The rows are told apart by a line between them, as the panel's own parts are.
+          <div
+            key={value}
+            className={cn('flex items-center gap-3', index > 0 && 'border-t pt-3')}
+          >
+            {/* The ring is the row's one cue that it is a choice: the input's own border
+                is as dim as the panel under it. */}
+            <RadioGroupItem
+              value={String(value)}
+              id={id}
+              className="border-muted-foreground"
+            />
+            <Label
+              htmlFor={id}
+              className={cn(
+                'flex flex-1 items-center justify-between gap-2',
+                value === chosen ? 'font-semibold' : 'font-normal text-muted-foreground',
+              )}
+            >
+              <span className="flex gap-3">
+                <span className="tabular-nums">{figure}</span> <span>{words}</span>
+              </span>
+              {/* Said apart from the number: "40 a bit more Recommended". */}
+              {recommended ? (
+                <>
+                  {' '}
+                  <GoalRecommendedTag>{RECOMMENDED_TAG}</GoalRecommendedTag>
+                </>
+              ) : null}
+            </Label>
+          </div>
+        )
+      })}
     </RadioGroup>
   )
 }

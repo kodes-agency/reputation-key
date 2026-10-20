@@ -124,7 +124,7 @@ export const OFFER_OCTOBER: PortalGoalOffer = {
   days: 31,
   choices: { usual: 23, aBitMore: 24, stretch: 25 },
   usualAbout: 35,
-  // What "23 · your usual" stands for: the 12 so far and 72 / 7 for the 9 days left.
+  // What the row "23 your usual" stands for: the 12 so far and 72 / 7 for the 9 days left.
   usualExact: { num: '156', den: '7' },
   soFar: 12,
   rest: { daysLeft: 9, about: 10 },

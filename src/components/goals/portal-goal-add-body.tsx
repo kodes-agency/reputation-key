@@ -7,7 +7,7 @@
 // swaps the frame this is drawn in and mounts it afresh.
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
-import { DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
+import { GoalSheetHeader } from './goal-sheet-frame'
 import { PortalGoalAddEach } from './portal-goal-add-each'
 import {
   eachModel,
@@ -258,15 +258,14 @@ export function PortalGoalAddBody(props: Props) {
   const back = backOf(place)
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className={props.small ? 'pe-12' : undefined}>
-          {ADD_TITLE}
-        </DialogTitle>
-        <DialogDescription>{step.description}</DialogDescription>
-      </DialogHeader>
+      <GoalSheetHeader
+        title={ADD_TITLE}
+        description={step.description}
+        phone={props.small}
+      />
       <form
         ref={ref}
-        className="flex flex-col gap-4"
+        className="flex flex-1 flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault()
           if (!step.primary.disabled && !props.pending) step.submit()

@@ -42,6 +42,17 @@ export function listOfNames(names: readonly string[]): string {
 export const monthName = (month: string): string =>
   formatMonthName(`${month}-15T12:00:00.000Z`) ?? month
 
+/**
+ * U-S1: what the sheet's number counts, in the month it is for, under the number
+ * and naming its box: "private ratings in November", "average private rating in
+ * November".
+ */
+export const unitInMonth = (unit: string, month: string): string =>
+  `${unit} in ${monthName(month)}`
+
+/** The tag on the number the read recommends, in the status line and on its row. */
+export const RECOMMENDED_TAG = 'Recommended'
+
 /** P-5, U-C5: "November so far", the running month's section title and its meter's caption. */
 export const monthSoFarHeading = (monthKey: string): string =>
   `${monthName(monthKey)} so far`

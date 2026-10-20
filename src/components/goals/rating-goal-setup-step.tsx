@@ -12,6 +12,7 @@ import { Button } from '#/components/ui/button'
 import { DialogFooter } from '#/components/ui/dialog'
 import { TONE_INK } from '#/components/ui/tone'
 import { cn } from '#/lib/utils'
+import { GoalSetupLinks, GoalSetupPanel, GoalSetupStatusLine } from './goal-setup-parts'
 import { RatingGoalAverageFact } from './rating-goal-average-fact'
 import { RatingGoalGoalNumeral } from './rating-goal-goal-numeral'
 import { paceText } from './rating-goal-pace-words'
@@ -26,7 +27,6 @@ import {
   statusParts,
   type StatusAction,
 } from './rating-goal-setup-status'
-import { RatingGoalSetupStatusLine } from './rating-goal-setup-status-line'
 import { likelyText, whenText } from './rating-goal-setup-time'
 import { RatingGoalCancel } from './rating-goal-wizard-cancel'
 import {
@@ -162,7 +162,12 @@ function Headline({ props, plan }: Readonly<{ props: Props; plan: Plan }>) {
         new reviews at {paceText(plan.pace.tenthsPerWeek, unit)} · likely{' '}
         {likelyText(plan.likely)}
       </p>
-      <RatingGoalSetupStatusLine parts={parts} small={small} onAction={onAction} />
+      <GoalSetupStatusLine
+        slot="rating-goal-status"
+        parts={parts}
+        small={small}
+        onAction={onAction}
+      />
     </div>
   )
 }
@@ -171,14 +176,7 @@ function PlanBehind({ props, plan }: Readonly<{ props: Props; plan: Plan }>) {
   const { draft, onDraft, small } = props
   const id = useId()
   return (
-    <section
-      aria-label="The plan behind the number"
-      className={cn(
-        'flex w-full flex-col rounded-xl bg-muted',
-        small ? 'px-4 py-3' : 'px-6 py-4',
-      )}
-      style={{ maxWidth: 620 }}
-    >
+    <GoalSetupPanel label="The plan behind the number" small={small}>
       <RatingGoalPaceControl
         plan={plan}
         unit={draft.unit ?? 'day'}
@@ -200,7 +198,7 @@ function PlanBehind({ props, plan }: Readonly<{ props: Props; plan: Plan }>) {
         onBackToAutomatic={() => onDraft(steps.backToAutomatic(draft))}
         onTypeOwn={(raw) => onDraft(steps.typeOwnAverage(draft, plan, raw))}
       />
-    </section>
+    </GoalSetupPanel>
   )
 }
 
@@ -239,15 +237,10 @@ export function RatingGoalSetupStep(props: Props) {
     >
       <Headline props={props} plan={view} />
       <PlanBehind props={props} plan={view} />
-      <div
-        className={cn(
-          'flex flex-wrap items-center justify-center gap-x-2 text-center text-sm text-muted-foreground',
-          small && 'text-xs',
-        )}
+      <GoalSetupLinks
+        sentence="We count new Google reviews every week, Monday to Sunday."
+        small={small}
       >
-        {small ? null : (
-          <span>We count new Google reviews every week, Monday to Sunday.</span>
-        )}
         <RatingGoalSetupPopovers
           plan={view}
           inputs={inputs}
@@ -256,7 +249,7 @@ export function RatingGoalSetupStep(props: Props) {
           small={small}
           onToggle={(which) => props.onDraft(steps.togglePopover(draft, which))}
         />
-      </div>
+      </GoalSetupLinks>
       {banner}
       <DialogFooter
         className="mt-auto w-full"

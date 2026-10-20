@@ -18,18 +18,26 @@ import type {
 import {
   goalStepDown,
   goalStepUp,
-  ownNumberNote,
 } from '#/contexts/reporting/application/goal-number-steps'
 import { formatNumber } from '#/lib/format'
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
 import type { PortalGoalSetIntent } from './portal-goal-sheet-intent'
 import { countsFromWords } from './portal-goal-offer-words'
 import {
+  choicesOf,
+  countsLine,
+  notesOf,
+  statusOf,
+  type PortalGoalChoice,
+  type PortalGoalStatusPart,
+} from './portal-goal-sheet-words'
+import {
   dayWords,
   monthName,
   portalGoalCount,
   portalGoalUnit,
   switchOf,
+  unitInMonth,
 } from './portal-goal-words'
 
 /** The highest monthly number a goal takes (the set command's own limit). */
@@ -70,8 +78,7 @@ export type PortalGoalSheetModel = Readonly<{
   months: readonly Readonly<{ value: string; label: string; disabled?: boolean }>[]
   /** The month in effect. */
   month: string
-  /** S-3: the tile's band. */
-  band: string
+  /** U-S1: what the number counts, in its month, under it: "private ratings in November". */
   unit: string
   number: Readonly<{
     text: string
@@ -84,22 +91,20 @@ export type PortalGoalSheetModel = Readonly<{
     lower: Step
     raise: Step
   }>
-  /** S-4, in the order usual, a bit more, stretch; null with no offer. */
-  choices:
-    readonly Readonly<{ value: number; label: string; recommended: boolean }>[] | null
+  /** U-S2, in the order usual, a bit more, stretch; null with no offer. */
+  choices: readonly PortalGoalChoice[] | null
   /** The suggested number the box holds, if it holds one. */
   chosen: number | null
-  /** S-5, S-6 (with its way back) or S-7. */
-  status: Readonly<{
-    text: string
-    restore: Readonly<{ label: string; value: number }> | null
-  }>
+  /** S-5, S-6 (with its way back) or S-7, as the status line's parts. */
+  status: readonly PortalGoalStatusPart[]
   /** S-8. */
   notes: readonly string[]
   /** G-16 goes with private ratings. */
   asksEveryGuest: boolean
   /** What "How we worked this out" explains; null with no offer. */
   offer: PortalGoalOffer | null
+  /** U-S3: how the goal counts, said before the links under the choices. */
+  counts: string
   /** S-9. */
   switchMeasure: Readonly<{ label: string; measure: PortalGoalMeasure }>
   /** S-10. */
@@ -243,66 +248,6 @@ export function stepsFrom(reading: Reading): Readonly<{ lower: Step; raise: Step
   }
 }
 
-/** S-4: the three suggestions, "a bit more" the recommended one (P-3). */
-export function choicesOf(
-  offer: Pick<PortalGoalOffer, 'choices'> | null,
-): PortalGoalSheetModel['choices'] {
-  if (offer === null) return null
-  const { usual, aBitMore, stretch } = offer.choices
-  return [
-    { value: usual, label: `${formatNumber(usual)} · your usual`, recommended: false },
-    {
-      value: aBitMore,
-      label: `${formatNumber(aBitMore)} · a bit more`,
-      recommended: true,
-    },
-    { value: stretch, label: `${formatNumber(stretch)} · stretch`, recommended: false },
-  ]
-}
-
-/** S-5, S-6 and S-7 (S-23 when changing): what the number is. */
-export function statusOf(
-  offer: PortalGoalOffer | null,
-  value: number | null,
-  facts: PortalGoalSheetFacts,
-): PortalGoalSheetModel['status'] {
-  if (offer === null) {
-    const ready =
-      facts.readyOn === null ? '' : ` Your number is ready on ${dayWords(facts.readyOn)}.`
-    return { text: `No recommendation yet.${ready}`, restore: null }
-  }
-  const recommended = offer.choices.aBitMore
-  if (value === recommended) {
-    return {
-      text: `Recommended · a bit above your usual over the last ${offer.basis.weeks} weeks`,
-      restore: null,
-    }
-  }
-  return {
-    text: 'Your own number',
-    restore: {
-      label: `Back to ${formatNumber(recommended)}, recommended`,
-      value: recommended,
-    },
-  }
-}
-
-/** S-8: how far an own number is from the month's usual, when it is far. */
-export function notesOf(
-  offer: PortalGoalOffer | null,
-  value: number | null,
-): readonly string[] {
-  if (offer === null || value === null) return []
-  const { num, den } = offer.usualExact
-  const note = ownNumberNote(value, { num: BigInt(num), den: BigInt(den) })
-  if (note === null) return []
-  return [
-    note.kind === 'times'
-      ? `That is about ${formatNumber(note.times)} times your usual.`
-      : 'That is under half your usual.',
-  ]
-}
-
 /** "40" for private ratings, "55 scans" for scans: a primary's number (S-10, S-20). */
 export const primaryNumber = (measure: PortalGoalMeasure, value: number): string =>
   measure === RATINGS ? formatNumber(value) : portalGoalCount(measure, value)
@@ -358,8 +303,7 @@ export function portalGoalSheetModel(
         : `Starts on ${dayWords(`${month}-01`)}.`,
     months: monthsOf(draft, facts).map((key) => ({ value: key, label: monthName(key) })),
     month,
-    band: monthName(month),
-    unit: portalGoalUnit(measure, value ?? 0),
+    unit: unitInMonth(portalGoalUnit(measure, value ?? 0), month),
     number,
     choices,
     chosen: choices?.find((choice) => choice.value === value)?.value ?? null,
@@ -367,6 +311,7 @@ export function portalGoalSheetModel(
     notes: notesOf(offer, value),
     asksEveryGuest: measure === RATINGS,
     offer,
+    counts: countsLine(measure),
     switchMeasure: switchOf(measure),
     primary: primaryOf(measure, month, value),
     submission:

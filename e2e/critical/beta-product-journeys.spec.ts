@@ -1129,7 +1129,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
       // Live since today, Spa has no number of its own yet: the box starts empty.
       const month = await addSheetMonth(propertyId)
-      await expect(sheet.getByText(`Spa · ${month.name}`)).toBeVisible()
+      await expect(
+        sheet.getByText(`Spa · private ratings in ${month.name}`),
+      ).toBeVisible()
       await expect(sheet.getByRole('spinbutton')).toHaveValue('')
       await sheet.getByRole('spinbutton').fill('5')
       await clickWhenReady(sheet.getByRole('button', { name: `Set 5 for ${month.name}` }))
