@@ -7,7 +7,12 @@
 // (ReviewProviderSnapshotFailureCode plus `enqueue_failed`); a review-context
 // test fails if the two drift. `cursor_lost` and `listing_changed` are listed
 // for completeness: the sync job restarts those runs without recording a
-// failure, so they are never stored.
+// failure, so they are never stored. `total_changed`, `average_changed` and
+// `confirmation_set_changed` reach here only when a Property's listing keeps
+// moving under run after run; the first two runs of such a move are
+// `listing_changed`. So does `duplicate_resource` when a review sits on two
+// pages of a scan, but a page that lists a review twice is stored as it on
+// its first run (ADR 0055, note 2026-10-20).
 
 export const SYNC_FAILURE_CODES = [
   'source_changed',

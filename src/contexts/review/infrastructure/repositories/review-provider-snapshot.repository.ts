@@ -37,6 +37,11 @@ import {
   refuseRemovalWithoutExactListing,
 } from './review-provider-snapshot-listing'
 import { recordedFailureCode } from './review-provider-snapshot-listing-change'
+import { SnapshotConflict, failCode } from './review-provider-snapshot-conflict'
+import {
+  storedFailureCode,
+  type SnapshotFailureRequest,
+} from '../../application/snapshot-listing-change'
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
   createRunReviewSourceContentLifecycle,
@@ -81,20 +86,6 @@ function hmacEquals(left: Uint8Array, right: Uint8Array): boolean {
     right.byteLength === 32 &&
     timingSafeEqual(Buffer.from(left), Buffer.from(right))
   )
-}
-
-function failCode(error: unknown): ReviewProviderSnapshotFailureCode {
-  if (error instanceof SnapshotConflict) return error.code
-  return 'resource_collision'
-}
-
-class SnapshotConflict extends Error {
-  readonly code: ReviewProviderSnapshotFailureCode
-
-  constructor(code: ReviewProviderSnapshotFailureCode) {
-    super(code)
-    this.code = code
-  }
 }
 
 const providerAggregateIsValid = (
@@ -208,12 +199,14 @@ async function recordHistoryImportFinished(
   await insertOutboxRow(tx, finished, { recordedAt: finishedAt })
 }
 
-/** A set change is recorded as `listing_changed` until it repeats
+/** A listing that moved under the run (a different set between the scans, a
+ * different total or average from page to page, a review on two pages) is
+ * recorded as `listing_changed` until it repeats
  * (review-provider-snapshot-listing-change.ts). */
 async function failLockedRun(
   tx: Tx,
   row: RunRow,
-  requested: ReviewProviderSnapshotFailureCode,
+  requested: SnapshotFailureRequest,
 ): Promise<RunRow> {
   if (row.state === 'completed' || row.state === 'failed') return row
   const code = await recordedFailureCode(tx, row, requested)
@@ -249,13 +242,13 @@ async function failLockedRun(
 
 /** Fail the locked run and answer with the code the run holds: the one
  * recorded, or the one it already ended with. */
-async function failedResult(
-  tx: Tx,
-  row: RunRow,
-  code: ReviewProviderSnapshotFailureCode,
-) {
-  const failed = fromRunRow(await failLockedRun(tx, row, code))
-  return { status: 'failed' as const, run: failed, code: failed.failureCode ?? code }
+async function failedResult(tx: Tx, row: RunRow, request: SnapshotFailureRequest) {
+  const failed = fromRunRow(await failLockedRun(tx, row, request))
+  return {
+    status: 'failed' as const,
+    run: failed,
+    code: failed.failureCode ?? storedFailureCode(request),
+  }
 }
 
 type StartOrResumeInput = Parameters<ReviewProviderSnapshotRepository['startOrResume']>[0]
@@ -576,14 +569,18 @@ function selectPageMember(tx: Tx, run: RunRow, reviewId: string) {
 
 type SnapshotMemberRow = Awaited<ReturnType<typeof selectPageMember>>[number]
 
-/** Main-scan sighting: each provider resource may be seen exactly once. */
+/** Main-scan sighting: each provider resource may be seen exactly once. One
+ * already seen on an EARLIER page of this scan is the listing shifting under
+ * it (a page overlap, quiet until it repeats); one twice on the same page is
+ * caught as `duplicate_resource` in `recordPageMembership` and by the use
+ * case, and stays loud. */
 async function markMainScanSeen(
   tx: Tx,
   run: RunRow,
   reviewId: string,
   member: SnapshotMemberRow | undefined,
 ): Promise<void> {
-  if (member?.mainSeen) throw new SnapshotConflict('duplicate_resource')
+  if (member?.mainSeen) throw new SnapshotConflict('page_overlap')
   if (member == null) {
     await tx
       .insert(reviewProviderSnapshotMembers)

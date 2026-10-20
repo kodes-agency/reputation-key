@@ -178,12 +178,15 @@ const sameScope = async (
 }
 
 /**
- * The failure as the store recorded it, which for a set change depends on the
- * Property's earlier runs (`snapshot-listing-change.ts`). A `listing_changed`
- * run is expected and the sync job starts again at once, so it is a warning
- * with the three counts and nothing else: no identifier, so the line is
- * content-free, and the run row (`failure_code = 'listing_changed'`) says which
- * Property. `confirmed` is how far the confirmation got before the change.
+ * The failure as the store recorded it, which for a listing that moved under
+ * the run (a different set between the scans, a different total or average
+ * from page to page, a review on two pages) depends on the Property's earlier
+ * runs (`snapshot-listing-change.ts`). A `listing_changed` run is expected and
+ * the sync job starts again at once, so it is a warning with the three counts
+ * and nothing else: no identifier, so the line is content-free, and the run
+ * row (`failure_code = 'listing_changed'`) says which Property. `listed` and
+ * `confirmed` are how far each scan got before the listing moved: a run that
+ * stopped in its main scan has `confirmed` at 0.
  */
 const failedOutcome = (
   deps: RunReviewProviderSnapshotDeps,
@@ -199,7 +202,7 @@ const failedOutcome = (
         listed: run.mainUniqueCount,
         confirmed: run.confirmationUniqueCount,
       },
-      'Review snapshot listing changed between its two scans; no removals applied',
+      'Review snapshot listing changed while it was being read; no removals applied',
     )
   }
   return { status: 'failed', runId: run.id, code: recorded }
