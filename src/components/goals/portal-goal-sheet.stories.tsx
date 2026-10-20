@@ -187,13 +187,16 @@ const box = (sheet: Sheet) => sheet.getByRole('spinbutton')
 /** The region the notes are said in. */
 const notesRegion = () => document.body.querySelector('[data-slot="portal-goal-notes"]')
 
-/** The line that says what the number is, as one text. */
+/**
+ * The line that says what the number is, as one text: its parts with a dot
+ * between them, whether the line draws the dots (a row) or stacks the parts (a
+ * phone), so the words are asserted once.
+ */
 const statusLine = (): string =>
-  document.body
-    .querySelector('[data-slot="portal-goal-status"]')
-    ?.textContent?.replace(/·/gu, ' · ')
-    .replace(/\s+/gu, ' ')
-    .trim() ?? ''
+  [...(document.body.querySelector('[data-slot="portal-goal-status"]')?.children ?? [])]
+    .filter((part) => part.getAttribute('aria-hidden') !== 'true')
+    .map((part) => part.textContent?.replace(/\s+/gu, ' ').trim() ?? '')
+    .join(' · ')
 
 /** A toast in the page, once it has faded in. */
 async function expectToast(text: string) {
@@ -324,10 +327,40 @@ export const StepOwnNumber: Story = {
     await userEvent.click(sheet.getByRole('button', { name: 'Back to 40, recommended' }))
     await expect(box(sheet)).toHaveValue('40')
     await expect(statusLine()).toBe(RECOMMENDED)
+    // The link went with the click: the focus moved to the number first, not nowhere.
+    await expect(box(sheet)).toHaveFocus()
     await userEvent.click(sheet.getByRole('button', { name: 'Set 40 for November' }))
     await expect(setMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ targetValue: 40, targetSource: 'recommended' }),
     })
+  },
+}
+
+/** A row is a choice by click and by key: the box follows it, and the arrows move along the rows. */
+export const ChooseARow: Story = {
+  play: async ({ canvasElement }) => {
+    const { in: sheet } = await openSheet(canvasElement)
+    await userEvent.click(sheet.getByText('your usual'))
+    await expect(box(sheet)).toHaveValue('35')
+    const usual = sheet.getByRole('radio', { name: /^35 your usual/u })
+    await expect(usual).toBeChecked()
+    await expect(sheet.getByRole('radio', { name: /^40 a bit more/u })).not.toBeChecked()
+    // From the checked row the keyboard moves down the rows, and the box follows. The
+    // key is held until the focus has moved: the group selects a row it is moved to
+    // while an arrow is down, and moves the focus a tick after the press.
+    usual.focus()
+    for (const [name, number] of [
+      [/^40 a bit more/u, '40'],
+      [/^45 stretch/u, '45'],
+    ] as const) {
+      await userEvent.keyboard('{ArrowDown>}')
+      const row = sheet.getByRole('radio', { name })
+      await waitFor(() => expect(row).toHaveFocus())
+      await userEvent.keyboard('{/ArrowDown}')
+      await waitFor(() => expect(row).toBeChecked())
+      await expect(box(sheet)).toHaveValue(number)
+    }
+    await expect(statusLine()).toBe('Your own number · Back to 40, recommended')
   },
 }
 

@@ -26,7 +26,7 @@ export function PortalGoalNoteField({ note, pending, onOpen, onType }: Props) {
         variant="link"
         size="inline"
         touch
-        className="self-start"
+        className="self-center"
         disabled={pending}
         onClick={onOpen}
       >

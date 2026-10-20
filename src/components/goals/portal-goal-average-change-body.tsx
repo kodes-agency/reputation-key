@@ -42,7 +42,7 @@ export function PortalGoalAverageChangeBody({
 }: Props) {
   return (
     <form
-      className="flex flex-col gap-4"
+      className="flex flex-1 flex-col gap-3"
       onSubmit={(event) => {
         event.preventDefault()
         if (!model.primary.disabled) onSubmit()
@@ -82,7 +82,7 @@ export function PortalGoalAverageChangeBody({
       ) : (
         <FormErrorBanner error={notice} />
       )}
-      <DialogFooter>
+      <DialogFooter className="mt-auto">
         <DialogCancel />
         <Button
           type="submit"

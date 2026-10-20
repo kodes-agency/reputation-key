@@ -13,6 +13,8 @@ import {
   GoalSetupLinks,
   GoalSetupPanel,
   GoalSetupStatusLine,
+  HERO_STEPPER_GAP,
+  HERO_STEPPER_TOUCH,
   type GoalStatusPart,
 } from './goal-setup-parts'
 
@@ -65,6 +67,12 @@ describe('GoalHeroStepper', () => {
     expect(stepper()).toContain('gap:40px')
     expect(stepper({ small: true })).toContain('gap:16px')
   })
+
+  it('names the gaps and the touch width a goal fits its figure to, as it draws them', () => {
+    expect(stepper()).toContain(`gap:${HERO_STEPPER_GAP.desktop}px`)
+    expect(stepper({ small: true })).toContain(`gap:${HERO_STEPPER_GAP.phone}px`)
+    expect(HERO_STEPPER_TOUCH).toBe(44)
+  })
 })
 
 describe('GoalSetupStatusLine', () => {
@@ -105,6 +113,34 @@ describe('GoalSetupStatusLine', () => {
     expect(statusLine(parts)).not.toContain('flex-wrap')
     expect(statusLine(parts, { small: true })).toContain('min-height:28px')
     expect(statusLine(parts, { small: true })).toContain('flex-wrap')
+  })
+
+  it('stacks its parts, one to a line and no dot between them, when the goal asks', () => {
+    const parts: readonly GoalStatusPart<number>[] = [
+      { kind: 'tag', text: 'The tag' },
+      { kind: 'text', text: 'the words' },
+      { kind: 'link', text: 'The link', action: 7 },
+    ]
+    const stacked = statusLine(parts, { small: true, stack: true })
+
+    expect(stacked).toContain('flex-col')
+    expect(stacked).not.toContain('flex-wrap')
+    expect(stacked).not.toContain('·')
+    expect(stacked.indexOf('The tag')).toBeLessThan(stacked.indexOf('the words'))
+    expect(stacked.indexOf('the words')).toBeLessThan(stacked.indexOf('The link'))
+  })
+
+  it('draws the row of parts and its dots unless the goal asks to stack', () => {
+    const parts: readonly GoalStatusPart<number>[] = [
+      { kind: 'tag', text: 'The tag' },
+      { kind: 'text', text: 'the words' },
+    ]
+
+    expect(statusLine(parts, { small: true })).toContain('·')
+    expect(statusLine(parts, { small: true })).not.toContain('flex-col')
+    expect(statusLine(parts, { small: true, stack: false })).toBe(
+      statusLine(parts, { small: true }),
+    )
   })
 
   it('draws the tag as the shared recommendation tag', () => {

@@ -48,7 +48,13 @@ export function PortalGoalChoices({
             key={value}
             className={cn('flex items-center gap-3', index > 0 && 'border-t pt-3')}
           >
-            <RadioGroupItem value={String(value)} id={id} />
+            {/* The ring is the row's one cue that it is a choice: the input's own border
+                is as dim as the panel under it. */}
+            <RadioGroupItem
+              value={String(value)}
+              id={id}
+              className="border-muted-foreground"
+            />
             <Label
               htmlFor={id}
               className={cn(

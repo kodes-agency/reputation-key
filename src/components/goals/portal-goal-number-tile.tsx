@@ -9,8 +9,8 @@
 // the number names the box. The one-off sizes (128 px, 88 px on a phone, and the
 // smaller figures a narrow phone's room allows) are inline: a utility of its own
 // would grow the one stylesheet every page loads first.
-import { useId, type KeyboardEvent } from 'react'
-import { GoalHeroStepper } from './goal-setup-parts'
+import { useId, type KeyboardEvent, type Ref } from 'react'
+import { GoalHeroStepper, HERO_STEPPER_GAP, HERO_STEPPER_TOUCH } from './goal-setup-parts'
 import type { PortalGoalSheetModel } from './portal-goal-sheet-view'
 
 type Props = Readonly<{
@@ -23,6 +23,8 @@ type Props = Readonly<{
   pending: boolean
   /** A number with a decimal (the average): the keyboard offers its point. */
   decimal?: boolean
+  /** The box itself: a link that goes once it is used moves the focus here first. */
+  boxRef?: Ref<HTMLInputElement>
   onType: (text: string) => void
   onCommit: () => void
   onStep: (to: number) => void
@@ -44,13 +46,13 @@ const MOST_FIGURES = 9
 const CARET_ROOM = 0.5
 /**
  * A figure of the display face is about 0.71 em wide, and a phone's row is the
- * box between two 44 px steppers and their 16 px gaps. On a phone as narrow as
- * 320 px the full-size box would push − and + off the screen, so the figures
- * take the smaller of their size and what the tile's own width leaves over (its
- * container's, in `cqw`).
+ * box between two steppers and their gaps (both the shared hero stepper's, so the
+ * fit follows it). On a phone as narrow as 320 px the full-size box would push −
+ * and + off the screen, so the figures take the smaller of their size and what the
+ * tile's own width leaves over (its container's, in `cqw`).
  */
 const FIGURE_EM = 0.71
-const PHONE_STEPPERS = 2 * (44 + 16)
+const PHONE_STEPPERS = 2 * (HERO_STEPPER_TOUCH + HERO_STEPPER_GAP.phone)
 
 /** The figures' full size here: the size, or on a phone what the room allows of it. */
 function fullSize(small: boolean): string {
@@ -77,6 +79,7 @@ export function PortalGoalNumberTile({
   small,
   pending,
   decimal = false,
+  boxRef,
   ...props
 }: Props) {
   const unitId = useId()
@@ -117,6 +120,7 @@ export function PortalGoalNumberTile({
         raise={stepper(number.raise)}
       >
         <input
+          ref={boxRef}
           type="text"
           inputMode={decimal ? 'decimal' : 'numeric'}
           role="spinbutton"

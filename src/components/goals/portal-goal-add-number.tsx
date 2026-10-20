@@ -73,7 +73,9 @@ export function PortalGoalAddAverage({
         onFocusChange={() => undefined}
       />
       <p className="text-center text-sm text-muted-foreground">{model.status}</p>
-      <p className="text-sm text-muted-foreground">{PORTAL_SPOT_NOT_PERSON_LINE}</p>
+      <p className="text-center text-sm text-muted-foreground">
+        {PORTAL_SPOT_NOT_PERSON_LINE}
+      </p>
     </div>
   )
 }

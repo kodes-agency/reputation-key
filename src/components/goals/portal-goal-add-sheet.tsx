@@ -186,7 +186,7 @@ export function PortalGoalAddSheet(props: PortalGoalAddSheetProps) {
           onSendEach={(data) => sendEach({ propertyId, ...data })}
           error={<DialogErrorBanner error={error} />}
           footer={(back, primary) => (
-            <DialogFooter>
+            <DialogFooter className="mt-auto">
               {back === null ? (
                 <DialogCancel />
               ) : (

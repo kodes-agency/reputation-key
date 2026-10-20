@@ -15,6 +15,19 @@ import { Button } from '#/components/ui/button'
 import { IconButton } from '#/components/ui/icon-button'
 import { cn } from '#/lib/utils'
 
+/**
+ * The gap between the figure and each stepper: a phone's, and a desktop's. A goal
+ * that fits its figure in the room the steppers leave (a narrow phone) reads it
+ * from here, so the fit follows the part.
+ */
+export const HERO_STEPPER_GAP = { phone: 16, desktop: 40 } as const
+
+/**
+ * The stepper's width on a phone, in px: `icon-lg` is at least the touch height
+ * and width there (`--control-touch`, 44 px, `ui/button.tsx`).
+ */
+export const HERO_STEPPER_TOUCH = 44
+
 /** One of the two steppers: its name, whether it does nothing now, and what a press does. */
 type Step = Readonly<{
   label: string
@@ -48,7 +61,10 @@ export function GoalHeroStepper({
   children: ReactNode
 }>) {
   return (
-    <div className="flex items-center" style={{ gap: small ? 16 : 40 }}>
+    <div
+      className="flex items-center"
+      style={{ gap: small ? HERO_STEPPER_GAP.phone : HERO_STEPPER_GAP.desktop }}
+    >
       <IconButton
         label={lower.label}
         size="icon-lg"
@@ -88,11 +104,16 @@ export type GoalStatusPart<Action> =
   | Readonly<{ kind: 'text'; text: string }>
   | Readonly<{ kind: 'link'; text: string; action: Action }>
 
-/** The line under the goal: its parts in their order, a quiet dot between them. */
+/**
+ * The line under the goal: its parts in their order, a quiet dot between them; or,
+ * with `stack`, one part to a line and no dot, for a phone where a dot would be left
+ * at the end of a line of its own.
+ */
 export function GoalSetupStatusLine<Action>({
   slot,
   parts,
   small,
+  stack = false,
   live,
   disabled,
   onAction,
@@ -101,6 +122,8 @@ export function GoalSetupStatusLine<Action>({
   slot: string
   parts: readonly GoalStatusPart<Action>[]
   small: boolean
+  /** One part to a line, centred, with no dot between them: a phone's narrow room. Left out, the parts wrap in a row. */
+  stack?: boolean
   /**
    * Whether a screen reader speaks the line as it changes. Left out, the goal
    * says it elsewhere (a live region of its own beside the number).
@@ -116,13 +139,14 @@ export function GoalSetupStatusLine<Action>({
       aria-live={live}
       className={cn(
         'flex items-center gap-x-2 text-sm',
-        small && 'flex-wrap justify-center text-center',
+        small && !stack && 'flex-wrap justify-center text-center',
+        stack && 'flex-col gap-y-0.5 text-center',
       )}
       style={{ minHeight: small ? 28 : 30 }}
     >
       {parts.map((part, index) => (
         <Fragment key={`${part.kind}-${part.text}`}>
-          {index > 0 ? (
+          {index > 0 && !stack ? (
             <span aria-hidden="true" className="text-muted-foreground">
               ·
             </span>

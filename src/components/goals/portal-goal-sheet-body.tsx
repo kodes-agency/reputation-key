@@ -9,12 +9,13 @@
 // While the command is on its way nothing in it changes the number. Everything it
 // says is the sheet views' (`portal-goal-sheet-view.ts`,
 // `portal-goal-sheet-change-view.ts`); it only draws it and hands each change up.
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { SegmentedControl } from '#/components/ui/segmented-control'
+import { cn } from '#/lib/utils'
 import {
   GOAL_SETUP_LINK,
   GoalAside,
@@ -73,6 +74,7 @@ function NumberLine({
         slot="portal-goal-status"
         parts={model.status}
         small={small}
+        stack={small}
         live={quiet ? 'off' : 'polite'}
         disabled={pending}
         onAction={onRestore}
@@ -91,7 +93,11 @@ function NumberLine({
   )
 }
 
-/** U-S2: the suggestions as rows, and the asking line quoted under them; none with neither. */
+/**
+ * U-S2: the suggestions as rows, and the asking line quoted under them. With no
+ * suggestions (the first weeks, a change) the line stands alone, centred under the
+ * number: a muted panel holding one line of 12 px read as an empty box.
+ */
 function ChoicesPanel({
   model,
   small,
@@ -104,19 +110,23 @@ function ChoicesPanel({
   onChoose: (value: number) => void
 }>) {
   const id = useId()
-  if (model.choices === null && !model.asksEveryGuest) return null
+  if (model.choices === null) {
+    return model.asksEveryGuest ? (
+      <p className="text-center text-xs text-muted-foreground">
+        {PORTAL_ASK_EVERY_GUEST_LINE}
+      </p>
+    ) : null
+  }
   // No label of its own: the suggestions are a group already named for a screen reader.
   return (
     <GoalSetupPanel small={small}>
-      {model.choices === null ? null : (
-        <PortalGoalChoices
-          choices={model.choices}
-          chosen={model.chosen}
-          idPrefix={`${id}-choice`}
-          onChoose={onChoose}
-          disabled={pending}
-        />
-      )}
+      <PortalGoalChoices
+        choices={model.choices}
+        chosen={model.chosen}
+        idPrefix={`${id}-choice`}
+        onChoose={onChoose}
+        disabled={pending}
+      />
       {model.asksEveryGuest ? <GoalAside>{PORTAL_ASK_EVERY_GUEST_LINE}</GoalAside> : null}
     </GoalSetupPanel>
   )
@@ -150,6 +160,8 @@ function LinksRow({
           variant="link"
           size="inline"
           touch
+          // One size and weight with "How we worked this out" beside it.
+          className={cn('font-normal', small && 'text-xs')}
           disabled={pending}
           onClick={onSwitch}
         >
@@ -172,10 +184,18 @@ export function PortalGoalSheetBody({
   canSwitch = true,
 }: Props) {
   const [boxFocused, setBoxFocused] = useState(false)
+  const boxRef = useRef<HTMLInputElement>(null)
   const setNumber = (value: number) => onChange({ kind: 'number', value })
+  // The way back goes once it is used: the focus moves to the number first, which
+  // then says the number (the status line is quiet while it has the focus), so
+  // the focus is not lost and the line is not said twice.
+  const restore = (value: number) => {
+    boxRef.current?.focus()
+    setNumber(value)
+  }
   return (
     <form
-      className="flex flex-col gap-4"
+      className="flex flex-1 flex-col gap-3"
       onSubmit={(event) => {
         event.preventDefault()
         if (!model.primary.disabled) onSubmit()
@@ -192,23 +212,27 @@ export function PortalGoalSheetBody({
           className="self-center"
         />
       )}
-      <PortalGoalNumberTile
-        unit={model.unit}
-        number={model.number}
-        small={small}
-        pending={pending}
-        onType={(text) => onChange({ kind: 'type', text })}
-        onCommit={() => onChange({ kind: 'commit' })}
-        onStep={setNumber}
-        onFocusChange={setBoxFocused}
-      />
-      <NumberLine
-        model={model}
-        small={small}
-        pending={pending}
-        quiet={boxFocused}
-        onRestore={setNumber}
-      />
+      {/* One block, as Google's headline is: the line sits close under the number's. */}
+      <div className="flex flex-col">
+        <PortalGoalNumberTile
+          unit={model.unit}
+          number={model.number}
+          small={small}
+          pending={pending}
+          boxRef={boxRef}
+          onType={(text) => onChange({ kind: 'type', text })}
+          onCommit={() => onChange({ kind: 'commit' })}
+          onStep={setNumber}
+          onFocusChange={setBoxFocused}
+        />
+        <NumberLine
+          model={model}
+          small={small}
+          pending={pending}
+          quiet={boxFocused}
+          onRestore={restore}
+        />
+      </div>
       <ChoicesPanel model={model} small={small} pending={pending} onChoose={setNumber} />
       <LinksRow
         model={model}
@@ -225,7 +249,7 @@ export function PortalGoalSheetBody({
       ) : (
         <FormErrorBanner error={notice} />
       )}
-      <DialogFooter>
+      <DialogFooter className="mt-auto">
         <DialogCancel />
         <Button
           type="submit"
