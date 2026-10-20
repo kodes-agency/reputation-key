@@ -11,6 +11,7 @@ import { Button } from '#/components/ui/button'
 import { GoalHistoryList } from './goal-history-list'
 import {
   FIRST_HIDDEN_CHANGE,
+  anyChangeInAnotherYear,
   changeLines,
   type PortalGoalChangeLine,
 } from './portal-goal-changes-view'
@@ -42,6 +43,7 @@ export function PortalGoalChanges({ changes, personName, today }: Props) {
     <GoalHistoryList
       title="Changes"
       region
+      wideDates={anyChangeInAnotherYear(changes, today)}
       rows={lines.map((line) => ({
         key: line.key,
         when: line.date,

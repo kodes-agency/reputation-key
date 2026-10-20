@@ -71,6 +71,17 @@ describe('GoalHistoryList', () => {
     expect(html).not.toContain('<p')
   })
 
+  it('gives the date five rem, and six inline when a date carries a year', () => {
+    const narrow = list()
+    const wide = list({ wideDates: true })
+
+    expect(narrow).toContain('class="w-20 shrink-0 text-muted-foreground tabular-nums"')
+    expect(narrow).not.toContain('style=')
+    expect(wide).toContain('style="width:6rem"')
+    expect(wide).not.toContain('w-20')
+    expect(wide).toContain('class="shrink-0 text-muted-foreground tabular-nums"')
+  })
+
   it('makes no row focusable by script unless a control revealed it', () => {
     expect(list()).not.toContain('tabindex')
     expect(list({ revealedFrom: null })).not.toContain('tabindex')

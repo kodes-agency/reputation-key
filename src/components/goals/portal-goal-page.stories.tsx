@@ -48,6 +48,7 @@ import {
 } from './portal-goal-page.stories.fixtures'
 import {
   changeCells,
+  changeDateWidths,
   changeTexts,
   chipNames,
   expectStopAloneInMenu,
@@ -177,6 +178,8 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
     ['Oct 15', 'Spa went live'],
     ['Oct 9', 'Reception and Restaurant went live'],
   ])
+  // Every date is of this year: the cells keep their class's five rem.
+  await expect(changeDateWidths(canvas)).toEqual(['', '', ''])
   await expect(
     canvas.getByRole('button', { name: 'How this goal counts' }),
   ).toHaveAttribute('aria-expanded', 'false')
@@ -376,6 +379,31 @@ export const Stopped: Story = {
       notice.getByRole('button', { name: 'Set a goal from December' }),
     ).toBeVisible()
     await expect(changeTexts(canvas)).toContain('Nov 12 · Marco stopped the goal')
+  },
+}
+
+/** Nov 22 with changes from the year before: their dates say their year. */
+const PAGE_CHANGES_ACROSS_A_YEAR: typeof PAGE_RUNNING = {
+  ...PAGE_RUNNING,
+  changes: [
+    ...PAGE_RUNNING.changes.slice(0, 1),
+    { kind: 'went_live', on: '2025-12-28', portals: ['Spa'] },
+    { kind: 'went_live', on: '2025-03-03', portals: ['Reception', 'Restaurant'] },
+  ],
+}
+
+/** A change of another year says its year, and the date column has room for it in every row. */
+export const ChangesAcrossAYear: Story = {
+  args: { page: PAGE_CHANGES_ACROSS_A_YEAR },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(changeCells(canvas)).toEqual([
+      ['Oct 23', 'Elena set 40 a month from November (recommended)'],
+      ['Dec 28, 2025', 'Spa went live'],
+      ['Mar 3, 2025', 'Reception and Restaurant went live'],
+    ])
+    await expect(changeDateWidths(canvas)).toEqual(['6rem', '6rem', '6rem'])
   },
 }
 

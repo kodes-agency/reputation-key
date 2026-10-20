@@ -65,9 +65,23 @@ function changeText(
   }
 }
 
+/** Whether `day` is in the year of `today`: only a day of another year says its year. */
+const inYearOf = (day: string, today: string): boolean =>
+  day.slice(0, 4) === today.slice(0, 4)
+
 /** "Oct 23" this year; "Mar 3, 2025" in another. */
 const changeDay = (day: string, today: string): string =>
-  day.slice(0, 4) === today.slice(0, 4) ? dayWords(day) : (formatLocalDate(day) ?? day)
+  inYearOf(day, today) ? dayWords(day) : (formatLocalDate(day) ?? day)
+
+/**
+ * Whether any change, shown or not yet, is dated in another year: its date says
+ * its year, so the date column must have room for one. Read over every change, so
+ * the column does not widen when "Show all" adds the rows after the first 12.
+ */
+export const anyChangeInAnotherYear = (
+  changes: readonly PortalGoalChange[],
+  today: string,
+): boolean => changes.some((change) => !inYearOf(change.on, today))
 
 const noteOf = (change: PortalGoalChange): string | null =>
   (change.kind === 'set_from' || change.kind === 'set_month') && change.note !== null

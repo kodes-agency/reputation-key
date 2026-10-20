@@ -87,6 +87,22 @@ export function changeCells(scope: Scope): [string, string][] {
     })
 }
 
+/**
+ * The width each date cell of "Changes" is given inline: empty in a list whose
+ * dates are all of this year (the cell is five rem by its class), six rem where a
+ * date carries a year.
+ */
+export function changeDateWidths(scope: Scope): string[] {
+  const section = scope.getByRole('region', { name: 'Changes' })
+  return within(section)
+    .getAllByRole('listitem')
+    .map((item) =>
+      item.firstElementChild instanceof HTMLElement
+        ? item.firstElementChild.style.width
+        : '',
+    )
+}
+
 /** Each line of "Changes", as the page reads it out: the date, then the words. */
 export function changeTexts(scope: Scope): string[] {
   return changeCells(scope).map(([when, words]) => `${when} · ${words}`)

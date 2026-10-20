@@ -5,11 +5,12 @@
 // and the words as a node, so a row may carry a link or a second line); the list
 // only lays them out.
 //
-// Three options a goal may ask for and the other never passes: `more`, a control
+// Four options a goal may ask for and the other never passes: `more`, a control
 // under the list (a "Show all"); `revealedFrom`, the row that control added, which
-// takes the focus once so a keyboard does not lose its place; and `region`, which
-// makes the card a landmark named by its title. A list that passes none draws a
-// card with no landmark, as it always did.
+// takes the focus once so a keyboard does not lose its place; `region`, which
+// makes the card a landmark named by its title; and `wideDates`, a date column
+// with room for a year. A list that passes none draws a card with no landmark and
+// a column of five rem, as it always did.
 import { useCallback, useId, useRef, type ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 
@@ -34,11 +35,20 @@ type Props = Readonly<{
   revealedFrom?: number | null
   /** Draws the card as a landmark named by its title; off, the title only heads the card. */
   region?: boolean
+  /** The date column is wide enough for a year ("Dec 28, 2025"), which five rem cannot hold on one line. */
+  wideDates?: boolean
 }>
 
 /** The row's classes, spelled whole. The row the focus is sent to has no ring of its own. */
 const ROW = 'flex gap-x-4 py-2 first:pt-0 last:pb-0'
 const REVEALED_ROW = `${ROW} outline-none`
+
+/** The date cell's classes: five rem wide, or the width below for a date with its year. */
+const WHEN = 'w-20 shrink-0 text-muted-foreground tabular-nums'
+const WHEN_WIDE = 'shrink-0 text-muted-foreground tabular-nums'
+
+/** Six rem, inline: a new utility class would grow the stylesheet every page loads. */
+const WIDE_WHEN_WIDTH = { width: '6rem' } as const
 
 export function GoalHistoryList({
   title,
@@ -47,6 +57,7 @@ export function GoalHistoryList({
   more,
   revealedFrom = null,
   region = false,
+  wideDates = false,
 }: Props) {
   const titleId = useId()
   // Once, however often the list is drawn again: a row's key moves with its index.
@@ -78,7 +89,10 @@ export function GoalHistoryList({
                 tabIndex={revealed ? -1 : undefined}
                 className={revealed ? REVEALED_ROW : ROW}
               >
-                <span className="w-20 shrink-0 text-muted-foreground tabular-nums">
+                <span
+                  className={wideDates ? WHEN_WIDE : WHEN}
+                  style={wideDates ? WIDE_WHEN_WIDTH : undefined}
+                >
                   {row.when}
                 </span>
                 {row.content}
