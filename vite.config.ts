@@ -165,7 +165,9 @@ const config = defineConfig(({ mode }) => {
                     // chunk, and its hashes do not compress: a name costs
                     // first paint up to about 26 B gzip. One chunk turns the
                     // names into one (U2: goal-headline and goal-pace-status
-                    // merged recovered about 6 B). The entry's gzip also moves
+                    // merged recovered about 6 B; U5: goal-history-list on its
+                    // own chunk cost the closure 38 B, merged here it saves 10 B
+                    // against the slice before). The entry's gzip also moves
                     // by up to about 10 B with this chunk's name, so compare
                     // closures by rebuilding, not by arithmetic.
                     //
@@ -179,7 +181,7 @@ const config = defineConfig(({ mode }) => {
                     // never the entry or a goal chunk. No `$initial` tag: these
                     // parts are never first paint.
                     name: 'goal-parts',
-                    test: /[\\/]src[\\/]components[\\/]goals[\\/]goal-(?:headline|pace-status)\.tsx?$/,
+                    test: /[\\/]src[\\/]components[\\/]goals[\\/]goal-(?:headline|pace-status|history-list|detail-layout)\.tsx?$/,
                     priority: 5,
                     includeDependenciesRecursively: false,
                   },
