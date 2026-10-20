@@ -1,13 +1,14 @@
 // The live line under an active goal on the Goals list (Portal goals, decision
 // 14). It is the month so far, never the month's result: a count with one
 // subject gets its figure of the target, the days left and a neutral bar, and
-// when it is below pace the quiet amber words "below pace": after the days left
-// where the cell has room, beside the bar where it has not, so the note never
-// adds a line; an average gets its figure against the target and no pace; a
-// goal with several subjects says how many are below pace. A figure that cannot
-// be read says so, and an average too thin to show asks for more ratings. Dark
-// is the default theme; the Light variants draw the same lines on the light
-// surface, and axe checks both.
+// where the pace was judged the shared pill, "On pace" or "Below pace" (ADR
+// 0068, amended 2026-10-19), after the days left where the cell has room, beside
+// the bar where it has not, so the pill never adds a line; a month the rule does
+// not judge has no pill; an average gets its figure against the target and no
+// pace; a goal with several subjects says how many are below pace, as words. A
+// figure that cannot be read says so, and an average too thin to show asks for
+// more ratings. Dark is the default theme; the Light variants draw the same
+// lines on the light surface, and axe checks both.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
@@ -34,11 +35,53 @@ const meta: Meta<typeof GoalLiveLine> = {
 export default meta
 type Story = StoryObj<typeof GoalLiveLine>
 
-/** One count subject: the figure of the target, the days left and a neutral bar. */
+/** The sentence of the default goal, whatever pill it wears. */
+function expectTheCountSentence(canvasElement: HTMLElement) {
+  const line = canvasElement.querySelector('[data-slot="goal-live-line"]')
+  expect(line?.querySelector('p')).toHaveTextContent(/^64 of 120 so far · 15 days left$/)
+}
+
+/** The pill of a line: one badge, in the slot the metrics read, in this tone. */
+function expectThePill(
+  canvas: ReturnType<typeof within>,
+  label: string,
+  variant: string,
+) {
+  const pill = canvas.getByText(label)
+  expect(pill).toBeVisible()
+  expect(pill).toHaveAttribute('data-slot', 'badge')
+  expect(pill).toHaveAttribute('data-variant', variant)
+  expect(pill.closest('[data-slot="goal-live-pace"]')).not.toBeNull()
+}
+
+/** The placeholder above the line that replaces it, as a row keeps them while its month is read. */
+function PendingAbove({ live }: Readonly<{ live: GoalListProgress }>) {
+  return (
+    <div className="flex flex-col gap-6">
+      <GoalLiveLinePending shape="line_and_bar" />
+      <GoalLiveLine goal={live} />
+    </div>
+  )
+}
+
+/** The placeholder is hidden from assistive technology; only the loaded line is a bar a reader can find. */
+function expectOnlyTheLineIsABar(canvasElement: HTMLElement) {
+  const pending = canvasElement.querySelector('[data-slot="goal-live-line-pending"]')
+  expect(pending).toHaveAttribute('aria-hidden', 'true')
+  expect(within(canvasElement).getAllByRole('progressbar')).toHaveLength(1)
+}
+
+/**
+ * One count subject whose pace the rule did not judge (the month's first days,
+ * or too few expected so far): the figure of the target, the days left and a
+ * neutral bar, and no pill.
+ */
 export const OneCountSubject: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('64 of 120 so far · 15 days left')).toBeVisible()
+    expect(canvasElement.querySelector('[data-slot="goal-live-pace"]')).toBeNull()
+    expect(canvas.queryByText(/pace/iu)).toBeNull()
     const bar = canvas.getByRole('progressbar', {
       name: 'Scans so far this month',
     })
@@ -50,23 +93,17 @@ export const OneCountSubject: Story = {
 }
 
 /**
- * A count below pace says so in quiet amber text, apart from the sentence: after
- * the days left where the cell has room, beside the bar where it has not (the
- * story's own width is wide; `NarrowCellBelowPace` is the phone's). The bar stays
- * neutral: the amber is two words and a nudge, not a verdict.
+ * A count below pace wears the shared "Below pace" pill, apart from the sentence:
+ * after the days left where the cell has room, beside the bar where it has not
+ * (the story's own width is wide; `NarrowCellBelowPace` is the phone's). The
+ * words and the bar stay neutral: the pill is the one verdict.
  */
 export const OneCountSubjectBelowPace: Story = {
   args: { goal: goal({ belowPace: 1 }) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const line = canvasElement.querySelector('[data-slot="goal-live-line"]')
-    expect(line?.querySelector('p')).toHaveTextContent(
-      /^64 of 120 so far · 15 days left$/,
-    )
-    const note = canvas.getByText('below pace')
-    expect(note).toBeVisible()
-    expect(note).toHaveClass('text-warn')
-    expect(note).toHaveAttribute('data-slot', 'goal-live-pace')
+    expectTheCountSentence(canvasElement)
+    expectThePill(canvas, 'Below pace', 'warn')
     const bar = canvas.getByRole('progressbar', {
       name: 'Scans so far this month',
     })
@@ -75,9 +112,20 @@ export const OneCountSubjectBelowPace: Story = {
   },
 }
 
+/** A count that keeps up wears the shared "On pace" pill, in the same place. */
+export const OneCountSubjectOnPace: Story = {
+  args: { goal: goal({ belowPace: 0 }) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expectTheCountSentence(canvasElement)
+    expectThePill(canvas, 'On pace', 'positive')
+    expect(canvas.getByRole('progressbar')).toHaveAttribute('data-tone', 'neutral')
+  },
+}
+
 /**
- * In the cell of a row on a 375 px phone (about 230 px) the sentence and the note
- * do not fit one line, so the note sits beside the bar and the row keeps its
+ * In the cell of a row on a 375 px phone (about 230 px) the sentence and the
+ * pill do not fit one line, so the pill sits beside the bar and the row keeps its
  * height. The geometry is measured in Storybook proper
  * (`e2e/storybook-metrics/goal-live-line.metrics.ts`).
  */
@@ -91,6 +139,13 @@ export const NarrowCellBelowPace: Story = {
     ),
   ],
   play: OneCountSubjectBelowPace.play,
+}
+
+/** The same narrow cell with the "On pace" pill: it takes the room "Below pace" does. */
+export const NarrowCellOnPace: Story = {
+  args: { goal: goal({ belowPace: 0 }) },
+  decorators: NarrowCellBelowPace.decorators,
+  play: OneCountSubjectOnPace.play,
 }
 
 /** Past the target the bar is full and the words keep the count. */
@@ -212,67 +267,59 @@ export const SeveralSubjectsNotJudged: Story = {
  * (`e2e/storybook-metrics/goal-live-line.metrics.ts`).
  */
 export const PendingKeepsTheRoomOfACount: Story = {
-  render: () => (
-    <div className="flex flex-col gap-6">
-      <GoalLiveLinePending shape="line_and_bar" />
-      <GoalLiveLine goal={goal()} />
-    </div>
-  ),
+  render: () => <PendingAbove live={goal()} />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
     const pending = canvasElement.querySelector('[data-slot="goal-live-line-pending"]')
-    expect(pending).toHaveAttribute('aria-hidden', 'true')
     expect(pending?.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2)
-    // Only the loaded line is a bar a reader can find.
-    expect(canvas.getAllByRole('progressbar')).toHaveLength(1)
-    expect(canvas.getByText('64 of 120 so far · 15 days left')).toBeVisible()
+    expectOnlyTheLineIsABar(canvasElement)
+    expect(
+      within(canvasElement).getByText('64 of 120 so far · 15 days left'),
+    ).toBeVisible()
   },
 }
 
 /**
- * Whether a count is below pace is known only with its figure, so the room kept
- * while it is read is the same either way: the note never adds a line to the
- * sentence, and the bar's line is as high as the note
+ * Whether a count has a pill, and which, is known only with its figure, so the
+ * room kept while it is read is the same either way: the pill never adds a line
+ * to the sentence, and the row it sits in is as high as the pill
  * (`e2e/storybook-metrics/goal-live-line.metrics.ts` measures it from a 200 px
  * cell to a desktop's).
  */
 export const PendingKeepsTheRoomOfACountBelowPace: Story = {
-  render: () => (
-    <div className="flex flex-col gap-6">
-      <GoalLiveLinePending shape="line_and_bar" />
-      <GoalLiveLine goal={goal({ belowPace: 1 })} />
-    </div>
-  ),
+  render: () => <PendingAbove live={goal({ belowPace: 1 })} />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const pending = canvasElement.querySelector('[data-slot="goal-live-line-pending"]')
-    expect(pending).toHaveAttribute('aria-hidden', 'true')
-    expect(canvas.getAllByRole('progressbar')).toHaveLength(1)
-    expect(canvas.getByText('below pace')).toBeVisible()
+    expectOnlyTheLineIsABar(canvasElement)
+    expect(within(canvasElement).getByText('Below pace')).toBeVisible()
   },
 }
 
-/** The widest figures a row has: the longest sentence the note has to make room for. */
+/** The same room again when the line that arrives wears "On pace". */
+export const PendingKeepsTheRoomOfACountOnPace: Story = {
+  render: () => <PendingAbove live={goal({ belowPace: 0 })} />,
+  play: async ({ canvasElement }) => {
+    expectOnlyTheLineIsABar(canvasElement)
+    expect(within(canvasElement).getByText('On pace')).toBeVisible()
+  },
+}
+
+/** The widest figures a row has: the longest sentence the pill has to make room for. */
 export const PendingKeepsTheRoomOfACountOfFiveDigitsBelowPace: Story = {
   render: () => (
-    <div className="flex flex-col gap-6">
-      <GoalLiveLinePending shape="line_and_bar" />
-      <GoalLiveLine
-        goal={goal({
-          belowPace: 1,
-          metric: 'portal_rating_count',
-          month: {
-            reading: { kind: 'live', value: 12345, sampleCount: 12345 },
-            targetValue: 15000,
-          },
-        })}
-      />
-    </div>
+    <PendingAbove
+      live={goal({
+        belowPace: 1,
+        metric: 'portal_rating_count',
+        month: {
+          reading: { kind: 'live', value: 12345, sampleCount: 12345 },
+          targetValue: 15000,
+        },
+      })}
+    />
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('12,345 of 15,000 so far · 15 days left')).toBeVisible()
-    expect(canvas.getByText('below pace')).toBeVisible()
+    expect(canvas.getByText('Below pace')).toBeVisible()
   },
 }
 
@@ -299,6 +346,10 @@ export const OneCountSubjectLight: Story = {
 }
 export const OneCountSubjectBelowPaceLight: Story = {
   ...OneCountSubjectBelowPace,
+  parameters: { theme: 'light' },
+}
+export const OneCountSubjectOnPaceLight: Story = {
+  ...OneCountSubjectOnPace,
   parameters: { theme: 'light' },
 }
 export const SeveralSubjectsBelowPaceLight: Story = {

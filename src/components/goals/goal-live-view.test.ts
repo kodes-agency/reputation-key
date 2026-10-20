@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
+import { GOAL_PACE_STATUS } from './goal-pace-status'
 import {
   daysLeftWords,
   goalListSummary,
@@ -26,7 +27,7 @@ describe('the live line of a goal with one count subject', () => {
 
     expect(line).toEqual({
       text: '64 of 120 so far · 15 days left',
-      paceNote: null,
+      pace: null,
       bar: {
         value: 64,
         max: 120,
@@ -94,20 +95,20 @@ describe('the live line of a goal with one count subject', () => {
 
     expect(line).toEqual({
       text: 'This month’s figure can’t be read right now',
-      paceNote: null,
+      pace: null,
       bar: null,
     })
   })
 })
 
-describe('the pace note of a goal with one count subject', () => {
+describe('the pace pill of a goal with one count subject', () => {
   const paced = (belowPace: number | null, patch: Partial<GoalListProgress> = {}) =>
     goalLiveView(goal({ belowPace, ...patch }))
 
-  it('adds "below pace" after the figure and the days left, and keeps the bar', () => {
+  it('is "Below pace" for a count behind, after the figure and the days left, and keeps the bar', () => {
     expect(paced(1)).toEqual({
       text: '64 of 120 so far · 15 days left',
-      paceNote: 'below pace',
+      pace: GOAL_PACE_STATUS.below_pace,
       bar: {
         value: 64,
         max: 120,
@@ -117,19 +118,38 @@ describe('the pace note of a goal with one count subject', () => {
     })
   })
 
-  it('adds the note on the last day too', () => {
-    expect(paced(1, { daysLeft: 0 })).toMatchObject({
-      text: '64 of 120 so far · last day',
-      paceNote: 'below pace',
+  it('is the shared pill: the same words and tone the card and the page wear', () => {
+    expect(paced(1)?.pace).toEqual({ label: 'Below pace', tone: 'warn' })
+    expect(paced(0)?.pace).toEqual({ label: 'On pace', tone: 'positive' })
+  })
+
+  it('is "Below pace" for any number of subjects behind that is at least one', () => {
+    expect(paced(2)?.pace).toBe(GOAL_PACE_STATUS.below_pace)
+  })
+
+  it('is "On pace" for a count that keeps up', () => {
+    expect(paced(0)).toMatchObject({
+      text: '64 of 120 so far · 15 days left',
+      pace: GOAL_PACE_STATUS.on_pace,
     })
   })
 
-  it('adds nothing for a count that keeps up', () => {
-    expect(paced(0)?.paceNote).toBeNull()
+  it('says it on the last day too', () => {
+    expect(paced(1, { daysLeft: 0 })).toMatchObject({
+      text: '64 of 120 so far · last day',
+      pace: GOAL_PACE_STATUS.below_pace,
+    })
+    expect(paced(0, { daysLeft: 0 })?.pace).toBe(GOAL_PACE_STATUS.on_pace)
   })
 
-  it('adds nothing when the pace was not judged: an early month', () => {
-    expect(paced(null)?.paceNote).toBeNull()
+  it('says nothing when the pace was not judged: an early month, too few expected', () => {
+    expect(paced(null)?.pace).toBeNull()
+  })
+
+  it('never puts the verdict in the words, so the sentence reads the same with or without it', () => {
+    const texts = [paced(1), paced(0), paced(null)].map((line) => line?.text)
+
+    expect(new Set(texts)).toEqual(new Set(['64 of 120 so far · 15 days left']))
   })
 
   it('adds nothing to a figure that cannot be read, whatever the pace says', () => {
@@ -139,7 +159,7 @@ describe('the pace note of a goal with one count subject', () => {
 
     expect(line).toEqual({
       text: 'This month’s figure can’t be read right now',
-      paceNote: null,
+      pace: null,
       bar: null,
     })
   })
@@ -153,7 +173,7 @@ describe('the pace note of a goal with one count subject', () => {
       },
     })
 
-    expect(line?.paceNote).toBeNull()
+    expect(line?.pace).toBeNull()
   })
 })
 
@@ -169,7 +189,7 @@ describe('the live line of a goal with one average subject', () => {
 
     expect(line).toEqual({
       text: '4.6 so far · target 4.5 · 15 days left',
-      paceNote: null,
+      pace: null,
       bar: null,
     })
   })
@@ -181,7 +201,7 @@ describe('the live line of a goal with one average subject', () => {
 
     expect(line).toEqual({
       text: 'More ratings needed · 4 of 10 so far · target 4.5 · 15 days left',
-      paceNote: null,
+      pace: null,
       bar: null,
     })
   })
@@ -189,7 +209,7 @@ describe('the live line of a goal with one average subject', () => {
   it('says an average that cannot be read so', () => {
     expect(goalLiveView(average({ kind: 'unavailable' }))).toEqual({
       text: 'This month’s figure can’t be read right now',
-      paceNote: null,
+      pace: null,
       bar: null,
     })
   })
@@ -202,7 +222,7 @@ describe('the live line of a goal with several subjects', () => {
   it('counts the subjects below pace on a count', () => {
     expect(goalLiveView(several({ belowPace: 2 }))).toEqual({
       text: '3 subjects · 2 below pace',
-      paceNote: null,
+      pace: null,
       bar: null,
     })
     expect(goalLiveView(several({ belowPace: 1 }))?.text).toBe(
@@ -216,10 +236,17 @@ describe('the live line of a goal with several subjects', () => {
     )
   })
 
+  it('keeps the count as words and draws no pill, whatever the subjects are at', () => {
+    // A pill is one pace, and a goal of several subjects has several (Q-7).
+    for (const belowPace of [0, 1, 2, null]) {
+      expect(goalLiveView(several({ belowPace }))?.pace).toBeNull()
+    }
+  })
+
   it('says only the subjects when nothing was judged: an average, an early month', () => {
     expect(goalLiveView(several({ belowPace: null }))).toEqual({
       text: '3 subjects',
-      paceNote: null,
+      pace: null,
       bar: null,
     })
     expect(

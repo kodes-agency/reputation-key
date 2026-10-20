@@ -1,18 +1,21 @@
 // What a Goals row says under an active goal about the month so far.
 //
-// It is the live month to date and never the month's result, so it counts and
-// does not judge: "64 of 120 so far", never "on track". The one thing it may
-// say beyond the count is the nudge the Overview chip gives, "below pace", and
-// only when the goal is (`goalPace`): never "on pace", never a verdict on the
-// month. A count with one subject gets a neutral bar and, when it is below
-// pace, that note; an average gets its figure against the target and no pace;
-// a goal with several subjects gets how many are below pace. A figure that
+// It is the live month to date and never the month's result, so its words count
+// and do not judge: "64 of 120 so far", never "on track". The pace is the shared
+// pill (ADR 0068, amended 2026-10-19: one goal design system) and it is the
+// pace of the month so far, not a forecast of the result: a count with one
+// subject gets a neutral bar and, where `goalPace` judged it, "On pace" or
+// "Below pace"; a month it did not judge (the first days, too few expected by
+// today) gets no pill, and neither does an average, which has no pace. A goal
+// with several subjects gets how many are below pace, as words. A figure that
 // cannot be read says so and is never a zero, and an average too thin to show
 // asks for more ratings. Today counts as a day left. Pure.
 import type {
   GoalListProgress,
   GoalMetric,
 } from '#/contexts/reporting/application/public-api'
+import type { StatusPresentation } from '#/components/ui/status-badge'
+import { GOAL_PACE_STATUS } from './goal-pace-status'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalFigure, goalSoFarNote } from './goal-so-far'
 
@@ -27,12 +30,13 @@ export type GoalLiveBar = Readonly<{
 export type GoalLiveView = Readonly<{
   text: string
   /**
-   * The nudge in quiet amber, "below pace"; null for a goal that is not below
-   * pace, or whose pace was not judged. It is its own part, not the end of
+   * The pace pill of a count with one subject, "On pace" or "Below pace"; null
+   * where `goalPace` judged nothing (an early month, too few expected, an
+   * average) or the figure cannot be read. It is its own part, not the end of
    * `text`: where it goes (after the days left, or beside the bar) depends on
-   * the room the cell has, so `GoalLiveLine` places it and draws the separator.
+   * the room the cell has, so `GoalLiveLine` places it.
    */
-  paceNote: string | null
+  pace: StatusPresentation | null
   bar: GoalLiveBar | null
 }>
 
@@ -49,12 +53,23 @@ export function daysLeftWords(daysAfterToday: number): string {
   return left <= 1 ? 'last day' : `${left} days left`
 }
 
+/**
+ * The pill of a count with one subject: 0 below pace is "On pace", 1 is "Below
+ * pace", null is not judged and says nothing. A row's read carries no flag for
+ * the month's first quiet days, so "Getting started" is the card's and the
+ * page's alone: those days are not judged, and a row shows no pill for them.
+ */
+function countPace(belowPace: number | null): StatusPresentation | null {
+  if (belowPace === null) return null
+  return belowPace >= 1 ? GOAL_PACE_STATUS.below_pace : GOAL_PACE_STATUS.on_pace
+}
+
 function countLine(goal: GoalListProgress, month: Month, value: number): GoalLiveView {
   const target = goalFigure(goal.metric, month.targetValue)
   const soFar = `${goalFigure(goal.metric, value)} of ${target} so far`
   return {
     text: `${soFar} · ${daysLeftWords(goal.daysLeft)}`,
-    paceNote: goal.belowPace === 1 ? BELOW_PACE : null,
+    pace: countPace(goal.belowPace),
     bar: {
       value,
       max: month.targetValue,
@@ -71,7 +86,7 @@ function averageLine(goal: GoalListProgress, month: Month): GoalLiveView {
   if (reading.kind === 'live') {
     return {
       text: `${goalFigure(goal.metric, reading.value)} so far · ${target} · ${left}`,
-      paceNote: null,
+      pace: null,
       bar: null,
     }
   }
@@ -79,18 +94,18 @@ function averageLine(goal: GoalListProgress, month: Month): GoalLiveView {
     const counted = `${reading.sampleCount} of ${reading.minimumSample} so far`
     return {
       text: `More ratings needed · ${counted} · ${target} · ${left}`,
-      paceNote: null,
+      pace: null,
       bar: null,
     }
   }
-  return { text: goalSoFarNote(goal.metric, reading) ?? '', paceNote: null, bar: null }
+  return { text: goalSoFarNote(goal.metric, reading) ?? '', pace: null, bar: null }
 }
 
 function oneSubjectLine(goal: GoalListProgress, month: Month): GoalLiveView {
   const { reading } = month
   if (goal.metric === 'portal_rating_average') return averageLine(goal, month)
   if (reading.kind === 'live') return countLine(goal, month, reading.value)
-  return { text: goalSoFarNote(goal.metric, reading) ?? '', paceNote: null, bar: null }
+  return { text: goalSoFarNote(goal.metric, reading) ?? '', pace: null, bar: null }
 }
 
 function severalSubjectsText(goal: GoalListProgress): string {
@@ -104,7 +119,7 @@ function severalSubjectsText(goal: GoalListProgress): string {
 export function goalLiveView(goal: GoalListProgress): GoalLiveView | null {
   if (goal.month !== null) return oneSubjectLine(goal, goal.month)
   if (goal.subjectCount > 1) {
-    return { text: severalSubjectsText(goal), paceNote: null, bar: null }
+    return { text: severalSubjectsText(goal), pace: null, bar: null }
   }
   return null
 }
