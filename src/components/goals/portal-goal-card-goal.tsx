@@ -25,6 +25,7 @@ import type {
   PortalGoalOfCard,
   PortalGoalRunningMonth,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
+import { Alert, AlertDescription } from '#/components/ui/alert'
 import { CardContent } from '#/components/ui/card'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { GoalCardColumns, GoalCardFrame } from './goal-card-frame'
@@ -78,13 +79,20 @@ type Props = Readonly<{
 
 /**
  * G-29: a stopped goal still counts to the end of its month (when one is
- * counting now), and the next goal can be set from the month after it.
+ * counting now), and the next goal can be set from the month after it. A line
+ * under the card's headline; on the goal's page a notice, the first thing it says.
  */
 export function PortalGoalStopped({
   goal,
   monthKey,
   openSheet,
-}: Readonly<{ goal: PortalGoalOfCard; monthKey: string | null; openSheet?: OpenSheet }>) {
+  notice = false,
+}: Readonly<{
+  goal: PortalGoalOfCard
+  monthKey: string | null
+  openSheet?: OpenSheet
+  notice?: boolean
+}>) {
   const words =
     goal.stopped === null || monthKey === null
       ? null
@@ -92,8 +100,8 @@ export function PortalGoalStopped({
   const from = goal.newGoalFrom
   const door = from !== null && openSheet !== undefined ? from : null
   if (words === null && door === null) return null
-  return (
-    <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground">
+  const parts = (
+    <>
       {words === null ? null : <span>{words}</span>}
       {door === null ? null : (
         <SheetLink
@@ -101,6 +109,18 @@ export function PortalGoalStopped({
           onClick={() => openSheet?.({ measure: shownMeasure(goal), month: door })}
         />
       )}
+    </>
+  )
+  if (notice) {
+    return (
+      <Alert variant="info">
+        <AlertDescription>{parts}</AlertDescription>
+      </Alert>
+    )
+  }
+  return (
+    <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground">
+      {parts}
     </p>
   )
 }

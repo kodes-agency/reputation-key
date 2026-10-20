@@ -596,6 +596,13 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     const recommended = recommendation.measures.portal_rating_count.fromToday?.aBitMore
     const target = recommended ?? soFar + 10
     const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
+    const period = calendarPeriodRange(input.now, input.timezone, 'monthly')
+    const { daysLeft } = goalMonthDays(period, input.now, input.timezone)
+    const daysLine =
+      daysLeft + 1 <= 1
+        ? `Last day of ${monthName}`
+        : `${daysLeft + 1} days left in ${monthName}`
+    const leftCount = target - soFar
     // The pill in the page's header, by the rule's verdict: none for a month it does not judge.
     const pill =
       PACE_PILL[
@@ -603,14 +610,17 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
           metric: 'portal_rating_count',
           value: soFar,
           target,
-          period: calendarPeriodRange(input.now, input.timezone, 'monthly'),
+          period,
           now: input.now,
           timezone: input.timezone,
         }).state
       ]
     const today = await localToday(propertyId)
-    const dayOf = (daysAgo: number) =>
-      formatLocalDate(addLocalDays(today, -daysAgo), { year: false })
+    const dayOf = (daysAgo: number): string => {
+      const day = formatLocalDate(addLocalDays(today, -daysAgo), { year: false })
+      if (day === null) throw new Error(`No date for ${daysAgo} days ago`)
+      return day
+    }
     await callServerFn(page, {
       file: MONTHLY_PORTAL_GOALS,
       exportName: 'setMonthlyPortalGoal',
@@ -641,10 +651,22 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       .getByText(/^(Getting started|On pace|Below pace)$/u)
     await expect(headerPill).toHaveCount(pill === undefined ? 0 : 1)
     if (pill !== undefined) await expect(headerPill).toHaveText(pill)
+    // What is left leads the page, as it leads the card; then the days left, then what it counts.
+    await expect(
+      page.getByText(
+        `${leftCount} ${leftCount === 1 ? 'private rating' : 'private ratings'} to ${target}`,
+        { exact: true },
+      ),
+    ).toBeVisible()
+    await expect(page.getByText(daysLine, { exact: true })).toBeVisible()
     await expect(
       page.getByText(/^Private ratings from all 3 portals at .+\.$/u),
     ).toBeVisible()
-    // The tiles: this month so far, and no goal the month before.
+    // The tiles, in the section the first goal's page names the same way: this
+    // month so far, and no goal the month before.
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Your goal, so far' }),
+    ).toBeVisible()
     const tiles = page.locator('[data-slot="metric-strip"]')
     await expect(tiles.getByText(`${soFar} of ${target}`, { exact: true })).toBeVisible()
     await expect(tiles.getByText('No goal yet', { exact: true })).toBeVisible()
@@ -674,18 +696,21 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
         .getByRole('button', { name: new RegExp(`^${monthName}: .+, running$`, 'u') }),
     ).toBeVisible()
 
-    // The change log: the set, then each Portal going live, newest first.
+    // The change log: the set, then each Portal going live, newest first. The
+    // History list keeps each date in a cell of its own, apart from the words.
     const changes = page.getByRole('region', { name: 'Changes' }).getByRole('listitem')
-    await expect(changes.first()).toHaveText(
+    const cells = (index: number) => changes.nth(index).locator(':scope > span')
+    await expect(cells(0).first()).toHaveText(dayOf(0))
+    await expect(cells(0).last()).toHaveText(
       new RegExp(
-        `^${dayOf(0)} · .*[Ss]et ${target} a month from ${monthName}${recommended === undefined ? '' : ' \\(recommended\\)'}$`,
+        `^.*[Ss]et ${target} a month from ${monthName}${recommended === undefined ? '' : ' \\(recommended\\)'}$`,
         'u',
       ),
     )
-    await expect(changes.nth(1)).toHaveText(`${dayOf(8)} · Spa went live`)
-    await expect(changes.nth(2)).toHaveText(
-      `${dayOf(20)} · Reception and Restaurant went live`,
-    )
+    await expect(cells(1).first()).toHaveText(dayOf(8))
+    await expect(cells(1).last()).toHaveText('Spa went live')
+    await expect(cells(2).first()).toHaveText(dayOf(20))
+    await expect(cells(2).last()).toHaveText('Reception and Restaurant went live')
 
     await dismissToasts(page)
     await assertNoAxeViolations(page, 'the monthly portal goal page (/goals/portals)')

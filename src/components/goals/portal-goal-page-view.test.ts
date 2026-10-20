@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { PortalGoalPageMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import {
+  TILES_LABEL,
+  TILES_TITLE,
   extrasSubjectName,
   fromPortalsWords,
   howItCountsWords,
@@ -45,6 +47,11 @@ describe('pageBodyLine', () => {
 })
 
 describe('portalGoalTiles', () => {
+  it('are titled "Your goal, so far", and named so for a screen reader', () => {
+    expect(TILES_TITLE).toBe('Your goal, so far')
+    expect(TILES_LABEL).toBe('Your goal, so far, in numbers')
+  })
+
   it('tiles say No goal yet before the first month', () => {
     const tiles = portalGoalTiles(
       RUNNING,

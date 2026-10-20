@@ -1,27 +1,31 @@
 // The average private rating goal's page, on `$goalId` (PLAN PG-21): the goal
-// page without a bar. Under its title, what the average is and where it counts
-// (L-6), a stopped or paused goal's state, and its tile: this month's governed
-// average against its level ("4.6 so far · goal 4.5"), or how many ratings it
-// still needs ("More ratings needed · 6 of 10"), or its first month while it
-// waits for it. Then each of its months and what changed, as on the Monthly
-// portal goal's page. Its actions are "Change number", which opens a sheet of
+// page without a bar, laid out on the shared detail layout like the Monthly
+// portal goal's (ADR 0068, amended 2026-10-19: one goal design system). A
+// stopped or paused goal's state comes first, as a notice; then what the average
+// is and where it counts (L-6), and its tile: this month's governed average
+// against its level ("4.6 so far · goal 4.5"), or how many ratings it still
+// needs ("More ratings needed · 6 of 10"), or its first month while it waits for
+// it. It has no pill: a month's average is not judged against a pace. Then each
+// of its months and what changed, as on the Monthly portal goal's page. Its actions are "Change number", which opens a sheet of
 // its own (a box of tenths, now or from its next month, no recommendation:
 // there is none for an average), and Stop, in the goal's menu, with the same
 // confirmation as every portal goal's. The sheet is a chunk of its own, fetched
 // while its door is on screen; it works from the goal as it opened on it, and
 // when it is behind the goal the page reads it again and opens it afresh on the
 // latest. The focus goes back to what opened it, or to the page's title.
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react'
 import type { PortalGoalSinglePageView } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
+import { Alert, AlertDescription } from '#/components/ui/alert'
+import { GoalDetailLayout, GoalTiles } from './goal-detail-layout'
 import type { PortalGoalAverageChangeCommands } from './portal-goal-average-change-sheet'
 import { PortalGoalChanges } from './portal-goal-changes'
 import { PortalGoalMonthStrip } from './portal-goal-month-strip'
 import { PAGE_HEADER_ID, focusPortalGoalPageTitle } from './portal-goal-page'
 import { usePortalGoalPageActions } from './portal-goal-page-actions'
-import { stripChips } from './portal-goal-page-view'
+import { TILES_LABEL, TILES_TITLE, stripChips } from './portal-goal-page-view'
 import {
   averageGoalLine,
   averageTiles,
@@ -29,7 +33,6 @@ import {
   singleGoalTitle,
 } from './portal-goal-single-page-view'
 import type { PortalGoalStopCommands } from './portal-goal-stop-dialog'
-import { PortalGoalTiles } from './portal-goal-tiles'
 
 type AverageView = Extract<PortalGoalSinglePageView, Readonly<{ kind: 'average' }>>
 
@@ -147,6 +150,7 @@ export function PortalGoalAveragePage(props: Props) {
     stop,
     focusTitle: focusPortalGoalPageTitle,
   })
+  const tilesId = useId()
   const tiles = averageTiles(goal)
   const state = goalStateLine(goal)
   return (
@@ -158,19 +162,26 @@ export function PortalGoalAveragePage(props: Props) {
           actions={actions}
         />
       </div>
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <p className="text-sm text-muted-foreground">{averageGoalLine(view.subject)}</p>
-          {state === null ? null : <p className="text-sm">{state}</p>}
-        </div>
-        {tiles.length === 0 ? null : <PortalGoalTiles tiles={tiles} label={title} />}
+      <GoalDetailLayout slot="portal-goal-average-detail">
+        {state === null ? null : (
+          <Alert variant="info">
+            <AlertDescription>{state}</AlertDescription>
+          </Alert>
+        )}
+        <p className="text-sm text-muted-foreground">{averageGoalLine(view.subject)}</p>
+        <GoalTiles
+          title={TILES_TITLE}
+          headingId={tilesId}
+          label={TILES_LABEL}
+          tiles={tiles}
+        />
         <PortalGoalMonthStrip chips={stripChips(view.months, view.today)} />
         <PortalGoalChanges
           changes={view.changes}
           personName={props.personName}
           today={view.today}
         />
-      </div>
+      </GoalDetailLayout>
       {dialog}
       {sheet.sheet}
     </PageShell>
