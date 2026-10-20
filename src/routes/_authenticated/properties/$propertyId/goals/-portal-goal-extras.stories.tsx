@@ -1,6 +1,8 @@
 // The other Portal goals as compact rows under the Monthly portal goal's card
 // (PLAN PG-21): each named for whom it counts and what, linked to its own
-// page, with this month so far while it runs. The Goals page lists the first
+// page, with this month so far while it runs, and for a count with one subject
+// whose pace the rule judged the shared pace pill ("On pace", "Below pace").
+// The Goals page lists the first
 // five, then "See all on the goal page"; while the months are first read each
 // running row keeps the room its line will take; a month that cannot be read
 // says so once, above the rows; the goals not ended only, on both of the Google
@@ -124,8 +126,39 @@ const RECEPTION_LIVE: GoalListProgress = {
   belowPace: 1,
 }
 
+/** Restaurant: 18 of 20, keeping up. */
+const RESTAURANT_LIVE: GoalListProgress = {
+  ...RECEPTION_LIVE,
+  programId: 'restaurant',
+  month: { reading: { kind: 'live', value: 18, sampleCount: 18 }, targetValue: 20 },
+  belowPace: 0,
+}
+
+/** Spa: 3 of 20 and the rule does not judge it yet (the first days, or too few expected). */
+const SPA_LIVE: GoalListProgress = {
+  ...RECEPTION_LIVE,
+  programId: 'spa',
+  month: { reading: { kind: 'live', value: 3, sampleCount: 3 }, targetValue: 20 },
+  belowPace: null,
+}
+
+/** The Property's average: its figure against the target, and no pace to judge. */
+const AVERAGE_LIVE: GoalListProgress = {
+  programId: 'average',
+  metric: 'portal_rating_average',
+  subjectCount: 1,
+  daysLeft: 8,
+  month: { reading: { kind: 'live', value: 4.62, sampleCount: 31 }, targetValue: 4.5 },
+  belowPace: null,
+}
+
 const LIVE = {
-  byProgram: new Map([['reception', RECEPTION_LIVE]]),
+  byProgram: new Map([
+    ['reception', RECEPTION_LIVE],
+    ['restaurant', RESTAURANT_LIVE],
+    ['spa', SPA_LIVE],
+    ['average', AVERAGE_LIVE],
+  ]),
   loading: false,
   failed: false,
 }
@@ -174,6 +207,27 @@ export const FirstFiveThenSeeAll: Story = {
     await expect(
       canvas.getByRole('link', { name: 'See all on the goal page' }),
     ).toHaveAttribute('href', '/properties/p1/goals/portals')
+  },
+}
+
+/**
+ * Each running count wears its own pace, in the same pill as the card: Reception
+ * is behind, Restaurant keeps up, Spa is not judged yet and the average has no
+ * pace to judge, so those two have none; Rooms has no figure read and no line.
+ * The pill is not part of the row's link.
+ */
+export const PacePillsOnTheRows: Story = {
+  play: async ({ canvasElement }) => {
+    const rows = within(within(canvasElement).getByRole('list')).getAllByRole('listitem')
+    const pills = rows.map(
+      (row) =>
+        within(row).queryByText(/^(Getting started|On pace|Below pace)$/u)?.textContent ??
+        null,
+    )
+    await expect(pills).toEqual(['Below pace', null, 'On pace', null, null])
+    await expect(rowNames(canvasElement)).not.toContainEqual(
+      expect.stringMatching(/pace/u),
+    )
   },
 }
 
