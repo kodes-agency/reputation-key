@@ -831,15 +831,18 @@ function buildContainer(
       reviewDiscoveryIntervalMs,
       reviewDiscoverySkipRecentlyReconciled,
       reviewHeadChecks,
+      reviewReconcileWithinMs,
     }: {
       reviewDiscoveryIntervalMs: number
       reviewDiscoverySkipRecentlyReconciled: boolean
-      reviewHeadChecks: 'off' | 'dark'
+      reviewHeadChecks: 'off' | 'dark' | 'persist'
+      reviewReconcileWithinMs: number
     }) =>
       review.worker.registerWorkerJobs({
         discoveryIntervalMs: reviewDiscoveryIntervalMs,
         discoverySkipRecentlyReconciled: reviewDiscoverySkipRecentlyReconciled,
         headChecks: reviewHeadChecks,
+        reconcileWithinMs: reviewReconcileWithinMs,
       }),
     /** ARC-03-T7: the durable consumer registry this container owns. */
     consumerRegistry,

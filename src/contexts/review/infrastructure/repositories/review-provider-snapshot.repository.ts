@@ -28,6 +28,7 @@ import {
 } from '../../domain/events'
 import { historyImportFailureReason } from '../../application/historical-import-outcome'
 import { domainError } from '#/shared/domain/errors'
+import { historyListedSince } from './review-provider-history-listed'
 import { eraseReviewSourceContent } from '../review-source-content-store'
 import { lockReviewSourceMutationScope } from '../review-source-mutation-serialization'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
@@ -100,29 +101,6 @@ const providerAggregateIsValid = (
     Number.isFinite(averageRating) &&
     averageRating >= 0 &&
     averageRating <= 5)
-
-/**
- * "A completed run has listed this epoch's history": the verified reputation
- * fact of a run that evaluated at or after the epoch's cutoff.
- *
- * The cutoff is written by `transaction_timestamp()` and keeps PostgreSQL's
- * microseconds. `evaluated_at` does NOT: `recordVerifiedSnapshotFact` reads
- * that instant into a JavaScript Date, which is milliseconds, and writes it
- * back truncated. Two instants inside the same millisecond therefore compare
- * BACKWARDS — a cutoff at .06308 and a completion at .063080 stored as .063.
- * An import admitted and completed in the same millisecond then looked
- * unlisted forever, so its Inbox items stayed history and, with the import
- * summary, every later completed poll re-announced it. Comparing at the
- * precision both values actually carry is the honest fix.
- */
-const historyListedSince = sql`EXISTS (
-  SELECT 1
-  FROM review_google_reputation_snapshot_facts listing
-  WHERE listing.organization_id = epoch.organization_id
-    AND listing.property_id = epoch.property_id
-    AND listing.source_epoch = epoch.source_epoch
-    AND listing.evaluated_at >= date_trunc('milliseconds', epoch.cutoff_at)
-)`
 
 /**
  * Whether this terminal run ends the Property's FIRST Google history import,
@@ -482,6 +460,7 @@ async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<void> {
     reviewCount: run.expectedTotal,
     averageRating: run.expectedAverageRating,
     evaluatedAt,
+    numbersObservedAt: run.startedAt,
     occurredAt: evaluatedAt,
   })
   await tx.insert(reviewGoogleReputationSnapshotFacts).values({
@@ -493,6 +472,7 @@ async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<void> {
     reviewCount: run.expectedTotal,
     averageRating: run.expectedAverageRating,
     evaluatedAt,
+    numbersObservedAt: run.startedAt,
   })
   await insertOutboxRow(tx, verified, { recordedAt: evaluatedAt })
 }

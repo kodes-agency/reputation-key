@@ -164,6 +164,30 @@ describe('migration verification (PRE17A A1 presence)', () => {
     expect(result.rowCount).toBe(1)
   })
 
+  it('reputation snapshot facts say whether they prove a listing and when Google was read (migration 0067)', async () => {
+    const result = await lease.pool.query(
+      `SELECT column_name, data_type, is_nullable, column_default
+       FROM information_schema.columns
+       WHERE table_name = 'review_google_reputation_snapshot_facts'
+       AND column_name IN ('listing_complete', 'numbers_observed_at')
+       ORDER BY column_name`,
+    )
+    expect(result.rows).toEqual([
+      {
+        column_name: 'listing_complete',
+        data_type: 'boolean',
+        is_nullable: 'NO',
+        column_default: 'true',
+      },
+      {
+        column_name: 'numbers_observed_at',
+        data_type: 'timestamp with time zone',
+        is_nullable: 'YES',
+        column_default: null,
+      },
+    ])
+  })
+
   it('no unjournaled sidecar SQL remains — all objects tracked by migrations', async () => {
     // The sidecar script is migration 0004; every live object is now tracked
     // through the journaled migration path.

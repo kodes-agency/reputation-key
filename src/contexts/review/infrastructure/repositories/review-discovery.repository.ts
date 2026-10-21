@@ -22,7 +22,8 @@
 //
 // It also carries each property's last COMPLETED reconciliation: the latest
 // review_google_reputation_snapshot_facts.evaluated_at of the property's CURRENT
-// source epoch (one probe of the scope index per candidate), and whether a coded
+// source epoch among the facts that prove a completed listing (`listing_complete`;
+// a head fact does not) (one probe of the scope index per candidate), and whether a coded
 // failure is still recorded. The sweep skips a look whose reconciliation is
 // recent (domain/discovery-reconciliation.ts).
 //
@@ -138,7 +139,8 @@ export const createReviewDiscoveryRepository = (
         )
 
       // The newest completed reconciliation of the property's CURRENT epoch. A
-      // relink bumps the epoch, so the old epoch's facts never count.
+      // relink bumps the epoch, so the old epoch's facts never count. Only a fact
+      // that proves a completed listing counts.
       const lastReconciled = db
         .select({ evaluatedAt: reviewGoogleReputationSnapshotFacts.evaluatedAt })
         .from(reviewGoogleReputationSnapshotFacts)
@@ -150,6 +152,9 @@ export const createReviewDiscoveryRepository = (
             ),
             eq(reviewGoogleReputationSnapshotFacts.propertyId, properties.id),
             eq(reviewGoogleReputationSnapshotFacts.sourceEpoch, properties.sourceEpoch),
+            // A head fact (Google's numbers from one read of its newest page)
+            // proves no listing, so it is no completed reconciliation.
+            eq(reviewGoogleReputationSnapshotFacts.listingComplete, true),
           ),
         )
         .orderBy(desc(reviewGoogleReputationSnapshotFacts.evaluatedAt))

@@ -26,8 +26,9 @@ export type ReviewDiscoveryCandidate = Readonly<{
   activity: DiscoveryActivity
   /**
    * When this property's newest COMPLETED reconciliation was evaluated: the
-   * latest `review_google_reputation_snapshot_facts.evaluated_at` for its
-   * CURRENT source epoch, or null when the epoch has none yet (a new or
+   * latest `review_google_reputation_snapshot_facts.evaluated_at` of a fact that
+   * proves a completed listing (`listing_complete`; a head fact does not) for
+   * its CURRENT source epoch, or null when the epoch has none yet (a new or
    * relinked property). Only the timestamp is read, never fact content.
    */
   lastReconciledAt: Date | null

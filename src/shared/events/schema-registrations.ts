@@ -16,6 +16,10 @@ import { registerEventSchema, isEventRegistered } from './schema-registry'
 import { additionalGuestLocalesSchema, guestLocaleSchema } from '../guest-locale-schemas'
 import { registerGoalEventSchemas } from './goal-event-schemas'
 import {
+  reviewGoogleReputationSnapshotVerifiedSchema,
+  reviewSnapshotRunScope,
+} from './review-reputation-event-schemas'
+import {
   portalApprovedDestinationRatioRecordedV1Schema,
   portalApprovedDestinationRatioRecordedV2Schema,
   portalConfigurationCompletenessRecordedV1Schema,
@@ -70,46 +74,6 @@ const reviewSourceTransitionedSchema = z.object({
   change: z.enum(['source_expired', 'provider_deleted']),
   occurredAt: z.string().optional(),
 })
-
-/** The Property source-epoch scope both provider-snapshot run facts are keyed by. */
-const reviewSnapshotRunScope = {
-  organizationId: z.string().trim().min(1).max(255),
-  propertyId: databaseUuidSchema,
-  sourceEpoch: z.number().int().safe().nonnegative(),
-  runId: databaseUuidSchema,
-} as const
-
-const reviewGoogleReputationSnapshotVerifiedSchema = z
-  .object({
-    ...reviewSnapshotRunScope,
-    reviewCount: z.number().int().safe().min(0).max(10_000),
-    averageRating: z.number().finite().min(0).max(5).nullable(),
-    evaluatedAt: z.iso.datetime(),
-    occurredAt: z.iso.datetime(),
-    sourceAggregateVersion: z.iso.datetime(),
-  })
-  .superRefine((value, context) => {
-    if (!(
-      (value.reviewCount === 0 && value.averageRating === null) ||
-      (value.reviewCount > 0 && value.averageRating !== null)
-    )) {
-      context.addIssue({
-        code: 'custom',
-        path: ['averageRating'],
-        message: 'The provider average must match the review count',
-      })
-    }
-    if (
-      value.sourceAggregateVersion !== value.evaluatedAt ||
-      value.occurredAt !== value.evaluatedAt
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['sourceAggregateVersion'],
-        message: 'The source aggregate version must equal evaluatedAt',
-      })
-    }
-  })
 
 /**
  * A Property's first Google history import reaching a terminal state.

@@ -7,15 +7,15 @@
   "src/contexts/integration/build.ts": 1169,
   "src/contexts/integration/infrastructure/google-import-v2-store.ts": 1831,
   "src/contexts/property/infrastructure/property-google-binding-store.ts": 900,
-  "src/contexts/review/infrastructure/google-reply-observation-store.ts": 815,
+  "src/contexts/review/infrastructure/google-reply-observation-store.ts": 813,
   "src/contexts/review/infrastructure/reply-command-store.ts": 918,
-  "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts": 1405,
+  "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts": 1400,
   "src/shared/ai-internal-transport-contract.ts": 1063,
   "src/shared/ai-provider-control/openai-connector.ts": 1100,
   "src/shared/db/schema-drift.ts": 947,
   "src/shared/db/schema/ai.schema.ts": 1290,
   "src/shared/db/schema/inbox.schema.ts": 869,
   "src/shared/db/schema/review.schema.ts": 1470,
-  "src/shared/events/schema-registrations.ts": 1629,
+  "src/shared/events/schema-registrations.ts": 1596,
   "src/shared/testing/scenarios/executors.ts": 1335
 }

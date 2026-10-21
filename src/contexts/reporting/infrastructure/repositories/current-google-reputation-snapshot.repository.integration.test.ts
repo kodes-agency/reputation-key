@@ -6,7 +6,11 @@ import { metricCurrentGoogleReputationSnapshots } from '#/shared/db/schema/metri
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import type { ConsumerEvent } from '#/shared/outbox'
 import type { VerifiedGoogleReputationSnapshotFact } from '../../application/ports/current-google-reputation-snapshot.port'
+import { handleCurrentGoogleReputationSnapshot } from '../current-google-reputation-outbox-consumers'
 import {
   CURRENT_GOOGLE_REPUTATION_CONSUMER,
   createCurrentGoogleReputationSnapshotRepository,
@@ -214,5 +218,99 @@ describe('Current on Google snapshot repository (real PostgreSQL)', () => {
       .where(eq(metricCurrentGoogleReputationSnapshots.propertyId, PROPERTY_ID))
     expect(receipt).toHaveLength(0)
     expect(projection).toHaveLength(0)
+  })
+
+  describe('Google’s numbers are ordered by when they were read', () => {
+    const SNAPSHOT_STARTED = new Date('2026-08-28T05:00:00.000Z')
+    const HEAD_READ = new Date('2026-08-28T05:09:00.000Z')
+    const HEAD_WRITTEN = new Date('2026-08-28T05:10:00.000Z')
+    const SNAPSHOT_COMPLETED = new Date('2026-08-28T05:12:00.000Z')
+
+    const verifiedEvent = (
+      eventIdValue: string,
+      runIdValue: string,
+      numbers: Readonly<{ reviewCount: number; averageRating: number }>,
+      times: Readonly<{ written: Date; observed: Date }>,
+    ): ConsumerEvent =>
+      ({
+        eventId: eventIdValue,
+        eventType: 'review.google_reputation_snapshot.verified',
+        eventVersion: 1,
+        payload: {
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+          sourceEpoch: 1,
+          runId: runIdValue,
+          ...numbers,
+          evaluatedAt: times.written.toISOString(),
+          numbersObservedAt: times.observed.toISOString(),
+          occurredAt: times.written.toISOString(),
+          sourceAggregateVersion: times.written.toISOString(),
+        },
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceContext: 'review',
+        sourceAggregateId: runIdValue,
+        occurredAt: times.written.toISOString(),
+        sourceAggregateVersion: times.written.toISOString(),
+      }) as unknown as ConsumerEvent
+
+    const headEvent = () =>
+      verifiedEvent(
+        EVENT_2,
+        RUN_2,
+        { reviewCount: 21, averageRating: 4.8 },
+        { written: HEAD_WRITTEN, observed: HEAD_READ },
+      )
+    // A long run: it froze Google's numbers when it started, five minutes
+    // before the head read them, and completes two minutes after the head wrote.
+    const snapshotEvent = () =>
+      verifiedEvent(
+        EVENT_1,
+        RUN_1,
+        { reviewCount: 20, averageRating: 4.7 },
+        { written: SNAPSHOT_COMPLETED, observed: SNAPSHOT_STARTED },
+      )
+
+    beforeAll(() => {
+      clearEventSchemas()
+      registerAllEventSchemas()
+    })
+
+    afterAll(() => clearEventSchemas())
+
+    it('keeps a fresher head fact when a snapshot that started earlier completes later', async () => {
+      await recordSourceEvent(EVENT_1, RUN_1)
+      await recordSourceEvent(EVENT_2, RUN_2)
+
+      await expect(
+        handleCurrentGoogleReputationSnapshot(repository, headEvent()),
+      ).resolves.toEqual({ status: 'applied' })
+      await expect(
+        handleCurrentGoogleReputationSnapshot(repository, snapshotEvent()),
+      ).resolves.toEqual({ status: 'obsolete' })
+
+      await expect(
+        repository.getCurrentOnGoogle(ORGANIZATION_ID, PROPERTY_ID),
+      ).resolves.toMatchObject({
+        reviewCount: 21,
+        averageRating: 4.8,
+        verifiedAt: HEAD_READ,
+      })
+    })
+
+    it('lets the fresher head fact replace the older snapshot numbers when it arrives second', async () => {
+      await recordSourceEvent(EVENT_1, RUN_1)
+      await recordSourceEvent(EVENT_2, RUN_2)
+
+      await handleCurrentGoogleReputationSnapshot(repository, snapshotEvent())
+      await expect(
+        handleCurrentGoogleReputationSnapshot(repository, headEvent()),
+      ).resolves.toEqual({ status: 'applied' })
+
+      await expect(
+        repository.getCurrentOnGoogle(ORGANIZATION_ID, PROPERTY_ID),
+      ).resolves.toMatchObject({ reviewCount: 21, verifiedAt: HEAD_READ })
+    })
   })
 })

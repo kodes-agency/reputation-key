@@ -249,3 +249,50 @@ describe('discoveryLookFor: with head checks on', () => {
     ).toEqual({ kind: 'full', reason: 'due' })
   })
 })
+
+describe('discoveryLookFor: a configured reconciliation window', () => {
+  const DAY_MS = 24 * HOUR_MS
+
+  it('skips a Property reconciled ten hours ago when the window is twenty-four hours', () => {
+    expect(
+      look({
+        lastReconciledAt: ago(10 * HOUR_MS),
+        interval: COLD_MS,
+        headChecks: true,
+        reconcileWithinMs: DAY_MS,
+      }),
+    ).toEqual({
+      kind: 'skip',
+      nextDueAt: new Date(NOW.getTime() + COLD_MS),
+      headCheck: true,
+    })
+  })
+
+  it('looks fully at the window’s deadline, wherever the window is set', () => {
+    expect(
+      look({
+        lastReconciledAt: ago(DAY_MS - HOT_MS),
+        interval: HOT_MS,
+        reconcileWithinMs: DAY_MS,
+      }),
+    ).toEqual({ kind: 'full', reason: 'due' })
+  })
+
+  it('keeps the six hour window when none is configured', () => {
+    expect(look({ lastReconciledAt: ago(10 * HOUR_MS), interval: COLD_MS })).toEqual({
+      kind: 'full',
+      reason: 'due',
+    })
+  })
+
+  it('places the single wake-up against the configured window when no head check follows', () => {
+    const deadline = NOW.getTime() - HOUR_MS + DAY_MS
+    expect(
+      look({
+        lastReconciledAt: ago(HOUR_MS),
+        interval: HOT_MS,
+        reconcileWithinMs: DAY_MS,
+      }),
+    ).toEqual({ kind: 'skip', nextDueAt: new Date(deadline - HOT_MS) })
+  })
+})

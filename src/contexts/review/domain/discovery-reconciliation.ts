@@ -36,6 +36,11 @@ export type DiscoveryLookInput = Readonly<{
    * interval away. Defaults to off, which is the single wake-up described below.
    */
   headChecks?: boolean
+  /**
+   * How recent a completed reconciliation must be for the look to skip
+   * (`REVIEW_RECONCILE_WITHIN_HOURS`). Defaults to `DISCOVERY_RECONCILE_WITHIN_MS`.
+   */
+  reconcileWithinMs?: number
   now: Date
   /** The ladder interval this look would be rescheduled with. */
   interval: number
@@ -59,7 +64,9 @@ export const discoveryLookFor = (input: DiscoveryLookInput): DiscoveryLook => {
   if (hasOutstandingFailure) return { kind: 'full', reason: 'failure_retry' }
   if (lastReconciledAt === null) return { kind: 'full', reason: 'no_reconciliation' }
 
-  const deadline = lastReconciledAt.getTime() + DISCOVERY_RECONCILE_WITHIN_MS
+  const deadline =
+    lastReconciledAt.getTime() +
+    (input.reconcileWithinMs ?? DISCOVERY_RECONCILE_WITHIN_MS)
   if (deadline <= now.getTime() + interval) return { kind: 'full', reason: 'due' }
 
   if (input.headChecks === true) {

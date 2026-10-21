@@ -224,7 +224,7 @@ type HeadStepResult =
   | Readonly<{ status: 'disabled' | 'obsolete' | 'invalid' | 'error' }>
 
 /**
- * One dark head check. It NEVER throws: the throwing paths of the other modes
+ * One head check, dark or persisting (`deps.headChecks`). It NEVER throws: the throwing paths of the other modes
  * (an epoch that moved, a bad payload, a provider error) would fail the job,
  * spend its retries and latch the family's repair state for a look that
  * changes nothing. Each ends as a returned outcome instead, and the head never
@@ -235,7 +235,10 @@ async function runHeadCheckStep(
   deps: SyncHandlerDeps,
   data: ReviewHeadCheckJobData,
 ): Promise<HeadStepResult> {
-  if (deps.headChecks !== 'dark' || !deps.runHeadCheck) return { status: 'disabled' }
+  const mode = deps.headChecks
+  if ((mode !== 'dark' && mode !== 'persist') || !deps.runHeadCheck) {
+    return { status: 'disabled' }
+  }
   try {
     assertProviderJobIdentity(data, undefined)
   } catch {
@@ -255,6 +258,7 @@ async function runHeadCheckStep(
       connectionId: googleConnectionId(data.connectionId),
       sourceEpoch: current.sourceEpoch,
       locationName: data.locationName,
+      mode,
     })
   } catch {
     deps.logger?.warn(

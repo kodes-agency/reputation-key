@@ -13,6 +13,7 @@ type VerifiedSnapshotPayload = Readonly<{
   reviewCount: number
   averageRating: number | null
   evaluatedAt: string
+  numbersObservedAt?: string
   sourceAggregateVersion: string
 }>
 
@@ -48,6 +49,17 @@ export const handleCurrentGoogleReputationSnapshot = async (
   if (Number.isNaN(evaluatedAt.getTime())) {
     throw new Error('Current Google reputation evaluatedAt is invalid')
   }
+  // Google's numbers are ordered by when they were READ, not when the fact was
+  // written: a long snapshot that completes after a fresher head fact carries
+  // the older numbers, and must not replace them. An event without the field
+  // (an older process wrote it) is ordered by its evaluation time.
+  const numbersObservedAt =
+    payload.numbersObservedAt === undefined
+      ? evaluatedAt
+      : new Date(payload.numbersObservedAt)
+  if (Number.isNaN(numbersObservedAt.getTime())) {
+    throw new Error('Current Google reputation numbersObservedAt is invalid')
+  }
   const status = await store.applyVerifiedSnapshot({
     eventId: event.eventId,
     organizationId: organizationId(payload.organizationId),
@@ -56,7 +68,7 @@ export const handleCurrentGoogleReputationSnapshot = async (
     runId: payload.runId,
     reviewCount: payload.reviewCount,
     averageRating: payload.averageRating,
-    evaluatedAt,
+    evaluatedAt: numbersObservedAt,
   })
   return { status }
 }

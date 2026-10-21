@@ -807,6 +807,56 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       await resetScope()
     })
 
+    it('still announces the import when a head fact was stored before its first listing completed', async () => {
+      await resetScope()
+      await importRepository.fixImportHistoryCutoff(scope)
+      // A head check read Google's newest page after the import was admitted:
+      // its fact carries Google's numbers but lists nothing.
+      await db.execute(sql`
+        INSERT INTO review_google_reputation_snapshot_facts
+          (run_id, event_id, organization_id, property_id, source_epoch,
+           review_count, average_rating, evaluated_at, listing_complete,
+           numbers_observed_at)
+        VALUES (${crypto.randomUUID()}, ${crypto.randomUUID()}, ${ORGANIZATION_ID},
+          ${PROPERTY_ID}, 0, 3, 4.5, clock_timestamp(), false, clock_timestamp())
+      `)
+      await seedApplyReadyRun(IMPORT_RUN_ID)
+
+      await importRepository.applyDeletionBatch({ runId: IMPORT_RUN_ID, limit: 100 })
+
+      const finished = await importFinishedPayloads()
+      expect(finished).toHaveLength(1)
+      expect(finished[0]?.payload).toMatchObject({ runId: IMPORT_RUN_ID })
+      await resetScope()
+    })
+
+    it('stamps the completed run’s fact with when it froze Google’s numbers, apart from when it was written', async () => {
+      await resetScope()
+      await seedApplyReadyRun(IMPORT_RUN_ID)
+
+      await importRepository.applyDeletionBatch({ runId: IMPORT_RUN_ID, limit: 100 })
+
+      const facts = await db.execute(sql`
+        SELECT listing_complete, numbers_observed_at, evaluated_at
+        FROM review_google_reputation_snapshot_facts WHERE run_id = ${IMPORT_RUN_ID}
+      `)
+      const fact = facts.rows[0]
+      expect(fact?.listing_complete).toBe(true)
+      expect(new Date(String(fact?.numbers_observed_at))).toEqual(STARTED_AT)
+      expect(new Date(String(fact?.evaluated_at)).getTime()).toBeGreaterThan(
+        STARTED_AT.getTime(),
+      )
+      const events = await db.execute(sql`
+        SELECT payload FROM outbox_events
+        WHERE event_type = 'review.google_reputation_snapshot.verified'
+          AND organization_id = ${ORGANIZATION_ID}
+      `)
+      expect(events.rows[0]?.payload).toMatchObject({
+        numbersObservedAt: STARTED_AT.toISOString(),
+      })
+      await resetScope()
+    })
+
     it('announces the import once, not on every later poll that completes', async () => {
       await resetScope()
       await importRepository.fixImportHistoryCutoff(scope)
@@ -988,13 +1038,17 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
         VALUES (${ORGANIZATION_ID}, ${PROPERTY_ID}, ${sourceEpoch}, ${cutoffAt})
       `)
     /** The verified fact a snapshot run of the epoch records when it completes. */
-    const recordCompletedListing = (sourceEpoch: number, evaluatedAt: Date) =>
+    const recordCompletedListing = (
+      sourceEpoch: number,
+      evaluatedAt: Date,
+      listingComplete = true,
+    ) =>
       db.execute(sql`
         INSERT INTO review_google_reputation_snapshot_facts
           (run_id, event_id, organization_id, property_id, source_epoch,
-           review_count, average_rating, evaluated_at)
+           review_count, average_rating, evaluated_at, listing_complete)
         VALUES (${crypto.randomUUID()}, ${crypto.randomUUID()}, ${ORGANIZATION_ID},
-          ${PROPERTY_ID}, ${sourceEpoch}, 1, 4, ${evaluatedAt})
+          ${PROPERTY_ID}, ${sourceEpoch}, 1, 4, ${evaluatedAt}, ${listingComplete})
       `)
 
     it('fixes the cutoff when the import is admitted, before any run starts, and keeps it', async () => {
@@ -1064,6 +1118,25 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       await expect(repository.readHistoryCutoff(scope)).resolves.toEqual({
         cutoffAt,
         firstImportCutoffAt: cutoffAt,
+        historyListed: true,
+      })
+      await resetScope()
+    })
+
+    it('does not take a head fact for a listing of the history, however late it is', async () => {
+      await resetScope()
+      const cutoffAt = new Date('2026-09-15T10:00:00.000Z')
+      await recordCutoff(0, cutoffAt)
+      // Google's numbers from one read of its newest page (listing_complete =
+      // false) say nothing about the reviews the import is still listing.
+      await recordCompletedListing(0, new Date('2026-09-15T10:30:00.000Z'), false)
+      await expect(repository.readHistoryCutoff(scope)).resolves.toMatchObject({
+        historyListed: false,
+      })
+
+      await recordCompletedListing(0, new Date('2026-09-15T10:40:00.000Z'))
+
+      await expect(repository.readHistoryCutoff(scope)).resolves.toMatchObject({
         historyListed: true,
       })
       await resetScope()

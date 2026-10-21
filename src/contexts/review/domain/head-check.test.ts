@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   compareHead,
+  headReviewsToPersist,
   HEAD_LEASE_REFRESH_AFTER_MS,
   headCheckJobId,
   type HeadComparisonInput,
@@ -359,5 +360,87 @@ describe('headCheckJobId', () => {
 
     expect(id).toContain(PROPERTY)
     expect(id).not.toContain(':')
+  })
+})
+
+describe('headReviewsToPersist: the reviews a persisting check stores', () => {
+  const input = (overrides: Partial<HeadComparisonInput> = {}) => ({
+    now: NOW,
+    sourceEpoch: EPOCH,
+    reviews: [] as readonly HeadGoogleReview[],
+    copies: [] as readonly HeadStoredCopy[],
+    googleTotal: 0,
+    googleAverage: null,
+    storedLiveCount: 0,
+    storedAverage: null,
+    hasMore: false,
+    ...overrides,
+  })
+
+  it('stores a review once even when it is both changed and due a refresh', () => {
+    const changedAndStale = google({ externalId: 'review-a', sourceUpdatedAt: ago(1000) })
+
+    const persisted = headReviewsToPersist(
+      input({
+        reviews: [changedAndStale],
+        copies: [stored({ lastFetchedAt: ago(6 * DAY_MS) })],
+      }),
+    )
+
+    expect(persisted.map((review) => review.externalId)).toEqual(['review-a'])
+  })
+
+  it('leaves out every review that matches its stored copy', () => {
+    const persisted = headReviewsToPersist(
+      input({
+        reviews: [google({ externalId: 'review-a' }), google({ externalId: 'review-b' })],
+        copies: [stored({ externalId: 'review-a' }), stored({ externalId: 'review-b' })],
+      }),
+    )
+
+    expect(persisted).toEqual([])
+  })
+
+  it('stores new, changed, reply-changed and lease-refresh reviews, in the page’s order', () => {
+    const persisted = headReviewsToPersist(
+      input({
+        reviews: [
+          google({ externalId: 'new' }),
+          google({ externalId: 'same' }),
+          google({ externalId: 'edited', sourceUpdatedAt: ago(10) }),
+          google({ externalId: 'replied', replyText: 'Thanks', replyUpdatedAt: ago(5) }),
+          google({ externalId: 'stale' }),
+        ],
+        copies: [
+          stored({ externalId: 'same' }),
+          stored({ externalId: 'edited' }),
+          stored({ externalId: 'replied' }),
+          stored({
+            externalId: 'stale',
+            lastFetchedAt: ago(HEAD_LEASE_REFRESH_AFTER_MS),
+          }),
+        ],
+      }),
+    )
+
+    expect(persisted.map((review) => review.externalId)).toEqual([
+      'new',
+      'edited',
+      'replied',
+      'stale',
+    ])
+  })
+
+  it('counts exactly what compareHead says it would persist', () => {
+    const reviews = [
+      google({ externalId: 'new' }),
+      google({ externalId: 'same' }),
+      google({ externalId: 'edited', sourceUpdatedAt: ago(10) }),
+    ]
+    const copies = [stored({ externalId: 'same' }), stored({ externalId: 'edited' })]
+
+    expect(headReviewsToPersist(input({ reviews, copies })).length).toBe(
+      compare({ reviews, copies }).wouldPersist,
+    )
   })
 })

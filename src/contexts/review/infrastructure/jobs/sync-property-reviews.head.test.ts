@@ -45,7 +45,7 @@ const COMPARED = {
 
 function setup(
   options: Readonly<{
-    headChecks?: 'off' | 'dark'
+    headChecks?: 'off' | 'dark' | 'persist'
     runHeadCheck?: RunReviewHeadCheck | null
     epoch?: { sourceEpoch: number } | null | Error
   }> = {},
@@ -114,7 +114,30 @@ describe('sync-property-reviews head mode', () => {
       connectionId: HEAD_JOB.connectionId,
       sourceEpoch: 7,
       locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      mode: 'dark',
     })
+  })
+
+  it('asks the use case to store when the process runs in persist mode', async () => {
+    const { handler, runHeadCheck } = setup({ headChecks: 'persist' })
+
+    await expect(handler(head())).resolves.toEqual(COMPARED)
+
+    expect(runHeadCheck).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'persist' }),
+    )
+  })
+
+  it('returns an obsolete outcome in persist mode too when the source epoch moved, so it can never latch the family', async () => {
+    const { handler, runHeadCheck } = setup({
+      headChecks: 'persist',
+      epoch: { sourceEpoch: 8 },
+    })
+
+    await expect(handler(head({ sourceEpoch: 7 }))).resolves.toEqual({
+      status: 'obsolete',
+    })
+    expect(runHeadCheck).not.toHaveBeenCalled()
   })
 
   it('never starts a snapshot, a targeted fetch or a continuation, and never touches the failure state', async () => {

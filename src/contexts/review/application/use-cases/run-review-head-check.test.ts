@@ -101,6 +101,12 @@ function setup(
         ...options.baseline,
       }
     }),
+    readPersistState: vi.fn(async () => ({
+      hasCompletedListing: true,
+      snapshotActive: false,
+      newestFact: null,
+    })),
+    recordHeadFact: vi.fn(async () => undefined),
     recordRun: vi.fn(async () => {
       if (options.recordRun) throw options.recordRun
     }),
@@ -179,15 +185,14 @@ describe('runReviewHeadCheck: a dark head check', () => {
       sourceEpoch: EPOCH,
       startedAt: T0,
       completedAt: new Date(T0.getTime() + 1_250),
+      mode: 'head_dark',
       outcome: 'compared',
       comparison: expect.objectContaining({ listed: 1, wouldPersist: 0 }),
+      persistence: null,
     })
-    // The repository the use case holds has no way to write a review.
-    expect(Object.keys(repository).sort()).toEqual([
-      'hasOutstandingFailure',
-      'readBaseline',
-      'recordRun',
-    ])
+    // A dark check never reads the persist state or writes a head fact.
+    expect(repository.readPersistState).not.toHaveBeenCalled()
+    expect(repository.recordHeadFact).not.toHaveBeenCalled()
   })
 
   it('logs one content-free line with the counts, the hasMore flag, the order verdict and the duration', async () => {

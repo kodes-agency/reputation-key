@@ -624,8 +624,11 @@ export const reviewReplyObserved = (
   }
 }
 
-/** Content-minimal provider aggregate proven by a completed main scan,
- * confirmation scan, and bounded Review reconciliation. */
+/** Content-minimal provider aggregate: proven by a completed main scan,
+ * confirmation scan, and bounded Review reconciliation, or (a head fact,
+ * `REVIEW_HEAD_CHECKS=persist`) read from Google's newest page by one head
+ * check. The fact row says which (`listing_complete`); the event only carries
+ * Google's own count and average and when they were read. */
 export type ReviewGoogleReputationSnapshotVerified = Readonly<{
   _tag: 'review.google_reputation_snapshot.verified'
   eventId: string
@@ -636,6 +639,15 @@ export type ReviewGoogleReputationSnapshotVerified = Readonly<{
   reviewCount: number
   averageRating: number | null
   evaluatedAt: Date
+  /**
+   * When Google's count and average were read, if that differs from
+   * `evaluatedAt` (the instant the fact was written): a snapshot froze them
+   * when it started, a head check read them just before writing. Consumers
+   * that keep "Google's latest numbers" order by this, so a long run that
+   * completes after a fresher head fact cannot regress them. Absent on an
+   * event an older process wrote; consumers then use `evaluatedAt`.
+   */
+  numbersObservedAt?: Date
   sourceAggregateVersion: string
   occurredAt: Date
   correlationId: string | null
@@ -678,6 +690,11 @@ export const reviewGoogleReputationSnapshotVerified = (
   assert(
     args.occurredAt.getTime() === args.evaluatedAt.getTime(),
     'occurredAt must equal evaluatedAt',
+  )
+  assert(
+    args.numbersObservedAt === undefined ||
+      Number.isFinite(args.numbersObservedAt.getTime()),
+    'numbersObservedAt must be a valid Date',
   )
   return {
     ...args,

@@ -464,6 +464,104 @@ What this does not do: it does not prove a listing, so it never moves
 that has dropped out of the newest 50 is invisible to it, as is every deletion.
 The six-hour reconciliation still covers both.
 
+## Note 2026-10-21 (d) — a head check can store, behind `REVIEW_HEAD_CHECKS=persist`
+
+The note above ships the head check dark. This adds the storing, built and
+shipped OFF: `REVIEW_HEAD_CHECKS` gains a third value, `persist`, and the
+default stays `dark`. It is switched on by a config change once a week of dark
+data (the `head_dark` rows) shows page 1 carries what the comparison says it
+does. With it on, page 1 delivers missed pushes and reviewer edits, about 98.9%
+of the replies written on Google, and Google's own rating and count, all within
+the look interval. The full two-pass snapshot is then needed only for the
+30-day content clock and for deletions. Nothing changes for `off` and `dark`.
+
+- **What it stores, and only that.** The reviews the comparison classes `new`,
+  `changed`, `reply_changed` or `lease_refresh`, through the ordinary
+  observation writer, so the Review, its source observation, the reply
+  observation and their events are exactly what a snapshot page would write.
+  Origin is `ongoing`, with the writer's own epoch-cutoff reclassification. A
+  review the page shows that matches its stored copy is NOT written again: the
+  writer records a source observation carrying the review's full text on every
+  call. A new review is recorded in the push health ledger as first seen via
+  `head`, and stamps the discovery ladder like a snapshot's new review does.
+- **One read generation per page, and keys that never repeat.** The check
+  allocates ONE reply read generation right after Google answers. Each review's
+  observation key is a digest of a `repkey-review-head-observation-v1`
+  namespace, that generation and the review name, so a key never repeats: a
+  repeated key is a replay, which returns the stored result without applying
+  new content and would swallow an edit and its undoing.
+- **An overtaken sync read is no longer an error.** A reply observation whose
+  generation is not above the head's used to throw `invalid_transition` for every
+  source. For a sync read (`provider_snapshot`: a snapshot page, a push fetch,
+  a pre-publish read, a head check) it is now a silent no-op that restates the
+  head and writes nothing: a head check and a snapshot page can read one review
+  at once, and the newer truth is already stored. The publication reconciler and
+  the publish read-back (`targeted_reconciliation`) keep the throw, because their
+  outcome mapping depends on being told.
+- **Google's numbers, as a fact that is not a listing (migration 0067).**
+  `review_google_reputation_snapshot_facts` gains `listing_complete` (default
+  true) and `numbers_observed_at` (nullable). A completed snapshot run writes
+  `listing_complete = true`; a head check writes `false` and the same
+  `review.google_reputation_snapshot.verified` event, so Current on Google and
+  goal evaluation follow Google's count and average between two completed
+  listings. A head fact is written when Google's total or average differs from
+  the newest fact of ANY kind for the epoch, or when that fact is six hours old
+  (a heartbeat, so the Goals 24-hour rule never lapses on a quiet Property). It
+  is never written before the epoch has its first completed-listing fact, and
+  not at all for a total over 10,000 or an average that does not match its count.
+- **`listing_complete` guards every reader that means "the history was fully
+  listed".** `historyListedSince` (the first-import proof and the history or
+  ongoing classification), the discovery sweep's `lastReconciledAt`, and the
+  `sync.reconciliation-age` alert read only `listing_complete = true`. A head
+  fact never closes the first import, never lets the sweep skip a look, and never
+  resets the age alert.
+- **Google's numbers are ordered by when they were read.** `numbers_observed_at`
+  is the instant the numbers were read: the run's start for a snapshot (it
+  freezes the total and average at its first page, which follows the start at
+  once) and the read itself for a head fact; `evaluated_at` stays when the fact
+  was written. The verified event carries it, and the readers of Google's numbers
+  (the Current on Google consumer, which stores it as `verifiedAt`, and so Goals,
+  the headline and the fleet projection, and the Goals shown-number history) order
+  by `COALESCE(numbers_observed_at, evaluated_at)`. A long snapshot that completes
+  after a fresher head fact therefore cannot replace the newer numbers with its
+  older ones. A head fact is stamped at least a millisecond after the newest
+  fact, because the consumer refuses a tie as ambiguous.
+- **No storing while a snapshot run is active.** A run in `scanning`,
+  `confirming` or `deleting` that has not expired makes the head check compare
+  and count but store nothing (`persisted: skipped_snapshot_active`): a head
+  write between a run's page and its reply record would stale the run's
+  material revision and fail the page. The check is read just before the writes;
+  the small window left is accepted. The same gate refuses to store before the
+  epoch has a completed listing (`skipped_no_listing`), and when the Property's
+  source epoch moved after the read (`skipped_epoch_moved`).
+- **Subject sightings are deferred.** A review a head check stores gets its
+  provider-subject mapping at the next completed snapshot, which is the only
+  path that writes one. The limit: a review created by a head check and deleted
+  on Google before the next full run is only marked observed, never missing.
+  The six-hour reconciliation still owns deletions.
+- **Never throws, no latch.** A failed write is counted (`failed` in the run
+  row), logged without an identifier, and retried by the next look. It sets no
+  repair latch and never touches the Property's sync failure.
+- **Run rows.** A persisting check writes its `review_sync_runs` row with mode
+  `head` (a dark one keeps `head_dark`): `created_count` and `updated_count` are
+  what was actually stored, and `result` carries the dark comparison plus
+  `persisted` (`stored` or why not), `storedNew`, `storedOther`, `failed` and
+  `factWritten`.
+- **The reconciliation window is configurable.** `REVIEW_RECONCILE_WITHIN_HOURS`
+  (whole hours, 6 to 24, default 6) feeds the skip rule's window. The owner's plan
+  is to raise it to 24 once `persist` is on and proven; that is a later config
+  change with an amendment to this ADR, not part of this one. It would also move
+  the `sync.reconciliation-age` threshold, which assumes a completed listing
+  about every six hours.
+- **Rollout.** The migration is purely additive and runs first. Keep
+  `REVIEW_HEAD_CHECKS=dark` until every web, worker and Google sidecar image
+  carries migration 0067 and the filtered readers: a process that still read
+  unfiltered facts would take a head fact for a completed reconciliation. To roll
+  back, set `dark` and restart; head facts already written stay (they are true
+  statements of what Google reported) and are ignored by the readers above.
+  Rolling the CODE back after head facts exist leaves rows an old reader cannot
+  filter: delete the `listing_complete = false` rows first.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

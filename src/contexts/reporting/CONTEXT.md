@@ -8,7 +8,7 @@ metric authority.
 ## Responsibilities
 
 - Record version-pinned metric readings and append-only corrections.
-- Maintain anonymous Portal lifetime aggregates and Current on Google snapshots.
+- Maintain anonymous Portal lifetime aggregates and Current on Google snapshots. A Current on Google snapshot is ordered, and `verifiedAt` dated, by when Google's numbers were READ (the event's `numbersObservedAt`, falling back to `evaluatedAt`), so a long snapshot that completes after a fresher head fact does not replace the newer numbers.
 - Resolve governed metric availability, provenance, completeness, and correction impact.
 - Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.
 - Produce property, fleet, staff, Portal analytics, Portals overview results, attention, setup-checklist, and
@@ -628,7 +628,9 @@ second consumer, `metric.correction-reconciliation`
 checks the fact's attribution and writes its receipt, so its receipt says that
 Metric saw the fact, and only the Goal consumer's says the correction was
 reconciled. `goal.google-rating-evaluation` takes the same second form on
-`review.google_reputation_snapshot.verified`: the fact only says when to look, the
+`review.google_reputation_snapshot.verified` (a completed snapshot's, or a head
+check's when `REVIEW_HEAD_CHECKS=persist`: Google's count and average from one read
+of its newest page, ADR 0055 note 2026-10-21 (d)): the fact only says when to look, the
 evaluation reads the current snapshot, cache and Property as a page read does and writes
 only what changes the stored goal, so a repeat finds nothing to write and adds the receipt.
 `goal.on-property-archived` (`rating-goal-property-lifecycle-consumers.ts`, ungated) does

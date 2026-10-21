@@ -8,6 +8,7 @@
 
 import { sql } from 'drizzle-orm'
 import {
+  boolean,
   check,
   doublePrecision,
   foreignKey,
@@ -35,6 +36,21 @@ export const reviewGoogleReputationSnapshotFacts = pgTable(
     reviewCount: integer('review_count').notNull(),
     averageRating: doublePrecision('average_rating'),
     evaluatedAt: timestamp('evaluated_at', { withTimezone: true }).notNull(),
+    /**
+     * Whether the fact proves a completed listing. Every completed provider
+     * snapshot run writes true; a head check that stores (migration 0067) writes
+     * false: Google's own count and average from one read of its newest page.
+     * Readers that mean "a completed reconciliation / the history was listed"
+     * filter on it.
+     */
+    listingComplete: boolean('listing_complete').notNull().default(true),
+    /**
+     * When Google's count and average were read: the run's start for a snapshot
+     * (when it froze them), the read itself for a head fact. Null only on a row
+     * an older process wrote; readers of Google's numbers order by
+     * COALESCE(numbers_observed_at, evaluated_at).
+     */
+    numbersObservedAt: timestamp('numbers_observed_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
   },
   (t) => [

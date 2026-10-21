@@ -14,6 +14,8 @@ import type {
   ReviewQueuePort,
 } from '../application/ports/review-queue.port'
 import type { ReviewHeadChecksMode } from '../domain/head-check'
+import type { ReviewProviderObservationWriter } from '../application/ports/review-provider-observation-writer.port'
+import type { ReviewProviderSubjectKeyService } from '../application/provider-subject-keyring'
 import { createRunReviewHeadCheck } from '../application/use-cases/run-review-head-check'
 import type { GoogleReviewApiPort } from '../application/ports/google-review-api.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../application/ports/reply-publication-dispatch-evidence.port'
@@ -90,9 +92,14 @@ export type ReviewWorkerRegistrationInput = Readonly<{
   discoveryIntervalMs: number
   /** Discovery skips a look for a Property reconciled inside six hours. */
   discoverySkipRecentlyReconciled: boolean
-  /** What a skipped look is followed by: a dark head check, or nothing. */
+  /** What a skipped look is followed by: a head check (dark or persisting), or nothing. */
   headChecks: ReviewHeadChecksMode
+  /** How recent a completed reconciliation must be for a look to skip, in ms. */
+  reconcileWithinMs: number
   headCheckQueue: ReviewHeadCheckQueuePort
+  /** What a persisting head check writes through (unused while `headChecks` is not `persist`). */
+  observationWriter: ReviewProviderObservationWriter
+  subjectKeyService: ReviewProviderSubjectKeyService
 }>
 
 /**
@@ -125,6 +132,13 @@ export async function registerReviewWorkerJobs(
       repository: createReviewHeadCheckRepository(input.db),
       logger: input.logger,
       clock: input.clock,
+      persist: {
+        observationWriter: input.observationWriter,
+        subjectKeyService: input.subjectKeyService,
+        propertySourceEpoch: input.propertySourceEpoch,
+        syncActivity: reviewSyncActivity,
+        newId: input.idGen,
+      },
     }),
     headChecks: input.headChecks,
     logger: input.logger,
@@ -220,6 +234,7 @@ export async function registerReviewWorkerJobs(
     intervalMs: input.discoveryIntervalMs,
     skipRecentlyReconciled: input.discoverySkipRecentlyReconciled,
     headChecks: input.headChecks,
+    reconcileWithinMs: input.reconcileWithinMs,
     headCheckQueue: input.headCheckQueue,
   })
   input.registry.register(DISCOVER_NEW_REVIEWS_JOB_NAME, async (job) => {

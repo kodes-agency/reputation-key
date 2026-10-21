@@ -47,12 +47,14 @@
 //     looks: push, import, refresh and failure retries enqueue as before. A
 //     property with an outstanding failure, no reconciliation yet, or no push
 //     configured (the sweep is then the only path for new reviews) runs full.
+//     The window is six hours unless REVIEW_RECONCILE_WITHIN_HOURS widens it.
 //
 //   - a SKIPPED look is not an empty one when head checks are on
-//     (REVIEW_HEAD_CHECKS=dark). Google documents page 1 of reviews.list,
-//     newest-updated first, as always accurate, so the sweep enqueues one
-//     head job for the Property (one call; it reads and compares and changes
-//     nothing) and dates the next look at now + the ladder interval, instead
+//     (REVIEW_HEAD_CHECKS=dark or persist). Google documents page 1 of
+//     reviews.list, newest-updated first, as always accurate, so the sweep
+//     enqueues one head job for the Property (one call; dark reads and compares
+//     and changes nothing, persist also stores what differs) and dates the next
+//     look at now + the ladder interval, instead
 //     of the single wake-up near the six-hour deadline. The head enqueue is
 //     best-effort: a failure is logged and counted and never holds the sweep.
 //     With head checks off the skip is exactly the one described above.
@@ -130,6 +132,11 @@ type DiscoverHandlerDeps = Readonly<{
    */
   headChecks?: ReviewHeadChecksMode
   headCheckQueue?: ReviewHeadCheckQueuePort
+  /**
+   * How recent a completed reconciliation must be for a look to skip, in
+   * milliseconds (`REVIEW_RECONCILE_WITHIN_HOURS`). Defaults to six hours.
+   */
+  reconcileWithinMs?: number
 }>
 
 type SweepState = {
@@ -269,6 +276,9 @@ async function lookAtCandidate(
     hasOutstandingFailure: candidate.hasOutstandingFailure,
     skipEnabled,
     headChecks: headEnabled,
+    ...(deps.reconcileWithinMs === undefined
+      ? {}
+      : { reconcileWithinMs: deps.reconcileWithinMs }),
     now,
     interval: discoveryIntervalMs(candidate.activity, now, baseIntervalMs),
   })
@@ -386,7 +396,9 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
   const baseIntervalMs = deps.intervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS
   const spreadWindowMs = discoverySpreadWindowMs(baseIntervalMs, deps.spreadWindowMs)
   const skipEnabled = deps.skipRecentlyReconciled ?? false
-  const headEnabled = deps.headChecks === 'dark' && deps.headCheckQueue !== undefined
+  const headEnabled =
+    (deps.headChecks === 'dark' || deps.headChecks === 'persist') &&
+    deps.headCheckQueue !== undefined
 
   return async (_job: Job) => {
     return trace('job.discoverNewReviews', async () => {

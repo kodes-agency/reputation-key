@@ -49,7 +49,13 @@ describe('registerReviewWorkerJobs', () => {
       discoveryIntervalMs: 15 * 60 * 1_000,
       discoverySkipRecentlyReconciled: true,
       headChecks: 'dark',
+      reconcileWithinMs: 6 * 60 * 60 * 1_000,
       headCheckQueue: { addHeadCheckJob: vi.fn() },
+      observationWriter: {
+        allocateReplyReadGeneration: vi.fn(),
+        persist: vi.fn(),
+      },
+      subjectKeyService: {} as never,
     })
 
     expect(registered.sort()).toEqual(
