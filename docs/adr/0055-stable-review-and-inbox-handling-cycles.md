@@ -278,6 +278,66 @@ largest location are lengthening (about 7 minutes on 2026-10-17, about 14 on
 2026-10-20), so a loud failure with no defect behind it is the signal to raise
 `LISTING_CHANGE_QUIET_RUNS`.
 
+## Note 2026-10-21 — a discovery look skips a Property reconciled within six hours
+
+Decision 5 asks only that a quiet healthy Property is reconciled within six
+hours, and push delivers new reviews in between. Until now the discovery sweep
+did more than that: every look ran a full two-pass snapshot, so a busy
+Property (hot or warm on the backoff ladder) was read in full every 15 to 30
+minutes, and a push made it worse by clamping its next look to about 15
+minutes ahead and keeping it hot for six hours. On the closed beta that was
+10,678 `reviews.list` calls a day for about six new reviews, nearly all of
+which push had already delivered, and every extra pass was another chance for
+the largest location to move under a scan (the note of 2026-10-20).
+
+As implemented now, a look that finds the Property already reconciled inside
+the window enqueues nothing and only dates the next look
+(`domain/discovery-reconciliation.ts`, `discover-new-reviews.job.ts`):
+
+- **What the six hours are measured from.** The last COMPLETED reconciliation
+  of the Property's current source epoch: the latest `evaluated_at` in
+  `review_google_reputation_snapshot_facts`, written once per run that
+  finished both scans and its deletion step. A relink starts a new epoch with
+  no fact, so its first look is full. A failed or restarted run writes no fact
+  and counts for nothing. Nothing else counts: not a push, not a persisted
+  review, not the date the Property was imported.
+- **When a look is full.** When the next look would land at or past the
+  deadline, that is `lastReconciledAt + 6h <= now + interval` with the
+  interval this look would be rescheduled with (15 minutes hot, 1 hour warm,
+  6 hours cold, or the operator's base above that). A cold look is therefore
+  always full, and so is any look when the base interval is above six hours.
+  A skipped look wakes once, at `max(now + interval, lastReconciledAt + 6h -
+interval)`, which is the instant the look becomes full, instead of every 15
+  minutes to skip again.
+- **Always full.** A Property with a coded failure still recorded
+  (`review_sync_state.error_class`), so failure retries and the clearing of
+  `sync.failed-nonzero` behave as before, and one with no completed
+  reconciliation in its current epoch.
+- **Pushes and import dates no longer cause full scans.** A push still stamps
+  `last_notification_at`, persists the review by its targeted fetch and clamps
+  `next_incremental_at`; the look the clamp buys now usually skips. The same
+  holds for the Property's import date.
+- **Only the sweep's own looks.** The push fetch and its reconcile fallback,
+  failure retries, `refresh-expiring-reviews`, import and relink syncs, ops
+  commands and the repair latches are unchanged.
+- **Only with push.** The rule is off when `GBP_PUBSUB_TOPIC` is empty, because
+  the sweep is then the only path for a new review, and when the kill switch
+  `REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED=false` is set on the worker (it
+  accepts exactly `true` or `false`; default `true`). Off, every look is full
+  as before.
+
+What this decides about decision 5: nothing is loosened. The six-hour
+guarantee now rests on completed reconciliations rather than on poll dates, so
+it is measured from `evaluated_at` (the run's own end) and the look that
+starts the next one still waits for the next sweep and up to ten minutes of
+start spread, as the note of 2026-10-13 records. Two effects are accepted for
+now. A review whose push is missed is found at the next reconciliation, up to
+about six hours later, where it was 15 to 30 minutes (1 of the last 24 new
+reviews on the beta had no push); a later change adds a one-call check of
+Google's newest page. After a push-created review, Goals can show Google's own
+average with the "not every review counted" note until the next
+reconciliation, because the cache count is one ahead of the last verified fact.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,
