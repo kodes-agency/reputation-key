@@ -72,7 +72,7 @@ definitions and security controls live in
 **Diagnostics:** Check queue depth via `HealthSnapshot.syncMetrics`. Check the `gbp_webhook` scope in `idempotency_receipts` for duplicate/missing messages.
 **Containment:** Increase worker concurrency temporarily. Pause non-urgent jobs to free capacity.
 **Recovery:** Process backlog. Redrive dead-lettered messages via `ops:quarantine redrive <id> --reason <text> --apply` (list first with `ops:quarantine list`). Reconcile any gaps via bounded reconciliation (`ops:refresh reviews`).
-**Verification:** Queue depth returns to normal. `review_sync_state.watermark_updated_at` advances.
+**Verification:** Queue depth returns to normal. For each affected Property, the latest `review_google_reputation_snapshot_facts.evaluated_at` moves forward once its next snapshot completes, and `review_sync_state.next_incremental_at` holds a due time for its next discovery look (a due time long in the past means the sweep is behind; see the `sync.sweep-lag` alert in §13).
 **Escalation:** Bozhidar Denev if backlog exceeds 1 hour.
 
 ---
