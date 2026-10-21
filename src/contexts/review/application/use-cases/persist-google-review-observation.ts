@@ -1,7 +1,8 @@
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { ReviewFirstSeenVia } from '#/shared/domain/push-health'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import type { GoogleReviewRead } from '../ports/google-review-api.port'
-import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 
 export type PersistGoogleReviewObservationDeps = Readonly<{
@@ -20,6 +21,10 @@ export type PersistGoogleReviewObservationInput = Readonly<{
   review: GoogleReviewRead
   /** Content-free 64-hex digest of one logical read (replays are idempotent). */
   observationKey: string
+  /** How this read reaches RepKey, for the push health ledger. */
+  firstSeenVia: ReviewFirstSeenVia
+  /** The Pub/Sub acceptance time of the push this read answers, if any. */
+  pushAcceptedAt?: Date
 }>
 
 /**
@@ -56,6 +61,10 @@ export async function persistGoogleReviewObservation(
     connectionId: input.connectionId,
     sourceEpoch: input.sourceEpoch,
     observationOrigin: 'ongoing',
+    firstSeenVia: input.firstSeenVia,
+    ...(input.pushAcceptedAt === undefined
+      ? {}
+      : { pushAcceptedAt: input.pushAcceptedAt }),
     observationKey: input.observationKey,
     replyReadGeneration,
     review: input.review,

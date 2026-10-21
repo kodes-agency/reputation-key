@@ -1,6 +1,6 @@
 // Review sync operational tables (migration 0007 / PRE17B).
-// Canonical Drizzle model for review_sync_state and review_sync_runs.
-// BQR-1.1: schema parity with migrated DB.
+// Canonical Drizzle model for review_sync_state and review_sync_runs, and (0066)
+// review_first_sightings. BQR-1.1: schema parity with migrated DB.
 
 import {
   pgTable,
@@ -12,8 +12,12 @@ import {
   bigint,
   primaryKey,
   index,
+  foreignKey,
+  check,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import { createdAtColumn } from '../columns'
+import { properties } from './property.schema'
 
 /**
  * One row per property/source — incremental cursor and scheduling state.
@@ -145,4 +149,43 @@ export const retentionRuns = pgTable(
     policyVersion: integer('policy_version').notNull().default(1),
   },
   (t) => [index('retention_runs_subject_started_idx').on(t.subject, t.startedAt)],
+)
+
+/**
+ * Push health ledger (migration 0066): one row per Review RepKey saw for the
+ * first time while it was live work (`ongoing`; never a history import or a
+ * `legacy_unknown` relink), written in the same transaction as the Review's
+ * first insert. It records HOW the Review was first seen and WHEN, and when
+ * Google's push for it was accepted, so a silent push outage is measurable.
+ * Content-free: UUIDs, an enum and timestamps. No Review text, name or
+ * provider resource. Operational history like `review_sync_runs`: retained
+ * ~30 days, never exported. MISSED / LATE are derived on read.
+ */
+export const reviewFirstSightings = pgTable(
+  'review_first_sightings',
+  {
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    reviewId: uuid('review_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull(),
+    firstSeenVia: varchar('first_seen_via', { length: 16 }).notNull(),
+    /** Google's push accepted by Pub/Sub ingress, not when its job ran. */
+    pushAcceptedAt: timestamp('push_accepted_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.organizationId, t.propertyId, t.reviewId] }),
+    foreignKey({
+      name: 'review_first_sightings_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
+    check(
+      'review_first_sightings_via_valid',
+      sql`${t.firstSeenVia} IN ('push', 'push_reconcile', 'snapshot', 'head', 'demand')`,
+    ),
+    index('review_first_sightings_first_seen_idx').on(t.firstSeenAt),
+    index('review_first_sightings_property_idx').on(t.propertyId, t.firstSeenAt),
+  ],
 )

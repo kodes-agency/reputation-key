@@ -380,6 +380,8 @@ describe('sync-property-reviews snapshot handler', () => {
       sourceEpoch: 7,
       referenceRef: `v1.${Buffer.alloc(32, 4).toString('base64url')}`,
       deliveryId: '55555555-5555-4555-8555-555555555555',
+      acceptedAt: '2026-08-21T11:58:00.000Z',
+      notificationKind: 'NEW_REVIEW' as const,
       initiator: { kind: 'system' as const, id: GBP_PUSH_SYNC_INITIATOR_ID },
       correlationId: 'gbp-push-event',
     }
@@ -393,10 +395,96 @@ describe('sync-property-reviews snapshot handler', () => {
       sourceEpoch: 7,
       referenceRef: targeted.referenceRef,
       deliveryId: targeted.deliveryId,
+      acceptedAt: new Date('2026-08-21T11:58:00.000Z'),
+      notificationKind: 'NEW_REVIEW',
     })
     expect(runSnapshot).not.toHaveBeenCalled()
     expect(syncActivity.recordPushObserved).toHaveBeenCalledTimes(1)
   })
+
+  describe('push health inputs of a targeted job', () => {
+    const queued = {
+      mode: 'targeted' as const,
+      propertyId: JOB_DATA.propertyId,
+      organizationId: JOB_DATA.organizationId,
+      connectionId: JOB_DATA.connectionId,
+      sourceEpoch: 7,
+      referenceRef: null,
+      deliveryId: '55555555-5555-4555-8555-555555555555',
+      initiator: { kind: 'system' as const, id: GBP_PUSH_SYNC_INITIATOR_ID },
+      correlationId: 'gbp-push-event',
+    }
+    const run = (data: Record<string, unknown>) => {
+      const runTargetedFetch = vi.fn(async () => ({ status: 'obsolete' as const }))
+      const handler = createSyncPropertyReviewsHandler({
+        runSnapshot: vi.fn() as never,
+        runTargetedFetch,
+        propertySourceEpoch,
+        enqueueContinuation: vi.fn(async () => undefined),
+        ...ladderDeps(makeSyncActivity()),
+      })
+      return {
+        runTargetedFetch,
+        result: handler({ id: 'job-push-health', data } as never),
+      }
+    }
+
+    it('judges a job queued before push health was measured by the time it starts', async () => {
+      const { runTargetedFetch, result } = run(queued)
+
+      await result
+
+      expect(runTargetedFetch).toHaveBeenCalledWith(
+        expect.objectContaining({ acceptedAt: NOW, notificationKind: 'REVIEW_CHANGED' }),
+      )
+    })
+
+    it('rejects a job whose acceptance time is not an instant', async () => {
+      const { runTargetedFetch, result } = run({ ...queued, acceptedAt: 'yesterday-ish' })
+
+      await expect(result).rejects.toThrow(
+        'Invalid targeted Review provider job identity',
+      )
+      expect(runTargetedFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects a job with a notification kind Google does not send', async () => {
+      const { runTargetedFetch, result } = run({ ...queued, notificationKind: 'DELETED' })
+
+      await expect(result).rejects.toThrow(
+        'Invalid targeted Review provider job identity',
+      )
+      expect(runTargetedFetch).not.toHaveBeenCalled()
+    })
+  })
+
+  it.each([
+    [GBP_PUSH_SYNC_INITIATOR_ID, 'push_reconcile'],
+    [DISCOVERY_SWEEP_SYNC_INITIATOR_ID, 'snapshot'],
+  ] as const)(
+    'labels the reviews a snapshot step started by %s as seen by %s',
+    async (initiatorId, expected) => {
+      const runSnapshot = vi.fn(async () => ({
+        status: 'completed' as const,
+        runId: '44444444-4444-4444-8444-444444444444',
+      }))
+      const handler = createSyncPropertyReviewsHandler({
+        runSnapshot,
+        propertySourceEpoch,
+        enqueueContinuation: vi.fn(async () => undefined),
+        ...ladderDeps(makeSyncActivity()),
+      })
+
+      await handler({
+        id: 'job-label',
+        data: { ...JOB_DATA, initiator: { kind: 'system', id: initiatorId } },
+      } as never)
+
+      expect(runSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({ firstSeenVia: expected }),
+      )
+    },
+  )
 
   it('enqueues one deterministic full reconciliation when a targeted reference expired', async () => {
     const enqueueContinuation = vi.fn(async () => undefined)

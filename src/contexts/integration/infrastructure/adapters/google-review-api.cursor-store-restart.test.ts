@@ -293,6 +293,7 @@ function snapshotStep(seam: Seam, run: ReviewProviderSnapshotRun) {
     connectionId: CONNECTION_ID,
     sourceEpoch: SOURCE_EPOCH,
     observationOrigin: 'ongoing',
+    firstSeenVia: 'snapshot',
     locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     runId: run.id,
   })

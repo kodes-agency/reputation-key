@@ -10,7 +10,11 @@ import { describe, it, expect } from 'vitest'
 import { getTableColumns, getTableName } from 'drizzle-orm'
 import { properties } from './property.schema'
 import { replies, reviews } from './review.schema'
-import { reviewSyncState, reviewSyncRuns } from './review-sync.schema'
+import {
+  reviewFirstSightings,
+  reviewSyncState,
+  reviewSyncRuns,
+} from './review-sync.schema'
 import { propertyReplyProfiles, propertyReplyTemplates } from './reply-library.schema'
 
 function columnNames(table: Parameters<typeof getTableColumns>[0]): string[] {
@@ -76,6 +80,21 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
       expect(cols.has('mode')).toBe(true)
       expect(cols.has('started_at')).toBe(true)
       expect(cols.has('result')).toBe(true)
+    })
+  })
+  describe('migration 0066 — push health ledger', () => {
+    it('registers review_first_sightings with ids, a method and instants only', () => {
+      expect(getTableName(reviewFirstSightings)).toBe('review_first_sightings')
+      expect(columnNames(reviewFirstSightings).sort()).toEqual([
+        'created_at',
+        'first_seen_at',
+        'first_seen_via',
+        'organization_id',
+        'property_id',
+        'push_accepted_at',
+        'review_id',
+        'source_epoch',
+      ])
     })
   })
   describe('appended migration 0004 — property reply library', () => {

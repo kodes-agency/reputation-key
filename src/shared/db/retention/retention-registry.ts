@@ -175,6 +175,24 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
+    id: 'review.first_sightings',
+    dataClass: 'operational_action_history',
+    ownerContext: 'review',
+    ownerRole: 'Review context owner',
+    sourceKind: 'table',
+    source: 'review_first_sightings',
+    eligibility: {
+      anchorColumn: 'first_seen_at',
+      horizon: { kind: 'days', days: 30 },
+      predicate: null,
+      query:
+        'Delete review_first_sightings whose Review was first seen more than 30 days ago.',
+      implementedBoundary: 'Live as the scheduled review_first_sightings subject.',
+    },
+    evidenceSubject: 'review_first_sightings',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+  }),
+  rule({
     id: 'review.refresh_runs',
     dataClass: 'operational_action_history',
     ownerContext: 'review',

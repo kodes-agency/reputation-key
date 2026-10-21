@@ -84,7 +84,11 @@ location through another account, or whose binding is no longer active, gets
 nothing from it, and nothing of one tenant reaches another. The message's
 receipt decides a redelivery once for all of them; each Property handed the push
 gets a receipt row and an identifier-only handoff fact of its own, committed in
-that one transaction.
+that one transaction. The handoff fact's `occurredAt` is the acceptance time:
+the dispatch consumer carries it, with the notification kind, into the targeted
+fetch job as `acceptedAt` and `notificationKind`, so Review's push health ledger
+judges a push by when Pub/Sub accepted it and not by when the job ran. Receipts
+still hold no Review identity.
 
 The callback preserves one encrypted provider response behind a leased,
 server-generated exchange-attempt identifier. Refresh uses a renewable Redis

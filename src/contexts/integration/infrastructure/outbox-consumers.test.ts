@@ -169,6 +169,8 @@ describe('GBP review push durable dispatch consumer', () => {
         sourceEpoch: 7,
         referenceRef: 'v1.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         deliveryId: PUSH_EVENT.eventId,
+        acceptedAt: '2026-08-27T10:00:00.000Z',
+        notificationKind: 'UPDATED_REVIEW',
         initiator: { kind: 'system', id: 'webhook:gbp' },
         correlationId: `gbp-push-${PUSH_EVENT.eventId}`,
       },

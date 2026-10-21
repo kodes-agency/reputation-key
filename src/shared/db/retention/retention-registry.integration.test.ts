@@ -174,6 +174,7 @@ describe('retention registry report-only mode', () => {
       'google.import_discovery',
       'platform.idempotency_receipts',
       'review.sync_runs',
+      'review.first_sightings',
       'review.refresh_runs',
       'guest.session_pseudonym',
       'guest.abuse_pseudonym',

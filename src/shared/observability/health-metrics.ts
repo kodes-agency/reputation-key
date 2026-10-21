@@ -28,6 +28,7 @@ import {
   notificationDigestBatchMembers,
   notificationEmailQueue,
 } from '#/shared/db/schema/notification.schema'
+import { readSyncPushHealth, type SyncPushHealth } from '#/shared/db/sync-push-health'
 import { syncFailureCode } from '#/shared/observability/sync-failure-codes'
 import { trace } from '#/shared/observability/trace'
 
@@ -236,6 +237,11 @@ export type HealthSnapshot = Readonly<{
     gbpPushEnabled: boolean
   }>
   /**
+   * Push health and reconciliation age (ADR 0055), read apart from `sync` so a
+   * slow query here cannot blind the sweep alerts that hold on `health.sync`.
+   */
+  syncPush: SyncPushHealth
+  /**
    * Notification delivery health. The in-app notification is written in the
    * same transaction as the review, but the EMAIL is a queue row a sweep has
    * to pick up — and nothing measured whether it ever did.
@@ -325,6 +331,7 @@ export const HEALTH_SIGNALS = [
   'notificationEmail',
   'notificationGap',
   'notificationDeliveryLag',
+  'syncPush',
 ] as const
 
 export type HealthSignal = (typeof HEALTH_SIGNALS)[number]
@@ -339,6 +346,7 @@ export type HealthSignalValues = Readonly<{
   notificationEmail: NotificationEmailMetrics
   notificationGap: number
   notificationDeliveryLag: NotificationDeliveryLagMetrics
+  syncPush: SyncPushHealth
 }>
 
 export type HealthSignalReads = Readonly<{
@@ -373,6 +381,7 @@ export function assembleHealthSnapshot(
       deliveryLag: values.notificationDeliveryLag,
     },
     replyPublication: values.replyPublication,
+    syncPush: values.syncPush,
     workers: {
       defaultQueueName: 'default',
       backgroundQueueName: 'background',
@@ -1090,6 +1099,11 @@ function createHealthSignalReads(
       trace('health.check.notificationDeliveryLag', () =>
         readNotificationDeliveryLagMetrics(deps?.readNotificationDeliveryLag, new Date()),
       ),
+    // Push health + reconciliation age, from the first-sighting ledger.
+    syncPush: () =>
+      trace('health.check.syncPush', () =>
+        readSyncPushHealth(db, deps?.gbpPushEnabled === true),
+      ),
   }
 }
 
@@ -1117,6 +1131,7 @@ export function createHealthChecker(
           signals.notificationGap(),
           signals.notificationDeliveryLag(),
         ])
+        const syncPush = await signals.syncPush()
         return assembleHealthSnapshot(now, {
           outbox,
           quarantine,
@@ -1126,6 +1141,7 @@ export function createHealthChecker(
           notificationEmail,
           notificationGap,
           notificationDeliveryLag,
+          syncPush,
         })
       })
     },

@@ -51,6 +51,7 @@ import { isCapabilityOpenToEveryOrganization } from '#/shared/auth/beta-capabili
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import type { JobRuntimeReport } from '#/shared/jobs/runtime-observations'
 import { getLogger } from '#/shared/observability/logger'
+import { ZERO_SYNC_PUSH_HEALTH } from '#/shared/db/sync-push-health'
 
 /** Hard per-section read budget. A section slower than this degrades. */
 export const OPS_SECTION_BUDGET_MS = 5000
@@ -231,6 +232,8 @@ function zeroHealthSignals(): HealthSignalValues {
       oldestDueAgeMs: null,
       gbpPushEnabled: false,
     },
+    // Nothing missed and nothing overdue: a degraded read must not page.
+    syncPush: ZERO_SYNC_PUSH_HEALTH,
     // A degraded read must not invent a delivery problem: zero overdue rows
     // and email reported dark keeps every notification alert quiet (the
     // `degraded` marker is the signal that this section is unreadable).
@@ -366,6 +369,8 @@ async function readDatabaseSignals(read: SignalRead) {
     read('notificationGap', cap),
     read('notificationDeliveryLag', cap),
   ])
+  // Last: its ledger reads are the heaviest, and a stall degrades only itself.
+  const syncPush = await read('syncPush', cap)
   return {
     outbox,
     reviews,
@@ -374,6 +379,7 @@ async function readDatabaseSignals(read: SignalRead) {
     notificationEmail,
     notificationGap,
     notificationDeliveryLag,
+    syncPush,
   }
 }
 

@@ -56,6 +56,7 @@ import {
 } from '#/shared/health/alert-state'
 import { isBannedLogKey } from '#/shared/observability/metrics-schema'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
+import { ZERO_SYNC_PUSH_HEALTH } from '#/shared/db/sync-push-health'
 import {
   createHealthCheckHandler,
   type HealthCheckDeps,
@@ -108,6 +109,7 @@ function healthySnapshot(): MutableSnapshot {
       oldestDueAgeMs: null,
       gbpPushEnabled: false,
     },
+    syncPush: ZERO_SYNC_PUSH_HEALTH,
     notifications: {
       emailDeliveryEnabled: false,
       pendingOverdueCount: 0,
@@ -266,6 +268,9 @@ describe('alert registry contract (BQC-7.4)', () => {
       'security.scan',
       'source.freshness-deadline',
       'sync.failed-nonzero',
+      'sync.push-missed',
+      'sync.push-silent',
+      'sync.reconciliation-age',
       'sync.sweep-lag',
       'web.availability',
       'worker.heartbeat.stale',
@@ -482,6 +487,44 @@ const BREACHES: readonly Breach[] = [
         ...s.sync,
         dueForIncrementalCount: 5,
         oldestDueAgeMs: 61 * 60 * 1000,
+      }
+    },
+  },
+  {
+    name: 'sync.push-missed',
+    severity: 'P2',
+    runbook: 'runbooks.md §4',
+    threshold: 0,
+    windowMs: 24 * 60 * 60 * 1000,
+    value: 2,
+    apply: (s) => {
+      s.sync = { ...s.sync, gbpPushEnabled: true }
+      s.syncPush = { ...s.syncPush, push: { ...s.syncPush.push, missed24h: 2 } }
+    },
+  },
+  {
+    name: 'sync.push-silent',
+    severity: 'P2',
+    runbook: 'runbooks.md §4',
+    threshold: 0,
+    windowMs: 24 * 60 * 60 * 1000,
+    value: 3,
+    apply: (s) => {
+      s.sync = { ...s.sync, gbpPushEnabled: true }
+      s.syncPush = { ...s.syncPush, push: { ...s.syncPush.push, newByPoll24h: 3 } }
+    },
+  },
+  {
+    name: 'sync.reconciliation-age',
+    severity: 'P2',
+    runbook: 'runbooks.md §13',
+    threshold: 8 * 60 * 60 * 1000,
+    windowMs: 8 * 60 * 60 * 1000,
+    value: 9 * 60 * 60 * 1000,
+    apply: (s) => {
+      s.syncPush = {
+        ...s.syncPush,
+        reconciliation: { overdueCount: 1, oldestAgeMs: 9 * 60 * 60 * 1000 },
       }
     },
   },

@@ -72,6 +72,8 @@ const EXPECTED_TABLES = [
   // Migration 0007 (BQR-1.1)
   'review_sync_state',
   'review_sync_runs',
+  // Migration 0066 (push health ledger)
+  'review_first_sightings',
   'recent_activity_entries',
   'notifications',
   'notification_email_queue',

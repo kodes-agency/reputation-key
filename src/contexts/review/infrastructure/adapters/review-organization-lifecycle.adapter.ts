@@ -65,7 +65,7 @@ const propertyScope = (organizationId: string) => sql`(
  * for this Organization", not "this phase happened to change no rows".
  *
  * Child tables (source contents/observations, reply publication attempts,
- * Google reply observations and heads, snapshot members) are omitted: each one
+ * Google reply observations and heads, snapshot members, first sightings) are omitted: each one
  * hangs off a row already probed here. The Property reply library is not one:
  * it hangs off `properties` alone, so an Organization can hold it with no
  * Review.
@@ -358,6 +358,12 @@ async function purge(
     tx,
     sql`DELETE FROM review_google_reputation_snapshot_facts WHERE organization_id = ${organizationId}`,
   )
+  // The push health ledger: ids, a method and instants. The Property purge
+  // would cascade it, but the Review purge must not depend on that.
+  const firstSightings = await countAffected(
+    tx,
+    sql`DELETE FROM review_first_sightings WHERE organization_id = ${organizationId}`,
+  )
   // HMAC mappings of provider review identifiers.
   const providerSubjects = await countAffected(
     tx,
@@ -480,6 +486,7 @@ async function purge(
     { step: 'source_contents_deleted', rows: sourceContents },
     { step: 'ai_analysis_heads_deleted', rows: aiAnalysisHeads },
     { step: 'reputation_snapshot_facts_deleted', rows: reputationFacts },
+    { step: 'first_sightings_deleted', rows: firstSightings },
     { step: 'provider_subjects_deleted', rows: providerSubjects },
     { step: 'provider_snapshot_runs_deleted', rows: snapshotRuns },
     { step: 'history_cutoffs_deleted', rows: historyCutoffs },
