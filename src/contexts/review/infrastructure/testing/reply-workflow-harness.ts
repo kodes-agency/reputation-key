@@ -529,6 +529,7 @@ export async function createReplyWorkflowHarness(
       db,
       googleReviewApi,
       clock,
+      newReviewId: () => WORKFLOW_REVIEW,
       sourceEpoch: () => 0,
       runSalt: () => String(runs),
     }),

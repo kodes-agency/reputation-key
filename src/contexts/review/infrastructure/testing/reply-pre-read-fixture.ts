@@ -8,7 +8,7 @@
 // found by its external id) and the Property's source epoch.
 
 import type { Database } from '#/shared/db'
-import { reviewId } from '#/shared/domain/ids'
+import type { ReviewId } from '#/shared/domain/ids'
 import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
 import {
   readReviewBeforePublish,
@@ -24,6 +24,9 @@ export function createReplyPreReadForTests(
     db: Database
     googleReviewApi: GoogleReviewApiPort
     clock: () => Date
+    /** Identifies a Review the read meets for the first time. The suites that
+     * use this fixture seed their Review, so it is only a required argument. */
+    newReviewId: () => ReviewId
     /** The Property's current source epoch. */
     sourceEpoch: () => number | Promise<number>
     /**
@@ -40,7 +43,7 @@ export function createReplyPreReadForTests(
   const observationWriter = createReviewProviderObservationWriter({
     reviewRepo: { ...reviewRepo, findStableIdentityByProviderSubjects: async () => null },
     clock,
-    idGen: () => reviewId(crypto.randomUUID()),
+    idGen: input.newReviewId,
     commandStore: createAtomicReviewCommandStore(db, clock),
     googleReplyObservationStore: createGoogleReplyObservationStore(db),
     historyCutoffs: { readHistoryCutoff: async () => null },

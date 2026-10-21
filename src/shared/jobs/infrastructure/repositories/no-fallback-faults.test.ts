@@ -607,6 +607,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
         db,
         googleReviewApi,
         clock: () => new Date(),
+        newReviewId: () => REVIEW_C,
         sourceEpoch: () => savedReview.sourceEpoch,
       }),
       replyCommandStore,

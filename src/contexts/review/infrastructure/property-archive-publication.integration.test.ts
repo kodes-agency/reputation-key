@@ -349,6 +349,7 @@ function publishWorker() {
       db,
       googleReviewApi: googleReviewApi as never,
       clock: () => ARCHIVED_AT,
+      newReviewId: () => REVIEW,
       sourceEpoch: async () => {
         const { rows } = await pool.query<{ source_epoch: number }>(
           `SELECT source_epoch::int AS source_epoch FROM properties WHERE id = $1`,
