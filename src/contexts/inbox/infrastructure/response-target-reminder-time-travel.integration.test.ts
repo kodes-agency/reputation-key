@@ -151,6 +151,15 @@ function inboxWorkerConsumers(clock: () => Date) {
       sourceTransitionAuthority: {},
       googleReviewCheck: {},
     } as InboxContextBuildInput['sources'],
+    // Only consumer registration is exercised: no Google check is ever asked for.
+    rateLimiter: {
+      check: async () => ({
+        allowed: true,
+        remaining: 0,
+        resetAt: new Date(0),
+        backendStatus: 'available',
+      }),
+    },
     logger: createMockLogger(),
     authorizeCommand: async () => ({ allowed: true }),
   }).worker.registerOutboxConsumers(registry)

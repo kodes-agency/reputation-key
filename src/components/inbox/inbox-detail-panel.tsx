@@ -45,6 +45,7 @@ export function InboxDetailPanel({
         <InboxDetailHeader
           item={currentItem}
           detail={detailState.detail}
+          googleCheck={detailState.googleCheck}
           onClose={onClose}
         />
       )}

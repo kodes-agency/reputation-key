@@ -106,7 +106,9 @@ const RAILWAY_DEPLOYMENTS_SCHEMA = z.array(
   z.object({
     id: z.string().min(1),
     status: z.string().min(1),
-    meta: z.object({ imageDigest: z.string().optional() }),
+    // A deployment may record no image digest, or no meta at all. That must
+    // read as "not proven", never as a parse failure that blocks the deploy.
+    meta: z.object({ imageDigest: z.string().nullish() }).nullish(),
   }),
 )
 const PENDING_DEPLOYMENT_STATUS: Readonly<Record<string, true>> = {
@@ -347,6 +349,107 @@ function sleep(milliseconds: number): Promise<void> {
   return promise
 }
 
+type LatestDeployment = Readonly<{
+  id: string
+  status: string
+  /** The image digest Railway recorded for it, or null when it recorded none. */
+  imageDigest: string | null
+}>
+
+function readLatestDeployment(
+  service: ClosedBetaImageDeployment,
+  runner: CommandRunner,
+): LatestDeployment {
+  const deployments = parseJson(
+    checkedOutput(runner, 'railway', [
+      'deployment',
+      'list',
+      ...railwayTargetArgs(service.serviceId),
+      '--limit',
+      '1',
+      '--json',
+    ]),
+    RAILWAY_DEPLOYMENTS_SCHEMA,
+    `${service.serviceName} Railway deployments`,
+  )
+  const deployment = deployments[0]
+  if (!deployment) {
+    throw new Error(`${service.serviceName} has no Railway deployment`)
+  }
+  return {
+    id: deployment.id,
+    status: deployment.status,
+    imageDigest: deployment.meta?.imageDigest ?? null,
+  }
+}
+
+/**
+ * Whether the container Railway runs right now is the target image.
+ *
+ * The configured source says only what Railway will deploy next. During the
+ * 2026-10-21 Railway outage `service source connect` stored the new image and
+ * created no deployment: the latest deployment stayed SUCCESS on the morning's
+ * image while the source already named the target, and four deploys reported
+ * "already healthy". Only the latest deployment's own image digest proves what
+ * runs. A deployment that records no digest, or that is not the deployment the
+ * service inventory calls latest, proves nothing, so it counts as not running
+ * the target and the service is redeployed.
+ */
+function latestDeploymentRunsTarget(
+  service: ClosedBetaImageDeployment,
+  current: RailwayServiceObservation,
+  runner: CommandRunner,
+  out: (line: string) => void,
+): boolean {
+  const latest = readLatestDeployment(service, runner)
+  if (latest.id !== current.deploymentId) {
+    out(
+      `${service.serviceName}: Railway names ${current.deploymentId} and ${latest.id} as the latest deployment; redeploying from the source`,
+    )
+    return false
+  }
+  if (latest.imageDigest === service.digest) return true
+  out(
+    `${service.serviceName}: source already names ${service.imageReference}, but its latest deployment ${latest.id} runs ${
+      latest.imageDigest ?? 'an unrecorded digest'
+    }; redeploying from the source`,
+  )
+  return false
+}
+
+/**
+ * The Railway command that puts the target image in front of a service.
+ *
+ * With the source already on the target, connecting it again may create no
+ * deployment, so it redeploys. A plain `railway redeploy` runs the latest
+ * deployment again, and that is the old image whenever the latest deployment
+ * was not proved to run the target; `--from-source` deploys the configured
+ * image instead.
+ */
+function deployArgs(
+  service: ClosedBetaImageDeployment,
+  configuredAtTarget: boolean,
+  runsTarget: boolean,
+): string[] {
+  if (!configuredAtTarget) {
+    return [
+      'service',
+      'source',
+      'connect',
+      ...railwayTargetArgs(service.serviceId),
+      '--image',
+      service.imageReference,
+      '--json',
+    ]
+  }
+  return [
+    'redeploy',
+    ...railwayTargetArgs(service.serviceId),
+    '--yes',
+    ...(runsTarget ? [] : ['--from-source']),
+  ]
+}
+
 async function waitForServiceHealth(
   service: ClosedBetaImageDeployment,
   previousDeploymentId: string,
@@ -355,27 +458,14 @@ async function waitForServiceHealth(
 ): Promise<string> {
   const deadline = Date.now() + DEPLOY_TIMEOUT_MS
   while (Date.now() <= deadline) {
-    const deployments = parseJson(
-      checkedOutput(runner, 'railway', [
-        'deployment',
-        'list',
-        ...railwayTargetArgs(service.serviceId),
-        '--limit',
-        '1',
-        '--json',
-      ]),
-      RAILWAY_DEPLOYMENTS_SCHEMA,
-      `${service.serviceName} Railway deployments`,
-    )
-    const deployment = deployments[0]
-    if (!deployment) {
-      throw new Error(`${service.serviceName} has no Railway deployment`)
-    }
+    const deployment = readLatestDeployment(service, runner)
+    // Only a deployment other than the one that ran before counts, and only one
+    // on the target digest: the deployment that was already SUCCESS is not it.
     if (deployment.id !== previousDeploymentId) {
       if (deployment.status === 'SUCCESS') {
-        if (deployment.meta.imageDigest !== service.digest) {
+        if (deployment.imageDigest !== service.digest) {
           throw new Error(
-            `${service.serviceName} settled at ${deployment.meta.imageDigest ?? 'an unknown digest'}, expected ${service.digest}`,
+            `${service.serviceName} settled at ${deployment.imageDigest ?? 'an unknown digest'}, expected ${service.digest}`,
           )
         }
         const current = serviceObservation(
@@ -502,11 +592,10 @@ export async function applyClosedBetaImageDeployment(
       })
       continue
     }
-    if (
-      current.source?.image === service.imageReference &&
-      serviceIsHealthy(current) &&
-      identity === service.sourceRevision
-    ) {
+    const configuredAtTarget = current.source?.image === service.imageReference
+    const runsTarget =
+      configuredAtTarget && latestDeploymentRunsTarget(service, current, runner, out)
+    if (runsTarget && serviceIsHealthy(current) && identity === service.sourceRevision) {
       out(`${service.serviceName}: already healthy at ${service.imageReference}`)
       settled.push({
         serviceName: service.serviceName,
@@ -525,21 +614,7 @@ export async function applyClosedBetaImageDeployment(
     }
 
     writeReleaseIdentity(service, runner, out)
-    checkedOutput(
-      runner,
-      'railway',
-      current.source?.image === service.imageReference
-        ? ['redeploy', ...railwayTargetArgs(service.serviceId), '--yes']
-        : [
-            'service',
-            'source',
-            'connect',
-            ...railwayTargetArgs(service.serviceId),
-            '--image',
-            service.imageReference,
-            '--json',
-          ],
-    )
+    checkedOutput(runner, 'railway', deployArgs(service, configuredAtTarget, runsTarget))
     const deploymentId = await waitForServiceHealth(
       service,
       current.deploymentId,

@@ -126,6 +126,8 @@ const EXPECTED_INBOX_PUBLIC_API_KEYS = [
   'assignInboxItem',
   'bulkAssignInboxItems',
   'bulkUpdateInboxStatus',
+  // Manager-triggered read of one review from Google ("Check on Google").
+  'checkInboxReviewOnGoogle',
   'correctFeedbackHandlingOutcome',
   'escalateInboxItem',
   'getGoogleReviewTargetAnalytics',

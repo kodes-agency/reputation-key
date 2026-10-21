@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { IconButton, type IconButtonProps } from '#/components/ui/icon-button'
+import { Spinner } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
 
 const ELLIPSIS = '…'
@@ -61,6 +62,13 @@ type Props = TriggerProps &
     width?: keyof typeof CONTENT_WIDTH
     /** Runs after the menu has closed, to hand focus to something it opened. */
     onCloseAutoFocus?: ComponentProps<typeof DropdownMenuContent>['onCloseAutoFocus']
+    /**
+     * Control the open state, for a menu that must stay open while an item runs
+     * (`RowActionsItem` `pending`) and close itself when the action settles.
+     * Both or neither; left out, the menu opens and closes by itself.
+     */
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
     children: ReactNode
   }>
 
@@ -70,12 +78,14 @@ export function RowActionsMenu({
   size = 'default',
   width = 'default',
   onCloseAutoFocus,
+  open,
+  onOpenChange,
   className,
   children,
   ...trigger
 }: Props) {
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       {/* The trigger is told it is disabled too: Radix opens on pointer down, which a disabled button can still receive. */}
       <DropdownMenuTrigger asChild disabled={trigger.disabled}>
         <IconButton
@@ -108,6 +118,15 @@ type ItemProps = Omit<ComponentProps<typeof DropdownMenuItem>, 'variant' | 'asCh
     icon?: LucideIcon
     /** A second line under the label, for an item whose effect needs a sentence. */
     description?: string
+    /**
+     * The action is in flight: the glyph becomes the Button's spinner, the item
+     * is `aria-busy` and ignores another choice. It stays `aria-disabled` rather
+     * than `disabled`, so a keyboard user's focus is not dropped from the menu
+     * while it runs. Not drawn for a link item (`asChild`), as with `Button`.
+     */
+    pending?: boolean
+    /** Replaces the label while `pending`; without it the label stays. */
+    pendingLabel?: string
   }> &
   (
     | Readonly<{
@@ -145,13 +164,20 @@ export function RowActionsItem({
   opensDialog = false,
   icon: Icon,
   description,
+  pending: isPending = false,
+  pendingLabel,
   asChild = false,
   children,
+  onSelect,
   ...props
 }: ItemProps) {
+  const pending = isPending && !asChild
+  let glyph: ReactNode = null
+  if (pending) glyph = <Spinner />
+  else if (Icon !== undefined) glyph = <Icon aria-hidden="true" />
   const label = (
     <>
-      {children}
+      {pending ? (pendingLabel ?? children) : children}
       {opensDialog ? ELLIPSIS : null}
     </>
   )
@@ -159,13 +185,22 @@ export function RowActionsItem({
     <DropdownMenuItem
       asChild={asChild}
       variant={destructive ? 'destructive' : 'default'}
+      // Spread only while pending: a prop set to `undefined` would also wipe the
+      // `aria-disabled` Radix itself writes for a `disabled` item.
+      {...(pending ? { 'aria-busy': true, 'aria-disabled': true } : {})}
+      onSelect={(event) => {
+        // Another choice while the action runs is not an action: the menu stays
+        // open on the running item instead of closing on a click that did nothing.
+        if (pending) event.preventDefault()
+        else onSelect?.(event)
+      }}
       {...props}
     >
       {asChild ? (
         children
       ) : (
         <>
-          {Icon === undefined ? null : <Icon aria-hidden="true" />}
+          {glyph}
           {description === undefined ? (
             label
           ) : (

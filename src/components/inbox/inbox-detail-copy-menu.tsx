@@ -1,4 +1,5 @@
-import { Copy, ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { Copy, ExternalLink, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   RowActionsItem,
@@ -6,12 +7,14 @@ import {
   RowActionsMenu,
   RowActionsSeparator,
 } from '#/components/ui/row-actions-menu'
+import { GOOGLE_CHECK_COPY } from './google-check-copy'
 import { GoogleReviewAnchor } from './google-review-anchor'
 import {
   GOOGLE_REVIEW_LINK_COPY,
   googleReviewLink,
   type GoogleReviewLink,
 } from './google-review-link'
+import type { GoogleReviewCheck } from './use-google-review-check'
 import type { InboxDetailState } from './use-inbox-detail'
 
 async function copyText(text: string, label: string): Promise<void> {
@@ -28,10 +31,23 @@ async function copyText(text: string, label: string): Promise<void> {
  * view, so it says that Google may want the account that manages the profile;
  * the Property's reviews page opens signed out and needs no such line.
  */
-function GoogleLinkItem({ link }: Readonly<{ link: GoogleReviewLink }>) {
+function GoogleLinkItem({
+  link,
+  onOpened,
+}: Readonly<{ link: GoogleReviewLink; onOpened?: () => void }>) {
   return (
     <RowActionsItem asChild>
-      <GoogleReviewAnchor link={link}>
+      {/* The page is a new tab, so every way of opening it (click, Enter, middle
+          click) is the manager leaving for Google: the Inbox watches for them
+          to come back (`google-return-watcher.ts`). */}
+      <GoogleReviewAnchor
+        link={link}
+        onClick={onOpened}
+        onAuxClick={(event) => {
+          // A right click only opens the browser's menu; a middle click opens the tab.
+          if (event.button === 1) onOpened?.()
+        }}
+      >
         <ExternalLink aria-hidden="true" />
         {link.kind === 'review' ? (
           <RowActionsItemText
@@ -43,6 +59,76 @@ function GoogleLinkItem({ link }: Readonly<{ link: GoogleReviewLink }>) {
         )}
       </GoogleReviewAnchor>
     </RowActionsItem>
+  )
+}
+
+/**
+ * Look at Google now, without leaving. The menu stays open on the running item
+ * (its spinner and "Checking Google…") and closes when Google has answered; the
+ * answer is a toast.
+ */
+function GoogleCheckItem({
+  googleCheck,
+  onSettled,
+}: Readonly<{ googleCheck: GoogleReviewCheck; onSettled: () => void }>) {
+  return (
+    <RowActionsItem
+      icon={RefreshCw}
+      description={GOOGLE_CHECK_COPY.actionHint}
+      pending={googleCheck.isChecking}
+      pendingLabel={GOOGLE_CHECK_COPY.pending}
+      onSelect={(event) => {
+        event.preventDefault()
+        void googleCheck.check().then(onSettled)
+      }}
+    >
+      {GOOGLE_CHECK_COPY.action}
+    </RowActionsItem>
+  )
+}
+
+/** The way to Google, then the check: what a manager does about a reply written there. */
+function GoogleItems({
+  link,
+  googleCheck,
+  onSettled,
+}: Readonly<{
+  link: GoogleReviewLink | null
+  /** Only when the check is offered. */
+  googleCheck: GoogleReviewCheck | undefined
+  onSettled: () => void
+}>) {
+  return (
+    <>
+      {link && <GoogleLinkItem link={link} onOpened={googleCheck?.noteOpenedGoogle} />}
+      {googleCheck && <GoogleCheckItem googleCheck={googleCheck} onSettled={onSettled} />}
+    </>
+  )
+}
+
+function CopyItems({
+  reviewText,
+  translation,
+}: Readonly<{ reviewText: string | null; translation: string | null }>) {
+  return (
+    <>
+      {reviewText && (
+        <RowActionsItem
+          icon={Copy}
+          onSelect={() => void copyText(reviewText, 'Review text')}
+        >
+          Copy review text
+        </RowActionsItem>
+      )}
+      {translation && (
+        <RowActionsItem
+          icon={Copy}
+          onSelect={() => void copyText(translation, 'Translation')}
+        >
+          Copy translation
+        </RowActionsItem>
+      )}
+    </>
   )
 }
 
@@ -66,38 +152,36 @@ function GoogleLinkItem({ link }: Readonly<{ link: GoogleReviewLink }>) {
  */
 export function InboxDetailCopyMenu({
   detail,
-}: Readonly<{ detail: InboxDetailState['detail'] }>) {
+  googleCheck,
+}: Readonly<{
+  detail: InboxDetailState['detail']
+  googleCheck?: GoogleReviewCheck
+}>) {
+  const [open, setOpen] = useState(false)
   const reviewText = detail?.reviewText ?? null
   const translation = detail?.reviewTranslatedText ?? null
   const link = googleReviewLink(detail)
   const hasCopy = Boolean(reviewText || translation)
-  if (!hasCopy && link === null) return null
+  const canCheck = googleCheck?.available === true
+  const hasGoogle = link !== null || canCheck
+  if (!hasCopy && !hasGoogle) return null
 
   return (
     <RowActionsMenu
       name="this review"
       variant="outline"
-      // The sign-in line is a second line under its label: the wide menu.
-      width={link?.kind === 'review' ? 'wide' : 'default'}
+      open={open}
+      onOpenChange={setOpen}
+      // The sign-in line and the check's hint are second lines under their labels: the wide menu.
+      width={link?.kind === 'review' || canCheck ? 'wide' : 'default'}
     >
-      {link && <GoogleLinkItem link={link} />}
-      {link && hasCopy && <RowActionsSeparator />}
-      {reviewText && (
-        <RowActionsItem
-          icon={Copy}
-          onSelect={() => void copyText(reviewText, 'Review text')}
-        >
-          Copy review text
-        </RowActionsItem>
-      )}
-      {translation && (
-        <RowActionsItem
-          icon={Copy}
-          onSelect={() => void copyText(translation, 'Translation')}
-        >
-          Copy translation
-        </RowActionsItem>
-      )}
+      <GoogleItems
+        link={link}
+        googleCheck={canCheck ? googleCheck : undefined}
+        onSettled={() => setOpen(false)}
+      />
+      {hasGoogle && hasCopy && <RowActionsSeparator />}
+      <CopyItems reviewText={reviewText} translation={translation} />
     </RowActionsMenu>
   )
 }

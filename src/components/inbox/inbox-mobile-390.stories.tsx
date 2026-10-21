@@ -495,6 +495,10 @@ const refuses = Object.assign(
   { isPending: false, error: null, isSuccess: false, data: null },
 )
 
+/** Synthetic (test-fixtures/google-provider-identifiers-v1.json). */
+const SYNTHETIC_REVIEW_PAGE =
+  'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001'
+
 function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetailState {
   return {
     detail: reviewDetail(),
@@ -1186,11 +1190,7 @@ export const OpenOnGoogleFromThePhoneSheet: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   args: {
     detailState: makeDetailState({
-      detail: reviewDetail({
-        // Synthetic (test-fixtures/google-provider-identifiers-v1.json).
-        googleReviewUrl:
-          'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001',
-      }),
+      detail: reviewDetail({ googleReviewUrl: SYNTHETIC_REVIEW_PAGE }),
     }),
   },
   play: async () => {
@@ -1206,6 +1206,39 @@ export const OpenOnGoogleFromThePhoneSheet: Story = {
     expect(
       within(open).getByText(/sign in with the account that manages/i),
     ).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(canvas.queryByRole('menu')).toBeNull())
+  },
+}
+
+/**
+ * "Check on Google" on the phone sheet: the action sits in the same header menu
+ * as "Open on Google", under it, and is reachable by role at 320 px. Its running
+ * state and answers are `inbox-detail-google-check.stories.tsx`.
+ */
+export const CheckOnGoogleFromThePhoneSheet: Story = {
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  args: {
+    detailState: makeDetailState({
+      detail: reviewDetail({ googleReviewUrl: SYNTHETIC_REVIEW_PAGE }),
+      googleCheck: {
+        available: true,
+        isChecking: false,
+        check: async () => {},
+        noteOpenedGoogle: () => {},
+      },
+    }),
+  },
+  play: async () => {
+    const canvas = pane()
+    expectTheMobileFrame(canvas)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'More actions for this review' }),
+    )
+    const menu = within(await canvas.findByRole('menu'))
+    const items = menu.getAllByRole('menuitem')
+    expect(items[0]).toHaveAccessibleName(/^Open on Google/)
+    expect(items[1]).toHaveAccessibleName(/^Check on Google/)
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(canvas.queryByRole('menu')).toBeNull())
   },

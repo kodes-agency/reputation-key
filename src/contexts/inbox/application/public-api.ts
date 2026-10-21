@@ -42,6 +42,10 @@ export {
 // Application-layer detail result (includes the review reply) — used by the
 // client detail state. See get-inbox-item-detail use case.
 export type { InboxItemDetailResult } from './use-cases/get-inbox-item-detail'
+export type {
+  CheckInboxReviewOnGoogleResult,
+  InboxGoogleCheckOutcome,
+} from './use-cases/check-inbox-review-on-google'
 export type { InboxNoteView } from './use-cases/get-inbox-notes'
 export type { InboxError } from '../domain/errors'
 export { INBOX_BULK_LIMIT } from './dto/inbox.dto'
@@ -69,6 +73,7 @@ export type InboxPublicApi = Readonly<{
   getLastVisitCount: import('./use-cases/get-last-visit-count').GetLastVisitCount
   stampLastInboxView: import('./use-cases/stamp-last-inbox-view').StampLastInboxView
   getInboxItemDetail: import('./use-cases/get-inbox-item-detail').GetInboxItemDetail
+  checkInboxReviewOnGoogle: import('./use-cases/check-inbox-review-on-google').CheckInboxReviewOnGoogle
   getInboxNotes: import('./use-cases/get-inbox-notes').GetInboxNotes
   getInboxItemHistory: import('./use-cases/get-inbox-item-history').GetInboxItemHistory
   getInboxQueueCounts: import('./use-cases/get-inbox-queue-counts').GetInboxQueueCounts

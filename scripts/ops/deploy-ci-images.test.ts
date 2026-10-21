@@ -14,6 +14,7 @@ import {
   createProviderRedisKeepCheck,
   PROVIDER_REDIS_IMAGE_SOURCES,
   providerRedisKeptRevision,
+  railwayTargetArgs,
   resolveDeploymentRevision,
   type ClosedBetaImageDeployment,
   type GitRevisionReader,
@@ -268,6 +269,9 @@ describe('closed-beta CI image deployment authority', () => {
     expect(calls.find((call) => call[1] === 'variable' && call[2] === 'set')).toContain(
       `RELEASE_SHA=${REVISION}`,
     )
+    // The deployment already runs the target image, so redeploying it as it is
+    // is enough; only a deployment on another image needs the source pulled.
+    expect(calls.find((call) => call[1] === 'redeploy')).not.toContain('--from-source')
   })
 })
 
@@ -500,5 +504,268 @@ describe('keeping google-provider-redis when its image sources did not change', 
     expect(lines.join('\n')).toContain(
       `google-provider-redis: cannot prove the image CI built for ${RUNNING}`,
     )
+  })
+})
+
+// During the 2026-10-21 Railway outage `service source connect` stored the new
+// image and created no deployment. The latest deployment kept running the
+// morning's image with status SUCCESS, so a source that names the target said
+// nothing about what ran, and four deploys reported "already healthy".
+describe('trusting a service only when its latest deployment runs the target', () => {
+  const OLD_DIGEST = `sha256:${'f'.repeat(64)}`
+  const WEB_DIGEST = `sha256:${String(CI_PRODUCTION_IMAGE_NAMES.indexOf('web') + 1).repeat(64)}`
+  const ok = (stdout: string) => ({ status: 0, stdout, stderr: '' })
+
+  type Outage = Readonly<{
+    /** The `meta` of the latest deployment before anything is redeployed. */
+    runningMeta: Record<string, unknown> | undefined
+    /** The id the deployment listing gives that deployment. */
+    runningId?: string
+    /** The image digest of the deployment a redeploy creates. */
+    redeployedDigest?: string
+    /** Listings after a redeploy that still show the deployment from before. */
+    staleListings?: number
+  }>
+
+  function outage(options: Outage) {
+    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
+    const target = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).find(
+      ({ serviceName }) => serviceName === 'web',
+    )!
+    // The configured source already names the target, as after the outage.
+    const configured = serviceInventory().map((service) =>
+      service.name === 'web'
+        ? { ...service, source: { repo: null, image: target.imageReference } }
+        : service,
+    )
+    const calls: string[][] = []
+    let redeployed = false
+    let listingsSinceRedeploy = 0
+    const runner: CommandRunner = (command, args) => {
+      calls.push([command, ...args])
+      if (args[0] === 'variable' && args[1] === 'list') {
+        return ok(`RELEASE_SHA=${REVISION}\n`)
+      }
+      if (args[0] === 'service' && args[1] === 'list') {
+        return ok(
+          JSON.stringify(
+            configured.map((service) => ({
+              id: service.id,
+              name: service.name,
+              source: service.source,
+              status: 'SUCCESS',
+              deploymentStopped: false,
+              latestDeployment: {
+                id:
+                  service.name === 'web' && redeployed
+                    ? 'deployment-web-next'
+                    : service.deploymentId,
+              },
+              replicas: { configured: 1, running: 1, crashed: 0 },
+            })),
+          ),
+        )
+      }
+      if (args[0] === 'deployment' && args[1] === 'list') {
+        const newOneListed =
+          redeployed && listingsSinceRedeploy++ >= (options.staleListings ?? 0)
+        return ok(
+          JSON.stringify([
+            newOneListed
+              ? {
+                  id: 'deployment-web-next',
+                  status: 'SUCCESS',
+                  meta: { imageDigest: options.redeployedDigest ?? target.digest },
+                }
+              : {
+                  id: options.runningId ?? 'deployment-0',
+                  status: 'SUCCESS',
+                  ...(options.runningMeta === undefined
+                    ? {}
+                    : { meta: options.runningMeta }),
+                },
+          ]),
+        )
+      }
+      if (args[0] === 'redeploy') redeployed = true
+      return ok('{}')
+    }
+    const plan = buildClosedBetaImageDeploymentPlan(digestMap, configured).filter(
+      ({ serviceName }) => serviceName === 'web',
+    )
+    return { target, plan, runner, calls }
+  }
+
+  async function withWebEndpointUp<T>(run: () => Promise<T>): Promise<T> {
+    const fetchStub = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }))
+    try {
+      return await run()
+    } finally {
+      fetchStub.mockRestore()
+    }
+  }
+
+  it('redeploys from the configured source when the latest deployment runs an older digest', async () => {
+    const { target, plan, runner, calls } = outage({
+      runningMeta: { imageDigest: OLD_DIGEST },
+    })
+    const lines: string[] = []
+
+    await expect(
+      withWebEndpointUp(() =>
+        applyClosedBetaImageDeployment({ plan, runner, out: (line) => lines.push(line) }),
+      ),
+    ).resolves.toEqual([{ serviceName: 'web', deploymentId: 'deployment-web-next' }])
+
+    // Plain `redeploy` runs the existing deployment again, which is the old image.
+    expect(calls.find((call) => call[1] === 'redeploy')).toEqual([
+      'railway',
+      'redeploy',
+      ...railwayTargetArgs(target.serviceId),
+      '--yes',
+      '--from-source',
+    ])
+    // The source is already right: connecting it again would create nothing.
+    expect(calls.some((call) => call[1] === 'service' && call[2] === 'source')).toBe(
+      false,
+    )
+    expect(lines).toContain(
+      `web: source already names ${target.imageReference}, but its latest deployment deployment-0 runs ${OLD_DIGEST}; redeploying from the source`,
+    )
+    expect(lines).not.toContain(`web: already healthy at ${target.imageReference}`)
+  })
+
+  it('waits for the redeployed digest before it reports the service settled', async () => {
+    const { plan, runner, calls } = outage({
+      runningMeta: { imageDigest: OLD_DIGEST },
+    })
+
+    await withWebEndpointUp(() => applyClosedBetaImageDeployment({ plan, runner }))
+
+    const redeployAt = calls.findIndex((call) => call[1] === 'redeploy')
+    const variableSetAt = calls.findIndex(
+      (call) => call[1] === 'variable' && call[2] === 'set',
+    )
+    expect(variableSetAt).toBeGreaterThanOrEqual(0)
+    expect(redeployAt).toBeGreaterThan(variableSetAt)
+    expect(
+      calls
+        .slice(redeployAt + 1)
+        .some((call) => call[1] === 'deployment' && call[2] === 'list'),
+    ).toBe(true)
+  })
+
+  it('does not take the deployment that ran before the redeploy for the new one', async () => {
+    vi.useFakeTimers()
+    try {
+      const { plan, runner, calls } = outage({
+        runningMeta: { imageDigest: OLD_DIGEST },
+        staleListings: 2,
+      })
+      const settled = expect(
+        withWebEndpointUp(() => applyClosedBetaImageDeployment({ plan, runner })),
+      ).resolves.toEqual([{ serviceName: 'web', deploymentId: 'deployment-web-next' }])
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      await settled
+
+      // One look before the redeploy, two that still show the old deployment as
+      // SUCCESS, and the one that shows the new deployment.
+      expect(
+        calls.filter((call) => call[1] === 'deployment' && call[2] === 'list'),
+      ).toHaveLength(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('refuses a new deployment that settles SUCCESS on a digest other than the target', async () => {
+    const { target, plan, runner } = outage({
+      runningMeta: { imageDigest: OLD_DIGEST },
+      redeployedDigest: OLD_DIGEST,
+    })
+
+    await expect(
+      withWebEndpointUp(() => applyClosedBetaImageDeployment({ plan, runner })),
+    ).rejects.toThrow(`web settled at ${OLD_DIGEST}, expected ${target.digest}`)
+  })
+
+  it('stays "already healthy" when the source and the latest deployment both run the target', async () => {
+    const { target, plan, runner, calls } = outage({
+      runningMeta: { imageDigest: WEB_DIGEST },
+    })
+    const lines: string[] = []
+
+    await expect(
+      withWebEndpointUp(() =>
+        applyClosedBetaImageDeployment({ plan, runner, out: (line) => lines.push(line) }),
+      ),
+    ).resolves.toEqual([{ serviceName: 'web', deploymentId: 'deployment-0' }])
+
+    expect(lines).toContain(`web: already healthy at ${target.imageReference}`)
+    expect(
+      calls.some(
+        (call) =>
+          call[1] === 'redeploy' ||
+          (call[1] === 'service' && call[2] === 'source') ||
+          (call[1] === 'variable' && call[2] === 'set'),
+      ),
+    ).toBe(false)
+  })
+
+  // An unrecorded digest proves nothing about what runs, so the service is
+  // redeployed rather than trusted.
+  it.each([
+    ['carries no imageDigest', {}],
+    ['records a null imageDigest', { imageDigest: null }],
+    ['has no meta at all', undefined],
+  ])('redeploys when the latest deployment %s', async (_case, runningMeta) => {
+    const { target, plan, runner, calls } = outage({ runningMeta })
+    const lines: string[] = []
+
+    await expect(
+      withWebEndpointUp(() =>
+        applyClosedBetaImageDeployment({ plan, runner, out: (line) => lines.push(line) }),
+      ),
+    ).resolves.toEqual([{ serviceName: 'web', deploymentId: 'deployment-web-next' }])
+
+    expect(calls.find((call) => call[1] === 'redeploy')).toContain('--from-source')
+    expect(lines).toContain(
+      `web: source already names ${target.imageReference}, but its latest deployment deployment-0 runs an unrecorded digest; redeploying from the source`,
+    )
+  })
+
+  it('redeploys when the deployment listing and the service listing name different latest deployments', async () => {
+    const { plan, runner, calls } = outage({
+      runningMeta: { imageDigest: WEB_DIGEST },
+      runningId: 'deployment-9',
+    })
+    const lines: string[] = []
+
+    await withWebEndpointUp(() =>
+      applyClosedBetaImageDeployment({ plan, runner, out: (line) => lines.push(line) }),
+    )
+
+    expect(calls.find((call) => call[1] === 'redeploy')).toContain('--from-source')
+    expect(lines).toContain(
+      'web: Railway names deployment-0 and deployment-9 as the latest deployment; redeploying from the source',
+    )
+  })
+
+  it('still refuses a source that changed after the reviewed deployment plan', async () => {
+    const { runner, calls } = outage({ runningMeta: { imageDigest: OLD_DIGEST } })
+    // Reviewed while web still ran from the repository, not from the image.
+    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
+    const reviewed = buildClosedBetaImageDeploymentPlan(
+      digestMap,
+      serviceInventory(),
+    ).filter(({ serviceName }) => serviceName === 'web')
+
+    await expect(
+      withWebEndpointUp(() => applyClosedBetaImageDeployment({ plan: reviewed, runner })),
+    ).rejects.toThrow('web source changed after the reviewed deployment plan')
+    expect(calls.some((call) => call[1] === 'redeploy')).toBe(false)
   })
 })

@@ -25,6 +25,11 @@ describe('buildInboxContext', () => {
         sourceTransitionAuthority: {},
         googleReviewCheck: {},
       } as InboxContextBuildInput['sources'],
+      rateLimiter: {
+        check: async () => {
+          throw new Error('unused')
+        },
+      },
       logger: createMockLogger(),
       authorizeCommand: async () => ({ allowed: true }),
     })

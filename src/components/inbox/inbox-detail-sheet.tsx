@@ -118,6 +118,7 @@ export function InboxDetailSheet({
         <InboxDetailHeader
           item={currentItem}
           detail={detailState.detail}
+          googleCheck={detailState.googleCheck}
           dismiss="back"
           onClose={() => onOpenChange(false)}
         />

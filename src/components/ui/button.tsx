@@ -126,5 +126,5 @@ function Spinner() {
   )
 }
 
-export { Button, buttonVariants }
+export { Button, Spinner, buttonVariants }
 export type { ButtonProps }
