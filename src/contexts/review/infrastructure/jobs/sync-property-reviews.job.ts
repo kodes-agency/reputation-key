@@ -2,6 +2,7 @@ import type { Job } from 'bullmq'
 import {
   GBP_PUSH_SYNC_INITIATOR_ID,
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
+  type GoogleReviewPushNotificationKind,
   type ReviewProviderJobData,
   type SyncPropertyReviewsJobData,
   type TargetedGoogleReviewFetchJobData,
@@ -51,6 +52,36 @@ type SyncHandlerDeps = Readonly<{
   /** Hot-rung interval — the push reset's next-poll clamp. */
   hotIntervalMs: number
 }>
+
+const PUSH_NOTIFICATION_KINDS: ReadonlySet<string> = new Set([
+  'NEW_REVIEW',
+  'UPDATED_REVIEW',
+  'REVIEW_CHANGED',
+])
+
+/**
+ * What a targeted job says about its push: when Pub/Sub accepted it and what
+ * Google reported. A job queued before push health was measured carries
+ * neither; it is judged by the time it starts and as the combined kind.
+ * Returns null for a value that is not what the consumer writes.
+ */
+function pushArrivalOf(
+  data: TargetedGoogleReviewFetchJobData,
+  startedAt: Date,
+): Readonly<{
+  acceptedAt: Date
+  notificationKind: GoogleReviewPushNotificationKind
+}> | null {
+  const acceptedAt = data.acceptedAt === undefined ? startedAt : new Date(data.acceptedAt)
+  const notificationKind = data.notificationKind ?? 'REVIEW_CHANGED'
+  if (
+    Number.isNaN(acceptedAt.getTime()) ||
+    !PUSH_NOTIFICATION_KINDS.has(notificationKind)
+  ) {
+    return null
+  }
+  return { acceptedAt, notificationKind }
+}
 
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
 const SAFE_SCOPE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/u
@@ -131,14 +162,16 @@ async function runTargetedFetchStep(
   data: TargetedGoogleReviewFetchJobData,
   scope: ProviderStepScope,
 ) {
+  const now = deps.clock()
+  const arrival = pushArrivalOf(data, now)
   if (
     !CANONICAL_UUID.test(data.deliveryId) ||
     (data.referenceRef !== null && !REFERENCE_REF.test(data.referenceRef)) ||
+    arrival === null ||
     !deps.runTargetedFetch
   ) {
     throw new TypeError('Invalid targeted Review provider job identity')
   }
-  const now = deps.clock()
   await deps.syncActivity.recordPushObserved(
     data.propertyId,
     now,
@@ -151,6 +184,7 @@ async function runTargetedFetchStep(
     sourceEpoch: scope.sourceEpoch,
     referenceRef: data.referenceRef,
     deliveryId: data.deliveryId,
+    ...arrival,
   })
   if (result.status === 'reconcile') {
     await deps.enqueueContinuation(
@@ -231,6 +265,8 @@ async function runSnapshotStep(
       data.initiator?.id === GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID
         ? 'historical_onboarding'
         : 'ongoing',
+    firstSeenVia:
+      data.initiator?.id === GBP_PUSH_SYNC_INITIATOR_ID ? 'push_reconcile' : 'snapshot',
     locationName: data.locationName,
     ...(data.runId == null ? {} : { runId: data.runId }),
   })

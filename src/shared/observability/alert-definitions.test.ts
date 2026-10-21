@@ -28,6 +28,8 @@ import {
   SYNC_SWEEP_LAG_ALERT_MS,
   type AlertAuxReads,
 } from './alert-definitions'
+import { ZERO_SYNC_PUSH_HEALTH } from '#/shared/db/sync-push-health'
+import { RECONCILIATION_OVERDUE_AFTER_MS } from '#/shared/domain/push-health'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import type { JobRuntimeReportRow } from '#/shared/jobs/runtime-observations'
 import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
@@ -104,6 +106,7 @@ function healthy(): MutableSnapshot {
       oldestDueAgeMs: null,
       gbpPushEnabled: false,
     },
+    syncPush: ZERO_SYNC_PUSH_HEALTH,
     notifications: {
       emailDeliveryEnabled: false,
       pendingOverdueCount: 0,
@@ -781,6 +784,145 @@ describe('sync.sweep-lag', () => {
   it('stays silent when nothing is due', () => {
     expect(evaluateOne('sync.sweep-lag', healthy())).toBeNull()
   })
+})
+
+// ── push health: Google's push is the fast path, so measure it ─────
+
+/** A snapshot with push configured and the given push readings. */
+function withPush(
+  push: Partial<MutableSnapshot['syncPush']['push']>,
+  gbpPushEnabled = true,
+): MutableSnapshot {
+  const s = healthy()
+  s.sync = { ...s.sync, gbpPushEnabled }
+  s.syncPush = { ...s.syncPush, push: { ...s.syncPush.push, ...push } }
+  return s
+}
+
+describe('sync.push-missed', () => {
+  it('fires when polling found a new review that no push covered within the hour', () => {
+    const event = evaluateOne('sync.push-missed', withPush({ missed24h: 2 }))
+
+    expect(event).toMatchObject({
+      name: 'sync.push-missed',
+      severity: 'P2',
+      runbook: 'runbooks.md §4',
+      value: 2,
+      threshold: 0,
+      windowMs: 24 * 60 * 60 * 1000,
+      facts: { count: 2 },
+    })
+  })
+
+  it('stays silent when no push was missed', () => {
+    expect(
+      evaluateOne('sync.push-missed', withPush({ late24h: 3, pending: 1 })),
+    ).toBeNull()
+  })
+
+  it('stays silent while push is not configured', () => {
+    expect(evaluateOne('sync.push-missed', withPush({ missed24h: 5 }, false))).toBeNull()
+  })
+
+  it('is held, not cleared, while the push signal is degraded', () => {
+    const s = withPush({ missed24h: 1 })
+    s.degraded = ['health.syncPush']
+
+    const result = evaluateAlerts(s, AUX, new Set(['sync.push-missed']), new Set())
+
+    expect(result.held).toContain('sync.push-missed')
+    expect(result.firing).toContain('sync.push-missed')
+  })
+})
+
+describe('sync.push-silent', () => {
+  it('fires when polling is finding new reviews and Pub/Sub accepted no push at all', () => {
+    const event = evaluateOne(
+      'sync.push-silent',
+      withPush({ newByPoll24h: 3, acceptedPushes24h: 0 }),
+    )
+
+    expect(event).toMatchObject({
+      name: 'sync.push-silent',
+      severity: 'P2',
+      runbook: 'runbooks.md §4',
+      value: 3,
+      threshold: 0,
+      facts: { count: 3 },
+    })
+  })
+
+  it('stays silent when any push was accepted', () => {
+    expect(
+      evaluateOne(
+        'sync.push-silent',
+        withPush({ newByPoll24h: 3, acceptedPushes24h: 1 }),
+      ),
+    ).toBeNull()
+  })
+
+  it('stays silent when polling found nothing new, so a quiet day is not an outage', () => {
+    expect(
+      evaluateOne(
+        'sync.push-silent',
+        withPush({ newByPoll24h: 0, acceptedPushes24h: 0 }),
+      ),
+    ).toBeNull()
+  })
+
+  it('stays silent while push is not configured', () => {
+    expect(
+      evaluateOne('sync.push-silent', withPush({ newByPoll24h: 3 }, false)),
+    ).toBeNull()
+  })
+})
+
+describe('sync.reconciliation-age', () => {
+  const overdue = (count: number, oldestAgeMs: number | null) => {
+    const s = healthy()
+    s.syncPush = { ...s.syncPush, reconciliation: { overdueCount: count, oldestAgeMs } }
+    return s
+  }
+
+  it('fires when a syncable Property has gone past eight hours without a completed reconciliation', () => {
+    const ageMs = RECONCILIATION_OVERDUE_AFTER_MS + 60_000
+
+    const event = evaluateOne('sync.reconciliation-age', overdue(2, ageMs))
+
+    expect(event).toMatchObject({
+      name: 'sync.reconciliation-age',
+      severity: 'P2',
+      runbook: 'runbooks.md §13',
+      value: ageMs,
+      threshold: RECONCILIATION_OVERDUE_AFTER_MS,
+      windowMs: RECONCILIATION_OVERDUE_AFTER_MS,
+      facts: { count: 2 },
+    })
+  })
+
+  it('stays silent when every Property was reconciled inside the limit', () => {
+    expect(evaluateOne('sync.reconciliation-age', overdue(0, null))).toBeNull()
+  })
+
+  it('does not depend on push being configured', () => {
+    const s = overdue(1, RECONCILIATION_OVERDUE_AFTER_MS + 1)
+    expect(s.sync.gbpPushEnabled).toBe(false)
+
+    expect(evaluateOne('sync.reconciliation-age', s)).not.toBeNull()
+  })
+
+  it.each(['health.sync', 'health.syncPush'] as const)(
+    'is held while %s is degraded',
+    (section) => {
+      const s = overdue(1, RECONCILIATION_OVERDUE_AFTER_MS + 1)
+      s.degraded = [section]
+
+      const result = evaluateAlerts(s, AUX, new Set(), new Set())
+
+      expect(result.held).toContain('sync.reconciliation-age')
+      expect(result.firing).not.toContain('sync.reconciliation-age')
+    },
+  )
 })
 
 // ── notification delivery ─────────────────────────────────────────

@@ -11,6 +11,7 @@ import {
 import type { Database } from '#/shared/db'
 import type { OutboxRepository } from '#/shared/outbox'
 import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
+import { ZERO_SYNC_PUSH_HEALTH } from '#/shared/db/sync-push-health'
 import { getLogger } from '#/shared/observability/logger'
 
 const FIXED_NOW = new Date('2026-01-15T12:00:00.000Z')
@@ -340,11 +341,15 @@ describe('createOperationsSnapshot', () => {
       'health.sync',
       'health.replyPublication',
       'health.notificationEmail',
+      'health.syncPush',
     ])
     // Degraded markers are a closed label set (BQC-7.3 schema).
     for (const marker of snapshot.degraded) {
       expect(SNAPSHOT_SECTIONS).toContain(marker)
     }
+    // A degraded push read reports nothing missed and nothing overdue: it
+    // marks itself degraded rather than inventing a push outage.
+    expect(snapshot.syncPush).toEqual(ZERO_SYNC_PUSH_HEALTH)
     expect(snapshot.outbox.unpublishedCount).toBe(0)
     expect(snapshot.timestamp).toBe(FIXED_NOW.toISOString())
     // Null handles are absent, not degraded: queues [] and stale heartbeat.
@@ -494,6 +499,7 @@ describe('createOperationsSnapshot', () => {
         'health.notificationEmail',
         'health.notificationGap',
         'health.notificationDeliveryLag',
+        'health.syncPush',
       ])
       expect(warn).toHaveBeenCalledWith(
         {
@@ -522,6 +528,11 @@ describe('createOperationsSnapshot', () => {
             },
             {
               signal: 'notificationDeliveryLag',
+              outcome: 'not_started',
+              elapsedMs: OPS_SECTION_BUDGET_MS,
+            },
+            {
+              signal: 'syncPush',
               outcome: 'not_started',
               elapsedMs: OPS_SECTION_BUDGET_MS,
             },

@@ -25,6 +25,7 @@ import {
   isSensitiveObservabilityField,
 } from '#/shared/observability/sensitive-field-policy'
 import { JOB_RUNTIME_METRIC_DEFINITIONS } from '#/shared/observability/job-runtime-metrics'
+import { SYNC_METRIC_DEFINITIONS } from '#/shared/observability/sync-metrics'
 
 // ── Label policy ─────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export const SNAPSHOT_SECTIONS = [
   'health.quarantine',
   'health.reviews',
   'health.sync',
+  'health.syncPush',
   'health.replyPublication',
   'health.notificationEmail',
   'health.notificationGap',
@@ -360,6 +362,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     description: 'Job handlers registered at worker boot (boot log field).',
   }),
   ...JOB_RUNTIME_METRIC_DEFINITIONS,
+  ...SYNC_METRIC_DEFINITIONS,
   def({
     name: 'worker.runtime.version',
     kind: 'gauge',
@@ -368,70 +371,6 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['versions.runtime'],
     emitted: true,
     description: 'Node runtime version (process.version).',
-  }),
-
-  // ── sync.* — Google sync freshness, webhook dedupe, provider health ──
-  def({
-    name: 'sync.due_for_incremental',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['sync.dueForIncrementalCount'],
-    emitted: true,
-    description: 'Properties past their next incremental sync time.',
-  }),
-  def({
-    name: 'sync.oldest_due_age_ms',
-    kind: 'gauge',
-    unit: 'ms',
-    labels: {},
-    snapshotPath: ['sync.oldestDueAgeMs'],
-    emitted: true,
-    description:
-      'Age of the OLDEST past-due next_incremental_at — discovery-sweep lag, for Properties the sweep selects and from the later of the poll time and the day the Property qualified again. A count of due properties cannot distinguish a sweep mid-run from a dead sweep; this can. Null/absent when nothing is overdue.',
-  }),
-  def({
-    name: 'sync.failed',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['sync.failedSyncCount'],
-    emitted: true,
-    description: 'Syncs in error whose retry is due.',
-  }),
-  def({
-    name: 'sync.gbp_push_enabled',
-    kind: 'gauge',
-    unit: 'count',
-    labels: {},
-    snapshotPath: ['sync.gbpPushEnabled'],
-    emitted: true,
-    description:
-      '1 when GBP_PUBSUB_TOPIC is configured. 0 = Google push notifications are dark and new reviews only arrive on the discover-new-reviews sweep cadence.',
-  }),
-  def({
-    name: 'sync.webhook.dedupe',
-    kind: 'counter',
-    unit: 'count',
-    labels: {},
-    emitted: false,
-    description: 'Webhook deliveries dropped by the message-id dedupe (7.4).',
-  }),
-  def({
-    name: 'sync.provider.throttle',
-    kind: 'counter',
-    unit: 'count',
-    labels: {},
-    emitted: false,
-    description: 'Provider quota/throttle responses (7.4).',
-  }),
-  def({
-    name: 'sync.provider.reconnect',
-    kind: 'counter',
-    unit: 'count',
-    labels: {},
-    emitted: false,
-    description: 'Provider connection re-establishments (7.4).',
   }),
 
   // ── notification.* — did the user actually get told? ──

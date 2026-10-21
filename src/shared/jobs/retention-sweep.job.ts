@@ -168,6 +168,15 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 30 * DAY_MS,
   },
   {
+    // Push health ledger: ids, an enum and instants. The 7-day location health
+    // and the 24-hour alert windows read well inside the 30 days.
+    subject: 'review_first_sightings',
+    table: 'review_first_sightings',
+    keyColumns: ['organization_id', 'property_id', 'review_id'],
+    tsColumn: 'first_seen_at',
+    olderThanMs: 30 * DAY_MS,
+  },
+  {
     subject: 'review_refresh_runs',
     table: 'review_refresh_runs',
     keyColumns: ['id'],

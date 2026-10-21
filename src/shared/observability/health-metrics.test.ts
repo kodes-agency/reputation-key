@@ -17,6 +17,8 @@ function fakeDb(results: unknown[][]): Database {
     chain.leftJoin = () => chain
     chain.innerJoin = () => chain
     chain.groupBy = () => chain
+    chain.orderBy = () => chain
+    chain.limit = () => chain
     chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
       Promise.resolve(rows).then(resolve, reject)
     return chain
@@ -377,12 +379,39 @@ describe('health checker content safety (BQC-4.3)', () => {
         },
         oldestAmbiguousAgeMs: 120_000,
       },
+      syncPush: {
+        push: {
+          newByPush24h: 0,
+          newByPoll24h: 0,
+          pending: 0,
+          missed24h: 0,
+          late24h: 0,
+          acceptedPushes24h: 0,
+          locationsHealthy: 0,
+          locationsSuspect: 0,
+          accountsDark: 0,
+        },
+        reconciliation: { overdueCount: 0, oldestAgeMs: null },
+      },
       workers: {
         defaultQueueName: 'default',
         backgroundQueueName: 'background',
         domainEventsQueueName: 'domain-events',
       },
     })
+  })
+
+  it('reads the push ledger only while push is configured, and the reconciliation age always', async () => {
+    const dark = fakeDb([])
+    await createHealthChecker(dark).signals.syncPush()
+    const live = fakeDb([])
+    await createHealthChecker(live, undefined, {
+      gbpPushEnabled: true,
+    }).signals.syncPush()
+
+    // Reconciliation age alone; then counts, polled rows, receipts and age.
+    expect(dark.select).toHaveBeenCalledTimes(1)
+    expect(live.select).toHaveBeenCalledTimes(4)
   })
 
   it('surfaces the GBP push readiness fact from the composition root', async () => {

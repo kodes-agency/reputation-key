@@ -9,10 +9,8 @@ import {
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
-import type {
-  ReviewProviderHistoryCutoff,
-  ReviewProviderObservationWriter,
-} from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderHistoryCutoff } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { GoogleReview, Review } from '../../domain/types'
 import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source-contract'
 import { computeAiReviewSourceProvenance } from '../ai-review-source'
@@ -110,6 +108,7 @@ function scopeObservation(
     connectionId: SCOPE_CONNECTION,
     sourceEpoch: 4,
     observationOrigin: 'ongoing',
+    firstSeenVia: 'snapshot',
     observationKey: 'e'.repeat(64),
     replyReadGeneration: 1,
     subjects: [SCOPE_SUBJECT],
@@ -500,6 +499,7 @@ describe('Review provider observation identity', () => {
       SCOPE_NOW,
       'e'.repeat(64),
       'ongoing',
+      undefined,
     )
     expect(upsert).not.toHaveBeenCalled()
   })
@@ -656,6 +656,7 @@ describe('Review provider observation identity', () => {
       connectionId: connection,
       sourceEpoch: 4,
       observationOrigin: 'ongoing',
+      firstSeenVia: 'snapshot',
       observationKey: 'f'.repeat(64),
       replyReadGeneration: 1,
       subjects: [subject],
@@ -901,5 +902,87 @@ describe('initial import history cutoff', () => {
     await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
       stored: 'legacy_unknown',
     })
+  })
+})
+
+describe('Review provider observation first-sighting ledger', () => {
+  const sightingOf = (
+    upsertAndRecord: ReturnType<typeof scopeWriter>['upsertAndRecord'],
+  ) => (upsertAndRecord.mock.calls[0] as unknown as unknown[])[5]
+
+  it('hands the command store the first sighting a polling snapshot made', async () => {
+    const { writer, upsertAndRecord } = scopeWriter(null)
+
+    await writer.persist(scopeObservation({ firstSeenVia: 'snapshot' }))
+
+    expect(sightingOf(upsertAndRecord)).toEqual({
+      seenVia: 'snapshot',
+      pushAcceptedAt: null,
+    })
+  })
+
+  it('carries the push acceptance time of a Review a push read found first', async () => {
+    const acceptedAt = new Date('2026-09-05T09:59:30.000Z')
+    const { writer, upsertAndRecord } = scopeWriter(null)
+
+    await writer.persist(
+      scopeObservation({ firstSeenVia: 'push', pushAcceptedAt: acceptedAt }),
+    )
+
+    expect(sightingOf(upsertAndRecord)).toEqual({
+      seenVia: 'push',
+      pushAcceptedAt: acceptedAt,
+    })
+  })
+
+  it.each(['historical_onboarding', 'legacy_unknown'] as const)(
+    'records no sighting for a first sighting whose origin is %s',
+    async (observationOrigin) => {
+      const { writer, upsertAndRecord } = scopeWriter(null)
+
+      await writer.persist(scopeObservation({ observationOrigin }))
+
+      expect(sightingOf(upsertAndRecord)).toBeUndefined()
+    },
+  )
+
+  it('records no sighting for a history import first sighting after the cutoff turns it into history', async () => {
+    const publishedAt = SCOPE_PROVIDER_REVIEW.reviewedAt
+    const { writer, upsertAndRecord } = scopeWriter(null, historyAt(publishedAt))
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
+
+    expect(sightingOf(upsertAndRecord)).toBeUndefined()
+  })
+
+  it('records no sighting for a Review RepKey already holds', async () => {
+    const { writer, upsertAndRecord } = scopeWriter(scopeReview({ sourceEpoch: 4 }), null)
+
+    await writer.persist(
+      scopeObservation({ review: { ...SCOPE_PROVIDER_REVIEW, text: 'Edited review' } }),
+    )
+
+    expect(sightingOf(upsertAndRecord)).toBeUndefined()
+  })
+
+  it('records no sighting for a Review reached through its stable provider identity', async () => {
+    const stableIdentity: ScopeStableIdentity = {
+      id: SCOPE_REVIEW,
+      organizationId: SCOPE_ORG,
+      propertyId: SCOPE_PROPERTY,
+      sourceEpoch: 4,
+      sourceRevision: 7,
+      analysisSequence: 11,
+      sourceContentState: 'active',
+      firstFetchedAt: new Date('2026-07-01T10:00:00.000Z'),
+      sourceSeenGeneration: null,
+      sentimentLabel: 'negative',
+      sentimentScore: -0.8,
+    }
+    const { writer, upsertAndRecord } = scopeWriter(null, null, stableIdentity)
+
+    await writer.persist(scopeObservation())
+
+    expect(sightingOf(upsertAndRecord)).toBeUndefined()
   })
 })

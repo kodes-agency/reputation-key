@@ -64,6 +64,7 @@ const REVIEW_ORG_TABLES = Object.freeze([
   'review_source_contents',
   'review_ai_analysis_heads',
   'review_google_reputation_snapshot_facts',
+  'review_first_sightings',
   'review_provider_subjects',
   'review_provider_snapshot_runs',
   'review_provider_history_cutoffs',
@@ -300,6 +301,19 @@ async function seedReviewWork(): Promise<void> {
   await insertReview(PUBLISHED_REVIEW_ID, ORG_ID, PROPERTY_ID)
   await insertReview(PENDING_REVIEW_ID, ORG_ID, PROPERTY_ID)
   await insertReview(OTHER_REVIEW_ID, OTHER_ORG_ID, OTHER_PROPERTY_ID)
+  // The push health ledger: content-free, one row per live first sighting.
+  for (const [organization, property, review] of [
+    [ORG_ID, PROPERTY_ID, PUBLISHED_REVIEW_ID],
+    [OTHER_ORG_ID, OTHER_PROPERTY_ID, OTHER_REVIEW_ID],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO review_first_sightings (
+         organization_id, property_id, review_id, source_epoch, first_seen_at,
+         first_seen_via, push_accepted_at
+       ) VALUES ($1, $2, $3, 0, $4, 'snapshot', $4)`,
+      [organization, property, review, AT],
+    )
+  }
 
   await pool.query(
     `INSERT INTO review_source_contents (
@@ -716,6 +730,7 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
       'review_ai_analysis_heads',
       'review_provider_snapshot_runs',
       'review_provider_history_cutoffs',
+      'review_first_sightings',
     ]) {
       expect({ table, rows: after[table] }).toEqual({ table, rows: 0 })
     }

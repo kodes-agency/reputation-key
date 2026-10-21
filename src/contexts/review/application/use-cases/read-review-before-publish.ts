@@ -2,7 +2,7 @@ import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/do
 import { sha256Hex } from '#/shared/domain/sha256'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
-import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 import { persistGoogleReviewObservation } from './persist-google-review-observation'
 
@@ -78,6 +78,7 @@ export const readReviewBeforePublish =
       observationKey: sha256Hex(
         ['repkey-prepublish-review-read-v1', input.readKey, input.reviewName].join('\0'),
       ),
+      firstSeenVia: 'demand',
     })
     return providerResult.review.replyUnreadable === true
       ? { status: 'reply_unreadable' }

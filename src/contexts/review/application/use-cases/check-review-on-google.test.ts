@@ -17,7 +17,7 @@ import {
   type GoogleReviewRead,
 } from '../ports/google-review-api.port'
 import type { PropertyGoogleReadBindingPort } from '../ports/property-google-read-binding.port'
-import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 import { checkReviewOnGoogle } from './check-review-on-google'
 
@@ -194,6 +194,7 @@ describe('checkReviewOnGoogle', () => {
           connectionId: CONNECTION,
           sourceEpoch: EPOCH,
           observationOrigin: 'ongoing',
+          firstSeenVia: 'demand',
           replyReadGeneration: 19,
           review: expect.objectContaining({ replyText: 'Thank you for staying with us' }),
         }),

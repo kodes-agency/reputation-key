@@ -28,7 +28,7 @@ import {
 } from '../../../../test-fixtures/generated/google-provider-identifiers-v1'
 import { createEligibleReads } from '../application/eligible-reads'
 import type { GoogleReviewRead } from '../application/ports/google-review-api.port'
-import type { ReviewProviderSubjectCandidates } from '../application/ports/review-provider-snapshot.repository'
+import type { ReviewProviderSubjectCandidates } from '../application/ports/review-provider-observation-writer.port'
 import { createReviewProviderObservationWriter } from '../application/use-cases/sync-reviews'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store'
 import { createReviewSourceContentLifecycleStore } from './repositories/source-content-lifecycle-store.repository'
@@ -124,6 +124,7 @@ async function observe(
     connectionId: CONNECTION,
     sourceEpoch: 0,
     observationOrigin: 'ongoing',
+    firstSeenVia: 'snapshot',
     observationKey: crypto.randomUUID().replaceAll('-', '').padEnd(64, '0'),
     replyReadGeneration: await writer.allocateReplyReadGeneration(),
     review: providerReview(googleReviewUrl, reviewedAt),

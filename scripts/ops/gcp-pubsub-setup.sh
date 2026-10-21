@@ -137,6 +137,8 @@ if gcloud pubsub subscriptions describe "$SUBSCRIPTION" --project="$PROJECT" >/d
     --push-endpoint="$ENDPOINT" \
     --push-auth-service-account="$PUSH_SA" \
     --push-auth-token-audience="$AUDIENCE" \
+    --expiration-period=never \
+    --message-retention-duration=14d \
     --project="$PROJECT"
 else
   run gcloud pubsub subscriptions create "$SUBSCRIPTION" \
@@ -147,6 +149,8 @@ else
     --ack-deadline=30 \
     --min-retry-delay=10s \
     --max-retry-delay=600s \
+    --expiration-period=never \
+    --message-retention-duration=14d \
     --project="$PROJECT"
 fi
 

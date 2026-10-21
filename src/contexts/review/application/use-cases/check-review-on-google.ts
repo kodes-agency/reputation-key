@@ -11,7 +11,7 @@ import type {
   PropertyGoogleReadBindingPort,
   ReviewPropertyGoogleReadBinding,
 } from '../ports/property-google-read-binding.port'
-import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 
@@ -232,6 +232,7 @@ const run = async (
     connectionId,
     sourceEpoch: binding.sourceEpoch,
     observationOrigin: 'ongoing',
+    firstSeenVia: 'demand',
     observationKey: sha256Hex(
       `repkey-reminder-precheck-observation-v1\0${deps.newObservationNonce()}\0${found.review.reviewName}`,
     ),
