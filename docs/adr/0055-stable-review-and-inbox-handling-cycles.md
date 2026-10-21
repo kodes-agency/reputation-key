@@ -390,8 +390,9 @@ would act on, before any of it is stored.
   rule alone. It only ever follows a skipped look, so it needs push like the
   skip rule does. A later change adds `persist`, after a week of comparison
   data.
-- **Cost.** About 400 to 450 head calls a day on the beta (one per skipped hot,
-  warm or cold look), inside the 30-a-minute reviews lane that the scans and
+- **Cost.** About 400 to 450 head calls a day on the beta (one per skipped hot
+  or warm look; a cold Property's 6-hour interval always reaches the full look,
+  so it is never skipped), inside the 30-a-minute reviews lane that the scans and
   pushes already share.
 
 What this does not do: it does not prove a listing, so it never moves
