@@ -75,6 +75,67 @@ describe('Google quota policy coverage', () => {
     expect(coordination.inFlightForPolicy('google-undefined-v1')).toBeNull()
   })
 
+  it('gives reply publishing its own lane, apart from review reads', () => {
+    expect(GOOGLE_PROVIDER_ROUTE_POLICIES['reviews.reply']).toMatchObject({
+      quotaPolicyId: 'google-reviews-write-v1',
+      inFlightPolicyId: 'google-reviews-write-v1',
+    })
+    for (const routeKey of ['reviews.list', 'reviews.get'] as const) {
+      expect(GOOGLE_PROVIDER_ROUTE_POLICIES[routeKey]).toMatchObject({
+        quotaPolicyId: 'google-reviews-v1',
+        inFlightPolicyId: 'google-reviews-v1',
+      })
+    }
+  })
+
+  it('sizes the reply lane like the review lane: 30 a minute per credential, 4 in flight', () => {
+    const write = GOOGLE_QUOTA_POLICIES['google-reviews-write-v1']
+    const read = GOOGLE_QUOTA_POLICIES['google-reviews-v1']
+
+    expect(write.requestClass).toBe('reviews')
+    expect(write.buckets).toEqual([
+      {
+        id: 'credential-project-endpoint-minute',
+        scope: 'credential_project_endpoint',
+        capacity: 30,
+        refillTokens: 30,
+        refillIntervalMs: 60_000,
+      },
+    ])
+    expect(write).toMatchObject({
+      inFlightScope: 'credential_project_endpoint',
+      maxInFlight: 4,
+    })
+    expect(write.leaseMs).toBe(read.leaseMs)
+  })
+
+  it('lets a reply through while review reads have used up their minute', async () => {
+    const coordination = lookup()
+    const key = {
+      credentialFingerprint: 'c'.repeat(64),
+      projectFingerprint: PROJECT_FINGERPRINT,
+      endpointClass: 'reviews' as const,
+      organizationId: 'org-1',
+      initiatorUserId: null,
+      connectionId: 'conn-1',
+      propertyId: 'prop-1',
+    }
+    const reads = coordination.quotaForPolicy('google-reviews-v1')
+    const writes = coordination.quotaForPolicy('google-reviews-write-v1')
+
+    for (let call = 0; call < 30; call += 1) {
+      await reads?.acquire(key, 1, NOW_MS + 5_000)
+    }
+
+    await expect(reads?.acquire(key, 1, NOW_MS + 5_000)).resolves.toMatchObject({
+      ok: false,
+      code: 'quota_exhausted',
+    })
+    await expect(writes?.acquire(key, 1, NOW_MS + 5_000)).resolves.toMatchObject({
+      ok: true,
+    })
+  })
+
   it('keeps the notification writes inside Google’s published edit and project limits', () => {
     const write = GOOGLE_QUOTA_POLICIES['google-notifications-write-v1']
     const read = GOOGLE_QUOTA_POLICIES['google-notifications-read-v1']

@@ -233,6 +233,7 @@ const IDENTITY_POLICY = Object.freeze({
   inFlightPolicyId: 'google-identity-v1',
 })
 const REVIEWS_POLICY = Object.freeze({
+  endpointClass: 'reviews' as const,
   requestClass: 'reviews' as const,
   maxRequestBytes: 64 * 1024,
   maxResponseBytes: 5 * 1024 * 1024,
@@ -309,19 +310,19 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   }),
   'reviews.list': Object.freeze({
     ...REVIEWS_POLICY,
-    endpointClass: 'reviews' as const,
     maxRequestBytes: 0,
   }),
   'reviews.get': Object.freeze({
     ...REVIEWS_POLICY,
-    endpointClass: 'reviews' as const,
     maxRequestBytes: 0,
     maxResponseBytes: 64 * 1024,
   }),
   'reviews.reply': Object.freeze({
     ...REVIEWS_POLICY,
-    endpointClass: 'reviews' as const,
     maxResponseBytes: 64 * 1024,
+    // Its own lane: see `google-reviews-write-v1` in quota-coordinator.ts.
+    quotaPolicyId: 'google-reviews-write-v1',
+    inFlightPolicyId: 'google-reviews-write-v1',
   }),
 } satisfies Readonly<Record<GoogleProviderRouteKey, GoogleProviderRoutePolicy>>)
 
@@ -730,8 +731,8 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         credential: accessToken,
         maxRequestBytes: MAX_REVIEW_BODY_BYTES,
         maxResponseBytes: MAX_FORM_BYTES,
-        quotaPolicyId: 'google-reviews-v1',
-        inFlightPolicyId: 'google-reviews-v1',
+        quotaPolicyId: 'google-reviews-write-v1',
+        inFlightPolicyId: 'google-reviews-write-v1',
       }
     }
     default:
