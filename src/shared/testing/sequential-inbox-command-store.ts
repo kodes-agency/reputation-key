@@ -13,6 +13,8 @@ import {
   isAnsweringGoogleReply,
   timestampFieldsForStatus,
 } from '#/contexts/inbox/domain/rules'
+import { resolveGoogleReplyCompletion } from '#/contexts/inbox/domain/response-target'
+import type { CurrentReplyObservationPermit } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
 import type {
@@ -25,6 +27,14 @@ import {
   inboxItemStatusChanged,
   inboxItemUnassigned,
 } from '#/contexts/inbox/domain/events'
+
+/** The fake has no Response Target model, so the first reply has no start to clamp to. */
+const googleReplyTime = (observation: CurrentReplyObservationPermit): Date =>
+  resolveGoogleReplyCompletion({
+    repliedAt: observation.providerReplyUpdatedAt,
+    startAt: null,
+    observedAt: observation.observedAt,
+  })
 
 export function createSequentialInboxCommandStore(deps: {
   repo: InboxRepository
@@ -84,7 +94,7 @@ export function createSequentialInboxCommandStore(deps: {
         {
           closedAt: observation.observedAt,
           ...(created.firstReplyPublishedAt === null
-            ? { firstReplyPublishedAt: observation.observedAt }
+            ? { firstReplyPublishedAt: googleReplyTime(observation) }
             : {}),
         },
         observation.observedAt,
@@ -395,7 +405,7 @@ export function createSequentialInboxCommandStore(deps: {
           {
             closedAt: observation.observedAt,
             ...(current.firstReplyPublishedAt === null
-              ? { firstReplyPublishedAt: observation.observedAt }
+              ? { firstReplyPublishedAt: googleReplyTime(observation) }
               : {}),
           },
           observation.observedAt,

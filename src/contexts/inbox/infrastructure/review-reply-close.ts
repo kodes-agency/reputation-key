@@ -24,7 +24,7 @@ import type {
 } from '../application/ports/inbox-command-store.port'
 import type { CurrentReplyObservationPermit } from '../application/ports/reply-observation-authority.port'
 import { transitionInsert } from './review-handling-cycle.store'
-import { completeGoogleReviewTarget } from './response-target.store'
+import { completeGoogleReviewTarget } from './google-review-target-completion'
 import {
   assertObservationMatchesItem,
   handlingCycleHeadFromRow,
@@ -123,6 +123,10 @@ export async function lockReviewRowsForObservation(
  * the caller decides whether to record it (`triggerEventId` is null for the
  * rebuild, which records no fact). The close is dated when Google was seen
  * answering; the rows are stamped `recordedAt`, by default the same instant.
+ * Only two moments use Google's own reply time instead: the Response Target's
+ * completion and the item's first reply, both kept between the target's start
+ * and the observation. A reply is seen when RepKey next reads Google, which can
+ * be hours after it was written.
  */
 export async function closeReviewCycleOnGoogleReply(
   tx: Tx,
@@ -137,10 +141,11 @@ export async function closeReviewCycleOnGoogleReply(
 ): Promise<Readonly<{ item: InboxItem; cycleFact: DomainEvent }>> {
   const { item, headRow, itemRow, observation } = input
   const recordedAt = input.recordedAt ?? observation.observedAt
-  await completeGoogleReviewTarget(
+  const { completedAt: repliedOnGoogleAt } = await completeGoogleReviewTarget(
     tx,
     handlingCycleHeadFromRow(headRow),
     observation.observedAt,
+    observation.providerReplyUpdatedAt,
   )
   const decision = closeHandlingCycle({
     current: handlingCycleHeadFromRow(headRow),
@@ -185,7 +190,7 @@ export async function closeReviewCycleOnGoogleReply(
       status: 'closed',
       closedAt: observation.observedAt,
       ...(itemRow.firstReplyPublishedAt === null
-        ? { firstReplyPublishedAt: observation.observedAt }
+        ? { firstReplyPublishedAt: repliedOnGoogleAt }
         : {}),
       commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
       updatedAt: recordedAt,

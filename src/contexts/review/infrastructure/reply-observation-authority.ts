@@ -59,6 +59,7 @@ function selectCurrentObservationHead(
       matchedReplyId: googleReplyObservations.matchedReplyId,
       matchedPublicationCycle: googleReplyObservations.matchedPublicationCycle,
       observedAt: googleReplyObservations.observedAt,
+      providerUpdatedAt: googleReplyObservations.providerUpdatedAt,
       responseTargetEligibility: materialReviewRevisions.responseTargetEligibility,
       responseTargetStartAt: materialReviewRevisions.responseTargetStartAt,
       rating: materialReviewRevisions.rating,
@@ -250,6 +251,7 @@ export const createReviewReplyObservationAuthority = (
           matchedReplyId: current.matchedReplyId,
           matchedPublicationCycle: current.matchedPublicationCycle,
           observedAt: current.observedAt,
+          providerReplyUpdatedAt: current.providerUpdatedAt,
           reviewSourceContentState:
             current.reviewSourceContentState as ReviewCurrentReplyObservationPermit['reviewSourceContentState'],
           responseTargetEligibility:

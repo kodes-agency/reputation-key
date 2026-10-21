@@ -2,7 +2,7 @@
 
 **Owner:** Inbox, with Review-owned Google timing authority and Notification-owned delivery  
 **Package:** IBX-01  
-**Migrations:** `0158_inbox_response_targets`, `0166_review_response_target_provenance`, `0167_inbox_response_target_terminal_outcomes`, `0023_review_import_history_cutoff`, `0030_inbox_low_rating_response_target`  
+**Migrations:** `0158_inbox_response_targets`, `0166_review_response_target_provenance`, `0167_inbox_response_target_terminal_outcomes`, `0023_review_import_history_cutoff`, `0032_inbox_low_rating_response_target`  
 **Time model:** elapsed minutes on UTC instants; Property timezone is display-only
 
 ## Repository contract
@@ -10,7 +10,8 @@
 The repository implements two separate target families:
 
 - **Google Review Response Target** — how long the current review work episode takes
-  before a current response is observed live on Google.
+  before a current response is live on Google, counted to the response's time on
+  Google (see "Completion time" below).
 - **Private Feedback Handling Target** — how long the current private-feedback work
   episode takes before a manager records a handling outcome.
 
@@ -27,7 +28,7 @@ Organization's own low-rated reviews: `low_rating_threshold` (1–5 stars) and
 only, and never longer than the ordinary target. A revision whose rating is at
 or below the threshold is snapshotted against the shorter duration, so its
 halfway and target-passed reminders fall sooner. Both columns null is the
-default and every row written before migration `0030`: one clock for every
+default and every row written before migration `0032`: one clock for every
 review, exactly as before, and no Organization's recorded performance moves
 until somebody sets one.
 
@@ -124,6 +125,43 @@ authored/live response (`external_current_live`) close the work and count as an
 observed live response. Provider write acknowledgement and the compatibility
 `review.reply.published` fact are not stop authority. A current observed reply
 deletion can reopen closed work; a live external edit remains closed.
+
+### Completion time
+
+The target stops at the moment the response was written on Google, not at the
+moment RepKey next read Google. About 97% of replies are written on Google
+directly and are noticed only on a later read, so stopping at the read would count
+a reply written on time as late.
+
+For both completions (`confirmed_on_google` and `external_current_live`) the
+completion is `clamp(provider reply time, target start, observed time)`:
+
+- The provider reply time is the `updateTime` Google reports for the reply, which
+  is the reply's last edit. Review carries it to Inbox on the exact-current permit
+  (`providerReplyUpdatedAt`, from `google_reply_observations.provider_updated_at`).
+- It is never later than the observation that closes the cycle, and never before
+  the target's own `start_at`. The start is applied last, so the database check
+  `completion_at >= start_at` always holds. A reply that predates a manual reopen
+  therefore completes at the reopen instant, with 0 elapsed minutes and on time.
+- When Google gives no reply time, the observation time is used, as before.
+- It is written once, when the observation closes the cycle. A later edit of the
+  reply, or a later read, never moves it. If the reply is edited on Google before
+  RepKey processes the first observation, the close uses the newer observation's
+  time.
+- Only `completion_at` (and the `on_time`/`late` result derived from it) use the
+  provider time. `updated_at`, the pending reminder slots' `cancelled_at`, the
+  closed Handling Cycle transition and `inbox_items.closed_at` stay at the time
+  RepKey processed the close: the row triggers refuse an `updated_at` that moves
+  backwards. `inbox_items.first_reply_published_at` uses the same clamped time as
+  the target, matching what the projection rebuild already stamps.
+- A halfway or target-passed reminder that was delivered before RepKey saw a reply
+  written earlier stays delivered, and the cycle can still complete as on time.
+
+**Cut-over, no backfill.** Targets closed before the release that ships this rule
+keep their read-time completion; later ones are measured to Google's reply time.
+There is no migration and no marker column, so the average and the on-time counts
+mix both until the older closes age out. Do not re-derive completion for old rows
+(see "Repair rules").
 
 ## Reminder path in this repository
 
@@ -243,7 +281,9 @@ Google Reviews with private feedback.
 
 Google reporting includes measured cycles, current open/overdue counts, observed-live
 on-time/late counts, manual/provider-deletion reopen counts, and average elapsed time
-until a response was observed live on Google. It separately shows
+until the response, counted to its time on Google (to the time RepKey saw it when
+Google gives none; closes before the cut-over above are measured to the time RepKey
+saw them). It separately shows
 `historical_onboarding` and `legacy_unknown` excluded counts. Both RepKey-confirmed
 and external-current-live responses are valid completions.
 
@@ -303,7 +343,10 @@ captures those facts for the deployed artifact and environment.
    the import completed. Verify saved start/due/completion evidence and separate
    analytics totals, and that onboarding history produces no `review.created`
    notification while an ongoing initial review, a relink's catch-up and a late
-   listing do (ADR 0046).
+   listing do (ADR 0046). Verify the completion time: a reply written on Google
+   before the target's due instant and read by RepKey after it completes at the
+   reply's time and counts as on time, and a reply older than a manual reopen
+   completes at the reopen instant.
 6. Capture a hosted manager-browser check for Organization settings, Property
    private-feedback override, Inbox target state at the due boundary, and a delivered
    reminder. Link that evidence from the release record; do not replace it with a
@@ -312,6 +355,8 @@ captures those facts for the deployed artifact and environment.
 ## Repair rules
 
 - Never infer or edit a historical start, deadline, completion, or terminal result.
+  Completion is never re-derived for rows closed before the Google-reply-time rule
+  shipped.
 - A held slot is not a cancelled slot: it stays pending and is cancelled only by
   the normal close. Do not cancel or release it by hand; if the close is stuck, fix
   the `inbox.on-reply-observed` consumer, not the slot.

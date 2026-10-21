@@ -157,6 +157,7 @@ function makeDeps(overrides: {
   feedback?: FeedbackSnippet | null
   observationCurrent?: boolean
   sourceEpochCarryFromMaterialReviewRevision?: number | null
+  providerReplyUpdatedAt?: Date | null
   sourceTransitionCurrent?: boolean
   responseTargetCurrent?: boolean
   handlingCycleMissing?: boolean
@@ -258,6 +259,7 @@ function makeDeps(overrides: {
           ...expectation,
           state: expectation.resolution === 'absent' ? 'absent' : 'live',
           observedAt: expectation.occurredAt,
+          providerReplyUpdatedAt: overrides.providerReplyUpdatedAt ?? null,
           authority: 'review.current-google-reply-observation.v1',
           sourceEpochCarryFromMaterialReviewRevision:
             overrides.sourceEpochCarryFromMaterialReviewRevision ?? null,
@@ -1279,6 +1281,22 @@ describe('handleInboxReplyObserved (provider-observation authority)', () => {
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-reply-observed', status: 'applied' },
     ])
+  })
+
+  it('stamps the first reply at the time Google gave, and closes at the time RepKey saw it', async () => {
+    const repliedAt = new Date(NOW.getTime() - 3 * 60 * 60_000)
+    const { deps, repo } = makeDeps({ providerReplyUpdatedAt: repliedAt })
+
+    await handleInboxReplyObserved(
+      deps,
+      makeEvent('review.reply.observed', observationPayload()),
+    )
+
+    expect(repo.items[0]).toMatchObject({
+      status: 'closed',
+      closedAt: NOW,
+      firstReplyPublishedAt: repliedAt,
+    })
   })
 
   it('closes and receipts an unchanged external-live head for a newer attempt', async () => {

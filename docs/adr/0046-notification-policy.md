@@ -1468,6 +1468,36 @@ them in the log only; nothing in this ADR changes behaviour.
 - No column, event field or digest is added. The policy code is never an event
   payload (ADR 0030 allowlist), and nothing is named `reason`.
 
+## Amended 2026-10-21 — a reply written on Google completes the target at Google's reply time
+
+The same fact drives the other end of the Google Response Target. A reply
+written directly on Google is noticed only at the next read, so stopping the
+target at that read counted replies written on time as "Responded after
+target", while Reporting's reply time already used Google's own time.
+
+- When a reply observation closes a Handling Cycle, the target completes at
+  Google's reply `updateTime`, kept between the target's `start_at` and the
+  observation time. The start is applied last, so `completion_at >= start_at` always
+  holds and a reply older than a manual reopen completes at the reopen
+  instant. With no reply time from Google the observation time is used, as
+  before. This applies to every closing reply, whether written on Google or
+  published by RepKey and confirmed.
+- Review's exact-current permit carries `providerReplyUpdatedAt` (the stored
+  `provider_updated_at`) to Inbox. The `review.reply.observed` event is
+  unchanged and gains no time.
+- The time is written once, when the cycle closes; a later edit of the reply
+  never moves it. `updated_at`, reminder cancellations, the closed transition
+  and `closed_at` stay at the observation time, which the row triggers
+  require. `inbox_items.first_reply_published_at` uses the same time, as the
+  projection rebuild already did.
+- No migration and no marker column. Targets closed before the release keep
+  their read-time completion and are not backfilled, so the average and the
+  on-time counts mix both bases until older closes age out; the analytics and
+  settings copy say so. A reminder delivered before RepKey saw an earlier
+  reply stays delivered, and the cycle can still complete on time.
+
+See `docs/operations/inbox-response-targets.md`.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

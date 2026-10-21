@@ -499,68 +499,6 @@ export async function cancelResponseTargetForCycle(
   return 'cancelled'
 }
 
-/** Stop a measured Review target only after exact current Google truth is live. */
-export async function completeGoogleReviewTarget(
-  tx: Tx,
-  current: HandlingCycleHead,
-  completedAt: Date,
-): Promise<'on_time' | 'late' | 'not_measured'> {
-  if (current.sourceType !== 'review') {
-    throw inboxError('invalid_input', 'Google Review Response Target requires review')
-  }
-  const [target] = await tx
-    .select()
-    .from(inboxHandlingCycleResponseTargets)
-    .where(
-      and(
-        eq(inboxHandlingCycleResponseTargets.inboxItemId, current.inboxItemId),
-        eq(inboxHandlingCycleResponseTargets.cycleNumber, current.currentCycleNumber),
-        eq(inboxHandlingCycleResponseTargets.organizationId, current.organizationId),
-        eq(inboxHandlingCycleResponseTargets.targetKind, 'google_review_response'),
-      ),
-    )
-    .for('update')
-    .limit(1)
-  if (!target || target.performanceEligibility !== 'measured') {
-    return 'not_measured'
-  }
-  if (target.completionAt !== null || target.dueAt === null) {
-    throw inboxError('revision_conflict', 'Google Review Response Target already stopped')
-  }
-  const result = classifyResponseTargetCompletion(target.dueAt, completedAt)
-  const [saved] = await tx
-    .update(inboxHandlingCycleResponseTargets)
-    .set({
-      completionAt: completedAt,
-      result,
-      stopReason: 'confirmed_on_google',
-      updatedAt: completedAt,
-    })
-    .where(
-      and(
-        eq(inboxHandlingCycleResponseTargets.inboxItemId, current.inboxItemId),
-        eq(inboxHandlingCycleResponseTargets.cycleNumber, current.currentCycleNumber),
-        isNull(inboxHandlingCycleResponseTargets.completionAt),
-      ),
-    )
-    .returning({ inboxItemId: inboxHandlingCycleResponseTargets.inboxItemId })
-  if (!saved) {
-    throw inboxError('revision_conflict', 'Google Review Response Target changed')
-  }
-  await tx
-    .update(inboxResponseTargetReminders)
-    .set({ cancelledAt: completedAt, updatedAt: completedAt })
-    .where(
-      and(
-        eq(inboxResponseTargetReminders.inboxItemId, current.inboxItemId),
-        eq(inboxResponseTargetReminders.cycleNumber, current.currentCycleNumber),
-        isNull(inboxResponseTargetReminders.deliveredAt),
-        isNull(inboxResponseTargetReminders.cancelledAt),
-      ),
-    )
-  return result
-}
-
 const targetView = (row: TargetRow, timezone: string, now: Date): ResponseTargetView => ({
   inboxItemId: inboxItemId(row.inboxItemId),
   cycleNumber: row.cycleNumber,
