@@ -137,7 +137,7 @@ function createAdapter(
   return {
     api: createGoogleReviewApiAdapter({
       connectionRepo: { findById } as never,
-      logger: { warn } as never,
+      logger: { info: vi.fn(), warn } as never,
       cursorStore: input.cursors ?? cursorStore(),
       executor: { execute: input.execute },
       authorizeReviewSyncProviderCall: authorizeProviderCall,
