@@ -61,6 +61,15 @@ export const reviewGoogleReputationSnapshotFacts = pgTable(
       t.sourceEpoch,
       t.evaluatedAt.desc(),
     ),
+    // The readers of Google's numbers (Goals' shown-number history, the head
+    // check's newest-fact probe) order and range by when the numbers were READ,
+    // so they walk this one rather than the scope index above.
+    index('review_google_reputation_snapshot_observed_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.sourceEpoch,
+      sql`COALESCE(${t.numbersObservedAt}, ${t.evaluatedAt}) DESC`,
+    ),
     foreignKey({
       name: 'review_google_reputation_snapshot_property_tenant_fk',
       columns: [t.organizationId, t.propertyId],

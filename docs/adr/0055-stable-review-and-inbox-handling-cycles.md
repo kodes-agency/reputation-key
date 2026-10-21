@@ -495,7 +495,11 @@ the look interval. The full two-pass snapshot is then needed only for the
   source. For a sync read (`provider_snapshot`: a snapshot page, a push fetch,
   a pre-publish read, a head check) it is now a silent no-op that restates the
   head and writes nothing: a head check and a snapshot page can read one review
-  at once, and the newer truth is already stored. The publication reconciler and
+  at once, and the newer truth is already stored. This also covers the
+  reads that run before a reply is published: a read overtaken by a newer one used
+  to throw and now reports `recorded`; the publication claim's own head fence still
+  decides whether the reply goes out, and the newer read has already moved that
+  head. The publication reconciler and
   the publish read-back (`targeted_reconciliation`) keep the throw, because their
   outcome mapping depends on being told.
 - **Google's numbers, as a fact that is not a listing (migration 0067).**
@@ -530,8 +534,11 @@ the look interval. The full two-pass snapshot is then needed only for the
   `confirming` or `deleting` that has not expired makes the head check compare
   and count but store nothing (`persisted: skipped_snapshot_active`): a head
   write between a run's page and its reply record would stale the run's
-  material revision and fail the page. The check is read just before the writes;
-  the small window left is accepted. The same gate refuses to store before the
+  material revision and fail the page. The check is read before the writes and
+  again just before the fact is written (the fact is skipped if a run has
+  started, and it is decided against the newest fact as it is by then); the small
+  window left for the reviews is accepted, and costs one failed snapshot page that
+  is retried. The same gate refuses to store before the
   epoch has a completed listing (`skipped_no_listing`), and when the Property's
   source epoch moved after the read (`skipped_epoch_moved`).
 - **Subject sightings are deferred.** A review a head check stores gets its
@@ -539,6 +546,15 @@ the look interval. The full two-pass snapshot is then needed only for the
   path that writes one. The limit: a review created by a head check and deleted
   on Google before the next full run is only marked observed, never missing.
   The six-hour reconciliation still owns deletions.
+- **A head page can overwrite a fresher edit of the same review.** A head page is
+  read once and then written review by review. A push fetch or a snapshot page
+  that reads and writes a fresher edit of one of those reviews in between is
+  overwritten by the older content, because the writer has no monotonic guard on
+  `source_updated_at`. This already holds for a snapshot page against a push
+  fetch. It heals itself: the stored `updateTime` regresses, so the next head check
+  classes the review `changed` and writes it again. If the first persist-day data
+  shows repeated `review.updated` events for one review, add a `source_updated_at`
+  monotonic guard to the writer.
 - **Never throws, no latch.** A failed write is counted (`failed` in the run
   row), logged without an identifier, and retried by the next look. It sets no
   repair latch and never touches the Property's sync failure.
@@ -552,7 +568,10 @@ the look interval. The full two-pass snapshot is then needed only for the
   is to raise it to 24 once `persist` is on and proven; that is a later config
   change with an amendment to this ADR, not part of this one. It would also move
   the `sync.reconciliation-age` threshold, which assumes a completed listing
-  about every six hours.
+  about every six hours (the alert and `sync-metrics` hard-code eight). Until
+  that change, do not set a window above 6 hours: with `off` or `dark` a Property
+  would then go up to the window between syncs, and any window above 8 hours fires
+  the alert. The variable is validated on its own and does not require `persist`.
 - **Rollout.** The migration is purely additive and runs first. Keep
   `REVIEW_HEAD_CHECKS=dark` until every web, worker and Google sidecar image
   carries migration 0067 and the filtered readers: a process that still read

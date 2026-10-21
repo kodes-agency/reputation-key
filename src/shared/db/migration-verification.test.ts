@@ -188,6 +188,18 @@ describe('migration verification (PRE17A A1 presence)', () => {
     ])
   })
 
+  it('reputation snapshot facts are indexed by when Google was read, newest first (migration 0067)', async () => {
+    const result = await lease.pool.query(
+      `SELECT indexdef FROM pg_indexes
+       WHERE tablename = 'review_google_reputation_snapshot_facts'
+       AND indexname = 'review_google_reputation_snapshot_observed_idx'`,
+    )
+    expect(result.rowCount).toBe(1)
+    const definition = String(result.rows[0].indexdef)
+    expect(definition).toContain('COALESCE(numbers_observed_at, evaluated_at) DESC')
+    expect(definition).toContain('organization_id, property_id, source_epoch')
+  })
+
   it('no unjournaled sidecar SQL remains — all objects tracked by migrations', async () => {
     // The sidecar script is migration 0004; every live object is now tracked
     // through the journaled migration path.

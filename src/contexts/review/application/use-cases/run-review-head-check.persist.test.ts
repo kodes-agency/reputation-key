@@ -92,6 +92,8 @@ type Options = Readonly<{
   head?: GoogleReviewHeadResult
   copies?: readonly HeadStoredCopy[]
   state?: ReviewHeadPersistState | Error
+  /** What the second read of the state (just before the fact) answers. */
+  stateAtFact?: ReviewHeadPersistState
   currentEpoch?: number | null
   failPersistFor?: ReadonlySet<string>
   newReviewIds?: ReadonlySet<string>
@@ -104,6 +106,7 @@ type Options = Readonly<{
 
 function setup(options: Options = {}) {
   const order: string[] = []
+  let reads = 0
   const readReviewsHead = vi.fn(async () => {
     order.push('read')
     return (
@@ -123,6 +126,8 @@ function setup(options: Options = {}) {
     })),
     readPersistState: vi.fn(async () => {
       if (options.state instanceof Error) throw options.state
+      reads++
+      if (reads > 1 && options.stateAtFact) return options.stateAtFact
       return options.state ?? readyState
     }),
     recordHeadFact: vi.fn(async () => {
@@ -437,6 +442,45 @@ describe('runReviewHeadCheck: persist mode stores nothing when it must not', () 
       comparison: { newCount: 2 },
       persistence: { outcome: 'skipped_no_listing', storedNew: 0, factWritten: false },
     })
+  })
+
+  it('writes no fact when a snapshot run started while the reviews were being stored', async () => {
+    const { run, persist, repository } = setup({
+      copies: [],
+      head: okHead([googleReview('r-1')], { totalReviewCount: 40, averageRating: 4.5 }),
+      stateAtFact: { ...readyState, snapshotActive: true },
+    })
+
+    const result = await run()
+
+    expect(persist).toHaveBeenCalledTimes(1)
+    expect(repository.recordHeadFact).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      persistence: { outcome: 'stored', storedOther: 1, factWritten: false },
+    })
+  })
+
+  it('decides the fact against the newest fact as it is just before writing', async () => {
+    const { run, repository } = setup({
+      head: okHead([googleReview('r-1'), googleReview('r-2')], {
+        totalReviewCount: 2,
+        averageRating: 5,
+      }),
+      state: {
+        ...readyState,
+        newestFact: { reviewCount: 1, averageRating: 5, observedAt: T0 },
+      },
+      // Another head check wrote exactly Google's numbers a moment ago.
+      stateAtFact: {
+        ...readyState,
+        newestFact: { reviewCount: 2, averageRating: 5, observedAt: T0 },
+      },
+    })
+
+    const result = await run()
+
+    expect(repository.recordHeadFact).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ persistence: { factWritten: false } })
   })
 
   it('stores nothing while a snapshot run is active, but still compares and counts', async () => {

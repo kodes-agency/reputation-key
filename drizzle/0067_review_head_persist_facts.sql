@@ -30,11 +30,19 @@
 -- readers: a worker that still read unfiltered facts would take a head fact for
 -- a completed reconciliation.
 --
+-- The index serves those readers: the Goals shown-number history and the head
+-- check's newest-fact probe order and range by `COALESCE(numbers_observed_at,
+-- evaluated_at)`, which the scope index (ordered by `evaluated_at`) cannot walk.
+-- A plain CREATE INDEX on a beta-sized table (one fact per completed run, plus the
+-- head facts once persist is on) holds its lock for milliseconds.
+--
 -- Roll forward, never back once head facts exist: delete the `listing_complete
--- = false` rows first. The down step is both columns dropped and the 0067 row
--- out of drizzle.__drizzle_migrations.
+-- = false` rows first. The down step is the index and both columns dropped and the
+-- 0067 row out of drizzle.__drizzle_migrations.
 ALTER TABLE "review_google_reputation_snapshot_facts" ADD COLUMN "listing_complete" boolean DEFAULT true NOT NULL;
 --> statement-breakpoint
 ALTER TABLE "review_google_reputation_snapshot_facts" ADD COLUMN "numbers_observed_at" timestamp with time zone;
 --> statement-breakpoint
 UPDATE "review_google_reputation_snapshot_facts" SET "numbers_observed_at" = "evaluated_at" WHERE "numbers_observed_at" IS NULL;
+--> statement-breakpoint
+CREATE INDEX "review_google_reputation_snapshot_observed_idx" ON "review_google_reputation_snapshot_facts" ("organization_id","property_id","source_epoch",COALESCE("numbers_observed_at", "evaluated_at") DESC);
