@@ -227,7 +227,10 @@ export type ReviewContextApi = Readonly<{
   worker: Readonly<{
     registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
     /** Review-owned registration against the root's one canonical job registry. */
-    registerWorkerJobs: (runtime: { discoveryIntervalMs: number }) => Promise<void>
+    registerWorkerJobs: (runtime: {
+      discoveryIntervalMs: number
+      discoverySkipRecentlyReconciled: boolean
+    }) => Promise<void>
     /** Boot-time inventory-parity check for the provider subject keyring. */
     refreshProviderSubjectKeys: () => Promise<void>
   }>
@@ -287,7 +290,10 @@ export type ReviewContextApi = Readonly<{
     /** Masked-inventory-verified derivation/rotation authority for Review writers. */
     providerSubjectKeys: ReviewProviderSubjectKeyService
     /** Review-owned registration against the root's one canonical job registry. */
-    registerWorkerJobs: (runtime: { discoveryIntervalMs: number }) => Promise<void>
+    registerWorkerJobs: (runtime: {
+      discoveryIntervalMs: number
+      discoverySkipRecentlyReconciled: boolean
+    }) => Promise<void>
   }>
 }>
 
@@ -603,7 +609,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const googleRatingReads = createGoogleRatingReads({ db: input.db, clock: input.clock })
   const registerWorkerJobs = async ({
     discoveryIntervalMs,
-  }: Readonly<{ discoveryIntervalMs: number }>): Promise<void> => {
+    discoverySkipRecentlyReconciled,
+  }: Readonly<{
+    discoveryIntervalMs: number
+    discoverySkipRecentlyReconciled: boolean
+  }>): Promise<void> => {
     const { registerReviewWorkerJobs } = await import('./infrastructure/worker-runtime')
     await registerReviewWorkerJobs({
       db: input.db,
@@ -626,6 +636,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       idGen: input.idGen,
       logger: input.logger,
       discoveryIntervalMs,
+      discoverySkipRecentlyReconciled,
     })
   }
 

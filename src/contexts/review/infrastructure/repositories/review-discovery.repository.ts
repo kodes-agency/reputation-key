@@ -20,17 +20,36 @@
 // this scheduling role, and the health snapshot already reports
 // `sync.dueForIncrementalCount` from it.
 //
+// It also carries each property's last COMPLETED reconciliation: the latest
+// review_google_reputation_snapshot_facts.evaluated_at of the property's CURRENT
+// source epoch (one probe of the scope index per candidate), and whether a coded
+// failure is still recorded. The sweep skips a look whose reconciliation is
+// recent (domain/discovery-reconciliation.ts).
+//
 // The batch also carries each property's ACTIVITY evidence (migration 0071's
 // `last_new_review_at`, the existing `last_notification_at`, and the
 // property's own `created_at` floor) so the sweep can price each property's
 // next poll on the backoff ladder without a second round-trip.
 
-import { and, asc, eq, gt, inArray, isNull, lte, notExists, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lte,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { propertyIsSyncable } from '#/shared/db/syncable-property'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
+import { reviewGoogleReputationSnapshotFacts } from '#/shared/db/schema/review-reputation.schema'
 import {
   gbpImportRequestItems,
   gbpImportRequests,
@@ -57,6 +76,8 @@ type CandidateRow = Readonly<{
   observedSince: Date | null
   lastNewReviewAt: Date | null
   lastNotificationAt: Date | null
+  lastReconciledAt: Date | null
+  errorClass: string | null
 }>
 
 /**
@@ -79,6 +100,8 @@ const toCandidate = (row: CandidateRow): ReviewDiscoveryCandidate[] =>
             lastNotificationAt: row.lastNotificationAt,
             observedSince: row.observedSince,
           },
+          lastReconciledAt: row.lastReconciledAt,
+          hasOutstandingFailure: row.errorClass !== null,
         },
       ]
 
@@ -114,6 +137,25 @@ export const createReviewDiscoveryRepository = (
           ),
         )
 
+      // The newest completed reconciliation of the property's CURRENT epoch. A
+      // relink bumps the epoch, so the old epoch's facts never count.
+      const lastReconciled = db
+        .select({ evaluatedAt: reviewGoogleReputationSnapshotFacts.evaluatedAt })
+        .from(reviewGoogleReputationSnapshotFacts)
+        .where(
+          and(
+            eq(
+              reviewGoogleReputationSnapshotFacts.organizationId,
+              properties.organizationId,
+            ),
+            eq(reviewGoogleReputationSnapshotFacts.propertyId, properties.id),
+            eq(reviewGoogleReputationSnapshotFacts.sourceEpoch, properties.sourceEpoch),
+          ),
+        )
+        .orderBy(desc(reviewGoogleReputationSnapshotFacts.evaluatedAt))
+        .limit(1)
+        .as('last_reconciled')
+
       const rows = await db
         .select({
           propertyId: properties.id,
@@ -124,6 +166,8 @@ export const createReviewDiscoveryRepository = (
           observedSince: properties.createdAt,
           lastNewReviewAt: reviewSyncState.lastNewReviewAt,
           lastNotificationAt: reviewSyncState.lastNotificationAt,
+          lastReconciledAt: lastReconciled.evaluatedAt,
+          errorClass: reviewSyncState.errorClass,
         })
         .from(properties)
         .innerJoin(
@@ -137,6 +181,7 @@ export const createReviewDiscoveryRepository = (
             eq(reviewSyncState.source, DISCOVERY_SOURCE),
           ),
         )
+        .leftJoinLateral(lastReconciled, sql`true`)
         .where(
           and(
             propertyIsSyncable,
@@ -172,6 +217,24 @@ export const createReviewDiscoveryRepository = (
             lastSuccessAt: now,
             updatedAt: now,
           },
+        })
+    }),
+
+  markDiscoverySkipped: async (propertyId, now, nextDueAt) =>
+    trace('review.discovery.markSkipped', async () => {
+      // Only the due time: nothing was synced, so `last_success_at` and the
+      // failure columns stay exactly as they were.
+      await db
+        .insert(reviewSyncState)
+        .values({
+          propertyId,
+          source: DISCOVERY_SOURCE,
+          nextIncrementalAt: nextDueAt,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [reviewSyncState.propertyId, reviewSyncState.source],
+          set: { nextIncrementalAt: nextDueAt, updatedAt: now },
         })
     }),
 

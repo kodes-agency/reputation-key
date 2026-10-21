@@ -38,6 +38,16 @@
 //     nothing is ever waiting twice, and the sweep's queue behaviour (no job
 //     id) is exactly what it was.
 //
+//   - a look does not always run the full snapshot. ADR 0055 decision 5 only
+//     asks that a quiet healthy property is RECONCILED within six hours, and
+//     push delivers new reviews in between, so a look that finds a completed
+//     reconciliation (the facts table's evaluated_at, current source epoch)
+//     inside that window writes the next look's date and enqueues nothing
+//     (domain/discovery-reconciliation.ts). It is only for the sweep's own
+//     looks: push, import, refresh and failure retries enqueue as before. A
+//     property with an outstanding failure, no reconciliation yet, or no push
+//     configured (the sweep is then the only path for new reviews) runs full.
+//
 // Content-free: identifiers, timestamps, counts, and an error class only.
 
 import type { Job } from 'bullmq'
@@ -55,10 +65,15 @@ import type {
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import {
+  discoveryIntervalMs,
   discoveryTierFor,
   nextDiscoveryDueAt,
   type DiscoveryBackoffTier,
 } from '../../domain/discovery-backoff'
+import {
+  discoveryLookFor,
+  type DiscoveryFullReason,
+} from '../../domain/discovery-reconciliation'
 import {
   discoverySpreadDelayMs,
   discoverySpreadWindowMs,
@@ -91,6 +106,13 @@ type DiscoverHandlerDeps = Readonly<{
    * and the base interval; 0 starts every job immediately.
    */
   spreadWindowMs?: number
+  /**
+   * Skip the full snapshot for a property reconciled inside the six-hour
+   * window. Defaults to OFF, so a caller that omits it keeps today's cadence of
+   * a full look every time. The composition passes true only when the kill
+   * switch is on and push is configured.
+   */
+  skipRecentlyReconciled?: boolean
 }>
 
 type SweepState = {
@@ -100,6 +122,10 @@ type SweepState = {
   enqueued: number
   /** Content-free ladder telemetry: how many polls each rung cost this run. */
   enqueuedByTier: Record<DiscoveryBackoffTier, number>
+  /** Looks that enqueued nothing because a recent reconciliation covers them. */
+  skippedByTier: Record<DiscoveryBackoffTier, number>
+  /** Why each full look was full. */
+  fullByReason: Record<DiscoveryFullReason, number>
   enqueueFailedPropertyId: string | null
 }
 
@@ -108,11 +134,102 @@ type BatchOutcome =
   | Readonly<{ kind: 'processed'; cursor: string }>
   | Readonly<{ kind: 'enqueue_failed' }>
 
+type CandidateOptions = Readonly<{
+  now: Date
+  baseIntervalMs: number
+  spreadWindowMs: number
+  skipEnabled: boolean
+  logger: DiscoverHandlerDeps['logger']
+}>
+
+/** The full look: spread the start, enqueue, date the next look. */
+async function enqueueFullLook(
+  deps: DiscoverHandlerDeps,
+  candidate: ReviewDiscoveryCandidate,
+  state: SweepState,
+  options: CandidateOptions,
+): Promise<'enqueued' | 'failed'> {
+  const { now, baseIntervalMs, spreadWindowMs, logger } = options
+  // A zero delay is left out entirely so the job options stay what they
+  // were before the spread existed.
+  const delayMs = discoverySpreadDelayMs(candidate.propertyId, spreadWindowMs)
+  try {
+    await deps.queue.addSyncJob(
+      {
+        propertyId: candidate.propertyId,
+        organizationId: candidate.organizationId,
+        connectionId: candidate.connectionId,
+        locationName: candidate.locationName,
+        initiator: { kind: 'system', id: DISCOVERY_SWEEP_SYNC_INITIATOR_ID },
+        correlationId: `review-discovery:${candidate.propertyId}`,
+      },
+      delayMs > 0 ? { delayMs } : undefined,
+    )
+  } catch (err) {
+    state.enqueueFailedPropertyId = candidate.propertyId
+    logger.warn({ err }, 'Failed to enqueue discovery sync job')
+    // Defer the failing property so it cannot re-consume the head of
+    // every subsequent batch; best-effort, the throw is what matters.
+    await deps.discoveryRepo
+      .markDiscoveryDeferred(
+        candidate.propertyId,
+        now,
+        new Date(now.getTime() + baseIntervalMs),
+        'enqueue_failed',
+      )
+      .catch(() => {})
+    return 'failed'
+  }
+  const tier = discoveryTierFor(candidate.activity, now)
+  await deps.discoveryRepo.markDiscoveryScheduled(
+    candidate.propertyId,
+    now,
+    nextDiscoveryDueAt(candidate.activity, now, baseIntervalMs),
+  )
+  state.enqueued++
+  state.enqueuedByTier[tier]++
+  return 'enqueued'
+}
+
 /**
- * Enqueue one bounded sync job per candidate, marking each property's next
- * due time as it goes. Each property's next due time is priced on the backoff
- * ladder from its OWN activity evidence, so a burst-active property keeps the
- * base interval while a property quiet for days backs off.
+ * One look per candidate. The rule decides between the full look (today's
+ * path, unchanged) and a skip, which only dates the next look.
+ *
+ * Returns false at the first enqueue failure — the batch is never
+ * acknowledged past it.
+ */
+async function lookAtCandidate(
+  deps: DiscoverHandlerDeps,
+  candidate: ReviewDiscoveryCandidate,
+  state: SweepState,
+  options: CandidateOptions,
+): Promise<boolean> {
+  const { now, baseIntervalMs, skipEnabled } = options
+  const look = discoveryLookFor({
+    lastReconciledAt: candidate.lastReconciledAt,
+    hasOutstandingFailure: candidate.hasOutstandingFailure,
+    skipEnabled,
+    now,
+    interval: discoveryIntervalMs(candidate.activity, now, baseIntervalMs),
+  })
+  if (look.kind === 'skip') {
+    await deps.discoveryRepo.markDiscoverySkipped(
+      candidate.propertyId,
+      now,
+      look.nextDueAt,
+    )
+    state.skippedByTier[discoveryTierFor(candidate.activity, now)]++
+    return true
+  }
+  state.fullByReason[look.reason]++
+  return (await enqueueFullLook(deps, candidate, state, options)) === 'enqueued'
+}
+
+/**
+ * Look at each candidate in turn, dating each property's next look as it
+ * goes. Each property's next due time is priced on the backoff ladder from
+ * its OWN activity evidence, so a burst-active property keeps the base
+ * interval while a property quiet for days backs off.
  *
  * Stops at the first enqueue failure — the batch is never acknowledged past
  * it. A deferral after a failure uses the BASE interval, not the ladder: the
@@ -123,53 +240,10 @@ async function enqueueCandidates(
   deps: DiscoverHandlerDeps,
   candidates: readonly ReviewDiscoveryCandidate[],
   state: SweepState,
-  options: Readonly<{
-    now: Date
-    baseIntervalMs: number
-    spreadWindowMs: number
-    logger: DiscoverHandlerDeps['logger']
-  }>,
+  options: CandidateOptions,
 ): Promise<void> {
-  const { now, baseIntervalMs, spreadWindowMs, logger } = options
   for (const candidate of candidates) {
-    // A zero delay is left out entirely so the job options stay what they
-    // were before the spread existed.
-    const delayMs = discoverySpreadDelayMs(candidate.propertyId, spreadWindowMs)
-    try {
-      await deps.queue.addSyncJob(
-        {
-          propertyId: candidate.propertyId,
-          organizationId: candidate.organizationId,
-          connectionId: candidate.connectionId,
-          locationName: candidate.locationName,
-          initiator: { kind: 'system', id: DISCOVERY_SWEEP_SYNC_INITIATOR_ID },
-          correlationId: `review-discovery:${candidate.propertyId}`,
-        },
-        delayMs > 0 ? { delayMs } : undefined,
-      )
-    } catch (err) {
-      state.enqueueFailedPropertyId = candidate.propertyId
-      logger.warn({ err }, 'Failed to enqueue discovery sync job')
-      // Defer the failing property so it cannot re-consume the head of
-      // every subsequent batch; best-effort, the throw is what matters.
-      await deps.discoveryRepo
-        .markDiscoveryDeferred(
-          candidate.propertyId,
-          now,
-          new Date(now.getTime() + baseIntervalMs),
-          'enqueue_failed',
-        )
-        .catch(() => {})
-      return
-    }
-    const tier = discoveryTierFor(candidate.activity, now)
-    await deps.discoveryRepo.markDiscoveryScheduled(
-      candidate.propertyId,
-      now,
-      nextDiscoveryDueAt(candidate.activity, now, baseIntervalMs),
-    )
-    state.enqueued++
-    state.enqueuedByTier[tier]++
+    if (!(await lookAtCandidate(deps, candidate, state, options))) return
   }
 }
 
@@ -182,6 +256,7 @@ async function processDiscoveryBatch(
     now: Date
     baseIntervalMs: number
     spreadWindowMs: number
+    skipEnabled: boolean
     logger: DiscoverHandlerDeps['logger']
   }>,
 ): Promise<BatchOutcome> {
@@ -199,6 +274,7 @@ async function processDiscoveryBatch(
     now: options.now,
     baseIntervalMs: options.baseIntervalMs,
     spreadWindowMs: options.spreadWindowMs,
+    skipEnabled: options.skipEnabled,
     logger: options.logger,
   })
   if (state.enqueueFailedPropertyId !== null) return { kind: 'enqueue_failed' }
@@ -217,6 +293,7 @@ async function runDiscoveryLoop(
     now: Date
     baseIntervalMs: number
     spreadWindowMs: number
+    skipEnabled: boolean
     logger: DiscoverHandlerDeps['logger']
   }>,
 ): Promise<void> {
@@ -236,11 +313,15 @@ async function runDiscoveryLoop(
   }
 }
 
+const skippedTotal = (state: SweepState): number =>
+  state.skippedByTier.hot + state.skippedByTier.warm + state.skippedByTier.cold
+
 export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
   const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE
   const maxBatches = deps.maxBatches ?? DEFAULT_MAX_BATCHES
   const baseIntervalMs = deps.intervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS
   const spreadWindowMs = discoverySpreadWindowMs(baseIntervalMs, deps.spreadWindowMs)
+  const skipEnabled = deps.skipRecentlyReconciled ?? false
 
   return async (_job: Job) => {
     return trace('job.discoverNewReviews', async () => {
@@ -253,6 +334,13 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
         seen: 0,
         enqueued: 0,
         enqueuedByTier: { hot: 0, warm: 0, cold: 0 },
+        skippedByTier: { hot: 0, warm: 0, cold: 0 },
+        fullByReason: {
+          skip_disabled: 0,
+          failure_retry: 0,
+          no_reconciliation: 0,
+          due: 0,
+        },
         enqueueFailedPropertyId: null,
       }
 
@@ -263,6 +351,7 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
           now,
           baseIntervalMs,
           spreadWindowMs,
+          skipEnabled,
           logger,
         })
       } finally {
@@ -279,6 +368,18 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
             enqueuedHot: state.enqueuedByTier.hot,
             enqueuedWarm: state.enqueuedByTier.warm,
             enqueuedCold: state.enqueuedByTier.cold,
+            // Looks that found a completed reconciliation inside the window
+            // and enqueued nothing, by rung, then why every other look ran in
+            // full. `skipped` + the four full counts = candidatesSeen unless
+            // an enqueue failure ended the run.
+            skipped: skippedTotal(state),
+            skippedHot: state.skippedByTier.hot,
+            skippedWarm: state.skippedByTier.warm,
+            skippedCold: state.skippedByTier.cold,
+            fullSkipDisabled: state.fullByReason.skip_disabled,
+            fullFailureRetry: state.fullByReason.failure_retry,
+            fullNoReconciliation: state.fullByReason.no_reconciliation,
+            fullDue: state.fullByReason.due,
           },
           'Discover new reviews sweep finished',
         )

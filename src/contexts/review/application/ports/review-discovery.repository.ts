@@ -24,6 +24,19 @@ export type ReviewDiscoveryCandidate = Readonly<{
    * without the sweep needing a second round-trip per candidate.
    */
   activity: DiscoveryActivity
+  /**
+   * When this property's newest COMPLETED reconciliation was evaluated: the
+   * latest `review_google_reputation_snapshot_facts.evaluated_at` for its
+   * CURRENT source epoch, or null when the epoch has none yet (a new or
+   * relinked property). Only the timestamp is read, never fact content.
+   */
+  lastReconciledAt: Date | null
+  /**
+   * A coded failure is recorded for this property (`review_sync_state.error_class`
+   * is set) and no completed run has cleared it. Such a look is never skipped:
+   * it is the failure's retry.
+   */
+  hasOutstandingFailure: boolean
 }>
 
 export type ReviewDiscoveryRepository = Readonly<{
@@ -48,6 +61,14 @@ export type ReviewDiscoveryRepository = Readonly<{
 
   /** A sync job was accepted for this property: push the next poll to `nextDueAt`. */
   markDiscoveryScheduled(propertyId: string, now: Date, nextDueAt: Date): Promise<void>
+
+  /**
+   * A look found a completed reconciliation inside the window and enqueued
+   * nothing: push the next look to `nextDueAt`. Writes ONLY the due time (and
+   * `updated_at`): nothing was synced, so the success stamp and any failure
+   * state are left as they were.
+   */
+  markDiscoverySkipped(propertyId: string, now: Date, nextDueAt: Date): Promise<void>
 
   /**
    * Discovery enqueue or provider execution failed for this property: record

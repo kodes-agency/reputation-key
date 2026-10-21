@@ -6,7 +6,10 @@ quarter hours for a property that has been quiet: a six-hour interval, then the
 next 15-minute sweep (see the backoff ladder in
 `src/contexts/review/domain/discovery-backoff.ts`). With it,
 Google pushes within seconds and the sweep becomes a reconciliation safety net
-rather than the mechanism.
+rather than the mechanism: while a property's last completed reconciliation is
+under six hours old, the sweep skips its full snapshot and only dates the next
+look (ADR 0055, note of 2026-10-21; `REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED`).
+That skip applies only when `GBP_PUBSUB_TOPIC` is set.
 
 Everything on the app side is already built. This document is the Google Cloud
 work plus the four environment variables that switch it on; once they are set,
@@ -219,7 +222,9 @@ refusal in `correlation_id`, e.g. `authorization_changed`.
 3. Within seconds: a `sync-property-reviews` job with initiator
    `webhook:gbp`, then the review row, the inbox item, and the notification.
 4. `review_sync_state.last_notification_at` for that property should be ~now, and
-   `next_incremental_at` clamped back to the hot interval.
+   `next_incremental_at` clamped back to the hot interval. The look that clamp
+   buys usually skips the full snapshot, because the property was reconciled
+   within the last six hours; the review is already in from the push.
 
 If nothing arrives, in order of likelihood:
 
@@ -272,8 +277,10 @@ If nothing arrives, in order of likelihood:
 ## What this does not change
 
 Push is an accelerator, not a dependency. With it off, the discovery sweep still
-finds new reviews within its ladder interval. With it on, the sweep still runs as
-reconciliation, because push is not guaranteed delivery — and
+finds new reviews within its ladder interval, because the skip rule is off too.
+With it on, the sweep still runs as reconciliation, at least every six hours per
+property, because push is not guaranteed delivery: a review whose push is missed
+is found at the next reconciliation, up to about six hours later — and
 `sync.oldest_due_age_ms` alerts if the sweep itself falls behind
 (`runbooks.md` §13).
 
