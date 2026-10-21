@@ -66,8 +66,11 @@ start_at, observed time)`, carried to Inbox on Review's exact-current permit, wi
 the observation time as the fallback when Google gives none. It is written once at
 the close and never moved by a later edit; only the completion (and
 `first_reply_published_at`) use it, while `updated_at`, reminder cancellations and
-`closed_at` stay at the observation time. Targets closed before this release keep
-their read-time completion; there is no backfill.
+`closed_at` stay at the observation time. Google's time is the reply's last edit,
+so a reply edited before RepKey reads it counts at the edit. An item with no
+measured target (none, `legacy_unknown`, onboarding history) has no start to clamp
+to, so its first-reply time is bounded only above by the observation time. Targets
+closed before this release keep their read-time completion; there is no backfill.
 
 A Google-review reminder is checked against Google before it is released
 (ADR 0046, amended 2026-10-21), because about 97% of replies are written on

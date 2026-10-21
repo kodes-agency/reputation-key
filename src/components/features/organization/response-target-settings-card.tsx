@@ -40,6 +40,14 @@ type OrganizationPolicy =
   ResponseTargetPolicySettings['organization']['googleReviewResponse']
 
 /**
+ * The day the release that counts a Google response at its time on Google went
+ * live. Responses closed earlier were counted at the time RepKey read them, and
+ * no column records which rule closed a target, so the sentence needs this date.
+ * Set it to the actual deploy date before the release goes out.
+ */
+const GOOGLE_TIME_CUTOVER_DATE = '21 October 2026'
+
+/**
  * Google reviews only. A low-rated review is the work that goes wrong fastest,
  * so an Organization may give it a shorter target and therefore an earlier
  * halfway and target-time reminder. Off leaves one clock for every review,
@@ -233,8 +241,9 @@ export function ResponseTargetSettingsCard({
               Based only on cycles with reliable saved timing. Imported history and older
               records without timing evidence stay visible as excluded counts. A response
               counts at the time it was written on Google, or the time RepKey saw it when
-              Google gives none. Responses closed before 21 October 2026 were counted at
-              the time RepKey saw them.
+              Google gives none; a response edited on Google before RepKey reads it counts
+              at the edit. Responses closed before {GOOGLE_TIME_CUTOVER_DATE} were counted
+              at the time RepKey saw them.
             </p>
           </div>
           <GoogleReviewTargetSummary analytics={googleReviewAnalytics} />
