@@ -10,6 +10,7 @@
 // Content-free: identifiers, timestamps, and an error class only.
 
 import type { DiscoveryActivity } from '../../domain/discovery-backoff'
+import type { PreviousSnapshotFailure } from '../../domain/snapshot-failure-backoff'
 import type { ReviewProviderSnapshotFailureCode } from './review-provider-snapshot.repository'
 
 export type ReviewDiscoveryCandidate = Readonly<{
@@ -38,6 +39,16 @@ export type ReviewDiscoveryCandidate = Readonly<{
    * it is the failure's retry.
    */
   hasOutstandingFailure: boolean
+}>
+
+/** What one `pullLooksForward` call did, by Property: content-free counts. */
+export type PullLooksForwardResult = Readonly<{
+  /** Next look moved up to `now`: it will run at the next discovery sweep. */
+  pulledForward: number
+  /** A completed reconciliation inside the window already covers the Property. */
+  skippedRecent: number
+  /** A failure is waiting for its backoff retry date; the look is not moved. */
+  skippedBackoff: number
 }>
 
 export type ReviewDiscoveryRepository = Readonly<{
@@ -73,7 +84,9 @@ export type ReviewDiscoveryRepository = Readonly<{
 
   /**
    * Discovery enqueue or provider execution failed for this property: record
-   * the bounded failure class and defer the next poll to `nextDueAt`.
+   * the bounded failure class, the time of the failure and the retry date, and
+   * defer the next poll to `nextDueAt`. The retry date and the next poll are
+   * written together, so the sweep never pulls a failure ahead of its backoff.
    */
   markDiscoveryDeferred(
     propertyId: string,
@@ -82,6 +95,33 @@ export type ReviewDiscoveryRepository = Readonly<{
     errorClass: ReviewProviderSnapshotFailureCode | 'enqueue_failed',
   ): Promise<void>
 
+  /**
+   * The Property's recorded failure: its class, when it was recorded and the
+   * retry date written with it. Null when the Property has no sync state row.
+   * The snapshot job derives the wait of the next failure from it
+   * (domain/snapshot-failure-backoff.ts).
+   */
+  findFailureState(propertyId: string): Promise<PreviousSnapshotFailure | null>
+
   /** A provider snapshot completed: clear its durable failure state. */
   markSyncSucceeded(propertyId: string): Promise<void>
+
+  /**
+   * The content refresh sweep found reviews of these Properties about to
+   * expire. For each one whose newest completed reconciliation (current source
+   * epoch; a fact that proves a completed listing, `listing_complete`, so a head
+   * fact does not count) is not newer than `reconciledSince`, move its next look
+   * up to `now` so the normal discovery sweep runs it, with its spread, skip
+   * rule and failure backoff. Enqueues nothing itself.
+   *
+   * A Property with a recent reconciliation is left alone: that listing
+   * already refreshed every review Google lists, so one that still expires
+   * was not listed. A Property whose failure retry date is still ahead is left
+   * alone too. A Property with no state row, or one already due, needs no move.
+   */
+  pullLooksForward(
+    propertyIds: readonly string[],
+    now: Date,
+    reconciledSince: Date,
+  ): Promise<PullLooksForwardResult>
 }>

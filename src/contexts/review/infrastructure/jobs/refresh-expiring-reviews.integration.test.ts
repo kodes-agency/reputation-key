@@ -1,5 +1,11 @@
-// Review context — the hourly refresh sweep meets a Review Google deleted
-// (S10-01). Real PostgreSQL behind the real Review and run repositories.
+// Review context — the hourly refresh sweep (real PostgreSQL behind the real
+// Review, run and discovery repositories).
+//
+// It enqueues no sync: it moves the discovery schedule of a Property whose
+// reviews are about to expire (ADR 0055, note of 2026-10-21 (e)). The first
+// group below proves the move; the second group is S10-01.
+//
+// S10-01: the sweep meets a Review Google deleted.
 //
 // The sweep walks every Organization's reviews whose content clock falls in
 // the next five days, oldest clock first. A Review the snapshot sync erased
@@ -21,7 +27,7 @@ import {
 } from '#/shared/testing/review-tombstone-fixtures'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
-import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
+import { createReviewDiscoveryRepository } from '../repositories/review-discovery.repository'
 import { createReviewRepository } from '../repositories/review.repository'
 import { createReviewRefreshRunRepository } from '../repositories/review-refresh-run.repository'
 import { eraseReviewSourceContent } from '../review-source-content-store'
@@ -49,6 +55,11 @@ const db = getDb()
 
 async function clean(): Promise<void> {
   await pool.query('DELETE FROM review_refresh_runs')
+  await pool.query(
+    'DELETE FROM review_google_reputation_snapshot_facts WHERE organization_id = $1',
+    [ORG],
+  )
+  await pool.query('DELETE FROM review_sync_state WHERE property_id = $1', [PROPERTY])
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   // Properties first: deleting a connection nulls the one a bound Property holds.
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
@@ -137,23 +148,66 @@ async function insertTombstoneErasedToday(): Promise<void> {
   expect(erased).toBe(true)
 }
 
-function sweepWithQueue() {
-  const enqueued: Array<Readonly<{ propertyId: string; locationName: string }>> = []
-  const queue: ReviewQueuePort = {
-    addSyncJob: async (data) => {
-      enqueued.push({ propertyId: data.propertyId, locationName: data.locationName })
-    },
-  }
+function sweep() {
   const refreshRunRepo = createReviewRefreshRunRepository(db)
   const handler = createRefreshExpiringReviewsHandler({
     reviewRepo: createReviewRepository(db, () => NOW),
-    queue,
+    discoveryRepo: createReviewDiscoveryRepository(db),
     refreshRunRepo,
     clock: () => NOW,
     logger: createMockLogger(),
   })
-  return { enqueued, refreshRunRepo, run: () => handler({} as never) }
+  return { refreshRunRepo, run: () => handler({} as never) }
 }
+
+const HOUR_MS = 60 * 60 * 1000
+const LOOK_LATER = new Date(NOW.getTime() + 3 * HOUR_MS)
+
+async function scheduleLook(
+  nextLookAt: Date,
+  failure?: Readonly<{ retryAt: Date }>,
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO review_sync_state
+       (property_id, source, next_incremental_at, error_class, error_retry_at,
+        last_terminal_error_at, updated_at)
+     VALUES ($1, 'google', $2, $3, $4, $5, $6)`,
+    [
+      PROPERTY,
+      nextLookAt,
+      failure ? 'provider_failure' : null,
+      failure?.retryAt ?? null,
+      failure ? new Date(NOW.getTime() - HOUR_MS) : null,
+      NOW,
+    ],
+  )
+}
+
+/** A completed reconciliation of the Property's current epoch (a timestamp is all that is read). */
+async function seedReconciliation(evaluatedAt: Date): Promise<void> {
+  await pool.query(
+    `INSERT INTO review_google_reputation_snapshot_facts
+       (run_id, event_id, organization_id, property_id, source_epoch,
+        review_count, average_rating, evaluated_at)
+     VALUES ($1, $2, $3, $4, 0, 3, 4.5, $5)`,
+    [
+      '7e200000-0000-4000-8000-0000000000f1',
+      '7e200000-0000-4000-8000-0000000000f2',
+      ORG,
+      PROPERTY,
+      evaluatedAt,
+    ],
+  )
+}
+
+const syncState = async () =>
+  (
+    await pool.query(
+      `SELECT next_incremental_at, error_class, error_retry_at
+         FROM review_sync_state WHERE property_id = $1 AND source = 'google'`,
+      [PROPERTY],
+    )
+  ).rows.at(0)
 
 const erasedRows = [
   ['an erased row that kept its content clock', insertTombstoneKeepingItsClock],
@@ -177,12 +231,68 @@ beforeEach(async () => {
   await insertDueReview(SECOND_LIVE_DUE, 'refresh-sweep-live-2', `${LOCATION}-b`)
 })
 
+describe.sequential('refresh-expiring-reviews moves the discovery schedule', () => {
+  it('pulls the look forward when the last reconciliation is older than a day, and enqueues nothing', async () => {
+    await scheduleLook(LOOK_LATER)
+    await seedReconciliation(new Date(NOW.getTime() - 30 * HOUR_MS))
+    const { refreshRunRepo, run } = sweep()
+
+    await run()
+
+    expect((await syncState())?.next_incremental_at).toEqual(NOW)
+    expect(await refreshRunRepo.findLatestRun()).toMatchObject({
+      status: 'completed',
+      refreshDueCount: 2,
+      enqueuedCount: 1,
+      enqueueFailedCount: 0,
+    })
+  })
+
+  it('pulls the look forward for a Property that never completed a reconciliation', async () => {
+    await scheduleLook(LOOK_LATER)
+    const { run } = sweep()
+
+    await run()
+
+    expect((await syncState())?.next_incremental_at).toEqual(NOW)
+  })
+
+  it('leaves the schedule alone when a reconciliation completed inside the day', async () => {
+    await scheduleLook(LOOK_LATER)
+    await seedReconciliation(new Date(NOW.getTime() - 2 * HOUR_MS))
+    const { refreshRunRepo, run } = sweep()
+
+    await run()
+
+    expect((await syncState())?.next_incremental_at).toEqual(LOOK_LATER)
+    expect(await refreshRunRepo.findLatestRun()).toMatchObject({
+      status: 'completed',
+      enqueuedCount: 0,
+    })
+  })
+
+  it('does not pull a failure ahead of its backoff retry date', async () => {
+    const retryAt = new Date(NOW.getTime() + 4 * HOUR_MS)
+    await scheduleLook(retryAt, { retryAt })
+    const { run } = sweep()
+
+    await run()
+
+    expect(await syncState()).toMatchObject({
+      next_incremental_at: retryAt,
+      error_class: 'provider_failure',
+      error_retry_at: retryAt,
+    })
+  })
+})
+
 describe.sequential('refresh-expiring-reviews with a Review Google deleted', () => {
   it.each(erasedRows)(
-    'completes and enqueues the live rows behind %s',
+    'completes and moves the schedule for the live rows behind %s',
     async (_label, plantTombstone) => {
+      await scheduleLook(LOOK_LATER)
       await plantTombstone()
-      const { enqueued, refreshRunRepo, run } = sweepWithQueue()
+      const { refreshRunRepo, run } = sweep()
 
       await run()
 
@@ -191,19 +301,16 @@ describe.sequential('refresh-expiring-reviews with a Review Google deleted', () 
         status: 'completed',
         candidatesSeen: 2,
         refreshDueCount: 2,
-        enqueuedCount: 2,
+        enqueuedCount: 1,
         enqueueFailedCount: 0,
       })
-      expect(enqueued.map((job) => job.locationName).sort()).toEqual([
-        LOCATION,
-        `${LOCATION}-b`,
-      ])
+      expect((await syncState())?.next_incremental_at).toEqual(NOW)
     },
   )
 
   it('keeps completing on every later run, not only the first', async () => {
     await insertTombstoneKeepingItsClock()
-    const { run } = sweepWithQueue()
+    const { run } = sweep()
 
     await run()
     await run()

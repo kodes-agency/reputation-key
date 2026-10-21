@@ -518,6 +518,27 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
     expect(deps.enqueued).toHaveLength(1)
   })
 
+  it('leaves a failed Property alone until its backoff retry date, then retries it in full', async () => {
+    const retryAt = new Date(NOW.getTime() + 4 * HOUR)
+    const deps = makeDeps([
+      prop(1, {
+        ...HOT,
+        lastReconciledAt: ago(MINUTE),
+        errorClass: 'provider_failure',
+        errorRetryAt: retryAt,
+        lastFailureAt: NOW,
+        nextDueAt: retryAt,
+      }),
+    ])
+
+    await deps.handler({} as never)
+    expect(deps.enqueued).toEqual([])
+
+    const later = makeDeps(deps.rows, { clock: () => retryAt })
+    await later.handler({} as never)
+    expect(later.enqueued).toHaveLength(1)
+  })
+
   it('runs in full when the next look would land at the six-hour deadline, and skips one millisecond earlier', async () => {
     // now + interval == L + 6h  →  L = NOW - (6h - 15m)
     const atBoundary = ago(6 * HOUR - DEFAULT_DISCOVERY_INTERVAL_MS)

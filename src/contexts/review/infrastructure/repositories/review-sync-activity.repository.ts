@@ -60,7 +60,11 @@ export const createReviewSyncActivityRecorder = (
             // Un-park a property the ladder had pushed hours out. LEAST can
             // only pull the next poll EARLIER, and the caller's bound is
             // already in the future, so this never writes an overdue time.
-            nextIncrementalAt: sql`LEAST(COALESCE(${reviewSyncState.nextIncrementalAt}, ${pollNoLaterThan}), ${pollNoLaterThan})`,
+            // A failure's backoff stays in force: the poll is never pulled
+            // ahead of `error_retry_at`, or a busy Property (the one with the
+            // long listing) would bypass its wait with every push. A retry
+            // date already past changes nothing, and a cleared failure has none.
+            nextIncrementalAt: sql`GREATEST(LEAST(COALESCE(${reviewSyncState.nextIncrementalAt}, ${pollNoLaterThan}), ${pollNoLaterThan}), COALESCE(${reviewSyncState.errorRetryAt}, '-infinity'::timestamptz))`,
             updatedAt: observedAt,
           },
         })

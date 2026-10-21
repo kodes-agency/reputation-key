@@ -56,10 +56,11 @@ function setup(
   const enqueueContinuation = vi.fn(async () => undefined)
   const discoveryRepo = {
     markDiscoveryDeferred: vi.fn(async () => undefined),
+    findFailureState: vi.fn(async () => null),
     markSyncSucceeded: vi.fn(async () => undefined),
   } satisfies Pick<
     ReviewDiscoveryRepository,
-    'markDiscoveryDeferred' | 'markSyncSucceeded'
+    'markDiscoveryDeferred' | 'findFailureState' | 'markSyncSucceeded'
   >
   const syncActivity: ReviewSyncActivityRecorder = {
     recordNewReviewObserved: vi.fn(async () => undefined),

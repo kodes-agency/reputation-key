@@ -121,6 +121,50 @@ describe('reviewSyncActivityRecorder (integration)', () => {
     expect((await readState())?.next_incremental_at).toEqual(soon)
   })
 
+  it('does not pull a failed property ahead of its backoff retry date', async () => {
+    const recorder = createReviewSyncActivityRecorder(db)
+    const retryAt = new Date(NOW.getTime() + 4 * 60 * 60 * 1000)
+    await pool.query(
+      `INSERT INTO review_sync_state
+         (property_id, source, next_incremental_at, error_class, error_retry_at,
+          last_terminal_error_at, updated_at)
+       VALUES ($1, 'google', $2, 'provider_failure', $2, $3, NOW())`,
+      [PROP, retryAt, NOW],
+    )
+
+    await recorder.recordPushObserved(
+      PROP,
+      NOW,
+      new Date(NOW.getTime() + HOT_INTERVAL_MS),
+    )
+
+    const row = await readState()
+    expect(row?.last_notification_at).toEqual(NOW)
+    expect(row?.next_incremental_at).toEqual(retryAt)
+  })
+
+  it('pulls a property whose failure retry date has passed to the hot interval', async () => {
+    const recorder = createReviewSyncActivityRecorder(db)
+    const passed = new Date(NOW.getTime() - 60 * 1000)
+    await pool.query(
+      `INSERT INTO review_sync_state
+         (property_id, source, next_incremental_at, error_class, error_retry_at,
+          last_terminal_error_at, updated_at)
+       VALUES ($1, 'google', $2, 'provider_failure', $3, $4, NOW())`,
+      [PROP, new Date(NOW.getTime() + 5 * 60 * 60 * 1000), passed, EARLIER],
+    )
+
+    await recorder.recordPushObserved(
+      PROP,
+      NOW,
+      new Date(NOW.getTime() + HOT_INTERVAL_MS),
+    )
+
+    expect((await readState())?.next_incremental_at).toEqual(
+      new Date(NOW.getTime() + HOT_INTERVAL_MS),
+    )
+  })
+
   it('sets the next poll on a push for a property that had none', async () => {
     const recorder = createReviewSyncActivityRecorder(db)
 

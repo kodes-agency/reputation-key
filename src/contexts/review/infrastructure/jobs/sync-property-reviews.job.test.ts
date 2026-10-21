@@ -7,6 +7,10 @@ import {
 } from '../../application/ports/review-queue.port'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
 import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
+import {
+  createFakeReviewDiscoveryRepository,
+  fakeDiscoveryProperty,
+} from '#/shared/testing/fake-review-discovery-repository'
 import { createSyncPropertyReviewsHandler } from './sync-property-reviews.job'
 
 vi.mock('#/shared/observability/trace', () => ({
@@ -34,9 +38,10 @@ const makeSyncActivity = (): ReviewSyncActivityRecorder => ({
 
 const makeDiscoveryState = (): Pick<
   ReviewDiscoveryRepository,
-  'markDiscoveryDeferred' | 'markSyncSucceeded'
+  'markDiscoveryDeferred' | 'findFailureState' | 'markSyncSucceeded'
 > => ({
   markDiscoveryDeferred: vi.fn(async () => undefined),
+  findFailureState: vi.fn(async () => null),
   markSyncSucceeded: vi.fn(async () => undefined),
 })
 
@@ -307,6 +312,188 @@ describe('sync-property-reviews snapshot handler', () => {
       NOW,
       new Date(NOW.getTime() + HOT_INTERVAL_MS),
       code,
+    )
+  })
+
+  // A failure that repeats waits longer each time (domain/snapshot-failure-backoff.ts):
+  // 15 minutes, then 1 hour, 4 hours, and at most 6 hours. The tests below run
+  // the real handler against the in-memory repository, one failure per hop in
+  // time, and read back the retry date the repository holds.
+  describe('failure backoff', () => {
+    const MINUTE_MS = 60 * 1000
+    const HOUR_MS = 60 * MINUTE_MS
+
+    function failingHandler(
+      rows: ReturnType<typeof fakeDiscoveryProperty>[],
+      outcome: { status: 'failed'; runId: string; code: 'provider_failure' | string },
+      clock: { now: Date },
+    ) {
+      const discoveryRepo = createFakeReviewDiscoveryRepository(rows)
+      const logger = { warn: vi.fn(), info: vi.fn() }
+      const handler = createSyncPropertyReviewsHandler({
+        runSnapshot: vi.fn(async () => outcome) as never,
+        propertySourceEpoch,
+        enqueueContinuation: vi.fn(async () => undefined),
+        syncActivity: makeSyncActivity(),
+        discoveryRepo,
+        clock: () => clock.now,
+        hotIntervalMs: HOT_INTERVAL_MS,
+        logger,
+      })
+      return { discoveryRepo, handler, logger }
+    }
+
+    const FAILED = {
+      status: 'failed' as const,
+      runId: '44444444-4444-4444-8444-444444444444',
+      code: 'observation_failed',
+    }
+
+    async function failOnce(handler: (job: never) => Promise<unknown>) {
+      await expect(
+        handler({ id: 'job-backoff', data: JOB_DATA } as never),
+      ).rejects.toThrow('observation_failed')
+    }
+
+    it('dates the retry 15 minutes, then 1 hour, then 4 hours, then 6 hours after consecutive failures', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const clock = { now: NOW }
+      const { handler } = failingHandler([row], FAILED as never, clock)
+      const waits: number[] = []
+
+      for (let failure = 0; failure < 5; failure++) {
+        await failOnce(handler as never)
+        waits.push((row.nextDueAt as Date).getTime() - clock.now.getTime())
+        // The scheduled retry comes due and fails again.
+        clock.now = row.nextDueAt as Date
+      }
+
+      expect(waits).toEqual([
+        15 * MINUTE_MS,
+        HOUR_MS,
+        4 * HOUR_MS,
+        6 * HOUR_MS,
+        6 * HOUR_MS,
+      ])
+    })
+
+    it('keeps the retry date and the next look together at every deferral', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const clock = { now: NOW }
+      const { handler } = failingHandler([row], FAILED as never, clock)
+
+      await failOnce(handler as never)
+      clock.now = row.nextDueAt as Date
+      await failOnce(handler as never)
+
+      expect(row.errorRetryAt).toEqual(row.nextDueAt)
+      expect(row.lastFailureAt).toEqual(clock.now)
+    })
+
+    it('does not climb the ladder when the queue retries the same failed job before the retry came due', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const clock = { now: NOW }
+      const { handler } = failingHandler([row], FAILED as never, clock)
+
+      await failOnce(handler as never)
+      clock.now = new Date(NOW.getTime() + 2 * MINUTE_MS) // BullMQ attempt 2
+      await failOnce(handler as never)
+      clock.now = new Date(NOW.getTime() + 5 * MINUTE_MS) // BullMQ attempt 3
+      await failOnce(handler as never)
+
+      expect((row.nextDueAt as Date).getTime() - clock.now.getTime()).toBe(15 * MINUTE_MS)
+    })
+
+    it('starts again at 15 minutes after a completed run clears the failure', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const clock = { now: NOW }
+      const failing = failingHandler([row], FAILED as never, clock)
+      await failOnce(failing.handler as never)
+      clock.now = row.nextDueAt as Date
+      await failOnce(failing.handler as never)
+      expect(row.errorRetryAt).not.toBeNull()
+
+      const completing = createSyncPropertyReviewsHandler({
+        runSnapshot: vi.fn(async () => ({
+          status: 'completed' as const,
+          runId: FAILED.runId,
+        })),
+        propertySourceEpoch,
+        enqueueContinuation: vi.fn(async () => undefined),
+        syncActivity: makeSyncActivity(),
+        discoveryRepo: failing.discoveryRepo,
+        clock: () => clock.now,
+        hotIntervalMs: HOT_INTERVAL_MS,
+      })
+      await completing({ id: 'job-ok', data: JOB_DATA } as never)
+      expect(row.errorClass).toBeNull()
+
+      clock.now = new Date(clock.now.getTime() + HOUR_MS)
+      await failOnce(failing.handler as never)
+      expect((row.nextDueAt as Date).getTime() - clock.now.getTime()).toBe(15 * MINUTE_MS)
+    })
+
+    it('parks a location over the cap for a day however often it failed before', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const clock = { now: NOW }
+      const failing = failingHandler([row], FAILED as never, clock)
+      await failOnce(failing.handler as never)
+      clock.now = row.nextDueAt as Date
+
+      const tooLarge = failingHandler(
+        [row],
+        { ...FAILED, code: 'review_cap_exceeded' } as never,
+        clock,
+      )
+      await tooLarge.handler({ id: 'job-too-large', data: JOB_DATA } as never)
+
+      expect((row.nextDueAt as Date).getTime() - clock.now.getTime()).toBe(24 * HOUR_MS)
+    })
+
+    it('logs the chosen interval and nothing from the payload', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const clock = { now: NOW }
+      const { handler, logger } = failingHandler([row], FAILED as never, clock)
+
+      await failOnce(handler as never)
+      clock.now = row.nextDueAt as Date
+      await failOnce(handler as never)
+
+      expect(logger.warn).toHaveBeenLastCalledWith(
+        {
+          event: 'review_snapshot_failure_deferred',
+          failureCode: 'observation_failed',
+          retryAfterMs: HOUR_MS,
+        },
+        'Review snapshot failed; the next retry is backed off',
+      )
+      expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(JOB_DATA.propertyId)
+    })
+
+    it.each(['cursor_lost', 'listing_changed'] as const)(
+      'restarts at once after %s and records no failure or interval',
+      async (code) => {
+        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const clock = { now: NOW }
+        const enqueueContinuation = vi.fn(async () => undefined)
+        const discoveryRepo = createFakeReviewDiscoveryRepository([row])
+        const handler = createSyncPropertyReviewsHandler({
+          runSnapshot: vi.fn(async () => ({ ...FAILED, code })) as never,
+          propertySourceEpoch,
+          enqueueContinuation,
+          syncActivity: makeSyncActivity(),
+          discoveryRepo,
+          clock: () => clock.now,
+          hotIntervalMs: HOT_INTERVAL_MS,
+        })
+
+        await handler({ id: 'job-restart', data: JOB_DATA } as never)
+
+        expect(enqueueContinuation).toHaveBeenCalledTimes(1)
+        expect(row.errorClass).toBeNull()
+        expect(row.nextDueAt).toBeNull()
+        expect(row.lastFailureAt).toBeNull()
+      },
     )
   })
 

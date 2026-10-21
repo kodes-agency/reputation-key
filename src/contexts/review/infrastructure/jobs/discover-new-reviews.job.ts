@@ -44,10 +44,17 @@
 //     reconciliation (the facts table's evaluated_at, current source epoch)
 //     inside that window writes the next look's date and enqueues nothing
 //     (domain/discovery-reconciliation.ts). It is only for the sweep's own
-//     looks: push, import, refresh and failure retries enqueue as before. A
+//     looks: push, import and failure retries enqueue as before. A
 //     property with an outstanding failure, no reconciliation yet, or no push
 //     configured (the sweep is then the only path for new reviews) runs full.
 //     The window is six hours unless REVIEW_RECONCILE_WITHIN_HOURS widens it.
+//     The content refresh (refresh-expiring-reviews) enqueues nothing: it only
+//     moves a property's next look up to now, and only when its last
+//     reconciliation is over a day old, so that look is full too.
+//   - a failed look is not retried at the base interval every time: the wait
+//     grows with consecutive failures (domain/snapshot-failure-backoff.ts),
+//     and next_incremental_at carries it, so this sweep reaches the property
+//     only when its backoff has passed.
 //
 //   - a SKIPPED look is not an empty one when head checks are on
 //     (REVIEW_HEAD_CHECKS=dark or persist). Google documents page 1 of

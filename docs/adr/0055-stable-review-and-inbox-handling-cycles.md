@@ -515,10 +515,13 @@ the look interval. The full two-pass snapshot is then needed only for the
   not at all for a total over 10,000 or an average that does not match its count.
 - **`listing_complete` guards every reader that means "the history was fully
   listed".** `historyListedSince` (the first-import proof and the history or
-  ongoing classification), the discovery sweep's `lastReconciledAt`, and the
-  `sync.reconciliation-age` alert read only `listing_complete = true`. A head
-  fact never closes the first import, never lets the sweep skip a look, and never
-  resets the age alert.
+  ongoing classification), the discovery sweep's `lastReconciledAt`, the
+  `sync.reconciliation-age` alert and the content refresh's pull-forward
+  (`pullLooksForward`, note (e)) read only `listing_complete = true`. A head
+  fact never closes the first import, never lets the sweep skip a look, never
+  resets the age alert and never makes the content refresh leave a Property
+  alone: it is Google's numbers from one read of its newest page, not a listing
+  of every review.
 - **Google's numbers are ordered by when they were read.** `numbers_observed_at`
   is the instant the numbers were read: the run's start for a snapshot (it
   freezes the total and average at its first page, which follows the start at
@@ -572,6 +575,9 @@ the look interval. The full two-pass snapshot is then needed only for the
   that change, do not set a window above 6 hours: with `off` or `dark` a Property
   would then go up to the window between syncs, and any window above 8 hours fires
   the alert. The variable is validated on its own and does not require `persist`.
+  The content refresh's own 24-hour test (note (e)) is fixed and does not follow
+  this window; it is never inside it (the window is at most 24 hours), so the look
+  the refresh brings forward is a full one at every allowed value.
 - **Rollout.** The migration is purely additive and runs first. Keep
   `REVIEW_HEAD_CHECKS=dark` until every web, worker and Google sidecar image
   carries migration 0067 and the filtered readers: a process that still read
@@ -580,6 +586,104 @@ the look interval. The full two-pass snapshot is then needed only for the
   statements of what Google reported) and are ignored by the readers above.
   Rolling the CODE back after head facts exist leaves rows an old reader cannot
   filter: delete the `listing_complete = false` rows first.
+
+## Note 2026-10-21 (e) — a failed snapshot backs off, and the content refresh moves the schedule
+
+Two things still spent Google quota on a Property that was not going to get
+better by asking again. Both are changes of timing, and neither changes what a
+completed run stores.
+
+**A repeated failure waits longer.** A snapshot run that ends in a coded failure
+other than the restart-at-once ones is retried by the discovery sweep. Until now
+every retry came 15 minutes later. On the largest Property one attempt is a full
+double listing, about 150 calls, so a failure that recurs (Google's count off by
+more than the tolerance, a listing that keeps moving) spent that quota 96 times a
+day. The wait now grows with consecutive failures:
+
+| Consecutive failure | Next retry after               |
+| ------------------- | ------------------------------ |
+| first               | 15 minutes (the base interval) |
+| second              | 1 hour                         |
+| third               | 4 hours                        |
+| fourth and later    | 6 hours (the cap)              |
+
+- **The cap keeps decision 5 and Goals' 24 hour freshness rule.** A run is still
+  attempted at least every six hours, so a Property that recovers is read within
+  six hours of it, and Goals never waits a day for its figures.
+- **Reset.** A completed run clears the failure (`markSyncSucceeded`, as before)
+  and the next failure starts at 15 minutes again.
+- **Unchanged.** A location over the review or page cap (`location_too_large`)
+  keeps its 24 hours. `cursor_lost` and a `listing_changed` inside the quiet
+  limit still start a fresh run at once and record nothing.
+- **No new column.** The wait of the previous failure is read from two columns
+  that exist: `error_retry_at` minus `last_terminal_error_at`. That second column
+  was never written; deferring a failure now writes it (the time of the
+  failure). `error_retry_at` and `next_incremental_at` are written with one
+  value, so the sweep, which selects on `next_incremental_at`, cannot reach a
+  failed Property before its backoff. A failure recorded before this change has no
+  time and is treated as having waited the base interval, so its next wait is
+  one hour.
+- **A queue retry is not a new failure.** A snapshot failure also fails the job,
+  and a job has three attempts. A failure that lands before the previous
+  failure's retry date is that same attempt retried by the queue: it keeps the
+  previous wait instead of climbing a rung per attempt. Only a failure after the
+  retry came due counts as the next consecutive one.
+- **A push does not shorten a backoff.** A Pub/Sub notice pulls a parked poll
+  forward to the hot interval, but never ahead of `error_retry_at`
+  (`recordPushObserved`), so a busy Property cannot bypass its wait with every
+  push. Once the retry date has passed, a push pulls the poll forward as before.
+- **A long base interval is the floor.** If the discovery interval is set above
+  the six hour cap, a repeated failure waits at least that interval, never less
+  than the first failure did. A previous wait longer than the cap (for example a
+  retry date rewritten by an older worker during a rolling deploy) counts as the
+  cap.
+- **The enqueue failure keeps the base interval.** When the discovery sweep
+  cannot enqueue a Property's job (a Redis blip), it defers it by the base
+  interval and does not climb the ladder, even if a snapshot failure was
+  outstanding: an infrastructure fault should be retried soon, and the next
+  snapshot failure then starts the ladder again from the second rung.
+- **Rule and log.** The wait is a pure function (`snapshotFailureRetryMs`,
+  `domain/snapshot-failure-backoff.ts`). The job logs the code and the chosen
+  wait (`review_snapshot_failure_deferred`, `failureCode`, `retryAfterMs`) and
+  nothing from the payload.
+
+**The content refresh no longer queues full syncs.** `refresh-expiring-reviews`
+used to enqueue a full sync for every location with a review expiring within five
+days, once an hour, with no spread, no job id, and no regard for the discovery
+schedule or the skip rule. Every completed snapshot already refreshes the
+30-day content clock of every review it lists, so that second path only repeated
+what discovery does. The sweep now asks one question per Property:
+
+- **Last completed reconciliation older than 24 hours** (or none in the current
+  source epoch; only a fact with `listing_complete = true` is a reconciliation,
+  and a head fact of note (d) is not): the Property's next look is moved up to now
+  (`next_incremental_at = least(next_incremental_at, now)`). The discovery sweep
+  then runs it, with its start spread, the skip rule and the failure backoff
+  above. Nothing is enqueued by the refresh itself.
+- **Otherwise nothing.** A listing that completed inside the day refreshed every
+  review Google lists. A review that still expires was not listed, and letting it
+  expire is correct.
+- **A failure keeps its backoff.** A Property whose failure retry date is still
+  ahead is not pulled forward: the refresh would otherwise undo the wait the
+  failure earned. The check and the write are one SQL statement (the update
+  carries the retry-date condition), so a failure deferred while the sweep runs
+  cannot be pulled forward by it.
+- **Unchanged.** The hourly schedule, the keyset cursor, the run row and the
+  rule that only live reviews of a Property a sync can still run for are
+  considered. On the run row `enqueued_count` now counts Properties pulled
+  forward and `enqueue_failed_count` counts failed schedule updates (no
+  migration). The completion log carries `pulledForward`, `skippedRecent` and
+  `skippedBackoff`, counts only.
+
+Enforced by `snapshot-failure-backoff.test.ts` (the rung table, the cap, the
+parked day, the reset, the queue retry), `sync-property-reviews.job.test.ts`
+(the interval each failure is dated with; restart codes unchanged),
+`review-discovery-backoff.repository.test.ts` (three failures against
+PostgreSQL, the reset, and the pull-forward conditions, among them that a recent
+head fact is no reconciliation),
+`refresh-expiring-reviews.job.test.ts` and
+`refresh-expiring-reviews.integration.test.ts` (the sweep enqueues nothing; it
+moves the schedule only for a stale reconciliation).
 
 ## Merged from ADR 0003
 
