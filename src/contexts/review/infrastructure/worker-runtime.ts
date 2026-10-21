@@ -199,7 +199,7 @@ export async function registerReviewWorkerJobs(
 
   const refreshHandler = createRefreshExpiringReviewsHandler({
     reviewRepo: input.reviewRepo,
-    queue: input.reviewQueue,
+    discoveryRepo: reviewDiscovery,
     refreshRunRepo: createReviewRefreshRunRepository(input.db),
     clock: input.clock,
     logger: input.logger,

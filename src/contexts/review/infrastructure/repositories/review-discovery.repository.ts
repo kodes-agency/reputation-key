@@ -36,7 +36,9 @@ import {
   asc,
   desc,
   eq,
+  exists,
   gt,
+  gte,
   inArray,
   isNull,
   lte,
@@ -66,6 +68,8 @@ const DISCOVERY_SOURCE = 'google'
 /** Import parent/item statuses that mean "this import has not settled yet". */
 const IN_FLIGHT_PARENT_STATUSES = ['queued', 'processing'] as const
 const IN_FLIGHT_ITEM_STATUSES = ['pending', 'processing'] as const
+
+const NOTHING_PULLED = { pulledForward: 0, skippedRecent: 0, skippedBackoff: 0 } as const
 
 type CandidateRow = Readonly<{
   propertyId: string
@@ -248,17 +252,117 @@ export const createReviewDiscoveryRepository = (
           nextIncrementalAt: nextDueAt,
           errorClass,
           errorRetryAt: nextDueAt,
+          lastTerminalErrorAt: now,
           updatedAt: now,
         })
         .onConflictDoUpdate({
           target: [reviewSyncState.propertyId, reviewSyncState.source],
+          // The retry date and the next look are one value: the sweep selects
+          // on `next_incremental_at`, so it can never reach a failure before
+          // its backoff. `last_terminal_error_at` dates the failure, so the
+          // next one can tell how long this one waited.
           set: {
             nextIncrementalAt: nextDueAt,
             errorClass,
             errorRetryAt: nextDueAt,
+            lastTerminalErrorAt: now,
             updatedAt: now,
           },
         })
+    }),
+
+  findFailureState: async (propertyId) =>
+    trace('review.discovery.findFailureState', async () => {
+      const [row] = await db
+        .select({
+          errorClass: reviewSyncState.errorClass,
+          failedAt: reviewSyncState.lastTerminalErrorAt,
+          retryAt: reviewSyncState.errorRetryAt,
+        })
+        .from(reviewSyncState)
+        .where(
+          and(
+            eq(reviewSyncState.propertyId, propertyId),
+            eq(reviewSyncState.source, DISCOVERY_SOURCE),
+          ),
+        )
+      return row ?? null
+    }),
+
+  pullLooksForward: async (propertyIds, now, reconciledSince) =>
+    trace('review.discovery.pullLooksForward', async () => {
+      if (propertyIds.length === 0) return NOTHING_PULLED
+      // A Property with a completed reconciliation of its CURRENT epoch since
+      // `reconciledSince` is left alone (the skipped count); the rest may move.
+      const recentFact = db
+        .select({ one: sql`1` })
+        .from(reviewGoogleReputationSnapshotFacts)
+        .where(
+          and(
+            eq(
+              reviewGoogleReputationSnapshotFacts.organizationId,
+              properties.organizationId,
+            ),
+            eq(reviewGoogleReputationSnapshotFacts.propertyId, properties.id),
+            eq(reviewGoogleReputationSnapshotFacts.sourceEpoch, properties.sourceEpoch),
+            gte(reviewGoogleReputationSnapshotFacts.evaluatedAt, reconciledSince),
+          ),
+        )
+      const requested = [...new Set(propertyIds)]
+      const recent = await db
+        .select({ propertyId: properties.id })
+        .from(properties)
+        .where(and(inArray(properties.id, requested), exists(recentFact)))
+      const recentIds = new Set(recent.map((row) => row.propertyId))
+      const stale = requested.filter((id) => !recentIds.has(id))
+
+      const states = await db
+        .select({
+          propertyId: reviewSyncState.propertyId,
+          nextIncrementalAt: reviewSyncState.nextIncrementalAt,
+          errorRetryAt: reviewSyncState.errorRetryAt,
+        })
+        .from(reviewSyncState)
+        .where(
+          and(
+            inArray(reviewSyncState.propertyId, stale),
+            eq(reviewSyncState.source, DISCOVERY_SOURCE),
+          ),
+        )
+      // A failure keeps its backoff: pulling it ahead of `error_retry_at`
+      // would undo the wait the failure earned. A look already due, or one
+      // with no row (never polled), needs no move.
+      const inBackoff = states.filter(
+        (state) => state.errorRetryAt !== null && state.errorRetryAt > now,
+      )
+      const movable = states.filter(
+        (state) =>
+          !inBackoff.includes(state) &&
+          state.nextIncrementalAt !== null &&
+          state.nextIncrementalAt > now,
+      )
+      if (movable.length > 0) {
+        // Only the due time (and `updated_at`): nothing was synced, so the
+        // success stamp and any failure state stay as they were.
+        await db
+          .update(reviewSyncState)
+          .set({ nextIncrementalAt: now, updatedAt: now })
+          .where(
+            and(
+              inArray(
+                reviewSyncState.propertyId,
+                movable.map((state) => state.propertyId),
+              ),
+              eq(reviewSyncState.source, DISCOVERY_SOURCE),
+              gt(reviewSyncState.nextIncrementalAt, now),
+            ),
+          )
+      }
+      return {
+        pulledForward: movable.length,
+        skippedRecent: recentIds.size,
+        skippedBackoff: inBackoff.length,
+      }
     }),
 
   markSyncSucceeded: async (propertyId) =>

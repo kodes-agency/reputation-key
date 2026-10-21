@@ -149,6 +149,7 @@ const propertySourceEpoch = { getSourceEpoch: async () => ({ sourceEpoch: 0 }) }
 
 const discoveryRepo = {
   markDiscoveryDeferred: vi.fn(async () => undefined),
+  findFailureState: vi.fn(async () => null),
   markSyncSucceeded: vi.fn(async () => undefined),
 }
 

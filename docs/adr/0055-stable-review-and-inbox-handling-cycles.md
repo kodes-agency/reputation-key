@@ -464,6 +464,86 @@ What this does not do: it does not prove a listing, so it never moves
 that has dropped out of the newest 50 is invisible to it, as is every deletion.
 The six-hour reconciliation still covers both.
 
+## Note 2026-10-21 (e) — a failed snapshot backs off, and the content refresh moves the schedule
+
+Two things still spent Google quota on a Property that was not going to get
+better by asking again. Both are changes of timing, and neither changes what a
+completed run stores.
+
+**A repeated failure waits longer.** A snapshot run that ends in a coded failure
+other than the restart-at-once ones is retried by the discovery sweep. Until now
+every retry came 15 minutes later. On the largest Property one attempt is a full
+double listing, about 150 calls, so a failure that recurs (Google's count off by
+more than the tolerance, a listing that keeps moving) spent that quota 96 times a
+day. The wait now grows with consecutive failures:
+
+| Consecutive failure | Next retry after               |
+| ------------------- | ------------------------------ |
+| first               | 15 minutes (the base interval) |
+| second              | 1 hour                         |
+| third               | 4 hours                        |
+| fourth and later    | 6 hours (the cap)              |
+
+- **The cap keeps decision 5 and Goals' 24 hour freshness rule.** A run is still
+  attempted at least every six hours, so a Property that recovers is read within
+  six hours of it, and Goals never waits a day for its figures.
+- **Reset.** A completed run clears the failure (`markSyncSucceeded`, as before)
+  and the next failure starts at 15 minutes again.
+- **Unchanged.** A location over the review or page cap (`location_too_large`)
+  keeps its 24 hours. `cursor_lost` and a `listing_changed` inside the quiet
+  limit still start a fresh run at once and record nothing.
+- **No new column.** The wait of the previous failure is read from two columns
+  that exist: `error_retry_at` minus `last_terminal_error_at`. That second column
+  was never written; deferring a failure now writes it (the time of the
+  failure). `error_retry_at` and `next_incremental_at` are written with one
+  value, so the sweep, which selects on `next_incremental_at`, cannot reach a
+  failed Property before its backoff. A failure recorded before this change has no
+  time and is treated as having waited the base interval, so its next wait is
+  one hour.
+- **A queue retry is not a new failure.** A snapshot failure also fails the job,
+  and a job has three attempts. A failure that lands before the previous
+  failure's retry date is that same attempt retried by the queue: it keeps the
+  previous wait instead of climbing a rung per attempt. Only a failure after the
+  retry came due counts as the next consecutive one.
+- **Rule and log.** The wait is a pure function (`snapshotFailureRetryMs`,
+  `domain/snapshot-failure-backoff.ts`). The job logs the code and the chosen
+  wait (`review_snapshot_failure_deferred`, `failureCode`, `retryAfterMs`) and
+  nothing from the payload.
+
+**The content refresh no longer queues full syncs.** `refresh-expiring-reviews`
+used to enqueue a full sync for every location with a review expiring within five
+days, once an hour, with no spread, no job id, and no regard for the discovery
+schedule or the skip rule. Every completed snapshot already refreshes the
+30-day content clock of every review it lists, so that second path only repeated
+what discovery does. The sweep now asks one question per Property:
+
+- **Last completed reconciliation older than 24 hours** (or none in the current
+  source epoch): the Property's next look is moved up to now
+  (`next_incremental_at = least(next_incremental_at, now)`). The discovery sweep
+  then runs it, with its start spread, the skip rule and the failure backoff
+  above. Nothing is enqueued by the refresh itself.
+- **Otherwise nothing.** A listing that completed inside the day refreshed every
+  review Google lists. A review that still expires was not listed, and letting it
+  expire is correct.
+- **A failure keeps its backoff.** A Property whose failure retry date is still
+  ahead is not pulled forward: the refresh would otherwise undo the wait the
+  failure earned.
+- **Unchanged.** The hourly schedule, the keyset cursor, the run row and the
+  rule that only live reviews of a Property a sync can still run for are
+  considered. On the run row `enqueued_count` now counts Properties pulled
+  forward and `enqueue_failed_count` counts failed schedule updates (no
+  migration). The completion log carries `pulledForward`, `skippedRecent` and
+  `skippedBackoff`, counts only.
+
+Enforced by `snapshot-failure-backoff.test.ts` (the rung table, the cap, the
+parked day, the reset, the queue retry), `sync-property-reviews.job.test.ts`
+(the interval each failure is dated with; restart codes unchanged),
+`review-discovery-backoff.repository.test.ts` (three failures against
+PostgreSQL, the reset, and the pull-forward conditions),
+`refresh-expiring-reviews.job.test.ts` and
+`refresh-expiring-reviews.integration.test.ts` (the sweep enqueues nothing; it
+moves the schedule only for a stale reconciliation).
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

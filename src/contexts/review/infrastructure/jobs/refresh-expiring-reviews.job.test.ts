@@ -1,13 +1,17 @@
 // Unit tests for refresh expiring reviews job handler (BQC-1.5).
-// Tests: keyset cursor batches, budget stop + resume, enqueue-failure
+// Tests: keyset cursor batches, budget stop + resume, pull-forward failure
 // semantics (never acknowledged as success), run-state persistence,
-// oldest-due alerting.
+// oldest-due alerting, and that the sweep enqueues no sync of its own: it
+// moves the discovery schedule (the 2026-10-21 (e) note of ADR 0055).
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import type { Review } from '../../domain/types'
 import type { ReviewRepository } from '../../application/ports/review.repository'
-import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
+import type {
+  PullLooksForwardResult,
+  ReviewDiscoveryRepository,
+} from '../../application/ports/review-discovery.repository'
 import type {
   RefreshRun,
   RefreshRunCursor,
@@ -28,6 +32,11 @@ const PROP_B = propertyId('prop-b')
 const CONN_ID = googleConnectionId('conn-1')
 const NOW = new Date('2025-06-01T12:00:00.000Z')
 const DAYS = 24 * 60 * 60 * 1000
+const PULLED_ONE: PullLooksForwardResult = {
+  pulledForward: 1,
+  skippedRecent: 0,
+  skippedBackoff: 0,
+}
 
 /** Review in the refresh_due window (fetched 27 days ago; expires in 3 days). */
 function makeRefreshDueReview(overrides: Partial<Review> = {}): Review {
@@ -135,7 +144,7 @@ function makeDeps(
   batches: Review[][],
   opts: {
     runRepo?: RunRepoFake
-    addSyncJob?: ReviewQueuePort['addSyncJob']
+    pullLooksForward?: ReviewDiscoveryRepository['pullLooksForward']
     batchSize?: number
     maxBatches?: number
   } = {},
@@ -147,50 +156,105 @@ function makeDeps(
   const reviewRepo = {
     findExpiringBatchAcrossTenants,
   } as unknown as ReviewRepository
-  const queue = {
-    addSyncJob: opts.addSyncJob ?? vi.fn(async () => {}),
-  } as unknown as ReviewQueuePort
+  const discoveryRepo = {
+    pullLooksForward: opts.pullLooksForward ?? vi.fn(async () => PULLED_ONE),
+  }
   const logger = { info: vi.fn(), warn: vi.fn() }
   const handler = createRefreshExpiringReviewsHandler({
     reviewRepo,
-    queue,
+    discoveryRepo,
     refreshRunRepo: runRepo,
     clock: () => NOW,
     logger,
     batchSize: opts.batchSize ?? 2,
     maxBatches: opts.maxBatches ?? 10,
   })
-  return { handler, reviewRepo, queue, runRepo, logger, findExpiringBatchAcrossTenants }
+  return {
+    handler,
+    reviewRepo,
+    discoveryRepo,
+    runRepo,
+    logger,
+    findExpiringBatchAcrossTenants,
+  }
 }
 
 describe('refresh sweep (BQC-1.5)', () => {
-  it('enqueues one sync job per group and records completed', async () => {
-    const { handler, queue, runRepo } = makeDeps([
+  it('pulls the look of each Property forward once and records completed', async () => {
+    const pullLooksForward = vi.fn(async () => ({
+      pulledForward: 2,
+      skippedRecent: 0,
+      skippedBackoff: 0,
+    }))
+    const { handler, discoveryRepo, runRepo } = makeDeps(
       [
-        makeRefreshDueReview({ propertyId: PROP_A, externalLocationId: 'loc-A' }),
-        makeRefreshDueReview({
-          id: reviewId('rev-b'),
-          propertyId: PROP_B,
-          externalLocationId: 'loc-B',
-        }),
-        makeRefreshDueReview({
-          id: reviewId('rev-c'),
-          propertyId: PROP_A,
-          externalLocationId: 'loc-A',
-          externalId: 'ext-2',
-        }),
+        [
+          makeRefreshDueReview({ propertyId: PROP_A, externalLocationId: 'loc-A' }),
+          makeRefreshDueReview({
+            id: reviewId('rev-b'),
+            propertyId: PROP_B,
+            externalLocationId: 'loc-B',
+          }),
+          makeRefreshDueReview({
+            id: reviewId('rev-c'),
+            propertyId: PROP_A,
+            externalLocationId: 'loc-A',
+            externalId: 'ext-2',
+          }),
+        ],
       ],
+      { pullLooksForward },
+    )
+
+    await handler({} as never)
+
+    // A day: a listing newer than this already refreshed every review Google lists.
+    expect(discoveryRepo.pullLooksForward).toHaveBeenCalledExactlyOnceWith(
+      [PROP_A, PROP_B],
+      NOW,
+      new Date(NOW.getTime() - DAYS),
+    )
+    expect(runRepo.runs.at(0)).toMatchObject({
+      status: 'completed',
+      finishedAt: NOW,
+      refreshDueCount: 3,
+      enqueuedCount: 2,
+      enqueueFailedCount: 0,
+      nextAttemptAt: new Date(NOW.getTime() + 60 * 60 * 1000),
+    })
+  })
+
+  it('asks about a Property once even when its reviews fill several batches', async () => {
+    const { handler, discoveryRepo } = makeDeps([
+      [makeRefreshDueReview({ id: reviewId('rev-1') })],
+      [makeRefreshDueReview({ id: reviewId('rev-2') })],
+      [],
     ])
 
     await handler({} as never)
 
-    expect(queue.addSyncJob).toHaveBeenCalledTimes(2)
-    const run = runRepo.runs[0]
-    expect(run.status).toBe('completed')
-    expect(run.finishedAt).toEqual(NOW)
-    expect(run.refreshDueCount).toBe(3)
-    expect(run.enqueuedCount).toBe(2)
-    expect(run.nextAttemptAt).toEqual(new Date(NOW.getTime() + 60 * 60 * 1000))
+    expect(discoveryRepo.pullLooksForward).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs content-free counts: pulled forward, skipped for a recent listing, skipped for backoff', async () => {
+    const { handler, logger } = makeDeps([[makeRefreshDueReview()]], {
+      pullLooksForward: vi.fn(async () => ({
+        pulledForward: 3,
+        skippedRecent: 2,
+        skippedBackoff: 1,
+      })),
+    })
+
+    await handler({} as never)
+
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pulledForward: 3,
+        skippedRecent: 2,
+        skippedBackoff: 1,
+      }),
+      'Refresh expiring reviews completed',
+    )
   })
 
   it('advances the keyset cursor between batches', async () => {
@@ -228,16 +292,16 @@ describe('refresh sweep (BQC-1.5)', () => {
     expect(run.batchesProcessed).toBe(1)
   })
 
-  it('failed enqueue → records failed, throws, holds the cursor (never acknowledged as success)', async () => {
-    const failingQueue = vi.fn(async () => {
-      throw new Error('Redis down')
+  it('failed pull-forward → records failed, throws, holds the cursor (never acknowledged as success)', async () => {
+    const failingPull = vi.fn(async () => {
+      throw new Error('database unavailable')
     })
     const { handler, runRepo } = makeDeps(
       [[makeRefreshDueReview()], [makeRefreshDueReview({ id: reviewId('rev-2') })]],
-      { addSyncJob: failingQueue },
+      { pullLooksForward: failingPull },
     )
 
-    await expect(handler({} as never)).rejects.toThrow(/enqueue failure/)
+    await expect(handler({} as never)).rejects.toThrow(/pull-forward failure/)
 
     const run = runRepo.runs[0]
     expect(run.status).toBe('failed')
@@ -283,12 +347,12 @@ describe('refresh sweep (BQC-1.5)', () => {
     })
   })
 
-  it('does not enqueue already-expired reviews (purge owns those)', async () => {
-    const { handler, queue } = makeDeps([[makeExpiredReview()]])
+  it('does not touch the schedule for already-expired reviews (purge owns those)', async () => {
+    const { handler, discoveryRepo } = makeDeps([[makeExpiredReview()]])
 
     await handler({} as never)
 
-    expect(queue.addSyncJob).not.toHaveBeenCalled()
+    expect(discoveryRepo.pullLooksForward).not.toHaveBeenCalled()
   })
 
   it('records oldest due expiry and warns when under the alert lead', async () => {
@@ -312,11 +376,11 @@ describe('refresh sweep (BQC-1.5)', () => {
   })
 
   it('does nothing when no candidates', async () => {
-    const { handler, queue, runRepo } = makeDeps([[]])
+    const { handler, discoveryRepo, runRepo } = makeDeps([[]])
 
     await handler({} as never)
 
-    expect(queue.addSyncJob).not.toHaveBeenCalled()
+    expect(discoveryRepo.pullLooksForward).not.toHaveBeenCalled()
     expect(runRepo.runs[0].status).toBe('completed')
     expect(runRepo.runs[0].candidatesSeen).toBe(0)
   })
