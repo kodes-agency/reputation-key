@@ -22,7 +22,7 @@ import {
 } from './inbox-command-store'
 import { createFeedbackHandlingStore } from './feedback-handling.store'
 import { createResponseTargetStore } from './response-target.store'
-import { completeGoogleReviewTarget } from './response-target.store'
+import { completeGoogleReviewTarget } from './google-review-target-completion'
 import { createResponseTargetPolicyStore } from './response-target-policy.store'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
 
@@ -429,7 +429,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     const completedAt = new Date('2026-08-28T08:45:00.000Z')
     await expect(
       db.transaction((tx) => completeGoogleReviewTarget(tx, head, completedAt)),
-    ).resolves.toBe('on_time')
+    ).resolves.toEqual({ result: 'on_time', completedAt })
     await expect(
       targets.getCycleTarget(REVIEW_ITEM, ORG, completedAt),
     ).resolves.toMatchObject({
@@ -471,6 +471,113 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       { source_id: HISTORICAL_REVIEW, count: 0 },
       { source_id: UNKNOWN_REVIEW, count: 0 },
     ])
+  })
+
+  it("completes a Google-confirmed RepKey reply at Google's reply time and feeds the average from it", async () => {
+    await seedScope()
+    await projectMeasuredReview(REVIEW_ITEM, REVIEW, OPENED_AT)
+    const observedAt = new Date('2026-08-28T12:00:00.000Z')
+    const providerReplyUpdatedAt = new Date('2026-08-28T08:20:00.000Z')
+    const eventId = '79000000-0000-4000-8000-000000000098'
+    await pool.query(
+      `INSERT INTO outbox_events (
+         id, event_type, event_version, payload, organization_id, property_id,
+         source_context, source_aggregate_id, created_at
+       ) VALUES ($1, 'review.reply.observed', 1, '{}'::jsonb, $2, $3,
+                 'review', $4, $5)`,
+      [eventId, ORG, PROPERTY, REVIEW, observedAt],
+    )
+    const item = makeReviewItem(REVIEW_ITEM, REVIEW)
+    await commandStore(db).applyReplyObservedOnce({
+      eventId,
+      consumerName: 'inbox.response-target-google-time-test',
+      item,
+      currentObservation: {
+        authority: 'review.current-google-reply-observation.v1',
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        reviewId: REVIEW,
+        observationRevision: 1,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        sourceEpochCarryFromMaterialReviewRevision: null,
+        state: 'live',
+        change: 'added',
+        resolution: 'confirmed_on_google',
+        provenance: 'repkey_confirmed',
+        matchedReplyId: null,
+        matchedPublicationCycle: null,
+        observedAt,
+        providerReplyUpdatedAt,
+        reviewSourceContentState: 'active',
+        responseTargetEligibility: 'measured',
+        responseTargetStartAt: OPENED_AT,
+        rating: null,
+      },
+      closeFact: inboxItemStatusChanged({
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
+        propertyId: item.propertyId,
+        oldStatus: 'open',
+        newStatus: 'closed',
+        occurredAt: observedAt,
+        source: 'import',
+      }),
+      reopenFact: inboxItemStatusChanged({
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
+        propertyId: item.propertyId,
+        oldStatus: 'closed',
+        newStatus: 'open',
+        occurredAt: observedAt,
+        source: 'import',
+      }),
+    })
+
+    const targets = createResponseTargetStore(db)
+    await expect(
+      targets.getCycleTarget(REVIEW_ITEM, ORG, observedAt),
+    ).resolves.toMatchObject({
+      completionAt: providerReplyUpdatedAt,
+      result: 'on_time',
+      stopReason: 'confirmed_on_google',
+    })
+    await expect(
+      targets.getGoogleReviewAnalytics({
+        organizationId: ORG,
+        propertyIds: [PROPERTY],
+        now: observedAt,
+      }),
+    ).resolves.toMatchObject({
+      respondedOnTimeCount: 1,
+      averageTimeToResponseMinutes: 20,
+    })
+  })
+
+  it('never stops a Google target before it started, however early Google dates the reply', async () => {
+    await seedScope()
+    await projectMeasuredReview(REVIEW_ITEM, REVIEW, OPENED_AT)
+    const head = await createReviewHandlingCycleStore(db).findSourceHead?.(
+      REVIEW_ITEM,
+      ORG,
+    )
+    if (!head) throw new Error('measured Review Handling Cycle was not created')
+    const observedAt = new Date('2026-08-28T12:00:00.000Z')
+
+    await expect(
+      db.transaction((tx) =>
+        completeGoogleReviewTarget(
+          tx,
+          head,
+          observedAt,
+          new Date(OPENED_AT.getTime() - 60 * 60_000),
+        ),
+      ),
+    ).resolves.toEqual({ result: 'on_time', completedAt: OPENED_AT })
+
+    await expect(
+      createResponseTargetStore(db).getCycleTarget(REVIEW_ITEM, ORG, observedAt),
+    ).resolves.toMatchObject({ completionAt: OPENED_AT, result: 'on_time' })
   })
 
   it('snapshots Property policy, records approved handling timing, and preserves it across correction and reopen', async () => {
@@ -1023,6 +1130,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
         matchedReplyId: null,
         matchedPublicationCycle: null,
         observedAt: closedAt,
+        providerReplyUpdatedAt: null,
         reviewSourceContentState: 'active',
         responseTargetEligibility: 'historical_onboarding',
         responseTargetStartAt: null,

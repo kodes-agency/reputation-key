@@ -69,7 +69,7 @@ const responseTargetPermit = (materialReviewRevision: number) => ({
   targetStart: { basis: 'review_provenance' as const },
 })
 
-const measuredResponseTargetPermit = () => ({
+const measuredResponseTargetPermit = (startAt: Date = OPENED_AT) => ({
   reviewAuthority: {
     authority: 'review.current-response-target.v1' as const,
     organizationId: ORG,
@@ -78,7 +78,7 @@ const measuredResponseTargetPermit = () => ({
     sourceEpoch: 0,
     materialReviewRevision: 1,
     eligibility: 'measured' as const,
-    responseTargetStartAt: OPENED_AT,
+    responseTargetStartAt: startAt,
     rating: null,
   },
   targetStart: { basis: 'review_provenance' as const },
@@ -142,6 +142,10 @@ async function clean(): Promise<void> {
   ])
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
+  await pool.query(
+    'DELETE FROM inbox_response_target_organization_policies WHERE organization_id = $1',
+    [ORG],
+  )
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
@@ -151,7 +155,16 @@ async function clean(): Promise<void> {
  * `measured` gives the cycle a 48 hour Google-review Response Target (halfway
  * and target-passed reminder slots) timed from OPENED_AT, as a live review has.
  */
-async function seed(options: Readonly<{ measured?: boolean }> = {}): Promise<InboxItem> {
+async function seed(
+  options: Readonly<{
+    measured?: boolean
+    /** Organization policy for the Google-review target; the built-in default is 48 hours. */
+    targetMinutes?: number
+    /** When Google says the review was created, the target's start. Defaults to OPENED_AT. */
+    sourceCreatedAt?: Date
+  }> = {},
+): Promise<InboxItem> {
+  const sourceCreatedAt = options.sourceCreatedAt ?? OPENED_AT
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'Inbox Reply Observation', 'inbox-reply-observation', NOW())`,
@@ -193,9 +206,18 @@ async function seed(options: Readonly<{ measured?: boolean }> = {}): Promise<Inb
       '1'.repeat(64),
       OPENED_AT,
       options.measured ? 'measured' : 'legacy_unknown',
-      options.measured ? OPENED_AT : null,
+      options.measured ? sourceCreatedAt : null,
     ],
   )
+  if (options.targetMinutes !== undefined) {
+    await pool.query(
+      `INSERT INTO inbox_response_target_organization_policies (
+         organization_id, target_kind, duration_minutes, policy_version,
+         updated_by, created_at, updated_at
+       ) VALUES ($1, 'google_review_response', $2, 1, 'policy-manager', $3, $3)`,
+      [ORG, options.targetMinutes, OPENED_AT],
+    )
+  }
   const item = makeItem()
   await createAtomicInboxCommandStore(getDb()).createItem(
     item,
@@ -207,7 +229,7 @@ async function seed(options: Readonly<{ measured?: boolean }> = {}): Promise<Inb
           actorType: 'provider',
           triggerEventId: null,
           openedAt: OPENED_AT,
-          responseTarget: measuredResponseTargetPermit(),
+          responseTarget: measuredResponseTargetPermit(sourceCreatedAt),
         }
       : { materialReviewRevision: 1 },
   )
@@ -222,6 +244,10 @@ type Observation = Readonly<{
   change: 'added' | 'edited' | 'deleted'
   resolution: 'external_current_live' | 'confirmed_on_google' | 'diverged' | 'absent'
   provenance: 'external_or_unknown' | 'repkey_confirmed' | 'none'
+  /** Google's reply updateTime; null or omitted when Google gave none. */
+  providerUpdatedAt?: Date | null
+  /** When RepKey read it; defaults to OBSERVED_AT. */
+  observedAt?: Date
 }>
 
 async function insertObservation(observation: Observation): Promise<void> {
@@ -235,10 +261,11 @@ async function insertObservation(observation: Observation): Promise<void> {
          organization_id, property_id, review_id, observation_revision,
          observation_key, input_digest, source_epoch, material_review_revision,
          read_generation, state, change, resolution, source, provenance, normalized_text,
-         normalization_version, normalized_digest, observed_at, content_expires_at
+         normalization_version, normalized_digest, observed_at, content_expires_at,
+         provider_updated_at
        ) VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $4, $9, $10, $11,
-         'provider_snapshot', $12, $13, 'google-reply-v1', $14, $15, $16
+         'provider_snapshot', $12, $13, 'google-reply-v1', $14, $15, $16, $17
        ) RETURNING id`,
       [
         ORG,
@@ -261,8 +288,9 @@ async function insertObservation(observation: Observation): Promise<void> {
               .repeat(64)
               .slice(0, 64)
           : null,
-        OBSERVED_AT,
+        observation.observedAt ?? OBSERVED_AT,
         EXPIRES_AT,
+        observation.providerUpdatedAt ?? null,
       ],
     )
     await client.query(
@@ -289,7 +317,7 @@ async function insertObservation(observation: Observation): Promise<void> {
         observation.materialReviewRevision ?? 1,
         observation.state,
         observation.provenance,
-        OBSERVED_AT,
+        observation.observedAt ?? OBSERVED_AT,
       ],
     )
     await client.query('COMMIT')
@@ -383,7 +411,7 @@ function expectation(observation: Observation) {
     provenance: observation.provenance,
     matchedReplyId: null,
     matchedPublicationCycle: null,
-    occurredAt: OBSERVED_AT,
+    occurredAt: observation.observedAt ?? OBSERVED_AT,
   } as const
 }
 
@@ -1330,6 +1358,239 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
         released: 1,
       })
       expect(await reminderFacts()).toBe(1)
+    })
+  })
+
+  describe("the Response Target completes at the reply's time on Google", () => {
+    const HOUR = 3_600_000
+    const FOUR_HOURS = 240
+    /** Hours after OPENED_AT (10:00), which is the target's start unless a test moves it. */
+    const at = (hours: number) => new Date(OPENED_AT.getTime() + hours * HOUR)
+    const EVENT_FIRST = EVENT_LIVE
+    const EVENT_SECOND = EVENT_EXTERNAL_EDITED
+
+    const external = (overrides: Partial<Observation> = {}): Observation => ({
+      revision: 1,
+      state: 'live',
+      change: 'added',
+      resolution: 'external_current_live',
+      provenance: 'external_or_unknown',
+      ...overrides,
+    })
+
+    const targetRow = async (cycleNumber = 1) =>
+      (
+        await pool.query(
+          `SELECT start_at, due_at, completion_at, result, stop_reason, created_at, updated_at
+           FROM inbox_handling_cycle_response_targets
+           WHERE inbox_item_id = $1 AND cycle_number = $2`,
+          [ITEM, cycleNumber],
+        )
+      ).rows[0]
+
+    const itemTimes = async () =>
+      (
+        await pool.query(
+          `SELECT status, closed_at, first_reply_published_at FROM inbox_items WHERE id = $1`,
+          [ITEM],
+        )
+      ).rows[0]
+
+    const closeOn = async (
+      item: InboxItem,
+      observation: Observation,
+      eventId: string,
+    ) => {
+      await insertObservation(observation)
+      await seedDeliveryEvent(eventId)
+      expect(await applyObservation(item, eventId, observation)).toBe('applied')
+    }
+
+    it('counts a reply written 2 hours after the review as on time against a 4 hour target although RepKey read it 7 hours later', async () => {
+      const item = await seed({ measured: true, targetMinutes: FOUR_HOURS })
+      await closeOn(
+        item,
+        external({ providerUpdatedAt: at(2), observedAt: at(9) }),
+        EVENT_FIRST,
+      )
+
+      expect(await targetRow()).toMatchObject({
+        start_at: at(0),
+        due_at: at(4),
+        completion_at: at(2),
+        result: 'on_time',
+        stop_reason: 'confirmed_on_google',
+        updated_at: at(9),
+      })
+      expect(await itemTimes()).toMatchObject({
+        status: 'closed',
+        closed_at: at(9),
+        first_reply_published_at: at(2),
+      })
+    })
+
+    it("counts a reply Google dates after the deadline as late, at Google's time", async () => {
+      const item = await seed({ measured: true, targetMinutes: FOUR_HOURS })
+      await closeOn(
+        item,
+        external({ providerUpdatedAt: at(5), observedAt: at(9) }),
+        EVENT_FIRST,
+      )
+
+      expect(await targetRow()).toMatchObject({
+        completion_at: at(5),
+        result: 'late',
+      })
+    })
+
+    it.each([
+      {
+        name: 'a Google time before the target started clamps up to the start',
+        providerUpdatedAt: at(-1),
+        observedAt: at(9),
+        expected: at(0),
+      },
+      {
+        name: 'a Google time after RepKey read the reply clamps down to the read',
+        providerUpdatedAt: at(12),
+        observedAt: at(9),
+        expected: at(9),
+      },
+      {
+        name: 'no Google time falls back to the time RepKey read the reply',
+        providerUpdatedAt: null,
+        observedAt: at(9),
+        expected: at(9),
+      },
+    ])('$name, for both the target and the first reply time', async (row) => {
+      const item = await seed({ measured: true, targetMinutes: FOUR_HOURS })
+      await closeOn(
+        item,
+        external({
+          providerUpdatedAt: row.providerUpdatedAt,
+          observedAt: row.observedAt,
+        }),
+        EVENT_FIRST,
+      )
+
+      expect((await targetRow()).completion_at).toEqual(row.expected)
+      expect((await itemTimes()).first_reply_published_at).toEqual(row.expected)
+    })
+
+    it('never moves the completion when the reply is edited on Google afterwards', async () => {
+      const item = await seed({ measured: true, targetMinutes: FOUR_HOURS })
+      await closeOn(
+        item,
+        external({ providerUpdatedAt: at(2), observedAt: at(9) }),
+        EVENT_FIRST,
+      )
+      const before = await targetRow()
+      const firstReplyBefore = (await itemTimes()).first_reply_published_at
+
+      await closeOn(
+        item,
+        external({
+          revision: 2,
+          change: 'edited',
+          providerUpdatedAt: at(10),
+          observedAt: at(12),
+        }),
+        EVENT_SECOND,
+      )
+
+      expect(await targetRow()).toEqual(before)
+      expect((await itemTimes()).first_reply_published_at).toEqual(firstReplyBefore)
+    })
+
+    it('clamps to the reopen instant when the reply predates a manual reopen that RepKey read after', async () => {
+      const item = await seed({ measured: true, targetMinutes: FOUR_HOURS })
+      await closeOn(
+        item,
+        external({ providerUpdatedAt: at(2), observedAt: at(9) }),
+        EVENT_FIRST,
+      )
+      const reopenAt = at(10)
+      const cycleStore = createReviewHandlingCycleStore(getDb())
+      const closedHead = await cycleStore.findHead(ITEM, ORG)
+      if (closedHead === null) throw new Error('seeded Handling Cycle is missing')
+      await cycleStore.startNext({
+        inboxItemId: ITEM,
+        organizationId: ORG,
+        expected: {
+          cycleNumber: closedHead.currentCycleNumber,
+          materialReviewRevision: closedHead.currentMaterialReviewRevision,
+          stateRevision: closedHead.stateRevision,
+        },
+        materialReviewRevision: 1,
+        openedReason: 'manual_reopen',
+        manualReopenReason: 'internal_follow_up_still_needed',
+        manualReopenExplanation: null,
+        openedBy: MANUAL_REOPEN_ACTOR,
+        openedAt: reopenAt,
+        responseTarget: {
+          reviewAuthority: {
+            ...measuredResponseTargetPermit().reviewAuthority,
+            responseTargetStartAt: reopenAt,
+          },
+          targetStart: { basis: 'operational_reopen', at: reopenAt },
+        },
+      })
+
+      await closeOn(
+        item,
+        external({
+          revision: 2,
+          change: 'edited',
+          providerUpdatedAt: at(9.5),
+          observedAt: at(11),
+        }),
+        EVENT_SECOND,
+      )
+
+      expect(await targetRow(2)).toMatchObject({
+        start_at: reopenAt,
+        completion_at: reopenAt,
+        result: 'on_time',
+        updated_at: at(11),
+      })
+      expect((await targetRow(1)).completion_at).toEqual(at(2))
+    })
+
+    it('still cancels both pending reminder slots at the read, even when the reply predates the target row', async () => {
+      const item = await seed({
+        measured: true,
+        targetMinutes: FOUR_HOURS,
+        sourceCreatedAt: at(-1),
+      })
+      await closeOn(
+        item,
+        external({ providerUpdatedAt: at(-0.5), observedAt: at(9) }),
+        EVENT_FIRST,
+      )
+
+      const target = await targetRow()
+      expect(target.completion_at).toEqual(at(-0.5))
+      expect(target.completion_at.getTime()).toBeLessThan(target.created_at.getTime())
+      expect(target).toMatchObject({ result: 'on_time', updated_at: at(9) })
+      const slots = await pool.query(
+        `SELECT reminder_kind, delivered_at, cancelled_at, updated_at
+         FROM inbox_response_target_reminders WHERE inbox_item_id = $1 ORDER BY scheduled_for`,
+        [ITEM],
+      )
+      expect(slots.rows).toEqual([
+        {
+          reminder_kind: 'halfway',
+          delivered_at: null,
+          cancelled_at: at(9),
+          updated_at: at(9),
+        },
+        {
+          reminder_kind: 'target_passed',
+          delivered_at: null,
+          cancelled_at: at(9),
+          updated_at: at(9),
+        },
+      ])
     })
   })
 })

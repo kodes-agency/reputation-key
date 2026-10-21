@@ -117,13 +117,13 @@ describe('response target chip', () => {
       label: 'Replied on time',
       tone: 'positive',
       description:
-        'A current response was observed live on Google within the saved target.',
+        'A current response was on Google within the saved target, counted at its time on Google.',
     })
     expect(presentResponseTargetChip(completedTarget('late'), NOW)).toMatchObject({
       label: 'Replied late',
       tone: 'neutral',
       description:
-        'A current response was observed live on Google after the saved target and remains included in reporting.',
+        'A current response was on Google after the saved target, counted at its time on Google, and remains included in reporting.',
     })
   })
 

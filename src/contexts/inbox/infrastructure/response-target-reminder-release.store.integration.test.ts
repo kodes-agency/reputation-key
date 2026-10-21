@@ -20,7 +20,7 @@ import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
 } from './inbox-command-store'
-import { completeGoogleReviewTarget } from './response-target.store'
+import { completeGoogleReviewTarget } from './google-review-target-completion'
 import { createResponseTargetStore } from './response-target.store'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
 

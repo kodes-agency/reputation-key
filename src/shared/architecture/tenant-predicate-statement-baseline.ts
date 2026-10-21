@@ -46,7 +46,6 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/inbox/infrastructure/inbox-command-store.ts#updateStatus': 1,
   'src/contexts/inbox/infrastructure/inbox-escalation-history.ts#readInboxEscalationHistory': 1,
   'src/contexts/inbox/infrastructure/response-target.store.ts#cancelResponseTargetForCycle': 2,
-  'src/contexts/inbox/infrastructure/response-target.store.ts#completeGoogleReviewTarget': 2,
   'src/contexts/inbox/infrastructure/response-target.store.ts#stopPrivateFeedbackTarget': 2,
   'src/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository.ts#acquireDispatch': 1,
   'src/contexts/portal/infrastructure/portal-command-store.ts#applyPortalHealthMutation': 2,

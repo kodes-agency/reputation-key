@@ -122,6 +122,7 @@ function fakeAuthority(answer: 'current' | 'obsolete') {
         sourceEpochCarryFromMaterialReviewRevision: null,
         state: 'live',
         observedAt: expectation.occurredAt,
+        providerReplyUpdatedAt: null,
         reviewSourceContentState: 'active',
         responseTargetEligibility: 'legacy_unknown',
         responseTargetStartAt: null,

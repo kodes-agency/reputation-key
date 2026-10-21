@@ -4,6 +4,7 @@ import {
   classifyResponseTargetCompletion,
   evaluateResponseTarget,
   isSupersededReminder,
+  resolveGoogleReplyCompletion,
   resolveGoogleReviewTargetPolicy,
   resolvePrivateFeedbackTargetPolicy,
   schedulableReminders,
@@ -318,6 +319,125 @@ describe('classifyResponseTargetCompletion', () => {
     expect(classifyResponseTargetCompletion(DUE, new Date(DUE.getTime() + 1))).toBe(
       'late',
     )
+  })
+})
+
+describe('resolveGoogleReplyCompletion', () => {
+  const TARGET_START = new Date('2026-08-30T10:00:00.000Z')
+  const OBSERVED = new Date('2026-08-30T17:00:00.000Z')
+  const at = (iso: string) => new Date(iso)
+
+  it("stops the clock at Google's reply time when it falls between the start and the read", () => {
+    const repliedAt = at('2026-08-30T12:00:00.000Z')
+    expect(
+      resolveGoogleReplyCompletion({
+        repliedAt,
+        startAt: TARGET_START,
+        observedAt: OBSERVED,
+      }),
+    ).toEqual(repliedAt)
+  })
+
+  it('never stops the clock before the target started', () => {
+    expect(
+      resolveGoogleReplyCompletion({
+        repliedAt: at('2026-08-30T09:00:00.000Z'),
+        startAt: TARGET_START,
+        observedAt: OBSERVED,
+      }),
+    ).toEqual(TARGET_START)
+  })
+
+  it('never stops the clock after RepKey read the reply', () => {
+    expect(
+      resolveGoogleReplyCompletion({
+        repliedAt: at('2026-08-30T18:30:00.000Z'),
+        startAt: TARGET_START,
+        observedAt: OBSERVED,
+      }),
+    ).toEqual(OBSERVED)
+  })
+
+  it('falls back to the time RepKey read the reply when Google gives none', () => {
+    expect(
+      resolveGoogleReplyCompletion({
+        repliedAt: null,
+        startAt: TARGET_START,
+        observedAt: OBSERVED,
+      }),
+    ).toEqual(OBSERVED)
+  })
+
+  it('treats an invalid provider time like a missing one', () => {
+    expect(
+      resolveGoogleReplyCompletion({
+        repliedAt: new Date(Number.NaN),
+        startAt: TARGET_START,
+        observedAt: OBSERVED,
+      }),
+    ).toEqual(OBSERVED)
+  })
+
+  it('keeps the start as the lower bound even when the start is after the read', () => {
+    const lateStart = at('2026-08-30T18:00:00.000Z')
+    expect(
+      resolveGoogleReplyCompletion({
+        repliedAt: at('2026-08-30T12:00:00.000Z'),
+        startAt: lateStart,
+        observedAt: OBSERVED,
+      }),
+    ).toEqual(lateStart)
+    expect(
+      resolveGoogleReplyCompletion({
+        repliedAt: null,
+        startAt: lateStart,
+        observedAt: OBSERVED,
+      }),
+    ).toEqual(lateStart)
+  })
+
+  it('has no lower bound when there is no target start', () => {
+    expect(
+      resolveGoogleReplyCompletion({
+        repliedAt: at('2026-08-01T00:00:00.000Z'),
+        startAt: null,
+        observedAt: OBSERVED,
+      }),
+    ).toEqual(at('2026-08-01T00:00:00.000Z'))
+    expect(
+      resolveGoogleReplyCompletion({
+        repliedAt: null,
+        startAt: null,
+        observedAt: OBSERVED,
+      }),
+    ).toEqual(OBSERVED)
+  })
+
+  it('does not mutate or alias its inputs', () => {
+    const repliedAt = at('2026-08-30T12:00:00.000Z')
+    const result = resolveGoogleReplyCompletion({
+      repliedAt,
+      startAt: TARGET_START,
+      observedAt: OBSERVED,
+    })
+    expect(result).not.toBe(repliedAt)
+    expect(repliedAt).toEqual(at('2026-08-30T12:00:00.000Z'))
+  })
+
+  it('classifies a reply on the deadline as on time and a millisecond later as late', () => {
+    const due = at('2026-08-30T14:00:00.000Z')
+    const onDeadline = resolveGoogleReplyCompletion({
+      repliedAt: due,
+      startAt: TARGET_START,
+      observedAt: OBSERVED,
+    })
+    const afterDeadline = resolveGoogleReplyCompletion({
+      repliedAt: new Date(due.getTime() + 1),
+      startAt: TARGET_START,
+      observedAt: OBSERVED,
+    })
+    expect(classifyResponseTargetCompletion(due, onDeadline)).toBe('on_time')
+    expect(classifyResponseTargetCompletion(due, afterDeadline)).toBe('late')
   })
 })
 
