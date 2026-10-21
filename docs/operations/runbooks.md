@@ -1247,7 +1247,11 @@ satisfies the new one.
 
 **Order: web first, then the worker.** `pnpm ops deploy-ci-images` rolls web,
 then the worker, then provider Redis, each settling healthy at its digest before
-the next moves. Provider Redis moves only when something it is built from
+the next moves. A service counts as already deployed only when its latest
+Railway deployment runs that digest, not when its configured source names it:
+Railway can store a new source and start no deployment (the 2026-10-21 outage),
+and the command then redeploys from the source instead of printing `already
+healthy`. Provider Redis moves only when something it is built from
 changed (`Dockerfile.google-provider-redis`, `services/google-provider-redis/`):
 it keeps nothing across a restart (ADR 0050), so each redeploy drops the page
 cursors of the Google review syncs in flight and the OAuth state of any Google
