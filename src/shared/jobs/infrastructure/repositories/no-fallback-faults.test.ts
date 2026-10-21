@@ -575,6 +575,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
         averageRating: null,
         nextCursorRef: null,
       }),
+      readReviewsHead: vi.fn(),
       getReview: async () => ({
         status: 'found',
         review: {

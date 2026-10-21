@@ -11,7 +11,10 @@ keeps its 15-minute cadence and backoff ladder as the safety net. While a
 property's last completed reconciliation is under six hours old, the sweep skips
 its full snapshot and only dates the next look (ADR 0055, note of 2026-10-21;
 `REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED`). That skip applies only when
-`GBP_PUBSUB_TOPIC` is set.
+`GBP_PUBSUB_TOPIC` is set. Each skipped look is followed by a read-only head
+check of Google's newest page (`REVIEW_HEAD_CHECKS`, dark by default: it
+compares and logs, records one counts-only run row, and changes nothing about
+any review).
 
 Everything on the app side is already built. This document is the Google Cloud
 work plus the four environment variables that switch it on; once they are set,
@@ -297,7 +300,7 @@ instead of seconds. Two layers watch it: the app, and Google Cloud Monitoring.
 
 **In the app (nothing to set up).** The app records, for each new review it
 finds, how it was first seen and when Pub/Sub accepted the push for it
-(`review_first_sightings`, ADR 0055 note of 2026-10-21), and reports counts
+(`review_first_sightings`, ADR 0055 note 2026-10-21 (b)), and reports counts
 under `syncPush` in `GET /api/health/metrics`:
 
 | Metric                                                                | Meaning                                                                                                               |

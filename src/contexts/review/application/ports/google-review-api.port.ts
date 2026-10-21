@@ -28,6 +28,28 @@ export type GoogleReviewPage = Readonly<{
 }>
 
 /**
+ * Google's newest page: `reviews.list` page 1 ordered `updateTime desc`, which
+ * Google documents as always accurate. No cursor reference exists for it and it
+ * can never be continued: `hasMore` only says Google had more to give.
+ */
+export type GoogleReviewHeadResult =
+  | Readonly<{
+      status: 'ok'
+      reviews: readonly GoogleReviewRead[]
+      totalReviewCount: number
+      /** Null only when the provider reports zero reviews. */
+      averageRating: number | null
+      /** Google had a further page. */
+      hasMore: boolean
+    }>
+  /**
+   * Google did not honor `orderBy`: a review lacked an updateTime, or one was
+   * newer than the one before it. Nothing else is returned; such a page is
+   * never compared with.
+   */
+  | Readonly<{ status: 'order_violation' }>
+
+/**
  * The `code` of the error a process without a Google provider (a local or e2e
  * stack, a worker with none configured) throws from every call, before any
  * request is made. Callers that must not wait on it can tell it apart from a
@@ -100,6 +122,14 @@ export type GoogleReviewPageRequest = Readonly<{
   cursorRef: string | null
 }>
 
+export type GoogleReviewHeadRequest = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  connectionId: GoogleConnectionId
+  sourceEpoch: number
+  locationName: string
+}>
+
 export type GoogleReviewGetRequest = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -143,6 +173,11 @@ export type GoogleReplyPublicationRequest = Readonly<{
 
 export type GoogleReviewApiPort = Readonly<{
   listReviewsPage(input: GoogleReviewPageRequest): Promise<GoogleReviewPage>
+  /**
+   * One call for Google's newest-updated reviews, with no run, no cursor and no
+   * continuation. Throws a `GoogleReviewApiError` like every other read.
+   */
+  readReviewsHead(input: GoogleReviewHeadRequest): Promise<GoogleReviewHeadResult>
   getReview(input: GoogleReviewGetRequest): Promise<GoogleReviewGetResult>
   discardReviewCursors(
     input: Readonly<{

@@ -167,6 +167,18 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
       },
       { jobId: `gbp-push-${ID(4)}` },
     )
+    // The dark head check a skipped discovery look hands the queue.
+    await review.internal.repos.headCheckQueue.addHeadCheckJob(
+      {
+        mode: 'head',
+        organizationId: ORGANIZATION,
+        propertyId: PROPERTY,
+        connectionId: 'connection-1',
+        locationName: 'locations/1',
+        initiator: { kind: 'system', id: 'sweep:review-discovery' },
+      },
+      { jobId: `review-head-${PROPERTY}-1`, delayMs: 1_000 },
+    )
   }),
   'publish-reply': producer(async (queue) => {
     await reviewContext(queue).internal.repos.replyQueue.addPublishJob({

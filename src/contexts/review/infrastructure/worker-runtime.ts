@@ -9,7 +9,12 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { ReviewRepository } from '../application/ports/review.repository'
 import type { ReplyRepository } from '../application/ports/reply.repository'
 import type { ReplyCommandStore } from '../application/ports/reply-command-store.port'
-import type { ReviewQueuePort } from '../application/ports/review-queue.port'
+import type {
+  ReviewHeadCheckQueuePort,
+  ReviewQueuePort,
+} from '../application/ports/review-queue.port'
+import type { ReviewHeadChecksMode } from '../domain/head-check'
+import { createRunReviewHeadCheck } from '../application/use-cases/run-review-head-check'
 import type { GoogleReviewApiPort } from '../application/ports/google-review-api.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../application/ports/reply-publication-dispatch-evidence.port'
 import type { ReadReviewBeforePublish } from '../application/use-cases/read-review-before-publish'
@@ -26,6 +31,7 @@ import {
   JOB_NAME as DISCOVER_NEW_REVIEWS_JOB_NAME,
 } from './jobs/discover-new-reviews.job'
 import { createReviewDiscoveryRepository } from './repositories/review-discovery.repository'
+import { createReviewHeadCheckRepository } from './repositories/review-head-check.repository'
 import { createReviewSyncActivityRecorder } from './repositories/review-sync-activity.repository'
 import { createReviewRefreshRunRepository } from './repositories/review-refresh-run.repository'
 import {
@@ -84,6 +90,9 @@ export type ReviewWorkerRegistrationInput = Readonly<{
   discoveryIntervalMs: number
   /** Discovery skips a look for a Property reconciled inside six hours. */
   discoverySkipRecentlyReconciled: boolean
+  /** What a skipped look is followed by: a dark head check, or nothing. */
+  headChecks: ReviewHeadChecksMode
+  headCheckQueue: ReviewHeadCheckQueuePort
 }>
 
 /**
@@ -111,6 +120,14 @@ export async function registerReviewWorkerJobs(
             },
       )
     },
+    runHeadCheck: createRunReviewHeadCheck({
+      googleReviewApi: input.googleReviewApi,
+      repository: createReviewHeadCheckRepository(input.db),
+      logger: input.logger,
+      clock: input.clock,
+    }),
+    headChecks: input.headChecks,
+    logger: input.logger,
     syncActivity: reviewSyncActivity,
     discoveryRepo: reviewDiscovery,
     clock: input.clock,
@@ -202,6 +219,8 @@ export async function registerReviewWorkerJobs(
     logger: input.logger,
     intervalMs: input.discoveryIntervalMs,
     skipRecentlyReconciled: input.discoverySkipRecentlyReconciled,
+    headChecks: input.headChecks,
+    headCheckQueue: input.headCheckQueue,
   })
   input.registry.register(DISCOVER_NEW_REVIEWS_JOB_NAME, async (job) => {
     await discoverHandler(job)

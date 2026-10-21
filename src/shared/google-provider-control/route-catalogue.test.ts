@@ -77,6 +77,70 @@ describe('Google provider route catalogue', () => {
     expect(get.admission.maxResponseBytes).toBe(64 * 1024)
   })
 
+  it('compiles the newest-updated-first Review head read with an explicit orderBy', () => {
+    const locationName = ['accounts', 'account-1', 'locations', 'location-1'].join('/')
+    const head = compileGoogleProviderRequest(
+      {
+        routeKey: 'reviews.list',
+        accessToken: 'access-token',
+        locationName,
+        orderBy: 'updateTime desc',
+      },
+      bindCredential,
+    )
+    expect(head.url).toBe(
+      `https://mybusiness.googleapis.com/v4/${locationName}/reviews?pageSize=50&orderBy=updateTime+desc`,
+    )
+    expect(head.method).toBe('GET')
+    expect(head.admission.quotaPolicyId).toBe('google-reviews-v1')
+    expect(head.admission.inFlightPolicyId).toBe('google-reviews-v1')
+  })
+
+  it('refuses any Review list ordering but the one the head read names', () => {
+    const locationName = ['accounts', 'account-1', 'locations', 'location-1'].join('/')
+    for (const orderBy of [
+      'rating desc',
+      'updateTime',
+      'updateTime asc',
+      '',
+    ] as never[]) {
+      expect(() =>
+        compileGoogleProviderRequest(
+          { routeKey: 'reviews.list', accessToken: 'token', locationName, orderBy },
+          bindCredential,
+        ),
+      ).toThrow('provider route input is invalid')
+      expect(() =>
+        parseGoogleProviderRouteDescriptor({
+          routeKey: 'reviews.list',
+          accessToken: 'token',
+          locationName,
+          orderBy,
+        }),
+      ).toThrow('provider route input is invalid')
+    }
+  })
+
+  it('parses the head read descriptor and still refuses unknown Review list keys', () => {
+    const locationName = ['accounts', 'account-1', 'locations', 'location-1'].join('/')
+    expect(
+      parseGoogleProviderRouteDescriptor({
+        routeKey: 'reviews.list',
+        accessToken: 'token',
+        locationName,
+        orderBy: 'updateTime desc',
+      }),
+    ).toMatchObject({ routeKey: 'reviews.list', orderBy: 'updateTime desc' })
+    expect(() =>
+      parseGoogleProviderRouteDescriptor({
+        routeKey: 'reviews.list',
+        accessToken: 'token',
+        locationName,
+        filter: 'rating=5',
+      }),
+    ).toThrow('provider route input is invalid')
+  })
+
   it('compiles OAuth refresh and revoke as fixed form routes with bounded bodies', () => {
     const refresh = compileGoogleProviderRequest(
       {

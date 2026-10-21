@@ -143,6 +143,7 @@ async function observeByPolling(
 function targetedFetch(review: GoogleReview) {
   const googleReviewApi: GoogleReviewApiPort = {
     listReviewsPage: vi.fn(),
+    readReviewsHead: vi.fn(),
     getReview: vi.fn(async () => ({ status: 'found' as const, review })),
     discardReviewCursors: vi.fn(),
     replyToReview: vi.fn(),
