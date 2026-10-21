@@ -75,6 +75,20 @@ definitions and security controls live in
 **Verification:** Queue depth returns to normal. For each affected Property, the latest `review_google_reputation_snapshot_facts.evaluated_at` moves forward once its next snapshot completes, and `review_sync_state.next_incremental_at` holds a due time for its next discovery look (a due time long in the past means the sweep is behind; see the `sync.sweep-lag` alert in §13).
 **Escalation:** Bozhidar Denev if backlog exceeds 1 hour.
 
+### Push health alerts (`sync.push-missed`, `sync.push-silent`)
+
+**Alerts:** `sync.push-missed` (P2) — with `GBP_PUBSUB_TOPIC` set, polling found a new review in the last 24 hours and no Google push for it was accepted within 60 minutes. `sync.push-silent` (P2) — polling found new reviews in the last 24 hours and Pub/Sub accepted no push at all in that time.
+
+**What they mean:** polling still finds every review within about six hours (§13), so nothing is lost; the fast path is degraded. The first-sighting ledger (`review_first_sightings`, ADR 0055 note 2026-10-21 (b)) records, for each review RepKey first saw as live work, how it was first seen (`push`, `push_reconcile`, `snapshot`) and when Pub/Sub accepted the push for it. A review is _missed_ when no push was accepted by 60 minutes after it was first seen, _late_ when the push was accepted after polling saw it (any delay), and _pending_ for its first hour. A push that arrives after the hour makes the review late as well, and it stays counted as missed. Known blind spot: a push whose reference was lost is handed to a full reconcile and cannot be paired with a review polling saw first, so that review reads as missed although the push was accepted (rare; needs a Redis reference failure). A push accepted more than 24 hours after a review was first seen is treated as an edit and is not paired. History imports and relinked old reviews are never in the ledger. `GET /api/health/metrics` shows the counts under `syncPush.push` (`sync.push_missed_24h`, `sync.push_late_24h`, `sync.push_new_by_push_24h`, `sync.push_new_by_poll_24h`, `sync.push_accepted_24h`, and the `sync.push_locations_*` / `sync.push_accounts_dark` health counts for the last 7 days: a location is suspect after one missed push, a Google account is dark after two across its locations).
+
+**Diagnostics:** (1) `sync.push_accepted_24h` is 0 while `sync.push_new_by_poll_24h` is above 0 (`sync.push-silent`): Google is not publishing, or Pub/Sub cannot reach us. Check the subscription in the console: delivery errors, `oldest_unacked_message_age`, and that the subscription has not expired (`docs/operations/google-pubsub-setup.md` §8). (2) Pushes are accepted but one location or account missed some (`sync.push_accounts_dark` above 0): the account's notification setting may point elsewhere (the daily `reconcile-gbp-notification-subscriptions` run re-asserts it), or Google dropped the publish. (3) `idempotency_receipts` rows in scope `gbp_webhook` carry an `outcome`: `ignored_property_not_found` and `ignored_binding_mismatch` mean the push arrived for a location the app does not hold or no longer matches. (4) `GBP_PUBSUB_NOTIFICATION_TYPES` must include `NEW_REVIEW`, and the topic must still grant `mybusiness-api-pubsub@system.gserviceaccount.com` the publisher role. A late (not missed) push usually means a queue backlog: check `queue.oldest-age`.
+
+**Containment:** none needed for correctness. If the push path stays down, the six-hour reconciliation keeps finding reviews; to find them sooner, set `REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED=false` on the worker (§13).
+
+**Recovery:** fix the cause above. `sync.push-missed` clears when no polled review of the last 24 hours is missed (24 hours after the last miss); `sync.push-silent` clears at the first accepted push.
+
+**Escalation:** Bozhidar Denev.
+
 ---
 
 ## 5. Import Stuck / Partial
@@ -203,7 +217,7 @@ definitions and security controls live in
 3. Is it firing, succeeding, and skipping? The "Discover new reviews sweep finished" log line counts `candidatesSeen`, `enqueued`, `skipped` (with `skippedHot`, `skippedWarm`, `skippedCold`) and why each full look ran (`fullSkipDisabled`, `fullFailureRetry`, `fullNoReconciliation`, `fullDue`). `enqueued` 0 with `skipped` above 0 is a healthy sweep. A Property with a coded failure or no completed reconciliation is never skipped.
 4. Is it firing, succeeding, and starving? Compare `sync.due_for_incremental` against the batch budget (200 per batch × 10 batches = 2000 properties per run). If the due count exceeds that, the sweep is healthy but under-provisioned and the oldest property never gets reached.
 
-**Reading the dark head checks (`REVIEW_HEAD_CHECKS=dark`, the default):** a look the skip rule leaves empty is followed by one read of Google's newest page (ADR 0055, note of 2026-10-21). It stores nothing; it records what a persisting check would store. Two places to read it:
+**Reading the dark head checks (`REVIEW_HEAD_CHECKS=dark`, the default):** a look the skip rule leaves empty is followed by one read of Google's newest page (ADR 0055, note 2026-10-21 (c)). It stores nothing; it records what a persisting check would store. Two places to read it:
 
 - The worker log line `Review head check finished` (`event: review_head_check`), content-free and with no Property id: `outcome` (`compared`, `order_violation`, `skipped_outstanding_failure`, `rate_limited`, `provider_unavailable`, `provider_rejected`, `authorization_changed`, `malformed_response`, `no_provider`, `error`), `listed`, `new`, `changed`, `replyChanged`, `leaseRefresh`, `wouldPersist`, `totalDifference` (Google's total minus the stored live count), `averageDifference`, `hasMore`, `orderViolation`, `durationMs`. The sweep line adds `headChecksEnqueued` and `headChecksFailed`.
 - One `review_sync_runs` row per check with `mode = 'head_dark'` (30 days). `result` is JSON, so a comparison is a query, for example the share of checks that would have stored something and the order-violation rate:
@@ -224,6 +238,20 @@ SELECT count(*) AS checks,
 **Remediate:** dead worker → §7. Poison property → read `review_sync_state.error_class` / `last_terminal_error_at` for the property at the cursor and clear or fix it, then `ops:refresh reviews` for one bounded catch-up run. Starving sweep → raise `REVIEW_DISCOVERY_INTERVAL_MINUTES` so fewer properties come due per tick, or raise the batch budget; the alert clears once the oldest overdue property is polled. Raising the interval does not change how often a busy Property is actually read in full below six hours: that is the skip rule. To put every look back to a full snapshot (for example if a missed push needs finding sooner), set `REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED=false` on the worker and restart it. Quota/throttle from Google → §3.
 
 **Verification:** `sync.oldest_due_age_ms` falls back under 60 minutes and keeps falling; `sync.due_for_incremental` drains.
+
+**Escalation:** Bozhidar Denev.
+
+### Reconciliation age (`sync.reconciliation-age`)
+
+**Alert:** `sync.reconciliation-age` (P2) — a Property the sweep still polls has no completed reconciliation (a completed provider snapshot run, recorded as a `review_google_reputation_snapshot_facts` row for its current source epoch) inside the last 8 hours.
+
+**What it means:** the six-hour reconciliation is the safety net that finds a review whose push never came (ADR 0055 decision 5), and the only path while push is dark. The sweep guarantees one about every six hours; the alert fires two hours later, so a slow sweep does not page. A Property with no completed reconciliation yet is counted from the day it became syncable (`properties.updated_at`, `google_connections.credential_authorized_at`, as for `sync.sweep-lag`), and a Property restored with an old reconciliation is counted from the day it qualified again. A Property parked with a coded failure (`review_sync_state.error_class`, for example `review_cap_exceeded` for a location over the cap) is left out: it has its own alert, `sync.failed-nonzero`. The alert does not depend on push. It is held while the `health.sync` or `health.syncPush` section is degraded.
+
+**First things to check:** `GET /api/health/metrics` → `syncPush.reconciliation.overdueCount` and `oldestAgeMs` (`sync.reconciliation_overdue`, `sync.oldest_reconciliation_age_ms`). If `sync.oldest_due_age_ms` is also high the sweep itself is behind: follow the checks above. If the sweep is healthy, read the overdue Properties' runs: a run that keeps failing before it completes (see the sync failure codes on `review_sync_state`), or a location that never finishes its listing, never writes a fact.
+
+**Remediate:** as for the sweep above (dead worker → §7; poison Property → clear or fix its error and `ops:refresh reviews`; Google quota → §3).
+
+**Verification:** `sync.reconciliation_overdue` returns to 0 once each Property completes a run.
 
 **Escalation:** Bozhidar Denev.
 

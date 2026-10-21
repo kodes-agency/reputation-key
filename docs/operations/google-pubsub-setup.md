@@ -91,6 +91,8 @@ Then **Pub/Sub → Subscriptions → Create subscription**:
 | **Audience**              | `https://reputationkey.app/webhooks/gbp`                      |
 | Acknowledgement deadline  | 30 seconds                                                    |
 | Retry policy              | **Retry after exponential backoff delay** (min 10s, max 600s) |
+| Subscription expiration   | **Never expire**                                              |
+| Message retention         | **14 days**                                                   |
 
 Two things worth getting right:
 
@@ -101,6 +103,14 @@ Two things worth getting right:
 - **Exponential backoff, not immediate retry.** The webhook enqueues a sync job
   and returns; a retry storm against a transient failure would multiply provider
   calls.
+- **Never expire, and keep messages for 14 days.** Pub/Sub deletes a
+  subscription that has had no activity for 31 days by default, and a quiet
+  location is exactly that. A deleted subscription drops every push with no
+  error anywhere in the app. Fourteen days of retention lets Pub/Sub redeliver
+  a backlog after an outage of the app's endpoint (its default is seven).
+  `scripts/ops/gcp-pubsub-setup.sh` sets both when it creates the subscription
+  and when it updates one that exists (`--expiration-period=never` and
+  `--message-retention-duration=14d`).
 
 If your project was created **on or before 8 April 2021**, also grant
 `service-<PROJECT_NUMBER>@gcp-sa-pubsub.iam.gserviceaccount.com` the
@@ -226,7 +236,10 @@ refusal in `correlation_id`, e.g. `authorization_changed`.
    until then its reviews arrive on the discovery sweep, not within seconds.
 3. Within seconds: a `sync-property-reviews` job with initiator
    `webhook:gbp`, then the review row, the inbox item, and the notification.
-4. `review_sync_state.last_notification_at` for that property should be ~now, and
+4. `GET /api/health/metrics` → `syncPush.push.acceptedPushes24h` rises by one
+   per Property holding the location, and the review is not counted in
+   `sync.push_missed_24h`.
+5. `review_sync_state.last_notification_at` for that property should be ~now, and
    `next_incremental_at` clamped back to the hot interval. The look that clamp
    buys usually skips the full snapshot, because the property was reconciled
    within the last six hours; the review is already in from the push.
@@ -279,15 +292,66 @@ If nothing arrives, in order of likelihood:
   - Nothing at all — the connection has no active bound Property, or the
     organization is not allowed `property.connect_gbp` (`organizationsDenied`).
 
+## 8. Watch push health
+
+Push fails silently: Google stops publishing, the subscription expires, the
+endpoint answers an error, and the only symptom is a review that takes six hours
+instead of seconds. Two layers watch it: the app, and Google Cloud Monitoring.
+
+**In the app (nothing to set up).** The app records, for each new review it
+finds, how it was first seen and when Pub/Sub accepted the push for it
+(`review_first_sightings`, ADR 0055 note 2026-10-21 (b)), and reports counts
+under `syncPush` in `GET /api/health/metrics`:
+
+| Metric                                                                | Meaning                                                                                                               |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `sync.push_new_by_push_24h` / `sync.push_new_by_poll_24h`             | New reviews of the last day first seen through push, and through polling                                              |
+| `sync.push_missed_24h`                                                | Found by polling with no push accepted within 60 minutes of being seen                                                |
+| `sync.push_late_24h`                                                  | Found by polling before the push was accepted (any delay)                                                             |
+| `sync.push_accepted_24h`                                              | Pushes Pub/Sub accepted, one per Property that holds the location                                                     |
+| `sync.push_locations_healthy` / `_suspect`, `sync.push_accounts_dark` | The last 7 days: a location is suspect after one missed push, a Google account is dark after two across its locations |
+| `sync.reconciliation_overdue`                                         | Properties with no completed reconciliation inside 8 hours                                                            |
+
+They raise `sync.push-missed` and `sync.push-silent` (P2, `runbooks.md` §4) and,
+independent of push, `sync.reconciliation-age` (P2, `runbooks.md` §13). They
+count nothing while `GBP_PUBSUB_TOPIC` is empty.
+
+**In Google Cloud Monitoring (owner console steps, not scripted).** The app can
+only see pushes that reach it. These two policies see the ones that do not, and
+catch a failing endpoint before the next review is missed. In **Monitoring →
+Alerting → Create policy**, on the project that owns the subscription:
+
+1. **Push delivery errors.** Metric `pubsub.googleapis.com/subscription/push_request_count`,
+   filtered to `subscription_id = gbp-notifications-push` and a `response_code`
+   that is not 2xx (the metric's response labels also separate `ack` from the
+   error classes). Condition: any such requests over 10 minutes.
+2. **Backlog.** Metric `pubsub.googleapis.com/subscription/oldest_unacked_message_age_by_region`
+   (the older `.../oldest_unacked_message_age` also works), same subscription.
+   Condition: above 30 minutes for 10 minutes. A healthy push subscription acks
+   within seconds, so a backlog means the endpoint is down or rejecting.
+
+Notify the owner's usual channel. These metric names and labels come from
+Google's Pub/Sub monitoring reference, not from this repository: confirm both in
+the console's metric picker when creating the policies, and adjust the response
+filter to the labels it shows.
+
+**Checking the subscription itself.** Once a quarter, and after any change to the
+topic or the endpoint: **Pub/Sub → Subscriptions → `gbp-notifications-push`**
+should show _Expiration: Never_ and _Message retention: 14 days_. A subscription
+that Google has expired is not recreated by the app; re-run
+`scripts/ops/gcp-pubsub-setup.sh` (§4) and confirm `sync.push_accepted_24h` rises
+after the next review.
+
 ## What this does not change
 
 Push is an accelerator, not a dependency. With it off, the discovery sweep still
 finds new reviews within its ladder interval, because the skip rule is off too.
 With it on, the sweep still runs as reconciliation, at least every six hours per
 property, because push is not guaranteed delivery: a review whose push is missed
-is found at the next reconciliation, up to about six hours later — and
-`sync.oldest_due_age_ms` alerts if the sweep itself falls behind
-(`runbooks.md` §13).
+is found at the next reconciliation, up to about six hours later. That miss is
+now measured, not assumed (§8: `sync.push-missed`, `sync.push-silent`), and
+`sync.oldest_due_age_ms` and `sync.reconciliation-age` alert if the sweep itself
+falls behind (`runbooks.md` §13).
 
 Outbound **email** is separately gated. `notification.send_email` is a
 capability-dark, per-tenant allowlist, and the sending domain still needs

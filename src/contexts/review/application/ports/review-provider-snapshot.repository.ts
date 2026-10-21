@@ -1,12 +1,6 @@
-import type {
-  GoogleConnectionId,
-  OrganizationId,
-  PropertyId,
-  ReviewId,
-} from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { GoogleReview } from '../../domain/types'
-import type { GoogleReviewRead } from './google-review-api.port'
-import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
+import type { ReviewProviderSubjectCandidates } from './review-provider-observation-writer.port'
 import type { ReviewProviderObservationOrigin } from './response-target-authority.port'
 
 export const REVIEW_PROVIDER_SNAPSHOT_MAX_PAGES = 200
@@ -97,11 +91,6 @@ export type ReviewProviderSnapshotRun = Readonly<{
   terminalAt: Date | null
   failureCode: ReviewProviderSnapshotFailureCode | null
 }>
-
-export type ReviewProviderSubjectCandidates = readonly [
-  ReviewProviderSubject,
-  ...ReviewProviderSubject[],
-]
 
 /**
  * Result of the normal Review source writer. Provider identifiers exist only in
@@ -368,25 +357,3 @@ export type ReviewProviderHistoryCutoffReader = Pick<
   ReviewProviderSnapshotRepository,
   'readHistoryCutoff'
 >
-
-/** Request-scoped source writer supplied by the normal Review sync path. */
-export type ReviewProviderObservationWriter = Readonly<{
-  /** Allocate after provider response acquisition; gaps are expected when
-   * later validation or persistence fails. */
-  allocateReplyReadGeneration(): Promise<number>
-  persist(
-    input: Readonly<{
-      organizationId: OrganizationId
-      propertyId: PropertyId
-      connectionId: GoogleConnectionId
-      sourceEpoch: number
-      observationOrigin: ReviewProviderObservationOrigin
-      /** Content-free idempotency digest for one logical provider observation. */
-      observationKey: string
-      replyReadGeneration: number
-      /** As the provider adapter mapped it: `replyUnreadable` rides with it. */
-      review: GoogleReviewRead
-      subjects: ReviewProviderSubjectCandidates
-    }>,
-  ): Promise<Readonly<{ reviewId: ReviewId; sourceRevision: number; isNew: boolean }>>
-}>

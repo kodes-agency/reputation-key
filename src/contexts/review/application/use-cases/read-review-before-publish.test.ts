@@ -14,7 +14,7 @@ import type {
   GoogleReviewApiPort,
   GoogleReviewRead,
 } from '../ports/google-review-api.port'
-import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 import { readReviewBeforePublish } from './read-review-before-publish'
 
@@ -133,6 +133,7 @@ describe('readReviewBeforePublish', () => {
         connectionId,
         sourceEpoch: 6,
         observationOrigin: 'ongoing',
+        firstSeenVia: 'demand',
         replyReadGeneration: 23,
         review,
       }),

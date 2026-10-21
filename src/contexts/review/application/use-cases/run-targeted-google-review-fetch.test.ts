@@ -12,7 +12,7 @@ import type {
 } from '#/shared/domain/ids'
 import type { GoogleReview } from '../../domain/types'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
-import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
 import type { TargetedGoogleReviewReferenceResolver } from '../ports/targeted-google-review-reference.port'
 import { runTargetedGoogleReviewFetch } from './run-targeted-google-review-fetch'
@@ -22,6 +22,7 @@ const propertyId = '00000000-0000-4000-8000-000000000011' as PropertyId
 const connectionId = '00000000-0000-4000-8000-000000000012' as GoogleConnectionId
 const reviewId = '00000000-0000-4000-8000-000000000013' as ReviewId
 const deliveryId = '00000000-0000-4000-8000-000000000014'
+const acceptedAt = new Date('2026-08-27T07:59:30.000Z')
 
 const review: GoogleReview = {
   reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
@@ -104,6 +105,7 @@ function setup(
     recordNewReviewObserved: vi.fn(async () => undefined),
     recordPushObserved: vi.fn(async () => undefined),
   }
+  const markPushArrived = vi.fn(async () => undefined)
   const useCase = runTargetedGoogleReviewFetch({
     references: {
       resolve: vi.fn<TargetedGoogleReviewReferenceResolver['resolve']>(async () =>
@@ -123,9 +125,10 @@ function setup(
     observationWriter,
     subjectKeyService,
     syncActivity,
+    firstSightings: { markPushArrived },
     clock: () => new Date('2026-08-27T08:00:00.000Z'),
   })
-  return { useCase, getReview, observationWriter, persist, syncActivity }
+  return { useCase, getReview, observationWriter, persist, syncActivity, markPushArrived }
 }
 
 const request = {
@@ -135,6 +138,8 @@ const request = {
   sourceEpoch: 6,
   referenceRef: `v1.${Buffer.alloc(32, 6).toString('base64url')}`,
   deliveryId,
+  acceptedAt,
+  notificationKind: 'NEW_REVIEW' as const,
 }
 
 describe('runTargetedGoogleReviewFetch', () => {
@@ -212,5 +217,63 @@ describe('runTargetedGoogleReviewFetch', () => {
     })
     await expect(useCase(request)).resolves.toEqual({ status: 'obsolete' })
     expect(persist).not.toHaveBeenCalled()
+  })
+
+  it('tells the writer the Review was first seen by a push, with the time Pub/Sub accepted it', async () => {
+    const { useCase, persist } = setup()
+
+    await useCase(request)
+
+    expect(persist).toHaveBeenCalledWith(
+      expect.objectContaining({ firstSeenVia: 'push', pushAcceptedAt: acceptedAt }),
+    )
+  })
+
+  it('leaves a Review the push itself created to the writer, which records the push on it', async () => {
+    const { useCase, markPushArrived } = setup({ isNew: true })
+
+    await useCase(request)
+
+    expect(markPushArrived).not.toHaveBeenCalled()
+  })
+
+  it('pairs the push with a Review polling saw first', async () => {
+    const { useCase, markPushArrived } = setup({ isNew: false })
+
+    await useCase(request)
+
+    expect(markPushArrived).toHaveBeenCalledWith({
+      organizationId,
+      propertyId,
+      reviewId,
+      acceptedAt,
+    })
+  })
+
+  it.each(['NEW_REVIEW', 'REVIEW_CHANGED'] as const)(
+    'counts a %s push as the arrival of a Review already stored',
+    async (notificationKind) => {
+      const { useCase, markPushArrived } = setup({ isNew: false })
+
+      await useCase({ ...request, notificationKind })
+
+      expect(markPushArrived).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('does not count an UPDATED_REVIEW push as the arrival of a Review already stored', async () => {
+    const { useCase, markPushArrived } = setup({ isNew: false })
+
+    await useCase({ ...request, notificationKind: 'UPDATED_REVIEW' })
+
+    expect(markPushArrived).not.toHaveBeenCalled()
+  })
+
+  it('pairs nothing when the push falls back to a full reconciliation', async () => {
+    const { useCase, markPushArrived } = setup({ getResult: { status: 'not_found' } })
+
+    await useCase(request)
+
+    expect(markPushArrived).not.toHaveBeenCalled()
   })
 })

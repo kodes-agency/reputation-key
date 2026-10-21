@@ -76,6 +76,7 @@ import {
 } from './application/provider-subject-keyring'
 import { createReviewProviderSubjectKeyInventoryRepository } from './infrastructure/provider-subject-key-inventory.repository'
 import { createReviewProviderSnapshotRepository } from './infrastructure/repositories/review-provider-snapshot.repository'
+import { createReviewFirstSightingRecorder } from './infrastructure/repositories/review-first-sighting.repository'
 import { createReviewSyncActivityRecorder } from './infrastructure/repositories/review-sync-activity.repository'
 import { createReviewSourceContentLifecycleStore } from './infrastructure/repositories/source-content-lifecycle-store.repository'
 import {
@@ -579,6 +580,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       observationWriter,
       subjectKeyService: providerSubjectKeys,
       syncActivity,
+      firstSightings: createReviewFirstSightingRecorder(input.db),
       clock: input.clock,
     }),
     checkReviewOnGoogle: checkReviewOnGoogle({

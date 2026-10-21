@@ -20,7 +20,10 @@ import { reviewError } from '../domain/errors'
 import { isGuestEdit } from '../domain/material-review-revision'
 import { rowReplyAuthor } from '../domain/reply-author'
 import { takenBackByGuestEdit } from '../domain/reply-command-preconditions'
-import type { ReviewCommandStore } from '../application/ports/review-command-store.port'
+import type {
+  ReviewCommandStore,
+  ReviewFirstSighting,
+} from '../application/ports/review-command-store.port'
 import {
   reviewReplyPublicationCancelled,
   reviewSourceTransitioned,
@@ -33,6 +36,7 @@ import {
   persistReviewObservation,
   type PersistedReviewObservation,
 } from './repositories/review-observation.repository'
+import { insertFirstSighting } from './repositories/review-first-sighting.repository'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import { lockReviewSourceMutationScope } from './review-source-mutation-serialization'
 import type { Tx } from '#/shared/outbox/commit'
@@ -420,7 +424,14 @@ export const createAtomicReviewCommandStore = (
   persistObservation: PersistObservation = persistReviewObservation,
 ): ReviewCommandStore => {
   return {
-    upsertAndRecord: async (review, event, now, observationKey, observationOrigin) => {
+    upsertAndRecord: async (
+      review,
+      event,
+      now,
+      observationKey,
+      observationOrigin,
+      firstSighting,
+    ) => {
       return trace('review.commandStore.upsertAndRecord', async () => {
         return db.transaction(async (tx) => {
           const analysisSequence = await allocateAnalysisSequence(
@@ -452,6 +463,9 @@ export const createAtomicReviewCommandStore = (
               : candidateEvent
           await insertOutboxRow(tx, recordedEvent)
           await fenceRepliesWrittenForAnOlderSource(tx, observation, updatedAt)
+          if (firstSighting != null && recordedEvent._tag === 'review.created') {
+            await insertFirstSighting(tx, saved, updatedAt, firstSighting)
+          }
 
           return saved
         })
@@ -552,13 +566,32 @@ export const createSequentialReviewCommandStore = (deps: {
   ) => Promise<Review>
   clock: () => Date
   recordOutbox?: (event: DomainEvent) => Promise<void>
+  recordFirstSighting?: (
+    review: Review,
+    firstSeenAt: Date,
+    sighting: ReviewFirstSighting,
+  ) => Promise<void>
 }): ReviewCommandStore => {
   return {
-    upsertAndRecord: async (review, event, now, observationKey, _observationOrigin) => {
+    upsertAndRecord: async (
+      review,
+      event,
+      now,
+      observationKey,
+      _observationOrigin,
+      firstSighting,
+    ) => {
       const saved = await deps.upsert(review, now, observationKey)
       const recordedEvent = typeof event === 'function' ? event(saved) : event
       if (deps.recordOutbox) {
         await deps.recordOutbox(recordedEvent)
+      }
+      if (
+        deps.recordFirstSighting &&
+        firstSighting != null &&
+        recordedEvent._tag === 'review.created'
+      ) {
+        await deps.recordFirstSighting(saved, now ?? deps.clock(), firstSighting)
       }
       return saved
     },

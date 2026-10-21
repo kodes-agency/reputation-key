@@ -29,6 +29,11 @@ import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import type { SnapshotSection } from '#/shared/observability/metrics-schema'
 import type { AlertFacts } from './alert-facts'
 import { quarantineFacts, unreadyJobFacts } from './alert-snapshot-facts'
+import { readPushMissed, readPushSilent, readReconciliationAge } from './alert-sync-push'
+import {
+  PUSH_ALERT_WINDOW_MS,
+  RECONCILIATION_OVERDUE_AFTER_MS,
+} from '#/shared/domain/push-health'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -639,6 +644,38 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
         detail: `${dueForIncrementalCount} property(ies) due for incremental sync; oldest overdue by ${oldestDueAgeMs}ms (> ${SYNC_SWEEP_LAG_ALERT_MS}ms = 4 missed sweeps, ${pushState}) — new reviews are not arriving`,
       }
     },
+  }),
+
+  // ── push health: Google's push is the fast path for a new review ──
+  // Polling still finds every review within hours, so these are P2: a degraded
+  // fast path, measured from the first-sighting ledger (push-health.ts).
+  define({
+    name: 'sync.push-missed',
+    severity: 'P2',
+    runbook: 'runbooks.md §4',
+    windowMs: PUSH_ALERT_WINDOW_MS,
+    threshold: 0,
+    blindedBy: ['health.syncPush', 'health.sync'],
+    read: readPushMissed,
+  }),
+  define({
+    name: 'sync.push-silent',
+    severity: 'P2',
+    runbook: 'runbooks.md §4',
+    windowMs: PUSH_ALERT_WINDOW_MS,
+    threshold: 0,
+    blindedBy: ['health.syncPush', 'health.sync'],
+    read: readPushSilent,
+  }),
+  // The six-hour reconciliation is the safety net push relies on.
+  define({
+    name: 'sync.reconciliation-age',
+    severity: 'P2',
+    runbook: 'runbooks.md §13',
+    windowMs: RECONCILIATION_OVERDUE_AFTER_MS,
+    threshold: RECONCILIATION_OVERDUE_AFTER_MS,
+    blindedBy: ['health.syncPush', 'health.sync'],
+    read: readReconciliationAge,
   }),
 
   // ── Review Analysis coverage and first-enablement backfill ──

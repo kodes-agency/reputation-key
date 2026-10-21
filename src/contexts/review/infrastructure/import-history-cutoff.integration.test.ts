@@ -39,7 +39,7 @@ import type {
   GoogleReviewPage,
 } from '../application/ports/google-review-api.port'
 import type { AiReviewSourceRequest } from '../application/ports/ai-review-source.port'
-import type { ReviewProviderObservationWriter } from '../application/ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../application/ports/review-provider-observation-writer.port'
 import {
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
   type SyncPropertyReviewsJobData,
@@ -248,6 +248,7 @@ function step(
     connectionId: CONNECTION,
     sourceEpoch,
     observationOrigin,
+    firstSeenVia: 'snapshot',
     locationName: locationOf(property),
     ...(runId == null ? {} : { runId }),
   })

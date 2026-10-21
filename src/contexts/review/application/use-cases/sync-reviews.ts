@@ -3,12 +3,15 @@ import type { ReviewId } from '#/shared/domain/ids'
 import { defaultReviewLifecycle, type Review } from '../../domain/types'
 import { reviewCreated, reviewUpdated } from '../../domain/events'
 import { calculateExpiresAt, computeReviewContentHash } from '../../domain/rules'
-import type { ReviewCommandStore } from '../ports/review-command-store.port'
+import type {
+  ReviewCommandStore,
+  ReviewFirstSighting,
+} from '../ports/review-command-store.port'
 import type {
   ReviewProviderHistoryCutoff,
   ReviewProviderHistoryCutoffReader,
-  ReviewProviderObservationWriter,
 } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewProviderObservationOrigin } from '../ports/response-target-authority.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import {
@@ -87,15 +90,18 @@ export const createReviewProviderObservationWriter = (
       stableIdentity,
       newId: () => deps.idGen(),
     })
+    const state = classifyObservation(existing, stableIdentity, review, now)
+    const observationOrigin = await resolveObservationOrigin(
+      deps,
+      input,
+      existing,
+      stableIdentity,
+    )
     const persisted = await persistObservation(deps, review, now, {
-      ...classifyObservation(existing, stableIdentity, review, now),
+      ...state,
       observationKey: input.observationKey,
-      observationOrigin: await resolveObservationOrigin(
-        deps,
-        input,
-        existing,
-        stableIdentity,
-      ),
+      observationOrigin,
+      firstSighting: firstSightingToMeasure(state.isNew, observationOrigin, input),
     })
     // Google showed a reply whose original text it did not return: `replyText`
     // is null, but that is not "no reply". Recording it would write an `absent`
@@ -135,6 +141,20 @@ export const createReviewProviderObservationWriter = (
 })
 
 type ProviderObservationInput = Parameters<ReviewProviderObservationWriter['persist']>[0]
+
+/**
+ * The push health ledger measures only Reviews RepKey saw first as live work:
+ * a history import or a `legacy_unknown` relink carries no timing RepKey
+ * observed, and a Review it already holds was not a first sighting.
+ */
+function firstSightingToMeasure(
+  isNew: boolean,
+  origin: ReviewProviderObservationOrigin,
+  input: ProviderObservationInput,
+): ReviewFirstSighting | undefined {
+  if (!isNew || origin !== 'ongoing') return undefined
+  return { seenVia: input.firstSeenVia, pushAcceptedAt: input.pushAcceptedAt ?? null }
+}
 type StableIdentity = Awaited<
   ReturnType<ReviewRepository['findStableIdentityByProviderSubjects']>
 >
@@ -409,6 +429,7 @@ async function persistObservation(
     expired: boolean
     observationKey: string
     observationOrigin: Parameters<ReviewCommandStore['upsertAndRecord']>[4]
+    firstSighting: ReviewFirstSighting | undefined
   }>,
 ): Promise<Review> {
   if (state.expired) {
@@ -449,5 +470,6 @@ async function persistObservation(
     now,
     state.observationKey,
     state.observationOrigin,
+    state.firstSighting,
   )
 }

@@ -144,6 +144,9 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `source.freshness-deadline`                    | P1  | nearest hard expiry among refresh-due live reviews the refresh sweep can still offer (§3) < 2d away                               | §3      |
 | `sync.sweep-lag`                               | P1  | oldest past-due sync > 60min overdue, from the later of its poll time and when it qualified again (§13; new reviews not arriving) | §13     |
 | `sync.failed-nonzero`                          | P2  | any coded sync failure whose retry is due                                                                                         | §13     |
+| `sync.push-missed`                             | P2  | topic set; any review polling found in 24h with no Google push accepted within 60min (first-sighting ledger)                      | §4      |
+| `sync.push-silent`                             | P2  | topic set; polling found new reviews in 24h and Pub/Sub accepted no push at all in that time                                      | §4      |
+| `sync.reconciliation-age`                      | P2  | a syncable Property's newest completed reconciliation is over 8h old (parked coded failures excluded; independent of push)        | §13     |
 | `ai.review-analysis-stalled`                   | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                        | §22     |
 | `ai.review-analysis-empty-enrollment`          | P2  | any queued/running zero-snapshot enrollment while eligible reviews exist                                                          | §22     |
 | `retention.failure`                            | P1  | latest retention run failed for any subject; monitor failure (the `retention_runs` read) also fires                               | §8      |

@@ -18,6 +18,14 @@ export type SyncPropertyReviewsJobData = JobEnqueueAttribution &
     runId?: string
   }>
 
+/**
+ * What a Google push says happened to a Review. `REVIEW_CHANGED` is the
+ * combined kind a delivery carries when it names none (the topic is
+ * configured for new and updated reviews only).
+ */
+export type GoogleReviewPushNotificationKind =
+  'NEW_REVIEW' | 'UPDATED_REVIEW' | 'REVIEW_CHANGED'
+
 /** Identifier-only GBP push work; raw provider resources stay in Redis. */
 export type TargetedGoogleReviewFetchJobData = JobEnqueueAttribution &
   Readonly<{
@@ -29,6 +37,14 @@ export type TargetedGoogleReviewFetchJobData = JobEnqueueAttribution &
     referenceRef: string | null
     /** Identifier of the durable push-accepted outbox fact. */
     deliveryId: string
+    /**
+     * When Pub/Sub accepted the push (ISO 8601): the outbox fact's occurredAt,
+     * not when this job runs. Absent on a job queued before push health was
+     * measured; the handler then falls back to the time the job starts.
+     */
+    acceptedAt?: string
+    /** Absent on a job queued before push health was measured. */
+    notificationKind?: GoogleReviewPushNotificationKind
   }>
 
 /**

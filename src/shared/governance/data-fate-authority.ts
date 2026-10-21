@@ -609,6 +609,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     schemaFile: 'review-sync.schema.ts',
     exportNames: [
       'retentionRuns',
+      'reviewFirstSightings',
       'reviewRefreshRuns',
       'reviewSyncRuns',
       'reviewSyncState',

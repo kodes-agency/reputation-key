@@ -17,12 +17,12 @@ import {
   REVIEW_PROVIDER_SNAPSHOT_MAX_PAGES,
   REVIEW_PROVIDER_SNAPSHOT_MAX_REVIEWS,
   REVIEW_PROVIDER_SNAPSHOT_PAGE_SIZE,
-  type ReviewProviderObservationWriter,
   type ReviewProviderPersistedObservation,
   type ReviewProviderSnapshotFailureCode,
   type ReviewProviderSnapshotRepository,
   type ReviewProviderSnapshotRun,
 } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
 import { snapshotRunCountAgreement } from '../snapshot-count-gap'
 import type { ReviewProviderObservationOrigin } from '../ports/response-target-authority.port'
@@ -34,6 +34,13 @@ export type RunReviewProviderSnapshotInput = Readonly<{
   connectionId: GoogleConnectionId
   sourceEpoch: number
   observationOrigin: ReviewProviderObservationOrigin
+  /**
+   * Which route this step reaches reviews by, for the push health ledger:
+   * polling (`snapshot`), or the full snapshot a Google push handed off to
+   * because its target could not be read (`push_reconcile`, which a push
+   * already covers). Required, so a new caller cannot leave it out.
+   */
+  firstSeenVia: 'snapshot' | 'push_reconcile'
   locationName: string
   runId?: string
 }>
@@ -321,6 +328,7 @@ const persistPageObservations = async (
       connectionId: input.connectionId,
       sourceEpoch: input.sourceEpoch,
       observationOrigin: observationOriginForReview(run, historyCutoff, review),
+      firstSeenVia: input.firstSeenVia,
       observationKey: sha256Hex(
         `repkey-review-provider-observation-key-v1\0${observationScope}\0${review.reviewName}`,
       ),
