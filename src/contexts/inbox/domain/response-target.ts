@@ -277,3 +277,23 @@ export function classifyResponseTargetCompletion(
 ): Extract<ResponseTargetResult, 'on_time' | 'late'> {
   return completionAt.getTime() <= dueAt.getTime() ? 'on_time' : 'late'
 }
+
+/**
+ * When a reply Google shows counts as given. A reply written on Google is seen
+ * by RepKey only when it next reads Google, so it counts at the reply's own
+ * time on Google, never later than the read that saw it. When Google gives no
+ * time, the read is the best known moment. A Response Target's start is the
+ * lower bound and is applied last: the stored completion may never precede it,
+ * even if the start itself is later than the read. Without a target (`startAt`
+ * null) there is no lower bound.
+ */
+export function resolveGoogleReplyCompletion(
+  input: Readonly<{ repliedAt: Date | null; startAt: Date | null; observedAt: Date }>,
+): Date {
+  const { repliedAt, startAt, observedAt } = input
+  const repliedMs = repliedAt === null ? Number.NaN : repliedAt.getTime()
+  const stopped = Number.isFinite(repliedMs)
+    ? Math.min(repliedMs, observedAt.getTime())
+    : observedAt.getTime()
+  return new Date(startAt === null ? stopped : Math.max(startAt.getTime(), stopped))
+}

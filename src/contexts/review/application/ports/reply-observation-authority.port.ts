@@ -50,6 +50,12 @@ export type ReviewCurrentReplyObservationPermit = Readonly<{
   matchedReplyId: string | null
   matchedPublicationCycle: number | null
   observedAt: Date
+  /**
+   * Google's own time for the reply this observation recorded (its last edit,
+   * as Google reports it); null when Google gave none. Inbox stops a Response
+   * Target at this time, never later than `observedAt`.
+   */
+  providerReplyUpdatedAt: Date | null
   reviewSourceContentState: 'active' | 'source_expired' | 'provider_deleted'
   responseTargetEligibility: 'measured' | 'historical_onboarding' | 'legacy_unknown'
   responseTargetStartAt: Date | null

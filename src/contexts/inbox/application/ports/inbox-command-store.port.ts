@@ -253,8 +253,8 @@ export type InboxCommandStore = Readonly<{
    * create a missing Review item whose review Google already answers, and
    * close it in the same transaction. The item and its first cycle are
    * inserted as `createItem` inserts them; the cycle then closes exactly as
-   * `inbox.on-reply-observed` closes it (Response Target completed at the
-   * observation, provider actor). No fact and no receipt: repair, not new
+   * `inbox.on-reply-observed` closes it (Response Target completed at Google's
+   * reply time, provider actor). No fact and no receipt: repair, not new
    * information. Refuses a permit for another item, or one that does not show
    * a reply answering the revision the cycle opens on. An item that already
    * exists comes back untouched with `created: false`.

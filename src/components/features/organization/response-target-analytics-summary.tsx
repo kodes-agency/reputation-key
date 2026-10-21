@@ -59,7 +59,7 @@ export function GoogleReviewTargetSummary({
     ['Responded after target', formatNumber(analytics.respondedLateCount)],
     ['Reopened cycles', formatNumber(analytics.reopenCount)],
     [
-      'Average time until observed live on Google',
+      'Average time until the response on Google',
       formatAverage(analytics.averageTimeToResponseMinutes),
     ],
     [
