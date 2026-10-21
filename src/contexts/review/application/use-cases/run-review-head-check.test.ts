@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from '../ports/google-review-api.port'
 import type { GoogleReviewHeadResult } from '../ports/google-review-api.port'
 import type {
@@ -13,7 +14,7 @@ import { createRunReviewHeadCheck } from './run-review-head-check'
 const ORG = organizationId('org-head-check')
 const PROPERTY = propertyId('3f1c1d5e-0000-4000-8000-000000000001')
 const CONNECTION = googleConnectionId('3f1c1d5e-0000-4000-8000-000000000002')
-const LOCATION = 'accounts/111/locations/222'
+const LOCATION = GOOGLE_LOCATION_PRIMARY_RESOURCE
 const EPOCH = 4
 const T0 = new Date('2026-10-21T12:00:00.000Z')
 const DAY_MS = 24 * 60 * 60 * 1000
