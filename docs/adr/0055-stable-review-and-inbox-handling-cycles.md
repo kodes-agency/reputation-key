@@ -360,10 +360,13 @@ fast path for new reviews, so it is now measured (migration 0066,
   `occurredAt`, carried in the push job as `acceptedAt` (a job queued before
   this change falls back to the time it starts). It is not when the job runs,
   so a push that was accepted first but waited in the queue still counts as
-  first. A push that finds the Review already stored stamps the row; a push
-  that finds it new creates the row as `push`. An `UPDATED_REVIEW` push says a
-  Review changed, not that a new one arrived, so it never counts as the
-  arrival.
+  first. A push that finds the Review already stored stamps the row, but
+  only if it was accepted within 24 hours of the first sighting: Google reports
+  an edit with the same kind as an arrival, and an edit days later must not
+  turn a miss into a late push. A push that finds the Review new creates the
+  row as `push`; the push is then how RepKey learned of it, so it is covered.
+  An `UPDATED_REVIEW` push says a Review changed, not that a new one arrived,
+  so it never stamps a Review polling already saw.
 - **What the words mean** (`src/shared/domain/push-health.ts`).
   _Healthy_: a push was accepted at or before the first sighting, or the
   Review was first seen by a push or by the snapshot a push handed off to.
@@ -390,7 +393,11 @@ fast path for new reviews, so it is now measured (migration 0066,
   three are held while the snapshot section they read is degraded.
 - **Accepted limits.** A review whose reference was lost and whose
   reconciliation snapshot was joined to a run started by the sweep is
-  labelled `snapshot`, so it reads as missed. Measurement starts at the deploy:
+  labelled `snapshot`, so it reads as missed. The same push can also reach a
+  Review polling saw first: a lost reference or a `not_found` read hands the
+  push to a full reconcile snapshot, which cannot say which Review the push was
+  about, so that Review's row stays unpaired and reads as missed even though
+  the push was accepted. Both need a Redis reference failure and are rare. Measurement starts at the deploy:
   Reviews first seen before it have no row. Past 5,000 polled first sightings
   in seven days (push dark for a week) the misses are a lower bound.
 

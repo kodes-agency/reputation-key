@@ -13,6 +13,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { PUSH_PAIRING_WINDOW_MS } from '#/shared/domain/push-health'
 
 const ORG = organizationId('review-sighting-org-a')
 const OTHER_ORG = organizationId('review-sighting-org-b')
@@ -280,6 +281,39 @@ describe('pairing a push with a first sighting', () => {
 
     expect(await sightings()).toEqual([
       expect.objectContaining({ push_accepted_at: ACCEPTED_AT }),
+    ])
+  })
+
+  it('leaves a Review unpaired when the push came long after it was first seen', async () => {
+    await writeFirst({ seenVia: 'snapshot', pushAcceptedAt: null })
+
+    // A change notification days after the Review was found is an edit, not
+    // the arrival push polling beat.
+    await recorder().markPushArrived({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      reviewId: REVIEW,
+      acceptedAt: new Date(SEEN_AT.getTime() + PUSH_PAIRING_WINDOW_MS + 1_000),
+    })
+
+    expect(await sightings()).toEqual([
+      expect.objectContaining({ push_accepted_at: null }),
+    ])
+  })
+
+  it('pairs a push that came just inside the pairing window', async () => {
+    await writeFirst({ seenVia: 'snapshot', pushAcceptedAt: null })
+    const acceptedAt = new Date(SEEN_AT.getTime() + PUSH_PAIRING_WINDOW_MS - 1_000)
+
+    await recorder().markPushArrived({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      reviewId: REVIEW,
+      acceptedAt,
+    })
+
+    expect(await sightings()).toEqual([
+      expect.objectContaining({ push_accepted_at: acceptedAt }),
     ])
   })
 

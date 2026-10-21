@@ -20,6 +20,14 @@ export type ReviewFirstSeenVia =
 /** A Review with no push accepted this long after it was first seen is MISSED. */
 export const PUSH_MISSED_AFTER_MS = 60 * 60 * 1000
 
+/**
+ * A push is paired with a Review polling saw first only if Pub/Sub accepted it
+ * within this long of the first sighting. Google reports an edit with the same
+ * notification kind as an arrival, so a push days later is an edit of a Review
+ * whose own push never came, and must not turn that miss into a late push.
+ */
+export const PUSH_PAIRING_WINDOW_MS = 24 * 60 * 60 * 1000
+
 /** The window a location's or an account's health is judged over. */
 export const PUSH_HEALTH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 

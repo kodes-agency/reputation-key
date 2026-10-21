@@ -13,6 +13,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { reviewFirstSightings } from '#/shared/db/schema/review-sync.schema'
 import type { Tx } from '#/shared/outbox/commit'
+import { PUSH_PAIRING_WINDOW_MS } from '#/shared/domain/push-health'
 import { trace } from '#/shared/observability/trace'
 import type { ReviewFirstSighting } from '../../application/ports/review-command-store.port'
 import type { ReviewFirstSightingRecorder } from '../../application/ports/review-first-sighting-recorder.port'
@@ -70,6 +71,9 @@ export const createReviewFirstSightingRecorder = (
             eq(reviewFirstSightings.propertyId, propertyId),
             eq(reviewFirstSightings.reviewId, reviewId),
             isNull(reviewFirstSightings.pushAcceptedAt),
+            // Only a push near the first sighting can be its arrival: a later
+            // edit notification must not hide a miss as a late push.
+            sql`${acceptedAt.toISOString()}::timestamptz <= ${reviewFirstSightings.firstSeenAt} + ${PUSH_PAIRING_WINDOW_MS} * interval '1 millisecond'`,
           ),
         )
     }),
