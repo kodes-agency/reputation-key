@@ -1268,7 +1268,7 @@ counts only: `released`, `checked` (Google reads), `heldLocal` and
 `heldAfterRead` (reminders withheld because a reply is already on Google),
 `deferred` (left pending for the next tick), `unavailable` (reads that failed),
 `skippedNoProvider` (no Google provider in this environment) and `failed`
-(slots whose own work threw; they stay pending). Healthy: `heldLocal` or
+(slots whose own work threw; they stay pending, and go out once 15 minutes late). Healthy: `heldLocal` or
 `heldAfterRead` above zero when managers answer on Google, `unavailable` and
 `deferred` near zero.
 

@@ -558,6 +558,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       clock: input.clock,
     }),
     checkReviewOnGoogle: checkReviewOnGoogle({
+      logger: input.logger,
       reviewRepo,
       googleReviewApi: input.googleReviewApi,
       propertyBinding: propertyGoogleReadBinding,

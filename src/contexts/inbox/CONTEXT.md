@@ -76,7 +76,8 @@ transiently leaves the slot pending until 15 minutes after its `scheduled_for`,
 then releases; a permanent condition (capability off, no Google provider,
 connection needing reauthorization) releases at once. No transaction or lock is
 held across the Google read, private-feedback slots are never checked, and a tick
-reads Google at most 20 times.
+reads Google at most 20 times (a slot that never reaches Google spends none; one
+past the limit waits for the next tick, however late it is).
 
 An Organization may give its own low-rated Google reviews a shorter target — a
 star threshold and a shorter duration on the same Google policy row — so their

@@ -139,7 +139,9 @@ function setup(
   )
   const isGoogleReadEnabled = vi.fn(() => input.enabled ?? true)
   const nonce = vi.fn(() => '3f8a9d7c-0000-4000-8000-000000000001')
+  const warn = vi.fn()
   const check = checkReviewOnGoogle({
+    logger: { warn },
     reviewRepo: { findById },
     googleReviewApi,
     propertyBinding: { getBinding: vi.fn(async () => bindings.shift() ?? null) },
@@ -157,6 +159,7 @@ function setup(
     findById,
     isGoogleReadEnabled,
     nonce,
+    warn,
   }
 }
 
@@ -456,6 +459,21 @@ describe('checkReviewOnGoogle', () => {
         status: 'unavailable',
         retry: 'later',
       })
+    })
+
+    it('logs the error class and stage, never its text, when the read cannot finish', async () => {
+      const { check, warn } = setup({
+        persistError: new TypeError('review text leaked into an error message'),
+      })
+
+      await check(request)
+
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn).toHaveBeenCalledWith(
+        { stage: 'check_review_on_google', errorName: 'TypeError' },
+        expect.any(String),
+      )
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('leaked')
     })
 
     it('treats a failed write as worth another try rather than throwing', async () => {

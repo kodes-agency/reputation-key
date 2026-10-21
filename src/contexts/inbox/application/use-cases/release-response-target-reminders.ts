@@ -1,7 +1,6 @@
 import { reviewId, type OrganizationId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
-  REMINDER_GOOGLE_CHECK_DELAY_CAP_MS,
   decideReminderAfterGoogleCheck,
   planReminderRelease,
   type ReminderGoogleCheckOutcome,
@@ -31,7 +30,7 @@ export const RESPONSE_TARGET_REMINDER_TICK_BUDGET_MS = 35_000
 export type ReminderReleaseCounts = Readonly<{
   /** Reminder facts queued (a superseded halfway, which has none, is not counted). */
   released: number
-  /** Google reads attempted. */
+  /** Google reads attempted. A slot that never reached Google is not one. */
   checked: number
   /** Held on a reply Review already knew, with no read. */
   heldLocal: number
@@ -43,7 +42,7 @@ export type ReminderReleaseCounts = Readonly<{
   unavailable: number
   /** Reads skipped because this environment has no Google provider. */
   skippedNoProvider: number
-  /** Slots whose own work threw; they stay pending. */
+  /** Slots whose own work threw: left pending until the delay cap, then released. */
   failed: number
 }>
 
@@ -184,10 +183,16 @@ const readGoogle = async (
   }
 }
 
+/**
+ * A read that never reached Google (no provider, capability off, expired
+ * content, no binding) costs nothing, so it must not spend the tick's read cap
+ * or inflate `checked`: a stack without Google keeps its timing however many
+ * slots are due.
+ */
 const readCounts = (
   outcome: GoogleReviewCheckOutcome,
 ): Partial<ReminderReleaseCounts> => ({
-  checked: 1,
+  ...(outcome.status === 'not_checkable' ? {} : { checked: 1 }),
   ...(outcome.status === 'unavailable' ? { unavailable: 1 } : {}),
   ...(outcome.status === 'not_checkable' && outcome.reason === 'no_provider'
     ? { skippedNoProvider: 1 }
@@ -213,6 +218,27 @@ const headAfterRead = async (
   }
 }
 
+/**
+ * A slot whose reply head could not be read stays pending like a transient
+ * Google failure, and goes out once it is 15 minutes late: the same fail-open
+ * bound, so a broken lookup cannot hold a reminder back for ever.
+ */
+const afterLookupFailure = async (
+  deps: ReleaseDueResponseTargetRemindersDeps,
+  candidate: DueReminderCandidate,
+): Promise<Partial<ReminderReleaseCounts>> => {
+  const now = deps.clock()
+  const decision = decideReminderAfterGoogleCheck({
+    outcome: 'transient_failure',
+    head: undefined,
+    targetStartAt: candidate.targetStartAt,
+    cycleMaterialReviewRevision: candidate.sourceRevision,
+    scheduledFor: candidate.scheduledFor,
+    now,
+  })
+  return decision === 'release' ? releaseSlot(deps, candidate, now) : { failed: 1 }
+}
+
 /** Read Google for one slot, then hold, defer or release it. */
 const checkSlot = async (
   deps: ReleaseDueResponseTargetRemindersDeps,
@@ -221,7 +247,9 @@ const checkSlot = async (
   const outcome = await readGoogle(deps, candidate)
   const counts = readCounts(outcome)
   const after = outcome.status === 'read' ? await headAfterRead(deps, candidate) : null
-  if (after?.ok === false) return { ...counts, failed: 1 }
+  if (after?.ok === false) {
+    return { ...counts, ...(await afterLookupFailure(deps, candidate)) }
+  }
   const now = deps.clock()
   const decision = decideReminderAfterGoogleCheck({
     outcome: toDecisionOutcome(outcome),
@@ -234,21 +262,6 @@ const checkSlot = async (
   if (decision === 'hold') return { ...counts, heldAfterRead: 1 }
   if (decision === 'defer') return { ...counts, deferred: 1 }
   return { ...counts, ...(await releaseSlot(deps, candidate, now)) }
-}
-
-/**
- * A slot the tick has no read left for. It waits for the next tick unless it
- * is already as late as the delay cap allows, when it goes out unchecked: a
- * backlog must not hold a reminder back for ever.
- */
-const pastReadLimits = async (
-  deps: ReleaseDueResponseTargetRemindersDeps,
-  candidate: DueReminderCandidate,
-): Promise<Partial<ReminderReleaseCounts>> => {
-  const now = deps.clock()
-  const lateMs = now.getTime() - candidate.scheduledFor.getTime()
-  if (lateMs < REMINDER_GOOGLE_CHECK_DELAY_CAP_MS) return { deferred: 1 }
-  return releaseSlot(deps, candidate, now)
 }
 
 /**
@@ -298,7 +311,7 @@ export const releaseDueResponseTargetReminders = (
     for (const { candidate, plan } of planned) {
       if (plan === 'release_unchecked') continue
       if (unreadableOrganizations.has(String(candidate.organizationId))) {
-        counts = add(counts, { failed: 1 })
+        counts = add(counts, await afterLookupFailure(deps, candidate))
       } else if (plan === 'hold_local') {
         counts = add(counts, { heldLocal: 1 })
       } else {
@@ -306,11 +319,11 @@ export const releaseDueResponseTargetReminders = (
           counts.checked < RESPONSE_TARGET_REMINDER_GOOGLE_READ_CAP &&
           deps.clock().getTime() - startedAt.getTime() <
             RESPONSE_TARGET_REMINDER_TICK_BUDGET_MS
+        // Out of reads: wait for the next tick, however late the slot is. The
+        // oldest go first, so a backlog drains 20 reads at a time.
         counts = add(
           counts,
-          readsLeft
-            ? await checkSlot(deps, candidate)
-            : await pastReadLimits(deps, candidate),
+          readsLeft ? await checkSlot(deps, candidate) : { deferred: 1 },
         )
       }
     }

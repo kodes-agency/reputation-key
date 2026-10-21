@@ -411,7 +411,7 @@ describe('releaseDueResponseTargetReminders', () => {
       expect(result).toMatchObject({ checked: 20, released: 20, deferred: 5 })
     })
 
-    it('releases an unchecked slot that is already 15 minutes late rather than starve it', async () => {
+    it('defers a slot past the read cap even when it is already over 15 minutes late', async () => {
       const late = (n: number) =>
         candidate(n, { scheduledFor: new Date(DUE.getTime() - 20 * MINUTE) })
       const h = setup({
@@ -422,8 +422,56 @@ describe('releaseDueResponseTargetReminders', () => {
       const result = await h.run()
 
       expect(h.check).toHaveBeenCalledTimes(20)
-      expect(released(h)).toContain(21)
-      expect(result).toMatchObject({ checked: 20, released: 21, deferred: 0 })
+      expect(released(h)).not.toContain(21)
+      expect(result).toMatchObject({ checked: 20, released: 20, deferred: 1 })
+    })
+
+    it('reads a deferred backlog slot on the next tick, then releases it if the read fails', async () => {
+      const late = (n: number) =>
+        candidate(n, { scheduledFor: new Date(DUE.getTime() - 20 * MINUTE) })
+      const h = setup({
+        candidates: [late(21)],
+        check: async () => ({ status: 'unavailable', retry: 'later' }),
+      })
+
+      const result = await h.run()
+
+      expect(h.check).toHaveBeenCalledTimes(1)
+      expect(released(h)).toEqual([21])
+      expect(result).toMatchObject({ checked: 1, unavailable: 1, released: 1 })
+    })
+
+    it('spends no read on slots that never reach Google, so 25 of them all release in one tick', async () => {
+      const h = setup({
+        candidates: many(25),
+        check: async () => ({ status: 'not_checkable', reason: 'no_provider' }),
+      })
+
+      const result = await h.run()
+
+      expect(h.check).toHaveBeenCalledTimes(25)
+      expect(released(h)).toEqual(Array.from({ length: 25 }, (_, i) => i + 1))
+      expect(result).toMatchObject({
+        checked: 0,
+        skippedNoProvider: 25,
+        released: 25,
+        deferred: 0,
+      })
+    })
+
+    it('spends no read on slots whose content cannot be read, so the cap goes to real reads', async () => {
+      const h = setup({
+        candidates: many(30),
+        check: async (n) =>
+          n <= 25
+            ? { status: 'not_checkable', reason: 'content_expired' }
+            : { status: 'read' },
+      })
+
+      const result = await h.run()
+
+      expect(released(h)).toHaveLength(30)
+      expect(result).toMatchObject({ checked: 5, released: 30, deferred: 0 })
     })
 
     it('stops reading when the time budget is spent and defers what is left', async () => {
@@ -514,6 +562,54 @@ describe('releaseDueResponseTargetReminders', () => {
         { stage: 'heads', errorName: 'Error' },
         expect.any(String),
       )
+    })
+
+    it('releases a slot whose reply heads cannot be read once it is 15 minutes late', async () => {
+      const h = setup({
+        candidates: [
+          candidate(1, {
+            organizationId: OTHER_ORG,
+            scheduledFor: new Date(DUE.getTime() - 20 * MINUTE),
+          }),
+        ],
+      })
+      h.getGoogleReplyHeadsByReviewIds.mockRejectedValue(new Error('replica lagging'))
+
+      const result = await h.run()
+
+      expect(h.check).not.toHaveBeenCalled()
+      expect(released(h)).toEqual([1])
+      expect(result).toMatchObject({ released: 1, deferred: 0 })
+    })
+
+    it('leaves a slot pending while the head lookup after a read fails within 15 minutes', async () => {
+      const h = setup({ candidates: [candidate(1)] })
+      h.getGoogleReplyHeadsByReviewIds.mockImplementation(async () => {
+        if (h.check.mock.calls.length > 0) throw new Error('replica lagging')
+        return new Map()
+      })
+
+      const result = await h.run()
+
+      expect(h.releaseReminderSlot).not.toHaveBeenCalled()
+      expect(result).toMatchObject({ checked: 1, failed: 1, released: 0 })
+    })
+
+    it('releases a slot whose head lookup after a read fails once 15 minutes have passed', async () => {
+      const h = setup({
+        candidates: [
+          candidate(1, { scheduledFor: new Date(DUE.getTime() - 20 * MINUTE) }),
+        ],
+      })
+      h.getGoogleReplyHeadsByReviewIds.mockImplementation(async () => {
+        if (h.check.mock.calls.length > 0) throw new Error('replica lagging')
+        return new Map()
+      })
+
+      const result = await h.run()
+
+      expect(released(h)).toEqual([1])
+      expect(result).toMatchObject({ checked: 1, released: 1 })
     })
   })
 

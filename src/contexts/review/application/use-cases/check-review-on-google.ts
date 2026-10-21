@@ -1,4 +1,5 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import type { Review } from '../../domain/types'
@@ -50,6 +51,8 @@ export type CheckReviewOnGoogleResult =
   | Readonly<{ status: 'unavailable'; retry: 'later' | 'never' }>
 
 export type CheckReviewOnGoogleDeps = Readonly<{
+  /** Receives the error class of an unexpected failure, never its text. */
+  logger: Pick<LoggerPort, 'warn'>
   reviewRepo: Pick<ReviewRepository, 'findById'>
   googleReviewApi: Pick<GoogleReviewApiPort, 'getReview'>
   propertyBinding: PropertyGoogleReadBindingPort
@@ -158,7 +161,15 @@ export const checkReviewOnGoogle =
   async (input: CheckReviewOnGoogleInput): Promise<CheckReviewOnGoogleResult> => {
     try {
       return await run(deps, input)
-    } catch {
+    } catch (error) {
+      // Only the class: an error message could carry review text or ids.
+      deps.logger.warn(
+        {
+          stage: 'check_review_on_google',
+          errorName: error instanceof Error ? error.name : 'non_error',
+        },
+        'Review check on Google ended in an unexpected error',
+      )
       return { status: 'unavailable', retry: 'later' }
     }
   }

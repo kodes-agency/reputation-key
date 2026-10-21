@@ -197,7 +197,8 @@ When Google cannot be read:
   from `scheduled_for`, so no state is stored; a slot found more than 15 minutes
   late is read once and released at once if that read fails. Under a persistent
   provider failure a reminder is therefore 15 to 20 minutes late (ticks are 5
-  minutes apart).
+  minutes apart). A reply-head lookup that fails (before or after the read) is
+  treated the same way: the slot waits, and goes out once it is 15 minutes late.
 - _Permanent_ conditions release at once with no wait: `property.connect_gbp` not
   enabled for the Property, no Google provider in this environment (local and e2e
   stacks keep today's timing), a connection that needs reauthorizing or whose
@@ -210,10 +211,15 @@ When Google cannot be read:
   never recorded, so it can never close the item; the reminder is released.
 
 Limits per tick: at most **20 Google reads** and a soft **35 second** budget. Slots
-beyond them wait for the next tick, unless they are already 15 minutes late, when
-they are released unchecked. A per-slot error is counted, never rethrown: a throw
+beyond them wait for the next tick, however late they are: they are never released
+unchecked, and the oldest are read first, so a backlog after worker downtime drains
+20 reads per tick (the listing takes 100 slots, so about five ticks). Only a slot
+that reaches Google spends a read: one that cannot be read at all (no Google
+provider, capability off, expired content, no binding) is released at once and
+costs none, so a stack without Google keeps today's timing however many slots are
+due. A per-slot error is counted, never rethrown: a throw
 would make the queue redo the listing and the reads. The job log carries counts
-only (`released`, `checked`, `heldLocal`, `heldAfterRead`, `deferred`,
+only (`released`, `checked` (reads that reached Google), `heldLocal`, `heldAfterRead`, `deferred`,
 `unavailable`, `skippedNoProvider`, `failed`): no review text and no provider id.
 
 Recipient policy is:
