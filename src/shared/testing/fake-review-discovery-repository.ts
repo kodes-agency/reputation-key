@@ -31,6 +31,8 @@ export type FakeDiscoveryPropertyRow = {
   nextDueAt: Date | null
   errorClass: string | null
   errorRetryAt: Date | null
+  /** review_sync_state.last_terminal_error_at — when the failure was recorded. */
+  lastFailureAt: Date | null
   lastSuccessAt: Date | null
   /** review_sync_state.last_new_review_at (migration 0071). */
   lastNewReviewAt: Date | null
@@ -109,12 +111,24 @@ export const createFakeReviewDiscoveryRepository = (
       row.nextDueAt = nextDueAt
     },
 
-    markDiscoveryDeferred: async (propertyId, _now, nextDueAt, errorClass) => {
+    markDiscoveryDeferred: async (propertyId, now, nextDueAt, errorClass) => {
       const row = rows.find((r) => r.propertyId === propertyId)
       if (!row) return
       row.nextDueAt = nextDueAt
       row.errorClass = errorClass
       row.errorRetryAt = nextDueAt
+      row.lastFailureAt = now
+    },
+
+    findFailureState: async (propertyId) => {
+      const row = rows.find((r) => r.propertyId === propertyId)
+      return row
+        ? {
+            errorClass: row.errorClass,
+            failedAt: row.lastFailureAt,
+            retryAt: row.errorRetryAt,
+          }
+        : null
     },
 
     markSyncSucceeded: async (propertyId) => {
@@ -122,6 +136,31 @@ export const createFakeReviewDiscoveryRepository = (
       if (!row) return
       row.errorClass = null
       row.errorRetryAt = null
+    },
+
+    pullLooksForward: async (propertyIds, now, reconciledSince) => {
+      let pulledForward = 0
+      let skippedRecent = 0
+      let skippedBackoff = 0
+      for (const propertyId of propertyIds) {
+        const row = rows.find((r) => r.propertyId === propertyId)
+        if (!row) continue
+        if (
+          row.lastReconciledAt !== null &&
+          row.lastReconciledAt.getTime() >= reconciledSince.getTime()
+        ) {
+          skippedRecent++
+        } else if (
+          row.errorRetryAt !== null &&
+          row.errorRetryAt.getTime() > now.getTime()
+        ) {
+          skippedBackoff++
+        } else if (row.nextDueAt !== null && row.nextDueAt.getTime() > now.getTime()) {
+          row.nextDueAt = now
+          pulledForward++
+        }
+      }
+      return { pulledForward, skippedRecent, skippedBackoff }
     },
   }
   return { rows, ...base, ...overrides }
@@ -144,6 +183,7 @@ export const fakeDiscoveryProperty = (
   nextDueAt: null,
   errorClass: null,
   errorRetryAt: null,
+  lastFailureAt: null,
   lastSuccessAt: null,
   lastNewReviewAt: null,
   lastNotificationAt: null,

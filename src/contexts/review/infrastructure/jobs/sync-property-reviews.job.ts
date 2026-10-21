@@ -26,16 +26,10 @@ import type {
 } from '../../application/use-cases/run-review-head-check'
 import type { ReviewHeadChecksMode } from '../../domain/head-check'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { snapshotFailureRetryMs } from '../../domain/snapshot-failure-backoff'
 import { ReviewProviderSnapshotFailure } from './review-provider-snapshot-failure'
 
 export const JOB_NAME = 'sync-property-reviews' as const
-
-/**
- * How long a location over the review cap waits before the discovery sweep
- * looks at it again. The cap is a constant a release may raise, and the owner
- * may remove reviews on Google, so it is re-read daily rather than never.
- */
-const LOCATION_TOO_LARGE_RETRY_MS = 24 * 60 * 60 * 1000
 
 type SyncHandlerDeps = Readonly<{
   runSnapshot: RunReviewProviderSnapshot
@@ -59,10 +53,14 @@ type SyncHandlerDeps = Readonly<{
   syncActivity: ReviewSyncActivityRecorder
   discoveryRepo: Pick<
     ReviewDiscoveryRepository,
-    'markDiscoveryDeferred' | 'markSyncSucceeded'
+    'markDiscoveryDeferred' | 'findFailureState' | 'markSyncSucceeded'
   >
   clock: () => Date
-  /** Hot-rung interval — the push reset's next-poll clamp. */
+  /**
+   * Hot-rung interval: the push reset's next-poll clamp, and the wait after a
+   * first snapshot failure (it grows with consecutive failures, see
+   * domain/snapshot-failure-backoff.ts).
+   */
   hotIntervalMs: number
 }>
 
@@ -353,14 +351,27 @@ async function runSnapshotStep(
     // three attempts and a quarantine entry every discovery interval. The
     // first-import notice tells the owner ("location_too_large").
     const tooLarge = historyImportFailureReason(result.code) === 'location_too_large'
-    const retryAt = new Date(
-      now.getTime() + (tooLarge ? LOCATION_TOO_LARGE_RETRY_MS : deps.hotIntervalMs),
-    )
+    // Any other failure waits longer each time it repeats, so a failure that
+    // recurs does not spend a full double listing every 15 minutes.
+    const retryAfterMs = snapshotFailureRetryMs({
+      previous: await deps.discoveryRepo.findFailureState(data.propertyId),
+      now,
+      baseIntervalMs: deps.hotIntervalMs,
+      locationTooLarge: tooLarge,
+    })
     await deps.discoveryRepo.markDiscoveryDeferred(
       data.propertyId,
       now,
-      retryAt,
+      new Date(now.getTime() + retryAfterMs),
       result.code,
+    )
+    deps.logger?.warn(
+      {
+        event: 'review_snapshot_failure_deferred',
+        failureCode: result.code,
+        retryAfterMs,
+      },
+      'Review snapshot failed; the next retry is backed off',
     )
     if (tooLarge) return result
     throw new ReviewProviderSnapshotFailure(result.code)

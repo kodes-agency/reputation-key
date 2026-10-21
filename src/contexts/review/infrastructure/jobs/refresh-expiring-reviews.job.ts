@@ -3,14 +3,26 @@
 // Keyset-cursor bounded sweep, replacing the one-shot 5,000-row scan:
 // - batches ordered (contentExpiresAt, id); cursor persists per batch so a
 //   budget-exhausted or failed run resumes where it stopped;
-// - a batch with an enqueue failure does NOT advance the cursor and the run
-//   is recorded 'failed' + thrown — a failed enqueue is never acknowledged
-//   as success (the queue retry re-processes that batch; sync upserts are
+// - a batch whose schedule update fails does NOT advance the cursor and the
+//   run is recorded 'failed' + thrown — a failed update is never acknowledged
+//   as success (the queue retry re-processes that batch; the update is
 //   idempotent);
 // - every run persists cursor, counts, oldest due expiry, failures, and
 //   terminal state to review_refresh_runs (content-free);
 // - purge safety: only successful fetches advance the clock (BQC-1.3), so a
 //   failed refresh never masquerades as a successful observation.
+//
+// The sweep enqueues NO sync of its own (ADR 0055, note of 2026-10-21 (e)).
+// Every completed snapshot already refreshes the 30-day content clock of every
+// review it lists, so a Property whose reviews are about to expire needs a
+// snapshot, not a special one. The sweep moves the Property's next discovery
+// look up to now when its last completed reconciliation is over a day old; the
+// discovery sweep then runs it with its start spread, its skip rule and its
+// failure backoff. A Property reconciled inside the day is left alone: that
+// listing already refreshed every review Google lists, so a review that still
+// expires was not listed, and letting it expire is correct. The run row keeps
+// its column names: `enqueued_count` counts Properties pulled forward and
+// `enqueue_failed_count` counts failed schedule updates.
 //
 // BQR-3.2 / ADR 0031: fetch-based contentExpiresAt + SourceContentPolicy.
 
@@ -18,7 +30,7 @@ import type { Job } from 'bullmq'
 
 export const JOB_NAME = 'refresh-expiring-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
-import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
+import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
 import type { Review } from '../../domain/types'
 import type {
   ReviewRefreshRunRepository,
@@ -33,12 +45,17 @@ import { trace } from '#/shared/observability/trace'
 
 const DEFAULT_BATCH_SIZE = 500
 const DEFAULT_MAX_BATCHES = 10
+/**
+ * A completed reconciliation newer than this already refreshed every review
+ * Google lists for the Property, so its still-expiring reviews are not listed.
+ */
+const RECONCILED_WITHIN_MS = 24 * 60 * 60 * 1000
 /** Warn when the oldest refresh-due content is this close to hard expiry. */
 const DEFAULT_ALERT_LEAD_MS = 2 * 24 * 60 * 60 * 1000
 
 type RefreshHandlerDeps = Readonly<{
   reviewRepo: ReviewRepository
-  queue: ReviewQueuePort
+  discoveryRepo: Pick<ReviewDiscoveryRepository, 'pullLooksForward'>
   refreshRunRepo: ReviewRefreshRunRepository
   clock: () => Date
   logger: Pick<LoggerPort, 'info' | 'warn'>
@@ -47,27 +64,27 @@ type RefreshHandlerDeps = Readonly<{
   alertLeadMs?: number
 }>
 
-type SyncGroup = Readonly<{
-  propertyId: string
-  organizationId: string
-  connectionId: string
-  locationName: string
-}>
-
 type SweepState = {
   cursor: RefreshRunCursor | null
   batches: number
   seen: number
   dueCount: number
-  enqueued: number
-  enqueueFailed: number
+  /** Properties whose next discovery look moved up to now. */
+  pulledForward: number
+  /** Properties left alone: a completed reconciliation inside the day covers them. */
+  skippedRecent: number
+  /** Properties left alone: a failure is waiting for its backoff retry date. */
+  skippedBackoff: number
+  pullFailed: number
+  /** Properties already handled by an earlier batch of this run. */
+  handled: Set<string>
   oldestDue: Date | null
 }
 
 type BatchOutcome =
   | Readonly<{ kind: 'empty' }>
   | Readonly<{ kind: 'processed'; cursor: RefreshRunCursor }>
-  | Readonly<{ kind: 'enqueue_failed' }>
+  | Readonly<{ kind: 'pull_failed' }>
 
 /** Resolve the resume cursor from the previous run, when it stopped mid-sweep. */
 function resolveResumeCursor(
@@ -91,44 +108,45 @@ function resolveResumeCursor(
   return null
 }
 
-/** Group due rows by (propertyId, connectionId, locationName, organizationId). */
-function groupDueRowsBySyncKey(dueRows: ReadonlyArray<Review>): Map<string, SyncGroup> {
-  const groups = new Map<string, SyncGroup>()
+/** The Properties of the due rows, in first-seen order, minus those already handled. */
+function newPropertyIds(
+  dueRows: ReadonlyArray<Review>,
+  handled: ReadonlySet<string>,
+): string[] {
+  const ids = new Set<string>()
   for (const review of dueRows) {
-    const connectionId = review.googleConnectionId
-    if (!connectionId) continue
-    const key = `${review.propertyId}:${connectionId}:${review.externalLocationId}`
-    if (!groups.has(key)) {
-      groups.set(key, {
-        propertyId: review.propertyId as string,
-        organizationId: review.organizationId as string,
-        connectionId: connectionId as string,
-        locationName: review.externalLocationId,
-      })
-    }
+    const propertyId = review.propertyId as string
+    if (!handled.has(propertyId)) ids.add(propertyId)
   }
-  return groups
+  return [...ids]
 }
 
-/** Enqueue one sync job per group; failures are counted, not swallowed. */
-async function enqueueSyncGroups(
+/** Move the look of each Property up; a failure is counted, not swallowed. */
+async function pullPropertiesForward(
   deps: RefreshHandlerDeps,
-  groups: ReadonlyMap<string, SyncGroup>,
+  propertyIds: readonly string[],
   state: SweepState,
+  now: Date,
   logger: RefreshHandlerDeps['logger'],
 ): Promise<void> {
-  for (const data of groups.values()) {
-    try {
-      await deps.queue.addSyncJob(data)
-      state.enqueued++
-    } catch (err) {
-      state.enqueueFailed++
-      logger.warn({ err }, 'Failed to enqueue refresh job')
-    }
+  if (propertyIds.length === 0) return
+  try {
+    const result = await deps.discoveryRepo.pullLooksForward(
+      propertyIds,
+      now,
+      new Date(now.getTime() - RECONCILED_WITHIN_MS),
+    )
+    state.pulledForward += result.pulledForward
+    state.skippedRecent += result.skippedRecent
+    state.skippedBackoff += result.skippedBackoff
+    for (const id of propertyIds) state.handled.add(id)
+  } catch (err) {
+    state.pullFailed++
+    logger.warn({ err }, 'Failed to pull a discovery look forward for refresh')
   }
 }
 
-/** Fetch, classify, group, and enqueue one batch. Never advances past failures. */
+/** Fetch, classify, and pull forward one batch. Never advances past failures. */
 async function processSweepBatch(
   deps: RefreshHandlerDeps,
   state: SweepState,
@@ -171,8 +189,14 @@ async function processSweepBatch(
     }
   }
 
-  await enqueueSyncGroups(deps, groupDueRowsBySyncKey(dueRows), state, logger)
-  if (state.enqueueFailed > 0) return { kind: 'enqueue_failed' }
+  await pullPropertiesForward(
+    deps,
+    newPropertyIds(dueRows, state.handled),
+    state,
+    now,
+    logger,
+  )
+  if (state.pullFailed > 0) return { kind: 'pull_failed' }
 
   const last = batch[batch.length - 1]
   return {
@@ -186,7 +210,7 @@ async function processSweepBatch(
 
 type PersistFn = (extra?: Record<string, unknown>) => Promise<void>
 
-/** The bounded sweep loop — returns on empty/budget; throws on enqueue failure. */
+/** The bounded sweep loop — returns on empty/budget; throws on a failed schedule update. */
 async function runSweepLoop(
   deps: RefreshHandlerDeps,
   state: SweepState,
@@ -212,18 +236,18 @@ async function runSweepLoop(
 
     if (outcome.kind === 'empty') return
 
-    if (outcome.kind === 'enqueue_failed') {
-      // Never acknowledge a failed enqueue as success: hold the cursor
-      // before this batch (reprocessed on retry; sync upserts are
-      // idempotent), record 'failed', and throw for the queue retry.
+    if (outcome.kind === 'pull_failed') {
+      // Never acknowledge a failed update as success: hold the cursor before
+      // this batch (reprocessed on retry; the update is idempotent), record
+      // 'failed', and throw for the queue retry.
       await options.persist({
         status: 'failed',
-        failureReason: `${state.enqueueFailed} enqueue failure(s) in batch ${state.batches}`,
+        failureReason: `${state.pullFailed} pull-forward failure(s) in batch ${state.batches}`,
         finishedAt: deps.clock(),
         nextAttemptAt: deps.clock(),
       })
       throw new Error(
-        `refresh sweep: ${state.enqueueFailed} enqueue failure(s) — run recorded failed, cursor held`,
+        `refresh sweep: ${state.pullFailed} pull-forward failure(s) — run recorded failed, cursor held`,
       )
     }
 
@@ -266,7 +290,9 @@ async function finalizeSweep(
     {
       candidatesSeen: state.seen,
       refreshDueCount: state.dueCount,
-      enqueued: state.enqueued,
+      pulledForward: state.pulledForward,
+      skippedRecent: state.skippedRecent,
+      skippedBackoff: state.skippedBackoff,
       batchesProcessed: state.batches,
       resumed: options.resumed,
       status: options.exhausted ? 'budget_exhausted' : 'completed',
@@ -299,8 +325,11 @@ export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) =>
         batches: 0,
         seen: 0,
         dueCount: 0,
-        enqueued: 0,
-        enqueueFailed: 0,
+        pulledForward: 0,
+        skippedRecent: 0,
+        skippedBackoff: 0,
+        pullFailed: 0,
+        handled: new Set<string>(),
         oldestDue: null,
       }
 
@@ -310,8 +339,8 @@ export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) =>
           batchesProcessed: state.batches,
           candidatesSeen: state.seen,
           refreshDueCount: state.dueCount,
-          enqueuedCount: state.enqueued,
-          enqueueFailedCount: state.enqueueFailed,
+          enqueuedCount: state.pulledForward,
+          enqueueFailedCount: state.pullFailed,
           oldestDueContentExpiresAt: state.oldestDue,
           ...extra,
         })
@@ -335,7 +364,7 @@ export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) =>
           persist,
         })
       } catch (err) {
-        // The enqueue-failure path already persisted 'failed'; other throws
+        // The failed-update path already persisted 'failed'; other throws
         // record a failure once, best-effort, then rethrow for queue retry.
         const alreadyRecorded =
           err instanceof Error && err.message.startsWith('refresh sweep:')

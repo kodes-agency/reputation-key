@@ -670,6 +670,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/review/infrastructure/repositories/review-discovery.repository.ts',
+    symbol: 'pullLooksForward',
+    reason:
+      'The hourly content refresh sweep is tenant-cross by design: it hands over Property ids it read across tenants and moves only the due time of each Property sync state row, which is keyed by Property id and carries no Organization column.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/review/infrastructure/repositories/review-observation.repository.ts',
     symbol: 'lockStableIdentity',
     reason:

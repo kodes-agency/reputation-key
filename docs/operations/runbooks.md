@@ -242,6 +242,20 @@ SELECT count(*) AS checks,
 
 **Escalation:** Bozhidar Denev.
 
+### Failed syncs and their retry timing (`sync.failed-nonzero`)
+
+**Alert:** `sync.failed-nonzero` (P2): at least one Property has a coded failure in `review_sync_state.error_class` whose retry is due.
+
+**Timing.** A coded snapshot failure is retried by the discovery sweep with a wait that grows while the failure repeats (ADR 0055, note 2026-10-21 (e)): 15 minutes after the first failure, 1 hour after the second, 4 hours after the third, and 6 hours from the fourth on. A completed run clears the failure and the next one starts at 15 minutes again. A location over the review or page cap (`review_cap_exceeded`, `page_cap_exceeded`) waits 24 hours. A lost cursor (`cursor_lost`, every deploy that restarts google-provider-redis) and a quiet `listing_changed` record no failure and restart at once. So a Property can sit in this alert for up to six hours between attempts without the sweep being stuck: the alert counts a failure whose retry date has passed, and the sweep picks it up on its next run after that date. `review_sync_state.error_retry_at` and `next_incremental_at` hold the same instant for a failed Property, and `last_terminal_error_at` holds when it last failed, so `error_retry_at - last_terminal_error_at` is the wait it was given. A push notice does not shorten that wait: the poll is never moved ahead of `error_retry_at`.
+
+**Reading it.** The worker log line `Review snapshot failed; the next retry is backed off` (`event: review_snapshot_failure_deferred`) carries `failureCode` and `retryAfterMs`, with no Property id. A Property that failed three attempts of one job in a minute is one failure, not three: a failure that lands before the previous retry date keeps the previous wait.
+
+**Retry sooner.** Fix the cause first. The sweep takes a failed Property at its retry date. To retry earlier, set `next_incremental_at` and `error_retry_at` of that `review_sync_state` row to now in an operator session; leave `error_class` in place, because a completed run clears it and the alert reads it. `ops:refresh reviews` does not do this: it reruns the hourly content refresh below, which moves only Properties with reviews about to expire and never one still inside its backoff.
+
+### The hourly content refresh (`refresh-expiring-reviews`)
+
+It enqueues no sync. For each Property with a review whose content expires within five days it checks the last completed reconciliation (`review_google_reputation_snapshot_facts.evaluated_at`, current source epoch). Older than 24 hours, or none: the Property's `next_incremental_at` is moved up to now, and the normal discovery sweep runs it with its spread, the skip rule and the failure backoff (so expect the sync within one 15-minute sweep plus the start spread, not at once). A reconciliation inside the day: nothing, because that listing already refreshed every review Google lists. A Property with a failure whose retry date is ahead is not moved. The completion log line `Refresh expiring reviews completed` carries `refreshDueCount`, `pulledForward`, `skippedRecent` and `skippedBackoff`; on the `review_refresh_runs` row `enqueued_count` is the number pulled forward and `enqueue_failed_count` the number of failed updates. A content clock that still reaches 30 days on a Property that was reconciled inside the day means Google no longer lists that review, which is the correct outcome.
+
 ### Reconciliation age (`sync.reconciliation-age`)
 
 **Alert:** `sync.reconciliation-age` (P2) — a Property the sweep still polls has no completed reconciliation (a completed provider snapshot run, recorded as a `review_google_reputation_snapshot_facts` row for its current source epoch) inside the last 8 hours.
