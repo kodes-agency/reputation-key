@@ -270,6 +270,45 @@ describe('Review provider observation of a Google reply it cannot read', () => {
   })
 })
 
+describe('Review provider observation of a reply Google is moderating', () => {
+  // Google's moderation state is parsed and logged, not decided on. A snapshot
+  // read of a PENDING or REJECTED reply is therefore recorded exactly as the
+  // same read without the field: same observation key, same text, same clock.
+  it.each(['pending', 'rejected', 'unspecified', 'approved'] as const)(
+    'records a %s reply exactly as the same read without the moderation field',
+    async (state) => {
+      const reply = {
+        ...SCOPE_PROVIDER_REVIEW,
+        replyText: 'Thanks for staying with us',
+        replyUpdatedAt: new Date('2026-09-09T09:01:28.000Z'),
+      }
+      const without = scopeWriter(null)
+      const withState = scopeWriter(null)
+
+      await without.writer.persist(scopeObservation({ sourceEpoch: 4, review: reply }))
+      await withState.writer.persist(
+        scopeObservation({
+          sourceEpoch: 4,
+          review: {
+            ...reply,
+            replyModeration: {
+              state,
+              policyViolation: state === 'rejected' ? 'SPAM' : null,
+              commentPresent: true,
+              commentEmpty: false,
+              updateTimePresent: true,
+              updateTimeEmpty: false,
+            },
+          },
+        }),
+      )
+
+      expect(withState.record).toHaveBeenCalledTimes(1)
+      expect(withState.record.mock.calls).toEqual(without.record.mock.calls)
+    },
+  )
+})
+
 describe('Review provider observation of text the AI source contract refuses', () => {
   // 497 x U+FDFA is 1,491 bytes of Google text and 16,401 once NFKC has
   // expanded it, over the 16,384 byte limit of the canonical AI source (S13-02).
