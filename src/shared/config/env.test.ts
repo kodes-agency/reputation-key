@@ -205,3 +205,20 @@ describe('REVIEW_HEAD_CHECKS', () => {
     expect(() => parse('persist')).toThrow('REVIEW_HEAD_CHECKS')
   })
 })
+
+describe('GBP_PUBSUB_NOTIFICATION_TYPES', () => {
+  it('subscribes to new and updated reviews when unset, so an edited review is caught too', () => {
+    expect(
+      parseEnvironment({ ...testEnvironment({}) }).GBP_PUBSUB_NOTIFICATION_TYPES,
+    ).toBe('NEW_REVIEW,UPDATED_REVIEW')
+  })
+
+  it('keeps an operator-set value as written', () => {
+    expect(
+      parseEnvironment({
+        ...testEnvironment({}),
+        GBP_PUBSUB_NOTIFICATION_TYPES: 'NEW_REVIEW',
+      }).GBP_PUBSUB_NOTIFICATION_TYPES,
+    ).toBe('NEW_REVIEW')
+  })
+})

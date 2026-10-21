@@ -4,14 +4,17 @@ Without this, the app learns about a new Google review only when the
 `discover-new-reviews` sweep next polls that property — up to about six and a
 quarter hours for a property that has been quiet: a six-hour interval, then the
 next 15-minute sweep (see the backoff ladder in
-`src/contexts/review/domain/discovery-backoff.ts`). With it,
-Google pushes within seconds and the sweep becomes a reconciliation safety net
-rather than the mechanism: while a property's last completed reconciliation is
-under six hours old, the sweep skips its full snapshot and only dates the next
-look (ADR 0055, note of 2026-10-21; `REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED`).
-That skip applies only when `GBP_PUBSUB_TOPIC` is set. Each skipped look is
-followed by a read-only head check of Google's newest page (`REVIEW_HEAD_CHECKS`,
-dark by default: it compares and logs, and stores nothing).
+`src/contexts/review/domain/discovery-backoff.ts`). With it, Google pushes
+within seconds, and a push reads the one review it names; a full snapshot runs
+only when that review cannot be found from the push's reference. The sweep
+keeps its 15-minute cadence and backoff ladder as the safety net. While a
+property's last completed reconciliation is under six hours old, the sweep skips
+its full snapshot and only dates the next look (ADR 0055, note of 2026-10-21;
+`REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED`). That skip applies only when
+`GBP_PUBSUB_TOPIC` is set. Each skipped look is followed by a read-only head
+check of Google's newest page (`REVIEW_HEAD_CHECKS`, dark by default: it
+compares and logs, records one counts-only run row, and changes nothing about
+any review).
 
 Everything on the app side is already built. This document is the Google Cloud
 work plus the four environment variables that switch it on; once they are set,
@@ -112,7 +115,7 @@ projects get this through `roles/pubsub.serviceAgent` automatically.
 | `GBP_PUBSUB_TOPIC`                | `projects/<PROJECT_ID>/topics/gbp-notifications`       | Empty (the default) means push is disabled and `subscribe` no-ops |
 | `GBP_PUBSUB_AUDIENCE`             | `https://reputationkey.app/webhooks/gbp`               | Must equal the subscription's audience                            |
 | `GBP_PUBSUB_PUSH_SERVICE_ACCOUNT` | `gbp-push-caller@<PROJECT_ID>.iam.gserviceaccount.com` | Required for push delivery — see below                            |
-| `GBP_PUBSUB_NOTIFICATION_TYPES`   | `NEW_REVIEW`                                           | Default. `NEW_REVIEW,UPDATED_REVIEW` also catches edits           |
+| `GBP_PUBSUB_NOTIFICATION_TYPES`   | `NEW_REVIEW,UPDATED_REVIEW`                            | Default. `NEW_REVIEW` alone misses edits to a review              |
 
 Set these on **both** the web and worker services: the web process serves the
 webhook, and the worker subscribes accounts — on import and in its daily
