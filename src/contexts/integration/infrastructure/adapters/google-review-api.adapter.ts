@@ -26,6 +26,7 @@ import {
   mapReview,
   parseReviewsPage,
 } from './google-review-page-parse'
+import { reportReplyModeration } from './google-review-reply-moderation'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
@@ -593,6 +594,7 @@ export const createGoogleReviewApiAdapter = (
       [parsed.data],
       [review.googleReviewUrl],
     )
+    reportReplyModeration(deps.logger, 'reviews.get', [parsed.data])
     return { status: 'found', review }
   }
 

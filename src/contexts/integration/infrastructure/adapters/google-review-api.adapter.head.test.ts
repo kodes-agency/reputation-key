@@ -78,15 +78,17 @@ function createAdapter(
     .fn()
     .mockResolvedValue({ accessToken: 'access-token', authorization })
   const warn = vi.fn()
+  const info = vi.fn()
   return {
     cursors,
     authorizeProviderCall,
     warn,
+    info,
     api: createGoogleReviewApiAdapter({
       connectionRepo: {
         findById: options.findById ?? vi.fn().mockResolvedValue(connection),
       } as never,
-      logger: { warn } as never,
+      logger: { info, warn } as never,
       cursorStore: cursors,
       executor: { execute },
       authorizeReviewSyncProviderCall: authorizeProviderCall,
@@ -157,6 +159,73 @@ describe('GoogleReviewApiAdapter.readReviewsHead', () => {
       averageRating: 4.6,
       hasMore: false,
     })
+  })
+
+  it('reads reply moderation and counts it exactly as a listed page does', async () => {
+    const reply = (extra: Record<string, unknown>) => ({
+      comment: 'Thank you for staying with us.',
+      updateTime: '2026-10-20T11:00:00.000Z',
+      ...extra,
+    })
+    const { api, info, warn } = createAdapter(
+      jsonAnswer({
+        reviews: [
+          providerReview(REVIEW_NAMES[0]!, '2026-10-20T10:00:00.000Z', {
+            reviewReply: reply({ reviewReplyState: 'PENDING' }),
+          }),
+          providerReview(REVIEW_NAMES[1]!, '2026-10-19T10:00:00.000Z', {
+            reviewReply: reply({
+              reviewReplyState: 'REJECTED',
+              policyViolation: 'SPAM',
+            }),
+          }),
+          providerReview(REVIEW_NAMES[2]!, '2026-10-18T10:00:00.000Z', {
+            reviewReply: reply({ reviewReplyState: 'SUSPENDED' }),
+          }),
+        ],
+        totalReviewCount: 3,
+        averageRating: 5,
+      }),
+    )
+
+    const head = await api.readReviewsHead(headInput())
+
+    expect(head).toMatchObject({
+      status: 'ok',
+      reviews: [
+        expect.objectContaining({
+          replyModeration: expect.objectContaining({ state: 'pending' }),
+        }),
+        expect.objectContaining({
+          replyModeration: expect.objectContaining({
+            state: 'rejected',
+            policyViolation: 'SPAM',
+          }),
+        }),
+        expect.objectContaining({
+          replyModeration: expect.objectContaining({ state: 'unspecified' }),
+        }),
+      ],
+    })
+    expect(info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'reviews_reply_moderation',
+        operation: 'reviews.list',
+        reviews: 3,
+        replies: 3,
+        pending: 1,
+        rejected: 1,
+        unspecified: 1,
+      }),
+      expect.any(String),
+    )
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'reviews_reply_moderation_unknown',
+        unknownState: 1,
+      }),
+      expect.any(String),
+    )
   })
 
   it('reports hasMore without publishing, redeeming or releasing any cursor', async () => {

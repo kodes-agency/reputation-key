@@ -21,6 +21,11 @@ import {
   reviewReplyUrlField,
 } from './google-review-page'
 import { reviewApiError } from './google-review-api-errors'
+import {
+  parseReplyModeration,
+  replyModerationFields,
+  reportReplyModeration,
+} from './google-review-reply-moderation'
 
 const PAGE_SIZE = 50
 
@@ -58,6 +63,9 @@ export const gbpReviewItemSchema = z.object({
     .object({
       comment: z.string().optional(),
       updateTime: z.string().optional(),
+      // Google's moderation of the reply, read and counted only
+      // (`google-review-reply-moderation.ts`); it never fails a page.
+      ...replyModerationFields,
     })
     .optional(),
   createTime: z.string().min(1).max(64),
@@ -168,6 +176,7 @@ export function mapReview(
     replyUpdatedAt: raw.reviewReply?.updateTime
       ? parseDate(raw.reviewReply.updateTime)
       : null,
+    replyModeration: parseReplyModeration(raw).moderation,
   }
 }
 
@@ -219,6 +228,7 @@ export function parseReviewsPage(
     rawReviews,
     reviews.map((review) => review.googleReviewUrl),
   )
+  reportReplyModeration(logger, 'reviews.list', rawReviews)
   return {
     reviews,
     totalReviewCount: parsed.data.totalReviewCount,

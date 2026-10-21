@@ -550,6 +550,7 @@ export async function createReplyWorkflowHarness(
     googleReviewApi,
     observationStore,
     clock,
+    logger,
   })
 
   const checkGoogle = checkReplyPublication({

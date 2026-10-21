@@ -549,6 +549,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     googleReviewApi: input.googleReviewApi,
     observationStore: googleReplyObservationStore,
     clock: input.clock,
+    logger: input.logger,
   })
   // The publish job's read of Google before it claims a fresh publication;
   // internal to the worker, so it is not part of the context's use cases.
