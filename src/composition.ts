@@ -484,6 +484,7 @@ function buildContainer(
     clock,
     idGen: randomUUID,
     staffPublicApi: identity.publicApi.people,
+    rateLimiter: infra.rateLimiter,
     authorizeCommand: createInboxCommandAuthority({
       decideManagerPropertyAuthorities:
         identity.authority.decideManagerPropertyAuthorities,

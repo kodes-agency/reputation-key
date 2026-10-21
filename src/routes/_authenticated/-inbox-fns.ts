@@ -39,6 +39,7 @@ import {
   bulkAssignInboxItemsFn,
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
+  checkReviewOnGoogleFn,
 } from '#/contexts/inbox/server/inbox'
 import { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
@@ -96,6 +97,9 @@ export const inboxFns: InboxServerFns = {
   },
   get correctFeedbackHandlingOutcome() {
     return correctFeedbackHandlingOutcomeFn
+  },
+  get checkReviewOnGoogle() {
+    return checkReviewOnGoogleFn
   },
   get generateReplySuggestion() {
     return generateReplySuggestionFn

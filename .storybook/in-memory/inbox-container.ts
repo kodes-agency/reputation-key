@@ -272,6 +272,9 @@ export function createInboxContainer() {
     googleReviewCheck: {
       check: async () => ({ status: 'not_checkable', reason: 'no_provider' }),
     },
+    // Storybook never reaches Google (`googleReviewCheck` above); stories stub
+    // the check function itself.
+    googleCheckRateLimit: { consume: async () => 'allowed' },
     staffPublicApi: noopStaffApi,
     logger: noopLogger,
     clock: () => clockNow,

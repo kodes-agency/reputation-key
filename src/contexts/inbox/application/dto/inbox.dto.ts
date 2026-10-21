@@ -228,6 +228,13 @@ export const getInboxItemDetailDto = z.object({
   inboxItemId: z.uuid(),
 })
 
+// POST check one review on Google (the manager's "Check on Google" and the
+// return from "Open on Google"). The review, not the Inbox item: the client
+// already holds the review id as the item's `sourceId`.
+export const checkReviewOnGoogleDto = z.object({
+  reviewId: z.uuid(),
+})
+
 const responseTargetDurationMinutesSchema = z.number().int().min(1).max(43_200)
 
 export const getResponseTargetPolicySettingsDto = z.object({

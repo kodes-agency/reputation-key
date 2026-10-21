@@ -41,6 +41,36 @@ out. The first carries the Business Profile location id to a reader who holds
 Inbox payload names a provider identifier. Both are links only (a new tab,
 `noopener noreferrer`, no referrer) and Inbox stores neither.
 
+A manager can also ask Google about a review from the detail (2026-10-21), at
+two moments, through one Inbox use case (`checkInboxReviewOnGoogle`, server
+function `checkReviewOnGoogleFn`) over the same `GoogleReviewCheckPort` the
+reminder uses. Review reads the review and records what Google shows; if that is
+a reply, the normal `review.reply.observed` path closes the item within seconds.
+The use case adds the authorization (exactly viewing the item: `inbox.read`,
+`review.read` and the item's Property, so a missing or another Organization's
+review is `not_found`), a budget, and a content-free verdict: `reply_found`
+(Review's reply head is live and answers the review), `no_reply`, `unavailable`
+(Google could not be read, or its reply could not be recovered), `not_checkable`
+(not a Google review, no Google connection, content expired, Google no longer has
+the review) or `rate_limited`. A refusal to authorize is the only error. The
+budget is one call per review per 60 seconds and 30 per Organization per minute
+(`GOOGLE_CHECK_REVIEW_LIMIT`, `GOOGLE_CHECK_ORGANIZATION_LIMIT`, on the shared
+Redis limiter; the narrower budget is spent first, and a limiter that cannot
+answer is `unavailable`, not a denial of the manager). The two moments:
+
+1. **On demand.** "Check on Google" sits next to "Open on Google" in the
+   detail's menu for a Google review item, shows its own pending state while it
+   runs, and answers in a toast. A review the server calls `not_checkable` stops
+   being offered for the rest of the session.
+2. **On return from Google.** Choosing "Open on Google" (or "See reviews on
+   Google") remembers the review and the time. When the tab is visible again within
+   30 minutes and the same item is still open, the Inbox checks at once, and again
+   2 and 10 minutes later while the item stays open and the tab visible. It stops
+   when a reply is found, the item closes or the manager moves to another item;
+   nothing runs while the tab is hidden. It speaks only when it finds the reply.
+
+Nothing here changes the reminder pre-check, sync, or how a reply closes an item.
+
 A guest edit (a new Material Revision) that lands on a CLOSED Review cycle
 reopens the item: the transition is `reopened` with reason
 `material_revision_changed`, because a reply written for revision N does not
