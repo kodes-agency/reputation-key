@@ -505,6 +505,20 @@ day. The wait now grows with consecutive failures:
   failure's retry date is that same attempt retried by the queue: it keeps the
   previous wait instead of climbing a rung per attempt. Only a failure after the
   retry came due counts as the next consecutive one.
+- **A push does not shorten a backoff.** A Pub/Sub notice pulls a parked poll
+  forward to the hot interval, but never ahead of `error_retry_at`
+  (`recordPushObserved`), so a busy Property cannot bypass its wait with every
+  push. Once the retry date has passed, a push pulls the poll forward as before.
+- **A long base interval is the floor.** If the discovery interval is set above
+  the six hour cap, a repeated failure waits at least that interval, never less
+  than the first failure did. A previous wait longer than the cap (for example a
+  retry date rewritten by an older worker during a rolling deploy) counts as the
+  cap.
+- **The enqueue failure keeps the base interval.** When the discovery sweep
+  cannot enqueue a Property's job (a Redis blip), it defers it by the base
+  interval and does not climb the ladder, even if a snapshot failure was
+  outstanding: an infrastructure fault should be retried soon, and the next
+  snapshot failure then starts the ladder again from the second rung.
 - **Rule and log.** The wait is a pure function (`snapshotFailureRetryMs`,
   `domain/snapshot-failure-backoff.ts`). The job logs the code and the chosen
   wait (`review_snapshot_failure_deferred`, `failureCode`, `retryAfterMs`) and
@@ -527,7 +541,9 @@ what discovery does. The sweep now asks one question per Property:
   expire is correct.
 - **A failure keeps its backoff.** A Property whose failure retry date is still
   ahead is not pulled forward: the refresh would otherwise undo the wait the
-  failure earned.
+  failure earned. The check and the write are one SQL statement (the update
+  carries the retry-date condition), so a failure deferred while the sweep runs
+  cannot be pulled forward by it.
 - **Unchanged.** The hourly schedule, the keyset cursor, the run row and the
   rule that only live reviews of a Property a sync can still run for are
   considered. On the run row `enqueued_count` now counts Properties pulled

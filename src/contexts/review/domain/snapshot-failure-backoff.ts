@@ -79,9 +79,14 @@ export const snapshotFailureRetryMs = (input: SnapshotFailureRetryInput): number
 
   // A failure recorded before its time was stored has an unknown wait: assume
   // the base, so this one waits the second rung.
-  const waitedMs = Math.max(previousWaitMs(previous) ?? baseIntervalMs, baseIntervalMs)
+  const waitedMs = Math.min(
+    Math.max(previousWaitMs(previous) ?? baseIntervalMs, baseIntervalMs),
+    SNAPSHOT_FAILURE_MAX_RETRY_MS,
+  )
   const queueRetry =
     previous.retryAt !== null && now.getTime() < previous.retryAt.getTime()
   const nextMs = queueRetry ? waitedMs : waitedMs * SNAPSHOT_FAILURE_BACKOFF_FACTOR
-  return Math.min(nextMs, SNAPSHOT_FAILURE_MAX_RETRY_MS)
+  // A base above the cap (a long discovery interval) is the floor: a repeated
+  // failure never waits less than the first one did.
+  return Math.max(baseIntervalMs, Math.min(nextMs, SNAPSHOT_FAILURE_MAX_RETRY_MS))
 }

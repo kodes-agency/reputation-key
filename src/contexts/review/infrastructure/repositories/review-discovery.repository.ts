@@ -316,52 +316,53 @@ export const createReviewDiscoveryRepository = (
       const recentIds = new Set(recent.map((row) => row.propertyId))
       const stale = requested.filter((id) => !recentIds.has(id))
 
-      const states = await db
-        .select({
-          propertyId: reviewSyncState.propertyId,
-          nextIncrementalAt: reviewSyncState.nextIncrementalAt,
-          errorRetryAt: reviewSyncState.errorRetryAt,
-        })
-        .from(reviewSyncState)
+      if (stale.length === 0) {
+        return { pulledForward: 0, skippedRecent: recentIds.size, skippedBackoff: 0 }
+      }
+
+      // One statement decides and writes: a failure keeps its backoff, so the
+      // update skips a Property whose `error_retry_at` is still ahead. Reading
+      // that first and updating after would let a deferral that commits in
+      // between be pulled forward anyway. A look already due, or a Property with
+      // no row (never polled), needs no move. Only the due time (and
+      // `updated_at`) change: nothing was synced, so the success stamp and any
+      // failure state stay as they were.
+      const moved = await db
+        .update(reviewSyncState)
+        .set({ nextIncrementalAt: now, updatedAt: now })
         .where(
           and(
             inArray(reviewSyncState.propertyId, stale),
             eq(reviewSyncState.source, DISCOVERY_SOURCE),
+            gt(reviewSyncState.nextIncrementalAt, now),
+            or(
+              isNull(reviewSyncState.errorRetryAt),
+              lte(reviewSyncState.errorRetryAt, now),
+            ),
           ),
         )
-      // A failure keeps its backoff: pulling it ahead of `error_retry_at`
-      // would undo the wait the failure earned. A look already due, or one
-      // with no row (never polled), needs no move.
-      const inBackoff = states.filter(
-        (state) => state.errorRetryAt !== null && state.errorRetryAt > now,
-      )
-      const movable = states.filter(
-        (state) =>
-          !inBackoff.includes(state) &&
-          state.nextIncrementalAt !== null &&
-          state.nextIncrementalAt > now,
-      )
-      if (movable.length > 0) {
-        // Only the due time (and `updated_at`): nothing was synced, so the
-        // success stamp and any failure state stay as they were.
-        await db
-          .update(reviewSyncState)
-          .set({ nextIncrementalAt: now, updatedAt: now })
-          .where(
-            and(
-              inArray(
-                reviewSyncState.propertyId,
-                movable.map((state) => state.propertyId),
-              ),
-              eq(reviewSyncState.source, DISCOVERY_SOURCE),
-              gt(reviewSyncState.nextIncrementalAt, now),
-            ),
-          )
-      }
+        .returning({ propertyId: reviewSyncState.propertyId })
+      const movedIds = new Set(moved.map((row) => row.propertyId))
+
+      // Of the rest, those still inside a failure backoff (counts only).
+      const unmoved = stale.filter((id) => !movedIds.has(id))
+      const backedOff =
+        unmoved.length === 0
+          ? []
+          : await db
+              .select({ propertyId: reviewSyncState.propertyId })
+              .from(reviewSyncState)
+              .where(
+                and(
+                  inArray(reviewSyncState.propertyId, unmoved),
+                  eq(reviewSyncState.source, DISCOVERY_SOURCE),
+                  gt(reviewSyncState.errorRetryAt, now),
+                ),
+              )
       return {
-        pulledForward: movable.length,
+        pulledForward: movedIds.size,
         skippedRecent: recentIds.size,
-        skippedBackoff: inBackoff.length,
+        skippedBackoff: backedOff.length,
       }
     }),
 

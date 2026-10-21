@@ -121,4 +121,24 @@ describe('snapshotFailureRetryMs', () => {
     }
     expect(retryMs(odd)).toBe(HOUR_MS)
   })
+
+  it('never waits less than the configured base when the base is above the cap', () => {
+    // A discovery interval of 24 h: the first failure waits the base, so the
+    // second must not shrink to the six-hour cap.
+    const day = 24 * HOUR_MS
+    expect(retryMs(null, { baseIntervalMs: day })).toBe(day)
+    expect(retryMs(failedAgo(day + MINUTE_MS, day), { baseIntervalMs: day })).toBe(day)
+    expect(retryMs(failedAgo(MINUTE_MS, day), { baseIntervalMs: day })).toBe(day)
+  })
+
+  it('treats a previous wait far above the cap (a stale failure time) as the cap', () => {
+    // An old worker rewrote the retry date without the failure time, so the
+    // stored gap is days long: the next wait is the cap, never longer.
+    const stale: PreviousSnapshotFailure = {
+      errorClass: 'provider_failure',
+      failedAt: before(10 * 24 * HOUR_MS),
+      retryAt: before(MINUTE_MS),
+    }
+    expect(retryMs(stale)).toBe(6 * HOUR_MS)
+  })
 })
