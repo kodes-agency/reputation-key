@@ -53,6 +53,12 @@ export type CurrentReplyObservationPermit = Readonly<{
   matchedReplyId: string | null
   matchedPublicationCycle: number | null
   observedAt: Date
+  /**
+   * Google's own time for the reply (its last edit, as Google reports it), or
+   * null when Google gave none. The Response Target completes at this time,
+   * kept between the target's start and `observedAt`.
+   */
+  providerReplyUpdatedAt: Date | null
   reviewSourceContentState: 'active' | 'source_expired' | 'provider_deleted'
   responseTargetEligibility: 'measured' | 'historical_onboarding' | 'legacy_unknown'
   responseTargetStartAt: Date | null

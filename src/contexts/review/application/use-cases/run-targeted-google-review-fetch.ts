@@ -7,7 +7,9 @@ import type {
 import { sha256Hex } from '#/shared/domain/sha256'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
-import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
+import type { ReviewFirstSightingRecorder } from '../ports/review-first-sighting-recorder.port'
+import type { GoogleReviewPushNotificationKind } from '../ports/review-queue.port'
 import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
 import type { TargetedGoogleReviewReferenceResolver } from '../ports/targeted-google-review-reference.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
@@ -21,6 +23,9 @@ export type RunTargetedGoogleReviewFetchInput = Readonly<{
   referenceRef: string | null
   /** Durable outbox event identity; makes observation replay idempotent. */
   deliveryId: string
+  /** When Pub/Sub accepted the push; the arrival time push health judges. */
+  acceptedAt: Date
+  notificationKind: GoogleReviewPushNotificationKind
 }>
 
 export type RunTargetedGoogleReviewFetchResult =
@@ -49,6 +54,7 @@ export type RunTargetedGoogleReviewFetchDeps = Readonly<{
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
   syncActivity: ReviewSyncActivityRecorder
+  firstSightings: ReviewFirstSightingRecorder
   clock: () => Date
 }>
 
@@ -106,9 +112,22 @@ export const runTargetedGoogleReviewFetch =
       observationKey: sha256Hex(
         `repkey-targeted-review-push-observation-v1\0${input.deliveryId}\0${providerResult.review.reviewName}`,
       ),
+      firstSeenVia: 'push',
+      pushAcceptedAt: input.acceptedAt,
     })
     if (persisted.isNew) {
       await deps.syncActivity.recordNewReviewObserved(input.propertyId, deps.clock())
+    } else if (input.notificationKind !== 'UPDATED_REVIEW') {
+      // Polling saw this Review first: pair the push with its first-sighting
+      // row. A Review the push itself created already carries the push (the
+      // writer records it with the Review). An UPDATED_REVIEW push says a
+      // Review changed, not that a new one arrived, so it never counts.
+      await deps.firstSightings.markPushArrived({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        reviewId: persisted.reviewId,
+        acceptedAt: input.acceptedAt,
+      })
     }
     return { status: 'persisted', ...persisted }
   }

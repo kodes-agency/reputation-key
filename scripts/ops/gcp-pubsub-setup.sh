@@ -137,6 +137,8 @@ if gcloud pubsub subscriptions describe "$SUBSCRIPTION" --project="$PROJECT" >/d
     --push-endpoint="$ENDPOINT" \
     --push-auth-service-account="$PUSH_SA" \
     --push-auth-token-audience="$AUDIENCE" \
+    --expiration-period=never \
+    --message-retention-duration=14d \
     --project="$PROJECT"
 else
   run gcloud pubsub subscriptions create "$SUBSCRIPTION" \
@@ -147,6 +149,8 @@ else
     --ack-deadline=30 \
     --min-retry-delay=10s \
     --max-retry-delay=600s \
+    --expiration-period=never \
+    --message-retention-duration=14d \
     --project="$PROJECT"
 fi
 
@@ -158,7 +162,7 @@ Set these on BOTH the web and worker services:
   GBP_PUBSUB_TOPIC=projects/${PROJECT}/topics/${TOPIC}
   GBP_PUBSUB_AUDIENCE=${AUDIENCE}
   GBP_PUBSUB_PUSH_SERVICE_ACCOUNT=${PUSH_SA}
-  GBP_PUBSUB_NOTIFICATION_TYPES=NEW_REVIEW
+  GBP_PUBSUB_NOTIFICATION_TYPES=NEW_REVIEW,UPDATED_REVIEW
 
 The worker then subscribes every tenant: its daily
 reconcile-gbp-notification-subscriptions job (first run right after the deploy

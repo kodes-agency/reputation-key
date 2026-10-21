@@ -270,8 +270,9 @@ const baseEnvSchema = z.object({
   // = notifications disabled (manage-notifications no-ops). `business.manage` covers
   // updateNotificationSetting; topic/subscription/grant are GCP infra, not app code.
   GBP_PUBSUB_TOPIC: z.string().optional().default(''),
-  // Comma-separated GBP notification types to subscribe to (default: NEW_REVIEW only).
-  GBP_PUBSUB_NOTIFICATION_TYPES: z.string().default('NEW_REVIEW'),
+  // Comma-separated GBP notification types to subscribe to (default: NEW_REVIEW and
+  // UPDATED_REVIEW, so an edit to a known review is caught as well as a new one).
+  GBP_PUBSUB_NOTIFICATION_TYPES: z.string().default('NEW_REVIEW,UPDATED_REVIEW'),
   // Service-account email Google Pub/Sub signs its push JWT with (the
   // subscription's OIDC push identity). The webhook requires the verified
   // `email` claim to equal it, so a Google-issued token from any OTHER

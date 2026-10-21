@@ -12,8 +12,8 @@ import type {
 } from '#/shared/domain/ids'
 import type { GoogleReview } from '../../domain/types'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
+import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type {
-  ReviewProviderObservationWriter,
   ReviewProviderSnapshotRepository,
   ReviewProviderSnapshotRun,
 } from '../ports/review-provider-snapshot.repository'
@@ -213,6 +213,7 @@ const request = {
   connectionId,
   sourceEpoch: 1,
   observationOrigin: 'ongoing' as const,
+  firstSeenVia: 'snapshot' as const,
   locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
 }
 
@@ -410,6 +411,26 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.syncActivity.recordNewReviewObserved).toHaveBeenCalledWith(
       propertyId,
       NOW,
+    )
+  })
+
+  it('tells the writer polling found each review of a snapshot page', async () => {
+    const deps = makeDeps()
+
+    await runReviewProviderSnapshot(deps)(request)
+
+    expect(deps.observationWriter.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ firstSeenVia: 'snapshot' }),
+    )
+  })
+
+  it('tells the writer a push handed the snapshot off when the run answers one', async () => {
+    const deps = makeDeps()
+
+    await runReviewProviderSnapshot(deps)({ ...request, firstSeenVia: 'push_reconcile' })
+
+    expect(deps.observationWriter.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ firstSeenVia: 'push_reconcile' }),
     )
   })
 

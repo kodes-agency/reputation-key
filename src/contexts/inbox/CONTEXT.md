@@ -90,6 +90,18 @@ release, prompts once, with target passed. Archiving a Property cancels its
 unreleased slots (`inbox.on-property-archived`), as Organization closing does,
 and Restore re-arms none of them: a cancelled slot is terminal.
 
+A Google Review target stops at the reply's time on Google, not at the read that
+saw it (ADR 0046, amended 2026-10-21): `clamp(Google's reply updateTime, target
+start_at, observed time)`, carried to Inbox on Review's exact-current permit, with
+the observation time as the fallback when Google gives none. It is written once at
+the close and never moved by a later edit; only the completion (and
+`first_reply_published_at`) use it, while `updated_at`, reminder cancellations and
+`closed_at` stay at the observation time. Google's time is the reply's last edit,
+so a reply edited before RepKey reads it counts at the edit. An item with no
+measured target (none, `legacy_unknown`, onboarding history) has no start to clamp
+to, so its first-reply time is bounded only above by the observation time. Targets
+closed before this release keep their read-time completion; there is no backfill.
+
 A Google-review reminder is checked against Google before it is released
 (ADR 0046, amended 2026-10-21), because about 97% of replies are written on
 Google and RepKey learns of them only at the next sync. The reminder job reads
@@ -152,8 +164,10 @@ review's observed fact gave up waiting for the item long ago and nobody else
 may close a Review cycle, so an item created open would stay open for good
 (decided 2026-10-18). Its cycle opens and closes at the instant Google was seen
 answering (never a close before the open), and the rows carry the repair's own
-write time. An obsolete permit creates the item open, and the newer
-observation's own fact reaches it.
+write time. The item's target is `legacy_unknown`, so no completion time applies
+to it, and its first reply is stamped at the same Google time the consumer path
+uses. An obsolete permit creates the item open, and the newer observation's own
+fact reaches it.
 
 Handling History uses one bounded transition reader and a total order of
 `(occurredAt, cycleNumber, stateRevision, kind, id)`. Actor names are resolved in
@@ -194,7 +208,7 @@ state.
 11. List cursors are canonical bounded base64 JSON; malformed values are discarded
     before SQL and never echoed into logs. Seen watermarks advance monotonically
     only after a successful first page.
-12. Only an exact current live Google observation completes a Review target. Both `confirmed_on_google` and `external_current_live` count as observed-live completion; provider acknowledgement and `review.reply.published` do not.
+12. Only an exact current live Google observation completes a Review target. Both `confirmed_on_google` and `external_current_live` count as a live completion, dated at Google's reply time clamped to `[target start_at, observed time]` (observed time when Google gives none), written once; provider acknowledgement and `review.reply.published` do not complete it.
 13. Analytics never mix Review and feedback targets. Reminders never auto-escalate.
 14. Inbox notes, private feedback, Review or Reply text, contact details, credentials, and raw network values must never enter the Activity projection or replay fact.
 

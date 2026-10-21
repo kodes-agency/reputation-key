@@ -74,8 +74,8 @@ function excludedDescription(target: ResponseTargetView): string {
 function completedDescription(target: ResponseTargetView, onTime: boolean): string {
   if (target.targetKind === 'google_review_response') {
     return onTime
-      ? 'A current response was observed live on Google within the saved target.'
-      : 'A current response was observed live on Google after the saved target and remains included in reporting.'
+      ? 'A current response was on Google within the saved target, counted at its time on Google.'
+      : 'A current response was on Google after the saved target, counted at its time on Google, and remains included in reporting.'
   }
   return onTime
     ? 'The feedback handling cycle was completed within its saved target.'

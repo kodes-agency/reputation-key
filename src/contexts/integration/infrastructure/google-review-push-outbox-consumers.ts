@@ -53,6 +53,10 @@ export async function handleGoogleReviewPushAccepted(
       sourceEpoch: payload.sourceEpoch,
       referenceRef: payload.referenceRef,
       deliveryId: event.eventId,
+      // The Pub/Sub acceptance time, not the time the job runs: push health
+      // compares it with when polling first saw the Review.
+      acceptedAt: payload.occurredAt,
+      notificationKind: payload.notificationKind,
       initiator: { kind: 'system', id: GBP_PUSH_SYNC_INITIATOR_ID },
       correlationId: jobId,
     },

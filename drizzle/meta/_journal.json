@@ -463,6 +463,13 @@
       "when": 1794600000000,
       "tag": "0065_review_google_review_url",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1794700000000,
+      "tag": "0066_review_first_sightings",
+      "breakpoints": true
     }
   ]
 }

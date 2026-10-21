@@ -338,6 +338,69 @@ Google's newest page. After a push-created review, Goals can show Google's own
 average with the "not every review counted" note until the next
 reconciliation, because the cache count is one ahead of the last verified fact.
 
+## Note 2026-10-21 (b) — push health is measured, and so is reconciliation age
+
+The note above leaves a missed push waiting for the next reconciliation and
+says one of the last 24 new reviews on the beta had none. Nothing noticed a
+silent outage: one push came 30 minutes late and one never came, and the only
+sign was a review that took hours. With the sweep skipping looks, push is the
+fast path for new reviews, so it is now measured (migration 0066,
+`review_first_sightings`).
+
+- **First sightings.** For each Review RepKey first sees as live work
+  (`ongoing`; never a history import or a `legacy_unknown` relink) the Review
+  writer records, in the same transaction as the Review's first insert, one
+  content-free row per Organization, Property and Review: when it was first
+  seen, how (`push`, `push_reconcile` for the full snapshot a push hands off
+  to when its target cannot be read, `snapshot`, and `demand` or `head` for
+  later reads), and when Pub/Sub accepted the push for it. Writing it with the
+  Review means a replayed snapshot page can neither lose nor duplicate it. It
+  is operational history like `review_sync_runs`: 30 days, never exported.
+- **When the push arrived.** The acceptance time is the outbox fact's
+  `occurredAt`, carried in the push job as `acceptedAt` (a job queued before
+  this change falls back to the time it starts). It is not when the job runs,
+  so a push that was accepted first but waited in the queue still counts as
+  first. A push that finds the Review already stored stamps the row, but
+  only if it was accepted within 24 hours of the first sighting: Google reports
+  an edit with the same kind as an arrival, and an edit days later must not
+  turn a miss into a late push. A push that finds the Review new creates the
+  row as `push`; the push is then how RepKey learned of it, so it is covered.
+  An `UPDATED_REVIEW` push says a Review changed, not that a new one arrived,
+  so it never stamps a Review polling already saw.
+- **What the words mean** (`src/shared/domain/push-health.ts`).
+  _Healthy_: a push was accepted at or before the first sighting, or the
+  Review was first seen by a push or by the snapshot a push handed off to.
+  _Late_: a push was accepted after polling first saw the Review, by any
+  delay. _Missed_: no push was accepted by 60 minutes after the first
+  sighting; a push that comes later makes the Review late as well, and it
+  stays counted as missed. A Review polling found less than 60 minutes ago
+  with no push yet is _pending_ and counts as neither.
+- **Health, on read.** A location is suspect after one missed push in seven
+  days; a Google account (Organization, connection and account) is dark after
+  two across its locations. Nothing is stored for either: they are computed
+  from the ledger when the health snapshot is read, in its own `syncPush`
+  signal so that a slow query cannot blind the `sync` signals the sweep alerts
+  hold on.
+- **Alerts** (all P2, since polling still finds every Review in hours).
+  `sync.push-missed`: with a topic configured, any missed push among the last
+  24 hours' first sightings. `sync.push-silent`: polling found new Reviews in
+  24 hours and Pub/Sub accepted no push at all. `sync.reconciliation-age`: a
+  Property the sweep polls whose newest completed reconciliation of the
+  current source epoch is over 8 hours old (six hours plus two of slack); a
+  Property with none counts from when it became syncable, and one parked with a
+  coded failure is left to `sync.failed-nonzero`. The first two count nothing
+  while `GBP_PUBSUB_TOPIC` is empty; the third does not depend on push. All
+  three are held while the snapshot section they read is degraded.
+- **Accepted limits.** A review whose reference was lost and whose
+  reconciliation snapshot was joined to a run started by the sweep is
+  labelled `snapshot`, so it reads as missed. The same push can also reach a
+  Review polling saw first: a lost reference or a `not_found` read hands the
+  push to a full reconcile snapshot, which cannot say which Review the push was
+  about, so that Review's row stays unpaired and reads as missed even though
+  the push was accepted. Both need a Redis reference failure and are rare. Measurement starts at the deploy:
+  Reviews first seen before it have no row. Past 5,000 polled first sightings
+  in seven days (push dark for a week) the misses are a lower bound.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

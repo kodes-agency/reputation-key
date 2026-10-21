@@ -432,6 +432,7 @@ describe('a snapshot run waiting out the reviews.list quota', () => {
         connectionId: CONNECTION_ID,
         sourceEpoch: SOURCE_EPOCH,
         observationOrigin: 'ongoing',
+        firstSeenVia: 'snapshot',
         locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
         runId: RUN_ID,
       })

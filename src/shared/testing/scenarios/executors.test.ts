@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
+import { ZERO_SYNC_PUSH_HEALTH } from '#/shared/db/sync-push-health'
 import { FAULTS, SLOS, type FaultName } from './catalogue'
 import {
   SCENARIO_EXECUTORS,
@@ -57,6 +58,7 @@ function snapshotWithWaiting(waiting: number): OperationsSnapshot {
       oldestDueAgeMs: null,
       gbpPushEnabled: false,
     },
+    syncPush: ZERO_SYNC_PUSH_HEALTH,
     notifications: {
       emailDeliveryEnabled: false,
       pendingOverdueCount: 0,
