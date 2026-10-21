@@ -176,7 +176,11 @@ and actions supply server state.
   feed row, `variant="outline"` among outline controls), named "More actions for
   {name}" and with no tooltip, and `RowActionsItem` items (`destructive` for an
   action that cannot be taken back, like a confirmation's tone; `opensDialog` ends
-  the label in an ellipsis; a link item is `asChild` and spells its own). A row
+  the label in an ellipsis; a link item is `asChild` and spells its own; an item
+  that runs a request is `pending` with a `pendingLabel`, as a Button is: the
+  Button's spinner replaces its glyph, it is `aria-busy` and ignores a second
+  choice, and the menu, held open with `open` / `onOpenChange`, closes when the
+  request settles — the Inbox's "Check on Google"). A row
   keeps at most two labelled actions inline (Edit and Share, Remove) and puts the rest
   in the menu (a pending invitation's Resend and Cancel are its menu's items); the
   dialog an item opens is held outside it. `row-actions-sources.test.ts` fails on a hand-built kebab and an off-pattern

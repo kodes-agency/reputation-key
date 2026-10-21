@@ -17,6 +17,7 @@ export {
   assignInboxItemFn,
   bulkAssignInboxItemsFn,
 } from './inbox-item-actions'
+export { checkReviewOnGoogleFn } from './inbox-google-check'
 export {
   getInboxItemDetailFn,
   getInboxItemHistoryFn,

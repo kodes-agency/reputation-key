@@ -46,10 +46,12 @@ import {
 } from './application/use-cases/get-response-targets'
 import { setResponseTargetPolicy } from './application/use-cases/set-response-target-policy'
 import { releaseDueResponseTargetReminders } from './application/use-cases/release-response-target-reminders'
+import { checkInboxReviewOnGoogle } from './application/use-cases/check-inbox-review-on-google'
 import type { InboxActorDirectory } from './application/ports/inbox-actor-directory.port'
 import type { InboxHistoryRepository } from './application/ports/inbox-history.repository'
 import type { ReplyObservationAuthorityPort } from './application/ports/reply-observation-authority.port'
 import type { GoogleReviewCheckPort } from './application/ports/google-review-check.port'
+import type { GoogleCheckRateLimitPort } from './application/ports/google-check-rate-limit.port'
 import { inboxItemId, inboxNoteId } from '#/shared/domain/ids'
 
 type WireInput = Readonly<{
@@ -67,6 +69,7 @@ type WireInput = Readonly<{
   replyLookup: ReplyLookupPort
   replyObservationAuthority: ReplyObservationAuthorityPort
   googleReviewCheck: GoogleReviewCheckPort
+  googleCheckRateLimit: GoogleCheckRateLimitPort
   aiInsights?: AiReviewInsightsPort
   propertyLookup?: PropertyLookupPort
   staffPublicApi: StaffPublicApi
@@ -160,6 +163,14 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       feedbackHandlingStore: input.feedbackHandlingStore,
       responseTargetStore: input.responseTargetStore,
       clock: input.clock,
+    }),
+    checkInboxReviewOnGoogle: checkInboxReviewOnGoogle({
+      repo: input.inboxRepo,
+      staffPublicApi: input.staffPublicApi,
+      googleReviewCheck: input.googleReviewCheck,
+      replyLookup: input.replyLookup,
+      rateLimit: input.googleCheckRateLimit,
+      logger: input.logger,
     }),
     getInboxNotes: getInboxNotes({
       noteRepo: input.inboxNoteRepo,
@@ -272,6 +283,7 @@ export function projectInboxRequestApi(
     getLastVisitCount: useCases.getLastVisitCount,
     stampLastInboxView: useCases.stampLastInboxView,
     getInboxItemDetail: useCases.getInboxItemDetail,
+    checkInboxReviewOnGoogle: useCases.checkInboxReviewOnGoogle,
     getInboxNotes: useCases.getInboxNotes,
     getInboxItemHistory: useCases.getInboxItemHistory,
     getInboxQueueCounts: useCases.getInboxQueueCounts,

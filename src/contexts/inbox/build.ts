@@ -52,6 +52,7 @@ import type { AddInboxNote } from './application/use-cases/add-inbox-note'
 import type { GetLastVisitCount } from './application/use-cases/get-last-visit-count'
 import type { StampLastInboxView } from './application/use-cases/stamp-last-inbox-view'
 import type { GetInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
+import type { CheckInboxReviewOnGoogle } from './application/use-cases/check-inbox-review-on-google'
 import type { GetInboxNotes } from './application/use-cases/get-inbox-notes'
 import type { GetInboxItemHistory } from './application/use-cases/get-inbox-item-history'
 import type { GetInboxQueueCounts } from './application/use-cases/get-inbox-queue-counts'
@@ -96,6 +97,8 @@ import type {
   ReviewResponseTargetAuthority,
 } from '#/contexts/review/application/public-api'
 import { createGoogleReviewCheckAdapter } from './infrastructure/adapters/google-review-check.adapter'
+import { createGoogleCheckRateLimitAdapter } from './infrastructure/adapters/google-check-rate-limit.adapter'
+import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { createInboxActorDirectoryAdapter } from './infrastructure/adapters/inbox-actor-directory.adapter'
 import { projectInboxRequestApi, wireUseCases } from './build-use-cases'
 
@@ -124,6 +127,8 @@ export type InboxContextBuildInput = Readonly<{
     /** Reads one review from Google once, before a Response Target reminder for it goes out. */
     googleReviewCheck: ReviewGoogleReviewCheck
   }>
+  /** The shared limiter: it budgets the manager-triggered "check on Google" reads. */
+  rateLimiter: RateLimiter
   logger: LoggerPort
   /** Current actor/assignee authority, evaluated inside each command transaction. */
   authorizeCommand: InboxCommandAuthority
@@ -142,6 +147,7 @@ type InboxUseCases = Readonly<{
   getLastVisitCount: GetLastVisitCount
   stampLastInboxView: StampLastInboxView
   getInboxItemDetail: GetInboxItemDetail
+  checkInboxReviewOnGoogle: CheckInboxReviewOnGoogle
   getInboxNotes: GetInboxNotes
   getInboxItemHistory: GetInboxItemHistory
   getInboxQueueCounts: GetInboxQueueCounts
@@ -173,6 +179,7 @@ type InboxRequestApi = Readonly<
     | 'getLastVisitCount'
     | 'stampLastInboxView'
     | 'getInboxItemDetail'
+    | 'checkInboxReviewOnGoogle'
     | 'getInboxNotes'
     | 'getInboxItemHistory'
     | 'getInboxQueueCounts'
@@ -339,6 +346,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     replyLookup,
     replyObservationAuthority,
     googleReviewCheck,
+    googleCheckRateLimit: createGoogleCheckRateLimitAdapter(input.rateLimiter),
     propertyLookup,
     staffPublicApi: input.staffPublicApi,
     aiInsights: input.aiInsights,

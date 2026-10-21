@@ -26,6 +26,8 @@ export type InboxDetailDismiss = 'close' | 'back'
 type Props = Readonly<{
   item: InboxItem
   detail: InboxDetailState['detail']
+  /** "Check on Google" and the return from Google; absent where neither is offered. */
+  googleCheck?: InboxDetailState['googleCheck']
   onClose: () => void
   /** Defaults to the desktop panel's trailing X; see `InboxDetailDismiss`. */
   dismiss?: InboxDetailDismiss
@@ -72,7 +74,13 @@ type Props = Readonly<{
  * re-measured). 44 px is also what the app top bar this sheet covers is on
  * inbox phones, so the top edge does not jump when a review opens.
  */
-export function InboxDetailHeader({ item, detail, onClose, dismiss = 'close' }: Props) {
+export function InboxDetailHeader({
+  item,
+  detail,
+  googleCheck,
+  onClose,
+  dismiss = 'close',
+}: Props) {
   return (
     <header className="flex h-14 min-w-0 shrink-0 items-center gap-2 border-b px-5 max-md:h-11 max-md:px-4 lg:px-6">
       {dismiss === 'back' && (
@@ -119,7 +127,7 @@ export function InboxDetailHeader({ item, detail, onClose, dismiss = 'close' }: 
         )}
       </div>
 
-      <InboxDetailCopyMenu detail={detail} />
+      <InboxDetailCopyMenu detail={detail} googleCheck={googleCheck} />
 
       {dismiss === 'close' && (
         <IconButton
