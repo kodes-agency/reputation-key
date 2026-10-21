@@ -1,6 +1,7 @@
 import type { InboxItemId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
   ResponseTargetEligibility,
+  ResponseTargetReminderKind,
   ResponseTargetEvaluation,
   ResponseTargetKind,
   ResponseTargetPolicySource,
@@ -56,6 +57,40 @@ export type GoogleReviewTargetAnalytics = Readonly<{
   averageTimeToResponseMinutes: number | null
 }>
 
+/** The key of one write-once reminder slot. */
+export type ReminderSlotKey = Readonly<{
+  inboxItemId: InboxItemId
+  cycleNumber: number
+  reminderKind: ResponseTargetReminderKind
+}>
+
+/**
+ * One reminder slot that was due when it was listed, with what the release
+ * decision needs. Listing takes no lock, so by release time the slot may be
+ * gone: `releaseReminderSlot` decides that again under the target's lock.
+ */
+export type DueReminderCandidate = Readonly<{
+  key: ReminderSlotKey
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  targetKind: ResponseTargetKind
+  scheduledFor: Date
+  targetStartAt: Date | null
+  targetDueAt: Date | null
+  /** The review (for a Google review target) or feedback the cycle is about. */
+  sourceId: string
+  /** The Material Review Revision the cycle measures (the source revision). */
+  sourceRevision: number
+}>
+
+export type ReminderSlotReleaseResult =
+  /** The slot was delivered and its fact queued. */
+  | 'released'
+  /** A halfway slot whose target has passed: closed without a prompt. */
+  | 'cancelled_superseded'
+  /** Completed, closed, already delivered or cancelled, or locked by another writer. */
+  | 'skipped'
+
 export type ResponseTargetStore = Readonly<{
   getCycleTarget(
     inboxItemId: InboxItemId,
@@ -91,6 +126,23 @@ export type ResponseTargetStore = Readonly<{
       limit: number
     }>,
   ): Promise<Readonly<{ released: number }>>
+  /**
+   * The reminder slots due at `now`, oldest first, with NO lock and no
+   * transaction held afterwards: the caller may read Google between this and
+   * `releaseReminderSlot`.
+   */
+  listDueReminderCandidates(
+    input: Readonly<{ now: Date; limit: number }>,
+  ): Promise<ReadonlyArray<DueReminderCandidate>>
+  /**
+   * Release one due slot in its own short transaction: the same selection, the
+   * target lock, the one-shot guard and the outbox fact as `releaseDueReminders`,
+   * re-decided under the lock. A target completed meanwhile (a reply closed it)
+   * answers `skipped`, which is how a held slot is cancelled by the normal close.
+   */
+  releaseReminderSlot(
+    input: Readonly<{ key: ReminderSlotKey; now: Date }>,
+  ): Promise<ReminderSlotReleaseResult>
   /**
    * Apply one `property.archived` delivery: while the Property is still not
    * active, cancel its unreleased reminder slots and co-commit the receipt.

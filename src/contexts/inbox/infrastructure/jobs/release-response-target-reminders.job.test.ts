@@ -17,21 +17,32 @@ describe('release-response-target-reminders job', () => {
         capability: 'inbox.use',
         action: 'system:inbox.update',
         registration: 'enabled',
+        // Up to 20 Google reads (30 s each at worst) fit inside the soft
+        // 35 s budget plus one read's overrun, with room to release.
+        timeoutMs: 120_000,
       }),
     ])
   })
 
-  it('delegates one bounded pass and reports only content-free counts', async () => {
-    const release = vi.fn(async () => ({ released: 5 }))
+  it('delegates one bounded pass and logs only content-free counts', async () => {
+    const counts = {
+      released: 5,
+      checked: 4,
+      heldLocal: 3,
+      heldAfterRead: 2,
+      deferred: 1,
+      unavailable: 1,
+      skippedNoProvider: 0,
+      failed: 0,
+    }
+    const release = vi.fn(async () => counts)
     const logger = { info: vi.fn() }
     const handler = createReleaseResponseTargetRemindersHandler({ release, logger })
 
-    await expect(handler({ data: { ignored: true } } as Job)).resolves.toEqual({
-      released: 5,
-    })
+    await expect(handler({ data: { ignored: true } } as Job)).resolves.toEqual(counts)
     expect(release).toHaveBeenCalledTimes(1)
     expect(logger.info).toHaveBeenCalledWith(
-      { job: JOB_NAME, released: 5 },
+      { job: JOB_NAME, ...counts },
       'Response Target reminder release completed',
     )
   })

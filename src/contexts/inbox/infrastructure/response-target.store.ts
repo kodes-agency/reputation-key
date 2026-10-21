@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, lte, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   inboxHandlingCycleHeads,
@@ -15,7 +15,7 @@ import {
   propertyId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import type { Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type {
   GoogleReviewTargetAnalytics,
@@ -29,15 +29,14 @@ import {
   buildResponseTargetSnapshot,
   classifyResponseTargetCompletion,
   evaluateResponseTarget,
-  isSupersededReminder,
   resolveGoogleReviewTargetPolicy,
   resolvePrivateFeedbackTargetPolicy,
   schedulableReminders,
   type ResponseTargetResult,
   type ResponseTargetSnapshot,
 } from '../domain/response-target'
-import { inboxResponseTargetReminderDue } from '../domain/events'
 import { inboxError } from '../domain/errors'
+import { createReminderReleaseStore } from './response-target-reminder-release.store'
 
 type TargetRow = typeof inboxHandlingCycleResponseTargets.$inferSelect
 
@@ -861,110 +860,8 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
       return counts
     }),
 
-  releaseDueReminders: async ({ now, limit }) =>
-    trace('inbox.responseTarget.releaseDueReminders', async () => {
-      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
-        throw inboxError('invalid_input', 'Reminder batch limit must be 1–100')
-      }
-      const released = await db.transaction(async (tx) => {
-        const due = await tx
-          .select({
-            reminder: inboxResponseTargetReminders,
-            targetDueAt: inboxHandlingCycleResponseTargets.dueAt,
-          })
-          .from(inboxResponseTargetReminders)
-          .innerJoin(
-            inboxHandlingCycleResponseTargets,
-            and(
-              eq(
-                inboxHandlingCycleResponseTargets.inboxItemId,
-                inboxResponseTargetReminders.inboxItemId,
-              ),
-              eq(
-                inboxHandlingCycleResponseTargets.cycleNumber,
-                inboxResponseTargetReminders.cycleNumber,
-              ),
-              isNull(inboxHandlingCycleResponseTargets.completionAt),
-              eq(inboxHandlingCycleResponseTargets.performanceEligibility, 'measured'),
-            ),
-          )
-          .innerJoin(
-            inboxHandlingCycleHeads,
-            and(
-              eq(
-                inboxHandlingCycleHeads.inboxItemId,
-                inboxResponseTargetReminders.inboxItemId,
-              ),
-              eq(
-                inboxHandlingCycleHeads.currentCycleNumber,
-                inboxResponseTargetReminders.cycleNumber,
-              ),
-              eq(inboxHandlingCycleHeads.status, 'open'),
-            ),
-          )
-          .where(
-            and(
-              lte(inboxResponseTargetReminders.scheduledFor, now),
-              isNull(inboxResponseTargetReminders.deliveredAt),
-              isNull(inboxResponseTargetReminders.cancelledAt),
-            ),
-          )
-          .orderBy(
-            asc(inboxResponseTargetReminders.scheduledFor),
-            asc(inboxResponseTargetReminders.inboxItemId),
-            asc(inboxResponseTargetReminders.reminderKind),
-          )
-          .limit(limit)
-          // Lock the target before its reminder, matching completion/cancellation.
-          // This makes "still active" and reminder release one ordered decision:
-          // a concurrently completed target cannot publish a later due fact.
-          .for('update', {
-            of: inboxHandlingCycleResponseTargets,
-            skipLocked: true,
-          })
-        let released = 0
-        for (const { reminder, targetDueAt } of due) {
-          const reminderKind =
-            reminder.reminderKind === 'halfway' ? 'halfway' : 'target_passed'
-          // A halfway slot still pending once its target has passed closes
-          // without a fact, so a late release prompts once, not twice.
-          const superseded =
-            targetDueAt !== null && isSupersededReminder(reminderKind, targetDueAt, now)
-          const [saved] = await tx
-            .update(inboxResponseTargetReminders)
-            .set(
-              superseded
-                ? { cancelledAt: now, updatedAt: now }
-                : { deliveredAt: now, updatedAt: now },
-            )
-            .where(
-              and(
-                eq(inboxResponseTargetReminders.inboxItemId, reminder.inboxItemId),
-                eq(inboxResponseTargetReminders.cycleNumber, reminder.cycleNumber),
-                eq(inboxResponseTargetReminders.reminderKind, reminder.reminderKind),
-                isNull(inboxResponseTargetReminders.deliveredAt),
-                isNull(inboxResponseTargetReminders.cancelledAt),
-              ),
-            )
-            .returning({ eventId: inboxResponseTargetReminders.eventId })
-          if (!saved || superseded) continue
-          const fact = inboxResponseTargetReminderDue({
-            inboxItemId: inboxItemId(reminder.inboxItemId),
-            cycleNumber: reminder.cycleNumber,
-            organizationId: organizationId(reminder.organizationId),
-            propertyId: propertyId(reminder.propertyId),
-            targetKind: reminder.targetKind as ResponseTargetView['targetKind'],
-            reminderKind,
-            scheduledFor: reminder.scheduledFor,
-            occurredAt: now,
-          })
-          await insertOutboxRow(tx, fact, { recordedAt: now })
-          released += 1
-        }
-        return released
-      })
-      return { released }
-    }),
+  // Reminder release, split out for the ratchet: see the module.
+  ...createReminderReleaseStore(db),
 
   // An archived Property is outside the workspace, so its pending reminders
   // would only prompt work nobody can do. `cancelled_at` is the slot's own

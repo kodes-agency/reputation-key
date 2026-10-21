@@ -467,10 +467,17 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/inbox/infrastructure/response-target.store.ts',
-    symbol: 'releaseDueReminders',
+    file: 'src/contexts/inbox/infrastructure/response-target-reminder-release.store.ts',
+    symbol: 'selectDueSlots',
     reason:
-      "The bounded reminder release intentionally locks due Response Target reminders across tenants and publishes each fact with the reminder row's own Organization and Property.",
+      'The bounded reminder release lists, and locks the targets of, due Response Target reminders across tenants (or the one slot named by its key); every row carries its own Organization and Property, which the release and the Google check then use.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/inbox/infrastructure/response-target-reminder-release.store.ts',
+    symbol: 'settleLockedSlot',
+    reason:
+      "Delivers or cancels one reminder slot whose target the cross-tenant release has just locked, addressed by the slot's own key (item, cycle, kind), and publishes its fact with the row's own Organization and Property.",
     category: 'LEGITIMATE-GLOBAL',
   },
   {

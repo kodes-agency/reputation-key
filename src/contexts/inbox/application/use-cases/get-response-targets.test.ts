@@ -93,6 +93,8 @@ const store = (): ResponseTargetStore => ({
     averageTimeToResponseMinutes: null,
   })),
   releaseDueReminders: vi.fn(async () => ({ released: 0 })),
+  listDueReminderCandidates: vi.fn(async () => []),
+  releaseReminderSlot: vi.fn(async () => 'skipped' as const),
   cancelArchivedPropertyRemindersOnce: vi.fn(async () => 'applied' as const),
 })
 

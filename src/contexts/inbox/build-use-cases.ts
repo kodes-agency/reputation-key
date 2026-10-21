@@ -49,6 +49,7 @@ import { releaseDueResponseTargetReminders } from './application/use-cases/relea
 import type { InboxActorDirectory } from './application/ports/inbox-actor-directory.port'
 import type { InboxHistoryRepository } from './application/ports/inbox-history.repository'
 import type { ReplyObservationAuthorityPort } from './application/ports/reply-observation-authority.port'
+import type { GoogleReviewCheckPort } from './application/ports/google-review-check.port'
 import { inboxItemId, inboxNoteId } from '#/shared/domain/ids'
 
 type WireInput = Readonly<{
@@ -65,6 +66,7 @@ type WireInput = Readonly<{
   reviewSourceLookup: ReviewSourceLookupPort
   replyLookup: ReplyLookupPort
   replyObservationAuthority: ReplyObservationAuthorityPort
+  googleReviewCheck: GoogleReviewCheckPort
   aiInsights?: AiReviewInsightsPort
   propertyLookup?: PropertyLookupPort
   staffPublicApi: StaffPublicApi
@@ -241,7 +243,10 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
     }),
     releaseDueResponseTargetReminders: releaseDueResponseTargetReminders({
       targetStore: input.responseTargetStore,
+      replyLookup: input.replyLookup,
+      googleReviewCheck: input.googleReviewCheck,
       clock: input.clock,
+      logger: input.logger,
     }),
   }
 }

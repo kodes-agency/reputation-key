@@ -60,6 +60,24 @@ release, prompts once, with target passed. Archiving a Property cancels its
 unreleased slots (`inbox.on-property-archived`), as Organization closing does,
 and Restore re-arms none of them: a cancelled slot is terminal.
 
+A Google-review reminder is checked against Google before it is released
+(ADR 0046, amended 2026-10-21), because about 97% of replies are written on
+Google and RepKey learns of them only at the next sync. The reminder job reads
+the review once through the Inbox-owned `GoogleReviewCheckPort` (Review does the
+read and records it, the same as a sync) and _holds_ the slot when Review's
+reply head is live, answers the review, was observed at or after the cycle's
+target start, and is on the cycle's Material Review Revision. A held slot writes
+nothing and stays pending; the close the reply observation raises cancels it, so
+a held slot is not a cancelled slot. Every other outcome releases (the check
+fails open): no reply, a reply observed before the target restarted (a manager
+reopened after it), a new material revision, a reply RepKey cannot read, or
+content that has expired or been erased (never re-read). A read that fails
+transiently leaves the slot pending until 15 minutes after its `scheduled_for`,
+then releases; a permanent condition (capability off, no Google provider,
+connection needing reauthorization) releases at once. No transaction or lock is
+held across the Google read, private-feedback slots are never checked, and a tick
+reads Google at most 20 times.
+
 An Organization may give its own low-rated Google reviews a shorter target — a
 star threshold and a shorter duration on the same Google policy row — so their
 reminders fall sooner. This is where a review's rating changes how soon someone
@@ -85,8 +103,9 @@ then closes the item. The withdrawal names the submission by event id in its
 payload, so the delivery is settled only when that event is stored for the
 withdrawal's own Organization. `review.reply.observed` is a wake-up hint; the exact-current
 permit is checked under Review's observation fence before Inbox commits closure or
-reopen work. The reminder job runs every five minutes and Notification revalidates
-recipients immediately before delivery.
+reopen work. The reminder job runs every five minutes, checks Google before it
+releases a Google-review reminder (see Response Targets above), and Notification
+revalidates recipients immediately before delivery.
 
 The projection rebuild (`rebuildInboxProjection`, `ops:rebuild-projection`)
 repairs from canonical data and records no facts. Its reply milestones read

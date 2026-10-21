@@ -580,6 +580,7 @@ function buildContainer(
       replyObservationAuthority: review.publicApi.replyObservationAuthority,
       responseTargetAuthority: review.publicApi.responseTargetAuthority,
       sourceTransitionAuthority: review.publicApi.sourceTransitionAuthority,
+      googleReviewCheck: review.publicApi.checkReviewOnGoogle,
     },
     logger: getLogger(),
   })

@@ -1259,6 +1259,33 @@ WHERE delivered_at IS NULL AND cancelled_at IS NULL AND scheduled_for <= created
 A non-zero count sends one `target passed` per row at the next release pass, and
 no `halfway`. Left alone it drains; it never grows under the current rule.
 
+**Reminders reading Google before they go out (2026-10-21).** The
+`release-response-target-reminders` job (every five minutes, 120 second timeout)
+reads a Google review once before it releases a reminder for it
+(`docs/operations/inbox-response-targets.md`, "The Google check before a
+reminder"). Its log line `Response Target reminder release completed` carries
+counts only: `released`, `checked` (Google reads), `heldLocal` and
+`heldAfterRead` (reminders withheld because a reply is already on Google),
+`deferred` (left pending for the next tick), `unavailable` (reads that failed),
+`skippedNoProvider` (no Google provider in this environment) and `failed`
+(slots whose own work threw; they stay pending). Healthy: `heldLocal` or
+`heldAfterRead` above zero when managers answer on Google, `unavailable` and
+`deferred` near zero.
+
+_Reminders arriving 15 to 20 minutes late._ That is the cap on a Google that
+cannot be read. Read `unavailable` and `deferred` on the job log and look for the
+cause: Google failing or rate limited (§3; the reads share the `google-reviews-v1`
+quota with sync), the `property.connect_gbp` kill switch or a suspended
+Organization (the read is refused and the reminder released after the wait), a
+connection that needs reauthorizing (released at once), or a worker with no Google
+provider (`skippedNoProvider`, released at once). A reminder is never lost: after
+15 minutes from its scheduled time it goes out whatever Google says.
+
+_A reminder that never arrives for an answered review_ is the intended result of a
+hold. A held slot stays pending and the close the reply raised cancels it; if the
+item is still open long after the reply, the close is stuck (§15, the
+`inbox.on-reply-observed` consumer), not the reminder.
+
 **The first health check after the 2026-09-28 deploy may page.**
 `notification.email.delivery_enabled` now reads `1` under
 `BETA_ALLOWLIST_ORGS=*`, so `notification.email-stalled` judges every overdue
@@ -1271,6 +1298,9 @@ its waiting notices show "Done"; revoke access in Google and confirm the
 reconnect notice and the Settings prompt, then reconnect and confirm the notice
 settles; edit an answered review on Google and confirm the urgent "reopened"
 notice; in the Railway Log Explorer, `@level:error` returns error lines.
+After the 2026-10-21 reminder pre-check ships, answer a review on Google, wait for
+the next sync and confirm the next reminder for it is held
+(`heldLocal` or `heldAfterRead` on the job log) and the item closes.
 
 **Escalation:** Bozhidar Denev.
 

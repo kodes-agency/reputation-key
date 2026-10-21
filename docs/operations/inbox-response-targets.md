@@ -130,11 +130,25 @@ deletion can reopen closed work; a live external edit remains closed.
 The local composition is fully wired:
 
 1. `release-response-target-reminders` is an enabled five-minute recurring job in
-   the governed job catalogue, and Bootstrap registers its worker handler.
-2. Inbox locks due active/current slots with `SKIP LOCKED`, marks each slot once,
-   and co-commits one identifier-only outbox fact with a stable event ID. Once a
-   target has passed, a halfway slot still pending is cancelled without a fact, so
-   a release that finds both slots due sends only the target-passed reminder.
+   the governed job catalogue (120 second timeout), and Bootstrap registers its
+   worker handler.
+2. The job works in three phases, and **no database transaction or row lock is held
+   while Google is read**:
+   - _List._ Inbox lists the due, active, current slots (oldest first, at most
+     100), taking no lock.
+   - _Decide._ Private-feedback slots, and a halfway slot whose target has already
+     passed, are decided first and need no Google read, so a slow Google can never
+     hold them back. Each Google-review slot is then checked (see "The Google
+     check before a reminder" below).
+   - _Release._ Each decided slot is released at once in its own short transaction.
+     Inbox takes the target lock (`SKIP LOCKED`), re-checks that the target is still
+     active and current, and marks the slot once. It co-commits one identifier-only
+     outbox fact. The fact's event ID is a fresh `newEventId()`; what makes a
+     release happen at most once is the one-shot update of the slot row (it only
+     succeeds while neither `delivered_at` nor `cancelled_at` is set), not the
+     event ID. Once a target has passed, a halfway slot still pending is cancelled
+     without a fact, so a release that finds both slots due sends only the
+     target-passed reminder.
 3. Notification registers the corresponding outbox consumer. Admission resolves
    the exact current cycle, target, assignment, and source responsibility.
 4. The queued audience repeats the same exact-current authorization immediately
@@ -144,6 +158,63 @@ The local composition is fully wired:
    consumer cancels the Property's unreleased slots while the Property is still
    not active, and Notification admits a reminder only for an active Property, so
    a slot released between the archive and that consumer is obsolete as well.
+
+### The Google check before a reminder
+
+About 97% of replies are written directly on Google, and RepKey learns of them
+only at the next sync (up to about six hours apart). Without a check, a halfway or
+target-passed reminder could go out for a review a manager has already answered.
+So before it releases a **Google-review** reminder, the job reads that one review
+from Google. Private-feedback reminders are never checked.
+
+For each due Google-review slot, in `scheduled_for` order:
+
+1. **Local head first, no call.** If Review's current Google reply head for the
+   review is already _live_, answers the review, was observed at or after the
+   cycle's target start, and is on the cycle's Material Review Revision, the slot is
+   **held** without reading Google.
+2. **Otherwise one read.** Review reads the review from Google through the same
+   observation writer as a sync, using the Property's _current_ Google connection
+   and source epoch (not what the review row cached), and records what it shows. If
+   Google shows an answering reply, a `review.reply.observed` fact is written and
+   the normal close path closes the item and cancels its slots within seconds.
+3. **Decision.** _Hold_ iff the head after the read is live, observed at or after
+   the cycle's target start, and on the cycle's material revision. Anything else
+   _releases_ (the check fails open), including a read that created a new material
+   revision, no reply, a carried-over reply, and a reply observed before the target
+   started (a manager reopened the item after it).
+
+A **held** slot writes nothing and stays pending. It is not a cancelled slot: the
+close that the reply observation raises cancels it, after which no later tick
+selects it. The next tick finds the same head locally and holds again without a
+Google call.
+
+When Google cannot be read:
+
+- _Transient_ failures (rate limit, 5xx, timeout, a 404 for the review) leave the
+  slot **pending** and write nothing while `now < scheduled_for + 15 minutes`; the
+  next tick tries again. At or after that, the slot is released. The cap is measured
+  from `scheduled_for`, so no state is stored; a slot found more than 15 minutes
+  late is read once and released at once if that read fails. Under a persistent
+  provider failure a reminder is therefore 15 to 20 minutes late (ticks are 5
+  minutes apart).
+- _Permanent_ conditions release at once with no wait: `property.connect_gbp` not
+  enabled for the Property, no Google provider in this environment (local and e2e
+  stacks keep today's timing), a connection that needs reauthorizing or whose
+  authorization changed, a Property with no active Google binding, or the provider
+  rejecting the request.
+- Content whose source is `source_expired` or `provider_deleted`, or past its
+  content expiry, is never read (a read would re-hydrate erased content); the
+  reminder is released.
+- A reply Google shows but RepKey cannot read (a translation-only envelope) is
+  never recorded, so it can never close the item; the reminder is released.
+
+Limits per tick: at most **20 Google reads** and a soft **35 second** budget. Slots
+beyond them wait for the next tick, unless they are already 15 minutes late, when
+they are released unchecked. A per-slot error is counted, never rethrown: a throw
+would make the queue redo the listing and the reads. The job log carries counts
+only (`released`, `checked`, `heldLocal`, `heldAfterRead`, `deferred`,
+`unavailable`, `skippedNoProvider`, `failed`): no review text and no provider id.
 
 Recipient policy is:
 
@@ -155,7 +226,9 @@ Recipient policy is:
 
 A reminder is a follow-up prompt, not an automatic escalation. `delivered_at` on
 the Inbox reminder row means the durable outbox boundary was reached; it does not
-prove that a person saw an in-app or email notification.
+prove that a person saw an in-app or email notification. A Google-review reminder
+may now be up to 15 to 20 minutes after its `scheduled_for` while Google cannot be
+read, and is withheld altogether when Google already shows the answering reply.
 
 ## Analytics and manager surfaces
 
@@ -212,6 +285,11 @@ captures those facts for the deployed artifact and environment.
    de-duplicated audience is used. Verify that a target already overdue when it is
    snapshotted records only its target-passed slot and prompts once, and that a
    release finding both slots of a target due sends only target passed.
+   Verify the Google check: with a reply written on Google that Review has
+   observed, the reminder is held and the close cancels both slots; with no reply
+   it is released after one read; with Google unreadable it is not released until
+   15 minutes after `scheduled_for`; and a manager's reopen after the reply still
+   reminds.
 5. Exercise ongoing initial, onboarding-history, material-update, manual-reopen,
    external-current-live completion, RepKey-confirmed completion, and current reply-
    deletion reopen paths, an import that fails part-way and is finished by the
@@ -228,6 +306,9 @@ captures those facts for the deployed artifact and environment.
 ## Repair rules
 
 - Never infer or edit a historical start, deadline, completion, or terminal result.
+- A held slot is not a cancelled slot: it stays pending and is cancelled only by
+  the normal close. Do not cancel or release it by hand; if the close is stuck, fix
+  the `inbox.on-reply-observed` consumer, not the slot.
 - Never reopen a released/cancelled reminder slot. A failed release remains retryable
   only while its slot is pending. Property Restore and cancelled Organization
   closing re-arm nothing either: a slot cancelled while its Property was archived

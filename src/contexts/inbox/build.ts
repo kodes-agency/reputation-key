@@ -91,7 +91,11 @@ import { createReviewSourceLookupAdapter } from './infrastructure/adapters/revie
 import { createReplyObservationAuthorityAdapter } from './infrastructure/adapters/reply-observation-authority.adapter'
 import { createSourceTransitionAuthorityAdapter } from './infrastructure/adapters/source-transition-authority.adapter'
 import { createReviewResponseTargetAuthorityAdapter } from './infrastructure/adapters/review-response-target-authority.adapter'
-import type { ReviewResponseTargetAuthority } from '#/contexts/review/application/public-api'
+import type {
+  ReviewGoogleReviewCheck,
+  ReviewResponseTargetAuthority,
+} from '#/contexts/review/application/public-api'
+import { createGoogleReviewCheckAdapter } from './infrastructure/adapters/google-review-check.adapter'
 import { createInboxActorDirectoryAdapter } from './infrastructure/adapters/inbox-actor-directory.adapter'
 import { projectInboxRequestApi, wireUseCases } from './build-use-cases'
 
@@ -117,6 +121,8 @@ export type InboxContextBuildInput = Readonly<{
     replyObservationAuthority: ReviewReplyObservationAuthority
     responseTargetAuthority: ReviewResponseTargetAuthority
     sourceTransitionAuthority: ReviewSourceTransitionAuthority
+    /** Reads one review from Google once, before a Response Target reminder for it goes out. */
+    googleReviewCheck: ReviewGoogleReviewCheck
   }>
   logger: LoggerPort
   /** Current actor/assignee authority, evaluated inside each command transaction. */
@@ -277,6 +283,9 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   const sourceTransitionAuthority = createSourceTransitionAuthorityAdapter(
     input.sources.sourceTransitionAuthority,
   )
+  const googleReviewCheck = createGoogleReviewCheckAdapter(
+    input.sources.googleReviewCheck,
+  )
 
   const inboxRepo = createInboxRepository(
     input.db,
@@ -329,6 +338,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     reviewSourceLookup,
     replyLookup,
     replyObservationAuthority,
+    googleReviewCheck,
     propertyLookup,
     staffPublicApi: input.staffPublicApi,
     aiInsights: input.aiInsights,
