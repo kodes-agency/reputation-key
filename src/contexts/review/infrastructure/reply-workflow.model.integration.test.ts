@@ -53,7 +53,7 @@ import {
   afterRefusedClaim,
   isLegalReplyState,
   managerVerdict,
-  mayBeClaimed,
+  survivesTheWorkersRead,
   reachableBy,
   sameReplyState,
   type AiDraftPurgeScope,
@@ -749,8 +749,8 @@ function createRun() {
     if (!reachedTheClaim) return
     covered.add(
       evidence.aiInputsCurrent
-        ? 'stale AI text: withdrawn at the claim'
-        : 'AI text with a changed input: withdrawn at the claim',
+        ? 'stale AI text: withdrawn at the worker’s read'
+        : 'AI text with a changed input: withdrawn at the worker’s read',
     )
   }
 
@@ -759,12 +759,7 @@ function createRun() {
     pre: OracleReply,
     post: OracleState,
     step: Extract<Step, { act: 'job' }>,
-    evidence: CommandEvidence,
   ): void {
-    // Stale by now, and sent all the same: these words were claimed before.
-    if (pre.authorship === 'ai_assisted' && !evidence.aiBindingCurrent) {
-      covered.add('stale AI text: claimed again')
-    }
     let expected: OracleReply | null = pre
     for (const event of jobEvents(step.outcome, step.final)) {
       expected = expected && afterPublicationEvent(expected, event)
@@ -795,14 +790,14 @@ function createRun() {
     const post = toOracle((await harness.evidence()).reply)
     if (pre === null) return expect(post, context()).toBeNull()
     expect(post, context()).not.toBeNull()
-    if (pre.publication === 'authorized' && !mayBeClaimed(pre, evidence)) {
+    if (pre.publication === 'authorized' && !survivesTheWorkersRead(pre, evidence)) {
       expect(called, `stale AI text was claimed${context()}`).toBe(false)
       const reachedTheClaim =
         ran &&
         harness.jobs[index]?.data.publicationCycle === before.reply?.publicationCycle
       return expectRefusedClaim(pre, post, reachedTheClaim, evidence)
     }
-    if (called) return expectWriteOutcome(pre, post, step, evidence)
+    if (called) return expectWriteOutcome(pre, post, step)
     expect(reachableBy(pre, post!, READBACK_EVENTS, 1), context()).toBe(true)
   }
 
@@ -844,7 +839,7 @@ function createRun() {
       }
       return
     }
-    if (pre.publication === 'authorized' && !mayBeClaimed(pre, evidence)) {
+    if (pre.publication === 'authorized' && !survivesTheWorkersRead(pre, evidence)) {
       // A worker that may not claim the cycle withdraws the reply, and the
       // sweep's settlement of the row it read then matches nothing. A worker
       // with no execution left does nothing, and the sweep makes its move.
@@ -1097,9 +1092,8 @@ describe.sequential('reply workflow model (PostgreSQL)', () => {
         'AI text: publish_failed',
         'stale AI text refused: submit',
         'stale AI text refused: approve',
-        'stale AI text: withdrawn at the claim',
-        'AI text with a changed input: withdrawn at the claim',
-        'stale AI text: claimed again',
+        'stale AI text: withdrawn at the worker’s read',
+        'AI text with a changed input: withdrawn at the worker’s read',
         'purge: deleted an AI reply nobody confirmed',
         'purge: emptied a confirmed AI reply',
         'purge: left an AI reply alone',

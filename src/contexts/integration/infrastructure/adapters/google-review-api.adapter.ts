@@ -44,6 +44,7 @@ import {
   isAcceptedNonJsonWrite,
   isGoogleReviewApiError,
   replyAuthorizationRefusal,
+  replyPreReadAuthorizationRefusal,
   reviewApiError,
 } from './google-review-api-errors'
 import {
@@ -489,8 +490,9 @@ export const createGoogleReviewApiAdapter = (
       sourceEpoch: number
     }>,
     expected: GoogleReviewCursorAuthorization,
+    resolve: typeof resolveProviderContext = resolveProviderContext,
   ): Promise<void> => {
-    const current = await resolveProviderContext(input)
+    const current = await resolve(input)
     if (!sameGoogleReviewCursorAuthorization(current.cursorAuthorization, expected)) {
       throw reviewApiError('authorization_changed', false)
     }
@@ -638,6 +640,7 @@ export const createGoogleReviewApiAdapter = (
   // validated-input type that all three parse into once.
   // fallow-ignore-next-line complexity
   const getReview: GoogleReviewApiPort['getReview'] = async (input) => {
+    const forReplyPublication = 'forReplyPublication' in input
     if (
       !exactKeys(input, [
         'organizationId',
@@ -646,7 +649,9 @@ export const createGoogleReviewApiAdapter = (
         'sourceEpoch',
         'locationName',
         'reviewName',
+        ...(forReplyPublication ? ['forReplyPublication'] : []),
       ]) ||
+      (forReplyPublication && input.forReplyPublication !== true) ||
       !isSafeScopeId(input.organizationId) ||
       !isCanonicalUuid(input.propertyId) ||
       !isCanonicalUuid(input.connectionId) ||
@@ -657,7 +662,10 @@ export const createGoogleReviewApiAdapter = (
     }
     assertLocationName(input.locationName)
     assertReviewName(input.reviewName, input.locationName)
-    const context = await resolveProviderContext(input)
+    const resolve = forReplyPublication
+      ? resolveReplyPreReadContext
+      : resolveProviderContext
+    const context = await resolve(input)
     let raw: unknown
     const timeout = withTimeout(30_000)
     try {
@@ -682,7 +690,7 @@ export const createGoogleReviewApiAdapter = (
       }
       if (result.status === 404) {
         result.body.fill(0)
-        await assertAuthorizationCurrent(input, context.cursorAuthorization)
+        await assertAuthorizationCurrent(input, context.cursorAuthorization, resolve)
         return { status: 'not_found' }
       }
       if (result.status !== 200) {
@@ -709,7 +717,7 @@ export const createGoogleReviewApiAdapter = (
     } finally {
       timeout.clear()
     }
-    await assertAuthorizationCurrent(input, context.cursorAuthorization)
+    await assertAuthorizationCurrent(input, context.cursorAuthorization, resolve)
     const parsed = gbpReviewItemSchema.safeParse(raw)
     if (!parsed.success) throw reviewApiError('malformed_response', false)
     const review = mapReview(parsed.data, input.locationName)
@@ -775,7 +783,7 @@ export const createGoogleReviewApiAdapter = (
    * refusal as it was; both codes are terminal.
    */
   const withReauthorizationCause = async (
-    input: GoogleReplyPublicationInput,
+    input: Pick<GoogleReplyPublicationInput, 'organizationId' | 'connectionId'>,
     refusal: GoogleReviewApiError,
   ): Promise<GoogleReviewApiError> => {
     if (refusal.code !== 'authorization_changed') return refusal
@@ -799,6 +807,24 @@ export const createGoogleReviewApiAdapter = (
       false,
       refusal.failure === undefined ? {} : { failure: refusal.failure },
     )
+  }
+
+  /**
+   * `resolveProviderContext` for the read before a reply is published: its
+   * refusals leave in the write path's vocabulary (see
+   * `GoogleReviewGetRequest.forReplyPublication`).
+   */
+  const resolveReplyPreReadContext: typeof resolveProviderContext = async (input) => {
+    try {
+      return await resolveProviderContext(input)
+    } catch (error) {
+      throw await withReauthorizationCause(
+        input,
+        isGoogleReviewApiError(error)
+          ? (error as GoogleReviewApiError)
+          : replyPreReadAuthorizationRefusal(error),
+      )
+    }
   }
 
   const replyViaExecutor = async (

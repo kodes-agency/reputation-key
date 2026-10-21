@@ -18,6 +18,16 @@
 //
 // BQC-3.8: the publication state machine is DURABLE (replies.publication_state,
 // migration 0015). The handler:
+//   0. READS GOOGLE FIRST, for an `authorized` cycle on a Review with a Google
+//      subject (publish-reply-preread.ts). `reviews.reply` is an upsert, so one
+//      `reviews.get` is recorded through the writer sync uses before anything is
+//      claimed. A reply RepKey had not seen moves the observation head: the
+//      store cancels a cycle that never sent (cause provider_truth), and this
+//      job cancels a requeued one the claim refuses. A reply it cannot read is
+//      treated as a reply that is there. Google no longer having the review is
+//      refused like a 404 on the write. A failed read is classified like a
+//      failed write (a refusal ends the cycle; anything else is retried, since
+//      a read proves nothing was written) and consumes no claim.
 //   1. CLAIMS the row — markPublicationSending (approved + authorized|sending
 //      → sending, attempts+1). A null claim means the publication was
 //      cancelled (disconnect/policy) or the row is no longer claimable:
@@ -71,10 +81,22 @@ import type { ReplyCommandStore } from '../../application/ports/reply-command-st
 import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
 import type { GoogleReplyObservationStore } from '../../application/ports/google-reply-observation-store.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../../application/ports/reply-publication-dispatch-evidence.port'
+import type { ReadReviewBeforePublish } from '../../application/use-cases/read-review-before-publish'
 import { attemptNeverDispatched } from './attempt-never-dispatched'
+import {
+  buildPublishFailedEvent,
+  cancelPublicationCycle,
+  contentFreeErrorIdentity,
+  MAX_PUBLISH_ATTEMPTS,
+  refusedForPropertySource,
+} from './publish-reply-support'
+import {
+  cancelRequeuedCycleWhenHeadMoved,
+  readGoogleBeforeClaim,
+  readsGoogleBeforeClaim,
+} from './publish-reply-preread'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Reply, Review } from '../../domain/types'
-import { replyAuthor } from '../../domain/reply-author'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
@@ -85,23 +107,18 @@ import {
   publicationFailureCause,
   publicationFailureEvidence,
   UNCERTAIN_SEND_RECHECK_DELAY_MS,
-  type PublicationFailureCause,
 } from '../../domain/reply-publication-workflow'
-import {
-  reviewReplyPublicationCancelled,
-  reviewReplyPublishFailed,
-  type ReplyPublishFailureOutcome,
-} from '../../domain/events'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
-
-const MAX_ATTEMPTS = 5
 
 type PublishHandlerDeps = Readonly<{
   replyRepo: ReplyRepository
   reviewRepo: ReviewRepository
   googleReviewApi: GoogleReviewApiPort
   googleReplyObservationStore: GoogleReplyObservationStore
+  /** One `reviews.get` of the review, recorded through the sync writer, made
+   * before a fresh publication is claimed (publish-reply-preread.ts). */
+  readBeforePublish: ReadReviewBeforePublish
   /** BQC-3.3/3.8: atomic mark ops (guarded state + outbox fact in one tx). */
   replyCommandStore: ReplyCommandStore
   /** D4: the only input that may settle an uncertain attempt as never sent. */
@@ -114,26 +131,6 @@ type PublishHandlerDeps = Readonly<{
   // (no authenticated caller), but accept the field to satisfy the shared type.
   staffPublicApi: StaffPublicApi
 }>
-
-/** The publish_failed fact — identifier-only, propertyId from the parent review. */
-function buildPublishFailedEvent(
-  review: Review,
-  reply: Reply,
-  occurredAt: Date,
-  outcome: ReplyPublishFailureOutcome,
-  cause: PublicationFailureCause | null = null,
-) {
-  return reviewReplyPublishFailed({
-    replyId: reply.id,
-    reviewId: reply.reviewId,
-    propertyId: review.propertyId,
-    organizationId: reply.organizationId,
-    authorId: replyAuthor(reply),
-    outcome,
-    ...(cause === null ? {} : { cause }),
-    occurredAt,
-  })
-}
 
 /** RPL-01: an authorization fence is current only when the job carries the full
  * provider-source coordinates the authorization was granted against. */
@@ -250,6 +247,44 @@ async function localTruthStillOwnsCycle(
   return true
 }
 
+/**
+ * Read Google, then CLAIM a fresh publication; null when the job ends here.
+ *
+ * The read comes first (publish-reply-preread.ts): the write is an upsert, so a
+ * reply someone typed on Google since the last sync would be replaced. What the
+ * read records moves the head the claim compares, or ends the cycle.
+ *
+ * BQC-3.8: the claim moves approved + authorized → sending, attempts+1. A
+ * persisted sending row went through the check-only path, so it can never be
+ * re-claimed into a second Google write. A null claim means the cycle was
+ * cancelled meanwhile (disconnect/policy) or is no longer claimable.
+ */
+async function claimFreshPublication(
+  deps: PublishHandlerDeps,
+  job: Job<PublishReplyJobData>,
+  target: PublishTarget,
+): Promise<Reply | null> {
+  const { reply, review } = target
+  const readsFirst = readsGoogleBeforeClaim(target)
+  const toClaim = readsFirst ? await readGoogleBeforeClaim(deps, job, target) : reply
+  if (!toClaim) return null
+
+  const claimed = await deps.replyCommandStore.markPublicationSending(toClaim, {
+    providerOperationKey: `${String(job.id ?? reply.id)}:${job.attemptsMade + 1}`,
+    propertyId: propertyId(job.data.propertyId ?? review.propertyId),
+    sourceEpoch: job.data.sourceEpoch ?? review.sourceEpoch,
+    materialReviewRevision: job.data.materialReviewRevision ?? review.sourceRevision,
+    baseObservationRevision: job.data.baseObservationRevision ?? 0,
+  })
+  if (!claimed) {
+    deps.logger.warn(
+      'Publication claim lost — cancelled or no longer claimable, skipping',
+    )
+    if (readsFirst) await cancelRequeuedCycleWhenHeadMoved(deps, job, toClaim, review)
+  }
+  return claimed
+}
+
 export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
   return async (job: Job<PublishReplyJobData>) => {
     return trace('job.publishReply', async () => {
@@ -276,21 +311,8 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
         return
       }
 
-      // BQC-3.8: CLAIM a fresh publication (approved + authorized → sending,
-      // attempts+1). A persisted sending row returned through the check-only
-      // path above, so it can never be re-claimed into a second Google write.
-      // Null = cancelled meanwhile (disconnect/policy) or no longer claimable.
-      const claimed = await deps.replyCommandStore.markPublicationSending(reply, {
-        providerOperationKey: `${String(job.id ?? reply.id)}:${job.attemptsMade + 1}`,
-        propertyId: propertyId(job.data.propertyId ?? review.propertyId),
-        sourceEpoch: job.data.sourceEpoch ?? review.sourceEpoch,
-        materialReviewRevision: job.data.materialReviewRevision ?? review.sourceRevision,
-        baseObservationRevision: job.data.baseObservationRevision ?? 0,
-      })
-      if (!claimed) {
-        logger.warn('Publication claim lost — cancelled or no longer claimable, skipping')
-        return
-      }
+      const claimed = await claimFreshPublication(deps, job, target)
+      if (!claimed) return
 
       if (!review.googleConnectionId || !reviewName) {
         logger.error('Review has no current Google provider subject, cannot publish')
@@ -351,18 +373,6 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
   }
 }
 
-/**
- * RepKey's own authorizer refused the write before anything was sent because
- * the Property is no longer active at the cycle's source epoch: an Archive,
- * Restore or relink committed after this cycle was claimed. That is policy,
- * not Google's answer, and must never reach the author as "Google rejected
- * the reply".
- */
-function refusedForPropertySource(err: unknown): boolean {
-  const evidence = publicationFailureEvidence(err)
-  return evidence.dispatch === 'not_sent' && evidence.executionCode === 'stale_source'
-}
-
 /** Cancel the claimed cycle as a policy cancellation, exactly as the archive
  * consumer and a failed claim do: the Reply returns to draft and one
  * `publication_cancelled` (cause 'policy') fact is recorded. */
@@ -371,24 +381,9 @@ async function cancelRefusedPublication(
   claimed: Reply,
   review: Review,
 ): Promise<void> {
-  const now = deps.clock()
-  const cancelled = await deps.replyCommandStore.cancelPublications([
-    {
-      reply: claimed,
-      event: reviewReplyPublicationCancelled({
-        replyId: claimed.id,
-        reviewId: claimed.reviewId,
-        propertyId: review.propertyId,
-        organizationId: claimed.organizationId,
-        authorId: replyAuthor(claimed),
-        cause: 'policy',
-        occurredAt: now,
-      }),
-      now,
-    },
-  ])
+  const cancelled = await cancelPublicationCycle(deps, claimed, review, 'policy')
   deps.logger.warn(
-    { cancelled: cancelled > 0 },
+    { cancelled },
     'Reply publication refused before sending: its Property is no longer active at the cycle source epoch; cancelled as policy',
   )
 }
@@ -603,29 +598,6 @@ async function readUncertainAttempt(
   return { kind: 'recorded' }
 }
 
-// Names are class-like identifiers (`DatabaseError`, `GoogleReviewApiError`);
-// codes are closed-union words or SQLSTATEs (`provider_unavailable`, `40001`).
-// Anything else is dropped rather than trusted: both fields come from an
-// `unknown` rejection, and a free-form value could carry reply text.
-const CONTENT_FREE_ERROR_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/u
-const CONTENT_FREE_ERROR_CODE = /^[A-Za-z0-9_]{1,64}$/u
-
-function contentFreeErrorIdentity(
-  err: unknown,
-): Readonly<{ errorName: string | null; errorCode: string | null }> {
-  if (!(err instanceof Error)) return { errorName: null, errorCode: null }
-  const code: unknown = 'code' in err ? err.code : undefined
-  const codeText =
-    typeof code === 'number' && Number.isSafeInteger(code) ? String(code) : code
-  return {
-    errorName: CONTENT_FREE_ERROR_NAME.test(err.name) ? err.name : null,
-    errorCode:
-      typeof codeText === 'string' && CONTENT_FREE_ERROR_CODE.test(codeText)
-        ? codeText
-        : null,
-  }
-}
-
 /** BQC-3.3/3.8: classified failure handling — see the header table. */
 async function handlePublishFailure(
   deps: PublishHandlerDeps,
@@ -637,7 +609,7 @@ async function handlePublishFailure(
   const logger = deps.logger
   const failure = classifyPublicationFailure(err)
   const attempt = job.attemptsMade + 1
-  const finalAttempt = attempt >= MAX_ATTEMPTS
+  const finalAttempt = attempt >= MAX_PUBLISH_ATTEMPTS
   // Content-free by construction: codes, dispatch, status, and the error's own
   // identifier-shaped name and code — never its message. Before D2 the
   // incident's compile refusal logged no code at all, so "never reached Google"

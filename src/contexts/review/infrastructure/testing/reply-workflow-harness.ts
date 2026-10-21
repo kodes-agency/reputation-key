@@ -17,7 +17,10 @@
 //
 // A read answers with `google.live` unless the test says it is behind: Google's
 // reads held at an earlier moment (`holdGoogleReads`), or a sync page fetched
-// earlier and applied now (`fetchGoogleSnapshot`).
+// earlier and applied now (`fetchGoogleSnapshot`). The publish worker reads the
+// review this way before it claims (the real use case and sync writer, see
+// reply-pre-read-fixture.ts), so a reply a test puts on Google behind
+// RepKey's back (`writeOnGoogle`) is met by the real head fence.
 
 import type { Job } from 'bullmq'
 import type { Pool } from 'pg'
@@ -67,6 +70,7 @@ import { createReplyPublicationDispatchEvidence } from '../reply-publication-dis
 import { createPublishReplyHandler } from '../jobs/publish-reply.job'
 import { createReconcileAmbiguousPublicationsHandler } from '../jobs/reconcile-ambiguous-publications.job'
 import { createReplyWorkflowAiFixture } from './reply-workflow-ai-fixture'
+import { createReplyPreReadForTests } from './reply-pre-read-fixture'
 
 export const WORKFLOW_ORG = organizationId('org-reply-workflow-model-00000001')
 export const WORKFLOW_PROPERTY = propertyId('4f000000-0000-4000-8000-000000000001')
@@ -225,6 +229,8 @@ export async function createReplyWorkflowHarness(
   const db = getDb()
   let nowMs = STARTED_AT.getTime()
   const clock = () => new Date(nowMs)
+  /** How many times the suite was reset: reply ids and cycles repeat each time. */
+  let runs = 0
 
   const reviewRepo = createReviewRepository(db, clock)
   const replyRepo = createReplyRepository(db, clock)
@@ -252,6 +258,15 @@ export async function createReplyWorkflowHarness(
   // ── Google ───────────────────────────────────────────────────────────
   const google = {
     live: null as GoogleReply | null,
+    /** Google shows a reply it does not return the text of (a translation-only
+     * envelope): a read cannot say what the reply is, only that there is one. */
+    replyUnreadable: false,
+    /** Google no longer has the review: a read answers 404. */
+    reviewGone: false,
+    /** The next reads fail: `transient` as an outage does (raised by the stand-in,
+     * so a worker execution fails and BullMQ would retry it); it stays until
+     * a test clears it. */
+    readFailure: 'none' as 'none' | 'transient',
     /** Set while Google's reads are behind what it holds: every read answers
      * with the reply as it stood when `holdGoogleReads` was called. */
     readsHeldAt: null as Readonly<{ reply: GoogleReply | null }> | null,
@@ -328,6 +343,26 @@ export async function createReplyWorkflowHarness(
     }
   }
 
+  /** Whether Google shows a reply that RepKey had neither written nor recorded:
+   * a reply the write would silently replace. */
+  async function unseenReplyOnGoogle(): Promise<boolean> {
+    const live = google.live
+    if (live === null) return false
+    if (google.sent.some((sent) => sent.landed && sent.text === live.text)) return false
+    const head = await pool.query<{ state: string; normalized_digest: string | null }>(
+      `SELECT o.state, o.normalized_digest
+         FROM google_reply_observation_heads AS h
+         JOIN google_reply_observations AS o ON o.id = h.observation_id
+        WHERE h.organization_id = $1 AND h.review_id = $2`,
+      [WORKFLOW_ORG, WORKFLOW_REVIEW],
+    )
+    const seen = head.rows[0]
+    return (
+      seen?.state !== 'live' ||
+      seen.normalized_digest !== googleReplyTextDigest(live.text)
+    )
+  }
+
   /** The rules a write must satisfy as it leaves: it carries text, the text
    * that was authorized for its cycle, no earlier request for this reply is
    * still of unknown outcome (Review CONTEXT, Invariant 9), and it is not
@@ -340,6 +375,11 @@ export async function createReplyWorkflowHarness(
       google.violations.push(`cycle ${input.publicationCycle} sent a reply with no text`)
     }
     await checkAiTextAsItLeaves(input, claimedBefore)
+    if (await unseenReplyOnGoogle()) {
+      google.violations.push(
+        `cycle ${input.publicationCycle} overwrote a reply on Google that RepKey had not seen`,
+      )
+    }
     const authorization = await pool.query<{ expected_reply_digest: string }>(
       `SELECT expected_reply_digest FROM reply_publication_authorizations
         WHERE reply_id = $1 AND publication_cycle = $2`,
@@ -379,24 +419,36 @@ export async function createReplyWorkflowHarness(
       throw new Error('listReviewsPage is not part of the reply workflow')
     },
     discardReviewCursors: async () => {},
-    getReview: async () => ({
-      status: 'found',
-      review: {
-        reviewName: `${locationName}/reviews/${EXTERNAL_REVIEW_ID}`,
-        externalId: EXTERNAL_REVIEW_ID,
-        externalLocationId: locationName,
-        reviewerName: 'Jane Doe',
-        reviewerProfilePhotoUrl: null,
-        googleReviewUrl: null,
-        rating: 5,
-        text: 'Great place!',
-        translatedText: null,
-        languageCode: 'en',
-        reviewedAt: STARTED_AT,
-        replyText: readableReply()?.text ?? null,
-        replyUpdatedAt: readableReply()?.updatedAt ?? null,
-      },
-    }),
+    // The guest's review is what RepKey last stored for it: a read of Google
+    // is recorded, so Google has to say what the Review row says (a guest edit
+    // a test applies, `observeReviewChange`, is in the row), or the read would
+    // undo the edit. Only the reply is Google's to vary.
+    getReview: async () => {
+      if (google.readFailure === 'transient') throw providerError('answered', 503)
+      const stored = await reviewRepo.findById(WORKFLOW_REVIEW, WORKFLOW_ORG)
+      if (!stored || google.reviewGone) return { status: 'not_found' }
+      return {
+        status: 'found',
+        review: {
+          reviewName: `${locationName}/reviews/${EXTERNAL_REVIEW_ID}`,
+          externalId: EXTERNAL_REVIEW_ID,
+          externalLocationId: locationName,
+          reviewerName: stored.reviewerName,
+          reviewerProfilePhotoUrl: stored.reviewerProfilePhotoUrl,
+          googleReviewUrl: stored.googleReviewUrl,
+          rating: stored.rating,
+          text: stored.text,
+          translatedText: stored.translatedText,
+          languageCode: stored.languageCode,
+          reviewedAt: stored.reviewedAt,
+          sourceCreatedAt: stored.sourceCreatedAt ?? undefined,
+          sourceUpdatedAt: stored.sourceUpdatedAt,
+          replyText: google.replyUnreadable ? null : (readableReply()?.text ?? null),
+          replyUpdatedAt: readableReply()?.updatedAt ?? null,
+          replyUnreadable: google.replyUnreadable,
+        },
+      }
+    },
     replyToReview: async (input) => {
       const outcome = google.next
       const claimedBefore = wasClaimedBefore(input)
@@ -473,6 +525,14 @@ export async function createReplyWorkflowHarness(
     reviewRepo,
     googleReviewApi,
     googleReplyObservationStore: observationStore,
+    readBeforePublish: createReplyPreReadForTests({
+      db,
+      googleReviewApi,
+      clock,
+      newReviewId: () => WORKFLOW_REVIEW,
+      sourceEpoch: () => 0,
+      runSalt: () => String(runs),
+    }),
     replyCommandStore: commandStore,
     dispatchEvidence,
     clock,
@@ -511,7 +571,9 @@ export async function createReplyWorkflowHarness(
   }
   const reviewInput = { reviewId: WORKFLOW_REVIEW }
 
-  async function reset(): Promise<void> {
+  /** Everything the workflow wrote, and Google's state, forgotten. The Review
+   * stays; it has no reply observation until `recordInitialGoogleState` runs. */
+  async function clearState(): Promise<void> {
     // A confirmed attempt and the observation that confirmed it reference each
     // other; the link is released first, as the Organization purge does.
     await pool.query(
@@ -526,6 +588,9 @@ export async function createReplyWorkflowHarness(
     await ai.reset()
     nowMs = STARTED_AT.getTime()
     google.live = null
+    google.replyUnreadable = false
+    google.reviewGone = false
+    google.readFailure = 'none'
     google.readsHeldAt = null
     google.calls = 0
     google.asked = []
@@ -537,6 +602,24 @@ export async function createReplyWorkflowHarness(
     jobs.length = 0
     jobRuns.clear()
     replySequence = 0
+  }
+
+  /**
+   * The first review sync: Google shows no reply, and RepKey records that. A
+   * manager's approval is authorized against the observation head, and the
+   * worker reads Google before it claims, so every history starts from a Review
+   * RepKey has already seen, as production does (a Review gets its head with
+   * its first sync). A first head would, by design, cancel an approval that was
+   * authorized before any head existed.
+   */
+  async function recordInitialGoogleState(): Promise<void> {
+    if (await reviewRepo.findById(WORKFLOW_REVIEW, WORKFLOW_ORG)) await observeGoogle()
+  }
+
+  async function reset(): Promise<void> {
+    runs += 1
+    await clearState()
+    await recordInitialGoogleState()
   }
 
   async function seed(): Promise<void> {
@@ -570,10 +653,11 @@ export async function createReplyWorkflowHarness(
     )
     await reviewRepo.upsert(seedReview(locationName), STARTED_AT)
     await ai.seed()
+    await recordInitialGoogleState()
   }
 
   async function remove(): Promise<void> {
-    await reset()
+    await clearState()
     for (const table of ['reviews', 'properties', 'google_connections']) {
       await pool.query(`DELETE FROM ${table} WHERE organization_id = $1`, [WORKFLOW_ORG])
     }
@@ -815,6 +899,11 @@ export async function createReplyWorkflowHarness(
     cancelUndispatched,
     observeGoogle,
     fetchGoogleSnapshot,
+    /** Someone replies on Google itself, behind RepKey's back: Google shows the
+     * text, and RepKey knows nothing of it until a read records it. */
+    writeOnGoogle: (text: string): void => {
+      google.live = { text, updatedAt: clock() }
+    },
     /** Google's reads fall behind what it holds: until `release`, every read
      * answers with the reply as it stands now, whatever is written since. */
     holdGoogleReads: () => {

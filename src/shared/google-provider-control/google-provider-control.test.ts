@@ -138,12 +138,33 @@ describe('Google execution admission', () => {
           requestBodyBytes: 24,
           maxRequestBytes: 64 * 1024,
           maxResponseBytes: 64 * 1024,
+          quotaPolicyId: 'google-reviews-write-v1',
+          inFlightPolicyId: 'google-reviews-write-v1',
+        }),
+        10_000,
+      ),
+    ).toBeNull()
+  })
+
+  it('refuses the reply route on the review read lane', () => {
+    expect(
+      validateGoogleExecutionAdmissionRequest(
+        request({
+          capability: 'property.publish_reply',
+          propertyId: 'property-1',
+          routeKey: 'reviews.reply',
+          endpointClass: 'reviews',
+          requestClass: 'reviews',
+          requestBodySha256: 'c'.repeat(64),
+          requestBodyBytes: 24,
+          maxRequestBytes: 64 * 1024,
+          maxResponseBytes: 64 * 1024,
           quotaPolicyId: 'google-reviews-v1',
           inFlightPolicyId: 'google-reviews-v1',
         }),
         10_000,
       ),
-    ).toBeNull()
+    ).toBe('quota_policy_mismatch')
   })
 
   // Which capability may use which route, written by hand: docs/BETA.md §2

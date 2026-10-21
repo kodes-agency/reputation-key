@@ -52,6 +52,7 @@ import {
   type RedisTestLease,
 } from '#/shared/testing/redis-test-lease'
 import { getDb } from '#/shared/db'
+import { sha256Hex } from '#/shared/domain/sha256'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createOutboxRelay } from '#/shared/outbox/relay'
@@ -88,6 +89,7 @@ import { createReplyRepository } from '#/contexts/review/infrastructure/reposito
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
 import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
+import { createReplyPreReadForTests } from '#/contexts/review/infrastructure/testing/reply-pre-read-fixture'
 import {
   reviewReplyApproved,
   reviewReplyPublicationRequested,
@@ -383,7 +385,10 @@ function makeReplyC(): Reply {
   }
 }
 
-function publishJob(attemptsMade: number): Job<PublishReplyJobData> {
+function publishJob(
+  attemptsMade: number,
+  baseObservationRevision: number,
+): Job<PublishReplyJobData> {
   return {
     // BullMQ retries preserve one job identity across every attempt. The
     // publication workflow relies on that serialization authority.
@@ -397,7 +402,7 @@ function publishJob(attemptsMade: number): Job<PublishReplyJobData> {
       propertyId: PROP_C,
       sourceEpoch: 0,
       materialReviewRevision: 1,
-      baseObservationRevision: 0,
+      baseObservationRevision,
     },
     attemptsMade,
     opts: { attempts: 3 },
@@ -480,6 +485,25 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     const replyRepo = createReplyRepository(db, () => new Date())
     const savedReview = await reviewRepo.upsert(makeReviewC(), NOW_C)
     expect(savedReview).toMatchObject({ sourceEpoch: 0, sourceRevision: 1 })
+    // The Review's first sync: Google showed no reply. A manager's approval is
+    // authorized against that head, and the worker reads Google before it
+    // claims, which a Review RepKey has never observed cannot survive (a first
+    // head ends an authorization made before any head existed).
+    const observationStore = createGoogleReplyObservationStore(db)
+    const firstSync = await observationStore.record({
+      organizationId: ORG_C,
+      propertyId: PROP_C,
+      reviewId: REVIEW_C,
+      sourceEpoch: savedReview.sourceEpoch,
+      materialReviewRevision: savedReview.sourceRevision,
+      readGeneration: await observationStore.allocateReadGeneration(),
+      observationKey: sha256Hex('bqc46-c-first-sync'),
+      source: 'provider_snapshot',
+      observedText: null,
+      providerUpdatedAt: null,
+      observedAt: NOW_C,
+      contentExpiresAt: new Date(NOW_C.getTime() + 24 * 60 * 60 * 1000),
+    })
     const pendingReply = await replyRepo.upsert(makeReplyC(), NOW_C)
     // Identity authority itself is outside this provider-fault proof. The
     // fixture grants the seeded manager explicitly; production composition
@@ -511,7 +535,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
           publicationCycle: 1,
           sourceEpoch: savedReview.sourceEpoch,
           materialReviewRevision: savedReview.sourceRevision,
-          baseObservationRevision: 0,
+          baseObservationRevision: firstSync.observationRevision,
           occurredAt: NOW_C,
         }),
       },
@@ -531,7 +555,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
         publicationCycle: 1,
         sourceEpoch: 0,
         materialReviewRevision: 1,
-        baseObservationRevision: 0,
+        baseObservationRevision: firstSync.observationRevision,
       },
     ])
 
@@ -579,6 +603,13 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       reviewRepo,
       googleReviewApi,
       googleReplyObservationStore: createGoogleReplyObservationStore(db),
+      readBeforePublish: createReplyPreReadForTests({
+        db,
+        googleReviewApi,
+        clock: () => new Date(),
+        newReviewId: () => REVIEW_C,
+        sourceEpoch: () => savedReview.sourceEpoch,
+      }),
       replyCommandStore,
       // A 503 is Google's answer, so the real request started a
       // `reviews.reply` permit. The fake write creates none, and the real
@@ -593,7 +624,9 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
 
     // The one provider write is ambiguous and remains `sending` until the
     // retry performs its targeted read.
-    await expect(handler(publishJob(0))).rejects.toBe(gbp5xx)
+    await expect(handler(publishJob(0, firstSync.observationRevision))).rejects.toBe(
+      gbp5xx,
+    )
     let row = await replyRepo.findById(REPLY_C, ORG_C)
     expect(row).toMatchObject({
       status: 'approved',
@@ -604,7 +637,9 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     // Google does not echo the reply. That is not evidence the write failed:
     // the retry records ambiguity, schedules reconciliation, and returns
     // without a second provider write.
-    await expect(handler(publishJob(1))).resolves.toBeUndefined()
+    await expect(
+      handler(publishJob(1, firstSync.observationRevision)),
+    ).resolves.toBeUndefined()
     row = await replyRepo.findById(REPLY_C, ORG_C)
     expect(row).toMatchObject({
       status: 'publish_failed',

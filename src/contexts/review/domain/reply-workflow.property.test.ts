@@ -55,6 +55,7 @@ import {
   LEGAL_REPLY_STATES,
   managerVerdict,
   mayBeClaimed,
+  survivesTheWorkersRead,
   PUBLICATION_EVENTS,
   type CommandEvidence,
   type ManagerCommand,
@@ -421,6 +422,29 @@ describe('withdrawn AI text against the hand-written workflow', () => {
         { ...NEVER_SENT, ...inputChanged },
       ),
     ).toBe(true)
+  })
+
+  it('the worker’s read of Google withdraws stale AI text before the claim, claimed before or not', () => {
+    const waiting = aiReplies.find((reply) => reply.publication === 'authorized')!
+    const survives = (evidence: Partial<CommandEvidence>) =>
+      survivesTheWorkersRead(waiting, { ...NEVER_SENT, ...evidence })
+    const windowPassed = { aiBindingCurrent: false }
+    const inputChanged = { aiBindingCurrent: false, aiInputsCurrent: false }
+
+    expect(survives({})).toBe(true)
+    expect(survives({ ...windowPassed, textClaimedBefore: true })).toBe(false)
+    expect(survives({ ...windowPassed, textClaimedBefore: false })).toBe(false)
+    expect(survives({ ...inputChanged, textClaimedBefore: true })).toBe(false)
+    // A reply a manager wrote is never held by a binding.
+    expect(
+      survivesTheWorkersRead(
+        { ...waiting, authorship: 'human' },
+        { ...NEVER_SENT, ...inputChanged },
+      ),
+    ).toBe(true)
+    // Only a reply waiting for a worker is read for.
+    const sending = aiReplies.find((reply) => reply.publication === 'sending')!
+    expect(survivesTheWorkersRead(sending, { ...NEVER_SENT })).toBe(false)
   })
 
   it('a withdrawn reply takes the text a manager types and nothing else, and production agrees', () => {

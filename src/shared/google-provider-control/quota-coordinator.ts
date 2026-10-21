@@ -140,6 +140,30 @@ export const GOOGLE_QUOTA_POLICIES = Object.freeze({
     leaseMs: 30_000,
     maxWaitMs: 2_000,
   }),
+  // Reply publishing has its own lane (2026-10, reply pre-read). Every publish
+  // now spends two Google calls: a `reviews.get` read of the review right before
+  // the claim (on `google-reviews-v1`) and the `reviews.reply` write. On one
+  // shared 30-a-minute bucket a sync scan could starve a reply, which is what
+  // the reply-lifecycle incident of 2026-08-23 looked like, and a burst of 25
+  // approvals would have needed 50 tokens. The write keeps the review lane's
+  // size, per credential + project + endpoint, so a reply is never denied
+  // because a scan or a push fetch used the minute first.
+  'google-reviews-write-v1': Object.freeze({
+    requestClass: 'reviews' as const,
+    buckets: Object.freeze([
+      bucket(
+        'credential-project-endpoint-minute',
+        'credential_project_endpoint',
+        30,
+        30,
+        60_000,
+      ),
+    ]),
+    inFlightScope: 'credential_project_endpoint' as const,
+    maxInFlight: 4,
+    leaseMs: 30_000,
+    maxWaitMs: 2_000,
+  }),
   // GBP Pub/Sub notification settings (My Business Notifications API). The
   // setting is one resource per Google account, touched once per account by an
   // import item or by the daily subscription reconciliation, which reads it

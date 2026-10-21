@@ -220,6 +220,16 @@ the Reply, and `domain/reply-ai-text.ts` says which command does what:
   from has changed, the claim refuses it, claimed before or not
   (`ai-draft-binding.ts`, `aiDraftInputsAreCurrent`). That is the text the AI
   draft purge withdraws wherever it can still reach it.
+  **The worker reads Google before it claims (2026-10-21), and that read gets
+  there first.** Recording it is an observation of the Review, which runs the
+  purge's `expiry` scope (Invariant 15) before the claim does. So a cycle
+  waiting for a worker (a retry, or a requeued attempt) whose AI text is past
+  its adoption window is withdrawn at that read, claimed before or not, with
+  the same `ai_draft_withdrawn` fact the claim would record. The claim's excuse
+  stays in the code as the last gate, but no publish job reaches it with
+  window-stale AI text any more; the oracle says so
+  (`survivesTheWorkersRead`). It is a narrowing, never a widening: nothing is
+  sent that was not sendable before.
 - **A claim the gate refuses withdraws the Reply, as the AI draft purge would**
   (below; `infrastructure/unclaimable-publication.ts`). Nothing is sent, the
   cycle is cancelled, the AI text is removed, and one
@@ -236,9 +246,11 @@ the Reply, and `domain/reply-ai-text.ts` says which command does what:
 - **Reject, delete and Try publishing again never read it** and change no
   authorship. An approver can always send a Reply back. A retry changes no
   text and sends nothing: it authorizes a cycle, and the claim of that cycle
-  decides. Text that was claimed before goes, unless an input has changed
-  since; text that never was (the sweep ended a cycle no worker reached in
-  time) meets the whole binding there. What the claim refuses is withdrawn.
+  decides. Text that was claimed before goes at the claim, unless an input has
+  changed since or only its window has passed, when the worker's read of
+  Google withdraws it first (above); text that never was (the sweep ended a
+  cycle no worker reached in time) meets the whole binding there. What the
+  claim refuses is withdrawn.
 
 So a stale AI draft can be typed over, a pending one rejected, and a Reply
 whose publication failed or succeeded can be tried again or edited; none of
@@ -283,7 +295,8 @@ alone, when `ai_draft_expires_at` passes: the adoption window
 (`AI_REPLY_ADOPTION_WINDOW_MILLIS`, ten minutes) after the suggestion was
 issued. Submit, approve and the publish worker's claim refuse it once the
 binding is stale (the claim with the one exception above: text claimed before,
-when only its window has passed), and the transaction that moves an input runs
+when only its window has passed, which the worker's read of Google before the
+claim now withdraws first), and the transaction that moves an input runs
 the AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`) for the scope it
 changed: a
 control transition, an Authorization or profile change, a Property archive or
@@ -424,7 +437,7 @@ The Organization Export does not carry the library yet.
 - **purge-expired-reviews** — compatibility entry point for the single Review source-content lifecycle authority. It keyset-checkpoints a frozen window and its recurring job accepts content-free eligibility `report` and expand/cache/observation/revision/legacy-reply `shadow` evidence only. Checkpoints bind mode, scope, window, and `(createdAt, ReviewId)` cursor. The connection/Property/Organization compatibility adapter and legacy raw-expiry repository seam also delegate here and are report-only in ordinary composition. The local authority has a bounded whole-page atomic `apply` path, but every page fails closed without both the exact apply confirmation and an injected approval seal that is revalidated on continuation; ordinary production composition supplies neither. The shared erasure/reconciliation/re-observation transaction has real-PostgreSQL concurrency, rollback, replay, and stable-identity coverage. Recurring activation still requires the REV-01 external shadow-parity seal, restore/erasure proof, and explicit cutover approval.
 - **review.on-reply-publication-requested** — Durable worker consumer that independently recovers queue admission after a request-process interruption. It reloads the authoritative reply and only admits the intent's exact active cycle. Queue-add/receipt ambiguity is fenced by the deterministic reply+cycle BullMQ job ID.
 - **review.on-property-archived** — Durable worker consumer that cancels, as a Google disconnect does (`findUndispatchedPublicationsByReviewIds`, cause `disconnect`), every publication cycle of the Property's reviews that is not yet dispatched (`requested`/`authorized`) and either belongs to a Property that is not active or was authorized at a source epoch the Property has since moved past (Archive and Restore both advance it). The Reply returns to draft and one `review.reply.publication_cancelled` fact (cause `policy`) is recorded per Reply, so the provider authorizer's refusal is never reported to the author as a Google rejection. Every cancellation fact carries the Reply's author (identifier only, null when unknown or on facts recorded before the field existed): the author was last told the reply was queued to publish to Google, so Feed has to be able to find them again. Because the rule keys on the epoch, a fact delivered after a quick Restore still clears the pre-archive cycles and leaves a reply approved at the restored epoch alone. A dispatched cycle (`sending`/`pending_observation`) may already be on Google and stays with the worker and the reconciliation sweep, which end it with the `unconfirmed` publish-failed notice when no read can prove it. The consumer runs under its own ungated, Property-scoped catalogue row (`review.property-lifecycle`), like the disconnect consumer: it cancels and never publishes, and a `property.publish_reply` stop in force when the fact is dispatched would otherwise deny it terminally and leave the reply to be reported as failed to send.
-- **publish-reply** — Executes one guarded provider write for an approved current cycle. Claim revalidates the cycle's named manager against current membership, effective `reply.manage`, and Property scope in the claim transaction, and locks the Property to require it active at the cycle's source epoch; either denial cancels the cycle (cause `policy`) without provider egress. A claim of AI-assisted text the last gate refuses (see Model) withdraws the Reply instead (cause `ai_draft_withdrawn`), again without provider egress. If an Archive or Restore commits after the claim, the provider authorizer refuses the write before sending (`stale_source`); the job cancels that cycle as `policy` too, never as a Google rejection. A fresh authorized attempt may write once. BullMQ allows five executions (exponential from 30 s with 0.5 jitter, so 15-30 s before the second); only a retryable failure spends them on another write, and a terminal rejection resolves at once. A persisted `sending` attempt is uncertain and is never written again: the job first asks for dispatch evidence (settling a never-dispatched attempt as not published), then makes one targeted read. An absent, unreadable or failed read, and for an edit-and-republish a read that still shows the reply it was written over (Invariant 9), inside the 15-minute propagation grace keeps the row `sending`, due in one minute and re-read on the sweep's next five-minute run; past the grace it becomes `ambiguous`, due at the next ladder rung after the attempt's age. Acknowledged writes remain `pending_observation`.
+- **publish-reply** — Executes one guarded provider write for an approved current cycle. **It reads Google first.** `reviews.reply` is an upsert with no precondition, and about 97% of replies on the beta are written on Google itself, so before a fresh `authorized` cycle is claimed the job makes one `reviews.get` of the review (`property.connect_gbp` under the review-sync system principal, quota lane `google-reviews-v1`; the write has its own lane, `google-reviews-write-v1`) and records it through the writer sync and push use (`application/use-cases/read-review-before-publish.ts`, `infrastructure/jobs/publish-reply-preread.ts`). It always reads; there is no "recently read" shortcut. Nothing is claimed before the read, so a failed read spends no claim: it is classified like a failed write (a refusal ends the cycle, with the reconnect cause when the connection waits for one; anything else is retried, a read proving nothing was written, and the last execution ends the cycle as `not_sent`). Then the job reloads the Reply, because recording may have changed it, and claims. The claim's head fence is the only comparison: a reply RepKey had not seen moved the observation head. A cycle that never sent is cancelled by the observation store in the transaction that records the read (`provider_truth`); a requeued cycle (tried once, back to `authorized`) is left alone by the store, refused by the claim, and cancelled by the job as `provider_truth` when the head has moved; Google showing a reply whose text it did not return (`replyUnreadable`) is read as a reply being there and cancelled the same way, because nothing can be recorded for it and the write would replace it; Google no longer having the review (404) ends the cycle as refused, like a 404 on the write. An edit of RepKey's own live reply, or the same text with the head where it was, goes on to the write. A reply typed on Google between the read and the write is still overwritten (the window is now about a second; Google offers no precondition), and a reply Google holds back for moderation is not modelled yet. Recording the read is an observation of the Review, so a guest edit it finds cancels open cycles (`source_changed`) and it runs the AI draft purge's `expiry` scope (Model, below). Claim revalidates the cycle's named manager against current membership, effective `reply.manage`, and Property scope in the claim transaction, and locks the Property to require it active at the cycle's source epoch; either denial cancels the cycle (cause `policy`) without provider egress. A claim of AI-assisted text the last gate refuses (see Model) withdraws the Reply instead (cause `ai_draft_withdrawn`), again without provider egress. If an Archive or Restore commits after the claim, the provider authorizer refuses the write before sending (`stale_source`); the job cancels that cycle as `policy` too, never as a Google rejection. A fresh authorized attempt may write once. BullMQ allows five executions (exponential from 30 s with 0.5 jitter, so 15-30 s before the second); only a retryable failure spends them on another write, and a terminal rejection resolves at once. A persisted `sending` attempt is uncertain and is never written again: the job first asks for dispatch evidence (settling a never-dispatched attempt as not published), then makes one targeted read. An absent, unreadable or failed read, and for an edit-and-republish a read that still shows the reply it was written over (Invariant 9), inside the 15-minute propagation grace keeps the row `sending`, due in one minute and re-read on the sweep's next five-minute run; past the grace it becomes `ambiguous`, due at the next ladder rung after the attempt's age. Acknowledged writes remain `pending_observation`.
 - **reconcile-ambiguous-publications** — Globally single-flight across replicas through a PostgreSQL session advisory lease. It keyset-walks due `requested`/`authorized` rows (ended as a retryable failure with no provider read, but only while still unclaimed: the write compares the exact state and attempt count the sweep read, so a row a worker claimed after the batch was read is left alone and comes back as an uncertain `sending` row) and `sending`/`pending_observation`/`ambiguous` rows, and performs provider reads only, after dispatch evidence for `sending` and `ambiguous` rows. A restore-fenced row (`approved` + `ambiguous`, left by the recovery fence) takes neither evidence nor a read: it ends as terminal ambiguity on its first due run. An ambiguous row is re-read on a ladder measured from the attempt start (`reply_publication_attempts.created_at`): 15 min, 30 min, 1 h, 2 h, 4 h, 8 h, 24 h, 48 h, 72 h, never sooner than one minute ahead. A non-confirming read — absent, unreadable, failed, or for an edit still the reply it was written over — reschedules to the next rung; only the end of the ladder (or a missing attempt start on pre-RPL rows) makes the row terminal ambiguity (`reconcile_due_at` NULL, no more automatic checks). An accepted write whose echo is absent or unreadable, or an accepted edit while Google still shows the reply it was written over, waits out its own 15-minute propagation grace (the last two record no observation, so only the attempt's age bounds them), then becomes `ambiguous` at the next ladder rung. A 240-second monotonic start deadline leaves 60 seconds inside the worker's 300-second timeout for an already-started bounded provider read, its checkpoint, reporting, and lease release; an unstarted suffix remains due for the next run.
 
 ### Manager publication commands
@@ -531,7 +544,10 @@ The Organization Export does not carry the library yet.
     references (`infrastructure/ai-draft-purge.integration.test.ts`).
 16. Unedited AI text leaves RepKey only while its binding is current, or, once
     a worker has claimed it, after its adoption window alone has passed; never
-    after something it was generated from changed. A Reply whose AI text was
+    after something it was generated from changed. (The second half is the
+    claim's rule. The publish worker reads Google before it claims, and
+    recording that read withdraws the Reply whose window has passed first, so a
+    Reply retried after its window is withdrawn at the read.) A Reply whose AI text was
     withdrawn is blank, and a blank Reply is only ever a draft: no command
     submits, confirms or sends it
     (`infrastructure/reply-ai-withdrawal.integration.test.ts`).
@@ -542,6 +558,18 @@ The Organization Export does not carry the library yet.
     publishing again and Check Google again refuse it until it is submitted
     and confirmed for the review as it is now
     (`infrastructure/guest-edit-reply-fence.integration.test.ts`).
+18. A Reply is never written over a Google reply RepKey has not recorded. The
+    publish worker reads the review from Google and records it before it
+    claims; the claim then compares the observation head with the one the
+    manager authorized against, and a reply that appeared since has moved it.
+    The cycle ends as `provider_truth` (a cycle that never sent: by the
+    observation store; a requeued one: by the job), with nothing sent. A reply
+    Google shows but does not return the text of is a reply that is there. The
+    one thing no fence can close is Google's own upsert: a reply typed between
+    the read and the write is replaced
+    (`infrastructure/reply-pre-publish-read.integration.test.ts`; the model
+    harness counts a write that left while Google held a reply the head did
+    not as a violation).
 
 ## Verification
 
@@ -568,7 +596,15 @@ PostgreSQL histories (for every AI draft when an input changes, and for those
 past their window when a sync sees the Review), and the oracle states by hand
 what it deletes, empties and leaves alone.
 
-The stand-in Google of that suite answers every read with what it holds.
+The stand-in Google of that suite answers every read with what it holds, and
+the publish worker of that suite reads it before it claims (the real use case
+and sync writer, `infrastructure/testing/reply-pre-read-fixture.ts`): every
+history starts from a Review RepKey has already seen, with Google showing no
+reply, as production's first sync leaves it, and the review it answers with is
+the Review row, so a read never undoes a guest edit a test applied.
+`infrastructure/reply-pre-publish-read.integration.test.ts` puts a reply on
+Google behind RepKey's back (and one it cannot read, a review that is gone, and
+a read that fails) before the worker runs.
 `infrastructure/reply-observation-in-flight.integration.test.ts` takes that
 away for an edit-and-republish: a sync page fetched before the write and
 recorded after the claim, and reads that still show the earlier reply after

@@ -5,13 +5,13 @@ import type {
   ReviewId,
 } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
-import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
 import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
 import type { TargetedGoogleReviewReferenceResolver } from '../ports/targeted-google-review-reference.port'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
+import { persistGoogleReviewObservation } from './persist-google-review-observation'
 
 export type RunTargetedGoogleReviewFetchInput = Readonly<{
   organizationId: OrganizationId
@@ -96,33 +96,16 @@ export const runTargetedGoogleReviewFetch =
     }
     if (!(await currentSource(deps, input))) return { status: 'obsolete' }
 
-    const resource = parseReviewProviderResource(providerResult.review.reviewName)
-    if (
-      `accounts/${resource.accountId}/locations/${resource.locationId}` !==
-      target.locationName
-    ) {
-      throw new TypeError('Targeted Google review resource mismatch')
-    }
-    const deriver = await deps.subjectKeyService.acquireDeriver()
-    const subjects = deriver.deriveCandidates({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      sourceEpoch: input.sourceEpoch,
-      resourceName: providerResult.review.reviewName,
-    })
-    const replyReadGeneration = await deps.observationWriter.allocateReplyReadGeneration()
-    const persisted = await deps.observationWriter.persist({
+    const persisted = await persistGoogleReviewObservation(deps, {
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       connectionId: input.connectionId,
       sourceEpoch: input.sourceEpoch,
-      observationOrigin: 'ongoing',
+      locationName: target.locationName,
+      review: providerResult.review,
       observationKey: sha256Hex(
         `repkey-targeted-review-push-observation-v1\0${input.deliveryId}\0${providerResult.review.reviewName}`,
       ),
-      replyReadGeneration,
-      review: providerResult.review,
-      subjects,
     })
     if (persisted.isNew) {
       await deps.syncActivity.recordNewReviewObserved(input.propertyId, deps.clock())
