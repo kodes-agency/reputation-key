@@ -38,6 +38,12 @@ export type FakeDiscoveryPropertyRow = {
   lastNotificationAt: Date | null
   /** properties.created_at — the ladder's activity floor. */
   observedSince: Date | null
+  /**
+   * Latest completed reconciliation of the property's current source epoch
+   * (the facts table's evaluated_at). Null = none, so every look is full. The
+   * fake cannot model epochs; the DB test proves the epoch filter.
+   */
+  lastReconciledAt: Date | null
   /** True while a queued/processing GBP import item targets this property. */
   importInFlight: boolean
 }
@@ -69,6 +75,8 @@ const toCandidate = (row: FakeDiscoveryPropertyRow): ReviewDiscoveryCandidate =>
     lastNotificationAt: row.lastNotificationAt,
     observedSince: row.observedSince,
   },
+  lastReconciledAt: row.lastReconciledAt,
+  hasOutstandingFailure: row.errorClass !== null,
 })
 
 export const createFakeReviewDiscoveryRepository = (
@@ -93,6 +101,12 @@ export const createFakeReviewDiscoveryRepository = (
       if (!row) return
       row.nextDueAt = nextDueAt
       row.lastSuccessAt = now
+    },
+
+    markDiscoverySkipped: async (propertyId, _now, nextDueAt) => {
+      const row = rows.find((r) => r.propertyId === propertyId)
+      if (!row) return
+      row.nextDueAt = nextDueAt
     },
 
     markDiscoveryDeferred: async (propertyId, _now, nextDueAt, errorClass) => {
@@ -134,6 +148,7 @@ export const fakeDiscoveryProperty = (
   lastNewReviewAt: null,
   lastNotificationAt: null,
   observedSince: null,
+  lastReconciledAt: null,
   importInFlight: false,
   ...overrides,
 })

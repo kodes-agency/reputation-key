@@ -138,3 +138,29 @@ describe('production auth transport policy', () => {
     ).toBe('https://app.reputationkey.app')
   })
 })
+
+describe('REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED', () => {
+  const parse = (value?: string) =>
+    parseEnvironment({
+      ...testEnvironment({}),
+      ...(value === undefined
+        ? {}
+        : { REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED: value }),
+    }).REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED
+
+  it('is on when unset, so the sweep skips a Property reconciled inside six hours', () => {
+    expect(parse()).toBe(true)
+  })
+
+  it('is on for true and off for false', () => {
+    expect(parse('true')).toBe(true)
+    expect(parse('false')).toBe(false)
+  })
+
+  it.each(['False', 'FALSE', '0', 'off', 'no', 'fasle', ' false', ''])(
+    'refuses the near-miss %j at boot instead of silently leaving the switch on',
+    (value) => {
+      expect(() => parse(value)).toThrow('REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED')
+    },
+  )
+})

@@ -82,6 +82,8 @@ export type ReviewWorkerRegistrationInput = Readonly<{
   idGen: () => string
   logger: LoggerPort
   discoveryIntervalMs: number
+  /** Discovery skips a look for a Property reconciled inside six hours. */
+  discoverySkipRecentlyReconciled: boolean
 }>
 
 /**
@@ -199,6 +201,7 @@ export async function registerReviewWorkerJobs(
     clock: input.clock,
     logger: input.logger,
     intervalMs: input.discoveryIntervalMs,
+    skipRecentlyReconciled: input.discoverySkipRecentlyReconciled,
   })
   input.registry.register(DISCOVER_NEW_REVIEWS_JOB_NAME, async (job) => {
     await discoverHandler(job)

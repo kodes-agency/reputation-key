@@ -47,6 +47,7 @@ describe('registerReviewWorkerJobs', () => {
       idGen: () => '00000000-0000-4000-8000-000000000001',
       logger: createMockLogger(),
       discoveryIntervalMs: 15 * 60 * 1_000,
+      discoverySkipRecentlyReconciled: true,
     })
 
     expect(registered.sort()).toEqual(

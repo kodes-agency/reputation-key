@@ -24,6 +24,11 @@
 // last_success_at is deliberately NOT an activity signal: it only records
 // that we polled, so keying on it would pin every property to `hot` forever.
 //
+// The ladder prices when the next LOOK is due. Whether a look reads the
+// property in full is a second rule (discovery-reconciliation.ts): with push
+// configured, a look inside six hours of the last completed reconciliation
+// enqueues nothing, so the poll counts below are LOOKS, not Google reads.
+//
 // Pure and clock-injected (domain rule: no ambient wall-clock reads).
 
 /** Discovery cadence tier, coldest last. */

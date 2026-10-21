@@ -47,6 +47,41 @@ const IMPORT_ITEM = 'e1000000-0000-4000-8000-000000000002'
 
 const NOW = new Date('2026-08-21T12:00:00.000Z')
 
+let factSequence = 0
+
+/** A completed-run fact, as the snapshot repository writes it: timestamps only matter here. */
+async function seedFact(
+  propertyId: string,
+  sourceEpoch: number,
+  evaluatedAt: Date,
+): Promise<void> {
+  factSequence++
+  const suffix = String(factSequence).padStart(12, '0')
+  await pool.query(
+    `INSERT INTO review_google_reputation_snapshot_facts
+       (run_id, event_id, organization_id, property_id, source_epoch,
+        review_count, average_rating, evaluated_at)
+     VALUES ($1, $2, $3, $4, $5, 3, 4.5, $6)`,
+    [
+      `f1000000-0000-4000-8000-${suffix}`,
+      `f2000000-0000-4000-8000-${suffix}`,
+      ORG,
+      propertyId,
+      sourceEpoch,
+      evaluatedAt,
+    ],
+  )
+}
+
+const syncState = async (propertyId: string) =>
+  (
+    await pool.query(
+      `SELECT next_incremental_at, last_success_at, error_class, error_retry_at, updated_at
+         FROM review_sync_state WHERE property_id = $1 AND source = 'google'`,
+      [propertyId],
+    )
+  ).rows.at(0)
+
 let pool: Pool
 const db = getDb()
 
@@ -167,6 +202,10 @@ async function settleImport(): Promise<void> {
 }
 
 async function clearSeed(): Promise<void> {
+  await pool.query(
+    `DELETE FROM review_google_reputation_snapshot_facts WHERE organization_id = $1`,
+    [ORG],
+  )
   await pool.query(`DELETE FROM review_sync_state WHERE property_id = ANY($1)`, [
     ALL_PROPS,
   ])
@@ -259,6 +298,8 @@ describe('reviewDiscoveryRepository (integration)', () => {
         lastNotificationAt: null,
         observedSince: expect.any(Date),
       },
+      lastReconciledAt: null,
+      hasOutstandingFailure: false,
     })
   })
 
@@ -402,5 +443,153 @@ describe('reviewDiscoveryRepository (integration)', () => {
     const never = due.find((c) => c.propertyId === PROP_CONNECTED_2)
     expect(never?.activity.lastNewReviewAt).toBeNull()
     expect(never?.activity.lastNotificationAt).toBeNull()
+  })
+  describe('the last completed reconciliation', () => {
+    const lastReconciled = async (propertyId: string) => {
+      const repo = createReviewDiscoveryRepository(db)
+      const due = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+      return due.find((c) => c.propertyId === propertyId)?.lastReconciledAt
+    }
+
+    it('is null when the current epoch has no completed run', async () => {
+      expect(await lastReconciled(PROP_CONNECTED)).toBeNull()
+    })
+
+    it('is the latest fact of the property, not the first or an arbitrary one', async () => {
+      const older = new Date('2026-08-21T03:00:00.000Z')
+      const newest = new Date('2026-08-21T09:30:00.000Z')
+      await seedFact(PROP_CONNECTED, 0, newest)
+      await seedFact(PROP_CONNECTED, 0, older)
+      await seedFact(PROP_CONNECTED, 0, new Date('2026-08-20T09:30:00.000Z'))
+
+      expect(await lastReconciled(PROP_CONNECTED)).toEqual(newest)
+    })
+
+    it('reads the property CURRENT epoch and ignores facts of older and newer epochs', async () => {
+      const current = new Date('2026-08-21T05:00:00.000Z')
+      await pool.query(`UPDATE properties SET source_epoch = 2 WHERE id = $1`, [
+        PROP_CONNECTED,
+      ])
+      await seedFact(PROP_CONNECTED, 2, current)
+      // A later fact of the previous epoch must not make the relinked
+      // property look reconciled.
+      await seedFact(PROP_CONNECTED, 1, new Date('2026-08-21T11:00:00.000Z'))
+      await seedFact(PROP_CONNECTED, 3, new Date('2026-08-21T11:30:00.000Z'))
+
+      expect(await lastReconciled(PROP_CONNECTED)).toEqual(current)
+    })
+
+    it('is null after a relink moved the property to an epoch with no completed run', async () => {
+      await seedFact(PROP_CONNECTED, 0, new Date('2026-08-21T11:00:00.000Z'))
+      await pool.query(`UPDATE properties SET source_epoch = 1 WHERE id = $1`, [
+        PROP_CONNECTED,
+      ])
+
+      expect(await lastReconciled(PROP_CONNECTED)).toBeNull()
+    })
+
+    it('does not borrow another property facts', async () => {
+      await seedFact(PROP_CONNECTED_2, 0, new Date('2026-08-21T11:00:00.000Z'))
+
+      expect(await lastReconciled(PROP_CONNECTED)).toBeNull()
+      expect(await lastReconciled(PROP_CONNECTED_2)).toEqual(
+        new Date('2026-08-21T11:00:00.000Z'),
+      )
+    })
+
+    it('does not multiply candidates when a property has many facts', async () => {
+      const repo = createReviewDiscoveryRepository(db)
+      for (let hour = 0; hour < 5; hour++) {
+        await seedFact(PROP_CONNECTED, 0, new Date(Date.UTC(2026, 7, 21, hour)))
+      }
+
+      const due = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+
+      expect(mine(due)).toEqual([PROP_CONNECTED, PROP_CONNECTED_2])
+    })
+  })
+
+  describe('an outstanding failure', () => {
+    it('is reported while error_class is set and cleared with it', async () => {
+      const repo = createReviewDiscoveryRepository(db)
+      await repo.markDiscoveryDeferred(
+        PROP_CONNECTED,
+        NOW,
+        new Date(NOW.getTime() - 1),
+        'provider_failure',
+      )
+
+      const during = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+      expect(
+        during.find((c) => c.propertyId === PROP_CONNECTED)?.hasOutstandingFailure,
+      ).toBe(true)
+      expect(
+        during.find((c) => c.propertyId === PROP_CONNECTED_2)?.hasOutstandingFailure,
+      ).toBe(false)
+
+      await repo.markSyncSucceeded(PROP_CONNECTED)
+
+      const after = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+      expect(
+        after.find((c) => c.propertyId === PROP_CONNECTED)?.hasOutstandingFailure,
+      ).toBe(false)
+    })
+  })
+
+  describe('markDiscoverySkipped', () => {
+    it('dates the next look and leaves the success stamp and the failure state alone', async () => {
+      const repo = createReviewDiscoveryRepository(db)
+      const stampedAt = new Date('2026-08-21T08:00:00.000Z')
+      const retryAt = new Date('2026-08-21T08:15:00.000Z')
+      await pool.query(
+        `INSERT INTO review_sync_state
+           (property_id, source, next_incremental_at, last_success_at, error_class,
+            error_retry_at, updated_at)
+         VALUES ($1, 'google', $2, $3, 'provider_failure', $4, $3)`,
+        [PROP_CONNECTED, retryAt, stampedAt, retryAt],
+      )
+      const nextDueAt = new Date(NOW.getTime() + 3 * 60 * 60 * 1000)
+
+      await repo.markDiscoverySkipped(PROP_CONNECTED, NOW, nextDueAt)
+
+      expect(await syncState(PROP_CONNECTED)).toEqual({
+        next_incremental_at: nextDueAt,
+        last_success_at: stampedAt,
+        error_class: 'provider_failure',
+        error_retry_at: retryAt,
+        updated_at: NOW,
+      })
+    })
+
+    it('creates the state row for a property that has none, with no success stamp', async () => {
+      const repo = createReviewDiscoveryRepository(db)
+      const nextDueAt = new Date(NOW.getTime() + 60 * 60 * 1000)
+      expect(await syncState(PROP_CONNECTED)).toBeUndefined()
+
+      await repo.markDiscoverySkipped(PROP_CONNECTED, NOW, nextDueAt)
+
+      expect(await syncState(PROP_CONNECTED)).toEqual({
+        next_incremental_at: nextDueAt,
+        last_success_at: null,
+        error_class: null,
+        error_retry_at: null,
+        updated_at: NOW,
+      })
+    })
+
+    it('keeps the property out of the due set until the next look, then returns it', async () => {
+      const repo = createReviewDiscoveryRepository(db)
+      const nextDueAt = new Date(NOW.getTime() + 60 * 60 * 1000)
+
+      await repo.markDiscoverySkipped(PROP_CONNECTED, NOW, nextDueAt)
+
+      expect(mine(await repo.findDuePropertiesBatch(NOW, null, PAGE))).toEqual([
+        PROP_CONNECTED_2,
+      ])
+      expect(mine(await repo.findDuePropertiesBatch(nextDueAt, null, PAGE))).toEqual([
+        PROP_CONNECTED,
+        PROP_CONNECTED_2,
+      ])
+    })
   })
 })
