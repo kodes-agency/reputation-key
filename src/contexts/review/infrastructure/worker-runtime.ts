@@ -12,6 +12,7 @@ import type { ReplyCommandStore } from '../application/ports/reply-command-store
 import type { ReviewQueuePort } from '../application/ports/review-queue.port'
 import type { GoogleReviewApiPort } from '../application/ports/google-review-api.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../application/ports/reply-publication-dispatch-evidence.port'
+import type { ReadReviewBeforePublish } from '../application/use-cases/read-review-before-publish'
 import {
   createSyncPropertyReviewsHandler,
   JOB_NAME as SYNC_REVIEWS_JOB_NAME,
@@ -71,6 +72,8 @@ export type ReviewWorkerRegistrationInput = Readonly<{
   propertySourceEpoch: SyncHandlerDependencies['propertySourceEpoch']
   runSnapshot: SyncHandlerDependencies['runSnapshot']
   runTargetedFetch: SyncHandlerDependencies['runTargetedFetch']
+  /** The publish job's read of Google before it claims a fresh publication. */
+  readReviewBeforePublish: ReadReviewBeforePublish
   runSourceContentLifecycle: PurgeHandlerDependencies['runLifecycle']
   reconcileReplyPublication: ReconcileHandlerDependencies['reconcileReplyPublication']
   /** D4: the same non-dispatch evidence reader the manager commands use. */
@@ -240,6 +243,7 @@ export async function registerReviewWorkerJobs(
     reviewRepo: input.reviewRepo,
     googleReviewApi: input.googleReviewApi,
     googleReplyObservationStore: createGoogleReplyObservationStore(input.db),
+    readBeforePublish: input.readReviewBeforePublish,
     replyCommandStore: input.replyCommandStore,
     dispatchEvidence: input.dispatchEvidence,
     clock: input.clock,

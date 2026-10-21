@@ -116,6 +116,10 @@ async function googleReplyOnRecord() {
   return head.rows[0]
 }
 
+/** The first review sync, before any reply: Google showed none (the harness
+ * records it for every history, as production's first sync does). */
+const FIRST_SYNC_OBSERVATIONS = 1
+
 async function observationsOnRecord(): Promise<number> {
   const observations = await pool.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM google_reply_observations WHERE review_id = $1`,
@@ -166,9 +170,10 @@ async function expectEditStillInFlight(
     provenance: 'repkey_confirmed',
     matched_reply_id: reply.id,
   })
-  // The read restated what was on record, so it added nothing to it: the one
-  // observation is the first reply's confirmation, with its one fact.
-  expect(await observationsOnRecord()).toBe(1)
+  // The read restated what was on record, so it added nothing to it: what is
+  // on record is the first sync's, and the first reply's confirmation with its
+  // one fact. That includes the worker's own read of Google before it claimed.
+  expect(await observationsOnRecord()).toBe(FIRST_SYNC_OBSERVATIONS + 1)
   expect((await harness.evidence()).facts['review.reply.observed']).toBe(1)
 }
 
@@ -487,7 +492,7 @@ describe.sequential('a read of Google while an edit is in flight (PostgreSQL)', 
       expect(await cancellationCauses()).toEqual([])
       expect(harness.google.live?.text).toBe(FIRST_TEXT)
       expect(harness.google.sent.map((sent) => sent.landed)).toEqual([true, false])
-      expect(await observationsOnRecord()).toBe(1)
+      expect(await observationsOnRecord()).toBe(FIRST_SYNC_OBSERVATIONS + 1)
     })
   })
 })

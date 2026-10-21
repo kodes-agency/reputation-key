@@ -252,7 +252,12 @@ function makeDeps() {
         matchedPublicationCycle: 1,
         duplicate: false,
       }),
+      // The head the manager authorized against (JOB_DATA.baseObservationRevision 0).
+      findCurrentHead: vi.fn().mockResolvedValue(null),
     },
+    // The read of Google before a fresh claim finds nothing that stops the
+    // publication; publish-reply-preread.test.ts covers what it does otherwise.
+    readBeforePublish: vi.fn().mockResolvedValue({ status: 'recorded' }),
     replyCommandStore,
     clock: () => NOW,
     logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
@@ -643,6 +648,7 @@ describe('publish-reply job handler', () => {
     const deps = makeDeps()
     deps.replyRepo.findById
       .mockResolvedValueOnce(approvedReply) // initial read
+      .mockResolvedValueOnce(approvedReply) // reload after the read of Google
       .mockResolvedValueOnce(null) // post-call re-read — purge cascade won
     const handler = createPublishReplyHandler(deps as never)
 
@@ -658,6 +664,7 @@ describe('publish-reply job handler', () => {
     const deps = makeDeps()
     deps.replyRepo.findById
       .mockResolvedValueOnce(approvedReply) // initial read
+      .mockResolvedValueOnce(approvedReply) // reload after the read of Google
       .mockResolvedValueOnce({
         ...approvedReply,
         status: 'draft',
@@ -673,10 +680,13 @@ describe('publish-reply job handler', () => {
 
   it('post-call cycle fence: a newer authorization cannot be acknowledged by the older send', async () => {
     const deps = makeDeps()
-    deps.replyRepo.findById.mockResolvedValueOnce(approvedReply).mockResolvedValueOnce({
-      ...approvedReply,
-      publicationCycle: 2,
-    })
+    deps.replyRepo.findById
+      .mockResolvedValueOnce(approvedReply) // initial read
+      .mockResolvedValueOnce(approvedReply) // reload after the read of Google
+      .mockResolvedValueOnce({
+        ...approvedReply,
+        publicationCycle: 2,
+      })
     const handler = createPublishReplyHandler(deps as never)
 
     await handler(makeJob())

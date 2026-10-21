@@ -79,6 +79,18 @@ async function storedReply(): Promise<Reply> {
   return reply
 }
 
+/** The cause of every cancellation fact recorded so far, oldest first. */
+async function cancellationCauses(): Promise<string[]> {
+  const { rows } = await pool.query<{ cause: string }>(
+    `SELECT payload->>'cause' AS cause FROM outbox_events
+      WHERE organization_id = $1
+        AND event_type = 'review.reply.publication_cancelled'
+      ORDER BY created_at, id`,
+    [WORKFLOW_ORG],
+  )
+  return rows.map((row) => row.cause)
+}
+
 /** What the row itself says about where its text came from. */
 async function provenance(replyId: string) {
   const { rows } = await pool.query<{
@@ -305,7 +317,13 @@ describe.sequential('AI-assisted reply after its adoption window (PostgreSQL)', 
       ).resolves.toMatchObject({ status: 'rejected' })
     })
 
-    it('tries publishing again after the window when Google refused the first attempt, and the text stays the AI’s', async () => {
+    // The worker reads Google before it claims, and recording that read is an
+    // observation of the Review: the one that withdraws every AI-assisted reply
+    // whose adoption window has run out and that nothing has dispatched (the
+    // purge's `expiry` scope). A retry is such a reply until its claim, so the
+    // read withdraws it first. The claim would have excused the window for text
+    // it had claimed before; a read of Google that came first does not.
+    it('labels a retry as the same AI text, then withdraws it at the worker’s read of Google once the window has passed', async () => {
       const adopted = await adoptSuggestion()
       const adoptedFrom = await provenance(adopted.id)
       await harness.commands.submit()
@@ -338,20 +356,17 @@ describe.sequential('AI-assisted reply after its adoption window (PostgreSQL)', 
       expect(adoptedFrom?.origin_operation_id).toEqual(expect.any(String))
       expect(await adoptionOf(adoptedFrom?.origin_operation_id)).toBe(disposition)
 
-      // The claim of the new cycle does not ask the binding again.
       expect(await harness.ai.bindingOf(failed.id)).toBe('stale')
       await harness.runPublishJob(1, 'accepted')
-      await harness.observeGoogle()
-      expect(await storedReply()).toMatchObject({
-        status: 'published',
-        text: AI_TEXT,
-        aiGenerated: true,
-      })
-      expect(harness.google.live?.text).toBe(AI_TEXT)
+
+      expect(harness.google.sent.map((sent) => sent.text)).toEqual([AI_TEXT])
+      expect(harness.google.sent).toMatchObject([{ publicationCycle: 1, landed: false }])
+      expect(await storedReply()).toMatchObject({ ...WITHDRAWN, publicationCycle: 2 })
+      expect(await cancellationCauses()).toEqual(['ai_draft_withdrawn'])
       expect(harness.google.violations).toEqual([])
     })
 
-    it('sends a queued attempt again after the window: the text was claimed once already', async () => {
+    it('withdraws a queued attempt at the worker’s read of Google once the window has passed, although its text was claimed once already', async () => {
       await adoptSuggestion()
       await harness.commands.submit()
       await harness.commands.approve()
@@ -367,13 +382,15 @@ describe.sequential('AI-assisted reply after its adoption window (PostgreSQL)', 
 
       await harness.runPublishJob(0, 'accepted')
 
-      expect(harness.google.sent.map((sent) => sent.text)).toEqual([AI_TEXT])
+      // The first execution was refused inside RepKey: nothing was ever sent,
+      // and the read of Google that began the second withdrew the reply.
+      expect(harness.google.sent).toEqual([])
       expect(await storedReply()).toMatchObject({
-        status: 'approved',
-        publicationState: 'pending_observation',
-        publicationAttempts: 2,
-        aiGenerated: true,
+        ...WITHDRAWN,
+        publicationAttempts: 1,
       })
+      expect(await cancellationCauses()).toEqual(['ai_draft_withdrawn'])
+      expect(harness.google.violations).toEqual([])
     })
 
     it('does not count a claim of other text: a newly adopted suggestion passes the gate for itself', async () => {

@@ -107,6 +107,15 @@ export type GoogleReviewGetRequest = Readonly<{
   sourceEpoch: number
   locationName: string
   reviewName: string
+  /**
+   * The read RepKey makes right before it publishes a reply. Its authorization
+   * refusals take the write path's vocabulary (a connection that waits for a
+   * reconnect is `reauthorization_required`, an outage is a retryable
+   * `provider_unavailable` that sent nothing), so the publish job can tell its
+   * author the same things whether the read or the write was refused. Every
+   * other read keeps the authorizer's own codes.
+   */
+  forReplyPublication?: true
 }>
 
 export type GoogleReviewGetResult =

@@ -8,8 +8,10 @@
 // `publication_cancelled` fact with cause 'policy'):
 //   - the archive consumer, for every cycle not yet dispatched whose source
 //     epoch is behind the Property's, however late the fact arrives;
-//   - the worker's claim, which locks the Property and refuses a cycle whose
-//     Property is not active at its epoch, whichever of the two runs first.
+//   - the worker, which reads Google before it claims: that read stops at a
+//     Property whose source epoch moved on, and the claim then locks the
+//     Property and refuses a cycle whose Property is not active at its epoch,
+//     whichever of the two runs first.
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,6 +46,7 @@ import { createReplyRepository } from './repositories/reply.repository'
 import { createAtomicReplyCommandStore } from './reply-command-store'
 import { createGoogleReplyObservationStore } from './google-reply-observation-store'
 import { createPublishReplyHandler } from './jobs/publish-reply.job'
+import { createReplyPreReadForTests } from './testing/reply-pre-read-fixture'
 
 const ORG = organizationId('org-archive-publication-000000000001')
 const PROPERTY = propertyId('2c000000-0000-4000-8000-000000000001')
@@ -319,15 +322,53 @@ async function archiveProperty(): Promise<void> {
  * refused by the provider authorizer and reported as "Google rejected".
  */
 function publishWorker() {
+  const stored = review()
   const googleReviewApi = {
     replyToReview: vi.fn(async () => ({ providerCorrelationId: 'google-1' })),
-    getReview: vi.fn(),
+    // The review as Google shows it, with no reply.
+    getReview: vi.fn(async () => ({
+      status: 'found' as const,
+      review: {
+        reviewName: `${GOOGLE_LOCATION_PRIMARY_RESOURCE}/reviews/${stored.externalId}`,
+        externalId: stored.externalId,
+        externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+        reviewerName: stored.reviewerName,
+        reviewerProfilePhotoUrl: null,
+        googleReviewUrl: null,
+        rating: stored.rating,
+        text: stored.text,
+        translatedText: null,
+        languageCode: stored.languageCode,
+        reviewedAt: stored.reviewedAt,
+        sourceCreatedAt: stored.sourceCreatedAt,
+        sourceUpdatedAt: null,
+        replyText: null,
+        replyUpdatedAt: null,
+      },
+    })),
+    discardReviewCursors: vi.fn(),
+    listReviewsPage: vi.fn(),
   }
   const handler = createPublishReplyHandler({
     replyRepo: createReplyRepository(db, () => ARCHIVED_AT),
     reviewRepo: createReviewRepository(db, () => ARCHIVED_AT),
     googleReviewApi: googleReviewApi as never,
     googleReplyObservationStore: createGoogleReplyObservationStore(db),
+    // The read of Google before the claim is the real use case; the Property's
+    // source epoch is the one the archive and restore tests commit.
+    readBeforePublish: createReplyPreReadForTests({
+      db,
+      googleReviewApi: googleReviewApi as never,
+      clock: () => ARCHIVED_AT,
+      newReviewId: () => REVIEW,
+      sourceEpoch: async () => {
+        const { rows } = await pool.query<{ source_epoch: number }>(
+          `SELECT source_epoch::int AS source_epoch FROM properties WHERE id = $1`,
+          [PROPERTY],
+        )
+        return rows[0]!.source_epoch
+      },
+    }),
     replyCommandStore: createAtomicReplyCommandStore(
       db,
       () => ARCHIVED_AT,
@@ -428,6 +469,9 @@ describe.sequential('Property archive and reply publication (PostgreSQL)', () =>
     await worker.handler(await publishJob())
 
     expect(worker.googleReviewApi.replyToReview).not.toHaveBeenCalled()
+    // The read before the claim finds the Property moved on and asks Google
+    // nothing.
+    expect(worker.googleReviewApi.getReview).not.toHaveBeenCalled()
     expect(await replyRow()).toEqual([
       { status: 'draft', publication_state: 'cancelled', publication_cycle: 1 },
     ])
@@ -449,6 +493,9 @@ describe.sequential('Property archive and reply publication (PostgreSQL)', () =>
     await worker.handler(await publishJob())
 
     expect(worker.googleReviewApi.replyToReview).not.toHaveBeenCalled()
+    // The read before the claim finds the Property moved on and asks Google
+    // nothing.
+    expect(worker.googleReviewApi.getReview).not.toHaveBeenCalled()
     expect(await replyRow()).toEqual([
       { status: 'draft', publication_state: 'cancelled', publication_cycle: 1 },
     ])

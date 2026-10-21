@@ -1041,6 +1041,58 @@ cycle the claim refused, and a retry is only ever authorized for a reply whose
 last attempt is settled as not on Google. The audience is the cause's own: the
 author and everyone who can approve.
 
+## Amended 2026-10-21 — the publish worker reads Google first, so `provider_truth` can stop a cycle before it is sent
+
+`reviews.reply` is an upsert: it creates the owner reply or replaces the one
+there, with no precondition. About 97% of replies on the beta are written on
+Google itself, and RepKey learned of them only at the next sync, which is about
+to run much less often. A manager who approved a RepKey reply for a review
+someone had already answered on Google silently replaced that answer.
+
+The worker now reads the review (`reviews.get`) and records it through the
+writer sync and push use before it claims a fresh publication. A reply RepKey
+had not seen moves the observation head, and the existing head fence ends the
+cycle with the existing cause. Nothing new is added to the notice:
+
+- A cycle that has not sent is cancelled by the observation store, in the
+  transaction that records the read: `provider_truth`, the attempt (if any)
+  `superseded`. A requeued cycle (tried once and back to `authorized`) is left
+  by the store, refused by the claim and cancelled by the job with the same
+  cause; before this it waited for the sweep to call it "not sent" about twenty
+  minutes later.
+- Google showing a reply whose text it did not return (a translation-only
+  envelope) is read as a reply being there, and ends the cycle the same way.
+  Nothing can be recorded for it, and the write would replace it.
+- The sentence "A different reply is live on Google, so this one is not" is now
+  literally true: the cycle is stopped before anything was posted. It is still
+  loose for two cases the head cannot tell apart from a new reply: the reply
+  was deleted on Google since RepKey last saw it (the head turns `absent`), and
+  someone typed the same words. Both cancel, and the notice still asks the
+  reader to open the reply and check. A distinct cause for either would be an
+  event-schema, template and ADR change with no SQL; it is not made.
+- Google no longer having the review ends the cycle as `publish_failed`
+  (`refused`), like a 404 on the write. A read that fails is retried like a
+  failed write, consumes no claim, and on the last execution ends the cycle as
+  `not_sent`; a connection that waits for a reconnect keeps the
+  `google_reauthorization_required` cause the write path gives it.
+
+The read is an observation of the Review, with what that carries: a guest edit
+it finds cancels open cycles (`source_changed`), and it runs the AI draft
+purge's `expiry` scope. An unedited AI reply that is past its ten-minute window
+and waiting for a worker is therefore withdrawn at the read (`ai_draft_withdrawn`)
+even when its text was claimed before, which the claim alone would have excused
+(Review CONTEXT, Model). It is a narrowing, never a widening.
+
+**Residual race.** A reply typed on Google between the read and the write is
+still replaced; the window is now about a second and Google's upsert offers no
+precondition. A reply Google holds back for moderation is not parsed (the
+adapter reads a reply as comment and update time), so the read does not see it.
+
+**Quota.** One publish now makes two Google calls. Reply writes moved to their
+own lane, `google-reviews-write-v1` (30 a minute per credential, project and
+endpoint, 4 in flight, the review lane's size), so a sync scan cannot starve a
+reply (incident of 2026-08-23); the read stays on `google-reviews-v1`.
+
 ## Amended 2026-10-13 — a guest edit also returns a reply that was put forward to draft
 
 `source_changed` used to be recorded only for a reply whose open publication a

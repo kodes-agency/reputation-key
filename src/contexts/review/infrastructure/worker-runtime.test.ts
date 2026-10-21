@@ -39,6 +39,7 @@ describe('registerReviewWorkerJobs', () => {
       propertySourceEpoch: { getSourceEpoch: vi.fn() },
       runSnapshot: vi.fn(),
       runTargetedFetch: vi.fn(),
+      readReviewBeforePublish: vi.fn(),
       runSourceContentLifecycle: vi.fn(),
       reconcileReplyPublication: vi.fn(),
       dispatchEvidence: { findDispatchEvidence: vi.fn() },

@@ -91,3 +91,9 @@ and the register would fill with noise:
   publishing ever times out again, count `quota_exhausted` in the worker log
   FIRST: a storm there means the backoff chain regressed, not that the test is
   slow.
+  Since 2026-10-21 `reviews.reply` has its own quota lane
+  (`google-reviews-write-v1`), so a scan can no longer starve a reply this way.
+  A publish now makes two Google calls, one `reviews.get` (read lane) before the
+  claim and the `reviews.reply` (write lane); only the read shares the minute
+  with sync pages, so a storm of `reviews.list` denials can still delay the
+  publication's read by one backoff (15-30 s) but never refuses its write.
