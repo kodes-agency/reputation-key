@@ -203,3 +203,49 @@ describe('discoveryLookFor: the wake-up it schedules', () => {
     expect(first.nextDueAt.getTime() - NOW.getTime()).toBe(5 * HOUR_MS - HOT_MS)
   })
 })
+
+describe('discoveryLookFor: with head checks on', () => {
+  it('wakes at now + the ladder interval instead of one wake-up near the deadline', () => {
+    // A cold look is full right after a reconciliation: six hours is the deadline.
+    for (const interval of [HOT_MS, WARM_MS]) {
+      expect(
+        look({ lastReconciledAt: ago(MINUTE_MS), interval, headChecks: true }),
+      ).toEqual({
+        kind: 'skip',
+        nextDueAt: new Date(NOW.getTime() + interval),
+        headCheck: true,
+      })
+    }
+  })
+
+  it('still wakes at the single wake-up when head checks are off, byte for byte', () => {
+    const skipped = look({ lastReconciledAt: ago(HOUR_MS), headChecks: false })
+
+    expect(skipped).toEqual({
+      kind: 'skip',
+      nextDueAt: new Date(ago(HOUR_MS).getTime() + 6 * HOUR_MS - HOT_MS),
+    })
+    expect('headCheck' in skipped).toBe(false)
+    expect(look({ lastReconciledAt: ago(HOUR_MS) })).toEqual(skipped)
+  })
+
+  it('does not change which looks are full', () => {
+    const cases: ReadonlyArray<Partial<LookInput>> = [
+      { lastReconciledAt: null },
+      { skipEnabled: false },
+      { hasOutstandingFailure: true },
+      { lastReconciledAt: ago(6 * HOUR_MS) },
+      { lastReconciledAt: ago(6 * HOUR_MS - HOT_MS) },
+    ]
+    for (const over of cases) {
+      expect(look({ ...over, headChecks: true })).toEqual(look(over))
+    }
+  })
+
+  it('goes full the look the next wake-up would reach the deadline', () => {
+    // A look at 5h46m after the reconciliation: now + 15 min is 6h01m.
+    expect(
+      look({ lastReconciledAt: ago(5 * HOUR_MS + 46 * MINUTE_MS), headChecks: true }),
+    ).toEqual({ kind: 'full', reason: 'due' })
+  })
+})

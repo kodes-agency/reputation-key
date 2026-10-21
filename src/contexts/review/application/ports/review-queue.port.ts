@@ -31,8 +31,24 @@ export type TargetedGoogleReviewFetchJobData = JobEnqueueAttribution &
     deliveryId: string
   }>
 
+/**
+ * One head check: a single read of Google's newest page, compared with RepKey's
+ * stored copies. It runs under the same job family, principal and gate as a
+ * snapshot step, carries no run and no cursor, and never changes a review.
+ */
+export type ReviewHeadCheckJobData = JobEnqueueAttribution &
+  Readonly<{
+    mode: 'head'
+    propertyId: string
+    organizationId: string
+    connectionId: string
+    locationName: string
+    /** Absent when enqueued by the discovery sweep; the run resolves it fresh. */
+    sourceEpoch?: number
+  }>
+
 export type ReviewProviderJobData =
-  SyncPropertyReviewsJobData | TargetedGoogleReviewFetchJobData
+  SyncPropertyReviewsJobData | TargetedGoogleReviewFetchJobData | ReviewHeadCheckJobData
 
 export type AddSyncJobOptions = Readonly<{
   jobId?: string
@@ -67,6 +83,18 @@ export type ReviewQueuePort = Readonly<{
     data: SyncPropertyReviewsJobData,
     options?: AddSyncJobOptions,
   ) => Promise<void>
+}>
+
+export type ReviewHeadCheckQueuePort = Readonly<{
+  addHeadCheckJob(
+    data: ReviewHeadCheckJobData,
+    options: Readonly<{
+      /** One per Property and time bucket (domain/head-check.ts `headCheckJobId`). */
+      jobId: string
+      /** The sweep's stable per-Property start delay, so a sweep's heads do not all start at once. */
+      delayMs?: number
+    }>,
+  ): Promise<void>
 }>
 
 export type TargetedGoogleReviewQueuePort = Readonly<{

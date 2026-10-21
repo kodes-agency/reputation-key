@@ -36,3 +36,26 @@ describe('createBootstrapRuntimeConfig: discovery skip', () => {
     ).toBe(30 * 60 * 1_000)
   })
 })
+
+describe('createBootstrapRuntimeConfig: head checks', () => {
+  it('runs dark by default', () => {
+    expect(configFor({}).reviewHeadChecks).toBe('dark')
+  })
+
+  it('follows REVIEW_HEAD_CHECKS', () => {
+    expect(configFor({ REVIEW_HEAD_CHECKS: 'off' }).reviewHeadChecks).toBe('off')
+    expect(configFor({ REVIEW_HEAD_CHECKS: 'dark' }).reviewHeadChecks).toBe('dark')
+  })
+
+  it('is independent of the skip rule: a head check only follows a skipped look', () => {
+    expect(
+      configFor({ GBP_PUBSUB_TOPIC: '', REVIEW_HEAD_CHECKS: 'dark' }).reviewHeadChecks,
+    ).toBe('dark')
+    expect(
+      configFor({
+        GBP_PUBSUB_TOPIC: 'projects/p/topics/t',
+        REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED: 'false',
+      }).reviewHeadChecks,
+    ).toBe('dark')
+  })
+})

@@ -2,6 +2,7 @@ import type { Job } from 'bullmq'
 import {
   GBP_PUSH_SYNC_INITIATOR_ID,
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
+  type ReviewHeadCheckJobData,
   type ReviewProviderJobData,
   type SyncPropertyReviewsJobData,
   type TargetedGoogleReviewFetchJobData,
@@ -18,6 +19,12 @@ import type {
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { RunTargetedGoogleReviewFetch } from '../../application/use-cases/run-targeted-google-review-fetch'
+import type {
+  RunReviewHeadCheck,
+  RunReviewHeadCheckResult,
+} from '../../application/use-cases/run-review-head-check'
+import type { ReviewHeadChecksMode } from '../../domain/head-check'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { ReviewProviderSnapshotFailure } from './review-provider-snapshot-failure'
 
 export const JOB_NAME = 'sync-property-reviews' as const
@@ -32,6 +39,12 @@ const LOCATION_TOO_LARGE_RETRY_MS = 24 * 60 * 60 * 1000
 type SyncHandlerDeps = Readonly<{
   runSnapshot: RunReviewProviderSnapshot
   runTargetedFetch?: RunTargetedGoogleReviewFetch
+  /** The head mode's use case. A process without it ends head jobs as `disabled`. */
+  runHeadCheck?: RunReviewHeadCheck
+  /** `off` (or absent) ends a queued head job without reading Google. */
+  headChecks?: ReviewHeadChecksMode
+  /** Receives closed event codes only, never a payload field or an error text. */
+  logger?: Pick<LoggerPort, 'warn'>
   propertySourceEpoch: PropertySourceEpochPort
   enqueueContinuation(
     data: SyncPropertyReviewsJobData,
@@ -58,6 +71,9 @@ const SAFE_SCOPE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/u
 const isTargetedFetch = (
   data: ReviewProviderJobData,
 ): data is TargetedGoogleReviewFetchJobData => 'mode' in data && data.mode === 'targeted'
+
+const isHeadCheck = (data: ReviewProviderJobData): data is ReviewHeadCheckJobData =>
+  'mode' in data && data.mode === 'head'
 
 /**
  * Enqueues the next bounded step, delayed only when the provider asked for a
@@ -167,6 +183,52 @@ async function runTargetedFetchStep(
     )
   }
   return result
+}
+
+type HeadStepResult =
+  | RunReviewHeadCheckResult
+  | Readonly<{ status: 'disabled' | 'obsolete' | 'invalid' | 'error' }>
+
+/**
+ * One dark head check. It NEVER throws: the throwing paths of the other modes
+ * (an epoch that moved, a bad payload, a provider error) would fail the job,
+ * spend its retries and latch the family's repair state for a look that
+ * changes nothing. Each ends as a returned outcome instead, and the head never
+ * sets or clears the Property's sync failure (`markDiscoveryDeferred`,
+ * `markSyncSucceeded`): the full retry owns that.
+ */
+async function runHeadCheckStep(
+  deps: SyncHandlerDeps,
+  data: ReviewHeadCheckJobData,
+): Promise<HeadStepResult> {
+  if (deps.headChecks !== 'dark' || !deps.runHeadCheck) return { status: 'disabled' }
+  try {
+    assertProviderJobIdentity(data, undefined)
+  } catch {
+    return { status: 'invalid' }
+  }
+  try {
+    const organization = organizationId(data.organizationId)
+    const property = propertyId(data.propertyId)
+    const current = await deps.propertySourceEpoch.getSourceEpoch(organization, property)
+    if (current == null) return { status: 'obsolete' }
+    if (data.sourceEpoch !== undefined && data.sourceEpoch !== current.sourceEpoch) {
+      return { status: 'obsolete' }
+    }
+    return await deps.runHeadCheck({
+      organizationId: organization,
+      propertyId: property,
+      connectionId: googleConnectionId(data.connectionId),
+      sourceEpoch: current.sourceEpoch,
+      locationName: data.locationName,
+    })
+  } catch {
+    deps.logger?.warn(
+      { event: 'review_head_check_job_failed' },
+      'Review head check job ended without a result',
+    )
+    return { status: 'error' }
+  }
 }
 
 /**
@@ -282,6 +344,7 @@ export const createSyncPropertyReviewsHandler =
   (deps: SyncHandlerDeps) => async (job: Job<ReviewProviderJobData>) =>
     trace('job.syncPropertyReviews', async () => {
       const data = job.data
+      if (isHeadCheck(data)) return runHeadCheckStep(deps, data)
       const targeted = isTargetedFetch(data)
       assertProviderJobIdentity(data, targeted ? undefined : data.runId)
       const organization = organizationId(data.organizationId)

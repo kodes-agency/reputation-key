@@ -59,7 +59,7 @@ definitions and security controls live in
 **Containment:** Pause sync jobs for the affected connection. Set connection status to `degraded`.
 **Recovery:** Wait for quota reset (usually daily). If suspended, resolve the policy issue with Google Cloud support. Resume sync after clearance.
 
-**RepKey's own limits (before Google's):** every Google route is admitted through a quota policy (`GOOGLE_QUOTA_POLICIES`, `src/shared/google-provider-control/quota-coordinator.ts`), and a denied call is `quota_exhausted`, not a Google 429. Review reads (`reviews.list`, `reviews.get`: the sync scans, the push fetches and the publish worker's read before a claim) share `google-reviews-v1`: 30 calls a minute per credential, project and endpoint, 4 in flight. Reply writes (`reviews.reply`) have their own lane, `google-reviews-write-v1` (2026-10-21): the same 30 a minute and 4 in flight, so a scan can never use the minute a reply needs (the 2026-08-23 incident in `e2e-flake-register.md`). One publish spends one call on each lane. A burst of 25 approvals on one connection therefore needs 25 calls on the read lane, inside its 30, and 25 on the write lane.
+**RepKey's own limits (before Google's):** every Google route is admitted through a quota policy (`GOOGLE_QUOTA_POLICIES`, `src/shared/google-provider-control/quota-coordinator.ts`), and a denied call is `quota_exhausted`, not a Google 429. Review reads (`reviews.list`, `reviews.get`: the sync scans, the head checks, the push fetches and the publish worker's read before a claim) share `google-reviews-v1`: 30 calls a minute per credential, project and endpoint, 4 in flight. Reply writes (`reviews.reply`) have their own lane, `google-reviews-write-v1` (2026-10-21): the same 30 a minute and 4 in flight, so a scan can never use the minute a reply needs (the 2026-08-23 incident in `e2e-flake-register.md`). One publish spends one call on each lane. A burst of 25 approvals on one connection therefore needs 25 calls on the read lane, inside its 30, and 25 on the write lane.
 **Verification:** Confirm sync resumes. Check `last_successful_sync_at` advances.
 **Escalation:** Bozhidar Denev. Google Cloud support ticket if suspended.
 
@@ -200,6 +200,24 @@ definitions and security controls live in
 2. Is it firing and failing? Search worker logs for the `discover-new-reviews` job name and its `errorClass` field. An enqueue failure defers the offending property and re-throws for a queue retry, so a single poison property shows up as a repeating failure with a stuck cursor.
 3. Is it firing, succeeding, and skipping? The "Discover new reviews sweep finished" log line counts `candidatesSeen`, `enqueued`, `skipped` (with `skippedHot`, `skippedWarm`, `skippedCold`) and why each full look ran (`fullSkipDisabled`, `fullFailureRetry`, `fullNoReconciliation`, `fullDue`). `enqueued` 0 with `skipped` above 0 is a healthy sweep. A Property with a coded failure or no completed reconciliation is never skipped.
 4. Is it firing, succeeding, and starving? Compare `sync.due_for_incremental` against the batch budget (200 per batch × 10 batches = 2000 properties per run). If the due count exceeds that, the sweep is healthy but under-provisioned and the oldest property never gets reached.
+
+**Reading the dark head checks (`REVIEW_HEAD_CHECKS=dark`, the default):** a look the skip rule leaves empty is followed by one read of Google's newest page (ADR 0055, note of 2026-10-21). It stores nothing; it records what a persisting check would store. Two places to read it:
+
+- The worker log line `Review head check finished` (`event: review_head_check`), content-free and with no Property id: `outcome` (`compared`, `order_violation`, `skipped_outstanding_failure`, `rate_limited`, `provider_unavailable`, `provider_rejected`, `authorization_changed`, `malformed_response`, `no_provider`, `error`), `listed`, `new`, `changed`, `replyChanged`, `leaseRefresh`, `wouldPersist`, `totalDifference` (Google's total minus the stored live count), `averageDifference`, `hasMore`, `orderViolation`, `durationMs`. The sweep line adds `headChecksEnqueued` and `headChecksFailed`.
+- One `review_sync_runs` row per check with `mode = 'head_dark'` (30 days). `result` is JSON, so a comparison is a query, for example the share of checks that would have stored something and the order-violation rate:
+
+```sql
+SELECT count(*) AS checks,
+       count(*) FILTER (WHERE (result::jsonb)->>'outcome' = 'order_violation') AS order_violations,
+       count(*) FILTER (WHERE ((result::jsonb)->>'wouldPersist')::int > 0) AS would_persist,
+       sum(((result::jsonb)->>'new')::int) AS new_reviews,
+       sum(((result::jsonb)->>'replyChanged')::int) AS reply_changes,
+       count(*) FILTER (WHERE ((result::jsonb)->>'totalDifference')::int <> 0) AS total_differs
+  FROM review_sync_runs
+ WHERE mode = 'head_dark' AND started_at > now() - interval '7 days';
+```
+
+`error_class` carries the outcome of every check that did not compare (`failed_count` is 1 for a provider failure). A high order-violation rate means Google ignores `orderBy` for some locations: the check cannot be trusted there and persisting must not be enabled. Kill switch: `REVIEW_HEAD_CHECKS=off` on the worker and restart; a head job already queued then ends as `disabled` without calling Google. A head check shares the reviews quota lane, so a rate-limited one only logs and ends; it never re-enqueues itself.
 
 **Remediate:** dead worker → §7. Poison property → read `review_sync_state.error_class` / `last_terminal_error_at` for the property at the cursor and clear or fix it, then `ops:refresh reviews` for one bounded catch-up run. Starving sweep → raise `REVIEW_DISCOVERY_INTERVAL_MINUTES` so fewer properties come due per tick, or raise the batch budget; the alert clears once the oldest overdue property is polled. Raising the interval does not change how often a busy Property is actually read in full below six hours: that is the skip rule. To put every look back to a full snapshot (for example if a missed push needs finding sooner), set `REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED=false` on the worker and restart it. Quota/throttle from Google → §3.
 

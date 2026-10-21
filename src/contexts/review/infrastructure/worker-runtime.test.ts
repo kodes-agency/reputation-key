@@ -48,6 +48,8 @@ describe('registerReviewWorkerJobs', () => {
       logger: createMockLogger(),
       discoveryIntervalMs: 15 * 60 * 1_000,
       discoverySkipRecentlyReconciled: true,
+      headChecks: 'dark',
+      headCheckQueue: { addHeadCheckJob: vi.fn() },
     })
 
     expect(registered.sort()).toEqual(

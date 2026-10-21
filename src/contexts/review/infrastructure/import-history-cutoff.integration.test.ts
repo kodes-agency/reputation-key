@@ -125,6 +125,7 @@ const googleReviewApi: GoogleReviewApiPort = {
     if (!page) throw new Error(`No ${phase} page ${pageIndex} in this listing`)
     return page
   }),
+  readReviewsHead: vi.fn(),
   getReview: vi.fn(async () => ({ status: 'not_found' as const })),
   discardReviewCursors: vi.fn(async () => undefined),
   replyToReview: vi.fn(async () => ({ providerCorrelationId: null })),

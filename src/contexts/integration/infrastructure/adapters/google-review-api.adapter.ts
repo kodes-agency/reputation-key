@@ -1,11 +1,10 @@
-import { z } from 'zod/v4'
 import type {
   GoogleReviewApiError,
   GoogleReviewApiPort,
   GoogleReviewPageRequest,
-  StarRating,
 } from '#/contexts/review/application/public-api'
-import type { GoogleReviewRead } from '#/contexts/review/application/ports/google-review-api.port'
+import type { GoogleReviewHeadRequest } from '#/contexts/review/application/ports/google-review-api.port'
+import { REVIEW_LIST_NEWEST_UPDATED_FIRST } from '#/shared/google-provider-control/review-route-descriptors'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
@@ -18,20 +17,15 @@ import type {
   GoogleReviewSyncProviderCallAuthorization,
 } from '../../application/google-provider-contract'
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
-import {
-  parseReviewProviderResource,
-  type ReviewProviderResource,
-} from '#/shared/review-provider-subject-contract'
-import {
-  parseGoogleReplyComment,
-  parseGoogleReviewComment,
-} from '#/shared/google-review-comment'
+import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
+import { reportRefusedReviewPages } from './google-review-page'
 import {
-  reportRefusedReviewPages,
-  reviewPageUrl,
-  reviewReplyUrlField,
-} from './google-review-page'
+  gbpReviewItemSchema,
+  isNewestUpdatedFirst,
+  mapReview,
+  parseReviewsPage,
+} from './google-review-page-parse'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
@@ -60,94 +54,9 @@ import {
   cursorRejectionLogger,
 } from './google-review-page-cursor'
 
-const PAGE_SIZE = 50
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;|$)/iu
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
-
-const STAR_RATING_MAP: Readonly<Record<string, StarRating | undefined>> = {
-  ONE: 1,
-  TWO: 2,
-  THREE: 3,
-  FOUR: 4,
-  FIVE: 5,
-}
-
-// Provider payloads are not our transport: Google adds response fields without
-// notice, and rejecting an otherwise valid page for carrying one is a sync
-// outage, not a safety property. A real closed-beta page arrived with
-// `reviewId`, `updateTime` and `reviewReplyUrl` per review plus a top-level
-// `averageRating`; `.strict()` turned all of it into `malformed_response` →
-// `malformed_page`, and the property synced zero reviews. Unknown keys are
-// dropped (zod's default strip) so nothing unmodelled reaches the domain, while
-// every field we do read stays fully validated. The sibling Google adapters
-// (gbp-api, google-business-information) already tolerate unknown keys.
-//
-// `reviewReplyUrl` is read since 2026-10-17 ("Open on Google" in the Inbox) and
-// never fails a page (`google-review-page.ts`).
-const gbpReviewItemSchema = z.object({
-  name: z.string().min(1).max(1_024),
-  starRating: z.string(),
-  comment: z.string().optional(),
-  reviewer: z
-    .object({
-      displayName: z.string().optional(),
-      profilePhotoUrl: z.string().optional(),
-    })
-    .optional(),
-  reviewReply: z
-    .object({
-      comment: z.string().optional(),
-      updateTime: z.string().optional(),
-    })
-    .optional(),
-  createTime: z.string().min(1).max(64),
-  updateTime: z.string().min(1).max(64).optional(),
-  reviewReplyUrl: reviewReplyUrlField,
-})
-
-const gbpReviewsPageSchema = z
-  .object({
-    reviews: z.array(gbpReviewItemSchema).max(PAGE_SIZE).optional(),
-    // Google OMITS this field for a location with no reviews — the response
-    // body is `{}`, not `{totalReviewCount: 0}`. Requiring it turned "this
-    // location has no reviews" into `malformed_page`, which fails the whole
-    // snapshot run rather than recording an empty result. Observed live on
-    // 2026-09-02 for every property in the closed beta:
-    //   Google reviews page rejected by schema keys=[]
-    //     issues=["totalReviewCount:invalid_type"]
-    // and `sync-property-reviews` never completed a single run in this
-    // deployment's history as a result.
-    //
-    // Absent therefore means zero, which is the reading the rest of this
-    // schema already assumes: the refinement below has always handled
-    // `totalReviewCount === 0`, so a zero page was expected as a value and
-    // simply never arrived as one.
-    totalReviewCount: z.number().int().safe().nonnegative().default(0),
-    averageRating: z.number().finite().min(0).max(5).optional(),
-    nextPageToken: z.string().min(1).max(2_048).optional(),
-  })
-  .superRefine((page, context) => {
-    if (page.totalReviewCount === 0) {
-      if (page.averageRating !== undefined && page.averageRating !== 0) {
-        context.addIssue({
-          code: 'custom',
-          path: ['averageRating'],
-          message: 'A zero-review page cannot carry a non-zero average',
-        })
-      }
-      return
-    }
-    if (page.averageRating === undefined) {
-      context.addIssue({
-        code: 'custom',
-        path: ['averageRating'],
-        message: 'A non-empty review snapshot requires the provider average',
-      })
-    }
-  })
-
-type GbpReviewItem = z.infer<typeof gbpReviewItemSchema>
 
 type GoogleReviewApiAdapterDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -344,6 +253,28 @@ function assertValidPageRequest(input: GoogleReviewPageRequest): void {
   assertLocationName(input.locationName)
 }
 
+const HEAD_REQUEST_KEYS = [
+  'organizationId',
+  'propertyId',
+  'connectionId',
+  'sourceEpoch',
+  'locationName',
+] as const
+
+/** Request-shape validation for the head read; every failure is the same refusal. */
+function assertValidHeadRequest(input: GoogleReviewHeadRequest): void {
+  if (
+    !exactKeys(input, HEAD_REQUEST_KEYS) ||
+    !isSafeScopeId(input.organizationId) ||
+    !isCanonicalUuid(input.propertyId) ||
+    !isCanonicalUuid(input.connectionId) ||
+    !isCountAtLeast(input.sourceEpoch, 0)
+  ) {
+    throw invalidRequest()
+  }
+  assertLocationName(input.locationName)
+}
+
 function assertReviewName(reviewName: string, locationName: string): void {
   try {
     parseReviewProviderResource(reviewName)
@@ -352,69 +283,6 @@ function assertReviewName(reviewName: string, locationName: string): void {
   }
   if (!reviewName.startsWith(`${locationName}/reviews/`)) {
     throw invalidRequest()
-  }
-}
-
-function parseDate(value: string): Date {
-  const parsed = new Date(value)
-  if (!Number.isFinite(parsed.getTime()))
-    throw reviewApiError('malformed_response', false)
-  return parsed
-}
-
-function mapReview(
-  raw: GbpReviewItem,
-  locationName: string,
-): GoogleReviewRead & Readonly<{ replyUnreadable: boolean }> {
-  let resource: ReviewProviderResource
-  try {
-    resource = parseReviewProviderResource(raw.name)
-  } catch {
-    throw reviewApiError('malformed_response', false)
-  }
-  if (
-    `accounts/${resource.accountId}/locations/${resource.locationId}` !== locationName
-  ) {
-    throw reviewApiError('malformed_response', false)
-  }
-  const rating = STAR_RATING_MAP[raw.starRating]
-  if (!rating) throw reviewApiError('malformed_response', false)
-  // Google ships the machine translation and the guest's own words glued into
-  // one `comment` field. `text` must be the original: language detection and the
-  // whole AI reply plane read it, and the blob made 8 Bulgarian reviews look
-  // like reliable English.
-  const comment = parseGoogleReviewComment(raw.comment)
-  const reply = parseGoogleReplyComment(raw.reviewReply?.comment)
-  return {
-    reviewName: raw.name,
-    externalId: resource.reviewId,
-    externalLocationId: locationName,
-    reviewerName: raw.reviewer?.displayName ?? null,
-    reviewerProfilePhotoUrl: raw.reviewer?.profilePhotoUrl ?? null,
-    googleReviewUrl: reviewPageUrl(raw, resource.locationId),
-    rating,
-    text: comment.original,
-    translatedText: comment.translation,
-    languageCode: null,
-    reviewedAt: parseDate(raw.createTime),
-    sourceCreatedAt: parseDate(raw.createTime),
-    sourceUpdatedAt: raw.updateTime ? parseDate(raw.updateTime) : null,
-    // Google wraps an echoed reply in the same translation envelope it wraps
-    // review text in - `(Translated by Google) <en>\n\n(Original)\n<src>` -
-    // whenever the reply language differs from the reader locale. The review
-    // text two lines above is already split; the reply was not, so the digest
-    // of the whole blob never matched the digest of what we sent. Measured on
-    // the beta property: a Bulgarian reply that Google had published at
-    // 09:01:28Z could not be confirmed, so it settled as "Google status
-    // unconfirmed" and no reply on a translated review could ever reach
-    // Published.
-    replyText: reply.text,
-    // A reply Google shows without a recoverable original (translation-only
-    // envelope) is not "no reply": reconciliation must not read it as absent.
-    replyUnreadable: reply.unreadable,
-    replyUpdatedAt: raw.reviewReply?.updateTime
-      ? parseDate(raw.reviewReply.updateTime)
-      : null,
   }
 }
 
@@ -552,40 +420,9 @@ export const createGoogleReviewApiAdapter = (
       ),
     )
     await assertAuthorizationCurrent(input, context.cursorAuthorization)
-    const parsed = gbpReviewsPageSchema.safeParse(raw)
-    if (!parsed.success) {
-      // Shape only — key names and zod issue paths/codes, never values. A page
-      // the provider considers well-formed must never be indistinguishable
-      // from a transport fault in the logs.
-      deps.logger.warn(
-        {
-          event: 'reviews_page_rejected',
-          keys:
-            typeof raw === 'object' && raw !== null
-              ? Object.keys(raw).sort()
-              : typeof raw,
-          issues: parsed.error.issues
-            .slice(0, 12)
-            .map((issue) =>
-              issue.code === 'unrecognized_keys'
-                ? `${issue.path.join('.') || '<root>'}:unrecognized:${issue.keys.join('|')}`
-                : `${issue.path.join('.') || '<root>'}:${issue.code}`,
-            ),
-        },
-        'Google reviews page rejected by schema',
-      )
-      throw reviewApiError('malformed_response', false)
-    }
-    const rawReviews = parsed.data.reviews ?? []
-    const reviews = rawReviews.map((review) => mapReview(review, input.locationName))
-    reportRefusedReviewPages(
-      deps.logger,
-      'reviews.list',
-      rawReviews,
-      reviews.map((review) => review.googleReviewUrl),
-    )
+    const page = parseReviewsPage(raw, input.locationName, deps.logger)
     let nextCursorRef: string | null = null
-    const nextPageToken = parsed.data.nextPageToken
+    const nextPageToken = page.nextPageToken
     if (nextPageToken) {
       if (input.pageIndex === 199) throw reviewApiError('malformed_response', false)
       const published = await callCursorStore(
@@ -623,11 +460,40 @@ export const createGoogleReviewApiAdapter = (
       nextCursorRef = published.value.nextCursorRef
     }
     return {
-      reviews,
-      totalReviewCount: parsed.data.totalReviewCount,
-      averageRating:
-        parsed.data.totalReviewCount === 0 ? null : parsed.data.averageRating!,
+      reviews: page.reviews,
+      totalReviewCount: page.totalReviewCount,
+      averageRating: page.averageRating,
       nextCursorRef,
+    }
+  }
+
+  /**
+   * Page 1 of the list, newest-updated first, and nothing else: no run, no
+   * cursor published or redeemed, no continuation. A page that is not really in
+   * that order is reported, never returned.
+   */
+  const readReviewsHead: GoogleReviewApiPort['readReviewsHead'] = async (input) => {
+    assertValidHeadRequest(input)
+    const context = await resolveProviderContext(input)
+    const raw = await requestJson(
+      'reviews.head',
+      {
+        routeKey: 'reviews.list',
+        accessToken: context.accessToken,
+        locationName: input.locationName,
+        orderBy: REVIEW_LIST_NEWEST_UPDATED_FIRST,
+      },
+      context,
+    )
+    await assertAuthorizationCurrent(input, context.cursorAuthorization)
+    const page = parseReviewsPage(raw, input.locationName, deps.logger)
+    if (!isNewestUpdatedFirst(page.reviews)) return { status: 'order_violation' }
+    return {
+      status: 'ok',
+      reviews: page.reviews,
+      totalReviewCount: page.totalReviewCount,
+      averageRating: page.averageRating,
+      hasMore: page.nextPageToken !== undefined,
     }
   }
 
@@ -883,6 +749,7 @@ export const createGoogleReviewApiAdapter = (
 
   return Object.freeze({
     listReviewsPage,
+    readReviewsHead,
     getReview,
     discardReviewCursors,
     replyToReview,

@@ -8,11 +8,16 @@ import {
   type GoogleRequestClass,
 } from './contracts'
 import { replyCommentProblem } from './reply-comment'
+import {
+  REVIEW_LIST_NEWEST_UPDATED_FIRST,
+  boundedRouteString,
+  optionalPageTokenSchema,
+  reviewRouteDescriptorSchemas,
+  type ReviewRouteDescriptor,
+} from './review-route-descriptors'
 
 export { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from './contracts'
 
-const boundedRouteString = z.string().min(1).max(8_192)
-const optionalPageTokenSchema = z.string().min(1).max(2_048).optional()
 const routeDescriptorSchema = z.discriminatedUnion('routeKey', [
   z
     .object({
@@ -89,30 +94,7 @@ const routeDescriptorSchema = z.discriminatedUnion('routeKey', [
       accountId: z.string().min(1).max(255),
     })
     .strict(),
-  z
-    .object({
-      routeKey: z.literal('reviews.list'),
-      accessToken: boundedRouteString,
-      locationName: z.string().min(1).max(1_024),
-      pageToken: optionalPageTokenSchema,
-    })
-    .strict(),
-  z
-    .object({
-      routeKey: z.literal('reviews.get'),
-      accessToken: boundedRouteString,
-      reviewName: z.string().min(1).max(1_024),
-    })
-    .strict(),
-  z
-    .object({
-      routeKey: z.literal('reviews.reply'),
-      accessToken: boundedRouteString,
-      reviewName: z.string().min(1).max(1_024),
-      // Same rule as the compiled body below: bytes, and line breaks allowed.
-      comment: z.string().refine((comment) => replyCommentProblem(comment) === null),
-    })
-    .strict(),
+  ...reviewRouteDescriptorSchemas,
 ])
 export type GoogleProviderRouteDescriptor =
   | Readonly<{
@@ -166,23 +148,7 @@ export type GoogleProviderRouteDescriptor =
       accessToken: string
       accountId: string
     }>
-  | Readonly<{
-      routeKey: 'reviews.list'
-      accessToken: string
-      locationName: string
-      pageToken?: string
-    }>
-  | Readonly<{
-      routeKey: 'reviews.get'
-      accessToken: string
-      reviewName: string
-    }>
-  | Readonly<{
-      routeKey: 'reviews.reply'
-      accessToken: string
-      reviewName: string
-      comment: string
-    }>
+  | ReviewRouteDescriptor
 
 export type GoogleProviderAdmissionMetadata = Readonly<{
   routeKey: GoogleProviderRouteKey
@@ -674,6 +640,12 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
     case 'reviews.list': {
       const accessToken = requireBounded(descriptor.accessToken)
       if (!PROVIDER_RESOURCE_NAME.test(descriptor.locationName)) return invalidInput()
+      if (
+        descriptor.orderBy !== undefined &&
+        descriptor.orderBy !== REVIEW_LIST_NEWEST_UPDATED_FIRST
+      ) {
+        return invalidInput()
+      }
       return {
         endpointClass: 'reviews',
         requestClass: 'reviews',
@@ -683,6 +655,7 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
           [
             ['pageSize', '50'],
             ['pageToken', optionalPageToken(descriptor.pageToken)],
+            ['orderBy', descriptor.orderBy],
           ],
         ),
         headers: bearerHeaders(accessToken),

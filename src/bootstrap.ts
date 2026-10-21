@@ -100,6 +100,12 @@ export type BootstrapRuntimeConfig = Readonly<{
    * sweep is the only path for a new review, so every look stays full.
    */
   reviewDiscoverySkipRecentlyReconciled: boolean
+  /**
+   * What a skipped discovery look is followed by. `dark` is a read-only head
+   * check of Google's newest page; `off` is the skip alone. It needs no push
+   * gate of its own: it only ever follows a skipped look.
+   */
+  reviewHeadChecks: Env['REVIEW_HEAD_CHECKS']
   quarantineTtlMs: number
   notification: Readonly<{
     nodeEnv: Env['NODE_ENV']
@@ -116,6 +122,7 @@ export const createBootstrapRuntimeConfig = (env: Env): BootstrapRuntimeConfig =
   reviewDiscoveryIntervalMs: env.REVIEW_DISCOVERY_INTERVAL_MINUTES * 60 * 1_000,
   reviewDiscoverySkipRecentlyReconciled:
     env.REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED && env.GBP_PUBSUB_TOPIC.length > 0,
+  reviewHeadChecks: env.REVIEW_HEAD_CHECKS,
   quarantineTtlMs: env.QUARANTINE_TTL_DAYS * 24 * 60 * 60 * 1_000,
   notification: {
     nodeEnv: env.NODE_ENV,
@@ -373,6 +380,7 @@ export async function bootstrap(
   await container.registerReviewWorkerJobs({
     reviewDiscoveryIntervalMs: runtime.reviewDiscoveryIntervalMs,
     reviewDiscoverySkipRecentlyReconciled: runtime.reviewDiscoverySkipRecentlyReconciled,
+    reviewHeadChecks: runtime.reviewHeadChecks,
   })
 
   container.jobRegistry.register(

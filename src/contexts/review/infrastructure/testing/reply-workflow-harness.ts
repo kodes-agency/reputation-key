@@ -418,6 +418,9 @@ export async function createReplyWorkflowHarness(
     listReviewsPage: async () => {
       throw new Error('listReviewsPage is not part of the reply workflow')
     },
+    readReviewsHead: async () => {
+      throw new Error('readReviewsHead is not part of the reply workflow')
+    },
     discardReviewCursors: async () => {},
     // The guest's review is what RepKey last stored for it: a read of Google
     // is recorded, so Google has to say what the Review row says (a guest edit

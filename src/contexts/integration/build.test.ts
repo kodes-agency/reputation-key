@@ -314,6 +314,14 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     ).rejects.toThrow('Governed Google review API is unavailable')
   })
 
+  it('refuses the Google head read the same way when the governed executor is unavailable', async () => {
+    const ctx = buildIntegrationContext(buildDeps({}))
+
+    await expect(
+      ctx.reviewSync.googleReviewApi.readReviewsHead({} as never),
+    ).rejects.toMatchObject({ code: GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE })
+  })
+
   it('marks the refusal of a process with no Google provider so a caller can tell it from an outage', async () => {
     const ctx = buildIntegrationContext(buildDeps({}))
 

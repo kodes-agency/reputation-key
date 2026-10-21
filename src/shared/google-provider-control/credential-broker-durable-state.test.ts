@@ -24,7 +24,7 @@ function grant(grantId = 'broker-grant-durable-1') {
       connectionId: 'connection-durable-1',
       propertyId: 'property-durable-1',
       routeKey: 'reviews.list',
-      routeCatalogueVersion: '2026-08-27',
+      routeCatalogueVersion: '2026-10-21',
       authorization: {
         connectionLifecycleVersion: 4,
         connectionAccessVersion: 5,

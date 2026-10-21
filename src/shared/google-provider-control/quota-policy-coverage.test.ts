@@ -213,6 +213,12 @@ const SYSTEM_ROUTE_DESCRIPTORS = [
     locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
   },
   {
+    routeKey: 'reviews.list',
+    accessToken: 'access-token',
+    locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+    orderBy: 'updateTime desc',
+  },
+  {
     routeKey: 'reviews.get',
     accessToken: 'access-token',
     reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,

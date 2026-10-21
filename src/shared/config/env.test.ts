@@ -164,3 +164,44 @@ describe('REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED', () => {
     },
   )
 })
+
+describe('REVIEW_HEAD_CHECKS', () => {
+  const parse = (value?: string) =>
+    parseEnvironment({
+      ...testEnvironment({}),
+      ...(value === undefined ? {} : { REVIEW_HEAD_CHECKS: value }),
+    }).REVIEW_HEAD_CHECKS
+
+  it('is dark when unset, so a skipped discovery look is followed by a read-only head check', () => {
+    expect(parse()).toBe('dark')
+  })
+
+  it('accepts exactly off and dark', () => {
+    expect(parse('off')).toBe('off')
+    expect(parse('dark')).toBe('dark')
+  })
+
+  it.each([
+    'Dark',
+    'DARK',
+    'OFF',
+    'Off',
+    'on',
+    'true',
+    'false',
+    '0',
+    '1',
+    'dak',
+    ' off',
+    '',
+  ])(
+    'refuses the near-miss %j at boot instead of silently leaving head checks on',
+    (value) => {
+      expect(() => parse(value)).toThrow('REVIEW_HEAD_CHECKS')
+    },
+  )
+
+  it('refuses persist: storing from a head check is a later change', () => {
+    expect(() => parse('persist')).toThrow('REVIEW_HEAD_CHECKS')
+  })
+})

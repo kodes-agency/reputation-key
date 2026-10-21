@@ -146,6 +146,7 @@ function makeDeps(
           nextCursorRef: null,
         },
     ),
+    readReviewsHead: vi.fn(),
     getReview: vi.fn(async () => ({ status: 'not_found' as const })),
     discardReviewCursors: vi.fn(async () => undefined),
     replyToReview: vi.fn(async () => ({ providerCorrelationId: null })),
