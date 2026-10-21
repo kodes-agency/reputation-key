@@ -94,9 +94,10 @@ fields on a review reply: `reviewReplyState` (`PENDING`, `REJECTED`,
 Since 2026-10-21 the review adapter parses both into `GoogleReview.replyModeration`
 (state `pending` | `approved` | `rejected` | `unspecified` | `absent`, an opaque
 policy code kept only for `rejected`, and whether Google sent a `comment` and an
-`updateTime`) and RepKey **records them in the log only**. A state Google has
+`updateTime`, telling a missing value from an empty string) and RepKey **records them in the log only**. A state Google has
 not documented reads as `unspecified` and is counted; a code that is not an enum
-word is kept as `UNKNOWN`; neither fails a page. Every list page and every
+word is kept as `UNKNOWN`; a code sent on a reply that is not `rejected` is
+ignored but counted (`policyViolationWithoutRejected`); none fails a page. Every list page and every
 `reviews.get` writes one content-free count line (`reviews_reply_moderation`),
 and RepKey's own two read-backs of an attempt (the `publish-reply` job's and the
 reconcile sweep's) write one `reply_publication_readback` line per read. No

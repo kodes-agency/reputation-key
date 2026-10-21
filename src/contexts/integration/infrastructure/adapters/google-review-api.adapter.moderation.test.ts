@@ -155,7 +155,9 @@ describe('GoogleReviewApiAdapter reply moderation', () => {
       state: 'absent',
       policyViolation: null,
       commentPresent: true,
+      commentEmpty: false,
       updateTimePresent: true,
+      updateTimeEmpty: false,
     })
   })
 
@@ -166,7 +168,9 @@ describe('GoogleReviewApiAdapter reply moderation', () => {
       state: 'absent',
       policyViolation: null,
       commentPresent: false,
+      commentEmpty: false,
       updateTimePresent: false,
+      updateTimeEmpty: false,
     })
     expect(info).not.toHaveBeenCalled()
   })
@@ -255,8 +259,60 @@ describe('GoogleReviewApiAdapter reply moderation', () => {
       state: 'rejected',
       policyViolation: 'SPAM',
       commentPresent: false,
+      commentEmpty: false,
       updateTimePresent: false,
+      updateTimeEmpty: false,
     })
+  })
+
+  it('tells an empty comment and update time from missing ones', async () => {
+    const empty = await moderationOf({
+      comment: '',
+      updateTime: '',
+      reviewReplyState: 'PENDING',
+    })
+    const missing = await moderationOf({ reviewReplyState: 'PENDING' })
+
+    expect(empty.moderation).toMatchObject({
+      commentPresent: false,
+      commentEmpty: true,
+      updateTimePresent: false,
+      updateTimeEmpty: true,
+    })
+    expect(missing.moderation).toMatchObject({
+      commentPresent: false,
+      commentEmpty: false,
+      updateTimePresent: false,
+      updateTimeEmpty: false,
+    })
+  })
+
+  it.each(['PENDING', 'APPROVED', 'SUSPENDED', undefined])(
+    'counts a policy code sent with state %s without its value',
+    async (state) => {
+      const { moderation, warn } = await moderationOf(
+        reply({ reviewReplyState: state, policyViolation: 'SPAM' }),
+      )
+
+      expect(moderation?.policyViolation).toBeNull()
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'reviews_reply_moderation_unknown',
+          policyViolationWithoutRejected: 1,
+        }),
+        expect.any(String),
+      )
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('SPAM')
+    },
+  )
+
+  it('does not count a policy code sent with a REJECTED reply as unexpected', async () => {
+    const { warn } = await moderationOf(
+      reply({ reviewReplyState: 'REJECTED', policyViolation: 'SPAM' }),
+    )
+
+    expect(warn).not.toHaveBeenCalled()
   })
 
   it('reads the state of a reply whose original text cannot be recovered', async () => {

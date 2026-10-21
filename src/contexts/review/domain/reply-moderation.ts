@@ -31,15 +31,21 @@ export type ReplyModeration = Readonly<{
   policyViolation: string | null
   /** Google sent a non-empty `comment` on the reply. */
   commentPresent: boolean
+  /** Google sent `comment` as an empty string (not present, not missing). */
+  commentEmpty: boolean
   /** Google sent a non-empty `updateTime` on the reply. */
   updateTimePresent: boolean
+  /** Google sent `updateTime` as an empty string. */
+  updateTimeEmpty: boolean
 }>
 
 export const NO_REPLY_MODERATION: ReplyModeration = Object.freeze({
   state: 'absent',
   policyViolation: null,
   commentPresent: false,
+  commentEmpty: false,
   updateTimePresent: false,
+  updateTimeEmpty: false,
 })
 
 /**
@@ -52,7 +58,9 @@ export const NO_REPLY_MODERATION: ReplyModeration = Object.freeze({
 export type ReplyReadbackFacts = Readonly<{
   moderationState: ReplyModerationState
   commentPresent: boolean
+  commentEmpty: boolean
   updateTimePresent: boolean
+  updateTimeEmpty: boolean
   /** The text Google shows matches the attempt's, by the observation digest. */
   textMatchedAttempt: boolean
   /** Only when the state is `rejected` and Google sent a code. */
@@ -73,7 +81,9 @@ export function replyReadbackFacts(
   return {
     moderationState: moderation.state,
     commentPresent: moderation.commentPresent,
+    commentEmpty: moderation.commentEmpty,
     updateTimePresent: moderation.updateTimePresent,
+    updateTimeEmpty: moderation.updateTimeEmpty,
     textMatchedAttempt,
     ...(moderation.state === 'rejected' && moderation.policyViolation !== null
       ? { policyViolation: moderation.policyViolation }

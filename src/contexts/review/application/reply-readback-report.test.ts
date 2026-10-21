@@ -19,7 +19,9 @@ function report(overrides: Partial<Parameters<typeof reportReplyReadback>[1]> = 
         state: 'pending',
         policyViolation: null,
         commentPresent: true,
+        commentEmpty: false,
         updateTimePresent: false,
+        updateTimeEmpty: false,
       },
       ...overrides,
     },
@@ -40,7 +42,9 @@ describe('reportReplyReadback', () => {
         attemptNumber: 3,
         moderationState: 'pending',
         commentPresent: true,
+        commentEmpty: false,
         updateTimePresent: false,
+        updateTimeEmpty: false,
         textMatchedAttempt: true,
       },
       'Google reply read back for a publication attempt',
@@ -63,7 +67,9 @@ describe('reportReplyReadback', () => {
         state: 'rejected',
         policyViolation: 'SPAM',
         commentPresent: true,
+        commentEmpty: false,
         updateTimePresent: true,
+        updateTimeEmpty: false,
       },
     })
 
@@ -88,6 +94,7 @@ describe('reportReplyReadback', () => {
       expect.objectContaining({
         moderationState: 'absent',
         commentPresent: false,
+        commentEmpty: false,
         textMatchedAttempt: false,
       }),
       expect.any(String),

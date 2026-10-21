@@ -8,7 +8,9 @@ const moderation = (overrides: Partial<ReplyModeration> = {}): ReplyModeration =
   state: 'pending',
   policyViolation: null,
   commentPresent: true,
+  commentEmpty: false,
   updateTimePresent: true,
+  updateTimeEmpty: false,
   ...overrides,
 })
 
@@ -23,7 +25,9 @@ describe('replyReadbackFacts', () => {
     expect(facts).toEqual({
       moderationState: 'pending',
       commentPresent: true,
+      commentEmpty: false,
       updateTimePresent: true,
+      updateTimeEmpty: false,
       textMatchedAttempt: true,
     })
   })
@@ -57,6 +61,16 @@ describe('replyReadbackFacts', () => {
 
     expect(facts.textMatchedAttempt).toBe(false)
     expect(facts.commentPresent).toBe(false)
+  })
+
+  it('tells an empty comment from a missing one', () => {
+    const facts = replyReadbackFacts({
+      moderation: moderation({ commentPresent: false, commentEmpty: true }),
+      observedText: null,
+      attemptText: ATTEMPT_TEXT,
+    })
+
+    expect(facts).toMatchObject({ commentPresent: false, commentEmpty: true })
   })
 
   it('carries the policy code only for a REJECTED reply', () => {

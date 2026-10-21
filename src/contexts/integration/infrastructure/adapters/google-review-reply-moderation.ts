@@ -35,6 +35,8 @@ export type ParsedReplyModeration = Readonly<{
   moderation: ReplyModeration
   unknownState: boolean
   unknownPolicyViolation: boolean
+  /** Google sent a policy code on a reply that is not REJECTED (ignored). */
+  policyViolationWithoutRejected: boolean
 }>
 
 const STATE_BY_WIRE_VALUE: Readonly<
@@ -52,6 +54,9 @@ const POLICY_CODE = /^[A-Z][A-Z0-9_]{0,63}$/u
 const UNKNOWN_POLICY_VIOLATION = 'UNKNOWN'
 
 const isSent = (value: unknown): boolean => value !== undefined && value !== null
+
+const isNonEmptyString = (value: unknown): boolean =>
+  typeof value === 'string' && value.length > 0
 
 function parseState(wire: unknown): {
   state: ReplyModeration['state']
@@ -85,24 +90,30 @@ export function parseReplyModeration(raw: ProviderReplyReview): ParsedReplyModer
     state.state === 'rejected'
       ? parsePolicyViolation(reply?.policyViolation)
       : { code: null, unknown: false }
+  // Google documents the code as set only when REJECTED; counting a code that
+  // arrives otherwise checks that claim against real payloads.
+  const policyViolationWithoutRejected =
+    state.state !== 'rejected' && isSent(reply?.policyViolation)
   return {
     moderation: {
       state: state.state,
       policyViolation: policy.code,
-      commentPresent: typeof reply?.comment === 'string' && reply.comment.length > 0,
-      updateTimePresent:
-        typeof reply?.updateTime === 'string' && reply.updateTime.length > 0,
+      commentPresent: isNonEmptyString(reply?.comment),
+      commentEmpty: reply?.comment === '',
+      updateTimePresent: isNonEmptyString(reply?.updateTime),
+      updateTimeEmpty: reply?.updateTime === '',
     },
     unknownState: state.unknown,
     unknownPolicyViolation: policy.unknown,
+    policyViolationWithoutRejected,
   }
 }
 
 /**
  * One content-free line per read that returned any reply: how many reviews and
  * replies, and how many replies sit in each state. A read with no reply writes
- * nothing. A second line counts values Google sent that RepKey does not know,
- * never which value or which review.
+ * nothing. A second line counts values Google sent that RepKey does not know, or a
+ * policy code on a reply that is not REJECTED, never which value or review.
  */
 export function reportReplyModeration(
   logger: LoggerPort,
@@ -135,14 +146,24 @@ export function reportReplyModeration(
   const unknownPolicyViolation = parsed.filter(
     (entry) => entry.unknownPolicyViolation,
   ).length
-  if (unknownState === 0 && unknownPolicyViolation === 0) return
+  const policyViolationWithoutRejected = parsed.filter(
+    (entry) => entry.policyViolationWithoutRejected,
+  ).length
+  if (
+    unknownState === 0 &&
+    unknownPolicyViolation === 0 &&
+    policyViolationWithoutRejected === 0
+  ) {
+    return
+  }
   logger.warn(
     {
       event: 'reviews_reply_moderation_unknown',
       operation,
       unknownState,
       unknownPolicyViolation,
+      policyViolationWithoutRejected,
     },
-    'Google sent reply moderation values RepKey does not know',
+    'Google sent reply moderation values RepKey does not know or expect',
   )
 }
