@@ -1,0 +1,48 @@
+-- Head checks that store (ADR 0055, note of 2026-10-21 (d)): two columns on the
+-- Google reputation snapshot facts, so a fact that came from ONE read of
+-- Google's newest page can sit beside the facts completed listings write
+-- without ever being mistaken for one.
+--
+-- `listing_complete` says whether the fact proves a completed listing of the
+-- Property's Reviews. Every fact a completed provider snapshot run writes is
+-- true; a fact a head check writes (REVIEW_HEAD_CHECKS=persist) is false. It
+-- carries Google's own count and average, nothing more, so it may feed Current
+-- on Google and Goals but must never close the first history import, move the
+-- discovery sweep's "last reconciliation", or reset the reconciliation-age
+-- alert. Those readers filter `listing_complete = true`. The default is true on
+-- purpose: an older worker that has never heard of the column only ever writes
+-- completed runs, and the default is what those rows must say.
+--
+-- `numbers_observed_at` says when Google's count and average were READ. For a
+-- snapshot that is when the run froze them (its start; the first page follows at
+-- once), for a head fact the read itself. `evaluated_at` stays the instant the
+-- fact was written. A long run that completes AFTER a fresher head fact would
+-- otherwise carry the older numbers in with the later `evaluated_at` and
+-- regress Current on Google, so the readers of Google's numbers order by
+-- `COALESCE(numbers_observed_at, evaluated_at)`. Nullable; the backfill below
+-- makes every existing fact read the same by either.
+--
+-- Purely additive. Both columns are a constant default or nullable (no table
+-- rewrite), then one UPDATE backfills the existing facts: one row per completed
+-- sync run, kept for good, so a beta-sized table. This runs before any new
+-- process (web's preDeploy, then the worker). REVIEW_HEAD_CHECKS stays `dark`
+-- (the default) until every web, worker and sidecar image carries the filtered
+-- readers: a worker that still read unfiltered facts would take a head fact for
+-- a completed reconciliation.
+--
+-- The index serves those readers: the Goals shown-number history and the head
+-- check's newest-fact probe order and range by `COALESCE(numbers_observed_at,
+-- evaluated_at)`, which the scope index (ordered by `evaluated_at`) cannot walk.
+-- A plain CREATE INDEX on a beta-sized table (one fact per completed run, plus the
+-- head facts once persist is on) holds its lock for milliseconds.
+--
+-- Roll forward, never back once head facts exist: delete the `listing_complete
+-- = false` rows first. The down step is the index and both columns dropped and the
+-- 0067 row out of drizzle.__drizzle_migrations.
+ALTER TABLE "review_google_reputation_snapshot_facts" ADD COLUMN "listing_complete" boolean DEFAULT true NOT NULL;
+--> statement-breakpoint
+ALTER TABLE "review_google_reputation_snapshot_facts" ADD COLUMN "numbers_observed_at" timestamp with time zone;
+--> statement-breakpoint
+UPDATE "review_google_reputation_snapshot_facts" SET "numbers_observed_at" = "evaluated_at" WHERE "numbers_observed_at" IS NULL;
+--> statement-breakpoint
+CREATE INDEX "review_google_reputation_snapshot_observed_idx" ON "review_google_reputation_snapshot_facts" ("organization_id","property_id","source_epoch",COALESCE("numbers_observed_at", "evaluated_at") DESC);

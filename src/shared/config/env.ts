@@ -309,11 +309,25 @@ const baseEnvSchema = z.object({
   // records what a persisting check WOULD store (a review_sync_runs row with
   // mode head_dark), and changes nothing about any review; it also dates the
   // skipped Property's next look at the ladder interval instead of the single
-  // wake-up near the six-hour deadline. 'off' is exactly the skip rule alone.
-  // A later change adds 'persist'. Exactly 'off' or 'dark': any other spelling
-  // refuses boot, so a mistyped kill switch cannot silently stay on.
-  // Worker-read; set it on the worker, a restart applies it.
-  REVIEW_HEAD_CHECKS: z.enum(['off', 'dark']).default('dark'),
+  // wake-up near the six-hour deadline. 'persist' does the same read and then
+  // STORES what it found (ADR 0055, note of 2026-10-21 (d)): the reviews whose
+  // stored copy differs, written through the ordinary observation writer, and
+  // Google's own count and average as a fact that is not a completed listing.
+  // Switch it on only after a week of dark data supports it, and only when
+  // every web, worker and sidecar image carries migration 0067 and the filtered
+  // readers. 'off' is exactly the skip rule alone. Exactly 'off', 'dark' or
+  // 'persist': any other spelling refuses boot, so a mistyped kill switch
+  // cannot silently stay on. Worker-read; set it on the worker, a restart
+  // applies it. Setting it back to 'dark' is the rollback.
+  REVIEW_HEAD_CHECKS: z.enum(['off', 'dark', 'persist']).default('dark'),
+  // How recent a COMPLETED reconciliation must be for the discovery sweep to
+  // skip a Property's look (ADR 0055 decision 5; the skip rule above). Whole
+  // hours, 6 to 24, default 6. Below 6 the reconciliation-age alert (8 h) would
+  // page, and above 24 a Property would go a day without a completed listing.
+  // The owner's plan is to raise it once REVIEW_HEAD_CHECKS=persist is on and
+  // proven: a head check then covers the look between two completed listings.
+  // Worker-read; a restart applies it.
+  REVIEW_RECONCILE_WITHIN_HOURS: z.coerce.number().int().min(6).max(24).default(6),
   // Dynamic Access Control — Stage 1 safety gate (ADR 0001).
   // 'true' enables the custom-role model (Stage 2 dynamic resolver). Absent or any
   // other value = false. Parsed as string→bool to avoid z.coerce.boolean()'s

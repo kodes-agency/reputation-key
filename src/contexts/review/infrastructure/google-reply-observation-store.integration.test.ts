@@ -1012,7 +1012,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     })
   })
 
-  it('does not let an older acquired provider response replace a newer observation head', async () => {
+  it('lets an older sync read pass without replacing a newer observation head', async () => {
     const { review } = await seedReviewAndReply({ claim: false })
     const store = createGoogleReplyObservationStore(getDb())
     const olderGeneration = await store.allocateReadGeneration()
@@ -1028,9 +1028,15 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       observedText: 'Newer provider reply',
     })
 
-    await expect(store.record(newer)).resolves.toMatchObject({ duplicate: false })
-    await expect(store.record(older)).rejects.toMatchObject({
-      code: 'invalid_transition',
+    const stored = await store.record(newer)
+    expect(stored).toMatchObject({ duplicate: false })
+    await expect(store.record(older)).resolves.toEqual({
+      observationRevision: stored.observationRevision,
+      change: 'unchanged',
+      resolution: 'unchanged',
+      matchedReplyId: null,
+      matchedPublicationCycle: null,
+      duplicate: true,
     })
     const rows = await pool.query(
       `SELECT o.normalized_text, o.read_generation::text AS read_generation
@@ -1043,6 +1049,37 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       normalized_text: 'Newer provider reply',
       read_generation: String(newerGeneration),
     })
+    const written = await pool.query(
+      `SELECT count(*)::int AS count FROM google_reply_observations WHERE review_id = $1`,
+      [REVIEW_A],
+    )
+    expect(written.rows[0]).toEqual({ count: 1 })
+  })
+
+  it('still refuses an older targeted read, because the reconciler maps its outcome from that refusal', async () => {
+    const { review } = await seedReviewAndReply({ providerPending: false })
+    const store = createGoogleReplyObservationStore(getDb())
+    const olderGeneration = await store.allocateReadGeneration()
+    const newerGeneration = await store.allocateReadGeneration()
+    await store.record(
+      observationInput(review, {
+        readGeneration: newerGeneration,
+        observationKey: sha256Hex('newer-sync-read'),
+        observedText: 'Newer provider reply',
+      }),
+    )
+
+    await expect(
+      store.record(
+        observationInput(review, {
+          readGeneration: olderGeneration,
+          observationKey: sha256Hex('older-targeted-read'),
+          source: 'targeted_reconciliation',
+          publicationTarget: { replyId: REPLY_A, publicationCycle: 1, attemptNumber: 1 },
+          observedText: 'Older provider reply',
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_transition' })
   })
 
   it('refuses a first provider claim after the Review material revision advances', async () => {

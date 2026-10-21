@@ -54,14 +54,15 @@ async function seedFact(
   propertyId: string,
   sourceEpoch: number,
   evaluatedAt: Date,
+  listingComplete = true,
 ): Promise<void> {
   factSequence++
   const suffix = String(factSequence).padStart(12, '0')
   await pool.query(
     `INSERT INTO review_google_reputation_snapshot_facts
        (run_id, event_id, organization_id, property_id, source_epoch,
-        review_count, average_rating, evaluated_at)
-     VALUES ($1, $2, $3, $4, $5, 3, 4.5, $6)`,
+        review_count, average_rating, evaluated_at, listing_complete)
+     VALUES ($1, $2, $3, $4, $5, 3, 4.5, $6, $7)`,
     [
       `f1000000-0000-4000-8000-${suffix}`,
       `f2000000-0000-4000-8000-${suffix}`,
@@ -69,6 +70,7 @@ async function seedFact(
       propertyId,
       sourceEpoch,
       evaluatedAt,
+      listingComplete,
     ],
   )
 }
@@ -495,6 +497,20 @@ describe('reviewDiscoveryRepository (integration)', () => {
       expect(await lastReconciled(PROP_CONNECTED_2)).toEqual(
         new Date('2026-08-21T11:00:00.000Z'),
       )
+    })
+
+    it('ignores a head fact: Google’s numbers from one read of its newest page prove no listing', async () => {
+      const completed = new Date('2026-08-21T03:00:00.000Z')
+      await seedFact(PROP_CONNECTED, 0, completed)
+      await seedFact(PROP_CONNECTED, 0, new Date('2026-08-21T11:00:00.000Z'), false)
+
+      expect(await lastReconciled(PROP_CONNECTED)).toEqual(completed)
+    })
+
+    it('is null when the epoch has only head facts', async () => {
+      await seedFact(PROP_CONNECTED, 0, new Date('2026-08-21T11:00:00.000Z'), false)
+
+      expect(await lastReconciled(PROP_CONNECTED)).toBeNull()
     })
 
     it('does not multiply candidates when a property has many facts', async () => {

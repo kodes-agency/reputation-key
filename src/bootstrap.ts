@@ -106,6 +106,11 @@ export type BootstrapRuntimeConfig = Readonly<{
    * gate of its own: it only ever follows a skipped look.
    */
   reviewHeadChecks: Env['REVIEW_HEAD_CHECKS']
+  /**
+   * How recent a completed reconciliation must be for a look to be skipped, in
+   * milliseconds (`REVIEW_RECONCILE_WITHIN_HOURS`, 6 to 24).
+   */
+  reviewReconcileWithinMs: number
   quarantineTtlMs: number
   notification: Readonly<{
     nodeEnv: Env['NODE_ENV']
@@ -123,6 +128,7 @@ export const createBootstrapRuntimeConfig = (env: Env): BootstrapRuntimeConfig =
   reviewDiscoverySkipRecentlyReconciled:
     env.REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED && env.GBP_PUBSUB_TOPIC.length > 0,
   reviewHeadChecks: env.REVIEW_HEAD_CHECKS,
+  reviewReconcileWithinMs: env.REVIEW_RECONCILE_WITHIN_HOURS * 60 * 60 * 1_000,
   quarantineTtlMs: env.QUARANTINE_TTL_DAYS * 24 * 60 * 60 * 1_000,
   notification: {
     nodeEnv: env.NODE_ENV,
@@ -381,6 +387,7 @@ export async function bootstrap(
     reviewDiscoveryIntervalMs: runtime.reviewDiscoveryIntervalMs,
     reviewDiscoverySkipRecentlyReconciled: runtime.reviewDiscoverySkipRecentlyReconciled,
     reviewHeadChecks: runtime.reviewHeadChecks,
+    reviewReconcileWithinMs: runtime.reviewReconcileWithinMs,
   })
 
   container.jobRegistry.register(

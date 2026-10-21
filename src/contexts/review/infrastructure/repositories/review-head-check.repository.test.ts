@@ -131,6 +131,16 @@ async function resetFixture(): Promise<void> {
   await pool.query('DELETE FROM review_sync_runs WHERE property_id = ANY($1)', [
     [PROP_A, PROP_B, PROP_OTHER_ORG],
   ])
+  for (const org of [ORG, OTHER_ORG]) {
+    await pool.query(
+      'DELETE FROM review_google_reputation_snapshot_facts WHERE organization_id = $1',
+      [org],
+    )
+    await pool.query(
+      'DELETE FROM review_provider_snapshot_runs WHERE organization_id = $1',
+      [org],
+    )
+  }
   await deleteTestOrganizations(pool, [ORG, OTHER_ORG])
   for (const [org, slug] of [
     [ORG, 'head-check-repo'],
@@ -444,3 +454,338 @@ describe.sequential('reviewHeadCheckRepository.recordRun (real PostgreSQL)', () 
     },
   )
 })
+
+describe.sequential(
+  'reviewHeadCheckRepository.readPersistState (real PostgreSQL)',
+  () => {
+    const repo = createReviewHeadCheckRepository(db)
+    let nextFact = 0
+
+    const insertFact = async (
+      over: Readonly<{
+        org?: typeof ORG
+        property?: typeof PROP_A
+        epoch?: number
+        count?: number
+        average?: number | null
+        evaluatedAt?: Date
+        observedAt?: Date | null
+        listingComplete?: boolean
+      }> = {},
+    ) => {
+      nextFact++
+      const suffix = String(nextFact).padStart(12, '0')
+      await pool.query(
+        `INSERT INTO review_google_reputation_snapshot_facts
+         (run_id, event_id, organization_id, property_id, source_epoch, review_count,
+          average_rating, evaluated_at, numbers_observed_at, listing_complete)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          `c2000000-0000-4000-8000-${suffix}`,
+          `c3000000-0000-4000-8000-${suffix}`,
+          over.org ?? ORG,
+          over.property ?? PROP_A,
+          over.epoch ?? 2,
+          over.count ?? 10,
+          over.average === undefined ? 4.5 : over.average,
+          over.evaluatedAt ?? ago(3_600_000),
+          over.observedAt === undefined ? null : over.observedAt,
+          over.listingComplete ?? true,
+        ],
+      )
+    }
+    const insertRun = async (state: string, expiresAt: Date, epoch = 2) => {
+      nextFact++
+      const terminal = state === 'completed' || state === 'failed'
+      await pool.query(
+        `INSERT INTO review_provider_snapshot_runs
+         (id, organization_id, property_id, source_epoch, state, phase, started_at,
+          expires_at, terminal_at, record_expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz,
+               $9::timestamptz + interval '30 days')`,
+        [
+          `c4000000-0000-4000-8000-${String(nextFact).padStart(12, '0')}`,
+          ORG,
+          PROP_A,
+          epoch,
+          state,
+          terminal ? 'terminal' : 'main',
+          ago(60_000),
+          expiresAt,
+          terminal ? ago(30_000) : null,
+        ],
+      )
+    }
+    const state = (property = PROP_A, epoch = 2, org = ORG) =>
+      repo.readPersistState({
+        organizationId: org,
+        propertyId: property,
+        sourceEpoch: epoch,
+        now: NOW,
+      })
+
+    it('says nothing is listed, nothing is running and there is no fact for a fresh epoch', async () => {
+      await expect(state()).resolves.toEqual({
+        hasCompletedListing: false,
+        snapshotActive: false,
+        newestFact: null,
+      })
+    })
+
+    it('does not take a head fact for a completed listing', async () => {
+      await insertFact({ listingComplete: false })
+
+      await expect(state()).resolves.toMatchObject({ hasCompletedListing: false })
+    })
+
+    it('finds a completed listing of the epoch, and no other epoch’s or tenant’s', async () => {
+      await insertFact({ epoch: 1 })
+      await insertFact({ property: PROP_B, epoch: 2 })
+      await expect(state()).resolves.toMatchObject({ hasCompletedListing: false })
+
+      await insertFact()
+
+      await expect(state()).resolves.toMatchObject({ hasCompletedListing: true })
+      await expect(state(PROP_B, 0)).resolves.toMatchObject({
+        hasCompletedListing: false,
+      })
+      await expect(state(PROP_OTHER_ORG, 2, OTHER_ORG)).resolves.toMatchObject({
+        hasCompletedListing: false,
+      })
+    })
+
+    it('reports the newest fact of ANY kind, ordered by when Google’s numbers were read', async () => {
+      // A snapshot written at 11:55 that froze its numbers at 10:00, and a head
+      // fact read at 11:00 and written at 11:00:01.
+      await insertFact({
+        count: 20,
+        average: 4.7,
+        evaluatedAt: ago(5 * 60_000),
+        observedAt: ago(2 * 3_600_000),
+      })
+      await insertFact({
+        count: 21,
+        average: 4.8,
+        evaluatedAt: ago(59 * 60_000 - 1_000),
+        observedAt: ago(60 * 60_000),
+        listingComplete: false,
+      })
+
+      await expect(state()).resolves.toMatchObject({
+        hasCompletedListing: true,
+        newestFact: { reviewCount: 21, averageRating: 4.8, observedAt: ago(60 * 60_000) },
+      })
+    })
+
+    it('reads a fact an older process wrote, with no read time, by when it was written', async () => {
+      await insertFact({ count: 9, average: 3.2, evaluatedAt: ago(90 * 60_000) })
+
+      await expect(state()).resolves.toMatchObject({
+        newestFact: { reviewCount: 9, averageRating: 3.2, observedAt: ago(90 * 60_000) },
+      })
+    })
+
+    it('reports a snapshot run that is scanning, confirming or deleting as active', async () => {
+      for (const runState of ['scanning', 'confirming', 'deleting']) {
+        await pool.query(
+          'DELETE FROM review_provider_snapshot_runs WHERE property_id = $1',
+          [PROP_A],
+        )
+        await insertRun(runState, new Date(NOW.getTime() + 3_600_000))
+        await expect(state()).resolves.toMatchObject({ snapshotActive: true })
+      }
+    })
+
+    it('does not count a finished run, an expired one or another epoch’s as active', async () => {
+      await insertRun('completed', new Date(NOW.getTime() + 3_600_000))
+      await insertRun('failed', new Date(NOW.getTime() + 3_600_000))
+      await expect(state()).resolves.toMatchObject({ snapshotActive: false })
+      await insertRun('scanning', new Date(NOW.getTime() - 1))
+      await expect(state()).resolves.toMatchObject({ snapshotActive: false })
+      await insertRun('scanning', new Date(NOW.getTime() + 3_600_000), 1)
+      await expect(state()).resolves.toMatchObject({ snapshotActive: false })
+    })
+  },
+)
+
+describe.sequential('reviewHeadCheckRepository.recordHeadFact (real PostgreSQL)', () => {
+  const repo = createReviewHeadCheckRepository(db)
+  const FACT_ID = 'c5000000-0000-4000-8000-000000000001'
+  const READ_AT = ago(2_000)
+
+  const factInput = {
+    organizationId: ORG,
+    propertyId: PROP_A,
+    sourceEpoch: 2,
+    factId: FACT_ID,
+    reviewCount: 131,
+    averageRating: 4.7,
+    numbersObservedAt: READ_AT,
+  } as const
+
+  it('stores Google’s numbers as a fact that is not a listing, stamped with when they were read', async () => {
+    await repo.recordHeadFact(factInput)
+
+    const facts = await pool.query(
+      `SELECT run_id, organization_id, property_id, source_epoch, review_count,
+              average_rating, listing_complete, numbers_observed_at, evaluated_at
+         FROM review_google_reputation_snapshot_facts WHERE property_id = $1`,
+      [PROP_A],
+    )
+    expect(facts.rows).toHaveLength(1)
+    expect(facts.rows[0]).toMatchObject({
+      run_id: FACT_ID,
+      organization_id: ORG,
+      source_epoch: 2,
+      review_count: 131,
+      average_rating: 4.7,
+      listing_complete: false,
+      numbers_observed_at: READ_AT,
+    })
+    // Written at the database's own transaction instant, not the read time.
+    expect(Math.abs(facts.rows[0].evaluated_at.getTime() - Date.now())).toBeLessThan(
+      60_000,
+    )
+  })
+
+  it('publishes the verified-snapshot event beside the fact, in the same transaction', async () => {
+    await repo.recordHeadFact(factInput)
+
+    const events = await pool.query(
+      `SELECT e.event_type, e.source_aggregate_id, e.payload, f.event_id
+         FROM outbox_events e
+         JOIN review_google_reputation_snapshot_facts f ON f.event_id = e.id
+        WHERE e.organization_id = $1`,
+      [ORG],
+    )
+    expect(events.rows).toHaveLength(1)
+    expect(events.rows[0]).toMatchObject({
+      event_type: 'review.google_reputation_snapshot.verified',
+      source_aggregate_id: FACT_ID,
+    })
+    expect(events.rows[0].payload).toMatchObject({
+      organizationId: ORG,
+      propertyId: PROP_A,
+      sourceEpoch: 2,
+      runId: FACT_ID,
+      reviewCount: 131,
+      averageRating: 4.7,
+      numbersObservedAt: READ_AT.toISOString(),
+    })
+    expect(JSON.stringify(events.rows[0].payload)).not.toMatch(
+      /review[A-Z]\w*Text|reviewer/u,
+    )
+  })
+
+  it('leaves neither the fact nor the event when the fact is refused', async () => {
+    await expect(
+      repo.recordHeadFact({ ...factInput, reviewCount: 0, averageRating: 4.7 }),
+    ).rejects.toThrow('averageRating must match')
+
+    const facts = await pool.query(
+      `SELECT 1 FROM review_google_reputation_snapshot_facts WHERE property_id = $1`,
+      [PROP_A],
+    )
+    const events = await pool.query(
+      'SELECT 1 FROM outbox_events WHERE organization_id = $1',
+      [ORG],
+    )
+    expect(facts.rows).toEqual([])
+    expect(events.rows).toEqual([])
+  })
+})
+
+describe.sequential(
+  'reviewHeadCheckRepository.recordRun in persist mode (real PostgreSQL)',
+  () => {
+    const repo = createReviewHeadCheckRepository(db)
+    const comparison: HeadComparison = {
+      listed: 50,
+      newCount: 2,
+      changedCount: 1,
+      replyChangedCount: 3,
+      leaseRefreshCount: 4,
+      wouldPersist: 8,
+      googleTotal: 120,
+      storedLiveCount: 117,
+      totalDifference: 3,
+      googleAverage: 4.62,
+      storedAverage: 4.6,
+      averageDifference: 0.02,
+      hasMore: true,
+    }
+
+    it('writes a head row with what was actually stored and whether the fact was written', async () => {
+      await repo.recordRun({
+        propertyId: PROP_A,
+        sourceEpoch: 2,
+        startedAt: ago(5_000),
+        completedAt: ago(3_000),
+        mode: 'head',
+        outcome: 'compared',
+        comparison,
+        persistence: {
+          outcome: 'stored',
+          storedNew: 1,
+          storedOther: 4,
+          failed: 1,
+          factWritten: true,
+        },
+      })
+
+      const rows = await pool.query(
+        `SELECT mode, review_count, created_count, updated_count, failed_count, result
+         FROM review_sync_runs WHERE property_id = $1`,
+        [PROP_A],
+      )
+      expect(rows.rows).toHaveLength(1)
+      expect(rows.rows[0]).toMatchObject({
+        mode: 'head',
+        review_count: 50,
+        created_count: 1,
+        updated_count: 4,
+        failed_count: 1,
+      })
+      expect(JSON.parse(rows.rows[0].result)).toMatchObject({
+        outcome: 'compared',
+        wouldPersist: 8,
+        persisted: 'stored',
+        storedNew: 1,
+        storedOther: 4,
+        failed: 1,
+        factWritten: true,
+      })
+    })
+
+    it('records a check that stored nothing because a run was active as head with zero counts but the dark comparison', async () => {
+      await repo.recordRun({
+        propertyId: PROP_A,
+        sourceEpoch: 2,
+        startedAt: ago(5_000),
+        completedAt: ago(3_000),
+        mode: 'head',
+        outcome: 'compared',
+        comparison,
+        persistence: {
+          outcome: 'skipped_snapshot_active',
+          storedNew: 0,
+          storedOther: 0,
+          failed: 0,
+          factWritten: false,
+        },
+      })
+
+      const rows = await pool.query(
+        `SELECT created_count, updated_count, result FROM review_sync_runs WHERE property_id = $1`,
+        [PROP_A],
+      )
+      expect(rows.rows[0]).toMatchObject({ created_count: 0, updated_count: 0 })
+      expect(JSON.parse(rows.rows[0].result)).toMatchObject({
+        persisted: 'skipped_snapshot_active',
+        new: 2,
+        wouldPersist: 8,
+        factWritten: false,
+      })
+    })
+  },
+)

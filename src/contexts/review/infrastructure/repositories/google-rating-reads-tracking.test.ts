@@ -82,14 +82,19 @@ type FactSeed = Readonly<{
   organization?: string
   property?: string
   epoch?: number
+  /** When Google's numbers were read, if that was not when the fact was written. */
+  observedAt?: string
+  /** False for a head fact: Google's numbers from one read of its newest page. */
+  listingComplete?: boolean
 }>
 
 async function insertFact(seed: FactSeed): Promise<void> {
   await held.client.query(
     `INSERT INTO review_google_reputation_snapshot_facts (
        run_id, event_id, organization_id, property_id, source_epoch,
-       review_count, average_rating, evaluated_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz)`,
+       review_count, average_rating, evaluated_at, numbers_observed_at,
+       listing_complete
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz, $10)`,
     [
       nextId('2d300000'),
       nextId('2d400000'),
@@ -99,6 +104,8 @@ async function insertFact(seed: FactSeed): Promise<void> {
       seed.reviewCount,
       seed.averageRating,
       seed.at,
+      seed.observedAt ?? null,
+      seed.listingComplete ?? true,
     ],
   )
 }
@@ -299,6 +306,48 @@ describe('Google’s shown number over time', () => {
       },
       { at: new Date('2026-10-20T08:00:00Z'), averageRating: 4, reviewCount: 262 },
       { at: new Date('2026-10-28T08:00:00Z'), averageRating: 3.94, reviewCount: 265 },
+    ])
+  })
+
+  it('counts a head fact, because it carries Google’s own number', async () => {
+    await insertFact({ at: '2026-10-05T08:00:00Z', averageRating: 3.9, reviewCount: 255 })
+    await insertFact({
+      at: '2026-10-12T08:00:00Z',
+      averageRating: 4,
+      reviewCount: 256,
+      listingComplete: false,
+    })
+
+    const shown = await reads().getShownNumberChanges(ORG, PROPERTY, SINCE)
+
+    expect(shown).toEqual([
+      { at: new Date('2026-10-05T08:00:00Z'), averageRating: 3.9, reviewCount: 255 },
+      { at: new Date('2026-10-12T08:00:00Z'), averageRating: 4, reviewCount: 256 },
+    ])
+  })
+
+  it('orders by when Google’s number was read, so a long snapshot completing after a fresher head fact does not replay old numbers as the newest', async () => {
+    // The run froze 3.9 at 07:00 and completed at 09:00; a head check read 4.0
+    // at 08:00 and wrote it at once.
+    await insertFact({
+      at: '2026-10-20T09:00:00Z',
+      observedAt: '2026-10-20T07:00:00Z',
+      averageRating: 3.9,
+      reviewCount: 261,
+    })
+    await insertFact({
+      at: '2026-10-20T08:00:30Z',
+      observedAt: '2026-10-20T08:00:00Z',
+      averageRating: 4,
+      reviewCount: 262,
+      listingComplete: false,
+    })
+
+    const shown = await reads().getShownNumberChanges(ORG, PROPERTY, SINCE)
+
+    expect(shown).toEqual([
+      { at: new Date('2026-10-20T07:00:00Z'), averageRating: 3.9, reviewCount: 261 },
+      { at: new Date('2026-10-20T08:00:00Z'), averageRating: 4, reviewCount: 262 },
     ])
   })
 

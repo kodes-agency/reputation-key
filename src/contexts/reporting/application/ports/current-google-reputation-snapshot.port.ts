@@ -6,7 +6,11 @@ export type CurrentOnGoogleReputationSnapshot = Readonly<{
   propertyId: PropertyId
   reviewCount: number
   averageRating: number | null
-  /** Time at which Review completed its double-scan verification. */
+  /**
+   * When Google's numbers were read: a completed snapshot freezes them when it
+   * starts, a head check reads them just before it stores them. The Goals
+   * 24-hour freshness rule and the headline age are measured from it.
+   */
   verifiedAt: Date
 }>
 

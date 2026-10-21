@@ -15,6 +15,7 @@ import {
   reviewSyncState,
   reviewSyncRuns,
 } from './review-sync.schema'
+import { reviewGoogleReputationSnapshotFacts } from './review-reputation.schema'
 import { propertyReplyProfiles, propertyReplyTemplates } from './reply-library.schema'
 
 function columnNames(table: Parameters<typeof getTableColumns>[0]): string[] {
@@ -95,6 +96,16 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
         'review_id',
         'source_epoch',
       ])
+    })
+  })
+  describe('migration 0067 — head facts', () => {
+    it('adds the listing flag and the instant Google was read to the snapshot facts', () => {
+      const cols = getTableColumns(reviewGoogleReputationSnapshotFacts)
+      expect(cols.listingComplete.name).toBe('listing_complete')
+      expect(cols.listingComplete.notNull).toBe(true)
+      expect(cols.listingComplete.default).toBe(true)
+      expect(cols.numbersObservedAt.name).toBe('numbers_observed_at')
+      expect(cols.numbersObservedAt.notNull).toBe(false)
     })
   })
   describe('appended migration 0004 — property reply library', () => {

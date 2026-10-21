@@ -14,7 +14,8 @@ its full snapshot and only dates the next look (ADR 0055, note of 2026-10-21;
 `GBP_PUBSUB_TOPIC` is set. Each skipped look is followed by a read-only head
 check of Google's newest page (`REVIEW_HEAD_CHECKS`, dark by default: it
 compares and logs, records one counts-only run row, and changes nothing about
-any review).
+any review; `persist` also stores what differs and is built but off until a week
+of dark data supports it, see `docs/operations/runbooks.md` section 13).
 
 Everything on the app side is already built. This document is the Google Cloud
 work plus the four environment variables that switch it on; once they are set,

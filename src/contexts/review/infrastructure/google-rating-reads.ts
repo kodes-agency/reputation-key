@@ -166,6 +166,15 @@ const shownTenths = sql<
 >`floor((round(${snapshotFacts.averageRating} * 1000000) + 50000) / 100000)`
 
 /**
+ * When Google's number was READ: a completed snapshot froze it when it started,
+ * a head fact read it just before writing. A fact an older process wrote has no
+ * such instant and was read when it was written. Ordering by it keeps a long
+ * snapshot that completes after a fresher head fact from replaying older
+ * numbers as the newest.
+ */
+const numbersObservedAt = sql`COALESCE(${snapshotFacts.numbersObservedAt}, ${snapshotFacts.evaluatedAt})`
+
+/**
  * The Property's snapshot facts under its current binding epoch. The epoch is
  * a scalar subquery (none when the Property is not the tenant's), so every
  * column of the scope index is bound and the newest-first probe is one index
@@ -190,10 +199,12 @@ const currentSnapshotFacts = (
  * limit holds), under the Property's current binding epoch, oldest first.
  *
  * The in-force row's instant is found first (the newest at or before
- * `since`: one probe of the scope index), and the LAG runs only over the facts
- * from it on (from `since` when there is none): snapshot facts are kept for
- * good, one per completed sync run, so a scan over all of them would grow
- * every year.
+ * `since`), and the LAG runs only over the facts from it on (from `since` when
+ * there is none): snapshot facts are kept for good, one per completed sync run
+ * (and, with head checks storing, one per change of Google's numbers or six
+ * hours of quiet), so a scan over all of them would grow every year. Facts are
+ * ordered by when Google's numbers were READ (`numbersObservedAt`), whichever
+ * kind of fact carries them.
  */
 async function shownNumberChanges(
   db: Database,
@@ -210,25 +221,25 @@ async function shownNumberChanges(
     WITH bound AS (
       SELECT COALESCE(
         (
-          SELECT max(${snapshotFacts.evaluatedAt}) FROM ${scope}
-            AND ${snapshotFacts.evaluatedAt} <= ${since}
+          SELECT max(${numbersObservedAt}) FROM ${scope}
+            AND ${numbersObservedAt} <= ${since}
         ),
         ${since}
       ) AS evaluated_from
     ),
     facts AS (
-      SELECT ${snapshotFacts.evaluatedAt} AS evaluated_at,
+      SELECT ${numbersObservedAt} AS evaluated_at,
         ${snapshotFacts.averageRating} AS average_rating,
         ${snapshotFacts.reviewCount} AS review_count,
         ${shownTenths} AS tenths,
         LAG(${shownTenths}) OVER (
-          ORDER BY ${snapshotFacts.evaluatedAt}, ${snapshotFacts.runId}
+          ORDER BY ${numbersObservedAt}, ${snapshotFacts.runId}
         ) AS previous_tenths,
         ROW_NUMBER() OVER (
-          ORDER BY ${snapshotFacts.evaluatedAt}, ${snapshotFacts.runId}
+          ORDER BY ${numbersObservedAt}, ${snapshotFacts.runId}
         ) AS position
       FROM ${scope}
-        AND ${snapshotFacts.evaluatedAt} >= (SELECT evaluated_from FROM bound)
+        AND ${numbersObservedAt} >= (SELECT evaluated_from FROM bound)
     ),
     in_force AS (
       SELECT * FROM facts WHERE evaluated_at <= ${since} ORDER BY position DESC LIMIT 1

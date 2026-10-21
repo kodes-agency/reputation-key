@@ -470,6 +470,13 @@
       "when": 1794700000000,
       "tag": "0066_review_first_sightings",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1794800000000,
+      "tag": "0067_review_head_persist_facts",
+      "breakpoints": true
     }
   ]
 }

@@ -133,14 +133,15 @@ async function seedFact(
   propertyId: string,
   sourceEpoch: number,
   evaluatedMinutesAgo: number,
+  listingComplete = true,
 ) {
   await db.execute(sql`
     INSERT INTO review_google_reputation_snapshot_facts
       (run_id, event_id, organization_id, property_id, source_epoch, review_count,
-       average_rating, evaluated_at)
+       average_rating, evaluated_at, listing_complete)
     VALUES (${crypto.randomUUID()}, ${crypto.randomUUID()}, ${ORG}, ${propertyId},
             ${sourceEpoch}, 0, NULL,
-            NOW() - (${evaluatedMinutesAgo} * INTERVAL '1 minute'))
+            NOW() - (${evaluatedMinutesAgo} * INTERVAL '1 minute'), ${listingComplete})
   `)
 }
 
@@ -287,6 +288,18 @@ describe('reconciliation age read (real reads)', () => {
     await seedFact(fresh, 0, 1 * HOUR)
     await seedFact(stale, 0, 9 * HOUR)
     await seedFact(stale, 0, 20 * HOUR)
+
+    const after = (await read()).reconciliation
+
+    expect(after.overdueCount).toBe(baseline.overdueCount + 1)
+    expect(after.oldestAgeMs).toBeGreaterThanOrEqual(9 * HOUR * 60_000)
+  })
+
+  it('does not let a head fact reset the age: Google’s numbers from one read prove no completed listing', async () => {
+    const baseline = (await read()).reconciliation
+    const property = await seedProperty({ suffix: '1c' })
+    await seedFact(property, 0, 9 * HOUR)
+    await seedFact(property, 0, 5 * MINUTE, false)
 
     const after = (await read()).reconciliation
 

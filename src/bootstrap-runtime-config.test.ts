@@ -45,6 +45,7 @@ describe('createBootstrapRuntimeConfig: head checks', () => {
   it('follows REVIEW_HEAD_CHECKS', () => {
     expect(configFor({ REVIEW_HEAD_CHECKS: 'off' }).reviewHeadChecks).toBe('off')
     expect(configFor({ REVIEW_HEAD_CHECKS: 'dark' }).reviewHeadChecks).toBe('dark')
+    expect(configFor({ REVIEW_HEAD_CHECKS: 'persist' }).reviewHeadChecks).toBe('persist')
   })
 
   it('is independent of the skip rule: a head check only follows a skipped look', () => {
@@ -57,5 +58,17 @@ describe('createBootstrapRuntimeConfig: head checks', () => {
         REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED: 'false',
       }).reviewHeadChecks,
     ).toBe('dark')
+  })
+})
+
+describe('createBootstrapRuntimeConfig: reconciliation window', () => {
+  it('is six hours by default, in milliseconds', () => {
+    expect(configFor({}).reviewReconcileWithinMs).toBe(6 * 60 * 60 * 1_000)
+  })
+
+  it('follows REVIEW_RECONCILE_WITHIN_HOURS', () => {
+    expect(
+      configFor({ REVIEW_RECONCILE_WITHIN_HOURS: '24' }).reviewReconcileWithinMs,
+    ).toBe(24 * 60 * 60 * 1_000)
   })
 })

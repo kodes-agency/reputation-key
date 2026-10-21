@@ -84,6 +84,33 @@ describe('Current on Google durable consumer', () => {
     })
   })
 
+  it('orders and dates the fact by when Google’s numbers were read, not when the fact was written', async () => {
+    const snapshots = store()
+    const observed = '2026-08-28T04:41:00.000Z'
+
+    await handleCurrentGoogleReputationSnapshot(
+      snapshots,
+      envelope({
+        payload: { ...payload, numbersObservedAt: observed },
+      }) as Parameters<typeof handleCurrentGoogleReputationSnapshot>[1],
+    )
+
+    expect(snapshots.applyVerifiedSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ evaluatedAt: new Date(observed) }),
+    )
+  })
+
+  it('refuses a fact whose read time is not a date', async () => {
+    await expect(
+      handleCurrentGoogleReputationSnapshot(
+        store(),
+        envelope({
+          payload: { ...payload, numbersObservedAt: 'not-a-date' },
+        }) as Parameters<typeof handleCurrentGoogleReputationSnapshot>[1],
+      ),
+    ).rejects.toThrow('numbersObservedAt is invalid')
+  })
+
   it.each(['duplicate', 'obsolete'] as const)(
     'preserves the store %s classification',
     async (outcome) => {

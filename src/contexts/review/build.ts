@@ -248,6 +248,7 @@ export type ReviewContextApi = Readonly<{
       discoveryIntervalMs: number
       discoverySkipRecentlyReconciled: boolean
       headChecks: ReviewHeadChecksMode
+      reconcileWithinMs: number
     }) => Promise<void>
     /** Boot-time inventory-parity check for the provider subject keyring. */
     refreshProviderSubjectKeys: () => Promise<void>
@@ -314,6 +315,7 @@ export type ReviewContextApi = Readonly<{
       discoveryIntervalMs: number
       discoverySkipRecentlyReconciled: boolean
       headChecks: ReviewHeadChecksMode
+      reconcileWithinMs: number
     }) => Promise<void>
   }>
 }>
@@ -665,10 +667,12 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     discoveryIntervalMs,
     discoverySkipRecentlyReconciled,
     headChecks,
+    reconcileWithinMs,
   }: Readonly<{
     discoveryIntervalMs: number
     discoverySkipRecentlyReconciled: boolean
     headChecks: ReviewHeadChecksMode
+    reconcileWithinMs: number
   }>): Promise<void> => {
     const { registerReviewWorkerJobs } = await import('./infrastructure/worker-runtime')
     await registerReviewWorkerJobs({
@@ -695,7 +699,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       discoveryIntervalMs,
       discoverySkipRecentlyReconciled,
       headChecks,
+      reconcileWithinMs,
       headCheckQueue,
+      observationWriter,
+      subjectKeyService: providerSubjectKeys,
     })
   }
 

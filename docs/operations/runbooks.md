@@ -209,7 +209,7 @@ definitions and security controls live in
 
 **Alert:** `sync.sweep-lag` (P1) — the oldest past-due `review_sync_state.next_incremental_at` is more than 60 minutes overdue (four consecutive 15-minute sweeps failed to reach it).
 
-**What it means:** a property that was scheduled for an incremental sync has not been polled. Every value written to `next_incremental_at` is already in the future by the poll interval, so overdue age is pure sweep lag for a Property the sweep still selects (active, not deleted, bound to Google, connection usable; `sync.failed-nonzero` counts the same set). A Property archived, suspended or disconnected keeps the poll time and coded failure it had and the sweep never rewrites them, so the gauges leave it out. When it qualifies again (restored, resumed, re-bound, or its Google connection reconnected) it is counted at once, but its lag is measured from the later of its poll time and that day (`properties.updated_at`, `google_connections.credential_authorized_at`), so a restore does not page: it becomes overdue only if the sweep has not reached it 60 minutes after it qualified. `sync.failed-nonzero` has no such grace, as for any failure whose retry is due: a Property restored with a coded failure still on it shows there until the next sweep rewrites it (at most one 15-minute sweep). The alert is not measuring "properties are waiting", it is measuring "the sweep stopped working". A sweep run may now enqueue nothing for a Property: when push is configured and the Property's last completed reconciliation (the latest `evaluated_at` in `review_google_reputation_snapshot_facts` for its current source epoch) is under six hours old, the look only writes a later `next_incremental_at` and leaves `last_success_at` and the failure columns alone (ADR 0055, note of 2026-10-21). A skipped Property still counts against the 2,000-per-run budget below, because it was read from the due set. With Google Pub/Sub push dark (`sync.gbp_push_enabled = 0`) the sweep is the ONLY path a new review has into the app: nobody gets notified, the inbox goes quiet, and there is no error anywhere.
+**What it means:** a property that was scheduled for an incremental sync has not been polled. Every value written to `next_incremental_at` is already in the future by the poll interval, so overdue age is pure sweep lag for a Property the sweep still selects (active, not deleted, bound to Google, connection usable; `sync.failed-nonzero` counts the same set). A Property archived, suspended or disconnected keeps the poll time and coded failure it had and the sweep never rewrites them, so the gauges leave it out. When it qualifies again (restored, resumed, re-bound, or its Google connection reconnected) it is counted at once, but its lag is measured from the later of its poll time and that day (`properties.updated_at`, `google_connections.credential_authorized_at`), so a restore does not page: it becomes overdue only if the sweep has not reached it 60 minutes after it qualified. `sync.failed-nonzero` has no such grace, as for any failure whose retry is due: a Property restored with a coded failure still on it shows there until the next sweep rewrites it (at most one 15-minute sweep). The alert is not measuring "properties are waiting", it is measuring "the sweep stopped working". A sweep run may now enqueue nothing for a Property: when push is configured and the Property's last completed reconciliation (the latest `evaluated_at` of a `listing_complete` row in `review_google_reputation_snapshot_facts` for its current source epoch; a head fact never counts) is under six hours old, the look only writes a later `next_incremental_at` and leaves `last_success_at` and the failure columns alone (ADR 0055, note of 2026-10-21). A skipped Property still counts against the 2,000-per-run budget below, because it was read from the due set. With Google Pub/Sub push dark (`sync.gbp_push_enabled = 0`) the sweep is the ONLY path a new review has into the app: nobody gets notified, the inbox goes quiet, and there is no error anywhere.
 
 **First three things to check:**
 
@@ -221,7 +221,7 @@ definitions and security controls live in
 **Reading the dark head checks (`REVIEW_HEAD_CHECKS=dark`, the default):** a look the skip rule leaves empty is followed by one read of Google's newest page (ADR 0055, note 2026-10-21 (c)). It stores nothing; it records what a persisting check would store. Two places to read it:
 
 - The worker log line `Review head check finished` (`event: review_head_check`), content-free and with no Property id: `outcome` (`compared`, `order_violation`, `skipped_outstanding_failure`, `rate_limited`, `provider_unavailable`, `provider_rejected`, `authorization_changed`, `malformed_response`, `no_provider`, `error`), `listed`, `new`, `changed`, `replyChanged`, `leaseRefresh`, `wouldPersist`, `totalDifference` (Google's total minus the stored live count), `averageDifference`, `hasMore`, `orderViolation`, `durationMs`. The sweep line adds `headChecksEnqueued` and `headChecksFailed`.
-- One `review_sync_runs` row per check with `mode = 'head_dark'` (30 days). `result` is JSON, so a comparison is a query, for example the share of checks that would have stored something and the order-violation rate:
+- One `review_sync_runs` row per check with `mode = 'head_dark'` (30 days; a persisting check writes `mode = 'head'`, see below). `result` is JSON, so a comparison is a query, for example the share of checks that would have stored something and the order-violation rate:
 
 ```sql
 SELECT count(*) AS checks,
@@ -235,6 +235,46 @@ SELECT count(*) AS checks,
 ```
 
 `error_class` carries the outcome of every check that did not compare (`failed_count` is 1 for a provider failure). A high order-violation rate means Google ignores `orderBy` for some locations: the check cannot be trusted there and persisting must not be enabled. A page with any review that has no `updateTime` also counts as an order violation (the order of that review cannot be checked), so a Property that violates on every check may hold one such review and not an ignored `orderBy`; look at that Property before reading the rate as a Google fault. Kill switch: `REVIEW_HEAD_CHECKS=off` on the worker and restart; a head job already queued then ends as `disabled` without calling Google. A head check shares the reviews quota lane, so a rate-limited one only logs and ends; it never re-enqueues itself.
+
+**Switching the head checks from dark to persist (`REVIEW_HEAD_CHECKS=persist`, ADR 0055, note 2026-10-21 (d)):** persist stores what the dark rows say it would: the reviews that differ and Google's own count and average. It is built and OFF. Switch it on only when all of these hold:
+
+1. A week of `head_dark` rows has been read (the query above). The order-violation rate is near zero; `would_persist` is the share of checks that would have stored something and `new_reviews` and `reply_changes` are plausible against the Inbox; `total_differs` is explained (a count Google shows over what RepKey holds is normal while a deletion or a review beyond page 1 is waiting for the next full run).
+2. Migration 0067 is applied and web, the worker and every Google sidecar run the commit that carries the filtered readers (`listing_complete`). Check `\d review_google_reputation_snapshot_facts` shows `listing_complete` and `numbers_observed_at`.
+3. Set `REVIEW_HEAD_CHECKS=persist` on the worker and restart it. Nothing else changes; `REVIEW_RECONCILE_WITHIN_HOURS` stays at 6.
+
+**What to watch the first day:**
+
+- Head run rows now have `mode = 'head'`. Each is the dark comparison plus what was stored:
+
+```sql
+SELECT count(*) AS checks,
+       count(*) FILTER (WHERE (result::jsonb)->>'persisted' = 'stored') AS stored_checks,
+       count(*) FILTER (WHERE (result::jsonb)->>'persisted' = 'skipped_snapshot_active') AS skipped_active_run,
+       count(*) FILTER (WHERE (result::jsonb)->>'persisted' = 'skipped_no_listing') AS skipped_no_listing,
+       count(*) FILTER (WHERE (result::jsonb)->>'persisted' = 'unavailable') AS unavailable,
+       sum(created_count) AS new_reviews_stored,
+       sum(updated_count) AS other_stored,
+       sum(((result::jsonb)->>'failed')::int) AS write_failures,
+       count(*) FILTER (WHERE ((result::jsonb)->>'factWritten')::boolean) AS facts_written
+  FROM review_sync_runs
+ WHERE mode = 'head' AND started_at > now() - interval '1 day';
+```
+
+`write_failures` above zero is a retry waiting for the next look, not a latch; look at the worker log for `review_head_check_persist_failed`. `skipped_no_listing` should be rare (a new or relinked Property before its first full run).
+
+- The worker log line `Review head check finished` now also carries `persisted`, `storedNew`, `storedOther`, `storeFailed` and `factWritten`.
+- Facts: head facts are `listing_complete = false` rows in `review_google_reputation_snapshot_facts`, written on a change of Google's total or average or after six quiet hours, so about four a day on a quiet Property. A Property's newest fact should never be older than about six hours:
+
+```sql
+SELECT listing_complete, count(*), max(evaluated_at)
+  FROM review_google_reputation_snapshot_facts
+ WHERE evaluated_at > now() - interval '1 day' GROUP BY 1;
+```
+
+- Inbox closes: replies written on Google now close Inbox items within the look interval (15 to 60 minutes) instead of the next reconciliation. `review.reply.observed` events in `outbox_events` for the day rise accordingly; `inbox.on-reply-observed` receipts follow them.
+- Alerts: `sync.reconciliation-age` must NOT clear because of a head fact (it reads completed listings only); if it clears with no completed run, a process is reading unfiltered facts, so set `dark` at once. `sync.push-missed` should fall, because a review a head check finds is first seen via `head` and only an unpaired `snapshot` first sighting reads as missed.
+
+**Rolling back:** set `REVIEW_HEAD_CHECKS=dark` on the worker and restart. Head facts already written stay and are ignored by the readers that mean a completed listing; reviews already stored are ordinary reviews. Do not roll the code back past migration 0067 without first deleting the `listing_complete = false` rows.
 
 **Remediate:** dead worker → §7. Poison property → read `review_sync_state.error_class` / `last_terminal_error_at` for the property at the cursor and clear or fix it, then `ops:refresh reviews` for one bounded catch-up run. Starving sweep → raise `REVIEW_DISCOVERY_INTERVAL_MINUTES` so fewer properties come due per tick, or raise the batch budget; the alert clears once the oldest overdue property is polled. Raising the interval does not change how often a busy Property is actually read in full below six hours: that is the skip rule. To put every look back to a full snapshot (for example if a missed push needs finding sooner), set `REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED=false` on the worker and restart it. Quota/throttle from Google → §3.
 
@@ -254,11 +294,11 @@ SELECT count(*) AS checks,
 
 ### The hourly content refresh (`refresh-expiring-reviews`)
 
-It enqueues no sync. For each Property with a review whose content expires within five days it checks the last completed reconciliation (`review_google_reputation_snapshot_facts.evaluated_at`, current source epoch). Older than 24 hours, or none: the Property's `next_incremental_at` is moved up to now, and the normal discovery sweep runs it with its spread, the skip rule and the failure backoff (so expect the sync within one 15-minute sweep plus the start spread, not at once). A reconciliation inside the day: nothing, because that listing already refreshed every review Google lists. A Property with a failure whose retry date is ahead is not moved. The completion log line `Refresh expiring reviews completed` carries `refreshDueCount`, `pulledForward`, `skippedRecent` and `skippedBackoff`; on the `review_refresh_runs` row `enqueued_count` is the number pulled forward and `enqueue_failed_count` the number of failed updates. A content clock that still reaches 30 days on a Property that was reconciled inside the day means Google no longer lists that review, which is the correct outcome.
+It enqueues no sync. For each Property with a review whose content expires within five days it checks the last completed reconciliation (`review_google_reputation_snapshot_facts.evaluated_at` of a fact with `listing_complete = true`, current source epoch; a head fact from `REVIEW_HEAD_CHECKS=persist` is not one). Older than 24 hours, or none: the Property's `next_incremental_at` is moved up to now, and the normal discovery sweep runs it with its spread, the skip rule and the failure backoff (so expect the sync within one 15-minute sweep plus the start spread, not at once). A reconciliation inside the day: nothing, because that listing already refreshed every review Google lists. A Property with a failure whose retry date is ahead is not moved. The completion log line `Refresh expiring reviews completed` carries `refreshDueCount`, `pulledForward`, `skippedRecent` and `skippedBackoff`; on the `review_refresh_runs` row `enqueued_count` is the number pulled forward and `enqueue_failed_count` the number of failed updates. A content clock that still reaches 30 days on a Property that was reconciled inside the day means Google no longer lists that review, which is the correct outcome.
 
 ### Reconciliation age (`sync.reconciliation-age`)
 
-**Alert:** `sync.reconciliation-age` (P2) — a Property the sweep still polls has no completed reconciliation (a completed provider snapshot run, recorded as a `review_google_reputation_snapshot_facts` row for its current source epoch) inside the last 8 hours.
+**Alert:** `sync.reconciliation-age` (P2) — a Property the sweep still polls has no completed reconciliation (a completed provider snapshot run, recorded as a `listing_complete` `review_google_reputation_snapshot_facts` row for its current source epoch; a head fact from `REVIEW_HEAD_CHECKS=persist` does not count) inside the last 8 hours.
 
 **What it means:** the six-hour reconciliation is the safety net that finds a review whose push never came (ADR 0055 decision 5), and the only path while push is dark. The sweep guarantees one about every six hours; the alert fires two hours later, so a slow sweep does not page. A Property with no completed reconciliation yet is counted from the day it became syncable (`properties.updated_at`, `google_connections.credential_authorized_at`, as for `sync.sweep-lag`), and a Property restored with an old reconciliation is counted from the day it qualified again. A Property parked with a coded failure (`review_sync_state.error_class`, for example `review_cap_exceeded` for a location over the cap) is left out: it has its own alert, `sync.failed-nonzero`. The alert does not depend on push. It is held while the `health.sync` or `health.syncPush` section is degraded.
 

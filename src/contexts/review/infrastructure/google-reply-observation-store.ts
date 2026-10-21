@@ -35,6 +35,7 @@ import {
 } from '../domain/events'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import { assertObservationFence } from './google-reply-observation-fence'
+import { resolveSupersededReplyRead } from './google-reply-superseded-read'
 import { readPublicationCandidate } from './google-reply-publication-candidate'
 
 type ObservationRow = typeof googleReplyObservations.$inferSelect
@@ -815,10 +816,7 @@ export const createGoogleReplyObservationStore = (
           const headRows = await selectCurrentHead(tx, input)
           const head = headRows[0]
           if (head && input.readGeneration <= head.readGeneration) {
-            throw reviewError(
-              'invalid_transition',
-              'Google reply observation was superseded by a newer provider read',
-            )
+            return resolveSupersededReplyRead(input, head)
           }
 
           const evidence = await loadPublicationEvidence(tx, input)

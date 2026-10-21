@@ -398,3 +398,46 @@ describe('registered Portal guest locale schemas', () => {
     )
   })
 })
+
+describe('registered Google reputation snapshot verified schema', () => {
+  beforeEach(() => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+  })
+
+  const written = '2026-10-21T12:10:00.000Z'
+  const verified = {
+    organizationId: 'organization-1',
+    propertyId: '22222222-2222-4222-8222-222222222222',
+    sourceEpoch: 2,
+    runId: '33333333-3333-4333-8333-333333333333',
+    reviewCount: 120,
+    averageRating: 4.6,
+    evaluatedAt: written,
+    occurredAt: written,
+    sourceAggregateVersion: written,
+  } as const
+
+  it('accepts an event with no read time, as an older process wrote it', () => {
+    expect(
+      validateEventPayload('review.google_reputation_snapshot.verified', 1, verified),
+    ).toEqual(verified)
+  })
+
+  it('keeps the instant Google’s numbers were read, apart from when the fact was written', () => {
+    const payload = { ...verified, numbersObservedAt: '2026-10-21T12:09:00.000Z' }
+
+    expect(
+      validateEventPayload('review.google_reputation_snapshot.verified', 1, payload),
+    ).toEqual(payload)
+  })
+
+  it('refuses a read time that is not a date', () => {
+    expect(() =>
+      validateEventPayload('review.google_reputation_snapshot.verified', 1, {
+        ...verified,
+        numbersObservedAt: 'yesterday',
+      }),
+    ).toThrow(ZodError)
+  })
+})

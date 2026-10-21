@@ -32,19 +32,24 @@ let pool: Pool
 const db = getDb()
 let factSequence = 0
 
-/** A completed-run fact, as the snapshot repository writes it: timestamps only matter here. */
+/**
+ * A completed-run fact, as the snapshot repository writes it: timestamps only
+ * matter here. `listingComplete = false` is a head fact (Google's numbers from
+ * one read of its newest page), which proves no listing.
+ */
 async function seedFact(
   propertyId: string,
   sourceEpoch: number,
   evaluatedAt: Date,
+  listingComplete = true,
 ): Promise<void> {
   factSequence++
   const suffix = String(factSequence).padStart(12, '0')
   await pool.query(
     `INSERT INTO review_google_reputation_snapshot_facts
        (run_id, event_id, organization_id, property_id, source_epoch,
-        review_count, average_rating, evaluated_at)
-     VALUES ($1, $2, $3, $4, $5, 3, 4.5, $6)`,
+        review_count, average_rating, evaluated_at, listing_complete)
+     VALUES ($1, $2, $3, $4, $5, 3, 4.5, $6, $7)`,
     [
       `f3000000-0000-4000-8000-${suffix}`,
       `f4000000-0000-4000-8000-${suffix}`,
@@ -52,6 +57,7 @@ async function seedFact(
       propertyId,
       sourceEpoch,
       evaluatedAt,
+      listingComplete,
     ],
   )
 }
@@ -258,6 +264,31 @@ describe('reviewDiscoveryRepository failure backoff and pull-forward (integratio
       const later = new Date(NOW.getTime() + 5 * HOUR_MS)
       await scheduleAt(PROP_CONNECTED, later)
       await seedFact(PROP_CONNECTED, 0, new Date(NOW.getTime() - 2 * HOUR_MS))
+
+      const result = await repo.pullLooksForward([PROP_CONNECTED], NOW, reconciledSince)
+
+      expect(result).toEqual({ pulledForward: 0, skippedRecent: 1, skippedBackoff: 0 })
+      expect(await nextLook(PROP_CONNECTED)).toEqual(later)
+    })
+
+    it('does not count a recent head fact as a reconciliation: it proves no listing', async () => {
+      const repo = createReviewDiscoveryRepository(db)
+      await scheduleAt(PROP_CONNECTED, new Date(NOW.getTime() + 5 * HOUR_MS))
+      await seedFact(PROP_CONNECTED, 0, new Date(NOW.getTime() - 30 * HOUR_MS))
+      await seedFact(PROP_CONNECTED, 0, new Date(NOW.getTime() - HOUR_MS), false)
+
+      const result = await repo.pullLooksForward([PROP_CONNECTED], NOW, reconciledSince)
+
+      expect(result).toEqual({ pulledForward: 1, skippedRecent: 0, skippedBackoff: 0 })
+      expect(await nextLook(PROP_CONNECTED)).toEqual(NOW)
+    })
+
+    it('still leaves a Property alone when a completed listing is recent next to a newer head fact', async () => {
+      const repo = createReviewDiscoveryRepository(db)
+      const later = new Date(NOW.getTime() + 5 * HOUR_MS)
+      await scheduleAt(PROP_CONNECTED, later)
+      await seedFact(PROP_CONNECTED, 0, new Date(NOW.getTime() - 3 * HOUR_MS))
+      await seedFact(PROP_CONNECTED, 0, new Date(NOW.getTime() - HOUR_MS), false)
 
       const result = await repo.pullLooksForward([PROP_CONNECTED], NOW, reconciledSince)
 

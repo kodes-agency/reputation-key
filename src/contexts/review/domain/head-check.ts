@@ -10,9 +10,11 @@ import type { GoogleReview } from './types'
 
 /**
  * `REVIEW_HEAD_CHECKS`: `off` runs no head check; `dark` reads and compares and
- * logs what it would store, and changes nothing. A later change adds `persist`.
+ * logs what it would store, and changes nothing; `persist` does the same and
+ * then stores what it found (domain/head-persist.ts, ADR 0055 note of
+ * 2026-10-21 (d)). It stays `dark` until a week of dark data supports storing.
  */
-export type ReviewHeadChecksMode = 'off' | 'dark'
+export type ReviewHeadChecksMode = 'off' | 'dark' | 'persist'
 
 /**
  * A stored copy last fetched this long ago would be refreshed by a persisting
@@ -143,6 +145,21 @@ const classifyHeadReview = (
 }
 
 const round2 = (value: number): number => Math.round(value * 100) / 100
+
+/**
+ * The reviews of the page a persisting check stores, in the page's order: those
+ * classed `new`, `changed`, `reply_changed` or `lease_refresh`. A review that
+ * matches its stored copy is not stored again, because the writer records a
+ * source observation carrying the review's full text on every call.
+ */
+export const headReviewsToPersist = <Review extends HeadGoogleReview>(
+  input: Omit<HeadComparisonInput, 'reviews'> & Readonly<{ reviews: readonly Review[] }>,
+): readonly Review[] => {
+  const byId = new Map(input.copies.map((copy) => [copy.externalId, copy] as const))
+  return input.reviews.filter(
+    (review) => classifyHeadReview(review, byId.get(review.externalId), input).length > 0,
+  )
+}
 
 const countOf = (
   classes: ReadonlyArray<readonly HeadClass[]>,

@@ -133,6 +133,40 @@ describe('review domain events', () => {
     expect(JSON.stringify(event)).not.toMatch(/reviewText|reviewerName|replyText/u)
   })
 
+  it('carries the instant Google’s numbers were read, apart from when the fact was written', () => {
+    const observed = new Date(occurredAt.getTime() - 60_000)
+    const event = reviewGoogleReputationSnapshotVerified({
+      organizationId: organizationId('organization-1'),
+      propertyId: OBSERVED_PROPERTY_ID,
+      sourceEpoch: 3,
+      runId: '44444444-4444-4444-8444-444444444444',
+      reviewCount: 42,
+      averageRating: 4.6,
+      evaluatedAt: occurredAt,
+      numbersObservedAt: observed,
+      occurredAt,
+    })
+
+    expect(event.numbersObservedAt).toEqual(observed)
+    expect(event.sourceAggregateVersion).toBe(occurredAt.toISOString())
+  })
+
+  it('refuses a read time that is not a valid date', () => {
+    expect(() =>
+      reviewGoogleReputationSnapshotVerified({
+        organizationId: organizationId('organization-1'),
+        propertyId: OBSERVED_PROPERTY_ID,
+        sourceEpoch: 3,
+        runId: '44444444-4444-4444-8444-444444444444',
+        reviewCount: 1,
+        averageRating: 5,
+        evaluatedAt: occurredAt,
+        numbersObservedAt: new Date('nope'),
+        occurredAt,
+      }),
+    ).toThrow('numbersObservedAt must be a valid Date')
+  })
+
   it.each([
     { reviewCount: 0, averageRating: 4 },
     { reviewCount: 1, averageRating: null },

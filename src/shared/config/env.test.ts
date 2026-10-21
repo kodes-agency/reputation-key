@@ -176,9 +176,10 @@ describe('REVIEW_HEAD_CHECKS', () => {
     expect(parse()).toBe('dark')
   })
 
-  it('accepts exactly off and dark', () => {
+  it('accepts exactly off, dark and persist', () => {
     expect(parse('off')).toBe('off')
     expect(parse('dark')).toBe('dark')
+    expect(parse('persist')).toBe('persist')
   })
 
   it.each([
@@ -201,9 +202,37 @@ describe('REVIEW_HEAD_CHECKS', () => {
     },
   )
 
-  it('refuses persist: storing from a head check is a later change', () => {
-    expect(() => parse('persist')).toThrow('REVIEW_HEAD_CHECKS')
+  it.each(['Persist', 'PERSIST', 'persit', 'store', ' persist'])(
+    'refuses the near-miss %j for persist at boot instead of falling back to a mode',
+    (value) => {
+      expect(() => parse(value)).toThrow('REVIEW_HEAD_CHECKS')
+    },
+  )
+})
+
+describe('REVIEW_RECONCILE_WITHIN_HOURS', () => {
+  const parse = (value?: string) =>
+    parseEnvironment({
+      ...testEnvironment({}),
+      ...(value === undefined ? {} : { REVIEW_RECONCILE_WITHIN_HOURS: value }),
+    }).REVIEW_RECONCILE_WITHIN_HOURS
+
+  it('is six hours when unset, the window the skip rule shipped with', () => {
+    expect(parse()).toBe(6)
   })
+
+  it('accepts a whole number of hours from six to twenty-four', () => {
+    expect(parse('6')).toBe(6)
+    expect(parse('12')).toBe(12)
+    expect(parse('24')).toBe(24)
+  })
+
+  it.each(['5', '0', '-6', '25', '48', '6.5', 'six', ''])(
+    'refuses %j at boot: below six the sweep guarantee breaks, above twenty-four a Property goes a day unlisted',
+    (value) => {
+      expect(() => parse(value)).toThrow('REVIEW_RECONCILE_WITHIN_HOURS')
+    },
+  )
 })
 
 describe('GBP_PUBSUB_NOTIFICATION_TYPES', () => {

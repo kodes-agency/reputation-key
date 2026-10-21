@@ -207,8 +207,10 @@ async function readPushHealth(db: Database): Promise<SyncPushHealth['push']> {
 
 /**
  * How long each syncable Property has gone without a completed reconciliation:
- * the newest snapshot fact of its CURRENT source epoch (a relink bumps the
- * epoch, so an older epoch's fact never counts), or the day it qualified when
+ * the newest snapshot fact of its CURRENT source epoch that proves a completed
+ * listing (a relink bumps the epoch, so an older epoch's fact never counts; a
+ * head fact, Google's numbers from one read of its newest page, is no
+ * reconciliation), or the day it qualified when
  * it has none, whichever is later (a restored Property is late from the day it
  * was restored, not from the fact it kept). A Property parked with a coded
  * failure is left to that failure's own alert.
@@ -222,6 +224,7 @@ async function readReconciliationAge(
     WHERE ${facts.organizationId} = ${properties.organizationId}
       AND ${facts.propertyId} = ${properties.id}
       AND ${facts.sourceEpoch} = ${properties.sourceEpoch}
+      AND ${facts.listingComplete}
     ORDER BY ${facts.evaluatedAt} DESC
     LIMIT 1
   )`

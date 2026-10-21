@@ -722,6 +722,7 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
       failHeadEnqueue?: boolean
       skipRecentlyReconciled?: boolean
       spreadWindowMs?: number
+      reconcileWithinMs?: number
       clock?: () => Date
       batchSize?: number
     } = {},
@@ -745,6 +746,9 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
       spreadWindowMs: opts.spreadWindowMs ?? 0,
       skipRecentlyReconciled: opts.skipRecentlyReconciled ?? true,
       ...(opts.headChecks === undefined ? {} : { headChecks: opts.headChecks }),
+      ...(opts.reconcileWithinMs === undefined
+        ? {}
+        : { reconcileWithinMs: opts.reconcileWithinMs }),
       ...(opts.withQueue === false ? {} : { headCheckQueue: headQueue }),
     })
     return { handler, discoveryRepo, rows, syncJobs, headCalls, logger }
@@ -850,6 +854,39 @@ describe('discover-new-reviews sweep: head checks on skipped looks', () => {
         new Date(reconciled.getTime() + 6 * HOUR - DEFAULT_DISCOVERY_INTERVAL_MS),
       )
     }
+  })
+
+  it('follows a skipped look with a head job in persist mode too', async () => {
+    const deps = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
+      headChecks: 'persist',
+    })
+
+    await deps.handler({} as never)
+
+    expect(deps.syncJobs).toHaveLength(0)
+    expect(deps.headCalls).toHaveLength(1)
+    expect(deps.rows.at(0)?.nextDueAt).toEqual(
+      new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
+    )
+  })
+
+  it('skips a Property reconciled ten hours ago when the window is twenty-four hours, and a six hour window does not', async () => {
+    const widened = makeHeadDeps(
+      [prop(1, { ...HOT, lastReconciledAt: ago(10 * HOUR) })],
+      { headChecks: 'persist', reconcileWithinMs: 24 * HOUR },
+    )
+    const standard = makeHeadDeps(
+      [prop(1, { ...HOT, lastReconciledAt: ago(10 * HOUR) })],
+      { headChecks: 'persist' },
+    )
+
+    await widened.handler({} as never)
+    await standard.handler({} as never)
+
+    expect(widened.syncJobs).toHaveLength(0)
+    expect(widened.headCalls).toHaveLength(1)
+    expect(standard.syncJobs).toHaveLength(1)
+    expect(standard.headCalls).toHaveLength(0)
   })
 
   it('treats a missing head queue as off rather than waking the Property early for nothing', async () => {
