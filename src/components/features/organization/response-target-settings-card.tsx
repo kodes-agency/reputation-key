@@ -221,7 +221,7 @@ export function ResponseTargetSettingsCard({
         <TargetPolicyForm
           key={`google:${settings.organization.googleReviewResponse.policyVersion ?? 'default'}`}
           label="Google review response"
-          description="Measured from the saved Google publication, meaningful review update, or reopen time; onboarding history is excluded."
+          description="Measured from the saved Google publication, meaningful review update, or reopen time to the response's time on Google; onboarding history is excluded."
           policy={settings.organization.googleReviewResponse}
           updatePolicy={updatePolicy}
           offersLowRating
@@ -231,7 +231,10 @@ export function ResponseTargetSettingsCard({
             <SectionTitle level={3}>Google review response performance</SectionTitle>
             <p className="text-sm text-muted-foreground">
               Based only on cycles with reliable saved timing. Imported history and older
-              records without timing evidence stay visible as excluded counts.
+              records without timing evidence stay visible as excluded counts. A response
+              counts at the time it was written on Google, or the time RepKey saw it when
+              Google gives none. Responses closed before 21 October 2026 were counted at
+              the time RepKey saw them.
             </p>
           </div>
           <GoogleReviewTargetSummary analytics={googleReviewAnalytics} />

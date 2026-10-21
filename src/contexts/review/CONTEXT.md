@@ -54,6 +54,10 @@ is not the identity or history authority.
   through `createEligibleGoogleReplyReads`, which also drops an observation
   whose own content clock lapsed; the two can disagree once a reply has not
   changed for the cache window.
+- The exact-current reply-observation permit also carries `provider_updated_at`
+  (as `providerReplyUpdatedAt`, null when Google gave none) so Inbox can stop a
+  Response Target at Google's reply time. Unlike Reporting above, a missing time
+  falls back to when RepKey read Google, which is today's behaviour for targets.
 - The Inbox projection rebuild reads the same truth through `lookups.reply`:
   `findMilestonesByReviewIds` counts a live head's reply as published at
   Google's time (else when RepKey read it), and
