@@ -136,6 +136,54 @@ describe('Google quota policy coverage', () => {
     })
   })
 
+  // The replyBurst scenario (catalogue.ts: 25 replies on one connection) makes
+  // a publish of two Google calls: the read before the claim and the write.
+  describe('a burst of 25 publishes on one connection', () => {
+    const BURST = 25
+    const key = {
+      credentialFingerprint: 'c'.repeat(64),
+      projectFingerprint: PROJECT_FINGERPRINT,
+      endpointClass: 'reviews' as const,
+      organizationId: 'org-1',
+      initiatorUserId: null,
+      connectionId: 'conn-1',
+      propertyId: 'prop-1',
+    }
+
+    /** How many of the burst's calls the quota refuses, each publish being its
+     * read and then its write, under the policy the catalogue gives each route. */
+    async function refusedCalls(
+      policyOf: (routeKey: 'reviews.get' | 'reviews.reply') => string,
+    ): Promise<number> {
+      const coordination = lookup()
+      let refused = 0
+      for (let publish = 0; publish < BURST; publish += 1) {
+        for (const routeKey of ['reviews.get', 'reviews.reply'] as const) {
+          const quota = coordination.quotaForPolicy(policyOf(routeKey))
+          const result = await quota?.acquire(key, 1, NOW_MS + 5_000)
+          if (result?.ok !== true) refused += 1
+        }
+      }
+      return refused
+    }
+
+    it('is admitted in full: the reads fit the review lane and the writes the reply lane', async () => {
+      await expect(
+        refusedCalls(
+          (routeKey) => GOOGLE_PROVIDER_ROUTE_POLICIES[routeKey].quotaPolicyId,
+        ),
+      ).resolves.toBe(0)
+    })
+
+    it('would have been refused on one shared lane: 50 calls against 30', async () => {
+      const refused = await refusedCalls(
+        () => GOOGLE_PROVIDER_ROUTE_POLICIES['reviews.get'].quotaPolicyId,
+      )
+
+      expect(refused).toBe(2 * BURST - 30)
+    })
+  })
+
   it('keeps the notification writes inside Google’s published edit and project limits', () => {
     const write = GOOGLE_QUOTA_POLICIES['google-notifications-write-v1']
     const read = GOOGLE_QUOTA_POLICIES['google-notifications-read-v1']

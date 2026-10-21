@@ -34,7 +34,7 @@ import {
   publicationFailureCause,
   publicationFailureEvidence,
 } from '../../domain/reply-publication-workflow'
-import { organizationId, propertyId, googleConnectionId } from '#/shared/domain/ids'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
   buildPublishFailedEvent,
   cancelPublicationCycle,
@@ -57,10 +57,18 @@ export type PrereadTarget = Readonly<{
   reviewName: string | null
 }>
 
+/** A target the worker can read: the Review has a Google subject. */
+export type ReadableTarget = Readonly<{
+  reply: Reply
+  review: Review &
+    Readonly<{ googleConnectionId: NonNullable<Review['googleConnectionId']> }>
+  reviewName: string
+}>
+
 /** Whether this job reads Google first: a fresh `authorized` cycle on a Review
  * that has a Google subject. A persisted `sending` row is read back instead, and
  * a Review with no subject is refused after the claim, as before. */
-export function readsGoogleBeforeClaim(target: PrereadTarget): boolean {
+export function readsGoogleBeforeClaim(target: PrereadTarget): target is ReadableTarget {
   return (
     target.reply.publicationState === 'authorized' &&
     target.review.googleConnectionId !== null &&
@@ -88,17 +96,16 @@ function isSameAuthorizedCycle(current: Reply | null, original: Reply): current 
 export async function readGoogleBeforeClaim(
   deps: PrereadDeps,
   job: Job<PublishReplyJobData>,
-  target: PrereadTarget,
+  target: ReadableTarget,
 ): Promise<Reply | null> {
   const { reply, review, reviewName } = target
-  if (review.googleConnectionId === null || reviewName === null) return null
 
   let result
   try {
     result = await deps.readBeforePublish({
       organizationId: organizationId(reply.organizationId),
       propertyId: propertyId(review.propertyId),
-      connectionId: googleConnectionId(review.googleConnectionId),
+      connectionId: review.googleConnectionId,
       sourceEpoch: review.sourceEpoch,
       locationName: review.externalLocationId,
       reviewName,
