@@ -1441,6 +1441,33 @@ The job now causes Google egress, so its entry-point rows carry
 authorizer decides per Organization. See
 `docs/operations/inbox-response-targets.md`.
 
+## Amended 2026-10-21 — Google's reply moderation state is parsed and logged, not decided on
+
+The residual race above says a reply Google holds back for moderation is not
+parsed. Google's v4 reference documents `reviewReplyState` (`PENDING`,
+`REJECTED`, `APPROVED`, or unspecified) and `policyViolation` (set only when
+`REJECTED`) on a review reply, and the review adapter now reads both. It records
+them in the log only; nothing in this ADR changes behaviour.
+
+- Every list page and every `reviews.get` (so the pre-publish read, the reminder
+  pre-check, the push fetch and both read-backs) writes one count line of
+  replies per state. RepKey's own two read-backs of a publication attempt also
+  write one `reply_publication_readback` line: the state, whether Google sent a
+  `comment` and an `updateTime`, whether the text matched the attempt, and the
+  policy code when `REJECTED`. No line carries reply text.
+- A confirmation, supersede, Inbox close or reopen, and the metrics, are decided
+  exactly as before. A test asserts that a `PENDING` read produces the same
+  observation as the same read without the field. So a reply Google is still
+  reviewing is still read as live and, if Google still sends its text, so is
+  one it rejected; the residual race stays open on purpose.
+- Google does not document what `comment` and `updateTime` hold while a reply
+  is `PENDING` or `REJECTED`, or how an edit of an approved reply behaves. A
+  past incident here came from building against a payload we imagined, so the
+  behaviour (a distinct wait for approval, a rejection that is not a deletion)
+  is designed in a later change from the lines this one writes.
+- No column, event field or digest is added. The policy code is never an event
+  payload (ADR 0030 allowlist), and nothing is named `reason`.
+
 ## Amended 2026-10-21 — a reply written on Google completes the target at Google's reply time
 
 The same fact drives the other end of the Google Response Target. A reply

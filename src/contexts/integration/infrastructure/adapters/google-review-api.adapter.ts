@@ -33,6 +33,11 @@ import {
   reviewReplyUrlField,
 } from './google-review-page'
 import {
+  parseReplyModeration,
+  replyModerationFields,
+  reportReplyModeration,
+} from './google-review-reply-moderation'
+import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
   gatewayFailureError,
@@ -99,6 +104,9 @@ const gbpReviewItemSchema = z.object({
     .object({
       comment: z.string().optional(),
       updateTime: z.string().optional(),
+      // Google's moderation of the reply, read and counted only
+      // (`google-review-reply-moderation.ts`); it never fails a page.
+      ...replyModerationFields,
     })
     .optional(),
   createTime: z.string().min(1).max(64),
@@ -415,6 +423,7 @@ function mapReview(
     replyUpdatedAt: raw.reviewReply?.updateTime
       ? parseDate(raw.reviewReply.updateTime)
       : null,
+    replyModeration: parseReplyModeration(raw).moderation,
   }
 }
 
@@ -584,6 +593,7 @@ export const createGoogleReviewApiAdapter = (
       rawReviews,
       reviews.map((review) => review.googleReviewUrl),
     )
+    reportReplyModeration(deps.logger, 'reviews.list', rawReviews)
     let nextCursorRef: string | null = null
     const nextPageToken = parsed.data.nextPageToken
     if (nextPageToken) {
@@ -727,6 +737,7 @@ export const createGoogleReviewApiAdapter = (
       [parsed.data],
       [review.googleReviewUrl],
     )
+    reportReplyModeration(deps.logger, 'reviews.get', [parsed.data])
     return { status: 'found', review }
   }
 

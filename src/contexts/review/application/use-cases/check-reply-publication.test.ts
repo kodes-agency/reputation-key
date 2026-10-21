@@ -567,6 +567,7 @@ describe('checkReplyPublication — through the real targeted read', () => {
           })),
         },
         clock: () => NOW,
+        logger: { info: vi.fn() },
       }),
     }
 
