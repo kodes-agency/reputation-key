@@ -1,7 +1,9 @@
-// What a snapshot run whose confirmation found a different set is recorded as.
+// What a snapshot run whose listing moved under it is recorded as.
 //
 // `listing_changed` (the sync starts again quietly) or, once the Property's
-// runs keep changing, `confirmation_set_changed` (loud). The rule is
+// runs keep changing, the code that says what moved (loud): a different set
+// between the two scans, a different Google total or average from one page to
+// the next, or one review on two main-scan pages. The rule is
 // application/snapshot-listing-change.ts; this reads the runs it needs, inside
 // the transaction that holds the failing run's lock. Only one run of a
 // Property source epoch is active at a time, so the runs before it are final.
@@ -12,14 +14,18 @@ import type { Tx } from '#/shared/outbox/commit'
 import type { ReviewProviderSnapshotFailureCode } from '../../application/ports/review-provider-snapshot.repository'
 import {
   LISTING_CHANGE_QUIET_RUNS,
+  isListingMove,
   listingChangeFailureCode,
+  storedFailureCode,
+  type SnapshotFailureRequest,
 } from '../../application/snapshot-listing-change'
 
 type RunRow = typeof reviewProviderSnapshotRuns.$inferSelect
 
 /**
- * The code a failure asked for as `confirmation_set_changed` is recorded with.
- * Every other code is recorded as asked.
+ * The code a failure is recorded with. One that asked for a listing move
+ * (`isListingMove`) is recorded as `listing_changed` until the Property's runs
+ * keep moving; every other failure is recorded as asked.
  *
  * Reads at most `LISTING_CHANGE_QUIET_RUNS` of the Property's earlier runs of
  * this source epoch, newest first. A run lost to a cursor store restart is
@@ -27,7 +33,7 @@ type RunRow = typeof reviewProviderSnapshotRuns.$inferSelect
  *
  * The table has no index for failed runs (only for active and completed ones),
  * so this reads the whole table, which holds 30 days of every Property's runs.
- * It runs only when a set has changed, once in a few hundred runs, and the
+ * It runs only when a listing has moved, once in a few hundred runs, and the
  * lock it runs under is the failing run's own. If the table grows enough to
  * make that slow, a sidecar index over (organization_id, property_id,
  * source_epoch, started_at) serves it.
@@ -35,9 +41,9 @@ type RunRow = typeof reviewProviderSnapshotRuns.$inferSelect
 export async function recordedFailureCode(
   tx: Tx,
   run: RunRow,
-  requested: ReviewProviderSnapshotFailureCode,
+  requested: SnapshotFailureRequest,
 ): Promise<ReviewProviderSnapshotFailureCode> {
-  if (requested !== 'confirmation_set_changed') return requested
+  if (!isListingMove(requested)) return storedFailureCode(requested)
   const previous = await tx
     .select({ failureCode: reviewProviderSnapshotRuns.failureCode })
     .from(reviewProviderSnapshotRuns)
@@ -57,6 +63,7 @@ export async function recordedFailureCode(
     )
     .limit(LISTING_CHANGE_QUIET_RUNS)
   return listingChangeFailureCode(
+    requested,
     previous.map((row) => row.failureCode as ReviewProviderSnapshotFailureCode | null),
   )
 }

@@ -210,6 +210,74 @@ refused when either count is 0, when its pages are not `ceil(unique / 50)`, and
 when its confirmation scan lists a different set than its main scan
 (`application/snapshot-count-gap.ts`).
 
+## Note 2026-10-20 — a listing that moves while a scan is reading its pages
+
+The note on a listing that changes between a run's two scans made one kind of
+move quiet: the confirmation finding a different set than the main scan. A
+guest posting while a run is reading causes the same thing earlier in a run.
+Google carries its total and its average on every page of a scan, and a page
+commit refuses one that differs from the first page's (`total_changed`,
+`average_changed`); a main scan also refuses a review it already listed on an
+earlier page (`duplicate_resource`). On the closed beta on 2026-10-20 the
+largest location (75 pages, about 15 minutes a run) failed two runs in a row as
+`total_changed` (Sentry JAVASCRIPT-TANSTACKSTART-REACT-4): 3,716 expected,
+lost at page 7, then 3,717 expected, lost at page 65. The total grew because
+guests posted while the run was listing, and the next two runs completed. Each
+failure was a Sentry error, a `sync.failed-nonzero` and `queue.quarantine-nonempty`
+alert, a dead letter and a repair latch on the sync job.
+
+As implemented now, those moves end the run as `listing_changed`, by the same
+rule and the same restart as the earlier note: the run removes nothing, the
+worker logs `review_snapshot_listing_changed` with Google's total and the two
+listings' counts (a run that stopped in its main scan has none confirmed), and
+the sync job starts a fresh run at once under the same initiator, so a first
+import stays an import. The kinds of move count together towards the repeat
+rule. When the Property's two runs before it in the same source epoch also
+ended on a move, whichever kind, the run is recorded under the code that says
+what moved (`total_changed`, `average_changed`, `confirmation_set_changed`, or
+`duplicate_resource` for a review on two pages) and fails loudly as before, and
+so does every later one until a run completes or ends some other way. Stored
+codes stay the closed list Sentry tags and alerts know; no new code is added
+(`application/snapshot-listing-change.ts`).
+
+What counts as a move, and why:
+
+- **Total or average differing from one page to the next.** A new review moves
+  the total first, so a moved average with the same total is a re-rated review
+  or Google recomputing. The direction does not matter: a review deleted
+  mid-run is as much a guest as one posted, and the run removes nothing either
+  way.
+- **A review on two pages of the main scan.** Google lists the most recently
+  updated review first by default, so a review posted or edited mid-scan shifts
+  every later page by one and the last review of a page opens the next. The
+  confirmation scan's twin of this was already `confirmation_set_changed`.
+  Sentry has seen no such run yet; it is included because the shape is the
+  same and because it is safe on the same grounds, not because it was seen.
+- **Not a move, loud on the first run:** one review twice on a single page (a
+  page is one response, so Google's response is broken), and one review id
+  linked to two provider resources (our mapping is broken). Both still fail as
+  `duplicate_resource` at once. A loud overlap is stored under the same code,
+  so a run that ended on either counts towards the repeat rule, which can only
+  make the next move loud sooner.
+
+Safety. A removal needs a main scan that finished and agreed with Google's
+total (`finishMainScan`, the only place a first miss or a removal candidate is
+recorded), a confirmation scan that listed the same set, and a run that reached
+its apply step. A run that moves mid-scan reaches none of these, so it records
+no candidate and no first miss and removes nothing. It keeps what its earlier
+pages observed, as any failed run does. The fresh run lists from page 0 under
+its own two listings and passes every check itself.
+
+Evidence for the threshold. Over the closed beta's five days of runs, 5 of about
+2,500 ended on a listing move, on two Properties; on the largest, 3 of 143 runs,
+one pair of them back to back (the pair above). Two quiet runs stay: a third in
+a row is a listing that does not hold still. At the rate seen (a move was
+followed by another once in three) about one chain in nine would reach a third
+run, where every chain was loud before. The sample is small and runs on the
+largest location are lengthening (about 7 minutes on 2026-10-17, about 14 on
+2026-10-20), so a loud failure with no defect behind it is the signal to raise
+`LISTING_CHANGE_QUIET_RUNS`.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

@@ -176,10 +176,13 @@ async function runTargetedFetchStep(
  * - `cursor_lost`: a deploy that restarts the cursor store drops the cursors
  *   of every run in flight (ADR 0050 keeps nothing across a restart). The use
  *   case answers `cursor_failure` instead when no restart explains the loss.
- * - `listing_changed`: Google's listing changed between the run's two scans,
- *   most likely a guest posting mid-run, so the run removed nothing. The store
- *   records `confirmation_set_changed` instead once the Property's runs keep
- *   changing (application/snapshot-listing-change.ts).
+ * - `listing_changed`: Google's listing moved while the run was reading it,
+ *   most likely a guest posting mid-run (a different set between the two
+ *   scans, a different total or average from one page to the next, a review on
+ *   two pages), so the run removed nothing. The store records the specific
+ *   code (`confirmation_set_changed`, `total_changed`, `average_changed`,
+ *   `duplicate_resource`) instead once the Property's runs keep moving
+ *   (application/snapshot-listing-change.ts).
  */
 const RESTARTED_AT_ONCE: ReadonlySet<ReviewProviderSnapshotFailureCode> = new Set([
   'cursor_lost',

@@ -14,6 +14,13 @@
 // prove that one change ends the run as `listing_changed` with a fresh run
 // queued and no failure, that a listing that keeps changing is loud again, and
 // that a run whose listing changed removes nothing.
+//
+// The same holds when the listing moves while a scan is still reading its
+// pages: Google's total (or average) differing from page to page, or one
+// review on two pages. On the closed beta on 2026-10-20 the largest location
+// (75 pages, about 15 minutes a run) failed two runs in a row as
+// `total_changed`, at page 7 and at page 65, because guests posted while it
+// was listing; the two runs after them completed.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -242,10 +249,11 @@ const page = (
   reviews: readonly GoogleReview[],
   total: number,
   nextCursorRef: string | null = null,
+  averageRating = 5,
 ): GoogleReviewPage => ({
   reviews,
   totalReviewCount: total,
-  averageRating: 5,
+  averageRating,
   nextCursorRef,
 })
 
@@ -640,6 +648,320 @@ describe('a listing that changes between the two scans of a run (real PostgreSQL
   // as a temporary failure, which Feed ignores, and the fresh run completes.
   it('keeps a first import an import across the restart and ends it as completed', async () => {
     listings = [POSTED_MID_RUN, steady([first, second, posted])]
+    const initiator = {
+      kind: 'system' as const,
+      id: GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
+    }
+
+    const { thrown, outcomes } = await sync({ ...SYNC, initiator })
+
+    expect(thrown).toBeNull()
+    expect(outcomes.at(-1)).toMatchObject({ status: 'completed' })
+    const origins = await db.execute(sql`
+      SELECT observation_origin, failure_code FROM review_provider_snapshot_runs
+      WHERE organization_id = ${ORG} ORDER BY started_at
+    `)
+    expect(origins.rows).toEqual([
+      { observation_origin: 'historical_onboarding', failure_code: 'listing_changed' },
+      { observation_origin: 'historical_onboarding', failure_code: null },
+    ])
+    const facts = await db.execute(sql`
+      SELECT payload->>'outcome' AS outcome, payload->>'failureReason' AS reason
+      FROM outbox_events
+      WHERE event_type = 'review.property_history_import.finished'
+        AND organization_id = ${ORG}
+      ORDER BY created_at, id
+    `)
+    expect(facts.rows).toEqual([
+      { outcome: 'failed', reason: 'temporary' },
+      { outcome: 'completed', reason: null },
+    ])
+  })
+})
+
+/** A listing whose confirmation scan is never reached. */
+const mainOnly = (main: Scan): Listing => ({ main, confirmation: page([], 0) })
+
+const hidden = guestReview('listing-change-hidden')
+
+/** A guest posted between the requests for page 1 and page 2: Google's total
+ * is 3 on the first page and 4 on the second. */
+const TOTAL_GREW_MID_SCAN = mainOnly([
+  page([first], 3, NEXT_PAGE),
+  page([second, posted], 4),
+])
+
+/** Google's average moves between two pages while its total holds (a guest
+ * changed a rating). */
+const AVERAGE_MOVED_MID_SCAN = mainOnly([
+  page([first], 2, NEXT_PAGE, 5),
+  page([second], 2, null, 4.5),
+])
+
+/** A review posted (or edited, which moves it to the top of Google's list)
+ * between the two requests shifts the page boundary by one: `second` closes
+ * page 1 and opens page 2. Google's total holds, as a re-rated or edited review
+ * does not change it. */
+const REVIEW_ON_TWO_PAGES = mainOnly([
+  page([first, second], 3, NEXT_PAGE),
+  page([second, posted], 3),
+])
+
+/** The total moves while the confirmation scan reads its second page. */
+const TOTAL_GREW_MID_CONFIRMATION: Listing = {
+  main: page([first, second], 2),
+  confirmation: [page([first], 2, NEXT_PAGE), page([second], 3)],
+}
+
+describe('a Google listing that moves while a scan is reading its pages (real PostgreSQL)', () => {
+  // The largest beta location failed two runs in a row as `total_changed`
+  // (2026-10-20, expected 3,716 at page 7 and 3,717 at page 65); each was a
+  // Sentry error, an alert, a dead letter and a repair latch.
+  it('restarts the sync at once, without a failure, when the total grows between two pages, and removes nothing', async () => {
+    listings = [steady([first, second, hidden])]
+    await expect(sync()).resolves.toMatchObject({ thrown: null })
+    // An earlier run missed `hidden` two days ago, so a run that listed it
+    // missing again, in a listing that agrees with Google's total, could make
+    // it a removal candidate.
+    const earlierMiss = crypto.randomUUID()
+    await db.execute(sql`
+      UPDATE review_provider_subjects s
+      SET first_missing_at = now() - ${`${2 * DAY_MS} milliseconds`}::interval,
+          first_missing_snapshot_run_id = ${earlierMiss}
+      FROM reviews r
+      WHERE r.id = s.review_id AND r.organization_id = ${ORG}
+        AND r.external_id = ${hidden.externalId}
+    `)
+
+    runOrder = []
+    discoveryRepo.markSyncSucceeded.mockClear()
+    listings = [TOTAL_GREW_MID_SCAN, steady([first, second, posted, hidden])]
+    queued = [SYNC]
+    const changed = await drain(true)
+
+    expect(changed.thrown).toBeNull()
+    expect(changed.outcomes.at(-1)).toMatchObject({
+      status: 'failed',
+      code: 'listing_changed',
+    })
+    expect(await runCodes()).toEqual(['completed', 'listing_changed'])
+    // The fresh run is queued at once under the same initiator, as a new run.
+    expect(queued).toEqual([{ ...SYNC, sourceEpoch: 0 }])
+    expect(discoveryRepo.markDiscoveryDeferred).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      { event: 'review_snapshot_listing_changed', expected: 3, listed: 1, confirmed: 0 },
+      expect.any(String),
+    )
+    expect(logger.error).not.toHaveBeenCalled()
+    // The run that moved never reached its apply step: it recorded no removal
+    // candidate and no first miss, and removed nothing.
+    const candidates = await db.execute(sql`
+      SELECT c.state FROM review_provider_deletion_candidates c
+      JOIN review_provider_snapshot_runs run ON run.id = c.run_id
+      WHERE run.organization_id = ${ORG} AND run.failure_code = 'listing_changed'
+    `)
+    expect(candidates.rows).toEqual([])
+    const miss = await db.execute(sql`
+      SELECT s.first_missing_snapshot_run_id FROM review_provider_subjects s
+      JOIN reviews r ON r.id = s.review_id
+      WHERE r.organization_id = ${ORG} AND r.external_id = ${hidden.externalId}
+    `)
+    expect(miss.rows).toEqual([{ first_missing_snapshot_run_id: earlierMiss }])
+    expect(await storedSourceState(hidden)).toMatchObject({
+      source_content_state: 'active',
+    })
+
+    const { outcomes, thrown } = await drain()
+
+    expect(thrown).toBeNull()
+    expect(outcomes.at(-1)).toMatchObject({ status: 'completed' })
+    expect(await runCodes()).toEqual(['completed', 'listing_changed', 'completed'])
+    expect(discoveryRepo.markSyncSucceeded).toHaveBeenCalledTimes(1)
+    expect(await storedSourceState(hidden)).toMatchObject({
+      source_content_state: 'active',
+    })
+  })
+
+  it('restarts quietly when the total grows while the confirmation scan is reading', async () => {
+    listings = [TOTAL_GREW_MID_CONFIRMATION, steady([first, second, posted])]
+
+    const { outcomes, thrown } = await sync()
+
+    expect(thrown).toBeNull()
+    expect(outcomes.at(-1)).toMatchObject({ status: 'completed' })
+    expect(await runCodes()).toEqual(['listing_changed', 'completed'])
+    expect(discoveryRepo.markDiscoveryDeferred).not.toHaveBeenCalled()
+  })
+
+  it('restarts quietly when only the average moves between two pages', async () => {
+    listings = [AVERAGE_MOVED_MID_SCAN, steady([first, second])]
+
+    const { outcomes, thrown } = await sync()
+
+    expect(thrown).toBeNull()
+    expect(outcomes.at(-1)).toMatchObject({ status: 'completed' })
+    expect(await runCodes()).toEqual(['listing_changed', 'completed'])
+    expect(discoveryRepo.markDiscoveryDeferred).not.toHaveBeenCalled()
+  })
+
+  it('restarts quietly when a review shifts onto the next page of the main scan', async () => {
+    listings = [REVIEW_ON_TWO_PAGES, steady([first, second, posted])]
+
+    const { outcomes, thrown } = await sync()
+
+    expect(thrown).toBeNull()
+    expect(outcomes.at(-1)).toMatchObject({ status: 'completed' })
+    expect(await runCodes()).toEqual(['listing_changed', 'completed'])
+    expect(discoveryRepo.markDiscoveryDeferred).not.toHaveBeenCalled()
+  })
+
+  // Three runs in a row whose total moved is a listing that does not hold
+  // still, not guests posting: loud, and under the code that says what moved.
+  it.each([
+    { name: 'total', listing: TOTAL_GREW_MID_SCAN, code: 'total_changed' },
+    { name: 'average', listing: AVERAGE_MOVED_MID_SCAN, code: 'average_changed' },
+    { name: 'page boundary', listing: REVIEW_ON_TWO_PAGES, code: 'duplicate_resource' },
+  ])(
+    'fails loudly on the third run in a row whose $name moved, and stays loud',
+    async ({ listing, code }) => {
+      listings = [listing]
+
+      const loud = await sync()
+
+      expect(failureCode(loud.thrown)).toBe(code)
+      expect(await runCodes()).toEqual(['listing_changed', 'listing_changed', code])
+      expect(discoveryRepo.markDiscoveryDeferred).toHaveBeenCalledWith(
+        PROPERTY,
+        expect.any(Date),
+        expect.any(Date),
+        code,
+      )
+
+      // The next poll's run moves again: loud at once, with no quiet restart.
+      const next = await sync()
+      expect(failureCode(next.thrown)).toBe(code)
+      expect((await runCodes()).slice(3)).toEqual([code])
+    },
+  )
+
+  // However the listing moved, it counts towards the same run of changes: a
+  // moved total, then a changed confirmation set, then a moved total again.
+  it('counts moves of every kind together towards the third run', async () => {
+    listings = [TOTAL_GREW_MID_SCAN, POSTED_MID_RUN, TOTAL_GREW_MID_SCAN]
+
+    const loud = await sync()
+
+    expect(failureCode(loud.thrown)).toBe('total_changed')
+    expect(await runCodes()).toEqual([
+      'listing_changed',
+      'listing_changed',
+      'total_changed',
+    ])
+  })
+
+  it('counts afresh after a completed run', async () => {
+    listings = [
+      TOTAL_GREW_MID_SCAN,
+      TOTAL_GREW_MID_SCAN,
+      steady([first, second, posted]),
+      TOTAL_GREW_MID_SCAN,
+      steady([first, second, posted]),
+    ]
+
+    // Two moves, then a run that holds still.
+    const earlier = await sync()
+    expect(earlier.thrown).toBeNull()
+    expect(earlier.outcomes.at(-1)).toMatchObject({ status: 'completed' })
+    expect(await runCodes()).toEqual(['listing_changed', 'listing_changed', 'completed'])
+
+    // The next poll's first move is quiet again: the two before it do not count.
+    const later = await sync()
+    expect(later.thrown).toBeNull()
+    expect(later.outcomes.at(-1)).toMatchObject({ status: 'completed' })
+    expect((await runCodes()).slice(3)).toEqual(['listing_changed', 'completed'])
+    expect(discoveryRepo.markDiscoveryDeferred).not.toHaveBeenCalled()
+  })
+
+  // The same review twice on ONE page is Google's page being broken, not the
+  // listing moving between requests: it never restarts quietly.
+  it('fails loudly at once when a single page lists a review twice', async () => {
+    listings = [mainOnly(page([first, first], 2))]
+
+    const loud = await sync()
+
+    expect(failureCode(loud.thrown)).toBe('duplicate_resource')
+    expect(await runCodes()).toEqual(['duplicate_resource'])
+    expect(queued).toEqual([])
+    expect(discoveryRepo.markDiscoveryDeferred).toHaveBeenCalledWith(
+      PROPERTY,
+      expect.any(Date),
+      expect.any(Date),
+      'duplicate_resource',
+    )
+  })
+
+  // The store counts what the runs ended with: moves of every kind, and a
+  // stored `total_changed` from before runs of this kind restarted quietly.
+  it('counts earlier runs of every kind and is broken by any other failure', async () => {
+    const failedRun = async (
+      code:
+        | 'total_changed'
+        | 'average_changed'
+        | 'set_mismatch'
+        | 'confirmation_set_changed'
+        | 'duplicate_resource',
+    ) => {
+      const run = await snapshotRepository.startOrResume({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        sourceEpoch: 0,
+        observationOrigin: 'ongoing',
+      })
+      const failed = await snapshotRepository.failRun({
+        runId: run.id,
+        organizationId: ORG,
+        code,
+      })
+      return failed.failureCode
+    }
+
+    await expect(failedRun('total_changed')).resolves.toBe('listing_changed')
+    await expect(failedRun('average_changed')).resolves.toBe('listing_changed')
+    await expect(failedRun('confirmation_set_changed')).resolves.toBe(
+      'confirmation_set_changed',
+    )
+    await expect(failedRun('total_changed')).resolves.toBe('total_changed')
+    // Another failure ends the run of changes; the next change is quiet again.
+    await expect(failedRun('set_mismatch')).resolves.toBe('set_mismatch')
+    await expect(failedRun('average_changed')).resolves.toBe('listing_changed')
+  })
+
+  it('records a duplicate resource asked for outright as itself, whatever came before', async () => {
+    const failedRun = async (code: 'duplicate_resource' | 'set_mismatch') => {
+      const run = await snapshotRepository.startOrResume({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        sourceEpoch: 0,
+        observationOrigin: 'ongoing',
+      })
+      const failed = await snapshotRepository.failRun({
+        runId: run.id,
+        organizationId: ORG,
+        code,
+      })
+      return failed.failureCode
+    }
+
+    await expect(failedRun('duplicate_resource')).resolves.toBe('duplicate_resource')
+    await expect(failedRun('set_mismatch')).resolves.toBe('set_mismatch')
+    await expect(failedRun('duplicate_resource')).resolves.toBe('duplicate_resource')
+  })
+
+  // The first import is the only sync a person waits for. A moved total
+  // restarts it as an import and tells nobody: the run that failed says so as a
+  // temporary failure, which Feed ignores, and the fresh run completes.
+  it('keeps a first import an import across the restart and ends it as completed', async () => {
+    listings = [TOTAL_GREW_MID_SCAN, steady([first, second, posted])]
     const initiator = {
       kind: 'system' as const,
       id: GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,

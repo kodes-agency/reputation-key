@@ -159,13 +159,17 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     expect(finished).toMatchObject({ status: 'failed', code: 'set_mismatch' })
   })
 
-  it.each([
+  const AVERAGE_DRIFT_SCOPES = [
     { state: 'scanning' as const, phase: 'main' as const },
     { state: 'confirming' as const, phase: 'confirmation' as const },
-  ])('fails a $phase page when the provider average drifts', async (scope) => {
+  ]
+
+  /** A page of the run in `scope` whose average (4.5) differs from the one its
+   * first page recorded (4.4). */
+  const commitDriftedPage = async (scope: (typeof AVERAGE_DRIFT_SCOPES)[number]) => {
     await db
       .delete(reviewProviderSnapshotRuns)
-      .where(eq(reviewProviderSnapshotRuns.id, RUN_ID))
+      .where(eq(reviewProviderSnapshotRuns.propertyId, PROPERTY_ID))
     await db.insert(reviewProviderSnapshotRuns).values({
       id: RUN_ID,
       organizationId: ORGANIZATION_ID,
@@ -180,21 +184,71 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
         scope.phase === 'confirmation' ? new Date('2030-08-19T22:00:00.000Z') : null,
       expiresAt: new Date('2030-08-19T22:00:00.000Z'),
     })
+  }
 
-    await expect(
-      repository.commitPage({
-        runId: RUN_ID,
-        organizationId: organizationId(ORGANIZATION_ID),
-        phase: scope.phase,
-        expectedPageIndex: 0,
-        expectedCursorRef: null,
-        totalReviewCount: 2,
-        averageRating: 4.5,
-        nextCursorRef: null,
-        observations: [],
-      }),
-    ).resolves.toMatchObject({ status: 'failed', code: 'average_changed' })
-  })
+  const commitAveragePage = (scope: (typeof AVERAGE_DRIFT_SCOPES)[number]) =>
+    repository.commitPage({
+      runId: RUN_ID,
+      organizationId: organizationId(ORGANIZATION_ID),
+      phase: scope.phase,
+      expectedPageIndex: 0,
+      expectedCursorRef: null,
+      totalReviewCount: 2,
+      averageRating: 4.5,
+      nextCursorRef: null,
+      observations: [],
+    })
+
+  // A guest who re-rates a review while a run is reading moves Google's average
+  // from one page to the next. The run fails, removes nothing, and is recorded
+  // as `listing_changed` so the sync starts again at once
+  // (application/snapshot-listing-change.ts).
+  it.each(AVERAGE_DRIFT_SCOPES)(
+    'fails a $phase page when the provider average drifts, as listing_changed',
+    async (scope) => {
+      await commitDriftedPage(scope)
+
+      await expect(commitAveragePage(scope)).resolves.toMatchObject({
+        status: 'failed',
+        code: 'listing_changed',
+      })
+      const [row] = await db
+        .select({ failureCode: reviewProviderSnapshotRuns.failureCode })
+        .from(reviewProviderSnapshotRuns)
+        .where(eq(reviewProviderSnapshotRuns.id, RUN_ID))
+      expect(row?.failureCode).toBe('listing_changed')
+    },
+  )
+
+  it.each(AVERAGE_DRIFT_SCOPES)(
+    'fails a $phase page when the provider average drifts, as average_changed once the Property has seen two runs move',
+    async (scope) => {
+      await commitDriftedPage(scope)
+      for (const [index, failureCode] of (
+        ['listing_changed', 'total_changed'] as const
+      ).entries()) {
+        const terminalAt = new Date(STARTED_AT.getTime() - (index + 1) * 60_000)
+        await db.insert(reviewProviderSnapshotRuns).values({
+          id: `72000000-0000-4000-8000-00000000010${index}`,
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+          sourceEpoch: 0,
+          state: 'failed',
+          phase: 'terminal',
+          failureCode,
+          startedAt: new Date(terminalAt.getTime() - 60_000),
+          expiresAt: EXPIRES_AT,
+          terminalAt,
+          recordExpiresAt: new Date(terminalAt.getTime() + 30 * 24 * 60 * 60 * 1000),
+        })
+      }
+
+      await expect(commitAveragePage(scope)).resolves.toMatchObject({
+        status: 'failed',
+        code: 'average_changed',
+      })
+    },
+  )
 
   it('reports the terminal state when another worker already transitioned the run', async () => {
     await seedCompletedMainScan()

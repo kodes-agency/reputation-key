@@ -35,8 +35,21 @@ export type ReviewProviderSnapshotFailureCode =
    */
   | 'cursor_lost'
   | 'malformed_page'
+  /**
+   * Google's total differed from one page of the run to the next, and the
+   * Property's runs just before also saw their listing move
+   * (`snapshot-listing-change.ts`): a listing that keeps moving, so loud. The
+   * first two runs are recorded as `listing_changed`.
+   */
   | 'total_changed'
+  /** As `total_changed`, for Google's average rating. */
   | 'average_changed'
+  /**
+   * A page that listed one review twice, one review id linked to two provider
+   * resources, or (once the Property's runs keep moving, as `total_changed`)
+   * one review on two pages of the main scan. A review twice on one page and a
+   * doubly linked id are never quiet.
+   */
   | 'duplicate_resource'
   | 'resource_collision'
   | 'review_mutation'
@@ -46,15 +59,18 @@ export type ReviewProviderSnapshotFailureCode =
   | 'confirmation_deadline_elapsed'
   /**
    * The confirmation listing found a different set of reviews than the main
-   * one, and the Property's runs just before also did
+   * one, and the Property's runs just before also saw their listing move
    * (`snapshot-listing-change.ts`): a listing that keeps changing, so loud.
    */
   | 'confirmation_set_changed'
   /**
-   * The confirmation listing found a different set of reviews than the main
-   * one, most likely a guest posting mid-run. Nothing is removed and the sync
+   * Google's listing moved while the run was reading it, most likely a guest
+   * posting mid-run: the confirmation found a different set than the main
+   * scan, or the total or average differed from one page to the next, or one
+   * review sat on two pages of the main scan. Nothing is removed and the sync
    * job starts a fresh run instead of failing. The store records it in place
-   * of `confirmation_set_changed` until that repeats.
+   * of `confirmation_set_changed`, `total_changed`, `average_changed` or
+   * `duplicate_resource` (page overlap) until that repeats.
    */
   | 'listing_changed'
   | 'observation_failed'
@@ -261,10 +277,11 @@ export type ReviewProviderSnapshotRepository = Readonly<{
 
   /**
    * A removal candidate Google returned after all: the run's set changed, so
-   * the run fails. Wherever a set change is found (here, `commitPage`,
-   * `finishConfirmationScan`, or `failRun` asked for
-   * `confirmation_set_changed`) it is recorded as `listing_changed`, or as
-   * `confirmation_set_changed` once it repeats (`snapshot-listing-change.ts`).
+   * the run fails. Wherever a listing that moved is found (here, `commitPage`
+   * for a different total, average or set or a review on two pages,
+   * `finishConfirmationScan`, or `failRun` asked for one of those codes) it is
+   * recorded as `listing_changed`, or as the code that says what moved once it
+   * repeats (`snapshot-listing-change.ts`).
    * `commitPage`, `finishConfirmationScan` and `failRun` answer with the code
    * recorded; this one answers a status, and the caller reads the code back
    * from `failRun`.
