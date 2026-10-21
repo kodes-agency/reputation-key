@@ -829,11 +829,14 @@ function buildContainer(
     refreshReviewProviderSubjectKeys: review.worker.refreshProviderSubjectKeys,
     registerReviewWorkerJobs: ({
       reviewDiscoveryIntervalMs,
+      reviewDiscoverySkipRecentlyReconciled,
     }: {
       reviewDiscoveryIntervalMs: number
+      reviewDiscoverySkipRecentlyReconciled: boolean
     }) =>
       review.worker.registerWorkerJobs({
         discoveryIntervalMs: reviewDiscoveryIntervalMs,
+        discoverySkipRecentlyReconciled: reviewDiscoverySkipRecentlyReconciled,
       }),
     /** ARC-03-T7: the durable consumer registry this container owns. */
     consumerRegistry,

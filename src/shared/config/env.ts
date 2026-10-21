@@ -287,6 +287,20 @@ const baseEnvSchema = z.object({
   // waits before it is polled again, so it — not the firing cadence — is the
   // knob that trades review freshness against GBP quota. Default 15.
   REVIEW_DISCOVERY_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+  // Kill switch for the sweep's skip rule. Default 'true': a discovery look
+  // that finds a COMPLETED reconciliation of the Property's current source
+  // epoch inside the last six hours (ADR 0055 decision 5) enqueues nothing and
+  // only dates the next look, because push has delivered new reviews in the
+  // meantime. 'false' puts every look back to a full snapshot, the cadence
+  // REVIEW_DISCOVERY_INTERVAL_MINUTES alone describes. The rule is also off
+  // whenever GBP_PUBSUB_TOPIC is empty (the sweep is then the only path for a
+  // new review), whatever this says. Exactly 'true' or 'false': any other
+  // spelling refuses boot so a mistyped kill switch cannot silently stay on.
+  // Worker-read; set it on the worker, a restart applies it.
+  REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   // Dynamic Access Control — Stage 1 safety gate (ADR 0001).
   // 'true' enables the custom-role model (Stage 2 dynamic resolver). Absent or any
   // other value = false. Parsed as string→bool to avoid z.coerce.boolean()'s

@@ -94,6 +94,12 @@ import {
 
 export type BootstrapRuntimeConfig = Readonly<{
   reviewDiscoveryIntervalMs: number
+  /**
+   * The discovery sweep skips a look for a Property reconciled inside six
+   * hours. Needs the kill switch on AND push configured: without push the
+   * sweep is the only path for a new review, so every look stays full.
+   */
+  reviewDiscoverySkipRecentlyReconciled: boolean
   quarantineTtlMs: number
   notification: Readonly<{
     nodeEnv: Env['NODE_ENV']
@@ -108,6 +114,8 @@ export type BootstrapRuntimeConfig = Readonly<{
 /** Convert the validated process environment to the exact worker inputs once. */
 export const createBootstrapRuntimeConfig = (env: Env): BootstrapRuntimeConfig => ({
   reviewDiscoveryIntervalMs: env.REVIEW_DISCOVERY_INTERVAL_MINUTES * 60 * 1_000,
+  reviewDiscoverySkipRecentlyReconciled:
+    env.REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED && env.GBP_PUBSUB_TOPIC.length > 0,
   quarantineTtlMs: env.QUARANTINE_TTL_DAYS * 24 * 60 * 60 * 1_000,
   notification: {
     nodeEnv: env.NODE_ENV,
@@ -364,6 +372,7 @@ export async function bootstrap(
 
   await container.registerReviewWorkerJobs({
     reviewDiscoveryIntervalMs: runtime.reviewDiscoveryIntervalMs,
+    reviewDiscoverySkipRecentlyReconciled: runtime.reviewDiscoverySkipRecentlyReconciled,
   })
 
   container.jobRegistry.register(
