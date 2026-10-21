@@ -188,14 +188,17 @@ function makeDeps(overrides: {
     ),
   }
 
+  const logger = { info: vi.fn() }
+
   const deps: ReconcileReplyPublicationDeps = {
     replyRepo,
     reviewRepo,
     googleReviewApi,
     observationStore,
     clock: () => NOW,
+    logger,
   }
-  return { deps, googleReviewApi, observationStore }
+  return { deps, googleReviewApi, observationStore, logger }
 }
 
 describe('reconcileReplyPublication', () => {
@@ -549,4 +552,152 @@ describe('reconcileReplyPublication', () => {
     expect(result.isErr()).toBe(true)
     if (result.isErr()) expect(result.error).toMatchObject({ code: 'sync_failed' })
   })
+})
+
+// Google moderates owner replies. The sweep's read is one of the two reads
+// RepKey makes of its own attempt, so it writes the one content-free line the
+// behaviour decision will be designed from, and decides nothing differently.
+describe('reconcileReplyPublication reading Google moderation', () => {
+  const run = (deps: ReconcileReplyPublicationDeps) =>
+    reconcileReplyPublication(deps)({ replyId: REPLY_ID, organizationId: ORG_ID })
+
+  it('writes one read-back line with the state and what Google sent', async () => {
+    const { deps, logger } = makeDeps({
+      reply: makeReply({ publicationCycle: 2, publicationAttempts: 3 }),
+      review: makeReview(),
+      googleReview: makeGoogleReview({
+        replyText: 'Thank you!',
+        replyUpdatedAt: NOW,
+        replyModeration: {
+          state: 'pending',
+          policyViolation: null,
+          commentPresent: true,
+          updateTimePresent: true,
+        },
+      }),
+    })
+
+    await run(deps)
+
+    expect(logger.info).toHaveBeenCalledTimes(1)
+    expect(logger.info).toHaveBeenCalledWith(
+      {
+        event: 'reply_publication_readback',
+        source: 'reconcile_sweep',
+        publicationCycle: 2,
+        attemptNumber: 3,
+        moderationState: 'pending',
+        commentPresent: true,
+        updateTimePresent: true,
+        textMatchedAttempt: true,
+      },
+      expect.any(String),
+    )
+  })
+
+  it('carries the policy code of a rejected reply, never its text', async () => {
+    const { deps, logger } = makeDeps({
+      reply: makeReply(),
+      review: makeReview(),
+      googleReview: makeGoogleReview({
+        replyText: 'Something else entirely',
+        replyModeration: {
+          state: 'rejected',
+          policyViolation: 'SPAM',
+          commentPresent: true,
+          updateTimePresent: false,
+        },
+      }),
+    })
+
+    await run(deps)
+
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        moderationState: 'rejected',
+        policyViolation: 'SPAM',
+        textMatchedAttempt: false,
+      }),
+      expect.any(String),
+    )
+    expect(JSON.stringify(logger.info.mock.calls)).not.toContain('entirely')
+    expect(JSON.stringify(logger.info.mock.calls)).not.toContain('Thank you')
+  })
+
+  it('writes the line for a reply it cannot read too, before it records nothing', async () => {
+    const { deps, logger, observationStore } = makeDeps({
+      reply: makeReply(),
+      review: makeReview(),
+      googleReview: makeGoogleReview({
+        replyText: null,
+        replyUnreadable: true,
+        replyModeration: {
+          state: 'pending',
+          policyViolation: null,
+          commentPresent: true,
+          updateTimePresent: true,
+        },
+      }),
+    })
+
+    await run(deps)
+
+    expect(observationStore.record).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ moderationState: 'pending', textMatchedAttempt: false }),
+      expect.any(String),
+    )
+  })
+
+  it('writes no line when Google no longer returns the review', async () => {
+    const { deps, logger } = makeDeps({
+      reply: makeReply(),
+      review: makeReview(),
+      googleReview: null,
+    })
+
+    await run(deps)
+
+    expect(logger.info).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['pending', 'Thank you!'],
+    ['pending', 'A different reply'],
+    ['rejected', 'Thank you!'],
+    ['unspecified', 'Thank you!'],
+    ['approved', 'Thank you!'],
+    ['pending', null],
+  ] as const)(
+    'decides a %s read of %s exactly as the same read without the field',
+    async (state, replyText) => {
+      const without = makeDeps({
+        reply: makeReply(),
+        review: makeReview(),
+        googleReview: makeGoogleReview({ replyText, replyUpdatedAt: NOW }),
+      })
+      const withState = makeDeps({
+        reply: makeReply(),
+        review: makeReview(),
+        googleReview: makeGoogleReview({
+          replyText,
+          replyUpdatedAt: NOW,
+          replyModeration: {
+            state,
+            policyViolation: state === 'rejected' ? 'SPAM' : null,
+            commentPresent: replyText !== null,
+            updateTimePresent: true,
+          },
+        }),
+      })
+
+      const expected = await run(without.deps)
+      const actual = await run(withState.deps)
+
+      expect(withState.observationStore.record.mock.calls).toEqual(
+        without.observationStore.record.mock.calls,
+      )
+      expect(actual.isOk() && actual.value).toEqual(expected.isOk() && expected.value)
+    },
+  )
 })

@@ -8,6 +8,7 @@
  * `application/ports/` by the adapters that implement them.
  */
 export type { GoogleReview, StarRating } from '../domain/types'
+export type { ReplyModeration } from '../domain/reply-moderation'
 
 // BQC-5.3: reply length limit — single source of truth lives in
 // domain/rules; inbox reply editor components import it from here
