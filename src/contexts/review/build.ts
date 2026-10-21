@@ -89,6 +89,7 @@ import {
 } from './application/recovery-maintenance'
 import { runReviewProviderSnapshot } from './application/use-cases/run-review-provider-snapshot'
 import { runTargetedGoogleReviewFetch } from './application/use-cases/run-targeted-google-review-fetch'
+import { readReviewBeforePublish } from './application/use-cases/read-review-before-publish'
 import {
   draftReply,
   submitReply,
@@ -514,6 +515,14 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     observationStore: googleReplyObservationStore,
     clock: input.clock,
   })
+  // The publish job's read of Google before it claims a fresh publication;
+  // internal to the worker, so it is not part of the context's use cases.
+  const readReviewBeforePublishUseCase = readReviewBeforePublish({
+    googleReviewApi: input.googleReviewApi,
+    propertySourceEpoch: propertySourceEpochLookup,
+    observationWriter,
+    subjectKeyService: providerSubjectKeys,
+  })
   const useCases = {
     runReviewProviderSnapshot: runReviewProviderSnapshot({
       repository: snapshotRepository,
@@ -619,6 +628,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       propertySourceEpoch: propertySourceEpochLookup,
       runSnapshot: useCases.runReviewProviderSnapshot,
       runTargetedFetch: useCases.runTargetedGoogleReviewFetch,
+      readReviewBeforePublish: readReviewBeforePublishUseCase,
       runSourceContentLifecycle: useCases.runReviewSourceContentLifecycle,
       reconcileReplyPublication: useCases.reconcileReplyPublication,
       dispatchEvidence,

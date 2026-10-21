@@ -401,7 +401,11 @@ describe.sequential('reply commands and the AI draft purge (PostgreSQL)', () => 
       expect(harness.google.violations).toEqual([])
     })
 
-    it('is still sent when only its ten minutes have passed', async () => {
+    // The worker reads Google before it claims, and recording that read is an
+    // observation of the Review, which withdraws the AI-assisted replies whose
+    // ten minutes are over and that nothing has dispatched. A claim would have
+    // excused the window for text it had claimed before; the read comes first.
+    it('is withdrawn at the worker’s read of Google when only its ten minutes have passed', async () => {
       await confirmedAiReply()
       await harness.runPublishJob(0, 'rejected')
       expect(await harness.ai.letWindowPass()).toBe(1)
@@ -409,7 +413,13 @@ describe.sequential('reply commands and the AI draft purge (PostgreSQL)', () => 
       await harness.commands.retry()
       await harness.runPublishJob(1, 'accepted')
 
-      expect(harness.google.live?.text).toBe(AI_TEXT)
+      expect(harness.google.calls).toBe(1)
+      expect(harness.google.live).toBeNull()
+      expect(await harness.currentReply()).toMatchObject({
+        ...WITHDRAWN,
+        publicationCycle: 2,
+      })
+      expect(await cancellationCauses()).toEqual(['ai_draft_withdrawn'])
       expect(harness.google.violations).toEqual([])
     })
   })

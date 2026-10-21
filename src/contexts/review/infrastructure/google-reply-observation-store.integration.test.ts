@@ -1189,6 +1189,113 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     expect(claimed).toBeNull()
   })
 
+  // The read the publish worker makes before it claims is recorded as a
+  // provider snapshot. A reply typed on Google since the last sync moves the head
+  // the manager authorized against.
+  it('cancels a zero-attempt authorization as provider truth when a live external reply is recorded', async () => {
+    const { review } = await seedReviewAndReply({ claim: false })
+    const store = createGoogleReplyObservationStore(getDb())
+    // The head the manager's approval was authorized against: no reply.
+    await store.record(
+      observationInput(review, {
+        observationKey: sha256Hex('external-reply-first-sync'),
+        observedText: null,
+        providerUpdatedAt: null,
+      }),
+    )
+
+    await expect(
+      store.record(
+        observationInput(review, {
+          observationKey: sha256Hex('external-reply-typed-on-google'),
+          observedText: 'Thanks for your review! - The Front Desk',
+        }),
+      ),
+    ).resolves.toMatchObject({ resolution: 'external_current_live' })
+
+    await expect(
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
+    ).resolves.toMatchObject({
+      status: 'draft',
+      publicationState: 'cancelled',
+      publicationAttempts: 0,
+    })
+    const causes = await pool.query(
+      `SELECT payload->>'cause' AS cause FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'review.reply.publication_cancelled'`,
+      [ORG],
+    )
+    expect(causes.rows).toEqual([{ cause: 'provider_truth' }])
+  })
+
+  it('leaves a requeued cycle to the claim, which refuses it: the publish job ends it', async () => {
+    const { review, reply } = await seedReviewAndReply({ providerPending: false })
+    const commandStore = createTestReplyCommandStore()
+    const requeued = await commandStore.markPublicationRetryQueued(reply, NOW)
+    expect(requeued).toMatchObject({
+      publicationState: 'authorized',
+      publicationAttempts: 1,
+    })
+    const store = createGoogleReplyObservationStore(getDb())
+
+    await expect(
+      store.record(
+        observationInput(review, {
+          observationKey: sha256Hex('external-reply-after-requeue'),
+          observedText: 'Thanks for your review! - The Front Desk',
+        }),
+      ),
+    ).resolves.toMatchObject({ resolution: 'external_current_live' })
+
+    // The store did not cancel it: it only cancels a cycle that never sent.
+    await expect(
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
+    ).resolves.toMatchObject({ status: 'approved', publicationState: 'authorized' })
+    // The claim's head fence is what stops it.
+    await expect(
+      commandStore.markPublicationSending(
+        requeued!,
+        {
+          providerOperationKey: `publish:${REPLY_A}:requeued`,
+          propertyId: PROP_A,
+          sourceEpoch: review.sourceEpoch,
+          materialReviewRevision: review.sourceRevision,
+          baseObservationRevision: 0,
+        },
+        new Date(NOW.getTime() + 1_000),
+      ),
+    ).resolves.toBeNull()
+  })
+
+  it('records nothing for a read that only restates the head', async () => {
+    const { review } = await seedReviewAndReply({ claim: false })
+    const store = createGoogleReplyObservationStore(getDb())
+    const scope = {
+      organizationId: ORG,
+      propertyId: review.propertyId,
+      reviewId: review.id,
+    }
+    await store.record(
+      observationInput(review, {
+        observationKey: sha256Hex('restate-first'),
+        observedText: null,
+        providerUpdatedAt: null,
+      }),
+    )
+    const head = await store.findCurrentHead(scope)
+
+    await store.record(
+      observationInput(review, {
+        observationKey: sha256Hex('restate-second'),
+        observedText: null,
+        providerUpdatedAt: null,
+      }),
+    )
+
+    await expect(store.findCurrentHead(scope)).resolves.toEqual(head)
+  })
+
   it('supersedes the current attempt on cancellation so later provider truth remains recordable', async () => {
     const { review, reply } = await seedReviewAndReply({ providerPending: false })
     const commandStore = createTestReplyCommandStore()

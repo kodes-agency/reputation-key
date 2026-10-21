@@ -16,6 +16,9 @@
 //   (d) ambiguous publication + provider shows the reply → pressing "Check
 //       Google again" in the inbox heals to published, says so, and issues
 //       ZERO re-sends
+//   (e) someone replied on Google after the last sync → the worker reads the
+//       review before it claims, sees the reply RepKey had not recorded, ends
+//       the cycle (cancelled, provider_truth) and issues ZERO writes
 
 import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
@@ -339,6 +342,15 @@ test.describe('Critical workflow: reply lifecycle', () => {
     expect(puts).toHaveLength(1)
     expect(puts[0].path).toContain(`/reviews/happy-r1-${e2eRunId}/reply`)
     expect(puts[0].body).toContain('Final reply wording — thank you!')
+
+    // The worker read the review from Google before it wrote (a reply is an
+    // upsert, so this is the only thing that sees an answer typed there).
+    const readsOfTheReview = await gbpStubControl.calls({
+      method: 'GET',
+      pathPrefix: `/v4/${s.reviewName}`,
+    })
+    expect(readsOfTheReview.length).toBeGreaterThan(0)
+    expect(readsOfTheReview[0].at <= puts[0].at).toBe(true)
   })
 
   test('(b) transient 500 stays an uncertain send that is only ever checked', async ({
@@ -375,13 +387,16 @@ test.describe('Critical workflow: reply lifecycle', () => {
     // UNCERTAIN_SEND_PROPAGATION_GRACE_MS) instead of calling it ambiguous on
     // one absent read. The fail-then-success stub would accept a second PUT, so
     // a single PUT positively proves that no blind resend ran.
+    // The first read of the review is the worker's own, made before it claimed
+    // (it reads Google before every fresh publication); the second is this
+    // read-back.
     await waitFor(
       async () => {
         const gets = await gbpStubControl.calls({
           method: 'GET',
           pathPrefix: `/v4/${s.reviewName}`,
         })
-        return gets.length > 0 ? gets : null
+        return gets.length > 1 ? gets : null
       },
       {
         description: 'uncertain provider write read back once, without a second write',
@@ -661,5 +676,73 @@ test.describe('Critical workflow: reply lifecycle', () => {
       pathPrefix: `/v4/${s.locationName}/reviews`,
     })
     expect(gets.length).toBeGreaterThan(0)
+  })
+
+  test('(e) a reply typed on Google after the last sync is not replaced', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000)
+    const s = await setupScenario('external', { reviews: [stubReview('external')] })
+    // Someone answers on Google itself. RepKey has synced the review without a
+    // reply and knows nothing of it until a read records it.
+    await putScenarioScope('external', {
+      reviews: [
+        {
+          ...stubReview('external'),
+          reviewReply: {
+            comment: 'Thanks for your review! - The Front Desk',
+            updateTime: '2026-07-28T08:00:00Z',
+          },
+        },
+      ],
+    })
+    await signIn(page)
+
+    await callServerFn(page, {
+      file: REPLY_FILE,
+      exportName: 'draftReplyFn',
+      data: { reviewId: s.reviewId, text: 'A reply Google must not receive' },
+    })
+    await callServerFn(page, {
+      file: REPLY_FILE,
+      exportName: 'submitReplyFn',
+      data: { reviewId: s.reviewId },
+    })
+    await callServerFn(page, {
+      file: REPLY_FILE,
+      exportName: 'approveReplyFn',
+      data: { reviewId: s.reviewId },
+    })
+
+    // The worker reads the review before it claims, finds a reply that is not
+    // on record, and the cycle ends as provider truth: the reply is a draft
+    // again, with nothing sent and no attempt written.
+    const cancelled = await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.status === 'draft' && reply?.publication_state === 'cancelled'
+          ? reply
+          : null
+      },
+      {
+        timeoutMs: 60_000,
+        description: 'reply returned to draft by the worker’s read of Google',
+        diagnose: async () => await getReplyForReview(s.reviewId),
+      },
+    )
+    expect(cancelled.publication_attempts).toBe(0)
+    const causes = await dbQuery<{ cause: string }>(
+      `SELECT payload->>'cause' AS cause FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'review.reply.publication_cancelled'
+          AND payload->>'reviewId' = $2`,
+      [seed.organizationId, s.reviewId],
+    )
+    expect(causes).toEqual([{ cause: 'provider_truth' }])
+    const puts = await gbpStubControl.calls({
+      method: 'PUT',
+      pathPrefix: `/v4/${s.locationName}`,
+    })
+    expect(puts).toHaveLength(0)
   })
 })

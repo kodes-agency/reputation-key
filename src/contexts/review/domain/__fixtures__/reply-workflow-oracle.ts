@@ -392,6 +392,22 @@ export const mayBeClaimed = (reply: OracleReply, evidence: CommandEvidence): boo
   (!staleAiText(reply, evidence) ||
     (evidence.textClaimedBefore && evidence.aiInputsCurrent))
 
+/**
+ * Whether a worker's read of Google leaves the reply alone. A worker reads
+ * Google before it claims, and recording that read is an observation of the
+ * Review: the one that withdraws every unedited AI reply whose binding has run
+ * out of time or whose inputs changed, when nothing of it has been dispatched
+ * (`afterAiDraftPurge`, the replies past their window). So by the time a
+ * worker would claim AI text, a stale binding has already withdrawn it, claimed
+ * before or not: `mayBeClaimed` excuses the window for words claimed before,
+ * and a read that comes first does not. A reply that survives the read meets
+ * the claim as `mayBeClaimed` says.
+ */
+export const survivesTheWorkersRead = (
+  reply: OracleReply,
+  evidence: CommandEvidence,
+): boolean => is(reply, 'approved', 'authorized') && !staleAiText(reply, evidence)
+
 /** What one publication event does to a reply, or null when it does not apply. */
 type PublicationMove = (reply: OracleReply) => OracleReply | null
 
@@ -535,9 +551,10 @@ const withdrawn = (reply: OracleReply): OracleReply => ({
 })
 
 /**
- * A worker found AI text it may not claim (`mayBeClaimed`). Nothing is sent,
- * and the reply is withdrawn on the spot, exactly as the purge would withdraw
- * it at its next run. Null when the reply is not one a claim can refuse so.
+ * A worker found AI text it may not send: its read of Google withdrew it
+ * (`survivesTheWorkersRead`), or its claim refused it (`mayBeClaimed`).
+ * Nothing is sent, and the reply is withdrawn on the spot, as the purge
+ * withdraws it. Null when the reply is not one a claim can refuse so.
  */
 export const afterRefusedClaim = (reply: OracleReply): OracleReply | null =>
   is(reply, 'approved', 'authorized') && reply.authorship === 'ai_assisted'

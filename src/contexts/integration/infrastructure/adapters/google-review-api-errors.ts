@@ -227,6 +227,23 @@ export function replyAuthorizationRefusal(refusal: unknown): GoogleReviewApiErro
 }
 
 /**
+ * The review-sync authorizer refused the read RepKey makes before it publishes
+ * a reply. Like the write's refusal, it sent nothing and keeps its closed code
+ * as not-sent evidence; unlike the write's, an authorizer that could not decide
+ * (`runtime_unavailable`: a database or token outage) is transient, so it is the
+ * retryable `provider_unavailable`, not a terminal refusal. A read proves
+ * nothing about what Google holds, so retrying it is always safe.
+ */
+export function replyPreReadAuthorizationRefusal(refusal: unknown): GoogleReviewApiError {
+  const executionCode = contentFreeCode(errorField(refusal, 'code'))
+  if (executionCode !== 'runtime_unavailable') return replyAuthorizationRefusal(refusal)
+  return reviewApiError('provider_unavailable', true, {
+    failure: { ...NOT_SENT, executionCode },
+    failureLabel: executionCode,
+  })
+}
+
+/**
  * `executeGoogleProviderRaw` refuses a 200 whose content type is not JSON, but
  * for a write that refusal is about the body, not the outcome: Google answered
  * 200, so the reply was accepted. That branch is the only `parse_error` with an
