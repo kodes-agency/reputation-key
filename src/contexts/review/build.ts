@@ -34,6 +34,7 @@ import type { ReplyQueuePort } from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type {
   PropertyLifecycleState,
+  PropertyGoogleReadScopePublicApi,
   PropertyPublicationScopePublicApi,
   PropertySourceEpochPublicApi,
 } from '#/contexts/property/application/public-api'
@@ -89,6 +90,13 @@ import {
 } from './application/recovery-maintenance'
 import { runReviewProviderSnapshot } from './application/use-cases/run-review-provider-snapshot'
 import { runTargetedGoogleReviewFetch } from './application/use-cases/run-targeted-google-review-fetch'
+import {
+  checkReviewOnGoogle,
+  type CheckReviewOnGoogle,
+} from './application/use-cases/check-review-on-google'
+import type { PropertyGoogleReadBindingPort } from './application/ports/property-google-read-binding.port'
+import { readBindingFromPropertyScope } from './application/property-google-read-binding'
+import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
 import {
   draftReply,
   submitReply,
@@ -154,7 +162,9 @@ export type ReviewContextBuildInput = Readonly<{
   /** Identity-owned current actor/member/permission/Property decision. */
   publicationActorAuthority: ReplyPublicationActorAuthority
   /** Property-owned source epoch and lifecycle used to reject stale provider work. */
-  propertyApi: PropertySourceEpochPublicApi & PropertyPublicationScopePublicApi
+  propertyApi: PropertySourceEpochPublicApi &
+    PropertyPublicationScopePublicApi &
+    PropertyGoogleReadScopePublicApi
   /** Worker-only Review provider-subject key material; absent on web. */
   providerSubjectKeyring?: ReviewProviderSubjectSecretKeyring
   /** Web-side verification keys for browser-held AI reply suggestions. */
@@ -185,6 +195,8 @@ export type ReviewContextApi = Readonly<{
       replyObservationAuthority: ReviewReplyObservationAuthority
       responseTargetAuthority: import('./application/ports/response-target-authority.port').ReviewResponseTargetAuthority
       sourceTransitionAuthority: ReviewSourceTransitionAuthority
+      /** Read one stored review from Google and record what it shows (Inbox's reminder pre-check). */
+      checkReviewOnGoogle: CheckReviewOnGoogle
       /** Content-minimized Review source/version facts for authorized AI consumers. */
       aiReviewSource: AiReviewSourcePort
       /** Review-owned queue admission used by Integration import/push workflows. */
@@ -258,6 +270,7 @@ export type ReviewContextApi = Readonly<{
     useCases: Readonly<{
       runReviewProviderSnapshot: ReturnType<typeof runReviewProviderSnapshot>
       runTargetedGoogleReviewFetch: ReturnType<typeof runTargetedGoogleReviewFetch>
+      checkReviewOnGoogle: CheckReviewOnGoogle
       draftReply: ReturnType<typeof draftReply>
       submitReply: ReturnType<typeof submitReply>
       approveReply: ReturnType<typeof approveReply>
@@ -423,6 +436,14 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const propertySourceEpochLookup: PropertySourceEpochPort = {
     getSourceEpoch: (orgId, pid) => input.propertyApi.getSourceEpoch(orgId, pid),
   }
+  // A read of one review from Google authorizes against the Property's current
+  // binding, which only an active Property with an active Google binding holds.
+  const propertyGoogleReadBinding: PropertyGoogleReadBindingPort = {
+    getBinding: async (orgId, pid) =>
+      readBindingFromPropertyScope(
+        await input.propertyApi.getGoogleReadScope(orgId, pid),
+      ),
+  }
   // Reply commands refuse up front what the provider authorizer would refuse,
   // in Review's words for the Property's lifecycle.
   const propertyPublicationScope: PropertyPublicationScopePort = {
@@ -536,6 +557,18 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       syncActivity,
       clock: input.clock,
     }),
+    checkReviewOnGoogle: checkReviewOnGoogle({
+      reviewRepo,
+      googleReviewApi: input.googleReviewApi,
+      propertyBinding: propertyGoogleReadBinding,
+      observationWriter,
+      subjectKeyService: providerSubjectKeys,
+      // The same capability every Google review read runs under.
+      isGoogleReadEnabled: (scope) =>
+        checkScopedCapability(scope, 'property.connect_gbp').allowed,
+      newObservationNonce: input.idGen,
+      clock: input.clock,
+    }),
     draftReply: draftReplyUseCase,
     submitReply: submitReply(replyDeps),
     approveReply: approveReply(replyDeps),
@@ -642,6 +675,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       replyObservationAuthority,
       responseTargetAuthority,
       sourceTransitionAuthority,
+      checkReviewOnGoogle: useCases.checkReviewOnGoogle,
       aiReviewSource,
       syncAdmission: Object.freeze({
         // A Google import fixes its epoch's history cutoff before its sync is

@@ -122,6 +122,12 @@ function reviewContext(jobQueue: Queue) {
     propertyApi: {
       getSourceEpoch: async () => ({ sourceEpoch: 0 }),
       getPublicationScope: async () => ({ lifecycleState: 'active', sourceEpoch: 0 }),
+      getGoogleReadScope: async () => ({
+        lifecycleState: 'active',
+        googleBindingState: 'unbound',
+        googleConnectionId: null,
+        sourceEpoch: 0,
+      }),
     },
   })
 }

@@ -193,6 +193,17 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         ? { lifecycleState: property.lifecycleState, sourceEpoch: property.sourceEpoch }
         : null
     },
+    getGoogleReadScope: async (orgId: OrganizationId, pid: PropertyId) => {
+      const property = await deps.repo.findById(orgId, pid)
+      return property
+        ? {
+            lifecycleState: property.lifecycleState,
+            googleBindingState: property.googleBindingState,
+            googleConnectionId: property.googleConnectionId,
+            sourceEpoch: property.sourceEpoch,
+          }
+        : null
+    },
     findIdsByGoogleConnection: async (
       connectionId: GoogleConnectionId,
       orgId: OrganizationId,

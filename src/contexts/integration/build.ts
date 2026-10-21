@@ -24,9 +24,10 @@ import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
 } from '#/contexts/property/application/public-api'
-import type {
-  GoogleReviewApiPort,
-  TargetedGoogleReviewReferenceResolver,
+import {
+  googleReviewApiNotConfigured,
+  type GoogleReviewApiPort,
+  type TargetedGoogleReviewReferenceResolver,
 } from '#/contexts/review/application/public-api'
 import type {
   ReviewQueuePort,
@@ -1213,6 +1214,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       })
     : undefined
 
+  const refuseWithoutProvider = async (): Promise<never> => {
+    throw googleReviewApiNotConfigured()
+  }
   const googleReviewApi: GoogleReviewApiPort = googleReviewProviderExecutor
     ? createGoogleReviewApiAdapter({
         connectionRepo,
@@ -1225,18 +1229,10 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         cursorStore: googleReviewCursorStore,
       })
     : Object.freeze({
-        listReviewsPage: async () => {
-          throw new Error('Governed Google review API is unavailable')
-        },
-        getReview: async () => {
-          throw new Error('Governed Google review API is unavailable')
-        },
-        discardReviewCursors: async () => {
-          throw new Error('Governed Google review API is unavailable')
-        },
-        replyToReview: async () => {
-          throw new Error('Governed Google review API is unavailable')
-        },
+        listReviewsPage: refuseWithoutProvider,
+        getReview: refuseWithoutProvider,
+        discardReviewCursors: refuseWithoutProvider,
+        replyToReview: refuseWithoutProvider,
       })
 
   const googleReviewPushTargetResolver: TargetedGoogleReviewReferenceResolver =
