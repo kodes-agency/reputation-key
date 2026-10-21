@@ -10,9 +10,12 @@ import { createHash } from 'node:crypto'
 import { describe, it, expect, vi } from 'vitest'
 import type {
   AddSyncJobOptions,
+  ReviewHeadCheckJobData,
+  ReviewHeadCheckQueuePort,
   ReviewQueuePort,
   SyncPropertyReviewsJobData,
 } from '../../application/ports/review-queue.port'
+import { headCheckJobId, type ReviewHeadChecksMode } from '../../domain/head-check'
 import {
   DISCOVERY_SPREAD_WINDOW_MS,
   DISCOVERY_SWEEP_CADENCE_MS,
@@ -674,5 +677,263 @@ describe('discover-new-reviews sweep: skipping a recently reconciled Property', 
     await deps.handler({} as never)
 
     expect(deps.enqueued).toHaveLength(0)
+  })
+})
+
+// With head checks on, a skipped look is not empty: the sweep hands the
+// Property a one-call check of Google's newest page and wakes it again at the
+// ladder interval, instead of #909's single wake-up near the six-hour deadline.
+describe('discover-new-reviews sweep: head checks on skipped looks', () => {
+  const HOUR = 60 * MINUTE
+  const ago = (ms: number) => new Date(NOW.getTime() - ms)
+  const HOT = { lastNewReviewAt: NOW }
+
+  type HeadCall = Readonly<{
+    data: ReviewHeadCheckJobData
+    options: Parameters<ReviewHeadCheckQueuePort['addHeadCheckJob']>[1]
+  }>
+
+  function makeHeadDeps(
+    rows: FakeDiscoveryPropertyRow[],
+    opts: {
+      headChecks?: ReviewHeadChecksMode
+      withQueue?: boolean
+      failHeadEnqueue?: boolean
+      skipRecentlyReconciled?: boolean
+      spreadWindowMs?: number
+      clock?: () => Date
+      batchSize?: number
+    } = {},
+  ) {
+    const discoveryRepo = createFakeReviewDiscoveryRepository(rows)
+    const syncJobs: SyncPropertyReviewsJobData[] = []
+    const headCalls: HeadCall[] = []
+    const headQueue: ReviewHeadCheckQueuePort = {
+      addHeadCheckJob: async (data, options) => {
+        if (opts.failHeadEnqueue) throw new Error('Redis down')
+        headCalls.push({ data, options })
+      },
+    }
+    const logger = { info: vi.fn(), warn: vi.fn() }
+    const handler = createDiscoverNewReviewsHandler({
+      discoveryRepo,
+      queue: { addSyncJob: async (data) => void syncJobs.push(data) },
+      clock: opts.clock ?? (() => NOW),
+      logger,
+      batchSize: opts.batchSize ?? 10,
+      spreadWindowMs: opts.spreadWindowMs ?? 0,
+      skipRecentlyReconciled: opts.skipRecentlyReconciled ?? true,
+      ...(opts.headChecks === undefined ? {} : { headChecks: opts.headChecks }),
+      ...(opts.withQueue === false ? {} : { headCheckQueue: headQueue }),
+    })
+    return { handler, discoveryRepo, rows, syncJobs, headCalls, logger }
+  }
+
+  const finishedLog = (result: ReturnType<typeof makeHeadDeps>) =>
+    (result.logger.info.mock.calls.find(
+      ([, message]) => message === 'Discover new reviews sweep finished',
+    )?.[0] ?? {}) as Record<string, unknown>
+
+  it('enqueues a head job for a skipped look and wakes the Property at now + the ladder interval', async () => {
+    const deps = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
+      headChecks: 'dark',
+    })
+
+    await deps.handler({} as never)
+
+    expect(deps.syncJobs).toHaveLength(0)
+    expect(deps.headCalls).toEqual([
+      {
+        data: {
+          mode: 'head',
+          propertyId: 'aa000000-0000-4000-8000-000000000001',
+          organizationId: 'org-1',
+          connectionId: 'bb000000-0000-4000-8000-000000000001',
+          locationName: expectedLocationName(1),
+          initiator: { kind: 'system', id: 'sweep:review-discovery' },
+          correlationId: 'review-head:aa000000-0000-4000-8000-000000000001',
+        },
+        options: {
+          jobId: headCheckJobId(
+            'aa000000-0000-4000-8000-000000000001',
+            NOW,
+            DEFAULT_DISCOVERY_INTERVAL_MS,
+          ),
+        },
+      },
+    ])
+    expect(deps.rows.at(0)?.nextDueAt).toEqual(
+      new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
+    )
+  })
+
+  it('wakes a warm Property at now + an hour', async () => {
+    const deps = makeHeadDeps(
+      [prop(1, { lastNewReviewAt: ago(12 * HOUR), lastReconciledAt: ago(HOUR) })],
+      { headChecks: 'dark' },
+    )
+
+    await deps.handler({} as never)
+
+    expect(deps.headCalls).toHaveLength(1)
+    expect(deps.rows.at(0)?.nextDueAt).toEqual(new Date(NOW.getTime() + HOUR))
+  })
+
+  it('leaves the success stamp and the failure state alone, as any skip does', async () => {
+    const stamp = ago(3 * HOUR)
+    const deps = makeHeadDeps(
+      [prop(1, { ...HOT, lastReconciledAt: ago(HOUR), lastSuccessAt: stamp })],
+      { headChecks: 'dark' },
+    )
+
+    await deps.handler({} as never)
+
+    expect(deps.rows.at(0)?.lastSuccessAt).toEqual(stamp)
+    expect(deps.rows.at(0)?.errorClass).toBeNull()
+  })
+
+  it('leaves every full look alone: no head job beside a snapshot, none for a retry', async () => {
+    const deps = makeHeadDeps(
+      [
+        prop(1, { ...HOT, lastReconciledAt: null }),
+        prop(2, {
+          ...HOT,
+          lastReconciledAt: ago(MINUTE),
+          errorClass: 'provider_failure',
+        }),
+        prop(3, { ...HOT, lastReconciledAt: ago(6 * HOUR) }),
+      ],
+      { headChecks: 'dark' },
+    )
+
+    await deps.handler({} as never)
+
+    expect(deps.syncJobs).toHaveLength(3)
+    expect(deps.headCalls).toHaveLength(0)
+  })
+
+  it('with head checks off, behaves exactly as before: nothing enqueued, one wake-up near the deadline', async () => {
+    const reconciled = ago(HOUR)
+    const off = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })], {
+      headChecks: 'off',
+    })
+    const omitted = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })])
+
+    await off.handler({} as never)
+    await omitted.handler({} as never)
+
+    for (const deps of [off, omitted]) {
+      expect(deps.syncJobs).toHaveLength(0)
+      expect(deps.headCalls).toHaveLength(0)
+      expect(deps.rows.at(0)?.nextDueAt).toEqual(
+        new Date(reconciled.getTime() + 6 * HOUR - DEFAULT_DISCOVERY_INTERVAL_MS),
+      )
+    }
+  })
+
+  it('treats a missing head queue as off rather than waking the Property early for nothing', async () => {
+    const reconciled = ago(HOUR)
+    const deps = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: reconciled })], {
+      headChecks: 'dark',
+      withQueue: false,
+    })
+
+    await deps.handler({} as never)
+
+    expect(deps.rows.at(0)?.nextDueAt).toEqual(
+      new Date(reconciled.getTime() + 6 * HOUR - DEFAULT_DISCOVERY_INTERVAL_MS),
+    )
+  })
+
+  it('does not skip, and so does not check, when the skip switch is off', async () => {
+    const deps = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(MINUTE) })], {
+      headChecks: 'dark',
+      skipRecentlyReconciled: false,
+    })
+
+    await deps.handler({} as never)
+
+    expect(deps.syncJobs).toHaveLength(1)
+    expect(deps.headCalls).toHaveLength(0)
+  })
+
+  it('names one job per Property and interval bucket, so two looks never stack', async () => {
+    const later = new Date(NOW.getTime() + 5 * MINUTE)
+    const first = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
+      headChecks: 'dark',
+    })
+    const second = makeHeadDeps([prop(1, { ...HOT, lastReconciledAt: ago(HOUR) })], {
+      headChecks: 'dark',
+      clock: () => later,
+    })
+
+    await first.handler({} as never)
+    await second.handler({} as never)
+
+    expect(first.headCalls.at(0)?.options.jobId).toBe(
+      second.headCalls.at(0)?.options.jobId,
+    )
+  })
+
+  it('spreads the starts of a sweep’s head jobs over the same window as its snapshots', async () => {
+    const rows = [1, 2, 3, 4, 5].map((n) =>
+      prop(n, { ...HOT, lastReconciledAt: ago(HOUR) }),
+    )
+    const deps = makeHeadDeps(rows, {
+      headChecks: 'dark',
+      spreadWindowMs: DISCOVERY_SPREAD_WINDOW_MS,
+    })
+
+    await deps.handler({} as never)
+
+    const delays = deps.headCalls.map((call) => call.options.delayMs ?? 0)
+    expect(delays.some((delay) => delay > 0)).toBe(true)
+    expect(Math.max(...delays)).toBeLessThan(DISCOVERY_SWEEP_CADENCE_MS)
+  })
+
+  it('does not fail the sweep, hold its cursor or skip the date when a head job cannot be enqueued', async () => {
+    const deps = makeHeadDeps(
+      [
+        prop(1, { ...HOT, lastReconciledAt: ago(HOUR) }),
+        prop(2, { ...HOT, lastReconciledAt: ago(HOUR) }),
+      ],
+      { headChecks: 'dark', failHeadEnqueue: true, batchSize: 1 },
+    )
+
+    await expect(deps.handler({} as never)).resolves.toBeUndefined()
+
+    expect(deps.rows.map((row) => row.nextDueAt)).toEqual([
+      new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
+      new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
+    ])
+    expect(deps.rows.every((row) => row.errorClass === null)).toBe(true)
+    expect(deps.logger.warn).toHaveBeenCalledTimes(2)
+    expect(finishedLog(deps)).toMatchObject({
+      candidatesSeen: 2,
+      skipped: 2,
+      headChecksEnqueued: 0,
+      headChecksFailed: 2,
+    })
+  })
+
+  it('counts the head jobs in the sweep log without naming a Property', async () => {
+    const deps = makeHeadDeps(
+      [
+        prop(1, { ...HOT, lastReconciledAt: ago(HOUR) }),
+        prop(2, { ...HOT, lastReconciledAt: null }),
+      ],
+      { headChecks: 'dark' },
+    )
+
+    await deps.handler({} as never)
+
+    const log = finishedLog(deps)
+    expect(log).toMatchObject({
+      skipped: 1,
+      enqueued: 1,
+      headChecksEnqueued: 1,
+      headChecksFailed: 0,
+    })
+    expect(Object.keys(log)).not.toContain('propertyId')
   })
 })

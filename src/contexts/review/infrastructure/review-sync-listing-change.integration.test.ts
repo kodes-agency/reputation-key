@@ -108,6 +108,7 @@ const googleReviewApi: GoogleReviewApiPort = {
     if (!found) throw new Error('No such page in this listing')
     return found
   }),
+  readReviewsHead: vi.fn(),
   getReview: vi.fn(async ({ reviewName }) => {
     const found = readable.find((review) => review.reviewName === reviewName)
     return found

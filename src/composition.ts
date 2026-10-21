@@ -830,13 +830,16 @@ function buildContainer(
     registerReviewWorkerJobs: ({
       reviewDiscoveryIntervalMs,
       reviewDiscoverySkipRecentlyReconciled,
+      reviewHeadChecks,
     }: {
       reviewDiscoveryIntervalMs: number
       reviewDiscoverySkipRecentlyReconciled: boolean
+      reviewHeadChecks: 'off' | 'dark'
     }) =>
       review.worker.registerWorkerJobs({
         discoveryIntervalMs: reviewDiscoveryIntervalMs,
         discoverySkipRecentlyReconciled: reviewDiscoverySkipRecentlyReconciled,
+        headChecks: reviewHeadChecks,
       }),
     /** ARC-03-T7: the durable consumer registry this container owns. */
     consumerRegistry,

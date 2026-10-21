@@ -48,6 +48,15 @@
 //     property with an outstanding failure, no reconciliation yet, or no push
 //     configured (the sweep is then the only path for new reviews) runs full.
 //
+//   - a SKIPPED look is not an empty one when head checks are on
+//     (REVIEW_HEAD_CHECKS=dark). Google documents page 1 of reviews.list,
+//     newest-updated first, as always accurate, so the sweep enqueues one
+//     head job for the Property (one call; it reads and compares and changes
+//     nothing) and dates the next look at now + the ladder interval, instead
+//     of the single wake-up near the six-hour deadline. The head enqueue is
+//     best-effort: a failure is logged and counted and never holds the sweep.
+//     With head checks off the skip is exactly the one described above.
+//
 // Content-free: identifiers, timestamps, counts, and an error class only.
 
 import type { Job } from 'bullmq'
@@ -56,6 +65,7 @@ export const JOB_NAME = 'discover-new-reviews' as const
 
 import {
   DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
+  type ReviewHeadCheckQueuePort,
   type ReviewQueuePort,
 } from '../../application/ports/review-queue.port'
 import type {
@@ -78,6 +88,7 @@ import {
   discoverySpreadDelayMs,
   discoverySpreadWindowMs,
 } from '../../domain/discovery-spread'
+import { headCheckJobId, type ReviewHeadChecksMode } from '../../domain/head-check'
 
 const DEFAULT_BATCH_SIZE = 200
 const DEFAULT_MAX_BATCHES = 10
@@ -113,6 +124,12 @@ type DiscoverHandlerDeps = Readonly<{
    * switch is on and push is configured.
    */
   skipRecentlyReconciled?: boolean
+  /**
+   * `dark` follows every skipped look with a head job. Defaults to `off`, which
+   * is the skip rule alone. Needs `headCheckQueue`; without it the mode is off.
+   */
+  headChecks?: ReviewHeadChecksMode
+  headCheckQueue?: ReviewHeadCheckQueuePort
 }>
 
 type SweepState = {
@@ -126,6 +143,9 @@ type SweepState = {
   skippedByTier: Record<DiscoveryBackoffTier, number>
   /** Why each full look was full. */
   fullByReason: Record<DiscoveryFullReason, number>
+  /** Head jobs a skipped look handed to the queue, and those it could not. */
+  headChecksEnqueued: number
+  headChecksFailed: number
   enqueueFailedPropertyId: string | null
 }
 
@@ -139,8 +159,47 @@ type CandidateOptions = Readonly<{
   baseIntervalMs: number
   spreadWindowMs: number
   skipEnabled: boolean
+  headEnabled: boolean
   logger: DiscoverHandlerDeps['logger']
 }>
+
+/**
+ * The head job of a skipped look: one read of Google's newest page, started
+ * inside the same spread window as the sweep's snapshots so one sweep's heads
+ * do not spend the reviews quota together. Best-effort: the look is already
+ * dated, so a queue failure is counted and logged, never thrown.
+ */
+async function enqueueHeadCheck(
+  deps: DiscoverHandlerDeps,
+  candidate: ReviewDiscoveryCandidate,
+  state: SweepState,
+  options: CandidateOptions,
+): Promise<void> {
+  if (!deps.headCheckQueue) return
+  const { now, baseIntervalMs, spreadWindowMs, logger } = options
+  const delayMs = discoverySpreadDelayMs(candidate.propertyId, spreadWindowMs)
+  try {
+    await deps.headCheckQueue.addHeadCheckJob(
+      {
+        mode: 'head',
+        propertyId: candidate.propertyId,
+        organizationId: candidate.organizationId,
+        connectionId: candidate.connectionId,
+        locationName: candidate.locationName,
+        initiator: { kind: 'system', id: DISCOVERY_SWEEP_SYNC_INITIATOR_ID },
+        correlationId: `review-head:${candidate.propertyId}`,
+      },
+      {
+        jobId: headCheckJobId(candidate.propertyId, now, baseIntervalMs),
+        ...(delayMs > 0 ? { delayMs } : {}),
+      },
+    )
+    state.headChecksEnqueued++
+  } catch (err) {
+    state.headChecksFailed++
+    logger.warn({ err }, 'Failed to enqueue review head check job')
+  }
+}
 
 /** The full look: spread the start, enqueue, date the next look. */
 async function enqueueFullLook(
@@ -204,11 +263,12 @@ async function lookAtCandidate(
   state: SweepState,
   options: CandidateOptions,
 ): Promise<boolean> {
-  const { now, baseIntervalMs, skipEnabled } = options
+  const { now, baseIntervalMs, skipEnabled, headEnabled } = options
   const look = discoveryLookFor({
     lastReconciledAt: candidate.lastReconciledAt,
     hasOutstandingFailure: candidate.hasOutstandingFailure,
     skipEnabled,
+    headChecks: headEnabled,
     now,
     interval: discoveryIntervalMs(candidate.activity, now, baseIntervalMs),
   })
@@ -219,6 +279,7 @@ async function lookAtCandidate(
       look.nextDueAt,
     )
     state.skippedByTier[discoveryTierFor(candidate.activity, now)]++
+    if (look.headCheck === true) await enqueueHeadCheck(deps, candidate, state, options)
     return true
   }
   state.fullByReason[look.reason]++
@@ -257,6 +318,7 @@ async function processDiscoveryBatch(
     baseIntervalMs: number
     spreadWindowMs: number
     skipEnabled: boolean
+    headEnabled: boolean
     logger: DiscoverHandlerDeps['logger']
   }>,
 ): Promise<BatchOutcome> {
@@ -275,6 +337,7 @@ async function processDiscoveryBatch(
     baseIntervalMs: options.baseIntervalMs,
     spreadWindowMs: options.spreadWindowMs,
     skipEnabled: options.skipEnabled,
+    headEnabled: options.headEnabled,
     logger: options.logger,
   })
   if (state.enqueueFailedPropertyId !== null) return { kind: 'enqueue_failed' }
@@ -294,6 +357,7 @@ async function runDiscoveryLoop(
     baseIntervalMs: number
     spreadWindowMs: number
     skipEnabled: boolean
+    headEnabled: boolean
     logger: DiscoverHandlerDeps['logger']
   }>,
 ): Promise<void> {
@@ -322,6 +386,7 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
   const baseIntervalMs = deps.intervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS
   const spreadWindowMs = discoverySpreadWindowMs(baseIntervalMs, deps.spreadWindowMs)
   const skipEnabled = deps.skipRecentlyReconciled ?? false
+  const headEnabled = deps.headChecks === 'dark' && deps.headCheckQueue !== undefined
 
   return async (_job: Job) => {
     return trace('job.discoverNewReviews', async () => {
@@ -341,6 +406,8 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
           no_reconciliation: 0,
           due: 0,
         },
+        headChecksEnqueued: 0,
+        headChecksFailed: 0,
         enqueueFailedPropertyId: null,
       }
 
@@ -352,6 +419,7 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
           baseIntervalMs,
           spreadWindowMs,
           skipEnabled,
+          headEnabled,
           logger,
         })
       } finally {
@@ -380,6 +448,9 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
             fullFailureRetry: state.fullByReason.failure_retry,
             fullNoReconciliation: state.fullByReason.no_reconciliation,
             fullDue: state.fullByReason.due,
+            // Head jobs the skipped looks handed to the queue (dark mode).
+            headChecksEnqueued: state.headChecksEnqueued,
+            headChecksFailed: state.headChecksFailed,
           },
           'Discover new reviews sweep finished',
         )

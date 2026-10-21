@@ -22,7 +22,7 @@ function fixture() {
       connectionId: 'connection-service-1',
       propertyId: 'property-service-1',
       routeKey: 'reviews.list',
-      routeCatalogueVersion: '2026-08-27',
+      routeCatalogueVersion: '2026-10-21',
       authorization: {
         connectionLifecycleVersion: 1,
         connectionAccessVersion: 2,

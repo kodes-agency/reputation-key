@@ -1214,9 +1214,8 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       })
     : undefined
 
-  const refuseWithoutProvider = async (): Promise<never> => {
-    throw googleReviewApiNotConfigured()
-  }
+  const refuseWithoutProvider = (): Promise<never> =>
+    Promise.reject(googleReviewApiNotConfigured())
   const googleReviewApi: GoogleReviewApiPort = googleReviewProviderExecutor
     ? createGoogleReviewApiAdapter({
         connectionRepo,
@@ -1230,6 +1229,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       })
     : Object.freeze({
         listReviewsPage: refuseWithoutProvider,
+        readReviewsHead: refuseWithoutProvider,
         getReview: refuseWithoutProvider,
         discardReviewCursors: refuseWithoutProvider,
         replyToReview: refuseWithoutProvider,

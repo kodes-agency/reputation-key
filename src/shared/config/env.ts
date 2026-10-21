@@ -302,6 +302,18 @@ const baseEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
+  // Head checks on skipped discovery looks. Google documents page 1 of
+  // reviews.list, newest-updated first, as always accurate, so a look that the
+  // skip rule above leaves empty is followed by ONE call for that page. 'dark'
+  // (the default) reads it, compares it with the stored copies, logs and
+  // records what a persisting check WOULD store (a review_sync_runs row with
+  // mode head_dark), and changes nothing about any review; it also dates the
+  // skipped Property's next look at the ladder interval instead of the single
+  // wake-up near the six-hour deadline. 'off' is exactly the skip rule alone.
+  // A later change adds 'persist'. Exactly 'off' or 'dark': any other spelling
+  // refuses boot, so a mistyped kill switch cannot silently stay on.
+  // Worker-read; set it on the worker, a restart applies it.
+  REVIEW_HEAD_CHECKS: z.enum(['off', 'dark']).default('dark'),
   // Dynamic Access Control — Stage 1 safety gate (ADR 0001).
   // 'true' enables the custom-role model (Stage 2 dynamic resolver). Absent or any
   // other value = false. Parsed as string→bool to avoid z.coerce.boolean()'s

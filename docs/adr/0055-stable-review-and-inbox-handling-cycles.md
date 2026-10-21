@@ -353,7 +353,7 @@ fast path for new reviews, so it is now measured (migration 0066,
   content-free row per Organization, Property and Review: when it was first
   seen, how (`push`, `push_reconcile` for the full snapshot a push hands off
   to when its target cannot be read, `snapshot`, and `demand` or `head` for
-  later reads), and when Pub/Sub accepted the push for it. Writing it with the
+  later reads that persist), and when Pub/Sub accepted the push for it. Writing it with the
   Review means a replayed snapshot page can neither lose nor duplicate it. It
   is operational history like `review_sync_runs`: 30 days, never exported.
 - **When the push arrived.** The acceptance time is the outbox fact's
@@ -400,6 +400,69 @@ fast path for new reviews, so it is now measured (migration 0066,
   the push was accepted. Both need a Redis reference failure and are rare. Measurement starts at the deploy:
   Reviews first seen before it have no row. Past 5,000 polled first sightings
   in seven days (push dark for a week) the misses are a lower bound.
+
+## Note 2026-10-21 (c) — a skipped look is followed by a head check, in dark mode
+
+The skip-rule note above promised "a later change adds a one-call check of
+Google's newest page". This is that check, shipped dark: it reads and compares,
+logs what it would store, and changes nothing about any review.
+
+Google documents page 1 of `reviews.list`, newest-updated first, as always
+accurate, and on the beta 98.9% of the replies written on Google land while the
+review is among its Property's newest 50. One call per look therefore sees a
+missed push, an edit, most replies written on Google, and Google's own count
+and average. The dark release measures how much of that a persisting check
+would act on, before any of it is stored.
+
+- **What a head check is.** `reviews.list` page 1, `pageSize=50`, with an
+  explicit `orderBy=updateTime desc`. It publishes no cursor, needs no run, and
+  uses the same authorizer, route and `google-reviews-v1` quota lane as a list
+  page. If the page's `updateTime` values are not non-increasing, or a review
+  has none, the page is an order violation and is never compared with.
+- **When it runs.** A discovery look that the skip rule above leaves empty
+  enqueues one head job for the Property, and dates the next look at `now` plus
+  the ladder interval (15 minutes, 1 hour, 6 hours) instead of the single
+  wake-up near the deadline. Full looks are unchanged. A head job is a
+  `sync-property-reviews` job of mode `head`: the same family, principal and
+  capability gate, with one job id per Property and interval bucket so two looks
+  never stack, and the sweep's per-Property start delay. A Property with a
+  recorded failure (`error_class`) is skipped: the full retry owns it.
+- **What it compares.** Each review on the page against RepKey's stored copy,
+  classed as it WOULD be persisted: `new` (no stored copy; a tombstoned review
+  has no Google id and reads as new), `changed` (Google's `updateTime` is newer
+  than the stored `source_updated_at`, or the copy belongs to an older source
+  epoch), `reply_changed` (a reply present against absent, or another reply
+  `updateTime` than the stored reply head; a reply whose text Google did not
+  return is no difference) and `lease_refresh` (the copy was last fetched five
+  days ago or more). It also computes Google's total minus the stored live count
+  and the average difference.
+- **What it writes.** One content-free log line per check (outcome, the counts
+  above, `hasMore`, order violation yes or no, duration) and one
+  `review_sync_runs` row with mode `head_dark` carrying the same counts as JSON
+  in `result` (30-day retention, erased with the Organization). It stores no
+  review, no reply observation, no reputation fact, no subject sighting, no
+  first sighting (`review_first_sightings`, the push-health note above) and no
+  `review_sync_state` change, so it never sets or clears a Property's failure.
+  The log carries no Property id (the log schema, BQC-7.3, forbids tenant
+  identifiers there); the row is keyed by Property.
+- **It never throws.** A rate limit, a 5xx, a 404, a changed authorization, a
+  malformed page and an order violation each end as a returned outcome, so a
+  head job cannot fail, spend a retry or latch the job family's repair state. A
+  head job for a Property whose source epoch moved ends as `obsolete`.
+- **Switch.** `REVIEW_HEAD_CHECKS` is `off` or `dark` (default `dark`; exactly
+  those two spellings, anything else refuses boot). `off` is exactly the skip
+  rule alone. It only ever follows a skipped look, so it needs push like the
+  skip rule does. A later change adds `persist`, after a week of comparison
+  data.
+- **Cost.** About 400 to 450 head calls a day on the beta (one per skipped hot
+  or warm look; a cold Property's 6-hour interval always reaches the full look,
+  so it is never skipped), inside the 30-a-minute reviews lane that the scans and
+  pushes already share.
+
+What this does not do: it does not prove a listing, so it never moves
+`lastReconciledAt`, the first-import proof or a deletion check; and a review
+that has dropped out of the newest 50 is invisible to it, as is every deletion.
+The six-hour reconciliation still covers both.
 
 ## Merged from ADR 0003
 

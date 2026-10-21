@@ -69,6 +69,7 @@ function setup(
   const googleReviewApi: GoogleReviewApiPort = {
     getReview,
     listReviewsPage: vi.fn(),
+    readReviewsHead: vi.fn(),
     discardReviewCursors: vi.fn(),
     replyToReview: vi.fn(),
   }

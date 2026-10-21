@@ -26,6 +26,8 @@ import type { ReplyTemplateRepository } from './application/ports/reply-template
 import type { FindAmbiguousPublicationReconciliationCandidates } from './application/ports/publication-reconciliation-maintenance.port'
 import type { ReplyCommandStore } from './application/ports/reply-command-store.port'
 import type {
+  ReviewHeadCheckQueuePort,
+  ReviewProviderJobData,
   ReviewQueuePort,
   TargetedGoogleReviewQueuePort,
 } from './application/ports/review-queue.port'
@@ -140,6 +142,7 @@ import {
   type EligibleReads,
 } from './application/eligible-reads'
 import { reviewId, replyId } from '#/shared/domain/ids'
+import type { ReviewHeadChecksMode } from './domain/head-check'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import { registerReplyPublicationConsumers } from './infrastructure/outbox-consumers'
@@ -244,6 +247,7 @@ export type ReviewContextApi = Readonly<{
     registerWorkerJobs: (runtime: {
       discoveryIntervalMs: number
       discoverySkipRecentlyReconciled: boolean
+      headChecks: ReviewHeadChecksMode
     }) => Promise<void>
     /** Boot-time inventory-parity check for the provider subject keyring. */
     refreshProviderSubjectKeys: () => Promise<void>
@@ -270,6 +274,7 @@ export type ReviewContextApi = Readonly<{
       replyCommandStore: ReplyCommandStore
       queue: ReviewQueuePort
       targetedQueue: TargetedGoogleReviewQueuePort
+      headCheckQueue: ReviewHeadCheckQueuePort
       replyQueue: ReplyQueuePort
     }>
     useCases: Readonly<{
@@ -308,6 +313,7 @@ export type ReviewContextApi = Readonly<{
     registerWorkerJobs: (runtime: {
       discoveryIntervalMs: number
       discoverySkipRecentlyReconciled: boolean
+      headChecks: ReviewHeadChecksMode
     }) => Promise<void>
   }>
 }>
@@ -363,50 +369,52 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     )
   const jobQueue = input.jobQueue
 
+  /**
+   * Every sync-property-reviews job (a snapshot step, a push-targeted fetch, a
+   * head check): one family, one capability, one retry row and retention. Only
+   * the default initiator, the job id and the start delay differ.
+   */
+  const addSyncPropertyReviewsJob = async (
+    data: ReviewProviderJobData,
+    defaultInitiatorId: string,
+    options?: Readonly<{ jobId?: string; delayMs?: number }>,
+  ): Promise<void> => {
+    const execution = createJobExecutionEnvelope({
+      organizationId: data.organizationId,
+      propertyId: data.propertyId,
+      capability: 'property.connect_gbp',
+      initiator: data.initiator ?? { kind: 'system', id: defaultInitiatorId },
+      correlationId: data.correlationId,
+    })
+    await jobQueue.add(
+      'sync-property-reviews',
+      { ...data, ...execution },
+      {
+        jobId: options?.jobId,
+        ...(options?.delayMs === undefined ? {} : { delay: options.delayMs }),
+        removeOnComplete: { count: 100 },
+        removeOnFail: { count: 50 },
+        // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.
+        ...jobEnqueueOptions('sync-property-reviews'),
+      },
+    )
+  }
+
   const queue: ReviewQueuePort = {
-    addSyncJob: async (data, options) => {
-      const execution = createJobExecutionEnvelope({
-        organizationId: data.organizationId,
-        propertyId: data.propertyId,
-        capability: 'property.connect_gbp',
-        initiator: data.initiator ?? { kind: 'system', id: 'queue:review-sync' },
-        correlationId: data.correlationId,
-      })
-      await jobQueue.add(
-        'sync-property-reviews',
-        { ...data, ...execution },
-        {
-          jobId: options?.jobId,
-          ...(options?.delayMs === undefined ? {} : { delay: options.delayMs }),
-          removeOnComplete: { count: 100 },
-          removeOnFail: { count: 50 },
-          // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.
-          ...jobEnqueueOptions('sync-property-reviews'),
-        },
-      )
-    },
+    addSyncJob: (data, options) =>
+      addSyncPropertyReviewsJob(data, 'queue:review-sync', options),
   }
 
   const targetedQueue: TargetedGoogleReviewQueuePort = {
-    addTargetedFetchJob: async (data, options) => {
-      const execution = createJobExecutionEnvelope({
-        organizationId: data.organizationId,
-        propertyId: data.propertyId,
-        capability: 'property.connect_gbp',
-        initiator: data.initiator ?? { kind: 'system', id: 'queue:review-targeted' },
-        correlationId: data.correlationId,
-      })
-      await jobQueue.add(
-        'sync-property-reviews',
-        { ...data, ...execution },
-        {
-          jobId: options.jobId,
-          removeOnComplete: { count: 100 },
-          removeOnFail: { count: 50 },
-          ...jobEnqueueOptions('sync-property-reviews'),
-        },
-      )
-    },
+    addTargetedFetchJob: (data, options) =>
+      addSyncPropertyReviewsJob(data, 'queue:review-targeted', options),
+  }
+
+  // A head check is a sync-property-reviews job of mode 'head', with a
+  // deterministic job id per Property and interval bucket (domain/head-check.ts).
+  const headCheckQueue: ReviewHeadCheckQueuePort = {
+    addHeadCheckJob: (data, options) =>
+      addSyncPropertyReviewsJob(data, 'queue:review-head', options),
   }
 
   const replyQueue: ReplyQueuePort = {
@@ -656,9 +664,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const registerWorkerJobs = async ({
     discoveryIntervalMs,
     discoverySkipRecentlyReconciled,
+    headChecks,
   }: Readonly<{
     discoveryIntervalMs: number
     discoverySkipRecentlyReconciled: boolean
+    headChecks: ReviewHeadChecksMode
   }>): Promise<void> => {
     const { registerReviewWorkerJobs } = await import('./infrastructure/worker-runtime')
     await registerReviewWorkerJobs({
@@ -684,6 +694,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       logger: input.logger,
       discoveryIntervalMs,
       discoverySkipRecentlyReconciled,
+      headChecks,
+      headCheckQueue,
     })
   }
 
@@ -789,6 +801,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         replyCommandStore,
         queue,
         targetedQueue,
+        headCheckQueue,
         replyQueue,
       },
       useCases,
