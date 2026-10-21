@@ -13,6 +13,8 @@ import { ok, err, type Result } from '#/shared/domain'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 import { googleReplyTextDigest } from '../../domain/google-reply-observation'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import { reportReplyReadback } from '../reply-readback-report'
 
 export type ReconcileReplyPublicationDeps = Readonly<{
   replyRepo: ReplyRepository
@@ -20,6 +22,8 @@ export type ReconcileReplyPublicationDeps = Readonly<{
   googleReviewApi: GoogleReviewApiPort
   observationStore: GoogleReplyObservationStore
   clock: () => Date
+  /** The read-back line about Google's moderation of the reply (logs only). */
+  logger: Pick<LoggerPort, 'info'>
 }>
 
 export type ReconcileReplyPublicationInput = Readonly<{
@@ -115,6 +119,15 @@ export const reconcileReplyPublication =
     if (result.status === 'not_found') {
       return ok({ outcome: 'provider_review_missing' })
     }
+    // Google's moderation of the reply is recorded in the log only: nothing
+    // below reads it, so a PENDING or REJECTED reply is decided exactly as it
+    // was before the field was parsed.
+    reportReplyReadback(deps.logger, {
+      source: 'reconcile_sweep',
+      reply,
+      observedText: result.review.replyText,
+      moderation: result.review.replyModeration,
+    })
     // Google shows a reply whose original text could not be recovered (a
     // translation-only envelope, google-review-comment.ts). Recording it would
     // write `absent` - a false provider fact that the observation authority

@@ -110,6 +110,7 @@ import {
 } from '../../domain/reply-publication-workflow'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
+import { reportReplyReadback } from '../../application/reply-readback-report'
 
 type PublishHandlerDeps = Readonly<{
   replyRepo: ReplyRepository
@@ -532,6 +533,15 @@ async function readUncertainAttempt(
     return { kind: 'inconclusive', reason: 'read_failed', error: err }
   }
   if (result.status === 'not_found') return { kind: 'review_missing' }
+  // Google's moderation of the reply is recorded in the log only: nothing below
+  // reads it, so a PENDING or REJECTED reply is decided as it was before the
+  // field was parsed.
+  reportReplyReadback(deps.logger, {
+    source: 'publish_readback',
+    reply,
+    observedText: result.review.replyText,
+    moderation: result.review.replyModeration,
+  })
   // D6: Google shows a reply whose original text is not recoverable. Recording
   // it would write `absent`, a false provider fact; record nothing.
   if (result.review.replyUnreadable === true) {

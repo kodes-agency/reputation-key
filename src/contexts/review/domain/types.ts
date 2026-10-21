@@ -10,6 +10,7 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
+import type { ReplyModeration } from './reply-moderation'
 import type {
   PersistedPublicationState,
   PublicationFailureClass,
@@ -241,4 +242,11 @@ export type GoogleReview = Readonly<{
   sourceUpdatedAt?: Date | null
   replyText: string | null
   replyUpdatedAt: Date | null
+  /**
+   * Google's moderation state for the reply (`reviewReplyState`,
+   * `policyViolation`), parsed and recorded only. No observation, confirmation,
+   * Inbox or metric rule reads it yet. Optional so fakes that predate it keep
+   * working; the Google adapter always sets it.
+   */
+  replyModeration?: ReplyModeration
 }>
