@@ -16,6 +16,7 @@ import {
   correctFeedbackHandlingOutcomeDto,
   stampLastInboxViewDto,
   getInboxItemHistoryDto,
+  checkReviewOnGoogleDto,
 } from '../application/dto/inbox.dto'
 import { inboxError, isInboxError, toInboxRevisionConflictResult } from '../domain/errors'
 
@@ -86,6 +87,18 @@ describe('getInboxItemsDto', () => {
     expect(getInboxItemsDto.parse({ queue: 'reply' }).queue).toBe('reply')
     expect(getInboxItemsDto.parse({ queue: 'open' }).queue).toBe('open')
     expect(getInboxItemsDto.safeParse({ queue: 'sent' }).success).toBe(false)
+  })
+})
+
+describe('checkReviewOnGoogleDto', () => {
+  it('takes a review id and nothing else', () => {
+    const reviewId = '550e8400-e29b-41d4-a716-446655440000'
+    expect(checkReviewOnGoogleDto.parse({ reviewId })).toEqual({ reviewId })
+  })
+
+  it('rejects a missing or non-UUID review id', () => {
+    expect(checkReviewOnGoogleDto.safeParse({}).success).toBe(false)
+    expect(checkReviewOnGoogleDto.safeParse({ reviewId: 'abc' }).success).toBe(false)
   })
 })
 

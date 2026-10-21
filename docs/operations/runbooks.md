@@ -60,6 +60,7 @@ definitions and security controls live in
 **Recovery:** Wait for quota reset (usually daily). If suspended, resolve the policy issue with Google Cloud support. Resume sync after clearance.
 
 **RepKey's own limits (before Google's):** every Google route is admitted through a quota policy (`GOOGLE_QUOTA_POLICIES`, `src/shared/google-provider-control/quota-coordinator.ts`), and a denied call is `quota_exhausted`, not a Google 429. Review reads (`reviews.list`, `reviews.get`: the sync scans, the head checks, the push fetches and the publish worker's read before a claim) share `google-reviews-v1`: 30 calls a minute per credential, project and endpoint, 4 in flight. Reply writes (`reviews.reply`) have their own lane, `google-reviews-write-v1` (2026-10-21): the same 30 a minute and 4 in flight, so a scan can never use the minute a reply needs (the 2026-08-23 incident in `e2e-flake-register.md`). One publish spends one call on each lane. A burst of 25 approvals on one connection therefore needs 25 calls on the read lane, inside its 30, and 25 on the write lane.
+**Check on Google from the Inbox (2026-10-21).** A manager's "Check on Google", and the automatic check when they come back from "Open on Google", read one review (`reviews.get`) on the read lane above, so they can meet `quota_exhausted` like a sync can (the manager is told "Couldn't check Google right now. Try again in a minute."). RepKey limits them before Google does: one call per review per 60 seconds and 30 per Organization per minute (`GOOGLE_CHECK_REVIEW_LIMIT`, `GOOGLE_CHECK_ORGANIZATION_LIMIT` in `check-inbox-review-on-google.ts`), counted in Redis under `ratelimit:public:inbox:google-check:review:<org>:<review>` and `ratelimit:public:inbox:google-check:organization:<org>`. A call over either limit answers `rate_limited` without reading Google; with Redis down in production the limiter fails closed and the answer is `unavailable`. Each call writes one info line on the web server, `stage: inbox_check_review_on_google`, with `outcome` (`reply_found`, `no_reply`, `unavailable`, `not_checkable`, `rate_limited`), `reason` where Review gave one (`property_not_bound`, `capability_off`, `content_expired`, `no_provider`, `retry_later`, `retry_never`, `reply_unreadable`, `head_unreadable`, `not_a_google_review`, `review_missing`) and nothing else: no ids (the observability schema bans them as log keys; tie a line to a call by the request's own correlation and time) and never review or reply text. A run of `unavailable` with `retry_never` or `not_checkable` with `property_not_bound` or `capability_off` is the Property's Google connection or a stop (§11, §25), not this feature. A stop on `property.connect_gbp` blocks these checks like every other Google read.
 **Verification:** Confirm sync resumes. Check `last_successful_sync_at` advances.
 **Escalation:** Bozhidar Denev. Google Cloud support ticket if suspended.
 
@@ -1260,7 +1261,11 @@ satisfies the new one.
 
 **Order: web first, then the worker.** `pnpm ops deploy-ci-images` rolls web,
 then the worker, then provider Redis, each settling healthy at its digest before
-the next moves. Provider Redis moves only when something it is built from
+the next moves. A service counts as already deployed only when its latest
+Railway deployment runs that digest, not when its configured source names it:
+Railway can store a new source and start no deployment (the 2026-10-21 outage),
+and the command then redeploys from the source instead of printing `already
+healthy`. Provider Redis moves only when something it is built from
 changed (`Dockerfile.google-provider-redis`, `services/google-provider-redis/`):
 it keeps nothing across a restart (ADR 0050), so each redeploy drops the page
 cursors of the Google review syncs in flight and the OAuth state of any Google

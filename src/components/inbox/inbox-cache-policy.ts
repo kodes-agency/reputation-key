@@ -255,7 +255,7 @@ export function polledReplyPublicationChanged(
 // folder-count badges, and the global new-count badge are all stale.
 
 /** Resolves once the lists on screen have been re-read. */
-function invalidateFolderCaches(qc: QueryClient): Promise<void> {
+export function invalidateFolderCaches(qc: QueryClient): Promise<void> {
   const listsReread = qc.invalidateQueries({ queryKey: inboxKeys.lists() })
   qc.invalidateQueries({ queryKey: inboxKeys.counts() })
   qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
@@ -284,7 +284,7 @@ function invalidateActivityAfterLag(qc: QueryClient, id: string): void {
  * siblings rather than descendants of it (`query-keys.ts`), so even a path that
  * does re-read a detail (`onReplyCommandFailed`) never carries the refresh.
  */
-function invalidateHistory(qc: QueryClient, id: string): void {
+export function invalidateHistory(qc: QueryClient, id: string): void {
   qc.invalidateQueries({ queryKey: inboxKeys.history(id) })
 }
 

@@ -15,6 +15,7 @@ import {
   type InboxItemStatusObserver,
 } from './inbox-item-status-observer'
 import { useFeedbackHandlingMutations } from './use-feedback-handling-mutations'
+import { useGoogleReviewCheck, type GoogleReviewCheck } from './use-google-review-check'
 import type {
   updateInboxStatusFn,
   escalateInboxItemFn,
@@ -140,6 +141,12 @@ export type InboxDetailState = Readonly<{
     FeedbackHandlingCommandResult
   >
   onReplyMutated: (change: InboxReplyCacheChange) => void
+  /**
+   * "Check on Google" for the open review, and the check on return from "Open on
+   * Google". Optional so a pane built without a Google (a story, a test) simply
+   * offers neither.
+   */
+  googleCheck?: GoogleReviewCheck
   error: string | null
   lastMarkedId: string | null
 }>
@@ -240,6 +247,7 @@ export function useInboxDetail(
     | 'assignInboxItem'
     | 'markFeedbackHandled'
     | 'correctFeedbackHandlingOutcome'
+    | 'checkReviewOnGoogle'
   >,
   options?: UseInboxDetailOptions,
 ): InboxDetailState {
@@ -270,6 +278,13 @@ export function useInboxDetail(
     onItemStatusChanged,
   )
 
+  // Only a pane that is showing an item: with nothing selected the cached
+  // fallback item is gone and so is the watch.
+  const googleCheck = useGoogleReviewCheck({
+    item: enabled ? queries.currentItem : null,
+    checkReviewOnGoogle: inboxFns.checkReviewOnGoogle,
+  })
+
   const onReplyMutated = useCallback(
     (change: InboxReplyCacheChange) => {
       // A result about another item (the manager moved on while it was in
@@ -298,6 +313,7 @@ export function useInboxDetail(
     refetch: queries.refetch,
     retrying: queries.retrying,
     onReplyMutated,
+    googleCheck,
     error: queries.error,
     lastMarkedId: null,
   }
