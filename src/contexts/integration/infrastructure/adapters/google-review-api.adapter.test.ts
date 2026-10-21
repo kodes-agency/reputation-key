@@ -1252,6 +1252,39 @@ describe('GoogleReviewApiAdapter reading a review before a reply is published', 
     expect(error.code).toBe('authorization_changed')
   })
 
+  it('retries when the connection cannot be read after the authorizer allowed the call', async () => {
+    const execute = vi.fn()
+    const { api } = createAdapter({
+      execute,
+      findById: vi.fn().mockRejectedValue(new Error('connection pool exhausted')),
+    })
+
+    const error = await failure(
+      api.getReview({ ...readInput(), forReplyPublication: true }),
+    )
+
+    expect(error).toMatchObject({
+      _tag: 'GoogleReviewApiError',
+      code: 'provider_unavailable',
+      recoverable: true,
+      failure: { dispatch: 'not_sent' },
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('retries an authorizer failure that carries no closed code', async () => {
+    const { api } = createAdapter({
+      execute: vi.fn(),
+      authorizeProviderCall: vi.fn().mockRejectedValue(new Error('socket hang up')),
+    })
+
+    const error = await failure(
+      api.getReview({ ...readInput(), forReplyPublication: true }),
+    )
+
+    expect(error).toMatchObject({ code: 'provider_unavailable', recoverable: true })
+  })
+
   it('leaves the refusals of every other read as they were', async () => {
     const { api } = createAdapter({
       execute: vi.fn(),

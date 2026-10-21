@@ -350,7 +350,10 @@ test.describe('Critical workflow: reply lifecycle', () => {
       pathPrefix: `/v4/${s.reviewName}`,
     })
     expect(readsOfTheReview.length).toBeGreaterThan(0)
-    expect(readsOfTheReview[0].at <= puts[0].at).toBe(true)
+    const firstRead = readsOfTheReview[0]
+    const firstWrite = puts[0]
+    expect(firstRead !== undefined && firstWrite !== undefined).toBe(true)
+    expect(firstRead!.at <= firstWrite!.at).toBe(true)
   })
 
   test('(b) transient 500 stays an uncertain send that is only ever checked', async ({

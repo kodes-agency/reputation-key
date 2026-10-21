@@ -109,7 +109,9 @@ export async function readGoogleBeforeClaim(
       sourceEpoch: review.sourceEpoch,
       locationName: review.externalLocationId,
       reviewName,
-      readKey: `${reply.id}:${reply.publicationCycle}:${job.attemptsMade}`,
+      // The job id keeps two jobs of one cycle (a fast-path job and a
+      // durable-intent one) from sharing a key for different Google answers.
+      readKey: `${reply.id}:${reply.publicationCycle}:${String(job.id ?? '')}:${job.attemptsMade}`,
     })
   } catch (err) {
     await handlePrereadFailure(deps, job, reply, review, err)

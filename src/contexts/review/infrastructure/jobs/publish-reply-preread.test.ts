@@ -185,7 +185,7 @@ describe('publish-reply reads Google before it claims', () => {
       sourceEpoch: 4,
       locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
       reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
-      readKey: `${IDS.reply}:2:1`,
+      readKey: `${IDS.reply}:2:job-1:1`,
     })
     expect(deps.readBeforePublish.mock.invocationCallOrder[0]).toBeLessThan(
       deps.replyCommandStore.markPublicationSending.mock.invocationCallOrder[0]!,
