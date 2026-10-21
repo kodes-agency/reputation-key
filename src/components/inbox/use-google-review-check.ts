@@ -99,6 +99,7 @@ export function useGoogleReviewCheck(input: Input): GoogleReviewCheck {
       ? item.sourceId
       : null
   const itemId = item?.id ?? null
+  const itemIsOpen = item?.status === 'open'
   const available =
     checkReviewOnGoogle !== undefined &&
     reviewId !== null &&
@@ -112,7 +113,7 @@ export function useGoogleReviewCheck(input: Input): GoogleReviewCheck {
       setCheckingReviewId(reviewId)
       try {
         const { outcome } = await callServer({ data: { reviewId } })
-        const say = sayGoogleCheck(outcome, source)
+        const say = sayGoogleCheck(outcome, source, itemIsOpen)
         if (say !== null) toast[say.tone](say.message)
         if (outcome === 'reply_found') rereadAfterGoogleReplyFound(qc, itemId)
         if (outcome === 'not_checkable') {
@@ -128,7 +129,7 @@ export function useGoogleReviewCheck(input: Input): GoogleReviewCheck {
         setCheckingReviewId(null)
       }
     },
-    [available, callServer, itemId, qc, reviewId],
+    [available, callServer, itemId, itemIsOpen, qc, reviewId],
   )
 
   // The watcher is built once and always calls the latest `run`.
@@ -150,7 +151,7 @@ export function useGoogleReviewCheck(input: Input): GoogleReviewCheck {
   }, [env])
 
   // Only an open item that can still be checked is worth watching.
-  const watchedReviewId = available && item?.status === 'open' ? reviewId : null
+  const watchedReviewId = available && itemIsOpen ? reviewId : null
   useEffect(() => {
     watcherRef.current?.focus(watchedReviewId)
   }, [watchedReviewId, env])

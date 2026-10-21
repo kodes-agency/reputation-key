@@ -14,6 +14,8 @@ export const GOOGLE_CHECK_COPY = {
   actionHint: 'Look for a reply on Google now.',
   pending: 'Checking Google…',
   replyFound: 'Google shows a reply. Closing this item.',
+  /** The item is not open, so nothing is closing: say only what Google shows. */
+  replyFoundOnClosedItem: 'Google shows a reply.',
   replyFoundOnReturn: 'Google shows your reply. Closing this item.',
   noReply: 'Google shows no reply yet.',
   unavailable: "Couldn't check Google right now. Try again in a minute.",
@@ -31,8 +33,12 @@ export type GoogleCheckSay = Readonly<{
 export function sayGoogleCheck(
   outcome: InboxGoogleCheckOutcome,
   source: GoogleCheckSource,
+  itemIsOpen = true,
 ): GoogleCheckSay | null {
   if (outcome === 'reply_found') {
+    if (!itemIsOpen) {
+      return { tone: 'success', message: GOOGLE_CHECK_COPY.replyFoundOnClosedItem }
+    }
     return {
       tone: 'success',
       message:

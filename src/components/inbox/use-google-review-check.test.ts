@@ -84,6 +84,17 @@ describe('useGoogleReviewCheck', () => {
       )
     })
 
+    it('does not say it is closing an item that is already closed', async () => {
+      await pane.show(
+        googleReview({ status: 'closed' }),
+        stubServer(['reply_found']).asServerFn,
+      )
+
+      await checkNow()
+
+      expect(toast.success).toHaveBeenCalledWith('Google shows a reply.')
+    })
+
     it('says when Google shows no reply yet', async () => {
       await pane.show(googleReview(), stubServer(['no_reply']).asServerFn)
       await checkNow()

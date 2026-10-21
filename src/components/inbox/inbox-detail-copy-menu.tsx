@@ -40,7 +40,14 @@ function GoogleLinkItem({
       {/* The page is a new tab, so every way of opening it (click, Enter, middle
           click) is the manager leaving for Google: the Inbox watches for them
           to come back (`google-return-watcher.ts`). */}
-      <GoogleReviewAnchor link={link} onClick={onOpened} onAuxClick={onOpened}>
+      <GoogleReviewAnchor
+        link={link}
+        onClick={onOpened}
+        onAuxClick={(event) => {
+          // A right click only opens the browser's menu; a middle click opens the tab.
+          if (event.button === 1) onOpened?.()
+        }}
+      >
         <ExternalLink aria-hidden="true" />
         {link.kind === 'review' ? (
           <RowActionsItemText

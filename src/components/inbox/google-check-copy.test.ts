@@ -9,6 +9,13 @@ describe('sayGoogleCheck for a check the manager asked for', () => {
     })
   })
 
+  it('does not promise to close an item that is not open', () => {
+    expect(sayGoogleCheck('reply_found', 'manual', false)).toEqual({
+      tone: 'success',
+      message: 'Google shows a reply.',
+    })
+  })
+
   it('tells the manager Google shows no reply yet', () => {
     expect(sayGoogleCheck('no_reply', 'manual')).toEqual({
       tone: 'info',
