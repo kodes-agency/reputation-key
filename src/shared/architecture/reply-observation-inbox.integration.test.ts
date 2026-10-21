@@ -1224,7 +1224,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
 
     /** The reminder pass over the real store and the real Review head lookup. */
     const reminderTick = (now: Date, check = vi.fn()) => {
-      const replies = createReplyRepository(getDb())
+      const replies = createReplyRepository(getDb(), () => OBSERVED_AT)
       return releaseDueResponseTargetReminders({
         targetStore: createResponseTargetStore(getDb()),
         replyLookup: createReplyLookupAdapter({
