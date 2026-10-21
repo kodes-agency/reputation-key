@@ -46,6 +46,12 @@ function setup() {
     propertyApi: {
       getSourceEpoch: async () => ({ sourceEpoch: 0 }),
       getPublicationScope: async () => ({ lifecycleState: 'active', sourceEpoch: 0 }),
+      getGoogleReadScope: async () => ({
+        lifecycleState: 'active',
+        googleBindingState: 'unbound',
+        googleConnectionId: null,
+        sourceEpoch: 0,
+      }),
     },
   })
   return { api, jobQueue }
@@ -89,6 +95,14 @@ describe('Review context build', () => {
     expect(Object.keys(api)).not.toContain('organizationLifecycle')
     expect(Object.keys(api.publicApi)).not.toContain('organizationExport')
     expect(Object.keys(api.publicApi)).not.toContain('organizationLifecycle')
+  })
+
+  it('publishes the Google review check as one named capability, bound to the one implementation', () => {
+    const { api } = setup()
+
+    expect(api.publicApi.checkReviewOnGoogle).toBe(
+      api.internal.useCases.checkReviewOnGoogle,
+    )
   })
 
   it('publishes only named reads through lookups, never a repository write', () => {

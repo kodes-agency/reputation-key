@@ -23,6 +23,7 @@ describe('buildInboxContext', () => {
         replyObservationAuthority: {},
         responseTargetAuthority: {},
         sourceTransitionAuthority: {},
+        googleReviewCheck: {},
       } as InboxContextBuildInput['sources'],
       logger: createMockLogger(),
       authorizeCommand: async () => ({ allowed: true }),

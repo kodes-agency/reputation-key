@@ -5,6 +5,7 @@
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { PropertyGoogleBindingStore } from './ports/property-google-binding.port'
 import type { PropertyLifecycleState } from '../domain/property-lifecycle'
+import type { GoogleBindingState } from '../domain/google-binding-contract'
 export type { PropertyLifecycleState } from '../domain/property-lifecycle'
 export { buildGoogleImportedProperty } from './build-google-imported-property'
 export type {
@@ -69,6 +70,26 @@ export type PropertyPublicationScopePublicApi = Readonly<{
     propertyId: PropertyId,
   ) => Promise<Readonly<{
     lifecycleState: PropertyLifecycleState
+    sourceEpoch: number
+  }> | null>
+}>
+
+/**
+ * What a read of one review from Google needs from the Property's CURRENT
+ * binding: its lifecycle, whether the binding is active, the Google
+ * connection it holds and its source epoch, from one snapshot. The
+ * connection and epoch a Review row carries can lag a reconnect or relink, so
+ * a read that must authorize uses these instead. Null when the Property does
+ * not exist in the Organization.
+ */
+export type PropertyGoogleReadScopePublicApi = Readonly<{
+  getGoogleReadScope: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<Readonly<{
+    lifecycleState: PropertyLifecycleState
+    googleBindingState: GoogleBindingState
+    googleConnectionId: GoogleConnectionId | null
     sourceEpoch: number
   }> | null>
 }>

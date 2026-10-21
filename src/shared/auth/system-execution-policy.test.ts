@@ -200,7 +200,8 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     expect(requiresFreshRead('system:review.sync')).toBe(true)
     expect(requiresFreshRead('system:reply.publish')).toBe(true)
     expect(requiresFreshRead('system:review.reconcile')).toBe(false)
-    expect(requiresFreshRead('system:inbox.update')).toBe(false)
+    // The reminder sweep reads a review from Google before it releases a reminder.
+    expect(requiresFreshRead('system:inbox.update')).toBe(true)
   })
 
   it('returns the complete content-free decision consumed by JobRuntime', async () => {

@@ -147,7 +147,7 @@ const CANDIDATE_DECISIONS: Readonly<Record<string, CandidateDecision>> = {
   },
   'release-response-target-reminders': {
     kind: 'undecided',
-    gap: 'Marks due Response Target reminders delivered and commits their identifier-only fact for every Organization, so a switched-off inbox.use or a suspended Organization still gets the in-app reminder. Nothing leaves RepKey from it: the reminder email is decided per Organization by the email jobs.',
+    gap: 'Marks due Response Target reminders delivered and commits their identifier-only fact for every Organization, so a switched-off inbox.use or a suspended Organization still gets the in-app reminder. Before it releases a Google review reminder it reads that one review from Google, which is now an external effect: the read goes through the provider authorizer, which decides per Organization, Property and connection (property.connect_gbp, the kill switch, suspension, the grant) and refuses what it should not make, and a refused read releases the reminder exactly as before. Nothing else leaves RepKey from it: the reminder email is decided per Organization by the email jobs.',
   },
 }
 

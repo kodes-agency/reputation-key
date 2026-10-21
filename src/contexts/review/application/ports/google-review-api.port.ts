@@ -27,6 +27,20 @@ export type GoogleReviewPage = Readonly<{
   nextCursorRef: string | null
 }>
 
+/**
+ * The `code` of the error a process without a Google provider (a local or e2e
+ * stack, a worker with none configured) throws from every call, before any
+ * request is made. Callers that must not wait on it can tell it apart from a
+ * real outage and from a refusal.
+ */
+export const GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE = 'google_review_api_not_configured'
+
+/** The error such a process throws, carrying that code. */
+export const googleReviewApiNotConfigured = (): Error =>
+  Object.assign(new Error('Governed Google review API is unavailable'), {
+    code: GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
+  })
+
 export type GoogleReviewApiErrorCode =
   | 'invalid_request'
   | 'cursor_not_found'

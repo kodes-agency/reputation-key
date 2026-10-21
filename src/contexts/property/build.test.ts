@@ -431,6 +431,44 @@ describe('PropertyPublicApi', () => {
     ).resolves.toBeNull()
   })
 
+  // A read of one review from Google authorizes against the Property's
+  // current binding, not what a Review row cached when it was last synced.
+  it('reads the current Google connection, binding state and epoch of a Property', async () => {
+    const repo = createInMemoryPropertyRepo()
+    const connection = googleConnectionId('82000000-0000-4000-8000-000000000020')
+    const linked = buildTestProperty({
+      id: '82000000-0000-4000-8000-000000000021',
+      slug: 'read-scope-linked',
+      googleConnectionId: connection,
+      googleBindingState: 'active',
+      sourceEpoch: 7,
+    })
+    repo.seed([linked])
+    const { publicApi } = buildPropertyContext({
+      db: {} as never,
+      repo,
+      clock: () => new Date('2025-01-01'),
+      ...runtimeDeps,
+      staffPublicApi: createStubStaffApi(),
+      identityManagerFacts,
+    })
+
+    await expect(
+      publicApi.getGoogleReadScope(linked.organizationId, linked.id),
+    ).resolves.toEqual({
+      lifecycleState: 'active',
+      googleBindingState: 'active',
+      googleConnectionId: connection,
+      sourceEpoch: 7,
+    })
+    await expect(
+      publicApi.getGoogleReadScope(
+        linked.organizationId,
+        propertyId('82000000-0000-4000-8000-000000000099'),
+      ),
+    ).resolves.toBeNull()
+  })
+
   it('chooses a stable Google notice scope, preferring a linked Property', async () => {
     const repo = createInMemoryPropertyRepo()
     const connection = googleConnectionId('81000000-0000-4000-8000-000000000001')

@@ -37,6 +37,10 @@ import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review
 import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
+import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
+import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { createResponseTargetStore } from '#/contexts/inbox/infrastructure/response-target.store'
+import { releaseDueResponseTargetReminders } from '#/contexts/inbox/application/use-cases/release-response-target-reminders'
 
 const ORG = organizationId('org-inbox-reply-observation')
 const PROPERTY = propertyId('b2000000-0000-0000-0000-000000000001')
@@ -60,6 +64,21 @@ const responseTargetPermit = (materialReviewRevision: number) => ({
     materialReviewRevision,
     eligibility: 'legacy_unknown' as const,
     responseTargetStartAt: null,
+    rating: null,
+  },
+  targetStart: { basis: 'review_provenance' as const },
+})
+
+const measuredResponseTargetPermit = () => ({
+  reviewAuthority: {
+    authority: 'review.current-response-target.v1' as const,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    reviewId: REVIEW,
+    sourceEpoch: 0,
+    materialReviewRevision: 1,
+    eligibility: 'measured' as const,
+    responseTargetStartAt: OPENED_AT,
     rating: null,
   },
   targetStart: { basis: 'review_provenance' as const },
@@ -128,7 +147,11 @@ async function clean(): Promise<void> {
   await deleteTestOrganizations(pool, [ORG])
 }
 
-async function seed(): Promise<InboxItem> {
+/**
+ * `measured` gives the cycle a 48 hour Google-review Response Target (halfway
+ * and target-passed reminder slots) timed from OPENED_AT, as a live review has.
+ */
+async function seed(options: Readonly<{ measured?: boolean }> = {}): Promise<InboxItem> {
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'Inbox Reply Observation', 'inbox-reply-observation', NOW())`,
@@ -157,17 +180,37 @@ async function seed(): Promise<InboxItem> {
     `INSERT INTO material_review_revisions (
        review_id, revision, organization_id, property_id, source_epoch,
        normalization_version, source_digest, normalized_digest, rating,
-       normalized_text, content_state, created_at, updated_at
+       normalized_text, content_state, response_target_eligibility,
+       response_target_start_at, created_at, updated_at
      ) VALUES (
        $1, 1, $2, $3, 0, 'review-material-v1', $4, $4, 5,
-       'review text', 'active', $5, $5
+       'review text', 'active', $6, $7, $5, $5
      )`,
-    [REVIEW, ORG, PROPERTY, '1'.repeat(64), OPENED_AT],
+    [
+      REVIEW,
+      ORG,
+      PROPERTY,
+      '1'.repeat(64),
+      OPENED_AT,
+      options.measured ? 'measured' : 'legacy_unknown',
+      options.measured ? OPENED_AT : null,
+    ],
   )
   const item = makeItem()
-  await createAtomicInboxCommandStore(getDb()).createItem(item, null, {
-    materialReviewRevision: 1,
-  })
+  await createAtomicInboxCommandStore(getDb()).createItem(
+    item,
+    null,
+    options.measured
+      ? {
+          sourceRevision: 1,
+          openedReason: 'review_observed',
+          actorType: 'provider',
+          triggerEventId: null,
+          openedAt: OPENED_AT,
+          responseTarget: measuredResponseTargetPermit(),
+        }
+      : { materialReviewRevision: 1 },
+  )
   return item
 }
 
@@ -1172,6 +1215,121 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     expect(result.rows[0]).toMatchObject({
       status: 'open',
       receipt_status: 'obsolete',
+    })
+  })
+
+  describe('the Google pre-check on Response Target reminders', () => {
+    const TARGET_PASSED_AT = new Date(OPENED_AT.getTime() + 48 * 60 * 60_000)
+    const MINUTE = 60_000
+
+    /** The reminder pass over the real store and the real Review head lookup. */
+    const reminderTick = (now: Date, check = vi.fn()) => {
+      const replies = createReplyRepository(getDb(), () => OBSERVED_AT)
+      return releaseDueResponseTargetReminders({
+        targetStore: createResponseTargetStore(getDb()),
+        replyLookup: createReplyLookupAdapter({
+          findCurrentGoogleReplyHeadsByReviewIds:
+            replies.findCurrentGoogleReplyHeadsByReviewIds,
+        } as unknown as Parameters<typeof createReplyLookupAdapter>[0]),
+        googleReviewCheck: { check },
+        clock: () => now,
+        logger,
+      })()
+    }
+
+    const reminderFacts = async () =>
+      (
+        await pool.query<{ n: number }>(
+          `SELECT count(*)::int AS n FROM outbox_events
+           WHERE organization_id = $1 AND event_type = 'inbox.response_target.reminder_due'`,
+          [ORG],
+        )
+      ).rows[0]?.n
+
+    it('holds a due reminder for a reply Review already shows; the close that follows cancels the slots and nothing is ever sent', async () => {
+      const item = await seed({ measured: true })
+      await insertObservation(live)
+      const check = vi.fn()
+
+      // The reply is on Google and in Review's head, but the close has not run.
+      await expect(reminderTick(TARGET_PASSED_AT, check)).resolves.toMatchObject({
+        heldLocal: 1,
+        checked: 0,
+        released: 0,
+      })
+      expect(check).not.toHaveBeenCalled()
+      expect(await reminderFacts()).toBe(0)
+
+      await seedDeliveryEvent(EVENT_LIVE)
+      expect(await applyObservation(item, EVENT_LIVE, live)).toBe('applied')
+
+      const slots = await pool.query(
+        `SELECT reminder_kind, delivered_at IS NOT NULL AS delivered, cancelled_at IS NOT NULL AS cancelled
+         FROM inbox_response_target_reminders WHERE inbox_item_id = $1 ORDER BY scheduled_for`,
+        [ITEM],
+      )
+      expect(slots.rows).toEqual([
+        { reminder_kind: 'halfway', delivered: false, cancelled: true },
+        { reminder_kind: 'target_passed', delivered: false, cancelled: true },
+      ])
+      await expect(
+        reminderTick(new Date(TARGET_PASSED_AT.getTime() + 5 * MINUTE), check),
+      ).resolves.toMatchObject({ heldLocal: 0, checked: 0, released: 0 })
+      expect(await reminderFacts()).toBe(0)
+    })
+
+    it('still reminds when no reply is on Google', async () => {
+      await seed({ measured: true })
+      const check = vi.fn(async () => ({ status: 'read' as const }))
+
+      await expect(reminderTick(TARGET_PASSED_AT, check)).resolves.toMatchObject({
+        checked: 1,
+        released: 1,
+      })
+      expect(await reminderFacts()).toBe(1)
+    })
+
+    it('still reminds after a manager reopened the item following the reply: the reply is older than the new target', async () => {
+      const item = await seed({ measured: true })
+      await insertObservation(live)
+      await seedDeliveryEvent(EVENT_LIVE)
+      expect(await applyObservation(item, EVENT_LIVE, live)).toBe('applied')
+
+      const reopenAt = new Date(OBSERVED_AT.getTime() + 60 * MINUTE)
+      const cycleStore = createReviewHandlingCycleStore(getDb())
+      const closedHead = await cycleStore.findHead(ITEM, ORG)
+      if (closedHead === null) throw new Error('seeded Handling Cycle is missing')
+      await cycleStore.startNext({
+        inboxItemId: ITEM,
+        organizationId: ORG,
+        expected: {
+          cycleNumber: closedHead.currentCycleNumber,
+          materialReviewRevision: closedHead.currentMaterialReviewRevision,
+          stateRevision: closedHead.stateRevision,
+        },
+        materialReviewRevision: 1,
+        openedReason: 'manual_reopen',
+        manualReopenReason: 'internal_follow_up_still_needed',
+        manualReopenExplanation: null,
+        openedBy: MANUAL_REOPEN_ACTOR,
+        openedAt: reopenAt,
+        responseTarget: {
+          reviewAuthority: {
+            ...measuredResponseTargetPermit().reviewAuthority,
+            responseTargetStartAt: reopenAt,
+          },
+          targetStart: { basis: 'operational_reopen', at: reopenAt },
+        },
+      })
+      const check = vi.fn(async () => ({ status: 'read' as const }))
+      const targetPassedAt = new Date(reopenAt.getTime() + 48 * 60 * MINUTE)
+
+      await expect(reminderTick(targetPassedAt, check)).resolves.toMatchObject({
+        heldLocal: 0,
+        checked: 1,
+        released: 1,
+      })
+      expect(await reminderFacts()).toBe(1)
     })
   })
 })

@@ -72,6 +72,12 @@ export type {
 // (push liveness → discovery backoff ladder). The discovery sweep's own
 // initiator id stays internal to the review context, where its only user lives.
 export { GBP_PUSH_SYNC_INITIATOR_ID } from './ports/review-queue.port'
+// A process with no Google provider throws an error carrying this code from
+// every call; the Integration build stamps it, Review's read tells it apart.
+export {
+  GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
+  googleReviewApiNotConfigured,
+} from './ports/google-review-api.port'
 export { collectReviewSourceContentLifecycleReport } from './use-cases/collect-source-content-lifecycle-report'
 export { REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE } from './use-cases/run-source-content-lifecycle'
 // BQC-1.7: lifecycle purge port consumed by integration + property use cases.
@@ -85,6 +91,13 @@ export type {
   ReviewResponseTargetExpectation,
 } from './ports/response-target-authority.port'
 export type { ReviewSourceTransitionAuthority } from './ports/source-transition-authority.port'
+// Inbox reads one review from Google before it releases a Response Target
+// reminder for it; the result is content-free.
+export type {
+  CheckReviewOnGoogle as ReviewGoogleReviewCheck,
+  CheckReviewOnGoogleInput,
+  CheckReviewOnGoogleResult,
+} from './use-cases/check-review-on-google'
 export type {
   AmbiguousPublicationReconciliationCandidate,
   FindAmbiguousPublicationReconciliationCandidates,

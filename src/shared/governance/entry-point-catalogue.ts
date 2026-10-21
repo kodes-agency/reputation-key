@@ -229,11 +229,14 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
   ),
+  // Reads a Google review from Google once before it releases a reminder for
+  // it, so the action has an external effect and takes a fresh policy read.
   job(
     'release-response-target-reminders',
     'system:inbox.update',
     'inbox.use',
     'tenant_cross',
+    true,
   ),
   job('discover-new-reviews', 'system:review.discovery_sweep', 'none', 'tenant_cross'),
   job('purge-expired-reviews', 'system:review.purge', 'none', 'tenant_cross'),
@@ -710,6 +713,7 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:inbox.update',
     'inbox.use',
     'tenant_cross',
+    true,
   ),
   schedule(
     'reconcile-ambiguous-publications-recurring',

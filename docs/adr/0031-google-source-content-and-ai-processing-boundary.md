@@ -124,3 +124,13 @@ week's star split. Both are read through Review's public API under this
 policy's serving eligibility and the Property's current Google binding; a read
 neither extends the cache clock nor copies content. No review text, reviewer,
 Google identifier or reply leaves Review, and no AI operation takes part.
+
+## Amended 2026-10-21 — the reminder pre-check is an authorized fetch like any other
+
+Inbox's Response Target reminder job reads one review from Google before it
+releases a Google-review reminder for it (ADR 0046, amended 2026-10-21). That
+read goes through Review's observation writer under `property.connect_gbp`, so
+it refreshes the Review's content clock exactly as any authorized fetch does
+and records the reply state it shows. It never reads content whose source is
+`source_expired` or `provider_deleted`, nor content past its expiry, so a
+reminder cannot re-hydrate erased content; it logs counts only.

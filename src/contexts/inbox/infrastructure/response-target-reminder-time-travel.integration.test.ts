@@ -106,15 +106,24 @@ const makeItem = (): InboxItem => ({
  */
 function createTimeTraveller() {
   let current = OPENED_AT
+  // These are private-feedback timelines, which never reach Google: the
+  // pre-check is exercised in response-target-reminder-release.store.integration.test.ts.
   const releaseDue = releaseDueResponseTargetReminders({
     targetStore: createResponseTargetStore(db),
+    replyLookup: { getGoogleReplyHeadsByReviewIds: async () => new Map() },
+    googleReviewCheck: {
+      check: async () => {
+        throw new Error('private feedback reminders must not read Google')
+      },
+    },
     clock: () => current,
+    logger: createMockLogger(),
   })
   return {
     travelTo: (at: Date) => {
       current = at
     },
-    tick: () => releaseDue(),
+    tick: async () => ({ released: (await releaseDue()).released }),
     now: () => current,
   }
 }
@@ -140,6 +149,7 @@ function inboxWorkerConsumers(clock: () => Date) {
       replyObservationAuthority: {},
       responseTargetAuthority: {},
       sourceTransitionAuthority: {},
+      googleReviewCheck: {},
     } as InboxContextBuildInput['sources'],
     logger: createMockLogger(),
     authorizeCommand: async () => ({ allowed: true }),

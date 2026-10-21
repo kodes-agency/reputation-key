@@ -150,6 +150,6 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       executionKind: 'consumer',
       policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'deny', reason: 'missing_scope', freshRead: false },
+    expect: { outcome: 'deny', reason: 'missing_scope', freshRead: true },
   },
 ]

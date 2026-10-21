@@ -187,6 +187,8 @@ const emptyResponseTargetStore: ResponseTargetStore = {
     averageTimeToResponseMinutes: null,
   }),
   releaseDueReminders: async () => ({ released: 0 }),
+  listDueReminderCandidates: async () => [],
+  releaseReminderSlot: async () => 'skipped',
   cancelArchivedPropertyRemindersOnce: async () => 'obsolete',
 }
 
@@ -266,6 +268,10 @@ export function createInboxContainer() {
     replyLookup: noopReplyLookup,
     // Storybook projects no Google reply observations, so no permit is current.
     replyObservationAuthority: { withExactCurrent: async () => ({ status: 'obsolete' }) },
+    // Storybook has no Google provider; its reminder release never runs.
+    googleReviewCheck: {
+      check: async () => ({ status: 'not_checkable', reason: 'no_provider' }),
+    },
     staffPublicApi: noopStaffApi,
     logger: noopLogger,
     clock: () => clockNow,

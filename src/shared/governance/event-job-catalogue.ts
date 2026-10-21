@@ -634,7 +634,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'every:300000',
       registration: 'enabled',
     },
-    { timeoutMs: 60_000 },
+    { timeoutMs: 120_000 },
   ),
   job(
     'discover-new-reviews',

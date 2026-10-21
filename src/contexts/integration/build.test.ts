@@ -12,7 +12,10 @@ import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
 } from '#/contexts/property/application/public-api'
-import type { SourceContentPurge } from '#/contexts/review/application/public-api'
+import {
+  GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
+  type SourceContentPurge,
+} from '#/contexts/review/application/public-api'
 import type { GoogleProviderEndpoints } from './build'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
@@ -309,6 +312,14 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     await expect(
       ctx.reviewSync.googleReviewApi.listReviewsPage({} as never),
     ).rejects.toThrow('Governed Google review API is unavailable')
+  })
+
+  it('marks the refusal of a process with no Google provider so a caller can tell it from an outage', async () => {
+    const ctx = buildIntegrationContext(buildDeps({}))
+
+    await expect(
+      ctx.reviewSync.googleReviewApi.getReview({} as never),
+    ).rejects.toMatchObject({ code: GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE })
   })
 
   it('threads the production credential-egress refusal into the real OAuth adapter', async () => {

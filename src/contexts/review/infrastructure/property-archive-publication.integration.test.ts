@@ -232,6 +232,17 @@ const propertyApi = {
         }
       : null
   },
+  getGoogleReadScope: async (orgId: OrganizationId, pid: PropertyId) => {
+    const row = await readProperty(orgId, pid)
+    return row
+      ? {
+          lifecycleState: row.lifecycle_state as 'active',
+          googleBindingState: 'unbound' as const,
+          googleConnectionId: null,
+          sourceEpoch: row.source_epoch,
+        }
+      : null
+  },
 }
 
 /** Review's durable consumers, as its worker registers them. */

@@ -1408,6 +1408,39 @@ result, and the other way round.
    `?filter=recognition` opens Needs you, like every filter the page no longer
    offers.
 
+## Amended 2026-10-21 — a Google-review reminder checks Google first
+
+About 97% of replies are written directly on Google, and RepKey learns of them
+only at the next sync, which can be six hours apart. A halfway or
+target-passed reminder could therefore go out for a review a manager had
+already answered. Before it releases a **Google-review** reminder the
+`release-response-target-reminders` job now reads that one review from Google
+(through Review, the same observation writer as a sync, under
+`property.connect_gbp` and the provider authorizer).
+
+- A reply Review already shows, observed at or after the cycle's target start
+  and on its Material Review Revision, **holds** the reminder. A held slot
+  writes nothing and stays pending; the close that reply observation raises
+  cancels it. A read that shows such a reply holds it the same way. Anything
+  else releases: the check fails open, because a reminder is only a prompt.
+- A Google that cannot be read delays a reminder by at most 15 minutes from
+  its `scheduled_for` (15 to 20 in practice, the job runs every five minutes),
+  then it is released. A permanent condition (capability off, no Google
+  provider in the environment, a connection needing reauthorization, a
+  rejected request) releases at once.
+- Private-feedback reminders, which have no Google side, are never checked.
+  No row, column or migration is added: the cap is measured from the slot's
+  own `scheduled_for`.
+- The notification contract is unchanged: recipients, copy, routes and
+  Feed's exact-current revalidation at delivery are as before. What changes is
+  only whether and when the fact is released.
+
+The job now causes Google egress, so its entry-point rows carry
+`externalEffect`, and the recorded tenant-cross gap in
+`tenant-cross-schedule-authorization.test.ts` says what the provider
+authorizer decides per Organization. See
+`docs/operations/inbox-response-targets.md`.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
