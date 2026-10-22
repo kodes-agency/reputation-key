@@ -53,11 +53,13 @@ const TEST_ENV = testEnvironment()
 /**
  * Give the next guest a fresh rate-limit budget.
  *
- * The guest submit budget is 5 per network+Portal per hour. Every spec in the
- * suite arrives from one network (the Playwright host) at one Portal, so the
- * whole file shares a budget sized for one guest — four journeys exhaust it and
- * the later ones fail with "Your rating could not be saved", which reads like a
- * product defect rather than an exhausted counter.
+ * Every spec in the suite arrives from one network (the Playwright host) at one
+ * Portal, so the whole run shares one network+Portal budget
+ * (src/contexts/guest/server/guest-rate-limit-budgets.ts). Past it a new rating
+ * is no longer refused: it is kept and filtered automatically as
+ * `network_volume` (ADR 0044, amended 2026-10-22), so a spec that reads a
+ * Portal's Results would silently miss its own rating, and the other actions
+ * still answer 429.
  *
  * Resetting between tests models what the budget is actually for: a different
  * guest, on a different network. It does not weaken the rule — within a single

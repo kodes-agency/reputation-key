@@ -1084,6 +1084,45 @@ pass queues the review again within a minute: the worker's
 2026-10-13 item 7); `analysesLeftUnanalysed` above zero on that line after
 repeated stops means some have none left.
 
+**A number nobody holds (2026-10-22).** The other cause is not slow work at
+all. Until 2026-10-22 the Review writer took a Property's next analysis sequence
+before it knew whether the observation would be applied. A replayed observation
+(a retried snapshot page) or one older than what is stored is not applied: no
+Review took the number and no event named it, yet the head had moved, so
+coverage owed a settlement that nothing could ever make. The alert fired for
+good, the Property's insights stayed provisional and `generate-property-trend`
+retried without end. The writer now records such a number in
+`review_ai_analysis_released_sequences` in the same transaction, and every
+reader of coverage (this alert, the aggregate read, the trend scheduler, the
+trend report) subtracts the released numbers that fall between the start
+sequence and the head and that no settlement already counts.
+
+Tell a leak from slow work by what holds each unsettled number. For the current
+source and Review Analysis epochs, take every sequence after
+`merchant_ai_enablement.analysis_start_sequence` up to
+`review_ai_analysis_heads.head_sequence` that has no row in
+`ai_property_aggregate_settlements`. Slow work has a holder: a `reviews` row of
+the current source epoch whose `analysis_sequence` is that number, or an
+`outbox_events` row of the Property whose payload `analysisSequence` is that
+number (the event waits for its consumer: follow the diagnostics above). A
+number with neither holder, that is not in the released ledger either, is a leak.
+Do not insert settlement rows for it.
+
+`pnpm ops ai release-orphan-sequences <propertyId> --operator <id>` does that
+classification for you. The dry run prints the Property's start and head, how
+the range divides (`settled`, `held` by a Review, `announced` by an event,
+`released` already, `orphaned`) and the orphan sequences. `--reason <text>
+--apply` records the orphans as released with the reason `operator_repair`;
+copy the printed record (operator, reason, correlation id, sequences) into the
+incident record. It refuses while the head moved in the last 15 minutes, so work
+that was given a number can announce it first, and says when to run it again;
+it refuses a Property with no enabled Review Analysis authorization at its
+current source epoch; a second run finds nothing. The alert clears at its next
+five-minute evaluation, and the Property's trend schedule is attempted at the
+next scheduler pass. An announced event whose outbox row was already pruned
+(30 days after publication) reads as a leak too: if the dry run lists an old
+number, check the consumer receipts before applying.
+
 **Containment/Recovery:** Restore the failing ordinary path first. Let an
 in-horizon analysis retry or the execution reaper terminal-settle through the
 normal consumer. If the durable consumer receipt is missing, let the bounded

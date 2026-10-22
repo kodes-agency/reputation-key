@@ -19,13 +19,13 @@ import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-openai-request-contract'
 import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-profile'
 import type {
   AiPropertyAnalyzedReview,
-  AiPropertyAggregateCoverage,
   AiPropertyAggregateStorePort,
   AiPropertyDailyAggregate,
   AiPropertyDailyAspectCount,
   AiPropertyUnavailableReview,
 } from '../../application/ports/ai-property-aggregate-store.port'
 import { reviewId } from '#/shared/domain/ids'
+import { readAnalysisCoverage } from './ai-property-aggregate-coverage'
 import { isAspectTaxonomyV1Id, type AspectPolarityV1 } from '#/shared/aspect-taxonomy'
 import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import {
@@ -253,26 +253,6 @@ type ApplyReviewAnalysisInput = Parameters<
 type AdvanceWithoutAnalysisInput = Parameters<
   AiPropertyAggregateStorePort['advanceWithoutAnalysis']
 >[0]
-function deriveAnalysisCoverage(
-  settledAnalysisCount: number,
-  headSequence: number,
-  analysisStartSequence: number,
-): AiPropertyAggregateCoverage {
-  const expectedAnalysisCount = headSequence - analysisStartSequence
-  if (
-    !Number.isSafeInteger(expectedAnalysisCount) ||
-    expectedAnalysisCount < 0 ||
-    settledAnalysisCount > expectedAnalysisCount
-  ) {
-    throw new Error('Property aggregate coverage is invalid')
-  }
-  return Object.freeze({
-    settledAnalysisCount,
-    expectedAnalysisCount,
-    awaitingAnalysisCount: expectedAnalysisCount - settledAnalysisCount,
-  })
-}
-
 async function readLatestReviewSettlement(
   tx: AggregateTransaction,
   input: Readonly<{
@@ -692,11 +672,15 @@ export const createAiPropertyAggregateStoreAdapter = (
         // settlement ledger: the days below are profile-scoped, so a ledger
         // count would declare a freshly rolled profile complete over an empty
         // window.
-        const analysisCoverage = deriveAnalysisCoverage(
-          head.settledAnalysisCount,
-          reviewHead.headSequence,
-          authorization.analysisStartSequence,
-        )
+        const analysisCoverage = await readAnalysisCoverage(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          sourceEpoch: input.sourceEpoch,
+          reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+          settledAnalysisCount: head.settledAnalysisCount,
+          headSequence: reviewHead.headSequence,
+          analysisStartSequence: authorization.analysisStartSequence,
+        })
         const days = await tx
           .select()
           .from(aiPropertyDailyAggregates)

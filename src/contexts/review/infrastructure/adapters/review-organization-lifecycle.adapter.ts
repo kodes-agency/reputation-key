@@ -354,6 +354,11 @@ async function purge(
     tx,
     sql`DELETE FROM review_ai_analysis_heads WHERE organization_id = ${organizationId}`,
   )
+  // Numbers the allocator handed out and no Review took: ids and integers.
+  const releasedSequences = await countAffected(
+    tx,
+    sql`DELETE FROM review_ai_analysis_released_sequences WHERE organization_id = ${organizationId}`,
+  )
   const reputationFacts = await countAffected(
     tx,
     sql`DELETE FROM review_google_reputation_snapshot_facts WHERE organization_id = ${organizationId}`,
@@ -485,6 +490,7 @@ async function purge(
     { step: 'source_observations_deleted', rows: sourceObservations },
     { step: 'source_contents_deleted', rows: sourceContents },
     { step: 'ai_analysis_heads_deleted', rows: aiAnalysisHeads },
+    { step: 'ai_analysis_released_sequences_deleted', rows: releasedSequences },
     { step: 'reputation_snapshot_facts_deleted', rows: reputationFacts },
     { step: 'first_sightings_deleted', rows: firstSightings },
     { step: 'provider_subjects_deleted', rows: providerSubjects },

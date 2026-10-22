@@ -129,3 +129,39 @@ the visitor's browser asks for (`Accept-Language`), English when it asks for non
 with the English words under a rule when the first language is not English, and a "Try again"
 button for every cause. The browser's preference says nothing about the portal, so the page
 still reveals nothing about why it is not there.
+
+## Amendment 2026-10-22 — a venue's guests share one address
+
+"Abuse and privacy" 1 keeps its network signal layer. This amendment changes how wide it is and
+what happens at its edge, because the guests of a hotel, a restaurant or a salon on its Wi-Fi are
+one public address. The layer refused the 6th rating in an hour from one address on one Portal:
+the guest saw "could not be saved", the response was never stored, so the Google step never
+opened and Results could not show that anything was lost.
+
+- **Budgets sized for a busy venue**, per network pseudonym and Portal: 60 submissions, corrections,
+  private notes and withdrawals per hour (was 5 and 10), 60 "Start over" per 24 hours (was 5), 300
+  Google and link actions per hour (was 50), and 300 qualified scans per hour (was 100), on the Redis
+  layer and, for the actions that have one, on its PostgreSQL pressure twin alike. The session layer
+  holds one device and does not move. Every number is in `server/guest-rate-limit-budgets.ts`.
+- **A new rating is never refused for network volume.** When the session layer allows it and the
+  network layer is exhausted, the rating is kept: submitted with the automatic integrity assessment
+  `filtered_automatically`, reason `network_volume`, actor `guest-integrity-network-v1`, exactly as a
+  filled honeypot is. The guest gets the normal view and the Google step, the rating stays out of the
+  private-rating figures, and Results' integrity line counts it. A filled honeypot wins when both
+  apply. A session-layer denial and a limiter outage are unchanged: a 429, and point 3 still fails a
+  submission closed when the limiter cannot answer.
+- **A correction no longer spends the durable rating pressure.** It used the submit counter, so
+  corrections shrank a venue's room for new ratings. The aggregate's one-correction rule, the session
+  budget and the Redis network budget still bound it. No migration.
+- **Exhaustion is visible.** Whenever any network layer is exhausted, the filtered submit included, one
+  warning `guest.network_budget_exhausted` is logged with the action and nothing else (no address,
+  pseudonym or session). It does not name the Portal: the log policy (BQC-7.3) bans tenant identifiers
+  in log objects, so which venue is meeting its budget is not in the line until the owner decides how a
+  Portal may be named in telemetry.
+
+The cost is stated plainly: a client that drops its cookie can now place up to 60 accepted ratings an
+hour on a Portal from one address, up from 5; every rating after that is kept and filtered, not
+refused. Nothing bounds how many it can store: each one is a response row, retained like any other,
+where the 6th used to be refused before anything was written. Whether to add a hard ceiling far above
+any venue's volume, bound session issuance, or key the network layer by more than the address remains
+an owner tuning decision.

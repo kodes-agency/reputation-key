@@ -57,6 +57,8 @@ const EXPECTED_TABLES = [
   'metric_readings',
   // AI private-beta controls and read models
   'review_ai_analysis_heads',
+  // Migration 0068 (released analysis sequences)
+  'review_ai_analysis_released_sequences',
   'ai_execution_control_heads',
   'ai_execution_control_transitions',
   'ai_property_processing_profiles',

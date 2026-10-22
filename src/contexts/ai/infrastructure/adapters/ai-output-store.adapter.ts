@@ -11,6 +11,7 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { readAggregateCoverageFence } from './ai-aggregate-coverage-fence'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import type { ReviewId } from '#/shared/domain/ids'
 import {
@@ -288,59 +289,6 @@ function trendEvidence(value: unknown): AiTrendEvidence | null {
 type AiOutputCapability = 'review_analysis' | 'reply_drafting' | 'property_trends'
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
-type AggregateCoverageInput = Readonly<{
-  organizationId: string
-  propertyId: string
-  sourceEpoch: number
-  reviewAnalysisEpoch: number
-  propertyProfileVersion: number
-}>
-
-async function readAggregateCoverageFence(
-  tx: Transaction,
-  input: AggregateCoverageInput,
-): Promise<
-  | Readonly<{
-      headSequence: number
-      terminalAnalysisSequence: number
-      aggregateRevision: number
-      settledCount: number
-    }>
-  | undefined
-> {
-  const result = await tx.execute<{
-    headSequence: number
-    terminalAnalysisSequence: number
-    aggregateRevision: number
-    settledCount: number
-  }>(sql`
-    SELECT review_head."head_sequence"::float8 AS "headSequence",
-           aggregate."terminal_analysis_sequence"::float8 AS "terminalAnalysisSequence",
-           aggregate."aggregate_revision"::float8 AS "aggregateRevision",
-           (
-             SELECT count(*)::float8
-             FROM "ai_property_aggregate_settlements" AS settlement
-             WHERE settlement."organization_id" = aggregate."organization_id"
-               AND settlement."property_id" = aggregate."property_id"
-               AND settlement."source_epoch" = aggregate."source_epoch"
-               AND settlement."review_analysis_epoch" =
-                 aggregate."review_analysis_epoch"
-           ) AS "settledCount"
-    FROM "review_ai_analysis_heads" AS review_head
-    INNER JOIN "ai_property_aggregate_heads" AS aggregate
-      ON aggregate."organization_id" = review_head."organization_id"
-     AND aggregate."property_id" = review_head."property_id"
-     AND aggregate."source_epoch" = review_head."source_epoch"
-    WHERE review_head."organization_id" = ${input.organizationId}
-      AND review_head."property_id" = ${input.propertyId}::uuid
-      AND review_head."source_epoch" = ${input.sourceEpoch}
-      AND aggregate."review_analysis_epoch" = ${input.reviewAnalysisEpoch}
-      AND aggregate."property_profile_version" = ${input.propertyProfileVersion}
-    FOR SHARE OF review_head, aggregate
-  `)
-  return result.rows[0]
-}
-
 const authorizedEffectOperationColumns = {
   state: aiOperations.state,
   executionAttempt: aiOperations.executionAttempt,
@@ -1024,12 +972,13 @@ export const createAiOutputStoreAdapter = (
           )
           .limit(1)
           .for('share')
-        const aggregateCoverage = await readAggregateCoverageFence(tx, input)
+        const aggregateCoverage = coverage
+          ? await readAggregateCoverageFence(tx, input, coverage.analysisStartSequence)
+          : undefined
         if (
           !coverage ||
           !aggregateCoverage ||
-          aggregateCoverage.settledCount !==
-            aggregateCoverage.headSequence - coverage.analysisStartSequence ||
+          aggregateCoverage.settledCount !== aggregateCoverage.expectedSettlementCount ||
           aggregateCoverage.terminalAnalysisSequence !== input.terminalAnalysisSequence ||
           aggregateCoverage.aggregateRevision !== input.aggregateRevision
         ) {
@@ -1423,7 +1372,11 @@ export const createAiOutputStoreAdapter = (
           return deliverCurrent(preparing())
         }
 
-        const aggregateCoverage = await readAggregateCoverageFence(tx, input)
+        const aggregateCoverage = await readAggregateCoverageFence(
+          tx,
+          input,
+          authorization.analysisStartSequence,
+        )
         /**
          * The aggregate is complete only when every sequence allocated after
          * authorization was transactionally settled. The terminal sequence is
@@ -1431,8 +1384,7 @@ export const createAiOutputStoreAdapter = (
          */
         const caughtUp =
           aggregateCoverage !== undefined &&
-          aggregateCoverage.settledCount ===
-            aggregateCoverage.headSequence - authorization.analysisStartSequence
+          aggregateCoverage.settledCount === aggregateCoverage.expectedSettlementCount
 
         const now = new Date(input.nowEpochMillis)
         const reports = await tx
