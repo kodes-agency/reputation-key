@@ -30,6 +30,7 @@ import {
   guestPublicResponseValidator,
 } from './public-response-privacy.server'
 import { checkLayeredGuestRateLimit, guestRateLimitKeys } from './guest-session'
+import { QUALIFIED_SCAN_BUDGET } from './guest-rate-limit-budgets'
 import { toPublicPortalLoaderData } from '../application/dto/public-portal.dto'
 
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
@@ -120,10 +121,12 @@ export const recordScanFn = createServerFn({ method: 'POST' })
           'qualified_scan',
           observedAt,
         )
-        const networkPortalLimits = {
-          maxRequests: 100,
-          windowSeconds: 60 * 60,
-        } as const
+        // Both layers of the budget live in guest-rate-limit-budgets.ts; the
+        // PostgreSQL pressure twin below takes the network window with the Redis one.
+        const { session: sessionLimits, networkPortal: networkPortalLimits } =
+          QUALIFIED_SCAN_BUDGET
+        const reportNetworkBudgetExhausted = () =>
+          useCases.reportNetworkBudgetExhausted({ action: 'scan' })
         const rateResult = await checkLayeredGuestRateLimit({
           rateLimiter,
           keys: guestRateLimitKeys(
@@ -132,12 +135,14 @@ export const recordScanFn = createServerFn({ method: 'POST' })
             pseudonym,
             portal.portal.id,
           ),
-          sessionLimits: { maxRequests: 3, windowSeconds: 60 * 60 },
+          sessionLimits,
           networkPortalLimits,
         })
         if (!rateResult.allowed) {
           if (rateResult.backendStatus === 'unavailable') {
             await useCases.reportObservationLoss('scan')
+          } else if (rateResult.layer === 'networkPortal') {
+            reportNetworkBudgetExhausted()
           }
           setResponseHeader(
             'Retry-After',
@@ -168,6 +173,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
           return { success: false, retryable: true }
         }
         if (!pressureResult.allowed) {
+          reportNetworkBudgetExhausted()
           setResponseHeader(
             'Retry-After',
             String(
