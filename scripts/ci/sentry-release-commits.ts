@@ -1,17 +1,19 @@
-// Tells Sentry which commit each main release was built from.
+// Tells Sentry which commits each main release contains.
 //
 // The image build names a Sentry release after the commit it builds (see
 // scripts/build/sentry-source-map-upload.ts) but cannot attach commits to it:
 // the build has no `.git`. Without commits Sentry cannot name a suspect commit
 // for a new error, and a commit message saying "Fixes JAVASCRIPT-…-4" never
-// resolves that issue. Sentry's GitHub integration is linked to this
-// repository, so naming the release's commit is enough: Sentry reads the
-// commits since the previous release from GitHub itself.
+// resolves that issue.
 //
-// Sentry accepts the commit at once but reads GitHub in the background, so a
-// 200 does not prove anything was attached. The run reads the release back
-// until it has commits, and fails if it never does: a release Sentry silently
-// left empty is the failure this exists to prevent.
+// The run sends the commits itself, read from this checkout's git history:
+// every commit since the latest earlier release that has commits, or the
+// latest 20 when there is none (git-commit-log.ts). The first version only
+// named the release's commit and left Sentry to fetch the rest from GitHub in
+// the background; on 2026-10-22 Sentry accepted that and attached nothing,
+// without an error anywhere. Sending the list does not depend on that fetch,
+// carries the changed files that suspect commits need, and is checked: the run
+// reads the release back and fails if it still shows no commits.
 //
 // The sentry-release-commits workflow runs this after CI passes on main, never
 // on a pull request: a fix counts as shipped once it is on main and green,
@@ -23,6 +25,7 @@
 
 import { requiredEnv, runActionStep } from './action-step.ts'
 import { isEntryPoint } from './entry-point.ts'
+import { isAncestor, readCommits, type SentryCommit } from './git-commit-log.ts'
 
 const FULL_SHA = /^[0-9a-f]{40}$/u
 const OWNER_AND_NAME = /^[\w.-]+\/[\w.-]+$/u
@@ -31,10 +34,15 @@ const UNAUTHORIZED = 401
 const FORBIDDEN = 403
 // Well past a normal answer; the job's 5-minute timeout is the outer bound.
 const REQUEST_TIMEOUT_MS = 30_000
-// Sentry usually attaches commits within seconds; a minute is generous.
-const COMMIT_CHECKS = 12
+// Sentry stores commits it is sent within the request; the checks cover a lag.
+const COMMIT_CHECKS = 6
 const COMMIT_CHECK_INTERVAL_MS = 5_000
 const QUOTED_CHARACTERS = 300
+// What Sentry's own CLI sends for a first release, and a cap for a long gap.
+const FIRST_RELEASE_COMMITS = 20
+const MAX_COMMITS = 200
+// Releases are listed newest first; the previous one with commits is near.
+const RELEASES_SEARCHED = 25
 
 export type SentryApi = (
   method: 'GET' | 'PUT',
@@ -45,17 +53,25 @@ export type SentryApi = (
 export type ReleaseTarget = Readonly<{
   organization: string
   release: string
-  /** The repository as Sentry's GitHub integration names it: owner/name. */
+  /** The repository's name in Sentry: owner/name. */
   repository: string
 }>
 
 type Waiting = Readonly<{ attempts?: number; sleep?: (ms: number) => Promise<void> }>
 type ReleaseAnswer = Readonly<{ version?: string; commitCount?: number }>
+type ListedRelease = Readonly<{ version?: string; lastCommit?: { id?: string } | null }>
+
+export type Attached = Readonly<{ commits: number; alreadyAttached: boolean }>
+export type CommitRange = Readonly<{ range: readonly string[]; note: string | null }>
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
+function organizationPath(target: ReleaseTarget): string {
+  return `/api/0/organizations/${encodeURIComponent(target.organization)}`
+}
+
 function releasePath(target: ReleaseTarget): string {
-  return `/api/0/organizations/${encodeURIComponent(target.organization)}/releases/${target.release}/`
+  return `${organizationPath(target)}/releases/${target.release}/`
 }
 
 function sameRelease(answer: ReleaseAnswer, target: ReleaseTarget): ReleaseAnswer {
@@ -65,33 +81,80 @@ function sameRelease(answer: ReleaseAnswer, target: ReleaseTarget): ReleaseAnswe
   )
 }
 
+async function commitCountOf(api: SentryApi, target: ReleaseTarget): Promise<number> {
+  const { commitCount = 0 } = sameRelease(
+    (await api('GET', releasePath(target))) as ReleaseAnswer,
+    target,
+  )
+  return commitCount
+}
+
+/** The newest commit of the latest other release that has commits, if any. */
+export async function previousReleaseCommit(
+  api: SentryApi,
+  target: ReleaseTarget,
+): Promise<string | null> {
+  const listed = await api(
+    'GET',
+    `${organizationPath(target)}/releases/?per_page=${RELEASES_SEARCHED}`,
+  )
+  if (!Array.isArray(listed)) throw new Error("Sentry's release list was not a list")
+  const previous = (listed as ListedRelease[]).find(
+    ({ version, lastCommit }) =>
+      version !== target.release && FULL_SHA.test(lastCommit?.id ?? ''),
+  )
+  return previous?.lastCommit?.id ?? null
+}
+
+/** The `git log` range for this release: since the previous one, else the latest few. */
+export function commitRange(
+  base: string | null,
+  head: string,
+  ancestor: (base: string, head: string) => boolean = isAncestor,
+): CommitRange {
+  if (base !== null && ancestor(base, head))
+    return { range: [`${base}..${head}`], note: null }
+  const latest = ['-n', String(FIRST_RELEASE_COMMITS), head]
+  if (base === null) {
+    return {
+      range: latest,
+      note: `no earlier release has commits; sending the latest ${FIRST_RELEASE_COMMITS}`,
+    }
+  }
+  return {
+    range: latest,
+    note: `the previous release's commit ${base} is not in this history; sending the latest ${FIRST_RELEASE_COMMITS}`,
+  }
+}
+
 /**
- * Attach the release's own commit, then wait until Sentry has read the commits
- * since the previous release from GitHub. Returns how many it attached.
+ * Send the release its commits and check Sentry kept them. A release that
+ * already has commits (a re-run) is left as it is.
  */
 export async function attachReleaseCommits(
   api: SentryApi,
   target: ReleaseTarget,
+  commits: readonly SentryCommit[],
   { attempts = COMMIT_CHECKS, sleep = pause }: Waiting = {},
-): Promise<number> {
-  const path = releasePath(target)
+): Promise<Attached> {
+  const existing = await commitCountOf(api, target)
+  if (existing > 0) return { commits: existing, alreadyAttached: true }
+  if (commits.length === 0) {
+    throw new Error(`git listed no commits for release ${target.release}`)
+  }
   sameRelease(
-    (await api('PUT', path, {
-      refs: [{ repository: target.repository, commit: target.release }],
+    (await api('PUT', releasePath(target), {
+      commits: commits.map((commit) => ({ ...commit, repository: target.repository })),
     })) as ReleaseAnswer,
     target,
   )
   for (let check = 1; check <= attempts; check += 1) {
-    const { commitCount = 0 } = sameRelease(
-      (await api('GET', path)) as ReleaseAnswer,
-      target,
-    )
-    if (commitCount > 0) return commitCount
+    const count = await commitCountOf(api, target)
+    if (count > 0) return { commits: count, alreadyAttached: false }
     if (check < attempts) await sleep(COMMIT_CHECK_INTERVAL_MS)
   }
   throw new Error(
-    `Sentry took the commit for release ${target.release} but attached none after ${attempts} checks; ` +
-      `check Sentry's GitHub integration and that it lists ${target.repository} as a repository`,
+    `Sentry took ${commits.length} commit(s) for release ${target.release} but shows none after ${attempts} checks`,
   )
 }
 
@@ -178,12 +241,32 @@ export function createSentryApi(
   }
 }
 
+/** Reads the commits, newest first, capped so a long gap stays one request. */
+function commitsFor(
+  range: CommitRange,
+): Readonly<{ commits: readonly SentryCommit[]; notes: readonly string[] }> {
+  const all = readCommits(range.range)
+  const notes = range.note ? [range.note] : []
+  if (all.length <= MAX_COMMITS) return { commits: all, notes }
+  return {
+    commits: all.slice(0, MAX_COMMITS),
+    notes: [
+      ...notes,
+      `${all.length} commits since the previous release; sending the newest ${MAX_COMMITS}`,
+    ],
+  }
+}
+
 if (isEntryPoint(import.meta.url)) {
   process.exitCode = await runActionStep(async () => {
     const { token, baseUrl, target } = readConfig(process.env)
-    const commits = await attachReleaseCommits(createSentryApi(token, baseUrl), target)
-    return [
-      `Sentry release ${target.release} has ${commits} commit(s) from ${target.repository}`,
-    ]
+    const api = createSentryApi(token, baseUrl)
+    const range = commitRange(await previousReleaseCommit(api, target), target.release)
+    const { commits, notes } = commitsFor(range)
+    const attached = await attachReleaseCommits(api, target, commits)
+    const outcome = attached.alreadyAttached
+      ? `Sentry release ${target.release} already has ${attached.commits} commit(s); left as it is`
+      : `Sentry release ${target.release} now has ${attached.commits} commit(s) from ${target.repository}`
+    return [...notes, outcome]
   })
 }

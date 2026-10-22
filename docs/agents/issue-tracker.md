@@ -106,12 +106,12 @@ this repository.
   `type:bug` + `source:sentry` + a triage label, with the Sentry short ID
   (e.g. `JAVASCRIPT-TANSTACKSTART-REACT-4`) and link in the body. Link it back
   from Sentry ("Link GitHub issue", or the Sentry connector's `link_issue`).
-- **Resolve through the fix.** Put `Fixes <Sentry short ID>` in a **commit
-  message** of the fixing PR. This repo squash-merges using the commit
-  messages, so the line reaches main; text only in the PR description does
-  not. The `Sentry release commits` workflow
-  (`.github/workflows/sentry-release-commits.yml`) attaches each main commit to
-  its Sentry release once CI passes, and Sentry then resolves the issue.
+- **Resolve through the fix.** Write `Fixes <Sentry short ID>` in a commit
+  message of the fixing PR, or `fixes <Sentry short ID>` in the PR's title or
+  description (Sentry's GitHub integration reads both). After the PR merges
+  and CI passes on main, the `Sentry release commits` workflow
+  (`.github/workflows/sentry-release-commits.yml`) sends that release its
+  commits, and Sentry marks the issue resolved in it.
 - **Never file beta feedback from Sentry.** Sentry's "Create GitHub issue"
   button would copy the reporter's own words into this public repository.
   Beta reports reach GitHub only through `pnpm ops feedback-issue`, which
