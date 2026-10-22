@@ -8,6 +8,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { SectionNavLayout } from '#/components/ui/section-nav-layout'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { countHiddenLinks } from '../link-tree/linktree-approval-rules'
 import { PortalPreviewPane } from '../portal-preview/portal-preview-pane'
 import type { PreviewPartSection } from '../portal-preview/preview-parts'
 import { PortalEditorNav } from './portal-editor-nav'
@@ -48,6 +49,7 @@ export function PortalEditor({ resources, requestedSection }: Props) {
     portalName: portal.name,
     privateFeedbackThreshold: portal.privateFeedbackThreshold,
     linkCount: links.length,
+    hiddenLinkCount: countHiddenLinks(resources.linktree.links),
     languageCount: 1 + (portal.additionalGuestLocales?.length ?? 0),
     missingTextCount: resources.languageCoverage?.missingTotal,
     groupName: group?.name ?? null,

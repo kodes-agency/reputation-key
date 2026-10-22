@@ -56,6 +56,15 @@ describe('summarizePortalEditorSections', () => {
     )
   })
 
+  it('names the tiles guests cannot see, in the words the links list uses', () => {
+    expect(
+      summarizePortalEditorSections({ ...base, hiddenLinkCount: 1 }).linktree.text,
+    ).toBe('4 links · 1 hidden from guests')
+    expect(
+      summarizePortalEditorSections({ ...base, hiddenLinkCount: 0 }).linktree.text,
+    ).toBe('4 links')
+  })
+
   it('uses the singular for one link and one language', () => {
     const one = summarizePortalEditorSections({ ...base, linkCount: 1, languageCount: 1 })
     expect(one.linktree.text).toBe('1 link')
