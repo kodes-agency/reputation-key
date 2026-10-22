@@ -71,6 +71,19 @@ describe('emptyResults', () => {
     })
   })
 
+  it('does not send anyone to check a code that is in place but was never counted', () => {
+    // An older code: its zero scans say nothing about the table, however busy the period before.
+    const older = { ...live, scansCounted: false }
+
+    expect(emptyResults(quiet({ scans: 40 }), older)).toEqual({
+      kind: 'nothing',
+      title: 'Nothing recorded in these 30 days',
+      description:
+        'No ratings or notes in this period. Scans aren’t counted for this code: it is older than scan counting.',
+    })
+    expect(emptyResults(quiet({ notes: 2 }), older)).toMatchObject({ kind: 'nothing' })
+  })
+
   it('says it in the singular for a one-day window', () => {
     const day = {
       ...quiet({ scans: 3 }),

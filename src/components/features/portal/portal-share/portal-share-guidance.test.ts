@@ -59,7 +59,7 @@ describe('describeUnpublishedCode', () => {
   it('tells a draft what a scan shows until it is published, and offers to publish', () => {
     expect(describeUnpublishedCode('draft', true)).toEqual({
       title: 'Not published yet',
-      body: 'Guests who scan this code see “This page isn’t available right now” until you publish the portal. You can still make and print the code ahead of the launch.',
+      body: 'Guests who scan this code see “This page isn’t available right now” until you publish the portal. You can still make the code, download its QR image and copy its NFC address ahead of the launch. The print kit waits until the portal is live.',
       offersReview: true,
     })
   })

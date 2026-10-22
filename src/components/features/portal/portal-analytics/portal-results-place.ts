@@ -8,6 +8,11 @@ export type PortalResultsPlace = Readonly<{
   portalId: string
   /** Guests can open it now. A portal that is not live has no results to wait for. */
   isLive: boolean
+  /**
+   * The live code's scans are counted. False for a code that predates scan
+   * counting: its scans are a dash with the reason, as in the Portals overview.
+   */
+  scansCounted: boolean
   /** The reader may open the Inbox, where the private notes are read and answered. */
   canOpenInbox: boolean
 }>

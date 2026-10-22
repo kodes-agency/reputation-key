@@ -31,6 +31,11 @@ type Props = Readonly<{
    * that is not has nothing to count, and its empty state says to publish.
    */
   pageIsLive?: boolean
+  /**
+   * The live code's scans are counted. Left out, they are taken to be; a code
+   * that predates scan counting has its scans shown as a dash with the reason.
+   */
+  scansCounted?: boolean
   /** The Monthly portal goal's line, above everything the tab shows. */
   goalLine?: ReactNode
   /** The line is still being read: the tab shows its loading state until it is. */
@@ -94,6 +99,7 @@ function ResultsBody({
   propertyId,
   getPortalAnalytics,
   pageIsLive = true,
+  scansCounted = true,
   holding = false,
 }: Omit<Props, 'goalLine' | 'goalLinePending'> & Readonly<{ holding?: boolean }>) {
   const { can } = usePermissions()
@@ -157,6 +163,7 @@ function ResultsBody({
         propertyId,
         portalId,
         isLive: pageIsLive,
+        scansCounted,
         // The link opens the manager Inbox, whose route refuses anyone without this.
         canOpenInbox: can('inbox.manage'),
       }}
