@@ -118,14 +118,22 @@ describe('printKitAvailability', () => {
 describe('printKitPrintAdvice', () => {
   it('sends the table tent to a print shop: its sheet is taller than A4 and Letter', () => {
     expect(printKitPrintAdvice('table_tent')).toBe(
-      'The table tent needs a print shop: its sheet is larger than A4 or Letter. Ask them to print it at 100% (actual size) and cut it on the crop marks.',
+      'The table tent needs a print shop: its sheet is larger than A4 or Letter. Ask them to print it at 100% (actual size) and cut it on the crop marks. Ask your print shop to convert to CMYK if they need it.',
     )
   })
 
   it('prints the counter card on A4 or Letter, at actual size', () => {
     expect(printKitPrintAdvice('counter_card')).toBe(
-      'Print the counter card on A4 or Letter at 100% (actual size), not “fit to page”, then cut on the crop marks.',
+      'Print the counter card on A4 or Letter at 100% (actual size), not “fit to page”, then cut on the crop marks. Ask your print shop to convert to CMYK if they need it.',
     )
+  })
+
+  it('tells a print shop what to do about the file’s RGB colours, for both pieces', () => {
+    for (const piece of ['table_tent', 'counter_card'] as const) {
+      expect(printKitPrintAdvice(piece)).toMatch(
+        /Ask your print shop to convert to CMYK if they need it\.$/,
+      )
+    }
   })
 
   it('never offers an office printer for a piece whose page is larger than the paper', () => {

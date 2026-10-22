@@ -234,15 +234,20 @@ function fitsOfficePaper(piece: PrintKitPiece): boolean {
   )
 }
 
+const CMYK_ADVICE = 'Ask your print shop to convert to CMYK if they need it.'
+
 /**
  * How to print the piece. A table tent's sheet (two A6 panels with bleed and
  * crop marks) is taller than A4 and Letter, so it goes to a print shop; a
  * counter card's page prints on either. Shrunk to fit, a card is no longer A6
- * and loses its marks, so both say to print at actual size.
+ * and loses its marks, so both say to print at actual size. The file's colours
+ * are RGB, which a shop that prints in CMYK converts: they are asked to, if they
+ * need it, rather than the manager being left to know.
  */
 export function printKitPrintAdvice(piece: PrintKitPiece): string {
   const { noun } = PRINT_KIT_PIECE_FACTS[piece]
-  return fitsOfficePaper(piece)
+  const how = fitsOfficePaper(piece)
     ? `Print the ${noun} on A4 or Letter at 100% (actual size), not “fit to page”, then cut on the crop marks.`
     : `The ${noun} needs a print shop: its sheet is larger than A4 or Letter. Ask them to print it at 100% (actual size) and cut it on the crop marks.`
+  return `${how} ${CMYK_ADVICE}`
 }

@@ -170,6 +170,14 @@ describe('text longer than any brand or title', () => {
 })
 
 describe('the print kit PDF', () => {
+  it('declares PDF 1.4, the first level with the transparency its art uses', async () => {
+    const text = await renderText(inputFor(tentEnBg, { photo: null }))
+
+    expect(text.startsWith('%PDF-1.4')).toBe(true)
+    // The art does use it: opacity states and soft masks.
+    expect(text).toMatch(/\/ca [0-9.]+/u)
+  })
+
   it('is a PDF', async () => {
     const pdf = await renderer.render(inputFor(tentEnBg))
     expect(Buffer.from(pdf.subarray(0, 5)).toString('latin1')).toBe('%PDF-')
