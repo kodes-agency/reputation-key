@@ -89,41 +89,36 @@ async function commitCountOf(api: SentryApi, target: ReleaseTarget): Promise<num
   return commitCount
 }
 
-/** The newest commit of the latest other release that has commits, if any. */
+/**
+ * The newest commit of the latest earlier release in this history: a listed
+ * release whose last commit is an ancestor of this one. A release built later
+ * (CI finishing out of order) or from another repository is skipped, so the
+ * range never reaches past what is already attached.
+ */
 export async function previousReleaseCommit(
   api: SentryApi,
   target: ReleaseTarget,
+  ancestor: (base: string, head: string) => boolean = isAncestor,
 ): Promise<string | null> {
   const listed = await api(
     'GET',
     `${organizationPath(target)}/releases/?per_page=${RELEASES_SEARCHED}`,
   )
   if (!Array.isArray(listed)) throw new Error("Sentry's release list was not a list")
-  const previous = (listed as ListedRelease[]).find(
-    ({ version, lastCommit }) =>
-      version !== target.release && FULL_SHA.test(lastCommit?.id ?? ''),
-  )
-  return previous?.lastCommit?.id ?? null
+  const previous = (listed as ListedRelease[])
+    .map(({ lastCommit }) => lastCommit?.id ?? '')
+    .find(
+      (id) => FULL_SHA.test(id) && id !== target.release && ancestor(id, target.release),
+    )
+  return previous ?? null
 }
 
 /** The `git log` range for this release: since the previous one, else the latest few. */
-export function commitRange(
-  base: string | null,
-  head: string,
-  ancestor: (base: string, head: string) => boolean = isAncestor,
-): CommitRange {
-  if (base !== null && ancestor(base, head))
-    return { range: [`${base}..${head}`], note: null }
-  const latest = ['-n', String(FIRST_RELEASE_COMMITS), head]
-  if (base === null) {
-    return {
-      range: latest,
-      note: `no earlier release has commits; sending the latest ${FIRST_RELEASE_COMMITS}`,
-    }
-  }
+export function commitRange(base: string | null, head: string): CommitRange {
+  if (base !== null) return { range: [`${base}..${head}`], note: null }
   return {
-    range: latest,
-    note: `the previous release's commit ${base} is not in this history; sending the latest ${FIRST_RELEASE_COMMITS}`,
+    range: ['-n', String(FIRST_RELEASE_COMMITS), head],
+    note: `no earlier release in this history has commits; sending the latest ${FIRST_RELEASE_COMMITS}`,
   }
 }
 
@@ -242,10 +237,11 @@ export function createSentryApi(
 }
 
 /** Reads the commits, newest first, capped so a long gap stays one request. */
-function commitsFor(
+export function commitsFor(
   range: CommitRange,
+  read: (range: readonly string[]) => readonly SentryCommit[] = readCommits,
 ): Readonly<{ commits: readonly SentryCommit[]; notes: readonly string[] }> {
-  const all = readCommits(range.range)
+  const all = read(range.range)
   const notes = range.note ? [range.note] : []
   if (all.length <= MAX_COMMITS) return { commits: all, notes }
   return {

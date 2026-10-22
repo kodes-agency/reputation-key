@@ -4,20 +4,22 @@
 // files (`patch_set`) are what let Sentry name a suspect commit for an error;
 // the message is what lets "Fixes <Sentry short ID>" resolve an issue.
 //
-// One `git log` reads everything: each commit starts with a record separator
-// (0x1e) and its fields are split by a unit separator (0x1f), characters a
-// commit message does not contain, followed by `--name-status` lines.
+// Every field is read NUL-separated, one commit at a time. NUL is the one byte
+// git keeps out of messages and paths, so a message may hold any other control
+// character and a path any quote, tab or non-ASCII letter, and both arrive
+// intact. Without `-z` git quotes such paths ("caf\303\251.md"), and Sentry
+// could never match them to a stack frame. A few hundred small git processes
+// cost well under a second.
 
 import { execFileSync } from 'node:child_process'
 
-export const COMMIT_LOG_FORMAT = '--format=%x1e%H%x1f%an%x1f%ae%x1f%aI%x1f%B%x1f'
-
-const RECORD = '\x1e'
-const FIELD = '\x1f'
+const NUL = '\0'
 const FULL_SHA = /^[0-9a-f]{40}$/u
 const MAX_BUFFER_BYTES = 64 * 1024 * 1024
+const META_FIELDS = 4
 
 export type PatchType = 'A' | 'M' | 'D'
+export type FileChange = Readonly<{ path: string; type: PatchType }>
 
 export type SentryCommit = Readonly<{
   id: string
@@ -25,33 +27,24 @@ export type SentryCommit = Readonly<{
   author_email: string
   timestamp: string
   message: string
-  patch_set: readonly Readonly<{ path: string; type: PatchType }>[]
+  patch_set: readonly FileChange[]
 }>
 
-/**
- * Sentry knows only added, modified and deleted. A rename is the old path
- * deleted and the new one added; a copy adds its new path; a type change
- * (file to symlink, say) modifies.
- */
-function changesOf(line: string): Readonly<{ path: string; type: PatchType }>[] {
-  const [status = '', first = '', second = ''] = line.split('\t')
-  const kind = status.charAt(0)
-  if (kind === 'R')
-    return [
-      { path: first, type: 'D' },
-      { path: second, type: 'A' },
-    ]
-  if (kind === 'C') return [{ path: second, type: 'A' }]
-  if (kind === 'A' || kind === 'D') return [{ path: first, type: kind }]
-  return first ? [{ path: first, type: 'M' }] : []
-}
+type Git = (args: readonly string[]) => string
 
-function parseRecord(record: string): SentryCommit {
-  const [id = '', name = '', email = '', timestamp = '', message = '', changes = ''] =
-    record.split(FIELD)
-  if (!FULL_SHA.test(id)) {
+const runGit: Git = (args) =>
+  execFileSync('git', args, { encoding: 'utf8', maxBuffer: MAX_BUFFER_BYTES })
+
+/** Parses `git show -s --format=%an%x00%ae%x00%aI%x00%B <sha>`. */
+export function parseCommitMeta(
+  id: string,
+  output: string,
+): Omit<SentryCommit, 'patch_set'> {
+  const fields = output.split(NUL)
+  const [name = '', email = '', timestamp = '', message = ''] = fields
+  if (fields.length !== META_FIELDS) {
     throw new Error(
-      'git log returned a commit record that does not start with a commit SHA',
+      `git show returned ${fields.length} fields for ${id}, expected ${META_FIELDS}`,
     )
   }
   return {
@@ -60,26 +53,35 @@ function parseRecord(record: string): SentryCommit {
     author_email: email,
     timestamp,
     message: message.trim(),
-    patch_set: changes
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .flatMap(changesOf),
   }
 }
 
-/** Parses `git log COMMIT_LOG_FORMAT --name-status` output, newest first. */
-export function parseCommitLog(log: string): readonly SentryCommit[] {
-  return log
-    .split(RECORD)
-    .filter((record) => record.trim() !== '')
-    .map(parseRecord)
+/**
+ * Parses `git diff-tree -z --name-status -M`: a status, then one path, or two
+ * for a rename or copy. Sentry knows only added, modified and deleted: a rename
+ * deletes the old path and adds the new one, a copy adds the new path, and a
+ * type change (file to symlink, say) modifies.
+ */
+export function parseChangedFiles(output: string): readonly FileChange[] {
+  const tokens = output.split(NUL).filter((token) => token !== '')
+  const changes: FileChange[] = []
+  for (let at = 0; at < tokens.length;) {
+    const status = tokens[at] ?? ''
+    const kind = status.charAt(0)
+    const paths = kind === 'R' || kind === 'C' ? 2 : 1
+    const [first, second] = tokens.slice(at + 1, at + 1 + paths)
+    if (first === undefined || (paths === 2 && second === undefined)) {
+      throw new Error(`git diff-tree returned "${status}" without its paths`)
+    }
+    if (kind === 'R')
+      changes.push({ path: first, type: 'D' }, { path: second ?? '', type: 'A' })
+    else if (kind === 'C') changes.push({ path: second ?? '', type: 'A' })
+    else if (kind === 'A' || kind === 'D') changes.push({ path: first, type: kind })
+    else changes.push({ path: first, type: 'M' })
+    at += 1 + paths
+  }
+  return changes
 }
-
-type Git = (args: readonly string[]) => string
-
-const runGit: Git = (args) =>
-  execFileSync('git', args, { encoding: 'utf8', maxBuffer: MAX_BUFFER_BYTES })
 
 /** Whether `ancestor` is in the history of `commit`. */
 export function isAncestor(ancestor: string, commit: string, git: Git = runGit): boolean {
@@ -93,10 +95,31 @@ export function isAncestor(ancestor: string, commit: string, git: Git = runGit):
   }
 }
 
-/** The commits `git log` lists for `range` (e.g. `base..head`, or `-n 20 head`). */
+/** The commits `git log` lists for `range` (`base..head`, or `-n 20 head`), newest first. */
 export function readCommits(
   range: readonly string[],
   git: Git = runGit,
 ): readonly SentryCommit[] {
-  return parseCommitLog(git(['log', COMMIT_LOG_FORMAT, '--name-status', ...range]))
+  const ids = git(['log', '--format=%H', ...range])
+    .split('\n')
+    .filter(Boolean)
+  return ids.map((id) => {
+    if (!FULL_SHA.test(id))
+      throw new Error(`git log listed "${id}", which is not a commit SHA`)
+    return {
+      ...parseCommitMeta(id, git(['show', '-s', '--format=%an%x00%ae%x00%aI%x00%B', id])),
+      patch_set: parseChangedFiles(
+        git([
+          'diff-tree',
+          '--root',
+          '--no-commit-id',
+          '-r',
+          '-z',
+          '--name-status',
+          '-M',
+          id,
+        ]),
+      ),
+    }
+  })
 }

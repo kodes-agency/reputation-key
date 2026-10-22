@@ -3,6 +3,7 @@ import type { SentryCommit } from './git-commit-log.ts'
 import {
   attachReleaseCommits,
   commitRange,
+  commitsFor,
   createSentryApi,
   previousReleaseCommit,
   readConfig,
@@ -120,22 +121,31 @@ describe('previousReleaseCommit', () => {
     (releases: unknown): SentryApi =>
     async () =>
       releases
+  const C = 'c'.repeat(40)
 
-  it('returns the newest commit of the latest other release that has commits', async () => {
+  it('returns the last commit of the latest release in this history', async () => {
     const api = listing([
       { version: SHA, lastCommit: null },
-      { version: 'c'.repeat(40), lastCommit: null },
-      { version: 'd'.repeat(40), lastCommit: { id: BASE } },
-      { version: 'e'.repeat(40), lastCommit: { id: 'f'.repeat(40) } },
+      { version: 'x', lastCommit: null },
+      { version: 'later', lastCommit: { id: C } },
+      { version: 'earlier', lastCommit: { id: BASE } },
     ])
 
-    await expect(previousReleaseCommit(api, TARGET)).resolves.toBe(BASE)
+    await expect(
+      previousReleaseCommit(api, TARGET, (base) => base === BASE),
+    ).resolves.toBe(BASE)
   })
 
-  it('returns null when no release has commits yet', async () => {
-    await expect(
-      previousReleaseCommit(listing([{ version: SHA, lastCommit: null }]), TARGET),
-    ).resolves.toBeNull()
+  it('never starts from this release itself', async () => {
+    const api = listing([{ version: 'rerun', lastCommit: { id: SHA } }])
+
+    await expect(previousReleaseCommit(api, TARGET, () => true)).resolves.toBeNull()
+  })
+
+  it('returns null when no listed release is in this history', async () => {
+    const api = listing([{ version: 'other', lastCommit: { id: C } }])
+
+    await expect(previousReleaseCommit(api, TARGET, () => false)).resolves.toBeNull()
   })
 
   it('refuses a listing that is not a list', async () => {
@@ -146,25 +156,40 @@ describe('previousReleaseCommit', () => {
 })
 
 describe('commitRange', () => {
-  it('starts after the previous release when it is in this commit history', () => {
-    expect(commitRange(BASE, SHA, () => true)).toEqual({
-      range: [`${BASE}..${SHA}`],
-      note: null,
+  it('starts after the previous release', () => {
+    expect(commitRange(BASE, SHA)).toEqual({ range: [`${BASE}..${SHA}`], note: null })
+  })
+
+  it('takes the latest 20 commits when there is no previous release', () => {
+    expect(commitRange(null, SHA)).toEqual({
+      range: ['-n', '20', SHA],
+      note: 'no earlier release in this history has commits; sending the latest 20',
+    })
+  })
+})
+
+describe('commitsFor', () => {
+  const many = (count: number): SentryCommit[] =>
+    Array.from({ length: count }, (_, index) => ({
+      ...COMMIT,
+      id: String(index).padStart(40, '0'),
+    }))
+
+  it('sends every commit of an ordinary gap', () => {
+    expect(commitsFor({ range: ['r'], note: null }, () => many(3))).toEqual({
+      commits: many(3),
+      notes: [],
     })
   })
 
-  it('takes the latest 20 commits for the first release', () => {
-    expect(commitRange(null, SHA, () => true)).toEqual({
-      range: ['-n', '20', SHA],
-      note: 'no earlier release has commits; sending the latest 20',
-    })
-  })
+  it('keeps the newest 200 of a longer gap and says so', () => {
+    const result = commitsFor({ range: ['r'], note: 'first' }, () => many(250))
 
-  it('takes the latest 20 commits when the previous release is not in this history', () => {
-    expect(commitRange(BASE, SHA, () => false)).toEqual({
-      range: ['-n', '20', SHA],
-      note: `the previous release's commit ${BASE} is not in this history; sending the latest 20`,
-    })
+    expect(result.commits).toEqual(many(200))
+    expect(result.notes).toEqual([
+      'first',
+      '250 commits since the previous release; sending the newest 200',
+    ])
   })
 })
 
