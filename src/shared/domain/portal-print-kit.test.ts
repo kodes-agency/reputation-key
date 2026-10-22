@@ -252,6 +252,27 @@ describe('printKitFileName', () => {
     )
   })
 
+  it('ends a redesigned print with its paper, and names Immersive before it', () => {
+    expect(
+      printKitFileName('Pool & Terrace', 'counter_card', ['en', 'es'], {
+        style: 'paper',
+        paper: 'letter',
+      }),
+    ).toBe('pool-terrace-counter-card-en-es-letter.pdf')
+    expect(
+      printKitFileName('Pool & Terrace', 'table_tent', ['en'], {
+        style: 'paper',
+        paper: 'a4',
+      }),
+    ).toBe('pool-terrace-table-tent-en-a4.pdf')
+    expect(
+      printKitFileName('Pool & Terrace', 'counter_card', ['en', 'es'], {
+        style: 'immersive',
+        paper: 'letter',
+      }),
+    ).toBe('pool-terrace-counter-card-en-es-immersive-letter.pdf')
+  })
+
   it('never lets a name break out of a file name', () => {
     expect(printKitFileName('../../etc/passwd', 'table_tent', ['en'])).toBe(
       'etc-passwd-table-tent-en.pdf',

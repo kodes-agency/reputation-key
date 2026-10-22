@@ -33,6 +33,7 @@ import {
   WORKING_COPY_OTHER_ORG,
 } from '../testing/portal-working-copy-scenarios'
 import { createPdfKitPrintKitRenderer } from './pdfkit-print-kit-renderer'
+import { createPropertyCountryReader } from './print-kit-property-country'
 
 const BASE_URL = 'https://app.example.test'
 const RAW_TOKEN = 'pt_AAAAAAAAAAAAAAAA_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
@@ -233,11 +234,33 @@ async function harness(options: HarnessOptions = {}) {
         baseUrl: BASE_URL,
       }),
       renderer,
+      propertyCountry: createPropertyCountryReader(db),
     }),
     renderedAddresses,
     ctx: buildTestAuthContext({ organizationId: WORKING_COPY_ORG }),
   }
 }
+
+/** Records the scenario Property's country, or clears it. */
+const setCountry = (countryCode: string | null) =>
+  getPool().query('UPDATE properties SET country_code = $2 WHERE id = $1::uuid', [
+    COMPLETE_SCENARIO.propertyId,
+    countryCode,
+  ])
+
+/** The size of every page of a PDF, from its MediaBoxes. */
+const pageSizes = (pdf: Uint8Array): number[][] =>
+  [
+    ...Buffer.from(pdf)
+      .toString('latin1')
+      .matchAll(/\/MediaBox \[([^\]]+)\]/gu),
+  ].map((match) =>
+    (match[1] ?? '')
+      .trim()
+      .split(/\s+/u)
+      .slice(2)
+      .map((value) => Math.round(Number(value))),
+  )
 
 const downloadRows = async () =>
   (
@@ -372,5 +395,61 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
         ctx,
       ),
     ).rejects.toMatchObject({ code: 'locale_not_offered' })
+  })
+
+  it.each([
+    ['table_tent', 'letter', [[612, 792]]],
+    ['table_tent', 'a4', [[595, 842]]],
+    [
+      'counter_card',
+      'letter',
+      [
+        [612, 792],
+        [612, 792],
+      ],
+    ],
+    [
+      'counter_card',
+      'a4',
+      [
+        [595, 842],
+        [595, 842],
+      ],
+    ],
+  ] as const)('draws a Paper %s on %s sheets', async (piece, paper, sizes) => {
+    const { make, ctx } = await harness()
+    const file = await make(
+      {
+        portalId: COMPLETE_SCENARIO.portalId,
+        piece,
+        languages: ['bg', 'en'],
+        callToAction: 'rate',
+        style: 'paper',
+        paper,
+      },
+      ctx,
+    )
+    expect(file.fileName.endsWith(`-bg-en-${paper}.pdf`)).toBe(true)
+    expect(pageSizes(file.pdf)).toEqual(sizes)
+    expect(Buffer.from(file.pdf).toString('latin1')).not.toMatch(/\/BleedBox/u)
+  })
+
+  it('prints a Paper request on Letter for a property with no country, and on A4 for one in Bulgaria', async () => {
+    const { make, ctx } = await harness()
+    const request = {
+      portalId: COMPLETE_SCENARIO.portalId,
+      piece: 'table_tent',
+      languages: ['bg'],
+      callToAction: 'rate',
+      style: 'paper',
+    } as const
+    await setCountry(null)
+    const unknown = await make(request, ctx)
+    expect(unknown.fileName.endsWith('-bg-letter.pdf')).toBe(true)
+    expect(pageSizes(unknown.pdf)).toEqual([[612, 792]])
+    await setCountry('BG')
+    const bulgarian = await make(request, ctx)
+    expect(bulgarian.fileName.endsWith('-bg-a4.pdf')).toBe(true)
+    expect(pageSizes(bulgarian.pdf)).toEqual([[595, 842]])
   })
 })

@@ -55,6 +55,8 @@ type Options = Readonly<{
   heroStatus?: 'active' | 'taken_down'
   storeHero?: boolean
   heroHash?: string
+  /** The Property's country; null when it has none recorded. */
+  country?: string | null
 }>
 
 async function setup(options: Options = {}) {
@@ -90,6 +92,7 @@ async function setup(options: Options = {}) {
         issuedAt: new Date('2026-10-01T10:00:00Z'),
       })),
   )
+  const propertyCountry = vi.fn(async () => options.country ?? null)
   const rendered: PrintKitRenderInput[] = []
   const renderer: PortalPrintKitRenderer = {
     render: vi.fn(async (input) => {
@@ -112,8 +115,9 @@ async function setup(options: Options = {}) {
     sha256Hex,
     revealAddress: reveal,
     renderer,
+    propertyCountry,
   })
-  return { portal, make, reveal, renderer, rendered }
+  return { portal, make, reveal, renderer, rendered, propertyCountry }
 }
 
 const choice = {
@@ -143,6 +147,48 @@ describe('createPortalPrintKit', () => {
     ])
     expect(input?.wordmark).toBe('HARBOR')
     expect(input?.title).toBe('Harbor lobby table tent')
+  })
+
+  it('draws today’s print, and reads no country, when the request names no style', async () => {
+    const { portal, make, rendered, propertyCountry } = await setup({ country: 'US' })
+    await make({ portalId: portal.id, ...choice, paper: 'a4' }, buildTestAuthContext())
+    expect(rendered[0]).not.toHaveProperty('style')
+    expect(rendered[0]).not.toHaveProperty('paper')
+    expect(propertyCountry).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['the US', 'US', 'letter'],
+    ['Mexico', 'MX', 'letter'],
+    ['Bulgaria', 'BG', 'a4'],
+    ['no recorded country', null, 'letter'],
+  ] as const)(
+    'prints a Paper request for a property in %s on the paper it uses',
+    async (_label, country, paper) => {
+      const { portal, make, rendered, propertyCountry } = await setup({ country })
+      const ctx = buildTestAuthContext()
+      const file = await make({ portalId: portal.id, ...choice, style: 'paper' }, ctx)
+      expect(rendered[0]).toMatchObject({ style: 'paper', paper })
+      expect(file.fileName).toBe(`harbor-lobby-table-tent-en-bg-${paper}.pdf`)
+      expect(propertyCountry).toHaveBeenCalledWith(ctx.organizationId, portal.propertyId)
+    },
+  )
+
+  it('prints on the paper the manager chose over the country’s', async () => {
+    const { portal, make, rendered, propertyCountry } = await setup({ country: 'US' })
+    const file = await make(
+      {
+        portalId: portal.id,
+        ...choice,
+        piece: 'counter_card',
+        style: 'paper',
+        paper: 'a4',
+      },
+      buildTestAuthContext(),
+    )
+    expect(rendered[0]).toMatchObject({ style: 'paper', paper: 'a4' })
+    expect(file.fileName).toBe('harbor-lobby-counter-card-en-bg-a4.pdf')
+    expect(propertyCountry).not.toHaveBeenCalled()
   })
 
   it('reads the address through the audited reveal, as a download', async () => {
