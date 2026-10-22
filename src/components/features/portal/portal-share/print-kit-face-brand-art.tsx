@@ -1,4 +1,4 @@
-// The brand at the head of a redesigned face, as the PDF sets it (spec 2.1 and
+// The brand at the head of a face, as the PDF sets it (spec 2.1 and
 // 2.5): the property's logo when it has one, else its wordmark in tracked
 // capitals, ink on Paper and white on the Immersive field.
 //

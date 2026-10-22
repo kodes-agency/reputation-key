@@ -33,9 +33,10 @@ const REGISTRATION: [number, number, number, number] = [100, 100, 100, 100]
 
 /**
  * Declares the trim of a page, and its bleed when it has one. Boxes are `[left,
- * bottom, right, top]` in PDF space, whose origin is the bottom-left of the page. A Paper
- * page has none: its trim is the sheet, and a BleedBox the size of the trim would
- * tell a preflight there is bleed to keep when there is none.
+ * bottom, right, top]` in PDF space, whose origin is the bottom-left of the
+ * page. A Paper page has no bleed: its trim is the sheet, and a BleedBox the
+ * size of the trim would tell a preflight there is bleed to keep when there is
+ * none.
  */
 export function setPageBoxes(page: PDFKit.PDFPage, sheet: PrintKitPage): void {
   const { trim } = sheet

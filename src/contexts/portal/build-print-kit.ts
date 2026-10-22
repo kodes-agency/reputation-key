@@ -27,7 +27,7 @@ export type PortalPrintKitDeps = Readonly<{
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
   objectStore: Pick<StoragePort, 'getObject'>
   revealAddress: RevealPortalAddress
-  /** The Property's country, which sets the paper a redesigned print defaults to. */
+  /** The Property's country, which sets the paper a print defaults to. */
   propertyCountry: PropertyCountryReader
   clock: () => Date
   /** Hears what is worth a look but does not stop a print, such as a logo that prints soft. */

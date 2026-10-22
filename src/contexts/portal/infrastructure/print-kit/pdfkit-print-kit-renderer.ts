@@ -24,7 +24,7 @@ import { brandDpi } from './print-kit-face-brand'
 import { logoArt } from './print-kit-image'
 import { drawImmersivePrint } from './print-kit-immersive-document'
 import { drawPrintCheck, drawTicks } from './print-kit-marks'
-import { drawStyledPages, layoutFaces, type PrintKitWarning } from './print-kit-pages'
+import { drawPrintPages, layoutFaces, type PrintKitWarning } from './print-kit-pages'
 import { drawPaperFace, layoutPaperFace, type PaperFaceArt } from './print-kit-paper-face'
 import { openImage } from './print-kit-pdf-image'
 import { PrintKitFonts } from './print-kit-pdf-text'
@@ -70,7 +70,7 @@ async function drawPaperPrint(
   const layouts = layoutFaces(input.faces, pages, (face, geometry) =>
     layoutPaperFace(doc, fonts, face, art, geometry),
   )
-  drawStyledPages(
+  drawPrintPages(
     { doc, faces: input.faces, warn },
     pages,
     layouts,

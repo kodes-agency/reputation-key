@@ -1,4 +1,4 @@
-// The words of a redesigned face, as the PDF stacks them (spec 2.2): the place
+// The words of a face, as the PDF stacks them (spec 2.2): the place
 // label, the largest type on the face, with the second language's title small
 // under it in the accent ink; the lead call to action; and, with two languages,
 // a rule and the second call to action. With one language the rule sits between

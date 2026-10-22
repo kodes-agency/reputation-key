@@ -344,9 +344,10 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   to a sheet; A5 faces; Immersive A6 pieces with a 3 mm bleed) everywhere else.
   The manager's choice wins and is kept for the session; the browser's locale is
   not read, because it says where the manager sits and not where the piece will
-  stand. The Share tab starts on a Paper counter card on `defaultPrintKitPaper(countryCode)`
-  (the share board's own state) and always sends `style` and `paper`; the server defaults a missing style to Paper and a
-  missing paper to the same rule, reading `properties.country_code` only then.
+  stand. The Share tab starts on a Paper counter card (the share board's own
+  state) on `defaultPrintKitPaper(countryCode)` and always sends `style` and
+  `paper`; the server defaults a missing style to Paper and a missing paper to
+  the same rule, reading `properties.country_code` only then.
 - **A print is the live version.** Its languages, titles and look come from what
   guests can open now, never from a draft: a language added in the editor and not
   published is refused (`locale_not_offered`), and a portal with nothing live has

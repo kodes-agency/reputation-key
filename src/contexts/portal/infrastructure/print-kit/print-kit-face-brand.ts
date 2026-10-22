@@ -1,4 +1,4 @@
-// The brand at the head of a redesigned face (spec 2.1, 2.5 and 3.1): the
+// The brand at the head of a face (spec 2.1, 2.5 and 3.1): the
 // property's logo when it has one, else its wordmark in tracked capitals.
 //
 // A face measures its top margin to ink, so the plan says where the ink starts

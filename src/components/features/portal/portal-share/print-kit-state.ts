@@ -21,8 +21,9 @@ import type { PortalPublicationState } from '../shared/types'
 /**
  * What the section starts with: a Paper counter card (the share board's own
  * state) on the paper the property's country prints on (Letter when it has none,
- * spec 7.1), in the first language choice the portal offers, asking for a rating. The browser's locale says where
- * the manager sits, not where the piece will stand, so it is not asked.
+ * spec 7.1), in the first language choice the portal offers, asking for a
+ * rating. The browser's locale says where the manager sits, not where the piece
+ * will stand, so it is not asked.
  */
 export function initialPrintKitChoice(
   locales: readonly GuestLocale[],
