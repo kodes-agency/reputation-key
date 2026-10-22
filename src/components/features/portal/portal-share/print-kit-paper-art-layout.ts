@@ -45,26 +45,46 @@ const linesHeight = (
   sizePt *
   leading
 
-/** The estimated height of a two-language card's words at `scale`, as the PDF stacks them. */
-function twoLanguageHeight(face: PrintFace, scale: 'two' | 'twoTight', widthPt: number) {
+/**
+ * The estimated height of a face's words at `scale`, as the PDF stacks them:
+ * with one language the rule sits between the place label and the call to
+ * action, with two it sits between the two calls to action. `placeToHeadPt` is
+ * the place block's gap when a fit step has tightened it.
+ */
+export function estimatedStackHeight(
+  face: PrintFace,
+  scale: PaperScale,
+  widthPt: number,
+  placeToHeadPt?: number,
+): number {
   const [lead, second] = face.blocks
-  if (lead === undefined || second === undefined) return 0
-  const type = TYPE_PT[scale]
-  const gaps = STACK.gapsPt[scale]
+  if (lead === undefined) return 0
+  const type: Readonly<Record<string, number>> = TYPE_PT[scale]
+  const gaps: Readonly<{ rule: number; placeToHead?: number }> = STACK.gapsPt[scale]
   const { leading } = STACK
-  return (
-    linesHeight(lead.kicker, type.place, leading.place, ADVANCE_EM.display, widthPt) +
-    STACK.placeGapPt +
-    linesHeight(second.kicker, type.place2, leading.place2, ADVANCE_EM.body, widthPt) +
-    gaps.placeToHead +
-    linesHeight(lead.headline, type.head, leading.head, ADVANCE_EM.display, widthPt) +
+  const size = (key: string) => type[key] ?? 0
+  const rule = 2 * gaps.rule + STACK.rule.weightPt
+  const leadHeight =
+    linesHeight(lead.kicker, size('place'), leading.place, ADVANCE_EM.display, widthPt) +
+    linesHeight(lead.headline, size('head'), leading.head, ADVANCE_EM.display, widthPt) +
     STACK.subAbovePt +
-    linesHeight(lead.subline, type.sub, leading.sub, ADVANCE_EM.body, widthPt) +
-    2 * gaps.rule +
-    STACK.rule.weightPt +
-    linesHeight(second.headline, type.head2, leading.head2, ADVANCE_EM.display, widthPt) +
+    linesHeight(lead.subline, size('sub'), leading.sub, ADVANCE_EM.body, widthPt)
+  if (second === undefined) return leadHeight + rule
+  return (
+    leadHeight +
+    STACK.placeGapPt +
+    linesHeight(second.kicker, size('place2'), leading.place2, ADVANCE_EM.body, widthPt) +
+    (placeToHeadPt ?? gaps.placeToHead ?? 0) +
+    rule +
+    linesHeight(
+      second.headline,
+      size('head2'),
+      leading.head2,
+      ADVANCE_EM.display,
+      widthPt,
+    ) +
     STACK.sub2AbovePt +
-    linesHeight(second.subline, type.sub2, leading.sub2, ADVANCE_EM.body, widthPt)
+    linesHeight(second.subline, size('sub2'), leading.sub2, ADVANCE_EM.body, widthPt)
   )
 }
 
@@ -91,7 +111,7 @@ export function previewPaperScale(face: PrintFace, geometry: PanelGeometry): Pap
     FIT.paperGapPt.code +
     MARGIN.optical.wordmarkCapPt
   const width = grid.widthPt - 2 * grid.sidePt
-  return twoLanguageHeight(face, 'two', width) <= room ? 'two' : 'twoTight'
+  return estimatedStackHeight(face, 'two', width) <= room ? 'two' : 'twoTight'
 }
 
 const COUNTS = ['no', 'one', 'two', 'three', 'four'] as const

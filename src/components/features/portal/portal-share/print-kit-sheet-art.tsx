@@ -1,9 +1,10 @@
-// The whole sheet a Paper print comes out of the printer as (spec 4.3 and 4.4),
-// composed from the same pages the PDF draws (`printKitPages`): each face in its
-// slot, turned upside down above a tent's fold, the grey ticks where the sheet
-// is cut or folded, and on the Letter card sheet the print check in the strip
-// that is cut away. So the Whole sheet view cannot show a sheet the file does not
-// print.
+// The whole sheet a print comes out as (spec 4.3, 4.4 and 5.3), composed from
+// the same pages the PDF draws (`printKitPages`): each face in its slot, turned
+// upside down above a tent's fold. A Paper sheet carries grey ticks where it is
+// cut or folded, and on the Letter card sheet the print check in the strip that
+// is cut away; an Immersive page is a print shop's, with the field run into the
+// bleed, crop and fold marks and the slug line. So the Whole sheet view cannot
+// show a sheet the file does not print.
 //
 // Laid out in container units of the sheet's width; the faces in their slots
 // lay themselves out in their own. Inline styles, as the rest of the preview.
@@ -13,10 +14,13 @@ import type {
   PrintFace,
   PrintKitPaper,
   PrintKitPiece,
+  PrintKitStyle,
 } from '#/shared/domain/portal-print-kit'
+import { PRINT_SHOP_PAGE } from '#/shared/domain/portal-print-kit-immersive'
 import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
 import {
   PRINT_KIT_PAPER,
+  immersivePrintKitPalette,
   paperPrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
 import {
@@ -27,9 +31,13 @@ import {
 } from '#/shared/domain/portal-print-kit-sheets'
 import type { PointsToLength } from './print-kit-code-block-layout'
 import { PrintKitFaceArt } from './print-kit-face-art'
+import { printKitPrintShopLabel } from './print-kit-immersive-art-layout'
 import { printKitSheetLabel, ptToContainerWidth } from './print-kit-paper-art-layout'
+import { PrintShopGrounds, PrintShopMarks } from './print-kit-print-shop-art'
 
 type Props = Readonly<{
+  /** Paper by default: the style a download makes when it names none. */
+  style?: PrintKitStyle
   piece: PrintKitPiece
   paper: PrintKitPaper
   /** The piece's faces (`printKitFaces`): a card's back is on the second page. */
@@ -91,6 +99,7 @@ function PrintCheck({ accent, u }: Readonly<{ accent: string; u: PointsToLength 
 }
 
 export function PrintKitSheetArt({
+  style = 'paper',
   piece,
   paper,
   faces,
@@ -98,29 +107,39 @@ export function PrintKitSheetArt({
   codeUrl,
   page = 0,
 }: Props) {
-  const pages = printKitPages(piece, faces.length, 'paper', paper)
+  const pages = printKitPages(piece, faces.length, style, paper)
   const index = Math.min(Math.max(0, page), pages.length - 1)
   const sheet = pages[index]
   if (sheet === undefined) return null
   const u: PointsToLength = (points) => ptToContainerWidth(points, sheet.widthPt)
+  const immersive = style === 'immersive'
+  const position = { index, count: pages.length, faces: sheet.panels.length }
   return (
     <div
       role="img"
-      aria-label={printKitSheetLabel(piece, paper, {
-        index,
-        count: pages.length,
-        faces: sheet.panels.length,
-      })}
+      aria-label={
+        immersive
+          ? printKitPrintShopLabel(piece, paper, position)
+          : printKitSheetLabel(piece, paper, position)
+      }
       style={{
         position: 'relative',
         width: '100%',
         aspectRatio: `${sheet.widthPt} / ${sheet.heightPt}`,
         containerType: 'inline-size',
         overflow: 'hidden',
-        background: PRINT_KIT_PAPER,
+        // A print shop's sheet is white round the bleed; Paper shows the board's paper tone.
+        background: immersive ? PRINT_SHOP_PAGE : PRINT_KIT_PAPER,
         fontFamily: 'var(--font-guest-body)',
       }}
     >
+      {immersive && (
+        <PrintShopGrounds
+          page={sheet}
+          palette={immersivePrintKitPalette(look.accentColour, look.fieldColour)}
+          u={u}
+        />
+      )}
       {sheet.panels.map((panel) => {
         const face = faces.find((candidate) => candidate.side === panel.side)
         if (face === undefined) return null
@@ -137,7 +156,8 @@ export function PrintKitSheetArt({
             }}
           >
             <PrintKitFaceArt
-              style="paper"
+              style={style}
+              bare={immersive}
               geometry={panel.geometry}
               face={face}
               look={look}
@@ -162,6 +182,16 @@ export function PrintKitSheetArt({
         />
       ))}
       {sheet.printCheck && <PrintCheck accent={look.accentColour} u={u} />}
+      {immersive && (
+        <PrintShopMarks
+          page={sheet}
+          piece={piece}
+          paper={paper}
+          faces={faces}
+          wordmark={look.wordmark}
+          u={u}
+        />
+      )}
     </div>
   )
 }
