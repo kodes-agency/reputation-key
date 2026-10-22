@@ -21,6 +21,9 @@ corresponding label string from this table.
 
 Apply with `gh issue edit <number> --add-label "..."` / `--remove-label "..."`.
 
+The triage board follows these labels by itself; see "Triage board" in
+[issue-tracker.md](./issue-tracker.md). Change the label, not the card.
+
 ## Labels outside the triage vocabulary
 
 These exist on the repo but are **not** triage states. Don't treat them as part
