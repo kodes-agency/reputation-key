@@ -127,12 +127,11 @@ describe('a Paper print', () => {
     expect(text).toContain('mm bleed')
   })
 
-  it('refuses a style it does not draw yet', async () => {
-    await expect(
-      rendererWith().render({
-        ...paperInput(choice('counter_card', ['en']), 'letter'),
-        style: 'immersive',
-      }),
-    ).rejects.toThrow(/immersive/u)
+  it('refuses a style with no paper to print it on', async () => {
+    const { paper: _paper, ...input } = paperInput(
+      choice('counter_card', ['en']),
+      'letter',
+    )
+    await expect(rendererWith().render(input)).rejects.toThrow(/no paper/u)
   })
 })

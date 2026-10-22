@@ -62,6 +62,8 @@ export type FaceStackInput = Readonly<{
   scale: StackScale
   /** The place label's size when the fit has shrunk it below its scale's (`placeSizes`). */
   placePt?: number
+  /** The place block to the call to action, when a fit step has tightened it below its scale's. */
+  placeToHeadPt?: number
   maxWidthPt: number
   colours: FaceStackColours
   measure: Measure
@@ -146,7 +148,7 @@ export function layoutFaceStack(input: FaceStackInput): FaceStack {
       style('bodyStrong', type.place2, colours.accentInk, trackingEm.place2),
       leading.place2,
     )
-    cursor.y += gaps.placeToHead
+    cursor.y += input.placeToHeadPt ?? gaps.placeToHead
   } else {
     pushRule(cursor, input, gaps.rule)
   }
