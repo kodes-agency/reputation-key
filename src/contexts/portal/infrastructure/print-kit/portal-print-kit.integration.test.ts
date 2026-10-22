@@ -434,6 +434,65 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
     expect(Buffer.from(file.pdf).toString('latin1')).not.toMatch(/\/BleedBox/u)
   })
 
+  it.each([
+    [
+      'counter_card',
+      'letter',
+      [
+        [342, 486],
+        [342, 486],
+      ],
+    ],
+    ['table_tent', 'letter', [[342, 918]]],
+    [
+      'counter_card',
+      'a4',
+      [
+        [354, 476],
+        [354, 476],
+      ],
+    ],
+    ['table_tent', 'a4', [[354, 896]]],
+  ] as const)(
+    'draws an Immersive %s on %s for a print shop, with its photo and bleed',
+    async (piece, paper, sizes) => {
+      const { make, ctx } = await harness()
+      const file = await make(
+        {
+          portalId: COMPLETE_SCENARIO.portalId,
+          piece,
+          languages: ['bg', 'en'],
+          callToAction: 'rate',
+          style: 'immersive',
+          paper,
+        },
+        ctx,
+      )
+      expect(file.fileName.endsWith(`-bg-en-immersive-${paper}.pdf`)).toBe(true)
+      expect(pageSizes(file.pdf)).toEqual(sizes)
+      const text = Buffer.from(file.pdf).toString('latin1')
+      expect(text.match(/\/BleedBox/gu)).toHaveLength(sizes.length)
+      expect(text).toContain('Print kit, immersive on')
+    },
+  )
+
+  it('prints an Immersive request on 4 × 6 in for a property with no country', async () => {
+    const { make, ctx } = await harness()
+    await setCountry(null)
+    const file = await make(
+      {
+        portalId: COMPLETE_SCENARIO.portalId,
+        piece: 'counter_card',
+        languages: ['bg'],
+        callToAction: 'rate',
+        style: 'immersive',
+      },
+      ctx,
+    )
+    expect(file.fileName.endsWith('-bg-immersive-letter.pdf')).toBe(true)
+    expect(pageSizes(file.pdf)).toEqual([[342, 486]])
+  })
+
   it('prints a Paper request on Letter for a property with no country, and on A4 for one in Bulgaria', async () => {
     const { make, ctx } = await harness()
     const request = {
