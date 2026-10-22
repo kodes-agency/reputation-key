@@ -8,6 +8,7 @@ import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalAnalyticsTab } from '../portal-analytics/portal-analytics-tab'
 import { PortalHistoryTab } from '../portal-history/portal-history-tab'
+import { resolveFixPeople } from '../portal-review/portal-review-checks'
 import { PortalShare } from '../portal-share/portal-share'
 import type { PortalLinkIssuance } from '../portal-workspace/portal-link-issuance'
 import { countPendingChanges, type PortalDetailTab } from './portal-detail-rules'
@@ -38,11 +39,17 @@ type SharePanelProps = Pick<
   | 'revealAddressMutation'
   | 'getPortalPrintKit'
   | 'downloadPrintKitMutation'
+  | 'propertyTimeZone'
+  | 'responsibleManagers'
+  | 'responsibleManagerMembers'
 > &
   PortalLinkIssuance
 
 function SharePanel({
   portal,
+  propertyTimeZone,
+  responsibleManagers,
+  responsibleManagerMembers,
   tokenStatus,
   issueTokenMutation,
   rotateTokenMutation,
@@ -60,6 +67,16 @@ function SharePanel({
     <PortalShare
       portalId={portal.id}
       portalName={portal.name}
+      propertyId={portal.propertyId}
+      publicationState={portal.publicationState}
+      timeZone={propertyTimeZone}
+      managerNames={
+        responsibleManagers && responsibleManagerMembers
+          ? resolveFixPeople(responsibleManagers, responsibleManagerMembers).map(
+              (person) => person.name,
+            )
+          : undefined
+      }
       issuedLink={issuedLink}
       revoked={linksRevoked}
       tokenStatus={tokenStatus}
@@ -94,6 +111,8 @@ function AnalyticsPanel({
       portalId={portal.id}
       propertyId={propertyId}
       getPortalAnalytics={getPortalAnalytics}
+      // A portal guests cannot open has nothing to count: its Results says to publish.
+      pageIsLive={portal.publicationState === 'published'}
       goalLine={goalLine}
       goalLinePending={goalLinePending}
     />
