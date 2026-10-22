@@ -122,6 +122,10 @@ export const TableTent: Story = {
     await expect(
       await canvas.findByRole('heading', { name: 'Print kit' }),
     ).toBeInTheDocument()
+    // The preview and the file follow the live version, not an edit not yet published.
+    await expect(
+      canvas.getByText('Prints use the version that is live now.'),
+    ).toBeVisible()
     const front = await preview(canvasElement)
     await expect(front).toHaveAccessibleName(
       /table tent, front, English and Bulgarian, "Rate your visit"/i,

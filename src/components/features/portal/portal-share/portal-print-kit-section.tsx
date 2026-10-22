@@ -63,6 +63,9 @@ export function PortalPrintKitSection({
         <p className="text-sm text-muted-foreground">
           A print-ready PDF with your code on it, with bleed and crop marks.
         </p>
+        <p className="text-sm text-muted-foreground">
+          Prints use the version that is live now.
+        </p>
       </div>
       {isError && (
         <RegionError
