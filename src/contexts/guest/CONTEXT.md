@@ -61,17 +61,37 @@ identity or analytics attribution.
 
 A signed session is issued, with no limiter of its own, to any page read that carries no
 valid session cookie for the Portal. So the per-session rules (one response, one Qualified
-Scan per 24 hours, the "Start over" budget of 2 per session and 5 per network and Portal
+Scan per 24 hours, the "Start over" budget of 2 per session and 60 per network and Portal
 per 24 hours) hold a guest who keeps the cookie and not a client that drops it. What holds
-that client is the network-and-Portal layer, which does not depend on the session: 5 rating
-submissions and 100 scan observations per hour for one network pseudonym and Portal, each
-with its PostgreSQL pressure twin. That is the bound ADR 0044 "Abuse and privacy" 1 names
-("layered limits by portal, session, network signal") and the one the limiter comment
-relies on ("the network+Portal layer survives the new session identity"). Residual gap:
-against a cookie-less client the "Start over" cap is no tighter than the hourly rating
-budget. Whether to bound session issuance as well is an owner tuning decision and has not
-been taken: a limit by network would also bind the guests of one venue who share an
-address.
+that client is the network-and-Portal layer, which does not depend on the session: for one
+network pseudonym and Portal, 60 rating submissions per hour (corrections, private notes
+and withdrawals 60 per hour each), and 300 scan observations and 300 Google or link
+actions per hour. Submissions, private notes, Google and link actions and scans each have
+a PostgreSQL pressure twin on the same window; a correction has none, so it never spends
+the room for new ratings (the aggregate's one-correction rule, the session budget and the
+Redis budget bound it). The numbers are sized for a busy venue, because the guests of a
+hotel, a restaurant or a salon on its Wi-Fi share one public address: every budget lives
+in `server/guest-rate-limit-budgets.ts`, and the session layer, which holds one device,
+stays small. That is the bound ADR 0044 "Abuse and privacy" 1 names ("layered limits by
+portal, session, network signal") and the one the limiter comment relies on ("the
+network+Portal layer survives the new session identity").
+
+A new rating is never refused for network volume. When the session layer allows it and
+the network-and-Portal layer (Redis or its twin) is exhausted, the rating is submitted
+with the automatic integrity assessment `filtered_automatically` / `network_volume`
+(actor `guest-integrity-network-v1`), as a filled honeypot is with its own, and the
+honeypot wins when both apply. The guest gets the normal view (the Google step, the
+private note) because the response is durable; the rating stays out of the private-rating
+figures and shows in Results' integrity line. A session-layer denial and a limiter outage
+keep their 429 and the fail-closed rule. Whenever any network-and-Portal layer is
+exhausted, filtered submit included, one content-free warning
+`guest.network_budget_exhausted` names the action and nothing else: never the address,
+its pseudonym or a session, and not the Organization or the Portal either, because the
+log policy (BQC-7.3) bans tenant identifiers in log objects. Residual gap: a client that
+drops its cookie can place up to 60 accepted ratings an hour on a Portal from one address
+(it was 5); the rest are kept but filtered. Whether to bound session issuance as well is an
+owner tuning decision and has not been taken: a limit by network would also bind the guests
+of one venue who share an address.
 
 The signed session ends 24 hours after the guest opens the Portal, or 24 hours after
 their rating or private feedback if that is later. Its own records follow it: the
