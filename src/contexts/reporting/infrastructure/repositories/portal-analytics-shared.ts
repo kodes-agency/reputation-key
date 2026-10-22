@@ -57,8 +57,9 @@ function portalMetricPolicy(versionId: string): PortalMetricPolicy {
 
 // "Scans" on the Portal results are QUALIFIED scans: server-verified Access
 // Artifact arrivals, deduplicated per response session over 24 hours. The raw
-// `portal.scan` metric counts every page open (bots, refreshes) and stays out
-// of Portal results.
+// `portal.scan` metric is written once per session (an advisory lock makes a
+// refresh add nothing) but for every observation, bots and direct URLs included,
+// so it stays out of Portal results.
 export const QUALIFIED_SCAN_POLICY = portalMetricPolicy(
   METRIC_VERSION_IDS.qualifiedScanGoal,
 )

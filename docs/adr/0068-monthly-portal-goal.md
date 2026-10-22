@@ -200,10 +200,14 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
   rule 2 as amended; the Portal's count is a fact, with no target or pace of its
   own; the goal is shown to managers only; and the ask-every-guest and
   spot-not-person lines stand.
-- **Goal counts can differ a little from Portal Results.** Goals count from
-  2026-08-01 on their own versions; Results count scans and private ratings
-  from 2026-08-08 and show an average from 5 ratings
-  (`portal-results-thresholds.ts`).
+- **Goal counts can differ a little from Portal Results.** Scans do not:
+  Goals and Results read the same qualified-scan version, effective from
+  2026-08-01. Private ratings can: Goals count them from 2026-08-01 on their
+  own versions, Results from 2026-08-08 on the Portal rating version, so a
+  window that opens before 2026-08-08 can hold up to a week more ratings in a
+  Goal than in Results. Results also show an average only from 5 ratings
+  (`portal-results-thresholds.ts`). (Corrected 2026-10-22: this said Results
+  counted scans from 2026-08-08 too.)
 - **Gaming is not detected.** Staff can scan their own code or rate on a shared
   device. The ask-every-guest line, the spot-not-person line and the absence of
   per-Portal targets are the controls.
