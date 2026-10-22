@@ -259,9 +259,9 @@ describe('what the fonts cannot print', () => {
   })
 
   it('names what a title carries on any face of the print', () => {
-    const greek = printKitFaces(TENT, { en: 'Pool 🏊', bg: 'Басейн 酒' }, 'Pool')
+    const marked = printKitFaces(TENT, { en: 'Pool 🏊', bg: 'Басейн 酒' }, 'Pool')
 
-    expect(unprintableCharacters(look, greek)).toEqual(['🏊', '酒'])
+    expect(unprintableCharacters(look, marked)).toEqual(['🏊', '酒'])
   })
 
   it('draws the face without what the file drops', () => {
@@ -279,9 +279,7 @@ describe('what the fonts cannot print', () => {
     expect(describeUnprintable(['Ω', 'ψ'])).toBe(
       'These characters will not print, because the print kit’s fonts don’t have them: Ω ψ.',
     )
-    expect(
-      describeUnprintable(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((c) => c)),
-    ).toBe(
+    expect(describeUnprintable(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])).toBe(
       'These characters will not print, because the print kit’s fonts don’t have them: a b c d e f and 2 more.',
     )
   })

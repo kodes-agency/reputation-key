@@ -13,7 +13,7 @@ describe('fileNameSlug', () => {
   })
 
   it('writes an accent the same way however it was typed', () => {
-    expect(fileNameSlug('Café')).toBe(fileNameSlug('Café'))
+    expect(fileNameSlug('Cafe\u0301')).toBe(fileNameSlug('Caf\u00e9'))
   })
 
   it('never lets a name break out of a file name', () => {
