@@ -9,6 +9,7 @@ import {
   IMMERSIVE_TENT_LOGO_PT,
   LOGO_BOX_MM,
   LOGO_FLOOR_MM,
+  LOGO_MIN_DPI,
   MARGIN,
   STACK,
   TENT_FACE,
@@ -22,6 +23,7 @@ import {
   cueRoomPt,
   inToPt,
   mmToPt,
+  printedDpi,
   ptToIn,
   ptToMm,
 } from './portal-print-kit-measures'
@@ -269,5 +271,16 @@ describe('the Paper tent face', () => {
   it('puts the tile on the place label’s cap line, 2.45 mm under its line box, and shifts the logo 1.3 mm', () => {
     expect(ptToMm(TENT_FACE.codeTopOffsetPt)).toBeCloseTo(2.45, 10)
     expect(ptToMm(TENT_FACE.logoShiftPt)).toBeCloseTo(-1.3, 10)
+  })
+})
+
+describe('a logo’s resolution', () => {
+  it('is its pixels over the inches it prints across', () => {
+    expect(printedDpi(900, inToPt(3))).toBe(300)
+    expect(printedDpi(120, inToPt(1))).toBeLessThan(LOGO_MIN_DPI)
+  })
+
+  it('is never too low for a logo drawn nowhere', () => {
+    expect(printedDpi(10, 0)).toBe(Number.POSITIVE_INFINITY)
   })
 })

@@ -38,6 +38,53 @@ export class PrintKitFonts {
   }
 }
 
+/** A face's vertical metrics, in thousandths of an em, as PDFKit reads them from the font. */
+export type FontMetrics = Readonly<{
+  ascender: number
+  descender: number
+  capHeight: number
+}>
+
+/**
+ * The vertical metrics of `face`, from its Latin file: the families' files share
+ * one set. PDFKit keeps them on the current font, which its typings leave out, so
+ * the one read that needs it is wrapped here.
+ */
+export function fontMetrics(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  face: PrintKitFontFace,
+): FontMetrics {
+  fonts.use(face, 'latin', 1)
+  const font: unknown = Reflect.get(doc, '_font')
+  const read = (key: keyof FontMetrics): number => {
+    const value: unknown =
+      font === null || typeof font !== 'object' ? undefined : Reflect.get(font, key)
+    if (typeof value !== 'number') throw new Error(`This PDFKit font has no ${key}`)
+    return value
+  }
+  return {
+    ascender: read('ascender'),
+    descender: read('descender'),
+    capHeight: read('capHeight'),
+  }
+}
+
+/**
+ * How far below the top of a line box the capitals start: a line is set with
+ * its content area centred in its line box (as CSS does, and as PDFKit's
+ * `middle` baseline places it), and the caps rise `capHeight` above the
+ * baseline. The margins are measured to this cap line, not to the box (spec 2.5).
+ */
+export function capTopInLineBox(
+  metrics: FontMetrics,
+  sizePt: number,
+  lineHeightEm: number,
+): number {
+  const baselineBelowMiddle = (metrics.ascender + metrics.descender) / 2 / 1000
+  return sizePt * (lineHeightEm / 2 + baselineBelowMiddle - metrics.capHeight / 1000)
+}
+
 /** Ligatures off: fontkit switches a default feature off when its tag is given as false. */
 const NO_LIGATURES = { liga: false, clig: false, dlig: false }
 

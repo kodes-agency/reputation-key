@@ -20,6 +20,7 @@ import {
   mixColour,
   nudgeLightness,
   parseHexColour,
+  relativeLuminance,
   toneOnTone,
 } from './portal-field-colour'
 import { PLATE_INK, PLATE_PAPER } from './portal-print-kit-layout'
@@ -199,6 +200,26 @@ export function immersivePrintKitPalette(
     cool: tones?.cool ?? ground,
     ...barColours(base),
   }
+}
+
+/** Below this contrast with the paper a logo is too light to print on it alone (spec 3.1). */
+export const PAPER_LOGO_MIN_CONTRAST = 1.6
+
+/**
+ * Whether a logo whose drawing has `luminance` (relative, alpha-weighted, 0 to
+ * 1) needs a plate to print on paper: a cream or white logo made for a dark page
+ * would vanish. Its plate is the field colour the accent derives.
+ */
+export function logoNeedsPaperPlate(luminance: number | null): boolean {
+  if (luminance === null) return false
+  const paper = relativeLuminance(PRINT_KIT_PAPER) ?? 1
+  const ratio = (Math.max(paper, luminance) + 0.05) / (Math.min(paper, luminance) + 0.05)
+  return ratio < PAPER_LOGO_MIN_CONTRAST
+}
+
+/** The plate under a light logo on paper: the field the accent derives, as the guest page's. */
+export function paperLogoPlate(accent: string): string {
+  return deriveFieldColour(usableAccent(accent)) ?? PRINT_KIT_INK
 }
 
 /** The palette of one style, from the property's accent and field. */

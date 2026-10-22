@@ -4,6 +4,8 @@ import {
   PRINT_KIT_CONTRAST,
   PRINT_KIT_WASH_ALPHA,
   immersivePrintKitPalette,
+  logoNeedsPaperPlate,
+  paperLogoPlate,
   paperPrintKitPalette,
   printKitPalette,
   printKitStylePalette,
@@ -262,5 +264,25 @@ describe('printKitStylePalette', () => {
     ]) {
       expect(colour).toMatch(/^#[0-9A-F]{6}$/u)
     }
+  })
+})
+
+describe('a logo on paper', () => {
+  it('gets a plate when it is too light to read on the paper (under 1.6:1)', () => {
+    // The cream of a logo made for a dark page, and pure white.
+    expect(logoNeedsPaperPlate(0.88)).toBe(true)
+    expect(logoNeedsPaperPlate(1)).toBe(true)
+  })
+
+  it('prints as supplied when it is dark, mid-toned or empty', () => {
+    expect(logoNeedsPaperPlate(0.01)).toBe(false)
+    expect(logoNeedsPaperPlate(0.3)).toBe(false)
+    expect(logoNeedsPaperPlate(null)).toBe(false)
+  })
+
+  it('sits on the field the accent derives, as the guest page does', () => {
+    expect(paperLogoPlate('#EAD6A8')).toBe('#16130E')
+    expect(paperLogoPlate('#C8102E')).toBe('#160E0F')
+    expect(paperLogoPlate('not a colour')).toBe('#101412')
   })
 })
