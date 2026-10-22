@@ -76,3 +76,29 @@ Triage roles map to the repo's existing labels one-to-one: `needs-triage`,
 `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Wayfinder adds
 `wayfinder:map`, `wayfinder:research`, `wayfinder:prototype`,
 `wayfinder:grilling`, `wayfinder:task`.
+
+## Triage board
+
+Open issues also show as cards on a board: GitHub Project #1 of the
+`kodes-agency` user, "Reputation Key"
+(<https://github.com/users/kodes-agency/projects/1>, private, linked to this
+repo). Its columns are the five triage labels, held as the options of the
+project's built-in **Status** field, because a board column must be a
+single-select field. Issues with no triage label sit in **No Status**.
+
+**Labels are the source of truth; never set a card's column by hand.** The
+`Triage board` workflow (`.github/workflows/triage-board.yml`, running
+`scripts/ci/sync-triage-board.ts`) adds every new or reopened issue and moves
+its card whenever a triage label is added or removed. An issue with two triage
+labels goes to the one furthest along (`wontfix`, `ready-for-human`,
+`ready-for-agent`, `needs-info`, `needs-triage`) and the run warns about the
+other. Closed issues drop off the board's view.
+
+The workflow needs the `TRIAGE_BOARD_TOKEN` repository secret: a classic
+personal access token with only the `project` scope, since the workflow's own
+token cannot write a user's project. When the token expires every run fails
+with a message naming the secret. Renaming a triage label means renaming the
+matching Status option too, or the run fails before it changes anything.
+
+The project's built-in "Auto-add sub-issues to project" automation is on, so
+it also pulls in the sub-issues of an issue added to the board.
