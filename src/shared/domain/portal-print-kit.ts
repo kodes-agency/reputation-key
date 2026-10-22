@@ -1,5 +1,5 @@
-// The print kit's vocabulary: which pieces it has, what they say, how a sheet is
-// laid out, and how a printed address reads.
+// The print kit's vocabulary: which pieces it has, what they say, and how a sheet
+// is laid out.
 //
 // Pure and shared, because the Share tab's preview (a React tree) and the PDF
 // the server makes (round 4, slice 45) must agree on every word and every
@@ -213,20 +213,6 @@ export function printKitSheets(
     panels: [{ side, topMm: 0, rotated: false }],
     foldAtMm: null,
   }))
-}
-
-/**
- * The address as printed under the code: the host only. The path is the code's
- * own secret (the token) and the query holds the marker that counts a scan, so
- * neither is printed in words. Nobody types them; the code and the NFC tag
- * carry them.
- */
-export function shortPrintAddress(address: string): string {
-  try {
-    return new URL(address).host
-  } catch {
-    return address
-  }
 }
 
 /**

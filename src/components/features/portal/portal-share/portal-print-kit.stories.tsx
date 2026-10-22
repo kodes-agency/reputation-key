@@ -133,8 +133,8 @@ export const TableTent: Story = {
     await expect(canvas.getByText(/table tent a6 · front · 105 × 148 mm/i)).toBeVisible()
     await expect(canvas.getByText(/3 mm bleed and crop marks/i)).toBeVisible()
     await expect(within(front).getByText('Оценете посещението си')).toBeInTheDocument()
-    // Only the host is on the print as words: never the token path or the scan marker.
-    await expect(within(front).getByText('app.reputationkey.app')).toBeInTheDocument()
+    // No address is on the print as words (owner decision D2): the code carries it.
+    await expect(within(front).queryByText(/reputationkey/i)).toBeNull()
     await expect(within(front).queryByText(/pt_AbCdEfGhIjKl/)).toBeNull()
     await expect(within(front).queryByText(/accessArtifact/i)).toBeNull()
     // The tent's sheet is taller than office paper: it goes to a print shop.

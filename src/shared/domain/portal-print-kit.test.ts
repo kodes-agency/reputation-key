@@ -10,7 +10,6 @@ import {
   printKitFileName,
   printKitLanguageChoices,
   printKitSheets,
-  shortPrintAddress,
 } from './portal-print-kit'
 
 const TITLES = { en: 'Pool & Terrace', bg: 'Басейн и тераса' } as const
@@ -161,27 +160,6 @@ describe('printKitSheets', () => {
   it('knows its pieces and the bleed', () => {
     expect(PRINT_KIT_PIECES).toEqual(['table_tent', 'counter_card'])
     expect(PRINT_KIT_BLEED_MM).toBe(3)
-  })
-})
-
-describe('shortPrintAddress', () => {
-  it('prints only the host: no scheme, no secret path, no query', () => {
-    expect(
-      shortPrintAddress('https://app.reputationkey.app/p/pt_abc_def?accessArtifact=1'),
-    ).toBe('app.reputationkey.app')
-    expect(shortPrintAddress('http://localhost:3000/')).toBe('localhost:3000')
-  })
-
-  it('never carries any part of the token path', () => {
-    const printed = shortPrintAddress(
-      'https://app.reputationkey.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIj?accessArtifact=1',
-    )
-    expect(printed).not.toContain('/')
-    expect(printed).not.toContain('pt_')
-  })
-
-  it('returns text it cannot read as an address unchanged', () => {
-    expect(shortPrintAddress('not an address')).toBe('not an address')
   })
 })
 

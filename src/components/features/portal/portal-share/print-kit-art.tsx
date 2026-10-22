@@ -1,6 +1,6 @@
 // One face of a print, drawn as the PDF draws it: the whole page, with the crop
-// marks, the bleed and the trim, and on the trim the brand, the words, the
-// code on its plate and the address. Every measure is a number from
+// marks, the bleed and the trim, and on the trim the brand, the words and the
+// code on its plate. Every measure is a number from
 // `portal-print-kit-layout.ts`, the file the PDF reads, laid out in container
 // units so the card scales with its column.
 //
@@ -17,17 +17,16 @@ import {
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
 import {
-  ADDRESS_OPACITY,
   BRAND_FIT,
   BRAND_MIDDLE_MM,
   LOGO_BOX_MM,
   PHOTO_BAND_MM,
   PHOTO_FADE_FROM,
-  PLATE_ABOVE_ADDRESS_MM,
   PLATE_MM,
   PLATE_PAPER_MM,
   PLATE_PAPER_RADIUS_MM,
   PLATE_RADIUS_MM,
+  PLATE_TOP_MM,
   SIDE_MARGIN_MM,
   SLUG_MM,
   STACK_GAP_BELOW_MM,
@@ -37,12 +36,7 @@ import {
 } from '#/shared/domain/portal-print-kit-layout'
 import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
-import {
-  mmToContainerWidth,
-  previewAddress,
-  previewPlateTopMm,
-  previewWordmark,
-} from './print-kit-art-layout'
+import { mmToContainerWidth, previewWordmark } from './print-kit-art-layout'
 import { PrintKitCropMarks } from './print-kit-crop-marks'
 import { PrintKitStack } from './print-kit-stack'
 import { previewStackScale } from './print-kit-stack-fit'
@@ -63,7 +57,6 @@ type Props = Readonly<{
   look: PortalPrintKitView['look']
   /** The code as a picture, with its quiet zone drawn in; null while it is made. */
   codeUrl: string | null
-  shortAddress: string
 }>
 
 const absolute = (style: CSSProperties): CSSProperties => ({
@@ -71,21 +64,12 @@ const absolute = (style: CSSProperties): CSSProperties => ({
   ...style,
 })
 
-export function PrintKitArt({
-  piece,
-  face: planned,
-  look,
-  codeUrl,
-  shortAddress,
-}: Props) {
+export function PrintKitArt({ piece, face: planned, look, codeUrl }: Props) {
   // What the file prints: the browser would show a character the fonts lack.
   const face = printableFace(planned)
   const palette = printKitPalette(look.accentColour, look.fieldColour)
-  const address = previewAddress(shortAddress)
-  const plateTop = previewPlateTopMm(address)
-  const stackRoom = plateTop - STACK_GAP_BELOW_MM - STACK_TOP_MM
+  const stackRoom = PLATE_TOP_MM - STACK_GAP_BELOW_MM - STACK_TOP_MM
   const stackScale = previewStackScale(face.blocks, stackRoom)
-  const addressTop = plateTop + PLATE_MM + PLATE_ABOVE_ADDRESS_MM
   const bleed = PRINT_KIT_BLEED_MM
   const fade = `linear-gradient(to bottom, transparent ${PHOTO_FADE_FROM * 100}%, ${palette.field} 100%)`
   const wash = (x: number, y: number, radius: number, colour: string) =>
@@ -189,23 +173,7 @@ export function PrintKitArt({
               scale={stackScale}
             />
           </div>
-          <Plate top={plateTop} codeUrl={codeUrl} />
-          <div
-            style={absolute({
-              left: u(SIDE_MARGIN_MM),
-              width: u(A6_WIDTH_MM - 2 * SIDE_MARGIN_MM),
-              top: u(addressTop),
-              textAlign: 'center',
-              fontSize: pt(address.sizePt),
-              lineHeight: 1.3,
-              color: `rgba(255,255,255,${ADDRESS_OPACITY})`,
-              whiteSpace: 'nowrap',
-            })}
-          >
-            {address.lines.map((line) => (
-              <div key={line}>{line}</div>
-            ))}
-          </div>
+          <Plate top={PLATE_TOP_MM} codeUrl={codeUrl} />
         </div>
       </div>
     </div>

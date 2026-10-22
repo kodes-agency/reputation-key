@@ -9,7 +9,6 @@ import { qrDarkRuns, qrMatrix } from './print-kit-qr'
 
 const ADDRESS =
   'https://app.reputationkey.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-aBcDe?accessArtifact=0b6d1c1e-52c4-4b34-9d63-6e3b4a1f9a10'
-const SHORT = 'app.reputationkey.app'
 const TITLES = { en: 'Pool & Terrace', bg: 'Басейн и тераса' }
 const MM = 72 / 25.4
 
@@ -32,7 +31,6 @@ function inputFor(
     accentColour: '#EAD6A8',
     fieldColour: '#15110D',
     qrAddress: ADDRESS,
-    shortAddress: SHORT,
     ...overrides,
   }
 }
@@ -94,12 +92,13 @@ async function drawnRuns(input: PrintKitRenderInput): Promise<readonly DrawnRun[
 const panelLeft = SIDE_MARGIN_MM * MM
 const panelRight = (PANEL_WIDTH_MM - SIDE_MARGIN_MM) * MM
 
-describe('the address under the code', () => {
-  it('sets the host on one line and never the secret path the code carries', async () => {
+describe('the host caption', () => {
+  it('is not printed anywhere: the code and its cue carry the action (owner decision D2)', async () => {
     const runs = await drawnRuns(inputFor(tentEnBg))
     const texts = runs.map((run) => run.text)
-    expect(texts).toContain('app.reputationkey.app')
-    expect(texts.filter((text) => /pt_|\/p\/|accessArtifact/u.test(text))).toEqual([])
+    expect(
+      texts.filter((text) => /reputationkey|\/p\/|pt_|accessArtifact/u.test(text)),
+    ).toEqual([])
   })
 })
 
