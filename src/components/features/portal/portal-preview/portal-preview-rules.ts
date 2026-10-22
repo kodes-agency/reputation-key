@@ -5,6 +5,7 @@ import type {
   PortalPreviewLinkState,
   PortalPreviewUnavailableReason,
 } from '#/contexts/portal/application/public-api'
+import { LINK_APPROVAL_NAMES } from '../link-tree/linktree-approval-names'
 
 export type PreviewUnavailableNote = Readonly<{ title: string; body: string }>
 
@@ -55,12 +56,17 @@ function describeUnavailableVersion(
 export const TRY_AS_GUEST_NOTICE =
   'Trying as a guest. Nothing is saved or counted, and links don’t open.'
 
-/** What a tile with no approved address says in place of its line. */
+/**
+ * What a tile with no approved address says in place of its line. A request
+ * awaiting an admin takes the link list's own name for it. The draft cannot tell
+ * a disabled, quarantined or unreviewed address apart, so the other note says
+ * only what guests see, as the list's hidden line starts.
+ */
 export const TILE_PLACEHOLDER_NOTE: Readonly<
   Record<Exclude<PortalPreviewLinkState, 'ready'>, string>
 > = {
-  awaiting_approval: 'Waiting for approval',
-  not_approved: 'Not approved, hidden from guests',
+  awaiting_approval: LINK_APPROVAL_NAMES.pending,
+  not_approved: 'Hidden from guests',
 }
 
 /** Said under the caption when the language has no guest wording yet. */
