@@ -19,6 +19,57 @@ export type PrintKitPiece = (typeof PRINT_KIT_PIECES)[number]
 export const PRINT_KIT_CALLS_TO_ACTION = Object.freeze(['rate', 'tell'] as const)
 export type PrintKitCallToAction = (typeof PRINT_KIT_CALLS_TO_ACTION)[number]
 
+/**
+ * The two looks a print can take. Paper is ink on the customer's own paper, for
+ * any printer; Immersive is the guest page's dark field, for a print shop.
+ */
+export const PRINT_KIT_STYLES = Object.freeze(['paper', 'immersive'] as const)
+export type PrintKitStyle = (typeof PRINT_KIT_STYLES)[number]
+
+/**
+ * The two paper families, Letter first: most customers are in the US. Letter
+ * makes 4 × 6 in cards and 8.5 × 5.5 in tent faces; A4 makes A6 cards and A5
+ * faces.
+ */
+export const PRINT_KIT_PAPERS = Object.freeze(['letter', 'a4'] as const)
+export type PrintKitPaper = (typeof PRINT_KIT_PAPERS)[number]
+
+/**
+ * The countries that print on US Letter: the territories CLDR's supplementalData
+ * lists with a US-Letter paper size, as ISO 3166-1 alpha-2 codes. Every other
+ * country prints on A4. A constant, not a runtime lookup: the list changes
+ * about as often as the countries do.
+ */
+export const PRINT_KIT_LETTER_COUNTRIES = Object.freeze([
+  'BZ',
+  'CA',
+  'CL',
+  'CO',
+  'CR',
+  'GT',
+  'MX',
+  'NI',
+  'PA',
+  'PH',
+  'PR',
+  'SV',
+  'US',
+  'VE',
+] as const)
+
+const LETTER_COUNTRIES: ReadonlySet<string> = new Set(PRINT_KIT_LETTER_COUNTRIES)
+
+/**
+ * The paper a property prints on unless the manager chooses otherwise: Letter
+ * for a Letter country and whenever the country is unknown, A4 for the rest.
+ * The property's country says where the piece will stand; the browser's locale
+ * says only where the manager sits.
+ */
+export function defaultPrintKitPaper(countryCode: string | null): PrintKitPaper {
+  const code = countryCode?.trim().toUpperCase() ?? ''
+  return code === '' || LETTER_COUNTRIES.has(code) ? 'letter' : 'a4'
+}
+
 /** One or two languages on a print: more would crowd an A6 face. */
 export const PRINT_KIT_MAX_LANGUAGES = 2
 
@@ -89,6 +140,20 @@ export const PRINT_KIT_COPY: Readonly<
     rate: { headline: 'Bewerten Sie Ihren Besuch', subline: 'Privat, etwa 30 Sekunden' },
     tell: { headline: 'Wie war Ihr Besuch?', subline: 'Sagen Sie es uns privat' },
   },
+})
+
+/**
+ * The cue in the bar under the code, per language: what the phone is for.
+ * Drafts that no native speaker has checked yet, as the closed beta allows (the
+ * es, it, fr and de copy above is the same). The French line is the longest.
+ */
+export const PRINT_KIT_SCAN_CUE: Readonly<Record<GuestLocale, string>> = Object.freeze({
+  en: 'Scan with your camera',
+  es: 'Escanee con la cámara',
+  bg: 'Сканирайте с камерата',
+  it: 'Inquadri con la fotocamera',
+  fr: 'Scannez avec l’appareil photo',
+  de: 'Mit der Kamera scannen',
 })
 
 export type PrintKitChoice = Readonly<{
