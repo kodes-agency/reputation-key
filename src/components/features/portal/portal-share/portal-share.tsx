@@ -156,6 +156,7 @@ export function PortalShare(props: PortalShareProps) {
             onRetry={printKit.retry}
             isRetrying={printKit.isRetrying}
             onChoiceChange={printKit.setChoice}
+            unprintableNote={printKit.unprintableNote}
             unavailableReason={unavailableReason}
             isWorking={printKitDownload.isWorking}
             onDownload={() => void printKitDownload.download()}

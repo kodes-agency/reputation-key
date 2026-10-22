@@ -22,6 +22,8 @@ import {
   type PrintKitChoice,
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
+import { PortalPrintKitHowTo } from './portal-print-kit-how-to'
+import { printKitHowToPrint } from './print-kit-how-to-print'
 import { languageChoiceLabel, printKitPrintAdvice } from './print-kit-state'
 
 const PIECE_ICONS: Readonly<
@@ -37,6 +39,8 @@ type Props = Readonly<{
   /** Try again is reading; the error stays, its button busy. */
   isRetrying?: boolean
   onChoiceChange: (choice: PrintKitChoice) => void
+  /** Names the characters the fonts lack, which the print leaves out; null when all will print. */
+  unprintableNote: string | null
   /** Why the download is off, or null when it is on. */
   unavailableReason: string | null
   isWorking: boolean
@@ -50,6 +54,7 @@ export function PortalPrintKitSection({
   onRetry,
   isRetrying = false,
   onChoiceChange,
+  unprintableNote,
   unavailableReason,
   isWorking,
   onDownload,
@@ -80,6 +85,9 @@ export function PortalPrintKitSection({
       ) : (
         <Controls view={view} choice={choice} onChoiceChange={onChoiceChange} />
       )}
+      {unprintableNote !== null && (
+        <p className="text-sm text-muted-foreground">{unprintableNote}</p>
+      )}
       <div className="flex flex-col gap-2">
         <Button
           type="button"
@@ -100,6 +108,7 @@ export function PortalPrintKitSection({
           <p className="text-sm text-muted-foreground">{unavailableReason}</p>
         )}
       </div>
+      {choice !== null && <PortalPrintKitHowTo steps={printKitHowToPrint(choice)} />}
     </section>
   )
 }

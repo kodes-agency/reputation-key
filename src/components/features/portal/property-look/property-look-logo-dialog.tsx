@@ -1,7 +1,7 @@
 // The logo (round-4 admin board 09, "Name and logo"): choose a light logo on a
 // transparent background, see it on a dark page's colour, confirm it may be used
 // and press "Use logo". It replaces the wordmark on guest pages once the look is
-// published (the printed kit does not draw it yet: slice 45).
+// published, and on the printed kit, which draws it in the wordmark's place.
 //
 // Controlled, with its body mounted only while open (no file, no half-made
 // choice stays behind), and it cannot be closed while a logo is on its way.

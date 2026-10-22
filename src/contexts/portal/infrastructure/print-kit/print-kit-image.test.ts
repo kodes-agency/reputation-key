@@ -25,6 +25,29 @@ async function twoHalves(): Promise<Buffer> {
     .toBuffer()
 }
 
+/**
+ * A grey picture that darkens to white along one axis: the value at a pixel is
+ * its share of the way along, so the centre of a crop says which part of the
+ * picture it holds.
+ */
+async function gradient(
+  width: number,
+  height: number,
+  along: 'x' | 'y',
+): Promise<Buffer> {
+  const length = along === 'x' ? width : height
+  const raw = Buffer.alloc(width * height * 3)
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const value = Math.round(((along === 'x' ? x : y) / (length - 1)) * 255)
+      raw.fill(value, (y * width + x) * 3, (y * width + x) * 3 + 3)
+    }
+  }
+  return sharp(raw, { raw: { width, height, channels: 3 } })
+    .png()
+    .toBuffer()
+}
+
 async function centreColour(jpeg: Buffer): Promise<readonly [number, number, number]> {
   const { data, info } = await sharp(jpeg).raw().toBuffer({ resolveWithObject: true })
   const index =
@@ -60,6 +83,45 @@ describe('coverPhotoJpeg', () => {
     expect(rightRed).toBeLessThan(60)
     expect(rightBlue).toBeGreaterThan(200)
   })
+
+  // A 25 mm box is 295 px at 300 dpi. A 400 x 100 picture is enlarged to 1180 x 295
+  // to cover it, so 885 px overflow across, and the crop's centre is its left edge
+  // plus 147 px. At focal 0.2 the crop starts 177 px in (the centre is 110 of the
+  // picture's 400 px: 70 of 255); at 0.8, 708 px in (290 px: 185 of 255). Centring
+  // the focal point instead would give 51 and 204.
+  it.each([
+    [0.2, 70],
+    [0.8, 185],
+  ])(
+    'places the photo across its box at focal %s as CSS object-position does',
+    async (focalX, expected) => {
+      const jpeg = await coverPhotoJpeg(await gradient(400, 100, 'x'), {
+        widthMm: 25,
+        heightMm: 25,
+        focalX,
+        focalY: 0.5,
+      })
+      const [red] = await centreColour(jpeg)
+      expect(Math.abs(red - expected)).toBeLessThanOrEqual(5)
+    },
+  )
+
+  it.each([
+    [0.2, 70],
+    [0.8, 185],
+  ])(
+    'places the photo down its box at focal %s as CSS object-position does',
+    async (focalY, expected) => {
+      const jpeg = await coverPhotoJpeg(await gradient(100, 400, 'y'), {
+        widthMm: 25,
+        heightMm: 25,
+        focalX: 0.5,
+        focalY,
+      })
+      const [red] = await centreColour(jpeg)
+      expect(Math.abs(red - expected)).toBeLessThanOrEqual(5)
+    },
+  )
 
   it('refuses bytes that are not an image', async () => {
     await expect(

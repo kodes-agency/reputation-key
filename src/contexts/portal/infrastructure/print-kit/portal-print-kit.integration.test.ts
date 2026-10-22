@@ -275,7 +275,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
     )
 
     const text = Buffer.from(file.pdf).toString('latin1')
-    expect(file.fileName).toMatch(/-table-tent\.pdf$/u)
+    expect(file.fileName).toMatch(/-table-tent-bg-en\.pdf$/u)
     expect(text.startsWith('%PDF-')).toBe(true)
     // The photo and the logo, one picture each, however many panels show them.
     expect(text.match(/\/Subtype \/Image/gu)?.length ?? 0).toBeGreaterThanOrEqual(2)

@@ -1,8 +1,8 @@
 // The Print kit section's state: the Portal's titles and look (a read that
 // follows the live version, as the print does), what the manager has chosen,
-// and which side of the print the preview shows. The choice is the manager's until a language it
-// names stops being offered; the side falls back to the front when the print
-// has only one.
+// and which side of the print the preview shows. The choice is the manager's
+// until a language it names stops being offered; the side falls back to the
+// front when the print has only one.
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -15,7 +15,11 @@ import {
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { PortalPrintKitReader } from './portal-print-kit-types'
-import { reconcilePrintKitChoice } from './print-kit-state'
+import {
+  describeUnprintable,
+  reconcilePrintKitChoice,
+  unprintableCharacters,
+} from './print-kit-state'
 
 type Input = Readonly<{
   portalId: string
@@ -47,6 +51,9 @@ export function usePrintKit({ portalId, read, enabled }: Input) {
     setChoice: setChosen,
     faces,
     face,
+    /** Names the characters of this print that its fonts lack; null when all will print. */
+    unprintableNote:
+      view === null ? null : describeUnprintable(unprintableCharacters(view.look, faces)),
     side: face?.side ?? 'front',
     setSide: setChosenSide,
     isPending: query.isPending && enabled,
