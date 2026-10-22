@@ -89,9 +89,11 @@ exhausted, filtered submit included, one content-free warning
 its pseudonym or a session, and not the Organization or the Portal either, because the
 log policy (BQC-7.3) bans tenant identifiers in log objects. Residual gap: a client that
 drops its cookie can place up to 60 accepted ratings an hour on a Portal from one address
-(it was 5); the rest are kept but filtered. Whether to bound session issuance as well is an
-owner tuning decision and has not been taken: a limit by network would also bind the guests
-of one venue who share an address.
+(it was 5); the rest are kept but filtered, and nothing bounds how many it stores. Only the
+rating is filtered: the Google open and the private note that follow a filtered rating
+still count in Results, within their own budgets (300 and 60 an hour). Whether to bound
+session issuance as well is an owner tuning decision and has not been taken: a limit by
+network would also bind the guests of one venue who share an address.
 
 The signed session ends 24 hours after the guest opens the Portal, or 24 hours after
 their rating or private feedback if that is later. Its own records follow it: the
