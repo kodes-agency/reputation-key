@@ -579,8 +579,9 @@ function metricsForWindows(
     current?: MetricPortalMetricEvidenceSet
     prior?: MetricPortalMetricEvidenceSet
   }>,
+  weeklyReadings?: readonly SeriesReadingRow[],
 ): PortalAnalyticsRepository {
-  const base = createFakePortalMetrics()
+  const base = createFakePortalMetrics({ weeklyReadings })
   let sums = 0
   let evidenceReads = 0
   return {
@@ -616,12 +617,20 @@ async function run30Days(portalMetrics: PortalAnalyticsRepository) {
   })
 }
 
+/** Four ratings spread over two weeks, as the window sums below add up to. */
+const FOUR_RATINGS_IN_TWO_WEEKS: readonly SeriesReadingRow[] = [
+  { bucket: 0, metricKey: 'portal.rating', total: 13, count: 3 },
+  { bucket: 3, metricKey: 'portal.rating', total: 5, count: 1 },
+]
+
 describe('getPortalAnalytics: the average is held back below the floor', () => {
   it('shows no average at n = 4 and says why, keeping the true n', async () => {
     const result = await run30Days(
       metricsForWindows(
         { ratingCount: 4, ratingTotal: 18 },
         { ratingCount: 4, ratingTotal: 18 },
+        undefined,
+        FOUR_RATINGS_IN_TWO_WEEKS,
       ),
     )
 
@@ -639,6 +648,55 @@ describe('getPortalAnalytics: the average is held back below the floor', () => {
     // A distribution or daily averages would reveal the withheld average.
     expect(result.ratingDistribution).toEqual([])
     expect(result.series?.weeks.every((week) => week.average === null)).toBe(true)
+  })
+
+  it('still counts the ratings of each week when the window is below the floor', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { ratingCount: 4, ratingTotal: 18 },
+        { ratingCount: 4, ratingTotal: 18 },
+        undefined,
+        FOUR_RATINGS_IN_TWO_WEEKS,
+      ),
+    )
+
+    // The strip says 4 private ratings, so the weekly column must say where.
+    expect(result.series?.weeks.map((week) => week.ratings)).toEqual([3, 0, 0, 1, 0])
+    expect(
+      result.series?.weeks.map((week) => [week.average, week.averageWithheld]),
+    ).toEqual([
+      [null, 'below_floor'],
+      [null, 'below_floor'],
+      [null, 'below_floor'],
+      [null, 'below_floor'],
+      [null, 'below_floor'],
+    ])
+  })
+
+  it('leaves the weekly counts unknown, not zero, while the ratings are not ready', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { ratingCount: 4, ratingTotal: 18 },
+        { ratingCount: 4, ratingTotal: 18 },
+        {
+          current: {
+            ...readyEvidence(),
+            privateRatings: {
+              ...metricEvidence('rating-version'),
+              state: 'updating',
+              verifiedThrough: null,
+              availabilityReason: 'consumer_receipt_pending',
+            },
+          },
+        },
+        FOUR_RATINGS_IN_TWO_WEEKS,
+      ),
+    )
+
+    expect(result.series?.weeks.every((week) => week.ratings === null)).toBe(true)
+    expect(
+      result.series?.weeks.every((week) => week.averageWithheld === 'not_ready'),
+    ).toBe(true)
   })
 
   it('shows the average from n = 5', async () => {
