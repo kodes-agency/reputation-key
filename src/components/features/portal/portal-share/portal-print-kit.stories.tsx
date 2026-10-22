@@ -159,6 +159,36 @@ export const BackLeadsWithTheSecondLanguage: Story = {
   },
 }
 
+/** "How to print" is closed until asked, then says what the chosen piece needs, and stays open as the piece changes. */
+export const HowToPrintFollowsThePiece: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const summary = await canvas.findByText('How to print')
+    await expect(canvas.getByText(/scored at the fold/i)).not.toBeVisible()
+    await userEvent.click(summary)
+    await expect(
+      canvas.getByText('Ask for 300–350 g matte or uncoated card, scored at the fold.'),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText('Fold at the dashed marks, with the print on the outside.'),
+    ).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('radio', { name: /counter card/i }))
+    // English and Bulgarian are two pages of one card.
+    await expect(
+      canvas.getByText(/print double-sided, flipping on the long edge/i),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/scored at the fold/i)).toBeNull()
+
+    await userEvent.click(canvas.getByRole('radio', { name: 'Български' }))
+    await expect(canvas.queryByText(/double-sided/i)).toBeNull()
+    await expect(
+      canvas.getByText('Print at 100% (actual size), never “fit to page”.'),
+    ).toBeVisible()
+  },
+}
+
 export const CounterCardInOneLanguage: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {

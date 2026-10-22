@@ -22,6 +22,8 @@ import {
   type PrintKitChoice,
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
+import { PortalPrintKitHowTo } from './portal-print-kit-how-to'
+import { printKitHowToPrint } from './print-kit-how-to-print'
 import { languageChoiceLabel, printKitPrintAdvice } from './print-kit-state'
 
 const PIECE_ICONS: Readonly<
@@ -106,6 +108,7 @@ export function PortalPrintKitSection({
           <p className="text-sm text-muted-foreground">{unavailableReason}</p>
         )}
       </div>
+      {choice !== null && <PortalPrintKitHowTo steps={printKitHowToPrint(choice)} />}
     </section>
   )
 }
