@@ -26,8 +26,6 @@ export type PrintKitRenderInput = Readonly<{
   fieldColour: string
   /** What the code encodes: the QR address, with its access-artifact marker. */
   qrAddress: string
-  /** What is printed under the code as words. */
-  shortAddress: string
 }>
 
 export type PortalPrintKitRenderer = Readonly<{

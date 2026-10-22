@@ -5,13 +5,25 @@
 // whatever the accent (portal-field-colour.ts). The accent is used for text only
 // where it reads on the field, and the two washes are the guest backdrop's, so a
 // printed card and the page it opens look like one thing.
+//
+// Two palettes live here. `printKitPalette` is today's, for the one Immersive-like
+// face the PDF draws now. `printKitStylePalette` is the redesign's (spec 3): one
+// palette per style, derived from the accent by the formulas the design boards
+// use, with the contrast each token is held to named beside it.
 
 import {
   IMMERSIVE_TEXT_COLOUR,
+  contrastRatio,
   deriveBackdropTones,
+  deriveFieldColour,
   isAccentReadableOnField,
+  mixColour,
+  nudgeLightness,
+  parseHexColour,
+  toneOnTone,
 } from './portal-field-colour'
 import { PLATE_INK, PLATE_PAPER } from './portal-print-kit-layout'
+import type { PrintKitStyle } from './portal-print-kit'
 
 export type PrintKitPalette = Readonly<{
   field: string
@@ -39,4 +51,178 @@ export function printKitPalette(accent: string, field: string): PrintKitPalette 
     plateInk: PLATE_INK,
     platePaper: PLATE_PAPER,
   }
+}
+
+// ---------------------------------------------------------------------------
+// The redesign's palettes (spec 3).
+
+/** The ink of every Paper face and of the code's modules. */
+export const PRINT_KIT_INK = '#121614'
+/** What the board shows as the paper; the PDF prints no background, the paper is the customer's. */
+export const PRINT_KIT_PAPER = '#FDFCF9'
+/** Sublines on Paper: 7.1:1 on the paper. */
+const PRINT_KIT_SOFT = '#5C5650'
+/** Sublines on Immersive: the guest page's body text. */
+const PRINT_KIT_BODY = '#F6F1E8'
+/** The tile under the code: fixed, so any phone reads it. */
+export const PRINT_KIT_TILE = '#F6F1E6'
+const WHITE = '#FFFFFF'
+
+/**
+ * How strongly the washes are painted at their peak over the field. The guest
+ * backdrop paints them at about twice this; on a card they sit behind small type
+ * and a near-black field, so they are quieter.
+ */
+export const PRINT_KIT_WASH_ALPHA = 0.3
+
+/** The contrast each token is held to, in the order the spec lists them. */
+export const PRINT_KIT_CONTRAST = {
+  /** Paper accent-ink: 6:1 rather than 4.5:1, because toner prints small type lighter. */
+  paperAccentInk: 6,
+  immersiveAccentInk: 7,
+  accentLine: 3,
+  /** The bar's text on its fill. */
+  bar: 4.5,
+  monoLine: 3,
+} as const
+
+/** The lift of the Immersive ridge band and of the monogram's ground, over the field. */
+const LIFT_MIX = { ridge: 0.14, plate: 0.08 } as const
+/** How far the monogram letter starts from the ground toward the accent line. */
+const MONO_MIX = 0.6
+
+type BarColours = Readonly<{
+  /** The accent, moved away from `barText` until the pair reaches 4.5:1. */
+  barFill: string
+  /** Ink or white, whichever contrasts more with the accent. */
+  barText: string
+}>
+
+export type PaperPrintKitPalette = BarColours &
+  Readonly<{
+    style: 'paper'
+    paper: string
+    ink: string
+    soft: string
+    /** The accent darkened to 6:1 on paper: second-language title, rules, tile outline. */
+    accentInk: string
+  }>
+
+export type ImmersivePrintKitPalette = BarColours &
+  Readonly<{
+    style: 'immersive'
+    field: string
+    headline: string
+    body: string
+    /** The accent lightened to 7:1 on the field: the second-language title. */
+    accentInk: string
+    /** The accent lightened to 3:1 on the field: window frame, language rule, ridge hairline. */
+    accentLine: string
+    /** The ridge band over the fold. */
+    lift: string
+    /** The monogram window's ground. */
+    plateTone: string
+    /** The monogram letter, tone on tone with `plateTone`. */
+    mono: string
+    /** The two rules beside the monogram, 3:1 on `plateTone`. */
+    monoLine: string
+    /** The washes over the field, painted at `PRINT_KIT_WASH_ALPHA`. */
+    warm: string
+    cool: string
+  }>
+
+export type PrintKitStylePalette = PaperPrintKitPalette | ImmersivePrintKitPalette
+
+/** The bar of the code block: its text, and its fill held at 4.5:1 against that text. */
+function barColours(accent: string): BarColours {
+  const barText =
+    (contrastRatio(accent, PRINT_KIT_INK) ?? 0) >= (contrastRatio(accent, WHITE) ?? 0)
+      ? PRINT_KIT_INK
+      : WHITE
+  const away = barText === PRINT_KIT_INK ? 1 : -1
+  return {
+    barFill: nudgeLightness(accent, barText, PRINT_KIT_CONTRAST.bar, away),
+    barText,
+  }
+}
+
+/** An accent the print can read, upper case; ink for one it cannot (stored accents are `#rrggbb`). */
+function usableAccent(accent: string): string {
+  return parseHexColour(accent) ? accent.toUpperCase() : PRINT_KIT_INK
+}
+
+export function paperPrintKitPalette(accent: string): PaperPrintKitPalette {
+  const base = usableAccent(accent)
+  return {
+    style: 'paper',
+    paper: PRINT_KIT_PAPER,
+    ink: PRINT_KIT_INK,
+    soft: PRINT_KIT_SOFT,
+    accentInk: nudgeLightness(
+      base,
+      PRINT_KIT_PAPER,
+      PRINT_KIT_CONTRAST.paperAccentInk,
+      -1,
+    ),
+    ...barColours(base),
+  }
+}
+
+/**
+ * The Immersive palette. `field` is the property look's field; with none it is
+ * the field derived from the accent, as the guest page derives it.
+ */
+export function immersivePrintKitPalette(
+  accent: string,
+  field: string | null,
+): ImmersivePrintKitPalette {
+  const base = usableAccent(accent)
+  const ground =
+    field !== null && parseHexColour(field)
+      ? field.toUpperCase()
+      : (deriveFieldColour(base) ?? PRINT_KIT_INK)
+  const accentLine = nudgeLightness(base, ground, PRINT_KIT_CONTRAST.accentLine, 1)
+  const plateTone = mixColour(ground, PRINT_KIT_BODY, LIFT_MIX.plate)
+  const tones = deriveBackdropTones(base, ground)
+  return {
+    style: 'immersive',
+    field: ground,
+    headline: WHITE,
+    body: PRINT_KIT_BODY,
+    accentInk: nudgeLightness(base, ground, PRINT_KIT_CONTRAST.immersiveAccentInk, 1),
+    accentLine,
+    lift: mixColour(ground, PRINT_KIT_BODY, LIFT_MIX.ridge),
+    plateTone,
+    mono: toneOnTone(mixColour(plateTone, accentLine, MONO_MIX), plateTone),
+    monoLine: nudgeLightness(accentLine, plateTone, PRINT_KIT_CONTRAST.monoLine, 1),
+    warm: tones?.warm ?? ground,
+    cool: tones?.cool ?? ground,
+    ...barColours(base),
+  }
+}
+
+/** The palette of one style, from the property's accent and field. */
+export function printKitStylePalette(
+  accent: string,
+  field: string | null,
+  style: 'paper',
+): PaperPrintKitPalette
+export function printKitStylePalette(
+  accent: string,
+  field: string | null,
+  style: 'immersive',
+): ImmersivePrintKitPalette
+export function printKitStylePalette(
+  accent: string,
+  field: string | null,
+  style: PrintKitStyle,
+): PrintKitStylePalette
+export function printKitStylePalette(
+  accent: string,
+  field: string | null,
+  style: PrintKitStyle,
+): PrintKitStylePalette {
+  return style === 'paper'
+    ? paperPrintKitPalette(accent)
+    : immersivePrintKitPalette(accent, field)
 }

@@ -1,62 +1,30 @@
-// The measures the preview needs that the PDF finds by measuring: the address
-// and where the plate under the code ends up. The PDF measures its fonts; the
-// preview cannot, so it estimates from the average width of a character, which
-// is close enough to place a plate and a line.
+// The measures the preview needs that the PDF finds by measuring: the width of
+// the brand and the title. The PDF measures its fonts; the preview cannot, so it
+// estimates from the average width of a character, which is close enough to
+// place a line.
 
-import {
-  breakAddress,
-  fitLines,
-  type FittedLines,
-} from '#/shared/domain/portal-print-kit-text'
+import { fitLines, type FittedLines } from '#/shared/domain/portal-print-kit-text'
 import { stripUnsupportedCharacters } from '#/shared/domain/portal-print-kit-font-ranges'
 import {
-  BOTTOM_MARGIN_MM,
   BRAND_FIT,
   TRACKING_EM,
-  PANEL_HEIGHT_MM,
   PANEL_WIDTH_MM,
-  PLATE_ABOVE_ADDRESS_MM,
-  PLATE_MM,
   SIDE_MARGIN_MM,
   TYPE_PT,
 } from '#/shared/domain/portal-print-kit-layout'
 
-/** Points in a millimetre, and the average advance of Ysabeau Office as a share of its size. */
+/** Points in a millimetre. */
 const POINTS_PER_MM = 72 / 25.4
-const AVERAGE_ADVANCE_EM = 0.47
-const LINE_HEIGHT = 1.3
-const SIZE_STEP_PT = 0.25
 
-export type PreviewAddress = Readonly<{
-  lines: readonly string[]
-  sizePt: number
-  heightMm: number
-}>
-
-const widthMm = (text: string, sizePt: number) =>
-  (text.length * sizePt * AVERAGE_ADVANCE_EM) / POINTS_PER_MM
-
-const lineWidthMm = PANEL_WIDTH_MM - 2 * SIDE_MARGIN_MM
-
-function fitted(lines: readonly string[]): PreviewAddress {
-  let sizePt: number = TYPE_PT.address
-  const widest = () => Math.max(...lines.map((line) => widthMm(line, sizePt)))
-  while (sizePt > TYPE_PT.addressMin && widest() > lineWidthMm) sizePt -= SIZE_STEP_PT
-  const size = Math.max(sizePt, TYPE_PT.addressMin)
-  return {
-    lines,
-    sizePt: size,
-    heightMm: (lines.length * size * LINE_HEIGHT) / POINTS_PER_MM,
-  }
-}
-
-/** The address on one line when it fits at a legible size, else on two, as the PDF does. */
-export function previewAddress(address: string): PreviewAddress {
-  const single = fitted([address])
-  if (widthMm(address, single.sizePt) <= lineWidthMm) return single
-  const broken = breakAddress(address)
-  return broken ? fitted(broken) : single
-}
+/**
+ * Lining figures for what the file sets in Cormorant, whose default figures are
+ * old-style. It is the OpenType feature the lining value of font-variant-numeric
+ * switches on, written as a feature setting on purpose: Tailwind's scanner reads
+ * every token under `src/`, and the CSS keyword spelt out here would make it emit
+ * a utility into the first-paint stylesheet (18 B gzip, against a closure with
+ * 200 B to spare).
+ */
+export const LINING_FIGURES = { fontFeatureSettings: '"lnum" 1' } as const
 
 /**
  * The average advance of a capital, in ems, of the display face and of the body
@@ -100,17 +68,6 @@ export function previewKicker(title: string, scale: number): FittedLines {
     maxWidth: textWidthPt,
     widthAt: capitalsWidthPt(BODY_CAPITAL_EM, TRACKING_EM.kicker),
   })
-}
-
-/** Where the plate under the code starts, in millimetres from the top of the trim. */
-export function previewPlateTopMm(address: PreviewAddress): number {
-  return (
-    PANEL_HEIGHT_MM -
-    BOTTOM_MARGIN_MM -
-    address.heightMm -
-    PLATE_ABOVE_ADDRESS_MM -
-    PLATE_MM
-  )
 }
 
 /** Millimetres on a page of `pageWidthMm` as a share of the preview's width, in `cqw`. */

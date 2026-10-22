@@ -1,5 +1,5 @@
 // One printed panel: the field, the photo band when there is a photo, the
-// brand, the words, the code on its plate, and the address as text.
+// brand, the words and the code on its plate.
 //
 // Drawn in the panel's own coordinates (points, origin at the top-left of its
 // trim), clipped to the trim plus the bleed it is given. The caller places and,
@@ -8,33 +8,29 @@
 import { PRINT_KIT_QR_QUIET_ZONE_MODULES } from '#/shared/domain/portal-print-kit'
 import type { PrintFace } from '#/shared/domain/portal-print-kit'
 import {
-  ADDRESS_OPACITY,
-  BOTTOM_MARGIN_MM,
   BRAND_MIDDLE_MM,
   LOGO_BOX_MM,
   PANEL_HEIGHT_MM,
   PANEL_WIDTH_MM,
   PHOTO_BAND_MM,
   PHOTO_FADE_FROM,
-  PLATE_ABOVE_ADDRESS_MM,
   PLATE_MM,
   PLATE_PAPER_MM,
   PLATE_PAPER_RADIUS_MM,
   PLATE_RADIUS_MM,
+  PLATE_TOP_MM,
   SINGLE_LANGUAGE_SCALE,
   STACK_GAP_BELOW_MM,
   STACK_TOP_MM,
   TEXT_WIDTH_PT,
-  TYPE_PT,
   mm,
 } from './print-kit-geometry'
 import { drawWordmark } from './print-kit-brand'
 import { drawImage, type OpenedImage } from './print-kit-pdf-image'
 import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
-import { drawCentredLine, measureLine, type PrintKitFonts } from './print-kit-pdf-text'
+import { drawCentredLine, type PrintKitFonts } from './print-kit-pdf-text'
 import { qrDarkRuns, qrPlateModules, type QrMatrix } from './print-kit-qr'
 import { fitStack, layoutStack, measureWith } from './print-kit-stack'
-import { breakAddress, fitFontSize } from '#/shared/domain/portal-print-kit-text'
 
 export type PanelBleed = Readonly<{ topMm: number; sideMm: number; bottomMm: number }>
 
@@ -45,7 +41,6 @@ export type PanelArt = Readonly<{
   /** A JPEG already cropped to `photoBox`; null when the property has no photo. */
   photo: OpenedImage | null
   qr: QrMatrix
-  shortAddress: string
 }>
 
 const CENTRE_X = mm(PANEL_WIDTH_MM / 2)
@@ -135,42 +130,6 @@ function drawBrand(doc: PDFKit.PDFDocument, fonts: PrintKitFonts, art: PanelArt)
   drawWordmark(doc, fonts, art.wordmark)
 }
 
-type AddressBlock = Readonly<{
-  lines: readonly string[]
-  size: number
-  heightMm: number
-}>
-
-/** The address on one line when it fits at a legible size, else on two. */
-function layoutAddress(
-  doc: PDFKit.PDFDocument,
-  fonts: PrintKitFonts,
-  address: string,
-): AddressBlock {
-  const styleAt = (size: number) => ({
-    face: 'body' as const,
-    size,
-    spacing: 0,
-    colour: '#FFFFFF',
-    opacity: ADDRESS_OPACITY,
-  })
-  const widest = (lines: readonly string[]) => (size: number) =>
-    Math.max(...lines.map((line) => measureLine(doc, fonts, line, styleAt(size))))
-  const fitted = (lines: readonly string[]): AddressBlock => {
-    const size = fitFontSize({
-      size: TYPE_PT.address,
-      minSize: TYPE_PT.addressMin,
-      maxWidth: TEXT_WIDTH_PT,
-      widthAt: widest(lines),
-    })
-    return { lines, size, heightMm: (lines.length * size * 1.3) / mm(1) }
-  }
-  const single = fitted([address])
-  if (widest([address])(single.size) <= TEXT_WIDTH_PT) return single
-  const broken = breakAddress(address)
-  return broken ? fitted(broken) : single
-}
-
 function drawPlate(doc: PDFKit.PDFDocument, art: PanelArt, plateTopMm: number): void {
   const left = mm((PANEL_WIDTH_MM - PLATE_MM) / 2)
   const top = mm(plateTopMm)
@@ -218,10 +177,7 @@ export function drawPanel(
   drawWashes(doc, art, bleed)
   drawBrand(doc, fonts, art)
 
-  const address = layoutAddress(doc, fonts, art.shortAddress)
-  const addressTopMm = PANEL_HEIGHT_MM - BOTTOM_MARGIN_MM - address.heightMm
-  const plateTopMm = addressTopMm - PLATE_ABOVE_ADDRESS_MM - PLATE_MM
-  const roomMm = plateTopMm - STACK_GAP_BELOW_MM - STACK_TOP_MM
+  const roomMm = PLATE_TOP_MM - STACK_GAP_BELOW_MM - STACK_TOP_MM
   const measure = measureWith(doc, fonts)
   const stack = fitStack(
     (scale) => layoutStack(face.blocks, art.palette, scale, TEXT_WIDTH_PT, measure),
@@ -245,22 +201,6 @@ export function drawPanel(
       middleY: mm(startMm + item.middleMm),
     })
   }
-  drawPlate(doc, art, plateTopMm)
-  const lineMm = address.heightMm / address.lines.length
-  address.lines.forEach((line, index) => {
-    drawCentredLine(
-      doc,
-      fonts,
-      line,
-      {
-        face: 'body',
-        size: address.size,
-        spacing: 0,
-        colour: '#FFFFFF',
-        opacity: ADDRESS_OPACITY,
-      },
-      { centreX: CENTRE_X, middleY: mm(addressTopMm + lineMm * (index + 0.5)) },
-    )
-  })
+  drawPlate(doc, art, PLATE_TOP_MM)
   doc.restore()
 }

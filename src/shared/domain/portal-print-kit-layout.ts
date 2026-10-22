@@ -19,7 +19,8 @@ export const MARK_LENGTH_MM = 5
 
 /** Text keeps this far from the trim, so a trimming tolerance never touches it. */
 export const SIDE_MARGIN_MM = 7.5
-export const BOTTOM_MARGIN_MM = 8
+/** The plate under the code ends this far above the trim's bottom edge. */
+const BOTTOM_MARGIN_MM = 8
 
 /** The wordmark or logo: its middle sits this far below the trim's top edge. */
 export const BRAND_MIDDLE_MM = 9
@@ -34,7 +35,8 @@ export const PLATE_MM = 46
 export const PLATE_RADIUS_MM = 6.4
 export const PLATE_PAPER_MM = 39.2
 export const PLATE_PAPER_RADIUS_MM = 1.6
-export const PLATE_ABOVE_ADDRESS_MM = 3.2
+/** Where the plate starts, down the trim: it ends at the bottom margin. */
+export const PLATE_TOP_MM = PANEL_HEIGHT_MM - BOTTOM_MARGIN_MM - PLATE_MM
 /** The code and the paper under it: fixed, so any phone reads it. */
 export const PLATE_INK = '#121614'
 export const PLATE_PAPER = '#F6F1E6'
@@ -52,15 +54,7 @@ export const TYPE_PT = {
   subline: 10.5,
   secondHeadline: 17,
   secondSubline: 9.4,
-  address: 8,
-  addressMin: 6.5,
 } as const
-
-/**
- * The address under the code is small type on a dark field, printed once and
- * read at arm's length: it is set at four fifths white, not two thirds.
- */
-export const ADDRESS_OPACITY = 0.8
 
 /** Tracking, in ems, of the uppercase lines. */
 export const TRACKING_EM = { wordmark: 0.38, kicker: 0.3 } as const

@@ -14,7 +14,7 @@ import {
   TYPE_PT,
 } from '#/shared/domain/portal-print-kit-layout'
 import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
-import { previewKicker } from './print-kit-art-layout'
+import { LINING_FIGURES, previewKicker } from './print-kit-art-layout'
 
 type Props = Readonly<{
   face: PrintFace
@@ -54,6 +54,7 @@ export function PrintKitStack({ face, palette, pt, u, scale }: Props) {
             style={text({
               fontFamily: 'var(--font-guest-display)',
               fontWeight: 600,
+              ...LINING_FIGURES,
               fontSize: pt(TYPE_PT.secondHeadline * scale),
               lineHeight: STACK_LEADING.secondHeadline,
               color: palette.headline,
@@ -124,6 +125,7 @@ function FirstBlock({
           marginTop: u(STACK_GAP_MM.belowKicker * scale),
           fontFamily: 'var(--font-guest-display)',
           fontWeight: 600,
+          ...LINING_FIGURES,
           fontSize: pt(TYPE_PT.headline * scale),
           lineHeight: STACK_LEADING.headline,
           color: palette.headline,

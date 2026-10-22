@@ -80,7 +80,6 @@ async function artOf(
             }),
           ),
     qr: qrMatrix(input.qrAddress),
-    shortAddress: input.shortAddress,
   }
 }
 

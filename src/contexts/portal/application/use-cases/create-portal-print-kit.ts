@@ -25,7 +25,6 @@ import {
   printKitFaces,
   printKitFileName,
   PRINT_KIT_PIECE_FACTS,
-  shortPrintAddress,
 } from '#/shared/domain/portal-print-kit'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { isServablePortalMediaAsset } from '../../domain/portal-media-asset'
@@ -163,7 +162,6 @@ export const createPortalPrintKit =
       accentColour: context.look.accentColour,
       fieldColour: context.look.fieldColour,
       qrAddress: revealed.publicUrl,
-      shortAddress: shortPrintAddress(revealed.publicUrl),
     })
     return {
       fileName: printKitFileName(context.portalName, input.piece, input.languages),

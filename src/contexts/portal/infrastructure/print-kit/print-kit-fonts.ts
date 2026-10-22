@@ -10,9 +10,20 @@
 // blobs. The .ttf files are a lossless format conversion of the same woff2
 // files, made with `fontTools` (`font = TTFont(source); font.flavor = None;
 // font.save(target)`). Both families are licensed under the SIL OFL 1.1; the
-// licences sit beside the files. The test beside this file embeds every
-// character of every subset, so a change of font that breaks embedding fails
-// here and not on a manager's download.
+// licences sit beside the files.
+//
+// The three Cyrillic files are not quite the browser's: the Bulgarian forms of
+// the letters Bulgarian draws differently (д, л, т, г and others) are frozen into
+// them (`scripts/fonts/freeze-bg-locl.py`). A browser picks those forms from
+// `lang="bg"`; PDFKit gives fontkit no language, so a PDF would print the
+// Russian forms. bg is the only Cyrillic locale a portal offers, so every
+// Cyrillic run in the print kit is Bulgarian. Freezing the forms into the cmap
+// needs nothing at run time. The alternative, a wrapper font object that hands
+// fontkit a script and a language, would make fontkit a direct dependency and
+// would rely on how PDFKit builds its fonts.
+//
+// The test beside this file embeds every character of every subset, so a change
+// of font that breaks embedding fails here and not on a manager's download.
 //
 // They are imported as data URIs, not read from disk at run time: the web image
 // carries no source tree, and the built server resolves nothing but what it
