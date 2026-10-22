@@ -9,6 +9,7 @@ import {
 import {
   CARD_GRID,
   CODE_BLOCK,
+  FIT,
   MARGIN,
   TENT_FACE_GRID,
   TYPE_FLOOR_PT,
@@ -133,6 +134,12 @@ function cardGaps({ layout }: Layout) {
 
 const twoLanguages = faceOf({ piece: 'counter_card', languages: ['en', 'es'] })
 
+/** Titles near the 120 characters a Portal's title may have: more lines than any face has room for. */
+const LONGEST = {
+  en: 'The rooftop pool, sun terrace and cocktail bar overlooking the old harbour and the Bellevue gardens',
+  es: 'La piscina de la azotea, la terraza solar y el bar de cócteles con vistas al puerto viejo y los jardines',
+}
+
 describe('the Paper counter card', () => {
   it.each(['card4x6', 'cardA6'] as const)(
     'keeps equal top and bottom margins to ink on %s: the cap line and the tile outline',
@@ -191,13 +198,41 @@ describe('the Paper counter card', () => {
         bg: 'Спа и уелнес център, рецепция, лоби бар и градинската тераса до басейна',
       },
     )
-    const { layout } = await layOut(long, 'cardA6')
-    expect(layout.stack.stack.first?.style.size).toBe(22)
+    const placed = await layOut(long, 'cardA6')
+    const { layout } = placed
+    // Fit step (c) first, then the place label shrinks: the words keep clear of the code.
+    expect(layout.stack.stack.first?.style.size).toBeLessThan(22)
+    expect(cardGaps(placed).below).toBeGreaterThanOrEqual(FIT.paperGapPt.code - 1e-6)
     const sizes = layout.stack.stack.items.flatMap((item) =>
       item.kind === 'line' ? [item.style.size] : [],
     )
+    expect(sizes).toContain(17)
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(TYPE_FLOOR_PT.read)
   })
+
+  it.each([
+    ['cardA6', ['en', 'es']],
+    ['card4x6', ['en', 'es']],
+    ['card4x6', ['en']],
+  ] as const)(
+    'shrinks a place label too long for %s in %j before its words reach the code block',
+    async (geometry, languages) => {
+      const face = faceOf(
+        { piece: 'counter_card', languages, callToAction: 'tell' },
+        LONGEST,
+      )
+      const placed = await layOut(face, geometry, {
+        wordmark: 'Grand Hotel Bellevue Palace',
+      })
+      const gaps = cardGaps(placed)
+      expect(gaps.above).toBeGreaterThanOrEqual(FIT.paperGapPt.brand - 1e-6)
+      expect(gaps.below).toBeGreaterThanOrEqual(FIT.paperGapPt.code - 1e-6)
+      const sizes = placed.layout.stack.stack.items.flatMap((item) =>
+        item.kind === 'line' ? [item.style.size] : [],
+      )
+      expect(Math.min(...sizes)).toBeGreaterThanOrEqual(TYPE_FLOOR_PT.read)
+    },
+  )
 
   it('measures the top margin to a logo’s drawing, not to its transparent edge', async () => {
     const placed = await layOut(twoLanguages, 'card4x6', { logo: true })
@@ -246,6 +281,21 @@ describe('the Paper tent face', () => {
       6,
     )
   })
+
+  it.each(['tentFaceLetter', 'tentFaceA5'] as const)(
+    'shrinks a place label too long for %s before the words cross the fold clearance',
+    async (geometry) => {
+      const face = faceOf({ piece: 'table_tent', languages: ['en', 'es'] }, LONGEST)
+      const { layout } = await layOut(face, geometry, { logo: true })
+      const grid = TENT_FACE_GRID[geometry === 'tentFaceLetter' ? 'letter' : 'a4']
+      expect(layout.brand.y).toBeGreaterThanOrEqual(grid.foldClearancePt - 1e-6)
+      const wordsBottom = layout.stack.y + layout.stack.stack.heightPt
+      expect(wordsBottom).toBeLessThanOrEqual(grid.heightPt - grid.foldClearancePt + 1e-6)
+      expect(layout.stack.stack.first?.style.size).toBeLessThan(40)
+      // The tile still sits on the shrunk place label's cap line.
+      expect(layout.code.y - layout.stack.y).toBeLessThan(mmToPt(2.45))
+    },
+  )
 
   it('sets the tent type scale: a 40 pt place label', async () => {
     const { layout } = await layOut(tentFace, 'tentFaceA5')

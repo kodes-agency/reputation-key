@@ -50,6 +50,7 @@ import {
 import {
   drawFaceStack,
   layoutFaceStack,
+  placeSizes,
   stackScales,
   type FaceStack,
   type PlacedStack,
@@ -97,15 +98,19 @@ function codeOf(sizing: Sizing): Readonly<{ plan: CodeBlockPlan; art: CodeBlockA
   }
 }
 
+type Scale = Parameters<typeof layoutFaceStack>[0]['scale']
+
 function stackAt(
   sizing: Sizing,
-  scale: Parameters<typeof layoutFaceStack>[0]['scale'],
+  scale: Scale,
   maxWidthPt: number,
+  placePt?: number,
 ): FaceStack {
   const { doc, fonts } = sizing
   return layoutFaceStack({
     blocks: sizing.face.blocks,
     scale,
+    placePt,
     maxWidthPt,
     colours: colours(sizing.art.palette),
     measure: (text, style) => measureLine(doc, fonts, text, style),
@@ -113,9 +118,29 @@ function stackAt(
 }
 
 /**
+ * The words at `scale` with the place label at the largest size that `fits`:
+ * the last fit step, once a scale and the brand are used up. The smallest size
+ * when even that does not fit, so the overflow is as small as it can be.
+ */
+function shrunkStack(
+  sizing: Sizing,
+  scale: Scale,
+  maxWidthPt: number,
+  fits: (stack: FaceStack) => boolean,
+): FaceStack {
+  let stack = stackAt(sizing, scale, maxWidthPt)
+  for (const placePt of placeSizes(scale)) {
+    stack = stackAt(sizing, scale, maxWidthPt, placePt)
+    if (fits(stack)) break
+  }
+  return stack
+}
+
+/**
  * The card's candidates, roomiest first (spec 2.5): the full type scale, then
  * for two languages the stepped-down one (fit step c), then the brand at its
- * floor. The first that leaves the two gaps their minimums is the one printed.
+ * floor. The first that leaves the two gaps their minimums is the one printed;
+ * when none does, the place label shrinks on the last (`shrunkStack`).
  */
 function cardCandidates(sizing: Sizing, maxWidthPt: number) {
   const scales = stackScales(sizing.face.blocks.length, false)
@@ -153,11 +178,18 @@ function layoutPaperCard(
     const stack = stackAt(sizing, candidate.scale, maxWidthPt)
     const brandTop = grid.marginPt - brand.inkTopPt
     const free = codeTop - (brandTop + brand.heightPt) - stack.heightPt
-    return { brand, stack, brandTop, free }
+    return { brand, stack, brandTop, free, scale: candidate.scale }
   })
-  const chosen = tries.find((attempt) => attempt.free >= needed) ?? tries.at(-1)
-  if (chosen === undefined)
+  const tightest = tries.at(-1)
+  if (tightest === undefined)
     throw new Error('A card has at least one way to set its words')
+  const roomFor = (stack: FaceStack) =>
+    codeTop - (tightest.brandTop + tightest.brand.heightPt) - stack.heightPt
+  const chosen =
+    tries.find((attempt) => attempt.free >= needed) ??
+    ((stack) => ({ ...tightest, stack, free: roomFor(stack) }))(
+      shrunkStack(sizing, tightest.scale, maxWidthPt, (s) => roomFor(s) >= needed),
+    )
   const [aboveStack = 0] = shareGaps(chosen.free, minimums)
   return {
     brand: {
@@ -190,26 +222,29 @@ function layoutPaperTent(
     logoHeightPt: TENT_FACE.logoHeightPt,
     maxWidthPt: wordsWidth,
   })
-  const stack = stackAt(sizing, 'tent', wordsWidth)
   // The tile's top on the place label's cap line, from the font, not from a constant.
-  const codeOffset =
+  const display = fontMetrics(sizing.doc, sizing.fonts, 'display')
+  const codeOffsetOf = (stack: FaceStack) =>
     stack.first === null
       ? TENT_FACE.codeTopOffsetPt
-      : capTopInLineBox(
-          fontMetrics(sizing.doc, sizing.fonts, 'display'),
-          stack.first.style.size,
-          STACK.leading.place,
-        )
-  const rowHeight = Math.max(stack.heightPt, codeOffset + code.plan.heightPt)
+      : capTopInLineBox(display, stack.first.style.size, STACK.leading.place)
   // The brand's ink starts this far inside its box, and the outline sits this far
   // outside the code's: padding by both puts the two inks at equal distances.
   const bottomPad = brand.inkTopPt + CODE_BLOCK.outlinePt
-  const free = grid.heightPt - bottomPad - brand.heightPt - rowHeight
-  const [aboveBrand = 0, aboveRow = 0] = shareGaps(free, [
+  const minimums = [
     grid.foldClearancePt,
     TENT_FACE.logoToRowMinPt,
     grid.foldClearancePt - bottomPad,
-  ])
+  ]
+  const freeFor = (stack: FaceStack) =>
+    grid.heightPt -
+    bottomPad -
+    brand.heightPt -
+    Math.max(stack.heightPt, codeOffsetOf(stack) + code.plan.heightPt)
+  const needed = minimums.reduce((sum, minimum) => sum + minimum, 0)
+  const stack = shrunkStack(sizing, 'tent', wordsWidth, (s) => freeFor(s) >= needed)
+  const codeOffset = codeOffsetOf(stack)
+  const [aboveBrand = 0, aboveRow = 0] = shareGaps(freeFor(stack), minimums)
   const rowTop = aboveBrand + brand.heightPt + aboveRow
   return {
     brand: {

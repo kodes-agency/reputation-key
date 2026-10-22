@@ -11,7 +11,7 @@
 // left-aligned in the Paper tent's words column.
 
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
-import { STACK, TYPE_PT } from '#/shared/domain/portal-print-kit-measures'
+import { STACK, TYPE_FLOOR_PT, TYPE_PT } from '#/shared/domain/portal-print-kit-measures'
 import { balanceWords, fillWords } from '#/shared/domain/portal-print-kit-text'
 import { drawLine, type PdfTextStyle, type PrintKitFonts } from './print-kit-pdf-text'
 
@@ -60,6 +60,8 @@ type Measure = (text: string, style: PdfTextStyle) => number
 export type FaceStackInput = Readonly<{
   blocks: readonly PrintTextBlock[]
   scale: StackScale
+  /** The place label's size when the fit has shrunk it below its scale's (`placeSizes`). */
+  placePt?: number
   maxWidthPt: number
   colours: FaceStackColours
   measure: Measure
@@ -132,7 +134,7 @@ export function layoutFaceStack(input: FaceStackInput): FaceStack {
     cursor,
     input,
     lead.kicker,
-    style('display', type.place, colours.ink, trackingEm.place),
+    style('display', input.placePt ?? type.place, colours.ink, trackingEm.place),
     leading.place,
   )
   if (second !== undefined && 'place2' in type) {
@@ -189,6 +191,22 @@ export function layoutFaceStack(input: FaceStackInput): FaceStack {
 export function stackScales(languages: number, tent: boolean): readonly StackScale[] {
   if (tent) return ['tent']
   return languages > 1 ? ['two', 'twoTight'] : ['one']
+}
+
+/** How far the place label steps down at a time once every other fit step is used up. */
+const PLACE_STEP_PT = 0.5
+
+/**
+ * The place label's sizes, largest first, for a title too long for any scale:
+ * the scale's own, then smaller down to the size nothing a guest reads goes
+ * under. The place label wraps before it shrinks (spec 2.5), and shrinks before
+ * the words reach the code block, which never gives way. A Portal's title may
+ * run to 120 characters: four or five lines at the scale's size.
+ */
+export function placeSizes(scale: StackScale): readonly number[] {
+  const largest = TYPE_PT[scale].place
+  const steps = Math.floor((largest - TYPE_FLOOR_PT.read) / PLACE_STEP_PT)
+  return Array.from({ length: steps + 1 }, (_, index) => largest - index * PLACE_STEP_PT)
 }
 
 export type PlacedStack = Readonly<{
