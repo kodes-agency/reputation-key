@@ -179,7 +179,7 @@
     },
     {
       "file": "src/contexts/portal/server/portals.ts",
-      "exports": ["rollbackPortalPublication"]
+      "exports": ["rollbackPortalPublication", "savePropertyPortalBrandProfile"]
     },
     {
       "file": "src/contexts/property/server/properties.ts",
@@ -253,7 +253,6 @@
       "exports": [
         "createPortalGroup",
         "updatePortalGroup",
-        "getPortalGroup",
         "softDeletePortalGroup",
         "addPortalToGroup",
         "removePortalFromGroup"

@@ -52,7 +52,7 @@ describe('TRY_AS_GUEST_NOTICE', () => {
 describe('TILE_PLACEHOLDER_NOTE', () => {
   it('tells a request awaiting an admin from an address that is not approved at all', () => {
     expect(TILE_PLACEHOLDER_NOTE.awaiting_approval).toBe('Waiting for approval')
-    expect(TILE_PLACEHOLDER_NOTE.not_approved).toContain('Not approved')
+    expect(TILE_PLACEHOLDER_NOTE.not_approved).toBe('Hidden from guests')
     expect(TILE_PLACEHOLDER_NOTE.not_approved).not.toContain('Waiting')
   })
 })

@@ -294,7 +294,7 @@ export const SectionList: Story = {
       'WelcomePool & Terrace',
       'Rating & GoogleAlways included',
       'Private note3★ or below',
-      'Linktree4 links',
+      'Linktree4 links · 1 hidden from guests',
       'FooterPrivacy notice',
       'Languages2 languages',
       'GroupPool side',

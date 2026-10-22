@@ -165,6 +165,7 @@ export const getPropertyPortalExperience = createServerFn({ method: 'GET' })
     ),
   )
 
+// The e2e seed path: no screen saves a brand profile; the e2e fixtures do.
 export const savePropertyPortalBrandProfile = createServerFn({ method: 'POST' })
   .validator(propertyPortalBrandProfileInputSchema)
   .handler(
