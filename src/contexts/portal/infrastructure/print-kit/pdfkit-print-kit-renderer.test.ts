@@ -197,7 +197,7 @@ describe('tracked lines', () => {
 
   it('lays a tracked line out without ligatures to measure it as well as to draw it', async () => {
     const drawn: { text: string; features: unknown }[] = []
-    const measured = new Map<string, unknown>()
+    const measuredWithoutLigatures = new Set<string>()
     const text = PDFDocument.prototype.text
     const widthOfString = PDFDocument.prototype.widthOfString
     const textSpy = vi.spyOn(PDFDocument.prototype, 'text')
@@ -212,14 +212,18 @@ describe('tracked lines', () => {
       if ((options.characterSpacing ?? 0) > 0) {
         drawn.push({ text: line, features: options.features })
       } else {
-        expect(options.features, line).toBeUndefined()
+        // An untracked line keeps its ligatures; the display face asks for lining figures.
+        expect(options.features ?? {}, line).not.toHaveProperty('liga')
       }
       return text.apply(this, args as Parameters<typeof text>)
     })
     widthSpy.mockImplementation(function (this: PDFKit.PDFDocument, ...args: unknown[]) {
-      const [line, options] = args as [string, { features?: unknown } | undefined]
+      const [line, options] = args as [
+        string,
+        { features?: { liga?: boolean } } | undefined,
+      ]
       // PDFKit measures with no options inside text() too: keep the calls that ask.
-      if (options?.features) measured.set(line, { ...options.features })
+      if (options?.features?.liga === false) measuredWithoutLigatures.add(line)
       return widthOfString.apply(this, args as Parameters<typeof widthOfString>)
     })
     try {
@@ -234,7 +238,7 @@ describe('tracked lines', () => {
     for (const line of drawn) {
       // fontkit adds the features it applied to the object it is given.
       expect(line.features, line.text).toMatchObject(noLigatures)
-      expect(measured.get(line.text), line.text).toMatchObject(noLigatures)
+      expect(measuredWithoutLigatures.has(line.text), line.text).toBe(true)
     }
   })
 })

@@ -214,6 +214,8 @@ function Brand({ look }: Readonly<{ look: PortalPrintKitView['look'] }>) {
         paddingLeft: `${TRACKING_EM.wordmark}em`,
         fontFamily: DISPLAY_FONT,
         fontWeight: 600,
+        // Cormorant's figures are old-style by default; the file sets lining ones.
+        fontVariantNumeric: 'lining-nums',
         fontSize: pt(size),
         lineHeight: BRAND_FIT.wordmark.lineHeight,
         letterSpacing: `${TRACKING_EM.wordmark}em`,

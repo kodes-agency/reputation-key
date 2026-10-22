@@ -54,6 +54,7 @@ export function PrintKitStack({ face, palette, pt, u, scale }: Props) {
             style={text({
               fontFamily: 'var(--font-guest-display)',
               fontWeight: 600,
+              fontVariantNumeric: 'lining-nums',
               fontSize: pt(TYPE_PT.secondHeadline * scale),
               lineHeight: STACK_LEADING.secondHeadline,
               color: palette.headline,
@@ -124,6 +125,7 @@ function FirstBlock({
           marginTop: u(STACK_GAP_MM.belowKicker * scale),
           fontFamily: 'var(--font-guest-display)',
           fontWeight: 600,
+          fontVariantNumeric: 'lining-nums',
           fontSize: pt(TYPE_PT.headline * scale),
           lineHeight: STACK_LEADING.headline,
           color: palette.headline,

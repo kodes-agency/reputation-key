@@ -2,8 +2,8 @@
 // text measured and drawn in them.
 //
 // A line is split into runs by font file (portal-print-kit-font-ranges.ts), because no
-// single guest file carries a bilingual line. Lines are centred: the print kit
-// sets nothing flush left.
+// single guest file carries a bilingual line. A line is drawn from its left edge
+// or centred on a point.
 
 import {
   splitIntoFontRuns,
@@ -38,19 +38,32 @@ export class PrintKitFonts {
   }
 }
 
+/** Ligatures off: fontkit switches a default feature off when its tag is given as false. */
+const NO_LIGATURES = { liga: false, clig: false, dlig: false }
+
 /**
- * A tracked line is set glyph by glyph. A ligature is one glyph, so the tracking
- * has nothing to act on inside it: Cormorant joins "TT" in "TRATTORIA" into one
- * glyph, and in a line of spaced capitals the pair prints joined. fontkit
- * switches a default feature off when its tag is given as false; PDFKit's typings
- * describe only the array that switches features on, hence the cast. fontkit
- * also writes the features it applied into the object it is given, so every call
- * gets its own.
+ * The OpenType features a line is shaped with, or none.
+ *
+ * Lining figures on the display face: Cormorant's default figures are old-style,
+ * so "Chair 3" would set with a descending 3 (spec 2.1). Its Latin and Cyrillic
+ * files carry `lnum`; Ysabeau's figures are lining already.
+ *
+ * No ligatures on a tracked line: it is set glyph by glyph, a ligature is one
+ * glyph, and the tracking has nothing to act on inside it. Cormorant joins "TT"
+ * in "TRATTORIA" into one glyph, and in a line of spaced capitals the pair prints
+ * joined.
+ *
+ * PDFKit's typings describe only the array that switches features on, hence the
+ * cast. fontkit also writes the features it applied into the object it is given,
+ * so every call gets its own.
  */
 function featuresOf(style: PdfTextStyle): PDFKit.Mixins.TextOptions['features'] {
-  if (style.spacing <= 0) return undefined
-  const noLigatures = { liga: false, clig: false, dlig: false }
-  return noLigatures as unknown as PDFKit.Mixins.TextOptions['features']
+  const features = {
+    ...(style.face === 'display' ? { lnum: true } : {}),
+    ...(style.spacing > 0 ? NO_LIGATURES : {}),
+  }
+  if (Object.keys(features).length === 0) return undefined
+  return features as unknown as PDFKit.Mixins.TextOptions['features']
 }
 
 type MeasuredRun = Readonly<{ subset: FontSubset; text: string; width: number }>
@@ -81,19 +94,17 @@ export function measureLine(
   return runs.reduce((sum, run) => sum + run.width, 0) - style.spacing
 }
 
-/** A line centred on `centreX`, its vertical middle at `middleY`. */
-export function drawCentredLine(
+/** A line starting at `x`, its vertical middle at `middleY`. */
+export function drawLine(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
   text: string,
   style: PdfTextStyle,
-  at: Readonly<{ centreX: number; middleY: number }>,
+  at: Readonly<{ x: number; middleY: number }>,
 ): void {
-  const runs = measureRuns(doc, fonts, text, style)
-  const total = runs.reduce((sum, run) => sum + run.width, 0) - style.spacing
-  let x = at.centreX - total / 2
+  let x = at.x
   doc.fillColor(style.colour, style.opacity)
-  for (const run of runs) {
+  for (const run of measureRuns(doc, fonts, text, style)) {
     fonts.use(style.face, run.subset, style.size)
     doc.text(run.text, x, at.middleY, {
       lineBreak: false,
@@ -103,4 +114,16 @@ export function drawCentredLine(
     })
     x += run.width
   }
+}
+
+/** A line centred on `centreX`, its vertical middle at `middleY`. */
+export function drawCentredLine(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  text: string,
+  style: PdfTextStyle,
+  at: Readonly<{ centreX: number; middleY: number }>,
+): void {
+  const width = measureLine(doc, fonts, text, style)
+  drawLine(doc, fonts, text, style, { x: at.centreX - width / 2, middleY: at.middleY })
 }
