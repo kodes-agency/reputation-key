@@ -74,11 +74,12 @@ describe('buildPortalPrintKit', () => {
         piece: 'counter_card',
         languages: ['en'],
         callToAction: 'rate',
+        style: 'paper',
       },
       buildTestAuthContext(),
     )
     expect(Buffer.from(file.pdf.subarray(0, 5)).toString('latin1')).toBe('%PDF-')
-    expect(file.fileName).toBe('harbor-lobby-counter-card-en.pdf')
+    expect(file.fileName).toBe('harbor-lobby-counter-card-en-letter.pdf')
     expect(reveal).toHaveBeenCalledWith(
       { portalId: portal.id, purpose: 'download' },
       expect.anything(),

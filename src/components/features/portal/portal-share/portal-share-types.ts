@@ -68,6 +68,12 @@ export type PortalShareProps = Readonly<{
   /** The property's IANA zone, for when the code before this one stops. Absent: UTC. */
   timeZone?: string
   /**
+   * The property's country (ISO 3166-1 alpha-2), which sets the paper a print
+   * starts on: Letter in the US and the other Letter countries, A4 elsewhere.
+   * Absent or null: Letter.
+   */
+  countryCode?: string | null
+  /**
    * The portal's managers by name, whom someone who can only look asks for the
    * QR code or print kit. Absent or empty: "a manager of this portal".
    */

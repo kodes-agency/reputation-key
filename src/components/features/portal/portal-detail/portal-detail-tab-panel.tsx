@@ -41,6 +41,7 @@ type SharePanelProps = Pick<
   | 'getPortalPrintKit'
   | 'downloadPrintKitMutation'
   | 'propertyTimeZone'
+  | 'propertyCountryCode'
   | 'responsibleManagers'
   | 'responsibleManagerMembers'
 > &
@@ -49,6 +50,7 @@ type SharePanelProps = Pick<
 function SharePanel({
   portal,
   propertyTimeZone,
+  propertyCountryCode,
   responsibleManagers,
   responsibleManagerMembers,
   tokenStatus,
@@ -71,6 +73,7 @@ function SharePanel({
       propertyId={portal.propertyId}
       publicationState={portal.publicationState}
       timeZone={propertyTimeZone}
+      countryCode={propertyCountryCode}
       managerNames={
         responsibleManagers && responsibleManagerMembers
           ? resolveFixPeople(responsibleManagers, responsibleManagerMembers).map(

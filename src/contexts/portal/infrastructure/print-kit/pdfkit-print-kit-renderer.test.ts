@@ -2,7 +2,7 @@ import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
 import { describe, expect, it, vi } from 'vitest'
 import type { PrintKitRenderInput } from '../../application/ports/portal-print-kit-renderer.port'
-import { printKitFaces, type PrintKitChoice } from '#/shared/domain/portal-print-kit'
+import { printKitFaces, type PrintKitWords } from '#/shared/domain/portal-print-kit'
 import { PANEL_WIDTH_MM, SIDE_MARGIN_MM } from '#/shared/domain/portal-print-kit-layout'
 import { createPdfKitPrintKitRenderer } from './pdfkit-print-kit-renderer'
 import { qrDarkRuns, qrMatrix } from './print-kit-qr'
@@ -18,7 +18,7 @@ const renderer = createPdfKitPrintKitRenderer({
 })
 
 function inputFor(
-  choice: PrintKitChoice,
+  choice: PrintKitWords,
   overrides: Partial<PrintKitRenderInput> = {},
 ): PrintKitRenderInput {
   return {
@@ -35,7 +35,7 @@ function inputFor(
   }
 }
 
-const tentEnBg: PrintKitChoice = {
+const tentEnBg: PrintKitWords = {
   piece: 'table_tent',
   languages: ['en', 'bg'],
   callToAction: 'rate',
@@ -124,7 +124,7 @@ describe('text longer than any brand or title', () => {
   it.each(cases)(
     'keeps every line inside the panel margins, with %s',
     async (_name, wordmark, title) => {
-      const choice: PrintKitChoice = {
+      const choice: PrintKitWords = {
         piece: 'table_tent',
         languages: ['en', 'bg'],
         callToAction: 'rate',

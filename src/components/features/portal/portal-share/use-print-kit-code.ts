@@ -4,7 +4,7 @@
 // (never as markup).
 
 import { useEffect, useState } from 'react'
-import { PLATE_INK, PLATE_PAPER } from '#/shared/domain/portal-print-kit-layout'
+import { PRINT_KIT_INK, PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
 import { QR_QUIET_ZONE_MODULES, renderQrSvg } from './portal-qr'
 
 /** Drawn when the live address is not in memory: a code that opens nothing of ours. */
@@ -19,8 +19,8 @@ export function usePrintKitCode(address: string | null): string | null {
   useEffect(() => {
     let cancelled = false
     void renderQrSvg(source, QR_QUIET_ZONE_MODULES, {
-      dark: PLATE_INK,
-      light: PLATE_PAPER,
+      dark: PRINT_KIT_INK,
+      light: PRINT_KIT_TILE,
     })
       .then((svg) => {
         if (cancelled) return

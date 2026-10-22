@@ -58,6 +58,7 @@ function PortalWorkspaceEditor() {
       historyReads={HISTORY_READS}
       makeVersionLiveMutation={actions.makeVersionLive}
       propertyTimeZone={property.timezone}
+      propertyCountryCode={property.countryCode ?? null}
       links={links}
       languageCoverage={data.languageCoverage}
       linktree={data.linktree}

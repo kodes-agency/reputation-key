@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { printKitFaces, type PrintKitChoice } from '#/shared/domain/portal-print-kit'
+import { printKitFaces, type PrintKitWords } from '#/shared/domain/portal-print-kit'
 import { STACK, mmToPt } from '#/shared/domain/portal-print-kit-measures'
 import {
   layoutFaceStack,
@@ -14,7 +14,7 @@ const TITLES = { en: 'Pool & Terrace', es: 'Piscina y terraza' }
 const measure = (text: string, style: { size: number }) => text.length * style.size * 0.5
 
 function stackFor(
-  choice: PrintKitChoice,
+  choice: PrintKitWords,
   scale: Parameters<typeof layoutFaceStack>[0]['scale'],
   maxWidthPt = 250,
 ) {

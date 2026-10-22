@@ -11,6 +11,7 @@ import {
   PRINT_KIT_BLEED_MM,
   PRINT_KIT_PIECE_FACTS,
   PRINT_KIT_QR_QUIET_ZONE_MODULES,
+  defaultPrintKitPaper,
   isPrintKitLanguageChoice,
   printKitLanguageChoices,
   printKitSheets,
@@ -26,22 +27,39 @@ import {
 import { printPageMm } from '#/shared/domain/portal-print-kit-layout'
 import type { PortalPublicationState } from '../shared/types'
 
-/** A table tent in the first language choice the portal offers, asking for a rating. */
-export function initialPrintKitChoice(locales: readonly GuestLocale[]): PrintKitChoice {
+/**
+ * What the section starts with: a Paper counter card (the share board's own
+ * state) on the paper the property's country prints on (Letter when it has none,
+ * spec 7.1), in the first language choice the portal offers, asking for a rating.
+ * The browser's locale says where the manager sits, not where the piece will
+ * stand, so it is not asked.
+ */
+export function initialPrintKitChoice(
+  locales: readonly GuestLocale[],
+  countryCode: string | null,
+): PrintKitChoice {
   const [first] = printKitLanguageChoices(locales)
-  return { piece: 'table_tent', languages: first ?? [], callToAction: 'rate' }
+  return {
+    style: 'paper',
+    paper: defaultPrintKitPaper(countryCode),
+    piece: 'counter_card',
+    languages: first ?? [],
+    callToAction: 'rate',
+  }
 }
 
 /**
  * The manager's choice, or a fresh one when it names a language the portal no
  * longer offers (the Languages section can change while this tab is open). The
- * piece and the call to action are kept: only the languages were invalidated.
+ * style, paper, piece and call to action are kept: only the languages were
+ * invalidated, and a paper the manager chose beats the country's.
  */
 export function reconcilePrintKitChoice(
   choice: PrintKitChoice | null,
   locales: readonly GuestLocale[],
+  countryCode: string | null,
 ): PrintKitChoice {
-  const initial = initialPrintKitChoice(locales)
+  const initial = initialPrintKitChoice(locales, countryCode)
   if (choice === null) return initial
   return isPrintKitLanguageChoice(locales, choice.languages)
     ? choice
@@ -50,14 +68,14 @@ export function reconcilePrintKitChoice(
 
 /**
  * The face as the file draws it: without the characters no guest font carries,
- * which the PDF drops and the browser's own fallback fonts would show. (The
- * title above the call to action is set in capitals, so it is cleaned there.)
+ * which the PDF drops and the browser's own fallback fonts would show.
  */
 export function printableFace(face: PrintFace): PrintFace {
   return {
     ...face,
     blocks: face.blocks.map((block) => ({
       ...block,
+      kicker: stripUnsupportedCharacters(block.kicker),
       headline: stripUnsupportedCharacters(block.headline),
       subline: stripUnsupportedCharacters(block.subline),
     })),
@@ -67,18 +85,15 @@ export function printableFace(face: PrintFace): PrintFace {
 /**
  * The characters of the print's words that no guest font carries, so will not
  * print: each once, in the order they appear. The brand counts only while it is
- * drawn as words (a logo stands in for it), in capitals as the file sets it.
+ * drawn as words (a logo stands in for it), in capitals as the file sets it; the
+ * place label is set as it is stored.
  */
 export function unprintableCharacters(
   look: Pick<PortalPrintKitView['look'], 'wordmark' | 'logoUrl'>,
   faces: readonly PrintFace[],
 ): readonly string[] {
   const words = faces.flatMap((face) =>
-    face.blocks.flatMap((block) => [
-      block.kicker.toUpperCase(),
-      block.headline,
-      block.subline,
-    ]),
+    face.blocks.flatMap((block) => [block.kicker, block.headline, block.subline]),
   )
   const brand = look.logoUrl === null ? [look.wordmark.toUpperCase()] : []
   return unsupportedCharacters([...brand, ...words].join('\n'))

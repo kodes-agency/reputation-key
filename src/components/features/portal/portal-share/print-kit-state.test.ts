@@ -8,60 +8,82 @@ import {
   isNothingLiveRefusal,
   languageChoiceLabel,
   printKitAvailability,
-  printKitCaptions,
   printKitHasLiveVersion,
-  printKitPreviewLabel,
-  printKitPrintAdvice,
   printableFace,
   reconcilePrintKitChoice,
   unprintableCharacters,
 } from './print-kit-state'
 
-const TENT: PrintKitChoice = {
-  piece: 'table_tent',
+const CARD: PrintKitChoice = {
+  style: 'paper',
+  paper: 'letter',
+  piece: 'counter_card',
   languages: ['en', 'bg'],
   callToAction: 'rate',
 }
+const TENT: PrintKitChoice = { ...CARD, piece: 'table_tent' }
 
 describe('initialPrintKitChoice', () => {
-  it('starts with a table tent in the primary language and the next one, asking for a rating', () => {
-    expect(initialPrintKitChoice(['en', 'bg'])).toEqual(TENT)
+  it('starts with a Paper counter card in the primary language and the next one, asking for a rating', () => {
+    expect(initialPrintKitChoice(['en', 'bg'], 'US')).toEqual(CARD)
   })
 
   it('starts with the one language a single-language portal has', () => {
-    expect(initialPrintKitChoice(['de'])).toEqual({
-      piece: 'table_tent',
+    expect(initialPrintKitChoice(['de'], 'US')).toEqual({
+      ...CARD,
       languages: ['de'],
-      callToAction: 'rate',
     })
+  })
+
+  it.each([
+    ['the US', 'US', 'letter'],
+    ['Canada', 'CA', 'letter'],
+    ['Mexico', 'MX', 'letter'],
+    ['Bulgaria', 'BG', 'a4'],
+    ['Germany', 'DE', 'a4'],
+    ['the UK', 'GB', 'a4'],
+    ['a property with no country', null, 'letter'],
+  ] as const)('starts a property in %s on %s paper', (_label, country, paper) => {
+    expect(initialPrintKitChoice(['en'], country).paper).toBe(paper)
   })
 })
 
 describe('reconcilePrintKitChoice', () => {
   it("keeps the manager's choice while it is still offered", () => {
-    const chosen = { ...TENT, piece: 'counter_card', languages: ['bg'] } as const
-    expect(reconcilePrintKitChoice(chosen, ['en', 'bg'])).toBe(chosen)
+    const chosen = { ...TENT, languages: ['bg'] } as const
+    expect(reconcilePrintKitChoice(chosen, ['en', 'bg'], 'US')).toBe(chosen)
+  })
+
+  it('keeps the paper the manager chose over the country’s', () => {
+    const chosen = { ...CARD, paper: 'a4' } as const
+    expect(reconcilePrintKitChoice(chosen, ['en', 'bg'], 'US').paper).toBe('a4')
   })
 
   it('starts again when a language it names is no longer offered', () => {
-    expect(reconcilePrintKitChoice(TENT, ['en', 'es'])).toEqual({
-      piece: 'table_tent',
+    expect(reconcilePrintKitChoice(CARD, ['en', 'es'], 'US')).toEqual({
+      ...CARD,
       languages: ['en', 'es'],
-      callToAction: 'rate',
     })
   })
 
   it('starts from the first choice when there is none yet', () => {
-    expect(reconcilePrintKitChoice(null, ['en', 'bg'])).toEqual(TENT)
+    expect(reconcilePrintKitChoice(null, ['en', 'bg'], 'BG')).toEqual({
+      ...CARD,
+      paper: 'a4',
+    })
   })
 
-  it('keeps the piece and the call to action when only the languages have to change', () => {
+  it('keeps the style, the paper, the piece and the call to action when only the languages have to change', () => {
     const chosen = {
+      style: 'immersive',
+      paper: 'a4',
       piece: 'counter_card',
       languages: ['fr'],
       callToAction: 'tell',
     } as const
-    expect(reconcilePrintKitChoice(chosen, ['en', 'bg'])).toEqual({
+    expect(reconcilePrintKitChoice(chosen, ['en', 'bg'], 'US')).toEqual({
+      style: 'immersive',
+      paper: 'a4',
       piece: 'counter_card',
       languages: ['en', 'bg'],
       callToAction: 'tell',
@@ -73,30 +95,6 @@ describe('languageChoiceLabel', () => {
   it('names each language in its own words', () => {
     expect(languageChoiceLabel(['en', 'bg'])).toBe('English + Български')
     expect(languageChoiceLabel(['es'])).toBe('Español')
-  })
-})
-
-describe('printKitCaptions', () => {
-  it('says what is shown, its size and the quiet zone, and what the PDF holds', () => {
-    expect(printKitCaptions('table_tent', 'front')).toEqual({
-      top: 'Table tent A6 · front · 105 × 148 mm · QR with a 4-module quiet zone',
-      bottom: 'PDF: one folded sheet with a fold mark, 3 mm bleed and crop marks',
-    })
-    expect(printKitCaptions('counter_card', 'back').top).toBe(
-      'Counter card A6 · back · 105 × 148 mm · QR with a 4-module quiet zone',
-    )
-    expect(printKitCaptions('counter_card', 'back').bottom).toBe(
-      'PDF: one A6 page per side, with 3 mm bleed and crop marks',
-    )
-  })
-})
-
-describe('printKitPreviewLabel', () => {
-  it('describes the face for a screen reader', () => {
-    const [front] = printKitFaces(TENT, {}, 'Pool')
-    expect(front && printKitPreviewLabel(TENT.piece, front)).toBe(
-      'Print preview: table tent, front, English and Bulgarian, "Rate your visit", the QR code on a light plate and the address as text',
-    )
   })
 })
 
@@ -112,34 +110,6 @@ describe('printKitAvailability', () => {
     const availability = printKitAvailability({ canDownloadAgain: false })
     expect(availability.ready).toBe(false)
     expect(availability.reason).toMatch(/replace the code/iu)
-  })
-})
-
-describe('printKitPrintAdvice', () => {
-  it('sends the table tent to a print shop: its sheet is taller than A4 and Letter', () => {
-    expect(printKitPrintAdvice('table_tent')).toBe(
-      'The table tent needs a print shop: its sheet is larger than A4 or Letter. Ask them to print it at 100% (actual size) and cut it on the crop marks. Ask your print shop to convert to CMYK if they need it.',
-    )
-  })
-
-  it('prints the counter card on A4 or Letter, at actual size', () => {
-    expect(printKitPrintAdvice('counter_card')).toBe(
-      'Print the counter card on A4 or Letter at 100% (actual size), not “fit to page”, then cut on the crop marks. Ask your print shop to convert to CMYK if they need it.',
-    )
-  })
-
-  it('tells a print shop what to do about the file’s RGB colours, for both pieces', () => {
-    for (const piece of ['table_tent', 'counter_card'] as const) {
-      expect(printKitPrintAdvice(piece)).toMatch(
-        /Ask your print shop to convert to CMYK if they need it\.$/,
-      )
-    }
-  })
-
-  it('never offers an office printer for a piece whose page is larger than the paper', () => {
-    for (const piece of ['table_tent', 'counter_card'] as const) {
-      expect(printKitPrintAdvice(piece)).toMatch(/100% \(actual size\)/)
-    }
   })
 })
 
@@ -264,15 +234,24 @@ describe('what the fonts cannot print', () => {
     expect(unprintableCharacters(look, marked)).toEqual(['🏊', '酒'])
   })
 
-  it('draws the face without what the file drops', () => {
+  it('draws the face without what the file drops, the place label included', () => {
     const [block] = printableFace({
       side: 'front',
       blocks: [
-        { locale: 'en', kicker: 'Pool', headline: 'Rate 🏊 now', subline: 'Тихо 酒' },
+        {
+          locale: 'en',
+          kicker: 'Pool 酒',
+          headline: 'Rate 🏊 now',
+          subline: 'Тихо 酒',
+        },
       ],
     }).blocks
 
-    expect(block).toMatchObject({ headline: 'Rate  now', subline: 'Тихо ' })
+    expect(block).toMatchObject({
+      kicker: 'Pool ',
+      headline: 'Rate  now',
+      subline: 'Тихо ',
+    })
   })
 
   it('names the characters in one line, and counts the rest past six', () => {

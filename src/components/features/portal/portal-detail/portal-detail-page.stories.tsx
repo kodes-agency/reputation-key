@@ -247,6 +247,7 @@ const baseArgs = {
   historyReads,
   makeVersionLiveMutation,
   propertyTimeZone: STORY_TIME_ZONE,
+  propertyCountryCode: 'US',
   organizationName: 'Acme Hotels',
   propertyId: 'prop-1',
   publicationHistory: {

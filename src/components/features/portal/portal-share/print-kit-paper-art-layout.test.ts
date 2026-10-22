@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { printKitFaces, type PrintKitChoice } from '#/shared/domain/portal-print-kit'
+import { printKitFaces, type PrintKitWords } from '#/shared/domain/portal-print-kit'
 import {
   previewPaperScale,
   printKitSheetLabel,
   ptToContainerWidth,
 } from './print-kit-paper-art-layout'
 
-const frontOf = (choice: PrintKitChoice, titles: Readonly<Record<string, string>>) => {
+const frontOf = (choice: PrintKitWords, titles: Readonly<Record<string, string>>) => {
   const [front] = printKitFaces(choice, titles, 'Portal')
   if (front === undefined) throw new Error('no face')
   return front
 }
 
-const card = (languages: PrintKitChoice['languages']): PrintKitChoice => ({
+const card = (languages: PrintKitWords['languages']): PrintKitWords => ({
   piece: 'counter_card',
   languages,
   callToAction: 'rate',

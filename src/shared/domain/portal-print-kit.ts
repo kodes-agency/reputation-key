@@ -16,6 +16,10 @@ import type { GuestLocale } from './guest-locale'
 export const PRINT_KIT_PIECES = Object.freeze(['table_tent', 'counter_card'] as const)
 export type PrintKitPiece = (typeof PRINT_KIT_PIECES)[number]
 
+/** The short name of each piece, in captions and in file names. */
+export const PRINT_KIT_PIECE_NOUNS: Readonly<Record<PrintKitPiece, string>> =
+  Object.freeze({ table_tent: 'table tent', counter_card: 'counter card' })
+
 export const PRINT_KIT_CALLS_TO_ACTION = Object.freeze(['rate', 'tell'] as const)
 export type PrintKitCallToAction = (typeof PRINT_KIT_CALLS_TO_ACTION)[number]
 
@@ -160,11 +164,17 @@ export const PRINT_KIT_SCAN_CUE: Readonly<Record<GuestLocale, string>> = Object.
 })
 
 export type PrintKitChoice = Readonly<{
+  /** The look, and the paper family it prints on (Letter or A4). */
+  style: PrintKitStyle
+  paper: PrintKitPaper
   piece: PrintKitPiece
   /** One or two of the portal's languages; the first is the larger. */
   languages: readonly GuestLocale[]
   callToAction: PrintKitCallToAction
 }>
+
+/** What decides what a print says: the piece, its languages and its call to action. */
+export type PrintKitWords = Pick<PrintKitChoice, 'piece' | 'languages' | 'callToAction'>
 
 /**
  * The language selections a portal's languages offer: its primary with each
@@ -219,7 +229,7 @@ export type PrintFace = Readonly<{
  * has a back only when there is a second language to put on it.
  */
 export function printKitFaces(
-  choice: PrintKitChoice,
+  choice: PrintKitWords,
   titles: Readonly<Partial<Record<GuestLocale, string>>>,
   fallbackTitle: string,
 ): readonly PrintFace[] {
