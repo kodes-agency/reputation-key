@@ -102,13 +102,18 @@ export function readableForegroundOn(background: string): string {
   return againstDark > againstLight ? DARK_FOREGROUND : LIGHT_FOREGROUND
 }
 
-function toHslParts([red, green, blue]: Rgb): { hue: number; saturation: number } {
+/** Hue in degrees, saturation and lightness in 0..1: the HSL parts of a colour. */
+function toHslParts([red, green, blue]: Rgb): {
+  hue: number
+  saturation: number
+  lightness: number
+} {
   const [r, g, b] = [red / 255, green / 255, blue / 255] as const
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
   const delta = max - min
-  if (delta === 0) return { hue: 0, saturation: 0 }
   const lightness = (max + min) / 2
+  if (delta === 0) return { hue: 0, saturation: 0, lightness }
   const saturation = delta / (1 - Math.abs(2 * lightness - 1))
   const sector =
     max === r
@@ -116,9 +121,10 @@ function toHslParts([red, green, blue]: Rgb): { hue: number; saturation: number 
       : max === g
         ? (b - r) / delta + 2
         : (r - g) / delta + 4
-  return { hue: sector * 60, saturation }
+  return { hue: sector * 60, saturation, lightness }
 }
 
+/** The `#RRGGBB` colour of the given hue (degrees), saturation and lightness (0..1). */
 function fromHsl(hue: number, saturation: number, lightness: number): string {
   const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation
   const offset = lightness - chroma / 2
@@ -158,6 +164,77 @@ export function deriveFieldColour(accent: string): string | null {
   if (!channels) return null
   const { hue, saturation } = toHslParts(channels)
   return fromHsl(hue, Math.min(saturation, FIELD_MAX_SATURATION), FIELD_LIGHTNESS)
+}
+
+/** One step of `nudgeLightness`, in lightness. */
+const NUDGE_STEP = 0.01
+/** A hundred 1% steps cross the whole range, so a nudge always ends. */
+const NUDGE_MAX_STEPS = 100
+
+/**
+ * `colour` with its lightness moved one 1% HSL step at a time in `direction`
+ * (1 lighter, -1 darker), hue and saturation kept, until it reaches `target`
+ * contrast against `against`, or lightness runs out (black or white). A colour
+ * that already reaches it is returned as it is, in upper case. A colour either
+ * argument of which is not `#rrggbb` is returned unchanged.
+ */
+export function nudgeLightness(
+  colour: string,
+  against: string,
+  target: number,
+  direction: 1 | -1,
+): string {
+  const channels = parseHexColour(colour)
+  if (!channels) return colour
+  const { hue, saturation, lightness } = toHslParts(channels)
+  let nudged = colour.toUpperCase()
+  let level = lightness
+  for (let step = 0; step < NUDGE_MAX_STEPS; step += 1) {
+    if ((contrastRatio(nudged, against) ?? target) >= target) break
+    level = Math.max(0, Math.min(1, level + direction * NUDGE_STEP))
+    nudged = fromHsl(hue, saturation, level)
+    if (level <= 0 || level >= 1) break
+  }
+  return nudged
+}
+
+/**
+ * The colour `amount` (0..1) of the way from `from` to `to`, channel by channel,
+ * rounded, as `#RRGGBB`. Returns `from` when either is not `#rrggbb`.
+ */
+export function mixColour(from: string, to: string, amount: number): string {
+  const start = parseHexColour(from)
+  const end = parseHexColour(to)
+  if (!start || !end) return from
+  const hex = start
+    .map((channel, index) =>
+      Math.round(channel + ((end[index] as number) - channel) * amount)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')
+  return `#${hex.toUpperCase()}`
+}
+
+/** The contrast a tone-on-tone mark keeps on its ground: quiet, but never lost. */
+const TONE_ON_TONE = { min: 2.4, max: 2.6, step: 0.05 } as const
+
+/**
+ * `colour` as a mark that sits on `ground` in nearly the same tone, held at
+ * 2.4:1 to 2.6:1 so that it has the same presence whatever the accent it came
+ * from. Too faint, it is lightened (`nudgeLightness`); too strong, it is mixed
+ * toward the ground in 5% steps until it is not.
+ */
+export function toneOnTone(colour: string, ground: string): string {
+  let tone = nudgeLightness(colour, ground, TONE_ON_TONE.min, 1)
+  for (
+    let amount = TONE_ON_TONE.step;
+    (contrastRatio(tone, ground) ?? 0) > TONE_ON_TONE.max && amount < 1;
+    amount += TONE_ON_TONE.step
+  ) {
+    tone = mixColour(colour, ground, amount)
+  }
+  return tone
 }
 
 // The three washes of colour painted over the field when there is no photo
