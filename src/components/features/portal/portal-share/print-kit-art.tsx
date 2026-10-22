@@ -46,7 +46,7 @@ import {
 import { PrintKitCropMarks } from './print-kit-crop-marks'
 import { PrintKitStack } from './print-kit-stack'
 import { previewStackScale } from './print-kit-stack-fit'
-import { printKitPreviewLabel } from './print-kit-state'
+import { printKitPreviewLabel, printableFace } from './print-kit-state'
 
 const PAGE = printPageMm(A6_WIDTH_MM, A6_HEIGHT_MM)
 const MM_PER_POINT = 25.4 / 72
@@ -71,7 +71,15 @@ const absolute = (style: CSSProperties): CSSProperties => ({
   ...style,
 })
 
-export function PrintKitArt({ piece, face, look, codeUrl, shortAddress }: Props) {
+export function PrintKitArt({
+  piece,
+  face: planned,
+  look,
+  codeUrl,
+  shortAddress,
+}: Props) {
+  // What the file prints: the browser would show a character the fonts lack.
+  const face = printableFace(planned)
   const palette = printKitPalette(look.accentColour, look.fieldColour)
   const address = previewAddress(shortAddress)
   const plateTop = previewPlateTopMm(address)

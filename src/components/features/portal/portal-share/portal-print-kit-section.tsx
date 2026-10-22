@@ -37,6 +37,8 @@ type Props = Readonly<{
   /** Try again is reading; the error stays, its button busy. */
   isRetrying?: boolean
   onChoiceChange: (choice: PrintKitChoice) => void
+  /** Names the characters the fonts lack, which the print leaves out; null when all will print. */
+  unprintableNote: string | null
   /** Why the download is off, or null when it is on. */
   unavailableReason: string | null
   isWorking: boolean
@@ -50,6 +52,7 @@ export function PortalPrintKitSection({
   onRetry,
   isRetrying = false,
   onChoiceChange,
+  unprintableNote,
   unavailableReason,
   isWorking,
   onDownload,
@@ -79,6 +82,9 @@ export function PortalPrintKitSection({
         !isError && <Loading />
       ) : (
         <Controls view={view} choice={choice} onChoiceChange={onChoiceChange} />
+      )}
+      {unprintableNote !== null && (
+        <p className="text-sm text-muted-foreground">{unprintableNote}</p>
       )}
       <div className="flex flex-col gap-2">
         <Button

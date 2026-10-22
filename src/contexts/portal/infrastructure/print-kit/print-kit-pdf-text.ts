@@ -1,12 +1,15 @@
 // Text on a PDF page: the guest fonts registered on a document, and a line of
 // text measured and drawn in them.
 //
-// A line is split into runs by font file (print-kit-font-ranges.ts), because no
+// A line is split into runs by font file (portal-print-kit-font-ranges.ts), because no
 // single guest file carries a bilingual line. Lines are centred: the print kit
 // sets nothing flush left.
 
-import { splitIntoFontRuns, stripUnsupportedCharacters } from './print-kit-font-ranges'
-import type { FontSubset } from './print-kit-font-ranges'
+import {
+  splitIntoFontRuns,
+  stripUnsupportedCharacters,
+  type FontSubset,
+} from '#/shared/domain/portal-print-kit-font-ranges'
 import { printKitFontBytes, type PrintKitFontFace } from './print-kit-fonts'
 
 export type PdfTextStyle = Readonly<{

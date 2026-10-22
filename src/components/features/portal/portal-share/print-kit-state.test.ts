@@ -3,6 +3,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { printKitFaces, type PrintKitChoice } from '#/shared/domain/portal-print-kit'
 import {
   describePrintKitNotLive,
+  describeUnprintable,
   initialPrintKitChoice,
   isNothingLiveRefusal,
   languageChoiceLabel,
@@ -11,7 +12,9 @@ import {
   printKitHasLiveVersion,
   printKitPreviewLabel,
   printKitPrintAdvice,
+  printableFace,
   reconcilePrintKitChoice,
+  unprintableCharacters,
 } from './print-kit-state'
 
 const TENT: PrintKitChoice = {
@@ -213,5 +216,72 @@ describe('describePrintKitNotLive', () => {
 
   it('offers no link to the review when the tab was not told the property', () => {
     expect(describePrintKitNotLive('draft', { portalId: 'portal-1' }).review).toBeNull()
+  })
+})
+
+describe('what the fonts cannot print', () => {
+  const look = { wordmark: 'Avela', logoUrl: null }
+  const faces = printKitFaces(
+    TENT,
+    { en: 'Pool & Terrace', bg: 'Басейн и тераса' },
+    'Pool',
+  )
+
+  it('names nothing for the launch languages', () => {
+    expect(unprintableCharacters(look, faces)).toEqual([])
+    expect(describeUnprintable([])).toBeNull()
+  })
+
+  it('names the characters of a brand set as words, in capitals as the file sets it', () => {
+    expect(unprintableCharacters({ wordmark: 'Αθήνα', logoUrl: null }, faces)).toEqual([
+      'Α',
+      'Θ',
+      'Ή',
+      'Ν',
+    ])
+  })
+
+  it('ignores the wordmark while a logo stands in for it', () => {
+    expect(
+      unprintableCharacters(
+        { wordmark: 'Αθήνα', logoUrl: 'https://x.test/logo.png' },
+        faces,
+      ),
+    ).toEqual([])
+  })
+
+  it('names what a title carries on any face of the print', () => {
+    const greek = printKitFaces(TENT, { en: 'Pool 🏊', bg: 'Басейн 酒' }, 'Pool')
+
+    expect(unprintableCharacters(look, greek)).toEqual(['🏊', '酒'])
+  })
+
+  it('draws the face without what the file drops', () => {
+    const [block] = printableFace({
+      side: 'front',
+      blocks: [
+        { locale: 'en', kicker: 'Pool', headline: 'Rate 🏊 now', subline: 'Тихо 酒' },
+      ],
+    }).blocks
+
+    expect(block).toMatchObject({ headline: 'Rate  now', subline: 'Тихо ' })
+  })
+
+  it('names the characters in one line, and counts the rest past six', () => {
+    expect(describeUnprintable(['Ω', 'ψ'])).toBe(
+      'These characters will not print, because the print kit’s fonts don’t have them: Ω ψ.',
+    )
+    expect(
+      describeUnprintable(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((c) => c)),
+    ).toBe(
+      'These characters will not print, because the print kit’s fonts don’t have them: a b c d e f and 2 more.',
+    )
+  })
+
+  it('leaves out characters with nothing to show, such as an emoji’s variation selector', () => {
+    expect(describeUnprintable(['🏊', '\uFE0F'])).toBe(
+      'These characters will not print, because the print kit’s fonts don’t have them: 🏊.',
+    )
+    expect(describeUnprintable(['\uFE0F'])).toBeNull()
   })
 })

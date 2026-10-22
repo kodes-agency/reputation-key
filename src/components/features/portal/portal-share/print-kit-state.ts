@@ -2,6 +2,7 @@
 // flat descriptions of what is on screen: what the section starts with, what a
 // caption says, and when the download is on.
 
+import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
 import {
@@ -18,6 +19,10 @@ import {
   type PrintKitChoice,
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
+import {
+  stripUnsupportedCharacters,
+  unsupportedCharacters,
+} from '#/shared/domain/portal-print-kit-font-ranges'
 import { printPageMm } from '#/shared/domain/portal-print-kit-layout'
 import type { PortalPublicationState } from '../shared/types'
 
@@ -41,6 +46,62 @@ export function reconcilePrintKitChoice(
   return isPrintKitLanguageChoice(locales, choice.languages)
     ? choice
     : { ...choice, languages: initial.languages }
+}
+
+/**
+ * The face as the file draws it: without the characters no guest font carries,
+ * which the PDF drops and the browser's own fallback fonts would show. (The
+ * title above the call to action is set in capitals, so it is cleaned there.)
+ */
+export function printableFace(face: PrintFace): PrintFace {
+  return {
+    ...face,
+    blocks: face.blocks.map((block) => ({
+      ...block,
+      headline: stripUnsupportedCharacters(block.headline),
+      subline: stripUnsupportedCharacters(block.subline),
+    })),
+  }
+}
+
+/**
+ * The characters of the print's words that no guest font carries, so will not
+ * print: each once, in the order they appear. The brand counts only while it is
+ * drawn as words (a logo stands in for it), in capitals as the file sets it.
+ */
+export function unprintableCharacters(
+  look: Pick<PortalPrintKitView['look'], 'wordmark' | 'logoUrl'>,
+  faces: readonly PrintFace[],
+): readonly string[] {
+  const words = faces.flatMap((face) =>
+    face.blocks.flatMap((block) => [
+      block.kicker.toUpperCase(),
+      block.headline,
+      block.subline,
+    ]),
+  )
+  const brand = look.logoUrl === null ? [look.wordmark.toUpperCase()] : []
+  return unsupportedCharacters([...brand, ...words].join('\n'))
+}
+
+/** How many characters the line names before it counts the rest. */
+const UNPRINTABLE_NAMED = 6
+
+/** A character a person can see; a variation selector or a mark has nothing to name. */
+const VISIBLE_CHARACTER = /[\p{L}\p{N}\p{P}\p{S}]/u
+
+/**
+ * The one line that names what will not print, or null when everything will.
+ * Characters with nothing to show (a variation selector on an emoji) are not
+ * named: they would be a blank in the sentence.
+ */
+export function describeUnprintable(characters: readonly string[]): string | null {
+  const visible = characters.filter((character) => VISIBLE_CHARACTER.test(character))
+  if (visible.length === 0) return null
+  const named = visible.slice(0, UNPRINTABLE_NAMED).join(' ')
+  const rest = visible.length - UNPRINTABLE_NAMED
+  const list = rest > 0 ? `${named} and ${rest} more` : named
+  return `These characters will not print, because the print kit’s fonts don’t have them: ${list}.`
 }
 
 /** `English + Български`: each language in its own words. */

@@ -5,8 +5,12 @@
 // Cyrillic subset has no space or digit. The browser picks a file per
 // character from each `@font-face`'s `unicode-range`; a PDF has no such
 // fallback, so the print kit does the same split itself, from the same table.
-// `print-kit-font-ranges.test.ts` reads `public/fonts/guest/guest-fonts.css`
+// `portal-print-kit-font-ranges.test.ts` reads `public/fonts/guest/guest-fonts.css`
 // and fails when this table drifts from it.
+//
+// Shared, because the Share tab's preview must draw exactly the characters the
+// PDF will print: a character no subset carries is dropped from the file, and
+// the browser's own fallback fonts would otherwise show it in the preview.
 
 export type FontSubset = 'latin' | 'latin-ext' | 'cyrillic' | 'cyrillic-ext'
 
@@ -117,4 +121,18 @@ export function stripUnsupportedCharacters(text: string): string {
   return [...text]
     .filter((character) => subsetOfCodePoint(character.codePointAt(0) ?? 0) !== null)
     .join('')
+}
+
+/**
+ * The characters no guest font carries, each once, in the order they first
+ * appear: what `stripUnsupportedCharacters` would take out of the text.
+ */
+export function unsupportedCharacters(text: string): readonly string[] {
+  return [
+    ...new Set(
+      [...text].filter(
+        (character) => subsetOfCodePoint(character.codePointAt(0) ?? 0) === null,
+      ),
+    ),
+  ]
 }

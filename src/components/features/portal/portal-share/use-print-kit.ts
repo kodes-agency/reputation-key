@@ -15,7 +15,11 @@ import {
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { PortalPrintKitReader } from './portal-print-kit-types'
-import { reconcilePrintKitChoice } from './print-kit-state'
+import {
+  describeUnprintable,
+  reconcilePrintKitChoice,
+  unprintableCharacters,
+} from './print-kit-state'
 
 type Input = Readonly<{
   portalId: string
@@ -47,6 +51,9 @@ export function usePrintKit({ portalId, read, enabled }: Input) {
     setChoice: setChosen,
     faces,
     face,
+    /** Names the characters of this print that its fonts lack; null when all will print. */
+    unprintableNote:
+      view === null ? null : describeUnprintable(unprintableCharacters(view.look, faces)),
     side: face?.side ?? 'front',
     setSide: setChosenSide,
     isPending: query.isPending && enabled,

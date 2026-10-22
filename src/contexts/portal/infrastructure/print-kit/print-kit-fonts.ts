@@ -20,7 +20,7 @@
 // the strings only.
 
 import { Buffer } from 'node:buffer'
-import type { FontSubset } from './print-kit-font-ranges'
+import type { FontSubset } from '#/shared/domain/portal-print-kit-font-ranges'
 
 import display_latin from './fonts/cormorant-garamond-latin-600-normal.ttf?inline'
 import display_latin_ext from './fonts/cormorant-garamond-latin-ext-600-normal.ttf?inline'

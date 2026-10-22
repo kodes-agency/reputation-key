@@ -265,6 +265,28 @@ export const LongBrandAndTitle: Story = {
   },
 }
 
+/** A brand in a script the fonts lack: the file leaves it out, so the preview does too, and one line says so. */
+export const CharactersTheFontsLackAreLeftOutAndNamed: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () => view({ look: { ...view().look, wordmark: 'Αθήνα Hotel' } }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText(
+        'These characters will not print, because the print kit’s fonts don’t have them: Α Θ Ή Ν.',
+      ),
+    ).toBeVisible()
+    const front = await preview(canvasElement)
+    await expect(within(front).getByText('HOTEL')).toBeInTheDocument()
+    await expect(within(front).queryByText(/ΑΘ/u)).toBeNull()
+  },
+}
+
 export const DownloadsThePdf: Story = {
   args: baseArgs,
   play: async ({ canvasElement, args }) => {

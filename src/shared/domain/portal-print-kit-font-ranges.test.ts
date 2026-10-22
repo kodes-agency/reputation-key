@@ -4,11 +4,12 @@ import {
   FONT_SUBSET_RANGES,
   splitIntoFontRuns,
   stripUnsupportedCharacters,
+  unsupportedCharacters,
   type FontSubset,
-} from './print-kit-font-ranges'
+} from './portal-print-kit-font-ranges'
 
 const GUEST_FONTS_CSS = readFileSync(
-  new URL('../../../../../public/fonts/guest/guest-fonts.css', import.meta.url),
+  new URL('../../../public/fonts/guest/guest-fonts.css', import.meta.url),
   'utf8',
 )
 
@@ -80,5 +81,26 @@ describe('stripUnsupportedCharacters', () => {
   it('drops what no subset carries and keeps the rest', () => {
     expect(stripUnsupportedCharacters('Pool 🏊 Bar 酒')).toBe('Pool  Bar ')
     expect(stripUnsupportedCharacters('Басейн и тераса')).toBe('Басейн и тераса')
+  })
+})
+
+describe('unsupportedCharacters', () => {
+  it('names what stripUnsupportedCharacters would take out, each once, in order', () => {
+    expect(unsupportedCharacters('Pool 🏊 Bar 酒 🏊')).toEqual(['🏊', '酒'])
+  })
+
+  it('names nothing in a text of the launch languages', () => {
+    expect(unsupportedCharacters('Басейн и тераса — Łódź, café?')).toEqual([])
+    expect(unsupportedCharacters('')).toEqual([])
+  })
+
+  it('is exactly what the text loses when stripped', () => {
+    const text = 'Αθήνα Hotel 😀 Μαρίνα'
+    const named = unsupportedCharacters(text)
+
+    expect(named.length).toBeGreaterThan(0)
+    expect(stripUnsupportedCharacters(text)).toBe(
+      [...text].filter((character) => !named.includes(character)).join(''),
+    )
   })
 })
