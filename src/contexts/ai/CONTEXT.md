@@ -286,6 +286,20 @@ a review that stayed in its days after it was deleted. `docs/operations/runbooks
 the first; the second is not withdrawn, and what it holds is de-identified
 insight data under the 24-month retention of `docs/BETA.md` §2.
 
+Coverage owes a settlement for every sequence after the authorization's start
+up to the Review head, except the ones Review gave back. The Review writer
+records a sequence it allocated and did not use (a replayed or out-of-order
+observation) in `review_ai_analysis_released_sequences`, and every reader of
+coverage subtracts the released numbers of the same source epoch that lie in
+that range and that no settlement already counts: the stall monitor
+(`alert-aux-reads.ts`), the aggregate read, the trend scheduler and the trend
+report (`releasedAwaitingSequenceCountSql` in
+`src/shared/db/review-analysis-released-sequences.ts`). AI never writes the
+ledger. Its own allocations (the reopen pass and the enrollment replay) stamp
+the number on a review and announce it in the same transaction, or roll back.
+`pnpm ops ai release-orphan-sequences` records the numbers a past leak left
+(ADR 0058, 2026-10-22).
+
 The recurring recovery passes treat each row on its own. The operation reaper
 recovers every ownerless operation it lists independently, and the enrollment
 sweep every enrollment, so one that keeps failing is logged by identifier and

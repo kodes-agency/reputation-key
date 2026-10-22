@@ -423,6 +423,86 @@ describe('guest response lifecycle', () => {
     expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
   })
 
+  it('keeps a rating filtered for network volume: durable, in the normal view, out of the figures', async () => {
+    // A venue's guests share one public address, so a rating past the network
+    // layer's budget is kept and filtered automatically instead of refused.
+    const { rawLifecycle, repo, outbox } = harness()
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    const receipt = await rawLifecycle.submit(
+      scope,
+      sessionId,
+      { rating: 4, responseConsent: true },
+      experience(),
+      undefined,
+      {
+        outcome: 'filtered_automatically',
+        reasonCode: 'network_volume',
+        source: 'automatic',
+        actorId: 'guest-integrity-network-v1',
+      },
+    )
+
+    expect(receipt).toMatchObject({ status: 'submitted', rating: 4 })
+    expect(receipt).not.toHaveProperty('integrityOutcome')
+    expect(repo.responses[0]).toMatchObject({
+      rating: 4,
+      integrityOutcome: 'filtered_automatically',
+      integrityReasonCode: 'network_volume',
+      ratingSourceEventId: null,
+    })
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    // Durable: the guest's session now holds a rating, so the Google step opens.
+    expect(isQualifiedGuestResponse(await rawLifecycle.getState(scope, sessionId))).toBe(
+      true,
+    )
+  })
+
+  it('answers a network-volume rating exactly as an accepted one, and lets the guest go on', async () => {
+    // The guest on a busy venue's Wi-Fi must get the page an accepted rating gets,
+    // and a script crossing the budget must learn nothing from the answer.
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    const input = { rating: 2, responseConsent: true }
+    const accepted = harness()
+    const filtered = harness()
+
+    const acceptedView = await accepted.rawLifecycle.submit(
+      scope,
+      sessionId,
+      input,
+      experience(),
+    )
+    const filteredView = await filtered.rawLifecycle.submit(
+      scope,
+      sessionId,
+      input,
+      experience(),
+      undefined,
+      {
+        outcome: 'filtered_automatically',
+        reasonCode: 'network_volume',
+        source: 'automatic',
+        actorId: 'guest-integrity-network-v1',
+      },
+    )
+    expect(filteredView).toEqual(acceptedView)
+    expect(filteredView.privateFeedbackEligible).toBe(true)
+
+    // The one correction and the private note both go through; the rating
+    // still records no reading, and the note reaches the manager.
+    await expect(
+      filtered.rawLifecycle.correct(scope, sessionId, { rating: 1 }),
+    ).resolves.toMatchObject({ status: 'corrected', rating: 1 })
+    await expect(
+      filtered.rawLifecycle.addPrivateFeedback(scope, sessionId, {
+        text: 'The lobby Wi-Fi kept dropping.',
+        textConsent: true,
+      }),
+    ).resolves.toMatchObject({ hasPrivateFeedback: true })
+    expect(filtered.outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    expect(filtered.outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    expect(filtered.outbox.byTag('guest.feedback.submitted')).toHaveLength(1)
+  })
+
   it('submits, corrects once, and withdraws only for the same session', async () => {
     const { lifecycle } = harness()
     const submitted = await lifecycle.submit(
