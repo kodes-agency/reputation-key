@@ -70,7 +70,7 @@ const CONTROLLED = (authority: string) =>
   fate(
     'controlled_beta',
     authority,
-    'Requires persisted Organization and, where applicable, Property policy plus readiness gates.',
+    'Open to an Organization listed in BETA_ALLOWLIST_ORGS (or to all with `*`), plus any readiness gates; global kill and tenant suspension still win.',
   )
 
 const DISABLED = (authority: string) =>

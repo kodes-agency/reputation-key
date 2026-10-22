@@ -11,7 +11,7 @@ const REPORT: CapabilityRefusalReport = {
     fate: 'controlled_beta',
     authority: 'Google discovery/import is active only through the governed import saga.',
     activation:
-      'Requires persisted Organization and, where applicable, Property policy plus readiness gates.',
+      'Open to an Organization listed in BETA_ALLOWLIST_ORGS (or to all with `*`), plus any readiness gates; global kill and tenant suspension still win.',
   },
   chain: [
     { authority: 'catalogue', outcome: 'pass', code: null, facts: [] },
@@ -44,7 +44,7 @@ describe('capability refusal operator report', () => {
         '  code: capability_killed',
         '  fate: controlled_beta',
         '  fate authority: Google discovery/import is active only through the governed import saga.',
-        '  activation: Requires persisted Organization and, where applicable, Property policy plus readiness gates.',
+        '  activation: Open to an Organization listed in BETA_ALLOWLIST_ORGS (or to all with `*`), plus any readiness gates; global kill and tenant suspension still win.',
         '  chain:',
         '    - catalogue: pass',
         '    - google_execution_control: refused (code=capability_killed)',
