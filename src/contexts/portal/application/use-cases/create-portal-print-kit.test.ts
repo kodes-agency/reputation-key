@@ -129,7 +129,7 @@ describe('createPortalPrintKit', () => {
     const result = await make({ portalId: portal.id, ...choice }, buildTestAuthContext())
 
     expect(result).toEqual({
-      fileName: 'harbor-lobby-table-tent.pdf',
+      fileName: 'harbor-lobby-table-tent-en-bg.pdf',
       contentType: 'application/pdf',
       pdf: PDF,
     })

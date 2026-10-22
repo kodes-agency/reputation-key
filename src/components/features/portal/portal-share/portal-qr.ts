@@ -6,6 +6,8 @@
 // on demand (when a code has just been made or replaced), so the library stays
 // out of the route's first load.
 
+import { fileNameSlug } from '#/shared/domain/file-name-slug'
+
 export const QR_QUIET_ZONE_MODULES = 4
 
 /** Whole pixels per module keep the PNG's module edges sharp at any print size. */
@@ -66,11 +68,11 @@ export function renderQrPreviewDataUrl(address: string): Promise<string> {
   return renderQrPngDataUrl(address, { pixelsPerModule: PREVIEW_PIXELS_PER_MODULE })
 }
 
-/** `pool-terrace-code.png`: the portal's name, made safe for a file system. */
+/**
+ * `pool-terrace-code.png`: the portal's name, made safe for a file system. The
+ * letters of any script stay, as in the print kit's file name: a Cyrillic name
+ * is common here and is not lost to `portal-code.png`.
+ */
 export function qrDownloadFileName(portalName: string, format: QrFormat): string {
-  const slug = portalName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-  return `${slug === '' ? 'portal' : slug}-code.${format}`
+  return `${fileNameSlug(portalName) || 'portal'}-code.${format}`
 }

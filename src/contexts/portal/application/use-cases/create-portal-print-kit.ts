@@ -166,7 +166,7 @@ export const createPortalPrintKit =
       shortAddress: shortPrintAddress(revealed.publicUrl),
     })
     return {
-      fileName: printKitFileName(context.portalName, input.piece),
+      fileName: printKitFileName(context.portalName, input.piece, input.languages),
       contentType: 'application/pdf',
       pdf,
     }

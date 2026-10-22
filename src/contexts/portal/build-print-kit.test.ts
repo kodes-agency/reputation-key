@@ -76,7 +76,7 @@ describe('buildPortalPrintKit', () => {
       buildTestAuthContext(),
     )
     expect(Buffer.from(file.pdf.subarray(0, 5)).toString('latin1')).toBe('%PDF-')
-    expect(file.fileName).toBe('harbor-lobby-counter-card.pdf')
+    expect(file.fileName).toBe('harbor-lobby-counter-card-en.pdf')
     expect(reveal).toHaveBeenCalledWith(
       { portalId: portal.id, purpose: 'download' },
       expect.anything(),

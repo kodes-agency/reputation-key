@@ -74,7 +74,7 @@ const action = <TInput, TOutput = unknown>(
 
 /** The smallest file that is still a PDF: enough for the browser to save. */
 const TINY_PDF: PortalPrintKitDownload = {
-  fileName: 'pool-terrace-table-tent.pdf',
+  fileName: 'pool-terrace-table-tent-en-bg.pdf',
   contentType: 'application/pdf',
   pdfBase64: btoa('%PDF-1.3\n%%EOF'),
 }

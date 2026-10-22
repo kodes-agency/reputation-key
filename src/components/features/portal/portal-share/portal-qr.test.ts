@@ -129,8 +129,12 @@ describe('qrDownloadFileName', () => {
     expect(qrDownloadFileName('', 'svg')).toBe('portal-code.svg')
   })
 
-  it('drops accents and non-Latin names to the plain fallback, never a mangled path', () => {
-    expect(qrDownloadFileName('Бар на терасата', 'png')).toBe('portal-code.png')
+  it('keeps the letters of any script, so a Cyrillic name is not lost to the fallback', () => {
+    expect(qrDownloadFileName('Бар на терасата', 'png')).toBe('бар-на-терасата-code.png')
+    expect(qrDownloadFileName('Café Müller', 'svg')).toBe('café-müller-code.svg')
+  })
+
+  it('never lets a name break out of a file name', () => {
     expect(qrDownloadFileName('../../etc/passwd', 'png')).toBe('etc-passwd-code.png')
   })
 })

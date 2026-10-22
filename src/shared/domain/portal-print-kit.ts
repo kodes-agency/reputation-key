@@ -10,6 +10,7 @@
 // drafted without a native-speaker check, as the closed beta allows (owner
 // decision 5, 2026-09-30).
 
+import { fileNameSlug } from './file-name-slug'
 import type { GuestLocale } from './guest-locale'
 
 export const PRINT_KIT_PIECES = Object.freeze(['table_tent', 'counter_card'] as const)
@@ -228,21 +229,18 @@ export function shortPrintAddress(address: string): string {
   }
 }
 
-const FILE_NAME_SLUG_MAX = 60
-
 /**
- * `pool-terrace-table-tent.pdf`: the portal's name made safe for a file system.
- * Letters and digits of any script stay (a Cyrillic name is common here), so a
- * name is never lost to `portal`; everything else becomes one hyphen.
+ * `pool-terrace-table-tent-en-bg.pdf`: the portal's name made safe for a file
+ * system, the piece and the languages on it, in the order they print. Two
+ * downloads of one portal that differ in language (English and Bulgarian, or
+ * English alone) must not share a name: the browser would call the second one
+ * "(1)" and the print shop would have to guess which is which.
  */
-export function printKitFileName(portalName: string, piece: PrintKitPiece): string {
-  const slug = portalName
-    .normalize('NFC')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-|-$/gu, '')
-    .slice(0, FILE_NAME_SLUG_MAX)
-    .replace(/-$/gu, '')
+export function printKitFileName(
+  portalName: string,
+  piece: PrintKitPiece,
+  languages: readonly GuestLocale[],
+): string {
   const noun = PRINT_KIT_PIECE_FACTS[piece].noun.replace(/\s+/gu, '-')
-  return `${slug === '' ? 'portal' : slug}-${noun}.pdf`
+  return [fileNameSlug(portalName) || 'portal', noun, ...languages].join('-') + '.pdf'
 }
