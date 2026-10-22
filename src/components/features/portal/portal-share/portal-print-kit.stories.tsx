@@ -220,8 +220,11 @@ export const LongCopyShrinksAsInTheFile: Story = {
       read: async () =>
         view({
           primaryLocale: 'fr',
-          locales: ['fr'],
-          titles: { fr: 'Restaurant panoramique et terrasse du dernier étage' },
+          locales: ['fr', 'en'],
+          titles: {
+            fr: 'Restaurant panoramique et terrasse du dernier étage',
+            en: 'Rooftop restaurant and terrace, top floor',
+          },
         }),
       downloadMutation: downloadMutation(),
     },
@@ -235,8 +238,8 @@ export const LongCopyShrinksAsInTheFile: Story = {
     )
     const front = await preview(canvasElement)
     const headline = within(front).getByText('Comment s’est passée votre visite ?')
-    // The full one-language size, as a share of the card's width (28.5 pt × 1.22 on a 125 mm page).
-    const fullSize = (28.5 * 1.22 * (25.4 / 72) * 100) / 125
+    // The full two-language size, as a share of the card's width (28.5 pt on a 125 mm page).
+    const fullSize = (28.5 * (25.4 / 72) * 100) / 125
     await expect(Number.parseFloat(headline.style.fontSize)).toBeLessThan(fullSize)
   },
 }
