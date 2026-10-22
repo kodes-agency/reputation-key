@@ -239,7 +239,7 @@ SELECT count(*) AS checks,
 **Switching the head checks from dark to persist (`REVIEW_HEAD_CHECKS=persist`, ADR 0055, note 2026-10-21 (d)):** persist stores what the dark rows say it would: the reviews that differ and Google's own count and average. It is built and OFF. Switch it on only when all of these hold:
 
 1. A week of `head_dark` rows has been read (the query above). The order-violation rate is near zero; `would_persist` is the share of checks that would have stored something and `new_reviews` and `reply_changes` are plausible against the Inbox; `total_differs` is explained (a count Google shows over what RepKey holds is normal while a deletion or a review beyond page 1 is waiting for the next full run).
-2. Migration 0067 is applied and web, the worker and every Google sidecar run the commit that carries the filtered readers (`listing_complete`). Check `\d review_google_reputation_snapshot_facts` shows `listing_complete` and `numbers_observed_at`.
+2. Migration 0067 is applied and web and the worker run the commit that carries the filtered readers (`listing_complete`). Check `\d review_google_reputation_snapshot_facts` shows `listing_complete` and `numbers_observed_at`.
 3. Set `REVIEW_HEAD_CHECKS=persist` on the worker and restart it. Nothing else changes; `REVIEW_RECONCILE_WITHIN_HOURS` stays at 6.
 
 **What to watch the first day:**
