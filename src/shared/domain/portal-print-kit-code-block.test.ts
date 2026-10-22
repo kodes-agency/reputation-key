@@ -13,7 +13,7 @@ import {
   type CueLine,
 } from './portal-print-kit-code-block'
 import { CODE_BLOCK, cueRoomPt, inToPt, ptToIn } from './portal-print-kit-measures'
-import { printKitStylePalette } from './portal-print-kit-palette'
+import { printKitPalette } from './portal-print-kit-palette'
 
 const cue = (text: string): CueLine => ({ text, locale: 'en' })
 
@@ -37,7 +37,7 @@ describe('cueLinesFor', () => {
 
 describe('codeBlockColours', () => {
   it('outlines the tile in the accent ink on Paper', () => {
-    const palette = printKitStylePalette('#EAD6A8', null, 'paper')
+    const palette = printKitPalette('#EAD6A8', null, 'paper')
     expect(codeBlockColours(palette)).toEqual({
       barFill: palette.barFill,
       barText: palette.barText,
@@ -46,7 +46,7 @@ describe('codeBlockColours', () => {
   })
 
   it('draws no outline on Immersive: cream on the field is already 16:1', () => {
-    const palette = printKitStylePalette('#EAD6A8', null, 'immersive')
+    const palette = printKitPalette('#EAD6A8', null, 'immersive')
     expect(codeBlockColours(palette).outline).toBeNull()
   })
 })

@@ -284,23 +284,24 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
     expect(view.look.logoUrl).toBe(`/api/public/portal-media/${LOGO_ASSET}`)
   })
 
-  it('draws a table tent with the photo, the logo and both languages', async () => {
+  it('draws an Immersive counter card with the photo, the logo and the Bulgarian words', async () => {
     const { make, ctx } = await harness()
 
     const file = await make(
       {
         portalId: COMPLETE_SCENARIO.portalId,
-        piece: 'table_tent',
-        languages: ['bg', 'en'],
+        piece: 'counter_card',
+        languages: ['bg'],
         callToAction: 'rate',
+        style: 'immersive',
       },
       ctx,
     )
 
     const text = Buffer.from(file.pdf).toString('latin1')
-    expect(file.fileName).toMatch(/-table-tent-bg-en\.pdf$/u)
-    expect(text.startsWith('%PDF-')).toBe(true)
-    // The photo and the logo, one picture each, however many panels show them.
+    expect(file.fileName).toMatch(/-counter-card-bg-immersive-(letter|a4)\.pdf$/u)
+    expect(text.startsWith('%PDF-1.4')).toBe(true)
+    // The photo and the logo: at least one picture each.
     expect(text.match(/\/Subtype \/Image/gu)?.length ?? 0).toBeGreaterThanOrEqual(2)
     // The Bulgarian call to action reached the file as embedded text.
     expect(text).toMatch(/<041E>/iu)
@@ -315,6 +316,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
         piece: 'counter_card',
         languages: ['bg'],
         callToAction: 'tell',
+        style: 'paper',
       },
       ctx,
     )
@@ -339,6 +341,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
           piece: 'counter_card',
           languages: ['bg'],
           callToAction: 'rate',
+          style: 'paper',
         },
         ctx,
       ),
@@ -360,6 +363,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
           piece: 'counter_card',
           languages: ['bg', 'en'],
           callToAction: 'rate',
+          style: 'paper',
         },
         ctx,
       ),
@@ -376,6 +380,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
           piece: 'counter_card',
           languages: ['en'],
           callToAction: 'rate',
+          style: 'paper',
         },
         buildTestAuthContext({ organizationId: organizationId('org-other-0000-0000') }),
       ),
@@ -391,6 +396,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
           piece: 'counter_card',
           languages: ['fr'],
           callToAction: 'rate',
+          style: 'paper',
         },
         ctx,
       ),

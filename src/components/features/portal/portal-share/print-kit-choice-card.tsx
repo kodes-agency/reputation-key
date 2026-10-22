@@ -17,7 +17,7 @@ import {
   PRINT_KIT_INK,
   PRINT_KIT_PAPER,
   PRINT_KIT_TILE,
-  printKitStylePalette,
+  printKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
 
 type CardProps = Readonly<{
@@ -111,7 +111,7 @@ const THUMBNAIL = {
 
 /** What a Paper print is: unprinted paper, an ink line for the brand, the code. */
 function PaperThumbnail({ accent }: Readonly<{ accent: string }>) {
-  const palette = printKitStylePalette(accent, null, 'paper')
+  const palette = printKitPalette(accent, null, 'paper')
   return (
     <span
       aria-hidden
@@ -128,7 +128,7 @@ function ImmersiveThumbnail({
   accent,
   field,
 }: Readonly<{ accent: string; field: string }>) {
-  const palette = printKitStylePalette(accent, field, 'immersive')
+  const palette = printKitPalette(accent, field, 'immersive')
   return (
     <span aria-hidden style={{ ...THUMBNAIL, background: palette.field, paddingTop: 4 }}>
       <span

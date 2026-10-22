@@ -113,8 +113,6 @@ const LITERAL_ALLOWED: Readonly<Record<string, string>> = {
     'the paper a transparent screenshot is flattened onto for JPEG, which has no transparency: image pixels, not a theme colour',
   'src/components/features/portal/portal-share/portal-qr.ts':
     'the printed QR ink and paper: fixed so the code scans in either theme',
-  'src/components/features/portal/portal-share/print-kit-art.tsx':
-    'the print kit is a printed card with its own palette, not app chrome',
   'src/components/features/portal/portal-preview/preview-phone.tsx':
     'the device bezel the portal preview is drawn inside',
 }

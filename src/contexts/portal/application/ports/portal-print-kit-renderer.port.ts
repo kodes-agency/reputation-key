@@ -23,12 +23,11 @@ export type PrintKitRenderInput = Readonly<{
   title: string
   piece: PrintKitPiece
   /**
-   * The redesigned look, and the paper it prints on (spec 6). Without a style the
-   * renderer draws today's file, as before the redesign; with one, `paper` is
-   * required and sets the sheet and the size of every face.
+   * The look, and the paper it prints on (spec 6): the paper sets the sheet and
+   * the size of every face, and for Immersive names the size family.
    */
-  style?: PrintKitStyle
-  paper?: PrintKitPaper
+  style: PrintKitStyle
+  paper: PrintKitPaper
   faces: readonly PrintFace[]
   /** The brand set as text when there is no logo. */
   wordmark: string

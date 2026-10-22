@@ -1,8 +1,7 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { inToPt } from '#/shared/domain/portal-print-kit-measures'
+import { inToPt, mmToPt } from '#/shared/domain/portal-print-kit-measures'
 import {
-  coverPhotoJpeg,
   logoArt,
   logoInk,
   logoPng,
@@ -10,44 +9,23 @@ import {
   windowPhotoJpeg,
 } from './print-kit-image'
 
-/** A 400 x 200 picture: the left half red, the right half blue. */
-async function twoHalves(): Promise<Buffer> {
-  const left = await sharp({
-    create: { width: 200, height: 200, channels: 3, background: '#ff0000' },
-  })
-    .png()
-    .toBuffer()
-  const right = await sharp({
-    create: { width: 200, height: 200, channels: 3, background: '#0000ff' },
-  })
-    .png()
-    .toBuffer()
-  return sharp({
-    create: { width: 400, height: 200, channels: 3, background: '#000000' },
-  })
-    .composite([
-      { input: left, left: 0, top: 0 },
-      { input: right, left: 200, top: 0 },
-    ])
-    .webp({ lossless: true })
-    .toBuffer()
-}
-
 /**
- * A grey picture that darkens to white along one axis: the value at a pixel is
- * its share of the way along, so the centre of a crop says which part of the
- * picture it holds.
+ * A grey picture that lightens along one axis, from black to `peak`: the value
+ * at a pixel is its share of the way along, so the centre of a crop says which
+ * part of the picture it holds. A low `peak` keeps the crop dark enough to be
+ * left undimmed.
  */
 async function gradient(
   width: number,
   height: number,
   along: 'x' | 'y',
+  peak = 255,
 ): Promise<Buffer> {
   const length = along === 'x' ? width : height
   const raw = Buffer.alloc(width * height * 3)
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const value = Math.round(((along === 'x' ? x : y) / (length - 1)) * 255)
+      const value = Math.round(((along === 'x' ? x : y) / (length - 1)) * peak)
       raw.fill(value, (y * width + x) * 3, (y * width + x) * 3 + 3)
     }
   }
@@ -55,93 +33,6 @@ async function gradient(
     .png()
     .toBuffer()
 }
-
-async function centreColour(jpeg: Buffer): Promise<readonly [number, number, number]> {
-  const { data, info } = await sharp(jpeg).raw().toBuffer({ resolveWithObject: true })
-  const index =
-    (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) *
-    info.channels
-  return [data[index] ?? 0, data[index + 1] ?? 0, data[index + 2] ?? 0]
-}
-
-describe('coverPhotoJpeg', () => {
-  it('crops to the box at the print resolution', async () => {
-    const jpeg = await coverPhotoJpeg(await twoHalves(), {
-      widthMm: 50,
-      heightMm: 50,
-      focalX: 0.5,
-      focalY: 0.5,
-    })
-    const info = await sharp(jpeg).metadata()
-    expect(info.format).toBe('jpeg')
-    // 50 mm at 300 dpi.
-    expect(info.width).toBe(591)
-    expect(info.height).toBe(591)
-  })
-
-  it('keeps the focal point in the frame', async () => {
-    const source = await twoHalves()
-    const box = { widthMm: 25, heightMm: 25, focalX: 0, focalY: 0.5 }
-    const [leftRed, , leftBlue] = await centreColour(await coverPhotoJpeg(source, box))
-    expect(leftRed).toBeGreaterThan(200)
-    expect(leftBlue).toBeLessThan(60)
-    const [rightRed, , rightBlue] = await centreColour(
-      await coverPhotoJpeg(source, { ...box, focalX: 1 }),
-    )
-    expect(rightRed).toBeLessThan(60)
-    expect(rightBlue).toBeGreaterThan(200)
-  })
-
-  // A 25 mm box is 295 px at 300 dpi. A 400 x 100 picture is enlarged to 1180 x 295
-  // to cover it, so 885 px overflow across, and the crop's centre is its left edge
-  // plus 147 px. At focal 0.2 the crop starts 177 px in (the centre is 110 of the
-  // picture's 400 px: 70 of 255); at 0.8, 708 px in (290 px: 185 of 255). Centring
-  // the focal point instead would give 51 and 204.
-  it.each([
-    [0.2, 70],
-    [0.8, 185],
-  ])(
-    'places the photo across its box at focal %s as CSS object-position does',
-    async (focalX, expected) => {
-      const jpeg = await coverPhotoJpeg(await gradient(400, 100, 'x'), {
-        widthMm: 25,
-        heightMm: 25,
-        focalX,
-        focalY: 0.5,
-      })
-      const [red] = await centreColour(jpeg)
-      expect(Math.abs(red - expected)).toBeLessThanOrEqual(5)
-    },
-  )
-
-  it.each([
-    [0.2, 70],
-    [0.8, 185],
-  ])(
-    'places the photo down its box at focal %s as CSS object-position does',
-    async (focalY, expected) => {
-      const jpeg = await coverPhotoJpeg(await gradient(100, 400, 'y'), {
-        widthMm: 25,
-        heightMm: 25,
-        focalX: 0.5,
-        focalY,
-      })
-      const [red] = await centreColour(jpeg)
-      expect(Math.abs(red - expected)).toBeLessThanOrEqual(5)
-    },
-  )
-
-  it('refuses bytes that are not an image', async () => {
-    await expect(
-      coverPhotoJpeg(Buffer.from('not an image'), {
-        widthMm: 10,
-        heightMm: 10,
-        focalX: 0.5,
-        focalY: 0.5,
-      }),
-    ).rejects.toThrow(/input buffer|unsupported image format/iu)
-  })
-})
 
 describe('logoPng', () => {
   it('re-encodes the logo as PNG, keeping its shape', async () => {
@@ -265,6 +156,54 @@ describe('windowPhotoJpeg', () => {
     const [bottomGrey = 0] = (await centreOf(bottom.bytes)).rgb
     const [topGrey = 0] = (await centreOf(top.bytes)).rgb
     expect(bottomGrey).toBeGreaterThan(topGrey + 100)
+  })
+
+  // A 25 mm window is 295 px at 300 dpi. A 400 x 100 picture is enlarged to 1180 x
+  // 295 to cover it, so 885 px overflow across, and the crop's centre is its left
+  // edge plus 147 px. At focal 0.2 the crop starts 177 px in (its centre is 110 of
+  // the picture's 400 px); at 0.8, 708 px in (290 px). Centring the focal point
+  // instead would give 51 and 204 of 255. The picture peaks at 100, so every crop
+  // is dark enough to stay undimmed and the centre's value says where it was cut.
+  it.each([
+    [0.2, 28],
+    [0.8, 73],
+  ])(
+    'places the photo across its window at focal %s as CSS object-position does',
+    async (focalX, expected) => {
+      const { bytes } = await windowPhotoJpeg(await gradient(400, 100, 'x', 100), {
+        widthPt: mmToPt(25),
+        heightPt: mmToPt(25),
+        focalX,
+        focalY: 0.5,
+        field: '#000000',
+      })
+      const [grey = 0] = (await centreOf(bytes)).rgb
+      expect(Math.abs(grey - expected)).toBeLessThanOrEqual(5)
+    },
+  )
+
+  it.each([
+    [0.2, 28],
+    [0.8, 73],
+  ])(
+    'places the photo down its window at focal %s as CSS object-position does',
+    async (focalY, expected) => {
+      const { bytes } = await windowPhotoJpeg(await gradient(100, 400, 'y', 100), {
+        widthPt: mmToPt(25),
+        heightPt: mmToPt(25),
+        focalX: 0.5,
+        focalY,
+        field: '#000000',
+      })
+      const [grey = 0] = (await centreOf(bytes)).rgb
+      expect(Math.abs(grey - expected)).toBeLessThanOrEqual(5)
+    },
+  )
+
+  it('refuses bytes that are not an image', async () => {
+    await expect(
+      windowPhotoJpeg(Buffer.from('not an image'), { ...window4x6, field: '#16130E' }),
+    ).rejects.toThrow(/input buffer|unsupported image format/iu)
   })
 
   it('leaves a dark crop undimmed, and dims a light one in the field colour', async () => {

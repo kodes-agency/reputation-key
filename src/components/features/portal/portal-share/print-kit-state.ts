@@ -6,33 +6,23 @@ import type { PortalPrintKitView } from '#/contexts/portal/application/public-ap
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
 import {
-  A6_HEIGHT_MM,
-  A6_WIDTH_MM,
-  PRINT_KIT_BLEED_MM,
-  PRINT_KIT_PIECE_FACTS,
-  PRINT_KIT_QR_QUIET_ZONE_MODULES,
   defaultPrintKitPaper,
   isPrintKitLanguageChoice,
   printKitLanguageChoices,
-  printKitSheets,
   type PrintFace,
-  type PrintFaceSide,
   type PrintKitChoice,
-  type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
 import {
   stripUnsupportedCharacters,
   unsupportedCharacters,
 } from '#/shared/domain/portal-print-kit-font-ranges'
-import { printPageMm } from '#/shared/domain/portal-print-kit-layout'
 import type { PortalPublicationState } from '../shared/types'
 
 /**
  * What the section starts with: a Paper counter card (the share board's own
  * state) on the paper the property's country prints on (Letter when it has none,
- * spec 7.1), in the first language choice the portal offers, asking for a rating.
- * The browser's locale says where the manager sits, not where the piece will
- * stand, so it is not asked.
+ * spec 7.1), in the first language choice the portal offers, asking for a rating. The browser's locale says where
+ * the manager sits, not where the piece will stand, so it is not asked.
  */
 export function initialPrintKitChoice(
   locales: readonly GuestLocale[],
@@ -124,31 +114,6 @@ export function languageChoiceLabel(languages: readonly GuestLocale[]): string {
   return languages.map((locale) => GUEST_LOCALE_METADATA[locale].nativeName).join(' + ')
 }
 
-export function printKitCaptions(piece: PrintKitPiece, side: PrintFaceSide) {
-  const facts = PRINT_KIT_PIECE_FACTS[piece]
-  const top = `${facts.label} A6 · ${side} · ${A6_WIDTH_MM} × ${A6_HEIGHT_MM} mm · QR with a ${PRINT_KIT_QR_QUIET_ZONE_MODULES}-module quiet zone`
-  const bleed = `${PRINT_KIT_BLEED_MM} mm bleed and crop marks`
-  const bottom =
-    piece === 'table_tent'
-      ? `PDF: one folded sheet with a fold mark, ${bleed}`
-      : `PDF: one A6 page per side, with ${bleed}`
-  return { top, bottom }
-}
-
-const WORDS: Readonly<Record<GuestLocale, string>> = Object.fromEntries(
-  Object.values(GUEST_LOCALE_METADATA).map((meta) => [meta.code, meta.englishName]),
-) as Record<GuestLocale, string>
-
-function joinWords(words: readonly string[]): string {
-  return words.join(' and ')
-}
-
-export function printKitPreviewLabel(piece: PrintKitPiece, face: PrintFace): string {
-  const languages = joinWords(face.blocks.map((block) => WORDS[block.locale]))
-  const headline = face.blocks[0]?.headline ?? ''
-  return `Print preview: ${PRINT_KIT_PIECE_FACTS[piece].noun}, ${face.side}, ${languages}, "${headline}", the QR code on a light plate and the address as text`
-}
-
 /**
  * Whether the portal has a live version to print from. A print carries the live
  * page's code, and the live version closes when a portal leaves "published": a
@@ -226,43 +191,4 @@ export function printKitAvailability(
         reason:
           'The print kit needs the code’s address, and this code did not keep it. Replace the code to make one that can be downloaded again.',
       }
-}
-
-/** A4 and US Letter, in millimetres: the paper an office printer holds. */
-const OFFICE_PAPERS_MM = [
-  { widthMm: 210, heightMm: 297 },
-  { widthMm: 215.9, heightMm: 279.4 },
-] as const
-
-/** The PDF's page fits every office paper at full size, either way round. */
-function fitsOfficePaper(piece: PrintKitPiece): boolean {
-  const [sheet] = printKitSheets(piece, 1)
-  if (sheet === undefined) return false
-  const page = printPageMm(sheet.trimWidthMm, sheet.trimHeightMm)
-  const [short, long] = [page.widthMm, page.heightMm].sort((a, b) => a - b)
-  return OFFICE_PAPERS_MM.every(
-    (paper) =>
-      short !== undefined &&
-      long !== undefined &&
-      short <= Math.min(paper.widthMm, paper.heightMm) &&
-      long <= Math.max(paper.widthMm, paper.heightMm),
-  )
-}
-
-const CMYK_ADVICE = 'Ask your print shop to convert to CMYK if they need it.'
-
-/**
- * How to print the piece. A table tent's sheet (two A6 panels with bleed and
- * crop marks) is taller than A4 and Letter, so it goes to a print shop; a
- * counter card's page prints on either. Shrunk to fit, a card is no longer A6
- * and loses its marks, so both say to print at actual size. The file's colours
- * are RGB, which a shop that prints in CMYK converts: they are asked to, if they
- * need it, rather than the manager being left to know.
- */
-export function printKitPrintAdvice(piece: PrintKitPiece): string {
-  const { noun } = PRINT_KIT_PIECE_FACTS[piece]
-  const how = fitsOfficePaper(piece)
-    ? `Print the ${noun} on A4 or Letter at 100% (actual size), not “fit to page”, then cut on the crop marks.`
-    : `The ${noun} needs a print shop: its sheet is larger than A4 or Letter. Ask them to print it at 100% (actual size) and cut it on the crop marks.`
-  return `${how} ${CMYK_ADVICE}`
 }

@@ -1,10 +1,9 @@
-// The pictures of a print, made ready for the page: the photo cropped to its
-// band (today's file) or to an Immersive window at print resolution, the logo
-// as a PNG. `sharp` is the only decoder, as
-// it is for uploads (it is external to the bundle for the same reason: a native
-// binding that resolves from `node_modules`), and it is imported when a print is
-// made, not when the process starts: the worker reaches this module through the
-// container and never decodes an image for a print.
+// The pictures of a print, made ready for the page: the photo cropped to an
+// Immersive window at print resolution, the logo as a PNG. `sharp` is the only
+// decoder, as it is for uploads (it is external to the bundle for the same
+// reason: a native binding that resolves from `node_modules`), and it is
+// imported when a print is made, not when the process starts: the worker reaches
+// this module through the container and never decodes an image for a print.
 
 import type { OutputInfo, OverlayOptions } from 'sharp'
 import { parseHexColour } from '#/shared/domain/portal-field-colour'
@@ -18,23 +17,7 @@ async function sharpFactory() {
 
 /** Dots per inch of the photo as printed: what a print shop asks for. */
 const PRINT_DPI = 300
-const MM_PER_INCH = 25.4
 const JPEG_QUALITY = 88
-
-const pixelsFor = (millimetres: number) =>
-  Math.round((millimetres / MM_PER_INCH) * PRINT_DPI)
-
-export type PhotoBox = Readonly<{
-  widthMm: number
-  heightMm: number
-  /**
-   * Where the photo sits in its box, 0 to 1 across and down, as CSS
-   * `object-position` places it (the preview and the guest page do): 0 shows the
-   * photo's left or top edge, 1 its right or bottom, and 0.5 the middle.
-   */
-  focalX: number
-  focalY: number
-}>
 
 const clamp = (value: number, low: number, high: number) =>
   Math.min(Math.max(value, low), high)
@@ -96,12 +79,6 @@ async function jpegOf(cover: Cover, overlay?: OverlayOptions): Promise<Buffer> {
   return (overlay === undefined ? image : image.composite([overlay]))
     .jpeg({ quality: JPEG_QUALITY })
     .toBuffer()
-}
-
-/** The photo covering `box`, as a JPEG, placed by its focal point (`coverCrop`). */
-export async function coverPhotoJpeg(bytes: Uint8Array, box: PhotoBox): Promise<Buffer> {
-  const size = { width: pixelsFor(box.widthMm), height: pixelsFor(box.heightMm) }
-  return jpegOf(await coverCrop(bytes, size, box))
 }
 
 /** Every this many pixels across and down is read for a crop's mean luminance: plenty for a mean. */

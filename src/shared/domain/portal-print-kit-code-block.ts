@@ -15,7 +15,7 @@ import {
   cueRoomPt,
   type CueLines,
 } from './portal-print-kit-measures'
-import type { PrintKitStylePalette } from './portal-print-kit-palette'
+import type { PrintKitPalette } from './portal-print-kit-palette'
 
 /** One line of the cue in the bar, with the language it is set in. */
 export type CueLine = Readonly<{ text: string; locale: GuestLocale }>
@@ -43,7 +43,7 @@ export type CodeBlockColours = Readonly<{
 }>
 
 /** The colours the code block is drawn in, from a style's palette. */
-export function codeBlockColours(palette: PrintKitStylePalette): CodeBlockColours {
+export function codeBlockColours(palette: PrintKitPalette): CodeBlockColours {
   return {
     barFill: palette.barFill,
     barText: palette.barText,

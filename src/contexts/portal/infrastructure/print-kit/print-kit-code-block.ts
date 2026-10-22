@@ -28,7 +28,7 @@ import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
 import {
   PRINT_KIT_INK,
   PRINT_KIT_TILE,
-  type PrintKitStylePalette,
+  type PrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
 import {
   drawLine,
@@ -69,7 +69,7 @@ export function planFaceCodeBlock(
   fonts: PrintKitFonts,
   face: PrintFace,
   qr: QrMatrix,
-  palette: PrintKitStylePalette,
+  palette: PrintKitPalette,
 ): Readonly<{ plan: CodeBlockPlan; art: CodeBlockArt }> {
   const cues = cueLinesFor(face.blocks.map((block) => block.locale))
   return {

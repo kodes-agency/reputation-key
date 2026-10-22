@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { IMMERSIVE_TEXT_COLOUR, contrastRatio } from './portal-field-colour'
+import { contrastRatio } from './portal-field-colour'
 import {
   PRINT_KIT_CONTRAST,
   PRINT_KIT_WASH_ALPHA,
@@ -10,39 +10,7 @@ import {
   paperLogoPlate,
   paperPrintKitPalette,
   printKitPalette,
-  printKitStylePalette,
 } from './portal-print-kit-palette'
-
-describe('printKitPalette', () => {
-  it('sets the kicker in the accent when it reads on the field', () => {
-    const palette = printKitPalette('#EAD6A8', '#15110D')
-    expect(palette.field).toBe('#15110D')
-    expect(palette.kicker).toBe('#EAD6A8')
-  })
-
-  it('sets the kicker in the page text colour when the accent would not read', () => {
-    expect(printKitPalette('#201A12', '#15110D').kicker).toBe(IMMERSIVE_TEXT_COLOUR)
-  })
-
-  it('derives the washes from the accent, as the guest backdrop does', () => {
-    const palette = printKitPalette('#EAD6A8', '#15110D')
-    expect(palette.warm).toMatch(/^#[0-9A-F]{6}$/u)
-    expect(palette.cool).toMatch(/^#[0-9A-F]{6}$/u)
-  })
-
-  it('keeps the field and the page text for a colour it cannot read', () => {
-    const palette = printKitPalette('red', 'blue')
-    expect(palette.kicker).toBe(IMMERSIVE_TEXT_COLOUR)
-    expect(palette.warm).toBe(palette.field)
-    expect(palette.cool).toBe(palette.field)
-  })
-
-  it('always prints the code in near-black on warm paper', () => {
-    const palette = printKitPalette('#EAD6A8', '#15110D')
-    expect(palette.plateInk).toBe('#121614')
-    expect(palette.platePaper).toBe('#F6F1E6')
-  })
-})
 
 // The spec's section 3.3: what the design boards compute for the tweak's four accents.
 const WORKED = [
@@ -230,11 +198,11 @@ describe('the contrast floors, for any accent', () => {
   })
 })
 
-describe('printKitStylePalette', () => {
+describe('printKitPalette', () => {
   it('hands back the palette of the style asked for', () => {
-    expect(printKitStylePalette('#EAD6A8', null, 'paper').style).toBe('paper')
-    expect(printKitStylePalette('#EAD6A8', null, 'immersive').style).toBe('immersive')
-    expect(printKitStylePalette('#EAD6A8', '#15110D', 'immersive')).toEqual(
+    expect(printKitPalette('#EAD6A8', null, 'paper').style).toBe('paper')
+    expect(printKitPalette('#EAD6A8', null, 'immersive').style).toBe('immersive')
+    expect(printKitPalette('#EAD6A8', '#15110D', 'immersive')).toEqual(
       immersivePrintKitPalette('#EAD6A8', '#15110D'),
     )
   })

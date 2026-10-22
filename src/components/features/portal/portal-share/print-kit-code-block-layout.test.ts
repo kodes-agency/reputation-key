@@ -5,7 +5,7 @@ import {
   estimatedCueWidthPt,
   planCodeBlock,
 } from '#/shared/domain/portal-print-kit-code-block'
-import { printKitStylePalette } from '#/shared/domain/portal-print-kit-palette'
+import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { codeBlockStyles, pointsToPixels } from './print-kit-code-block-layout'
 
 const inPoints = (points: number) => `${Number(points.toFixed(4))}pt`
@@ -15,7 +15,7 @@ function stylesFor(
   style: 'paper' | 'immersive',
 ) {
   const plan = planCodeBlock(cueLinesFor(locales), estimatedCueWidthPt)
-  const colours = codeBlockColours(printKitStylePalette('#EAD6A8', null, style))
+  const colours = codeBlockColours(printKitPalette('#EAD6A8', null, style))
   return { plan, colours, styles: codeBlockStyles(plan, colours, inPoints) }
 }
 

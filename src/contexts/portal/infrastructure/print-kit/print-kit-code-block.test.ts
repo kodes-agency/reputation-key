@@ -19,7 +19,7 @@ import {
   mmToPt,
   ptToIn,
 } from '#/shared/domain/portal-print-kit-measures'
-import { printKitStylePalette } from '#/shared/domain/portal-print-kit-palette'
+import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { drawCodeBlock, planPdfCodeBlock } from './print-kit-code-block'
 import { measureLine, PrintKitFonts } from './print-kit-pdf-text'
 import { qrDarkRuns, qrMatrix } from './print-kit-qr'
@@ -130,7 +130,7 @@ function draw(
   const circle = vi.spyOn(doc, 'circle')
   const cues = cueLinesFor(locales)
   const plan = planPdfCodeBlock(doc, fonts, cues)
-  const colours = codeBlockColours(printKitStylePalette(accent, null, style))
+  const colours = codeBlockColours(printKitPalette(accent, null, style))
   drawCodeBlock(doc, fonts, { qr: QR, cues, colours }, plan, { x: 100, y: 50 })
   return {
     rects: rects.mock.calls.map((call) => [...call] as number[]),
@@ -231,7 +231,7 @@ describe('drawCodeBlock', () => {
     const text = vi.spyOn(doc, 'text')
     const cues = cueLinesFor(['en', 'es'])
     const plan = planPdfCodeBlock(doc, fonts, cues)
-    const colours = codeBlockColours(printKitStylePalette('#EAD6A8', null, 'immersive'))
+    const colours = codeBlockColours(printKitPalette('#EAD6A8', null, 'immersive'))
     drawCodeBlock(doc, fonts, { qr: QR, cues, colours }, plan, { x: 100, y: 50 })
     const start = text.mock.calls[0]?.[1] as number
     const style = { ...cueStyle(9), spacing: 9 * CODE_BLOCK.cueTrackingEm }
@@ -274,7 +274,7 @@ describe('drawCodeBlock', () => {
       return text(...args)
     }) as never)
     for (const accent of ['#EAD6A8', '#C8102E']) {
-      const colours = codeBlockColours(printKitStylePalette(accent, null, 'immersive'))
+      const colours = codeBlockColours(printKitPalette(accent, null, 'immersive'))
       drawCodeBlock(doc, fonts, { qr: QR, cues, colours }, plan, { x: 0, y: 0 })
     }
     expect([...new Set(drawn)]).toEqual(['#121614', '#FFFFFF'])

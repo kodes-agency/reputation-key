@@ -20,7 +20,7 @@ import {
   type PrintKitPage,
   type PrintKitPagePanel,
 } from '#/shared/domain/portal-print-kit-sheets'
-import { setStyledPageBoxes } from './print-kit-marks'
+import { setPageBoxes } from './print-kit-marks'
 
 /** Something worth telling the people who run the service, which does not stop the print. */
 export type PrintKitWarning = Readonly<{
@@ -129,7 +129,7 @@ export function drawStyledPages<L>(
 ): void {
   for (const page of pages) {
     target.doc.addPage({ size: [page.widthPt, page.heightPt], margin: 0 })
-    setStyledPageBoxes(target.doc.page, page)
+    setPageBoxes(target.doc.page, page)
     for (const panel of page.panels) {
       const layout = layouts.get(keyOf(panel))
       if (layout !== undefined) drawPanel(target, page, panel, layout, drawer)

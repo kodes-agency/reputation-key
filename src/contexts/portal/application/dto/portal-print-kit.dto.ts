@@ -18,10 +18,9 @@ export const portalPrintKitInputSchema = z.object({ portalId: portalIdSchema })
  * Whether the languages are the Portal's own is the use case's to say: it knows
  * the Portal, the schema only knows the catalogue.
  *
- * `style` asks for the redesigned print, on `paper` or, without one, on the
- * paper the Property's country prints on; for Immersive the paper names the
- * size family, 4 × 6 in on Letter and A6 on A4. A download without a style is
- * today's print, and its `paper` is not read.
+ * `style` is Paper unless the request says Immersive, and `paper` is the paper
+ * the Property's country prints on unless the request names one; for Immersive
+ * the paper names the size family, 4 × 6 in on Letter and A6 on A4.
  */
 export const downloadPortalPrintKitInputSchema = z.object({
   portalId: portalIdSchema,
@@ -34,7 +33,7 @@ export const downloadPortalPrintKitInputSchema = z.object({
       message: 'Choose two different languages',
     }),
   callToAction: z.enum(PRINT_KIT_CALLS_TO_ACTION),
-  style: z.enum(PRINT_KIT_STYLES).optional(),
+  style: z.enum(PRINT_KIT_STYLES).default('paper'),
   paper: z.enum(PRINT_KIT_PAPERS).optional(),
 })
 

@@ -1,4 +1,4 @@
-// The measures of the redesigned print kit (spec sections 2, 4 and 5): the code
+// The measures of the print kit (spec sections 2, 4 and 5): the code
 // block, the type scales, the grids of every piece, the margins and the photo
 // window. The PDF (PDFKit) and the Share tab's preview (CSS) both read them, so
 // a size has one home and the preview cannot drift from the file.
@@ -7,9 +7,6 @@
 // and millimetres convert in one place and a design written in either lands on
 // the same number. The numbers are the design boards' own, copied from the
 // generator that produced them (`gen.mjs`), not derived again.
-//
-// Today's panel is still drawn from `portal-print-kit-layout.ts`; this module
-// is what the redesigned faces are drawn from, and what replaces it.
 
 import { PRINT_KIT_QR_QUIET_ZONE_MODULES } from './portal-print-kit'
 import type { PrintKitPaper, PrintKitStyle } from './portal-print-kit'
