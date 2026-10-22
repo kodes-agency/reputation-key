@@ -651,6 +651,13 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
+    schemaFile: 'review-analysis-released-sequences.schema.ts',
+    exportNames: ['reviewAiAnalysisReleasedSequences'],
+    owner: 'review',
+    disposition: 'active_authority',
+    authority: 'REV-01',
+  }),
+  ...rows({
     schemaFile: 'review-reputation.schema.ts',
     exportNames: ['reviewGoogleReputationSnapshotFacts'],
     owner: 'review',

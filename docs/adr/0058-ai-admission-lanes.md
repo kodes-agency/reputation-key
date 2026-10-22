@@ -270,3 +270,35 @@ retry and a repeated click reuse it, and any finished answer rotates it.
      conflict that differs in anything else is settled as not analysable as
      before, and an operation that is executing or finished is left to its
      owner.
+- **2026-10-22** — Coverage never waits for a number nobody holds (migration
+  0068). Every analysis sequence after the authorization's start, up to the
+  review head, is owed a settlement; the stall alert, the aggregate read, the
+  trend scheduler and the trend report all compare the settlements with
+  `head_sequence - analysis_start_sequence`. The Review writer
+  (`upsertAndRecord`) took the next sequence before persisting the
+  observation, because allocating takes the Property row lock and the repo
+  locks the Property first (ADR 0060). When the observation then turned out to
+  be a replay (the same observation key) or older than the stored Google
+  version, it returned without stamping a Review or writing an event, and the
+  transaction committed with the head one higher. On the beta, between
+  2026-10-20 15:16 and 17:58 UTC (a window of retried snapshot pages) four
+  numbers of the largest Property, 3971 to 3974, were lost this way: no Review
+  and no outbox fact held them, and `ai.review-analysis-stalled` fired until
+  they were recorded. The allocation stays where it is. The writer now records
+  an unused number in `review_ai_analysis_released_sequences` (organization,
+  property, source epoch, sequence, reason `replayed_observation`,
+  `out_of_order_observation` or `operator_repair`, instant) in the same
+  transaction, and coverage subtracts the released numbers that lie in
+  (`analysis_start_sequence`, `head_sequence`] of the same source epoch and are
+  not also settled (a number that is both counts once, as the settlement).
+  The ledger lives and dies with the head: cascade with the Property, deleted
+  by the Review Organization purge, not exported. The other allocation paths
+  (the AI reopen and enrollment replay passes, a source transition, a lifecycle
+  expiry and a re-observation of an expired Review) either stamp the number on
+  a Review and announce it in the same transaction, or throw and roll the
+  allocation back, so they need no release. There is no automatic sweep: the
+  alert remains the signal for any future leak, and
+  `pnpm ops ai release-orphan-sequences <propertyId>` records the numbers a
+  past leak left (no settlement, no Review holding it, no outbox fact naming
+  it, not released; refused while the head moved in the last 15 minutes). The
+  runbook is §22.

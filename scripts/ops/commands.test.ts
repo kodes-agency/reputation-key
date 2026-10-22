@@ -10,6 +10,7 @@ import {
 } from '../../src/shared/auth/beta-capabilities'
 import { capabilityForPermission } from '../../src/shared/auth/capability-for-permission'
 import { GOOGLE_PROVIDER_OPERATOR_COMMANDS } from '../../src/shared/ops/google-provider-commands'
+import { aiReleaseOrphanSequencesCommandSpec } from '../../src/shared/ops/ai-release-orphan-sequences-command'
 import { jobRepairCommandSpec } from '../../src/shared/ops/job-repair-command'
 import { COMMANDS } from './commands'
 
@@ -70,6 +71,30 @@ describe('pnpm ops jobs acknowledge-repair', () => {
     expect(entry).toContain('dead letter')
     expect(entry).toContain('retained failed job')
     expect(entry).toContain('latest on-demand failure is newer than its latest success')
+    expect(entry).toContain('`--reason <text> --apply`')
+  })
+})
+
+// A past leak left analysis sequences nobody holds; coverage waits for them for
+// ever. The runbook for `ai.review-analysis-stalled` names the command.
+describe('pnpm ops ai release-orphan-sequences', () => {
+  it('is dispatched to its script and invoked as the guides spell it', () => {
+    expect(COMMANDS.ai).toEqual(['scripts/ops/ai-release-orphan-sequences.ts'])
+    expect(aiReleaseOrphanSequencesCommandSpec.name).toBe('ops:ai')
+    expect(aiReleaseOrphanSequencesCommandSpec.usage).toContain(
+      'pnpm ops ai release-orphan-sequences <propertyId>',
+    )
+  })
+
+  it('is listed in the command list, with what it refuses', () => {
+    const entry = readFileSync(
+      resolve(ROOT, 'docs/operations/operator-commands.md'),
+      'utf8',
+    )
+      .split('\n')
+      .find((line) => line.startsWith('- `ops:ai release-orphan-sequences '))
+
+    expect(entry).toContain('15 minutes')
     expect(entry).toContain('`--reason <text> --apply`')
   })
 })

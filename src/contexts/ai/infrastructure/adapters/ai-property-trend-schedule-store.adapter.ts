@@ -1,5 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { releasedAwaitingSequenceCountSql } from '#/shared/db/review-analysis-released-sequences'
 import {
   aiPropertyTrendOutcomes,
   aiPropertyTrendSchedulerHeads,
@@ -62,6 +63,20 @@ function dateFromDatabase(value: Date | string): Date {
 }
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
+/**
+ * Sequences between the authorization's start and the review head that the
+ * Review writer gave back, so analysis owes no settlement for them. Both
+ * statements below name the same aliases: `aggregate`, `auth`, `review_head`.
+ */
+const releasedInCoverage = releasedAwaitingSequenceCountSql({
+  organizationId: sql`aggregate."organization_id"`,
+  propertyId: sql`aggregate."property_id"`,
+  sourceEpoch: sql`aggregate."source_epoch"`,
+  reviewAnalysisEpoch: sql`aggregate."review_analysis_epoch"`,
+  startSequence: sql`auth."analysis_start_sequence"`,
+  headSequence: sql`review_head."head_sequence"`,
+})
+
 async function lockCurrentScheduleBinding(tx: Transaction, scheduleId: string) {
   const current = await tx.execute<{
     organizationId: string
@@ -119,6 +134,7 @@ async function lockCurrentScheduleBinding(tx: Transaction, scheduleId: string) {
           AND settlement."source_epoch" = aggregate."source_epoch"
           AND settlement."review_analysis_epoch" = aggregate."review_analysis_epoch"
       ) = review_head."head_sequence" - auth."analysis_start_sequence"
+        - ${releasedInCoverage}
       AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
       AND aggregate."aggregate_revision" = schedule."aggregate_revision"
     FOR SHARE OF property, auth, profile, enrollment, review_head, aggregate
@@ -237,6 +253,7 @@ export const createAiPropertyTrendScheduleStore = (
                 AND settlement."review_analysis_epoch" =
                   aggregate."review_analysis_epoch"
             ) = review_head."head_sequence" - auth."analysis_start_sequence"
+              - ${releasedInCoverage}
             AND (${head.cursorOrganizationId}::varchar IS NULL OR
               (property."organization_id", property."id") >
               (${head.cursorOrganizationId}::varchar, ${head.cursorPropertyId}::uuid))
