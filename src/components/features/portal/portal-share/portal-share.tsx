@@ -8,6 +8,7 @@ import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalCodeBlock } from './portal-code-block'
 import { PortalLinkIssueForm } from './portal-link-issue-form'
+import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
 import { PortalPrintKitPreview } from './portal-print-kit-preview'
 import { PortalPrintKitSection } from './portal-print-kit-section'
 import { PortalLinkReveal } from './portal-link-reveal'
@@ -56,6 +57,7 @@ export function PortalShare(props: PortalShareProps) {
   const view = derivePortalShareViewFromProps(props, access.canManage, publicUrl)
   const {
     show: showPrintKit,
+    notLive: printKitNotLive,
     printKit,
     download: printKitDownload,
     unavailableReason,
@@ -143,6 +145,8 @@ export function PortalShare(props: PortalShareProps) {
         </section>
 
         <PortalScanGoalReadinessNotice show={showScanGoalReadiness(props, publicUrl)} />
+
+        <PortalPrintKitNotLive notice={printKitNotLive} />
 
         {showPrintKit && (
           <PortalPrintKitSection

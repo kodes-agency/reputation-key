@@ -4,6 +4,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, within } from 'storybook/test'
 import { ControlledPage, baseArgs } from './portal-list-page-stories-data'
+import { overviewRow } from './portal-overview/portal-overview-fixtures'
 import {
   indexOverviewResults,
   type PortalOverviewResultsState,
@@ -42,6 +43,32 @@ const rowOf = (canvas: ReturnType<typeof within>, name: string) => {
 }
 
 export const Default: Story = { args: withResults }
+
+/**
+ * An archived portal is finished: its row says View, not Edit, and has no Share.
+ * The Share place stays, unseen, so Edit sits where it does in every other row
+ * (the geometry is measured against real CSS in the metrics suite).
+ */
+export const ArchivedRowSaysViewAndKeepsTheSharePlace: Story = {
+  args: {
+    ...withResults,
+    rows: [
+      ...baseArgs.rows,
+      overviewRow('p-old', { name: 'Archived Lobby', publicationState: 'archived' }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const archived = rowOf(within(canvasElement), 'Archived Lobby')
+    await expect(
+      archived.getByRole('link', { name: 'View Archived Lobby' }),
+    ).toBeVisible()
+    await expect(archived.queryByRole('link', { name: 'Edit Archived Lobby' })).toBeNull()
+    await expect(archived.queryByRole('link', { name: /^Share / })).toBeNull()
+    await expect(
+      archived.getByText('Share').closest('[aria-hidden="true"]'),
+    ).not.toBeNull()
+  },
+}
 
 export const StripShowsTheFiveMeasures: Story = {
   args: withResults,
