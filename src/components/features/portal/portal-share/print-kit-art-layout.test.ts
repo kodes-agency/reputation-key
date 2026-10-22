@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BRAND_FIT, TYPE_PT } from '#/shared/domain/portal-print-kit-layout'
 import {
+  LINING_FIGURES,
   previewKicker,
   previewWordmark,
   mmToContainerWidth,
@@ -59,5 +60,11 @@ describe('mmToContainerWidth', () => {
   it('turns millimetres on the page into container-width units', () => {
     expect(mmToContainerWidth(125, 125)).toBe('100cqw')
     expect(mmToContainerWidth(12.5, 125)).toBe('10cqw')
+  })
+})
+
+describe('LINING_FIGURES', () => {
+  it('switches on the lnum feature, as the file does for the display face', () => {
+    expect(LINING_FIGURES).toEqual({ fontFeatureSettings: '"lnum" 1' })
   })
 })

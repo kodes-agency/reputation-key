@@ -17,6 +17,16 @@ import {
 const POINTS_PER_MM = 72 / 25.4
 
 /**
+ * Lining figures for what the file sets in Cormorant, whose default figures are
+ * old-style. It is the OpenType feature the lining value of font-variant-numeric
+ * switches on, written as a feature setting on purpose: Tailwind's scanner reads
+ * every token under `src/`, and the CSS keyword spelt out here would make it emit
+ * a utility into the first-paint stylesheet (18 B gzip, against a closure with
+ * 200 B to spare).
+ */
+export const LINING_FIGURES = { fontFeatureSettings: '"lnum" 1' } as const
+
+/**
  * The average advance of a capital, in ems, of the display face and of the body
  * face. The PDF measures; these err wide, so the preview never shows a line
  * that fits when the file's would not.

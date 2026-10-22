@@ -102,18 +102,13 @@ export function readableForegroundOn(background: string): string {
   return againstDark > againstLight ? DARK_FOREGROUND : LIGHT_FOREGROUND
 }
 
-/** Hue in degrees, saturation and lightness in 0..1: the HSL parts of a colour. */
-function toHslParts([red, green, blue]: Rgb): {
-  hue: number
-  saturation: number
-  lightness: number
-} {
+function toHslParts([red, green, blue]: Rgb): { hue: number; saturation: number } {
   const [r, g, b] = [red / 255, green / 255, blue / 255] as const
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
   const delta = max - min
+  if (delta === 0) return { hue: 0, saturation: 0 }
   const lightness = (max + min) / 2
-  if (delta === 0) return { hue: 0, saturation: 0, lightness }
   const saturation = delta / (1 - Math.abs(2 * lightness - 1))
   const sector =
     max === r
@@ -121,7 +116,7 @@ function toHslParts([red, green, blue]: Rgb): {
       : max === g
         ? (b - r) / delta + 2
         : (r - g) / delta + 4
-  return { hue: sector * 60, saturation, lightness }
+  return { hue: sector * 60, saturation }
 }
 
 /** The `#RRGGBB` colour of the given hue (degrees), saturation and lightness (0..1). */
@@ -186,9 +181,9 @@ export function nudgeLightness(
 ): string {
   const channels = parseHexColour(colour)
   if (!channels) return colour
-  const { hue, saturation, lightness } = toHslParts(channels)
+  const { hue, saturation } = toHslParts(channels)
   let nudged = colour.toUpperCase()
-  let level = lightness
+  let level = (Math.max(...channels) + Math.min(...channels)) / 2 / 255
   for (let step = 0; step < NUDGE_MAX_STEPS; step += 1) {
     if ((contrastRatio(nudged, against) ?? target) >= target) break
     level = Math.max(0, Math.min(1, level + direction * NUDGE_STEP))

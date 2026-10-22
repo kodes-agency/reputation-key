@@ -36,7 +36,11 @@ import {
 } from '#/shared/domain/portal-print-kit-layout'
 import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
-import { mmToContainerWidth, previewWordmark } from './print-kit-art-layout'
+import {
+  LINING_FIGURES,
+  mmToContainerWidth,
+  previewWordmark,
+} from './print-kit-art-layout'
 import { PrintKitCropMarks } from './print-kit-crop-marks'
 import { PrintKitStack } from './print-kit-stack'
 import { previewStackScale } from './print-kit-stack-fit'
@@ -214,8 +218,7 @@ function Brand({ look }: Readonly<{ look: PortalPrintKitView['look'] }>) {
         paddingLeft: `${TRACKING_EM.wordmark}em`,
         fontFamily: DISPLAY_FONT,
         fontWeight: 600,
-        // Cormorant's figures are old-style by default; the file sets lining ones.
-        fontVariantNumeric: 'lining-nums',
+        ...LINING_FIGURES,
         fontSize: pt(size),
         lineHeight: BRAND_FIT.wordmark.lineHeight,
         letterSpacing: `${TRACKING_EM.wordmark}em`,

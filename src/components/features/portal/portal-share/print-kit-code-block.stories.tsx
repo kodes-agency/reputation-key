@@ -45,7 +45,7 @@ function Block({ style, accent, locales }: Specimen) {
 
 function Specimens({ items }: Readonly<{ items: readonly Specimen[] }>) {
   return (
-    <main className="flex flex-wrap gap-6 p-6">
+    <main style={{ display: 'flex', flexWrap: 'wrap', gap: 24, padding: 24 }}>
       <link rel="stylesheet" href={GUEST_FONT_STYLESHEET} precedence="default" />
       {items.map((item) => (
         <Block key={`${item.style}${item.locales.join()}${item.accent}`} {...item} />
