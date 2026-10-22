@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues, PRDs and wayfinder maps for this repo live as GitHub issues on
+Issues and PRDs for this repo live as GitHub issues on
 `kodes-agency/reputation-key`. Use the `gh` CLI for all operations; it infers
 the repo from `git remote -v` when run inside a clone or worktree.
 
@@ -9,12 +9,12 @@ one, you are on the wrong tracker.
 
 ## Conventions
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Create an issue**: `gh issue create --title "..." --body "..." --label "type:..." --label "needs-triage"`. Use a heredoc for multi-line bodies.
 - **Read an issue**: `gh issue view <number> --comments`.
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`, with `--label` / `--state` filters as needed.
 - **Comment**: `gh issue comment <number> --body "..."`
 - **Labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> --comment "..."`
+- **Close**: `gh issue close <number> --reason completed --comment "..."`, or `--reason "not planned"` for one that will not be done.
 
 ## Pull requests as a triage surface
 
@@ -30,52 +30,29 @@ Create a GitHub issue.
 
 Run `gh issue view <number> --comments`.
 
-## Wayfinding operations
+## Labels
 
-Used by `/wayfinder`. The **map** is a single issue; its tickets are **native
-GitHub sub-issues** of it. Both sub-issues and issue dependencies are enabled
-on this repo — verified against the API — so neither body-convention fallback
-is needed. Use the native relationships: they render the frontier in GitHub's
-own UI, which is the point of keeping the map there rather than in a file.
+Every open issue carries one **triage** label (where it stands) and one
+**type** label (what it is); an issue that came from Sentry or from a beta
+report also carries a **source** label. The full list and what each means is
+in [triage-labels.md](./triage-labels.md). Labels say what an issue is; when
+it happens and how much it matters are board fields (below), not labels.
 
-- **Map**: `gh issue create --label wayfinder:map`. Body holds Destination / Notes / Decisions-so-far / Not-yet-specified / Out-of-scope.
-- **Child ticket**: `gh issue create --label wayfinder:<type>`, then attach it:
+## Sub-issues and dependencies
 
-  ```bash
-  gh api --method POST repos/kodes-agency/reputation-key/issues/<map>/sub_issues \
-    -F sub_issue_id=<child-database-id>
-  ```
+Native sub-issues and issue dependencies are enabled on this repo. Use them to
+split a large piece of work and to record what blocks what.
 
-  `<child-database-id>` is the numeric `.id`, **not** the `#number` and not the
-  `node_id`: `gh api repos/kodes-agency/reputation-key/issues/<n> --jq .id`.
-  Types are `wayfinder:research` / `prototype` / `grilling` / `task`.
+```bash
+# Attach a child; <child-database-id> is the numeric .id, not the #number:
+#   gh api repos/kodes-agency/reputation-key/issues/<n> --jq .id
+gh api --method POST repos/kodes-agency/reputation-key/issues/<parent>/sub_issues \
+  -F sub_issue_id=<child-database-id>
 
-- **Blocking**: native issue dependencies.
-
-  ```bash
-  gh api --method POST repos/kodes-agency/reputation-key/issues/<child>/dependencies/blocked_by \
-    -F issue_id=<blocker-database-id>
-  ```
-
-  `issue_dependencies_summary.blocked_by` counts **open** blockers only, so it
-  is the live gate — a ticket is unblocked when that reaches 0.
-
-- **Frontier query**: the map's open sub-issues with `blocked_by == 0` and no assignee, first in map order.
-
-  ```bash
-  gh api repos/kodes-agency/reputation-key/issues/<map>/sub_issues \
-    --jq '.[] | select(.state=="open") | select(.issue_dependencies_summary.blocked_by==0) | select(.assignee==null) | "#\(.number) \(.title)"'
-  ```
-
-- **Claim**: `gh issue edit <n> --add-assignee kodes-agency` — the session's first write, before any work. `@me` resolves to the same account.
-- **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a one-line context pointer (gist + link) to the map's Decisions-so-far.
-
-## Label vocabulary
-
-Triage roles map to the repo's existing labels one-to-one: `needs-triage`,
-`needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Wayfinder adds
-`wayfinder:map`, `wayfinder:research`, `wayfinder:prototype`,
-`wayfinder:grilling`, `wayfinder:task`.
+# Record a blocker; issue_dependencies_summary.blocked_by counts open blockers only.
+gh api --method POST repos/kodes-agency/reputation-key/issues/<child>/dependencies/blocked_by \
+  -F issue_id=<blocker-database-id>
+```
 
 ## Triage board
 
@@ -102,3 +79,40 @@ matching Status option too, or the run fails before it changes anything.
 
 The project's built-in "Auto-add sub-issues to project" automation is on, so
 it also pulls in the sub-issues of an issue added to the board.
+
+### Roadmap fields
+
+Two board fields carry planning, and are set by hand on the board:
+
+- **Horizon**: `Now` (being worked on or next up), `Next` (planned after the
+  current work), `Later` (wanted, not scheduled). An issue with no Horizon is
+  not on the roadmap yet.
+- **Priority**: `High` (hurts users or blocks other work), `Medium`, `Low`.
+
+The **Roadmap** view lists open items with both fields, grouped by Horizon. A
+suggestion arrives as `type:feature` + `needs-triage`; accepting it means
+giving it a Horizon, specifying it means moving it to `ready-for-agent`, and
+declining it means `wontfix` and closing it as not planned.
+
+## Sentry
+
+Errors and beta feedback land in Sentry (organization `100-35`, project
+`javascript-tanstackstart-react`). Sentry's GitHub integration is linked to
+this repository.
+
+- **Not every Sentry issue becomes a GitHub issue.** Most are operational
+  alerts (queue, sync, job runtime) that are investigated and resolved in
+  Sentry. Open a GitHub issue only when an error needs code work, labelled
+  `type:bug` + `source:sentry` + a triage label, with the Sentry short ID
+  (e.g. `JAVASCRIPT-TANSTACKSTART-REACT-4`) and link in the body. Link it back
+  from Sentry ("Link GitHub issue", or the Sentry connector's `link_issue`).
+- **Resolve through the fix.** Put `Fixes <Sentry short ID>` in a **commit
+  message** of the fixing PR. This repo squash-merges using the commit
+  messages, so the line reaches main; text only in the PR description does
+  not. The `Sentry release commits` workflow
+  (`.github/workflows/sentry-release-commits.yml`) attaches each main commit to
+  its Sentry release once CI passes, and Sentry then resolves the issue.
+- **Never file beta feedback from Sentry.** Sentry's "Create GitHub issue"
+  button would copy the reporter's own words into this public repository.
+  Beta reports reach GitHub only through `pnpm ops feedback-issue`, which
+  writes controlled vocabulary and monitoring links (ADR 0059).

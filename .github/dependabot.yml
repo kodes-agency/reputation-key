@@ -73,8 +73,7 @@ updates:
     reviewers:
       - kodes-agency/engineering
     labels:
-      - dependencies
-      - security
+      - type:chore
 
   # Docker base-image tags and digests
   # Docker's updater scans one configured directory at a time. All current
@@ -95,9 +94,7 @@ updates:
     reviewers:
       - kodes-agency/engineering
     labels:
-      - dependencies
-      - security
-      - containers
+      - type:chore
 
   # GitHub Actions versions
   - package-ecosystem: github-actions
@@ -106,8 +103,7 @@ updates:
       interval: weekly
       day: monday
     labels:
-      - dependencies
-      - ci
+      - type:chore
     groups:
       # Sub-actions of one action repo MUST move on the same SHA.
       # codeql-action/init writes a config file stamped with its own version,

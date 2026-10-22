@@ -101,7 +101,8 @@ describe('beta feedback issue', () => {
 
   it('requests only labels that exist on the repository', () => {
     expect(buildBetaFeedbackIssue(source, PROVIDER, SEARCH).labels).toEqual([
-      'bug',
+      'type:bug',
+      'source:beta-feedback',
       'needs-triage',
     ])
     expect(
@@ -110,7 +111,7 @@ describe('beta feedback issue', () => {
         PROVIDER,
         SEARCH,
       ).labels,
-    ).toEqual(['enhancement', 'needs-triage'])
+    ).toEqual(['type:feature', 'source:beta-feedback', 'needs-triage'])
   })
 
   it('reads the issue number back out of the created URL', () => {
