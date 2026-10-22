@@ -149,4 +149,34 @@ describe('the Results tab', () => {
 
     expect(results[0]).toMatchObject({ pageIsLive: true })
   })
+
+  it('counts scans for a live portal whose code counts them', () => {
+    render(propsFor('results', {}, 'published'))
+
+    expect(results[0]).toMatchObject({ scansCounted: true })
+  })
+
+  it('says its scans are not counted when the live code predates scan counting, as the overview does', () => {
+    render(
+      propsFor(
+        'results',
+        { tokenStatus: { ...TOKEN, qualifiedScanReady: false } },
+        'published',
+      ),
+    )
+
+    expect(results[0]).toMatchObject({ scansCounted: false })
+  })
+
+  it('has no uncounted scans to explain on a portal that is not live', () => {
+    render(
+      propsFor(
+        'results',
+        { tokenStatus: { ...TOKEN, qualifiedScanReady: false } },
+        'draft',
+      ),
+    )
+
+    expect(results[0]).toMatchObject({ scansCounted: true })
+  })
 })

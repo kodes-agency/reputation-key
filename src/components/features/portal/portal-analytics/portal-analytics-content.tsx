@@ -48,8 +48,13 @@ export function PortalAnalyticsContent({
   const timezone = data.period.timezone
   // "All time" has no prior window, so there is nothing to switch on or off.
   const comparing = compare && data.comparePeriod !== null
-  const empty = emptyResults(data, { comparing, isLive: place?.isLive ?? true })
-  const cells = resultsCells(data, { compare: comparing })
+  const scansCounted = place?.scansCounted ?? true
+  const empty = emptyResults(data, {
+    comparing,
+    isLive: place?.isLive ?? true,
+    scansCounted,
+  })
+  const cells = resultsCells(data, { compare: comparing, scansCounted })
 
   return (
     <div className="@container space-y-8" aria-busy={busy}>
