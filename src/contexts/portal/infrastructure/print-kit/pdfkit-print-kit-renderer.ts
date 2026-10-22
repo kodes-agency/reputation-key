@@ -4,6 +4,10 @@
 // 3 mm bleed plus a margin for crop marks, with the trim and bleed declared in
 // the page boxes.
 //
+// A request that names a style (Paper, in this release) is drawn from the
+// redesign's sheets instead (`print-kit-pages.ts`): the page is the sheet, the
+// faces sit where `printKitPages` puts them. Without a style the file is today's.
+//
 // PDFKit is imported lazily and kept external to the server bundle: it reads
 // its own font metrics at load and resolves them from `node_modules`, which a
 // bundled copy would not find.
@@ -26,7 +30,15 @@ import {
   type SheetFrame,
 } from './print-kit-marks'
 import { drawPanel, photoBox, type PanelArt, type PanelBleed } from './print-kit-panel'
-import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
+import {
+  logoNeedsPaperPlate,
+  paperLogoPlate,
+  paperPrintKitPalette,
+  printKitPalette,
+} from '#/shared/domain/portal-print-kit-palette'
+import { printKitPages } from '#/shared/domain/portal-print-kit-sheets'
+import { logoArt } from './print-kit-image'
+import { drawStyledPages, type PrintKitWarning } from './print-kit-pages'
 import { PrintKitFonts } from './print-kit-pdf-text'
 import { qrMatrix } from './print-kit-qr'
 
@@ -35,6 +47,8 @@ export type PdfKitPrintKitRendererDeps = Readonly<{
   now: () => Date
   /** Streams compress by default; a test turns it off to read what was drawn. */
   compress?: boolean
+  /** Told of what is worth a look but does not stop the print, such as a soft logo. */
+  warn?: (warning: PrintKitWarning) => void
 }>
 
 type PanelPlacement = Readonly<{ originX: number; originY: number; rotated: boolean }>
@@ -110,13 +124,74 @@ function drawSheet(
   if (sheet.foldAtMm !== null) drawFoldMarks(doc, frame, sheet.foldAtMm)
 }
 
+/** The redesigned print: a style's pages on its paper. Only Paper is drawn in this release. */
+async function drawStyled(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  input: PrintKitRenderInput,
+  warn: (warning: PrintKitWarning) => void,
+): Promise<void> {
+  const { style, paper } = input
+  if (style !== 'paper' || paper === undefined) {
+    throw new Error(
+      `The print kit cannot draw the ${style ?? 'unnamed'} style on ${paper ?? 'no'} paper`,
+    )
+  }
+  const palette = paperPrintKitPalette(input.accentColour)
+  const logo = input.logo === null ? null : await logoArt(input.logo)
+  const plate = logo !== null && logoNeedsPaperPlate(logo.ink.luminance)
+  drawStyledPages(
+    {
+      doc,
+      fonts,
+      faces: input.faces,
+      warn,
+      art: {
+        palette,
+        qr: qrMatrix(input.qrAddress),
+        brand: {
+          wordmark: input.wordmark,
+          colour: palette.ink,
+          logo:
+            logo === null
+              ? null
+              : {
+                  image: openImage(doc, logo.bytes),
+                  ink: logo.ink,
+                  plate: plate ? paperLogoPlate(input.accentColour) : null,
+                },
+        },
+      },
+    },
+    printKitPages(input.piece, input.faces.length, style, paper),
+  )
+}
+
+/** Today's print: A6 panels with a 3 mm bleed and crop marks. */
+async function drawLegacy(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  input: PrintKitRenderInput,
+): Promise<void> {
+  const sheets = printKitSheets(input.piece, input.faces.length)
+  // The pictures are cropped per bleed; the sheets of one piece share it.
+  const [first] = sheets
+  if (first === undefined) throw new Error('A print kit needs at least one face')
+  const art = await artOf(doc, input, bleedOf(first))
+  for (const sheet of sheets) drawSheet(doc, fonts, sheet, input, art)
+}
+
+const subjectOf = (input: PrintKitRenderInput): string =>
+  input.style === undefined
+    ? `Print kit, ${SLUG_MM} mm slug with ${PRINT_KIT_BLEED_MM} mm bleed`
+    : `Print kit, ${input.style} on ${input.paper ?? 'its default'} paper`
+
 export function createPdfKitPrintKitRenderer(
   deps: PdfKitPrintKitRendererDeps,
 ): PortalPrintKitRenderer {
   return {
     render: async (input) => {
       const { default: PDFDocument } = await import('pdfkit')
-      const sheets = printKitSheets(input.piece, input.faces.length)
       const doc = new PDFDocument({
         autoFirstPage: false,
         // The art uses transparency (soft masks, opacity states, gradients), which
@@ -130,7 +205,7 @@ export function createPdfKitPrintKitRenderer(
         info: {
           Title: input.title,
           Author: 'Reputation Key',
-          Subject: `Print kit, ${SLUG_MM} mm slug with ${PRINT_KIT_BLEED_MM} mm bleed`,
+          Subject: subjectOf(input),
           CreationDate: deps.now(),
         },
       })
@@ -141,11 +216,8 @@ export function createPdfKitPrintKitRenderer(
         doc.on('error', reject)
       })
       const fonts = new PrintKitFonts(doc)
-      // The pictures are cropped per bleed; the sheets of one piece share it.
-      const [first] = sheets
-      if (first === undefined) throw new Error('A print kit needs at least one face')
-      const art = await artOf(doc, input, bleedOf(first))
-      for (const sheet of sheets) drawSheet(doc, fonts, sheet, input, art)
+      if (input.style === undefined) await drawLegacy(doc, fonts, input)
+      else await drawStyled(doc, fonts, input, deps.warn ?? (() => undefined))
       doc.end()
       await finished
       return new Uint8Array(Buffer.concat(chunks))

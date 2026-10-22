@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitFontSize, fitLines, wrapWords } from './portal-print-kit-text'
+import { balanceWords, fitFontSize, fitLines, wrapWords } from './portal-print-kit-text'
 
 const byLength = (text: string) => text.length
 
@@ -107,5 +107,29 @@ describe('fitLines', () => {
 
   it('has no lines for blank text', () => {
     expect(fitLines({ ...base, text: '  ' }).lines).toEqual([])
+  })
+})
+
+describe('balanceWords', () => {
+  it('keeps a text that fits on one line', () => {
+    expect(balanceWords('Pool & Terrace', 30, byLength)).toEqual(['Pool & Terrace'])
+  })
+
+  it('evens out the lines it needs instead of leaving a stub', () => {
+    // Greedy at 24: "Spa & Wellness Centre" over "Lobby".
+    expect(balanceWords('Spa & Wellness Centre Lobby', 24, byLength)).toEqual([
+      'Spa & Wellness',
+      'Centre Lobby',
+    ])
+  })
+
+  it('keeps the number of lines greedy needs, three when it takes three', () => {
+    const lines = balanceWords('one two three four five six seven eight', 14, byLength)
+    expect(lines).toHaveLength(3)
+    expect(Math.max(...lines.map(byLength))).toBeLessThanOrEqual(14)
+  })
+
+  it('returns no lines for blank text', () => {
+    expect(balanceWords('  ', 10, byLength)).toEqual([])
   })
 })

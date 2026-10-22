@@ -18,7 +18,7 @@ const ADDRESS =
 
 const base = immersiveConfiguration()
 
-function wire() {
+function wire(country: string | null = null) {
   const portal = buildTestPortal({ name: 'Harbor lobby' })
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([portal])
@@ -49,7 +49,9 @@ function wire() {
     mediaRepo: createInMemoryPortalMediaAssetRepo(),
     objectStore: createInMemoryObjectStore(),
     revealAddress: reveal,
+    propertyCountry: async () => country,
     clock: () => new Date('2026-10-01T10:00:00Z'),
+    logger: { warn: vi.fn() },
   })
   return { portal, useCases, reveal }
 }
@@ -81,5 +83,22 @@ describe('buildPortalPrintKit', () => {
       { portalId: portal.id, purpose: 'download' },
       expect.anything(),
     )
+  })
+
+  it('draws a Paper print on the paper of the property’s country', async () => {
+    const { portal, useCases } = wire('CA')
+    const file = await useCases.createPortalPrintKit(
+      {
+        portalId: portal.id,
+        piece: 'counter_card',
+        languages: ['en'],
+        callToAction: 'rate',
+        style: 'paper',
+      },
+      buildTestAuthContext(),
+    )
+    const text = Buffer.from(file.pdf).toString('latin1')
+    expect(file.fileName).toBe('harbor-lobby-counter-card-en-letter.pdf')
+    expect(text.startsWith('%PDF-1.4')).toBe(true)
   })
 })

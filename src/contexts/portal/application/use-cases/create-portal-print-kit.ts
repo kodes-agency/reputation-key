@@ -21,10 +21,12 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId, portalMediaAssetId } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
+  defaultPrintKitPaper,
   isPrintKitLanguageChoice,
   printKitFaces,
   printKitFileName,
   PRINT_KIT_PIECE_FACTS,
+  type PrintKitFormat,
 } from '#/shared/domain/portal-print-kit'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { isServablePortalMediaAsset } from '../../domain/portal-media-asset'
@@ -51,6 +53,11 @@ export type CreatePortalPrintKitDeps = Readonly<{
   sha256Hex: (bytes: Uint8Array) => string
   revealAddress: RevealPortalAddress
   renderer: PortalPrintKitRenderer
+  /** The Property's country (ISO 3166-1 alpha-2), or null: it sets the default paper. */
+  propertyCountry: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
 }>
 
 export type PortalPrintKitFile = Readonly<{
@@ -112,6 +119,24 @@ async function readStoredImage(
   return object.body
 }
 
+/**
+ * The style and paper a download asked for, the paper defaulting to the one the
+ * Property's country prints on; null for today's print, which names no style.
+ */
+async function formatOf(
+  deps: Pick<CreatePortalPrintKitDeps, 'propertyCountry'>,
+  input: DownloadPortalPrintKitInput,
+  scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
+): Promise<PrintKitFormat | null> {
+  if (input.style === undefined) return null
+  const paper =
+    input.paper ??
+    defaultPrintKitPaper(
+      await deps.propertyCountry(scope.organizationId, scope.propertyId),
+    )
+  return { style: input.style, paper }
+}
+
 export const createPortalPrintKit =
   (deps: CreatePortalPrintKitDeps) =>
   async (
@@ -131,6 +156,7 @@ export const createPortalPrintKit =
     }
 
     const scope = { organizationId: ctx.organizationId, propertyId: portal.propertyId }
+    const format = await formatOf(deps, input, scope)
     const { hero, logo } = context.look
     const photoBytes = hero ? await readStoredImage(deps, scope, hero.assetId) : null
     const logoBytes = logo ? await readStoredImage(deps, scope, logo.assetId) : null
@@ -152,6 +178,7 @@ export const createPortalPrintKit =
     const pdf = await deps.renderer.render({
       title: `${context.portalName} ${PRINT_KIT_PIECE_FACTS[input.piece].noun}`,
       piece: input.piece,
+      ...format,
       faces,
       wordmark: context.look.wordmark,
       logo: logoBytes,
@@ -164,7 +191,12 @@ export const createPortalPrintKit =
       qrAddress: revealed.publicUrl,
     })
     return {
-      fileName: printKitFileName(context.portalName, input.piece, input.languages),
+      fileName: printKitFileName(
+        context.portalName,
+        input.piece,
+        input.languages,
+        format ?? undefined,
+      ),
       contentType: 'application/pdf',
       pdf,
     }

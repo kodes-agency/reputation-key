@@ -70,6 +70,9 @@ export function defaultPrintKitPaper(countryCode: string | null): PrintKitPaper 
   return code === '' || LETTER_COUNTRIES.has(code) ? 'letter' : 'a4'
 }
 
+/** The redesigned print a download asks for: its look and the paper it prints on. */
+export type PrintKitFormat = Readonly<{ style: PrintKitStyle; paper: PrintKitPaper }>
+
 /** One or two languages on a print: more would crowd an A6 face. */
 export const PRINT_KIT_MAX_LANGUAGES = 2
 
@@ -286,12 +289,23 @@ export function printKitSheets(
  * downloads of one portal that differ in language (English and Bulgarian, or
  * English alone) must not share a name: the browser would call the second one
  * "(1)" and the print shop would have to guess which is which.
+ *
+ * A redesigned print ends with its paper, `…-en-es-letter.pdf`, and Immersive
+ * names itself before it, `…-en-es-immersive-letter.pdf` (spec 7.2): Paper is
+ * the default style, so it goes unnamed.
  */
 export function printKitFileName(
   portalName: string,
   piece: PrintKitPiece,
   languages: readonly GuestLocale[],
+  format?: PrintKitFormat,
 ): string {
   const noun = PRINT_KIT_PIECE_FACTS[piece].noun.replace(/\s+/gu, '-')
-  return [fileNameSlug(portalName) || 'portal', noun, ...languages].join('-') + '.pdf'
+  const look =
+    format === undefined
+      ? []
+      : [...(format.style === 'immersive' ? ['immersive'] : []), format.paper]
+  return (
+    [fileNameSlug(portalName) || 'portal', noun, ...languages, ...look].join('-') + '.pdf'
+  )
 }

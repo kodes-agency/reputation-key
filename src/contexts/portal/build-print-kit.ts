@@ -14,6 +14,8 @@ import { createPortalPrintKit } from './application/use-cases/create-portal-prin
 import { getPortalPrintKit } from './application/use-cases/get-portal-print-kit'
 import type { RevealPortalAddress } from './application/use-cases/reveal-portal-address'
 import type { PortalPrintKitRenderer } from './application/ports/portal-print-kit-renderer.port'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { PropertyCountryReader } from './infrastructure/print-kit/print-kit-property-country'
 
 export type PortalPrintKitDeps = Readonly<{
   portalRepo: PortalRepository
@@ -25,18 +27,28 @@ export type PortalPrintKitDeps = Readonly<{
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
   objectStore: Pick<StoragePort, 'getObject'>
   revealAddress: RevealPortalAddress
+  /** The Property's country, which sets the paper a redesigned print defaults to. */
+  propertyCountry: PropertyCountryReader
   clock: () => Date
+  /** Hears what is worth a look but does not stop a print, such as a logo that prints soft. */
+  logger: Pick<LoggerPort, 'warn'>
 }>
 
 // The PDF renderer carries the font data URIs, which only the bundlers (Vite,
 // tsup) can import; loading it on first use keeps every process that never
 // makes a print kit (the simulation script under tsx among them) from
 // resolving them.
-const lazyRenderer = (now: () => Date): PortalPrintKitRenderer => ({
+const lazyRenderer = (
+  now: () => Date,
+  logger: Pick<LoggerPort, 'warn'>,
+): PortalPrintKitRenderer => ({
   render: async (input) => {
     const { createPdfKitPrintKitRenderer } =
       await import('./infrastructure/print-kit/pdfkit-print-kit-renderer')
-    return createPdfKitPrintKitRenderer({ now }).render(input)
+    return createPdfKitPrintKitRenderer({
+      now,
+      warn: (warning) => logger.warn(warning.context, warning.message),
+    }).render(input)
   },
 })
 
@@ -55,7 +67,8 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       objectStore: deps.objectStore,
       sha256Hex: (bytes) => createHash('sha256').update(bytes).digest('hex'),
       revealAddress: deps.revealAddress,
-      renderer: lazyRenderer(deps.clock),
+      renderer: lazyRenderer(deps.clock, deps.logger),
+      propertyCountry: deps.propertyCountry,
     }),
   }
 }

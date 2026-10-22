@@ -40,7 +40,7 @@ export function PrintKitCodeBlock({
   const plan = planCodeBlock(cues, estimatedCueWidthPt)
   const styles = codeBlockStyles(plan, codeBlockColours(palette), pt)
   return (
-    <div aria-hidden style={styles.root}>
+    <div aria-hidden data-print-code style={styles.root}>
       {/* While the code is made, the tile is as it will be: cream, with no code. */}
       {codeUrl !== null && <img src={codeUrl} alt="" style={styles.code} />}
       {codeUrl === null && <div style={styles.code} />}

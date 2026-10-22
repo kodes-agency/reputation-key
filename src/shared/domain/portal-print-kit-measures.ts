@@ -175,6 +175,23 @@ export const MARGIN = {
 export const LOGO_BOX_MM = { width: 60, height: 15 } as const
 export const LOGO_FLOOR_MM = 10
 
+/** The plate under a logo that would not read on its own ground (spec 3.1 and 3.2). */
+export const LOGO_PLATE = {
+  paddingYPt: mmToPt(2),
+  paddingXPt: mmToPt(2.5),
+  radiusPt: mmToPt(1.6),
+} as const
+
+/**
+ * A logo printed at fewer dots per inch than this looks soft, and the manager is
+ * warned. It is never refused: a soft logo is better than no print.
+ */
+export const LOGO_MIN_DPI = 150
+
+/** The dots per inch an image of `pixels` across prints at when drawn `drawnPt` wide. */
+export const printedDpi = (pixels: number, drawnPt: number): number =>
+  drawnPt <= 0 ? Number.POSITIVE_INFINITY : pixels / ptToIn(drawnPt)
+
 // ---------------------------------------------------------------------------
 // The Immersive photo window (spec 5.2)
 
@@ -345,6 +362,9 @@ export const IMMERSIVE_TENT_GRID: Pieces<ImmersiveTentGrid> = {
     trimOriginPt: mmToPt(10),
   },
 }
+
+/** The wordmark on a Paper tent face, when the property has no logo: the boards draw a logo there. */
+export const TENT_WORDMARK_PT = 20
 
 /** The logo's height on an Immersive tent panel. */
 export const IMMERSIVE_TENT_LOGO_PT = mmToPt(11.6)

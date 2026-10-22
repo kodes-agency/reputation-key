@@ -4,7 +4,12 @@
 // adapter only draws it. Nothing in the input is a URL: the pictures are bytes
 // already read from Portal media, so the renderer never fetches anything.
 
-import type { PrintFace, PrintKitPiece } from '#/shared/domain/portal-print-kit'
+import type {
+  PrintFace,
+  PrintKitPaper,
+  PrintKitPiece,
+  PrintKitStyle,
+} from '#/shared/domain/portal-print-kit'
 
 export type PrintKitPhoto = Readonly<{
   /** The stored image, as the media store holds it. */
@@ -17,6 +22,13 @@ export type PrintKitRenderInput = Readonly<{
   /** The document's title, shown by a PDF viewer. */
   title: string
   piece: PrintKitPiece
+  /**
+   * The redesigned look, and the paper it prints on (spec 6). Without a style the
+   * renderer draws today's file, as before the redesign; with one, `paper` is
+   * required and sets the sheet and the size of every face.
+   */
+  style?: PrintKitStyle
+  paper?: PrintKitPaper
   faces: readonly PrintFace[]
   /** The brand set as text when there is no logo. */
   wordmark: string

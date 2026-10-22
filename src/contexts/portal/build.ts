@@ -94,6 +94,7 @@ import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
 import { revealPortalAddress } from './application/use-cases/reveal-portal-address'
 import { buildPortalPrintKit } from './build-print-kit'
+import { createPropertyCountryReader } from './infrastructure/print-kit/print-kit-property-country'
 import {
   resolvePublicPortalToken,
   type GuestLocalePreference,
@@ -589,7 +590,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       mediaRepo: portalMediaAssetRepo,
       objectStore: storage,
       revealAddress,
+      propertyCountry: createPropertyCountryReader(deps.db),
       clock: deps.clock,
+      logger: deps.logger,
     }),
     revokePortalTokens: revokePortalTokens({
       portalRepo,
