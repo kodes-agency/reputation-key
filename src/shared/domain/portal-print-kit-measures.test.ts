@@ -6,12 +6,17 @@ import {
   FIT,
   FIT_ORDER,
   IMMERSIVE_TENT_GRID,
+  IMMERSIVE_TENT_LOGO_PT,
+  LOGO_BOX_MM,
+  LOGO_FLOOR_MM,
   MARGIN,
   STACK,
+  TENT_FACE,
   TENT_FACE_GRID,
   TYPE_FLOOR_PT,
   TYPE_PT,
   WINDOW,
+  WORDMARK,
   codeBlockHeightPt,
   codeSymbolPt,
   cueRoomPt,
@@ -229,5 +234,40 @@ describe('the fit order', () => {
     for (const gap of Object.values(FIT.gapPt)) {
       expect(gap).toBeGreaterThanOrEqual(FIT.gapPt.floor)
     }
+  })
+})
+
+describe('the brand', () => {
+  it('sets the wordmark at 16 pt, 15 pt on the Immersive A6 card, tracked at 0.16 em in a 0.75 em box', () => {
+    expect(WORDMARK).toEqual({
+      pt: 16,
+      ptImmersiveA6: 15,
+      trackingEm: 0.16,
+      lineBoxEm: 0.75,
+    })
+    expect(WORDMARK.ptImmersiveA6).toBe(FIT.wordmarkFloorPt)
+  })
+
+  it('fits a logo in 60 × 15 mm and gives its height up to 10 mm before anything else', () => {
+    expect(LOGO_BOX_MM).toEqual({ width: 60, height: 15 })
+    expect(LOGO_FLOOR_MM).toBe(10)
+    expect(ptToMm(FIT.logoFloorPt)).toBeCloseTo(10, 10)
+  })
+
+  it('draws the logo 13.5 mm tall on a Paper tent face and 11.6 mm on an Immersive panel', () => {
+    expect(ptToMm(TENT_FACE.logoHeightPt)).toBeCloseTo(13.5, 10)
+    expect(ptToMm(IMMERSIVE_TENT_LOGO_PT)).toBeCloseTo(11.6, 10)
+  })
+})
+
+describe('the Paper tent face', () => {
+  it('sets the row of words and code 12 mm apart, 4 mm under the logo at least', () => {
+    expect(ptToMm(TENT_FACE.rowGapPt)).toBeCloseTo(12, 10)
+    expect(ptToMm(TENT_FACE.logoToRowMinPt)).toBeCloseTo(4, 10)
+  })
+
+  it('puts the tile on the place label’s cap line, 2.45 mm under its line box, and shifts the logo 1.3 mm', () => {
+    expect(ptToMm(TENT_FACE.codeTopOffsetPt)).toBeCloseTo(2.45, 10)
+    expect(ptToMm(TENT_FACE.logoShiftPt)).toBeCloseTo(-1.3, 10)
   })
 })
