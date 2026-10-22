@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { PRINT_KIT_FONT_FACES, printKitFontBytes } from './print-kit-fonts'
-import { FONT_SUBSET_RANGES, type FontSubset } from './print-kit-font-ranges'
+import {
+  FONT_SUBSET_RANGES,
+  type FontSubset,
+} from '#/shared/domain/portal-print-kit-font-ranges'
 
 const SUBSETS = Object.keys(FONT_SUBSET_RANGES) as FontSubset[]
 const TRUETYPE_SIGNATURE = '00010000'

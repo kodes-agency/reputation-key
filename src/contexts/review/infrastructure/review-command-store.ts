@@ -8,6 +8,7 @@ import type { Database } from '#/shared/db'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import { releaseAnalysisSequence } from '#/shared/db/review-analysis-released-sequences'
 import {
   replies,
   replyPublicationAttempts,
@@ -449,6 +450,15 @@ export const createAtomicReviewCommandStore = (
           })
           const saved = observation.review
           if (observation.duplicate || observation.outOfOrder) {
+            // No Review takes this number and no event announces it, yet the
+            // head already counts it. Give it back in the same transaction so
+            // coverage never waits for it (migration 0068).
+            await releaseAnalysisSequence(
+              tx,
+              review,
+              analysisSequence,
+              observation.duplicate ? 'replayed_observation' : 'out_of_order_observation',
+            )
             return saved
           }
           const candidateEvent = typeof event === 'function' ? event(saved) : event

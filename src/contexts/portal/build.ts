@@ -84,7 +84,6 @@ import { getPortalPreview } from './application/use-cases/get-portal-preview'
 import { createPortalGroup } from './application/use-cases/create-portal-group'
 import { updatePortalGroup } from './application/use-cases/update-portal-group'
 import { listPortalGroups } from './application/use-cases/list-portal-groups'
-import { getPortalGroup } from './application/use-cases/get-portal-group'
 import { softDeletePortalGroup } from './application/use-cases/soft-delete-portal-group'
 import { addPortalToGroup } from './application/use-cases/add-portal-to-group'
 import { removePortalFromGroup } from './application/use-cases/remove-portal-from-group'
@@ -525,10 +524,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       clock: deps.clock,
     }),
     listPortalGroups: listPortalGroups({
-      portalGroupRepo,
-      staffPublicApi: deps.staffPublicApi,
-    }),
-    getPortalGroup: getPortalGroup({
       portalGroupRepo,
       staffPublicApi: deps.staffPublicApi,
     }),

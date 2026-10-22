@@ -29,6 +29,7 @@ import {
 } from '../application/dto/guest-response-form.dto'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { guestRateLimitKey } from './guest-session'
+import { rateLimitBudgetFor, type GuestRateLimitAction } from './guest-rate-limit-budgets'
 import {
   applyGuestPublicResponsePrivacy,
   guestPublicResponseValidator,
@@ -43,6 +44,25 @@ const HONEYPOT_INTEGRITY_ASSESSMENT = {
   source: 'automatic',
   actorId: 'guest-integrity-honeypot-v1',
 } as const
+
+// The guests of one venue share one public address, so a rating beyond the
+// network-and-Portal budget is kept and filtered automatically, never refused:
+// the guest still reaches the Google step and the rating stays out of the
+// private-rating figures (Results' integrity line counts it).
+const NETWORK_VOLUME_INTEGRITY_ASSESSMENT = {
+  outcome: 'filtered_automatically',
+  reasonCode: 'network_volume',
+  source: 'automatic',
+  actorId: 'guest-integrity-network-v1',
+} as const
+
+// A filled trap wins over network volume: a bot is a bot whatever address it posts from.
+const initialIntegrityAssessment = (
+  flags: Readonly<{ trapped: boolean; overNetworkBudget: boolean }>,
+) => {
+  if (flags.trapped) return HONEYPOT_INTEGRITY_ASSESSMENT
+  return flags.overNetworkBudget ? NETWORK_VOLUME_INTEGRITY_ASSESSMENT : undefined
+}
 
 const denyWithoutEnumeration = (): never =>
   throwContextError(
@@ -120,65 +140,16 @@ function lifecycleFailure(error: unknown): never {
   )
 }
 
-type GuestRateLimitAction =
-  | 'submit'
-  | 'correct'
-  | 'feedback'
-  | 'feedback_withdraw'
-  | 'response_withdraw'
-  | 'new_response'
-  | 'google'
-  | 'secondary'
-
-type GuestRateLimitWindow = Readonly<{ maxRequests: number; windowSeconds: number }>
-
-type GuestRateLimitBudget = Readonly<{
-  session: GuestRateLimitWindow
-  networkPortal: GuestRateLimitWindow
-}>
-
-function rateLimitBudgetFor(action: GuestRateLimitAction): GuestRateLimitBudget {
-  switch (action) {
-    case 'submit':
-      return {
-        session: { maxRequests: 2, windowSeconds: 60 * 60 },
-        networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
-      }
-    case 'new_response':
-      // A shared device may legitimately serve another visitor, but
-      // rotation must not become an unbounded response-farming primitive.
-      // The network+Portal layer survives the new session identity.
-      return {
-        session: { maxRequests: 2, windowSeconds: 24 * 60 * 60 },
-        networkPortal: { maxRequests: 5, windowSeconds: 24 * 60 * 60 },
-      }
-    case 'correct':
-    case 'feedback':
-    case 'feedback_withdraw':
-    case 'response_withdraw':
-      // The aggregate enforces one successful correction/feedback. A
-      // small attempt budget still permits retry after a transient fault
-      // or compare-and-set race instead of making the UI's retry copy false.
-      return {
-        session: { maxRequests: 3, windowSeconds: 60 * 60 },
-        networkPortal: { maxRequests: 10, windowSeconds: 60 * 60 },
-      }
-    case 'google':
-    case 'secondary':
-      // PostgreSQL owns exact once-per-session/destination semantics.
-      // This small abuse budget allows a retry after transient
-      // observation loss while the navigation itself remains fail-open.
-      return {
-        session: { maxRequests: 3, windowSeconds: 24 * 60 * 60 },
-        networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
-      }
-    default:
-      return {
-        session: { maxRequests: 10, windowSeconds: 60 * 60 },
-        networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
-      }
-  }
-}
+/**
+ * How `rateLimit` answers a request that a budget did not admit.
+ * - `refuse` (the default): a 429.
+ * - `fail_open_navigation`: resolves false and the caller goes on without the
+ *   analytics, whichever layer or outage said no.
+ * - `keep_over_network_volume`: resolves false when only the network-and-Portal
+ *   layer (or its durable twin) is exhausted, so the caller keeps the request.
+ *   A session-layer denial and a limiter outage still refuse.
+ */
+type GuestRateLimitMode = 'refuse' | 'fail_open_navigation' | 'keep_over_network_volume'
 
 async function rateLimit(
   action: GuestRateLimitAction,
@@ -186,16 +157,19 @@ async function rateLimit(
   scope: GuestResponseScope,
   headers: Headers,
   destinationKey?: string,
-  failOpenNavigation = false,
+  mode: GuestRateLimitMode = 'refuse',
 ): Promise<boolean> {
+  const failOpenNavigation = mode === 'fail_open_navigation'
   const container = getContainer()
   const useCases = container.guestPublicApi.requests
   const { rateLimiter, clock } = container
   // Kept beside the limiter it feeds: the guest-request → durable
-  // network-pressure authority map, null for requests that have none.
+  // network-pressure authority map, null for requests that have none. A
+  // correction has none: it would spend the venue's room for new ratings, and
+  // the aggregate's one-correction rule, the session budget and the Redis
+  // network budget already bound it.
   const pressureActionByRequest = {
     submit: 'rating',
-    correct: 'rating',
     feedback: 'private_feedback',
     google: 'destination_action',
     secondary: 'destination_action',
@@ -234,6 +208,12 @@ async function rateLimit(
     }
     return denyRateLimited(result.resetAt)
   }
+  // The venue's budget, not the guest's: say so once, without the address, then
+  // refuse or hand the verdict back, as the mode asks.
+  const denyNetworkVolume = (resetAt: Date): false => {
+    useCases.reportNetworkBudgetExhausted({ action })
+    return mode === 'keep_over_network_volume' ? false : denyRateLimited(resetAt)
+  }
 
   const sessionResult = await rateLimiter.check(
     `${guestRateLimitKey(keyKind, sessionId, pseudonym)}:${action}${destinationKey ? `:${destinationKey}` : ''}`,
@@ -245,7 +225,11 @@ async function rateLimit(
     `${keyKind}:network:${pseudonym}:portal:${portalId}:${action}`,
     limits.networkPortal,
   )
-  if (!networkResult.allowed) return denyLimiterResult(networkResult)
+  if (!networkResult.allowed) {
+    return networkResult.backendStatus === 'available'
+      ? denyNetworkVolume(networkResult.resetAt)
+      : denyLimiterResult(networkResult)
+  }
 
   if (pressureAction) {
     try {
@@ -255,7 +239,7 @@ async function rateLimit(
         action: pressureAction,
         ...limits.networkPortal,
       })
-      if (!pressureResult.allowed) return denyRateLimited(pressureResult.resetAt)
+      if (!pressureResult.allowed) return denyNetworkVolume(pressureResult.resetAt)
     } catch (error) {
       if (failOpenNavigation) {
         await useCases.reportObservationLoss('review_link')
@@ -317,6 +301,7 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         applyGuestPublicResponsePrivacy()
         const trapped = Boolean(data.honeypot)
+        let overNetworkBudget: boolean
         let bound: Awaited<ReturnType<typeof resolveBoundSession>>
         try {
           bound = await resolveBoundSession({
@@ -326,7 +311,17 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
             assertions: assertions(data),
             requiredConsents: ['response'],
           })
-          await rateLimit('submit', bound.session.sessionId, bound.scope, bound.headers)
+          // A new rating is never refused for network volume: past the network
+          // layer it is kept and filtered below. This device's own budget, or a
+          // limiter that cannot answer, still refuses.
+          overNetworkBudget = !(await rateLimit(
+            'submit',
+            bound.session.sessionId,
+            bound.scope,
+            bound.headers,
+            undefined,
+            'keep_over_network_volume',
+          ))
         } catch (error) {
           if (trapped) return decoyView(data, getContainer().clock())
           throw error
@@ -352,7 +347,7 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
                 bound.portal.responseConfiguration.privateFeedbackThreshold,
             },
             undefined,
-            trapped ? HONEYPOT_INTEGRITY_ASSESSMENT : undefined,
+            initialIntegrityAssessment({ trapped, overNetworkBudget }),
           )
           if (response.responseWithdrawalDeadline) {
             const renewed = bound.useCases.guestSessions.renewUntil(
@@ -571,7 +566,7 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
           bound.scope,
           bound.headers,
           undefined,
-          true,
+          'fail_open_navigation',
         )
         if (qualified) {
           await bound.useCases.trackReviewLinkClick({
@@ -625,7 +620,7 @@ export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
           bound.scope,
           bound.headers,
           data.linkId,
-          true,
+          'fail_open_navigation',
         )
         const result = await bound.useCases.resolveLinkAndTrack({
           token: data.token,

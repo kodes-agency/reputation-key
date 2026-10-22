@@ -34,6 +34,18 @@ describe('previewWordmark', () => {
   })
 })
 
+describe('previewWordmark and previewKicker draw only what the file prints', () => {
+  it('leaves out what no guest font carries, so the preview does not show what the file drops', () => {
+    expect(previewWordmark('Bar 🏊 Avela').lines).toEqual(['BAR AVELA'])
+    expect(previewKicker('Pool 酒 Terrace', 1).lines).toEqual(['POOL TERRACE'])
+  })
+
+  it('draws nothing for a name no guest font can print at all, as the file does', () => {
+    expect(previewWordmark('Αθήνα').lines).toEqual([])
+    expect(previewKicker('ΑΘΗΝΑ', 1).lines).toEqual([])
+  })
+})
+
 describe('previewKicker', () => {
   it('sets a short title on one line at its size', () => {
     expect(previewKicker('Pool & Terrace', 1)).toEqual({

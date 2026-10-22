@@ -579,8 +579,8 @@ the look interval. The full two-pass snapshot is then needed only for the
   this window; it is never inside it (the window is at most 24 hours), so the look
   the refresh brings forward is a full one at every allowed value.
 - **Rollout.** The migration is purely additive and runs first. Keep
-  `REVIEW_HEAD_CHECKS=dark` until every web, worker and Google sidecar image
-  carries migration 0067 and the filtered readers: a process that still read
+  `REVIEW_HEAD_CHECKS=dark` until every web and worker image carries
+  migration 0067 and the filtered readers: a process that still read
   unfiltered facts would take a head fact for a completed reconciliation. To roll
   back, set `dark` and restart; head facts already written stay (they are true
   statements of what Google reported) and are ignored by the readers above.

@@ -74,7 +74,7 @@ const action = <TInput, TOutput = unknown>(
 
 /** The smallest file that is still a PDF: enough for the browser to save. */
 const TINY_PDF: PortalPrintKitDownload = {
-  fileName: 'pool-terrace-table-tent.pdf',
+  fileName: 'pool-terrace-table-tent-en-bg.pdf',
   contentType: 'application/pdf',
   pdfBase64: btoa('%PDF-1.3\n%%EOF'),
 }
@@ -156,6 +156,36 @@ export const BackLeadsWithTheSecondLanguage: Story = {
       /table tent, back, Bulgarian and English, "Оценете посещението си"/i,
     )
     await expect(canvas.getByText(/table tent a6 · back/i)).toBeVisible()
+  },
+}
+
+/** "How to print" is closed until asked, then says what the chosen piece needs, and stays open as the piece changes. */
+export const HowToPrintFollowsThePiece: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const summary = await canvas.findByText('How to print')
+    await expect(canvas.getByText(/scored at the fold/i)).not.toBeVisible()
+    await userEvent.click(summary)
+    await expect(
+      canvas.getByText('Ask for 300–350 g matte or uncoated card, scored at the fold.'),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText('Fold at the dashed marks, with the print on the outside.'),
+    ).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('radio', { name: /counter card/i }))
+    // English and Bulgarian are two pages of one card.
+    await expect(
+      canvas.getByText(/print double-sided, flipping on the long edge/i),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/scored at the fold/i)).toBeNull()
+
+    await userEvent.click(canvas.getByRole('radio', { name: 'Български' }))
+    await expect(canvas.queryByText(/double-sided/i)).toBeNull()
+    await expect(
+      canvas.getByText('Print at 100% (actual size), never “fit to page”.'),
+    ).toBeVisible()
   },
 }
 
@@ -262,6 +292,53 @@ export const LongBrandAndTitle: Story = {
     for (const word of [/KEMPINSKI/u, /BANSKO/u, /SPA & WELLNESS/u, /RECEPTION DESK/u]) {
       await expect(within(front).getByText(word)).toBeInTheDocument()
     }
+  },
+}
+
+/** A brand in a script the fonts lack: the file leaves it out, so the preview does too, and one line says so. */
+export const CharactersTheFontsLackAreLeftOutAndNamed: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () => view({ look: { ...view().look, wordmark: 'Αθήνα Hotel' } }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText(
+        'These characters will not print, because the print kit’s fonts don’t have them: Α Θ Ή Ν.',
+      ),
+    ).toBeVisible()
+    const front = await preview(canvasElement)
+    await expect(within(front).getByText('HOTEL')).toBeInTheDocument()
+    await expect(within(front).queryByText(/ΑΘ/u)).toBeNull()
+  },
+}
+
+/** A tracked line is set letter by letter in the file, so the preview turns ligatures off on it (the TT of TRATTORIA). */
+export const TrackedLinesKeepEveryLetterSeparate: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () =>
+        view({
+          titles: { en: 'Trattoria Terrace', bg: 'Басейн и тераса' },
+          look: { ...view().look, wordmark: 'Trattoria' },
+        }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const front = within(await preview(canvasElement))
+    const ligatures = (element: HTMLElement) =>
+      getComputedStyle(element).fontVariantLigatures
+    // The wordmark and the title above the call to action are tracked capitals.
+    await expect(ligatures(front.getByText('TRATTORIA'))).toBe('none')
+    await expect(ligatures(front.getByText('TRATTORIA TERRACE'))).toBe('none')
+    // Running words keep the font's own.
+    await expect(ligatures(front.getByText('Rate your visit'))).toBe('normal')
   },
 }
 

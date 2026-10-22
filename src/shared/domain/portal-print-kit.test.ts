@@ -186,26 +186,46 @@ describe('shortPrintAddress', () => {
 })
 
 describe('printKitFileName', () => {
-  it('names the file after the portal and the piece', () => {
-    expect(printKitFileName('Pool & Terrace', 'table_tent')).toBe(
-      'pool-terrace-table-tent.pdf',
+  it('names the file after the portal, the piece and the languages', () => {
+    expect(printKitFileName('Pool & Terrace', 'table_tent', ['en', 'bg'])).toBe(
+      'pool-terrace-table-tent-en-bg.pdf',
     )
-    expect(printKitFileName('!!!', 'counter_card')).toBe('portal-counter-card.pdf')
+    expect(printKitFileName('!!!', 'counter_card', ['de'])).toBe(
+      'portal-counter-card-de.pdf',
+    )
+  })
+
+  it('says one language with one code', () => {
+    expect(printKitFileName('Pool & Terrace', 'table_tent', ['en'])).toBe(
+      'pool-terrace-table-tent-en.pdf',
+    )
+  })
+
+  it('gives different choices for one portal different names', () => {
+    const names = [
+      printKitFileName('Pool & Terrace', 'table_tent', ['en', 'bg']),
+      printKitFileName('Pool & Terrace', 'table_tent', ['en']),
+      printKitFileName('Pool & Terrace', 'table_tent', ['bg', 'en']),
+      printKitFileName('Pool & Terrace', 'counter_card', ['en', 'bg']),
+    ]
+    expect(new Set(names).size).toBe(names.length)
   })
 
   it('keeps the letters of any script, so a Cyrillic name is not lost', () => {
-    expect(printKitFileName('Хотел Рила', 'table_tent')).toBe('хотел-рила-table-tent.pdf')
-    expect(printKitFileName('Café Müller', 'counter_card')).toBe(
-      'café-müller-counter-card.pdf',
+    expect(printKitFileName('Хотел Рила', 'table_tent', ['bg'])).toBe(
+      'хотел-рила-table-tent-bg.pdf',
+    )
+    expect(printKitFileName('Café Müller', 'counter_card', ['en', 'de'])).toBe(
+      'café-müller-counter-card-en-de.pdf',
     )
   })
 
   it('never lets a name break out of a file name', () => {
-    expect(printKitFileName('../../etc/passwd', 'table_tent')).toBe(
-      'etc-passwd-table-tent.pdf',
+    expect(printKitFileName('../../etc/passwd', 'table_tent', ['en'])).toBe(
+      'etc-passwd-table-tent-en.pdf',
     )
-    expect(printKitFileName('a'.repeat(200), 'table_tent')).toHaveLength(
-      60 + '-table-tent.pdf'.length,
+    expect(printKitFileName('a'.repeat(200), 'table_tent', ['en'])).toHaveLength(
+      60 + '-table-tent-en.pdf'.length,
     )
   })
 })

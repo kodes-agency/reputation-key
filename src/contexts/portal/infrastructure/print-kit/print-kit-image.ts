@@ -21,7 +21,11 @@ const pixelsFor = (millimetres: number) =>
 export type PhotoBox = Readonly<{
   widthMm: number
   heightMm: number
-  /** Where the eye should land, 0 to 1 across and down; kept in the crop. */
+  /**
+   * Where the photo sits in its box, 0 to 1 across and down, as CSS
+   * `object-position` places it (the preview and the guest page do): 0 shows the
+   * photo's left or top edge, 1 its right or bottom, and 0.5 the middle.
+   */
   focalX: number
   focalY: number
 }>
@@ -30,8 +34,12 @@ const clamp = (value: number, low: number, high: number) =>
   Math.min(Math.max(value, low), high)
 
 /**
- * The photo covering `box`, as a JPEG, cropped so the focal point stays in
- * frame. A photo smaller than the box is enlarged to cover it, as the page does.
+ * The photo covering `box`, as a JPEG, placed by its focal point the way the
+ * preview and the guest page place it: the crop sits `focal` of the way along
+ * what overflows the box. (Centring the focal point instead agrees at 0, 0.5 and
+ * 1 and drifts between: the printed card showed another part of the photo than
+ * the one the manager approved.) A photo smaller than the box is enlarged to
+ * cover it, as the page does.
  */
 export async function coverPhotoJpeg(bytes: Uint8Array, box: PhotoBox): Promise<Buffer> {
   const width = pixelsFor(box.widthMm)
@@ -44,12 +52,12 @@ export async function coverPhotoJpeg(bytes: Uint8Array, box: PhotoBox): Promise<
   const scaledWidth = Math.max(width, Math.round(sourceWidth * scale))
   const scaledHeight = Math.max(height, Math.round(sourceHeight * scale))
   const left = clamp(
-    Math.round(box.focalX * scaledWidth - width / 2),
+    Math.round((scaledWidth - width) * box.focalX),
     0,
     scaledWidth - width,
   )
   const top = clamp(
-    Math.round(box.focalY * scaledHeight - height / 2),
+    Math.round((scaledHeight - height) * box.focalY),
     0,
     scaledHeight - height,
   )

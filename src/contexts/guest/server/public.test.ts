@@ -111,7 +111,7 @@ describe('guest response server-fn gates', () => {
     const resolve = fn.indexOf('resolveBoundSession')
     const limit = fn.indexOf("'submit',")
     const persist = fn.indexOf('responseLifecycle.submit')
-    const assessment = fn.indexOf('HONEYPOT_INTEGRITY_ASSESSMENT')
+    const assessment = fn.indexOf('initialIntegrityAssessment(')
     expect(resolve).toBeGreaterThan(-1)
     expect(limit).toBeGreaterThan(resolve)
     expect(persist).toBeGreaterThan(limit)
@@ -119,6 +119,24 @@ describe('guest response server-fn gates', () => {
     expect(fn).toContain('if (trapped) return decoyView(data, getContainer().clock())')
     expect(source).toContain("reasonCode: 'honeypot_signal'")
     expect(source).toContain("outcome: 'filtered_automatically'")
+    // The trap is checked before network volume, so it wins when both apply.
+    const choice = source.slice(source.indexOf('const initialIntegrityAssessment ='))
+    expect(choice.indexOf('flags.trapped')).toBeGreaterThan(-1)
+    expect(choice.indexOf('HONEYPOT_INTEGRITY_ASSESSMENT')).toBeLessThan(
+      choice.indexOf('NETWORK_VOLUME_INTEGRITY_ASSESSMENT'),
+    )
+  })
+
+  it('keeps a new rating over the network budget, and only a new rating', () => {
+    // Behaviour is in public-network-budget.test.ts; this pins who asks for it.
+    expect(slice('submitGuestResponseFn')).toContain("'keep_over_network_volume'")
+    for (const fnName of publicMutationServerFns.filter(
+      (name) => name !== 'submitGuestResponseFn',
+    )) {
+      expect(slice(fnName), fnName).not.toContain('keep_over_network_volume')
+    }
+    expect(source).toContain("reasonCode: 'network_volume'")
+    expect(source).toContain("actorId: 'guest-integrity-network-v1'")
   })
 
   it('answers a filled honeypot before correct resolves a session or writes', () => {
@@ -278,7 +296,8 @@ describe('guest response server-fn gates', () => {
     expect(helper).toContain('rateLimiter.check')
     expect(helper).toContain('consumeGuestNetworkPressure')
     expect(helper).toContain("submit: 'rating'")
-    expect(helper).toContain("correct: 'rating'")
+    // A correction has no durable pressure: it would spend the venue's room for new ratings.
+    expect(helper).not.toContain("correct: 'rating'")
     expect(helper).toContain("feedback: 'private_feedback'")
     expect(helper).toContain("google: 'destination_action'")
     expect(helper).toContain("secondary: 'destination_action'")

@@ -29,6 +29,7 @@
     "server/plugins/*.ts",
     "scripts/ops/ai-approve-enrollment.ts",
     "scripts/ops/ai-execution-control.ts",
+    "scripts/ops/ai-release-orphan-sequences.ts",
     "scripts/ops/bootstrap-owner.ts",
     "scripts/ops/deploy-ci-images.ts",
     "scripts/ops/disconnect-connection.ts",
@@ -179,7 +180,7 @@
     },
     {
       "file": "src/contexts/portal/server/portals.ts",
-      "exports": ["rollbackPortalPublication"]
+      "exports": ["rollbackPortalPublication", "savePropertyPortalBrandProfile"]
     },
     {
       "file": "src/contexts/property/server/properties.ts",
@@ -253,7 +254,6 @@
       "exports": [
         "createPortalGroup",
         "updatePortalGroup",
-        "getPortalGroup",
         "softDeletePortalGroup",
         "addPortalToGroup",
         "removePortalFromGroup"

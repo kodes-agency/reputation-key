@@ -120,6 +120,10 @@ export function createPdfKitPrintKitRenderer(
       const sheets = printKitSheets(input.piece, input.faces.length)
       const doc = new PDFDocument({
         autoFirstPage: false,
+        // The art uses transparency (soft masks, opacity states, gradients), which
+        // PDF 1.4 is the first level to have; PDFKit writes 1.3 unless asked, and a
+        // preflight or an old RIP reads the header, not the page.
+        pdfVersion: '1.4',
         // No default font: PDFKit's own is Helvetica, whose metrics it reads
         // from disk. Every line is set in an embedded guest font.
         font: '',

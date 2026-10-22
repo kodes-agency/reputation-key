@@ -5,6 +5,7 @@
 export const COMMANDS: Readonly<
   Record<string, readonly [file: string, ...args: string[]]>
 > = Object.freeze({
+  ai: ['scripts/ops/ai-release-orphan-sequences.ts'],
   'ai-approve-enrollment': ['scripts/ops/ai-approve-enrollment.ts'],
   'ai-control': ['scripts/ops/ai-execution-control.ts'],
   'bootstrap-owner': ['scripts/ops/bootstrap-owner.ts'],

@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest'
 import { getTableColumns, getTableName } from 'drizzle-orm'
 import { properties } from './property.schema'
 import { replies, reviews } from './review.schema'
+import { reviewAiAnalysisReleasedSequences } from './review-analysis-released-sequences.schema'
 import {
   reviewFirstSightings,
   reviewSyncState,
@@ -106,6 +107,21 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
       expect(cols.listingComplete.default).toBe(true)
       expect(cols.numbersObservedAt.name).toBe('numbers_observed_at')
       expect(cols.numbersObservedAt.notNull).toBe(false)
+    })
+  })
+  describe('migration 0068 — released analysis sequences', () => {
+    it('registers review_ai_analysis_released_sequences with ids, integers, a reason and an instant only', () => {
+      expect(getTableName(reviewAiAnalysisReleasedSequences)).toBe(
+        'review_ai_analysis_released_sequences',
+      )
+      expect(columnNames(reviewAiAnalysisReleasedSequences).sort()).toEqual([
+        'analysis_sequence',
+        'organization_id',
+        'property_id',
+        'reason',
+        'released_at',
+        'source_epoch',
+      ])
     })
   })
   describe('appended migration 0004 — property reply library', () => {

@@ -237,6 +237,10 @@ export function guestRateLimitKeys(
   }
 }
 
+/** The answer of the layer that decided, so a caller can tell a device from a venue. */
+export type LayeredRateLimitResult = RateLimitResult &
+  Readonly<{ layer: 'session' | 'networkPortal' }>
+
 export async function checkLayeredGuestRateLimit(
   input: Readonly<{
     rateLimiter: RateLimiter
@@ -244,11 +248,15 @@ export async function checkLayeredGuestRateLimit(
     sessionLimits: RateLimitCheckOptions
     networkPortalLimits: RateLimitCheckOptions
   }>,
-): Promise<RateLimitResult> {
+): Promise<LayeredRateLimitResult> {
   const sessionResult = await input.rateLimiter.check(
     input.keys.session,
     input.sessionLimits,
   )
-  if (!sessionResult.allowed) return sessionResult
-  return input.rateLimiter.check(input.keys.networkPortal, input.networkPortalLimits)
+  if (!sessionResult.allowed) return { ...sessionResult, layer: 'session' }
+  const networkResult = await input.rateLimiter.check(
+    input.keys.networkPortal,
+    input.networkPortalLimits,
+  )
+  return { ...networkResult, layer: 'networkPortal' }
 }

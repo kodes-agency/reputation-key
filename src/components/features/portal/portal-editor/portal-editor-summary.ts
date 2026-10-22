@@ -9,6 +9,8 @@ export type PortalEditorSummaryInput = Readonly<{
   portalName: string
   privateFeedbackThreshold: number
   linkCount: number
+  /** Tiles guests cannot see because their address is not approved. */
+  hiddenLinkCount?: number
   languageCount: number
   /** Texts missing across every language; absent while the coverage read is not known. */
   missingTextCount?: number
@@ -29,6 +31,14 @@ export type PortalEditorSectionSummary = Readonly<{
 const plural = (count: number, one: string, many: string) =>
   `${count} ${count === 1 ? one : many}`
 
+// A hidden tile is named here as it is in the links list, so a manager who sees
+// "1 hidden from guests" here finds the same words once the section opens.
+function linktreeLine(linkCount: number, hiddenLinkCount: number): string {
+  if (linkCount === 0) return 'No links yet'
+  const line = plural(linkCount, 'link', 'links')
+  return hiddenLinkCount > 0 ? `${line} · ${hiddenLinkCount} hidden from guests` : line
+}
+
 function firstNames(names: ReadonlyArray<string>): string {
   const firsts = names
     .map((name) => name.trim().split(/\s+/u)[0] ?? '')
@@ -46,9 +56,7 @@ export function summarizePortalEditorSections(
     welcome: open(input.portalName.trim() === '' ? 'Untitled portal' : input.portalName),
     rating: fixed('Always included'),
     'private-note': open(`${input.privateFeedbackThreshold}★ or below`),
-    linktree: open(
-      input.linkCount === 0 ? 'No links yet' : plural(input.linkCount, 'link', 'links'),
-    ),
+    linktree: open(linktreeLine(input.linkCount, input.hiddenLinkCount ?? 0)),
     footer: fixed('Privacy notice'),
     languages: {
       ...open(plural(input.languageCount, 'language', 'languages')),

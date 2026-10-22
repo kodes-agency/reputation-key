@@ -8,6 +8,7 @@ import {
   fitLines,
   type FittedLines,
 } from '#/shared/domain/portal-print-kit-text'
+import { stripUnsupportedCharacters } from '#/shared/domain/portal-print-kit-font-ranges'
 import {
   BOTTOM_MARGIN_MM,
   BRAND_FIT,
@@ -72,10 +73,14 @@ const capitalsWidthPt =
   (advanceEm: number, trackingEm: number) => (text: string, sizePt: number) =>
     text.length * sizePt * (advanceEm + trackingEm) - sizePt * trackingEm
 
-/** The wordmark as the PDF sets it: one line to a floor, then two. */
+/**
+ * The wordmark as the PDF sets it: in capitals, without what the fonts lack (the
+ * browser's own fallback would draw it, the file does not), one line to a floor,
+ * then two.
+ */
 export function previewWordmark(wordmark: string): FittedLines {
   return fitLines({
-    text: wordmark.toUpperCase(),
+    text: stripUnsupportedCharacters(wordmark.toUpperCase()),
     size: TYPE_PT.wordmark,
     minSize: BRAND_FIT.wordmark.minPt,
     maxLines: BRAND_FIT.wordmark.maxLines,
@@ -88,7 +93,7 @@ export function previewWordmark(wordmark: string): FittedLines {
 export function previewKicker(title: string, scale: number): FittedLines {
   const size = TYPE_PT.kicker * scale
   return fitLines({
-    text: title.toUpperCase(),
+    text: stripUnsupportedCharacters(title.toUpperCase()),
     size,
     minSize: Math.min(size, BRAND_FIT.kicker.minPt),
     maxLines: BRAND_FIT.kicker.maxLines,

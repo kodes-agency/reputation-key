@@ -1091,6 +1091,9 @@
 // line stays at 309,500: 301 B spare. The 308,300 B ceiling the owner set for
 // the portal goal series (P-9) was passed by the stale-tab reload's raise
 // above, which the owner delegated; this change takes 157 B of that back.
+// Built on main 7eb932bac with the portal follow-up tidy (PR D) on top: the
+// initial closure is 309,275 B on main and 309,235 B on the head (-40 B), the
+// entry 50,714 -> 50,711 B. The line stays at 309,500: 265 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
