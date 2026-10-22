@@ -126,17 +126,18 @@ export const ListsOnlyThePortalsInTheGroup: Story = {
   },
 }
 
-// A draft has no code to give out, so its row has no Share link. The place stays,
-// unseen and hidden from a screen reader, so Edit sits where it does in the rows
-// that have one (the geometry is measured against real CSS in the metrics suite).
-export const DraftRowKeepsTheSharePlace: Story = {
+// A draft has a code to give out (publishing needs one), so its row offers Share
+// like a live one's: it is the shortcut to the one step a new portal needs.
+export const DraftRowOffersShare: Story = {
   play: async ({ canvasElement }) => {
     const table = within(
       within(canvasElement).getByRole('table', { name: /portals at avela resort/i }),
     )
     const draft = within(table.getByRole('link', { name: 'Pool bar' }).closest('tr')!)
-    await expect(draft.queryByRole('link', { name: /^Share / })).toBeNull()
-    await expect(draft.getByText('Share').closest('[aria-hidden="true"]')).not.toBeNull()
+    await expect(draft.getByRole('link', { name: 'Share Pool bar' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('tab=share'),
+    )
     // The rows that can be shared keep their link.
     const live = within(
       table.getByRole('link', { name: 'Pool & Terrace' }).closest('tr')!,

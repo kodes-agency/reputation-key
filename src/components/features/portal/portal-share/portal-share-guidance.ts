@@ -61,8 +61,9 @@ const UNAVAILABLE = 'Guests who scan this code see “This page isn’t availabl
 
 /**
  * A code works only while the portal is live: until then a scan opens the
- * unavailable page. Making and printing ahead of a launch is fine, so this
- * says so rather than stopping it, to someone who may make the code; someone
+ * unavailable page. Making the code, its QR image and its NFC address ahead of a
+ * launch is fine, so this says so rather than stopping it, to someone who may
+ * make the code (the print kit needs a live page, and says so itself); someone
  * who can only look is told the same fact without being sent to publish.
  * Null for a live portal.
  */
@@ -77,7 +78,7 @@ export function describeUnpublishedCode(
       return {
         title: 'Not published yet',
         body: canManage
-          ? `${UNAVAILABLE} until you publish the portal. You can still make and print the code ahead of the launch.`
+          ? `${UNAVAILABLE} until you publish the portal. You can still make the code, download its QR image and copy its NFC address ahead of the launch. The print kit waits until the portal is live.`
           : `${UNAVAILABLE} until the portal is published.`,
         offersReview: canManage,
       }
