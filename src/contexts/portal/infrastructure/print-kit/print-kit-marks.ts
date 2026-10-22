@@ -1,14 +1,28 @@
 // What a print shop looks for around the art: crop marks at the trim, a fold
 // mark on a folded sheet, and the PDF boxes that say where the trim and the
 // bleed are, so a preflight reads them without being told.
+//
+// And what an office printer's sheet carries instead (spec 4.3 and 4.4): grey
+// ticks where it is cut or folded, and on the Letter card sheet a print check in
+// the strip that is cut away, whose bar measures 2 in when the sheet was printed
+// at Actual size.
 
 import { PRINT_KIT_BLEED_MM, type PrintSheet } from '#/shared/domain/portal-print-kit'
+import type { PaperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
+import {
+  PRINT_CHECK,
+  TICK,
+  type PrintKitPage,
+  type PrintKitTick,
+} from '#/shared/domain/portal-print-kit-sheets'
+import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
 import {
   MARK_LENGTH_MM,
   MARK_OFFSET_MM,
   SLUG_MM,
 } from '#/shared/domain/portal-print-kit-layout'
 import { mm } from './print-kit-geometry'
+import { drawCentredLine, type PrintKitFonts } from './print-kit-pdf-text'
 
 /** All four inks: marks stay visible on every plate. */
 const REGISTRATION: [number, number, number, number] = [100, 100, 100, 100]
@@ -99,4 +113,80 @@ export function setPageBoxes(page: PDFKit.PDFPage, frame: SheetFrame): void {
     frame.pageHeight - frame.trimTop + inset,
   ]
   Object.assign(page.dictionary.data, { TrimBox: box(0), BleedBox: box(bleed) })
+}
+
+/**
+ * Declares the trim of a redesigned page, and its bleed when it has one. A Paper
+ * page has none: its trim is the sheet, and a BleedBox the size of the trim would
+ * tell a preflight there is bleed to keep when there is none.
+ */
+export function setStyledPageBoxes(page: PDFKit.PDFPage, sheet: PrintKitPage): void {
+  const { trim } = sheet
+  const box = (inset: number): number[] => [
+    trim.leftPt - inset,
+    sheet.heightPt - (trim.topPt + trim.heightPt) - inset,
+    trim.leftPt + trim.widthPt + inset,
+    sheet.heightPt - trim.topPt + inset,
+  ]
+  const boxes: Record<string, number[]> = { TrimBox: box(0) }
+  if (sheet.bleedPt > 0) boxes.BleedBox = box(sheet.bleedPt)
+  Object.assign(page.dictionary.data, boxes)
+}
+
+/** The grey ticks of a Paper sheet, as filled rectangles: their weight is exact at any zoom. */
+export function drawTicks(doc: PDFKit.PDFDocument, ticks: readonly PrintKitTick[]): void {
+  if (ticks.length === 0) return
+  doc.save()
+  for (const tick of ticks) doc.rect(tick.xPt, tick.yPt, tick.widthPt, tick.heightPt)
+  doc.fill(TICK.colour)
+  doc.restore()
+}
+
+/**
+ * The print check under the Letter cards: the question, the 2 in bar in the
+ * code's bar colour with the accent-ink outline drawn outside it (so the bar
+ * itself is the 2 in), and two lines on what to measure and where to cut.
+ */
+export function drawPrintCheck(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  palette: PaperPrintKitPalette,
+): void {
+  const { title, bar, lines, gapPt, centreXPt } = PRINT_CHECK
+  const titleHeight = title.sizePt * title.leading
+  const line = (
+    text: string,
+    middleY: number,
+    face: 'body' | 'bodyStrong',
+    size: number,
+    colour: string,
+  ) =>
+    drawCentredLine(
+      doc,
+      fonts,
+      text,
+      { face, size, spacing: 0, colour, opacity: 1 },
+      { centreX: centreXPt, middleY },
+    )
+  let y = PRINT_CHECK.topPt
+  line(title.text, y + titleHeight / 2, 'bodyStrong', title.sizePt, palette.ink)
+  y += titleHeight + gapPt
+  const left = centreXPt - bar.widthPt / 2
+  const outline = CODE_BLOCK.outlinePt
+  doc.save()
+  doc
+    .rect(
+      left - outline,
+      y - outline,
+      bar.widthPt + 2 * outline,
+      bar.heightPt + 2 * outline,
+    )
+    .fill(palette.accentInk)
+  doc.rect(left, y, bar.widthPt, bar.heightPt).fill(palette.barFill)
+  doc.restore()
+  y += bar.heightPt + gapPt
+  const lineHeight = lines.sizePt * lines.leading
+  lines.text.forEach((text, index) => {
+    line(text, y + (index + 0.5) * lineHeight, 'body', lines.sizePt, palette.soft)
+  })
 }
