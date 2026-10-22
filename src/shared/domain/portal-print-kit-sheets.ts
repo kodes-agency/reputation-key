@@ -49,7 +49,7 @@ export const PANEL_SIZE_PT: Readonly<Record<PanelGeometry, Size>> = {
 }
 
 /** The sheets a Paper piece prints on: US Letter, 8.5 × 11 in, and A4, 210 × 297 mm. */
-export const SHEET_PT: Readonly<Record<PrintKitPaper, Size>> = {
+const SHEET_PT: Readonly<Record<PrintKitPaper, Size>> = {
   letter: { widthPt: inToPt(8.5), heightPt: inToPt(11) },
   a4: { widthPt: mmToPt(210), heightPt: mmToPt(297) },
 }

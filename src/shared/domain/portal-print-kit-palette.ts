@@ -203,7 +203,7 @@ export function immersivePrintKitPalette(
 }
 
 /** Below this contrast with the paper a logo is too light to print on it alone (spec 3.1). */
-export const PAPER_LOGO_MIN_CONTRAST = 1.6
+const PAPER_LOGO_MIN_CONTRAST = 1.6
 
 /**
  * Whether a logo whose drawing has `luminance` (relative, alpha-weighted, 0 to
