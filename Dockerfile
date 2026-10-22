@@ -59,7 +59,7 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # (pnpm tsx scripts/generate-ai-review-language-regions.ts) and re-run the AI
 # language corpus in the same change. The image asserts the triple again in the
 # final runtime stage so build and serving environments cannot drift.
-FROM node:22.23.2-trixie-slim@sha256:7b8a0c89c54499bee567618f96578e1a12a800f062fbdbfd1fb6a443fa6f6284 AS base
+FROM node:26.11.1-trixie-slim@sha256:193fe51b64e77981119c98c2002c9e32a70e2f006fb4d25068ce0558998917f0 AS base
 # HUSKY=0: Husky's `prepare` must not try to install git hooks in the image.
 # COREPACK_HOME + the pinned `corepack install` below: identical to the other
 # Node-based Dockerfiles ON PURPOSE. Docker keys a layer on the instruction text, so
