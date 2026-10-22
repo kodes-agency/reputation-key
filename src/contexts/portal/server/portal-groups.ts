@@ -169,35 +169,9 @@ export const listPortalGroups = createServerFn({ method: 'GET' })
     ),
   )
 
-// ── getPortalGroup ────────────────────────────────────────────────
-
 const portalGroupIdSchema = z.object({
   portalGroupId: z.string().min(1, 'Portal Group ID is required'),
 })
-
-export const getPortalGroup = createServerFn({ method: 'GET' })
-  .validator(portalGroupIdSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.read')
-
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          const group = await useCases.getPortalGroup(data, ctx)
-          return { group }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'GET',
-      'portal-group.getPortalGroup',
-    ),
-  )
 
 // ── softDeletePortalGroup ─────────────────────────────────────────
 
