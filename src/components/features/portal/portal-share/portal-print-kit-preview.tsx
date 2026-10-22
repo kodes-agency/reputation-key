@@ -10,7 +10,6 @@ import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import {
-  shortPrintAddress,
   type PrintFace,
   type PrintFaceSide,
   type PrintKitPiece,
@@ -20,9 +19,6 @@ import { cn } from '#/lib/utils'
 import { PrintKitArt } from './print-kit-art'
 import { printKitCaptions } from './print-kit-state'
 import { usePrintKitCode } from './use-print-kit-code'
-
-/** Shown under the card when the live address is not in memory. */
-const SAMPLE_ADDRESS_TEXT = 'Your public address'
 
 type Props = Readonly<{
   piece: PrintKitPiece
@@ -96,15 +92,7 @@ export function PortalPrintKitPreview({
             <figcaption className="text-center text-[13px] text-muted-foreground">
               {captions.top}
             </figcaption>
-            <PrintKitArt
-              piece={piece}
-              face={face}
-              look={view.look}
-              codeUrl={codeUrl}
-              shortAddress={
-                qrAddress === null ? SAMPLE_ADDRESS_TEXT : shortPrintAddress(qrAddress)
-              }
-            />
+            <PrintKitArt piece={piece} face={face} look={view.look} codeUrl={codeUrl} />
             <p className="text-center text-xs text-muted-foreground">{captions.bottom}</p>
             {qrAddress === null && (
               <p className="text-center text-xs text-muted-foreground">

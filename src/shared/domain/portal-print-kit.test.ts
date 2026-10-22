@@ -4,13 +4,17 @@ import {
   PRINT_KIT_BLEED_MM,
   PRINT_KIT_CALLS_TO_ACTION,
   PRINT_KIT_COPY,
+  PRINT_KIT_LETTER_COUNTRIES,
+  PRINT_KIT_PAPERS,
   PRINT_KIT_PIECES,
+  PRINT_KIT_SCAN_CUE,
+  PRINT_KIT_STYLES,
+  defaultPrintKitPaper,
   isPrintKitLanguageChoice,
   printKitFaces,
   printKitFileName,
   printKitLanguageChoices,
   printKitSheets,
-  shortPrintAddress,
 } from './portal-print-kit'
 
 const TITLES = { en: 'Pool & Terrace', bg: 'Басейн и тераса' } as const
@@ -164,24 +168,52 @@ describe('printKitSheets', () => {
   })
 })
 
-describe('shortPrintAddress', () => {
-  it('prints only the host: no scheme, no secret path, no query', () => {
-    expect(
-      shortPrintAddress('https://app.reputationkey.app/p/pt_abc_def?accessArtifact=1'),
-    ).toBe('app.reputationkey.app')
-    expect(shortPrintAddress('http://localhost:3000/')).toBe('localhost:3000')
+describe('the styles and the papers', () => {
+  it('has two styles, Paper first, and two papers, Letter first', () => {
+    expect(PRINT_KIT_STYLES).toEqual(['paper', 'immersive'])
+    expect(PRINT_KIT_PAPERS).toEqual(['letter', 'a4'])
+  })
+})
+
+describe('defaultPrintKitPaper', () => {
+  it.each(['US', 'CA', 'MX', 'PH'])('prints %s on Letter', (country) => {
+    expect(defaultPrintKitPaper(country)).toBe('letter')
   })
 
-  it('never carries any part of the token path', () => {
-    const printed = shortPrintAddress(
-      'https://app.reputationkey.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIj?accessArtifact=1',
-    )
-    expect(printed).not.toContain('/')
-    expect(printed).not.toContain('pt_')
+  it.each(['GB', 'DE', 'BG', 'JP', 'AU'])('prints %s on A4', (country) => {
+    expect(defaultPrintKitPaper(country)).toBe('a4')
   })
 
-  it('returns text it cannot read as an address unchanged', () => {
-    expect(shortPrintAddress('not an address')).toBe('not an address')
+  it('prints on Letter when the country is unknown', () => {
+    expect(defaultPrintKitPaper(null)).toBe('letter')
+    expect(defaultPrintKitPaper('')).toBe('letter')
+  })
+
+  it('reads a code however it was typed', () => {
+    expect(defaultPrintKitPaper(' us ')).toBe('letter')
+    expect(defaultPrintKitPaper('gb')).toBe('a4')
+  })
+
+  it('knows every Letter country CLDR lists, each as two capitals', () => {
+    expect(PRINT_KIT_LETTER_COUNTRIES).toHaveLength(14)
+    for (const country of PRINT_KIT_LETTER_COUNTRIES) {
+      expect(country).toMatch(/^[A-Z]{2}$/u)
+      expect(defaultPrintKitPaper(country)).toBe('letter')
+    }
+  })
+})
+
+describe('PRINT_KIT_SCAN_CUE', () => {
+  it('has a cue for every guest language', () => {
+    expect(Object.keys(PRINT_KIT_SCAN_CUE).sort()).toEqual([...GUEST_LOCALES].sort())
+    for (const locale of GUEST_LOCALES) {
+      expect(PRINT_KIT_SCAN_CUE[locale].trim(), locale).not.toBe('')
+    }
+  })
+
+  it('says it in the spec’s words', () => {
+    expect(PRINT_KIT_SCAN_CUE.en).toBe('Scan with your camera')
+    expect(PRINT_KIT_SCAN_CUE.bg).toBe('Сканирайте с камерата')
   })
 })
 
