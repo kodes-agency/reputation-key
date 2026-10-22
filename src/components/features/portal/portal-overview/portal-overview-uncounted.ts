@@ -6,7 +6,7 @@
 // sums, to which a zero adds nothing, so they stand; the note under the strip says
 // that some scans are missing from them.
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
-import { DASH } from '../portal-analytics/portal-results-cells'
+import { DASH, SCANS_NOT_COUNTED_REASON } from '../portal-analytics/portal-results-cells'
 import { hasUncountedScans } from './portal-attention'
 import {
   measureSlot,
@@ -16,8 +16,6 @@ import {
   type PortalOverviewResultsState,
   type RowMeasures,
 } from './portal-overview-results'
-
-export const SCANS_NOT_COUNTED_REASON = 'Not counted: older code'
 
 /**
  * `withheld`, not `missing`: the figure is held back on purpose, and the reason

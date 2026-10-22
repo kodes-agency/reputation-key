@@ -7,11 +7,13 @@
 
 import { useNavigate } from '@tanstack/react-router'
 import { SectionNavLayout } from '#/components/ui/section-nav-layout'
-import { usePermissions } from '#/shared/hooks/usePermissions'
 import { countHiddenLinks } from '../link-tree/linktree-approval-rules'
 import { PortalPreviewPane } from '../portal-preview/portal-preview-pane'
 import type { PreviewPartSection } from '../portal-preview/preview-parts'
+import { usePortalAccess } from '../portal-overview/use-portal-access'
 import { PortalEditorNav } from './portal-editor-nav'
+import { describeEditorReadOnly } from './portal-editor-read-only'
+import { PortalEditorReadOnlyNote } from './portal-editor-read-only-note'
 import { PortalEditorSectionPanel } from './portal-editor-section-panel'
 import {
   availablePortalEditorSections,
@@ -32,7 +34,7 @@ type Props = Readonly<{
 }>
 
 export function PortalEditor({ resources, requestedSection }: Props) {
-  const { can } = usePermissions()
+  const access = usePortalAccess()
   const navigate = useNavigate()
   const { portal, propertyId, portalGroups, links } = resources
   const group = portalGroups ? findPortalGroup(portalGroups, portal.id) : null
@@ -58,9 +60,12 @@ export function PortalEditor({ resources, requestedSection }: Props) {
       resources.responsibleManagerMembers ?? [],
     ),
   })
-  // An archived portal is read-only even for a `portal.update` holder: its
-  // configuration and history are retained exactly as they were.
-  const canEdit = can('portal.update') && portal.publicationState !== 'archived'
+  // The role's `portal.update` and the organisation's `portal.write`: the server
+  // refuses every save without both, so the fields are not offered without them.
+  // An archived portal is read-only even for a holder of both: its configuration
+  // and history are retained exactly as they were.
+  const archived = portal.publicationState === 'archived'
+  const canEdit = access.canEdit && !archived
   // A click on a part of the preview opens its section, as its link in the list does.
   const openSection = (next: PreviewPartSection) =>
     void navigate({
@@ -84,6 +89,13 @@ export function PortalEditor({ resources, requestedSection }: Props) {
       <div className="flex min-w-0 flex-1 flex-col lg:flex-row">
         <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-8">
           <div className="mx-auto max-w-2xl space-y-6">
+            <PortalEditorReadOnlyNote
+              line={describeEditorReadOnly({
+                canEdit: access.canEdit,
+                changesOff: access.changesOff,
+                archived,
+              })}
+            />
             <PortalEditorSectionPanel
               section={section}
               group={group}

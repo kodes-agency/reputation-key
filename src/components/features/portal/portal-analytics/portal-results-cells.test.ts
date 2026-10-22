@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
-import { measureCells, resultsCells } from './portal-results-cells'
+import {
+  DASH,
+  SCANS_NOT_COUNTED_REASON,
+  measureCells,
+  resultsCells,
+} from './portal-results-cells'
 import {
   RESULTS_HEALTHY,
   resultsCount,
@@ -285,5 +290,41 @@ describe('measureCells: the overview strip, which has no single-Portal payload',
     expect(find(cells, 'ratings')?.detail).toBe('+15 vs the 30 days before')
     // Each share is held to its own 100%: Google opens still fit within the scans.
     expect(find(cells, 'googleOpens')?.detail).toBe('64% of scans')
+  })
+})
+
+describe('resultsCells for a code that predates scan counting', () => {
+  const older = resultsCells(
+    { ...RESULTS_HEALTHY, kpis: { ...RESULTS_HEALTHY.kpis, scans: resultsCount(0, 0) } },
+    { compare: true, scansCounted: false },
+  )
+
+  it('prints the scans as a dash with its reason, never the zero the read answers with', () => {
+    expect(older.find((candidate) => candidate.key === 'scans')).toMatchObject({
+      value: DASH,
+      unit: null,
+      detail: 'Not counted: older code',
+    })
+    expect(SCANS_NOT_COUNTED_REASON).toBe('Not counted: older code')
+  })
+
+  it('leaves the figures of the other four measures as the read has them', () => {
+    const figures = (cells: ReturnType<typeof resultsCells>) =>
+      cells
+        .filter((candidate) => candidate.key !== 'scans')
+        .map((candidate) => [candidate.key, candidate.value])
+
+    expect(figures(older)).toEqual(
+      figures(resultsCells(RESULTS_HEALTHY, { compare: true })),
+    )
+  })
+
+  it('counts scans as before when nothing says otherwise', () => {
+    expect(cell(RESULTS_HEALTHY, 'scans')).toMatchObject({ value: '412' })
+    expect(
+      resultsCells(RESULTS_HEALTHY, { compare: true, scansCounted: true }).find(
+        (candidate) => candidate.key === 'scans',
+      ),
+    ).toMatchObject({ value: '412' })
   })
 })

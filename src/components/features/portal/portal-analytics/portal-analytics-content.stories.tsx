@@ -14,6 +14,7 @@ const PLACE = {
   propertyId: '22222222-2222-4222-8222-222222222222',
   portalId: '11111111-1111-4111-8111-111111111111',
   isLive: true,
+  scansCounted: true,
   canOpenInbox: true,
 } as const
 
@@ -501,6 +502,44 @@ export const QuietWindowOnALivePortal: Story = {
     expect(share.getAttribute('href')).toContain('tab=share')
     // A tap target on a phone, by the Button's own minimum.
     expect(share.className).toContain('max-md:min-h-(--control-touch)')
+  },
+}
+
+/**
+ * A live code that predates scan counting: its scans are a dash with the reason,
+ * as in the Portals overview, not a zero nobody counted.
+ */
+export const OlderCodeShowsScansAsADash: Story = {
+  args: {
+    place: { ...PLACE, scansCounted: false },
+    data: { ...healthy, kpis: { ...healthy.kpis, scans: resultsCount(0, 0) } },
+  },
+  play: async ({ canvas }) => {
+    const strip = within(canvas.getByLabelText('Portal results'))
+    await expect(strip.getByText('Not counted: older code')).toBeVisible()
+    expect(strip.queryByText('0')).toBeNull()
+    // The other measures are read as they were.
+    await expect(strip.getByText('118')).toBeVisible()
+  },
+}
+
+/** Quiet, with an older code: the code is in place but not counted, so it is not the thing to check. */
+export const QuietWindowWithAnOlderCodeDoesNotSendYouToTheCode: Story = {
+  args: {
+    place: { ...PLACE, scansCounted: false },
+    data: {
+      ...healthy,
+      ...NO_FIGURES,
+      kpis: { ...NOTHING_KPIS, scans: resultsCount(0, 40) },
+    },
+  },
+  play: async ({ canvas }) => {
+    expect(canvas.queryByText(/check the printed code/i)).toBeNull()
+    await expect(
+      canvas.getByText(
+        /scans aren’t counted for this code: it is older than scan counting/i,
+      ),
+    ).toBeVisible()
   },
 }
 

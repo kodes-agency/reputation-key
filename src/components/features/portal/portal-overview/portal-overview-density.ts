@@ -30,7 +30,7 @@ export type OverviewClasses = Readonly<{
   cardOnly: string
   /** The words of Share: beside its icon in the regular table, only for a screen reader in the compact one. */
   shareLabel: string
-  /** Where Share is not offered (a draft, an archived Portal), the unseen box that keeps Edit in its column; a card has no column to keep. */
+  /** Where Share is not offered (an archived Portal), the unseen box that keeps Edit in its column; a card has no column to keep. */
   sharePlaceholder: string
   /** A measure's figure, and the words that fill the columns of a draft. */
   measureCell: string
