@@ -1,7 +1,8 @@
 // A Portal's actions in the overview: Edit and Share as buttons, and everything
-// else behind "more actions". Share is not offered where there is nothing to
-// share: a draft has no code to give out, and an archived Portal is finished.
-// Its place stays, unseen, in a table row, so Edit sits in one column in every row.
+// else behind "more actions". Share is not offered for an archived Portal, which
+// is finished (a draft has a code to give out: publishing needs one). Its place
+// stays, unseen, in a table row, so Edit sits in one column in every row. An
+// archived Portal's Edit says View, as it opens a page that cannot be changed.
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Pencil, QrCode } from 'lucide-react'
@@ -21,6 +22,7 @@ import { PortalDisableDialog } from './portal-disable-dialog'
 import { usePortalAccess } from './use-portal-access'
 import type { PortalOverviewItem } from './portal-overview-view'
 import {
+  portalRowButtons,
   portalRowMenu,
   type PortalRowMenuItem,
   type PortalRowMenuItemId,
@@ -34,8 +36,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
   const { row } = item
   const params = { propertyId, portalId: row.portalId }
   // The role may update portals only while the organisation's portal writes are on.
-  const verb = canEdit ? 'Edit' : 'View'
-  const canShare = row.publicationState !== 'draft' && row.publicationState !== 'archived'
+  const { verb, canShare } = portalRowButtons(row, canEdit)
   return (
     <>
       <Button variant="outline" size="sm" asChild>
