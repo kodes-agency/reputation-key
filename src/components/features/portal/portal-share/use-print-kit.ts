@@ -1,8 +1,8 @@
 // The Print kit section's state: the Portal's titles and look (a read that
 // follows the live version, as the print does), what the manager has chosen,
-// and which side of the print the preview shows. The choice is the manager's until a language it
-// names stops being offered; the side falls back to the front when the print
-// has only one.
+// and which side of the print the preview shows. The choice is the manager's
+// until a language it names stops being offered; the side falls back to the
+// front when the print has only one.
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'

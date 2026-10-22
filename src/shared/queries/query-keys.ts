@@ -308,9 +308,12 @@ export const portalKeys = {
   review: (portalId: string) =>
     [...portalKeys.publicationHistory(portalId), 'review'] as const,
   /**
-   * The Share tab's print kit: the Portal's titles, languages and the Property's
-   * look. Under `publicationHistory` for the same reason as the preview: every
-   * write that changes the working copy already invalidates it.
+   * The Share tab's print kit: the languages, titles and look the LIVE version
+   * carries, which is what a print is made from, not the working copy (a live
+   * version from before the Immersive Hub has no look of its own, and the working
+   * copy stands in for that). Under `publicationHistory` because publishing
+   * changes it; a working-copy write invalidates it too, so it refreshes more
+   * often than it changes.
    */
   printKit: (portalId: string) =>
     [...portalKeys.publicationHistory(portalId), 'print-kit'] as const,
