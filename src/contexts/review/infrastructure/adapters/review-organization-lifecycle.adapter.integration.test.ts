@@ -63,6 +63,7 @@ const REVIEW_ORG_TABLES = Object.freeze([
   'review_source_observations',
   'review_source_contents',
   'review_ai_analysis_heads',
+  'review_ai_analysis_released_sequences',
   'review_google_reputation_snapshot_facts',
   'review_first_sightings',
   'review_provider_subjects',
@@ -465,6 +466,12 @@ async function seedReviewWork(): Promise<void> {
     [ORG_ID, PROPERTY_ID, AT],
   )
   await pool.query(
+    `INSERT INTO review_ai_analysis_released_sequences (
+       organization_id, property_id, source_epoch, analysis_sequence, reason, released_at
+     ) VALUES ($1, $2, 0, 1, 'replayed_observation', $3)`,
+    [ORG_ID, PROPERTY_ID, AT],
+  )
+  await pool.query(
     `INSERT INTO review_provider_snapshot_runs (
        id, organization_id, property_id, source_epoch, state, phase,
        expected_total, expected_average_rating, main_page_count,
@@ -728,6 +735,7 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
       'google_reply_observation_heads',
       'reply_publication_attempts',
       'review_ai_analysis_heads',
+      'review_ai_analysis_released_sequences',
       'review_provider_snapshot_runs',
       'review_provider_history_cutoffs',
       'review_first_sightings',

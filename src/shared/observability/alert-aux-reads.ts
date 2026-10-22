@@ -11,7 +11,9 @@
 //     No alert evaluates it while beta-feedback.triage-backlog is off for the
 //     closed beta (alert-definitions.ts); the health check still logs it;
 //   - enabled Review Analysis coverage and actionable empty-enrollment
-//     mismatches: property/review counts and oldest progress age only.
+//     mismatches: property/review counts and oldest progress age only. The
+//     settlements owed are the sequences between the start and the head, less
+//     the ones the Review writer released (migration 0068).
 //
 // Same operational-monitoring seam as health-metrics.ts (raw aggregate SQL
 // via Drizzle — the eslint exemption sits next to it). Every sub-read
@@ -28,6 +30,7 @@ import {
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
 } from '#/shared/ai-review-source-contract'
 import type { Database } from '#/shared/db'
+import { releasedAwaitingSequenceCountSql } from '#/shared/db/review-analysis-released-sequences'
 import { betaFeedbackTriage } from '#/shared/db/schema/beta-feedback-triage.schema'
 import { retentionRuns } from '#/shared/db/schema/review-sync.schema'
 import type { AlertAuxReads } from '#/shared/observability/alert-definitions'
@@ -119,6 +122,14 @@ async function readReviewAnalysisHealth(
         review_head.head_sequence,
         (
           review_head.head_sequence - auth.analysis_start_sequence
+          - ${releasedAwaitingSequenceCountSql({
+            organizationId: sql`auth.organization_id`,
+            propertyId: sql`auth.property_id`,
+            sourceEpoch: sql`auth.authorized_source_epoch`,
+            reviewAnalysisEpoch: sql`auth.review_analysis_epoch`,
+            startSequence: sql`auth.analysis_start_sequence`,
+            headSequence: sql`review_head.head_sequence`,
+          })}
         )::bigint AS expected_settlement_count
       FROM merchant_ai_enablement AS auth
       INNER JOIN review_ai_analysis_heads AS review_head

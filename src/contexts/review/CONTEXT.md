@@ -152,6 +152,23 @@ acceptance time wins. Missed, late and the location and account health derived
 from the rows are computed on read in `src/shared/domain/push-health.ts`
 and are not stored.
 
+Analysis sequences (migration 0068, ADR 0058 amendment 2026-10-22): `upsertAndRecord`
+takes the Property's next AI-analysis sequence (`lock_review_ai_analysis_head_v1`,
+under the Property fence) before it persists the observation, so the Property is
+locked first (ADR 0060). A replayed observation (same observation key) or one
+older than the stored Google version is recorded as history but not applied: no
+Review takes the number and no event names it. The writer then records the
+number in `review_ai_analysis_released_sequences` (reason `replayed_observation`
+or `out_of_order_observation`) in the same transaction, so coverage, which owes
+a settlement for every number up to the head, does not wait for it. Review owns
+the ledger and AI only reads it. The other paths that allocate (a source
+transition, a lifecycle expiry, a re-observation of an expired Review, the AI
+reopen and enrollment replay) stamp the number on a Review and announce it in
+the same transaction, or throw and roll the allocation back, so none releases.
+The ledger is content-free, cascades with the Property and is deleted by the
+Organization purge. `pnpm ops ai release-orphan-sequences` records the numbers
+a past leak left.
+
 The end of that first import is itself a fact:
 `review.property_history_import.finished`, written by the transaction that
 makes a snapshot run terminal — `failLockedRun`, and the completion branch of
