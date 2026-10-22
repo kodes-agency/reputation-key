@@ -1,0 +1,54 @@
+name: Triage board
+
+# Keeps the triage board, GitHub Project #1 of the kodes-agency user, in step
+# with the triage labels: it adds each new or reopened issue and moves its card
+# when a triage label changes. The rules are in scripts/ci/sync-triage-board.ts;
+# the board is described in docs/agents/issue-tracker.md.
+#
+# CREDENTIALS. The project belongs to a user, and the workflow's GITHUB_TOKEN
+# cannot write a user's project, so the job runs on the TRIAGE_BOARD_TOKEN
+# repository secret: a classic personal access token with the `project` scope
+# and nothing else. Without it every run fails and says which secret to add.
+# Nothing else depends on this workflow, and it is not a required check.
+#
+# UNTRUSTED INPUT. Anyone can open an issue on this public repository, and the
+# job holds that secret. It takes only the issue's node ID from the event, as an
+# environment variable, and runs the default branch's script: no title, body or
+# label text from the event reaches a shell.
+
+on:
+  issues:
+    types: [opened, reopened, labeled, unlabeled]
+
+# One run per issue at a time. A newer event replaces a queued run instead of
+# cancelling the running one: every run reads the labels fresh, so the last
+# run leaves the card where the final labels say.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5 # a checkout, Node, and three GitHub API calls
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      # Plain Node runs the TypeScript script (type stripping): it imports
+      # nothing outside the repository, so there is no install.
+      - name: Put the issue in its triage column
+        env:
+          TRIAGE_BOARD_TOKEN: ${{ secrets.TRIAGE_BOARD_TOKEN }}
+          TRIAGE_BOARD_OWNER: kodes-agency
+          TRIAGE_BOARD_NUMBER: '1'
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+        run: node scripts/ci/sync-triage-board.ts
