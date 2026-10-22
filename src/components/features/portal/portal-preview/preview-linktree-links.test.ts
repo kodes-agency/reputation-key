@@ -33,7 +33,7 @@ describe('previewLinktreeLink', () => {
 
   it.each([
     ['awaiting_approval', 'Waiting for approval'],
-    ['not_approved', 'Not approved, hidden from guests'],
+    ['not_approved', 'Hidden from guests'],
   ] as const)('turns a %s tile into a placeholder that says why', (state, note) => {
     const tile = previewLinktreeLink({ ...READY, state })
 
