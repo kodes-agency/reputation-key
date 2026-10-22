@@ -322,6 +322,70 @@ hidden in a segment do not survive, and the original is never stored.
 ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR
 0063, ADR 0032, `docs/BETA.md` §8).
 
+## Print kit
+
+A manager downloads a PDF of a table tent or counter card from the Share tab
+(`createPortalPrintKit`; the preview beside it is drawn from the same measures).
+
+- **Two styles.** _Paper_ (the default, "Prints on any printer") is ink on the
+  customer's own paper: no photo, no bleed, printed at Actual size, with grey
+  cut and fold ticks and, on the Letter card sheet, a print check whose bar
+  measures 2 in. _Immersive_ ("Best from a print shop") is the guest page's dark
+  field with a framed photo window, or a monogram when there is no photo, a
+  1/8 in or 3 mm bleed, crop marks, fold marks and a slug line. Both styles use
+  one code block: a 2 in cream tile with the accent's bar under it, and the cue
+  "Scan with your camera" in each language on the print. The bar's 2 in is how a
+  manager checks the print was not shrunk. The place label (the portal's title)
+  is the largest type on every face.
+- **Paper follows the property's country.** Letter (4 x 6 in cards, two to a
+  sheet; Letter folded into two 8.5 x 5.5 in faces; Immersive 4 x 6 in pieces
+  with a 1/8 in bleed) for the countries in `PRINT_KIT_LETTER_COUNTRIES` (CLDR's
+  US-Letter territories) and whenever the country is unknown; A4 (A6 cards, four
+  to a sheet; A5 faces; Immersive A6 pieces with a 3 mm bleed) everywhere else.
+  The manager's choice wins and is kept for the session; the browser's locale is
+  not read, because it says where the manager sits and not where the piece will
+  stand. The Share tab starts on a Paper counter card on `defaultPrintKitPaper(countryCode)`
+  (the share board's own state) and always sends `style` and `paper`; the server defaults a missing style to Paper and a
+  missing paper to the same rule, reading `properties.country_code` only then.
+- **A print is the live version.** Its languages, titles and look come from what
+  guests can open now, never from a draft: a language added in the editor and not
+  published is refused (`locale_not_offered`), and a portal with nothing live has
+  no print kit (`publication_snapshot_unavailable`; the tab shows one notice, not
+  a retry). The address on the code comes through the audited reveal of the
+  sealed code (ADR 0064), so a code that kept no address cannot be printed.
+  The address is never printed as words: the code and its cue carry the action.
+- **One source of measures.** The PDF and the preview read the same files, so a
+  preview cannot show a sheet the file does not print: `portal-print-kit.ts`
+  (styles, papers, pieces, copy, faces, file name), `portal-print-kit-measures.ts`
+  (every size, in points: 1 in = 72 pt, 1 mm = 72 / 25.4 pt),
+  `portal-print-kit-sheets.ts` (`printKitPages`: the page, where each face sits,
+  ticks, the print check), `portal-print-kit-immersive.ts` (the photo window, the
+  fit order and the print shop's marks), `portal-print-kit-palette.ts` (one
+  palette per style, each token held to a named contrast) and
+  `portal-print-kit-pieces.ts` (what each piece is called and how to print it).
+  Every face keeps an optical 0.4 in (10 mm) margin at its top and bottom edge.
+  A tight Immersive face gives way in a fixed order: the window shrinks to 0.55
+  in, the gaps tighten, the two-language type steps down, and only then the
+  photo becomes the monogram.
+- **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
+  family; lining figures on place labels and headlines; no ligatures on a tracked
+  line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the
+  Bulgarian `locl` forms. Nothing a guest reads is below 9 pt. The PDF is 1.4,
+  because the washes use transparency, and an Immersive page declares a
+  `TrimBox` and `BleedBox`; a Paper page declares no `BleedBox`.
+- **File name.** `<portal>-<piece>-<languages>[-immersive]-<paper>.pdf`, for
+  example `pool-terrace-counter-card-en-es-letter.pdf`; two downloads that differ
+  in language, style or paper never share a name.
+- **Owner decisions of 2026-10-22.** D1: keep "Tell us privately", with "Rate
+  your visit" the default call to action. D2: no host caption anywhere. D3: the
+  Immersive tent stays a two-panel card-size tent. D4: a two-language Immersive
+  tent prints without a photo or monogram, because no window reaches its floor.
+  D5: the cue's es, it, fr and de wording ships as a draft, as the rest of that
+  copy does (owner decision 5, 2026-09-30). D6: replaced by the Letter-first
+  rule above. D7: no shorter printed token. D8: the Letter card sheet is cut down
+  on its three ticks and then across 6 in from the top edge, because the
+  printer's border leaves no room for a tick beside the cards.
+
 ## Runtime
 
 `build.ts` is the sole composition root. Server adapters call Portal use cases;
