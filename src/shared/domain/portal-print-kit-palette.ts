@@ -61,9 +61,9 @@ export const PRINT_KIT_INK = '#121614'
 /** What the board shows as the paper; the PDF prints no background, the paper is the customer's. */
 export const PRINT_KIT_PAPER = '#FDFCF9'
 /** Sublines on Paper: 7.1:1 on the paper. */
-export const PRINT_KIT_SOFT = '#5C5650'
+const PRINT_KIT_SOFT = '#5C5650'
 /** Sublines on Immersive: the guest page's body text. */
-export const PRINT_KIT_BODY = '#F6F1E8'
+const PRINT_KIT_BODY = '#F6F1E8'
 /** The tile under the code: fixed, so any phone reads it. */
 export const PRINT_KIT_TILE = '#F6F1E6'
 const WHITE = '#FFFFFF'

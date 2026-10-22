@@ -17,8 +17,8 @@ import type { PrintKitPaper, PrintKitStyle } from './portal-print-kit'
 // ---------------------------------------------------------------------------
 // Units
 
-export const POINTS_PER_INCH = 72
-export const POINTS_PER_MM = 72 / 25.4
+const POINTS_PER_INCH = 72
+const POINTS_PER_MM = 72 / 25.4
 
 export const inToPt = (inches: number): number => inches * POINTS_PER_INCH
 export const mmToPt = (millimetres: number): number => millimetres * POINTS_PER_MM

@@ -20,7 +20,7 @@ export const MARK_LENGTH_MM = 5
 /** Text keeps this far from the trim, so a trimming tolerance never touches it. */
 export const SIDE_MARGIN_MM = 7.5
 /** The plate under the code ends this far above the trim's bottom edge. */
-export const BOTTOM_MARGIN_MM = 8
+const BOTTOM_MARGIN_MM = 8
 
 /** The wordmark or logo: its middle sits this far below the trim's top edge. */
 export const BRAND_MIDDLE_MM = 9
