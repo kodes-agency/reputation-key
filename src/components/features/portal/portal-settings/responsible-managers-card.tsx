@@ -37,10 +37,10 @@ export function ResponsibleManagersCard({
       idPrefix="responsible-manager"
       copy={{
         description:
-          'Assigned managers receive this Portal’s workflow notifications. Responsibility does not grant Property access or Staff attribution.',
+          'Assigned managers receive this portal’s workflow notifications. Responsibility does not grant Property access or Staff attribution.',
         alertTitle: 'Responsible manager needed',
         alertDescription:
-          'Assign at least one manager so Portal updates and feedback have a clear owner. Account admins remain available for recovery.',
+          'Assign at least one manager so portal updates and feedback have a clear owner. Account admins remain available for recovery.',
       }}
       onSave={(managerUserIds, expectedRevision) =>
         updateAction({
