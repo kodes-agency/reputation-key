@@ -5,6 +5,9 @@
 // all three, so it must retract all three: the Goal measures read the
 // retraction of their OWN earlier reading, and a reading nothing retracted
 // stays effective next to its replacement.
+//
+// The last block reads the same readings the way the Results tab and the
+// Monthly portal goal each do, and holds the two to one rating count.
 
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -34,6 +37,7 @@ import {
 import { createGoalMetricSourceStatus } from './repositories/goal-metric-source-status'
 import { createMetricRegistryRepository } from './repositories/metric-registry.repository'
 import { createMetricRepository } from './repositories/metric.repository'
+import { createPortalAnalyticsRepository } from './repositories/portal-analytics.repository'
 import { createPropertyLocalDateResolver } from './repositories/property-local-date'
 
 const db = getDb()
@@ -95,6 +99,7 @@ async function insertSource(
   eventType: 'guest.rating.submitted' | 'guest.rating.retracted',
   occurredAt: Date,
   extra: Readonly<Record<string, unknown>>,
+  factId: string = ORIGINAL_EVENT,
 ): Promise<void> {
   await db.execute(sql`
     INSERT INTO outbox_events (
@@ -103,14 +108,14 @@ async function insertSource(
     ) VALUES (
       ${eventId}::uuid, ${eventType}, 1,
       ${JSON.stringify({
-        ratingId: ORIGINAL_EVENT,
+        ratingId: factId,
         organizationId: ORG,
         propertyId: PROPERTY,
         portalId: PORTAL,
         occurredAt: occurredAt.toISOString(),
         ...extra,
       })}::jsonb,
-      ${ORG}, ${PROPERTY}, 'guest', ${ORIGINAL_EVENT}, ${occurredAt}, ${occurredAt}
+      ${ORG}, ${PROPERTY}, 'guest', ${factId}, ${occurredAt}, ${occurredAt}
     )
   `)
 }
@@ -130,11 +135,18 @@ async function submitRating(
   value: number,
   occurredAt: Date,
   supersedesSourceEventId: string | null,
+  factId: string = ORIGINAL_EVENT,
 ): Promise<void> {
-  await insertSource(eventId, 'guest.rating.submitted', occurredAt, {
-    value,
-    ...(supersedesSourceEventId ? { supersedesSourceEventId } : {}),
-  })
+  await insertSource(
+    eventId,
+    'guest.rating.submitted',
+    occurredAt,
+    {
+      value,
+      ...(supersedesSourceEventId ? { supersedesSourceEventId } : {}),
+    },
+    factId,
+  )
   await onRatingSubmittedDurably({
     recordMetrics: recordMetrics(metricDeps(db, occurredAt)),
     findGroupForPortal: async () => null,
@@ -142,7 +154,7 @@ async function submitRating(
     _tag: 'guest.rating.submitted',
     eventId,
     correlationId: null,
-    ratingId: ratingId(ORIGINAL_EVENT),
+    ratingId: ratingId(factId),
     organizationId: ORG,
     propertyId: PROPERTY,
     portalId: PORTAL,
@@ -172,25 +184,38 @@ async function redeliverCorrection(): Promise<void> {
   })
 }
 
-async function retractRating(): Promise<void> {
-  await insertSource(RETRACTION_EVENT, 'guest.rating.retracted', RETRACTION_AT, {
-    supersedesSourceEventId: CORRECTION_EVENT,
-  })
+/** A guest withdraws a rating: the reading `supersedesSourceEventId` is retracted. */
+async function withdrawRating(
+  eventId: string,
+  supersedesSourceEventId: string,
+  factId: string,
+  occurredAt: Date,
+): Promise<void> {
+  await insertSource(
+    eventId,
+    'guest.rating.retracted',
+    occurredAt,
+    { supersedesSourceEventId },
+    factId,
+  )
   await onRatingRetractedDurably({
-    retractMetrics: retractMetrics(metricDeps(db, RETRACTION_AT).commandStore),
+    retractMetrics: retractMetrics(metricDeps(db, occurredAt).commandStore),
   })({
     _tag: 'guest.rating.retracted',
-    eventId: RETRACTION_EVENT,
+    eventId,
     correlationId: null,
-    ratingId: ratingId(ORIGINAL_EVENT),
+    ratingId: ratingId(factId),
     organizationId: ORG,
     propertyId: PROPERTY,
     portalId: PORTAL,
-    supersedesSourceEventId: CORRECTION_EVENT,
-    occurredAt: RETRACTION_AT,
+    supersedesSourceEventId,
+    occurredAt,
     staffAttribution: null,
   })
 }
+
+const retractRating = () =>
+  withdrawRating(RETRACTION_EVENT, CORRECTION_EVENT, ORIGINAL_EVENT, RETRACTION_AT)
 
 /** The measures whose earlier reading of `sourceEventId` carries a retraction. */
 async function retractedVersions(sourceEventId: string): Promise<readonly string[]> {
@@ -341,5 +366,115 @@ describe.sequential('Rating correction readings (integration)', () => {
     await expect(repository.queryGoalAggregate(AVERAGE_QUERY)).resolves.toMatchObject({
       readingCount: 0,
     })
+  })
+})
+
+// The Results tab reads the Portal's private rating (one measure, summed in the
+// period); the Monthly portal goal reads its own count and average measures
+// through `queryGoalAggregate`. One transaction writes all three, so they agree
+// today. Nothing else would notice if a change to either reader, or to how a
+// correction or a withdrawal is folded in, made them disagree.
+describe.sequential('Results and Goal rating counts (integration)', () => {
+  const FACTS = {
+    kept: { original: '72000000-0000-4000-8000-000000000021' },
+    corrected: {
+      original: '72000000-0000-4000-8000-000000000022',
+      correction: '72000000-0000-4000-8000-000000000023',
+    },
+    withdrawn: {
+      original: '72000000-0000-4000-8000-000000000024',
+      withdrawal: '72000000-0000-4000-8000-000000000025',
+    },
+    atWindowStart: { original: '72000000-0000-4000-8000-000000000026' },
+    atWindowEnd: { original: '72000000-0000-4000-8000-000000000027' },
+  } as const
+  const KEPT_AT = new Date('2026-09-10T09:00:00.000Z')
+  const CORRECTED_AT = new Date('2026-09-12T09:00:00.000Z')
+  const CORRECTED_LATER_AT = new Date('2026-09-12T09:20:00.000Z')
+  const WITHDRAWN_AT = new Date('2026-09-20T09:00:00.000Z')
+  const WITHDRAWN_LATER_AT = new Date('2026-09-20T09:30:00.000Z')
+  const READ_AT = new Date('2026-10-02T00:00:00.000Z')
+  const WINDOW_LOCAL_START = '2026-09-01'
+
+  type RatingTally = Readonly<{ count: number; stars: number }>
+
+  /** A guest's first rating: the fact id is the id of the event that delivers it. */
+  const rate = (fact: string, stars: number, at: Date) =>
+    submitRating(fact, stars, at, null, fact)
+
+  /** The rating count and star total as the Results tab reads them: three ways. */
+  async function resultsTally(): Promise<RatingTally> {
+    const results = createPortalAnalyticsRepository(db, () => READ_AT)
+    const args = [ORG, PROPERTY, PORTAL, PERIOD_START, PERIOD_END] as const
+    const [sums, weekly, distribution] = await Promise.all([
+      results.getPortalKpiSums(...args),
+      results.getPortalWeeklyReadings(...args, WINDOW_LOCAL_START),
+      results.getPortalRatingDistribution(...args),
+    ])
+    const strip = sums.find((row) => row.metricKey === 'portal.rating')
+    const weeks = weekly.filter((row) => row.metricKey === 'portal.rating')
+    const tally = { count: strip?.count ?? 0, stars: strip?.total ?? 0 }
+    // The weekly column and the star mix must add up to the strip's own count.
+    expect({
+      count: weeks.reduce((sum, row) => sum + row.count, 0),
+      stars: weeks.reduce((sum, row) => sum + row.total, 0),
+    }).toEqual(tally)
+    expect(distribution.reduce((sum, bucket) => sum + bucket.count, 0)).toBe(tally.count)
+    return tally
+  }
+
+  /** The Goal's rating count measure and rating average measure, read as its page does. */
+  async function goalTally(): Promise<RatingTally & Readonly<{ averageCount: number }>> {
+    const goals = createMetricRepository(db, () => READ_AT)
+    const [count, average] = await Promise.all([
+      goals.queryGoalAggregate(COUNT_QUERY),
+      goals.queryGoalAggregate(AVERAGE_QUERY),
+    ])
+    expect(count.readingCount).toBe(count.sum)
+    return { count: count.sum, stars: average.sum, averageCount: average.readingCount }
+  }
+
+  async function expectOneCount(expected: RatingTally): Promise<void> {
+    const results = await resultsTally()
+    const goal = await goalTally()
+
+    expect(results).toEqual(expected)
+    expect({ count: goal.count, stars: goal.stars }).toEqual(expected)
+    expect(goal.averageCount).toBe(expected.count)
+  }
+
+  it('agrees after a rating is submitted, corrected and withdrawn', async () => {
+    await rate(FACTS.kept.original, 5, KEPT_AT)
+    await expectOneCount({ count: 1, stars: 5 })
+
+    await rate(FACTS.corrected.original, 4, CORRECTED_AT)
+    await expectOneCount({ count: 2, stars: 9 })
+
+    await submitRating(
+      FACTS.corrected.correction,
+      2,
+      CORRECTED_LATER_AT,
+      FACTS.corrected.original,
+      FACTS.corrected.original,
+    )
+    await expectOneCount({ count: 2, stars: 7 })
+
+    await rate(FACTS.withdrawn.original, 3, WITHDRAWN_AT)
+    await expectOneCount({ count: 3, stars: 10 })
+
+    await withdrawRating(
+      FACTS.withdrawn.withdrawal,
+      FACTS.withdrawn.original,
+      FACTS.withdrawn.original,
+      WITHDRAWN_LATER_AT,
+    )
+    await expectOneCount({ count: 2, stars: 7 })
+  })
+
+  it('agrees on the window edges: its first instant is in, its end instant is not', async () => {
+    await rate(FACTS.atWindowStart.original, 1, PERIOD_START)
+    await rate(FACTS.atWindowEnd.original, 5, PERIOD_END)
+
+    await expectOneCount({ count: 1, stars: 1 })
   })
 })
