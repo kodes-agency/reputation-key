@@ -6,6 +6,7 @@ import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
+import { PortalWritesOffDecorator } from '../portal-overview/portal-writes-off-decorator'
 import { PortalEditor } from './portal-editor'
 import { PortalDraftAutosaveProvider } from './portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from './portal-draft-save-status'
@@ -693,7 +694,57 @@ export const MemberSeesTheFieldsReadOnly: Story = {
   args: { resources: makeResources(action(async () => undefined)) },
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByLabelText('Name')).toBeDisabled()
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Name')).toBeDisabled()
+    // Not left to guess: one line says they can look and why they cannot change.
+    await expect(
+      canvas.getByText(
+        'You can look at this portal, but your role doesn’t allow changing it.',
+      ),
+    ).toBeVisible()
+  },
+}
+
+// The role may change portals but the organisation's portal writes are off: the
+// fields are disabled (every save would be refused) and one line says why.
+export const ChangesOffForTheOrganizationReadsOnly: Story = {
+  args: { resources: makeResources(action(async () => undefined)) },
+  decorators: [PortalWritesOffDecorator],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Name')).toBeDisabled()
+    await expect(
+      canvas.getByText(/changing portals isn’t available for your organization/i),
+    ).toBeVisible()
+  },
+}
+
+// An archived portal is kept as it was, even for someone who may change portals.
+export const ArchivedPortalReadsOnly: Story = {
+  args: {
+    resources: {
+      ...makeResources(action(async () => undefined)),
+      portal: { ...portal, publicationState: 'archived' as const },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Name')).toBeDisabled()
+    await expect(
+      canvas.getByText(
+        /not change it while it is archived\. Restore it from the Portals list/i,
+      ),
+    ).toBeVisible()
+  },
+}
+
+// Someone who may change the portal sees no such line.
+export const ManagerSeesNoReadOnlyLine: Story = {
+  args: { resources: makeResources(action(async () => undefined)) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Name')).toBeEnabled()
+    await expect(canvas.queryByText(/you can look at this portal/i)).toBeNull()
   },
 }
 

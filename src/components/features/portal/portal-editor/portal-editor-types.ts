@@ -24,6 +24,6 @@ export type PortalEditorResources = Omit<
 /** What every section receives: the route's resources and whether the viewer may edit. */
 export type PortalEditorSectionProps = Readonly<{
   resources: PortalEditorResources
-  /** `portal.update` held and the portal not archived. */
+  /** `portal.update` and the `portal.write` capability held, and the portal not archived. */
   canEdit: boolean
 }>

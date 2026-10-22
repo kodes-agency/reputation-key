@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NO_CODE, overviewRow } from './portal-overview-fixtures'
-import { portalRowMenu, type PortalRowAccess } from './portal-row-menu'
+import { portalRowButtons, portalRowMenu, type PortalRowAccess } from './portal-row-menu'
 
 const manager: PortalRowAccess = {
   canUpdate: true,
@@ -94,5 +94,42 @@ describe('portalRowMenu', () => {
       expect.arrayContaining(['disable', 'archive']),
     )
     expect(items.some((item) => 'destructive' in item)).toBe(false)
+  })
+})
+
+describe('portalRowButtons', () => {
+  it('offers Edit and Share for a live Portal', () => {
+    expect(portalRowButtons(overviewRow('a'), true)).toEqual({
+      verb: 'Edit',
+      canShare: true,
+    })
+  })
+
+  it('offers Share for a draft: it needs a code before it can be published, and Share is where one is made', () => {
+    expect(
+      portalRowButtons(overviewRow('a', { publicationState: 'draft' }), true),
+    ).toEqual({
+      verb: 'Edit',
+      canShare: true,
+    })
+  })
+
+  it('offers Share for a Portal that was turned off, whose printed codes work again when it is published', () => {
+    expect(
+      portalRowButtons(overviewRow('a', { publicationState: 'disabled' }), true).canShare,
+    ).toBe(true)
+  })
+
+  it('says View for an archived Portal, whose page opens read-only, and offers no Share', () => {
+    expect(
+      portalRowButtons(overviewRow('a', { publicationState: 'archived' }), true),
+    ).toEqual({ verb: 'View', canShare: false })
+  })
+
+  it('says View to someone who cannot change portals, but still offers Share', () => {
+    expect(portalRowButtons(overviewRow('a'), false)).toEqual({
+      verb: 'View',
+      canShare: true,
+    })
   })
 })

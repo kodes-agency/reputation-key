@@ -244,7 +244,8 @@ export const ViewerWithoutKnownManagers: Story = {
 }
 
 // A draft's code opens the unavailable page until the portal is published.
-// Making and printing it ahead of a launch is still allowed.
+// Making it, its QR image and its NFC address ahead of a launch is still allowed;
+// the print kit waits for a live page.
 export const DraftPortal: Story = {
   args: {
     ...baseArgs,
@@ -256,6 +257,11 @@ export const DraftPortal: Story = {
     await expect(canvas.getByText('Not published yet')).toBeInTheDocument()
     await expect(
       canvas.getByText(/see “This page isn’t available right now” until you publish/),
+    ).toBeInTheDocument()
+    await expect(
+      canvas.getByText(
+        /download its QR image and copy its NFC address ahead of the launch/,
+      ),
     ).toBeInTheDocument()
     await expect(canvas.getByRole('link', { name: 'Review & publish' })).toHaveAttribute(
       'href',

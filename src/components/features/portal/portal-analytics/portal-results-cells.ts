@@ -89,6 +89,9 @@ export const RESULTS_LABELS = {
 
 export const DASH = '—'
 
+/** Why scans are a dash for a live code that predates scan counting (the overview says the same). */
+export const SCANS_NOT_COUNTED_REASON = 'Not counted: older code'
+
 function signed(delta: number): string {
   if (delta === 0) return 'No change'
   return `${delta > 0 ? '+' : '−'}${formatNumber(Math.abs(delta))}`
@@ -275,17 +278,26 @@ export function measureCells(
   ]
 }
 
+/** Scans nobody counted are a dash with its reason, never the zero the read answers with. */
+function withScansNotCounted(cell: ResultsCell): ResultsCell {
+  return cell.key === 'scans'
+    ? { ...cell, value: DASH, unit: null, detail: SCANS_NOT_COUNTED_REASON }
+    : cell
+}
+
 export function resultsCells(
   data: PortalAnalyticsData,
-  options: Options,
+  options: Options & Readonly<{ scansCounted?: boolean }>,
 ): readonly ResultsCell[] {
-  return measureCells(
+  const { scansCounted = true, ...rest } = options
+  const cells = measureCells(
     {
       kpis: data.kpis,
       thresholds: data.thresholds,
       timezone: data.period.timezone,
       localDays: data.localDays,
     },
-    { ...options, shareAndChange: true },
+    { ...rest, shareAndChange: true },
   )
+  return scansCounted ? cells : cells.map(withScansNotCounted)
 }

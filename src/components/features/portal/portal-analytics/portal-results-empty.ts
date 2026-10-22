@@ -87,7 +87,7 @@ function quietLine(data: PortalAnalyticsData): string | null {
   return null
 }
 
-function nothingRecorded(data: PortalAnalyticsData): EmptyResults {
+function nothingRecorded(data: PortalAnalyticsData, scansCounted: boolean): EmptyResults {
   const name = windowName(data.localDays)
   if (name === null) {
     return {
@@ -102,22 +102,27 @@ function nothingRecorded(data: PortalAnalyticsData): EmptyResults {
       name.length === 1
         ? 'Nothing recorded on this day'
         : `Nothing recorded in these ${name.length} days`,
-    description:
-      'No scans, ratings or notes in this period. If the code is out already, check it is still in place.',
+    description: scansCounted
+      ? 'No scans, ratings or notes in this period. If the code is out already, check it is still in place.'
+      : 'No ratings or notes in this period. Scans aren’t counted for this code: it is older than scan counting.',
   }
 }
 
 /**
  * Null when there are figures to show. `comparing` is whether the period before
  * was read: without it a quiet window cannot be told from a portal that never
- * had a visitor, and says only what it knows.
+ * had a visitor, and says only what it knows. `scansCounted` is false for a live
+ * code that predates scan counting: its zero scans were never counted, so a drop
+ * is not news and "check the printed code" would send a manager to a code that is
+ * in place.
  */
 export function emptyResults(
   data: PortalAnalyticsData,
-  options: Readonly<{ comparing: boolean; isLive: boolean }>,
+  options: Readonly<{ comparing: boolean; isLive: boolean; scansCounted?: boolean }>,
 ): EmptyResults | null {
   if (hasResultsToShow(data)) return null
   if (!options.isLive) return { kind: 'draft' }
-  const line = options.comparing ? quietLine(data) : null
-  return line === null ? nothingRecorded(data) : { kind: 'quiet', line }
+  const { scansCounted = true } = options
+  const line = options.comparing && scansCounted ? quietLine(data) : null
+  return line === null ? nothingRecorded(data, scansCounted) : { kind: 'quiet', line }
 }

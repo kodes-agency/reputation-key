@@ -1,8 +1,8 @@
-// What a Portal's "more actions" menu offers. The row already has Edit and
-// Share as buttons; the menu holds the rest: where to read results and history,
-// finishing a publish (or bringing a disabled page back), taking a live page
-// down, and the recoverable archive. Pure, so each rule that keeps an action off
-// a role or a state is tested apart from the menu.
+// What a Portal's row offers: Edit (or View) and Share as buttons, and behind
+// "more actions" the rest: where to read results and history, finishing a publish
+// (or bringing a disabled page back), taking a live page down, and the
+// recoverable archive. Pure, so each rule that keeps an action off a role or a
+// state is tested apart from the menu.
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { canReviewAndPublish } from '../portal-detail/portal-detail-rules'
 
@@ -26,6 +26,21 @@ export type PortalRowMenuItem = Readonly<{
 }>
 
 const item = (id: PortalRowMenuItemId, label: string) => ({ id, label })
+
+/**
+ * The row's two buttons. Edit says View where the Portal cannot be changed: the
+ * person may not change portals, or the Portal is archived and kept as it was,
+ * so the button lands on a page that is read-only. Share is offered for every
+ * Portal but an archived one, which is finished: a draft has a code to give out
+ * (publishing needs one) and Share is where it is made.
+ */
+export function portalRowButtons(
+  row: Pick<PortalOverviewRow, 'publicationState'>,
+  canEdit: boolean,
+): Readonly<{ verb: 'Edit' | 'View'; canShare: boolean }> {
+  const archived = row.publicationState === 'archived'
+  return { verb: canEdit && !archived ? 'Edit' : 'View', canShare: !archived }
+}
 
 export function portalRowMenu(
   row: Pick<PortalOverviewRow, 'publicationState' | 'pendingChangeCount'>,

@@ -1,6 +1,6 @@
 // The Print kit section's state: the Portal's titles and look (a read that
-// follows the working copy), what the manager has chosen, and which side of the
-// print the preview shows. The choice is the manager's until a language it
+// follows the live version, as the print does), what the manager has chosen,
+// and which side of the print the preview shows. The choice is the manager's until a language it
 // names stops being offered; the side falls back to the front when the print
 // has only one.
 
@@ -51,6 +51,7 @@ export function usePrintKit({ portalId, read, enabled }: Input) {
     setSide: setChosenSide,
     isPending: query.isPending && enabled,
     isError: hasFailed(query),
+    error: query.error,
     isRetrying: isRetrying(query),
     retry: () => void query.refetch(),
   } as const
