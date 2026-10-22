@@ -249,6 +249,8 @@ function Brand({ look }: Readonly<{ look: PortalPrintKitView['look'] }>) {
         fontSize: pt(size),
         lineHeight: BRAND_FIT.wordmark.lineHeight,
         letterSpacing: `${TRACKING_EM.wordmark}em`,
+        // The file sets a tracked line letter by letter: no ligature joins a TT.
+        fontVariantLigatures: 'none',
         textTransform: 'uppercase',
         color: '#fff',
         whiteSpace: 'nowrap',

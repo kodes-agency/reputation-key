@@ -105,6 +105,8 @@ function FirstBlock({
           fontSize: pt(kicker.size),
           lineHeight: STACK_LEADING.kicker,
           letterSpacing: `${TRACKING_EM.kicker}em`,
+          // The file sets a tracked line letter by letter: no ligature joins a TT.
+          fontVariantLigatures: 'none',
           textTransform: 'uppercase',
           color: palette.kicker,
         }}

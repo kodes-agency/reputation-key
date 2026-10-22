@@ -287,6 +287,31 @@ export const CharactersTheFontsLackAreLeftOutAndNamed: Story = {
   },
 }
 
+/** A tracked line is set letter by letter in the file, so the preview turns ligatures off on it (the TT of TRATTORIA). */
+export const TrackedLinesKeepEveryLetterSeparate: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () =>
+        view({
+          titles: { en: 'Trattoria Terrace', bg: 'Басейн и тераса' },
+          look: { ...view().look, wordmark: 'Trattoria' },
+        }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const front = within(await preview(canvasElement))
+    const ligatures = (element: HTMLElement) =>
+      getComputedStyle(element).fontVariantLigatures
+    // The wordmark and the title above the call to action are tracked capitals.
+    await expect(ligatures(front.getByText('TRATTORIA'))).toBe('none')
+    await expect(ligatures(front.getByText('TRATTORIA TERRACE'))).toBe('none')
+    // Running words keep the font's own.
+    await expect(ligatures(front.getByText('Rate your visit'))).toBe('normal')
+  },
+}
+
 export const DownloadsThePdf: Story = {
   args: baseArgs,
   play: async ({ canvasElement, args }) => {

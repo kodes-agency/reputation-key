@@ -38,6 +38,21 @@ export class PrintKitFonts {
   }
 }
 
+/**
+ * A tracked line is set glyph by glyph. A ligature is one glyph, so the tracking
+ * has nothing to act on inside it: Cormorant joins "TT" in "TRATTORIA" into one
+ * glyph, and in a line of spaced capitals the pair prints joined. fontkit
+ * switches a default feature off when its tag is given as false; PDFKit's typings
+ * describe only the array that switches features on, hence the cast. fontkit
+ * also writes the features it applied into the object it is given, so every call
+ * gets its own.
+ */
+function featuresOf(style: PdfTextStyle): PDFKit.Mixins.TextOptions['features'] {
+  if (style.spacing <= 0) return undefined
+  const noLigatures = { liga: false, clig: false, dlig: false }
+  return noLigatures as unknown as PDFKit.Mixins.TextOptions['features']
+}
+
 type MeasuredRun = Readonly<{ subset: FontSubset; text: string; width: number }>
 
 function measureRuns(
@@ -49,7 +64,8 @@ function measureRuns(
   return splitIntoFontRuns(stripUnsupportedCharacters(text)).map((run) => {
     fonts.use(style.face, run.subset, style.size)
     const characters = [...run.text].length
-    return { ...run, width: doc.widthOfString(run.text) + style.spacing * characters }
+    const width = doc.widthOfString(run.text, { features: featuresOf(style) })
+    return { ...run, width: width + style.spacing * characters }
   })
 }
 
@@ -83,6 +99,7 @@ export function drawCentredLine(
       lineBreak: false,
       baseline: 'middle',
       characterSpacing: style.spacing,
+      features: featuresOf(style),
     })
     x += run.width
   }

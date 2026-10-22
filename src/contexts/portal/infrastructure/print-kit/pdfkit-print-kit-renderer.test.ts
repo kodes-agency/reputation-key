@@ -72,10 +72,14 @@ async function drawnRuns(input: PrintKitRenderInput): Promise<readonly DrawnRun[
       string,
       number,
       number,
-      { characterSpacing?: number },
+      { characterSpacing?: number; features?: PDFKit.Mixins.TextOptions['features'] },
     ]
     const spacing = options.characterSpacing ?? 0
-    const width = this.widthOfString(text, { characterSpacing: spacing }) - spacing
+    const width =
+      this.widthOfString(text, {
+        characterSpacing: spacing,
+        features: options.features,
+      }) - spacing
     runs.push({ text, left: x, right: x + width })
     return original.apply(this, args as Parameters<typeof original>)
   })
@@ -166,6 +170,73 @@ describe('text longer than any brand or title', () => {
     expect(drawn).toContain('Rate your visit')
     for (const word of longTitle.toUpperCase().split(/\s+/u))
       expect(drawn).toContain(word)
+  })
+})
+
+/** The glyphs each tracked line (one set with a `Tc`) shows, in the order they are drawn. */
+function trackedGlyphCounts(text: string): readonly number[] {
+  return [...text.matchAll(/BT\n[^]*?\n([\d.]+) Tc\n\[([^\]]*)\] TJ\nET/gu)].map(
+    ([, , shown]) =>
+      (shown ?? '')
+        .match(/<[0-9a-f]+>/gu)
+        ?.join('')
+        .replace(/[<>]/gu, '').length ?? 0,
+  )
+}
+
+describe('tracked lines', () => {
+  // Cormorant Garamond (the display face the wordmark is set in) has a TT ligature:
+  // "TRATTORIA" lays out as eight glyphs, and the tracking, which acts between
+  // glyphs, has nothing to put between the two T's.
+  it('draws every letter of a tracked wordmark as its own glyph, so no ligature joins the TT of TRATTORIA', async () => {
+    const text = await renderText(inputFor(tentEnBg, { wordmark: 'Trattoria' }))
+    const [wordmark] = trackedGlyphCounts(text)
+
+    // Four hex digits to a glyph.
+    expect((wordmark ?? 0) / 4).toBe('TRATTORIA'.length)
+  })
+
+  it('lays a tracked line out without ligatures to measure it as well as to draw it', async () => {
+    const drawn: { text: string; features: unknown }[] = []
+    const measured = new Map<string, unknown>()
+    const text = PDFDocument.prototype.text
+    const widthOfString = PDFDocument.prototype.widthOfString
+    const textSpy = vi.spyOn(PDFDocument.prototype, 'text')
+    const widthSpy = vi.spyOn(PDFDocument.prototype, 'widthOfString')
+    textSpy.mockImplementation(function (this: PDFKit.PDFDocument, ...args: unknown[]) {
+      const [line, , , options] = args as [
+        string,
+        number,
+        number,
+        { features?: unknown; characterSpacing?: number },
+      ]
+      if ((options.characterSpacing ?? 0) > 0) {
+        drawn.push({ text: line, features: options.features })
+      } else {
+        expect(options.features, line).toBeUndefined()
+      }
+      return text.apply(this, args as Parameters<typeof text>)
+    })
+    widthSpy.mockImplementation(function (this: PDFKit.PDFDocument, ...args: unknown[]) {
+      const [line, options] = args as [string, { features?: unknown } | undefined]
+      // PDFKit measures with no options inside text() too: keep the calls that ask.
+      if (options?.features) measured.set(line, { ...options.features })
+      return widthOfString.apply(this, args as Parameters<typeof widthOfString>)
+    })
+    try {
+      await renderer.render(inputFor(tentEnBg, { wordmark: 'Trattoria' }))
+    } finally {
+      textSpy.mockRestore()
+      widthSpy.mockRestore()
+    }
+
+    const noLigatures = { liga: false, clig: false, dlig: false }
+    expect(drawn.map((line) => line.text)).toContain('TRATTORIA')
+    for (const line of drawn) {
+      // fontkit adds the features it applied to the object it is given.
+      expect(line.features, line.text).toMatchObject(noLigatures)
+      expect(measured.get(line.text), line.text).toMatchObject(noLigatures)
+    }
   })
 })
 
