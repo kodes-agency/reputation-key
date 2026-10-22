@@ -4,6 +4,13 @@
 //
 // A face is laid out once per side and shape and drawn wherever the sheet puts
 // it: the Letter card sheet shows the same front twice, the A4 sheet four times.
+// Laying out comes first, for every face of the print, so an Immersive print can
+// crop its photo to each window the layout made before anything is drawn.
+//
+// The style says how a face is laid out and drawn; the page says how far it
+// bleeds. A Paper face has no bleed and is clipped to its trim, so nothing of one
+// card prints on its neighbour; an Immersive face runs its field past the trim on
+// every side but a tent's fold.
 
 import type { PrintFace, PrintFaceSide } from '#/shared/domain/portal-print-kit'
 import { LOGO_MIN_DPI } from '#/shared/domain/portal-print-kit-measures'
@@ -13,15 +20,7 @@ import {
   type PrintKitPage,
   type PrintKitPagePanel,
 } from '#/shared/domain/portal-print-kit-sheets'
-import { brandDpi } from './print-kit-face-brand'
-import { drawPrintCheck, drawTicks, setStyledPageBoxes } from './print-kit-marks'
-import {
-  drawPaperFace,
-  layoutPaperFace,
-  type PaperFaceArt,
-  type PaperFaceLayout,
-} from './print-kit-paper-face'
-import type { PrintKitFonts } from './print-kit-pdf-text'
+import { setStyledPageBoxes } from './print-kit-marks'
 
 /** Something worth telling the people who run the service, which does not stop the print. */
 export type PrintKitWarning = Readonly<{
@@ -31,38 +30,51 @@ export type PrintKitWarning = Readonly<{
 
 export type StyledDocument = Readonly<{
   doc: PDFKit.PDFDocument
-  fonts: PrintKitFonts
   faces: readonly PrintFace[]
-  art: PaperFaceArt
   warn: (warning: PrintKitWarning) => void
 }>
 
-type Layouts = Map<`${PrintFaceSide}:${PanelGeometry}`, PaperFaceLayout>
+/** How far a face's art runs past its trim on each side; none at a tent's fold, none on Paper. */
+export type FaceBleed = Readonly<{ topPt: number; sidePt: number; bottomPt: number }>
 
-function layoutFor(
-  target: StyledDocument,
-  layouts: Layouts,
-  panel: PrintKitPagePanel,
-  face: PrintFace,
-): PaperFaceLayout {
-  const key = `${panel.side}:${panel.geometry}` as const
-  const known = layouts.get(key)
-  if (known !== undefined) return known
-  const layout = layoutPaperFace(
-    target.doc,
-    target.fonts,
-    face,
-    target.art,
-    panel.geometry,
-  )
-  layouts.set(key, layout)
-  return layout
+type LayoutKey = `${PrintFaceSide}:${PanelGeometry}`
+
+/** Every face of a print, laid out once per side and shape. */
+export type FaceLayouts<L> = ReadonlyMap<LayoutKey, L>
+
+const keyOf = (panel: PrintKitPagePanel): LayoutKey => `${panel.side}:${panel.geometry}`
+
+/** How a style draws a face it has laid out. */
+export type FaceDrawer<L> = Readonly<{
+  /** Draws the face in its own coordinates, its art running `bleed` past the trim. */
+  draw: (layout: L, bleed: FaceBleed) => void
+  /** The dots per inch the face's logo prints at; null for a wordmark. */
+  logoDpi: (layout: L) => number | null
+}>
+
+/** Lays out every face the pages show. */
+export function layoutFaces<L>(
+  faces: readonly PrintFace[],
+  pages: readonly PrintKitPage[],
+  layout: (face: PrintFace, geometry: PanelGeometry) => L,
+): FaceLayouts<L> {
+  const layouts = new Map<LayoutKey, L>()
+  for (const panel of pages.flatMap((page) => page.panels)) {
+    const face = faces.find((candidate) => candidate.side === panel.side)
+    if (face === undefined || layouts.has(keyOf(panel))) continue
+    layouts.set(keyOf(panel), layout(face, panel.geometry))
+  }
+  return layouts
 }
 
 /** One warning for a print whose logo prints soft anywhere on it: the softest place says how soft. */
-function warnOfSoftLogo(target: StyledDocument, layouts: Layouts): void {
+function warnOfSoftLogo<L>(
+  target: StyledDocument,
+  layouts: FaceLayouts<L>,
+  drawer: FaceDrawer<L>,
+): void {
   const dpis = [...layouts.values()].flatMap((layout) => {
-    const dpi = brandDpi(layout.brand.plan)
+    const dpi = drawer.logoDpi(layout)
     return dpi === null ? [] : [dpi]
   })
   const lowest = Math.min(...dpis)
@@ -73,37 +85,56 @@ function warnOfSoftLogo(target: StyledDocument, layouts: Layouts): void {
   })
 }
 
-function drawPanel(
+/** How far a face on `page` bleeds: the page's bleed, except across a tent's fold. */
+function bleedOf(page: PrintKitPage): FaceBleed {
+  return {
+    topPt: page.foldAtPt === null ? page.bleedPt : 0,
+    sidePt: page.bleedPt,
+    bottomPt: page.bleedPt,
+  }
+}
+
+function drawPanel<L>(
   target: StyledDocument,
-  layouts: Layouts,
+  page: PrintKitPage,
   panel: PrintKitPagePanel,
+  layout: L,
+  drawer: FaceDrawer<L>,
 ): void {
-  const face = target.faces.find((candidate) => candidate.side === panel.side)
-  if (face === undefined) return
-  const layout = layoutFor(target, layouts, panel, face)
   const { widthPt, heightPt } = PANEL_SIZE_PT[panel.geometry]
+  const bleed = bleedOf(page)
   const { doc } = target
   doc.save()
   doc.translate(panel.leftPt, panel.topPt)
   if (panel.rotated) doc.rotate(180, { origin: [widthPt / 2, heightPt / 2] })
-  // Faces abut on a card sheet: nothing of one may print on its neighbour.
-  doc.rect(0, 0, widthPt, heightPt).clip()
-  drawPaperFace(doc, target.fonts, layout)
+  doc
+    .rect(
+      -bleed.sidePt,
+      -bleed.topPt,
+      widthPt + 2 * bleed.sidePt,
+      heightPt + bleed.topPt + bleed.bottomPt,
+    )
+    .clip()
+  drawer.draw(layout, bleed)
   doc.restore()
 }
 
-/** Draws the pages of a styled print into the document, in order. */
-export function drawStyledPages(
+/** Draws the pages of a styled print into the document, in order; `decorate` adds each page's marks. */
+export function drawStyledPages<L>(
   target: StyledDocument,
   pages: readonly PrintKitPage[],
+  layouts: FaceLayouts<L>,
+  drawer: FaceDrawer<L>,
+  decorate: (page: PrintKitPage) => void,
 ): void {
-  const layouts: Layouts = new Map()
   for (const page of pages) {
     target.doc.addPage({ size: [page.widthPt, page.heightPt], margin: 0 })
     setStyledPageBoxes(target.doc.page, page)
-    for (const panel of page.panels) drawPanel(target, layouts, panel)
-    drawTicks(target.doc, page.ticks)
-    if (page.printCheck) drawPrintCheck(target.doc, target.fonts, target.art.palette)
+    for (const panel of page.panels) {
+      const layout = layouts.get(keyOf(panel))
+      if (layout !== undefined) drawPanel(target, page, panel, layout, drawer)
+    }
+    decorate(page)
   }
-  warnOfSoftLogo(target, layouts)
+  warnOfSoftLogo(target, layouts, drawer)
 }

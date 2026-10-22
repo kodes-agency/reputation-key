@@ -1,6 +1,7 @@
 // One redesigned face, drawn as the PDF draws it (spec 4.2 and 4.4): a Paper
-// counter card (4 × 6 in or A6) or a Paper tent face (8.5 × 5.5 in or A5). The
-// same flex layout the design boards use, from the same measures the PDF reads:
+// counter card (4 × 6 in or A6) or a Paper tent face (8.5 × 5.5 in or A5), and
+// an Immersive card or tent panel through `PrintKitImmersiveFace`. The same flex
+// layout the design boards use, from the same measures the PDF reads:
 //
 //   - the card: the brand at the top margin, the code block at the bottom
 //     margin, the words centred between, two equal gaps either side of them;
@@ -19,15 +20,13 @@
 
 import type { CSSProperties, ReactNode } from 'react'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
-import type { PrintFace } from '#/shared/domain/portal-print-kit'
+import type { PrintFace, PrintKitStyle } from '#/shared/domain/portal-print-kit'
 import { cueLinesFor } from '#/shared/domain/portal-print-kit-code-block'
-import { stripUnsupportedCharacters } from '#/shared/domain/portal-print-kit-font-ranges'
 import {
   CARD_GRID,
   CODE_BLOCK,
   FIT,
   LOGO_BOX_MM,
-  MARGIN,
   TENT_FACE,
   TENT_FACE_GRID,
   TENT_WORDMARK_PT,
@@ -43,15 +42,15 @@ import {
   PANEL_SIZE_PT,
   type PanelGeometry,
 } from '#/shared/domain/portal-print-kit-sheets'
-import { LINING_FIGURES } from './print-kit-art-layout'
 import { PrintKitCodeBlock } from './print-kit-code-block'
 import type { PointsToLength } from './print-kit-code-block-layout'
 import { previewPaperScale, ptToContainerWidth } from './print-kit-paper-art-layout'
-import { PrintKitPaperStack } from './print-kit-paper-stack'
+import { PrintKitFaceBrand, brandInkPt } from './print-kit-face-brand-art'
+import { PrintKitFaceStack } from './print-kit-face-stack'
+import { PrintKitImmersiveFace } from './print-kit-immersive-face-art'
 
 type Props = Readonly<{
-  /** Only Paper is drawn in this release. */
-  style: 'paper'
+  style: PrintKitStyle
   geometry: PanelGeometry
   face: PrintFace
   look: PortalPrintKitView['look']
@@ -59,6 +58,11 @@ type Props = Readonly<{
   codeUrl: string | null
   /** Said by a face shown on its own; a face on a sheet is part of the sheet's picture. */
   label?: string
+  /**
+   * Drawn with no ground: on a print-shop sheet the field and the ridge band run
+   * into the bleed behind the face, so the sheet paints them (Immersive only).
+   */
+  bare?: boolean
 }>
 
 type Drawing = Readonly<{
@@ -73,68 +77,6 @@ type Drawing = Readonly<{
 const Gap = ({ min, pt }: Readonly<{ min: number; pt: PointsToLength }>) => (
   <div aria-hidden style={{ flex: '1 1 0', minHeight: pt(min) }} />
 )
-
-function Brand({
-  drawing,
-  wordmarkPt,
-  logoHeightPt,
-  align,
-}: Readonly<{
-  drawing: Drawing
-  wordmarkPt: number
-  logoHeightPt: number
-  align: 'centre' | 'start'
-}>) {
-  const { look, palette, pt } = drawing
-  if (look.logoUrl !== null) {
-    return (
-      <img
-        src={look.logoUrl}
-        alt=""
-        style={{
-          display: 'block',
-          flex: 'none',
-          alignSelf: align === 'centre' ? 'center' : 'flex-start',
-          height: pt(logoHeightPt),
-          width: 'auto',
-          maxWidth: pt(mmToPt(LOGO_BOX_MM.width)),
-          objectFit: 'contain',
-          // The logo's transparent edge, cancelled optically on the tent (spec 4.4).
-          marginLeft: align === 'start' ? pt(TENT_FACE.logoShiftPt) : 0,
-        }}
-      />
-    )
-  }
-  return (
-    <p
-      style={{
-        margin: 0,
-        flex: 'none',
-        fontFamily: 'var(--font-guest-display)',
-        fontWeight: 600,
-        ...LINING_FIGURES,
-        fontSize: pt(wordmarkPt),
-        lineHeight: WORDMARK.lineBoxEm,
-        letterSpacing: `${WORDMARK.trackingEm}em`,
-        // Centred, the tracking after the last letter is balanced on the left.
-        paddingLeft: align === 'centre' ? `${WORDMARK.trackingEm}em` : 0,
-        textTransform: 'uppercase',
-        // The file sets a tracked line letter by letter: no ligature joins a TT.
-        fontVariantLigatures: 'none',
-        whiteSpace: 'nowrap',
-        color: palette.ink,
-      }}
-    >
-      {stripUnsupportedCharacters(look.wordmark)}
-    </p>
-  )
-}
-
-/** Where a brand's ink starts inside its box: a logo's transparent edge, or the wordmark's cap line. */
-const brandInkPt = (look: PortalPrintKitView['look'], wordmarkPt: number) =>
-  look.logoUrl !== null
-    ? MARGIN.optical.logoEdgePt
-    : (MARGIN.optical.wordmarkCapPt * wordmarkPt) / WORDMARK.pt
 
 /**
  * The face's paper, filling its container. Its own lengths are in the
@@ -156,6 +98,13 @@ const surface = (pt: PointsToLength, padding: string): CSSProperties => {
     fontSize: pt(10),
   }
 }
+
+const paperColours = (palette: PaperPrintKitPalette) => ({
+  ink: palette.ink,
+  soft: palette.soft,
+  accentInk: palette.accentInk,
+  rule: palette.accentInk,
+})
 
 const CodeBlock = ({ drawing }: Readonly<{ drawing: Drawing }>): ReactNode => (
   <PrintKitCodeBlock
@@ -182,18 +131,20 @@ function PaperCard({
         textAlign: 'center',
       }}
     >
-      <Brand
-        drawing={drawing}
+      <PrintKitFaceBrand
+        look={drawing.look}
+        colour={drawing.palette.ink}
         wordmarkPt={WORDMARK.pt}
         logoHeightPt={mmToPt(LOGO_BOX_MM.height)}
         align="centre"
+        pt={pt}
       />
       <Gap min={FIT.paperGapPt.brand} pt={pt} />
-      <PrintKitPaperStack
+      <PrintKitFaceStack
         face={face}
         scale={previewPaperScale(face, geometry)}
         align="centre"
-        palette={drawing.palette}
+        colours={paperColours(drawing.palette)}
         pt={pt}
       />
       <Gap min={FIT.paperGapPt.code} pt={pt} />
@@ -217,11 +168,13 @@ function PaperTentFace({
       }}
     >
       <Gap min={grid.foldClearancePt} pt={pt} />
-      <Brand
-        drawing={drawing}
+      <PrintKitFaceBrand
+        look={drawing.look}
+        colour={drawing.palette.ink}
         wordmarkPt={TENT_WORDMARK_PT}
         logoHeightPt={TENT_FACE.logoHeightPt}
         align="start"
+        pt={pt}
       />
       <Gap min={TENT_FACE.logoToRowMinPt} pt={pt} />
       <div
@@ -241,11 +194,11 @@ function PaperTentFace({
             alignItems: 'flex-start',
           }}
         >
-          <PrintKitPaperStack
+          <PrintKitFaceStack
             face={face}
             scale="tent"
             align="start"
-            palette={drawing.palette}
+            colours={paperColours(drawing.palette)}
             pt={pt}
           />
         </div>
@@ -278,16 +231,24 @@ function paperArt(drawing: Drawing, geometry: PanelGeometry): ReactNode {
   }
 }
 
-export function PrintKitFaceArt({ geometry, face, look, codeUrl, label }: Props) {
-  const widthPt = PANEL_SIZE_PT[geometry].widthPt
+export function PrintKitFaceArt({
+  style,
+  geometry,
+  face,
+  look,
+  codeUrl,
+  label,
+  bare = false,
+}: Props) {
+  const { widthPt, heightPt } = PANEL_SIZE_PT[geometry]
+  const pt: PointsToLength = (points) => ptToContainerWidth(points, widthPt)
   const drawing: Drawing = {
     face,
     look,
     codeUrl,
     palette: paperPrintKitPalette(look.accentColour),
-    pt: (points) => ptToContainerWidth(points, widthPt),
+    pt,
   }
-  const { heightPt } = PANEL_SIZE_PT[geometry]
   return (
     <div
       {...(label === undefined ? {} : { role: 'img', 'aria-label': label })}
@@ -297,7 +258,18 @@ export function PrintKitFaceArt({ geometry, face, look, codeUrl, label }: Props)
         containerType: 'inline-size',
       }}
     >
-      {paperArt(drawing, geometry)}
+      {style === 'paper' ? (
+        paperArt(drawing, geometry)
+      ) : (
+        <PrintKitImmersiveFace
+          geometry={geometry}
+          face={face}
+          look={look}
+          codeUrl={codeUrl}
+          bare={bare}
+          pt={pt}
+        />
+      )}
     </div>
   )
 }

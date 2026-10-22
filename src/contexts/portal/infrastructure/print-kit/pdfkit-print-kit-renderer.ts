@@ -4,9 +4,9 @@
 // 3 mm bleed plus a margin for crop marks, with the trim and bleed declared in
 // the page boxes.
 //
-// A request that names a style (Paper, in this release) is drawn from the
-// redesign's sheets instead (`print-kit-pages.ts`): the page is the sheet, the
-// faces sit where `printKitPages` puts them. Without a style the file is today's.
+// A request that names a style (Paper or Immersive) is drawn from the redesign's
+// sheets instead (`print-kit-pages.ts`): the page is the sheet, the faces sit
+// where `printKitPages` puts them. Without a style the file is today's.
 //
 // PDFKit is imported lazily and kept external to the server bundle: it reads
 // its own font metrics at load and resolves them from `node_modules`, which a
@@ -25,6 +25,8 @@ import { openImage } from './print-kit-pdf-image'
 import {
   drawCropMarks,
   drawFoldMarks,
+  drawPrintCheck,
+  drawTicks,
   frameOf,
   setPageBoxes,
   type SheetFrame,
@@ -37,8 +39,12 @@ import {
   printKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
 import { printKitPages } from '#/shared/domain/portal-print-kit-sheets'
+import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
+import { brandDpi } from './print-kit-face-brand'
 import { logoArt } from './print-kit-image'
-import { drawStyledPages, type PrintKitWarning } from './print-kit-pages'
+import { drawImmersivePrint } from './print-kit-immersive-document'
+import { drawStyledPages, layoutFaces, type PrintKitWarning } from './print-kit-pages'
+import { drawPaperFace, layoutPaperFace, type PaperFaceArt } from './print-kit-paper-face'
 import { PrintKitFonts } from './print-kit-pdf-text'
 import { qrMatrix } from './print-kit-qr'
 
@@ -124,7 +130,53 @@ function drawSheet(
   if (sheet.foldAtMm !== null) drawFoldMarks(doc, frame, sheet.foldAtMm)
 }
 
-/** The redesigned print: a style's pages on its paper. Only Paper is drawn in this release. */
+/** A Paper print: ink on the customer's own sheet, with ticks and, on Letter cards, the print check. */
+async function drawPaperPrint(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  input: PrintKitRenderInput,
+  paper: PrintKitPaper,
+  warn: (warning: PrintKitWarning) => void,
+): Promise<void> {
+  const palette = paperPrintKitPalette(input.accentColour)
+  const logo = input.logo === null ? null : await logoArt(input.logo)
+  const plate = logo !== null && logoNeedsPaperPlate(logo.ink.luminance)
+  const art: PaperFaceArt = {
+    palette,
+    qr: qrMatrix(input.qrAddress),
+    brand: {
+      wordmark: input.wordmark,
+      colour: palette.ink,
+      logo:
+        logo === null
+          ? null
+          : {
+              image: openImage(doc, logo.bytes),
+              ink: logo.ink,
+              plate: plate ? paperLogoPlate(input.accentColour) : null,
+            },
+    },
+  }
+  const pages = printKitPages(input.piece, input.faces.length, 'paper', paper)
+  const layouts = layoutFaces(input.faces, pages, (face, geometry) =>
+    layoutPaperFace(doc, fonts, face, art, geometry),
+  )
+  drawStyledPages(
+    { doc, faces: input.faces, warn },
+    pages,
+    layouts,
+    {
+      draw: (layout) => drawPaperFace(doc, fonts, layout),
+      logoDpi: (layout) => brandDpi(layout.brand.plan),
+    },
+    (page) => {
+      drawTicks(doc, page.ticks)
+      if (page.printCheck) drawPrintCheck(doc, fonts, palette)
+    },
+  )
+}
+
+/** The redesigned print: a style's pages on its paper. */
 async function drawStyled(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
@@ -132,39 +184,13 @@ async function drawStyled(
   warn: (warning: PrintKitWarning) => void,
 ): Promise<void> {
   const { style, paper } = input
-  if (style !== 'paper' || paper === undefined) {
+  if (style === undefined || paper === undefined) {
     throw new Error(
       `The print kit cannot draw the ${style ?? 'unnamed'} style on ${paper ?? 'no'} paper`,
     )
   }
-  const palette = paperPrintKitPalette(input.accentColour)
-  const logo = input.logo === null ? null : await logoArt(input.logo)
-  const plate = logo !== null && logoNeedsPaperPlate(logo.ink.luminance)
-  drawStyledPages(
-    {
-      doc,
-      fonts,
-      faces: input.faces,
-      warn,
-      art: {
-        palette,
-        qr: qrMatrix(input.qrAddress),
-        brand: {
-          wordmark: input.wordmark,
-          colour: palette.ink,
-          logo:
-            logo === null
-              ? null
-              : {
-                  image: openImage(doc, logo.bytes),
-                  ink: logo.ink,
-                  plate: plate ? paperLogoPlate(input.accentColour) : null,
-                },
-        },
-      },
-    },
-    printKitPages(input.piece, input.faces.length, style, paper),
-  )
+  if (style === 'paper') await drawPaperPrint(doc, fonts, input, paper, warn)
+  else await drawImmersivePrint(doc, fonts, input, paper, warn)
 }
 
 /** Today's print: A6 panels with a 3 mm bleed and crop marks. */

@@ -1,6 +1,14 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { coverPhotoJpeg, logoArt, logoInk, logoPng } from './print-kit-image'
+import { inToPt } from '#/shared/domain/portal-print-kit-measures'
+import {
+  coverPhotoJpeg,
+  logoArt,
+  logoInk,
+  logoPng,
+  meanLuminance,
+  windowPhotoJpeg,
+} from './print-kit-image'
 
 /** A 400 x 200 picture: the left half red, the right half blue. */
 async function twoHalves(): Promise<Buffer> {
@@ -205,5 +213,96 @@ describe('logoInk', () => {
       left: 0,
       luminance: 1,
     })
+  })
+})
+
+/** A flat picture of one colour, as a JPEG. */
+const flat = (width: number, height: number, colour: string) =>
+  sharp({ create: { width, height, channels: 3, background: colour } })
+    .jpeg()
+    .toBuffer()
+
+const centreOf = async (jpeg: Buffer) => {
+  const { data, info } = await sharp(jpeg).raw().toBuffer({ resolveWithObject: true })
+  const at = (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) * 3
+  return { width: info.width, height: info.height, rgb: [...data.subarray(at, at + 3)] }
+}
+
+describe('windowPhotoJpeg', () => {
+  const window4x6 = {
+    widthPt: inToPt(3.32),
+    heightPt: inToPt(0.61),
+    focalX: 0.5,
+    focalY: 0.94,
+  }
+
+  it('crops the photo to the window’s own shape at 300 dpi: the 4 × 6 in and A6 windows differ', async () => {
+    const photo = await flat(1600, 1067, '#204060')
+    const card = await windowPhotoJpeg(photo, { ...window4x6, field: '#16130E' })
+    const a6 = await windowPhotoJpeg(photo, {
+      widthPt: (88 * 72) / 25.4,
+      heightPt: (14.4 * 72) / 25.4,
+      focalX: 0.5,
+      focalY: 0.5,
+      field: '#16130E',
+    })
+    expect(await centreOf(card.bytes)).toMatchObject({ width: 996, height: 183 })
+    expect(await centreOf(a6.bytes)).toMatchObject({ width: 1039, height: 170 })
+  })
+
+  it('places the crop by its focal point, as the page’s object-position does', async () => {
+    const photo = await gradient(400, 400, 'y')
+    const bottom = await windowPhotoJpeg(photo, {
+      ...window4x6,
+      focalY: 1,
+      field: '#000000',
+    })
+    const top = await windowPhotoJpeg(photo, {
+      ...window4x6,
+      focalY: 0,
+      field: '#000000',
+    })
+    const [bottomGrey = 0] = (await centreOf(bottom.bytes)).rgb
+    const [topGrey = 0] = (await centreOf(top.bytes)).rgb
+    expect(bottomGrey).toBeGreaterThan(topGrey + 100)
+  })
+
+  it('leaves a dark crop undimmed, and dims a light one in the field colour', async () => {
+    const dark = await windowPhotoJpeg(await flat(800, 400, '#202020'), {
+      ...window4x6,
+      field: '#16130E',
+    })
+    expect(dark.dim).toBe(0)
+    const light = await windowPhotoJpeg(await flat(800, 400, '#FFFFFF'), {
+      ...window4x6,
+      field: '#16130E',
+    })
+    expect(light.dim).toBeCloseTo(0.45, 2)
+    const [r = 0] = (await centreOf(light.bytes)).rgb
+    // White under the field at 0.45: about 255 - 0.45 × (255 - 22).
+    expect(r).toBeGreaterThan(140)
+    expect(r).toBeLessThan(160)
+  })
+
+  it('says how many of the photo’s own pixels an inch prints: a small photo prints soft', async () => {
+    const small = await windowPhotoJpeg(await flat(300, 200, '#405060'), {
+      ...window4x6,
+      field: '#16130E',
+    })
+    expect(small.dpi).toBeCloseTo(300 / 3.32, 0)
+    const large = await windowPhotoJpeg(await flat(2400, 1600, '#405060'), {
+      ...window4x6,
+      field: '#16130E',
+    })
+    expect(large.dpi).toBeGreaterThan(600)
+  })
+})
+
+describe('meanLuminance', () => {
+  it('reads black as 0, white as 1 and mid grey as its relative luminance', () => {
+    const info = { width: 8, height: 8, channels: 3 }
+    expect(meanLuminance(new Uint8Array(192).fill(0), info)).toBe(0)
+    expect(meanLuminance(new Uint8Array(192).fill(255), info)).toBeCloseTo(1, 10)
+    expect(meanLuminance(new Uint8Array(192).fill(128), info)).toBeCloseTo(0.2158, 3)
   })
 })

@@ -8,9 +8,14 @@
 // `planPdfCodeBlock` measures the cue in the PDF's own fonts and says how tall the
 // object is, so a face can place it before it draws it.
 
-import { PRINT_KIT_QR_QUIET_ZONE_MODULES } from '#/shared/domain/portal-print-kit'
+import {
+  PRINT_KIT_QR_QUIET_ZONE_MODULES,
+  type PrintFace,
+} from '#/shared/domain/portal-print-kit'
 import {
   CAMERA_ICON,
+  codeBlockColours,
+  cueLinesFor,
   cueBlockHeightPt,
   cueLineHeightPt,
   cueTrackingPt,
@@ -20,7 +25,11 @@ import {
   type CueLine,
 } from '#/shared/domain/portal-print-kit-code-block'
 import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
-import { PRINT_KIT_INK, PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
+import {
+  PRINT_KIT_INK,
+  PRINT_KIT_TILE,
+  type PrintKitStylePalette,
+} from '#/shared/domain/portal-print-kit-palette'
 import {
   drawLine,
   measureLine,
@@ -52,6 +61,21 @@ export function planPdfCodeBlock(
   return planCodeBlock(cues, (cue, size) =>
     measureLine(doc, fonts, cue.text, cueStyle(size, PRINT_KIT_INK)),
   )
+}
+
+/** A face's code block, planned in the PDF's fonts: its cue lines in the face's languages, its colours from the style. */
+export function planFaceCodeBlock(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  face: PrintFace,
+  qr: QrMatrix,
+  palette: PrintKitStylePalette,
+): Readonly<{ plan: CodeBlockPlan; art: CodeBlockArt }> {
+  const cues = cueLinesFor(face.blocks.map((block) => block.locale))
+  return {
+    plan: planPdfCodeBlock(doc, fonts, cues),
+    art: { qr, cues, colours: codeBlockColours(palette) },
+  }
 }
 
 type Corner = Readonly<{ x: number; y: number }>

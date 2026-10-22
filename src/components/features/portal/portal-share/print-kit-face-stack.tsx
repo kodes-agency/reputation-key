@@ -5,22 +5,37 @@
 // the place label and the call to action. Each block in its own `lang`.
 //
 // The sizes, line heights and gaps are the measures the PDF reads, in the face's
-// own units (`pt`); headings are balanced as the PDF balances them.
+// own units (`pt`); headings are balanced as the PDF balances them. Both styles
+// set their words this way, in their own colours: ink on Paper, white on the
+// Immersive field.
 
 import type { CSSProperties } from 'react'
 import type { PrintFace, PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import { STACK, TYPE_PT } from '#/shared/domain/portal-print-kit-measures'
-import type { PaperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { LINING_FIGURES } from './print-kit-art-layout'
 import type { PointsToLength } from './print-kit-code-block-layout'
 import type { PaperScale } from './print-kit-paper-art-layout'
+
+/** The words' colours, from a style's palette. */
+export type FaceStackColours = Readonly<{
+  /** The place label and the headlines. */
+  ink: string
+  /** The sublines. */
+  soft: string
+  /** The second language's title. */
+  accentInk: string
+  /** The rule: Paper's accent ink, Immersive's accent line. */
+  rule: string
+}>
 
 type Props = Readonly<{
   face: PrintFace
   scale: PaperScale
   align: 'centre' | 'start'
-  palette: PaperPrintKitPalette
+  colours: FaceStackColours
   pt: PointsToLength
+  /** The place block to the call to action, when a fit step has tightened it. */
+  placeToHeadPt?: number
 }>
 
 const DISPLAY: CSSProperties = {
@@ -31,7 +46,14 @@ const DISPLAY: CSSProperties = {
   textWrap: 'balance',
 }
 
-export function PrintKitPaperStack({ face, scale, align, palette, pt }: Props) {
+export function PrintKitFaceStack({
+  face,
+  scale,
+  align,
+  colours,
+  pt,
+  placeToHeadPt,
+}: Props) {
   const [lead, second] = face.blocks
   if (lead === undefined) return null
   const type: Readonly<Record<string, number>> = TYPE_PT[scale]
@@ -48,7 +70,7 @@ export function PrintKitPaperStack({ face, scale, align, palette, pt }: Props) {
         width: pt(tent ? STACK.rule.tentWidthPt : STACK.rule.widthPt),
         height: pt(tent ? STACK.rule.tentWeightPt : STACK.rule.weightPt),
         margin: `${pt(gaps.rule)} 0`,
-        background: palette.accentInk,
+        background: colours.rule,
       }}
     />
   )
@@ -71,7 +93,7 @@ export function PrintKitPaperStack({ face, scale, align, palette, pt }: Props) {
             fontSize: size('place'),
             lineHeight: leading.place,
             letterSpacing: `${STACK.trackingEm.place}em`,
-            color: palette.ink,
+            color: colours.ink,
           }}
         >
           {lead.kicker}
@@ -85,7 +107,7 @@ export function PrintKitPaperStack({ face, scale, align, palette, pt }: Props) {
               fontSize: size('place2'),
               lineHeight: leading.place2,
               letterSpacing: `${STACK.trackingEm.place2}em`,
-              color: palette.accentInk,
+              color: colours.accentInk,
             }}
           >
             {second.kicker}
@@ -96,7 +118,7 @@ export function PrintKitPaperStack({ face, scale, align, palette, pt }: Props) {
       <div
         style={{
           flex: 'none',
-          marginTop: second ? pt(gaps.placeToHead ?? 0) : 0,
+          marginTop: second ? pt(placeToHeadPt ?? gaps.placeToHead ?? 0) : 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: items,
@@ -104,7 +126,7 @@ export function PrintKitPaperStack({ face, scale, align, palette, pt }: Props) {
       >
         <CallToAction
           block={lead}
-          palette={palette}
+          colours={colours}
           pt={pt}
           sizes={[size('head'), size('sub')]}
           lead
@@ -113,7 +135,7 @@ export function PrintKitPaperStack({ face, scale, align, palette, pt }: Props) {
         {second && (
           <CallToAction
             block={second}
-            palette={palette}
+            colours={colours}
             pt={pt}
             sizes={[size('head2'), size('sub2')]}
           />
@@ -125,13 +147,13 @@ export function PrintKitPaperStack({ face, scale, align, palette, pt }: Props) {
 
 function CallToAction({
   block,
-  palette,
+  colours,
   pt,
   sizes,
   lead = false,
 }: Readonly<{
   block: PrintTextBlock
-  palette: PaperPrintKitPalette
+  colours: FaceStackColours
   pt: PointsToLength
   sizes: readonly [string, string]
   lead?: boolean
@@ -145,7 +167,7 @@ function CallToAction({
           ...DISPLAY,
           fontSize: sizes[0],
           lineHeight: lead ? leading.head : leading.head2,
-          color: palette.ink,
+          color: colours.ink,
         }}
       >
         {block.headline}
@@ -157,7 +179,7 @@ function CallToAction({
           marginTop: pt(lead ? STACK.subAbovePt : STACK.sub2AbovePt),
           fontSize: sizes[1],
           lineHeight: lead ? leading.sub : leading.sub2,
-          color: palette.soft,
+          color: colours.soft,
         }}
       >
         {block.subline}

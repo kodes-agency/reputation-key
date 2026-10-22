@@ -16,11 +16,7 @@
 // top-left corner of its trim; the page places and turns it.
 
 import type { PrintFace } from '#/shared/domain/portal-print-kit'
-import {
-  cueLinesFor,
-  codeBlockColours,
-  type CodeBlockPlan,
-} from '#/shared/domain/portal-print-kit-code-block'
+import type { CodeBlockPlan } from '#/shared/domain/portal-print-kit-code-block'
 import {
   CARD_GRID,
   CODE_BLOCK,
@@ -37,7 +33,7 @@ import type { PaperPrintKitPalette } from '#/shared/domain/portal-print-kit-pale
 import type { PanelGeometry } from '#/shared/domain/portal-print-kit-sheets'
 import {
   drawCodeBlock,
-  planPdfCodeBlock,
+  planFaceCodeBlock,
   type CodeBlockArt,
 } from './print-kit-code-block'
 import {
@@ -90,13 +86,14 @@ const colours = (palette: PaperPrintKitPalette) => ({
   rule: palette.accentInk,
 })
 
-function codeOf(sizing: Sizing): Readonly<{ plan: CodeBlockPlan; art: CodeBlockArt }> {
-  const cues = cueLinesFor(sizing.face.blocks.map((block) => block.locale))
-  return {
-    plan: planPdfCodeBlock(sizing.doc, sizing.fonts, cues),
-    art: { qr: sizing.art.qr, cues, colours: codeBlockColours(sizing.art.palette) },
-  }
-}
+const codeOf = (sizing: Sizing) =>
+  planFaceCodeBlock(
+    sizing.doc,
+    sizing.fonts,
+    sizing.face,
+    sizing.art.qr,
+    sizing.art.palette,
+  )
 
 type Scale = Parameters<typeof layoutFaceStack>[0]['scale']
 

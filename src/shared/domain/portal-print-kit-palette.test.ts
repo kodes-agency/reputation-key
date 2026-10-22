@@ -4,6 +4,8 @@ import {
   PRINT_KIT_CONTRAST,
   PRINT_KIT_WASH_ALPHA,
   immersivePrintKitPalette,
+  IMMERSIVE_LOGO_PLATE,
+  logoNeedsCreamPlate,
   logoNeedsPaperPlate,
   paperLogoPlate,
   paperPrintKitPalette,
@@ -284,5 +286,16 @@ describe('a logo on paper', () => {
     expect(paperLogoPlate('#EAD6A8')).toBe('#16130E')
     expect(paperLogoPlate('#C8102E')).toBe('#160E0F')
     expect(paperLogoPlate('not a colour')).toBe('#101412')
+  })
+})
+
+describe('logoNeedsCreamPlate', () => {
+  it('puts a dark logo on the cream plate on the Immersive field, and leaves a light one bare', () => {
+    expect(logoNeedsCreamPlate(0.02)).toBe(true)
+    expect(logoNeedsCreamPlate(0.34)).toBe(true)
+    expect(logoNeedsCreamPlate(0.35)).toBe(false)
+    expect(logoNeedsCreamPlate(0.9)).toBe(false)
+    expect(logoNeedsCreamPlate(null)).toBe(false)
+    expect(IMMERSIVE_LOGO_PLATE).toBe('#F6F1E6')
   })
 })

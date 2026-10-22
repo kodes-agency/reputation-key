@@ -38,6 +38,17 @@ describe('downloadPortalPrintKitInputSchema', () => {
     expect(parse({ style: 'paper' }).data?.paper).toBeUndefined()
   })
 
+  it('accepts the Immersive style, its paper naming the size family', () => {
+    const parse = (extra: object) =>
+      downloadPortalPrintKitInputSchema.safeParse({ ...valid, ...extra })
+    expect(parse({ style: 'immersive', paper: 'letter' }).data).toMatchObject({
+      style: 'immersive',
+      paper: 'letter',
+    })
+    expect(parse({ style: 'immersive', paper: 'a4' }).success).toBe(true)
+    expect(parse({ style: 'immersive' }).data?.paper).toBeUndefined()
+  })
+
   it('leaves the style out of a request that names none: that is today’s print', () => {
     const parsed = downloadPortalPrintKitInputSchema.parse(valid)
     expect(parsed.style).toBeUndefined()
@@ -52,7 +63,6 @@ describe('downloadPortalPrintKitInputSchema', () => {
     ['a call to action it does not have', { callToAction: 'stay' }],
     ['an empty Portal id', { portalId: '' }],
     ['a style the kit does not have', { style: 'poster' }],
-    ['the Immersive style, which is not drawn yet', { style: 'immersive' }],
     ['a paper the kit does not print on', { style: 'paper', paper: 'legal' }],
   ])('refuses %s', (_label, override) => {
     expect(
