@@ -423,6 +423,40 @@ describe('guest response lifecycle', () => {
     expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
   })
 
+  it('keeps a rating filtered for network volume: durable, in the normal view, out of the figures', async () => {
+    // A venue's guests share one public address, so a rating past the network
+    // layer's budget is kept and filtered automatically instead of refused.
+    const { rawLifecycle, repo, outbox } = harness()
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+    const receipt = await rawLifecycle.submit(
+      scope,
+      sessionId,
+      { rating: 4, responseConsent: true },
+      experience(),
+      undefined,
+      {
+        outcome: 'filtered_automatically',
+        reasonCode: 'network_volume',
+        source: 'automatic',
+        actorId: 'guest-integrity-network-v1',
+      },
+    )
+
+    expect(receipt).toMatchObject({ status: 'submitted', rating: 4 })
+    expect(receipt).not.toHaveProperty('integrityOutcome')
+    expect(repo.responses[0]).toMatchObject({
+      rating: 4,
+      integrityOutcome: 'filtered_automatically',
+      integrityReasonCode: 'network_volume',
+      ratingSourceEventId: null,
+    })
+    expect(outbox.byTag('guest.rating.submitted')).toHaveLength(0)
+    // Durable: the guest's session now holds a rating, so the Google step opens.
+    expect(isQualifiedGuestResponse(await rawLifecycle.getState(scope, sessionId))).toBe(
+      true,
+    )
+  })
+
   it('submits, corrects once, and withdraws only for the same session', async () => {
     const { lifecycle } = harness()
     const submitted = await lifecycle.submit(

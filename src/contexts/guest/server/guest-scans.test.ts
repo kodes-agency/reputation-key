@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   consumeGuestNetworkPressure: vi.fn(),
   recordScan: vi.fn(),
   reportObservationLoss: vi.fn(),
+  reportNetworkBudgetExhausted: vi.fn(),
   rateLimiterCheck: vi.fn(),
   decidePublicExecution: vi.fn(),
   setResponseHeader: vi.fn(),
@@ -83,6 +84,7 @@ vi.mock('#/composition', () => ({
         consumeGuestNetworkPressure: mocks.consumeGuestNetworkPressure,
         recordScan: mocks.recordScan,
         reportObservationLoss: mocks.reportObservationLoss,
+        reportNetworkBudgetExhausted: mocks.reportNetworkBudgetExhausted,
       },
     },
   }),
@@ -258,5 +260,85 @@ describe('recordScanFn', () => {
     expect(mocks.recordScan).not.toHaveBeenCalled()
     // A full budget is a refusal, not lost observation.
     expect(mocks.reportObservationLoss).not.toHaveBeenCalled()
+  })
+
+  describe('on a venue address', () => {
+    const NETWORK_KEY = `scan:network:pseudonym-1:portal:${PORTAL_ID}`
+    const EXHAUSTED = {
+      allowed: false,
+      remaining: 0,
+      resetAt: RESET_AT,
+      backendStatus: 'available',
+    } as const
+    const available = { ...ALLOWED, backendStatus: 'available' } as const
+
+    it('takes the venue-sized budget on the Redis layer and its durable twin', async () => {
+      await beacon()
+
+      expect(mocks.rateLimiterCheck.mock.calls).toEqual([
+        [`scan:${SESSION_ID}`, { maxRequests: 3, windowSeconds: 3600 }],
+        [NETWORK_KEY, { maxRequests: 300, windowSeconds: 3600 }],
+      ])
+      expect(mocks.consumeGuestNetworkPressure).toHaveBeenCalledExactlyOnceWith({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        portalId: PORTAL_ID,
+        pseudonym: 'pseudonym-1',
+        action: 'qualified_scan',
+        maxRequests: 300,
+        windowSeconds: 3600,
+      })
+      expect(mocks.reportNetworkBudgetExhausted).not.toHaveBeenCalled()
+    })
+
+    it('says once, without the address, when the Redis network layer refuses', async () => {
+      mocks.rateLimiterCheck.mockImplementation(async (key: string) =>
+        key === NETWORK_KEY ? EXHAUSTED : available,
+      )
+
+      await expect(beacon()).rejects.toMatchObject({ status: 429 })
+
+      expect(mocks.reportNetworkBudgetExhausted).toHaveBeenCalledExactlyOnceWith({
+        action: 'scan',
+      })
+      expect(mocks.recordScan).not.toHaveBeenCalled()
+    })
+
+    it('says once when the durable pressure twin refuses', async () => {
+      mocks.consumeGuestNetworkPressure.mockResolvedValue({
+        allowed: false,
+        remaining: 0,
+        resetAt: RESET_AT,
+      })
+
+      await expect(beacon()).rejects.toMatchObject({ status: 429 })
+
+      expect(mocks.reportNetworkBudgetExhausted).toHaveBeenCalledExactlyOnceWith({
+        action: 'scan',
+      })
+      expect(mocks.recordScan).not.toHaveBeenCalled()
+    })
+
+    it('says nothing about the network when only this device is out of budget', async () => {
+      mocks.rateLimiterCheck.mockImplementation(async (key: string) =>
+        key === `scan:${SESSION_ID}` ? EXHAUSTED : available,
+      )
+
+      await expect(beacon()).rejects.toMatchObject({ status: 429 })
+
+      expect(mocks.reportNetworkBudgetExhausted).not.toHaveBeenCalled()
+    })
+
+    it('reports a limiter outage as lost observation, not as venue volume', async () => {
+      mocks.rateLimiterCheck.mockResolvedValue({
+        ...EXHAUSTED,
+        backendStatus: 'unavailable',
+      })
+
+      await expect(beacon()).rejects.toMatchObject({ status: 429 })
+
+      expect(mocks.reportObservationLoss).toHaveBeenCalledWith('scan')
+      expect(mocks.reportNetworkBudgetExhausted).not.toHaveBeenCalled()
+    })
   })
 })

@@ -186,10 +186,30 @@ describe('guestRateLimitKey', () => {
         sessionLimits: { maxRequests: 2, windowSeconds: 3600 },
         networkPortalLimits: { maxRequests: 10, windowSeconds: 3600 },
       }),
-    ).resolves.toEqual(denied)
+    ).resolves.toEqual({ ...denied, layer: 'networkPortal' })
     expect(check.mock.calls).toEqual([
       ['scan:session-1', { maxRequests: 2, windowSeconds: 3600 }],
       ['scan:network:ip-hash:portal:portal-1', { maxRequests: 10, windowSeconds: 3600 }],
     ])
+  })
+
+  it('names the session layer when a device, not a venue, is out of budget', async () => {
+    const denied = {
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date('2026-08-09T13:00:00Z'),
+      backendStatus: 'available' as const,
+    }
+    const check = vi.fn().mockResolvedValueOnce(denied)
+
+    await expect(
+      checkLayeredGuestRateLimit({
+        rateLimiter: { check },
+        keys: guestRateLimitKeys('scan', 'session-1', 'ip-hash', 'portal-1'),
+        sessionLimits: { maxRequests: 2, windowSeconds: 3600 },
+        networkPortalLimits: { maxRequests: 10, windowSeconds: 3600 },
+      }),
+    ).resolves.toEqual({ ...denied, layer: 'session' })
+    expect(check).toHaveBeenCalledTimes(1)
   })
 })

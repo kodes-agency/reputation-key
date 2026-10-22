@@ -47,6 +47,7 @@ import {
   type GuestObservationLossRedisPort,
 } from './infrastructure/guest-observation-loss-monitor'
 import { reportGuestObservationLoss } from './application/use-cases/report-observation-loss'
+import { reportGuestNetworkBudgetExhausted } from './application/use-cases/report-network-budget-exhausted'
 import { createGuestNetworkPseudonymHasher } from './server/hash-ip.server'
 import { createContactRequestResponseAuthorityAdapter } from './infrastructure/adapters/contact-request-response-authority.adapter'
 import { createContactRequestManagerAuthorityAdapter } from './infrastructure/adapters/contact-request-manager-authority.adapter'
@@ -156,6 +157,9 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       clock: deps.clock,
     }),
     reportObservationLoss,
+    reportNetworkBudgetExhausted: reportGuestNetworkBudgetExhausted({
+      logger: deps.logger,
+    }),
     guestPublicRuntime: {
       expectedOrigin: deps.publicOrigin,
       hashNetworkPseudonym: createGuestNetworkPseudonymHasher(deps.sessionSecret),
