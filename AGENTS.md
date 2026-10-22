@@ -4,16 +4,18 @@
 
 ### Issue tracker
 
-Issues, PRDs and wayfinder maps live as GitHub issues on
-`kodes-agency/reputation-key`, driven through the `gh` CLI; pull requests are
-**not** a request surface, so `/triage` ignores them. Wayfinder maps use native
-GitHub sub-issues and issue dependencies. See `docs/agents/issue-tracker.md`.
+Issues and PRDs live as GitHub issues on `kodes-agency/reputation-key`, driven
+through the `gh` CLI; pull requests are **not** a request surface, so `/triage`
+ignores them. Open issues show on the triage board (Project #1), and errors
+that need code work come from Sentry. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
 The five canonical triage roles map one-to-one to labels that already exist on
 the repo: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
-`wontfix`. See `docs/agents/triage-labels.md`.
+`wontfix`. Every issue also carries one `type:` label (`bug`, `feature`,
+`improvement`, `chore`), and `source:sentry` or `source:beta-feedback` when it
+came from there. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
