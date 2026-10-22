@@ -1,8 +1,8 @@
 name: Sentry release commits
 
-# Attaches each main commit to the Sentry release the image build named after
-# it, once CI has passed on main. Sentry then knows which commits each release
-# contains: it can name a suspect commit for a new error, and a commit message
+# Sends Sentry the commits of each main release (the one the image build named
+# after the commit), once CI has passed on main. Sentry then knows which
+# commits each release contains: it can name a suspect commit for a new error, and a commit message
 # saying "Fixes JAVASCRIPT-TANSTACKSTART-REACT-4" resolves that issue. The why
 # and the rules are in scripts/ci/sentry-release-commits.ts; the convention is
 # in docs/agents/issue-tracker.md ("Sentry").
@@ -39,11 +39,14 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 5 # a checkout, Node, and up to a minute waiting on Sentry
+    timeout-minutes: 5 # a full checkout, Node, and up to half a minute waiting on Sentry
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The commits are read from this history, back to the previous
+          # release's commit, which can be any distance behind.
+          fetch-depth: 0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -51,7 +54,7 @@ jobs:
 
       # Plain Node runs the TypeScript script (type stripping): it imports
       # nothing outside the repository, so there is no install.
-      - name: Attach the commit to its Sentry release
+      - name: Send the release's commits to Sentry
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
