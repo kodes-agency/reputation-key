@@ -877,10 +877,30 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 10
         run: pnpm exec playwright install chromium
-      # Bounded and self-naming: see the e2e job's step of the same name.
+      # Bounded, cached and self-naming: see the e2e job's steps of the same names.
+      - name: Week of the Ubuntu package cache
+        id: apt-week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+      - name: Restore Ubuntu packages for Playwright
+        id: apt-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium_${{ steps.apt-week.outputs.week }}
+          restore-keys: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium_
       - name: Install Playwright system packages
         timeout-minutes: 10
-        run: sh scripts/ci/install-playwright-deps.sh chromium
+        run: PLAYWRIGHT_DEPS_CACHE_DIR="$HOME/.cache/playwright-apt" sh scripts/ci/install-playwright-deps.sh chromium
+      # Saved straight after the install, so a later test failure still keeps
+      # this week's packages. Once main has saved a week's, pull requests hit
+      # it exactly and save nothing; before that, a rerun of a failed shard
+      # finds what a sibling shard downloaded.
+      - name: Save Ubuntu packages for Playwright
+        if: steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/playwright-apt
+          key: ${{ steps.apt-cache.outputs.cache-primary-key }}
       # The stall guard fails the run about a minute after a story page goes
       # quiet, and names the story (scripts/ci/storybook-stall-guard.ts). A
       # frozen page runs no JavaScript, so Vitest's own timeouts cannot fire
@@ -963,17 +983,40 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 10
         run: pnpm exec playwright install chromium firefox webkit
-      # The browsers' system packages come from Ubuntu's mirrors on every run,
-      # cache hit or not. On 2026-10-22 the mirror GitHub's runners prefer
-      # trickled, and this install (~30 s) took 17-25 min: 12 shards hit
-      # timeout-minutes, some inside a later step that was not at fault. The
-      # script gives the download a deadline, moves to the next mirror once,
-      # and names the phase and mirror when it gives up, so a stall now costs
-      # minutes (scripts/ci/install-playwright-deps.sh). timeout-minutes here
-      # only backstops the script itself.
+      # The browsers' system packages (~119 MB of .deb files) came from
+      # Ubuntu's mirrors on every run. On 2026-10-22 the mirror GitHub's
+      # runners prefer trickled, then archive.ubuntu.com did too, and this
+      # install (~30 s) took 17-25 min: 12 shards hit timeout-minutes, some
+      # inside a later step that was not at fault. The packages are now cached
+      # per ISO week, so a warm run downloads only what Ubuntu updated since
+      # (apt checks every cached file against the signed package lists). The
+      # script gives any download a deadline, moves to the next mirror once,
+      # and names the phase and mirror when it gives up
+      # (scripts/ci/install-playwright-deps.sh). timeout-minutes here only
+      # backstops the script itself.
+      - name: Week of the Ubuntu package cache
+        id: apt-week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+      - name: Restore Ubuntu packages for Playwright
+        id: apt-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-firefox-webkit_${{ steps.apt-week.outputs.week }}
+          restore-keys: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-firefox-webkit_
       - name: Install Playwright system packages
         timeout-minutes: 10
-        run: sh scripts/ci/install-playwright-deps.sh chromium firefox webkit
+        run: PLAYWRIGHT_DEPS_CACHE_DIR="$HOME/.cache/playwright-apt" sh scripts/ci/install-playwright-deps.sh chromium firefox webkit
+      # Saved straight after the install, so a later test failure still keeps
+      # this week's packages. Once main has saved a week's, pull requests hit
+      # it exactly and save nothing; before that, a rerun of a failed shard
+      # finds what a sibling shard downloaded.
+      - name: Save Ubuntu packages for Playwright
+        if: steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/playwright-apt
+          key: ${{ steps.apt-cache.outputs.cache-primary-key }}
       - name: Start local Compose application stack
         run: pnpm e2e:stack:up
       - name: Run critical e2e (hard gate — BQR-5.1)
