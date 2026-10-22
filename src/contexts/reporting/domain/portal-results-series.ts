@@ -77,6 +77,10 @@ export type SeriesWindow = Readonly<{
 
 export type SeriesReadiness = Readonly<{
   scans: boolean
+  /**
+   * The ratings evidence is ready, so a bucket's count is known. It says
+   * nothing about the floor: an average is held to that, bucket by bucket.
+   */
   ratings: boolean
   /** The prior window's scans are comparable (ready, and counted that early). */
   priorScans: boolean

@@ -210,8 +210,10 @@ export const getPortalAnalytics =
       since,
     )
 
-    // A weekly average would give a withheld average away, exactly as the
-    // distribution would, so both follow the same gate.
+    // The weekly count follows the ratings evidence, as the strip's count does,
+    // so a window under the floor still says where its few ratings fell. Only
+    // the average is held to the floor: each week by its own count, which can
+    // never exceed the window's, so a week cannot show what the window withholds.
     const series = buildPortalResultsSeries({
       timezone: propertyTimezone,
       current: { startDate, endDate, rows: currentWeekly },
@@ -225,7 +227,7 @@ export const getPortalAnalytics =
           : null,
       ready: {
         scans: kpis.scans.value !== null,
-        ratings: ratingDetailShowable,
+        ratings: kpis.ratings.value !== null,
         priorScans: kpis.scans.priorValue !== null,
       },
       averageMinSample: PORTAL_RESULTS_THRESHOLDS.averageMinSample,
@@ -259,7 +261,7 @@ export const getPortalAnalytics =
       lifetimeReconciliation: null,
       kpis,
       engagementFunnel,
-      // A distribution or weekly averages would give a withheld average away.
+      // A distribution would give a withheld average away.
       ratingDistribution: ratingDetailShowable ? ratingDistribution : [],
       series,
       versionMarkers,

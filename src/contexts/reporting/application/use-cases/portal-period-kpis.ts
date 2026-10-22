@@ -54,7 +54,7 @@ export type PortalPeriodReading = Readonly<{
 export type PortalPeriodKpis = Readonly<{
   kpis: PortalKPIs
   engagementFunnel: PortalEngagementFunnel | null
-  /** True when the average is shown, so its distribution and trend may be too. */
+  /** True when the average is shown, so its distribution may be too. */
   ratingDetailShowable: boolean
 }>
 
