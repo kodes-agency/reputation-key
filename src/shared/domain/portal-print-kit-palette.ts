@@ -222,6 +222,20 @@ export function paperLogoPlate(accent: string): string {
   return deriveFieldColour(usableAccent(accent)) ?? PRINT_KIT_INK
 }
 
+/** Below this alpha-weighted luminance a logo is too dark to read on the Immersive field (spec 3.2). */
+const DARK_LOGO_LUMINANCE = 0.35
+
+/** The plate under a dark logo on the Immersive field: the code tile's cream. */
+export const IMMERSIVE_LOGO_PLATE = PRINT_KIT_TILE
+
+/**
+ * Whether a logo whose drawing has `luminance` needs the cream plate to print on
+ * the Immersive field: a dark logo made for a light page would vanish into it.
+ */
+export function logoNeedsCreamPlate(luminance: number | null): boolean {
+  return luminance !== null && luminance < DARK_LOGO_LUMINANCE
+}
+
 /** The palette of one style, from the property's accent and field. */
 export function printKitStylePalette(
   accent: string,
