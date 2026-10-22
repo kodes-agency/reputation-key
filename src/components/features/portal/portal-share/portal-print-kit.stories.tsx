@@ -14,6 +14,7 @@ import {
   AuthedRouterDecorator,
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { PortalShare } from './portal-share'
 import type { DownloadPrintKitInput } from './portal-print-kit-types'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
@@ -367,6 +368,89 @@ export const ReadFailsThenRecovers: Story = {
     await userEvent.click(canvas.getAllByRole('button', { name: 'Try again' })[0]!)
     await expect(await preview(canvasElement)).toBeInTheDocument()
     await expect(canvas.queryByText('The print kit couldn’t be loaded.')).toBeNull()
+  },
+}
+
+const NOT_LIVE_NOTICE =
+  /publish this portal to make a print kit\. a print carries the code of the live page\./i
+const REVIEW_HREF = '/properties/property-1/portals/portal-1/review?tab=share'
+
+const printKitSection = (canvasElement: HTMLElement) =>
+  within(canvasElement).findByRole('region', { name: 'Print kit' })
+
+/** Nothing is live to print from: one notice in place of the section and the preview, and no read. */
+export const NotLiveYetGetsOneNotice: Story = {
+  args: {
+    ...baseArgs,
+    publicationState: 'draft',
+    propertyId: 'property-1',
+    printKit: { read: fn(async () => view()), downloadMutation: downloadMutation() },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const section = within(await printKitSection(canvasElement))
+    await expect(section.getByText(NOT_LIVE_NOTICE)).toBeVisible()
+    await expect(section.getByRole('link', { name: 'Review & publish' })).toHaveAttribute(
+      'href',
+      REVIEW_HREF,
+    )
+    // No dead end: nothing failed to load, nothing to try again, no download, no preview.
+    await expect(canvas.queryByText(/couldn’t be loaded/i)).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Try again' })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /download print kit/i })).toBeNull()
+    await expect(canvas.queryByRole('img', { name: /print preview/i })).toBeNull()
+    await expect(canvas.queryByRole('region', { name: 'Print preview' })).toBeNull()
+    await expect(args.printKit?.read).not.toHaveBeenCalled()
+  },
+}
+
+export const TurnedOffPortalAsksToPublishAgain: Story = {
+  args: { ...NotLiveYetGetsOneNotice.args, publicationState: 'disabled' },
+  play: async ({ canvasElement }) => {
+    const section = within(await printKitSection(canvasElement))
+    await expect(
+      section.getByText(/publish this portal again to make a print kit/i),
+    ).toBeVisible()
+    await expect(section.getByRole('link', { name: 'Review & publish' })).toBeVisible()
+  },
+}
+
+/** An archived portal is restored from the Portals list first, so there is no review to go to. */
+export const ArchivedPortalAsksToRestore: Story = {
+  args: { ...NotLiveYetGetsOneNotice.args, publicationState: 'archived' },
+  play: async ({ canvasElement }) => {
+    const section = within(await printKitSection(canvasElement))
+    await expect(
+      section.getByText(/restore this portal from the portals list and publish it/i),
+    ).toBeVisible()
+    await expect(section.queryByRole('link', { name: 'Review & publish' })).toBeNull()
+  },
+}
+
+/** A page whose state is behind: the server's "nothing live" is the same notice, not a failure. */
+export const ServerSaysNothingIsLive: Story = {
+  args: {
+    ...baseArgs,
+    publicationState: 'published',
+    propertyId: 'property-1',
+    printKit: {
+      read: async () => {
+        throw new ServerFunctionError(
+          'PortalError',
+          'Publish this Portal before printing it: a print carries the live code.',
+          'publication_snapshot_unavailable',
+          409,
+        )
+      },
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // The section is there while the read is out, so wait for the notice itself.
+    await expect(await canvas.findByText(NOT_LIVE_NOTICE)).toBeVisible()
+    await expect(canvas.queryByText(/couldn’t be loaded/i)).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Try again' })).toBeNull()
   },
 }
 
