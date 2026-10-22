@@ -22,6 +22,7 @@
 // needs TRIAGE_BOARD_TOKEN: a classic personal access token with the `project`
 // scope and nothing else.
 
+import { requiredEnv, runActionStep } from './action-step.ts'
 import { isEntryPoint } from './entry-point.ts'
 
 /** Furthest along the triage lifecycle first: the label that wins a tie. */
@@ -171,30 +172,24 @@ export async function syncIssue(
   return { issue: issue.number, outcome: 'placed', column, ignored }
 }
 
-function required(env: NodeJS.ProcessEnv, name: string, hint = ''): string {
-  const value = env[name]?.trim()
-  if (!value) throw new Error(`${name} is empty${hint}`)
-  return value
-}
-
 export function readConfig(
   env: NodeJS.ProcessEnv,
 ): Readonly<{ token: string; target: BoardTarget }> {
-  const token = required(
+  const token = requiredEnv(
     env,
     'TRIAGE_BOARD_TOKEN',
     ': add the repository secret, a classic personal access token with only the `project` scope',
   )
-  const number = required(env, 'TRIAGE_BOARD_NUMBER')
+  const number = requiredEnv(env, 'TRIAGE_BOARD_NUMBER')
   if (!POSITIVE_WHOLE_NUMBER.test(number)) {
     throw new Error(`TRIAGE_BOARD_NUMBER must be a project number, got "${number}"`)
   }
   return {
     token,
     target: {
-      owner: required(env, 'TRIAGE_BOARD_OWNER'),
+      owner: requiredEnv(env, 'TRIAGE_BOARD_OWNER'),
       projectNumber: Number(number),
-      issueId: required(env, 'ISSUE_NODE_ID'),
+      issueId: requiredEnv(env, 'ISSUE_NODE_ID'),
     },
   }
 }
@@ -243,18 +238,9 @@ export function report(result: SyncResult): readonly string[] {
   ]
 }
 
-async function main(): Promise<number> {
-  try {
-    const { token, target } = readConfig(process.env)
-    const result = await syncIssue(createGraphQL(token), target)
-    for (const line of report(result)) console.log(line)
-    return 0
-  } catch (error) {
-    console.error(`::error::${error instanceof Error ? error.message : String(error)}`)
-    return 1
-  }
-}
-
 if (isEntryPoint(import.meta.url)) {
-  process.exitCode = await main()
+  process.exitCode = await runActionStep(async () => {
+    const { token, target } = readConfig(process.env)
+    return report(await syncIssue(createGraphQL(token), target))
+  })
 }
