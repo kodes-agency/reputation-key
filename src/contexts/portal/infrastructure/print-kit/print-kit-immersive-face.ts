@@ -34,6 +34,10 @@ import {
   windowPictureRangePt,
   windowWidthPt,
 } from '#/shared/domain/portal-print-kit-immersive'
+import {
+  longCopySizes,
+  type StackSizes,
+} from '#/shared/domain/portal-print-kit-long-copy'
 import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
 import type { ImmersivePrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import type { PanelGeometry } from '#/shared/domain/portal-print-kit-sheets'
@@ -52,7 +56,6 @@ import {
 import {
   drawFaceStack,
   layoutFaceStack,
-  placeSizes,
   type FaceStack,
   type PlacedStack,
 } from './print-kit-face-stack'
@@ -102,12 +105,12 @@ const brandSize = (sizing: Sizing, size: ImmersiveFitStep['brand']): BrandSize =
   maxWidthPt: sizing.maxWidthPt,
 })
 
-function stackAt(sizing: Sizing, step: ImmersiveFitStep, placePt?: number): FaceStack {
+function stackAt(sizing: Sizing, step: ImmersiveFitStep, sizes?: StackSizes): FaceStack {
   const { doc, fonts, art } = sizing
   return layoutFaceStack({
     blocks: sizing.face.blocks,
     scale: step.scale,
-    placePt,
+    sizes,
     placeToHeadPt: step.placeToHeadPt,
     maxWidthPt: sizing.maxWidthPt,
     colours: {
@@ -127,7 +130,7 @@ function measured(
   sizing: Sizing,
   step: ImmersiveFitStep,
   codeHeight: number,
-  placePt?: number,
+  sizes?: StackSizes,
 ): MeasuredFit<Attempt> {
   const brand = planBrand(
     sizing.doc,
@@ -135,7 +138,7 @@ function measured(
     sizing.art.brand,
     brandSize(sizing, step.brand),
   )
-  const stack = stackAt(sizing, step, placePt)
+  const stack = stackAt(sizing, step, sizes)
   const { grid } = sizing
   const brandTop = (grid.ridgePt ?? 0) + grid.marginPt - brand.inkTopPt
   return {
@@ -147,8 +150,8 @@ function measured(
 
 /**
  * The step a face is printed at. When not even the tightest step without a
- * window leaves the gaps their minimum, the place label shrinks in it until it
- * does, the last resort: the code block never gives way.
+ * window leaves the gaps their minimum, the words take the long-copy steps in
+ * it until they do (`longCopySizes`): the code block never gives way.
  */
 function chooseFit(sizing: Sizing, codeHeight: number): SharedHeight<Attempt> {
   const steps = immersiveFitSteps(sizing.face.blocks.length, isTentPanel(sizing.geometry))
@@ -160,8 +163,9 @@ function chooseFit(sizing: Sizing, codeHeight: number): SharedHeight<Attempt> {
   if (chosen !== null) return chosen
   const tightest = steps[steps.length - 1]
   if (tightest === undefined) throw new Error('A face has at least one way to be set')
-  const sizes = placeSizes(tightest.scale)
-  const shrunk = sizes.map((placePt) => measured(sizing, tightest, codeHeight, placePt))
+  const shrunk = longCopySizes(tightest.scale).map((sizes) =>
+    measured(sizing, tightest, codeHeight, sizes),
+  )
   const fitting =
     shrunk.find((fit) => sizing.grid.heightPt - fit.fixedPt >= 2 * fit.gapPt) ??
     shrunk[shrunk.length - 1]

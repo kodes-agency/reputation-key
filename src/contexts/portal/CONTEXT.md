@@ -372,6 +372,11 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   the type steps down, and before the window is dropped. With two languages a
   logo at its floor still leaves a card's window under 0.55 in (the boards' logo
   leaves 13.1 mm on 4 x 6 in and 9 mm on A6), so those cards print without one.
+  Words that still reach the code block take the long-copy steps, in both
+  styles (`portal-print-kit-long-copy.ts`): the place label shrinks to its 21 pt
+  floor (never under the lead headline), then the second language's block to
+  its floors (11.5 pt headline, 9 pt subline and title), and only then, the last
+  resort, the place label under its floor. The code block never gives way.
 - **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
   family; lining figures on place labels and headlines; no ligatures on a tracked
   line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the

@@ -29,6 +29,10 @@ import {
   LOGO_BOX_MM,
   mmToPt,
 } from '#/shared/domain/portal-print-kit-measures'
+import {
+  longCopySizes,
+  type StackSizes,
+} from '#/shared/domain/portal-print-kit-long-copy'
 import type { PaperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import type { PanelGeometry } from '#/shared/domain/portal-print-kit-sheets'
 import {
@@ -46,7 +50,6 @@ import {
 import {
   drawFaceStack,
   layoutFaceStack,
-  placeSizes,
   stackScales,
   type FaceStack,
   type PlacedStack,
@@ -101,13 +104,13 @@ function stackAt(
   sizing: Sizing,
   scale: Scale,
   maxWidthPt: number,
-  placePt?: number,
+  sizes?: StackSizes,
 ): FaceStack {
   const { doc, fonts } = sizing
   return layoutFaceStack({
     blocks: sizing.face.blocks,
     scale,
-    placePt,
+    sizes,
     maxWidthPt,
     colours: colours(sizing.art.palette),
     measure: (text, style) => measureLine(doc, fonts, text, style),
@@ -115,9 +118,10 @@ function stackAt(
 }
 
 /**
- * The words at `scale` with the place label at the largest size that `fits`:
- * the last fit step, once a scale and the brand are used up. The smallest size
- * when even that does not fit, so the overflow is as small as it can be.
+ * The words at `scale` at the first long-copy step that `fits`: the place label
+ * to its floor, the second language to its floors, then the place label alone
+ * (`longCopySizes`), once a scale and the brand are used up. The last step when
+ * even that does not fit, so the overflow is as small as it can be.
  */
 function shrunkStack(
   sizing: Sizing,
@@ -126,9 +130,9 @@ function shrunkStack(
   fits: (stack: FaceStack) => boolean,
 ): FaceStack {
   let stack = stackAt(sizing, scale, maxWidthPt)
-  for (const placePt of placeSizes(scale)) {
-    stack = stackAt(sizing, scale, maxWidthPt, placePt)
+  for (const sizes of longCopySizes(scale)) {
     if (fits(stack)) break
+    stack = stackAt(sizing, scale, maxWidthPt, sizes)
   }
   return stack
 }
@@ -138,8 +142,8 @@ function shrunkStack(
  * for two languages the stepped-down one (fit step c), and at each scale the
  * brand at its full size and then at its floor. The brand ranks below the place
  * label's size, so it gives way first. The first that leaves the two gaps their
- * minimums is the one printed; when none does, the place label shrinks on the
- * last (`shrunkStack`).
+ * minimums is the one printed; when none does, the words take the long-copy
+ * steps on the last (`shrunkStack`).
  */
 function cardCandidates(sizing: Sizing, maxWidthPt: number) {
   const full: BrandSize = {
