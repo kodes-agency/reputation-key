@@ -367,11 +367,12 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   (`qr_print_code_hash`, `nfc_print_code_hash`). It opens the public guest page
   and lets a visit be counted; it is a credential, never logged, evented or
   exported (invariant 9).
-- **Print host.** The short host a print code is scanned on: `PORTAL_PRINT_ORIGIN`,
-  `https://ap.up.railway.app`. It only redirects `/p/<code>` to the app origin
-  (the guest page is not served there, because the guest `Origin` check is an
-  exact match against the app origin), and must stay attached to the web service
-  and keep its name for the life of the prints.
+- **Print host.** The short host a print code is scanned on:
+  `https://ap.up.railway.app`, which `PORTAL_PRINT_ORIGIN` will name when the
+  redirect step lands (nothing reads it yet). It only redirects `/p/<code>` to the
+  app origin (the guest page is not served there, because the guest `Origin`
+  check is an exact match against the app origin), and must stay attached to the
+  web service and keep its name for the life of the prints.
 - **One source of measures.** The PDF and the preview read the same files, so a
   preview cannot show a sheet the file does not print: `portal-print-kit.ts`
   (styles, papers, pieces, copy, faces, file name), `portal-print-kit-measures.ts`
@@ -415,9 +416,10 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   tent prints without a photo or monogram, because no window reaches its floor.
   D5: the cue's es, it, fr and de wording ships as a draft, as the rest of that
   copy does (owner decision 5, 2026-09-30). D6: replaced by the Letter-first
-  rule above. D7: no shorter printed token (reversed 2026-10-23, ADR 0069). D8: the Letter card sheet is cut down
-  on its three ticks and then across 6 in from the top edge, because the
-  printer's border leaves no room for a tick beside the cards.
+  rule above. D7: no shorter printed token (reversed 2026-10-23, ADR 0069). D8:
+  the Letter card sheet is cut down on its three ticks and then across 6 in from
+  the top edge, because the printer's border leaves no room for a tick beside the
+  cards.
 - **Owner decisions of 2026-10-23 (print kit round 3).** D7: a short print
   address, ADR 0069. The print host is `https://ap.up.railway.app` (17
   characters), a redirect-only second Railway domain on the web service, so the
