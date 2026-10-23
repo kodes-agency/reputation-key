@@ -19,11 +19,16 @@ const policy = policyOrFail(PRINT_ORIGIN, APP_ORIGIN)
 /** The answer for `GET`, or another method, of `url`, as the web server sees the request. */
 function answer(
   url: string,
-  options: { method?: string; forwardedHost?: string | null } = {},
+  options: {
+    method?: string
+    hostHeader?: string | null
+    forwardedHost?: string | null
+  } = {},
 ): Response | null {
   return answerPrintHost(policy, {
     method: options.method ?? 'GET',
     url,
+    hostHeader: options.hostHeader ?? null,
     forwardedHost: options.forwardedHost ?? null,
   })
 }
@@ -62,6 +67,7 @@ describe('printHostPolicy', () => {
     const response = answerPrintHost(withPath, {
       method: 'GET',
       url: 'https://ap.up.railway.app/p/CODE',
+      hostHeader: null,
       forwardedHost: null,
     })
 
@@ -210,7 +216,12 @@ describe('which requests are for the print host', () => {
   it('answers for a print origin with its own port, as a local rehearsal has', () => {
     const local = policyOrFail('http://127.0.0.1:3001', 'http://127.0.0.1:3000')
     const respond = (url: string) =>
-      answerPrintHost(local, { method: 'GET', url, forwardedHost: null })
+      answerPrintHost(local, {
+        method: 'GET',
+        url,
+        hostHeader: null,
+        forwardedHost: null,
+      })
 
     expect(respond('http://127.0.0.1:3001/p/CODE')?.status).toBe(302)
     expect(respond('http://127.0.0.1:3000/p/CODE')).toBeNull()
@@ -223,10 +234,49 @@ describe('which requests are for the print host', () => {
     const response = answerPrintHost(local, {
       method: 'GET',
       url: 'http://[::1]:3001/p/CODE',
+      hostHeader: null,
       forwardedHost: null,
     })
 
     expect(response?.headers.get('location')).toBe('http://[::1]:3000/p/CODE')
+  })
+})
+
+describe('the Host header', () => {
+  // The server builds the URL from it, but not faithfully: a value it does not
+  // accept (a trailing dot) becomes a placeholder, and a request target in absolute
+  // form names its own host. The header still says which host was asked for.
+  it("takes the print host when the URL carries the server's placeholder for it", () => {
+    const response = answer('http://_invalid_/p/CODE', {
+      hostHeader: 'ap.up.railway.app.',
+    })
+
+    expect(response?.status).toBe(302)
+    expect(response?.headers.get('location')).toBe(`${APP_ORIGIN}/p/CODE`)
+  })
+
+  it('takes the print host when the request target names the app host', () => {
+    const response = answer(`${APP_ORIGIN}/login`, { hostHeader: 'ap.up.railway.app' })
+
+    expect(response?.status).toBe(404)
+  })
+
+  it.each([
+    null,
+    '',
+    'web-closed-beta-v2.up.railway.app',
+    'not a host!',
+    'ap.up.railway.app@evil.test',
+  ])('changes nothing for %j on the app host', (hostHeader) => {
+    expect(answer(`${APP_ORIGIN}/p/CODE`, { hostHeader })).toBeNull()
+  })
+
+  it('never lets the header move a request off the print host', () => {
+    const response = answer('https://ap.up.railway.app/login', {
+      hostHeader: 'web-closed-beta-v2.up.railway.app',
+    })
+
+    expect(response?.status).toBe(404)
   })
 })
 

@@ -36,6 +36,14 @@ export type PrintHostRequest = Readonly<{
   /** The request URL as the web server builds it: its host is the wire `Host`. */
   url: string
   /**
+   * The `Host` header as sent, or null. The server builds `url` from it, but it
+   * swaps in a placeholder for a value it does not accept (one with a trailing dot)
+   * and prefers the host of a request target in absolute form, so the header is read
+   * as well. Like the forwarded host, it is used only to take more requests for the
+   * print host.
+   */
+  hostHeader: string | null
+  /**
    * `X-Forwarded-Host` as sent, or null. The caller passes it only where the
    * deployment trusts the proxy that sets it. It is used only to take more
    * requests for the print host, never fewer.
@@ -104,11 +112,11 @@ function redirectToApp(policy: PrintHostPolicy, url: URL): Response {
  * What the print host answers for this request, or null when the request is for
  * another host and is none of this module's business.
  *
- * The request is for the print host when its wire host names it, or when the
- * trusted forwarded host does (or lists it). Either signal is enough because the
- * answer only ever narrows what a request gets: a spoofed header can make the
- * caller's own request a 404, and nothing a header says can open the print host
- * to the app.
+ * The request is for the print host when its wire host names it (the host of its
+ * URL, or its `Host` header), or when the trusted forwarded host does (or lists
+ * it). Any one signal is enough because the answer only ever narrows what a
+ * request gets: a spoofed header can make the caller's own request a 404, and
+ * nothing a header says can open the print host to the app.
  */
 export function answerPrintHost(
   policy: PrintHostPolicy,
@@ -117,7 +125,9 @@ export function answerPrintHost(
   const url = parseUrl(request.url)
   if (url === null) return null
   const forwarded = request.forwardedHost?.split(',') ?? []
-  if (!namesPrintHost(policy, [url.host, ...forwarded])) return null
+  if (!namesPrintHost(policy, [url.host, request.hostHeader ?? '', ...forwarded])) {
+    return null
+  }
   const redirects =
     REDIRECTED_METHODS.has(request.method) && url.pathname.startsWith(PRINT_PATH_PREFIX)
   return redirects ? redirectToApp(policy, url) : notFound()

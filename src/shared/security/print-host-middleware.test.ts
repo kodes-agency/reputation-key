@@ -84,6 +84,18 @@ describe('the print host middleware, on the Host the server received', () => {
     ])
   })
 
+  it('takes the print host from its Host header where the URL carries a placeholder', async () => {
+    // srvx swaps `_invalid_` in for a Host it does not accept, such as a name with a
+    // trailing dot, so the header is the only place the print host still shows.
+    const { response, reachedApp } = await send('http://_invalid_/p/CODE', {
+      headers: { host: 'ap.up.railway.app.' },
+    })
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(`${APP_ORIGIN}/p/CODE`)
+    expect(reachedApp).toBe(false)
+  })
+
   it('leaves the app host alone', async () => {
     const { response, reachedApp } = await send(`${APP_ORIGIN}/p/CODE`)
 

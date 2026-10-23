@@ -9,15 +9,19 @@
 // request straight through. Files Nitro serves from its public directory (/assets,
 // robots.txt, favicon.ico) are answered before any request middleware runs, so they
 // still answer on the print host: public build files, the same ones the app host
-// serves.
+// serves. So does Start's own repair of a path that begins `//`: a 308 to the same
+// host with one slash, which meets this middleware's answer a hop later.
 //
 // Which host a request is for. The server builds `request.url` from the wire `Host`
 // and does not trust `X-Forwarded-*` (srvx's `trustProxy` is off), so the wire host
-// is always used. `X-Forwarded-Host`, which Railway sets to the host the client
-// asked for, counts as well wherever the app already trusts the proxy that sets it,
-// by the contract the client address rests on: Railway's edge markers in
-// railway-edge mode, a configured proxy in xff mode, never in direct mode. Both are
-// checked for the same reason: the answer only narrows what a request gets.
+// is always used: the host of the URL and the `Host` header itself. Both are read
+// because the URL's host is a placeholder where the server does not accept the
+// `Host` (a trailing dot) and is the request target's own where that is in absolute
+// form. `X-Forwarded-Host`, which Railway sets to the host the client asked for,
+// counts as well wherever the app already trusts the proxy that sets it, by the
+// contract the client address rests on: Railway's edge markers in railway-edge mode,
+// a configured proxy in xff mode, never in direct mode. All are checked for the same
+// reason: the answer only narrows what a request gets.
 
 import { createMiddleware } from '@tanstack/react-start'
 import { getEnv, type Env } from '#/shared/config/env'
@@ -40,6 +44,7 @@ function answerForPrintHost(env: PrintHostEnv, request: Request): Response | nul
   return answerPrintHost(policy, {
     method: request.method,
     url: request.url,
+    hostHeader: request.headers.get('host'),
     forwardedHost: trustsForwardedHost(env, request.headers)
       ? request.headers.get('x-forwarded-host')
       : null,

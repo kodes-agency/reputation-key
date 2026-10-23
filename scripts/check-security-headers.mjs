@@ -219,6 +219,13 @@ async function probePrintHost(port, failures) {
     await requestWithHost(port, { method: 'HEAD', path: `/p/${code}`, host: printHost }),
     302,
   )
+  // The server turns a Host it does not accept, such as a name with a trailing
+  // dot, into a placeholder in the request URL: only the header still names the host.
+  expectStatus(
+    'GET /p/<code> on the print host written with a trailing dot',
+    await requestWithHost(port, { path: `/p/${code}`, host: `${printHost}.` }),
+    302,
+  )
   for (const [label, request] of [
     ['GET / on the print host', { path: '/', host: printHost }],
     [
