@@ -13,8 +13,8 @@
 // - the address repository: fills a missing hash when an address is revealed.
 //
 // Naming the columns is one way to read them; a whole-row `select()` from the
-// table is the other, because it brings every column into memory whether or not
-// the caller maps it away. Both are refused outside the four. Test code and the
+// table, or a write with a bare `.returning()`, is the other, because it brings
+// every column into memory whether or not the caller maps it away. Both are refused outside the four. Test code and the
 // in-memory twins are not production modules and are not walked.
 //
 // This reads source text, so it does not see an aliased import of the table or
@@ -55,6 +55,15 @@ const WHOLE_ROW_SELECT = new RegExp(
   ['\\.select(?:Distinct)?\\(\\s*\\)\\s*\\.from\\(\\s*portal', 'Tokens\\s*\\)'].join(''),
   'u',
 )
+// A write that returns everything (`.returning()` with no columns) reads the row
+// back whole. The window is bounded so it stays inside one statement chain.
+const WHOLE_ROW_RETURNING = new RegExp(
+  [
+    '\\.(?:insert|update|delete)\\(\\s*portal',
+    'Tokens\\s*\\)[\\s\\S]{0,1500}?\\.returning\\(\\s*\\)',
+  ].join(''),
+  'u',
+)
 const WHOLE_ROW_TYPE = new RegExp(
   ['\\btypeof\\s+portal', 'Tokens\\.\\$infer', 'Select\\b'].join(''),
   'u',
@@ -62,7 +71,9 @@ const WHOLE_ROW_TYPE = new RegExp(
 
 const namesColumns = (source: string): boolean => COLUMN_NAME.test(source)
 const readsWholeRow = (source: string): boolean =>
-  WHOLE_ROW_SELECT.test(source) || WHOLE_ROW_TYPE.test(source)
+  WHOLE_ROW_SELECT.test(source) ||
+  WHOLE_ROW_RETURNING.test(source) ||
+  WHOLE_ROW_TYPE.test(source)
 
 function walk(dir: string): string[] {
   const out: string[] = []
@@ -140,6 +151,13 @@ describe('Portal print code hash columns', () => {
     expect(readsWholeRow(`row: typeof ${table}.$inferSelect`)).toBe(true)
     expect(readsWholeRow(`db.select({ id: ${table}.id }).from(${table})`)).toBe(false)
     expect(readsWholeRow(`tx.insert(${table}).values(row)`)).toBe(false)
+    expect(
+      readsWholeRow(`tx\n  .update(${table})\n  .set({ status })\n  .returning()`),
+    ).toBe(true)
+    expect(readsWholeRow(`tx.insert(${table}).values(row).returning()`)).toBe(true)
+    expect(
+      readsWholeRow(`tx.update(${table}).set(x).returning({ id: ${table}.id })`),
+    ).toBe(false)
     expect(readsWholeRow(`row: typeof ${table}.$inferInsert`)).toBe(false)
   })
 

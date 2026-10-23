@@ -173,8 +173,11 @@ alphabet are the card's for life, so the entropy has to be right the first time.
   match against the app origin, so the page would load and every guest action would
   fail. Loosening the check to a list of origins widens the security boundary for
   no gain a redirect does not give.
-- **Print from the Railway app host.** The address is 64 characters, version 4 at
-  best; Mini cannot ship, and every printed card carries a `railway.app` name.
+- **Print short codes from the app host.** On `web-closed-beta-v2.up.railway.app`
+  (33 characters) the QR address is 64 characters, version 4 at best, and Mini
+  cannot ship. The print host is also a Railway-provided name, but a short one, and
+  because it only redirects, a later move of the app changes the redirect target and
+  not the cards.
 - **A new table with a second sealed copy and its own cipher format.** Deriving
   from the sealed long token gives the same Download again with no new format.
 - **Keying the derivation with the raw long token alone**, or with one key for both
