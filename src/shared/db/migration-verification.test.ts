@@ -59,6 +59,8 @@ const EXPECTED_TABLES = [
   'review_ai_analysis_heads',
   // Migration 0068 (released analysis sequences)
   'review_ai_analysis_released_sequences',
+  // Migration 0069 (Response Target exclusion ledger)
+  'inbox_response_target_exclusions',
   'ai_execution_control_heads',
   'ai_execution_control_transitions',
   'ai_property_processing_profiles',

@@ -171,6 +171,41 @@ export const SUPERSEDED_CONSTRUCT_DEFINITIONS: readonly SupersededConstructDefin
     },
   ]
 
+export type MigrationCreatedConstruct = Readonly<{
+  kind: ConstructKind
+  name: string
+  /** The journalled migration that creates it, and the only file that states it. */
+  migration: string
+}>
+
+/**
+ * Functions and triggers that belong to a table a migration after 0001 created.
+ * `db-constructs.sql` is copied byte for byte into 0001, which runs before such
+ * a table exists, so it cannot state them: the migration that creates the table
+ * creates them too, `./schema/db-only-constructs.ts` registers their names, and
+ * the drift check expects the migration's text for them.
+ */
+export const MIGRATION_CREATED_CONSTRUCTS: readonly MigrationCreatedConstruct[] = [
+  {
+    kind: 'function',
+    name: 'enforce_inbox_response_target_exclusion_append_only_v1',
+    migration: '0069_inbox_response_target_exclusions',
+  },
+  {
+    kind: 'trigger',
+    name: 'inbox_response_target_exclusions_append_only_guard',
+    migration: '0069_inbox_response_target_exclusions',
+  },
+]
+
+function migrationCreatedDefinitions(): readonly ConstructDefinition[] {
+  return MIGRATION_CREATED_CONSTRUCTS.flatMap((entry) =>
+    readMigrationDefinitions(entry.migration)
+      .filter(({ kind, name }) => kind === entry.kind && name === entry.name)
+      .slice(-1),
+  )
+}
+
 function supersedingDefinition(
   stated: ConstructDefinition,
 ): ConstructDefinition | undefined {
@@ -185,12 +220,16 @@ function supersedingDefinition(
 
 /**
  * What every migrated database must hold: the definitions `db-constructs.sql`
- * states, except the named superseded ones, which come from their migration.
+ * states, except the named superseded ones, which come from their migration,
+ * and the constructs only a migration creates.
  */
 export function expectedConstructDefinitions(): readonly ConstructDefinition[] {
-  return readConstructsFileDefinitions().map(
-    (stated) => supersedingDefinition(stated) ?? stated,
-  )
+  return [
+    ...readConstructsFileDefinitions().map(
+      (stated) => supersedingDefinition(stated) ?? stated,
+    ),
+    ...migrationCreatedDefinitions(),
+  ]
 }
 
 // ─── Comparison ─────────────────────────────────────────────────────

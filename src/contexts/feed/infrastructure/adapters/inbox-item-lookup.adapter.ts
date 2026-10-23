@@ -7,6 +7,7 @@
 // Google history is the predicate the missing-notification gauge also reads.
 import type { Database } from '#/shared/db'
 import { and, count, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { notExcludedFromResponseTargetReporting } from '#/shared/db/inbox-response-target-exclusions'
 import {
   inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
@@ -130,6 +131,12 @@ const findWaitingSince = async (
         ),
         eq(inboxHandlingCycleResponseTargets.performanceEligibility, 'measured'),
         isNull(inboxHandlingCycleResponseTargets.completionAt),
+        // A cycle left out of reporting measures no waiting time.
+        notExcludedFromResponseTargetReporting({
+          inboxItemId: inboxHandlingCycleResponseTargets.inboxItemId,
+          cycleNumber: inboxHandlingCycleResponseTargets.cycleNumber,
+          organizationId: inboxHandlingCycleResponseTargets.organizationId,
+        }),
       ),
     )
     .where(
@@ -345,6 +352,13 @@ export const createInboxItemLookupAdapter = (
           ),
           isNull(inboxHandlingCycleResponseTargets.completionAt),
           eq(inboxHandlingCycleResponseTargets.performanceEligibility, 'measured'),
+          // A reminder released before its cycle was left out of reporting is
+          // obsolete, at fan-out and when the queued notification is built.
+          notExcludedFromResponseTargetReporting({
+            inboxItemId: inboxHandlingCycleResponseTargets.inboxItemId,
+            cycleNumber: inboxHandlingCycleResponseTargets.cycleNumber,
+            organizationId: inboxHandlingCycleResponseTargets.organizationId,
+          }),
         ),
       )
       .innerJoin(

@@ -634,6 +634,7 @@ describe('getInboxItemDetail', () => {
       result: null,
       stopReason: null,
       propertyTimezone: 'Europe/Sofia',
+      excludedFromReporting: false,
       evaluation: { state: 'active' as const, overdue: false, elapsedMinutes: 1_440 },
     }
     const getCycleTarget = vi.fn(async () => target)

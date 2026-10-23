@@ -441,6 +441,47 @@ describe('resolveGoogleReplyCompletion', () => {
   })
 })
 
+describe('evaluateResponseTarget — a cycle left out of reporting', () => {
+  const measured = {
+    eligibility: 'measured',
+    startAt: START,
+    dueAt: new Date('2026-08-30T10:15:00.000Z'),
+  } as const
+  const NOW = new Date('2026-09-01T10:15:00.000Z')
+
+  it('reads an open measured target as not measured, with no countdown and no overdue flag', () => {
+    expect(
+      evaluateResponseTarget(
+        { ...measured, completionAt: null, result: null, excludedFromReporting: true },
+        NOW,
+      ),
+    ).toEqual({ state: 'excluded', overdue: false, elapsedMinutes: null })
+  })
+
+  it('reads a completed late target as not measured too', () => {
+    expect(
+      evaluateResponseTarget(
+        {
+          ...measured,
+          completionAt: new Date('2026-08-31T10:15:00.000Z'),
+          result: 'late',
+          excludedFromReporting: true,
+        },
+        NOW,
+      ),
+    ).toEqual({ state: 'excluded', overdue: false, elapsedMinutes: null })
+  })
+
+  it('keeps measuring a target that nothing excludes', () => {
+    expect(
+      evaluateResponseTarget(
+        { ...measured, completionAt: null, result: null, excludedFromReporting: false },
+        NOW,
+      ),
+    ).toMatchObject({ state: 'active', overdue: true })
+  })
+})
+
 describe('evaluateResponseTarget — the measured arms', () => {
   const DUE = new Date('2026-08-30T10:15:00.000Z')
   const measured = {

@@ -10,7 +10,10 @@
 // The remaining dozen entries cannot be parsed from it: they are btree_gist
 // exclusion indexes, CHECK constraints and one legacy table that live in the
 // migration SQL or on Better Auth-owned tables, where two migrators must not
-// share DDL ownership. Those stay explicit.
+// share DDL ownership. Those stay explicit. So do the function and trigger of a
+// table that a migration after 0001 created (`MIGRATION_CREATED_CONSTRUCTS` in
+// ../construct-definitions.ts): 0001 is the file's byte copy and runs before
+// that table exists, so the trigger cannot be stated there.
 //
 // The drift test (../schema-drift.ts) enforces both directions:
 //   - every entry here must EXIST in pg_catalog;
@@ -65,7 +68,8 @@ function parse(sql: string): readonly DbOnlyConstruct[] {
 /**
  * Constructs the Drizzle model deliberately does not own and that
  * `db-constructs.sql` does not create either: btree_gist exclusion indexes and
- * CHECK constraints authored in migration SQL, plus one legacy table.
+ * CHECK constraints authored in migration SQL, one legacy table, and the
+ * function and trigger a later migration created with their table.
  */
 const UNPARSED_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   { name: 'inbox_handling_cycles_manual_reopen_valid', kind: 'check' },
@@ -75,6 +79,12 @@ const UNPARSED_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   { name: 'pgm_no_overlapping_portal_intervals', kind: 'index' },
   { name: 'gpv_no_overlapping_effective_intervals', kind: 'index' },
   { name: 'gsa_no_overlapping_subject_metric_intervals', kind: 'index' },
+  // Migration 0069: the append-only guard of inbox_response_target_exclusions.
+  {
+    name: 'enforce_inbox_response_target_exclusion_append_only_v1',
+    kind: 'function',
+  },
+  { name: 'inbox_response_target_exclusions_append_only_guard', kind: 'trigger' },
 ]
 
 function readConstructsSql(): string {

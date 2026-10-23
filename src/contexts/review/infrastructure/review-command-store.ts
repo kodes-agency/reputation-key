@@ -416,13 +416,41 @@ type PersistObservation = (
     observedAt: Date
     observationKey?: string
     observationOrigin?: ReviewProviderObservationOrigin
+    providerUpdateTimeReported?: boolean
   }>,
 ) => Promise<PersistedReviewObservation>
 
+/** The Review Google restated without moving its updateTime. Ids only: this
+ * reaches the process log, which carries no review content. */
+export type ProviderRestatement = Readonly<{
+  organizationId: Review['organizationId']
+  propertyId: Review['propertyId']
+  reviewId: Review['id']
+}>
+
+function restatementOf(
+  observation: PersistedReviewObservation,
+): ProviderRestatement | null {
+  // The writer says so: a restatement is stored as `normalization_shadow_match`,
+  // the same value the envelope reread and a legacy baseline get, so the
+  // recorded comparison cannot tell them apart. A replay or an out-of-order
+  // read carries false.
+  if (!observation.providerRestatement) return null
+  const { organizationId, propertyId, id } = observation.review
+  return { organizationId, propertyId, reviewId: id }
+}
+
+/**
+ * `onProviderRestatement` runs once per applied observation that was Google
+ * rewording a review (the unmoved-updateTime rule), after its transaction
+ * commits. It is the one signal that Google changed its format again, as it
+ * did on 2026-10-23, so the process reports it rather than absorbing it quietly.
+ */
 export const createAtomicReviewCommandStore = (
   db: Database,
   clock: () => Date,
   persistObservation: PersistObservation = persistReviewObservation,
+  onProviderRestatement: (restatement: ProviderRestatement) => void = () => undefined,
 ): ReviewCommandStore => {
   return {
     upsertAndRecord: async (
@@ -432,9 +460,10 @@ export const createAtomicReviewCommandStore = (
       observationKey,
       observationOrigin,
       firstSighting,
+      providerUpdateTimeReported,
     ) => {
       return trace('review.commandStore.upsertAndRecord', async () => {
-        return db.transaction(async (tx) => {
+        const written = await db.transaction(async (tx) => {
           const analysisSequence = await allocateAnalysisSequence(
             tx,
             review,
@@ -447,6 +476,7 @@ export const createAtomicReviewCommandStore = (
             observedAt: updatedAt,
             ...(observationKey == null ? {} : { observationKey }),
             ...(observationOrigin == null ? {} : { observationOrigin }),
+            ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
           })
           const saved = observation.review
           if (observation.duplicate || observation.outOfOrder) {
@@ -459,7 +489,7 @@ export const createAtomicReviewCommandStore = (
               analysisSequence,
               observation.duplicate ? 'replayed_observation' : 'out_of_order_observation',
             )
-            return saved
+            return { saved, restatement: null }
           }
           const candidateEvent = typeof event === 'function' ? event(saved) : event
           const recordedEvent =
@@ -477,8 +507,10 @@ export const createAtomicReviewCommandStore = (
             await insertFirstSighting(tx, saved, updatedAt, firstSighting)
           }
 
-          return saved
+          return { saved, restatement: restatementOf(observation) }
         })
+        if (written.restatement) onProviderRestatement(written.restatement)
+        return written.saved
       })
     },
     reobserveExpiredAndRecord: async (
@@ -486,9 +518,10 @@ export const createAtomicReviewCommandStore = (
       _now,
       observationKey,
       observationOrigin,
+      providerUpdateTimeReported,
     ) => {
       return trace('review.commandStore.reobserveExpiredAndRecord', async () => {
-        return db.transaction(async (tx) => {
+        const written = await db.transaction(async (tx) => {
           const existingRow = await lockExpiredReviewRow(tx, review)
           const occurredAt = await readTransactionClock(tx)
 
@@ -536,6 +569,7 @@ export const createAtomicReviewCommandStore = (
             observedAt: occurredAt,
             ...(observationKey == null ? {} : { observationKey }),
             ...(observationOrigin == null ? {} : { observationOrigin }),
+            ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
           })
           if (observation.duplicate || observation.outOfOrder) {
             throw reviewError(
@@ -556,8 +590,10 @@ export const createAtomicReviewCommandStore = (
           })
           await insertOutboxRow(tx, updatedEvent)
           await fenceRepliesWrittenForAnOlderSource(tx, observation, occurredAt)
-          return observation.review
+          return { saved: observation.review, restatement: restatementOf(observation) }
         })
+        if (written.restatement) onProviderRestatement(written.restatement)
+        return written.saved
       })
     },
   }
@@ -573,6 +609,8 @@ export const createSequentialReviewCommandStore = (deps: {
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     now?: Date,
     observationKey?: string,
+    observationOrigin?: ReviewProviderObservationOrigin,
+    providerUpdateTimeReported?: boolean,
   ) => Promise<Review>
   clock: () => Date
   recordOutbox?: (event: DomainEvent) => Promise<void>
@@ -588,10 +626,17 @@ export const createSequentialReviewCommandStore = (deps: {
       event,
       now,
       observationKey,
-      _observationOrigin,
+      observationOrigin,
       firstSighting,
+      providerUpdateTimeReported,
     ) => {
-      const saved = await deps.upsert(review, now, observationKey)
+      const saved = await deps.upsert(
+        review,
+        now,
+        observationKey,
+        observationOrigin,
+        providerUpdateTimeReported,
+      )
       const recordedEvent = typeof event === 'function' ? event(saved) : event
       if (deps.recordOutbox) {
         await deps.recordOutbox(recordedEvent)
@@ -609,7 +654,8 @@ export const createSequentialReviewCommandStore = (deps: {
       review,
       now,
       observationKey,
-      _observationOrigin,
+      observationOrigin,
+      providerUpdateTimeReported,
     ) => {
       const occurredAt = now ?? deps.clock()
       const expiredEvent = reviewSourceTransitioned({
@@ -626,7 +672,13 @@ export const createSequentialReviewCommandStore = (deps: {
         ...review,
         analysisSequence: review.analysisSequence + 2,
       }
-      const saved = await deps.upsert(recreated, occurredAt, observationKey)
+      const saved = await deps.upsert(
+        recreated,
+        occurredAt,
+        observationKey,
+        observationOrigin,
+        providerUpdateTimeReported,
+      )
       const updatedEvent = reviewUpdated({
         reviewId: saved.id,
         organizationId: saved.organizationId,

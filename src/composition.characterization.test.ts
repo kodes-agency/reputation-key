@@ -303,6 +303,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     ])
     expect(Object.keys(container.inboxMaintenanceRuntime)).toEqual([
       'rebuildInboxProjection',
+      'responseTargetExclusions',
     ])
     expect(Object.isFrozen(container.inboxLifecycleRuntime)).toBe(true)
     expect(Object.isFrozen(container.inboxMaintenanceRuntime)).toBe(true)

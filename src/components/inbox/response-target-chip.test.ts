@@ -22,6 +22,7 @@ const TARGET: ResponseTargetView = {
   result: null,
   stopReason: null,
   propertyTimezone: 'America/New_York',
+  excludedFromReporting: false,
   evaluation: { state: 'active', overdue: false, elapsedMinutes: 1_020 },
 }
 
@@ -57,7 +58,40 @@ const excludedTarget = (
   evaluation: { state: 'excluded', overdue: false, elapsedMinutes: null },
 })
 
+/** A measured target the operator left out of reporting (Google only restated the review). */
+const restatedTarget = (
+  overrides: Partial<ResponseTargetView> = {},
+): ResponseTargetView => ({
+  ...TARGET,
+  excludedFromReporting: true,
+  evaluation: { state: 'excluded', overdue: false, elapsedMinutes: null },
+  ...overrides,
+})
+
 describe('response target chip', () => {
+  it('reads a target left out of reporting as not measured, in the words a cancelled cycle uses', () => {
+    expect(presentResponseTargetChip(restatedTarget(), NOW)).toMatchObject({
+      label: 'Not measured',
+      tone: 'muted',
+      description: 'This cycle is excluded from response-target reporting.',
+      // Its deadline came from an old Google time; showing it would mislead.
+      dueLabel: null,
+    })
+    expect(
+      presentResponseTargetChip(
+        restatedTarget({
+          completionAt: new Date('2026-08-26T00:00:00.000Z'),
+          result: 'late',
+          stopReason: 'confirmed_on_google',
+        }),
+        NOW,
+      ),
+    ).toMatchObject({
+      label: 'Not measured',
+      description: 'This cycle is excluded from response-target reporting.',
+    })
+  })
+
   it('counts down with the exact due time in the Property timezone', () => {
     expect(presentResponseTargetChip(TARGET, NOW)).toMatchObject({
       label: 'Reply due in 31 h',

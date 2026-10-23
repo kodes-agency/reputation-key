@@ -539,6 +539,7 @@ describe('Review provider observation identity', () => {
       'e'.repeat(64),
       'ongoing',
       undefined,
+      false,
     )
     expect(upsert).not.toHaveBeenCalled()
   })
@@ -582,6 +583,7 @@ describe('Review provider observation identity', () => {
       SCOPE_NOW,
       'e'.repeat(64),
       'ongoing',
+      false,
     )
     expect(upsert).not.toHaveBeenCalled()
   })
@@ -726,8 +728,97 @@ describe('Review provider observation identity', () => {
       now,
       'f'.repeat(64),
       'ongoing',
+      false,
     )
     expect(result).toEqual({ reviewId: stableReview, sourceRevision: 8, isNew: false })
+  })
+})
+
+describe("Review provider observation of Google's updateTime", () => {
+  // The Review store may call a difference at an unmoved updateTime Google
+  // rewording a review, but only when Google reported a time on this read. The
+  // writer carries the stored time onto a read that lacked one, so the store
+  // cannot tell the two apart unless the writer says which it was.
+  const STORED_UPDATE = new Date('2026-08-20T09:00:00.000Z')
+  const EDITED = { ...SCOPE_PROVIDER_REVIEW, text: 'Existing review, edited' }
+  const storedReview = (over: Partial<Review> = {}) =>
+    scopeReview({ sourceEpoch: 4, sourceUpdatedAt: STORED_UPDATE, ...over })
+  /** The arguments of a store's first call, whatever its mock was typed with. */
+  const argumentsOf = (store: { mock: { calls: readonly unknown[] } }) =>
+    store.mock.calls[0] as unknown[]
+
+  it('tells the store Google reported no updateTime, though the stored Review has one', async () => {
+    const { writer, upsertAndRecord } = scopeWriter(storedReview())
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4, review: EDITED }))
+
+    const call = argumentsOf(upsertAndRecord)
+    // The stored time is carried onto the observation, as it always was.
+    expect((call[0] as Review).sourceUpdatedAt).toEqual(STORED_UPDATE)
+    expect(call[6]).toBe(false)
+  })
+
+  it('tells the store Google reported an updateTime when it did, moved or not', async () => {
+    for (const reportedAt of [STORED_UPDATE, new Date(STORED_UPDATE.getTime() + 1)]) {
+      const { writer, upsertAndRecord } = scopeWriter(storedReview())
+
+      await writer.persist(
+        scopeObservation({
+          sourceEpoch: 4,
+          review: { ...EDITED, sourceUpdatedAt: reportedAt },
+        }),
+      )
+
+      const call = argumentsOf(upsertAndRecord)
+      expect((call[0] as Review).sourceUpdatedAt).toEqual(reportedAt)
+      expect(call[6]).toBe(true)
+    }
+  })
+
+  it('tells the store a first sighting has no reported updateTime when Google sent none', async () => {
+    const { writer, upsertAndRecord } = scopeWriter(null)
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4, review: EDITED }))
+
+    expect(argumentsOf(upsertAndRecord)[6]).toBe(false)
+  })
+
+  it('says the same on the re-observation of an expired Review', async () => {
+    const expired = storedReview({
+      sourceEpoch: 3,
+      contentExpiresAt: new Date('2026-09-04T10:00:00.000Z'),
+    })
+    const omitted = scopeWriter(expired)
+    const reported = scopeWriter(expired)
+
+    await omitted.writer.persist(scopeObservation({ sourceEpoch: 4, review: EDITED }))
+    await reported.writer.persist(
+      scopeObservation({
+        sourceEpoch: 4,
+        review: { ...EDITED, sourceUpdatedAt: STORED_UPDATE },
+      }),
+    )
+
+    expect(argumentsOf(omitted.reobserveExpiredAndRecord)[4]).toBe(false)
+    expect(argumentsOf(reported.reobserveExpiredAndRecord)[4]).toBe(true)
+  })
+
+  it('says the same on the quiet refresh of an unchanged Review', async () => {
+    const omitted = scopeWriter(storedReview())
+    const reported = scopeWriter(storedReview())
+
+    await omitted.writer.persist(
+      scopeObservation({ sourceEpoch: 4, review: SCOPE_PROVIDER_REVIEW }),
+    )
+    await reported.writer.persist(
+      scopeObservation({
+        sourceEpoch: 4,
+        review: { ...SCOPE_PROVIDER_REVIEW, sourceUpdatedAt: STORED_UPDATE },
+      }),
+    )
+
+    expect(argumentsOf(omitted.upsert)[4]).toBe(false)
+    expect(argumentsOf(reported.upsert)[4]).toBe(true)
   })
 })
 
@@ -924,6 +1015,7 @@ describe('initial import history cutoff', () => {
       SCOPE_NOW,
       'e'.repeat(64),
       'ongoing',
+      false,
     )
   })
 

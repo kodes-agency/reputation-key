@@ -33,6 +33,7 @@
     "scripts/ops/bootstrap-owner.ts",
     "scripts/ops/deploy-ci-images.ts",
     "scripts/ops/disconnect-connection.ts",
+    "scripts/ops/inbox-exclude-restated-revision-targets.ts",
     "scripts/ops/enqueue-purge.ts",
     "scripts/ops/enqueue-refresh.ts",
     "scripts/ops/feedback-issue.ts",

@@ -24,6 +24,7 @@ import type { ReviewObservationRepository } from './application/ports/review-obs
 import type { ReplyLookups, ReplyRepository } from './application/ports/reply.repository'
 import type { ReplyTemplateRepository } from './application/ports/reply-template.repository'
 import type { FindAmbiguousPublicationReconciliationCandidates } from './application/ports/publication-reconciliation-maintenance.port'
+import type { ListRestatedMaterialRevisions } from './application/ports/restated-revision-maintenance.port'
 import type { ReplyCommandStore } from './application/ports/reply-command-store.port'
 import type {
   ReviewHeadCheckQueuePort,
@@ -47,6 +48,7 @@ import { createReviewObservationRepository } from './infrastructure/repositories
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { createReplyTemplateRepository } from './infrastructure/repositories/reply-template.repository'
 import { createPublicationReconciliationCandidateQuery } from './infrastructure/repositories/publication-reconciliation-candidate.repository'
+import { createRestatedRevisionQuery } from './infrastructure/repositories/restated-revision.repository'
 import { createServingStats } from './infrastructure/serving-stats'
 import type { ReviewServingStats } from './application/ports/serving-stats.port'
 import { createGoogleRatingReads } from './infrastructure/google-rating-reads'
@@ -239,6 +241,9 @@ export type ReviewContextApi = Readonly<{
     }>
     runSourceContentLifecycle: RunReviewSourceContentLifecycle
     recovery: ReviewLifecycleRecoveryAuthorityFactory
+    /** Past Material Review Revisions Google only restated; Inbox's operator
+     * command leaves their Response Targets out of its counts. */
+    restatedRevisions: Readonly<{ list: ListRestatedMaterialRevisions }>
   }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
@@ -527,7 +532,22 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   })
 
   // BQR-2.3: atomic review upsert + outbox insert for sync path
-  const commandStore = createAtomicReviewCommandStore(input.db, input.clock)
+  // A review Google reworded without moving its updateTime keeps its revision
+  // and is stored as `normalization_shadow_match`, so this line is where the
+  // rule shows. One content-free line per restated review (tenant ids are
+  // banned log fields; the observation rows hold them and can be found by a
+  // digest change at an unmoved updateTime), so the next change of Google's
+  // format shows in the log within a day.
+  const commandStore = createAtomicReviewCommandStore(
+    input.db,
+    input.clock,
+    undefined,
+    () =>
+      input.logger.warn(
+        { event: 'review.provider_restatement' },
+        'Google restated a review without moving its updateTime',
+      ),
+  )
 
   const snapshotRepository = createReviewProviderSnapshotRepository(
     input.db,
@@ -756,6 +776,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       }),
       runSourceContentLifecycle: useCases.runReviewSourceContentLifecycle,
       recovery,
+      restatedRevisions: Object.freeze({
+        list: createRestatedRevisionQuery(input.db).listRestatedRevisions,
+      }),
     }),
     worker: Object.freeze({
       registerOutboxConsumers,

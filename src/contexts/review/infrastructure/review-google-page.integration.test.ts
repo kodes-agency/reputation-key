@@ -90,6 +90,7 @@ const REVIEWED_AT = new Date('2026-09-30T18:00:00.000Z')
 function providerReview(
   googleReviewUrl: string | null,
   reviewedAt: Date,
+  content: Partial<GoogleReviewRead> = {},
 ): GoogleReviewRead {
   return {
     reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
@@ -108,6 +109,7 @@ function providerReview(
     replyText: null,
     replyUpdatedAt: null,
     replyUnreadable: false,
+    ...content,
   }
 }
 
@@ -116,6 +118,7 @@ async function observe(
   at: Date,
   googleReviewUrl: string | null,
   reviewedAt: Date = REVIEWED_AT,
+  content: Partial<GoogleReviewRead> = {},
 ): Promise<ReviewId> {
   now = at
   const persisted = await writer.persist({
@@ -127,7 +130,7 @@ async function observe(
     firstSeenVia: 'snapshot',
     observationKey: crypto.randomUUID().replaceAll('-', '').padEnd(64, '0'),
     replyReadGeneration: await writer.allocateReplyReadGeneration(),
-    review: providerReview(googleReviewUrl, reviewedAt),
+    review: providerReview(googleReviewUrl, reviewedAt, content),
     subjects: [] as unknown as ReviewProviderSubjectCandidates,
   })
   return persisted.reviewId
@@ -370,5 +373,65 @@ describe.sequential("a Review's own page on Google", () => {
     )
 
     await expect(findingsFor(id)).resolves.toEqual(['active_compatibility_drift'])
+  })
+})
+
+describe.sequential("a Review whose text changed, against Google's updateTime", () => {
+  const UPDATED = new Date('2026-10-02T08:00:00.000Z')
+  const comparisonsOf = async (id: ReviewId) =>
+    (await observationsOf(id)).map((row) => [
+      Number(row.material_revision),
+      row.comparison_result,
+    ])
+
+  it('keeps the revision when Google restates the text at the updateTime it reported before', async () => {
+    const id = await observe(FIRST_FETCH, null, REVIEWED_AT, { sourceUpdatedAt: UPDATED })
+
+    await observe(REFRESH, null, REVIEWED_AT, {
+      sourceUpdatedAt: UPDATED,
+      text: 'Quiet room, lovely breakfast, as Google now words it.',
+    })
+
+    await expect(comparisonsOf(id)).resolves.toEqual([
+      [1, 'initial_material_revision'],
+      // A restatement is stored as the shadow match; nothing is widened.
+      [1, 'normalization_shadow_match'],
+    ])
+    await expect(stored(id)).resolves.toMatchObject({ sourceRevision: 1 })
+    // The kept revision took the restated digests with the Review: no drift
+    // for the lifecycle parity inspection to find.
+    await expect(findingsFor(id)).resolves.toEqual([])
+  })
+
+  it('counts the change as an edit when Google sent no updateTime to compare', async () => {
+    const id = await observe(FIRST_FETCH, null, REVIEWED_AT, { sourceUpdatedAt: UPDATED })
+
+    // Google omitted updateTime. The sync carries the stored one onto the
+    // observation, so at the Review store the two times are equal; only what
+    // Google reported tells the store there is nothing to compare.
+    await observe(REFRESH, null, REVIEWED_AT, {
+      sourceUpdatedAt: null,
+      text: 'Quiet room, but the corridor was loud.',
+    })
+
+    await expect(comparisonsOf(id)).resolves.toEqual([
+      [1, 'initial_material_revision'],
+      [2, 'material_change'],
+    ])
+    await expect(stored(id)).resolves.toMatchObject({ sourceRevision: 2 })
+  })
+
+  it('counts the change as an edit when Google moved updateTime by a millisecond', async () => {
+    const id = await observe(FIRST_FETCH, null, REVIEWED_AT, { sourceUpdatedAt: UPDATED })
+
+    await observe(REFRESH, null, REVIEWED_AT, {
+      sourceUpdatedAt: new Date(UPDATED.getTime() + 1),
+      text: 'Quiet room, but the corridor was loud.',
+    })
+
+    await expect(comparisonsOf(id)).resolves.toEqual([
+      [1, 'initial_material_revision'],
+      [2, 'material_change'],
+    ])
   })
 })

@@ -211,6 +211,7 @@ state.
 12. Only an exact current live Google observation completes a Review target. Both `confirmed_on_google` and `external_current_live` count as a live completion, dated at Google's reply time clamped to `[target start_at, observed time]` (observed time when Google gives none), written once; provider acknowledgement and `review.reply.published` do not complete it.
 13. Analytics never mix Review and feedback targets. Reminders never auto-escalate.
 14. Inbox notes, private feedback, Review or Reply text, contact details, credentials, and raw network values must never enter the Activity projection or replay fact.
+15. An excluded Response Target is never counted, never reminded and still closable. A row in `inbox_response_target_exclusions` (migration 0069, append-only, written only by `pnpm ops inbox exclude-restated-revision-targets` for a cycle opened on a revision Google only restated) leaves its cycle out of the Google analytics, the per-Property overdue figures, reminder selection and admission, and waiting time, through one predicate (`src/shared/db/inbox-response-target-exclusions.ts`); it reads as "Not measured". The target and cycle are untouched, so a later real reply closes both normally and the completion stays out of the figures. Inbox never reads Review tables: Review lists the restated revisions and the command hands the list in.
 
 ## Verification
 

@@ -597,6 +597,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       startAt: OPENED_AT,
       dueAt: new Date('2026-08-28T20:00:00.000Z'),
       propertyTimezone: 'America/New_York',
+      excludedFromReporting: false,
       evaluation: { state: 'active', overdue: false },
     })
     const reminders = await pool.query(

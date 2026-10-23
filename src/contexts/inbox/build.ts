@@ -28,6 +28,7 @@ import type { ReviewHandlingCycleStore } from './application/ports/review-handli
 import type { FeedbackHandlingStore } from './application/ports/feedback-handling.store'
 import type { ResponseTargetStore } from './application/ports/response-target.store'
 import type { ResponseTargetPolicyStore } from './application/ports/response-target-policy.store'
+import type { RestatedRevisionTargetExclusions } from './application/ports/restated-revision-target-exclusion.port'
 import type { ReviewLookupPort } from './application/ports/review-lookup.port'
 import type { ReviewSourceLookupPort } from './application/ports/review-source-lookup.port'
 import type { FeedbackLookupPort } from './application/ports/feedback-lookup.port'
@@ -81,6 +82,7 @@ import {
 import { createReviewHandlingCycleStore } from './infrastructure/review-handling-cycle.store'
 import { createFeedbackHandlingStore } from './infrastructure/feedback-handling.store'
 import { createResponseTargetStore } from './infrastructure/response-target.store'
+import { createRestatedRevisionTargetExclusionStore } from './infrastructure/restated-revision-target-exclusion.store'
 import { createResponseTargetPolicyStore } from './infrastructure/response-target-policy.store'
 import { registerInboxConsumers } from './infrastructure/outbox-consumers'
 import { registerInboxPropertyLifecycleConsumers } from './infrastructure/property-lifecycle-outbox-consumers'
@@ -207,6 +209,9 @@ export type InboxContextApi = Readonly<{
   /** Bounded operator repair capabilities owned by Inbox. */
   maintenance: Readonly<{
     rebuildInboxProjection: RebuildInboxProjection
+    /** Leaves the Response Targets of restated revisions out of every count
+     * (`pnpm ops inbox exclude-restated-revision-targets`). */
+    responseTargetExclusions: RestatedRevisionTargetExclusions
   }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
@@ -361,6 +366,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   })
   const maintenance = Object.freeze({
     rebuildInboxProjection: useCases.rebuildInboxProjection,
+    responseTargetExclusions: createRestatedRevisionTargetExclusionStore(input.db),
   })
 
   // Durable consumer registration is the single cross-context delivery path.

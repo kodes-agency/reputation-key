@@ -22,6 +22,7 @@ const TARGET: ResponseTargetView = {
   result: null,
   stopReason: null,
   propertyTimezone: 'America/New_York',
+  excludedFromReporting: false,
   evaluation: { state: 'active', overdue: false, elapsedMinutes: 60 },
 }
 

@@ -315,10 +315,15 @@ async function readTables(
           to_char(due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS due_at,
           to_char(completion_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS completion_at,
           result,
-          stop_reason
-        FROM inbox_handling_cycle_response_targets
-        WHERE organization_id = ${organizationId}
-        ORDER BY inbox_item_id, cycle_number`,
+          stop_reason,
+          (SELECT exclusion.reason
+             FROM inbox_response_target_exclusions exclusion
+            WHERE exclusion.inbox_item_id = target.inbox_item_id
+              AND exclusion.cycle_number = target.cycle_number
+              AND exclusion.organization_id = ${organizationId}) AS excluded_reason
+        FROM inbox_handling_cycle_response_targets target
+        WHERE target.organization_id = ${organizationId}
+        ORDER BY target.inbox_item_id, target.cycle_number`,
   )
   const assignments = await readRows(
     snapshot,
@@ -589,7 +594,9 @@ function buildEntries(
  * Concrete Inbox-owned Organization Export contribution.
  *
  * Reads: `inbox_items`, `inbox_handling_cycle_heads`, `inbox_handling_cycles`,
- * `inbox_handling_cycle_transitions`, `inbox_handling_cycle_response_targets`,
+ * `inbox_handling_cycle_transitions`, `inbox_handling_cycle_response_targets`
+ * (every row, with `excluded_reason` set from `inbox_response_target_exclusions`
+ * on a target the operator left out of reporting, so the record stays whole),
  * `inbox_assignment_history`, `inbox_escalation_history`,
  * `inbox_feedback_handling_outcomes`,
  * `inbox_response_target_organization_policies`,

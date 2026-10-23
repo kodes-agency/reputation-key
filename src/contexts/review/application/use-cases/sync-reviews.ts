@@ -83,6 +83,10 @@ export const createReviewProviderObservationWriter = (
     })
     assertObservationScope(existing, stableIdentity, input)
 
+    // Before `buildObservedReview` carries the stored updateTime onto a read
+    // Google sent without one: after it, "none" looks like "unmoved", and a
+    // real edit would be taken for Google rewording the review.
+    const providerUpdateTimeReported = input.review.sourceUpdatedAt != null
     const review = buildObservedReview({
       input,
       now,
@@ -102,6 +106,7 @@ export const createReviewProviderObservationWriter = (
       observationKey: input.observationKey,
       observationOrigin,
       firstSighting: firstSightingToMeasure(state.isNew, observationOrigin, input),
+      providerUpdateTimeReported,
     })
     // Google showed a reply whose original text it did not return: `replyText`
     // is null, but that is not "no reply". Recording it would write an `absent`
@@ -430,6 +435,7 @@ async function persistObservation(
     observationKey: string
     observationOrigin: Parameters<ReviewCommandStore['upsertAndRecord']>[4]
     firstSighting: ReviewFirstSighting | undefined
+    providerUpdateTimeReported: boolean
   }>,
 ): Promise<Review> {
   if (state.expired) {
@@ -438,6 +444,7 @@ async function persistObservation(
       now,
       state.observationKey,
       state.observationOrigin,
+      state.providerUpdateTimeReported,
     )
   }
   if (state.contentUnchanged) {
@@ -446,6 +453,7 @@ async function persistObservation(
       now,
       state.observationKey,
       state.observationOrigin,
+      state.providerUpdateTimeReported,
     )
   }
   const eventForReview = (persisted: Review) => {
@@ -471,5 +479,6 @@ async function persistObservation(
     state.observationKey,
     state.observationOrigin,
     state.firstSighting,
+    state.providerUpdateTimeReported,
   )
 }

@@ -285,7 +285,8 @@ until the response, counted to its time on Google (to the time RepKey saw it whe
 Google gives none; closes before the cut-over above are measured to the time RepKey
 saw them). It separately shows
 `historical_onboarding` and `legacy_unknown` excluded counts. Both RepKey-confirmed
-and external-current-live responses are valid completions.
+and external-current-live responses are valid completions. A cycle in the
+exclusion ledger (below, under Repair rules) is in none of these figures.
 
 Private-feedback reporting includes measured cycles, current open/overdue counts,
 handled-on-time/late counts, manual reopen counts, and average elapsed time to the
@@ -366,5 +367,66 @@ captures those facts for the deployed artifact and environment.
   or its Organization was closing stays cancelled.
 - Policy updates require the caller's expected version. On conflict, reload and
   decide again; do not silently overwrite.
-- A broken immutable target requires a separately reviewed, auditable repair command;
-  none is provided by this package.
+- A broken immutable target is never edited. The one repair that exists is the
+  exclusion ledger below; any other repair needs a separately reviewed, auditable
+  command, and none is provided by this package.
+
+### Targets that must not count: the exclusion ledger
+
+A Handling Cycle can be opened by something no guest did. On 2026-10-23 Google
+changed how it wraps translated review text and did not move a review's
+`updateTime`; the material comparison saw different text and Review minted
+Material Review Revision 2 on 62 closed-beta reviews. Inbox opened a cycle for
+each, with a measured target that starts at the old `updateTime` and so was
+overdue from birth: 55 open items counted as missed, and 7 handled items were
+reopened and closed again with a completion that counts in the averages. Review
+no longer makes such a revision (a restatement is stored as
+`normalization_shadow_match` and keeps the revision, ADR 0055), but the cycles
+already opened are immutable history and the database refuses any rewrite of a
+completed target.
+
+`inbox_response_target_exclusions` (migration 0069) records, beside a target, that
+its cycle is left out of reporting. It is append-only (a trigger refuses UPDATE
+and any DELETE that is not the cascade from its target) and holds the reason
+(`provider_restatement`, the ledger's own value; Review stores the restatement
+itself as `normalization_shadow_match`), the operator, the optional ticket and
+the correlation id. A cycle with a row there:
+
+- appears in no Google analytics figure: not measured, on time, late, active or
+  overdue, not the average, not the reopen count;
+- is left out of the per-Property overdue figures that feed the fleet and
+  Property overviews and the attention signals;
+- gets no reminder (a pending slot is never selected, and a delivered one is
+  obsolete when its notification is built), and measures no waiting time;
+- reads as "Not measured" on the item, with the words of an excluded cycle;
+- still closes normally: a later real reply completes the target and the item as
+  usual, and that completion is simply not counted;
+- is exported with every other target row, marked `excluded_reason`.
+
+Nothing else moves: the cycle, its transitions, the head, the target, the item
+and its status, the delivered reminder and the notices already sent are exactly as
+they were, and `state_revision` and `command_revision` do not change. The item's
+real wait is not measured, because the earlier cycle's target was already
+cancelled and cannot be revived; the raw rows remain.
+
+Review lists the restated revisions of a Property (a `material_change` observation
+whose `updateTime` equals the last applied observation's, in the same source
+epoch); Inbox may not read Review tables, so the operator command joins the two:
+
+```
+pnpm ops inbox exclude-restated-revision-targets <propertyId> --operator <id>
+pnpm ops inbox exclude-restated-revision-targets <propertyId> --operator <id> \
+  --reason <text> [--ticket <ref>] --apply
+```
+
+Dry run is the default. It prints counts by item status and by target state, the
+pending reminder slots, and the candidate item ids and cycle numbers. A candidate
+is a review item's `material_revision_changed` cycle on a restated revision with a
+measured Google target and no exclusion yet. `--apply` needs `--reason`; it works
+one item per transaction, in the lock order head, item, target, reminders, with
+`organization_id` on every statement. It inserts the row (`ON CONFLICT DO NOTHING`,
+so a second run finds nothing) and cancels the cycle's still-pending reminder
+slots through the slot's own one-shot column. It refuses a Property that does not
+exist and any candidate whose cycle is no longer the one recorded for that
+revision, and it prints the operator, the reason, the ticket, the correlation id
+and the counts. Runbook §29 has the full procedure.

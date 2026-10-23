@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { createAtomicReviewCommandStore } from './review-command-store'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createAtomicReviewCommandStore,
+  type ProviderRestatement,
+} from './review-command-store'
 import { reviewCreated, reviewUpdated } from '../domain/events'
 import type { Review } from '../domain/types'
 import { getDb } from '#/shared/db'
@@ -13,6 +16,13 @@ import { createReviewObservationRepository } from './repositories/review-observa
 // parser of the day stored the whole envelope as the guest's text, which read as
 // a guest edit and reopened handled Inbox items. Once the parser splits the
 // envelope again, the next read must not count as a second edit.
+//
+// Since the restatement rule, a read that differs while Google's updateTime did
+// not move is no edit in the first place (the restatement test beside this
+// one). It is stored as `normalization_shadow_match`, like the envelope reread,
+// so these tests tell the two apart by whether the restatement is reported. The first test seeds what already exists in production: revision 2 rows
+// the glued read created, which the first test therefore gives a moved
+// updateTime.
 
 const ORG = organizationId('review-envelope-org-a')
 const OTHER_ORG = organizationId('review-envelope-org-b')
@@ -20,6 +30,7 @@ const PROPERTY = propertyId('e7a10000-0000-4000-8000-000000000001')
 const REVIEW = reviewId('e7a10000-0000-4000-8000-000000000002')
 const OBSERVED_AT = new Date('2026-10-23T04:35:00.000Z')
 const CREATED_AT = new Date('2022-10-29T14:53:45.961Z')
+const GLUED_AT = new Date(CREATED_AT.getTime() + 1000)
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG,
@@ -40,6 +51,7 @@ const { getPool } = setupIntegrationDb({
 
 function review(
   content: Readonly<{ text: string; translatedText: string | null }>,
+  updatedAt: Date = CREATED_AT,
 ): Omit<Review, 'createdAt' | 'updatedAt'> {
   return {
     id: REVIEW,
@@ -61,8 +73,7 @@ function review(
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: CREATED_AT,
-    // Google's updateTime never moved: the guest did not edit anything.
-    sourceUpdatedAt: CREATED_AT,
+    sourceUpdatedAt: updatedAt,
     firstFetchedAt: CREATED_AT,
     lastFetchedAt: OBSERVED_AT,
     contentExpiresAt: new Date('2026-11-22T04:35:00.000Z'),
@@ -101,7 +112,13 @@ beforeEach(async () => {
 
 describe('a review stored with a provider envelope glued to its text', () => {
   it('takes the split text back without a second material revision', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
+    const report = vi.fn<(restatement: ProviderRestatement) => void>()
+    const store = createAtomicReviewCommandStore(
+      getDb(),
+      () => new Date(),
+      undefined,
+      report,
+    )
     const split = { text: 'Ок', translatedText: 'Ok' }
     await store.upsertAndRecord(
       review(split),
@@ -121,7 +138,10 @@ describe('a review stored with a provider envelope glued to its text', () => {
       'ongoing',
     )
     const glued = await store.upsertAndRecord(
-      review({ text: 'Ок\n\n(Translated by Google)\nOk', translatedText: null }),
+      review(
+        { text: 'Ок\n\n(Translated by Google)\nOk', translatedText: null },
+        GLUED_AT,
+      ),
       updatedEvent,
       OBSERVED_AT,
       '2'.repeat(64),
@@ -129,14 +149,14 @@ describe('a review stored with a provider envelope glued to its text', () => {
     )
 
     const repaired = await store.upsertAndRecord(
-      review(split),
+      review(split, GLUED_AT),
       updatedEvent,
       OBSERVED_AT,
       '3'.repeat(64),
       'ongoing',
     )
     const reread = await store.upsertAndRecord(
-      { ...review(split), reviewerName: 'Guest renamed' },
+      { ...review(split, GLUED_AT), reviewerName: 'Guest renamed' },
       updatedEvent,
       OBSERVED_AT,
       '4'.repeat(64),
@@ -166,5 +186,63 @@ describe('a review stored with a provider envelope glued to its text', () => {
       [REVIEW, ORG],
     )
     expect(current.rows[0]).toEqual({ text: 'Ок', translated_text: 'Ok' })
+    // The repair is stored as `normalization_shadow_match`, as a restatement is,
+    // but it is the envelope reread: the restatement rule did not fire.
+    expect(report).not.toHaveBeenCalled()
+  })
+})
+
+describe('a review whose glued text Google never updated', () => {
+  it('takes the glued read as a restatement, and the split text back as the same text', async () => {
+    const report = vi.fn<(restatement: ProviderRestatement) => void>()
+    const store = createAtomicReviewCommandStore(
+      getDb(),
+      () => new Date(),
+      undefined,
+      report,
+    )
+    const split = { text: 'Ок', translatedText: 'Ok' }
+    const observe = (
+      content: Parameters<typeof review>[0],
+      key: number,
+      event: Parameters<typeof store.upsertAndRecord>[1],
+    ) =>
+      store.upsertAndRecord(
+        review(content),
+        event,
+        OBSERVED_AT,
+        String(key).repeat(64),
+        'ongoing',
+      )
+    await observe(split, 1, updatedEvent)
+
+    // The same updateTime throughout: nobody edited the review.
+    await observe(
+      { text: 'Ок\n\n(Translated by Google)\nOk', translatedText: null },
+      2,
+      updatedEvent,
+    )
+    const repaired = await observe(split, 3, updatedEvent)
+
+    expect(repaired.sourceRevision).toBe(1)
+    const history = createReviewObservationRepository(getDb())
+    expect(
+      (await history.findObservations(REVIEW, ORG)).map((entry) => [
+        entry.materialRevision,
+        entry.comparison,
+      ]),
+    ).toEqual([
+      [1, 'initial_material_revision'],
+      // The restatement rule fired for the glued read (reported below).
+      [1, 'normalization_shadow_match'],
+      // The reread of the stored envelope names the cause, and runs first.
+      [1, 'normalization_shadow_match'],
+    ])
+    expect(await history.findMaterialRevisions(REVIEW, ORG)).toHaveLength(1)
+    // Only the glued read is a restatement. The reread of the stored envelope is
+    // a known format transition, stored the same way and not reported.
+    expect(report.mock.calls).toEqual([
+      [{ organizationId: ORG, propertyId: PROPERTY, reviewId: REVIEW }],
+    ])
   })
 })

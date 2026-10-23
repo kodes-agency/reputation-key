@@ -26,8 +26,9 @@ the required Google, retention, reply-publication, or private-feedback behavior.
    Inbox work, first-response facts, and operational history.
 3. Every provider observation is versioned. A `MaterialReviewRevision` is created
    only when the original star rating or deterministically normalized original
-   guest text changes. Translation, photos, metadata, and observation timestamps
-   do not create a material revision.
+   guest text changes and Google's `updateTime` moved with it (note 2026-10-23).
+   Translation, photos, metadata, and observation timestamps do not create a
+   material revision.
 4. Re-observation reconnects to the same Review in the same source epoch. A
    different real-world source binding starts a new epoch through an attested
    rebind command and never blends populations.
@@ -684,6 +685,104 @@ head fact is no reconciliation),
 `refresh-expiring-reviews.job.test.ts` and
 `refresh-expiring-reviews.integration.test.ts` (the sweep enqueues nothing; it
 moves the schedule only for a stale reconciliation).
+
+## Note 2026-10-23 — an unmoved updateTime is never a guest edit
+
+Decision 3 made a rating or text difference the whole test of an edit. On
+2026-10-23 Google changed how it wraps translated review text and did not move
+`updateTime`. The comparison still saw different text, created Material Review
+Revision 2 on 62 closed-beta reviews, reopened 7 handled Inbox items and gave 55
+open ones a Response Target that was overdue from birth; one user received 72
+emails. The fix for that wrapper (the reread of the stored text with today's
+parser, `normalization_shadow_match`) names a cause it already knows. This note
+is the general rule under it.
+
+A guest edit is a change Google dates: it moves the review's `updateTime`. So a
+revision is created when the rating or normalized text changes **and Google's
+`updateTime` moved with it**. When the rating or text differs but the incoming
+`updateTime` equals the stored head's, the observation is a restatement: Google
+reworded a review nobody edited. It is stored as `normalization_shadow_match`
+and flagged `providerRestatement: true` on the comparison result.
+
+- **What it does.** Exactly what `normalization_shadow_match` does: the current
+  revision stays (`createsMaterialRevision: false`) and the revision row and
+  `reviews.material_*` take the incoming digests, so the next read compares as
+  `unchanged`. No revision means no handling cycle, no Response Target, no
+  notice, no reopened Inbox item, and a reply waiting for approval is left as it
+  is. `review.updated` is still announced under the unchanged revision, as for a
+  shadow match. `isGuestEdit` stays true only for `material_change`.
+- **Where it lives.** In the pure comparison (`compareMaterialReviewRevision`,
+  optional `providerUpdateTime: { stored, incoming }`), after the reread guard,
+  which still runs first and wins, and before the binding of an unchanged
+  revision to a new source epoch. A restated review carried into a newer epoch is
+  therefore a carry (`normalization_shadow_match` is in `NO_MATERIAL_CHANGE`, in
+  `source-epoch-carry.ts`), and Inbox does not read it as an edit.
+- **When it does not fire.** Either time missing keeps the old behaviour: a
+  first observation, a legacy row, an erased row (erasure nulls
+  `source_updated_at`, so a rewritten review re-observed after expiry stays an
+  edit; a known limit of a rare path), or a read where Google sent no
+  `updateTime`. That last case needs the writer's help: the sync carries the
+  stored `updateTime` onto an observation that lacked one, so at the Review store
+  "none" would look like "unmoved". The writer says whether Google reported one
+  (`providerUpdateTimeReported`), and a missed edit, which leaves a stale
+  approved reply publishable, is the harm worth a flag. A time that moved by one
+  millisecond is an edit. A strictly older one is still `out_of_order_ignored`, as before.
+- **Precision.** Provider times are parsed to the millisecond and Postgres keeps
+  the same value, so equality is on `getTime()`, the granularity of the
+  out-of-order rule and the head check. Two Google updates inside one
+  millisecond are not a human edit.
+- **Visible.** The next Google format change should not take a day of Inbox
+  noise to find. The command store reports each applied restatement after commit
+  (the writer's `providerRestatement`; not the envelope reread, a replay or a
+  rolled-back write) as one content-free `review.provider_restatement` warn line
+  (tenant ids are banned log fields). The stored comparison is
+  `normalization_shadow_match`, so restated rows are found retroactively by a
+  `normalization_shadow_match` whose `normalized_digest` differs from the
+  previous applied observation's at an unmoved `source_updated_at`.
+- **Why no separate stored value.** A `provider_restatement` value would need
+  the CHECK on `review_source_observations.comparison_result` restated. That
+  table holds 3.37M rows (a 2.5 GB heap) on the beta, and a read-only scan of it
+  took 37 s with two parallel workers, so validating the CHECK would hold an
+  ACCESS EXCLUSIVE lock for one to two minutes inside the deploy's single
+  migration transaction (drizzle applies every pending file in one, so a
+  `NOT VALID`/`VALIDATE` pair does not help), while the old web and worker run
+  with a 10 s `lock_timeout`: failed syncs and page reads. The CHECK is left as it
+  is. A separate value can come once that table is pruned.
+- **Not retroactive.** The 62 revision-2 rows already written stay recorded as
+  `material_change`; the cycles they opened are left out of the counts by the
+  exclusion ledger below.
+
+**The exclusion ledger (migration 0069).** Decisions 8 and 11 make prior cycles
+and their Response Targets immutable history, and a database trigger refuses any
+rewrite of a completed target, so the 62 cycles cannot be corrected in place.
+Cancelling the 55 open targets would state a reason that is not true
+(`superseded_by_source_revision`) and would make the later real reply fail to
+close the item; the 7 completed ones cannot be reached at all. Instead
+`inbox_response_target_exclusions` records, beside the target and append-only
+(a trigger refuses UPDATE and any DELETE that is not the cascade from its
+target), that one cycle is left out of reporting. The Google analytics, the
+per-Property overdue figures, reminder selection and admission and the waiting
+time skip it; it reads "Not measured"; a later real reply still closes it and the
+completion stays out of the figures; the organization export marks the row.
+Review lists the restated revisions of a Property and Inbox, which may not read
+Review tables, finds the cycles they opened:
+`pnpm ops inbox exclude-restated-revision-targets <propertyId>` (dry run first;
+runbooks §29). No cycle, transition, head, item or counter moves.
+
+Enforced by `material-review-revision.test.ts` (equal, one millisecond either
+way, missing times, the legacy baseline, the reread guard winning),
+`source-epoch-carry.test.ts`, `sync-reviews.test.ts` (the flag),
+`review-command-store.provider-restatement.integration.test.ts` (the sequence of
+comparisons, adopted digests, a pending reply untouched until the real edit,
+the announced revision, no released sequence, the erasure limit, the report),
+`review-command-store.provider-envelope.integration.test.ts` (the envelope
+reread is stored the same way and not reported),
+and the epoch-carry, sequence-release, Google-page and head-persist integration
+suites. The ledger is enforced by `response-target-exclusion-readers`,
+`restated-revision-target-exclusion.store`, `restated-revision.repository`,
+`inbox-response-target-exclusions`, `inbox-item-lookup.response-target-exclusion`
+and `inbox-organization-export.target-exclusion` integration suites and the
+command's unit and integration tests.
 
 ## Merged from ADR 0003
 

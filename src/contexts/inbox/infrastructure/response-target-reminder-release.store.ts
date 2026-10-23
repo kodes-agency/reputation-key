@@ -1,5 +1,6 @@
 import { and, asc, eq, isNull, lte, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { notExcludedFromResponseTargetReporting } from '#/shared/db/inbox-response-target-exclusions'
 import {
   inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
@@ -50,7 +51,9 @@ const reminderKindOf = (kind: string): ReminderSlotKey['reminderKind'] =>
 
 /**
  * The pending slots that are due: their target still measured and not
- * completed, and their cycle still the open head's current one. Oldest first.
+ * completed, their cycle still the open head's current one, and not left out of
+ * reporting (an excluded cycle's clock measures nothing, so it prompts no one).
+ * Oldest first.
  *
  * With `lock`, the target rows are taken FOR UPDATE SKIP LOCKED. The target is
  * locked before its reminder, matching completion and cancellation, so "still
@@ -65,6 +68,11 @@ const selectDueSlots = (
     lte(inboxResponseTargetReminders.scheduledFor, input.now),
     isNull(inboxResponseTargetReminders.deliveredAt),
     isNull(inboxResponseTargetReminders.cancelledAt),
+    notExcludedFromResponseTargetReporting({
+      inboxItemId: inboxResponseTargetReminders.inboxItemId,
+      cycleNumber: inboxResponseTargetReminders.cycleNumber,
+      organizationId: inboxResponseTargetReminders.organizationId,
+    }),
   ]
   if (input.key) {
     conditions.push(

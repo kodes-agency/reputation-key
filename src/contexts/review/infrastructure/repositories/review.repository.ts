@@ -611,6 +611,7 @@ export const createReviewRepository = (
     now?: Date,
     observationKey?: string,
     observationOrigin?: ReviewProviderObservationOrigin,
+    providerUpdateTimeReported?: boolean,
   ) => {
     return trace('review.upsert', async () => {
       const updatedAt = now ?? clock()
@@ -621,6 +622,7 @@ export const createReviewRepository = (
             observedAt: updatedAt,
             ...(observationKey == null ? {} : { observationKey }),
             ...(observationOrigin == null ? {} : { observationOrigin }),
+            ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
           }),
         )
         return observation.review

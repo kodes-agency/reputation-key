@@ -1,5 +1,6 @@
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { excludedFromResponseTargetReporting } from '#/shared/db/inbox-response-target-exclusions'
 import {
   inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
@@ -9,17 +10,10 @@ import {
 } from '#/shared/db/schema/inbox.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
-import {
-  inboxItemId,
-  organizationId,
-  propertyId,
-  type PropertyId,
-} from '#/shared/domain/ids'
+import { inboxItemId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type {
-  GoogleReviewTargetAnalytics,
-  PrivateFeedbackTargetAnalytics,
   ResponseTargetStore,
   ResponseTargetView,
 } from '../application/ports/response-target.store'
@@ -36,6 +30,7 @@ import {
   type ResponseTargetSnapshot,
 } from '../domain/response-target'
 import { inboxError } from '../domain/errors'
+import { createResponseTargetAnalyticsStore } from './response-target-analytics.store'
 import { createReminderReleaseStore } from './response-target-reminder-release.store'
 
 type TargetRow = typeof inboxHandlingCycleResponseTargets.$inferSelect
@@ -499,7 +494,12 @@ export async function cancelResponseTargetForCycle(
   return 'cancelled'
 }
 
-const targetView = (row: TargetRow, timezone: string, now: Date): ResponseTargetView => ({
+const targetView = (
+  row: TargetRow,
+  timezone: string,
+  now: Date,
+  excludedFromReporting: boolean,
+): ResponseTargetView => ({
   inboxItemId: inboxItemId(row.inboxItemId),
   cycleNumber: row.cycleNumber,
   organizationId: organizationId(row.organizationId),
@@ -515,6 +515,7 @@ const targetView = (row: TargetRow, timezone: string, now: Date): ResponseTarget
   result: row.result as ResponseTargetView['result'],
   stopReason: row.stopReason as ResponseTargetView['stopReason'],
   propertyTimezone: timezone,
+  excludedFromReporting,
   evaluation: evaluateResponseTarget(
     {
       eligibility: row.performanceEligibility as ResponseTargetView['eligibility'],
@@ -522,6 +523,7 @@ const targetView = (row: TargetRow, timezone: string, now: Date): ResponseTarget
       dueAt: row.dueAt,
       completionAt: row.completionAt,
       result: row.result as ResponseTargetView['result'],
+      excludedFromReporting,
     },
     now,
   ),
@@ -534,6 +536,11 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
         .select({
           target: inboxHandlingCycleResponseTargets,
           timezone: properties.timezone,
+          excluded: excludedFromResponseTargetReporting({
+            inboxItemId: inboxHandlingCycleResponseTargets.inboxItemId,
+            cycleNumber: inboxHandlingCycleResponseTargets.cycleNumber,
+            organizationId: inboxHandlingCycleResponseTargets.organizationId,
+          }),
         })
         .from(inboxHandlingCycleResponseTargets)
         .innerJoin(
@@ -566,237 +573,11 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
           ),
         )
         .limit(1)
-      return row ? targetView(row.target, row.timezone, now) : null
+      return row ? targetView(row.target, row.timezone, now, row.excluded) : null
     }),
 
-  getPrivateFeedbackAnalytics: async ({ organizationId: orgId, propertyIds, now }) =>
-    trace('inbox.responseTarget.getPrivateFeedbackAnalytics', async () => {
-      if (propertyIds !== null && propertyIds.length === 0) {
-        return {
-          targetKind: 'private_feedback_handling',
-          measuredCycleCount: 0,
-          activeCount: 0,
-          currentOverdueCount: 0,
-          handledOnTimeCount: 0,
-          handledLateCount: 0,
-          reopenCount: 0,
-          averageTimeToFirstHandlingMinutes: null,
-        }
-      }
-      const propertyFilter =
-        propertyIds === null
-          ? sql``
-          : sql`AND target.property_id IN (${sql.join(
-              propertyIds.map((id) => sql`${id}`),
-              sql`, `,
-            )})`
-      const rows = await db.execute<{
-        measured_cycle_count: number
-        active_count: number
-        current_overdue_count: number
-        handled_on_time_count: number
-        handled_late_count: number
-        reopen_count: number
-        average_time_to_first_handling_minutes: number | null
-      }>(sql`
-        SELECT
-          count(*) FILTER (WHERE target.result IS DISTINCT FROM 'cancelled')::integer AS measured_cycle_count,
-          count(*) FILTER (
-            WHERE target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
-          )::integer AS active_count,
-          count(*) FILTER (
-            WHERE target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
-              AND target.due_at <= ${now}
-          )::integer AS current_overdue_count,
-          count(*) FILTER (WHERE target.result = 'on_time')::integer AS handled_on_time_count,
-          count(*) FILTER (WHERE target.result = 'late')::integer AS handled_late_count,
-          count(*) FILTER (
-            WHERE cycle.opened_reason = 'manual_reopen'
-              AND target.result IS DISTINCT FROM 'cancelled'
-          )::integer AS reopen_count,
-          avg(
-            extract(epoch FROM (target.completion_at - target.start_at)) / 60
-          ) FILTER (WHERE target.result IN ('on_time', 'late'))::real
-            AS average_time_to_first_handling_minutes
-        FROM ${inboxHandlingCycleResponseTargets} target
-        INNER JOIN ${inboxHandlingCycleHeads} head
-          ON head.inbox_item_id = target.inbox_item_id
-        INNER JOIN inbox_handling_cycles cycle
-          ON cycle.inbox_item_id = target.inbox_item_id
-         AND cycle.cycle_number = target.cycle_number
-        WHERE target.organization_id = ${orgId}
-          AND target.target_kind = 'private_feedback_handling'
-          AND target.performance_eligibility = 'measured'
-          ${propertyFilter}
-      `)
-      const row = rows.rows[0]
-      return {
-        targetKind: 'private_feedback_handling',
-        measuredCycleCount: row?.measured_cycle_count ?? 0,
-        activeCount: row?.active_count ?? 0,
-        currentOverdueCount: row?.current_overdue_count ?? 0,
-        handledOnTimeCount: row?.handled_on_time_count ?? 0,
-        handledLateCount: row?.handled_late_count ?? 0,
-        reopenCount: row?.reopen_count ?? 0,
-        averageTimeToFirstHandlingMinutes:
-          row?.average_time_to_first_handling_minutes ?? null,
-      } satisfies PrivateFeedbackTargetAnalytics
-    }),
-
-  getGoogleReviewAnalytics: async ({ organizationId: orgId, propertyIds, now }) =>
-    trace('inbox.responseTarget.getGoogleReviewAnalytics', async () => {
-      if (propertyIds !== null && propertyIds.length === 0) {
-        return {
-          targetKind: 'google_review_response',
-          measuredCycleCount: 0,
-          activeCount: 0,
-          currentOverdueCount: 0,
-          respondedOnTimeCount: 0,
-          respondedLateCount: 0,
-          reopenCount: 0,
-          historicalOnboardingExcludedCount: 0,
-          legacyUnknownExcludedCount: 0,
-          averageTimeToResponseMinutes: null,
-        }
-      }
-      const propertyFilter =
-        propertyIds === null
-          ? sql``
-          : sql`AND target.property_id IN (${sql.join(
-              propertyIds.map((id) => sql`${id}`),
-              sql`, `,
-            )})`
-      const rows = await db.execute<{
-        measured_cycle_count: number
-        active_count: number
-        current_overdue_count: number
-        responded_on_time_count: number
-        responded_late_count: number
-        reopen_count: number
-        historical_onboarding_excluded_count: number
-        legacy_unknown_excluded_count: number
-        average_time_to_response_minutes: number | null
-      }>(sql`
-        SELECT
-          count(*) FILTER (
-            WHERE target.performance_eligibility = 'measured'
-              AND target.result IS DISTINCT FROM 'cancelled'
-          )::integer AS measured_cycle_count,
-          count(*) FILTER (
-            WHERE target.performance_eligibility = 'measured'
-              AND target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
-          )::integer AS active_count,
-          count(*) FILTER (
-            WHERE target.performance_eligibility = 'measured'
-              AND target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
-              AND target.due_at <= ${now}
-          )::integer AS current_overdue_count,
-          count(*) FILTER (WHERE target.result = 'on_time')::integer
-            AS responded_on_time_count,
-          count(*) FILTER (WHERE target.result = 'late')::integer
-            AS responded_late_count,
-          count(*) FILTER (
-            WHERE target.performance_eligibility = 'measured'
-              AND target.result IS DISTINCT FROM 'cancelled'
-              AND cycle.opened_reason IN ('manual_reopen', 'provider_reply_deleted')
-          )::integer AS reopen_count,
-          count(*) FILTER (
-            WHERE target.performance_eligibility = 'historical_onboarding'
-          )::integer AS historical_onboarding_excluded_count,
-          count(*) FILTER (
-            WHERE target.performance_eligibility = 'legacy_unknown'
-          )::integer AS legacy_unknown_excluded_count,
-          avg(
-            extract(epoch FROM (target.completion_at - target.start_at)) / 60
-          ) FILTER (WHERE target.result IN ('on_time', 'late'))::real
-            AS average_time_to_response_minutes
-        FROM ${inboxHandlingCycleResponseTargets} target
-        INNER JOIN ${inboxHandlingCycleHeads} head
-          ON head.inbox_item_id = target.inbox_item_id
-        INNER JOIN inbox_handling_cycles cycle
-          ON cycle.inbox_item_id = target.inbox_item_id
-         AND cycle.cycle_number = target.cycle_number
-        WHERE target.organization_id = ${orgId}
-          AND target.target_kind = 'google_review_response'
-          ${propertyFilter}
-      `)
-      const row = rows.rows[0]
-      return {
-        targetKind: 'google_review_response',
-        measuredCycleCount: row?.measured_cycle_count ?? 0,
-        activeCount: row?.active_count ?? 0,
-        currentOverdueCount: row?.current_overdue_count ?? 0,
-        respondedOnTimeCount: row?.responded_on_time_count ?? 0,
-        respondedLateCount: row?.responded_late_count ?? 0,
-        reopenCount: row?.reopen_count ?? 0,
-        historicalOnboardingExcludedCount: row?.historical_onboarding_excluded_count ?? 0,
-        legacyUnknownExcludedCount: row?.legacy_unknown_excluded_count ?? 0,
-        averageTimeToResponseMinutes: row?.average_time_to_response_minutes ?? null,
-      } satisfies GoogleReviewTargetAnalytics
-    }),
-
-  getGoogleReviewTargetCountsByProperty: async ({
-    organizationId: orgId,
-    propertyIds,
-    now,
-  }) =>
-    trace('inbox.responseTarget.getGoogleReviewTargetCountsByProperty', async () => {
-      const counts = new Map<
-        PropertyId,
-        Readonly<{ activeCount: number; overdueCount: number }>
-      >()
-      for (const id of propertyIds) {
-        counts.set(id, { activeCount: 0, overdueCount: 0 })
-      }
-      if (propertyIds.length === 0) return counts
-
-      const rows = await db.execute<{
-        property_id: string
-        active_count: number
-        overdue_count: number
-      }>(sql`
-        SELECT
-          target.property_id,
-          count(*) FILTER (
-            WHERE target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
-          )::integer AS active_count,
-          count(*) FILTER (
-            WHERE target.completion_at IS NULL
-              AND head.current_cycle_number = target.cycle_number
-              AND head.status = 'open'
-              AND target.due_at <= ${now}
-          )::integer AS overdue_count
-        FROM ${inboxHandlingCycleResponseTargets} target
-        INNER JOIN ${inboxHandlingCycleHeads} head
-          ON head.inbox_item_id = target.inbox_item_id
-        INNER JOIN inbox_handling_cycles cycle
-          ON cycle.inbox_item_id = target.inbox_item_id
-         AND cycle.cycle_number = target.cycle_number
-        WHERE target.organization_id = ${orgId}
-          AND target.target_kind = 'google_review_response'
-          AND target.performance_eligibility = 'measured'
-          AND target.property_id = ANY(${sql.param(propertyIds)}::uuid[])
-        GROUP BY target.property_id
-      `)
-
-      for (const row of rows.rows) {
-        counts.set(propertyId(row.property_id), {
-          activeCount: row.active_count,
-          overdueCount: row.overdue_count,
-        })
-      }
-      return counts
-    }),
+  // Analytics and per-Property counts, split out for the ratchet: see the module.
+  ...createResponseTargetAnalyticsStore(db),
 
   // Reminder release, split out for the ratchet: see the module.
   ...createReminderReleaseStore(db),

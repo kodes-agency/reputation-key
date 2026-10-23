@@ -481,6 +481,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/inbox/infrastructure/restated-revision-target-exclusion.store.ts',
+    symbol: 'findProperty',
+    reason:
+      'Returns only the Organization and Property that own the Property id an operator typed on `pnpm ops inbox exclude-restated-revision-targets`, so the command can refuse an unknown id and scope every later statement to that Organization; it reads no other column.',
+    category: 'OWNER-LOOKUP',
+  },
+  {
     file: 'src/contexts/integration/infrastructure/durable-import-reference-claims.ts',
     symbol: 'claimCandidates',
     reason:

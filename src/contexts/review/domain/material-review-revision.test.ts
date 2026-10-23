@@ -116,6 +116,7 @@ describe('Material Review Revision comparison', () => {
       }),
     ).toMatchObject({
       comparison: 'normalization_shadow_match',
+      providerRestatement: false,
       materialRevision: 2,
       createsMaterialRevision: false,
     })
@@ -140,6 +141,7 @@ describe('Material Review Revision comparison', () => {
 
       expect(result).toMatchObject({
         comparison: 'normalization_shadow_match',
+        providerRestatement: false,
         materialRevision: 2,
         createsMaterialRevision: false,
       })
@@ -205,6 +207,230 @@ describe('Material Review Revision comparison', () => {
     ).toMatchObject({
       comparison: 'baseline_unavailable',
       materialRevision: 4,
+      createsMaterialRevision: false,
+    })
+  })
+})
+
+describe('an unmoved Google updateTime', () => {
+  // Google changed how it wraps translated text on 2026-10-23 and did not move
+  // updateTime. A rating or text that differs while the provider's own edit
+  // clock stands still is Google restating the review, not the guest editing.
+  const UPDATED = new Date('2026-10-20T08:30:00.000Z')
+  const previous = {
+    ...describeReviewMaterial({ rating: 5, text: 'Same words' }),
+    materialRevision: 4,
+  }
+  const incomingEdit = { rating: 5 as const, text: 'Same words, wrapped again' }
+  const at = (storedMs: number | null, incomingMs: number | null) => ({
+    stored: storedMs === null ? null : new Date(storedMs),
+    incoming: incomingMs === null ? null : new Date(incomingMs),
+  })
+
+  it.each([
+    { incoming: { rating: 4 as const, text: 'Same words' }, label: 'rating' },
+    { incoming: incomingEdit, label: 'text' },
+  ])(
+    'keeps the revision and adopts the incoming digests when the $label differs',
+    ({ incoming }) => {
+      const result = compareMaterialReviewRevision({
+        previous,
+        incoming,
+        providerUpdateTime: { stored: UPDATED, incoming: new Date(UPDATED.getTime()) },
+      })
+
+      // Stored as the shadow match: the CHECK on the observation table is not
+      // widened, so only `providerRestatement` says the rule fired.
+      expect(result).toMatchObject({
+        comparison: 'normalization_shadow_match',
+        providerRestatement: true,
+        materialRevision: 4,
+        createsMaterialRevision: false,
+        normalizedDigest: describeReviewMaterial(incoming).normalizedDigest,
+        sourceDigest: describeReviewMaterial(incoming).sourceDigest,
+      })
+      expect(isGuestEdit(result.comparison)).toBe(false)
+    },
+  )
+
+  it('still counts a change when Google moved updateTime by one millisecond', () => {
+    const result = compareMaterialReviewRevision({
+      previous,
+      incoming: incomingEdit,
+      providerUpdateTime: at(UPDATED.getTime(), UPDATED.getTime() + 1),
+    })
+
+    expect(result).toMatchObject({
+      comparison: 'material_change',
+      providerRestatement: false,
+      materialRevision: 5,
+      createsMaterialRevision: true,
+    })
+    expect(isGuestEdit(result.comparison)).toBe(true)
+  })
+
+  it('leaves an older updateTime to the repository, which ignores it as out of order', () => {
+    expect(
+      compareMaterialReviewRevision({
+        previous,
+        incoming: incomingEdit,
+        providerUpdateTime: at(UPDATED.getTime(), UPDATED.getTime() - 1),
+      }),
+    ).toMatchObject({
+      comparison: 'material_change',
+      providerRestatement: false,
+      materialRevision: 5,
+    })
+  })
+
+  it.each([
+    { label: 'the stored time is missing', times: at(null, UPDATED.getTime()) },
+    { label: 'Google reported no time', times: at(UPDATED.getTime(), null) },
+    { label: 'neither time is known', times: at(null, null) },
+    { label: 'no times are passed', times: undefined },
+  ])('is not a restatement when $label', ({ times }) => {
+    expect(
+      compareMaterialReviewRevision({
+        previous,
+        incoming: incomingEdit,
+        ...(times === undefined ? {} : { providerUpdateTime: times }),
+      }),
+    ).toMatchObject({
+      comparison: 'material_change',
+      providerRestatement: false,
+      materialRevision: 5,
+      createsMaterialRevision: true,
+    })
+  })
+
+  it('compares times at the millisecond Google and Postgres keep', () => {
+    expect(
+      compareMaterialReviewRevision({
+        previous,
+        incoming: incomingEdit,
+        providerUpdateTime: {
+          stored: new Date('2026-10-20T08:30:00.123456789Z'),
+          incoming: new Date('2026-10-20T08:30:00.123999999Z'),
+        },
+      }),
+    ).toMatchObject({
+      comparison: 'normalization_shadow_match',
+      providerRestatement: true,
+      materialRevision: 4,
+    })
+    expect(
+      compareMaterialReviewRevision({
+        previous,
+        incoming: incomingEdit,
+        providerUpdateTime: {
+          stored: new Date('2026-10-20T08:30:00.123999999Z'),
+          incoming: new Date('2026-10-20T08:30:00.124000001Z'),
+        },
+      }),
+    ).toMatchObject({
+      comparison: 'material_change',
+      providerRestatement: false,
+      materialRevision: 5,
+    })
+  })
+
+  it('applies to a baseline stored before material digests existed', () => {
+    const legacy = {
+      materialRevision: 2,
+      normalizationVersion: 'legacy-unverified-v0',
+      sourceDigest: null,
+      normalizedDigest: null,
+      rating: 3 as const,
+      originalText: 'Still the same',
+    }
+    expect(
+      compareMaterialReviewRevision({
+        previous: legacy,
+        incoming: { rating: 3, text: 'Wrapped differently' },
+        providerUpdateTime: { stored: UPDATED, incoming: new Date(UPDATED.getTime()) },
+      }),
+    ).toMatchObject({
+      comparison: 'normalization_shadow_match',
+      providerRestatement: true,
+      materialRevision: 2,
+      createsMaterialRevision: false,
+    })
+    expect(
+      compareMaterialReviewRevision({
+        previous: legacy,
+        incoming: { rating: 3, text: 'Wrapped differently' },
+        providerUpdateTime: at(UPDATED.getTime(), UPDATED.getTime() + 1),
+      }),
+    ).toMatchObject({
+      comparison: 'material_change',
+      providerRestatement: false,
+      materialRevision: 3,
+    })
+  })
+
+  it('does not touch the other outcomes, whatever the times say', () => {
+    const equal = { stored: UPDATED, incoming: new Date(UPDATED.getTime()) }
+    expect(
+      compareMaterialReviewRevision({
+        previous: null,
+        incoming: incomingEdit,
+        providerUpdateTime: equal,
+      }),
+    ).toMatchObject({
+      comparison: 'initial_material_revision',
+      providerRestatement: false,
+      materialRevision: 1,
+    })
+    expect(
+      compareMaterialReviewRevision({
+        previous,
+        incoming: { rating: 5, text: ' Same  words ' },
+        providerUpdateTime: equal,
+      }),
+    ).toMatchObject({
+      comparison: 'unchanged',
+      providerRestatement: false,
+      materialRevision: 4,
+    })
+    expect(
+      compareMaterialReviewRevision({
+        previous: {
+          materialRevision: 4,
+          normalizationVersion: 'legacy-unverified-v0',
+          sourceDigest: null,
+          normalizedDigest: null,
+          rating: null,
+          originalText: null,
+        },
+        incoming: { rating: 2, text: 'Re-observed source' },
+        providerUpdateTime: equal,
+      }),
+    ).toMatchObject({
+      comparison: 'baseline_unavailable',
+      providerRestatement: false,
+      materialRevision: 4,
+    })
+  })
+
+  it('leaves the translation-envelope reread to win, as normalization_shadow_match', () => {
+    const glued = 'Ок\n\n(Translated by Google)\nOk'
+    const result = compareMaterialReviewRevision({
+      previous: {
+        ...describeReviewMaterial({ rating: 1, text: glued }),
+        materialRevision: 2,
+        originalText: glued,
+        rereadOriginalText: 'Ок',
+      },
+      incoming: { rating: 1, text: 'Ок' },
+      providerUpdateTime: { stored: UPDATED, incoming: new Date(UPDATED.getTime()) },
+    })
+
+    // Same stored comparison as a restatement, but the rule did not fire: the
+    // envelope is a known format transition, so nothing is reported.
+    expect(result).toMatchObject({
+      comparison: 'normalization_shadow_match',
+      providerRestatement: false,
+      materialRevision: 2,
       createsMaterialRevision: false,
     })
   })
