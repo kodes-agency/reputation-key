@@ -10,14 +10,15 @@ import {
   estimatedCueWidthPt,
   planCodeBlock,
 } from '#/shared/domain/portal-print-kit-code-block'
+import { CODE_MODULE_MIN_MM } from '#/shared/domain/portal-print-kit-code-tile'
 import {
   CODE_BLOCK,
-  CODE_SYMBOL_MIN_PT,
   codeSymbolPt,
   cueRoomPt,
   inToPt,
   mmToPt,
   ptToIn,
+  ptToMm,
 } from '#/shared/domain/portal-print-kit-measures'
 import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { drawCodeBlock, planPdfCodeBlock } from './print-kit-code-block'
@@ -173,10 +174,11 @@ describe('drawCodeBlock', () => {
     const right = Math.max(...runRects.map(([x, , w]) => (x ?? 0) + (w ?? 0)))
     const top = Math.min(...runRects.map(([, y]) => y ?? 0))
     const bottom = Math.max(...runRects.map(([, y, , h]) => (y ?? 0) + (h ?? 0)))
-    // The symbol is as wide as it is tall, centred in the tile, at least 1.6 in.
+    // The symbol is as wide as it is tall, centred in the tile, with modules at or
+    // over the floor (the module rule: version 8 gives 0.891 mm).
     near(right - left, bottom - top)
     near(right - left, codeSymbolPt(QR.size))
-    expect(right - left).toBeGreaterThanOrEqual(CODE_SYMBOL_MIN_PT)
+    expect(ptToMm(module)).toBeGreaterThanOrEqual(CODE_MODULE_MIN_MM)
     near(left - 100, 244 - right)
     near(top - 50, 194 - bottom)
     near(left - 100, 4 * module)

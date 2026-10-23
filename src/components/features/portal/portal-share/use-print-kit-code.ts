@@ -7,8 +7,13 @@ import { useEffect, useState } from 'react'
 import { PRINT_KIT_INK, PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
 import { QR_QUIET_ZONE_MODULES, renderQrSvg } from './portal-qr'
 
-/** Drawn when the live address is not in memory: a code that opens nothing of ours. */
-const PREVIEW_SAMPLE_ADDRESS = 'https://example.com/p/sample'
+/**
+ * Drawn when the live address is not in memory: a code that opens nothing of
+ * ours. It is a version 3 symbol on purpose, the size of the short print
+ * address (a test pins that), so a card's preview shows the density a Table or
+ * Mini card prints at, not the 53-module code of today's long address.
+ */
+export const PREVIEW_SAMPLE_ADDRESS = 'https://example.com/p/sample'
 
 export function usePrintKitCode(address: string | null): string | null {
   const source = address ?? PREVIEW_SAMPLE_ADDRESS

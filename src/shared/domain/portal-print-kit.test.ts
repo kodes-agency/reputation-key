@@ -7,9 +7,12 @@ import {
   PRINT_KIT_PAPERS,
   PRINT_KIT_PIECES,
   PRINT_KIT_SCAN_CUE,
+  PRINT_KIT_SELECTABLE_SIZES,
+  PRINT_KIT_SIZES,
   PRINT_KIT_STYLES,
   defaultPrintKitPaper,
   isPrintKitLanguageChoice,
+  isSelectablePrintKitSize,
   printKitFaces,
   printKitFileName,
   printKitLanguageChoices,
@@ -251,5 +254,24 @@ describe('printKitFileName', () => {
     expect(printKitFileName('a'.repeat(200), 'table_tent', ['en'], LETTER)).toHaveLength(
       60 + '-table-tent-en-letter.pdf'.length,
     )
+  })
+})
+
+describe('the sizes', () => {
+  it('are Large, Table and Mini, Large first', () => {
+    expect(PRINT_KIT_SIZES).toEqual(['large', 'table', 'mini'])
+  })
+
+  it('offer only Large until the short print address and the phone tests allow the rest', () => {
+    expect(PRINT_KIT_SELECTABLE_SIZES).toEqual(['large'])
+    expect(isSelectablePrintKitSize('large')).toBe(true)
+    expect(isSelectablePrintKitSize('table')).toBe(false)
+    expect(isSelectablePrintKitSize('mini')).toBe(false)
+  })
+
+  it('only ever offer a size the vocabulary has', () => {
+    for (const size of PRINT_KIT_SELECTABLE_SIZES) {
+      expect(PRINT_KIT_SIZES).toContain(size)
+    }
   })
 })
