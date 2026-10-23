@@ -51,9 +51,6 @@ export const CODE_BLOCK = {
   cueGapPt: mmToPt(0.35),
 } as const
 
-/** The least a code's symbol (without its quiet zone) may measure in the 2 in tile. */
-export const CODE_SYMBOL_MIN_PT = inToPt(1.6)
-
 /** How many cue lines a code block has: one language, or two. */
 export type CueLines = keyof typeof CODE_BLOCK.cuePt
 

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   CARD_GRID,
   CODE_BLOCK,
-  CODE_SYMBOL_MIN_PT,
   FIT,
   FIT_ORDER,
   IMMERSIVE_TENT_GRID,
@@ -28,6 +27,7 @@ import {
   ptToMm,
 } from './portal-print-kit-measures'
 import { PRINT_KIT_PAPERS, PRINT_KIT_STYLES } from './portal-print-kit'
+import { CODE_MODULE_MIN_MM, codeModuleMm } from './portal-print-kit-code-tile'
 
 describe('the units', () => {
   it('turns inches and millimetres into points in one place', () => {
@@ -81,10 +81,14 @@ describe('the code block', () => {
     expect(ptToMm(CODE_BLOCK.tilePt / 57)).toBeCloseTo(0.89, 2)
   })
 
-  it('keeps the symbol at least 1.6 in from a code of 33 modules up', () => {
-    expect(codeSymbolPt(33)).toBeGreaterThanOrEqual(CODE_SYMBOL_MIN_PT)
-    expect(codeSymbolPt(29)).toBeLessThan(CODE_SYMBOL_MIN_PT)
-    expect(ptToIn(CODE_SYMBOL_MIN_PT)).toBeCloseTo(1.6, 10)
+  it('holds the module at or over the floor in the 2 in tile for the codes the portal prints', () => {
+    // The module rule (`portal-print-kit-code-tile.ts`) replaces a symbol-size pin:
+    // the symbol's size is the tile over the modules, so the module is what decides.
+    // Version 8 (the fixture host) gives 0.891 mm; version 9 (the beta) 0.833 mm,
+    // which Large keeps printing because it has no larger tile to move to.
+    expect(codeModuleMm(CODE_BLOCK.tilePt, 49)).toBeGreaterThanOrEqual(CODE_MODULE_MIN_MM)
+    expect(codeModuleMm(CODE_BLOCK.tilePt, 33)).toBeGreaterThanOrEqual(CODE_MODULE_MIN_MM)
+    expect(codeModuleMm(CODE_BLOCK.tilePt, 53)).toBeLessThan(CODE_MODULE_MIN_MM)
   })
 
   it('draws the corners at 0.10 in, inside the quiet zone of 0.14 in', () => {

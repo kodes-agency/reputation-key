@@ -76,6 +76,30 @@ export function defaultPrintKitPaper(countryCode: string | null): PrintKitPaper 
   return code === '' || LETTER_COUNTRIES.has(code) ? 'letter' : 'a4'
 }
 
+/**
+ * The sizes a piece comes in (round 3). Large is the 4 × 6 in or A6 card the kit
+ * has always made; Table (3.5 × 5 in or 90 × 130 mm) is for tables, nightstands
+ * and bars; Mini (2 × 3.5 in or 55 × 85 mm) is for key-card sleeves. The small
+ * table tent is the `table_tent` piece at size Table, and today's Letter-half
+ * tent is the same piece at size Large. The trims, the code tile and every
+ * measure per size are in `portal-print-kit-sizes.ts` and `-code-tile.ts`.
+ */
+export const PRINT_KIT_SIZES = Object.freeze(['large', 'table', 'mini'] as const)
+export type PrintKitSize = (typeof PRINT_KIT_SIZES)[number]
+
+/**
+ * The sizes a manager may choose today. Table and Mini wait for the short print
+ * address, and for a real print of each to pass a phone test, so they are drawn
+ * and tested but reachable only from tests and stories. Once a size travels in
+ * the choice, the server refuses one that is not listed here.
+ */
+export const PRINT_KIT_SELECTABLE_SIZES: readonly PrintKitSize[] = Object.freeze([
+  'large',
+])
+
+export const isSelectablePrintKitSize = (size: PrintKitSize): boolean =>
+  PRINT_KIT_SELECTABLE_SIZES.includes(size)
+
 /** The print a download asks for: its look and the paper it prints on. */
 export type PrintKitFormat = Readonly<{ style: PrintKitStyle; paper: PrintKitPaper }>
 
