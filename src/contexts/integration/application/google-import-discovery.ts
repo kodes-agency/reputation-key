@@ -43,12 +43,24 @@ export type GoogleImportCommandAuthorizationResult =
     }>
   | Readonly<{
       ok: false
-      code:
-        | 'authorization_denied'
-        | 'authorization_changed'
-        | 'connection_unavailable'
-        | 'runtime_unavailable'
+      code: 'authorization_denied' | 'authorization_changed' | 'connection_unavailable'
     }>
+  | Readonly<{
+      ok: false
+      code: 'runtime_unavailable'
+      /** Which dependency read failed; error monitoring reports it (#946). */
+      step?: GoogleImportAuthorizerUnavailableStep
+    }>
+
+/** The authorizer's dependency reads, any of which can fail without a decision. */
+export type GoogleImportAuthorizerUnavailableStep =
+  | 'capability_decision'
+  | 'policy_version_mismatch'
+  | 'connection_read'
+  | 'property_snapshot'
+  | 'content_authorization'
+  | 'token_access'
+  | 'token_reread'
 
 /**
  * The one command-authorization seam for import discovery and lease renewal.
@@ -87,16 +99,32 @@ export type GoogleImportDiscoveryErrorCode =
 
 export class GoogleImportDiscoveryError extends Error {
   readonly code: GoogleImportDiscoveryErrorCode
+  /**
+   * Where a `temporarily_unavailable` came from, e.g. `authorizer_token_access`.
+   * Error monitoring reads it as the `failure_code` tag (error-facts.ts); the
+   * client sees only `code`.
+   */
+  readonly failureCode?: string
 
-  constructor(code: GoogleImportDiscoveryErrorCode) {
+  constructor(code: GoogleImportDiscoveryErrorCode, failureCode?: string) {
     super(`Google import discovery failed: ${code}`)
     this.name = 'GoogleImportDiscoveryError'
     this.code = code
+    if (failureCode !== undefined) this.failureCode = failureCode
   }
 }
 
-function deny(code: GoogleImportDiscoveryErrorCode): never {
-  throw new GoogleImportDiscoveryError(code)
+function deny(code: GoogleImportDiscoveryErrorCode, failureCode?: string): never {
+  throw new GoogleImportDiscoveryError(code, failureCode)
+}
+
+/** The failure code for an authorizer refusal that names the step it failed in. */
+function authorizerFailureCode(
+  result: Extract<GoogleImportCommandAuthorizationResult, { ok: false }>,
+): string | undefined {
+  return result.code === 'runtime_unavailable' && result.step
+    ? `authorizer_${result.step}`
+    : undefined
 }
 
 /**
@@ -264,7 +292,9 @@ export function createGoogleImportDiscovery(
     }>,
   ) => {
     const result = await deps.authorizeGoogleImportCommand(input)
-    if (!result.ok) return deny(authorizerDenialErrorCode(result.code))
+    if (!result.ok) {
+      return deny(authorizerDenialErrorCode(result.code), authorizerFailureCode(result))
+    }
     if (
       input.expected &&
       !sameDiscoveryAuthorization(input.expected, result.authorization)

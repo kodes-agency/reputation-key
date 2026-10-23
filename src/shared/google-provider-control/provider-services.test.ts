@@ -268,6 +268,84 @@ describe('Google in-process admission service', () => {
     },
   )
 
+  // On 2026-10-23 a token refresh reached admission in time, the permit read used
+  // up the rest of its deadline, and the quota step's "too late" came back as
+  // `quota_exhausted`: the log blamed a quota that was nearly full. An elapsed
+  // deadline is reported as one, and spends no quota.
+  it('denies with deadline_exceeded, spending no quota, when reading the permit used up the deadline', async () => {
+    let nowMs = 1_000
+    const compiled = compile({
+      routeKey: 'account-management.accounts.list',
+      accessToken: 'access-token',
+    })
+    const fixture = admissionFixture({
+      permit: permitFor('permit-load-00001', compiled.admission),
+      nowMs: () => nowMs,
+    })
+    const load = vi.mocked(fixture.authority.load)
+    const loadPermit = load.getMockImplementation()
+    load.mockImplementationOnce(async (permitId) => {
+      nowMs = 10_000
+      return loadPermit ? loadPermit(permitId) : null
+    })
+
+    await expect(
+      fixture.service.start({
+        permitId: 'permit-load-00001',
+        gatewayIdentity,
+        admission: compiled.admission,
+        deadlineMs: 10_000,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'deadline_exceeded', retryAfterMs: 0 })
+    expect(fixture.quota.acquire).not.toHaveBeenCalled()
+    expect(fixture.inFlight.acquire).not.toHaveBeenCalled()
+  })
+
+  // A coordinator says "too late" two ways: the deadline had already passed
+  // (no wait would help, retryAfterMs 0), or the next free token would arrive
+  // after it (a real wait). Only the second is pressure on the limit.
+  it.each([
+    ['quota', 'deadline_exceeded', 0, 'deadline_exceeded'],
+    ['quota', 'deadline_exceeded', 4_000, 'quota_exhausted'],
+    ['quota', 'quota_exhausted', 4_000, 'quota_exhausted'],
+    ['in-flight', 'deadline_exceeded', 0, 'deadline_exceeded'],
+    ['in-flight', 'deadline_exceeded', 4_000, 'in_flight_exhausted'],
+    ['in-flight', 'limit_exhausted', 4_000, 'in_flight_exhausted'],
+  ] as const)(
+    'reports a %s %s with retryAfterMs %i as %s',
+    async (coordinator, coordinatorCode, retryAfterMs, expected) => {
+      const compiled = compile({
+        routeKey: 'account-management.accounts.list',
+        accessToken: 'access-token',
+      })
+      const fixture = admissionFixture({
+        permit: permitFor('permit-late-00002', compiled.admission),
+      })
+      if (coordinator === 'quota') {
+        vi.mocked(fixture.quota.acquire).mockResolvedValueOnce({
+          ok: false,
+          code: coordinatorCode as 'deadline_exceeded' | 'quota_exhausted',
+          retryAfterMs,
+        })
+      } else {
+        vi.mocked(fixture.inFlight.acquire).mockResolvedValueOnce({
+          ok: false,
+          code: coordinatorCode as 'deadline_exceeded' | 'limit_exhausted',
+          retryAfterMs,
+        })
+      }
+
+      await expect(
+        fixture.service.start({
+          permitId: 'permit-late-00002',
+          gatewayIdentity,
+          admission: compiled.admission,
+          deadlineMs: 10_000,
+        }),
+      ).resolves.toEqual({ ok: false, code: expected, retryAfterMs })
+    },
+  )
+
   // Waiting for a semaphore slot and the permit's start round trip both take
   // time. A grant is signed for what is left of the permit and the call, measured
   // after them; a clock read before them signed a grant that was already dead,

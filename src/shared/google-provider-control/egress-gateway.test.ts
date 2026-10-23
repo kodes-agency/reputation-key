@@ -456,6 +456,62 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
     )
   })
 
+  // On 2026-10-23 two token refreshes were refused with 9 and 12 seconds gone,
+  // and nothing said whether the time went before the gateway or inside
+  // admission (#946). Each refusal now carries both.
+  it('logs the deadline left on entry and the time admission took when it refuses', async () => {
+    let nowMs = NOW_MS
+    const { gateway, warn } = harness({
+      nowMs: () => nowMs,
+      start: async () => {
+        nowMs = 9_500
+        return { ok: false, code: 'deadline_exceeded', retryAfterMs: 0 }
+      },
+    })
+
+    await expect(execute(gateway)).resolves.toMatchObject({
+      code: 'admission_denied',
+      admissionCode: 'deadline_exceeded',
+    })
+    expect(warn).toHaveBeenCalledWith(
+      {
+        surface: 'google-egress-gateway',
+        stage: 'admission-start',
+        code: 'deadline_exceeded',
+        routeKey: DESCRIPTOR.routeKey,
+        retryAfterMs: 0,
+        deadlineLeftMs: DEADLINE_MS - NOW_MS,
+        admissionMs: 9_500 - NOW_MS,
+      },
+      'Google admission denied',
+    )
+  })
+
+  it('logs the same timings when the admission call throws', async () => {
+    let nowMs = NOW_MS
+    const { gateway, warn } = harness({
+      nowMs: () => nowMs,
+      start: async () => {
+        nowMs = 3_000
+        throw new Error('admission hop unavailable')
+      },
+    })
+
+    await execute(gateway)
+    expect(warn).toHaveBeenCalledWith(
+      {
+        surface: 'google-egress-gateway',
+        stage: 'admission-start',
+        code: 'coordination_unavailable',
+        routeKey: DESCRIPTOR.routeKey,
+        deadlineLeftMs: DEADLINE_MS - NOW_MS,
+        admissionMs: 3_000 - NOW_MS,
+        err: { name: 'Error', message: 'admission hop unavailable' },
+      },
+      'Google admission call failed',
+    )
+  })
+
   it('records nothing when the admission completes after the call', async () => {
     const { gateway, complete, warn } = harness()
 
