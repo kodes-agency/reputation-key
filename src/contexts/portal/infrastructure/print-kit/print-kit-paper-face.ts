@@ -135,12 +135,13 @@ function shrunkStack(
 
 /**
  * The card's candidates, roomiest first (spec 2.5): the full type scale, then
- * for two languages the stepped-down one (fit step c), then the brand at its
- * floor. The first that leaves the two gaps their minimums is the one printed;
- * when none does, the place label shrinks on the last (`shrunkStack`).
+ * for two languages the stepped-down one (fit step c), and at each scale the
+ * brand at its full size and then at its floor. The brand ranks below the place
+ * label's size, so it gives way first. The first that leaves the two gaps their
+ * minimums is the one printed; when none does, the place label shrinks on the
+ * last (`shrunkStack`).
  */
 function cardCandidates(sizing: Sizing, maxWidthPt: number) {
-  const scales = stackScales(sizing.face.blocks.length, false)
   const full: BrandSize = {
     wordmarkPt: WORDMARK.pt,
     logoHeightPt: mmToPt(LOGO_BOX_MM.height),
@@ -151,11 +152,10 @@ function cardCandidates(sizing: Sizing, maxWidthPt: number) {
     wordmarkPt: FIT.wordmarkFloorPt,
     logoHeightPt: FIT.logoFloorPt,
   }
-  const last = scales[scales.length - 1] ?? 'one'
-  return [
-    ...scales.map((scale) => ({ scale, brand: full })),
-    { scale: last, brand: floor },
-  ]
+  return stackScales(sizing.face.blocks.length, false).flatMap((scale) => [
+    { scale, brand: full },
+    { scale, brand: floor },
+  ])
 }
 
 function layoutPaperCard(

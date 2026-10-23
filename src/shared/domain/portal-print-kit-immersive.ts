@@ -130,8 +130,12 @@ export type ImmersiveFitStep = Readonly<{
 }>
 
 /**
- * The steps a face tries, roomiest first: (b) the gaps tighten, (c) two
- * languages step their type down, then the brand shrinks. A card's gaps start at
+ * The steps a face tries, roomiest first: (b) the gaps tighten, then (c) two
+ * languages step their type down, and at each type scale the brand tries its
+ * full size and then its floor. The brand ranks last of everything a face keeps
+ * (spec 2.5), so it gives way before the place label steps down, and the window,
+ * which every step tries before the next, never gives way to it; once the type
+ * has stepped down the brand is full again if it fits. A card's gaps start at
  * 2.2 mm and a tent panel's at 3 mm; step (b) takes both to 2 mm, the least any
  * gap between two groups may be, and the place block's gap from 3.4 to 2.4 mm.
  * Step (a), the window shrinking, happens inside every step; step (d), dropping
@@ -143,6 +147,7 @@ export function immersiveFitSteps(
 ): readonly ImmersiveFitStep[] {
   const roomy = tent ? FIT.gapPt.tent : FIT.gapPt.immersive
   const tight = FIT.gapPt.tight
+  const tightPlace = STACK.gapsPt.twoTight.placeToHead
   if (languages < 2) {
     return [
       { gapPt: roomy, scale: 'one', brand: 'full' },
@@ -152,12 +157,8 @@ export function immersiveFitSteps(
   }
   return [
     { gapPt: roomy, scale: 'two', brand: 'full' },
-    {
-      gapPt: tight,
-      scale: 'two',
-      placeToHeadPt: STACK.gapsPt.twoTight.placeToHead,
-      brand: 'full',
-    },
+    { gapPt: tight, scale: 'two', placeToHeadPt: tightPlace, brand: 'full' },
+    { gapPt: tight, scale: 'two', placeToHeadPt: tightPlace, brand: 'floor' },
     { gapPt: tight, scale: 'twoTight', brand: 'full' },
     { gapPt: tight, scale: 'twoTight', brand: 'floor' },
   ]

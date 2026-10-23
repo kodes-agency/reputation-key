@@ -367,7 +367,11 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   Every face keeps an optical 0.4 in (10 mm) margin at its top and bottom edge.
   A tight Immersive face gives way in a fixed order: the window shrinks to 0.55
   in, the gaps tighten, the two-language type steps down, and only then the
-  photo becomes the monogram.
+  photo becomes the monogram. The brand ranks last in both styles: at each type
+  scale a logo gives up its size to its 10 mm floor (a wordmark to 15 pt) before
+  the type steps down, and before the window is dropped. With two languages a
+  logo at its floor still leaves a card's window under 0.55 in (the boards' logo
+  leaves 13.1 mm on 4 x 6 in and 9 mm on A6), so those cards print without one.
 - **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
   family; lining figures on place labels and headlines; no ligatures on a tracked
   line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the
