@@ -6,7 +6,10 @@
 // Registered once, globally, in src/start.ts, ahead of the CSRF boundary so that a
 // server-function call on the print host is a 404 like any other request there.
 // Where PORTAL_PRINT_ORIGIN is unset, or names the app's own host, it passes every
-// request straight through.
+// request straight through. Files Nitro serves from its public directory (/assets,
+// robots.txt, favicon.ico) are answered before any request middleware runs, so they
+// still answer on the print host: public build files, the same ones the app host
+// serves.
 //
 // Which host a request is for. The server builds `request.url` from the wire `Host`
 // and does not trust `X-Forwarded-*` (srvx's `trustProxy` is off), so the wire host

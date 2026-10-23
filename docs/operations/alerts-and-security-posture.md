@@ -36,7 +36,13 @@ malformed, overlong, and excessive chains, then selects `length − N` using
 have no socket-peer address, so any contract failure yields `unknown`, never a
 forwarded fallback. All rate-limit/IP call-sites (registration, sign-in, guest
 rating/feedback/scan/click, and the better-auth catch-all) go through
-`clientIpFromHeaders` (`src/shared/security/client-ip.ts`). Keep the Railway
+`clientIpFromHeaders` (`src/shared/security/client-ip.ts`). `X-Forwarded-Host` is
+read for one thing, the print host redirect (ADR 0069,
+`src/shared/security/print-host-middleware.ts`), on the same contract (the Railway
+markers in `railway-edge`, a configured proxy in `xff`, never in `direct`) and only
+to narrow: a request it names as the print host is redirected or answered 404.
+Auth's base URL, its trusted origins and the guest `Origin` check stay fixed to
+`BETTER_AUTH_URL`. Keep the Railway
 service reachable only through its public edge when this mode is active. See
 [Railway public-networking specifications](https://docs.railway.com/networking/public-networking/specs-and-limits).
 

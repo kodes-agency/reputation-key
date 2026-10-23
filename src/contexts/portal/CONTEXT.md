@@ -370,11 +370,16 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   and lets a visit be counted; it is a credential, never logged, evented or
   exported (invariant 9).
 - **Print host.** The short host a print code is scanned on:
-  `https://ap.up.railway.app`, which `PORTAL_PRINT_ORIGIN` will name when the
-  redirect step lands (nothing reads it yet). It only redirects `/p/<code>` to the
-  app origin (the guest page is not served there, because the guest `Origin`
-  check is an exact match against the app origin), and must stay attached to the
-  web service and keep its name for the life of the prints.
+  `https://ap.up.railway.app`, named by `PORTAL_PRINT_ORIGIN` (optional; origin
+  only, host at most 25 characters, https in production). A request middleware
+  (`src/shared/security/print-host-middleware.ts`, global in `src/start.ts`, right
+  after Sentry) answers there: `GET` and `HEAD` for `/p/*` are a 302 to the same
+  path and query on the app origin (`BETTER_AUTH_URL`), and any other path or
+  method is a 404 with no body. The guest page is not served there, because the
+  guest `Origin` check is an exact match against the app origin, and a manager
+  cannot sign in there either. Every other host is untouched, and so is every
+  host where the variable is unset or names the app's own host. It must stay
+  attached to the web service and keep its name for the life of the prints.
 - **One source of measures.** The PDF and the preview read the same files, so a
   preview cannot show a sheet the file does not print: `portal-print-kit.ts`
   (styles, papers, pieces, copy, faces, file name), `portal-print-kit-measures.ts`

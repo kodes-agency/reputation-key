@@ -48,6 +48,19 @@ alphabet are the card's for life, so the entropy has to be right the first time.
    print host the app's main URL, the print host equals the app host and the
    redirect turns off; print codes then resolve on `/p/$token` directly, which is
    why the code works with both.
+   The redirect is a request middleware in `src/start.ts`, right after Sentry and
+   ahead of the CSRF boundary, so a server-function call on the print host is a 404
+   too. A request is for the print host when the `Host` the server received names
+   it (the server builds `request.url` from the wire `Host` and does not trust
+   `X-Forwarded-*`), or when `X-Forwarded-Host`, which Railway sets to the host the
+   client asked for, does where the app already trusts the proxy that sets it: the
+   Railway edge markers in `railway-edge` mode, a configured proxy in `xff` mode,
+   never in `direct` mode. Either signal is enough, because the answer only narrows
+   what a request gets: a spoofed header can make the caller's own request a 404,
+   and nothing a header says can open the print host to the app. Files Nitro serves
+   from its public directory (`/assets`, `robots.txt`, `favicon.ico`) are answered
+   before any request middleware runs, so they still answer on the print host: they
+   are public build files, the same ones the app host serves.
    **A Railway-provided name is never released, renamed or detached once anything
    is printed with it.** Another Railway account could claim a released name and
    receive every scan. The runbook (§26) says the same.
