@@ -1599,12 +1599,11 @@ release on. The redirect does nothing until `PORTAL_PRINT_ORIGIN` is set.
   `robots.txt`, `favicon.ico`) still answer there: public build files, the same ones
   the app host serves. The host is read from the `Host` the server received, and
   from `X-Forwarded-Host` where the proxy is trusted (`TRUSTED_PROXY_MODE`).
-- **Checking it** (read-only, after the deploy): `curl -sI
-https://ap.up.railway.app/p/unknown-code` answers 302 with `location:
-<app origin>/p/unknown-code`, and `curl -s -o /dev/null -w '%{http_code}\n'
-https://ap.up.railway.app/` answers 404. Following the redirect shows the app's
-  "unavailable" page. `pnpm check:security-headers` proves the same against the
-  built artifact.
+- **Checking it** (read-only, after the deploy): `curl -sI https://ap.up.railway.app/p/unknown-code`
+  answers 302 with `location: <app origin>/p/unknown-code`, and
+  `curl -s -o /dev/null -w '%{http_code}\n' https://ap.up.railway.app/` answers 404.
+  Following the redirect shows the app's "unavailable" page.
+  `pnpm check:security-headers` proves the same against the built artifact.
 - **If the app moves to the print host.** Set `BETTER_AUTH_URL` to
   `https://ap.up.railway.app`. The redirect turns itself off when the print host
   equals the app host, whether `PORTAL_PRINT_ORIGIN` is unset or the same value, and
