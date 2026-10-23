@@ -147,6 +147,27 @@ export function codeModuleMm(tilePt: number, symbolModules: number): number {
  */
 export type PrintAddressShape = 'long' | 'short'
 
+/** A print code after `/p/`: 20 characters of Crockford base32, in either case, and nothing after them. */
+const SHORT_ADDRESS_PATH = /^\/p\/[0-9A-HJKMNP-TV-Z]{20}$/iu
+
+/**
+ * The shape of the address a code encodes. A short print address is a host and
+ * `/p/` with a 20-character print code and no query; anything else (the whole
+ * token and its access-artifact marker) is long. It only decides which way a
+ * refusal reads, so a string that is not a URL counts as long.
+ */
+export function printAddressShape(address: string): PrintAddressShape {
+  let url: URL
+  try {
+    url = new URL(address)
+  } catch {
+    return 'long'
+  }
+  return url.search === '' && url.hash === '' && SHORT_ADDRESS_PATH.test(url.pathname)
+    ? 'short'
+    : 'long'
+}
+
 /**
  * A size refused because its code would be printed too small to scan. The cause
  * says what the manager can do: `needs_short_code` (this code has no print code:

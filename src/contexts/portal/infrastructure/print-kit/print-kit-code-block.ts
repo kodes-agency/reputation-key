@@ -1,8 +1,9 @@
 // The code block, drawn as the design board draws it (spec 2.3): a cream tile
-// 2 in square with the code on it, and under it, joined with no gap and exactly
-// as wide, a bar in the accent that holds a camera pictogram and the cue, in the
-// lead language first. The whole object has rounded corners; on Paper an outline
-// is drawn outside it, so the bar still measures 2 in, the size check.
+// with the code on it, and under it, joined with no gap and exactly as wide, a
+// bar in the accent that holds a camera pictogram and the cue, in the lead
+// language first. The whole object has rounded corners; on Paper an outline is
+// drawn outside it, so the bar still measures the tile, the size check. The tile
+// is the plan's: today's 2 in, or the one a size chose (`chooseCodeTile`).
 //
 // Drawn in the caller's coordinates, in points, from the tile's top-left corner.
 // `planPdfCodeBlock` measures the cue in the PDF's own fonts and says how tall the
@@ -24,6 +25,10 @@ import {
   type CodeBlockPlan,
   type CueLine,
 } from '#/shared/domain/portal-print-kit-code-block'
+import {
+  TODAY_CODE_TILE,
+  type CodeTile,
+} from '#/shared/domain/portal-print-kit-code-tile'
 import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
 import {
   PRINT_KIT_INK,
@@ -57,9 +62,12 @@ export function planPdfCodeBlock(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
   cues: readonly CueLine[],
+  tile: CodeTile = TODAY_CODE_TILE,
 ): CodeBlockPlan {
-  return planCodeBlock(cues, (cue, size) =>
-    measureLine(doc, fonts, cue.text, cueStyle(size, PRINT_KIT_INK)),
+  return planCodeBlock(
+    cues,
+    (cue, size) => measureLine(doc, fonts, cue.text, cueStyle(size, PRINT_KIT_INK)),
+    tile,
   )
 }
 
@@ -70,10 +78,11 @@ export function planFaceCodeBlock(
   face: PrintFace,
   qr: QrMatrix,
   palette: PrintKitPalette,
+  tile: CodeTile = TODAY_CODE_TILE,
 ): Readonly<{ plan: CodeBlockPlan; art: CodeBlockArt }> {
   const cues = cueLinesFor(face.blocks.map((block) => block.locale))
   return {
-    plan: planPdfCodeBlock(doc, fonts, cues),
+    plan: planPdfCodeBlock(doc, fonts, cues, tile),
     art: { qr, cues, colours: codeBlockColours(palette) },
   }
 }
@@ -81,8 +90,13 @@ export function planFaceCodeBlock(
 type Corner = Readonly<{ x: number; y: number }>
 
 /** The tile's code: one rectangle per run of dark modules, inside its quiet zone. */
-function drawCode(doc: PDFKit.PDFDocument, qr: QrMatrix, at: Corner): void {
-  const module = CODE_BLOCK.tilePt / (qr.size + 2 * PRINT_KIT_QR_QUIET_ZONE_MODULES)
+function drawCode(
+  doc: PDFKit.PDFDocument,
+  qr: QrMatrix,
+  tilePt: number,
+  at: Corner,
+): void {
+  const module = tilePt / (qr.size + 2 * PRINT_KIT_QR_QUIET_ZONE_MODULES)
   const quiet = PRINT_KIT_QR_QUIET_ZONE_MODULES
   for (const run of qrDarkRuns(qr)) {
     doc.rect(
@@ -128,8 +142,9 @@ function drawBar(
   const textWidth = Math.max(0, ...widths)
   const lineHeight = cueLineHeightPt(plan)
   const blockHeight = cueBlockHeightPt(plan, art.cues.length)
-  const barTop = at.y + CODE_BLOCK.tilePt
-  const centreX = at.x + CODE_BLOCK.tilePt / 2
+  const { tilePt, iconGapPt } = plan.tile
+  const barTop = at.y + tilePt
+  const centreX = at.x + tilePt / 2
 
   const drawCues = (left: number, top: number) =>
     art.cues.forEach((cue, index) => {
@@ -150,16 +165,19 @@ function drawBar(
     drawCues(centreX - textWidth / 2, barTop + 2 * space + plan.iconPt)
     return
   }
-  const groupWidth = plan.iconPt + CODE_BLOCK.iconGapPt + textWidth
-  const left = centreX - groupWidth / 2
+  // A tile with no pictogram centres its cue alone.
+  const iconSlot = plan.iconPt === 0 ? 0 : plan.iconPt + iconGapPt
+  const left = centreX - (iconSlot + textWidth) / 2
   const middle = barTop + plan.barPt / 2
-  drawCamera(
-    doc,
-    { x: left, y: middle - plan.iconPt / 2 },
-    plan.iconPt,
-    art.colours.barText,
-  )
-  drawCues(left + plan.iconPt + CODE_BLOCK.iconGapPt, middle - blockHeight / 2)
+  if (plan.iconPt > 0) {
+    drawCamera(
+      doc,
+      { x: left, y: middle - plan.iconPt / 2 },
+      plan.iconPt,
+      art.colours.barText,
+    )
+  }
+  drawCues(left + iconSlot, middle - blockHeight / 2)
 }
 
 /**
@@ -174,7 +192,8 @@ export function drawCodeBlock(
   plan: CodeBlockPlan,
   at: Corner,
 ): void {
-  const { tilePt, radiusPt, outlinePt } = CODE_BLOCK
+  const { tilePt, radiusPt } = plan.tile
+  const { outlinePt } = CODE_BLOCK
   doc.save()
   if (art.colours.outline !== null) {
     doc
@@ -190,7 +209,7 @@ export function drawCodeBlock(
   doc.save()
   doc.roundedRect(at.x, at.y, tilePt, plan.heightPt, radiusPt).clip()
   doc.rect(at.x, at.y, tilePt, tilePt).fill(PRINT_KIT_TILE)
-  drawCode(doc, art.qr, at)
+  drawCode(doc, art.qr, tilePt, at)
   doc.rect(at.x, at.y + tilePt, tilePt, plan.barPt).fill(art.colours.barFill)
   doc.restore()
   drawBar(doc, fonts, art, plan, at)
