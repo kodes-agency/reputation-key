@@ -27,6 +27,8 @@ import {
 export type PortalPrintKitLook = Readonly<{
   /** The brand set as text: the wordmark, else the Property's name. */
   wordmark: string
+  /** The Property's name as stored, printed under a logo (round-2 R2). */
+  propertyName: string
   accentColour: string
   fieldColour: string
   hero: Readonly<{ assetId: string; focalX: number; focalY: number }> | null
@@ -84,6 +86,7 @@ export function buildPortalPrintKitContext(
     titles: titlesOf(locales, (locale) => source.wording[locale]?.title),
     look: {
       wordmark: written(brand.wordmark) ? brand.wordmark.trim() : brand.displayName,
+      propertyName: brand.displayName,
       accentColour: brand.accentColour,
       fieldColour: brand.fieldColour,
       hero: brand.hero
@@ -114,6 +117,7 @@ export function printKitContextOfLive(
     ),
     look: {
       wordmark: written(brand.wordmark) ? brand.wordmark.trim() : brand.displayName,
+      propertyName: brand.displayName,
       accentColour: brand.accentColour,
       fieldColour: brand.fieldColour,
       hero: brand.hero
@@ -149,6 +153,8 @@ export type PortalPrintKitView = Readonly<{
   titles: Readonly<Partial<Record<GuestLocale, string>>>
   look: Readonly<{
     wordmark: string
+    /** The Property's name, printed under a logo. */
+    propertyName: string
     accentColour: string
     fieldColour: string
     heroUrl: string | null
@@ -170,6 +176,7 @@ export function presentPortalPrintKit(
     titles: context.titles,
     look: {
       wordmark: look.wordmark,
+      propertyName: look.propertyName,
       accentColour: look.accentColour,
       fieldColour: look.fieldColour,
       heroUrl: look.hero ? portalMediaPublicPath(look.hero.assetId) : null,

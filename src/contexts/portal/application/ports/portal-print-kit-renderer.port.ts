@@ -31,6 +31,8 @@ export type PrintKitRenderInput = Readonly<{
   faces: readonly PrintFace[]
   /** The brand set as text when there is no logo. */
   wordmark: string
+  /** The Property's name, printed under a logo on a card (round-2 R2). */
+  propertyName: string
   logo: Uint8Array | null
   photo: PrintKitPhoto | null
   accentColour: string

@@ -39,6 +39,7 @@ function immersiveInput(
     paper,
     faces: printKitFaces(picked, TITLES, 'Pool & Terrace'),
     wordmark: 'Avela',
+    propertyName: 'Avela Beach Resort',
     logo: null,
     photo: null,
     accentColour: '#EAD6A8',

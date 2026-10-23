@@ -57,6 +57,11 @@ describe('buildPortalPrintKitContext', () => {
     expect(context.look.wordmark).toBe('The Harbor Hotel')
   })
 
+  it('carries the display name for the name line under a logo, whatever the wordmark says', () => {
+    const context = buildPortalPrintKitContext(publicationSource())
+    expect(context.look.propertyName).toBe('The Harbor Hotel')
+  })
+
   it('has the portal name and the default look when the property has no look yet', () => {
     const context = buildPortalPrintKitContext(publicationSource({ look: null }))
     expect(context.look.wordmark).toBe('Harbor lobby')
@@ -118,6 +123,7 @@ describe('printKitContextOfLive', () => {
     })
     expect(context.look).toEqual({
       wordmark: 'HARBOR',
+      propertyName: 'The Harbor Hotel',
       accentColour: '#C8A45A',
       fieldColour: '#14110F',
       hero: { assetId: IMMERSIVE_HERO_ASSET_ID, focalX: 0.4, focalY: 0.6 },

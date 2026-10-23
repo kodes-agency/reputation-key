@@ -78,6 +78,7 @@ const TRATTORIA: Sample = {
 
 const lookOf = (sample: Sample): PortalPrintKitView['look'] => ({
   wordmark: sample.wordmark,
+  propertyName: sample.wordmark,
   accentColour: sample.accent,
   fieldColour: sample.field ?? '#16130E',
   heroUrl: sample.photo === true ? PHOTO : null,

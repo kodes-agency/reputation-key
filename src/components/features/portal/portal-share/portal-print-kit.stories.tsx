@@ -53,6 +53,7 @@ const view = (overrides: Partial<PortalPrintKitView> = {}): PortalPrintKitView =
   titles: { en: 'Pool & Terrace', bg: 'Басейн и тераса' },
   look: {
     wordmark: 'Avela',
+    propertyName: 'Avela Beach Resort',
     accentColour: '#EAD6A8',
     fieldColour: '#15110D',
     heroUrl: null,
@@ -482,6 +483,7 @@ export const WithThePropertyPhoto: Story = {
         view({
           look: {
             wordmark: 'Avela',
+            propertyName: 'Avela Beach Resort',
             accentColour: '#EAD6A8',
             fieldColour: '#15110D',
             heroUrl: PHOTO,

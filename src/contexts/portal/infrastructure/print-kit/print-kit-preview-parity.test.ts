@@ -19,6 +19,7 @@ import {
 
 const LOOK: PortalPrintKitView['look'] = {
   wordmark: 'Avela',
+  propertyName: 'Avela Beach Resort',
   accentColour: '#EAD6A8',
   fieldColour: '#16130E',
   heroUrl: null,
