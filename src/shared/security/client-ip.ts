@@ -51,18 +51,25 @@ export function getClientIpFromForwardedFor(
 }
 
 /**
+ * Whether a request carries both markers Railway's edge adds. The deployment mode
+ * is the primary trust boundary; requiring both markers also makes accidental
+ * direct exposure fail closed instead of silently accepting a header a caller
+ * owns. In railway-edge mode every header the app takes from the edge (X-Real-IP,
+ * X-Forwarded-Host) rests on this one definition.
+ */
+export function hasRailwayEdgeMarkers(headers: Headers): boolean {
+  return (
+    Boolean(headers.get('x-railway-edge')?.trim()) &&
+    Boolean(headers.get('x-railway-request-id')?.trim())
+  )
+}
+
+/**
  * Railway's public edge contract supplies the remote address in X-Real-IP and
- * adds Railway edge/request markers. The deployment mode is the primary trust
- * boundary; requiring both markers also makes accidental direct exposure fail
- * closed instead of silently accepting a caller-owned X-Real-IP header.
+ * adds Railway edge/request markers (see {@link hasRailwayEdgeMarkers}).
  */
 export function getClientIpFromRailwayHeaders(headers: Headers): string | undefined {
-  if (
-    !headers.get('x-railway-edge')?.trim() ||
-    !headers.get('x-railway-request-id')?.trim()
-  ) {
-    return undefined
-  }
+  if (!hasRailwayEdgeMarkers(headers)) return undefined
   const realIp = headers.get('x-real-ip')
   return realIp ? validIp(realIp) : undefined
 }

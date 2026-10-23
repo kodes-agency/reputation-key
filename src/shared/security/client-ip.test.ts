@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import {
   getClientIpFromForwardedFor,
   getClientIpFromRailwayHeaders,
+  hasRailwayEdgeMarkers,
   deriveClientIp,
   clientIpFromHeaders,
 } from './client-ip'
@@ -50,6 +51,29 @@ describe('client-ip (B0.7)', () => {
       expect(
         getClientIpFromForwardedFor('198.51.100.1, 198.51.100.2, 198.51.100.3', 1, 2),
       ).toBeUndefined()
+    })
+  })
+
+  describe('hasRailwayEdgeMarkers', () => {
+    it('needs both the edge marker and the request id', () => {
+      expect(
+        hasRailwayEdgeMarkers(
+          new Headers({ 'x-railway-edge': 'ams1', 'x-railway-request-id': 'request-1' }),
+        ),
+      ).toBe(true)
+      expect(hasRailwayEdgeMarkers(new Headers({ 'x-railway-edge': 'ams1' }))).toBe(false)
+      expect(
+        hasRailwayEdgeMarkers(new Headers({ 'x-railway-request-id': 'request-1' })),
+      ).toBe(false)
+      expect(hasRailwayEdgeMarkers(new Headers())).toBe(false)
+    })
+
+    it('does not take a blank marker for a marker', () => {
+      expect(
+        hasRailwayEdgeMarkers(
+          new Headers({ 'x-railway-edge': '  ', 'x-railway-request-id': 'request-1' }),
+        ),
+      ).toBe(false)
     })
   })
 
