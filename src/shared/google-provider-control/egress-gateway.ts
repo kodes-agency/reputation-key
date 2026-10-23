@@ -264,6 +264,13 @@ export function createGoogleEgressGateway(
         admission: compiled.admission,
         deadlineMs: input.deadlineMs,
       })
+      // Where a refusal's time went: what the caller left the gateway, and how
+      // much of it admission spent (#946: a refresh refused 12 s after its
+      // permit, with no record of which side the time was lost on).
+      const timing = (): Readonly<{ deadlineLeftMs: number; admissionMs: number }> => ({
+        deadlineLeftMs: input.deadlineMs - nowMs,
+        admissionMs: deps.nowMs() - nowMs,
+      })
       let started: GoogleAdmissionStartResult
       try {
         started = await deps.admission.start(admissionInput)
@@ -281,6 +288,7 @@ export function createGoogleEgressGateway(
             stage: 'admission-start',
             code: 'coordination_unavailable',
             routeKey: compiled.admission.routeKey,
+            ...timing(),
             ...(error instanceof Error
               ? { err: { name: error.name, message: error.message } }
               : {}),
@@ -306,6 +314,7 @@ export function createGoogleEgressGateway(
             code: started.code,
             routeKey: compiled.admission.routeKey,
             retryAfterMs: started.retryAfterMs,
+            ...timing(),
           },
           'Google admission denied',
         )

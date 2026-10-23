@@ -10,6 +10,7 @@ import {
 import type { ExecutionDecision } from '#/shared/auth/execution-policy'
 import { googleAuthorizationPermissionDigest } from '#/shared/domain/google-content-authorization-vector'
 import { BANNED_LOG_KEYS } from '#/shared/observability/metrics-schema'
+import { integrationError } from '../domain/errors'
 import type { GoogleConnection } from '../domain/types'
 import { createGoogleImportCommandAuthorizer } from './google-import-command-authorizer'
 
@@ -357,8 +358,84 @@ describe('authorizeGoogleImportCommand', () => {
         phase: 'provider_call',
         requireAccessToken: true,
       }),
-    ).resolves.toEqual({ ok: false, code: 'runtime_unavailable' })
+    ).resolves.toEqual({
+      ok: false,
+      code: 'runtime_unavailable',
+      step: 'content_authorization',
+    })
     expect(denied.getAccessToken).not.toHaveBeenCalled()
+  })
+
+  // On 2026-10-23 a token refresh failed inside this step and the only record was
+  // "temporarily unavailable" (#946): the catch named neither the step nor the
+  // failure. Each unavailable step now says which it was, content-free.
+  it('names the token access step and logs its failure without the message', async () => {
+    const warn = vi.fn()
+    const failing = setup({ warn })
+    failing.getAccessToken.mockRejectedValueOnce(
+      integrationError('token_refresh_failed', 'refresh for tenant-secret failed'),
+    )
+
+    await expect(
+      failing.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'runtime_unavailable', step: 'token_access' })
+    expect(warn).toHaveBeenCalledWith(
+      {
+        step: 'token_access',
+        errorName: 'IntegrationError',
+        error_code: 'token_refresh_failed',
+      },
+      'google_import.runtime_unavailable_detail',
+    )
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('tenant-secret')
+  })
+
+  it('names the reread after token access separately from the token itself', async () => {
+    const failing = setup()
+    failing.findById
+      .mockImplementationOnce(async () => connection())
+      .mockRejectedValueOnce(new Error('connection read failed'))
+
+    await expect(
+      failing.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'runtime_unavailable', step: 'token_reread' })
+  })
+
+  it('names the capability decision step when the policy read fails', async () => {
+    const warn = vi.fn()
+    const failing = setup({
+      decide: async () => {
+        throw new TypeError('policy store down')
+      },
+      warn,
+    })
+
+    await expect(
+      failing.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'runtime_unavailable',
+      step: 'capability_decision',
+    })
+    expect(warn).toHaveBeenCalledWith(
+      { step: 'capability_decision', errorName: 'TypeError' },
+      'google_import.runtime_unavailable_detail',
+    )
   })
 
   it('rechecks destination generations and scoped permission before publication', async () => {

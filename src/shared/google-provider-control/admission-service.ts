@@ -245,18 +245,32 @@ export function createGoogleExecutionAdmissionService(
       if (!sameAdmissionMetadata(permit.expectedAdmission, input.admission)) {
         return { ok: false, code: 'request_mismatch', retryAfterMs: 0 }
       }
+      // Reading the permit takes time too. A deadline it used up is reported as
+      // elapsed here: past this point the quota step answers "too late" as
+      // `quota_exhausted`, which blamed quota for a stalled refresh (#946).
+      if (input.deadlineMs <= deps.nowMs()) {
+        return { ok: false, code: 'deadline_exceeded', retryAfterMs: 0 }
+      }
       const quota = deps.quotaForPolicy(permit.expectedAdmission.quotaPolicyId)
       const inFlight = deps.inFlightForPolicy(permit.expectedAdmission.inFlightPolicyId)
       if (!quota || !inFlight) {
         return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
       }
+      // A coordinator answers "too late" two ways. With no wait (or once the
+      // deadline is behind us) the time had already run out, which is not
+      // pressure on the limit; with a wait, the next free slot falls past the
+      // deadline, which is.
+      const elapsed = (code: string, retryAfterMs: number): boolean =>
+        code === 'deadline_exceeded' &&
+        (retryAfterMs === 0 || input.deadlineMs <= deps.nowMs())
       const quotaResult = await quota.acquire(permit.quotaKey, 1, input.deadlineMs)
       if (!quotaResult.ok) {
         return {
           ok: false,
-          code:
-            quotaResult.code === 'quota_exhausted' ||
-            quotaResult.code === 'deadline_exceeded'
+          code: elapsed(quotaResult.code, quotaResult.retryAfterMs)
+            ? 'deadline_exceeded'
+            : quotaResult.code === 'quota_exhausted' ||
+                quotaResult.code === 'deadline_exceeded'
               ? 'quota_exhausted'
               : 'coordination_unavailable',
           retryAfterMs: quotaResult.retryAfterMs,
@@ -270,9 +284,10 @@ export function createGoogleExecutionAdmissionService(
       if (!inFlightResult.ok) {
         return {
           ok: false,
-          code:
-            inFlightResult.code === 'limit_exhausted' ||
-            inFlightResult.code === 'deadline_exceeded'
+          code: elapsed(inFlightResult.code, inFlightResult.retryAfterMs)
+            ? 'deadline_exceeded'
+            : inFlightResult.code === 'limit_exhausted' ||
+                inFlightResult.code === 'deadline_exceeded'
               ? 'in_flight_exhausted'
               : 'coordination_unavailable',
           retryAfterMs: inFlightResult.retryAfterMs,
