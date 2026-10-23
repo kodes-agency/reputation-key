@@ -297,6 +297,10 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     clock,
     newPermitId: randomUUID,
     authorize: googleContentAuthorizationCheck,
+    // Stage timings for a slow issuance (#946); `clock` is wall time and can
+    // step, so the stages are measured on the monotonic clock.
+    nowMs: performance.now.bind(performance),
+    logger,
   })
   const ensureProviderEphemeralReady = providerEphemeralReadiness
     ? async () => {
