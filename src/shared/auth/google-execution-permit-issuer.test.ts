@@ -45,7 +45,7 @@ function fixture(
     delaysMs?: Readonly<Partial<Record<Step, number>>>
     /** The step that throws `failure` after spending its delay. */
     failAt?: Step
-    failure?: Error
+    failure?: unknown
   }> = {},
 ) {
   const records: GoogleExecutionPermitRecord[] = []
@@ -315,7 +315,7 @@ describe('Google execution permit issuance timing', () => {
   ])(
     'logs an error outcome with the stages reached when $failAt throws slowly, then rethrows',
     async ({ failAt, fields }) => {
-      const failure = new Error('connection terminated')
+      const failure = Object.assign(new Error('connection terminated'), { code: '57P01' })
       const delaysMs: Partial<Record<Step, number>> =
         failAt === 'begin' ? { begin: 1100 } : { begin: 10, [failAt]: 1090 }
       const { issuer, warn } = fixture({
@@ -336,6 +336,48 @@ describe('Google execution permit issuance timing', () => {
           routeKey: 'google.business-information.locations.list',
           outcome: 'error',
           ...fields,
+          errorName: 'Error',
+          errorCode: '57P01',
+        },
+        SLOW_MESSAGE,
+      )
+    },
+  )
+
+  it.each<
+    Readonly<{ kind: string; failure: unknown; errorFields: Record<string, string> }>
+  >([
+    {
+      kind: 'an Error without a code',
+      failure: new TypeError('bad row'),
+      errorFields: { errorName: 'TypeError' },
+    },
+    { kind: 'a non-Error value', failure: 'aborted', errorFields: {} },
+  ])(
+    'logs only what $kind safely names when a slow issuance throws it',
+    async ({ failure, errorFields }) => {
+      const { issuer, warn } = fixture({
+        instrument: 'both',
+        delaysMs: { begin: 10, insertPermit: 1090 },
+        failAt: 'insertPermit',
+        failure,
+      })
+
+      await expect(issuer(admissionInput())).rejects.toBe(failure)
+
+      expect(warn).toHaveBeenCalledWith(
+        {
+          surface: 'google-execution-permit-issuer',
+          stage: 'issuance',
+          capability: 'property.import_gbp_v2',
+          routeKey: 'google.business-information.locations.list',
+          outcome: 'error',
+          beginMs: 10,
+          loadControlMs: 0,
+          authorizeMs: 0,
+          insertPermitMs: 1090,
+          totalMs: 1100,
+          ...errorFields,
         },
         SLOW_MESSAGE,
       )
@@ -375,6 +417,7 @@ describe('Google execution permit issuance timing', () => {
 
     expect(actual).toEqual(expected)
     expect(clockOnly.records).toEqual(bare.records)
+    expect(clockOnly.nowMs).not.toHaveBeenCalled()
   })
 
   it('returns the unchanged result with both timing deps present', async () => {

@@ -11,7 +11,8 @@
  * a slow one is logged. The record carries the closed code sets `capability`
  * and `routeKey` and durations, and nothing that names a tenant: no
  * organization, property, connection, user or permit id, no operation key and
- * no hash.
+ * no hash. A failed issuance adds the error's class and code, never its
+ * message (a driver message can quote key or constraint detail).
  */
 
 /** Total issuance time from which one warning is logged. */
@@ -37,8 +38,8 @@ export type PermitIssuanceTimer = Readonly<{
   stage<T>(stage: PermitIssuanceStage, run: () => Promise<T>): Promise<T>
   /** The transaction callback returned: COMMIT is next. */
   callbackReturned(): void
-  /** The issuance ended with `outcome`; logs once if it was slow. */
-  finish(outcome: string): void
+  /** The issuance ended with `outcome` (and `error` when it threw); logs once if it was slow. */
+  finish(outcome: string, error?: unknown): void
 }>
 
 export type PermitIssuanceTimerOptions = Readonly<{
@@ -85,13 +86,13 @@ export function createPermitIssuanceTimer(
     callbackReturned: () => {
       callbackReturnedAt = nowMs()
     },
-    finish: (outcome) => {
+    finish: (outcome, error) => {
       const endedAt = nowMs()
       if (callbackReturnedAt !== undefined)
         record('commitMs', callbackReturnedAt, endedAt)
       record('totalMs', startedAt, endedAt)
       if ((stages.totalMs ?? 0) < SLOW_PERMIT_ISSUANCE_THRESHOLD_MS) return
-      warnSlowIssuance(logger, options, outcome, stages)
+      warnSlowIssuance(logger, options, outcome, stages, error)
     },
   })
 }
@@ -101,6 +102,7 @@ function warnSlowIssuance(
   options: PermitIssuanceTimerOptions,
   outcome: string,
   stages: PermitIssuanceStages,
+  error: unknown,
 ): void {
   try {
     logger.warn(
@@ -111,6 +113,7 @@ function warnSlowIssuance(
         routeKey: options.routeKey,
         outcome,
         ...stages,
+        ...errorClass(error),
       },
       SLOW_PERMIT_ISSUANCE_MESSAGE,
     )
@@ -118,4 +121,16 @@ function warnSlowIssuance(
     // A diagnostic must not change what issuance returns or mask the error it
     // is reporting on.
   }
+}
+
+/** Same reduction as the logger's own error serialiser: class and code only. */
+function errorClass(
+  error: unknown,
+): Readonly<{ errorName?: string; errorCode?: string | number }> {
+  if (!(error instanceof Error)) return {}
+  const code =
+    'code' in error && (typeof error.code === 'string' || typeof error.code === 'number')
+      ? error.code
+      : undefined
+  return { errorName: error.name, ...(code === undefined ? {} : { errorCode: code }) }
 }

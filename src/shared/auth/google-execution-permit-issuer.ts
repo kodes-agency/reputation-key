@@ -164,7 +164,7 @@ export function createGoogleExecutionPermitIssuer<Tx>(
         return issued
       })
     } catch (error) {
-      timer.finish('error')
+      timer.finish('error', error)
       throw error
     }
     timer.finish(result.ok ? 'admitted' : result.code)
