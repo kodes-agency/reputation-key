@@ -149,6 +149,25 @@ function measured(
 }
 
 /**
+ * The first long-copy step whose words leave the gaps their minimum, measured
+ * one step at a time; the last step when none does, so the overflow is as small
+ * as it can be.
+ */
+function firstLongCopyFit(
+  sizing: Sizing,
+  step: ImmersiveFitStep,
+  codeHeight: number,
+): MeasuredFit<Attempt> {
+  let last: MeasuredFit<Attempt> | null = null
+  for (const sizes of longCopySizes(step.scale)) {
+    last = measured(sizing, step, codeHeight, sizes)
+    if (sizing.grid.heightPt - last.fixedPt >= 2 * last.gapPt) break
+  }
+  if (last === null) throw new Error('A place label has at least one size')
+  return last
+}
+
+/**
  * The step a face is printed at. When not even the tightest step without a
  * window leaves the gaps their minimum, the words take the long-copy steps in
  * it until they do (`longCopySizes`): the code block never gives way.
@@ -163,13 +182,7 @@ function chooseFit(sizing: Sizing, codeHeight: number): SharedHeight<Attempt> {
   if (chosen !== null) return chosen
   const tightest = steps[steps.length - 1]
   if (tightest === undefined) throw new Error('A face has at least one way to be set')
-  const shrunk = longCopySizes(tightest.scale).map((sizes) =>
-    measured(sizing, tightest, codeHeight, sizes),
-  )
-  const fitting =
-    shrunk.find((fit) => sizing.grid.heightPt - fit.fixedPt >= 2 * fit.gapPt) ??
-    shrunk[shrunk.length - 1]
-  if (fitting === undefined) throw new Error('A place label has at least one size')
+  const fitting = firstLongCopyFit(sizing, tightest, codeHeight)
   return sharedWithoutWindow(fitting, sizing.grid.heightPt)
 }
 

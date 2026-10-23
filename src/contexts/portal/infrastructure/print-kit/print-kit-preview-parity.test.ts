@@ -10,6 +10,7 @@ import {
   faceOf,
   layOutImmersive,
   layOutPaper,
+  newDocument,
 } from './__fixtures__/print-kit-face-fixtures'
 
 // The Share tab's preview sets a face's words at the sizes the PDF prints, from
@@ -72,36 +73,40 @@ function expectParity(preview: StackSizes, measured: Partial<StackSizes>, label:
   )
 }
 
-const cases = <G extends PanelGeometry>(geometries: readonly G[]) =>
-  geometries.flatMap((geometry) =>
-    LANGUAGES.flatMap((languages) =>
-      TITLES.map((titles) => ({ geometry, languages, titles })),
-    ),
+/** The languages and titles every face shape is set with. */
+const CASES = LANGUAGES.flatMap((languages) =>
+  TITLES.map((titles) => ({ languages, titles })),
+)
+
+const pieceOf = (geometry: PanelGeometry) =>
+  geometry.startsWith('card') ? 'counter_card' : 'table_tent'
+
+// One face shape a test, each laid out in a single shared document: opening the
+// fonts for every face made the whole run slow enough to time out on a loaded runner.
+describe('the preview’s sizes against the PDF’s measured plan', () => {
+  it.each(['card4x6', 'cardA6', 'tentFaceLetter', 'tentFaceA5'] as const)(
+    'match on the Paper %s',
+    async (geometry) => {
+      const document = newDocument()
+      for (const { languages, titles } of CASES) {
+        const face = faceOf(
+          { piece: pieceOf(geometry), languages: [...languages] },
+          titles,
+        )
+        const layout = await layOutPaper(face, geometry, { document })
+        const fit = previewPaperFit(face, geometry, LOOK)
+        if (fit === null) throw new Error(`no Paper fit for ${geometry}`)
+        const label = `${geometry} ${languages.join('+')} ${titles.en.length}`
+        expectParity(fit.sizes, measuredSizes(layout.stack.stack), label)
+      }
+    },
   )
 
-describe('the preview’s sizes against the PDF’s measured plan', () => {
-  it('match on Paper cards and tent faces', async () => {
-    for (const { geometry, languages, titles } of cases([
-      'card4x6',
-      'cardA6',
-      'tentFaceLetter',
-      'tentFaceA5',
-    ])) {
-      const piece = geometry.startsWith('card') ? 'counter_card' : 'table_tent'
-      const face = faceOf({ piece, languages: [...languages] }, titles)
-      const layout = await layOutPaper(face, geometry)
-      const fit = previewPaperFit(face, geometry, LOOK)
-      if (fit === null) throw new Error(`no Paper fit for ${geometry}`)
-      const label = `${geometry} ${languages.join('+')} ${titles.en.length}`
-      expectParity(fit.sizes, measuredSizes(layout.stack.stack), label)
-    }
-  })
-
-  it('match on Immersive cards and tent panels', async () => {
-    for (const { geometry, languages, titles } of cases(IMMERSIVE)) {
-      const piece = geometry.startsWith('card') ? 'counter_card' : 'table_tent'
-      const face = faceOf({ piece, languages: [...languages] }, titles)
-      const layout = await layOutImmersive(face, geometry)
+  it.each(IMMERSIVE)('match on the Immersive %s', async (geometry) => {
+    const document = newDocument()
+    for (const { languages, titles } of CASES) {
+      const face = faceOf({ piece: pieceOf(geometry), languages: [...languages] }, titles)
+      const layout = await layOutImmersive(face, geometry, { document })
       const fit = previewImmersiveFit(face, geometry, LOOK)
       const label = `${geometry} ${languages.join('+')} ${titles.en.length}`
       expectParity(fit.sizes, measuredSizes(layout.stack.stack), label)

@@ -84,7 +84,12 @@ export async function lightLogo(
   return { image: openImage(doc, bytes), ink: logoInk(raw.data, raw.info), plate: null }
 }
 
+/** A document with the guest fonts: a test that lays out many faces opens one and shares it. */
+export type FaceDocument = ReturnType<typeof newDocument>
+
 export type FaceOptions = Readonly<{
+  /** The document to measure in; each face opens its own when none is given. */
+  document?: FaceDocument
   logo?: boolean | Readonly<{ height: number; edge: number }>
   wordmark?: string
   accent?: string
@@ -100,7 +105,7 @@ export async function layOutImmersive(
   geometry: PanelGeometry,
   options: FaceOptions = {},
 ): Promise<ImmersiveFaceLayout> {
-  const { doc, fonts } = newDocument()
+  const { doc, fonts } = options.document ?? newDocument()
   const palette = immersivePrintKitPalette(options.accent ?? '#EAD6A8', null)
   const logo = await logoOf(doc, options)
   const brand = { wordmark: options.wordmark ?? 'Avela', colour: palette.headline, logo }
@@ -112,7 +117,7 @@ export async function layOutPaper(
   geometry: PanelGeometry,
   options: FaceOptions = {},
 ): Promise<PaperFaceLayout> {
-  const { doc, fonts } = newDocument()
+  const { doc, fonts } = options.document ?? newDocument()
   const palette = paperPrintKitPalette(options.accent ?? '#EAD6A8')
   const logo = await logoOf(doc, options)
   const brand = { wordmark: options.wordmark ?? 'Avela', colour: palette.ink, logo }
