@@ -12,10 +12,22 @@
 // ru/tr/fr reviews were rejected because the mixed blob reads as unreliable.
 // Splitting the envelope at the provider edge is what lets language detection —
 // and therefore the whole AI reply plane — run on the original alone.
+//
+// From 2026-10-23 Google also sends the original first, with no `(Original)`:
+//   `<original>\n\n(Translated by Google)\n<translation>`
+// Unsplit, that shape read as a guest edit: 59 closed-beta reviews whose Google
+// updateTime had not moved reopened handled Inbox items and emailed the team.
 
 /** The envelope Google prepends; the original text follows `ORIGINAL_MARKER`. */
 const TRANSLATED_PREFIX = '(Translated by Google)'
 const ORIGINAL_MARKER = '(Original)'
+/**
+ * The original-first envelope's delimiter: a blank line, then the marker on a
+ * line of its own. A guest's own "(Translated by Google)" mid-sentence or on a
+ * plain new line is not one. The line break that ends the marker line is a
+ * lookahead, so two marker lines in a row are two matches.
+ */
+const TRANSLATION_LINE = /\r?\n[ \t]*\r?\n[ \t]*\(Translated by Google\)[ \t]*(?=\r?\n)/g
 
 export type GoogleReviewComment = Readonly<{
   original: string | null
@@ -44,6 +56,9 @@ function trimmedOrNull(value: string): string | null {
  * occurrence) would move guest characters into `translation` and truncate the
  * detection input, so it is the strictly worse failure.
  *
+ * The original-first envelope splits on its LAST marker line, by the same
+ * rule: a guest who wrote that exact line keeps every character in `original`.
+ *
  * Only surrounding whitespace is trimmed; newlines inside either part survive.
  */
 export function parseGoogleReviewComment(
@@ -52,7 +67,7 @@ export function parseGoogleReviewComment(
   if (comment == null) return { original: null, translation: null }
   const body = comment.trimStart()
   if (!body.startsWith(TRANSLATED_PREFIX)) {
-    return { original: trimmedOrNull(comment), translation: null }
+    return splitOriginalFirst(comment)
   }
   const wrapped = body.slice(TRANSLATED_PREFIX.length)
   const marker = wrapped.indexOf(ORIGINAL_MARKER)
@@ -60,6 +75,17 @@ export function parseGoogleReviewComment(
   return {
     original: trimmedOrNull(wrapped.slice(marker + ORIGINAL_MARKER.length)),
     translation: trimmedOrNull(wrapped.slice(0, marker)),
+  }
+}
+
+function splitOriginalFirst(comment: string): GoogleReviewComment {
+  const delimiter = [...comment.matchAll(TRANSLATION_LINE)].at(-1)
+  if (delimiter === undefined)
+    return { original: trimmedOrNull(comment), translation: null }
+  // trimmedOrNull drops the marker line's own line break from the translation.
+  return {
+    original: trimmedOrNull(comment.slice(0, delimiter.index)),
+    translation: trimmedOrNull(comment.slice(delimiter.index + delimiter[0].length)),
   }
 }
 
