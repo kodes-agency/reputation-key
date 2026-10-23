@@ -30,7 +30,12 @@ async function resolveGolden(key: keyof typeof GOLDEN_SNAPSHOT_ROWS) {
   }
   const resolve = resolvePublicPortalToken({
     tokenCodec: {
-      digest: () => ({ tokenIdentifier: 'key', tokenHash: 'hash', tokenKeyVersion: 1 }),
+      digest: () => ({
+        kind: 'long',
+        tokenIdentifier: 'key',
+        tokenHash: 'hash',
+        tokenKeyVersion: 1,
+      }),
     },
     portalPublicationRepo: {
       resolveActiveByTokenDigest: async () => ({ token, snapshot }),

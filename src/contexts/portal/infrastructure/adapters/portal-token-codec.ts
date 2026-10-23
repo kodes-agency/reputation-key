@@ -3,6 +3,7 @@ import type {
   DerivedPrintCode,
   PortalTokenCodec,
   PortalTokenDigest,
+  PresentedAddressDigest,
 } from '../../application/ports/portal-token-codec.port'
 import type { PortalAccessArtifactChannel } from '../../domain/portal-access-artifact'
 import { normalizePrintCode, printCodeFromBytes } from '../../domain/print-code'
@@ -37,7 +38,7 @@ export const createPortalTokenCodec = (input: {
   const deriveKey = hmacSha256(input.secret, DERIVE_KEY_LABEL)
   const hashKey = hmacSha256(input.secret, HASH_KEY_LABEL)
 
-  const digest = (rawToken: string): PortalTokenDigest | null => {
+  const longDigest = (rawToken: string): PortalTokenDigest | null => {
     const match = TOKEN_PATTERN.exec(rawToken)
     if (!match) return null
     return {
@@ -49,6 +50,17 @@ export const createPortalTokenCodec = (input: {
 
   const hashPrintCode = (printCode: string): string =>
     hmacSha256(hashKey, printCode).toString('hex')
+
+  // The long shape contains `_` and a print code never does, so at most one of the
+  // two reads a given string. A long address keeps exactly the digest it always had.
+  const digest = (raw: string): PresentedAddressDigest | null => {
+    const long = longDigest(raw)
+    if (long) return { kind: 'long', ...long }
+    const printCode = normalizePrintCode(raw)
+    return printCode === null
+      ? null
+      : { kind: 'short', printCodeHash: hashPrintCode(printCode) }
+  }
 
   const derivePrintCode = (
     channel: PortalAccessArtifactChannel,
@@ -68,15 +80,11 @@ export const createPortalTokenCodec = (input: {
       const tokenIdentifier = secureRandomBytes(12).toString('base64url')
       const secret = secureRandomBytes(32).toString('base64url')
       const rawToken = `pt_${tokenIdentifier}_${secret}`
-      const tokenDigest = digest(rawToken)
+      const tokenDigest = longDigest(rawToken)
       if (!tokenDigest) throw new Error('generated portal token is malformed')
       return { rawToken, ...tokenDigest }
     },
     digest,
-    digestPrintCode: (raw) => {
-      const printCode = normalizePrintCode(raw)
-      return printCode === null ? null : { printCodeHash: hashPrintCode(printCode) }
-    },
     isPrintCode: (raw) => normalizePrintCode(raw) !== null,
     derivePrintCodes: ({ rawToken, accessArtifactIds }) => {
       if (!TOKEN_PATTERN.test(rawToken)) return null

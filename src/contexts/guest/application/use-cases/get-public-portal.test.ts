@@ -40,6 +40,7 @@ const fakeData: PublicPortalData = {
   },
   guestSurface: 'legacy',
   immersive: null,
+  addressShape: 'long',
   organizationId: 'org-1',
   propertyId: 'prop-1',
 }

@@ -48,6 +48,7 @@ const portal: PublicPortalData = {
   propertyId: 'property-secret-id',
   guestSurface: 'legacy',
   immersive: null,
+  addressShape: 'long',
 }
 
 const immersivePortal: PublicPortalData = {

@@ -50,6 +50,7 @@ const portal = {
   },
   guestSurface: 'legacy',
   immersive: null,
+  addressShape: 'long',
   organizationId: 'org-a',
   propertyId: 'property-p1',
 } as const

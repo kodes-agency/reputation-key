@@ -7,6 +7,7 @@ import {
 // suite builds them with the builder publishing used before round 4's writer switch.
 import { buildLegacyPortalPublicationSnapshot as buildPortalPublicationSnapshot } from '../__fixtures__/legacy-snapshot-builder'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import type { PresentedAddressDigest } from '../ports/portal-token-codec.port'
 
 const NOW = new Date('2026-08-08T12:00:00.000Z')
 const GOOGLE_REVIEW_URI = 'https://search.google.com/local/writereview?placeid=property-1'
@@ -117,7 +118,8 @@ function setup(
 ) {
   const digest = vi.fn(
     overrides.digest ??
-      (() => ({
+      ((): PresentedAddressDigest => ({
+        kind: 'long',
         tokenIdentifier: 'token-key',
         tokenHash: 'digest',
         tokenKeyVersion: 1,
@@ -221,10 +223,12 @@ describe('resolvePublicPortalToken', () => {
         propertyId: 'property-1',
         guestSurface: 'legacy',
         immersive: null,
+        addressShape: 'long',
       },
     })
     expect(resolvePublication).toHaveBeenCalledWith(
       {
+        kind: 'long',
         tokenIdentifier: 'token-key',
         tokenHash: 'digest',
         tokenKeyVersion: 1,
@@ -238,6 +242,20 @@ describe('resolvePublicPortalToken', () => {
       propertyId: 'property-1',
       now: NOW,
     })
+  })
+
+  it('hands a print code digest to the same lookup and says the page was read by a short address', async () => {
+    const printCode: PresentedAddressDigest = {
+      kind: 'short',
+      printCodeHash: 'a'.repeat(64),
+    }
+    const { resolve, resolvePublication } = setup({ digest: () => printCode })
+
+    await expect(resolve('7K3QZ0VD9MWX4HT2BN6R')).resolves.toMatchObject({
+      status: 'found',
+      data: { addressShape: 'short', organizationId: 'org-1' },
+    })
+    expect(resolvePublication).toHaveBeenCalledExactlyOnceWith(printCode, NOW)
   })
 
   it('suppresses a published secondary link when its current approval is absent', async () => {

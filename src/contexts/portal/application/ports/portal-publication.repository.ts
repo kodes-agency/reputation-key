@@ -4,6 +4,7 @@ import type {
 } from '../../domain/portal-publication-snapshot'
 import type { PortalPublicationSource } from '../../domain/portal-publication-source'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
+import type { PresentedAddressDigest } from './portal-token-codec.port'
 
 export type PortalPublicationCursor = Readonly<{
   nextSnapshotVersion: number
@@ -114,12 +115,13 @@ export type PortalPublicationRepository = Readonly<{
     organizationId: OrganizationId,
     portalIds: readonly PortalId[],
   ) => Promise<readonly Readonly<{ portalId: PortalId; count: number }>[]>
+  /**
+   * The live publication a presented address opens, by its long address digest or
+   * its print code digest (ADR 0069): the same statement for both, the address
+   * match aside.
+   */
   resolveActiveByTokenDigest: (
-    digest: Readonly<{
-      tokenIdentifier: string
-      tokenHash: string
-      tokenKeyVersion: number
-    }>,
+    digest: PresentedAddressDigest,
     asOf: Date,
   ) => Promise<ResolvedPortalPublication | null>
 }>

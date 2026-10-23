@@ -27,6 +27,7 @@ const PORTAL = portalId('f4e00000-0000-4000-8000-000000000001')
 const RESPONSE = 'f5200000-0000-4000-8000-000000000001'
 const NOW = new Date('2026-08-26T13:00:00.000Z')
 const TOKEN_DIGEST = {
+  kind: 'long',
   tokenIdentifier: 'publicationkey01',
   // Unique to this integration suite: portal-token repository tests run in a
   // separate worker against the same local database and the production index

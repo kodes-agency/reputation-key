@@ -15,6 +15,7 @@ function createPortalApiStub(
     getResponsibleManagerUserIds: async () => [],
     findPortalHealthNotificationFacts: async () => null,
     findPublicPortalByToken,
+    isPrintCode: () => false,
     resolvePublishedAccessArtifact: async () => null,
   }
 }
@@ -66,6 +67,7 @@ describe('createPublicPortalLookup', () => {
       },
       guestSurface: 'legacy' as const,
       immersive: null,
+      addressShape: 'long' as const,
       organizationId: 'org-1',
       propertyId: 'property-1',
     }

@@ -22,7 +22,7 @@ import {
 import { trace } from '#/shared/observability/trace'
 import type { PortalAccessArtifactChannel } from '../../domain/portal-access-artifact'
 import type { PortalGroupRepository } from '../../application/ports/portal-group.repository'
-import type { PortalTokenDigest } from '../../application/ports/portal-token-codec.port'
+import type { PresentedAddressDigest } from '../../application/ports/portal-token-codec.port'
 
 export type PublishedAccessArtifact = Readonly<{
   accessArtifactId: PortalAccessArtifactId
@@ -34,14 +34,45 @@ export type PublishedAccessArtifact = Readonly<{
 }>
 
 export type ResolvePublishedAccessArtifactInput = Readonly<{
-  accessArtifactId: PortalAccessArtifactId
+  /**
+   * The marker the visit claimed. A print code needs none, because its own channel
+   * column names the artifact (ADR 0069), and when it does claim one the artifact
+   * must be that one. A long address with no marker names nothing.
+   */
+  accessArtifactId: PortalAccessArtifactId | null
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId
   publicationSnapshotId: string
-  tokenDigest: PortalTokenDigest
+  tokenDigest: PresentedAddressDigest
   asOf: Date
 }>
+
+/**
+ * What ties the presented address to the artifact's code row. A long address is
+ * its three hash columns, as it has always been. A print code is its keyed hash in
+ * the column of the artifact's own channel, so the QR code of a row never opens
+ * the NFC artifact and the reverse.
+ */
+const addressMatch = (digest: PresentedAddressDigest) =>
+  digest.kind === 'short'
+    ? [
+        or(
+          and(
+            eq(portalTokens.qrPrintCodeHash, digest.printCodeHash),
+            eq(portalAccessArtifacts.channel, 'qr'),
+          ),
+          and(
+            eq(portalTokens.nfcPrintCodeHash, digest.printCodeHash),
+            eq(portalAccessArtifacts.channel, 'nfc'),
+          ),
+        ),
+      ]
+    : [
+        eq(portalTokens.tokenIdentifier, digest.tokenIdentifier),
+        eq(portalTokens.tokenHash, digest.tokenHash),
+        eq(portalTokens.tokenKeyVersion, digest.tokenKeyVersion),
+      ]
 
 export type PortalAccessArtifactRepository = Readonly<{
   resolvePublished(
@@ -56,6 +87,11 @@ export const createPortalAccessArtifactRepository = (
   return {
     resolvePublished: (input) =>
       trace('portalAccessArtifact.resolvePublished', async () => {
+        // A website or "Public address" visit is a long address with no marker. It
+        // is never a scan, so it does not reach the lookup at all.
+        if (input.tokenDigest.kind === 'long' && input.accessArtifactId === null) {
+          return null
+        }
         const [row] = await db
           .select({
             accessArtifactId: portalAccessArtifacts.id,
@@ -99,7 +135,9 @@ export const createPortalAccessArtifactRepository = (
           )
           .where(
             and(
-              eq(portalAccessArtifacts.id, input.accessArtifactId),
+              ...(input.accessArtifactId === null
+                ? []
+                : [eq(portalAccessArtifacts.id, input.accessArtifactId)]),
               eq(portalAccessArtifacts.organizationId, input.organizationId),
               eq(portalAccessArtifacts.propertyId, input.propertyId),
               eq(portalAccessArtifacts.portalId, input.portalId),
@@ -109,9 +147,7 @@ export const createPortalAccessArtifactRepository = (
               eq(portalTokens.organizationId, portalAccessArtifacts.organizationId),
               eq(portalTokens.propertyId, portalAccessArtifacts.propertyId),
               eq(portalTokens.portalId, portalAccessArtifacts.portalId),
-              eq(portalTokens.tokenIdentifier, input.tokenDigest.tokenIdentifier),
-              eq(portalTokens.tokenHash, input.tokenDigest.tokenHash),
-              eq(portalTokens.tokenKeyVersion, input.tokenDigest.tokenKeyVersion),
+              ...addressMatch(input.tokenDigest),
               or(
                 eq(portalTokens.status, 'active'),
                 and(

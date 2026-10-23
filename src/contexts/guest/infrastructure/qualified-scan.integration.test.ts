@@ -46,6 +46,7 @@ const PROPERTY = propertyId('73000000-0000-4000-8000-000000000001')
 const PORTAL = portalId('73000000-0000-4000-8000-000000000002')
 const TOKEN = '73000000-0000-4000-8000-000000000003'
 const TOKEN_DIGEST = {
+  kind: 'long',
   tokenIdentifier: 'qual-scan-token',
   tokenHash: 'a'.repeat(64),
   tokenKeyVersion: 1,
