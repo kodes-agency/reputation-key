@@ -16,7 +16,7 @@ import type { GuestObservationLossReporter } from '../ports/guest-observation-lo
 
 export type RecordScanDeps = Readonly<{
   observationStore: GuestObservationStore
-  accessArtifacts: Pick<PortalPublicApi, 'resolvePublishedAccessArtifact'>
+  accessArtifacts: Pick<PortalPublicApi, 'isPrintCode' | 'resolvePublishedAccessArtifact'>
   idGen: () => ScanEventId
   qualifiedScanIdGen: () => QualifiedScanId
   clock: () => Date
@@ -58,12 +58,15 @@ export const recordScan =
     }
     try {
       const occurredAt = deps.clock()
-      const decision = classifyQualifiedScanRequest(input)
+      // A print code is its own marker: the portal API says so from the address's
+      // shape, and the lookup reads the channel from the code (ADR 0069).
+      const markerImplied = deps.accessArtifacts.isPrintCode(input.rawToken)
+      const decision = classifyQualifiedScanRequest({ ...input, markerImplied })
       let artifact: Awaited<
         ReturnType<PortalPublicApi['resolvePublishedAccessArtifact']>
       > = null
       let artifactVerificationUnavailable = false
-      if (decision.eligible && input.accessArtifactId) {
+      if (decision.eligible && (input.accessArtifactId || markerImplied)) {
         try {
           artifact = await deps.accessArtifacts.resolvePublishedAccessArtifact({
             accessArtifactId: input.accessArtifactId,

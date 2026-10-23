@@ -84,6 +84,7 @@ function deps(harness: ReturnType<typeof observationHarness>) {
   return {
     observationStore: harness.store,
     accessArtifacts: {
+      isPrintCode: () => false,
       resolvePublishedAccessArtifact: async () => ({
         accessArtifactId: ARTIFACT,
         organizationId: ORG,
@@ -165,7 +166,7 @@ describe('recordScan', () => {
     const resolvePublishedAccessArtifact = vi.fn()
     const useCase = recordScan({
       ...deps(harness),
-      accessArtifacts: { resolvePublishedAccessArtifact },
+      accessArtifacts: { isPrintCode: () => false, resolvePublishedAccessArtifact },
     })
 
     await expect(useCase(input(null))).resolves.toBe('diagnostic')
@@ -180,7 +181,7 @@ describe('recordScan', () => {
     const resolvePublishedAccessArtifact = vi.fn(async () => null)
     const useCase = recordScan({
       ...deps(harness),
-      accessArtifacts: { resolvePublishedAccessArtifact },
+      accessArtifacts: { isPrintCode: () => false, resolvePublishedAccessArtifact },
     })
 
     await expect(useCase(input())).resolves.toBe('diagnostic')
@@ -198,7 +199,7 @@ describe('recordScan', () => {
     const dependencies = deps(harness)
     const useCase = recordScan({
       ...dependencies,
-      accessArtifacts: { resolvePublishedAccessArtifact },
+      accessArtifacts: { isPrintCode: () => false, resolvePublishedAccessArtifact },
     })
 
     await expect(useCase(input())).resolves.toBe('retryable')
@@ -218,12 +219,114 @@ describe('recordScan', () => {
     const resolvePublishedAccessArtifact = vi.fn()
     const useCase = recordScan({
       ...deps(harness),
-      accessArtifacts: { resolvePublishedAccessArtifact },
+      accessArtifacts: { isPrintCode: () => false, resolvePublishedAccessArtifact },
     })
 
     await expect(useCase({ ...input(), ...patch })).resolves.toBe('diagnostic')
 
     expect(resolvePublishedAccessArtifact).not.toHaveBeenCalled()
     expect(harness.qualifiedScans).toHaveLength(0)
+  })
+})
+
+// A print code is its own marker (ADR 0069): the address says so, the beacon sends
+// no marker, and the portal API reads the channel from the code.
+describe('recordScan of a print code', () => {
+  const PRINT_CODE = '7K3QZ0VD9MWX4HT2BN6R'
+  const NFC_ARTIFACT = {
+    accessArtifactId: ARTIFACT,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    portalId: PORTAL,
+    portalGroupId: GROUP,
+    channel: 'nfc' as const,
+  }
+
+  function printCodeUseCase(
+    harness: ReturnType<typeof observationHarness>,
+    resolved: typeof NFC_ARTIFACT | null = NFC_ARTIFACT,
+  ) {
+    const isPrintCode = vi.fn((raw: string) => raw === PRINT_CODE)
+    const resolvePublishedAccessArtifact = vi.fn(async () => resolved)
+    const useCase = recordScan({
+      ...deps(harness),
+      accessArtifacts: { isPrintCode, resolvePublishedAccessArtifact },
+    })
+    return { useCase, isPrintCode, resolvePublishedAccessArtifact }
+  }
+
+  it('counts a visit that claims no marker, as the channel the lookup read from the code', async () => {
+    const harness = observationHarness()
+    const { useCase, resolvePublishedAccessArtifact } = printCodeUseCase(harness)
+
+    await expect(useCase({ ...input(null), rawToken: PRINT_CODE })).resolves.toBe(
+      'qualified',
+    )
+
+    expect(resolvePublishedAccessArtifact).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ accessArtifactId: null, rawToken: PRINT_CODE }),
+    )
+    expect(harness.scans[0]?.source).toBe('nfc')
+    expect(harness.qualifiedScans[0]).toMatchObject({ accessArtifactId: ARTIFACT })
+  })
+
+  it('hands a claimed marker to the lookup, which decides whether it is the code’s own', async () => {
+    const harness = observationHarness()
+    const { useCase, resolvePublishedAccessArtifact } = printCodeUseCase(harness)
+
+    await useCase({ ...input(), rawToken: PRINT_CODE })
+
+    expect(resolvePublishedAccessArtifact).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ accessArtifactId: ARTIFACT, rawToken: PRINT_CODE }),
+    )
+  })
+
+  it('stays diagnostic-only, as a direct visit, when the lookup does not accept the code', async () => {
+    const harness = observationHarness()
+    const { useCase } = printCodeUseCase(harness, null)
+
+    await expect(useCase({ ...input(null), rawToken: PRINT_CODE })).resolves.toBe(
+      'diagnostic',
+    )
+
+    expect(harness.scans[0]?.source).toBe('direct')
+    expect(harness.qualifiedScans).toHaveLength(0)
+  })
+
+  it('asks the lookup nothing of a print code seen by a bot', async () => {
+    const harness = observationHarness()
+    const { useCase, resolvePublishedAccessArtifact } = printCodeUseCase(harness)
+
+    await expect(
+      useCase({ ...input(null), rawToken: PRINT_CODE, userAgent: 'Googlebot/2.1' }),
+    ).resolves.toBe('diagnostic')
+
+    expect(resolvePublishedAccessArtifact).not.toHaveBeenCalled()
+  })
+
+  it('keeps a long address with no marker out of the lookup, as before', async () => {
+    const harness = observationHarness()
+    const { useCase, isPrintCode, resolvePublishedAccessArtifact } =
+      printCodeUseCase(harness)
+
+    await expect(useCase(input(null))).resolves.toBe('diagnostic')
+
+    expect(isPrintCode).toHaveBeenCalledWith('pt_address-capability')
+    expect(resolvePublishedAccessArtifact).not.toHaveBeenCalled()
+    expect(harness.scans[0]?.source).toBe('direct')
+  })
+
+  it('counts a long address that carries its marker exactly as it did', async () => {
+    const harness = observationHarness()
+    const { useCase, resolvePublishedAccessArtifact } = printCodeUseCase(harness)
+
+    await expect(useCase(input())).resolves.toBe('qualified')
+
+    expect(resolvePublishedAccessArtifact).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        accessArtifactId: ARTIFACT,
+        rawToken: 'pt_address-capability',
+      }),
+    )
   })
 })

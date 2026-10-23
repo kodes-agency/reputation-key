@@ -19,13 +19,19 @@ import { randomUUID } from 'node:crypto'
  * on every log call, and by span-end logging (trace.ts).
  *
  * BQC-7.3 (observability schema): only content-free, low-cardinality attrs
- * live here — `role` (3 values) and `useCase` (the route class). Tenant
- * identifiers (organizationId/userId) are NEVER span/log attrs; the approved
- * per-trace correlation is `requestId` (attached by trace.ts, not the mixin).
+ * live here — `role` (3 values), `useCase` (the route class) and `addressShape`
+ * (2 values). Tenant identifiers (organizationId/userId) are NEVER span/log
+ * attrs; the approved per-trace correlation is `requestId` (attached by
+ * trace.ts, not the mixin).
  */
 export interface SpanAttrs {
   role?: string
   useCase?: string
+  /**
+   * Which shape of Portal address a guest page read arrived by: the long
+   * website address or a print code (ADR 0069). The shape only, never the address.
+   */
+  addressShape?: 'long' | 'short'
 }
 
 export interface RequestContext {

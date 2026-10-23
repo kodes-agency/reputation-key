@@ -9,6 +9,7 @@ describe('Qualified Scan request eligibility', () => {
     expect(
       classifyQualifiedScanRequest({
         accessArtifactId: '10000000-0000-4000-8000-000000000001',
+        markerImplied: false,
         userAgent: BROWSER,
         purpose: null,
         secPurpose: null,
@@ -21,6 +22,7 @@ describe('Qualified Scan request eligibility', () => {
       name: 'direct URL',
       input: {
         accessArtifactId: null,
+        markerImplied: false,
         userAgent: BROWSER,
         purpose: null,
         secPurpose: null,
@@ -31,6 +33,7 @@ describe('Qualified Scan request eligibility', () => {
       name: 'prefetch',
       input: {
         accessArtifactId: '10000000-0000-4000-8000-000000000001',
+        markerImplied: false,
         userAgent: BROWSER,
         purpose: 'prefetch',
         secPurpose: null,
@@ -41,6 +44,7 @@ describe('Qualified Scan request eligibility', () => {
       name: 'prerender',
       input: {
         accessArtifactId: '10000000-0000-4000-8000-000000000001',
+        markerImplied: false,
         userAgent: BROWSER,
         purpose: null,
         secPurpose: 'prefetch;prerender',
@@ -51,6 +55,7 @@ describe('Qualified Scan request eligibility', () => {
       name: 'bot',
       input: {
         accessArtifactId: '10000000-0000-4000-8000-000000000001',
+        markerImplied: false,
         userAgent: 'Googlebot/2.1',
         purpose: null,
         secPurpose: null,
@@ -61,6 +66,7 @@ describe('Qualified Scan request eligibility', () => {
       name: 'missing user agent',
       input: {
         accessArtifactId: '10000000-0000-4000-8000-000000000001',
+        markerImplied: false,
         userAgent: null,
         purpose: null,
         secPurpose: null,
@@ -71,6 +77,7 @@ describe('Qualified Scan request eligibility', () => {
       name: 'scripted raw load',
       input: {
         accessArtifactId: '10000000-0000-4000-8000-000000000001',
+        markerImplied: false,
         userAgent: 'curl/8.7.1',
         purpose: null,
         secPurpose: null,
@@ -87,6 +94,7 @@ const ARTIFACT = '10000000-0000-4000-8000-000000000001'
 function observedBy(userAgent: string | null) {
   return classifyQualifiedScanRequest({
     accessArtifactId: ARTIFACT,
+    markerImplied: false,
     userAgent,
     purpose: null,
     secPurpose: null,
@@ -251,6 +259,7 @@ describe('Qualified Scan speculative loads', () => {
     expect(
       classifyQualifiedScanRequest({
         accessArtifactId: ARTIFACT,
+        markerImplied: false,
         userAgent: BROWSER,
         ...headers,
       }),
@@ -261,6 +270,7 @@ describe('Qualified Scan speculative loads', () => {
     expect(
       classifyQualifiedScanRequest({
         accessArtifactId: null,
+        markerImplied: false,
         userAgent: 'Googlebot/2.1',
         purpose: 'prefetch',
         secPurpose: null,
@@ -272,10 +282,52 @@ describe('Qualified Scan speculative loads', () => {
     expect(
       classifyQualifiedScanRequest({
         accessArtifactId: ARTIFACT,
+        markerImplied: false,
         userAgent: 'Googlebot/2.1',
         purpose: 'prefetch',
         secPurpose: null,
       }),
     ).toEqual({ eligible: false, reason: 'prefetch' })
+  })
+})
+
+// A print code names its own artifact (ADR 0069), so the request carries no marker
+// and the address says so. Everything else about a qualified scan stays as it is.
+describe('Qualified Scan of a print code', () => {
+  const printCodeVisit = (
+    patch: Partial<Parameters<typeof classifyQualifiedScanRequest>[0]> = {},
+  ) =>
+    classifyQualifiedScanRequest({
+      accessArtifactId: null,
+      markerImplied: true,
+      userAgent: BROWSER,
+      purpose: null,
+      secPurpose: null,
+      ...patch,
+    })
+
+  it('is eligible with no marker from an ordinary browser', () => {
+    expect(printCodeVisit()).toEqual({ eligible: true })
+  })
+
+  it('is eligible when it also claims a marker', () => {
+    expect(printCodeVisit({ accessArtifactId: ARTIFACT })).toEqual({ eligible: true })
+  })
+
+  it('still refuses a visit that has neither a marker nor a print code', () => {
+    expect(printCodeVisit({ markerImplied: false })).toEqual({
+      eligible: false,
+      reason: 'access_artifact_missing',
+    })
+  })
+
+  it.each([
+    ['a prefetch', { purpose: 'prefetch' }, 'prefetch'],
+    ['a prerender', { secPurpose: 'prefetch;prerender' }, 'prefetch'],
+    ['a bot', { userAgent: 'Googlebot/2.1' }, 'automated_agent'],
+    ['a missing user agent', { userAgent: null }, 'automated_agent'],
+    ['a link preview', { userAgent: 'WhatsApp/2.23.20.0 A' }, 'automated_agent'],
+  ] as const)('refuses %s as it refuses one with a marker', (_name, patch, reason) => {
+    expect(printCodeVisit(patch)).toEqual({ eligible: false, reason })
   })
 })

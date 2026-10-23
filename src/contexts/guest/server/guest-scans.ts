@@ -8,6 +8,7 @@ import {
 } from '#/shared/auth/execution-policy'
 import type { GuestResponseFormAvailability } from '../application/dto/public-portal.dto'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { enrichSpan } from '#/shared/observability/request-context'
 import { z } from 'zod/v4'
 import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
 import { match } from 'ts-pattern'
@@ -257,6 +258,9 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
             requestedLocale: data.locale,
             acceptLanguage: requestHeaders?.get('accept-language') ?? null,
           })
+          // How printed codes are doing against the website address, on every line
+          // this read logs. The shape only: the address is a credential.
+          enrichSpan({ addressShape: portal.addressShape })
           const scope = {
             organizationId: organizationId(portal.organizationId),
             propertyId: propertyId(portal.propertyId),
