@@ -1,4 +1,4 @@
-// Response Targets that must not count (migration 0070). Model for
+// Response Targets that must not count (migration 0069). Model for
 // inbox_response_target_exclusions.
 
 import { sql } from 'drizzle-orm'

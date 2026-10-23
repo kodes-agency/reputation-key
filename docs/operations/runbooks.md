@@ -1778,13 +1778,13 @@ Revision 2 or later; handled Inbox items were reopened ("Reopened - the review
 was edited") and closed again; open items show a Response Target that was
 overdue the moment it appeared and a `target_passed` reminder; a burst of
 "review edited" or reopened notices reached managers. The worker or web log
-shows `review.provider_restatement` warn lines (no ids: find the reviews with
-`SELECT review_id FROM review_source_observations WHERE comparison_result =
-'provider_restatement'`): since 2026-10-23 Review keeps the revision when it sees a
-difference at an unmoved `updateTime`, and the line is how the next Google format
-change becomes visible. The first occurrence was 2026-10-23, when Google changed
-how it wraps translated review text: 62 closed-beta reviews got a false Revision
-2, 7 handled items were reopened and 55 open items counted as missed.
+shows `review.provider_restatement` warn lines (no ids; see "Finding the reviews
+a restatement touched" below): since 2026-10-23 Review keeps the revision when
+it sees a difference at an unmoved `updateTime`, and the line is how the next
+Google format change becomes visible. The first occurrence was 2026-10-23, when
+Google changed how it wraps translated review text: 62 closed-beta reviews got a
+false Revision 2, 7 handled items were reopened and 55 open items counted as
+missed.
 
 **Impact:** P2 — Response Target figures (overdue counts, the on-time and late
 buckets, the average) and reminders are wrong for the affected cycles, and
@@ -1806,7 +1806,9 @@ ORDER BY observation_sequence;
 ```
 
 Two rows with the same `source_updated_at` and `material_change` on the second
-is a false edit. A real edit shows a later time. To find the Properties a
+is a false edit. A real edit shows a later time. A review Google restated after
+the rule went live shows `normalization_shadow_match` on the second row instead
+and keeps its revision: nothing needs repairing. To find the Properties a
 window of false revisions touched (ids and counts):
 
 ```sql
@@ -1816,10 +1818,39 @@ WHERE revision > 1 AND created_at >= $1
 GROUP BY organization_id, property_id;
 ```
 
-**Prerequisites:** Open an incident record. The release that carries migrations
-0069 and 0070 and `provider_restatement` is deployed on web and worker, so no new
-false revision is created while you repair the old ones (check `RELEASE_SHA` on
-both). Name the person filling each operating role.
+**Finding the reviews a restatement touched.** The rule stores a restatement as
+`normalization_shadow_match` (same mechanics: revision kept, digests adopted),
+the value the envelope reread uses too, so there is no `provider_restatement`
+value to select. Find them afterwards by a digest change at an unmoved
+`updateTime`, per Property (the table holds millions of rows on the beta, so
+never run it unscoped):
+
+```sql
+SELECT review_id, observation_sequence, observed_at
+FROM (
+  SELECT review_id, observation_sequence, observed_at, comparison_result,
+         source_updated_at, normalized_digest,
+         lag(source_updated_at) OVER w AS previous_updated_at,
+         lag(normalized_digest) OVER w AS previous_digest
+  FROM review_source_observations
+  WHERE organization_id = $1 AND property_id = $2
+    AND comparison_result <> 'out_of_order_ignored'
+  WINDOW w AS (PARTITION BY review_id, source_epoch ORDER BY observation_sequence)
+) observations
+WHERE comparison_result = 'normalization_shadow_match'
+  AND source_updated_at = previous_updated_at
+  AND normalized_digest <> previous_digest
+ORDER BY review_id, observation_sequence;
+```
+
+An envelope reread also matches; both are Google rewording, not a guest. Why
+there is no separate stored value is in ADR 0055 ("Why no separate stored
+value").
+
+**Prerequisites:** Open an incident record. The release that carries migration
+0069 (the exclusion ledger) and the restatement rule is deployed on web and
+worker, so no new false revision is created while you repair the old ones (check
+`RELEASE_SHA` on both). Name the person filling each operating role.
 
 **Containment:** None is needed for the cause once the release above is live.
 Notices already delivered cannot be recalled: `review.updated` and
@@ -1861,7 +1892,7 @@ $1 AND delivered_at IS NULL AND cancelled_at IS NULL AND cycle_number IN (...)`
 is 0 for the excluded cycles.
 
 **Escalation:** Bozhidar Denev. If the revisions keep appearing after the release
-is live, `provider_restatement` is not catching a new format: keep the
+is live, the restatement rule is not catching a new format: keep the
 `review.provider_restatement` lines and escalate before running the command again.
 
 **Evidence:** Retain the dry-run and apply records the command printed (operator,

@@ -15,7 +15,10 @@ type RestatedRow = Readonly<{
  * The Material Review Revisions Google only restated: the observation that
  * created the revision (`material_change`) carries the same Google `updateTime`
  * as the last applied observation before it, in the same source epoch. It is the
- * stage-A rule (`provider_restatement`) applied to history.
+ * stage-A restatement rule applied to history. It reads `material_change`
+ * observations only: from the rule on, a restatement is stored as
+ * `normalization_shadow_match` and creates no revision, so nothing here depends
+ * on a stored restatement value.
  *
  * The previous observation is the nearest earlier one that was not recorded as
  * `out_of_order_ignored`: the rule compares with the stored head, and an

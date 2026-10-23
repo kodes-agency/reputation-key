@@ -125,7 +125,7 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
       ])
     })
   })
-  describe('migration 0070 — Response Target exclusions', () => {
+  describe('migration 0069 — Response Target exclusions', () => {
     it('registers inbox_response_target_exclusions with ids, an enum, the operator trail and an instant only', () => {
       expect(getTableName(inboxResponseTargetExclusions)).toBe(
         'inbox_response_target_exclusions',

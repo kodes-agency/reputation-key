@@ -431,17 +431,19 @@ export type ProviderRestatement = Readonly<{
 function restatementOf(
   observation: PersistedReviewObservation,
 ): ProviderRestatement | null {
-  if (observation.duplicate || observation.comparison !== 'provider_restatement') {
-    return null
-  }
+  // The writer says so: a restatement is stored as `normalization_shadow_match`,
+  // the same value the envelope reread and a legacy baseline get, so the
+  // recorded comparison cannot tell them apart. A replay or an out-of-order
+  // read carries false.
+  if (!observation.providerRestatement) return null
   const { organizationId, propertyId, id } = observation.review
   return { organizationId, propertyId, reviewId: id }
 }
 
 /**
  * `onProviderRestatement` runs once per applied observation that was Google
- * rewording a review (`provider_restatement`), after its transaction commits.
- * The comparison is the one signal that Google changed its format again, as it
+ * rewording a review (the unmoved-updateTime rule), after its transaction
+ * commits. It is the one signal that Google changed its format again, as it
  * did on 2026-10-23, so the process reports it rather than absorbing it quietly.
  */
 export const createAtomicReviewCommandStore = (

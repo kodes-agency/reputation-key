@@ -700,8 +700,9 @@ is the general rule under it.
 A guest edit is a change Google dates: it moves the review's `updateTime`. So a
 revision is created when the rating or normalized text changes **and Google's
 `updateTime` moved with it**. When the rating or text differs but the incoming
-`updateTime` equals the stored head's, the observation is a
-`provider_restatement`: Google reworded a review nobody edited.
+`updateTime` equals the stored head's, the observation is a restatement: Google
+reworded a review nobody edited. It is stored as `normalization_shadow_match`
+and flagged `providerRestatement: true` on the comparison result.
 
 - **What it does.** Exactly what `normalization_shadow_match` does: the current
   revision stays (`createsMaterialRevision: false`) and the revision row and
@@ -714,7 +715,7 @@ revision is created when the rating or normalized text changes **and Google's
   optional `providerUpdateTime: { stored, incoming }`), after the reread guard,
   which still runs first and wins, and before the binding of an unchanged
   revision to a new source epoch. A restated review carried into a newer epoch is
-  therefore a carry (`provider_restatement` is in `NO_MATERIAL_CHANGE`, in
+  therefore a carry (`normalization_shadow_match` is in `NO_MATERIAL_CHANGE`, in
   `source-epoch-carry.ts`), and Inbox does not read it as an edit.
 - **When it does not fire.** Either time missing keeps the old behaviour: a
   first observation, a legacy row, an erased row (erasure nulls
@@ -731,15 +732,27 @@ revision is created when the rating or normalized text changes **and Google's
   out-of-order rule and the head check. Two Google updates inside one
   millisecond are not a human edit.
 - **Visible.** The next Google format change should not take a day of Inbox
-  noise to find. The comparison is recorded
-  (`review_source_observations.comparison_result`, CHECK widened by migration 0069) and the command store reports each applied restatement after commit as
-  one content-free `review.provider_restatement` warn line (tenant ids are
-  banned log fields; the restated rows are found by their comparison value).
+  noise to find. The command store reports each applied restatement after commit
+  (the writer's `providerRestatement`; not the envelope reread, a replay or a
+  rolled-back write) as one content-free `review.provider_restatement` warn line
+  (tenant ids are banned log fields). The stored comparison is
+  `normalization_shadow_match`, so restated rows are found retroactively by a
+  `normalization_shadow_match` whose `normalized_digest` differs from the
+  previous applied observation's at an unmoved `source_updated_at`.
+- **Why no separate stored value.** A `provider_restatement` value would need
+  the CHECK on `review_source_observations.comparison_result` restated. That
+  table holds 3.37M rows (a 2.5 GB heap) on the beta, and a read-only scan of it
+  took 37 s with two parallel workers, so validating the CHECK would hold an
+  ACCESS EXCLUSIVE lock for one to two minutes inside the deploy's single
+  migration transaction (drizzle applies every pending file in one, so a
+  `NOT VALID`/`VALIDATE` pair does not help), while the old web and worker run
+  with a 10 s `lock_timeout`: failed syncs and page reads. The CHECK is left as it
+  is. A separate value can come once that table is pruned.
 - **Not retroactive.** The 62 revision-2 rows already written stay recorded as
   `material_change`; the cycles they opened are left out of the counts by the
   exclusion ledger below.
 
-**The exclusion ledger (migration 0070).** Decisions 8 and 11 make prior cycles
+**The exclusion ledger (migration 0069).** Decisions 8 and 11 make prior cycles
 and their Response Targets immutable history, and a database trigger refuses any
 rewrite of a completed target, so the 62 cycles cannot be corrected in place.
 Cancelling the 55 open targets would state a reason that is not true
@@ -762,6 +775,8 @@ way, missing times, the legacy baseline, the reread guard winning),
 `review-command-store.provider-restatement.integration.test.ts` (the sequence of
 comparisons, adopted digests, a pending reply untouched until the real edit,
 the announced revision, no released sequence, the erasure limit, the report),
+`review-command-store.provider-envelope.integration.test.ts` (the envelope
+reread is stored the same way and not reported),
 and the epoch-carry, sequence-release, Google-page and head-persist integration
 suites. The ledger is enforced by `response-target-exclusion-readers`,
 `restated-revision-target-exclusion.store`, `restated-revision.repository`,

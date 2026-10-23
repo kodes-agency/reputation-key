@@ -79,7 +79,7 @@ const UNPARSED_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   { name: 'pgm_no_overlapping_portal_intervals', kind: 'index' },
   { name: 'gpv_no_overlapping_effective_intervals', kind: 'index' },
   { name: 'gsa_no_overlapping_subject_metric_intervals', kind: 'index' },
-  // Migration 0070: the append-only guard of inbox_response_target_exclusions.
+  // Migration 0069: the append-only guard of inbox_response_target_exclusions.
   {
     name: 'enforce_inbox_response_target_exclusion_append_only_v1',
     kind: 'function',

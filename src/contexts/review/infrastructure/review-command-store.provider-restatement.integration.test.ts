@@ -18,7 +18,10 @@ import { createReviewObservationRepository } from './repositories/review-observa
 // Review Revision 2 on 62 reviews, reopened handled Inbox items and gave open
 // ones a Response Target that was overdue from birth. A guest edit moves
 // Google's updateTime; a difference at an unmoved one is Google restating the
-// review, and keeps the revision.
+// review, and keeps the revision. It is stored as `normalization_shadow_match`
+// (the observation table's CHECK is not widened), so what separates a
+// restatement from the envelope reread and a real edit is whether the store
+// reports it after commit.
 
 const ORG = organizationId('review-restatement-org-a')
 const OTHER_ORG = organizationId('review-restatement-org-b')
@@ -173,7 +176,7 @@ describe('a review Google restated at an unmoved updateTime', () => {
     expect(reread.sourceRevision).toBe(1)
     expect(await comparisonsOf()).toEqual([
       [1, 1, 'initial_material_revision'],
-      [2, 1, 'provider_restatement'],
+      [2, 1, 'normalization_shadow_match'],
       [3, 1, 'unchanged'],
     ])
     const history = createReviewObservationRepository(getDb())
@@ -194,7 +197,7 @@ describe('a review Google restated at an unmoved updateTime', () => {
     expect(edited.sourceRevision).toBe(2)
     expect(await comparisonsOf()).toEqual([
       [1, 1, 'initial_material_revision'],
-      [2, 1, 'provider_restatement'],
+      [2, 1, 'normalization_shadow_match'],
       [3, 1, 'unchanged'],
       [4, 2, 'material_change'],
     ])
@@ -304,18 +307,24 @@ describe('a review re-observed after its content expired', () => {
   })
 
   it.each([
-    { reported: true, comparison: 'provider_restatement' },
-    { reported: false, comparison: 'material_change' },
+    { reported: true, comparison: 'normalization_shadow_match', restatements: 1 },
+    { reported: false, comparison: 'material_change', restatements: 0 },
   ])(
     'carries an older-epoch review as $comparison when updateTime reported is $reported',
-    async ({ reported, comparison }) => {
+    async ({ reported, comparison, restatements }) => {
       await observe(review({ contentExpiresAt: EXPIRED_AT }), 1)
       await getPool().query('UPDATE properties SET source_epoch = 1 WHERE id = $1', [
         PROPERTY,
       ])
 
       // The older epoch's row is not erased, so it still holds its updateTime.
-      const store = createAtomicReviewCommandStore(getDb(), () => OBSERVED_AT)
+      const report = vi.fn<(restatement: ProviderRestatement) => void>()
+      const store = createAtomicReviewCommandStore(
+        getDb(),
+        () => OBSERVED_AT,
+        undefined,
+        report,
+      )
       await store.reobserveExpiredAndRecord(
         review({ ...RESTATED, sourceEpoch: 1, contentExpiresAt: REFRESHED_UNTIL }),
         OBSERVED_AT,
@@ -328,6 +337,8 @@ describe('a review re-observed after its content expired', () => {
         [1, 1, 'initial_material_revision'],
         [2, 2, comparison],
       ])
+      // The restatement rule is what kept it a carry, so it is what is reported.
+      expect(report).toHaveBeenCalledTimes(restatements)
     },
   )
 })

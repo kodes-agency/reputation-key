@@ -1,5 +1,5 @@
 // Inbox context — leaving the Response Targets of restated revisions out of
-// every count (migration 0070; docs/operations/inbox-response-targets.md).
+// every count (migration 0069; docs/operations/inbox-response-targets.md).
 //
 // Google restated 62 Reviews on 2026-10-23 without moving their `updateTime`,
 // Review minted a revision for each, and Inbox opened a Handling Cycle for it

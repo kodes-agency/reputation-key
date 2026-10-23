@@ -5,7 +5,7 @@
 //     [--reason <text> --ticket <ref> --apply]
 //
 // Why the exclusion exists, and why it is a row beside the target rather than an
-// edit of it, is in drizzle/0070_inbox_response_target_exclusions.sql and
+// edit of it, is in drizzle/0069_inbox_response_target_exclusions.sql and
 // docs/operations/inbox-response-targets.md. This module is the invocation: the
 // spec the harness runs it under, the arguments, what it prints, and the order
 // of the steps. The work is done by two stores behind the ports below: Review

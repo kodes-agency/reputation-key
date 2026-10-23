@@ -1,8 +1,8 @@
 -- Response Targets that must not count: the exclusion ledger (2026-10-23).
 --
 -- On 2026-10-23 Google restated 62 closed-beta reviews without moving their
--- `updateTime`, and Review minted a Material Review Revision 2 for each (0069
--- and PR #945 stop that from here on). Inbox opened a Handling Cycle for every
+-- `updateTime`, and Review minted a Material Review Revision 2 for each (the
+-- restatement rule and PR #945 stop that from here on). Inbox opened a Handling Cycle for every
 -- one of those revisions, so 55 open items carry a Response Target that was
 -- overdue from birth and 7 handled items were reopened and closed again with a
 -- completion that counts in the averages. None of those cycles was caused by a
@@ -41,7 +41,7 @@
 -- the deploy, dry run first.
 --
 -- Down: DROP TABLE inbox_response_target_exclusions; DROP FUNCTION
--- enforce_inbox_response_target_exclusion_append_only_v1(); delete the 0070 row
+-- enforce_inbox_response_target_exclusion_append_only_v1(); delete the 0069 row
 -- of drizzle.__drizzle_migrations.
 CREATE TABLE "inbox_response_target_exclusions" (
   "organization_id" varchar(255) NOT NULL,

@@ -126,7 +126,8 @@ describe.sequential('Review restated Material Review Revisions (PostgreSQL)', ()
       [1],
       [
         observation(1, 1, 'initial_material_revision', GUEST_TIME),
-        observation(2, 1, 'provider_restatement', GUEST_TIME),
+        // A restatement since the rule: stored as the shadow match, no revision.
+        observation(2, 1, 'normalization_shadow_match', GUEST_TIME),
       ],
     )
     await seedHistory(

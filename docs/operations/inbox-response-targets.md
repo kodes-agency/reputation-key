@@ -380,15 +380,17 @@ Material Review Revision 2 on 62 closed-beta reviews. Inbox opened a cycle for
 each, with a measured target that starts at the old `updateTime` and so was
 overdue from birth: 55 open items counted as missed, and 7 handled items were
 reopened and closed again with a completion that counts in the averages. Review
-no longer makes such a revision (`provider_restatement`, ADR 0055), but the cycles
+no longer makes such a revision (a restatement is stored as
+`normalization_shadow_match` and keeps the revision, ADR 0055), but the cycles
 already opened are immutable history and the database refuses any rewrite of a
 completed target.
 
-`inbox_response_target_exclusions` (migration 0070) records, beside a target, that
+`inbox_response_target_exclusions` (migration 0069) records, beside a target, that
 its cycle is left out of reporting. It is append-only (a trigger refuses UPDATE
 and any DELETE that is not the cascade from its target) and holds the reason
-(`provider_restatement`), the operator, the optional ticket and the correlation
-id. A cycle with a row there:
+(`provider_restatement`, the ledger's own value; Review stores the restatement
+itself as `normalization_shadow_match`), the operator, the optional ticket and
+the correlation id. A cycle with a row there:
 
 - appears in no Google analytics figure: not measured, on time, late, active or
   overdue, not the average, not the reopen count;

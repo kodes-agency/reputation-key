@@ -54,6 +54,9 @@ export type PersistedReviewObservation = Readonly<{
   createsMaterialRevision: boolean
   duplicate: boolean
   outOfOrder: boolean
+  /** The unmoved-updateTime rule fired for this applied observation (stored as
+   * `normalization_shadow_match`). False for a replay and an out-of-order read. */
+  providerRestatement: boolean
 }>
 
 function providerVersion(
@@ -183,7 +186,6 @@ async function insertOrRestoreMaterialRevision(
 
   const adoptComparisonBaseline =
     input.comparison === 'normalization_shadow_match' ||
-    input.comparison === 'provider_restatement' ||
     input.comparison === 'baseline_unavailable'
   // Non-creating comparisons are same-epoch only. Historical exact bindings
   // may already be referenced and must remain immutable.
@@ -391,6 +393,7 @@ async function findReplayedObservation(
     createsMaterialRevision: false,
     duplicate: true,
     outOfOrder: false,
+    providerRestatement: false,
   }
 }
 
@@ -447,6 +450,7 @@ async function recordOutOfOrderObservation(
     createsMaterialRevision: false,
     duplicate: false,
     outOfOrder: true,
+    providerRestatement: false,
   }
 }
 
@@ -686,6 +690,7 @@ export async function persistReviewObservation(
     createsMaterialRevision: material.createsMaterialRevision,
     duplicate: false,
     outOfOrder: false,
+    providerRestatement: material.providerRestatement,
   }
 }
 

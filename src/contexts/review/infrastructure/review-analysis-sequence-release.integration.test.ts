@@ -3,8 +3,11 @@
 // what is stored, is not applied: no Review takes the number and no event
 // announces it. Coverage owes a settlement for every number up to the head, so
 // the writer must give that number back in the same transaction.
-import { beforeEach, describe, expect, it } from 'vitest'
-import { createAtomicReviewCommandStore } from './review-command-store'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createAtomicReviewCommandStore,
+  type ProviderRestatement,
+} from './review-command-store'
 import { reviewCreated, reviewUpdated } from '../domain/events'
 import type { Review } from '../domain/types'
 import { getDb } from '#/shared/db'
@@ -244,7 +247,13 @@ describe('the Review writer gives back a sequence it did not use', () => {
   })
 
   it('applies, announces and keeps the sequence of a restatement at an equal provider version', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
+    const report = vi.fn<(restatement: ProviderRestatement) => void>()
+    const store = createAtomicReviewCommandStore(
+      getDb(),
+      () => new Date(),
+      undefined,
+      report,
+    )
     await store.upsertAndRecord(
       review(),
       announce,
@@ -270,10 +279,12 @@ describe('the Review writer gives back a sequence it did not use', () => {
       REVIEW,
       ORG,
     )
+    // Stored as the shadow match; the report is what says the net fired.
     expect(history.map((entry) => entry.comparison)).toEqual([
       'initial_material_revision',
-      'provider_restatement',
+      'normalization_shadow_match',
     ])
+    expect(report).toHaveBeenCalledTimes(1)
   })
 
   it('leaves the head and the ledger unchanged when the write fails', async () => {

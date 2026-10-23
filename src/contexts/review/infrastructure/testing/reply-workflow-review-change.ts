@@ -18,7 +18,7 @@ export type ReviewChange = Partial<Pick<Review, 'rating' | 'text' | 'reviewerNam
  *
  * A guest edit moves Google's updateTime, and the same difference at an
  * unmoved one is Google rewording the review, which keeps the revision
- * (`provider_restatement`). The clock stands still unless a test advances it,
+ * (recorded as `normalization_shadow_match`). The clock stands still unless a test advances it,
  * so a second edit would land on the first one's updateTime: the time of this
  * one is the clock or a millisecond past the stored one, whichever is later.
  */

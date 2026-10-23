@@ -49,24 +49,33 @@ describe('isSourceEpochCarry', () => {
 
   it('attests a revision an unmoved Google updateTime carried into a newer epoch', () => {
     // Google restated the review: the digests differ, but no guest edited it.
-    // A versioned baseline and one recorded before digests existed both follow
-    // the comparison, which is the only evidence that the text change was not a
-    // guest's.
+    // The restatement is recorded as `normalization_shadow_match`, so a
+    // versioned baseline and one recorded before digests existed both follow
+    // that comparison, which is the only evidence that the text change was not
+    // a guest's.
     expect(
-      isSourceEpochCarry(evidence(0, 'a'), evidence(1, 'b'), 'provider_restatement'),
+      isSourceEpochCarry(
+        evidence(0, 'a'),
+        evidence(1, 'b'),
+        'normalization_shadow_match',
+      ),
     ).toBe(true)
     expect(
       isSourceEpochCarry(
         evidence(0, null, LEGACY),
         evidence(1, 'b'),
-        'provider_restatement',
+        'normalization_shadow_match',
       ),
     ).toBe(true)
   })
 
   it('does not attest a restatement inside one epoch, where no revision is created', () => {
     expect(
-      isSourceEpochCarry(evidence(1, 'a'), evidence(1, 'b'), 'provider_restatement'),
+      isSourceEpochCarry(
+        evidence(1, 'a'),
+        evidence(1, 'b'),
+        'normalization_shadow_match',
+      ),
     ).toBe(false)
   })
 })

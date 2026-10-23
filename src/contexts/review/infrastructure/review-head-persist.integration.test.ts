@@ -409,7 +409,8 @@ describe('a persisting head check (real PostgreSQL)', () => {
     `)
     expect(history.rows).toEqual([
       { material_revision: '1', comparison_result: 'initial_material_revision' },
-      { material_revision: '1', comparison_result: 'provider_restatement' },
+      // A restatement is stored as the shadow match: the revision is kept.
+      { material_revision: '1', comparison_result: 'normalization_shadow_match' },
     ])
     expect(
       await count(sql`

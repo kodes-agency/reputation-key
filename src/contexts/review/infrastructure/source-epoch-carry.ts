@@ -12,12 +12,12 @@ export type SourceEpochCarryEvidence = Readonly<{
 
 /** Comparison outcomes that find no guest change: an observation with one of
  * these creates a revision only because the source epoch moved on.
- * `provider_restatement` is Google rewording a review it did not update, so its
- * digests differ and only the recorded comparison says nobody edited it. */
+ * `normalization_shadow_match` is also how Google rewording a review it did not
+ * update is recorded, so its digests can differ and only the recorded
+ * comparison says nobody edited it. */
 const NO_MATERIAL_CHANGE: ReadonlySet<string> = new Set<ReviewMaterialComparison>([
   'unchanged',
   'normalization_shadow_match',
-  'provider_restatement',
   'baseline_unavailable',
 ])
 

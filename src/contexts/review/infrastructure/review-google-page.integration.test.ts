@@ -394,7 +394,8 @@ describe.sequential("a Review whose text changed, against Google's updateTime", 
 
     await expect(comparisonsOf(id)).resolves.toEqual([
       [1, 'initial_material_revision'],
-      [1, 'provider_restatement'],
+      // A restatement is stored as the shadow match; nothing is widened.
+      [1, 'normalization_shadow_match'],
     ])
     await expect(stored(id)).resolves.toMatchObject({ sourceRevision: 1 })
     // The kept revision took the restated digests with the Review: no drift

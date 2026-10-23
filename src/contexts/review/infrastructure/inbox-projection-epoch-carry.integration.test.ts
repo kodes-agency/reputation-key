@@ -252,7 +252,8 @@ describe('Review Inbox projection permit across a source-epoch carry', () => {
         PROPERTY,
       ])
       // The digests differ across the epochs, so only the recorded comparison
-      // can tell Inbox that nobody edited this Review.
+      // (the restatement is stored as `normalization_shadow_match`) can tell
+      // Inbox that nobody edited this Review.
       await observe(
         {
           ...stored,
@@ -273,7 +274,7 @@ describe('Review Inbox projection permit across a source-epoch carry', () => {
       })
       expect(await comparisons()).toEqual([
         [1, 'initial_material_revision'],
-        [2, 'provider_restatement'],
+        [2, 'normalization_shadow_match'],
       ])
     })
 

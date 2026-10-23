@@ -1,4 +1,4 @@
-// Fixtures for the Response Target exclusion ledger (migration 0070): a Property
+// Fixtures for the Response Target exclusion ledger (migration 0069): a Property
 // with Reviews whose Material Review Revisions Google only restated, and the
 // Inbox items, Handling Cycles, Response Targets and reminder slots that
 // followed them. Raw SQL on purpose: the tests start from the state the closed
@@ -68,7 +68,6 @@ export type ObservationFixture = Readonly<{
     | 'material_change'
     | 'normalization_shadow_match'
     | 'out_of_order_ignored'
-    | 'provider_restatement'
   /** `null` is an observation whose provider content was erased or never had a time. */
   sourceUpdatedAt: Date | null
   observedAt: Date

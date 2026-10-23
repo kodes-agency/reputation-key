@@ -75,7 +75,7 @@ by Drizzle in the model instead. The exception is a trigger on a table a later
 migration creates: `0001` copies `db-constructs.sql` byte for byte and runs
 before that table exists, so the trigger is stated only in its migration and
 registered in `MIGRATION_CREATED_CONSTRUCTS` and `UNPARSED_CONSTRUCTS`
-(`construct-definitions.ts`), as `0070` does for the Response Target exclusions.
+(`construct-definitions.ts`), as `0069` does for the Response Target exclusions.
 
 An index on a table that is written continuously is not journalled: a plain
 `CREATE INDEX` holds a SHARE lock for the whole build. Add it to

@@ -442,7 +442,8 @@ describe.sequential('a guest edit and the replies written before it (PostgreSQL)
 
 describe('two guest edits while the clock stands still', () => {
   // A guest edit moves Google's updateTime; the same difference at an unmoved
-  // one is Google rewording the review (`provider_restatement`). The harness
+  // one is Google rewording the review (stored as `normalization_shadow_match`,
+  // the revision kept). The harness
   // clock stands still unless a test advances it, so the second edit must be
   // dated past the first by itself.
   it('records each as its own Material Review Revision', async () => {

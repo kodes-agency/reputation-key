@@ -1,4 +1,4 @@
-// Response Targets that must not count (migration 0070): the one definition of
+// Response Targets that must not count (migration 0069): the one definition of
 // "this cycle's target is not excluded", for every reader that counts, reminds
 // or measures waiting time.
 //

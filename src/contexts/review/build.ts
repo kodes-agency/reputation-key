@@ -533,9 +533,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   // BQR-2.3: atomic review upsert + outbox insert for sync path
   // A review Google reworded without moving its updateTime keeps its revision
-  // (`provider_restatement`). One content-free line per restated review (tenant
-  // ids are banned log fields; the ids are in review_source_observations), so
-  // the next change of Google's format shows in the log within a day.
+  // and is stored as `normalization_shadow_match`, so this line is where the
+  // rule shows. One content-free line per restated review (tenant ids are
+  // banned log fields; the observation rows hold them and can be found by a
+  // digest change at an unmoved updateTime), so the next change of Google's
+  // format shows in the log within a day.
   const commandStore = createAtomicReviewCommandStore(
     input.db,
     input.clock,

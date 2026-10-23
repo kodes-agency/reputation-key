@@ -116,6 +116,7 @@ describe('Material Review Revision comparison', () => {
       }),
     ).toMatchObject({
       comparison: 'normalization_shadow_match',
+      providerRestatement: false,
       materialRevision: 2,
       createsMaterialRevision: false,
     })
@@ -140,6 +141,7 @@ describe('Material Review Revision comparison', () => {
 
       expect(result).toMatchObject({
         comparison: 'normalization_shadow_match',
+        providerRestatement: false,
         materialRevision: 2,
         createsMaterialRevision: false,
       })
@@ -237,8 +239,11 @@ describe('an unmoved Google updateTime', () => {
         providerUpdateTime: { stored: UPDATED, incoming: new Date(UPDATED.getTime()) },
       })
 
+      // Stored as the shadow match: the CHECK on the observation table is not
+      // widened, so only `providerRestatement` says the rule fired.
       expect(result).toMatchObject({
-        comparison: 'provider_restatement',
+        comparison: 'normalization_shadow_match',
+        providerRestatement: true,
         materialRevision: 4,
         createsMaterialRevision: false,
         normalizedDigest: describeReviewMaterial(incoming).normalizedDigest,
@@ -257,6 +262,7 @@ describe('an unmoved Google updateTime', () => {
 
     expect(result).toMatchObject({
       comparison: 'material_change',
+      providerRestatement: false,
       materialRevision: 5,
       createsMaterialRevision: true,
     })
@@ -270,7 +276,11 @@ describe('an unmoved Google updateTime', () => {
         incoming: incomingEdit,
         providerUpdateTime: at(UPDATED.getTime(), UPDATED.getTime() - 1),
       }),
-    ).toMatchObject({ comparison: 'material_change', materialRevision: 5 })
+    ).toMatchObject({
+      comparison: 'material_change',
+      providerRestatement: false,
+      materialRevision: 5,
+    })
   })
 
   it.each([
@@ -287,6 +297,7 @@ describe('an unmoved Google updateTime', () => {
       }),
     ).toMatchObject({
       comparison: 'material_change',
+      providerRestatement: false,
       materialRevision: 5,
       createsMaterialRevision: true,
     })
@@ -302,7 +313,11 @@ describe('an unmoved Google updateTime', () => {
           incoming: new Date('2026-10-20T08:30:00.123999999Z'),
         },
       }),
-    ).toMatchObject({ comparison: 'provider_restatement', materialRevision: 4 })
+    ).toMatchObject({
+      comparison: 'normalization_shadow_match',
+      providerRestatement: true,
+      materialRevision: 4,
+    })
     expect(
       compareMaterialReviewRevision({
         previous,
@@ -312,7 +327,11 @@ describe('an unmoved Google updateTime', () => {
           incoming: new Date('2026-10-20T08:30:00.124000001Z'),
         },
       }),
-    ).toMatchObject({ comparison: 'material_change', materialRevision: 5 })
+    ).toMatchObject({
+      comparison: 'material_change',
+      providerRestatement: false,
+      materialRevision: 5,
+    })
   })
 
   it('applies to a baseline stored before material digests existed', () => {
@@ -331,7 +350,8 @@ describe('an unmoved Google updateTime', () => {
         providerUpdateTime: { stored: UPDATED, incoming: new Date(UPDATED.getTime()) },
       }),
     ).toMatchObject({
-      comparison: 'provider_restatement',
+      comparison: 'normalization_shadow_match',
+      providerRestatement: true,
       materialRevision: 2,
       createsMaterialRevision: false,
     })
@@ -341,7 +361,11 @@ describe('an unmoved Google updateTime', () => {
         incoming: { rating: 3, text: 'Wrapped differently' },
         providerUpdateTime: at(UPDATED.getTime(), UPDATED.getTime() + 1),
       }),
-    ).toMatchObject({ comparison: 'material_change', materialRevision: 3 })
+    ).toMatchObject({
+      comparison: 'material_change',
+      providerRestatement: false,
+      materialRevision: 3,
+    })
   })
 
   it('does not touch the other outcomes, whatever the times say', () => {
@@ -352,14 +376,22 @@ describe('an unmoved Google updateTime', () => {
         incoming: incomingEdit,
         providerUpdateTime: equal,
       }),
-    ).toMatchObject({ comparison: 'initial_material_revision', materialRevision: 1 })
+    ).toMatchObject({
+      comparison: 'initial_material_revision',
+      providerRestatement: false,
+      materialRevision: 1,
+    })
     expect(
       compareMaterialReviewRevision({
         previous,
         incoming: { rating: 5, text: ' Same  words ' },
         providerUpdateTime: equal,
       }),
-    ).toMatchObject({ comparison: 'unchanged', materialRevision: 4 })
+    ).toMatchObject({
+      comparison: 'unchanged',
+      providerRestatement: false,
+      materialRevision: 4,
+    })
     expect(
       compareMaterialReviewRevision({
         previous: {
@@ -373,7 +405,11 @@ describe('an unmoved Google updateTime', () => {
         incoming: { rating: 2, text: 'Re-observed source' },
         providerUpdateTime: equal,
       }),
-    ).toMatchObject({ comparison: 'baseline_unavailable', materialRevision: 4 })
+    ).toMatchObject({
+      comparison: 'baseline_unavailable',
+      providerRestatement: false,
+      materialRevision: 4,
+    })
   })
 
   it('leaves the translation-envelope reread to win, as normalization_shadow_match', () => {
@@ -389,8 +425,11 @@ describe('an unmoved Google updateTime', () => {
       providerUpdateTime: { stored: UPDATED, incoming: new Date(UPDATED.getTime()) },
     })
 
+    // Same stored comparison as a restatement, but the rule did not fire: the
+    // envelope is a known format transition, so nothing is reported.
     expect(result).toMatchObject({
       comparison: 'normalization_shadow_match',
+      providerRestatement: false,
       materialRevision: 2,
       createsMaterialRevision: false,
     })
@@ -425,7 +464,6 @@ describe('a guest edit', () => {
       'initial_material_revision',
       'unchanged',
       'normalization_shadow_match',
-      'provider_restatement',
       'baseline_unavailable',
       'backfilled_unverified',
       'out_of_order_ignored',

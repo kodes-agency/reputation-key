@@ -65,7 +65,7 @@ export type CandidateExclusionResult = Readonly<{
 
 /**
  * Inbox-owned operator capability: leave the Response Targets of restated
- * revisions out of every count (migration 0070). Each write is one item per
+ * revisions out of every count (migration 0069). Each write is one item per
  * transaction in the lock order head, item, target, reminders; it moves no
  * `state_revision` or `command_revision` and touches no cycle, transition,
  * target, item or notification.

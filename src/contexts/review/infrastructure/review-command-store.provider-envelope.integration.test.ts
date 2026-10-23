@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { createAtomicReviewCommandStore } from './review-command-store'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createAtomicReviewCommandStore,
+  type ProviderRestatement,
+} from './review-command-store'
 import { reviewCreated, reviewUpdated } from '../domain/events'
 import type { Review } from '../domain/types'
 import { getDb } from '#/shared/db'
@@ -14,9 +17,10 @@ import { createReviewObservationRepository } from './repositories/review-observa
 // a guest edit and reopened handled Inbox items. Once the parser splits the
 // envelope again, the next read must not count as a second edit.
 //
-// Since provider_restatement, a read that differs while Google's updateTime did
+// Since the restatement rule, a read that differs while Google's updateTime did
 // not move is no edit in the first place (the restatement test beside this
-// one). The first test seeds what already exists in production: revision 2 rows
+// one). It is stored as `normalization_shadow_match`, like the envelope reread,
+// so these tests tell the two apart by whether the restatement is reported. The first test seeds what already exists in production: revision 2 rows
 // the glued read created, which the first test therefore gives a moved
 // updateTime.
 
@@ -108,7 +112,13 @@ beforeEach(async () => {
 
 describe('a review stored with a provider envelope glued to its text', () => {
   it('takes the split text back without a second material revision', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
+    const report = vi.fn<(restatement: ProviderRestatement) => void>()
+    const store = createAtomicReviewCommandStore(
+      getDb(),
+      () => new Date(),
+      undefined,
+      report,
+    )
     const split = { text: 'Ок', translatedText: 'Ok' }
     await store.upsertAndRecord(
       review(split),
@@ -176,12 +186,21 @@ describe('a review stored with a provider envelope glued to its text', () => {
       [REVIEW, ORG],
     )
     expect(current.rows[0]).toEqual({ text: 'Ок', translated_text: 'Ok' })
+    // The repair is stored as `normalization_shadow_match`, as a restatement is,
+    // but it is the envelope reread: the restatement rule did not fire.
+    expect(report).not.toHaveBeenCalled()
   })
 })
 
 describe('a review whose glued text Google never updated', () => {
   it('takes the glued read as a restatement, and the split text back as the same text', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
+    const report = vi.fn<(restatement: ProviderRestatement) => void>()
+    const store = createAtomicReviewCommandStore(
+      getDb(),
+      () => new Date(),
+      undefined,
+      report,
+    )
     const split = { text: 'Ок', translatedText: 'Ok' }
     const observe = (
       content: Parameters<typeof review>[0],
@@ -214,10 +233,16 @@ describe('a review whose glued text Google never updated', () => {
       ]),
     ).toEqual([
       [1, 'initial_material_revision'],
-      [1, 'provider_restatement'],
+      // The restatement rule fired for the glued read (reported below).
+      [1, 'normalization_shadow_match'],
       // The reread of the stored envelope names the cause, and runs first.
       [1, 'normalization_shadow_match'],
     ])
     expect(await history.findMaterialRevisions(REVIEW, ORG)).toHaveLength(1)
+    // Only the glued read is a restatement. The reread of the stored envelope is
+    // a known format transition, stored the same way and not reported.
+    expect(report.mock.calls).toEqual([
+      [{ organizationId: ORG, propertyId: PROPERTY, reviewId: REVIEW }],
+    ])
   })
 })

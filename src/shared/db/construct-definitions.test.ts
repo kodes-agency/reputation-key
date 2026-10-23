@@ -326,7 +326,7 @@ describe('the committed constructs file', () => {
 
   it('guards the exclusion table with a before-delete-or-update row trigger', () => {
     const [guard] = readMigrationDefinitions(
-      '0070_inbox_response_target_exclusions',
+      '0069_inbox_response_target_exclusions',
     ).filter(({ kind }) => kind === 'trigger')
 
     expect(guard?.definition).toBe(

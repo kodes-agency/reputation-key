@@ -436,9 +436,6 @@ export const reviewSourceObservations = pgTable(
             AND ${t.normalizedDigest} ~ '^[0-9a-f]{64}$')
         )`,
     ),
-    // Same values, same order as drizzle/0069_review_provider_restatement.sql.
-    // The newest shares the last line: this module is grandfathered at its
-    // counted length (scripts/ci/file-length.baseline.json) and cannot grow.
     check(
       'review_source_observations_comparison_valid',
       sql`${t.comparisonResult} IN (
@@ -448,7 +445,7 @@ export const reviewSourceObservations = pgTable(
         'material_change',
         'normalization_shadow_match',
         'baseline_unavailable',
-        'out_of_order_ignored', 'provider_restatement'
+        'out_of_order_ignored'
       )`,
     ),
     check(

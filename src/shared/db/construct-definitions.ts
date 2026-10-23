@@ -189,12 +189,12 @@ export const MIGRATION_CREATED_CONSTRUCTS: readonly MigrationCreatedConstruct[] 
   {
     kind: 'function',
     name: 'enforce_inbox_response_target_exclusion_append_only_v1',
-    migration: '0070_inbox_response_target_exclusions',
+    migration: '0069_inbox_response_target_exclusions',
   },
   {
     kind: 'trigger',
     name: 'inbox_response_target_exclusions_append_only_guard',
-    migration: '0070_inbox_response_target_exclusions',
+    migration: '0069_inbox_response_target_exclusions',
   },
 ]
 

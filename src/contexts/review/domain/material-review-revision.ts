@@ -8,14 +8,14 @@ export type ReviewMaterialComparison =
   | 'unchanged'
   | 'material_change'
   | 'normalization_shadow_match'
-  | 'provider_restatement'
   | 'baseline_unavailable'
 
 /**
  * A guest edit: the comparison found a changed rating or changed normalized
  * text, and Google's own edit clock (`updateTime`) moved with it. The same
- * difference at an unmoved `updateTime` is Google restating the review
- * (`provider_restatement`), which no guest did. A source-epoch carry of
+ * difference at an unmoved `updateTime` is Google restating the review, which
+ * no guest did: it is recorded as `normalization_shadow_match` and flagged
+ * `providerRestatement` on the result. A source-epoch carry of
  * unchanged material gets the next numbered revision too and is not one
  * (Review CONTEXT, Model), so the revision number moving is not the test.
  * Takes the wider comparison an observation records.
@@ -58,11 +58,23 @@ export type ProviderUpdateTimes = Readonly<{
   incoming: Date | null
 }>
 
-export type MaterialReviewComparisonResult = ReviewMaterialDescription &
+type MaterialComparisonOutcome = ReviewMaterialDescription &
   Readonly<{
     comparison: ReviewMaterialComparison
     materialRevision: number
     createsMaterialRevision: boolean
+  }>
+
+export type MaterialReviewComparisonResult = MaterialComparisonOutcome &
+  Readonly<{
+    /**
+     * The unmoved-`updateTime` rule fired: Google reworded the review and no
+     * guest edited it. The comparison is stored as `normalization_shadow_match`
+     * (the observation table's CHECK is not widened), so this flag is the only
+     * place the rule shows; true for no other outcome, the envelope reread
+     * included.
+     */
+    providerRestatement: boolean
   }>
 
 function canonicalField(value: string | null): string {
@@ -188,31 +200,34 @@ function providerUpdateTimeUnmoved(times: ProviderUpdateTimes | undefined): bool
  * A guest edit moves Google's `updateTime`. A difference in rating or text
  * while it stands still is Google restating the review (2026-10-23: a new
  * wrapper around translated text), so it keeps the revision and adopts the
- * incoming digests, as `normalization_shadow_match` does. That net sits after
- * the envelope reread, which names the cause when it can.
+ * incoming digests, and is returned as `normalization_shadow_match` with the
+ * same mechanics and `providerRestatement: true` (ADR 0055 says why there is no
+ * stored `provider_restatement` value). That net sits after the envelope
+ * reread, which names the cause when it can.
  */
 export function compareMaterialReviewRevision(
   input: ComparisonInput,
 ): MaterialReviewComparisonResult {
-  const result = compareMaterial(input)
+  const outcome = compareMaterial(input)
   if (
-    result.comparison !== 'material_change' ||
+    outcome.comparison !== 'material_change' ||
     input.previous == null ||
     !providerUpdateTimeUnmoved(input.providerUpdateTime)
   ) {
-    return result
+    return Object.freeze({ ...outcome, providerRestatement: false })
   }
   return Object.freeze({
-    ...result,
-    comparison: 'provider_restatement',
+    ...outcome,
+    comparison: 'normalization_shadow_match',
     materialRevision: input.previous.materialRevision,
     createsMaterialRevision: false,
+    providerRestatement: true,
   })
 }
 
 function compareMaterial(
   input: Pick<ComparisonInput, 'previous' | 'incoming'>,
-): MaterialReviewComparisonResult {
+): MaterialComparisonOutcome {
   const material = describeReviewMaterial(input.incoming)
   if (input.previous == null) {
     return Object.freeze({

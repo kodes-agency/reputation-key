@@ -138,11 +138,13 @@ The same difference at an unmoved Google `updateTime` is never a guest edit,
 whatever caused it (ADR 0055, note 2026-10-23). A guest edit moves `updateTime`;
 when the rating or normalized text differs but the incoming `updateTime` equals
 the stored head's to the millisecond, `compareMaterialReviewRevision` returns
-`provider_restatement`: the revision stays and its digests move to the incoming
-material, exactly as for a shadow match, so no handling cycle, Response Target,
-notice or reopened Inbox item follows and a reply awaiting approval is left
-alone. It is the net under the reread above, which names a cause it knows and
-runs first; this one catches the next change of Google's format unannounced.
+`normalization_shadow_match` with `providerRestatement: true`: the revision
+stays and its digests move to the incoming material, exactly as for any shadow
+match, so no handling cycle, Response Target, notice or reopened Inbox item
+follows and a reply awaiting approval is left alone. It is the net under the
+reread above, which names a cause it knows and runs first (and returns the same
+comparison with `providerRestatement: false`); this one catches the next change
+of Google's format unannounced.
 Both times must be known. A stored time that is null (a legacy row, or one
 `eraseReviewSourceContent` blanked, so a rewritten review re-observed after
 expiry stays an edit) or a read where Google sent none keeps the old outcome.
@@ -151,13 +153,19 @@ the writer tells the store whether Google reported one
 (`providerUpdateTimeReported`, taken before the carry; absent, the Review's own
 time counts). One millisecond later is an edit; an older one is ignored as out
 of order, as before. A restated Review carried into a newer source epoch is a
-carry (`NO_MATERIAL_CHANGE`). The command store reports each applied
-restatement after commit as one content-free `review.provider_restatement`
-warn line (no tenant ids; the rows carry `comparison_result =
-'provider_restatement'`), so a new Google format shows in the log the day it
-starts. The value is recorded in
-`review_source_observations.comparison_result` (migration 0069). It is not
-retroactive: revisions already created stay recorded as `material_change`.
+carry (`NO_MATERIAL_CHANGE`, which holds `normalization_shadow_match`). The
+command store reports each applied restatement after commit, when the writer's
+`providerRestatement` is true (not for the envelope reread, a replay, an
+out-of-order read or a rolled-back write), as one content-free
+`review.provider_restatement` warn line (no tenant ids), so a new Google format
+shows in the log the day it starts. There is no separate stored value: the
+observation is recorded as `normalization_shadow_match`, and a restated
+observation is found afterwards as a `normalization_shadow_match` whose
+`normalized_digest` differs from the previous applied observation's at an
+unmoved `source_updated_at` (an envelope reread matches too: both are Google
+rewording, not a guest). Why
+there is no separate value is in ADR 0055 (note 2026-10-23, "Why no separate
+stored value"): the CHECK is left as it is. The rule is not retroactive: revisions already created stay recorded as `material_change`.
 `maintenance.restatedRevisions.list` finds them for operator tooling: a
 `material_change` observation whose `source_updated_at` equals the one of the
 last applied observation before it (not an `out_of_order_ignored` one), both
@@ -472,7 +480,8 @@ parts:
   the attempt of unknown outcome described below. This part runs only on a
   guest edit, a changed rating or changed normalized text whose Google
   `updateTime` moved with it (`isGuestEdit`; the same difference at an unmoved
-  `updateTime` is a `provider_restatement` and keeps the revision, Model):
+  `updateTime` is a restatement, stored as `normalization_shadow_match`, and keeps
+  the revision, Model):
   after a carry of unchanged material the review the Reply answers is the
   same.
 - Unedited AI text is withdrawn by the AI draft purge (above).
