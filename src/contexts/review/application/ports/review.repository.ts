@@ -89,6 +89,7 @@ export type ReviewRepository = Readonly<{
     now?: Date,
     observationKey?: string,
     observationOrigin?: ReviewProviderObservationOrigin,
+    providerUpdateTimeReported?: boolean,
   ): Promise<Review>
   /**
    * Live Reviews of one Property, newest first. With no `limit` this is every

@@ -8,6 +8,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { createReviewObservationRepository } from './repositories/review-observation.repository'
 
 /**
  * Archive/Restore, a Google relink and disconnect/reconnect advance the
@@ -234,6 +235,76 @@ describe('Review Inbox projection permit across a source-epoch carry', () => {
         { revision: 1, sourceEpoch: 0, carry: false },
         { revision: 2, sourceEpoch: 1, carry: false },
       ],
+    })
+  })
+
+  describe('when Google has reported an updateTime for the Review', () => {
+    const UPDATED = new Date('2026-08-20T12:00:00.000Z')
+    const stored = { ...initial, sourceUpdatedAt: UPDATED }
+    const comparisons = async () =>
+      (
+        await createReviewObservationRepository(getDb()).findObservations(REVIEW, ORG)
+      ).map((entry) => [entry.materialRevision, entry.comparison])
+
+    it('marks the carry of a Review Google only restated, its updateTime unmoved', async () => {
+      const created = await observe(stored, OBSERVED[0], '8'.repeat(64))
+      await getPool().query('UPDATE properties SET source_epoch = 1 WHERE id = $1', [
+        PROPERTY,
+      ])
+      // The digests differ across the epochs, so only the recorded comparison
+      // can tell Inbox that nobody edited this Review.
+      await observe(
+        {
+          ...stored,
+          sourceEpoch: 1,
+          text: 'Original review, as Google now wraps it',
+          analysisSequence: created.analysisSequence,
+        },
+        OBSERVED[1],
+        '9'.repeat(64),
+      )
+
+      await expect(projectionOf(1, 2)).resolves.toEqual({
+        status: 'current',
+        value: [
+          { revision: 1, sourceEpoch: 0, carry: false },
+          { revision: 2, sourceEpoch: 1, carry: true },
+        ],
+      })
+      expect(await comparisons()).toEqual([
+        [1, 'initial_material_revision'],
+        [2, 'provider_restatement'],
+      ])
+    })
+
+    it('does not mark a guest edit whose updateTime moved in the new epoch as a carry', async () => {
+      const created = await observe(stored, OBSERVED[0], 'c'.repeat(64))
+      await getPool().query('UPDATE properties SET source_epoch = 1 WHERE id = $1', [
+        PROPERTY,
+      ])
+      await observe(
+        {
+          ...stored,
+          sourceEpoch: 1,
+          text: 'Edited while disconnected',
+          analysisSequence: created.analysisSequence,
+          sourceUpdatedAt: new Date(UPDATED.getTime() + 1),
+        },
+        OBSERVED[1],
+        'd'.repeat(64),
+      )
+
+      await expect(projectionOf(1, 2)).resolves.toEqual({
+        status: 'current',
+        value: [
+          { revision: 1, sourceEpoch: 0, carry: false },
+          { revision: 2, sourceEpoch: 1, carry: false },
+        ],
+      })
+      expect(await comparisons()).toEqual([
+        [1, 'initial_material_revision'],
+        [2, 'material_change'],
+      ])
     })
   })
 })

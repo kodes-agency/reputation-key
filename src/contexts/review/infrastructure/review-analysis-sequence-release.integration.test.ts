@@ -243,6 +243,39 @@ describe('the Review writer gives back a sequence it did not use', () => {
     expect(held.rows[0]?.analysis_sequence).toBe('1')
   })
 
+  it('applies, announces and keeps the sequence of a restatement at an equal provider version', async () => {
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
+    await store.upsertAndRecord(
+      review(),
+      announce,
+      OBSERVED_AT,
+      '1'.repeat(64),
+      'ongoing',
+    )
+
+    // Equal versions are applied in order. The net calls this Google rewording
+    // the review, so it is no older evidence and nothing is given back.
+    await store.upsertAndRecord(
+      review({ text: 'Reworded by Google' }),
+      announce,
+      OBSERVED_AT,
+      '2'.repeat(64),
+      'ongoing',
+    )
+
+    expect(await headSequence()).toBe(2)
+    expect(await releasedRows()).toEqual([])
+    expect(await announcedSequences()).toEqual([1, 2])
+    const history = await createReviewObservationRepository(getDb()).findObservations(
+      REVIEW,
+      ORG,
+    )
+    expect(history.map((entry) => entry.comparison)).toEqual([
+      'initial_material_revision',
+      'provider_restatement',
+    ])
+  })
+
   it('leaves the head and the ledger unchanged when the write fails', async () => {
     const failing = createAtomicReviewCommandStore(
       getDb(),

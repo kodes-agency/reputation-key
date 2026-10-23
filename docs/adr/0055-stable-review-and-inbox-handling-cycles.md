@@ -26,8 +26,9 @@ the required Google, retention, reply-publication, or private-feedback behavior.
    Inbox work, first-response facts, and operational history.
 3. Every provider observation is versioned. A `MaterialReviewRevision` is created
    only when the original star rating or deterministically normalized original
-   guest text changes. Translation, photos, metadata, and observation timestamps
-   do not create a material revision.
+   guest text changes and Google's `updateTime` moved with it (note 2026-10-23).
+   Translation, photos, metadata, and observation timestamps do not create a
+   material revision.
 4. Re-observation reconnects to the same Review in the same source epoch. A
    different real-world source binding starts a new epoch through an attested
    rebind command and never blends populations.
@@ -684,6 +685,67 @@ head fact is no reconciliation),
 `refresh-expiring-reviews.job.test.ts` and
 `refresh-expiring-reviews.integration.test.ts` (the sweep enqueues nothing; it
 moves the schedule only for a stale reconciliation).
+
+## Note 2026-10-23 — an unmoved updateTime is never a guest edit
+
+Decision 3 made a rating or text difference the whole test of an edit. On
+2026-10-23 Google changed how it wraps translated review text and did not move
+`updateTime`. The comparison still saw different text, created Material Review
+Revision 2 on 62 closed-beta reviews, reopened 7 handled Inbox items and gave 55
+open ones a Response Target that was overdue from birth; one user received 72
+emails. The fix for that wrapper (the reread of the stored text with today's
+parser, `normalization_shadow_match`) names a cause it already knows. This note
+is the general rule under it.
+
+A guest edit is a change Google dates: it moves the review's `updateTime`. So a
+revision is created when the rating or normalized text changes **and Google's
+`updateTime` moved with it**. When the rating or text differs but the incoming
+`updateTime` equals the stored head's, the observation is a
+`provider_restatement`: Google reworded a review nobody edited.
+
+- **What it does.** Exactly what `normalization_shadow_match` does: the current
+  revision stays (`createsMaterialRevision: false`) and the revision row and
+  `reviews.material_*` take the incoming digests, so the next read compares as
+  `unchanged`. No revision means no handling cycle, no Response Target, no
+  notice, no reopened Inbox item, and a reply waiting for approval is left as it
+  is. `review.updated` is still announced under the unchanged revision, as for a
+  shadow match. `isGuestEdit` stays true only for `material_change`.
+- **Where it lives.** In the pure comparison (`compareMaterialReviewRevision`,
+  optional `providerUpdateTime: { stored, incoming }`), after the reread guard,
+  which still runs first and wins, and before the binding of an unchanged
+  revision to a new source epoch. A restated review carried into a newer epoch is
+  therefore a carry (`provider_restatement` is in `NO_MATERIAL_CHANGE`, in
+  `source-epoch-carry.ts`), and Inbox does not read it as an edit.
+- **When it does not fire.** Either time missing keeps the old behaviour: a
+  first observation, a legacy row, an erased row (erasure nulls
+  `source_updated_at`, so a rewritten review re-observed after expiry stays an
+  edit; a known limit of a rare path), or a read where Google sent no
+  `updateTime`. That last case needs the writer's help: the sync carries the
+  stored `updateTime` onto an observation that lacked one, so at the Review store
+  "none" would look like "unmoved". The writer says whether Google reported one
+  (`providerUpdateTimeReported`), and a missed edit, which leaves a stale
+  approved reply publishable, is the harm worth a flag. A time that moved by one
+  millisecond is an edit. A strictly older one is still `out_of_order_ignored`, as before.
+- **Precision.** Provider times are parsed to the millisecond and Postgres keeps
+  the same value, so equality is on `getTime()`, the granularity of the
+  out-of-order rule and the head check. Two Google updates inside one
+  millisecond are not a human edit.
+- **Visible.** The next Google format change should not take a day of Inbox
+  noise to find. The comparison is recorded
+  (`review_source_observations.comparison_result`, CHECK widened by migration 0069) and the command store reports each applied restatement after commit as
+  one `review.provider_restatement` warn line carrying the Organization,
+  Property and Review ids and nothing else.
+- **Not retroactive.** The 62 revision-2 rows already written stay recorded as
+  `material_change`; cleaning them is a separate operator job.
+
+Enforced by `material-review-revision.test.ts` (equal, one millisecond either
+way, missing times, the legacy baseline, the reread guard winning),
+`source-epoch-carry.test.ts`, `sync-reviews.test.ts` (the flag),
+`review-command-store.provider-restatement.integration.test.ts` (the sequence of
+comparisons, adopted digests, a pending reply untouched until the real edit,
+the announced revision, no released sequence, the erasure limit, the report),
+and the epoch-carry, sequence-release, Google-page and head-persist integration
+suites.
 
 ## Merged from ADR 0003
 

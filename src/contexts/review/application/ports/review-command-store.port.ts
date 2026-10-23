@@ -22,7 +22,15 @@ export type ReviewFirstSighting = Readonly<{
 }>
 
 export type ReviewCommandStore = Readonly<{
-  /** Persist the Review and its domain fact's outbox row together. */
+  /**
+   * Persist the Review and its domain fact's outbox row together.
+   *
+   * `providerUpdateTimeReported` is whether Google sent an `updateTime` on this
+   * read (absent: the Review's own time counts as sent). Only a reported time
+   * can show that a difference in rating or text is Google's rewording rather
+   * than a guest's edit; the sync carries the stored time onto a read that had
+   * none, so the Review itself cannot tell.
+   */
   upsertAndRecord(
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     event: DomainEvent | ((persisted: Review) => DomainEvent),
@@ -30,6 +38,7 @@ export type ReviewCommandStore = Readonly<{
     observationKey?: string,
     observationOrigin?: ReviewProviderObservationOrigin,
     firstSighting?: ReviewFirstSighting,
+    providerUpdateTimeReported?: boolean,
   ): Promise<Review>
   /**
    * At the database expiry equality boundary, atomically record the old source
@@ -43,5 +52,6 @@ export type ReviewCommandStore = Readonly<{
     now?: Date,
     observationKey?: string,
     observationOrigin?: ReviewProviderObservationOrigin,
+    providerUpdateTimeReported?: boolean,
   ): Promise<Review>
 }>

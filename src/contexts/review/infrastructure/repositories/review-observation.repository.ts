@@ -30,6 +30,7 @@ import {
   computeReviewSourceObservationDigest,
   REVIEW_MATERIAL_NORMALIZATION_VERSION,
   type MaterialReviewComparisonResult,
+  type ProviderUpdateTimes,
   type ReviewMaterialComparison,
 } from '../../domain/material-review-revision'
 import { reviewError } from '../../domain/errors'
@@ -182,6 +183,7 @@ async function insertOrRestoreMaterialRevision(
 
   const adoptComparisonBaseline =
     input.comparison === 'normalization_shadow_match' ||
+    input.comparison === 'provider_restatement' ||
     input.comparison === 'baseline_unavailable'
   // Non-creating comparisons are same-epoch only. Historical exact bindings
   // may already be referenced and must remain immutable.
@@ -220,7 +222,27 @@ type ObservationInput = Readonly<{
   observedAt: Date
   observationKey?: string
   observationOrigin?: ReviewProviderObservationOrigin
+  /**
+   * Whether Google sent an `updateTime` on this read. The sync carries the
+   * stored time onto a read that had none, so the Review's own time cannot say
+   * it. Absent, the Review's time is taken as reported.
+   */
+  providerUpdateTimeReported?: boolean
 }>
+
+/** Google's updateTime for the stored head and for this read, the latter null
+ * when Google sent none. An unmoved one is no guest edit. */
+function providerUpdateTimes(
+  existing: ReviewRow | null,
+  input: ObservationInput,
+): ProviderUpdateTimes {
+  const reported =
+    input.providerUpdateTimeReported ?? input.review.sourceUpdatedAt != null
+  return {
+    stored: existing?.sourceUpdatedAt ?? null,
+    incoming: reported ? input.review.sourceUpdatedAt : null,
+  }
+}
 
 /** The caller's idempotency key, or a deterministic one derived from the
  * observed content and receipt instant when the caller supplied none. */
@@ -583,6 +605,7 @@ export async function persistReviewObservation(
           ? null
           : currentMaterial(existing),
       incoming: { rating: input.review.rating, text: input.review.text },
+      providerUpdateTime: providerUpdateTimes(existing, input),
     }),
   )
   const observationSequence = (existing?.sourceObservationSequence ?? 0) + 1

@@ -595,15 +595,23 @@ function claimForDispatch(seeded: SeededReply): Promise<Reply | null> {
   })
 }
 
-/** Sync sees the guest's edit: a new Material Review Revision is recorded. */
+/**
+ * Sync sees the guest's edit: a new Material Review Revision is recorded. A
+ * guest edit moves Google's updateTime past the stored one; the same
+ * difference at an unmoved one is Google rewording the review and keeps the
+ * revision, so the edit is a second after the seeded read.
+ */
 async function observeGuestEdit(seeded: SeededReply): Promise<Review> {
   const observedAt = new Date()
+  const editedAt = new Date(
+    (seeded.review.sourceUpdatedAt ?? observedAt).getTime() + 1000,
+  )
   return createAtomicReviewCommandStore(db, () => new Date()).upsertAndRecord(
     {
       ...seeded.review,
       rating: 2,
       text: 'The guest changed their mind',
-      sourceUpdatedAt: observedAt,
+      sourceUpdatedAt: editedAt,
       lastFetchedAt: observedAt,
     },
     (review) =>

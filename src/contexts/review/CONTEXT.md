@@ -134,6 +134,30 @@ revision stays and its digests move to the split text. It closes the
 stored the whole envelope, and 59 closed-beta reviews whose Google updateTime
 had not moved read as edited and reopened handled Inbox items.
 
+The same difference at an unmoved Google `updateTime` is never a guest edit,
+whatever caused it (ADR 0055, note 2026-10-23). A guest edit moves `updateTime`;
+when the rating or normalized text differs but the incoming `updateTime` equals
+the stored head's to the millisecond, `compareMaterialReviewRevision` returns
+`provider_restatement`: the revision stays and its digests move to the incoming
+material, exactly as for a shadow match, so no handling cycle, Response Target,
+notice or reopened Inbox item follows and a reply awaiting approval is left
+alone. It is the net under the reread above, which names a cause it knows and
+runs first; this one catches the next change of Google's format unannounced.
+Both times must be known. A stored time that is null (a legacy row, or one
+`eraseReviewSourceContent` blanked, so a rewritten review re-observed after
+expiry stays an edit) or a read where Google sent none keeps the old outcome.
+The sync carries the stored `updateTime` onto an observation that lacked one, so
+the writer tells the store whether Google reported one
+(`providerUpdateTimeReported`, taken before the carry; absent, the Review's own
+time counts). One millisecond later is an edit; an older one is ignored as out
+of order, as before. A restated Review carried into a newer source epoch is a
+carry (`NO_MATERIAL_CHANGE`). The command store reports each applied
+restatement after commit as one `review.provider_restatement` warn line with
+the Organization, Property and Review ids and nothing else, so a new Google
+format shows in the log the day it starts. The value is recorded in
+`review_source_observations.comparison_result` (migration 0069). It is not
+retroactive: revisions already created stay recorded as `material_change`.
+
 Each revision's Response Target eligibility is fixed when it is created. The
 first Google import of a Property source epoch fixes that epoch's history cutoff
 (`review_provider_history_cutoffs`) when Review admits the import's sync, before
@@ -438,7 +462,9 @@ parts:
   approval the Reply got for the earlier review. The Reply keeps its text, and
   the authorization and attempts of a failed cycle stay as they are, except
   the attempt of unknown outcome described below. This part runs only on a
-  guest edit, a changed rating or changed normalized text (`isGuestEdit`):
+  guest edit, a changed rating or changed normalized text whose Google
+  `updateTime` moved with it (`isGuestEdit`; the same difference at an unmoved
+  `updateTime` is a `provider_restatement` and keeps the revision, Model):
   after a carry of unchanged material the review the Reply answers is the
   same.
 - Unedited AI text is withdrawn by the AI draft purge (above).

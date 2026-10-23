@@ -484,6 +484,13 @@
       "when": 1794900000000,
       "tag": "0068_review_released_analysis_sequences",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795000000000,
+      "tag": "0069_review_provider_restatement",
+      "breakpoints": true
     }
   ]
 }

@@ -377,6 +377,48 @@ describe('a persisting head check (real PostgreSQL)', () => {
     expect(await observationsOf('head-persist-new')).toBe(1)
   })
 
+  it('refreshes the lease of a review Google restated at an unmoved updateTime without a new revision', async () => {
+    // Stored six days ago: past the five-day lease, so the head check stores it
+    // again although updateTime never moved. Google has since reworded it.
+    const earlier = new Date(Date.now() - 6 * DAY_MS)
+    const original = providerReview('restated')
+    await observeEarlier(original, earlier)
+    await insertFact({ count: 1, average: 4 })
+    clockAt = new Date()
+
+    const { result } = await headCheck(
+      [{ ...original, rating: 3, text: 'Reworded by Google, same updateTime' }],
+      { total: 1, average: 4 },
+    )
+
+    expect(result).toMatchObject({
+      persistence: { outcome: 'stored', storedOther: 1, failed: 0 },
+    })
+    expect(await reviewRows()).toEqual([
+      {
+        external_id: 'head-persist-restated',
+        text: 'Reworded by Google, same updateTime',
+      },
+    ])
+    const history = await db.execute(sql`
+      SELECT o.material_revision, o.comparison_result
+      FROM review_source_observations o
+      JOIN reviews r ON r.id = o.review_id AND r.organization_id = o.organization_id
+      WHERE r.organization_id = ${ORG} AND r.external_id = ${original.externalId}
+      ORDER BY o.observation_sequence
+    `)
+    expect(history.rows).toEqual([
+      { material_revision: '1', comparison_result: 'initial_material_revision' },
+      { material_revision: '1', comparison_result: 'provider_restatement' },
+    ])
+    expect(
+      await count(sql`
+        SELECT count(*)::int AS count FROM material_review_revisions
+        WHERE organization_id = ${ORG}
+      `),
+    ).toBe(1)
+  })
+
   it('writes nothing when every review on the page matches its stored copy', async () => {
     const earlier = new Date(Date.now() - 2 * DAY_MS)
     const same = providerReview('same')

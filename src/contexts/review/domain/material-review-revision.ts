@@ -8,13 +8,17 @@ export type ReviewMaterialComparison =
   | 'unchanged'
   | 'material_change'
   | 'normalization_shadow_match'
+  | 'provider_restatement'
   | 'baseline_unavailable'
 
 /**
  * A guest edit: the comparison found a changed rating or changed normalized
- * text. A source-epoch carry of unchanged material gets the next numbered
- * revision too and is not one (Review CONTEXT, Model), so the revision number
- * moving is not the test. Takes the wider comparison an observation records.
+ * text, and Google's own edit clock (`updateTime`) moved with it. The same
+ * difference at an unmoved `updateTime` is Google restating the review
+ * (`provider_restatement`), which no guest did. A source-epoch carry of
+ * unchanged material gets the next numbered revision too and is not one
+ * (Review CONTEXT, Model), so the revision number moving is not the test.
+ * Takes the wider comparison an observation records.
  */
 export const isGuestEdit = (comparison: string): boolean =>
   comparison === ('material_change' satisfies ReviewMaterialComparison)
@@ -42,6 +46,16 @@ export type PreviousReviewMaterial = Readonly<{
    * 2026-10-23), so a match under it is a format transition, not a guest edit.
    */
   rereadOriginalText?: string | null
+}>
+
+/**
+ * Google's `updateTime` for the stored head and for this observation. The
+ * incoming side is `null` when Google reported none on this read: a time the
+ * sync carried over from the stored row proves nothing about the guest.
+ */
+export type ProviderUpdateTimes = Readonly<{
+  stored: Date | null
+  incoming: Date | null
 }>
 
 export type MaterialReviewComparisonResult = ReviewMaterialDescription &
@@ -143,6 +157,26 @@ function matchesRereadBaseline(
   )
 }
 
+type ComparisonInput = Readonly<{
+  previous: PreviousReviewMaterial | null
+  incoming: Readonly<{ rating: StarRating; text: string | null }>
+  /** Omitted when the caller has no provider times: the safety net is then off. */
+  providerUpdateTime?: ProviderUpdateTimes
+}>
+
+/**
+ * Both `updateTime`s are known and equal. Provider times are parsed to the
+ * millisecond, as are the ones Postgres keeps, so this is the same granularity
+ * as the out-of-order rule and the head check.
+ */
+function providerUpdateTimeUnmoved(times: ProviderUpdateTimes | undefined): boolean {
+  return (
+    times?.stored != null &&
+    times.incoming != null &&
+    times.stored.getTime() === times.incoming.getTime()
+  )
+}
+
 /**
  * Compare one provider observation with the current material head.
  *
@@ -150,12 +184,34 @@ function matchesRereadBaseline(
  * algorithm. If source content has already been erased and the old baseline
  * has no comparable digest, the existing revision is retained: a policy
  * transition must never be presented as a guest edit.
+ *
+ * A guest edit moves Google's `updateTime`. A difference in rating or text
+ * while it stands still is Google restating the review (2026-10-23: a new
+ * wrapper around translated text), so it keeps the revision and adopts the
+ * incoming digests, as `normalization_shadow_match` does. That net sits after
+ * the envelope reread, which names the cause when it can.
  */
 export function compareMaterialReviewRevision(
-  input: Readonly<{
-    previous: PreviousReviewMaterial | null
-    incoming: Readonly<{ rating: StarRating; text: string | null }>
-  }>,
+  input: ComparisonInput,
+): MaterialReviewComparisonResult {
+  const result = compareMaterial(input)
+  if (
+    result.comparison !== 'material_change' ||
+    input.previous == null ||
+    !providerUpdateTimeUnmoved(input.providerUpdateTime)
+  ) {
+    return result
+  }
+  return Object.freeze({
+    ...result,
+    comparison: 'provider_restatement',
+    materialRevision: input.previous.materialRevision,
+    createsMaterialRevision: false,
+  })
+}
+
+function compareMaterial(
+  input: Pick<ComparisonInput, 'previous' | 'incoming'>,
 ): MaterialReviewComparisonResult {
   const material = describeReviewMaterial(input.incoming)
   if (input.previous == null) {

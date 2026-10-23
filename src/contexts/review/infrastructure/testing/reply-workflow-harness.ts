@@ -39,7 +39,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Reply, Review, StarRating } from '../../domain/types'
-import { reviewReplyPublicationCancelled, reviewUpdated } from '../../domain/events'
+import { reviewReplyPublicationCancelled } from '../../domain/events'
 import { replyAuthor } from '../../domain/reply-author'
 import { googleReplyTextDigest } from '../../domain/google-reply-observation'
 import type {
@@ -71,6 +71,7 @@ import { createPublishReplyHandler } from '../jobs/publish-reply.job'
 import { createReconcileAmbiguousPublicationsHandler } from '../jobs/reconcile-ambiguous-publications.job'
 import { createReplyWorkflowAiFixture } from './reply-workflow-ai-fixture'
 import { createReplyPreReadForTests } from './reply-pre-read-fixture'
+import { createReviewChangeObserver } from './reply-workflow-review-change'
 
 export const WORKFLOW_ORG = organizationId('org-reply-workflow-model-00000001')
 export const WORKFLOW_PROPERTY = propertyId('4f000000-0000-4000-8000-000000000001')
@@ -843,40 +844,13 @@ export async function createReplyWorkflowHarness(
     await snapshot.apply()
   }
 
-  /**
-   * A review sync that reads the Review with `change` applied and records it
-   * through the store sync uses for a Review whose content differs, with its
-   * `review.updated` fact. A changed rating or text is a guest edit: Review
-   * records the next Material Review Revision. Anything else is the same
-   * revision observed again.
-   */
-  async function observeReviewChange(
-    change: Partial<Pick<Review, 'rating' | 'text' | 'reviewerName'>>,
-  ): Promise<Review> {
-    const observedAt = clock()
-    return reviewCommandStore.upsertAndRecord(
-      {
-        ...seedReview(locationName),
-        ...change,
-        sourceUpdatedAt: observedAt,
-        lastFetchedAt: observedAt,
-      },
-      (review) =>
-        reviewUpdated({
-          reviewId: review.id,
-          organizationId: WORKFLOW_ORG,
-          propertyId: WORKFLOW_PROPERTY,
-          platform: 'google',
-          sourceEpoch: review.sourceEpoch,
-          sourceRevision: review.sourceRevision,
-          analysisSequence: review.analysisSequence,
-          occurredAt: observedAt,
-        }),
-      observedAt,
-      sha256Hex(`reply-workflow-review-change:${JSON.stringify(change)}`),
-      'ongoing',
-    )
-  }
+  /** A review sync that finds a change to the Review (see its module). */
+  const observeReviewChange = createReviewChangeObserver({
+    reviewRepo,
+    reviewCommandStore,
+    clock,
+    seed: () => seedReview(locationName),
+  })
 
   /** The guest rewrote the review: a new rating, new text, or both. */
   const observeGuestEdit = (

@@ -439,3 +439,19 @@ describe.sequential('a guest edit and the replies written before it (PostgreSQL)
     })
   })
 })
+
+describe('two guest edits while the clock stands still', () => {
+  // A guest edit moves Google's updateTime; the same difference at an unmoved
+  // one is Google rewording the review (`provider_restatement`). The harness
+  // clock stands still unless a test advances it, so the second edit must be
+  // dated past the first by itself.
+  it('records each as its own Material Review Revision', async () => {
+    const first = await harness.observeGuestEdit(GUEST_EDIT)
+    const second = await harness.observeGuestEdit({
+      rating: 2,
+      text: 'On second thought, it was not that wonderful.',
+    })
+
+    expect([first.sourceRevision, second.sourceRevision]).toEqual([2, 3])
+  })
+})
