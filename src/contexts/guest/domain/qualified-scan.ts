@@ -12,12 +12,18 @@ export type QualifiedScanRequestDecision =
 export function classifyQualifiedScanRequest(
   input: Readonly<{
     accessArtifactId: string | null
+    /**
+     * The address names its own artifact, so no marker is needed: it is a print
+     * code (ADR 0069), whose channel the lookup reads from the code itself. A
+     * website or "Public address" visit is not, and is still refused here.
+     */
+    markerImplied: boolean
     userAgent: string | null
     purpose: string | null
     secPurpose: string | null
   }>,
 ): QualifiedScanRequestDecision {
-  if (!input.accessArtifactId) {
+  if (!input.accessArtifactId && !input.markerImplied) {
     return { eligible: false, reason: 'access_artifact_missing' }
   }
   if (

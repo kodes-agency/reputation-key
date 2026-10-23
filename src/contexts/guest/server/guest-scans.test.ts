@@ -30,6 +30,10 @@ const mocks = vi.hoisted(() => ({
   decidePublicExecution: vi.fn(),
   setResponseHeader: vi.fn(),
   logError: vi.fn(),
+  enrichSpan: vi.fn(),
+  issueSession: vi.fn(),
+  responseState: vi.fn(),
+  resolveLinkAndTrack: vi.fn(),
 }))
 
 // Outside a Start build `createServerFn` discards what the handler returns, so the
@@ -72,6 +76,17 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
     getLogger: () => logger,
   }
 })
+vi.mock('#/shared/observability/request-context', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('#/shared/observability/request-context')>()
+  return {
+    ...original,
+    enrichSpan: (attrs: Parameters<typeof original.enrichSpan>[0]) => {
+      mocks.enrichSpan(attrs)
+      original.enrichSpan(attrs)
+    },
+  }
+})
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     clock: () => NOW,
@@ -79,7 +94,13 @@ vi.mock('#/composition', () => ({
     guestPublicApi: {
       requests: {
         getPublicPortal: mocks.getPublicPortal,
-        guestSessions: { verify: mocks.verifySession, verifyCsrf: mocks.verifyCsrf },
+        guestSessions: {
+          verify: mocks.verifySession,
+          verifyCsrf: mocks.verifyCsrf,
+          issue: mocks.issueSession,
+        },
+        responseLifecycle: { getState: mocks.responseState },
+        resolveLinkAndTrack: mocks.resolveLinkAndTrack,
         guestPublicRuntime: { hashNetworkPseudonym: mocks.hashNetworkPseudonym },
         consumeGuestNetworkPressure: mocks.consumeGuestNetworkPressure,
         recordScan: mocks.recordScan,
@@ -90,7 +111,12 @@ vi.mock('#/composition', () => ({
   }),
 }))
 
-import { guestErrorStatus, recordScanFn } from './guest-scans'
+import {
+  getPublicPortal,
+  guestErrorStatus,
+  recordScanFn,
+  resolvePublicPortalLink,
+} from './guest-scans'
 
 const PORTAL = {
   organizationId: ORGANIZATION_ID,
@@ -339,6 +365,107 @@ describe('recordScanFn', () => {
 
       expect(mocks.reportObservationLoss).toHaveBeenCalledWith('scan')
       expect(mocks.reportNetworkBudgetExhausted).not.toHaveBeenCalled()
+    })
+  })
+})
+
+// A print code (ADR 0069) is a 20 character token on the same routes as a long
+// address: the validators take it, and the beacon asks for no marker with it.
+describe('a print code on the guest routes', () => {
+  const PRINT_CODE = '7K3QZ0VD9MWX4HT2BN6R'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getPublicPortal.mockResolvedValue(PORTAL)
+    mocks.verifySession.mockReturnValue({ sessionId: SESSION_ID })
+    mocks.verifyCsrf.mockReturnValue(true)
+    mocks.decidePublicExecution.mockResolvedValue({ allowed: true })
+    mocks.hashNetworkPseudonym.mockReturnValue('pseudonym-1')
+    mocks.rateLimiterCheck.mockResolvedValue({ ...ALLOWED, backendStatus: 'available' })
+    mocks.consumeGuestNetworkPressure.mockResolvedValue(ALLOWED)
+    mocks.recordScan.mockResolvedValue('qualified')
+  })
+
+  it('reaches the scan beacon with no marker and the code as the address', async () => {
+    await expect(beacon(PRINT_CODE)).resolves.toEqual({ success: true, retryable: false })
+
+    expect(mocks.getPublicPortal).toHaveBeenCalledExactlyOnceWith({ token: PRINT_CODE })
+    expect(mocks.recordScan).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ rawToken: PRINT_CODE, accessArtifactId: null }),
+    )
+  })
+
+  it('reaches the link fallback, which asks for the Portal by the code', async () => {
+    mocks.resolveLinkAndTrack.mockResolvedValue({ url: 'https://example.com' })
+
+    await expect(
+      resolvePublicPortalLink({ data: { token: PRINT_CODE, linkId: 'link-1' } }),
+    ).resolves.toEqual({ url: 'https://example.com' })
+
+    expect(mocks.resolveLinkAndTrack).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ token: PRINT_CODE }),
+    )
+  })
+
+  describe('on the page read', () => {
+    const page = (addressShape: 'long' | 'short') => ({
+      ...PORTAL,
+      addressShape,
+      portal: {
+        id: PORTAL_ID,
+        name: 'Lobby',
+        description: null,
+        heroImageUrl: null,
+        theme: null,
+        organizationName: 'Hotel One',
+      },
+      categories: [],
+      links: [],
+      reviewGateway: {
+        privateFeedbackThreshold: 3,
+        googleReview: { status: 'available' },
+      },
+      localization: {
+        selectedLocale: 'en',
+        primaryLocale: 'en',
+        availableLocales: ['en'],
+        languagePackVersion: 'guest-ui-en-v1',
+      },
+      guestSurface: 'legacy',
+      immersive: null,
+    })
+
+    beforeEach(() => {
+      mocks.verifySession.mockReturnValue({
+        sessionId: SESSION_ID,
+        csrfNonce: CSRF_NONCE,
+        guestLocale: 'en',
+      })
+      mocks.responseState.mockResolvedValue(null)
+    })
+
+    it.each(['long', 'short'] as const)(
+      'records only that it was a %s address, and keeps that from the browser',
+      async (addressShape) => {
+        mocks.getPublicPortal.mockResolvedValue(page(addressShape))
+        const token = addressShape === 'short' ? PRINT_CODE : 'pt_live'
+
+        const loaderData = await getPublicPortal({ data: { token } })
+
+        expect(mocks.enrichSpan).toHaveBeenCalledWith({ addressShape })
+        expect(loaderData).not.toHaveProperty('addressShape')
+        expect(JSON.stringify(loaderData)).not.toContain(token)
+      },
+    )
+
+    it('reads the page of a print code by the same lookup as any address', async () => {
+      mocks.getPublicPortal.mockResolvedValue(page('short'))
+
+      await getPublicPortal({ data: { token: PRINT_CODE } })
+
+      expect(mocks.getPublicPortal).toHaveBeenCalledWith(
+        expect.objectContaining({ token: PRINT_CODE }),
+      )
     })
   })
 })

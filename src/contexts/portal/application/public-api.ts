@@ -235,6 +235,11 @@ export type PublicPortalResult = Readonly<{
   guestSurface: GuestSurface
   /** The Immersive Hub's content: present exactly when `guestSurface` is 'immersive'. */
   immersive: PublicImmersiveExperience | null
+  /**
+   * Which shape of address opened the page: the long website address or a print
+   * code (ADR 0069). Content-free, for the page-read log; never the address itself.
+   */
+  addressShape: 'long' | 'short'
   organizationId: string
   propertyId: string
 }>
@@ -341,10 +346,21 @@ export type PortalPublicApi = Readonly<{
       acceptLanguage?: string | null
     }>,
   ) => Promise<PublicPortalByTokenOutcome>
-  /** Verifies a channel marker against its address and exact live publication. */
+  /**
+   * Whether a presented address is a print code (ADR 0069): shape only, no key and
+   * no lookup. A print code carries its own marker, so the guest scan classifier
+   * takes it as one.
+   */
+  isPrintCode: (rawToken: string) => boolean
+  /**
+   * Verifies a channel marker against its address and exact live publication. A
+   * print code needs no marker, since its channel is the hash column that matched;
+   * a marker it does claim must be that artifact's. A long address with no marker
+   * resolves to null, without a query.
+   */
   resolvePublishedAccessArtifact: (
     input: Readonly<{
-      accessArtifactId: PortalAccessArtifactId
+      accessArtifactId: PortalAccessArtifactId | null
       organizationId: OrganizationId
       propertyId: PropertyId
       portalId: PortalId

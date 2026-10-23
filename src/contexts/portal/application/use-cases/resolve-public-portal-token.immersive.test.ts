@@ -46,7 +46,12 @@ function setup({ snapshot = immersiveSnapshot(), ...deps }: Overrides = {}) {
   )
   const resolve = resolvePublicPortalToken({
     tokenCodec: {
-      digest: () => ({ tokenIdentifier: 'key', tokenHash: 'hash', tokenKeyVersion: 1 }),
+      digest: () => ({
+        kind: 'long',
+        tokenIdentifier: 'key',
+        tokenHash: 'hash',
+        tokenKeyVersion: 1,
+      }),
     },
     portalPublicationRepo: {
       resolveActiveByTokenDigest: async () => ({ token, snapshot }),

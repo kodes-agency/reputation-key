@@ -52,7 +52,13 @@ before it returns; its Operational Action History kind (`guest_feedback.moderate
 reserved (`docs/operations/operational-action-history.md`).
 
 A Qualified Scan is a server-verified QR/NFC Access Artifact observation, accepted
-once per signed session and Portal in a rolling 24-hour window. Its correction path
+once per signed session and Portal in a rolling 24-hour window. The observation names
+its artifact by the `?accessArtifact=` marker on a long address, or by the address
+itself when it is a print code (ADR 0069): the Portal public API says so from the
+address's shape (`isPrintCode`, no query), the classifier takes that as the marker
+(`markerImplied`), and the lookup reads the channel from the code. A visit with
+neither (a website or "Public address" visit) is still `access_artifact_missing`
+and never reaches the lookup. Its correction path
 is reserved: `GuestObservationStore.retractQualifiedScan` appends
 `guest.qualified_scan.retracted`, which Reporting's guest analytics consumes, but no
 use case calls it yet, so nothing emits the fact. Network Pressure Records are

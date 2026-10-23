@@ -16,6 +16,7 @@ describe('portal token codec', () => {
     expect(issued.tokenHash).toMatch(/^[a-f0-9]{64}$/)
     expect(issued.tokenHash).not.toContain(issued.rawToken)
     expect(codec.digest(issued.rawToken)).toEqual({
+      kind: 'long',
       tokenIdentifier: issued.tokenIdentifier,
       tokenHash: issued.tokenHash,
       tokenKeyVersion: 1,
@@ -143,35 +144,30 @@ describe('print code derivation', () => {
 
 describe('print code digest', () => {
   const codec = vectorCodec()
+  const short = (printCodeHash: string) => ({ kind: 'short', printCodeHash })
 
   it('hashes a code to what derivation stored', () => {
-    expect(codec.digestPrintCode(VECTOR.qr.printCode)).toEqual({
-      printCodeHash: VECTOR.qr.printCodeHash,
-    })
-    expect(codec.digestPrintCode(VECTOR.nfc.printCode)).toEqual({
-      printCodeHash: VECTOR.nfc.printCodeHash,
-    })
+    expect(codec.digest(VECTOR.qr.printCode)).toEqual(short(VECTOR.qr.printCodeHash))
+    expect(codec.digest(VECTOR.nfc.printCode)).toEqual(short(VECTOR.nfc.printCodeHash))
   })
 
   it('reads a code in any case, or with its look-alikes, as the same code', () => {
-    const expected = { printCodeHash: VECTOR.nfc.printCodeHash }
-    expect(codec.digestPrintCode(VECTOR.nfc.printCode.toLowerCase())).toEqual(expected)
-    expect(codec.digestPrintCode(VECTOR.nfc.printCode.replaceAll('0', 'O'))).toEqual(
-      expected,
-    )
+    const expected = short(VECTOR.nfc.printCodeHash)
+    expect(codec.digest(VECTOR.nfc.printCode.toLowerCase())).toEqual(expected)
+    expect(codec.digest(VECTOR.nfc.printCode.replaceAll('0', 'O'))).toEqual(expected)
   })
 
   it('reads I and L as 1', () => {
     const one = '1'.repeat(20)
     const look = 'IlLiL'.repeat(4)
-    expect(codec.digestPrintCode(look)).toEqual(codec.digestPrintCode(one))
+    expect(codec.digest(look)).toEqual(codec.digest(one))
   })
 
-  it('refuses everything that is not a print code, without hashing it', () => {
+  it('refuses everything that is neither address shape, without hashing it', () => {
     for (const raw of [
       '',
       'portal-1',
-      VECTOR.rawToken,
+      'pt_short_secret',
       VECTOR.qr.printCode.slice(1),
       VECTOR.qr.printCode + '2',
       'U' + VECTOR.qr.printCode.slice(1),
@@ -181,15 +177,21 @@ describe('print code digest', () => {
       'ﬁ' + VECTOR.qr.printCode.slice(1),
       '７' + VECTOR.qr.printCode.slice(1),
     ]) {
-      expect(codec.digestPrintCode(raw), raw).toBeNull()
+      expect(codec.digest(raw), raw).toBeNull()
     }
   })
 
-  it('does not read a long address as a print code, or the reverse', () => {
-    expect(codec.digest(VECTOR.qr.printCode)).toBeNull()
-    expect(codec.digest(VECTOR.qr.printCode.toLowerCase())).toBeNull()
-    expect(codec.digestPrintCode(VECTOR.rawToken)).toBeNull()
-    expect(codec.digest(VECTOR.rawToken)?.tokenHash).toBe(VECTOR.longTokenHash)
+  it('tells the two shapes apart by kind, and a long address keeps its digest', () => {
+    expect(codec.digest(VECTOR.qr.printCode)).toMatchObject({ kind: 'short' })
+    expect(codec.digest(VECTOR.rawToken)).toMatchObject({
+      kind: 'long',
+      tokenHash: VECTOR.longTokenHash,
+      tokenKeyVersion: 1,
+    })
+    // Nothing of the other shape rides along: a short digest has no long address
+    // columns, and a long digest has no print code hash.
+    expect(codec.digest(VECTOR.qr.printCode)).not.toHaveProperty('tokenHash')
+    expect(codec.digest(VECTOR.rawToken)).not.toHaveProperty('printCodeHash')
   })
 
   it('answers isPrintCode from the shape alone', () => {

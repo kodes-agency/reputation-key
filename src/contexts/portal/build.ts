@@ -682,6 +682,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         ? { status: 'found', result: outcome.data }
         : { status: 'unavailable' }
     },
+    isPrintCode: portalTokenCodec.isPrintCode,
     resolvePublishedAccessArtifact: ({
       rawToken,
       ...input

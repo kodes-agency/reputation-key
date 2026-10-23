@@ -22,7 +22,7 @@ import {
 } from '../public-portal-immersive'
 import type {
   PortalTokenCodec,
-  PortalTokenDigest,
+  PresentedAddressDigest,
 } from '../ports/portal-token-codec.port'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type {
@@ -115,7 +115,7 @@ export type GuestLocalePreference = Readonly<{
  */
 async function admitPublicPortalRequest(
   deps: ResolvePublicPortalTokenDeps,
-  digest: PortalTokenDigest,
+  digest: PresentedAddressDigest,
   now: Date,
 ): Promise<ResolvedPortalPublication | null> {
   const resolved = await deps.portalPublicationRepo.resolveActiveByTokenDigest(
@@ -447,6 +447,7 @@ export const resolvePublicPortalToken =
         immersive,
         organizationId: snapshot.organizationId,
         propertyId: snapshot.propertyId,
+        addressShape: digest.kind,
       },
     }
   }

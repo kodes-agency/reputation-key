@@ -81,8 +81,8 @@ alphabet are the card's for life, so the entropy has to be right the first time.
    which uppercasing or normalising would turn into ASCII, are not print codes.
    Then it is uppercased, `O` reads as `0` and `I`, `L` as `1`, and the result must
    match `^[0-9A-HJKMNP-TV-Z]{20}$` (`U` is not in the alphabet). The long shape
-   contains `_`, so the two shapes never overlap. `digest()` stays long-only; a
-   print code has its own digest.
+   contains `_`, so the two shapes never overlap. The codec's `digest()` answers for
+   both, tagged `kind` (`long` or `short`), and every consumer narrows on it.
 5. **Only keyed hashes are stored, on `portal_tokens`.** Migration 0070 adds
    nullable `qr_print_code_hash` and `nfc_print_code_hash` (64 lowercase hex, a
    CHECK each) with a partial unique index each. They sit on `portal_tokens`, which

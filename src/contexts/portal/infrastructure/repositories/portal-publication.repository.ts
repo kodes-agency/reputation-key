@@ -31,6 +31,7 @@ import type {
   PortalPendingContentChange,
   ResolvedPortalPublication,
 } from '../../application/ports/portal-publication.repository'
+import type { PresentedAddressDigest } from '../../application/ports/portal-token-codec.port'
 import { verifyPortalPublicationSnapshot } from '../../application/portal-publication-snapshot'
 import type {
   PortalPublicationActivation,
@@ -262,6 +263,26 @@ const resolvableTokenAsOf = (asOf: Date) =>
     eq(portalTokens.status, 'active'),
     and(eq(portalTokens.status, 'rotating'), gte(portalTokens.gracePeriodEnds, asOf)),
   )
+
+/**
+ * What ties a presented address to its code row. A long address is its three hash
+ * columns, as it has always been. A print code (ADR 0069) is its keyed hash in
+ * either channel's column: the page needs the row only, so the channel does not
+ * matter here.
+ */
+const addressMatch = (digest: PresentedAddressDigest) =>
+  digest.kind === 'short'
+    ? [
+        or(
+          eq(portalTokens.qrPrintCodeHash, digest.printCodeHash),
+          eq(portalTokens.nfcPrintCodeHash, digest.printCodeHash),
+        ),
+      ]
+    : [
+        eq(portalTokens.tokenIdentifier, digest.tokenIdentifier),
+        eq(portalTokens.tokenHash, digest.tokenHash),
+        eq(portalTokens.tokenKeyVersion, digest.tokenKeyVersion),
+      ]
 
 export const createPortalPublicationRepository = (
   db: Database,
@@ -634,9 +655,7 @@ export const createPortalPublicationRepository = (
         )
         .where(
           and(
-            eq(portalTokens.tokenIdentifier, digest.tokenIdentifier),
-            eq(portalTokens.tokenHash, digest.tokenHash),
-            eq(portalTokens.tokenKeyVersion, digest.tokenKeyVersion),
+            ...addressMatch(digest),
             resolvableTokenAsOf(asOf),
             lte(portalPublicationActivations.activatedAt, asOf),
             eq(portals.publicationState, 'published'),

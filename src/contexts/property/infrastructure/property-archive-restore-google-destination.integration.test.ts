@@ -50,6 +50,7 @@ const REVIEW_URI = 'https://search.google.com/local/writereview?placeid=archive-
 const RELINKED_REVIEW_URI =
   'https://search.google.com/local/writereview?placeid=archive-restore-relinked'
 const TOKEN_DIGEST = {
+  kind: 'long',
   tokenIdentifier: 'archiverestore01',
   // Globally unique by index: no other integration suite may reuse this hash.
   tokenHash: 'e7'.repeat(32),

@@ -4,6 +4,7 @@ import {
   guestPrivateFeedbackMutationDto,
   guestRatingFormDto,
   guestRatingMutationDto,
+  guestSecondaryLinkMutationDto,
 } from './guest-response-form.dto'
 
 describe('Guest response form DTOs', () => {
@@ -19,6 +20,32 @@ describe('Guest response form DTOs', () => {
         responseConsent: true,
         honeypot: '',
       }).success,
+    ).toBe(true)
+  })
+
+  it('takes a print code (ADR 0069) as the address on every mutation, as it takes a long one', () => {
+    const base = {
+      token: '7K3QZ0VD9MWX4HT2BN6R',
+      csrfNonce: '00000000-0000-4000-8000-000000000001',
+    }
+    expect(
+      guestRatingMutationDto.safeParse({
+        ...base,
+        rating: 5,
+        responseConsent: true,
+        honeypot: '',
+      }).success,
+    ).toBe(true)
+    expect(
+      guestPrivateFeedbackMutationDto.safeParse({
+        ...base,
+        text: 'Helpful stay.',
+        textConsent: true,
+        honeypot: '',
+      }).success,
+    ).toBe(true)
+    expect(
+      guestSecondaryLinkMutationDto.safeParse({ ...base, linkId: 'link-1' }).success,
     ).toBe(true)
   })
 

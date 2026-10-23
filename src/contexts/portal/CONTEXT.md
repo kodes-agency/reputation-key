@@ -355,11 +355,13 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   a retry). The address on the code comes through the audited reveal of the
   sealed code (ADR 0064), so a code that kept no address cannot be printed.
   The address is never printed as words: the code and its cue carry the action.
-  Print codes (ADR 0069) arrive in steps: the schema, the codec and the field
-  policy exist and nothing mints, stores or resolves one yet, so the print still
-  carries the long address. When minting is on, the reveal also derives the
-  code's print codes and the print and the QR download carry the short address;
-  "Public address" and "Open page" stay on the long one.
+  Print codes (ADR 0069) arrive in steps: the schema, the codec, the field
+  policy and resolution exist (the guest page, every guest mutation, the link
+  fallback and the scan beacon accept a print code already) and nothing mints,
+  stores or shows one yet, so the print still carries the long address. When
+  minting is on, the reveal also derives the code's print codes and the print and
+  the QR download carry the short address; "Public address" and "Open page" stay
+  on the long one.
 - **Print code.** The 20-character Crockford credential a printed QR or an NFC
   tag carries instead of the long address (ADR 0069): 100 bits, one per access
   artifact channel (qr, nfc), derived from the code's long address and that
@@ -464,6 +466,20 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
 
 `build.ts` is the sole composition root. Server adapters call Portal use cases;
 public token resolution returns only the current open, digest-verified snapshot.
+The codec's `digest()` answers for both address shapes, tagged by `kind`: a long
+address by its three hash columns, a print code (in any case, `O` as 0, `I` and `L`
+as 1) by its keyed hash. `resolveActiveByTokenDigest` is one statement for both: only
+the address equalities differ, `(qr_print_code_hash = $h OR nfc_print_code_hash =
+$h)` for a print code, under the same active-or-grace rule (the page opens through
+the instant grace ends). The scan lookup (`resolvePublishedAccessArtifact`) reuses its
+statement the same way: a print code names its artifact through the column that
+matched, so its channel needs no marker, and a marker it claims must be that
+artifact's, or the visit stays `direct`; a long address with no marker returns null
+before any query, and the guest classifier refuses it before that
+(`access_artifact_missing`). A counted scan needs the code strictly inside grace.
+`isPrintCode` (shape only) is how the guest knows a marker is implied, and the page
+read result carries `addressShape` (`long` or `short`, never the address) for the
+guest request log.
 Portal, Group, content, responsibility, and token commands use Portal-owned stores
 that commit state, revisions, receipts, and identifier-only outbox facts together.
 

@@ -25,6 +25,7 @@ const PROPERTY = propertyId('f7d00000-0000-4000-8000-000000000001')
 const PORTAL = portalId('f7e00000-0000-4000-8000-000000000001')
 const NOW = IMMERSIVE_FIXTURE_AT
 const TOKEN_DIGEST = {
+  kind: 'long',
   tokenIdentifier: 'immersivekey001',
   tokenHash: 'd7'.repeat(32),
   tokenKeyVersion: 1,
