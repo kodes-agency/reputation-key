@@ -2,6 +2,8 @@
 
 A reputation management platform built with TanStack Start, Better Auth, Drizzle ORM, and PostgreSQL.
 
+**Proprietary software. Copyright © 2026 Fortunatus EOOD. All rights reserved.** Reputation Key is not open source: no license is granted to use, copy, modify or distribute this code. See [`LICENSE`](LICENSE).
+
 **Authority:** [`docs/BETA.md`](docs/BETA.md) is the one page that governs the closed beta — what it is, what we owe Google and users, what the product does, and which rules are enforced by which test. It outranks every other document here.
 
 ## Quick Start

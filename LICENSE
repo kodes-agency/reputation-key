@@ -1,0 +1,328 @@
+REPUTATION KEY
+PROPRIETARY SOFTWARE
+
+Copyright © 2026 „Фортунатус“ ЕООД (Fortunatus EOOD). All rights reserved.
+
+THIS SOFTWARE IS PROPRIETARY AND CONFIDENTIAL. IT IS NOT OPEN SOURCE.
+NO LICENSE IS GRANTED BY THIS NOTICE OR BY ACCESS TO THIS REPOSITORY.
+
+This notice is made in English and Bulgarian. The Bulgarian text follows the
+English text. If the two texts differ, the Bulgarian text prevails.
+
+===============================================================================
+ENGLISH
+===============================================================================
+
+1. OWNER
+
+Reputation Key, including this repository and everything in it, is the sole
+and exclusive property of „Фортунатус“ ЕООД (Fortunatus EOOD), a
+single-member limited liability company entered in the Commercial Register
+and Register of Non-Profit Legal Entities of the Republic of Bulgaria under
+UIC 206094745, with its seat and registered address at 60 Kiril i Metodiy,
+floor 6, apt. 20, 6000 Stara Zagora, Bulgaria ("Fortunatus"). Fortunatus
+holds all exclusive rights in the Software (section 2) in every country,
+including all economic rights of copyright and all other intellectual
+property rights that subsist in it, and all rights in its trade secrets and
+other confidential information.
+
+2. WHAT THIS NOTICE COVERS
+
+"Software" means everything in this repository and in any copy, clone, fork,
+mirror, archive or extract of it, in any form or medium and in every past and
+future version, including source code, object code, compiled, bundled and
+minified code, database schemas and migrations, configuration and
+infrastructure definitions, scripts, tests and test data, AI prompts and
+evaluations, documentation, architecture records, designs, images and
+interface text, and the structure, sequence and organization of all of them.
+Third-party components are excluded (section 9).
+
+3. NOT OPEN SOURCE. NO LICENSE.
+
+The Software is not open-source, free or public-domain software and is not
+licensed under any public license. Fortunatus grants no license or other
+right in the Software, whether expressly, by implication, by estoppel or by
+conduct. Publishing or disclosing the Software, giving access to it, or not
+objecting to any use of it grants no right. A right to use the Software
+exists only under a separate written agreement signed by Fortunatus, and only
+to the extent that agreement expressly states. All rights not expressly
+granted in such an agreement are reserved.
+
+4. PUBLIC VISIBILITY ON GITHUB
+
+If this repository is or has been publicly visible on GitHub, no one has any
+right in the Software beyond the limited license that GitHub's Terms of
+Service require for public repositories: to use, display, perform and
+reproduce (by forking) the Software through the GitHub service as GitHub's
+functionality permits. That license exists only within GitHub. It gives no
+right to copy the Software outside GitHub, to use it in any product or
+service, or to modify or distribute it.
+
+5. RESTRICTIONS
+
+Unless a written agreement signed by Fortunatus expressly allows it, no one
+may, in whole or in part, directly or through anyone else:
+  (a) copy, reproduce, download, store or mirror the Software;
+  (b) translate, adapt or modify the Software or create derivative works of
+      it;
+  (c) publish, distribute, sell, rent, lend, sublicense, transfer, host or
+      otherwise make the Software available to anyone;
+  (d) use the Software to develop, train, test or improve any product,
+      service, dataset or artificial-intelligence model, or submit it to any
+      artificial-intelligence service, other than tools approved by
+      Fortunatus for work on the Software;
+  (e) reverse engineer, decompile or disassemble the Software; or
+  (f) remove, alter or obscure any copyright notice, trademark,
+      confidentiality legend or other proprietary notice.
+These restrictions apply to the fullest extent permitted by law. They do not
+limit any right that applicable law grants to a lawful user of a computer
+program and that cannot be excluded by agreement, including the rights under
+Article 5(2) and (3) and Article 6 of Directive 2009/24/EC and Article 71 of
+the Bulgarian Copyright and Neighbouring Rights Act.
+
+6. TEXT AND DATA MINING
+
+Fortunatus expressly reserves its rights against text and data mining of the
+Software, including for training artificial-intelligence models, and
+prohibits any such use, within the meaning of Article 4(3) of Directive (EU)
+2019/790 and Article 26e(4) of the Bulgarian Copyright and Neighbouring
+Rights Act.
+
+7. CONFIDENTIALITY AND TRADE SECRETS
+
+The Software contains trade secrets and other confidential information of
+Fortunatus, which Fortunatus protects by restricting access and by
+confidentiality obligations. Access is authorized only for employees,
+contractors and service providers of Fortunatus who are bound by a written
+agreement with Fortunatus covering confidentiality and intellectual
+property, and only for work done for Fortunatus. Anyone with access must keep
+the Software confidential, use it only for that work and not disclose it to
+anyone who is not also authorized. These obligations continue after the
+access ends.
+
+8. ACCESS WITHOUT AUTHORIZATION
+
+Anyone who has obtained any part of the Software without such authorization
+must not use, copy or disclose it, must delete every copy in their possession
+or control, and must notify Fortunatus at denev@kodes.agency without delay.
+
+9. THIRD-PARTY COMPONENTS
+
+The Software uses third-party components: the open-source packages listed in
+its package manifests (package.json and pnpm-lock.yaml) and third-party files
+that carry their own notices, such as the Unicode data in vendor/unicode.
+Each remains subject to its own license. This notice does not apply to those
+components and does not limit any right their licenses grant. No third-party
+license applies to the Software as a whole.
+
+10. CONTRIBUTIONS
+
+Fortunatus accepts contributions to the Software only under a written
+agreement by which the contributor transfers to Fortunatus the economic
+rights in the contribution, or grants Fortunatus an exclusive license of
+them, for the full term of protection and for every country. Submitting a
+contribution without such an agreement gives the contributor no right in the
+Software.
+
+11. TRADEMARKS
+
+"Reputation Key", "RepKey" and the related names and logos are trademarks of
+Fortunatus. No right to use them is granted.
+
+12. THE HOSTED SERVICE
+
+Use of the Reputation Key service is governed by the agreements Fortunatus
+concludes with its customers, not by this notice. Using the service gives no
+right in the Software.
+
+13. ENFORCEMENT
+
+Any use, copying, distribution or disclosure of the Software that this notice
+does not permit infringes the rights of Fortunatus and may lead to civil
+liability, including injunctions, damages and the seizure and destruction of
+infringing copies, and to criminal liability under the laws of the Republic
+of Bulgaria and other countries. A failure or delay by Fortunatus in
+enforcing its rights is not a waiver of them.
+
+14. GOVERNING LAW
+
+This notice is governed by the laws of the Republic of Bulgaria. Infringement
+of rights in the Software is governed by the law of the country for which
+protection is claimed. If any part of this notice is held invalid or
+unenforceable, the rest remains in effect.
+
+15. CONTACT
+
+Permissions, licensing requests and legal notices:
+„Фортунатус“ ЕООД (Fortunatus EOOD)
+60 Kiril i Metodiy, floor 6, apt. 20, 6000 Stara Zagora, Bulgaria
+denev@kodes.agency
+
+===============================================================================
+БЪЛГАРСКИ
+===============================================================================
+
+REPUTATION KEY
+СОБСТВЕНИЧЕСКИ СОФТУЕР
+
+© 2026 „Фортунатус“ ЕООД. Всички права запазени.
+
+ТОЗИ СОФТУЕР Е СОБСТВЕНИЧЕСКИ И ПОВЕРИТЕЛЕН. ТОЙ НЕ Е СОФТУЕР С ОТВОРЕН КОД.
+С НАСТОЯЩОТО УВЕДОМЛЕНИЕ ИЛИ С ДОСТЪПА ДО ТОВА ХРАНИЛИЩЕ НЕ СЕ ПРЕДОСТАВЯ
+ЛИЦЕНЗ.
+
+1. ПРИТЕЖАТЕЛ
+
+Reputation Key, включително това хранилище и цялото му съдържание, е
+изключителна собственост на „Фортунатус“ ЕООД, вписано в Търговския регистър и
+регистъра на юридическите лица с нестопанска цел на Република България с ЕИК
+206094745, със седалище и адрес на управление: гр. Стара Загора 6000,
+„Кирил и Методий“ № 60, ет. 6, ап. 20 („Фортунатус“). Фортунатус е носител
+на всички изключителни права върху Софтуера (раздел 2) във всички държави,
+включително на всички имуществени авторски права и другите права на
+интелектуална собственост, възникнали върху него, както и на правата върху
+търговската си тайна и другата си поверителна информация.
+
+2. ОБХВАТ
+
+„Софтуер“ означава цялото съдържание на това хранилище и на всяко негово
+копие, клонинг, разклонение (fork), огледално копие, архив или извадка, във
+всякаква форма и на всякакъв носител, във всичките му минали и бъдещи версии,
+включително изходен код, обектен код, компилиран, пакетиран и минимизиран
+код, схеми и миграции на бази данни, конфигурация и описания на
+инфраструктура, скриптове, тестове и тестови данни, подкани (prompts) и
+оценки за изкуствен интелект, документация, архитектурни решения, дизайни,
+изображения и текстове на интерфейса, както и структурата,
+последователността и организацията на всички тях. Компонентите на трети лица
+са изключени (раздел 9).
+
+3. НЕ Е СОФТУЕР С ОТВОРЕН КОД. НЯМА ЛИЦЕНЗ.
+
+Софтуерът не е софтуер с отворен код, свободен софтуер или обществено
+достояние и не е лицензиран при условията на какъвто и да е публичен лиценз.
+Фортунатус не предоставя лиценз или каквото и да е друго право върху
+Софтуера, нито изрично, нито мълчаливо, нито чрез конклудентни действия.
+Публикуването или разкриването на Софтуера, предоставянето на достъп до него
+или непротивопоставянето на използването му не създава права. Право на
+използване на Софтуера възниква само по силата на отделен писмен договор,
+подписан от Фортунатус, и само в изрично посочения в него обем. Всички права,
+които не са изрично предоставени с такъв договор, са запазени.
+
+4. ПУБЛИЧНА ВИДИМОСТ В GITHUB
+
+Ако това хранилище е или е било публично видимо в GitHub, никой няма права
+върху Софтуера извън ограничения лиценз, който Условията за ползване на
+GitHub изискват за публичните хранилища, а именно правото на потребителите на
+GitHub да използват, показват, изпълняват и възпроизвеждат (чрез
+разклоняване, fork) Софтуера посредством услугата GitHub, доколкото
+функционалността на GitHub позволява това. Този лиценз действа само
+в рамките на GitHub. Той не дава право Софтуерът да се копира извън GitHub, да
+се използва в какъвто и да е продукт или услуга, нито да се изменя или
+разпространява.
+
+5. ЗАБРАНИ
+
+Освен ако писмен договор, подписан от Фортунатус, изрично не го позволява,
+никой няма право, изцяло или отчасти, пряко или чрез другиго:
+  а) да копира, възпроизвежда, изтегля, съхранява или създава огледални
+     копия на Софтуера;
+  б) да превежда, преработва, адаптира или изменя Софтуера или да създава
+     производни произведения въз основа на него;
+  в) да публикува, разпространява, продава, отдава под наем, заема,
+     преотстъпва (сублицензира), прехвърля, хоства или по друг начин да
+     предоставя Софтуера на когото и да е;
+  г) да използва Софтуера за разработване, обучение, изпитване или
+     подобряване на какъвто и да е продукт, услуга, набор от данни или модел
+     на изкуствен интелект или да го подава към услуга с изкуствен интелект,
+     освен чрез инструменти, одобрени от Фортунатус за работа по Софтуера;
+  д) да извършва обратно проектиране (reverse engineering), декомпилиране
+     или дезасемблиране на Софтуера; или
+  е) да премахва, променя или прикрива уведомления за авторски права,
+     търговски марки, обозначения за поверителност или други уведомления за
+     права.
+Тези забрани се прилагат в най-пълния обем, допустим от закона. Те не
+ограничават правата, които приложимото право предоставя на лицето, законно
+придобило правото да използва компютърна програма, и които не могат да бъдат
+изключени с договор, включително правата по чл. 71 от Закона за авторското
+право и сродните му права и по член 5, параграфи 2 и 3 и член 6 от Директива
+2009/24/ЕО.
+
+6. АВТОМАТИЗИРАН АНАЛИЗ НА ТЕКСТ И ИНФОРМАЦИЯ
+
+Фортунатус изрично забранява използването на Софтуера за автоматизиран
+анализ на текст и информация (извличане на информация от текст и данни),
+включително за обучение на модели на изкуствен интелект, и запазва правата си
+по смисъла на чл. 26е, ал. 4 от Закона за авторското право и сродните му
+права и член 4, параграф 3 от Директива (ЕС) 2019/790.
+
+7. ПОВЕРИТЕЛНОСТ И ТЪРГОВСКА ТАЙНА
+
+Софтуерът съдържа търговска тайна и друга поверителна информация на
+Фортунатус, които Фортунатус защитава чрез ограничаване на достъпа и чрез
+задължения за поверителност. Право на достъп имат единствено служители,
+изпълнители и доставчици на услуги на Фортунатус, обвързани с писмен договор
+с Фортунатус, който урежда поверителността и интелектуалната собственост, и
+само за работа, извършвана за Фортунатус. Всеки, който има достъп, е длъжен
+да пази Софтуера в тайна, да го използва само за тази работа и да не го
+разкрива на лица, които нямат право на достъп. Тези задължения продължават да
+действат и след прекратяване на достъпа.
+
+8. ДОСТЪП БЕЗ ПРАВО
+
+Всеки, който е получил която и да е част от Софтуера без такова право, е
+длъжен да не я използва, копира или разкрива, да изтрие или унищожи всички
+копия, с които разполага или които контролира, и незабавно да уведоми
+Фортунатус на denev@kodes.agency.
+
+9. КОМПОНЕНТИ НА ТРЕТИ ЛИЦА
+
+Софтуерът използва компоненти на трети лица: пакетите с отворен код,
+посочени в манифестите му (package.json и pnpm-lock.yaml), и файловете на
+трети лица със собствени уведомления, като данните на Unicode във
+vendor/unicode. Всеки от тях остава подчинен на собствения си лиценз.
+Настоящото уведомление не се прилага за тези компоненти и не ограничава
+правата, които техните лицензи предоставят. Нито един лиценз на трето лице не
+се прилага за Софтуера като цяло.
+
+10. ПРИНОСИ
+
+Фортунатус приема приноси към Софтуера само по силата на писмен договор, с
+който приносителят прехвърля на Фортунатус имуществените права върху приноса
+или му отстъпва изключително право да го използва, за целия срок на закрила и
+за всички държави. Предоставянето на принос без такъв договор не създава за
+приносителя права върху Софтуера.
+
+11. ТЪРГОВСКИ МАРКИ
+
+„Reputation Key“, „RepKey“ и свързаните с тях наименования и логота са
+търговски марки на Фортунатус. Не се предоставя право за тяхното използване.
+
+12. УСЛУГАТА
+
+Използването на услугата Reputation Key се урежда от договорите, които
+Фортунатус сключва с клиентите си, а не от настоящото уведомление.
+Използването на услугата не създава права върху Софтуера.
+
+13. ЗАЩИТА НА ПРАВАТА
+
+Всяко използване, копиране, разпространение или разкриване на Софтуера, което
+настоящото уведомление не допуска, нарушава правата на Фортунатус и може да
+доведе до гражданска отговорност, включително преустановяване на
+нарушението, обезщетение, изземване и унищожаване на копията, както и до
+наказателна отговорност по законите на Република България и на други
+държави. Неупражняването или забавеното упражняване на права от страна на
+Фортунатус не представлява отказ от тях.
+
+14. ПРИЛОЖИМО ПРАВО
+
+Настоящото уведомление се урежда от законите на Република България.
+Нарушенията на правата върху Софтуера се уреждат от правото на държавата, за
+която се иска закрила. Ако някоя част от настоящото уведомление бъде обявена
+за недействителна или неприложима, останалите части продължават да действат.
+
+15. КОНТАКТ
+
+Разрешения, искания за лиценз и юридически уведомления:
+„Фортунатус“ ЕООД
+гр. Стара Загора 6000, „Кирил и Методий“ № 60, ет. 6, ап. 20
+denev@kodes.agency

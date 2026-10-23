@@ -1,6 +1,8 @@
 {
   "name": "reputation-key-runtime",
   "private": true,
+  "license": "UNLICENSED",
+  "author": "Fortunatus EOOD",
   "type": "module",
   "engines": {
     "node": "22.23.2"

@@ -1,6 +1,8 @@
 {
   "name": "reputation-key",
   "private": true,
+  "license": "UNLICENSED",
+  "author": "Fortunatus EOOD",
   "type": "module",
   "packageManager": "pnpm@10.6.5",
   "engines": {
