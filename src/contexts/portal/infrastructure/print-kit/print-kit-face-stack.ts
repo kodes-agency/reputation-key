@@ -1,4 +1,4 @@
-// The words of a redesigned face (spec 2.2): the place label, the largest type
+// The words of a face (spec 2.2): the place label, the largest type
 // on the face, with the second language's title small under it; the lead call to
 // action; and, with two languages, a rule and the second call to action. With
 // one language the rule sits between the place label and the call to action.

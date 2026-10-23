@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   printKitFaces,
   type PrintFace,
-  type PrintKitChoice,
+  type PrintKitWords,
 } from '#/shared/domain/portal-print-kit'
 import {
   CODE_BLOCK,
@@ -41,7 +41,7 @@ function newDocument() {
 }
 
 const faceOf = (
-  choice: Omit<PrintKitChoice, 'callToAction'> & { callToAction?: 'rate' | 'tell' },
+  choice: Omit<PrintKitWords, 'callToAction'> & { callToAction?: 'rate' | 'tell' },
   titles: Readonly<Record<string, string>> = POOL,
 ): PrintFace => {
   const [front] = printKitFaces({ callToAction: 'rate', ...choice }, titles, 'Portal')

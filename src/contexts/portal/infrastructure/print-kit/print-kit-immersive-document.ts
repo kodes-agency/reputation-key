@@ -29,7 +29,7 @@ import {
 } from './print-kit-immersive-face'
 import { drawPrintShopMarks } from './print-kit-marks'
 import {
-  drawStyledPages,
+  drawPrintPages,
   layoutFaces,
   type FaceLayouts,
   type PrintKitWarning,
@@ -140,7 +140,7 @@ export async function drawImmersivePrint(
   )
   const photos = await windowPhotos(doc, input, layouts, art.palette.field, warn)
   const letter = monogramLetter(input.wordmark)
-  drawStyledPages(
+  drawPrintPages(
     { doc, faces: input.faces, warn },
     pages,
     layouts,

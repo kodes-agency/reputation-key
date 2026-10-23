@@ -1,34 +1,25 @@
-// The Print kit section of the Share tab: which piece, in which languages, with
-// which call to action, the download, and how to print the piece (a table tent
-// needs a print shop; a counter card prints on A4 or Letter at actual size).
-// What is chosen drives the preview beside it; the PDF is made by the server
-// from the same choice.
+// The Print kit section of the Share tab, top to bottom as the share board draws
+// it (spec 7.2): what to make (style, piece, paper, languages, call to action),
+// the download with the file's name beside it, and how to print what was
+// chosen. What is chosen drives the preview beside it; the PDF is made by the
+// server from the same choice. Below `lg` the preview is handed in and sits
+// between the choices and the download, so a phone shows what it is about to
+// download first.
 
-import { Download, RectangleVertical, Triangle } from 'lucide-react'
-import type { ComponentType } from 'react'
+import { Download } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
-import { Label } from '#/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import { printKitFileName, type PrintKitChoice } from '#/shared/domain/portal-print-kit'
 import {
-  PRINT_KIT_CALLS_TO_ACTION,
-  PRINT_KIT_CALL_TO_ACTION_LABELS,
-  PRINT_KIT_PIECES,
   PRINT_KIT_PIECE_FACTS,
-  printKitLanguageChoices,
-  type PrintKitCallToAction,
-  type PrintKitChoice,
-  type PrintKitPiece,
-} from '#/shared/domain/portal-print-kit'
+  PRINT_KIT_STYLE_FACTS,
+  printKitHowToPrint,
+} from '#/shared/domain/portal-print-kit-pieces'
+import { PortalPrintKitControls } from './portal-print-kit-controls'
 import { PortalPrintKitHowTo } from './portal-print-kit-how-to'
-import { printKitHowToPrint } from './print-kit-how-to-print'
-import { languageChoiceLabel, printKitPrintAdvice } from './print-kit-state'
-
-const PIECE_ICONS: Readonly<
-  Record<PrintKitPiece, ComponentType<{ className?: string }>>
-> = { table_tent: Triangle, counter_card: RectangleVertical }
 
 type Props = Readonly<{
   /** Null while the Portal's languages and look are read. */
@@ -45,6 +36,8 @@ type Props = Readonly<{
   unavailableReason: string | null
   isWorking: boolean
   onDownload: () => void
+  /** The preview, when it sits in the section (below `lg`) rather than beside it. */
+  preview?: ReactNode
 }>
 
 export function PortalPrintKitSection({
@@ -58,16 +51,15 @@ export function PortalPrintKitSection({
   unavailableReason,
   isWorking,
   onDownload,
+  preview = null,
 }: Props) {
+  const ready = view !== null && choice !== null
   return (
     <section className="flex flex-col gap-5" aria-labelledby="print-kit-heading">
       <div className="flex flex-col gap-1">
         <h2 id="print-kit-heading" className="text-lg font-semibold">
           Print kit
         </h2>
-        <p className="text-sm text-muted-foreground">
-          A print-ready PDF with your code on it, with bleed and crop marks.
-        </p>
         <p className="text-sm text-muted-foreground">
           Prints use the version that is live now.
         </p>
@@ -80,35 +72,55 @@ export function PortalPrintKitSection({
           retrying={isRetrying}
         />
       )}
-      {view === null || choice === null ? (
-        !isError && <Loading />
+      {ready ? (
+        <PortalPrintKitControls
+          view={view}
+          choice={choice}
+          onChoiceChange={onChoiceChange}
+        />
       ) : (
-        <Controls view={view} choice={choice} onChoiceChange={onChoiceChange} />
+        !isError && <Loading />
       )}
       {unprintableNote !== null && (
         <p className="text-sm text-muted-foreground">{unprintableNote}</p>
       )}
+      {preview}
       <div className="flex flex-col gap-2">
-        <Button
-          type="button"
-          className="self-start"
-          disabled={view === null || choice === null || unavailableReason !== null}
-          pending={isWorking}
-          pendingLabel="Making the PDF…"
-          onClick={onDownload}
-        >
-          <Download /> Download print kit (PDF)
-        </Button>
-        {choice !== null && (
-          <p className="text-sm text-muted-foreground">
-            {printKitPrintAdvice(choice.piece)}
-          </p>
-        )}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Button
+            type="button"
+            disabled={!ready || unavailableReason !== null}
+            pending={isWorking}
+            pendingLabel="Making the PDF…"
+            aria-describedby={ready ? 'print-kit-file-name' : undefined}
+            onClick={onDownload}
+          >
+            <Download /> Download print kit (PDF)
+          </Button>
+          {ready && (
+            <span
+              id="print-kit-file-name"
+              className="min-w-0 text-[13px] break-all text-muted-foreground"
+            >
+              {printKitFileName(view.portalName, choice.piece, choice.languages, choice)}
+            </span>
+          )}
+        </div>
         {unavailableReason !== null && (
           <p className="text-sm text-muted-foreground">{unavailableReason}</p>
         )}
       </div>
-      {choice !== null && <PortalPrintKitHowTo steps={printKitHowToPrint(choice)} />}
+      {ready && (
+        <PortalPrintKitHowTo
+          title={`${PRINT_KIT_STYLE_FACTS[choice.style].label} ${PRINT_KIT_PIECE_FACTS[choice.style][choice.piece][choice.paper].noun}`}
+          steps={printKitHowToPrint(
+            choice.style,
+            choice.piece,
+            choice.paper,
+            choice.languages.length,
+          )}
+        />
+      )}
     </section>
   )
 }
@@ -123,113 +135,6 @@ function Loading() {
       <Skeleton className="h-21 w-full" />
       <Skeleton className="h-5 w-2/3" />
       <Skeleton className="h-5 w-1/2" />
-    </div>
-  )
-}
-
-function Controls({
-  view,
-  choice,
-  onChoiceChange,
-}: Readonly<{
-  view: PortalPrintKitView
-  choice: PrintKitChoice
-  onChoiceChange: (choice: PrintKitChoice) => void
-}>) {
-  const languageChoices = printKitLanguageChoices(view.locales)
-  return (
-    <>
-      <RadioGroup
-        aria-label="Piece"
-        className="grid grid-cols-2 gap-2"
-        value={choice.piece}
-        onValueChange={(piece) =>
-          onChoiceChange({ ...choice, piece: piece as PrintKitPiece })
-        }
-      >
-        {PRINT_KIT_PIECES.map((piece) => (
-          <PieceCard key={piece} piece={piece} />
-        ))}
-      </RadioGroup>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-medium">Languages on the print</legend>
-        <RadioGroup
-          aria-label="Languages on the print"
-          className="flex flex-wrap gap-x-5 gap-y-2"
-          value={choice.languages.join('+')}
-          onValueChange={(joined) =>
-            onChoiceChange({
-              ...choice,
-              languages:
-                languageChoices.find((languages) => languages.join('+') === joined) ??
-                choice.languages,
-            })
-          }
-        >
-          {languageChoices.map((languages) => (
-            <Option
-              key={languages.join('+')}
-              id={`print-kit-languages-${languages.join('-')}`}
-              value={languages.join('+')}
-              label={languageChoiceLabel(languages)}
-            />
-          ))}
-        </RadioGroup>
-      </fieldset>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-medium">Call to action</legend>
-        <RadioGroup
-          aria-label="Call to action"
-          value={choice.callToAction}
-          onValueChange={(callToAction) =>
-            onChoiceChange({
-              ...choice,
-              callToAction: callToAction as PrintKitCallToAction,
-            })
-          }
-        >
-          {PRINT_KIT_CALLS_TO_ACTION.map((callToAction) => (
-            <Option
-              key={callToAction}
-              id={`print-kit-cta-${callToAction}`}
-              value={callToAction}
-              label={PRINT_KIT_CALL_TO_ACTION_LABELS[callToAction]}
-            />
-          ))}
-        </RadioGroup>
-      </fieldset>
-    </>
-  )
-}
-
-function PieceCard({ piece }: Readonly<{ piece: PrintKitPiece }>) {
-  const Icon = PIECE_ICONS[piece]
-  const facts = PRINT_KIT_PIECE_FACTS[piece]
-  const id = `print-kit-piece-${piece}`
-  return (
-    <Label
-      htmlFor={id}
-      className="relative flex min-h-21 cursor-pointer flex-col items-start justify-end gap-0.5 rounded-md border p-3 font-normal has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
-    >
-      <Icon className="absolute top-3 left-3 size-5 text-muted-foreground" />
-      <RadioGroupItem value={piece} id={id} className="absolute top-3 right-3" />
-      <span className="text-[13px] font-medium">{facts.label}</span>
-      <span className="text-xs text-muted-foreground">{facts.sizeLabel}</span>
-    </Label>
-  )
-}
-
-function Option({
-  id,
-  value,
-  label,
-}: Readonly<{ id: string; value: string; label: string }>) {
-  return (
-    <div className="flex items-center gap-2">
-      <RadioGroupItem value={value} id={id} />
-      <Label htmlFor={id} className="font-normal">
-        {label}
-      </Label>
     </div>
   )
 }

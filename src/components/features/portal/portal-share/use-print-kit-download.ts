@@ -28,6 +28,8 @@ export function usePrintKitDownload({ portalId, choice, downloadMutation }: Inpu
       const file = await downloadMutation({
         data: {
           portalId,
+          style: choice.style,
+          paper: choice.paper,
           piece: choice.piece,
           languages: [...choice.languages],
           callToAction: choice.callToAction,

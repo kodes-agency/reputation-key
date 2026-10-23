@@ -13,6 +13,7 @@ export type PortalEditorResources = Omit<
   | 'historyReads'
   | 'makeVersionLiveMutation'
   | 'propertyTimeZone'
+  | 'propertyCountryCode'
   | 'issueTokenMutation'
   | 'rotateTokenMutation'
   | 'revokeTokenMutation'

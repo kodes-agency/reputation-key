@@ -1,4 +1,4 @@
-// The redesigned print, as the Whole sheet and One face previews will show it:
+// The print, as the Whole sheet and One face previews show it:
 // each style, piece and paper, from the same pages and measures the PDF draws.
 // The sheet is shown at 25/48 of its size, as the board shows it, so Letter's
 // 8.5 in is 425 px and the bar under each code, 2 in, is 100 px.

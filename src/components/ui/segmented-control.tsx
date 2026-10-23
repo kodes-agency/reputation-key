@@ -50,6 +50,8 @@ type Props = Naming &
      * chips a dense toolbar wants.
      */
     touch?: boolean
+    /** The line that says more about the choice (the paper size's note), by its id. */
+    'aria-describedby'?: string
     className?: string
   }>
 
@@ -70,6 +72,7 @@ export function SegmentedControl({
       disabled={disabled}
       aria-label={props['aria-label']}
       aria-labelledby={props['aria-labelledby']}
+      aria-describedby={props['aria-describedby']}
       className={cn(SEGMENTED_CONTROL_CLASS, className)}
     >
       {options.map((option) => (

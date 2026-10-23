@@ -1,61 +1,24 @@
 // The colours of one print, from the property's look. Shared by the PDF and the
-// Share tab's preview, so both paint the same card.
+// Share tab's preview, so both paint the same card (spec 3).
 //
-// The field is the guest page's own dark field, so light text clears AAA on it
-// whatever the accent (portal-field-colour.ts). The accent is used for text only
-// where it reads on the field, and the two washes are the guest backdrop's, so a
-// printed card and the page it opens look like one thing.
-//
-// Two palettes live here. `printKitPalette` is today's, for the one Immersive-like
-// face the PDF draws now. `printKitStylePalette` is the redesign's (spec 3): one
-// palette per style, derived from the accent by the formulas the design boards
-// use, with the contrast each token is held to named beside it.
+// One palette per style, derived from the accent by the formulas the design
+// boards use, with the contrast each token is held to named beside it. Immersive
+// keeps the guest page's own dark field, so light text clears AAA on it whatever
+// the accent (portal-field-colour.ts), and the two washes are the guest
+// backdrop's, so a printed card and the page it opens look like one thing. Paper
+// prints no background: the paper is the customer's.
 
 import {
-  IMMERSIVE_TEXT_COLOUR,
   contrastRatio,
   deriveBackdropTones,
   deriveFieldColour,
-  isAccentReadableOnField,
   mixColour,
   nudgeLightness,
   parseHexColour,
   relativeLuminance,
   toneOnTone,
 } from './portal-field-colour'
-import { PLATE_INK, PLATE_PAPER } from './portal-print-kit-layout'
 import type { PrintKitStyle } from './portal-print-kit'
-
-export type PrintKitPalette = Readonly<{
-  field: string
-  headline: string
-  body: string
-  /** The small line above the call to action. */
-  kicker: string
-  /** The washes painted over the field. */
-  warm: string
-  cool: string
-  /** The code and the paper under it: fixed, so any phone reads it. */
-  plateInk: string
-  platePaper: string
-}>
-
-export function printKitPalette(accent: string, field: string): PrintKitPalette {
-  const tones = deriveBackdropTones(accent, field)
-  return {
-    field,
-    headline: '#FFFFFF',
-    body: IMMERSIVE_TEXT_COLOUR,
-    kicker: isAccentReadableOnField(accent, field) ? accent : IMMERSIVE_TEXT_COLOUR,
-    warm: tones?.warm ?? field,
-    cool: tones?.cool ?? field,
-    plateInk: PLATE_INK,
-    platePaper: PLATE_PAPER,
-  }
-}
-
-// ---------------------------------------------------------------------------
-// The redesign's palettes (spec 3).
 
 /** The ink of every Paper face and of the code's modules. */
 export const PRINT_KIT_INK = '#121614'
@@ -132,7 +95,7 @@ export type ImmersivePrintKitPalette = BarColours &
     cool: string
   }>
 
-export type PrintKitStylePalette = PaperPrintKitPalette | ImmersivePrintKitPalette
+export type PrintKitPalette = PaperPrintKitPalette | ImmersivePrintKitPalette
 
 /** The bar of the code block: its text, and its fill held at 4.5:1 against that text. */
 function barColours(accent: string): BarColours {
@@ -237,26 +200,26 @@ export function logoNeedsCreamPlate(luminance: number | null): boolean {
 }
 
 /** The palette of one style, from the property's accent and field. */
-export function printKitStylePalette(
+export function printKitPalette(
   accent: string,
   field: string | null,
   style: 'paper',
 ): PaperPrintKitPalette
-export function printKitStylePalette(
+export function printKitPalette(
   accent: string,
   field: string | null,
   style: 'immersive',
 ): ImmersivePrintKitPalette
-export function printKitStylePalette(
+export function printKitPalette(
   accent: string,
   field: string | null,
   style: PrintKitStyle,
-): PrintKitStylePalette
-export function printKitStylePalette(
+): PrintKitPalette
+export function printKitPalette(
   accent: string,
   field: string | null,
   style: PrintKitStyle,
-): PrintKitStylePalette {
+): PrintKitPalette {
   return style === 'paper'
     ? paperPrintKitPalette(accent)
     : immersivePrintKitPalette(accent, field)

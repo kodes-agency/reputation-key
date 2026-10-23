@@ -121,6 +121,7 @@ async function setup(options: Options = {}) {
 }
 
 const choice = {
+  style: 'paper',
   piece: 'table_tent',
   languages: ['en', 'bg'],
   callToAction: 'rate',
@@ -133,7 +134,7 @@ describe('createPortalPrintKit', () => {
     const result = await make({ portalId: portal.id, ...choice }, buildTestAuthContext())
 
     expect(result).toEqual({
-      fileName: 'harbor-lobby-table-tent-en-bg.pdf',
+      fileName: 'harbor-lobby-table-tent-en-bg-letter.pdf',
       contentType: 'application/pdf',
       pdf: PDF,
     })
@@ -149,14 +150,6 @@ describe('createPortalPrintKit', () => {
     expect(input?.title).toBe('Harbor lobby table tent')
   })
 
-  it('draws today’s print, and reads no country, when the request names no style', async () => {
-    const { portal, make, rendered, propertyCountry } = await setup({ country: 'US' })
-    await make({ portalId: portal.id, ...choice, paper: 'a4' }, buildTestAuthContext())
-    expect(rendered[0]).not.toHaveProperty('style')
-    expect(rendered[0]).not.toHaveProperty('paper')
-    expect(propertyCountry).not.toHaveBeenCalled()
-  })
-
   it.each([
     ['the US', 'US', 'letter'],
     ['Mexico', 'MX', 'letter'],
@@ -167,7 +160,7 @@ describe('createPortalPrintKit', () => {
     async (_label, country, paper) => {
       const { portal, make, rendered, propertyCountry } = await setup({ country })
       const ctx = buildTestAuthContext()
-      const file = await make({ portalId: portal.id, ...choice, style: 'paper' }, ctx)
+      const file = await make({ portalId: portal.id, ...choice }, ctx)
       expect(rendered[0]).toMatchObject({ style: 'paper', paper })
       expect(file.fileName).toBe(`harbor-lobby-table-tent-en-bg-${paper}.pdf`)
       expect(propertyCountry).toHaveBeenCalledWith(ctx.organizationId, portal.propertyId)
@@ -181,7 +174,6 @@ describe('createPortalPrintKit', () => {
         portalId: portal.id,
         ...choice,
         piece: 'counter_card',
-        style: 'paper',
         paper: 'a4',
       },
       buildTestAuthContext(),
@@ -189,6 +181,16 @@ describe('createPortalPrintKit', () => {
     expect(rendered[0]).toMatchObject({ style: 'paper', paper: 'a4' })
     expect(file.fileName).toBe('harbor-lobby-counter-card-en-bg-a4.pdf')
     expect(propertyCountry).not.toHaveBeenCalled()
+  })
+
+  it('passes Immersive to the renderer on the property’s paper, and names the file for it', async () => {
+    const { portal, make, rendered } = await setup({ country: 'BG' })
+    const file = await make(
+      { portalId: portal.id, ...choice, piece: 'counter_card', style: 'immersive' },
+      buildTestAuthContext(),
+    )
+    expect(rendered[0]).toMatchObject({ style: 'immersive', paper: 'a4' })
+    expect(file.fileName).toBe('harbor-lobby-counter-card-en-bg-immersive-a4.pdf')
   })
 
   it('reads the address through the audited reveal, as a download', async () => {

@@ -1,9 +1,11 @@
-// The print kit's vocabulary: which pieces it has, what they say, and how a sheet
-// is laid out.
+// The print kit's vocabulary: its styles, papers and pieces, what a print says,
+// and the choice a download asks for. How the sheets are laid out is
+// `portal-print-kit-sheets.ts`; what each piece is called and how to print it is
+// `portal-print-kit-pieces.ts`.
 //
 // Pure and shared, because the Share tab's preview (a React tree) and the PDF
 // the server makes (round 4, slice 45) must agree on every word and every
-// measure: neither asks the other, both read this file.
+// measure: neither asks the other, both read these files.
 //
 // The copy is industry-neutral on purpose ("visit", never "stay"): a barber, a
 // restaurant and a hotel pool all print the same card. es, it, fr and de are
@@ -15,6 +17,10 @@ import type { GuestLocale } from './guest-locale'
 
 export const PRINT_KIT_PIECES = Object.freeze(['table_tent', 'counter_card'] as const)
 export type PrintKitPiece = (typeof PRINT_KIT_PIECES)[number]
+
+/** The short name of each piece, in captions and in file names. */
+export const PRINT_KIT_PIECE_NOUNS: Readonly<Record<PrintKitPiece, string>> =
+  Object.freeze({ table_tent: 'table tent', counter_card: 'counter card' })
 
 export const PRINT_KIT_CALLS_TO_ACTION = Object.freeze(['rate', 'tell'] as const)
 export type PrintKitCallToAction = (typeof PRINT_KIT_CALLS_TO_ACTION)[number]
@@ -70,35 +76,14 @@ export function defaultPrintKitPaper(countryCode: string | null): PrintKitPaper 
   return code === '' || LETTER_COUNTRIES.has(code) ? 'letter' : 'a4'
 }
 
-/** The redesigned print a download asks for: its look and the paper it prints on. */
+/** The print a download asks for: its look and the paper it prints on. */
 export type PrintKitFormat = Readonly<{ style: PrintKitStyle; paper: PrintKitPaper }>
 
 /** One or two languages on a print: more would crowd an A6 face. */
 export const PRINT_KIT_MAX_LANGUAGES = 2
 
-/** The extra paper past the trim that a cutter may shave: 3 mm is the common ask. */
-export const PRINT_KIT_BLEED_MM = 3
-
 /** The light margin round a printed code, in modules: what a phone needs to find it. */
 export const PRINT_KIT_QR_QUIET_ZONE_MODULES = 4
-
-/** An A6 panel, in millimetres. */
-export const A6_WIDTH_MM = 105
-export const A6_HEIGHT_MM = 148
-
-export type PrintKitPieceFacts = Readonly<{
-  label: string
-  /** What the manager is told about its size and shape. */
-  sizeLabel: string
-  /** The short name used in captions and file names. */
-  noun: string
-}>
-
-export const PRINT_KIT_PIECE_FACTS: Readonly<Record<PrintKitPiece, PrintKitPieceFacts>> =
-  Object.freeze({
-    table_tent: { label: 'Table tent', sizeLabel: 'A6, folded', noun: 'table tent' },
-    counter_card: { label: 'Counter card', sizeLabel: 'A6', noun: 'counter card' },
-  })
 
 export type PrintKitCopy = Readonly<{ headline: string; subline: string }>
 
@@ -160,11 +145,17 @@ export const PRINT_KIT_SCAN_CUE: Readonly<Record<GuestLocale, string>> = Object.
 })
 
 export type PrintKitChoice = Readonly<{
+  /** The look, and the paper family it prints on (Letter or A4). */
+  style: PrintKitStyle
+  paper: PrintKitPaper
   piece: PrintKitPiece
   /** One or two of the portal's languages; the first is the larger. */
   languages: readonly GuestLocale[]
   callToAction: PrintKitCallToAction
 }>
+
+/** What decides what a print says: the piece, its languages and its call to action. */
+export type PrintKitWords = Pick<PrintKitChoice, 'piece' | 'languages' | 'callToAction'>
 
 /**
  * The language selections a portal's languages offer: its primary with each
@@ -219,7 +210,7 @@ export type PrintFace = Readonly<{
  * has a back only when there is a second language to put on it.
  */
 export function printKitFaces(
-  choice: PrintKitChoice,
+  choice: PrintKitWords,
   titles: Readonly<Partial<Record<GuestLocale, string>>>,
   fallbackTitle: string,
 ): readonly PrintFace[] {
@@ -236,53 +227,6 @@ export function printKitFaces(
   return choice.piece === 'table_tent' ? [front, { side: 'back', blocks }] : [front]
 }
 
-export type PrintSheetPanel = Readonly<{
-  side: PrintFaceSide
-  /** Where the panel starts down the sheet's trim. */
-  topMm: number
-  /** Printed upside down, so it reads upright after the fold. */
-  rotated: boolean
-}>
-
-export type PrintSheet = Readonly<{
-  trimWidthMm: number
-  trimHeightMm: number
-  panels: readonly PrintSheetPanel[]
-  /** Where the sheet folds, down the trim; null for a flat card. */
-  foldAtMm: number | null
-}>
-
-/**
- * The pages of the PDF. A table tent is one flat sheet of two A6 panels that
- * folds across the middle (the back panel upside down); a counter card is one
- * flat A6 page per face.
- */
-export function printKitSheets(
-  piece: PrintKitPiece,
-  faceCount: number,
-): readonly PrintSheet[] {
-  if (piece === 'table_tent') {
-    return [
-      {
-        trimWidthMm: A6_WIDTH_MM,
-        trimHeightMm: A6_HEIGHT_MM * 2,
-        panels: [
-          { side: 'back', topMm: 0, rotated: true },
-          { side: 'front', topMm: A6_HEIGHT_MM, rotated: false },
-        ],
-        foldAtMm: A6_HEIGHT_MM,
-      },
-    ]
-  }
-  const sides: readonly PrintFaceSide[] = ['front', 'back']
-  return sides.slice(0, faceCount).map((side) => ({
-    trimWidthMm: A6_WIDTH_MM,
-    trimHeightMm: A6_HEIGHT_MM,
-    panels: [{ side, topMm: 0, rotated: false }],
-    foldAtMm: null,
-  }))
-}
-
 /**
  * `pool-terrace-table-tent-en-bg.pdf`: the portal's name made safe for a file
  * system, the piece and the languages on it, in the order they print. Two
@@ -290,21 +234,18 @@ export function printKitSheets(
  * English alone) must not share a name: the browser would call the second one
  * "(1)" and the print shop would have to guess which is which.
  *
- * A redesigned print ends with its paper, `…-en-es-letter.pdf`, and Immersive
- * names itself before it, `…-en-es-immersive-letter.pdf` (spec 7.2): Paper is
- * the default style, so it goes unnamed.
+ * A print ends with its paper, `…-en-es-letter.pdf`, and Immersive names itself
+ * before it, `…-en-es-immersive-letter.pdf` (spec 7.2): Paper is the default
+ * style, so it goes unnamed.
  */
 export function printKitFileName(
   portalName: string,
   piece: PrintKitPiece,
   languages: readonly GuestLocale[],
-  format?: PrintKitFormat,
+  format: PrintKitFormat,
 ): string {
-  const noun = PRINT_KIT_PIECE_FACTS[piece].noun.replace(/\s+/gu, '-')
-  const look =
-    format === undefined
-      ? []
-      : [...(format.style === 'immersive' ? ['immersive'] : []), format.paper]
+  const noun = PRINT_KIT_PIECE_NOUNS[piece].replace(/\s+/gu, '-')
+  const look = [...(format.style === 'immersive' ? ['immersive'] : []), format.paper]
   return (
     [fileNameSlug(portalName) || 'portal', noun, ...languages, ...look].join('-') + '.pdf'
   )

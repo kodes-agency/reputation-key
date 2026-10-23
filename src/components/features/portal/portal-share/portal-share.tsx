@@ -9,7 +9,7 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalCodeBlock } from './portal-code-block'
 import { PortalLinkIssueForm } from './portal-link-issue-form'
 import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
-import { PortalPrintKitPreview } from './portal-print-kit-preview'
+import { PortalPrintKitPreviewSlot } from './portal-print-kit-preview-slot'
 import { PortalPrintKitSection } from './portal-print-kit-section'
 import { PortalLinkReveal } from './portal-link-reveal'
 import {
@@ -62,7 +62,6 @@ export function PortalShare(props: PortalShareProps) {
     download: printKitDownload,
     unavailableReason,
   } = usePortalPrintKit(props, view)
-
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
       <FullBleedFrame
@@ -160,6 +159,13 @@ export function PortalShare(props: PortalShareProps) {
             unavailableReason={unavailableReason}
             isWorking={printKitDownload.isWorking}
             onDownload={() => void printKitDownload.download()}
+            preview={
+              <PortalPrintKitPreviewSlot
+                where="inline"
+                printKit={printKit}
+                qrAddress={publicUrl}
+              />
+            }
           />
         )}
 
@@ -168,17 +174,10 @@ export function PortalShare(props: PortalShareProps) {
         </p>
       </FullBleedFrame>
       {showPrintKit && (
-        <PortalPrintKitPreview
-          piece={printKit.choice?.piece ?? 'table_tent'}
-          view={printKit.view}
-          faces={printKit.faces}
-          face={printKit.face}
-          side={printKit.side}
-          onSideChange={printKit.setSide}
+        <PortalPrintKitPreviewSlot
+          where="column"
+          printKit={printKit}
           qrAddress={publicUrl}
-          isError={printKit.isError}
-          onRetry={printKit.retry}
-          isRetrying={printKit.isRetrying}
         />
       )}
     </div>

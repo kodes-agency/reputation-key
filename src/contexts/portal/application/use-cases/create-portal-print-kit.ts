@@ -25,7 +25,7 @@ import {
   isPrintKitLanguageChoice,
   printKitFaces,
   printKitFileName,
-  PRINT_KIT_PIECE_FACTS,
+  PRINT_KIT_PIECE_NOUNS,
   type PrintKitFormat,
 } from '#/shared/domain/portal-print-kit'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -120,15 +120,16 @@ async function readStoredImage(
 }
 
 /**
- * The style and paper a download asked for, the paper defaulting to the one the
- * Property's country prints on; null for today's print, which names no style.
+ * The style and paper a download asked for: the style is Paper unless the request
+ * says otherwise (the schema's default), and the paper is the one the Property's
+ * country prints on unless the request names one, Letter when the country is
+ * unknown (spec 7.1). The country is read only when the paper is not named.
  */
 async function formatOf(
   deps: Pick<CreatePortalPrintKitDeps, 'propertyCountry'>,
   input: DownloadPortalPrintKitInput,
   scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
-): Promise<PrintKitFormat | null> {
-  if (input.style === undefined) return null
+): Promise<PrintKitFormat> {
   const paper =
     input.paper ??
     defaultPrintKitPaper(
@@ -176,7 +177,7 @@ export const createPortalPrintKit =
       context.portalName,
     )
     const pdf = await deps.renderer.render({
-      title: `${context.portalName} ${PRINT_KIT_PIECE_FACTS[input.piece].noun}`,
+      title: `${context.portalName} ${PRINT_KIT_PIECE_NOUNS[input.piece]}`,
       piece: input.piece,
       ...format,
       faces,
@@ -195,7 +196,7 @@ export const createPortalPrintKit =
         context.portalName,
         input.piece,
         input.languages,
-        format ?? undefined,
+        format,
       ),
       contentType: 'application/pdf',
       pdf,

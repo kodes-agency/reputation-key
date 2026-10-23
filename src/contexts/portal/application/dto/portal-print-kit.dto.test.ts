@@ -49,9 +49,10 @@ describe('downloadPortalPrintKitInputSchema', () => {
     expect(parse({ style: 'immersive' }).data?.paper).toBeUndefined()
   })
 
-  it('leaves the style out of a request that names none: that is today’s print', () => {
+  it('makes a request that names no style a Paper request', () => {
     const parsed = downloadPortalPrintKitInputSchema.parse(valid)
-    expect(parsed.style).toBeUndefined()
+    expect(parsed.style).toBe('paper')
+    expect(parsed.paper).toBeUndefined()
   })
 
   it.each([

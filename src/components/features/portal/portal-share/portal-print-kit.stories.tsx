@@ -1,7 +1,8 @@
 // fallow-ignore-file code-duplication
-// The Share tab's Print kit (round 4, slice 45; board 06): the pieces, the
-// languages, the call to action and the download, with the print drawn beside
-// them. The server makes the PDF; a story hands the download a small file.
+// The Share tab's Print kit, as the share board draws it (spec 7.2): the style,
+// the piece, the paper beside the languages, the call to action, the download
+// with its file's name and how to print, with the sheet drawn beside it. The
+// server makes the PDF; a story hands the download a small file.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
@@ -74,7 +75,7 @@ const action = <TInput, TOutput = unknown>(
 
 /** The smallest file that is still a PDF: enough for the browser to save. */
 const TINY_PDF: PortalPrintKitDownload = {
-  fileName: 'pool-terrace-table-tent-en-bg.pdf',
+  fileName: 'pool-terrace-counter-card-en-bg-letter.pdf',
   contentType: 'application/pdf',
   pdfBase64: btoa('%PDF-1.3\n%%EOF'),
 }
@@ -99,6 +100,8 @@ const baseArgs = {
   onAddressRevealed: fn(),
   onLinksRevoked: fn(),
   ...mutations,
+  // A US property: Letter paper.
+  countryCode: 'US',
   printKit: { read: async () => view(), downloadMutation: downloadMutation() },
 }
 
@@ -112,10 +115,37 @@ const meta: Meta<typeof PortalShare> = {
 export default meta
 type Story = StoryObj<typeof PortalShare>
 
-const preview = (canvasElement: HTMLElement) =>
-  within(canvasElement).findByRole('img', { name: /print preview/i })
+type Canvas = ReturnType<typeof within>
 
-export const TableTent: Story = {
+/** The whole-sheet or one-face picture: whichever the preview shows. */
+const preview = (canvasElement: HTMLElement) =>
+  within(canvasElement).findByRole('img', {
+    name: /print preview|letter ·|a4 ·|print shop/i,
+  })
+
+const radio = (canvas: Canvas, name: string | RegExp) =>
+  canvas.getByRole('radio', { name })
+
+/** A "How to print" step by its words: a stressed phrase splits the text, so match the whole line. */
+const step = (canvas: Canvas, words: RegExp) =>
+  canvas.getByText((_text: string, element: Element | null) => {
+    return (
+      element?.tagName === 'SPAN' &&
+      element.classList.contains('text-pretty') &&
+      words.test(element.textContent ?? '')
+    )
+  })
+
+/** Picks the languages from the select; its list opens outside the canvas. */
+async function pickLanguages(canvas: Canvas, option: string) {
+  await userEvent.click(canvas.getByRole('combobox', { name: 'Languages on the print' }))
+  await userEvent.click(
+    await within(document.body).findByRole('option', { name: option }),
+  )
+}
+
+/** What the section starts with, as the board draws it: Paper on Letter, a counter card, English and Bulgarian, asking for a rating. */
+export const PaperOnLetterByDefault: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -126,89 +156,287 @@ export const TableTent: Story = {
     await expect(
       canvas.getByText('Prints use the version that is live now.'),
     ).toBeVisible()
-    const front = await preview(canvasElement)
-    await expect(front).toHaveAccessibleName(
-      /table tent, front, English and Bulgarian, "Rate your visit"/i,
-    )
-    await expect(canvas.getByText(/table tent a6 · front · 105 × 148 mm/i)).toBeVisible()
-    await expect(canvas.getByText(/3 mm bleed and crop marks/i)).toBeVisible()
-    await expect(within(front).getByText('Оценете посещението си')).toBeInTheDocument()
-    // No address is on the print as words (owner decision D2): the code carries it.
-    await expect(within(front).queryByText(/reputationkey/i)).toBeNull()
-    await expect(within(front).queryByText(/pt_AbCdEfGhIjKl/)).toBeNull()
-    await expect(within(front).queryByText(/accessArtifact/i)).toBeNull()
-    // The tent's sheet is taller than office paper: it goes to a print shop.
+    await expect(canvas.queryByText(/bleed and crop marks\.$/i)).toBeNull()
+    await expect(radio(canvas, /^Paper/)).toBeChecked()
+    await expect(radio(canvas, /^Immersive/)).not.toBeChecked()
+    await expect(radio(canvas, /^Counter card/)).toBeChecked()
+    await expect(canvas.getByText('4 × 6 in · 2 on a Letter sheet')).toBeVisible()
+    await expect(canvas.getByText('Letter, folded in half')).toBeVisible()
+    await expect(radio(canvas, 'Letter')).toBeChecked()
     await expect(
       canvas.getByText(
-        /table tent needs a print shop: its sheet is larger than A4 or Letter\. Ask them to print it at 100% \(actual size\)/i,
+        /^Letter prints two 4\s×\s6\sin cards per sheet\. A4 prints four A6 cards\.$/,
       ),
     ).toBeVisible()
-    await expect(canvas.queryByText(/your own printer/i)).toBeNull()
-  },
-}
-
-export const BackLeadsWithTheSecondLanguage: Story = {
-  args: baseArgs,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('radio', { name: 'Back' }))
+    await expect(
+      canvas.getByRole('combobox', { name: 'Languages on the print' }),
+    ).toHaveTextContent('English + Български')
+    await expect(radio(canvas, /rate your visit/i)).toBeChecked()
+    // The file's name is shown beside the button, and the button names it.
+    await expect(
+      canvas.getByText('pool-terrace-counter-card-en-bg-letter.pdf'),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: /download print kit \(pdf\)/i }),
+    ).toHaveAccessibleDescription('pool-terrace-counter-card-en-bg-letter.pdf')
+    // The whole sheet is the preview, and its picture says what it is.
     await expect(await preview(canvasElement)).toHaveAccessibleName(
-      /table tent, back, Bulgarian and English, "Оценете посещението си"/i,
+      /^Letter · two 4 × 6 in counter cards · page 1 of 2, fronts/i,
     )
-    await expect(canvas.getByText(/table tent a6 · back/i)).toBeVisible()
+    await expect(radio(canvas, 'Whole sheet')).toBeChecked()
   },
 }
 
-/** "How to print" is closed until asked, then says what the chosen piece needs, and stays open as the piece changes. */
-export const HowToPrintFollowsThePiece: Story = {
+/** The country, not the browser, says A4: a property in Bulgaria starts on A4 paper. */
+export const A4ForAnEuropeanProperty: Story = {
+  args: { ...baseArgs, countryCode: 'BG' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(await canvas.findByRole('radio', { name: 'A4' })).toBeChecked()
+    await expect(canvas.getByText('A6 · 4 on an A4 sheet')).toBeVisible()
+    await expect(canvas.getByText('A4, folded in half')).toBeVisible()
+    await expect(canvas.getByText('pool-terrace-counter-card-en-bg-a4.pdf')).toBeVisible()
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      /^A4 · four A6 counter cards/i,
+    )
+  },
+}
+
+/** No country recorded: Letter, since most customers print on it. */
+export const LetterWhenTheCountryIsUnknown: Story = {
+  args: { ...baseArgs, countryCode: null },
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole('radio', { name: 'Letter' }),
+    ).toBeChecked()
+  },
+}
+
+/** The manager's paper beats the country's, and what the cards say follows it. */
+export const ChoosingAPaperChangesWhatThePiecesAre: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const summary = await canvas.findByText('How to print')
-    await expect(canvas.getByText(/scored at the fold/i)).not.toBeVisible()
-    await userEvent.click(summary)
-    await expect(
-      canvas.getByText('Ask for 300–350 g matte or uncoated card, scored at the fold.'),
-    ).toBeVisible()
-    await expect(
-      canvas.getByText('Fold at the dashed marks, with the print on the outside.'),
-    ).toBeVisible()
+    await expect(await canvas.findByText('4 × 6 in · 2 on a Letter sheet')).toBeVisible()
+    await userEvent.click(radio(canvas, 'A4'))
+    await expect(canvas.getByText('A6 · 4 on an A4 sheet')).toBeVisible()
+    await expect(canvas.getByText('A4, folded in half')).toBeVisible()
+    await expect(canvas.getByText('pool-terrace-counter-card-en-bg-a4.pdf')).toBeVisible()
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      /^A4 · four A6 counter cards · page 1 of 2, fronts/i,
+    )
+  },
+}
 
-    await userEvent.click(canvas.getByRole('radio', { name: /counter card/i }))
-    // English and Bulgarian are two pages of one card.
-    await expect(
-      canvas.getByText(/print double-sided, flipping on the long edge/i),
-    ).toBeVisible()
-    await expect(canvas.queryByText(/scored at the fold/i)).toBeNull()
+/** The paper control is described by the one line under it. */
+export const PaperSizeIsDescribedByItsNote: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const group = await canvas.findByRole('radiogroup', { name: 'Paper size' })
+    await expect(group).toHaveAccessibleDescription(
+      /Letter prints two 4\s×\s6\sin cards per sheet/,
+    )
+  },
+}
 
-    await userEvent.click(canvas.getByRole('radio', { name: 'Български' }))
-    await expect(canvas.queryByText(/double-sided/i)).toBeNull()
+/** A table tent folds a Letter or A4 sheet in half: its faces, its steps and its name follow the paper. */
+export const TableTentOnA4: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: /^Table tent/ }))
+    await expect(canvas.getByText('Letter, folded in half')).toBeVisible()
     await expect(
-      canvas.getByText('Print at 100% (actual size), never “fit to page”.'),
+      canvas.getByText(
+        /^Letter folds into two 8\.5\s×\s5\.5\sin faces\. A4 folds into two A5 faces\.$/,
+      ),
+    ).toBeVisible()
+    await userEvent.click(radio(canvas, 'A4'))
+    await expect(canvas.getByText('A4, folded in half')).toBeVisible()
+    await expect(canvas.getByText('pool-terrace-table-tent-en-bg-a4.pdf')).toBeVisible()
+    await expect(
+      step(canvas, /^Use 160–200\sg\/m² matte card .* in an A5-landscape holder\.$/),
+    ).toBeVisible()
+    await expect(
+      step(canvas, /^Fold on the grey ticks; the fold line stays blank\.$/),
+    ).toBeVisible()
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      /^A4 · table tent, folded in half to two A5 faces/i,
+    )
+  },
+}
+
+/** A counter card on Letter: the five steps, the Bulgarian backs on a second page. */
+export const CounterCardOnLetter: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText(/^How to print · Paper counter card$/),
+    ).toBeVisible()
+    for (const line of [
+      /^Print at Actual size \(100%\)\. Never “Fit to page”\.$/,
+      /^Check the size: the coloured bar under each code measures 2\sin \(5\.1\scm\)\.$/,
+      /^Two languages print double-sided: flip on the long edge\.$/,
+      /^Use 65–110\slb cover card stock if your printer takes it, or plain paper in a 4\s×\s6\sin sign holder\.$/,
+      /^Cut down on the three grey ticks, then across 6\sin from the top edge\.$/,
+    ]) {
+      await expect(step(canvas, line)).toBeVisible()
+    }
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      /^Letter · two 4 × 6 in counter cards · page 1 of 2, fronts/i,
+    )
+    await expect(
+      canvas.getByText(/Page 2 holds the backs, Bulgarian first\./),
     ).toBeVisible()
   },
 }
 
+/** The share board's own state: Avela's counter card in English and Spanish, on Letter. */
+export const CounterCardInEnglishAndSpanish: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () =>
+        view({
+          locales: ['en', 'es'],
+          titles: { en: 'Pool & Terrace', es: 'Piscina y terraza' },
+        }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByRole('combobox', { name: 'Languages on the print' }),
+    ).toHaveTextContent('English + Español')
+    await expect(
+      canvas.getByText('pool-terrace-counter-card-en-es-letter.pdf'),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText(/Page 2 holds the backs, Spanish first\./),
+    ).toBeVisible()
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      /^Letter · two 4 × 6 in counter cards · page 1 of 2, fronts/i,
+    )
+  },
+}
+
+/** One language: a card has no back, so no double-sided step and no Back to look at. */
 export const CounterCardInOneLanguage: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('radio', { name: /counter card/i }))
-    await userEvent.click(canvas.getByRole('radio', { name: 'Български' }))
+    await expect(await canvas.findByRole('radio', { name: 'Back' })).toBeInTheDocument()
+    await pickLanguages(canvas, 'Български')
+    await userEvent.click(radio(canvas, /how was your visit\? tell us privately/i))
+    await expect(canvas.queryByRole('radio', { name: 'Back' })).toBeNull()
+    await expect(canvas.queryByText(/double-sided/i)).toBeNull()
+    await expect(
+      canvas.getByText('pool-terrace-counter-card-bg-letter.pdf'),
+    ).toBeVisible()
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      /two 4 × 6 in counter cards · page 1 of 1, fronts/i,
+    )
+  },
+}
+
+/** Immersive is for a print shop: its own piece lines, steps and file name, and its size family. */
+export const ImmersiveIsForAPrintShop: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: /^Immersive/ }))
+    await expect(canvas.getByText('4 × 6 in · print shop')).toBeVisible()
+    await expect(canvas.getByText('4 × 6 in, folded · print shop')).toBeVisible()
+    await expect(
+      canvas.getByText('Letter makes 4 × 6 in pieces. A4 makes A6 pieces.'),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText(/^How to print · Immersive counter card$/),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText('Made for a print shop. Send the PDF as it is.'),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText(/Convert to CMYK with your profile\. Field as a warm rich black/),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText('pool-terrace-counter-card-en-bg-immersive-letter.pdf'),
+    ).toBeVisible()
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      /4 × 6 in counter card for a print shop, with bleed and crop marks · page 1 of 2, front/i,
+    )
+    await userEvent.click(radio(canvas, /^Table tent/))
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      /table tent for a print shop, 4 × 12 in flat with bleed and crop marks/i,
+    )
+    await userEvent.click(radio(canvas, 'A4'))
+    await expect(canvas.getByText('A6, folded · print shop')).toBeVisible()
+    await expect(canvas.getByText(/Cards 350\sg\/m²/)).toBeVisible()
+  },
+}
+
+/** "How to print" is open until the manager closes it, and stays as they left it as the choice changes. */
+export const HowToPrintStaysAsLeft: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const summary = await canvas.findByText(/^How to print · Paper counter card$/)
+    await expect(canvas.getByText(/Cut down on the three grey ticks/)).toBeVisible()
+    await userEvent.click(summary)
+    await expect(canvas.getByText(/Cut down on the three grey ticks/)).not.toBeVisible()
+    await userEvent.click(canvas.getByRole('radio', { name: /^Table tent/ }))
+    // Closed it stays, with the new title.
+    await expect(canvas.getByText(/^How to print · Paper table tent$/)).toBeVisible()
+    await expect(canvas.getByText(/Fold on the grey ticks/)).not.toBeVisible()
+  },
+}
+
+/** One face is the face as it prints; the Back switch is for a print with two sides. */
+export const OneFaceAndItsBack: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
+    const front = await preview(canvasElement)
+    await expect(front).toHaveAccessibleName(
+      /4 × 6 in counter card, front, English and Bulgarian, "Rate your visit"/i,
+    )
+    await expect(canvas.getByText(/4\s×\s6\sin counter card · front/)).toBeVisible()
+    await expect(within(front).getByText('Оценете посещението си')).toBeInTheDocument()
+    // No address is on the print as words (owner decision D2): the code carries it.
+    await expect(within(front).queryByText(/reputationkey/i)).toBeNull()
+    await expect(within(front).queryByText(/accessArtifact/i)).toBeNull()
+    await userEvent.click(canvas.getByRole('radio', { name: 'Back' }))
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      /counter card, back, Bulgarian and English, "Оценете посещението си"/i,
+    )
+  },
+}
+
+/** The same Back switch turns the whole sheet to its second page. */
+export const BackIsTheSecondPageOfACard: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'Back' }))
+    await expect(await preview(canvasElement)).toHaveAccessibleName(/page 2 of 2, backs/i)
+  },
+}
+
+export const CallToActionIsOnThePrint: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
     await userEvent.click(
       canvas.getByRole('radio', { name: /how was your visit\? tell us privately/i }),
     )
-    await expect(await preview(canvasElement)).toHaveAccessibleName(
-      /counter card, front, Bulgarian, "Как мина посещението ви\?"/i,
-    )
-    // One language on a counter card is one side: nothing to switch.
-    await expect(canvas.queryByRole('radio', { name: 'Back' })).toBeNull()
-    await expect(canvas.getByText(/one A6 page per side/i)).toBeVisible()
-    await expect(
-      canvas.getByText(
-        /print the counter card on A4 or Letter at 100% \(actual size\), not “fit to page”/i,
-      ),
-    ).toBeVisible()
+    const front = await preview(canvasElement)
+    await expect(within(front).getByText('How was your visit?')).toBeInTheDocument()
+    await expect(within(front).getByText('Tell us privately')).toBeInTheDocument()
   },
 }
 
@@ -231,19 +459,21 @@ export const LongCopyShrinksAsInTheFile: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
     await userEvent.click(
-      await canvas.findByRole('radio', {
-        name: /how was your visit\? tell us privately/i,
-      }),
+      canvas.getByRole('radio', { name: /how was your visit\? tell us privately/i }),
     )
     const front = await preview(canvasElement)
     const headline = within(front).getByText('Comment s’est passée votre visite ?')
-    // The full two-language size, as a share of the card's width (28.5 pt on a 125 mm page).
-    const fullSize = (28.5 * (25.4 / 72) * 100) / 125
-    await expect(Number.parseFloat(headline.style.fontSize)).toBeLessThan(fullSize)
+    // The two-language headline is 18 pt on a 4 × 6 in card, 288 pt wide: the full scale is 6.25 cqw.
+    const fullSize = (18 * 100) / 288
+    await expect(Number.parseFloat(headline.style.fontSize)).toBeLessThanOrEqual(
+      fullSize + 0.01,
+    )
   },
 }
 
+/** The photograph is the Immersive print's window; Paper has none. */
 export const WithThePropertyPhoto: Story = {
   args: {
     ...baseArgs,
@@ -263,7 +493,15 @@ export const WithThePropertyPhoto: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await expect(await preview(canvasElement)).toBeInTheDocument()
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: /^Immersive/ }))
+    await userEvent.click(canvas.getByRole('radio', { name: 'One face' }))
+    const front = await preview(canvasElement)
+    await expect(front.querySelector(`img[src="${PHOTO}"]`)).not.toBeNull()
+    await userEvent.click(canvas.getByRole('radio', { name: /^Paper/ }))
+    await expect(
+      (await preview(canvasElement)).querySelector(`img[src="${PHOTO}"]`),
+    ).toBeNull()
   },
 }
 
@@ -278,21 +516,16 @@ export const LongBrandAndTitle: Story = {
             en: 'Spa & Wellness Centre Reception Desk and Lobby',
             bg: 'Басейн и тераса',
           },
-          look: {
-            wordmark: 'Kempinski Hotel Grand Arena Bansko',
-            accentColour: '#EAD6A8',
-            fieldColour: '#15110D',
-            heroUrl: PHOTO,
-            heroFocal: { x: 0.7, y: 0.3 },
-            logoUrl: null,
-          },
+          look: { ...view().look, wordmark: 'Kempinski Hotel Grand Arena Bansko' },
         }),
       downloadMutation: downloadMutation(),
     },
   },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
     const front = await preview(canvasElement)
-    for (const word of [/KEMPINSKI/u, /BANSKO/u, /SPA & WELLNESS/u, /RECEPTION DESK/u]) {
+    for (const word of [/Kempinski/u, /Bansko/u, /Spa & Wellness Centre/u]) {
       await expect(within(front).getByText(word)).toBeInTheDocument()
     }
   },
@@ -314,9 +547,10 @@ export const CharactersTheFontsLackAreLeftOutAndNamed: Story = {
         'These characters will not print, because the print kit’s fonts don’t have them: Α Θ Ή Ν.',
       ),
     ).toBeVisible()
+    await userEvent.click(canvas.getByRole('radio', { name: 'One face' }))
     const front = await preview(canvasElement)
-    await expect(within(front).getByText('HOTEL')).toBeInTheDocument()
-    await expect(within(front).queryByText(/ΑΘ/u)).toBeNull()
+    await expect(within(front).getByText('Hotel')).toBeInTheDocument()
+    await expect(within(front).queryByText(/Αθ/u)).toBeNull()
   },
 }
 
@@ -325,31 +559,28 @@ export const TrackedLinesKeepEveryLetterSeparate: Story = {
   args: {
     ...baseArgs,
     printKit: {
-      read: async () =>
-        view({
-          titles: { en: 'Trattoria Terrace', bg: 'Басейн и тераса' },
-          look: { ...view().look, wordmark: 'Trattoria' },
-        }),
+      read: async () => view({ look: { ...view().look, wordmark: 'Trattoria' } }),
       downloadMutation: downloadMutation(),
     },
   },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
     const front = within(await preview(canvasElement))
     const ligatures = (element: HTMLElement) =>
       getComputedStyle(element).fontVariantLigatures
-    // The wordmark and the title above the call to action are tracked capitals.
-    await expect(ligatures(front.getByText('TRATTORIA'))).toBe('none')
-    await expect(ligatures(front.getByText('TRATTORIA TERRACE'))).toBe('none')
+    await expect(ligatures(front.getByText('Trattoria'))).toBe('none')
     // Running words keep the font's own.
     await expect(ligatures(front.getByText('Rate your visit'))).toBe('normal')
   },
 }
 
+/** The download is asked for by style and paper, always: the server's defaults are for anyone else. */
 export const DownloadsThePdf: Story = {
   args: baseArgs,
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('radio', { name: 'Български' }))
+    await pickLanguages(canvas, 'Български')
     const button = await canvas.findByRole('button', {
       name: /download print kit \(pdf\)/i,
     })
@@ -360,8 +591,36 @@ export const DownloadsThePdf: Story = {
       expect(download).toHaveBeenCalledWith({
         data: {
           portalId: 'portal-1',
-          piece: 'table_tent',
+          style: 'paper',
+          paper: 'letter',
+          piece: 'counter_card',
           languages: ['bg'],
+          callToAction: 'rate',
+        },
+      }),
+    )
+  },
+}
+
+export const DownloadsTheChosenStyleAndPaper: Story = {
+  args: { ...baseArgs, countryCode: 'BG' },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: /^Immersive/ }))
+    await userEvent.click(radio(canvas, /^Counter card/))
+    await userEvent.click(radio(canvas, 'Letter'))
+    await userEvent.click(
+      canvas.getByRole('button', { name: /download print kit \(pdf\)/i }),
+    )
+    const download = args.printKit?.downloadMutation as unknown as ReturnType<typeof fn>
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith({
+        data: {
+          portalId: 'portal-1',
+          style: 'immersive',
+          paper: 'letter',
+          piece: 'counter_card',
+          languages: ['en', 'bg'],
           callToAction: 'rate',
         },
       }),
@@ -420,10 +679,35 @@ export const OneLanguageOnly: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(await canvas.findByRole('radio', { name: 'Deutsch' })).toBeChecked()
-    await expect(await preview(canvasElement)).toHaveAccessibleName(
-      /table tent, front, German, "Bewerten Sie Ihren Besuch"/i,
+    await expect(
+      await canvas.findByRole('combobox', { name: 'Languages on the print' }),
+    ).toHaveTextContent('Deutsch')
+    await expect(
+      canvas.getByText('pool-terrace-counter-card-de-letter.pdf'),
+    ).toBeVisible()
+  },
+}
+
+/** A phone sees the sheet before the download, and the choices wrap to one column. */
+export const PhoneShowsThePrintBeforeTheDownload: Story = {
+  args: baseArgs,
+  globals: { viewport: { value: 'mobileStaff', isRotated: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const sheet = await preview(canvasElement)
+    const download = canvas.getByRole('button', { name: /download print kit \(pdf\)/i })
+    // The preview comes first in the page, and there is only one of it.
+    await expect(
+      sheet.compareDocumentPosition(download) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    await expect(canvas.getAllByRole('img', { name: /^Letter ·/i })).toHaveLength(1)
+    // Nothing of the section runs past the phone's edge.
+    const section = canvas.getByRole('region', { name: 'Print kit' })
+    const edge = document.documentElement.clientWidth
+    const past = [section, ...section.querySelectorAll('*')].filter(
+      (element) => element.getBoundingClientRect().right > edge + 1,
     )
+    await expect(past).toHaveLength(0)
   },
 }
 

@@ -10,7 +10,7 @@ import type { PrintKitStyle } from '#/shared/domain/portal-print-kit'
 import { cueLinesFor } from '#/shared/domain/portal-print-kit-code-block'
 import {
   PRINT_KIT_PAPER,
-  printKitStylePalette,
+  printKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { PrintKitCodeBlock } from './print-kit-code-block'
@@ -27,7 +27,7 @@ type Specimen = Readonly<{
 /** One code block on the surface its style prints on: the paper, or the property's field. */
 function Block({ style, accent, locales }: Specimen) {
   const codeUrl = usePrintKitCode(null)
-  const palette = printKitStylePalette(accent, null, style)
+  const palette = printKitPalette(accent, null, style)
   const surface = palette.style === 'paper' ? PRINT_KIT_PAPER : palette.field
   return (
     <div

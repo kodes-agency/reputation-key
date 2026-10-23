@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { PrintKitRenderInput } from '../../application/ports/portal-print-kit-renderer.port'
 import {
   printKitFaces,
-  type PrintKitChoice,
+  type PrintKitWords,
   type PrintKitPaper,
 } from '#/shared/domain/portal-print-kit'
 import { createPdfKitPrintKitRenderer } from './pdfkit-print-kit-renderer'
@@ -22,12 +22,12 @@ function rendererWith(warnings: PrintKitWarning[] = []) {
 }
 
 const choice = (
-  piece: PrintKitChoice['piece'],
-  languages: PrintKitChoice['languages'],
-): PrintKitChoice => ({ piece, languages, callToAction: 'rate' })
+  piece: PrintKitWords['piece'],
+  languages: PrintKitWords['languages'],
+): PrintKitWords => ({ piece, languages, callToAction: 'rate' })
 
 function immersiveInput(
-  picked: PrintKitChoice,
+  picked: PrintKitWords,
   paper: PrintKitPaper,
   overrides: Partial<PrintKitRenderInput> = {},
 ): PrintKitRenderInput {

@@ -5,7 +5,7 @@ import {
   PRINT_KIT_PAPERS,
   PRINT_KIT_PIECES,
   printKitFaces,
-  type PrintKitChoice,
+  type PrintKitWords,
   type PrintKitPaper,
 } from '#/shared/domain/portal-print-kit'
 import { createPdfKitPrintKitRenderer } from './pdfkit-print-kit-renderer'
@@ -24,7 +24,7 @@ function rendererWith(warnings: PrintKitWarning[] = []) {
 }
 
 function paperInput(
-  choice: PrintKitChoice,
+  choice: PrintKitWords,
   paper: PrintKitPaper,
   overrides: Partial<PrintKitRenderInput> = {},
 ): PrintKitRenderInput {
@@ -53,8 +53,8 @@ const boxes = (text: string, name: string): number[][] =>
   )
 
 const choice = (
-  piece: PrintKitChoice['piece'],
-  languages: PrintKitChoice['languages'],
+  piece: PrintKitWords['piece'],
+  languages: PrintKitWords['languages'],
 ) => ({
   piece,
   languages,
@@ -117,21 +117,5 @@ describe('a Paper print', () => {
     expect(text.startsWith('%PDF-1.4')).toBe(true)
     expect(warnings).toHaveLength(1)
     expect(warnings[0]?.context).toMatchObject({ minimumDpi: 150 })
-  })
-
-  it('draws today’s file when the request names no style', async () => {
-    const input = paperInput(choice('counter_card', ['en']), 'letter')
-    const { style: _style, paper: _paper, ...legacy } = input
-    const text = await render(legacy)
-    expect(text).toMatch(/\/BleedBox/u)
-    expect(text).toContain('mm bleed')
-  })
-
-  it('refuses a style with no paper to print it on', async () => {
-    const { paper: _paper, ...input } = paperInput(
-      choice('counter_card', ['en']),
-      'letter',
-    )
-    await expect(rendererWith().render(input)).rejects.toThrow(/no paper/u)
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
-import { printKitFaces, type PrintKitChoice } from '#/shared/domain/portal-print-kit'
+import { printKitFaces, type PrintKitWords } from '#/shared/domain/portal-print-kit'
 import { FIT } from '#/shared/domain/portal-print-kit-measures'
 import { immersivePrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import {
@@ -12,7 +12,7 @@ import {
 const POOL = { en: 'Pool & Terrace', es: 'Piscina y terraza', bg: 'Басейн и тераса' }
 
 const frontOf = (
-  choice: PrintKitChoice,
+  choice: PrintKitWords,
   titles: Readonly<Record<string, string>> = POOL,
 ) => {
   const [front] = printKitFaces(choice, titles, 'Portal')
@@ -21,10 +21,10 @@ const frontOf = (
 }
 
 const choice = (
-  piece: PrintKitChoice['piece'],
-  languages: PrintKitChoice['languages'],
-  callToAction: PrintKitChoice['callToAction'] = 'rate',
-): PrintKitChoice => ({ piece, languages, callToAction })
+  piece: PrintKitWords['piece'],
+  languages: PrintKitWords['languages'],
+  callToAction: PrintKitWords['callToAction'] = 'rate',
+): PrintKitWords => ({ piece, languages, callToAction })
 
 const look = (logoUrl: string | null = null): PortalPrintKitView['look'] => ({
   wordmark: 'Avela',

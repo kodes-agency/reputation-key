@@ -1,4 +1,4 @@
-// The sheets of the redesigned print kit (spec 4.3, 4.4, 5.1 and 6): which
+// The sheets of the print kit (spec 4.3, 4.4, 5.1 and 6): which
 // pages a piece prints on, how big each page is, where each face sits on it, and
 // the marks round them. Pure and shared, like the measures it is built from: the
 // PDF draws these pages and the Share tab's Whole sheet preview draws the same
@@ -11,9 +11,6 @@
 // Paper prints on the customer's own sheet, at Actual size: no bleed, so the
 // trim is the page, and the only marks are grey ticks. Immersive is for a print
 // shop: one trim per page with a bleed and a slug round it for crop marks.
-//
-// Today's file is still drawn from `printKitSheets` in `portal-print-kit.ts`
-// when a download names no style; these pages are what a style draws from.
 
 import type {
   PrintFaceSide,

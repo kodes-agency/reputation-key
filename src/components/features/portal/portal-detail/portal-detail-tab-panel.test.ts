@@ -1,8 +1,9 @@
 // The tab panel forwards what the route loaded to the Share and Results tabs.
 // Both tabs are correct on their own (they have stories), so a prop the panel
 // forgot to pass fails no other test: the Share tab went without its notice, its
-// time zone and the managers' names, and Results without whether the page is
-// live. The two tabs are recorded here rather than rendered.
+// time zone, its country (the print kit's paper) and the managers' names, and
+// Results without whether the page is live. The two tabs are recorded here rather
+// than rendered.
 
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -57,6 +58,7 @@ function propsFor(
     portal: { id: 'portal-1', name: 'Pool', propertyId: 'property-1', publicationState },
     propertyId: 'property-1',
     propertyTimeZone: 'Europe/Sofia',
+    propertyCountryCode: 'BG',
     tokenStatus: TOKEN,
     responsibleManagers: {
       assignments: [{ userId: 'u1' }],
@@ -100,6 +102,15 @@ describe('the Share tab', () => {
     render(propsFor('share'))
 
     expect(shares[0]).toMatchObject({ timeZone: 'Europe/Sofia' })
+  })
+
+  it('is given the property’s country, so the print kit starts on the paper that country uses', () => {
+    render(propsFor('share'))
+    expect(shares[0]).toMatchObject({ countryCode: 'BG' })
+
+    shares.length = 0
+    render(propsFor('share', { propertyCountryCode: null }))
+    expect(shares[0]).toMatchObject({ countryCode: null })
   })
 
   it('names the responsible managers for someone who can only look', () => {

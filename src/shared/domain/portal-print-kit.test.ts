@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GUEST_LOCALES } from './guest-locale'
 import {
-  PRINT_KIT_BLEED_MM,
   PRINT_KIT_CALLS_TO_ACTION,
   PRINT_KIT_COPY,
   PRINT_KIT_LETTER_COUNTRIES,
@@ -14,7 +13,6 @@ import {
   printKitFaces,
   printKitFileName,
   printKitLanguageChoices,
-  printKitSheets,
 } from './portal-print-kit'
 
 const TITLES = { en: 'Pool & Terrace', bg: 'Басейн и тераса' } as const
@@ -132,39 +130,9 @@ describe('printKitFaces', () => {
   })
 })
 
-describe('printKitSheets', () => {
-  it('lays a table tent out as one folded sheet of two A6 panels, the back upside down', () => {
-    const [sheet, ...others] = printKitSheets('table_tent', 2)
-    expect(others).toEqual([])
-    expect(sheet).toEqual({
-      trimWidthMm: 105,
-      trimHeightMm: 296,
-      panels: [
-        { side: 'back', topMm: 0, rotated: true },
-        { side: 'front', topMm: 148, rotated: false },
-      ],
-      foldAtMm: 148,
-    })
-  })
-
-  it('gives a counter card one A6 page per face', () => {
-    const sheets = printKitSheets('counter_card', 2)
-    expect(sheets).toHaveLength(2)
-    expect(sheets.map((sheet) => [sheet.trimWidthMm, sheet.trimHeightMm])).toEqual([
-      [105, 148],
-      [105, 148],
-    ])
-    expect(sheets.map((sheet) => sheet.panels[0]?.side)).toEqual(['front', 'back'])
-    expect(sheets.every((sheet) => sheet.foldAtMm === null)).toBe(true)
-  })
-
-  it('gives a one-sided counter card one page', () => {
-    expect(printKitSheets('counter_card', 1)).toHaveLength(1)
-  })
-
-  it('knows its pieces and the bleed', () => {
+describe('the pieces', () => {
+  it('knows its pieces', () => {
     expect(PRINT_KIT_PIECES).toEqual(['table_tent', 'counter_card'])
-    expect(PRINT_KIT_BLEED_MM).toBe(3)
   })
 })
 
@@ -217,48 +185,51 @@ describe('PRINT_KIT_SCAN_CUE', () => {
   })
 })
 
+const LETTER = { style: 'paper', paper: 'letter' } as const
+
 describe('printKitFileName', () => {
-  it('names the file after the portal, the piece and the languages', () => {
-    expect(printKitFileName('Pool & Terrace', 'table_tent', ['en', 'bg'])).toBe(
-      'pool-terrace-table-tent-en-bg.pdf',
+  it('names the file after the portal, the piece, the languages and the paper', () => {
+    expect(printKitFileName('Pool & Terrace', 'table_tent', ['en', 'bg'], LETTER)).toBe(
+      'pool-terrace-table-tent-en-bg-letter.pdf',
     )
-    expect(printKitFileName('!!!', 'counter_card', ['de'])).toBe(
-      'portal-counter-card-de.pdf',
+    expect(printKitFileName('!!!', 'counter_card', ['de'], LETTER)).toBe(
+      'portal-counter-card-de-letter.pdf',
     )
   })
 
   it('says one language with one code', () => {
-    expect(printKitFileName('Pool & Terrace', 'table_tent', ['en'])).toBe(
-      'pool-terrace-table-tent-en.pdf',
+    expect(printKitFileName('Pool & Terrace', 'table_tent', ['en'], LETTER)).toBe(
+      'pool-terrace-table-tent-en-letter.pdf',
     )
   })
 
   it('gives different choices for one portal different names', () => {
+    const a4 = { style: 'paper', paper: 'a4' } as const
+    const immersive = { style: 'immersive', paper: 'letter' } as const
     const names = [
-      printKitFileName('Pool & Terrace', 'table_tent', ['en', 'bg']),
-      printKitFileName('Pool & Terrace', 'table_tent', ['en']),
-      printKitFileName('Pool & Terrace', 'table_tent', ['bg', 'en']),
-      printKitFileName('Pool & Terrace', 'counter_card', ['en', 'bg']),
+      printKitFileName('Pool & Terrace', 'table_tent', ['en', 'bg'], LETTER),
+      printKitFileName('Pool & Terrace', 'table_tent', ['en'], LETTER),
+      printKitFileName('Pool & Terrace', 'table_tent', ['bg', 'en'], LETTER),
+      printKitFileName('Pool & Terrace', 'counter_card', ['en', 'bg'], LETTER),
+      printKitFileName('Pool & Terrace', 'table_tent', ['en', 'bg'], a4),
+      printKitFileName('Pool & Terrace', 'table_tent', ['en', 'bg'], immersive),
     ]
     expect(new Set(names).size).toBe(names.length)
   })
 
   it('keeps the letters of any script, so a Cyrillic name is not lost', () => {
-    expect(printKitFileName('Хотел Рила', 'table_tent', ['bg'])).toBe(
-      'хотел-рила-table-tent-bg.pdf',
+    expect(printKitFileName('Хотел Рила', 'table_tent', ['bg'], LETTER)).toBe(
+      'хотел-рила-table-tent-bg-letter.pdf',
     )
-    expect(printKitFileName('Café Müller', 'counter_card', ['en', 'de'])).toBe(
-      'café-müller-counter-card-en-de.pdf',
+    expect(printKitFileName('Café Müller', 'counter_card', ['en', 'de'], LETTER)).toBe(
+      'café-müller-counter-card-en-de-letter.pdf',
     )
   })
 
-  it('ends a redesigned print with its paper, and names Immersive before it', () => {
-    expect(
-      printKitFileName('Pool & Terrace', 'counter_card', ['en', 'es'], {
-        style: 'paper',
-        paper: 'letter',
-      }),
-    ).toBe('pool-terrace-counter-card-en-es-letter.pdf')
+  it('ends a print with its paper, and names Immersive before it', () => {
+    expect(printKitFileName('Pool & Terrace', 'counter_card', ['en', 'es'], LETTER)).toBe(
+      'pool-terrace-counter-card-en-es-letter.pdf',
+    )
     expect(
       printKitFileName('Pool & Terrace', 'table_tent', ['en'], {
         style: 'paper',
@@ -274,11 +245,11 @@ describe('printKitFileName', () => {
   })
 
   it('never lets a name break out of a file name', () => {
-    expect(printKitFileName('../../etc/passwd', 'table_tent', ['en'])).toBe(
-      'etc-passwd-table-tent-en.pdf',
+    expect(printKitFileName('../../etc/passwd', 'table_tent', ['en'], LETTER)).toBe(
+      'etc-passwd-table-tent-en-letter.pdf',
     )
-    expect(printKitFileName('a'.repeat(200), 'table_tent', ['en'])).toHaveLength(
-      60 + '-table-tent-en.pdf'.length,
+    expect(printKitFileName('a'.repeat(200), 'table_tent', ['en'], LETTER)).toHaveLength(
+      60 + '-table-tent-en-letter.pdf'.length,
     )
   })
 })

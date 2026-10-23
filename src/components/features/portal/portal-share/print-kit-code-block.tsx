@@ -14,7 +14,7 @@ import {
   planCodeBlock,
   type CueLine,
 } from '#/shared/domain/portal-print-kit-code-block'
-import type { PrintKitStylePalette } from '#/shared/domain/portal-print-kit-palette'
+import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import {
   codeBlockStyles,
   pointsToPixels,
@@ -22,7 +22,7 @@ import {
 } from './print-kit-code-block-layout'
 
 type Props = Readonly<{
-  palette: PrintKitStylePalette
+  palette: PrintKitPalette
   /** The lead language first; a second language sits below it. */
   cues: readonly CueLine[]
   /** The code as a picture with its quiet zone drawn in; null while it is made. */

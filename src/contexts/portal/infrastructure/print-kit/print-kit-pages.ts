@@ -1,4 +1,4 @@
-// The pages of a redesigned print (spec 6): each page sized from its sheet, each
+// The pages of a print (spec 6): each page sized from its sheet, each
 // face placed by the top-left corner of its trim and, on a folded tent, turned
 // about its centre so it reads upright once folded; then the sheet's own marks.
 //
@@ -20,7 +20,7 @@ import {
   type PrintKitPage,
   type PrintKitPagePanel,
 } from '#/shared/domain/portal-print-kit-sheets'
-import { setStyledPageBoxes } from './print-kit-marks'
+import { setPageBoxes } from './print-kit-marks'
 
 /** Something worth telling the people who run the service, which does not stop the print. */
 export type PrintKitWarning = Readonly<{
@@ -28,7 +28,7 @@ export type PrintKitWarning = Readonly<{
   context: Readonly<Record<string, unknown>>
 }>
 
-export type StyledDocument = Readonly<{
+export type PrintDocument = Readonly<{
   doc: PDFKit.PDFDocument
   faces: readonly PrintFace[]
   warn: (warning: PrintKitWarning) => void
@@ -69,7 +69,7 @@ export function layoutFaces<L>(
 
 /** One warning for a print whose logo prints soft anywhere on it: the softest place says how soft. */
 function warnOfSoftLogo<L>(
-  target: StyledDocument,
+  target: PrintDocument,
   layouts: FaceLayouts<L>,
   drawer: FaceDrawer<L>,
 ): void {
@@ -95,7 +95,7 @@ function bleedOf(page: PrintKitPage): FaceBleed {
 }
 
 function drawPanel<L>(
-  target: StyledDocument,
+  target: PrintDocument,
   page: PrintKitPage,
   panel: PrintKitPagePanel,
   layout: L,
@@ -119,9 +119,9 @@ function drawPanel<L>(
   doc.restore()
 }
 
-/** Draws the pages of a styled print into the document, in order; `decorate` adds each page's marks. */
-export function drawStyledPages<L>(
-  target: StyledDocument,
+/** Draws the pages of a print into the document, in order; `decorate` adds each page's marks. */
+export function drawPrintPages<L>(
+  target: PrintDocument,
   pages: readonly PrintKitPage[],
   layouts: FaceLayouts<L>,
   drawer: FaceDrawer<L>,
@@ -129,7 +129,7 @@ export function drawStyledPages<L>(
 ): void {
   for (const page of pages) {
     target.doc.addPage({ size: [page.widthPt, page.heightPt], margin: 0 })
-    setStyledPageBoxes(target.doc.page, page)
+    setPageBoxes(target.doc.page, page)
     for (const panel of page.panels) {
       const layout = layouts.get(keyOf(panel))
       if (layout !== undefined) drawPanel(target, page, panel, layout, drawer)

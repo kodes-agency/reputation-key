@@ -1,4 +1,4 @@
-// One redesigned face, drawn as the PDF draws it (spec 4.2 and 4.4): a Paper
+// One face, drawn as the PDF draws it (spec 4.2 and 4.4): a Paper
 // counter card (4 × 6 in or A6) or a Paper tent face (8.5 × 5.5 in or A5), and
 // an Immersive card or tent panel through `PrintKitImmersiveFace`. The same flex
 // layout the design boards use, from the same measures the PDF reads:
