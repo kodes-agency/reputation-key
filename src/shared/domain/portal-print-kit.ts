@@ -91,7 +91,7 @@ export const PRINT_KIT_CALL_TO_ACTION_LABELS: Readonly<
   Record<PrintKitCallToAction, string>
 > = Object.freeze({
   rate: 'Rate your visit — private, about 30 seconds',
-  tell: 'How was your visit? Tell us privately',
+  tell: 'How was your visit? About 30 seconds',
 })
 
 /** What each call to action says on the print, per language. */
@@ -100,33 +100,33 @@ export const PRINT_KIT_COPY: Readonly<
 > = Object.freeze({
   en: {
     rate: { headline: 'Rate your visit', subline: 'Private, about 30 seconds' },
-    tell: { headline: 'How was your visit?', subline: 'Tell us privately' },
+    tell: { headline: 'How was your visit?', subline: 'About 30 seconds' },
   },
   bg: {
     rate: {
       headline: 'Оценете посещението си',
       subline: 'Поверително, около 30 секунди',
     },
-    tell: { headline: 'Как мина посещението ви?', subline: 'Кажете ни поверително' },
+    tell: { headline: 'Как мина посещението ви?', subline: 'Около 30 секунди' },
   },
   es: {
     rate: { headline: 'Valore su visita', subline: 'En privado, unos 30 segundos' },
-    tell: { headline: '¿Qué tal su visita?', subline: 'Cuéntenoslo en privado' },
+    tell: { headline: '¿Qué tal su visita?', subline: 'Unos 30 segundos' },
   },
   it: {
     rate: { headline: 'Valuti la sua visita', subline: 'In privato, circa 30 secondi' },
-    tell: { headline: 'Com’è andata la sua visita?', subline: 'Ce lo dica in privato' },
+    tell: { headline: 'Com’è andata la sua visita?', subline: 'Circa 30 secondi' },
   },
   fr: {
     rate: { headline: 'Évaluez votre visite', subline: 'En privé, environ 30 secondes' },
     tell: {
       headline: 'Comment s’est passée votre visite ?',
-      subline: 'Dites-le-nous en privé',
+      subline: 'Environ 30 secondes',
     },
   },
   de: {
     rate: { headline: 'Bewerten Sie Ihren Besuch', subline: 'Privat, etwa 30 Sekunden' },
-    tell: { headline: 'Wie war Ihr Besuch?', subline: 'Sagen Sie es uns privat' },
+    tell: { headline: 'Wie war Ihr Besuch?', subline: 'Etwa 30 Sekunden' },
   },
 })
 

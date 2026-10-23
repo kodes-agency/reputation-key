@@ -330,7 +330,7 @@ export const CounterCardInOneLanguage: Story = {
     const canvas = within(canvasElement)
     await expect(await canvas.findByRole('radio', { name: 'Back' })).toBeInTheDocument()
     await pickLanguages(canvas, 'Български')
-    await userEvent.click(radio(canvas, /how was your visit\? tell us privately/i))
+    await userEvent.click(radio(canvas, /how was your visit\? about 30 seconds/i))
     await expect(canvas.queryByRole('radio', { name: 'Back' })).toBeNull()
     await expect(canvas.queryByText(/double-sided/i)).toBeNull()
     await expect(
@@ -432,11 +432,11 @@ export const CallToActionIsOnThePrint: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
     await userEvent.click(
-      canvas.getByRole('radio', { name: /how was your visit\? tell us privately/i }),
+      canvas.getByRole('radio', { name: /how was your visit\? about 30 seconds/i }),
     )
     const front = await preview(canvasElement)
     await expect(within(front).getByText('How was your visit?')).toBeInTheDocument()
-    await expect(within(front).getByText('Tell us privately')).toBeInTheDocument()
+    await expect(within(front).getByText('About 30 seconds')).toBeInTheDocument()
   },
 }
 
@@ -461,7 +461,7 @@ export const LongCopyShrinksAsInTheFile: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
     await userEvent.click(
-      canvas.getByRole('radio', { name: /how was your visit\? tell us privately/i }),
+      canvas.getByRole('radio', { name: /how was your visit\? about 30 seconds/i }),
     )
     const front = await preview(canvasElement)
     const headline = within(front).getByText('Comment s’est passée votre visite ?')

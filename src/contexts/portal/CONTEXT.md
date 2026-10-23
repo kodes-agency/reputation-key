@@ -390,8 +390,10 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
 - **File name.** `<portal>-<piece>-<languages>[-immersive]-<paper>.pdf`, for
   example `pool-terrace-counter-card-en-es-letter.pdf`; two downloads that differ
   in language, style or paper never share a name.
-- **Owner decisions of 2026-10-22.** D1: keep "Tell us privately", with "Rate
-  your visit" the default call to action. D2: no host caption anywhere. D3: the
+- **Owner decisions of 2026-10-22.** D1: "Rate your visit" is the default call
+  to action; the second reads "How was your visit? About 30 seconds" in every
+  language, since the owner removed "Tell us privately" everywhere on
+  2026-10-23. D2: no host caption anywhere. D3: the
   Immersive tent stays a two-panel card-size tent. D4: a two-language Immersive
   tent prints without a photo or monogram, because no window reaches its floor.
   D5: the cue's es, it, fr and de wording ships as a draft, as the rest of that
