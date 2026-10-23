@@ -102,6 +102,79 @@ describe('parseGoogleReviewComment', () => {
   })
 })
 
+// From 2026-10-23 Google also sends the original FIRST, with the translation
+// under a marker line and no `(Original)` marker. Every one of the 59 closed-beta
+// reviews that arrived this way reassembled byte for byte from the earlier split.
+describe('parseGoogleReviewComment, original-first envelope', () => {
+  it('splits the shape Google sends since 2026-10-23', () => {
+    expect(parseGoogleReviewComment('Ок\n\n(Translated by Google)\nOk')).toEqual({
+      original: 'Ок',
+      translation: 'Ok',
+    })
+  })
+
+  it('reads the same parts from either envelope', () => {
+    expect(
+      parseGoogleReviewComment(
+        'Стаята е чудесна.\n\nУлицата е тиха.\n\n(Translated by Google)\nGreat room.\n\nQuiet street.',
+      ),
+    ).toEqual(
+      parseGoogleReviewComment(
+        '(Translated by Google) Great room.\n\nQuiet street.\n\n(Original)\nСтаята е чудесна.\n\nУлицата е тиха.',
+      ),
+    )
+  })
+
+  it('accepts carriage returns and trailing spaces around the marker line', () => {
+    expect(parseGoogleReviewComment('Ок \r\n\r\n(Translated by Google) \r\nOk')).toEqual({
+      original: 'Ок',
+      translation: 'Ok',
+    })
+  })
+
+  it('ignores the marker when it is not on a line of its own after a blank line', () => {
+    const comment = 'The menu said\n(Translated by Google)\nwhich was odd'
+
+    expect(parseGoogleReviewComment(comment)).toEqual({
+      original: comment,
+      translation: null,
+    })
+  })
+
+  it('splits on the last marker line so every character the guest wrote stays in the original', () => {
+    const comment =
+      'Пишеше\n\n(Translated by Google)\nна менюто\n\n(Translated by Google)\nIt said (Translated by Google) on the menu'
+
+    expect(parseGoogleReviewComment(comment)).toEqual({
+      original: 'Пишеше\n\n(Translated by Google)\nна менюто',
+      translation: 'It said (Translated by Google) on the menu',
+    })
+  })
+
+  it('keeps a marker line the guest wrote last in the original when Google adds its own right after', () => {
+    const comment = 'A\n\n(Translated by Google)\n\n(Translated by Google)\nT'
+
+    expect(parseGoogleReviewComment(comment)).toEqual({
+      original: 'A\n\n(Translated by Google)',
+      translation: 'T',
+    })
+  })
+
+  it('nulls a translation that is only whitespace', () => {
+    expect(parseGoogleReviewComment('Ок\n\n(Translated by Google)\n  ')).toEqual({
+      original: 'Ок',
+      translation: null,
+    })
+  })
+
+  it('reports no original when nothing precedes the marker line', () => {
+    expect(parseGoogleReviewComment('\n\n(Translated by Google)\nOk')).toEqual({
+      original: null,
+      translation: 'Ok',
+    })
+  })
+})
+
 // A reply is the one place where "no original text" and "no reply" must never
 // be confused: reconciliation reads a null reply as "Google has nothing", and
 // that read decides whether an in-flight publication is still uncertain.
@@ -124,6 +197,12 @@ describe('parseGoogleReplyComment', () => {
   it('reads the original out of a normal envelope', () => {
     expect(
       parseGoogleReplyComment('(Translated by Google) Thanks\n\n(Original)\nБлагодарим'),
+    ).toEqual({ text: 'Благодарим', unreadable: false })
+  })
+
+  it('reads the original out of an original-first envelope', () => {
+    expect(
+      parseGoogleReplyComment('Благодарим\n\n(Translated by Google)\nThank you'),
     ).toEqual({ text: 'Благодарим', unreadable: false })
   })
 

@@ -35,6 +35,13 @@ export type PreviousReviewMaterial = Readonly<{
   normalizedDigest: string | null
   rating: StarRating | null
   originalText: string | null
+  /**
+   * The stored original as today's provider parser reads it. It differs from
+   * `originalText` only when the text was stored by a parser that did not yet
+   * know a provider envelope (Google's original-first translation envelope,
+   * 2026-10-23), so a match under it is a format transition, not a guest edit.
+   */
+  rereadOriginalText?: string | null
 }>
 
 export type MaterialReviewComparisonResult = ReviewMaterialDescription &
@@ -119,6 +126,24 @@ function isPositiveSafeInteger(value: number): boolean {
 }
 
 /**
+ * The incoming material matches the stored baseline once the stored text is
+ * reread. Also true when the text was already split in place by an operator
+ * reparse while the baseline digest still holds the envelope. No reread text
+ * proves nothing: erased content must not hide a guest who removed their words.
+ */
+function matchesRereadBaseline(
+  previous: PreviousReviewMaterial,
+  material: ReviewMaterialDescription,
+): boolean {
+  const reread = previous.rereadOriginalText
+  if (reread == null || previous.rating == null) return false
+  return (
+    describeReviewMaterial({ rating: previous.rating, text: reread }).normalizedDigest ===
+    material.normalizedDigest
+  )
+}
+
+/**
  * Compare one provider observation with the current material head.
  *
  * A legacy normalization baseline is first evaluated in shadow with the new
@@ -150,6 +175,16 @@ export function compareMaterialReviewRevision(
     input.previous.normalizedDigest != null
   ) {
     const unchanged = input.previous.normalizedDigest === material.normalizedDigest
+    if (!unchanged && matchesRereadBaseline(input.previous, material)) {
+      // Adopting the reread baseline keeps the revision and its digests move
+      // to the split text, so the next read compares as plain `unchanged`.
+      return Object.freeze({
+        ...material,
+        comparison: 'normalization_shadow_match',
+        materialRevision: input.previous.materialRevision,
+        createsMaterialRevision: false,
+      })
+    }
     return Object.freeze({
       ...material,
       comparison: unchanged ? 'unchanged' : 'material_change',

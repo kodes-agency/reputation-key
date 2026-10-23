@@ -13,6 +13,7 @@ import {
   type ReviewId,
 } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
+import { parseGoogleReviewComment } from '#/shared/google-review-comment'
 import type { Tx } from '#/shared/outbox/commit'
 import {
   purgeAiDraftsForReview,
@@ -78,6 +79,10 @@ function currentMaterial(row: ReviewRow) {
     normalizedDigest: row.materialNormalizedDigest,
     rating: row.rating as StarRating | null,
     originalText: row.text,
+    // A Google text stored before the parser knew an envelope rereads as its
+    // original alone; the comparison treats a match under it as no edit.
+    rereadOriginalText:
+      row.platform === 'google' ? parseGoogleReviewComment(row.text).original : undefined,
   }
 }
 

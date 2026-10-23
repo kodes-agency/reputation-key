@@ -124,6 +124,16 @@ recorded no material change. A guest edit is never a carry, including one
 first seen in the new epoch, so `review.updated` reaches the Inbox after an
 Archive/Restore, a relink or a reconnect.
 
+A change of how Google wraps a review's text is not a guest edit either. The
+comparison also rereads the stored Google text with today's parser
+(`rereadOriginalText`, `parseGoogleReviewComment`): when the incoming material
+matches that reread, the observation is a `normalization_shadow_match`, the
+revision stays and its digests move to the split text. It closes the
+2026-10-23 case where Google began sending the original first
+(`<original>\n\n(Translated by Google)\n<translation>`), the parser of the day
+stored the whole envelope, and 59 closed-beta reviews whose Google updateTime
+had not moved read as edited and reopened handled Inbox items.
+
 Each revision's Response Target eligibility is fixed when it is created. The
 first Google import of a Property source epoch fixes that epoch's history cutoff
 (`review_provider_history_cutoffs`) when Review admits the import's sync, before
