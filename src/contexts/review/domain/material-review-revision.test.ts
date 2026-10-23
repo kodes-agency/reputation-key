@@ -121,6 +121,74 @@ describe('Material Review Revision comparison', () => {
     })
   })
 
+  describe('a baseline stored before the parser knew a provider envelope', () => {
+    // What the parser stored on 2026-10-23 when Google first sent the
+    // original-first envelope: the whole envelope as the guest's text.
+    const glued = 'Ок\n\n(Translated by Google)\nOk'
+    const previous = {
+      ...describeReviewMaterial({ rating: 1, text: glued }),
+      materialRevision: 2,
+      originalText: glued,
+      rereadOriginalText: 'Ок',
+    }
+
+    it('adopts the split text without manufacturing a guest edit', () => {
+      const result = compareMaterialReviewRevision({
+        previous,
+        incoming: { rating: 1, text: 'Ок' },
+      })
+
+      expect(result).toMatchObject({
+        comparison: 'normalization_shadow_match',
+        materialRevision: 2,
+        createsMaterialRevision: false,
+      })
+      expect(isGuestEdit(result.comparison)).toBe(false)
+    })
+
+    it.each([
+      { incoming: { rating: 2 as const, text: 'Ок' }, label: 'rating' },
+      { incoming: { rating: 1 as const, text: 'Не е добре' }, label: 'text' },
+    ])('still counts a real $label edit as one', ({ incoming }) => {
+      expect(compareMaterialReviewRevision({ previous, incoming })).toMatchObject({
+        comparison: 'material_change',
+        materialRevision: 3,
+        createsMaterialRevision: true,
+      })
+    })
+
+    it('compares as before when the stored text rereads as itself', () => {
+      expect(
+        compareMaterialReviewRevision({
+          previous: { ...previous, rereadOriginalText: glued },
+          incoming: { rating: 1, text: 'Ок' },
+        }),
+      ).toMatchObject({ comparison: 'material_change', materialRevision: 3 })
+    })
+
+    it('adopts the split text when the stored text was already split in place', () => {
+      expect(
+        compareMaterialReviewRevision({
+          previous: { ...previous, originalText: 'Ок', rereadOriginalText: 'Ок' },
+          incoming: { rating: 1, text: 'Ок' },
+        }),
+      ).toMatchObject({
+        comparison: 'normalization_shadow_match',
+        materialRevision: 2,
+        createsMaterialRevision: false,
+      })
+    })
+
+    it('still counts a guest who removed their words when the stored text is gone', () => {
+      expect(
+        compareMaterialReviewRevision({
+          previous: { ...previous, originalText: null, rereadOriginalText: null },
+          incoming: { rating: 1, text: null },
+        }),
+      ).toMatchObject({ comparison: 'material_change', materialRevision: 3 })
+    })
+  })
+
   it('preserves the last material revision when an erased legacy baseline cannot be compared', () => {
     expect(
       compareMaterialReviewRevision({

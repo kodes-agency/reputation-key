@@ -530,6 +530,48 @@ describe('GoogleReviewApiAdapter', () => {
     expect(page.reviews[0]?.replyText).not.toContain('Translated by Google')
   })
 
+  // Since 2026-10-23 Google also sends the original first, for the review and
+  // for its reply. Stored whole, 59 closed-beta reviews read as guest edits.
+  it('splits the original-first envelope on the review and on its reply', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode(
+        JSON.stringify({
+          reviews: [
+            {
+              ...providerReview(),
+              comment: 'Ок\n\n(Translated by Google)\nOk',
+              reviewReply: {
+                comment: 'Благодарим\n\n(Translated by Google)\nThank you',
+                updateTime: '2026-10-23T04:35:00.000Z',
+              },
+            },
+          ],
+          totalReviewCount: 1,
+          averageRating: 5,
+        }),
+      ),
+    })
+    const { api } = createAdapter({ execute })
+
+    const page = await api.listReviewsPage(listInput())
+
+    expect(page.reviews[0]).toEqual(
+      expect.objectContaining({
+        text: 'Ок',
+        translatedText: 'Ok',
+        replyText: 'Благодарим',
+        replyUnreadable: false,
+      }),
+    )
+  })
+
   it('leaves an unwrapped echoed reply exactly as Google returned it', async () => {
     const execute = vi.fn().mockResolvedValue({
       ok: true,
