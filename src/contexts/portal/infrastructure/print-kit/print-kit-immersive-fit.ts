@@ -8,10 +8,10 @@
 // When the window cannot reach its floor, the fit order takes space back, one
 // step at a time and only once the step before is used up: (a) the window
 // shrinks, which the sharing above already does; (b) the gaps tighten; (c) two
-// languages step their type down; then the brand shrinks; and (d) last, the
-// window is dropped (the monogram has the photo's floor, so where a photo does
-// not fit, neither does it). Without the window the words take the room back at
-// the roomiest step again.
+// languages step their type down, the brand shrinking to its floor first at
+// each scale; and (d) last, the window is dropped (the monogram has the photo's
+// floor, so where a photo does not fit, neither does it). Without the window the
+// words take the room back at the roomiest step again.
 
 /** A step as measured: the height of everything that does not flex, and the gap it keeps. */
 export type MeasuredFit<T> = Readonly<{

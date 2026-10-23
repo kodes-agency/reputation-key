@@ -11,7 +11,8 @@
 // left-aligned in the Paper tent's words column.
 
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
-import { STACK, TYPE_FLOOR_PT, TYPE_PT } from '#/shared/domain/portal-print-kit-measures'
+import { scaleSizes, type StackSizes } from '#/shared/domain/portal-print-kit-long-copy'
+import { STACK, TYPE_PT } from '#/shared/domain/portal-print-kit-measures'
 import { balanceWords, fillWords } from '#/shared/domain/portal-print-kit-text'
 import { drawLine, type PdfTextStyle, type PrintKitFonts } from './print-kit-pdf-text'
 
@@ -60,8 +61,8 @@ type Measure = (text: string, style: PdfTextStyle) => number
 export type FaceStackInput = Readonly<{
   blocks: readonly PrintTextBlock[]
   scale: StackScale
-  /** The place label's size when the fit has shrunk it below its scale's (`placeSizes`). */
-  placePt?: number
+  /** The sizes when the long-copy steps have taken them below the scale's (`longCopySizes`). */
+  sizes?: StackSizes
   /** The place block to the call to action, when a fit step has tightened it below its scale's. */
   placeToHeadPt?: number
   maxWidthPt: number
@@ -128,7 +129,7 @@ export function layoutFaceStack(input: FaceStackInput): FaceStack {
   const [lead, second] = input.blocks
   const cursor: Cursor = { y: 0, items: [] }
   if (lead === undefined) return { items: [], heightPt: 0, first: null }
-  const type = TYPE_PT[input.scale]
+  const type = input.sizes ?? scaleSizes(input.scale)
   const { colours } = input
   const gaps = gapsOf(input.scale)
   const { leading, trackingEm } = STACK
@@ -136,10 +137,10 @@ export function layoutFaceStack(input: FaceStackInput): FaceStack {
     cursor,
     input,
     lead.kicker,
-    style('display', input.placePt ?? type.place, colours.ink, trackingEm.place),
+    style('display', type.place, colours.ink, trackingEm.place),
     leading.place,
   )
-  if (second !== undefined && 'place2' in type) {
+  if (second !== undefined && type.place2 > 0) {
     cursor.y += STACK.placeGapPt
     pushText(
       cursor,
@@ -167,7 +168,7 @@ export function layoutFaceStack(input: FaceStackInput): FaceStack {
     style('body', type.sub, colours.soft),
     leading.sub,
   )
-  if (second !== undefined && 'head2' in type) {
+  if (second !== undefined && type.head2 > 0) {
     pushRule(cursor, input, gaps.rule)
     pushText(
       cursor,
@@ -193,22 +194,6 @@ export function layoutFaceStack(input: FaceStackInput): FaceStack {
 export function stackScales(languages: number, tent: boolean): readonly StackScale[] {
   if (tent) return ['tent']
   return languages > 1 ? ['two', 'twoTight'] : ['one']
-}
-
-/** How far the place label steps down at a time once every other fit step is used up. */
-const PLACE_STEP_PT = 0.5
-
-/**
- * The place label's sizes, largest first, for a title too long for any scale:
- * the scale's own, then smaller down to the size nothing a guest reads goes
- * under. The place label wraps before it shrinks (spec 2.5), and shrinks before
- * the words reach the code block, which never gives way. A Portal's title may
- * run to 120 characters: four or five lines at the scale's size.
- */
-export function placeSizes(scale: StackScale): readonly number[] {
-  const largest = TYPE_PT[scale].place
-  const steps = Math.floor((largest - TYPE_FLOOR_PT.read) / PLACE_STEP_PT)
-  return Array.from({ length: steps + 1 }, (_, index) => largest - index * PLACE_STEP_PT)
 }
 
 export type PlacedStack = Readonly<{

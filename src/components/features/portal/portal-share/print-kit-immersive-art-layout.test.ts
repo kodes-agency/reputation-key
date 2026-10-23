@@ -84,6 +84,19 @@ describe('previewImmersiveFit', () => {
     )
     expect(fit.window).toBe(false)
   })
+
+  it('takes the long-copy steps for a 120-character title, as the PDF does, and drops the window', () => {
+    const long =
+      'The rooftop terrace bar and lounge overlooking the old harbour, with the garden restaurant and the spa on the lower deck'
+    const fit = previewImmersiveFit(
+      frontOf(choice('counter_card', ['en', 'es']), { en: long, es: long }),
+      'cardA6',
+      look(),
+    )
+    expect(fit).toMatchObject({ window: false, scale: 'twoTight' })
+    expect(fit.sizes).toMatchObject({ place2: 9, head2: 11.5, sub2: 9 })
+    expect(fit.sizes.place).toBeLessThan(21)
+  })
 })
 
 describe('immersiveBackground', () => {

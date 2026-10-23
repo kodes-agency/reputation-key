@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { printKitFaces, type PrintKitWords } from '#/shared/domain/portal-print-kit'
 import { STACK, mmToPt } from '#/shared/domain/portal-print-kit-measures'
-import {
-  layoutFaceStack,
-  placeSizes,
-  stackScales,
-  type FaceStack,
-} from './print-kit-face-stack'
+import { scaleSizes } from '#/shared/domain/portal-print-kit-long-copy'
+import { layoutFaceStack, stackScales, type FaceStack } from './print-kit-face-stack'
 
 const COLOURS = { ink: '#121614', soft: '#5C5650', accentInk: '#765B1D', rule: '#765B1D' }
 const TITLES = { en: 'Pool & Terrace', es: 'Piscina y terraza' }
@@ -129,9 +125,7 @@ describe('the words of a face', () => {
     expect(stackScales(2, true)).toEqual(['tent'])
   })
 
-  it('shrinks the place label alone, from its scale’s size to the reading floor, when told to', () => {
-    expect(placeSizes('two').slice(0, 3)).toEqual([24, 23.5, 23])
-    expect(placeSizes('tent').at(-1)).toBe(9)
+  it('sets the sizes the long-copy steps give it, when told to', () => {
     const [face] = printKitFaces(
       { piece: 'counter_card', languages: ['en', 'es'], callToAction: 'rate' },
       TITLES,
@@ -140,15 +134,19 @@ describe('the words of a face', () => {
     const stack = layoutFaceStack({
       blocks: face?.blocks ?? [],
       scale: 'two',
-      placePt: 15,
+      sizes: { ...scaleSizes('two'), place: 15, place2: 9, head2: 11.5, sub2: 9 },
       maxWidthPt: 250,
       colours: COLOURS,
       measure,
     })
-    expect(outline(stack).slice(0, 3)).toEqual([
+    expect(outline(stack)).toEqual([
       'display 15 Pool & Terrace',
-      'bodyStrong 9.5 Piscina y terraza',
+      'bodyStrong 9 Piscina y terraza',
       'display 18 Rate your visit',
+      'body 10 Private, about 30 seconds',
+      'rule #765B1D',
+      'display 11.5 Valore su visita',
+      'body 9 En privado, unos 30 segundos',
     ])
   })
 })

@@ -18,15 +18,12 @@ const roomFor = (fixedPt: number, gapPt = FIT.gapPt.immersive) =>
   HEIGHT - fixedPt - 3 * gapPt - RANGE.framePt
 
 describe('immersiveFitSteps', () => {
-  it('tightens the gaps, then steps the type down, then shrinks the brand, for two languages on a card', () => {
+  it('tightens the gaps, then steps the type down, the brand shrinking first at each scale, for two languages on a card', () => {
+    const tightPlace = STACK.gapsPt.twoTight.placeToHead
     expect(immersiveFitSteps(2, false)).toEqual([
       { gapPt: FIT.gapPt.immersive, scale: 'two', brand: 'full' },
-      {
-        gapPt: FIT.gapPt.tight,
-        scale: 'two',
-        placeToHeadPt: STACK.gapsPt.twoTight.placeToHead,
-        brand: 'full',
-      },
+      { gapPt: FIT.gapPt.tight, scale: 'two', placeToHeadPt: tightPlace, brand: 'full' },
+      { gapPt: FIT.gapPt.tight, scale: 'two', placeToHeadPt: tightPlace, brand: 'floor' },
       { gapPt: FIT.gapPt.tight, scale: 'twoTight', brand: 'full' },
       { gapPt: FIT.gapPt.tight, scale: 'twoTight', brand: 'floor' },
     ])

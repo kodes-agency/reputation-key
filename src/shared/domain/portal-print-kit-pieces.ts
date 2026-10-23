@@ -216,3 +216,21 @@ export function printKitPaperNote(style: PrintKitStyle, piece: PrintKitPiece): s
 
 export const PRINT_KIT_PAPER_LABELS: Readonly<Record<PrintKitPaper, string>> =
   Object.freeze({ letter: 'Letter', a4: 'A4' })
+
+/** What a subject calls the paper: the sheet for Paper, the piece's size for a print shop (spec 7.1). */
+const SUBJECT_PAPER: Readonly<
+  Record<PrintKitStyle, Readonly<Record<PrintKitPaper, string>>>
+> = {
+  paper: { letter: 'US Letter', a4: 'A4' },
+  immersive: { letter: '4 × 6 in', a4: 'A6' },
+}
+
+/** The PDF's subject: "Print kit: Paper style, counter card, US Letter". */
+export function printKitSubject(
+  style: PrintKitStyle,
+  piece: PrintKitPiece,
+  paper: PrintKitPaper,
+): string {
+  const styleName = PRINT_KIT_STYLE_FACTS[style].label
+  return `Print kit: ${styleName} style, ${PRINT_KIT_PIECE_NOUNS[piece]}, ${SUBJECT_PAPER[style][paper]}`
+}

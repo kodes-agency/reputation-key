@@ -367,7 +367,20 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   Every face keeps an optical 0.4 in (10 mm) margin at its top and bottom edge.
   A tight Immersive face gives way in a fixed order: the window shrinks to 0.55
   in, the gaps tighten, the two-language type steps down, and only then the
-  photo becomes the monogram.
+  photo becomes the monogram. The brand ranks last in both styles: at each type
+  scale a logo gives up its size to its 10 mm floor (a wordmark to 15 pt) before
+  the type steps down, and before the window is dropped. With two languages a
+  logo at its floor still leaves a card's window under 0.55 in (the boards' logo
+  leaves 13.1 mm on 4 x 6 in and 9 mm on A6), so those cards print without one.
+  Words that still reach the code block take the long-copy steps, in both
+  styles (`portal-print-kit-long-copy.ts`): the place label shrinks to its 21 pt
+  floor (never under the lead headline), then the second language's block to
+  its floors (11.5 pt headline, 9 pt subline and title), and only then, the last
+  resort, the place label under its floor. The code block never gives way.
+  The Share tab's preview takes the same steps, and the same brand sizes, from
+  widths it estimates (`portal-print-kit-text-widths.ts`, measured from the
+  embedded fonts and never narrower than them), so it never sets the words
+  larger than the file and a long title cannot push its code block off the face.
 - **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
   family; lining figures on place labels and headlines; no ligatures on a tracked
   line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the
