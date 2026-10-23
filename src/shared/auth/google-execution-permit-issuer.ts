@@ -11,6 +11,11 @@ import {
   createAdmittedExecutionPermit,
   type AuthorizationExecutionPermit,
 } from './authorization-execution-permit'
+import {
+  createPermitIssuanceTimer,
+  type PermitIssuanceLogger,
+  type PermitIssuanceTimer,
+} from './google-execution-permit-issuance-timing'
 
 export type GoogleExecutionPermitRecord = Readonly<{
   permit: AuthorizationExecutionPermit
@@ -65,63 +70,104 @@ function validProviderRequestBinding(value: GoogleProviderRequestBinding): boole
   )
 }
 
+type GoogleExecutionPermitIssuerDeps<Tx> = Readonly<{
+  store: GoogleExecutionPermitIssuerStore<Tx>
+  clock: Clock
+  newPermitId: () => string
+  authorize: GoogleContentAuthorizationCheck<Tx>
+  /**
+   * Monotonic milliseconds. With `logger`, a slow issuance is logged by stage
+   * (#946: a token refresh lost 12 s after its permit was admitted, and
+   * `admitted_at` is the start of this transaction, so the loss could have
+   * been here). Without either, nothing is timed.
+   */
+  nowMs?: () => number
+  logger?: PermitIssuanceLogger
+}>
+
+async function issueWithinTransaction<Tx>(
+  deps: GoogleExecutionPermitIssuerDeps<Tx>,
+  input: GoogleExecutionPermitAdmissionInput,
+  tx: Tx,
+  timer: PermitIssuanceTimer,
+): Promise<GoogleExecutionPermitAdmissionResult> {
+  const admittedAt = deps.clock()
+  const control = await timer.stage('loadControlMs', () => deps.store.loadControl(tx))
+  if (control.killedCapabilities.includes(input.capability)) {
+    return { ok: false, code: 'capability_killed' }
+  }
+
+  const decision = await timer.stage('authorizeMs', () =>
+    deps.authorize(tx, {
+      capability: input.capability,
+      scope: input.scope,
+      operationKey: input.operationKey,
+    }),
+  )
+  if (!decision.allowed || hasGoogleProviderRequestBindingKeys(decision.vector)) {
+    return { ok: false, code: 'authorization_denied' }
+  }
+  if (
+    !sameGoogleContentAuthorizationVector(
+      decision.vector,
+      input.expectedAuthorizationVector,
+    )
+  ) {
+    return { ok: false, code: 'authorization_changed' }
+  }
+  if (!validProviderRequestBinding(input.providerRequestBinding)) {
+    return { ok: false, code: 'authorization_denied' }
+  }
+
+  const permit = createAdmittedExecutionPermit(
+    {
+      id: deps.newPermitId(),
+      capability: input.capability,
+      ...input.scope,
+      operationKey: input.operationKey,
+      routeKey: input.routeKey,
+      routeCatalogVersion: input.routeCatalogVersion,
+      quotaPolicyId: input.quotaPolicyId,
+    },
+    admittedAt,
+  )
+  await timer.stage('insertPermitMs', () =>
+    deps.store.insertPermit(tx, {
+      permit,
+      authorizationVector: {
+        ...decision.vector,
+        ...input.providerRequestBinding,
+      },
+    }),
+  )
+  return { ok: true, permit }
+}
+
 export function createGoogleExecutionPermitIssuer<Tx>(
-  deps: Readonly<{
-    store: GoogleExecutionPermitIssuerStore<Tx>
-    clock: Clock
-    newPermitId: () => string
-    authorize: GoogleContentAuthorizationCheck<Tx>
-  }>,
+  deps: GoogleExecutionPermitIssuerDeps<Tx>,
 ): (
   input: GoogleExecutionPermitAdmissionInput,
 ) => Promise<GoogleExecutionPermitAdmissionResult> {
-  return (input) =>
-    deps.store.transaction(async (tx) => {
-      const admittedAt = deps.clock()
-      const control = await deps.store.loadControl(tx)
-      if (control.killedCapabilities.includes(input.capability)) {
-        return { ok: false, code: 'capability_killed' }
-      }
-
-      const decision = await deps.authorize(tx, {
-        capability: input.capability,
-        scope: input.scope,
-        operationKey: input.operationKey,
-      })
-      if (!decision.allowed || hasGoogleProviderRequestBindingKeys(decision.vector)) {
-        return { ok: false, code: 'authorization_denied' }
-      }
-      if (
-        !sameGoogleContentAuthorizationVector(
-          decision.vector,
-          input.expectedAuthorizationVector,
-        )
-      ) {
-        return { ok: false, code: 'authorization_changed' }
-      }
-      if (!validProviderRequestBinding(input.providerRequestBinding)) {
-        return { ok: false, code: 'authorization_denied' }
-      }
-
-      const permit = createAdmittedExecutionPermit(
-        {
-          id: deps.newPermitId(),
-          capability: input.capability,
-          ...input.scope,
-          operationKey: input.operationKey,
-          routeKey: input.routeKey,
-          routeCatalogVersion: input.routeCatalogVersion,
-          quotaPolicyId: input.quotaPolicyId,
-        },
-        admittedAt,
-      )
-      await deps.store.insertPermit(tx, {
-        permit,
-        authorizationVector: {
-          ...decision.vector,
-          ...input.providerRequestBinding,
-        },
-      })
-      return { ok: true, permit }
+  return async (input) => {
+    const timer = createPermitIssuanceTimer({
+      nowMs: deps.nowMs,
+      logger: deps.logger,
+      capability: input.capability,
+      routeKey: input.routeKey,
     })
+    let result: GoogleExecutionPermitAdmissionResult
+    try {
+      result = await deps.store.transaction(async (tx) => {
+        timer.begun()
+        const issued = await issueWithinTransaction(deps, input, tx, timer)
+        timer.callbackReturned()
+        return issued
+      })
+    } catch (error) {
+      timer.finish('error')
+      throw error
+    }
+    timer.finish(result.ok ? 'admitted' : result.code)
+    return result
+  }
 }
