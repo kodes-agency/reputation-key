@@ -157,6 +157,13 @@ the Organization, Property and Review ids and nothing else, so a new Google
 format shows in the log the day it starts. The value is recorded in
 `review_source_observations.comparison_result` (migration 0069). It is not
 retroactive: revisions already created stay recorded as `material_change`.
+`maintenance.restatedRevisions.list` finds them for operator tooling: a
+`material_change` observation whose `source_updated_at` equals the one of the
+last applied observation before it (not an `out_of_order_ignored` one), both
+known, in the same source epoch. It returns `(reviewId, sourceEpoch, revision)`
+and no content; Inbox never reads these tables, so `pnpm ops inbox
+exclude-restated-revision-targets` takes the list from here and leaves the
+Response Targets of those revisions out of its counts.
 
 Each revision's Response Target eligibility is fixed when it is created. The
 first Google import of a Property source epoch fixes that epoch's history cutoff

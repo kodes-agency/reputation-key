@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import { getTableColumns, getTableName } from 'drizzle-orm'
 import { properties } from './property.schema'
+import { inboxResponseTargetExclusions } from './inbox-response-target-exclusions.schema'
 import { replies, reviews } from './review.schema'
 import { reviewAiAnalysisReleasedSequences } from './review-analysis-released-sequences.schema'
 import {
@@ -121,6 +122,25 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
         'reason',
         'released_at',
         'source_epoch',
+      ])
+    })
+  })
+  describe('migration 0070 — Response Target exclusions', () => {
+    it('registers inbox_response_target_exclusions with ids, an enum, the operator trail and an instant only', () => {
+      expect(getTableName(inboxResponseTargetExclusions)).toBe(
+        'inbox_response_target_exclusions',
+      )
+      expect(columnNames(inboxResponseTargetExclusions).sort()).toEqual([
+        'correlation_id',
+        'cycle_number',
+        'inbox_item_id',
+        'operator_id',
+        'organization_id',
+        'property_id',
+        'reason',
+        'recorded_at',
+        'target_kind',
+        'ticket',
       ])
     })
   })

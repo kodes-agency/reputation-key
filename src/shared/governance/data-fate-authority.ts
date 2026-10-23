@@ -366,6 +366,17 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
+    // The audit ledger beside a Response Target that must not count: append-only,
+    // content-free, deleted only by the cascade from its target, and exported
+    // with the target row it excludes.
+    schemaFile: 'inbox-response-target-exclusions.schema.ts',
+    exportNames: ['inboxResponseTargetExclusions'],
+    owner: 'inbox',
+    disposition: 'recoverable_archive',
+    authority: 'IBX-01',
+    exitCriteria: RETAINED_HISTORY,
+  }),
+  ...rows({
     schemaFile: 'merchant-ai-authorization.schema.ts',
     // The decision deferral is Merchant AI authorization state beside the
     // head: organization-scoped (so the tenant-predicate canary governs it),

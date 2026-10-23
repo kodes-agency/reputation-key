@@ -30,6 +30,12 @@ export type ResponseTargetView = Readonly<{
     | 'source_ineligible'
     | null
   propertyTimezone: string
+  /**
+   * The cycle is in the exclusion ledger (`inbox_response_target_exclusions`):
+   * it counts in no analytics, gets no reminder and measures no waiting time.
+   * The target still closes with the cycle; its completion is not counted.
+   */
+  excludedFromReporting: boolean
   evaluation: ResponseTargetEvaluation
 }>
 

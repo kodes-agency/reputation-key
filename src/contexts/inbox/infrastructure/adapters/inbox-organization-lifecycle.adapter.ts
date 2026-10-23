@@ -49,9 +49,10 @@ type PhaseStep = Readonly<{ step: string; rows: number }>
  *
  * `inbox_assignment_history`, `inbox_escalation_history`,
  * `inbox_feedback_handling_outcomes`, `inbox_handling_cycle_transitions`,
- * `inbox_handling_cycle_heads`, `inbox_handling_cycle_response_targets` and
- * `inbox_response_target_reminders` are omitted on purpose: each one is a child
- * of a row already probed here, so probing them would only cost extra scans.
+ * `inbox_handling_cycle_heads`, `inbox_handling_cycle_response_targets`,
+ * `inbox_response_target_reminders` and `inbox_response_target_exclusions` are
+ * omitted on purpose: each one is a child of a row already probed here, so
+ * probing them would only cost extra scans.
  */
 const PRESENCE_PROBE_TABLES = Object.freeze([
   'inbox_items',
@@ -195,7 +196,8 @@ async function verifyPurgeReadiness(
  * Irreversible, idempotent scrub of Inbox's tenant content.
  *
  * `inbox_items` is the only row that has to be named. Handling cycles, cycle
- * heads, cycle transitions, Response Targets, reminders, assignment history,
+ * heads, cycle transitions, Response Targets, reminders, the Response Target
+ * exclusion ledger, assignment history,
  * escalation history, private-feedback outcomes and notes all hang off it by
  * `ON DELETE CASCADE`, and their PostgreSQL immutability triggers accept a
  * delete ONLY as such a cascade (`pg_trigger_depth() > 1` with the parent

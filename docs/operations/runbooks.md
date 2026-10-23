@@ -1768,3 +1768,97 @@ that showed it.
 **Evidence:** Retain the misbehaving and fixing release SHAs, the stop time and
 the controls used, the refused-deploy log line if an earlier image was tried,
 and the restart decision.
+
+---
+
+## 29. False Guest Edits (A Revision Google Only Restated)
+
+**Trigger/Symptoms:** Reviews that nobody edited carry a Material Review
+Revision 2 or later; handled Inbox items were reopened ("Reopened - the review
+was edited") and closed again; open items show a Response Target that was
+overdue the moment it appeared and a `target_passed` reminder; a burst of
+"review edited" or reopened notices reached managers. The worker or web log
+shows `review.provider_restatement` warn lines (organization, property and
+review ids only): since 2026-10-23 Review keeps the revision when it sees a
+difference at an unmoved `updateTime`, and the line is how the next Google format
+change becomes visible. The first occurrence was 2026-10-23, when Google changed
+how it wraps translated review text: 62 closed-beta reviews got a false Revision
+2, 7 handled items were reopened and 55 open items counted as missed.
+
+**Impact:** P2 — Response Target figures (overdue counts, the on-time and late
+buckets, the average) and reminders are wrong for the affected cycles, and
+managers were told about edits that did not happen. Nothing is lost: reviews,
+replies and the Inbox items themselves are intact.
+
+**How to tell a false guest edit:** A guest edit moves Google's `updateTime`
+(`review_source_observations.source_updated_at`). A false one is a
+`material_change` observation whose `source_updated_at` equals the one of the
+last applied observation before it, in the same source epoch. Read it from
+identifiers and times only, never the text columns:
+
+```sql
+SELECT observation_sequence, comparison_result, material_revision,
+       source_epoch, source_updated_at, observed_at
+FROM review_source_observations
+WHERE organization_id = $1 AND review_id = $2
+ORDER BY observation_sequence;
+```
+
+Two rows with the same `source_updated_at` and `material_change` on the second
+is a false edit. A real edit shows a later time. To find the Properties a
+window of false revisions touched (ids and counts):
+
+```sql
+SELECT organization_id, property_id, count(*)
+FROM material_review_revisions
+WHERE revision > 1 AND created_at >= $1
+GROUP BY organization_id, property_id;
+```
+
+**Prerequisites:** Open an incident record. The release that carries migrations
+0069 and 0070 and `provider_restatement` is deployed on web and worker, so no new
+false revision is created while you repair the old ones (check `RELEASE_SHA` on
+both). Name the person filling each operating role.
+
+**Containment:** None is needed for the cause once the release above is live.
+Notices already delivered cannot be recalled: `review.updated` and
+`inbox.response_target_passed` for an open item stay actionable until the item
+closes, and `inbox.reopened` was settled when the cycle closed again.
+
+**Recovery:** The cycles and targets are immutable history (ADR 0055), so they
+are not edited. Per Property, dry run first:
+
+1. `pnpm ops inbox exclude-restated-revision-targets <propertyId> --operator <id>`
+   prints the number of restated revisions Review reports, the candidate cycles
+   (counts by item status `open`/`closed` and by target state
+   `open`/`on_time`/`late`/`cancelled`), the pending reminder slots and the
+   candidate item ids with their cycle numbers. Check it against what the
+   Property should have: every candidate must be a `material_revision_changed`
+   cycle that a restated revision opened.
+2. `pnpm ops inbox exclude-restated-revision-targets <propertyId> --operator <id>
+--reason <text> --ticket <ref> --apply` records one
+   `inbox_response_target_exclusions` row per candidate and cancels the pending
+   reminder slots of those cycles. It moves nothing else: items stay open or
+   closed as they were, assignment and escalation are untouched, and a later real
+   reply still closes an open item (its completion stays out of the figures).
+3. A cycle the command refuses (exit 1) is named with the reason; nothing was
+   written for it. Look at it by hand before running again.
+
+The item's real wait is not measured for an excluded cycle, because the earlier
+cycle's target was already cancelled and cannot be revived. That is accepted.
+
+**Verification:** A second dry run prints `nothing to exclude`. The Organization
+settings analytics and the fleet, Property and attention overdue figures no longer
+count the cycles (`SELECT count(*) FROM inbox_response_target_exclusions WHERE
+organization_id = $1` equals the applied count), the item shows "Not measured",
+and `SELECT count(*) FROM inbox_response_target_reminders WHERE organization_id =
+$1 AND delivered_at IS NULL AND cancelled_at IS NULL AND cycle_number IN (...)`
+is 0 for the excluded cycles.
+
+**Escalation:** Bozhidar Denev. If the revisions keep appearing after the release
+is live, `provider_restatement` is not catching a new format: keep the
+`review.provider_restatement` lines and escalate before running the command again.
+
+**Evidence:** Retain the dry-run and apply records the command printed (operator,
+reason, ticket, correlation id, counts), the affected Property ids, the release
+SHAs, and the number of notices that reached managers. Do not retain review text.

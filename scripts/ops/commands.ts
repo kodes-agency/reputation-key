@@ -17,6 +17,7 @@ export const COMMANDS: Readonly<
   'feedback-sync': ['scripts/ops/feedback-sync.ts'],
   'gbp-subscribe': ['scripts/ops/gbp-subscribe.ts'],
   'google-admission-role': ['scripts/ops/provision-google-admission-role.ts'],
+  inbox: ['scripts/ops/inbox-exclude-restated-revision-targets.ts'],
   inspect: ['scripts/ops/inspect-decision.ts'],
   'import-reply-templates': ['scripts/ops/import-reply-templates.ts'],
   jobs: ['scripts/ops/job-repair.ts'],

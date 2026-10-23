@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  MIGRATION_CREATED_CONSTRUCTS,
   SUPERSEDED_CONSTRUCT_DEFINITIONS,
   compareConstructDefinitions,
   expectedConstructDefinitions,
@@ -291,10 +292,46 @@ describe('the committed constructs file', () => {
       ({ kind }) => kind === 'function' || kind === 'trigger',
     ).map(keyOf)
 
+    const migrationCreated = MIGRATION_CREATED_CONSTRUCTS.map(keyOf)
+
     // The register is parsed from the same file by its own, simpler pattern: a
-    // statement this parser swallowed or split would show as a difference.
+    // statement this parser swallowed or split would show as a difference. The
+    // constructs only a migration creates are registered by hand and named in
+    // MIGRATION_CREATED_CONSTRUCTS.
     expect(registered.length).toBeGreaterThan(100)
-    expect([...stated].sort()).toEqual([...registered].sort())
+    expect([...stated, ...migrationCreated].sort()).toEqual([...registered].sort())
+  })
+
+  it('states every construct only a migration creates in that migration, and not in the file', () => {
+    const stated = new Set(readConstructsFileDefinitions().map(keyOf))
+
+    for (const entry of MIGRATION_CREATED_CONSTRUCTS) {
+      expect(stated.has(keyOf(entry))).toBe(false)
+      expect(
+        readMigrationDefinitions(entry.migration).map(keyOf),
+        `${entry.migration} creates ${keyOf(entry)}`,
+      ).toContain(keyOf(entry))
+    }
+  })
+
+  it('expects the migration text for a construct only a migration creates', () => {
+    const expected = new Map(
+      expectedConstructDefinitions().map((definition) => [keyOf(definition), definition]),
+    )
+
+    for (const entry of MIGRATION_CREATED_CONSTRUCTS) {
+      expect(expected.get(keyOf(entry))?.source).toBe(`drizzle/${entry.migration}.sql`)
+    }
+  })
+
+  it('guards the exclusion table with a before-delete-or-update row trigger', () => {
+    const [guard] = readMigrationDefinitions(
+      '0070_inbox_response_target_exclusions',
+    ).filter(({ kind }) => kind === 'trigger')
+
+    expect(guard?.definition).toBe(
+      'CREATE TRIGGER inbox_response_target_exclusions_append_only_guard BEFORE DELETE OR UPDATE ON inbox_response_target_exclusions FOR EACH ROW EXECUTE FUNCTION enforce_inbox_response_target_exclusion_append_only_v1()',
+    )
   })
 
   it('expects, for every construct a later migration creates, the definition the journal ends on', () => {

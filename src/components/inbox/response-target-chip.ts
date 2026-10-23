@@ -63,6 +63,7 @@ function notMeasuredChip(
 }
 
 function excludedDescription(target: ResponseTargetView): string {
+  if (target.excludedFromReporting) return CANCELLED_DESCRIPTION
   if (target.eligibility === 'historical_onboarding') {
     return 'This review was imported as onboarding history, so its earlier response time is not included in target reporting.'
   }

@@ -234,6 +234,12 @@ type EvaluatedTarget = Readonly<{
   dueAt: Date | null
   completionAt: Date | null
   result: ResponseTargetResult | null
+  /**
+   * The cycle has a row in the exclusion ledger: its clock measures nothing
+   * (Google restated the review, no guest did). Read as not measured, as a
+   * cycle without reliable timing is, whatever the target holds.
+   */
+  excludedFromReporting?: boolean
 }>
 
 export type ResponseTargetEvaluation = Readonly<{
@@ -247,6 +253,7 @@ export function evaluateResponseTarget(
   now: Date,
 ): ResponseTargetEvaluation {
   if (
+    target.excludedFromReporting === true ||
     target.eligibility !== 'measured' ||
     target.startAt === null ||
     target.dueAt === null

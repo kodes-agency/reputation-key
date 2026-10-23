@@ -11,6 +11,7 @@ import {
 import { capabilityForPermission } from '../../src/shared/auth/capability-for-permission'
 import { GOOGLE_PROVIDER_OPERATOR_COMMANDS } from '../../src/shared/ops/google-provider-commands'
 import { aiReleaseOrphanSequencesCommandSpec } from '../../src/shared/ops/ai-release-orphan-sequences-command'
+import { inboxExcludeRestatedRevisionTargetsCommandSpec } from '../../src/shared/ops/inbox-exclude-restated-revision-targets-command'
 import { jobRepairCommandSpec } from '../../src/shared/ops/job-repair-command'
 import { COMMANDS } from './commands'
 
@@ -96,6 +97,34 @@ describe('pnpm ops ai release-orphan-sequences', () => {
 
     expect(entry).toContain('15 minutes')
     expect(entry).toContain('`--reason <text> --apply`')
+  })
+})
+
+// Review minted a revision where Google only restated a review, and Inbox
+// opened a cycle whose target never counted for a guest. The runbook for false
+// guest edits (§29) names the command.
+describe('pnpm ops inbox exclude-restated-revision-targets', () => {
+  it('is dispatched to its script and invoked as the guides spell it', () => {
+    expect(COMMANDS.inbox).toEqual([
+      'scripts/ops/inbox-exclude-restated-revision-targets.ts',
+    ])
+    expect(inboxExcludeRestatedRevisionTargetsCommandSpec.name).toBe('ops:inbox')
+    expect(inboxExcludeRestatedRevisionTargetsCommandSpec.usage).toContain(
+      'pnpm ops inbox exclude-restated-revision-targets <propertyId>',
+    )
+  })
+
+  it('is listed in the command list, with what it refuses and how to apply it', () => {
+    const entry = readFileSync(
+      resolve(ROOT, 'docs/operations/operator-commands.md'),
+      'utf8',
+    )
+      .split('\n')
+      .find((line) => line.startsWith('- `ops:inbox exclude-restated-revision-targets '))
+
+    expect(entry).toContain('no longer the one recorded for that revision')
+    expect(entry).toContain('`--reason <text> --apply`')
+    expect(entry).toContain('A second apply finds nothing')
   })
 })
 

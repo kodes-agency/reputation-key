@@ -59,7 +59,10 @@ describe('buildInboxContext', () => {
       'getInboxResponseTarget',
       'startReviewHandlingCycle',
     ])
-    expect(Object.keys(context.maintenance)).toEqual(['rebuildInboxProjection'])
+    expect(Object.keys(context.maintenance)).toEqual([
+      'rebuildInboxProjection',
+      'responseTargetExclusions',
+    ])
     expect(Object.keys(context.worker)).toEqual(['registerOutboxConsumers'])
     expect(Object.isFrozen(context.lifecycle)).toBe(true)
     expect(Object.isFrozen(context.maintenance)).toBe(true)
@@ -77,6 +80,11 @@ describe('buildInboxContext', () => {
     expect(context.maintenance.rebuildInboxProjection).toBe(
       context.internal.useCases.rebuildInboxProjection,
     )
+    expect(Object.keys(context.maintenance.responseTargetExclusions).sort()).toEqual([
+      'apply',
+      'findProperty',
+      'scan',
+    ])
   })
 
   it('registers durable consumers unconditionally', () => {

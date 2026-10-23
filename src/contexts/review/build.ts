@@ -24,6 +24,7 @@ import type { ReviewObservationRepository } from './application/ports/review-obs
 import type { ReplyLookups, ReplyRepository } from './application/ports/reply.repository'
 import type { ReplyTemplateRepository } from './application/ports/reply-template.repository'
 import type { FindAmbiguousPublicationReconciliationCandidates } from './application/ports/publication-reconciliation-maintenance.port'
+import type { ListRestatedMaterialRevisions } from './application/ports/restated-revision-maintenance.port'
 import type { ReplyCommandStore } from './application/ports/reply-command-store.port'
 import type {
   ReviewHeadCheckQueuePort,
@@ -47,6 +48,7 @@ import { createReviewObservationRepository } from './infrastructure/repositories
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { createReplyTemplateRepository } from './infrastructure/repositories/reply-template.repository'
 import { createPublicationReconciliationCandidateQuery } from './infrastructure/repositories/publication-reconciliation-candidate.repository'
+import { createRestatedRevisionQuery } from './infrastructure/repositories/restated-revision.repository'
 import { createServingStats } from './infrastructure/serving-stats'
 import type { ReviewServingStats } from './application/ports/serving-stats.port'
 import { createGoogleRatingReads } from './infrastructure/google-rating-reads'
@@ -239,6 +241,9 @@ export type ReviewContextApi = Readonly<{
     }>
     runSourceContentLifecycle: RunReviewSourceContentLifecycle
     recovery: ReviewLifecycleRecoveryAuthorityFactory
+    /** Past Material Review Revisions Google only restated; Inbox's operator
+     * command leaves their Response Targets out of its counts. */
+    restatedRevisions: Readonly<{ list: ListRestatedMaterialRevisions }>
   }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
@@ -768,6 +773,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       }),
       runSourceContentLifecycle: useCases.runReviewSourceContentLifecycle,
       recovery,
+      restatedRevisions: Object.freeze({
+        list: createRestatedRevisionQuery(input.db).listRestatedRevisions,
+      }),
     }),
     worker: Object.freeze({
       registerOutboxConsumers,

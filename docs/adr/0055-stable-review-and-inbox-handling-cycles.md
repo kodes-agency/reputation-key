@@ -736,7 +736,25 @@ revision is created when the rating or normalized text changes **and Google's
   one `review.provider_restatement` warn line carrying the Organization,
   Property and Review ids and nothing else.
 - **Not retroactive.** The 62 revision-2 rows already written stay recorded as
-  `material_change`; cleaning them is a separate operator job.
+  `material_change`; the cycles they opened are left out of the counts by the
+  exclusion ledger below.
+
+**The exclusion ledger (migration 0070).** Decisions 8 and 11 make prior cycles
+and their Response Targets immutable history, and a database trigger refuses any
+rewrite of a completed target, so the 62 cycles cannot be corrected in place.
+Cancelling the 55 open targets would state a reason that is not true
+(`superseded_by_source_revision`) and would make the later real reply fail to
+close the item; the 7 completed ones cannot be reached at all. Instead
+`inbox_response_target_exclusions` records, beside the target and append-only
+(a trigger refuses UPDATE and any DELETE that is not the cascade from its
+target), that one cycle is left out of reporting. The Google analytics, the
+per-Property overdue figures, reminder selection and admission and the waiting
+time skip it; it reads "Not measured"; a later real reply still closes it and the
+completion stays out of the figures; the organization export marks the row.
+Review lists the restated revisions of a Property and Inbox, which may not read
+Review tables, finds the cycles they opened:
+`pnpm ops inbox exclude-restated-revision-targets <propertyId>` (dry run first;
+runbooks §29). No cycle, transition, head, item or counter moves.
 
 Enforced by `material-review-revision.test.ts` (equal, one millisecond either
 way, missing times, the legacy baseline, the reread guard winning),
@@ -745,7 +763,11 @@ way, missing times, the legacy baseline, the reread guard winning),
 comparisons, adopted digests, a pending reply untouched until the real edit,
 the announced revision, no released sequence, the erasure limit, the report),
 and the epoch-carry, sequence-release, Google-page and head-persist integration
-suites.
+suites. The ledger is enforced by `response-target-exclusion-readers`,
+`restated-revision-target-exclusion.store`, `restated-revision.repository`,
+`inbox-response-target-exclusions`, `inbox-item-lookup.response-target-exclusion`
+and `inbox-organization-export.target-exclusion` integration suites and the
+command's unit and integration tests.
 
 ## Merged from ADR 0003
 
