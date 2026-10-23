@@ -7,7 +7,9 @@
 // (ReviewProviderSnapshotFailureCode plus `enqueue_failed`); a review-context
 // test fails if the two drift. `cursor_lost` and `listing_changed` are listed
 // for completeness: the sync job restarts those runs without recording a
-// failure, so they are never stored. `total_changed`, `average_changed` and
+// failure, so they are never stored; `connection_unusable` is the same (a
+// connection waiting for a reconnect ends the run quietly, with no stored
+// failure, because the reconnect notice is the signal). `total_changed`, `average_changed` and
 // `confirmation_set_changed` reach here only when a Property's listing keeps
 // moving under run after run; the first two runs of such a move are
 // `listing_changed`. So does `duplicate_resource` when a review sits on two
@@ -18,6 +20,7 @@ export const SYNC_FAILURE_CODES = [
   'source_changed',
   'authorization_changed',
   'authorization_denied',
+  'connection_unusable',
   'runtime_unavailable',
   'stale_source',
   'provider_failure',

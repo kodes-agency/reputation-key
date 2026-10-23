@@ -4,6 +4,7 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import type { Review } from '../../domain/types'
 import {
+  GOOGLE_CONNECTION_UNUSABLE_CODE,
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
   type GoogleReviewApiPort,
 } from '../ports/google-review-api.port'
@@ -71,6 +72,7 @@ export type CheckReviewOnGoogleDeps = Readonly<{
 // raises carry one of these codes; the adapter's own errors carry theirs.
 const PERMANENT_AUTHORIZER_CODES: ReadonlySet<string> = new Set([
   'authorization_denied',
+  GOOGLE_CONNECTION_UNUSABLE_CODE,
   'stale_source',
   'capability_killed',
 ])

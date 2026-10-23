@@ -14,6 +14,7 @@ const FAILURE_CODES = {
   source_changed: true,
   authorization_changed: true,
   authorization_denied: true,
+  connection_unusable: true,
   runtime_unavailable: true,
   stale_source: true,
   provider_failure: true,

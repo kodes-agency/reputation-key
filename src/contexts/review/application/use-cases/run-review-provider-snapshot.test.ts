@@ -705,6 +705,44 @@ describe('runReviewProviderSnapshot', () => {
     })
   })
 
+  // A connection that broke while a run was in flight (a refresh Google
+  // refused, a disconnect) cannot be used by the next step either. The run ends
+  // under its own code and discards its cursors, so the next poll after the
+  // reconnect starts afresh instead of resuming cursors that will have lapsed.
+  it.each(['scanning', 'confirming'] as const)(
+    'ends a %s run under connection_unusable and discards its cursors',
+    async (state) => {
+      const deps = makeDeps({
+        currentRun:
+          state === 'scanning'
+            ? run()
+            : run({
+                state: 'confirming',
+                phase: 'confirmation',
+                confirmationDeadline: new Date('2026-08-16T12:00:00.000Z'),
+              }),
+      })
+      const refusal = Object.assign(new Error('connection_unusable'), {
+        code: 'connection_unusable',
+      })
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(refusal)
+      vi.mocked(deps.googleReviewApi.getReview).mockRejectedValue(refusal)
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({ status: 'failed', runId, code: 'connection_unusable' })
+      expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledWith(
+        expect.objectContaining({ runId }),
+      )
+      expect(deps.repository.failRun).toHaveBeenCalledWith({
+        runId,
+        organizationId,
+        code: 'connection_unusable',
+      })
+      expect(deps.logger.error).not.toHaveBeenCalled()
+    },
+  )
+
   // Google answered that the Location or the request is not valid (404, 400):
   // every retry gets the same answer, so the run ends and the next poll starts
   // a fresh one instead of the continuation looping until the run expires.
@@ -756,24 +794,26 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.repository.confirmLinkedCandidateMissing).not.toHaveBeenCalled()
   })
 
-  it.each(['authorization_denied', 'runtime_unavailable', 'stale_source'] as const)(
-    'preserves the Review sync authorization cause %s',
-    async (code) => {
-      const deps = makeDeps()
-      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
-        Object.assign(new Error(code), { code }),
-      )
+  it.each([
+    'authorization_denied',
+    'connection_unusable',
+    'runtime_unavailable',
+    'stale_source',
+  ] as const)('preserves the Review sync authorization cause %s', async (code) => {
+    const deps = makeDeps()
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+      Object.assign(new Error(code), { code }),
+    )
 
-      await expect(
-        runReviewProviderSnapshot(deps)({ ...request, runId }),
-      ).resolves.toEqual({
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      {
         status: 'failed',
         runId,
         code,
-      })
-      expect(deps.logger.error).not.toHaveBeenCalled()
-    },
-  )
+      },
+    )
+    expect(deps.logger.error).not.toHaveBeenCalled()
+  })
 
   it('logs a code-less provider failure with its bounded execution identity', async () => {
     const deps = makeDeps()

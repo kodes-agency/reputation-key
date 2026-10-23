@@ -6,6 +6,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
+import { integrationError, reauthorizationRequiredError } from '../domain/errors'
 import type { GoogleConnection } from '../domain/types'
 import {
   GOOGLE_NOTIFICATION_SYSTEM_PRINCIPAL,
@@ -92,6 +93,7 @@ function setup(
     bindings: ReturnType<typeof binding>[]
     connections: GoogleConnection[]
     accessToken: string
+    getAccessToken: () => Promise<string>
     content: Readonly<{
       ok: true
       policyVersion: number
@@ -112,7 +114,9 @@ function setup(
   const connections = overrides.connections ?? [connection(), connection()]
   const readBinding = vi.fn(async () => bindings.shift() ?? null)
   const findConnection = vi.fn(async () => connections.shift() ?? null)
-  const getAccessToken = vi.fn(async () => overrides.accessToken ?? 'access-token')
+  const getAccessToken = vi.fn(
+    overrides.getAccessToken ?? (async () => overrides.accessToken ?? 'access-token'),
+  )
   const defaultContent =
     overrides.content ??
     ({
@@ -125,17 +129,20 @@ function setup(
   const authorizeGoogleContent = vi.fn(async () =>
     Promise.resolve(contents.shift() ?? defaultContent),
   )
+  const warn = vi.fn()
   return {
     authorize: createGoogleReviewSyncAuthorizer({
       readBinding,
       findConnection,
       getAccessToken,
       authorizeGoogleContent,
+      warn,
     }),
     readBinding,
     findConnection,
     getAccessToken,
     authorizeGoogleContent,
+    warn,
   }
 }
 
@@ -316,5 +323,168 @@ describe('Google review-sync system authorization', () => {
       }),
     ).resolves.toEqual({ ok: false, code: 'stale_source' })
     expect(authorizeGoogleContent).toHaveBeenCalledOnce()
+  })
+})
+
+const REQUEST = {
+  organizationId: ORG_ID,
+  propertyId: PROPERTY_ID,
+  connectionId: CONNECTION_ID,
+  sourceEpoch: 7,
+} as const
+
+describe('Google review-sync authorization when the connection cannot be used', () => {
+  // A connection that waits for a reconnect is not a fault in the call: the
+  // reconnect notice is the signal, so the caller must be able to tell it from
+  // a connection that is usable but refused (the cases below the table).
+  it.each([
+    ['status reauth_required', { status: 'reauth_required' as const }],
+    ['status disconnected', { status: 'disconnected' as const }],
+    ['status disconnecting', { status: 'disconnecting' as const }],
+    ['status degraded', { status: 'degraded' as const }],
+    [
+      'credential use state cleanup_only',
+      { credentialUseState: 'cleanup_only' as const },
+    ],
+    ['credential use state none', { credentialUseState: 'none' as const }],
+    ['no business.manage scope', { scopes: ['openid', 'email'] }],
+  ])(
+    'says connection_unusable for a connection with %s, before any token or content access',
+    async (_label, overrides) => {
+      const { authorize, getAccessToken, authorizeGoogleContent, warn } = setup({
+        connections: [connection(overrides)],
+      })
+
+      await expect(authorize(REQUEST)).resolves.toEqual({
+        ok: false,
+        code: 'connection_unusable',
+      })
+      expect(getAccessToken).not.toHaveBeenCalled()
+      expect(authorizeGoogleContent).not.toHaveBeenCalled()
+      expect(warn).not.toHaveBeenCalled()
+    },
+  )
+
+  it('says connection_unusable when the connection breaks while the token is refreshed', async () => {
+    const { authorize, authorizeGoogleContent } = setup({
+      connections: [connection(), connection({ status: 'reauth_required' })],
+    })
+
+    await expect(authorize(REQUEST)).resolves.toEqual({
+      ok: false,
+      code: 'connection_unusable',
+    })
+    expect(authorizeGoogleContent).toHaveBeenCalledOnce()
+  })
+
+  it('says connection_unusable when the refresh itself learns Google refused the grant', async () => {
+    const { authorize, authorizeGoogleContent } = setup({
+      getAccessToken: async () => {
+        throw reauthorizationRequiredError()
+      },
+    })
+
+    await expect(authorize(REQUEST)).resolves.toEqual({
+      ok: false,
+      code: 'connection_unusable',
+    })
+    expect(authorizeGoogleContent).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['a transport failure', () => new Error('socket hang up')],
+    [
+      'a refresh that lost its credential fence',
+      () => integrationError('connection_disconnected', 'Credential authority changed'),
+    ],
+    [
+      'a refresh Google could not answer',
+      () => integrationError('token_refresh_failed', 'x'),
+    ],
+  ])(
+    'stays runtime_unavailable (retried) for %s from the token provider',
+    async (_label, makeError) => {
+      const { authorize } = setup({
+        getAccessToken: async () => {
+          throw makeError()
+        },
+      })
+
+      await expect(authorize(REQUEST)).resolves.toEqual({
+        ok: false,
+        code: 'runtime_unavailable',
+      })
+    },
+  )
+})
+
+describe('Google review-sync authorization refused while the connection is usable', () => {
+  it('stays authorization_denied, with a warning, when the permit vector changed during the refresh', async () => {
+    const { authorize, warn, getAccessToken } = setup({
+      contents: [
+        {
+          ok: true,
+          policyVersion: 11,
+          emergencyKillVersion: 2,
+          authorizationVector: contentVector(),
+        },
+        {
+          ok: true,
+          policyVersion: 11,
+          emergencyKillVersion: 2,
+          authorizationVector: contentVector({ propertyProfileVersion: 10 }),
+        },
+      ],
+    })
+
+    await expect(authorize(REQUEST)).resolves.toEqual({
+      ok: false,
+      code: 'authorization_denied',
+    })
+    expect(getAccessToken).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'google_review_sync_authorization_vector_changed',
+      }),
+      'Google review sync authorization changed',
+    )
+  })
+
+  it('stays authorization_denied when the content posture denies the call', async () => {
+    const denied = createGoogleReviewSyncAuthorizer({
+      readBinding: vi.fn(async () => binding()),
+      findConnection: vi.fn(async () => connection()),
+      getAccessToken: vi.fn(async () => 'access-token'),
+      authorizeGoogleContent: vi.fn(async () => ({
+        ok: false as const,
+        code: 'authorization_denied' as const,
+      })),
+    })
+
+    await expect(denied(REQUEST)).resolves.toEqual({
+      ok: false,
+      code: 'authorization_denied',
+    })
+  })
+
+  it('stays authorization_denied for a connection the lookup does not find', async () => {
+    const { authorize, getAccessToken } = setup({ connections: [] })
+
+    await expect(authorize(REQUEST)).resolves.toEqual({
+      ok: false,
+      code: 'authorization_denied',
+    })
+    expect(getAccessToken).not.toHaveBeenCalled()
+  })
+
+  it('stays authorization_denied for a connection of another organization', async () => {
+    const { authorize } = setup({
+      connections: [connection({ organizationId: organizationId('org-2') })],
+    })
+
+    await expect(authorize(REQUEST)).resolves.toEqual({
+      ok: false,
+      code: 'authorization_denied',
+    })
   })
 })

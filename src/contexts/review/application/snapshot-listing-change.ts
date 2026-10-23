@@ -119,8 +119,9 @@ const SET_CHANGED: ReadonlySet<ReviewProviderSnapshotFailureCode | null> = new S
  * `previous` is how the Property's runs in the same source epoch that ended
  * just before this one ended, newest first: their failure codes, null for a
  * completed run. The caller leaves out runs lost to a cursor store restart
- * (`cursor_lost`): they ended before they could compare their listings, so
- * they neither break a run of changes nor add to one. Only the first
+ * (`cursor_lost`) and runs ended by a Google connection that could not be used
+ * (`connection_unusable`): they ended before they could compare their
+ * listings, so they neither break a run of changes nor add to one. Only the first
  * {@link LISTING_CHANGE_QUIET_RUNS} entries are read.
  *
  * Moves of every kind count together, loud ones included, so once a Property's

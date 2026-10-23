@@ -5,7 +5,11 @@ import type {
   ReviewId,
 } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
-import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
+import {
+  GOOGLE_CONNECTION_UNUSABLE_CODE,
+  isGoogleConnectionUnusable,
+  type GoogleReviewApiPort,
+} from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-observation-writer.port'
 import type { ReviewFirstSightingRecorder } from '../ports/review-first-sighting-recorder.port'
@@ -46,6 +50,13 @@ export type RunTargetedGoogleReviewFetchResult =
         | 'target_not_found'
     }>
   | Readonly<{ status: 'obsolete' }>
+  /**
+   * The Property's Google connection cannot be used (it waits for a
+   * reconnect), so the read never reached Google. Quiet by design: the
+   * reconnect notice is the signal, and the first poll after the reconnect
+   * finds what the push announced.
+   */
+  | Readonly<{ status: 'skipped'; code: typeof GOOGLE_CONNECTION_UNUSABLE_CODE }>
 
 export type RunTargetedGoogleReviewFetchDeps = Readonly<{
   references: TargetedGoogleReviewReferenceResolver
@@ -85,14 +96,25 @@ export const runTargetedGoogleReviewFetch =
     if (target.status === 'obsolete') return { status: 'obsolete' }
     if (target.status === 'reconcile') return target
 
-    const providerResult = await deps.googleReviewApi.getReview({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      connectionId: input.connectionId,
-      sourceEpoch: input.sourceEpoch,
-      locationName: target.locationName,
-      reviewName: target.reviewName,
-    })
+    let providerResult: Awaited<ReturnType<GoogleReviewApiPort['getReview']>>
+    try {
+      providerResult = await deps.googleReviewApi.getReview({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        connectionId: input.connectionId,
+        sourceEpoch: input.sourceEpoch,
+        locationName: target.locationName,
+        reviewName: target.reviewName,
+      })
+    } catch (error) {
+      // Only the unusable connection is quiet. A refusal of a connection that
+      // IS usable (`authorization_denied`: the permit vector moved, the content
+      // posture denied) and every other failure still throws.
+      if (isGoogleConnectionUnusable(error)) {
+        return { status: 'skipped', code: GOOGLE_CONNECTION_UNUSABLE_CODE }
+      }
+      throw error
+    }
     if (providerResult.status === 'not_found') {
       return {
         status: 'reconcile',

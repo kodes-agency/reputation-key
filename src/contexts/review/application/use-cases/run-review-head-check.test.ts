@@ -291,6 +291,7 @@ describe('runReviewHeadCheck: a dark head check', () => {
     ['authorization_changed', 'authorization_changed'],
     ['reauthorization_required', 'authorization_changed'],
     ['authorization_denied', 'authorization_changed'],
+    ['connection_unusable', 'authorization_changed'],
     ['capability_killed', 'authorization_changed'],
     ['malformed_response', 'malformed_response'],
     ['invalid_request', 'error'],

@@ -28,8 +28,10 @@ type RunRow = typeof reviewProviderSnapshotRuns.$inferSelect
  * keep moving; every other failure is recorded as asked.
  *
  * Reads at most `LISTING_CHANGE_QUIET_RUNS` of the Property's earlier runs of
- * this source epoch, newest first. A run lost to a cursor store restart is
- * skipped: it ended before it could compare its two listings.
+ * this source epoch, newest first. A run lost to a cursor store restart, and
+ * one ended by a Google connection that could not be used
+ * (`connection_unusable`), are skipped: they ended before they could compare
+ * their two listings.
  *
  * The table has no index for failed runs (only for active and completed ones),
  * so this reads the whole table, which holds 30 days of every Property's runs.
@@ -55,6 +57,7 @@ export async function recordedFailureCode(
         inArray(reviewProviderSnapshotRuns.state, ['completed', 'failed']),
         ne(reviewProviderSnapshotRuns.id, run.id),
         sql`${reviewProviderSnapshotRuns.failureCode} IS DISTINCT FROM 'cursor_lost'`,
+        sql`${reviewProviderSnapshotRuns.failureCode} IS DISTINCT FROM 'connection_unusable'`,
       ),
     )
     .orderBy(

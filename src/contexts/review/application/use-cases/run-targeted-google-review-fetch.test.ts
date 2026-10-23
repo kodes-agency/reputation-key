@@ -56,6 +56,8 @@ function setup(
         }>
       | Readonly<{ status: 'obsolete' }>
     getResult?: Awaited<ReturnType<GoogleReviewApiPort['getReview']>>
+    /** What the governed read rejects with instead of answering. */
+    getError?: unknown
     epochs?: readonly (Readonly<{
       sourceEpoch: number
     }> | null)[]
@@ -63,9 +65,10 @@ function setup(
   }> = {},
 ) {
   const epochs = [...(input.epochs ?? [{ sourceEpoch: 6 }, { sourceEpoch: 6 }])]
-  const getReview = vi.fn(
-    async () => input.getResult ?? ({ status: 'found', review } as const),
-  )
+  const getReview = vi.fn(async () => {
+    if (input.getError !== undefined) throw input.getError
+    return input.getResult ?? ({ status: 'found', review } as const)
+  })
   const googleReviewApi: GoogleReviewApiPort = {
     getReview,
     listReviewsPage: vi.fn(),
@@ -275,5 +278,44 @@ describe('runTargetedGoogleReviewFetch', () => {
     await useCase(request)
 
     expect(markPushArrived).not.toHaveBeenCalled()
+  })
+
+  describe('when the read is refused before it reaches Google', () => {
+    const refusal = (code: string) => Object.assign(new Error(code), { code })
+
+    it('skips quietly while the Google connection cannot be used, and persists nothing', async () => {
+      const { useCase, persist, syncActivity, markPushArrived } = setup({
+        getError: refusal('connection_unusable'),
+      })
+
+      await expect(useCase(request)).resolves.toEqual({
+        status: 'skipped',
+        code: 'connection_unusable',
+      })
+      expect(persist).not.toHaveBeenCalled()
+      expect(syncActivity.recordNewReviewObserved).not.toHaveBeenCalled()
+      expect(markPushArrived).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      'authorization_denied',
+      'authorization_changed',
+      'runtime_unavailable',
+      'stale_source',
+    ])(
+      'still fails loudly with %s, the refusal of a connection that is usable',
+      async (code) => {
+        const { useCase, persist } = setup({ getError: refusal(code) })
+
+        await expect(useCase(request)).rejects.toMatchObject({ code })
+        expect(persist).not.toHaveBeenCalled()
+      },
+    )
+
+    it('still fails loudly for an error that carries no code', async () => {
+      const { useCase } = setup({ getError: new Error('socket hang up') })
+
+      await expect(useCase(request)).rejects.toThrow('socket hang up')
+    })
   })
 })

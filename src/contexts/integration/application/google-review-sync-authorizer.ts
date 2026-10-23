@@ -5,6 +5,7 @@ import {
 } from '#/shared/domain/google-content-authorization-vector'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
+import { isIntegrationError } from '../domain/errors'
 import type { GoogleConnection } from '../domain/types'
 import type { ActiveConnectionTokenProvider } from './active-connection-token-provider'
 import {
@@ -69,6 +70,20 @@ export type GoogleReviewSyncContentAuthorizer = (
 export type GoogleReviewSyncProviderAuthorization =
   GoogleReviewSyncProviderCallAuthorization
 
+/**
+ * Why a review-sync call was refused. `connection_unusable` is the one refusal
+ * that is not a fault in the call: the Property's Google connection is not
+ * active, its credential may not be used, or it lacks the Business Profile
+ * scope, and only a fresh consent (a reconnect) changes that. The reconnect
+ * notice is already the signal, so a caller ends such a step quietly. Every
+ * other refusal stays loud: `authorization_denied` is the authority saying no
+ * to a connection that IS usable (the permit vector moved, the content posture
+ * refused), `runtime_unavailable` could not decide, and `stale_source` is a
+ * Property that moved on.
+ */
+export type GoogleReviewSyncRefusalCode =
+  'authorization_denied' | 'connection_unusable' | 'runtime_unavailable' | 'stale_source'
+
 export type GoogleReviewSyncAuthorizationResult =
   | Readonly<{
       ok: true
@@ -77,7 +92,7 @@ export type GoogleReviewSyncAuthorizationResult =
     }>
   | Readonly<{
       ok: false
-      code: 'authorization_denied' | 'runtime_unavailable' | 'stale_source'
+      code: GoogleReviewSyncRefusalCode
     }>
 
 export type GoogleReviewSyncAuthorizer = (
@@ -111,18 +126,40 @@ function currentBinding(
   )
 }
 
-function usableConnection(
+/**
+ * The Organization's own connection the Property is bound to. A lookup that
+ * finds nothing, or something else, is an inconsistency, not a connection
+ * waiting for a reconnect, so it is refused as `authorization_denied`.
+ */
+function boundConnection(
   connection: GoogleConnection | null,
   input: Parameters<GoogleReviewSyncAuthorizer>[0],
 ): connection is GoogleConnection {
   return Boolean(
     connection &&
     connection.organizationId === input.organizationId &&
-    connection.id === input.connectionId &&
+    connection.id === input.connectionId,
+  )
+}
+
+/** Whether the connection's credential may be used for a review-sync call. */
+function usableCredential(connection: GoogleConnection): boolean {
+  return (
     connection.status === 'active' &&
     connection.credentialUseState === 'active' &&
-    connection.scopes.includes(GOOGLE_BUSINESS_MANAGE_SCOPE),
+    connection.scopes.includes(GOOGLE_BUSINESS_MANAGE_SCOPE)
   )
+}
+
+/**
+ * The refresh found, or just recorded, that Google refuses the grant for good
+ * (or that the connection already waits for a reconnect). Other token provider
+ * failures stay `runtime_unavailable`: a refresh that lost its credential fence
+ * to a concurrent writer says `connection_disconnected` without saying the
+ * connection is unusable, so the next attempt's own read decides.
+ */
+function refreshLearnedConnectionUnusable(error: unknown): boolean {
+  return isIntegrationError(error) && error.code === 'reauthorization_required'
 }
 
 function safeGeneration(value: number): boolean {
@@ -212,8 +249,11 @@ export function createGoogleReviewSyncAuthorizer(
     if (!currentBinding(initialBinding, input)) {
       return { ok: false, code: 'stale_source' }
     }
-    if (!usableConnection(initialConnection, input)) {
+    if (!boundConnection(initialConnection, input)) {
       return { ok: false, code: 'authorization_denied' }
+    }
+    if (!usableCredential(initialConnection)) {
+      return { ok: false, code: 'connection_unusable' }
     }
 
     let initialContent: GoogleReviewSyncContentAuthorizationResult
@@ -237,8 +277,10 @@ export function createGoogleReviewSyncAuthorizer(
     let accessToken: string
     try {
       accessToken = await deps.getAccessToken(input.organizationId, input.connectionId)
-    } catch {
-      return { ok: false, code: 'runtime_unavailable' }
+    } catch (error) {
+      return refreshLearnedConnectionUnusable(error)
+        ? { ok: false, code: 'connection_unusable' }
+        : { ok: false, code: 'runtime_unavailable' }
     }
 
     let binding: ReviewSyncPropertyAuthorizationView | null
@@ -254,8 +296,11 @@ export function createGoogleReviewSyncAuthorizer(
     if (!currentBinding(binding, input)) {
       return { ok: false, code: 'stale_source' }
     }
-    if (!usableConnection(connection, input)) {
+    if (!boundConnection(connection, input)) {
       return { ok: false, code: 'authorization_denied' }
+    }
+    if (!usableCredential(connection)) {
+      return { ok: false, code: 'connection_unusable' }
     }
 
     let content: GoogleReviewSyncContentAuthorizationResult

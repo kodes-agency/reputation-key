@@ -19,6 +19,7 @@ const ACTIONABLE_REASONS: Readonly<
 > = {
   authorization_changed: 'google_authorization',
   authorization_denied: 'google_authorization',
+  connection_unusable: 'google_authorization',
   source_changed: 'property_source_changed',
   stale_source: 'property_source_changed',
   page_cap_exceeded: 'location_too_large',
