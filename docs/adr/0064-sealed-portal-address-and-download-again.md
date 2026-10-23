@@ -8,6 +8,17 @@ date: 2026-10-01
 Amends [ADR 0044](0044-public-portal-and-guest-response.md), "Token and session"
 decision 1, and the Portal CONTEXT invariant 9.
 
+> **Amended 2026-10-23 by [ADR 0069](0069-short-printed-portal-address.md).** The sealed
+> copy is still the long token (decisions 1 and 7): it is not widened and there is no
+> second sealed copy. A code's print codes are derived from it and stored only as keyed
+> hashes on `portal_tokens`, so decision 7's "not read except by the one sealed-address
+> repository" is joined by four named readers of the hashes, never of the sealed copy.
+> Decision 5 changes: the response carries three addresses (`qr`, `nfc` and `direct`,
+> not two), and issue and replace gain `Cache-Control: private, no-store`. The rejected
+> alternative "Derive the address from a secret and the token id" stays rejected: a
+> print code is derived from the secret **and** the long token, so the secret alone
+> produces nothing, and print codes stay bound to the first secret.
+
 ## Context
 
 A Portal has one public address, and its code is that address twice over: a QR

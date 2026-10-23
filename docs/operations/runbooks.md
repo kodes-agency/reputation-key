@@ -1572,6 +1572,30 @@ and redeploy both: nothing seals a new code, sealed codes stop offering it (as
 under "Losing the keyring"), and every code keeps working. Anything else wrong
 with the feature is repaired by a fix deployed forward.
 
+**Print codes and the print host (ADR 0069).** A short printed address,
+`https://ap.up.railway.app/p/<print code>`, replaces the long address on new prints.
+Migration 0070 and the codec are in; no print code is minted until the step that
+mints them ships, so everything below applies from that release on.
+
+- **The print host stays.** `ap.up.railway.app` is a second Railway domain on the web
+  service and redirects `/p/<code>` to the app origin (`PORTAL_PRINT_ORIGIN`, set on
+  web and worker). Never release, rename or detach a Railway-provided name once
+  anything is printed with it: another Railway account could claim it and receive
+  every scan. A print code stops opening, and a printed card with it, the moment the
+  host goes away.
+- **A print kit needs the keyring, at every size.** The address comes through the
+  audited reveal of the sealed code, so a code with no sealed copy cannot be printed
+  (Share offers "Replace"). With no keyring set nothing can be printed.
+- **The secret binds print codes.** They are derived from `PORTAL_TOKEN_HASH_SECRET`,
+  so changing it stops every printed short code, as it already stops every long one.
+- **Suspected compromise.** A security replacement stops the print codes with the
+  long address at once (no grace). A planned replacement keeps the old print codes
+  live through its grace.
+- **In Sentry.** `PrintCodeDeriveMismatch` (a reveal found a stored hash that
+  differs from the derived one and fell back to the long address) and
+  `PrintCodeCollision` (a unique index refused a new code's hash) each need a look.
+  Neither carries a code or a hash.
+
 **Verification.** Make a code on a test Portal, reload, and confirm "Download
 again" is offered; download it, then read the Portal's History and confirm a
 "downloaded" entry with the person's name. `SELECT count(*) FROM

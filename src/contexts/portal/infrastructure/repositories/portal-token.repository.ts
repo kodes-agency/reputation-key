@@ -11,7 +11,32 @@ import { NO_SEALED_ADDRESS } from '../portal-sealed-address-columns'
 
 const VALID_TOKEN_STATES: ReadonlySet<string> = new Set(['active', 'rotating', 'revoked'])
 
-function tokenFromRow(row: typeof portalTokens.$inferSelect): PortalToken {
+// The columns a PortalToken is made of. The two whole-row reads name them instead
+// of selecting everything, so the sealed address and the print code hashes
+// (ADR 0064, ADR 0069) never reach this module (`portal-print-code-columns.test.ts`).
+const TOKEN_COLUMNS = {
+  id: portalTokens.id,
+  organizationId: portalTokens.organizationId,
+  propertyId: portalTokens.propertyId,
+  portalId: portalTokens.portalId,
+  tokenIdentifier: portalTokens.tokenIdentifier,
+  tokenHash: portalTokens.tokenHash,
+  tokenKeyVersion: portalTokens.tokenKeyVersion,
+  version: portalTokens.version,
+  printBatch: portalTokens.printBatch,
+  status: portalTokens.status,
+  issuedAt: portalTokens.issuedAt,
+  gracePeriodEnds: portalTokens.gracePeriodEnds,
+  retiredAt: portalTokens.retiredAt,
+  revokedAt: portalTokens.revokedAt,
+  revokedBy: portalTokens.revokedBy,
+  revokedReason: portalTokens.revokedReason,
+} as const
+
+const selectTokens = (db: Database) => db.select(TOKEN_COLUMNS).from(portalTokens)
+type TokenRow = Awaited<ReturnType<typeof selectTokens>>[number]
+
+function tokenFromRow(row: TokenRow): PortalToken {
   if (!VALID_TOKEN_STATES.has(row.status)) {
     throw portalError('token_unavailable', 'Stored portal token state is invalid')
   }
@@ -135,9 +160,7 @@ async function outgoingGraceEnds(
 export const createPortalTokenRepository = (db: Database): PortalTokenRepository => ({
   findLatestForPortal: async (organizationId, portalId) =>
     trace('portalToken.findLatestForPortal', async () => {
-      const [row] = await db
-        .select()
-        .from(portalTokens)
+      const [row] = await selectTokens(db)
         .where(
           and(
             eq(portalTokens.organizationId, unbrand(organizationId)),
@@ -255,9 +278,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
 
   findResolvableByDigest: async (digest, asOf) =>
     trace('portalToken.findResolvableByDigest', async () => {
-      const [row] = await db
-        .select()
-        .from(portalTokens)
+      const [row] = await selectTokens(db)
         .where(
           and(
             eq(portalTokens.tokenIdentifier, digest.tokenIdentifier),

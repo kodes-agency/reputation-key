@@ -429,6 +429,12 @@ export const portalTokens = pgTable(
     tokenKeyVersion: integer('token_key_version').notNull().default(1),
     encryptedRawToken: text('encrypted_raw_token'),
     addressEncryptionKeyVersion: integer('address_encryption_key_version'),
+    // Keyed hashes of the code's two print codes, one per access-artifact channel
+    // (ADR 0069). Credential material: only the page, access-artifact, Portal
+    // command-store and address repositories name them
+    // (`portal-print-code-columns.test.ts`). Null until minted or filled.
+    qrPrintCodeHash: varchar('qr_print_code_hash', { length: 64 }),
+    nfcPrintCodeHash: varchar('nfc_print_code_hash', { length: 64 }),
     // Who made this code. Null for codes made before slice 33 of round 4.
     issuedBy: varchar('issued_by', { length: 255 }),
     version: integer('version').notNull(),
@@ -461,6 +467,12 @@ export const portalTokens = pgTable(
       t.status,
       t.gracePeriodEnds,
     ),
+    uniqueIndex('portal_tokens_qr_print_code_hash_key')
+      .on(t.qrPrintCodeHash)
+      .where(sql`${t.qrPrintCodeHash} IS NOT NULL`),
+    uniqueIndex('portal_tokens_nfc_print_code_hash_key')
+      .on(t.nfcPrintCodeHash)
+      .where(sql`${t.nfcPrintCodeHash} IS NOT NULL`),
     foreignKey({
       name: 'portal_tokens_portal_tenant_fk',
       columns: [t.organizationId, t.portalId],
@@ -483,6 +495,14 @@ export const portalTokens = pgTable(
     check(
       'portal_tokens_sealed_address_active_only',
       sql`${t.encryptedRawToken} IS NULL OR ${t.status} = 'active'`,
+    ),
+    check(
+      'portal_tokens_qr_print_code_hash_format',
+      sql`${t.qrPrintCodeHash} IS NULL OR ${t.qrPrintCodeHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'portal_tokens_nfc_print_code_hash_format',
+      sql`${t.nfcPrintCodeHash} IS NULL OR ${t.nfcPrintCodeHash} ~ '^[0-9a-f]{64}$'`,
     ),
   ],
 )
