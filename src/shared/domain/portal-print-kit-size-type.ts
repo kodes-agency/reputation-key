@@ -140,3 +140,12 @@ export const TABLE_TWO_LANGUAGE_FIT: readonly SizeFitStep[] = [
   { step: 'sub', from: FACE_TYPE_PT.table.sub, to: 9 },
   { step: 'cta2', from: 13, to: 12 },
 ]
+
+/**
+ * How small the Table call to action may go to stay on one line, where the steps
+ * above leave it too wide for its column. Only the Europe EN + BG board needs it
+ * (spec-delta S4: 20 pt): measured in the embedded font, the Bulgarian call to
+ * action is 228.9 pt at 21 pt and 218.0 pt at 20 pt, in a 219.1 pt column. A card
+ * that fits at 21 pt, such as EN + ES, stops there and does not use this room.
+ */
+export const TABLE_CTA_ONE_LINE_FLOOR_PT = 20

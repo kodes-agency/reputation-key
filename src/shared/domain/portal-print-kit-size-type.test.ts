@@ -8,6 +8,7 @@ import {
   FACE_TYPE_PT,
   LOGO_OPTICAL,
   MINI_READ_FLOOR_PT,
+  TABLE_CTA_ONE_LINE_FLOOR_PT,
   TABLE_TWO_LANGUAGE_FIT,
   logoOpticalHeightMm,
 } from './portal-print-kit-size-type'
@@ -239,5 +240,12 @@ describe('the two-language Table card’s fit steps (spec-delta S4)', () => {
     for (const step of TABLE_TWO_LANGUAGE_FIT) {
       expect(step.to).toBeLessThan(step.from)
     }
+  })
+
+  it('lets a call to action too wide for its column go one point past its step, to the 20 pt of the Europe EN + BG card', () => {
+    const cta = TABLE_TWO_LANGUAGE_FIT.find((step) => step.step === 'cta')
+    expect(TABLE_CTA_ONE_LINE_FLOOR_PT).toBe(20)
+    expect(TABLE_CTA_ONE_LINE_FLOOR_PT).toBeLessThan(cta?.to ?? 0)
+    expect(TABLE_CTA_ONE_LINE_FLOOR_PT).toBeGreaterThanOrEqual(TYPE_FLOOR_PT.head)
   })
 })

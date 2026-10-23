@@ -396,7 +396,12 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   version 9 symbol, 0.833 mm at 2 in); Table (1.4 in, 36 mm in Europe) and Mini
   (1.25 in, 32 mm) refuse with `print_code_too_small`, cause `needs_short_code`
   for a long address and `address_host_too_long` for a short one that is still
-  too dense. The faces and the PDF do not read any of this yet.
+  too dense. The faces and the PDF do not read any of this yet. One more thing
+  to settle before Table or Mini is selectable: their tiles have no pictogram to
+  move, so the Italian and French scan cues do not fit one line: 102.6 and 112 pt
+  in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in Mini's 85.7 pt. A test
+  pins the languages that fit; the faces must refuse the rest, use a two-line bar
+  or set a smaller cue.
 - **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
   family; lining figures on place labels and headlines; no ligatures on a tracked
   line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the
