@@ -74,6 +74,8 @@ describe('response target chip', () => {
       label: 'Not measured',
       tone: 'muted',
       description: 'This cycle is excluded from response-target reporting.',
+      // Its deadline came from an old Google time; showing it would mislead.
+      dueLabel: null,
     })
     expect(
       presentResponseTargetChip(

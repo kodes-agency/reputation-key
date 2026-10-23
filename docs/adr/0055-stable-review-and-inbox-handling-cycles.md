@@ -733,8 +733,8 @@ revision is created when the rating or normalized text changes **and Google's
 - **Visible.** The next Google format change should not take a day of Inbox
   noise to find. The comparison is recorded
   (`review_source_observations.comparison_result`, CHECK widened by migration 0069) and the command store reports each applied restatement after commit as
-  one `review.provider_restatement` warn line carrying the Organization,
-  Property and Review ids and nothing else.
+  one content-free `review.provider_restatement` warn line (tenant ids are
+  banned log fields; the restated rows are found by their comparison value).
 - **Not retroactive.** The 62 revision-2 rows already written stay recorded as
   `material_change`; the cycles they opened are left out of the counts by the
   exclusion ledger below.

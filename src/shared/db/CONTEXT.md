@@ -71,7 +71,11 @@ change the hand-written migrations have made since.
 Edit `db-constructs.sql` directly for functions, triggers, EXCLUDE constraints,
 and DDL on Better Auth tables; its parser derives the register, and the
 migration that changes one restates it (below). Put every construct expressible
-by Drizzle in the model instead.
+by Drizzle in the model instead. The exception is a trigger on a table a later
+migration creates: `0001` copies `db-constructs.sql` byte for byte and runs
+before that table exists, so the trigger is stated only in its migration and
+registered in `MIGRATION_CREATED_CONSTRUCTS` and `UNPARSED_CONSTRUCTS`
+(`construct-definitions.ts`), as `0070` does for the Response Target exclusions.
 
 An index on a table that is written continuously is not journalled: a plain
 `CREATE INDEX` holds a SHARE lock for the whole build. Add it to

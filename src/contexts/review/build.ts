@@ -533,15 +533,16 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   // BQR-2.3: atomic review upsert + outbox insert for sync path
   // A review Google reworded without moving its updateTime keeps its revision
-  // (`provider_restatement`). One line per review, ids only, so the next change
-  // of Google's format shows in the log within a day instead of in the Inbox.
+  // (`provider_restatement`). One content-free line per restated review (tenant
+  // ids are banned log fields; the ids are in review_source_observations), so
+  // the next change of Google's format shows in the log within a day.
   const commandStore = createAtomicReviewCommandStore(
     input.db,
     input.clock,
     undefined,
-    (restatement) =>
+    () =>
       input.logger.warn(
-        { event: 'review.provider_restatement', ...restatement },
+        { event: 'review.provider_restatement' },
         'Google restated a review without moving its updateTime',
       ),
   )

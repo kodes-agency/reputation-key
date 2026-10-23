@@ -30,9 +30,11 @@ export function aliasedResponseTargetKey(alias: string): ResponseTargetKey {
 }
 
 /**
- * The ledger side is aliased and spelled in plain column names, so the
- * predicates read the same inside a single-table select, where drizzle leaves
- * column names unqualified.
+ * The ledger side is aliased (`exclusion`). The caller's key must be qualified:
+ * drizzle leaves column names unqualified in a single-table select, and an
+ * unqualified `inbox_item_id` would bind to the ledger itself and make the
+ * predicate true for every row. Use it in a joined select, or alias the target
+ * table and pass `aliasedResponseTargetKey`.
  */
 function exclusionRowExists(target: ResponseTargetKey): SQL {
   return sql`EXISTS (

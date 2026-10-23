@@ -59,7 +59,10 @@ function notMeasuredChip(
   target: ResponseTargetView,
   description: string,
 ): ResponseTargetChip {
-  return chip(target, { label: 'Not measured', tone: 'muted', description })
+  const shown = chip(target, { label: 'Not measured', tone: 'muted', description })
+  // An excluded target keeps the deadline it was born with, which came from a
+  // Google time nobody edited; it is no deadline anyone is held to.
+  return target.excludedFromReporting ? { ...shown, dueLabel: null } : shown
 }
 
 function excludedDescription(target: ResponseTargetView): string {

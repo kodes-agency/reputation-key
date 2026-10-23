@@ -33,7 +33,8 @@
 --      SET comparison_result = 'normalization_shadow_match'
 --    WHERE comparison_result = 'provider_restatement';
 -- (the same outcome: revision kept, digests adopted, no guest edit), then
--- restore the seven-value CHECK below, then delete the 0069 row of
+-- restore the seven-value CHECK (the statement below without its trailing
+-- 'provider_restatement'), then delete the 0069 row of
 -- drizzle.__drizzle_migrations.
 ALTER TABLE "review_source_observations" DROP CONSTRAINT "review_source_observations_comparison_valid";
 --> statement-breakpoint

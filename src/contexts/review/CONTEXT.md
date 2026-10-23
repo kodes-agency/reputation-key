@@ -152,9 +152,10 @@ the writer tells the store whether Google reported one
 time counts). One millisecond later is an edit; an older one is ignored as out
 of order, as before. A restated Review carried into a newer source epoch is a
 carry (`NO_MATERIAL_CHANGE`). The command store reports each applied
-restatement after commit as one `review.provider_restatement` warn line with
-the Organization, Property and Review ids and nothing else, so a new Google
-format shows in the log the day it starts. The value is recorded in
+restatement after commit as one content-free `review.provider_restatement`
+warn line (no tenant ids; the rows carry `comparison_result =
+'provider_restatement'`), so a new Google format shows in the log the day it
+starts. The value is recorded in
 `review_source_observations.comparison_result` (migration 0069). It is not
 retroactive: revisions already created stay recorded as `material_change`.
 `maintenance.restatedRevisions.list` finds them for operator tooling: a

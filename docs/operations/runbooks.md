@@ -1778,8 +1778,9 @@ Revision 2 or later; handled Inbox items were reopened ("Reopened - the review
 was edited") and closed again; open items show a Response Target that was
 overdue the moment it appeared and a `target_passed` reminder; a burst of
 "review edited" or reopened notices reached managers. The worker or web log
-shows `review.provider_restatement` warn lines (organization, property and
-review ids only): since 2026-10-23 Review keeps the revision when it sees a
+shows `review.provider_restatement` warn lines (no ids: find the reviews with
+`SELECT review_id FROM review_source_observations WHERE comparison_result =
+'provider_restatement'`): since 2026-10-23 Review keeps the revision when it sees a
 difference at an unmoved `updateTime`, and the line is how the next Google format
 change becomes visible. The first occurrence was 2026-10-23, when Google changed
 how it wraps translated review text: 62 closed-beta reviews got a false Revision
@@ -1834,7 +1835,11 @@ are not edited. Per Property, dry run first:
    `open`/`on_time`/`late`/`cancelled`), the pending reminder slots and the
    candidate item ids with their cycle numbers. Check it against what the
    Property should have: every candidate must be a `material_revision_changed`
-   cycle that a restated revision opened.
+   cycle that a restated revision opened. The list reads the observations'
+   `updateTime`, which content erasure (a review deleted on Google, or 30 days
+   without a refresh) blanks, so run it promptly and compare the restated count
+   with the number the incident expects; a smaller count means some reviews
+   dropped out and their targets still count.
 2. `pnpm ops inbox exclude-restated-revision-targets <propertyId> --operator <id>
 --reason <text> --ticket <ref> --apply` records one
    `inbox_response_target_exclusions` row per candidate and cancels the pending

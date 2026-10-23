@@ -274,6 +274,46 @@ describe('ops inbox exclude-restated-revision-targets run', () => {
     expect(JSON.parse(lines[0] ?? '{}')).toMatchObject({ ticket: null })
   })
 
+  it('records a ticket without the spaces around it', async () => {
+    const { lines, ports, io } = harness()
+
+    await runInboxExcludeRestatedRevisionTargets({
+      ctx: ctx(false, { ticket: '  OPS-70 ' }),
+      propertyId: PROPERTY,
+      ports,
+      io,
+    })
+
+    expect(ports.apply).toHaveBeenCalledWith(
+      expect.objectContaining({ audit: expect.objectContaining({ ticket: 'OPS-70' }) }),
+    )
+    expect(JSON.parse(lines[0] ?? '{}')).toMatchObject({ ticket: 'OPS-70' })
+  })
+
+  it.each([
+    ['blank', '   ', 'refused: --ticket is blank'],
+    ['too long', 'T'.repeat(201), 'refused: --ticket is longer than 200 characters'],
+  ])(
+    'refuses a %s ticket before scanning, on a dry run and on apply',
+    async (_label, ticket, message) => {
+      for (const dryRun of [true, false]) {
+        const { errors, ports, io } = harness()
+
+        const exitCode = await runInboxExcludeRestatedRevisionTargets({
+          ctx: ctx(dryRun, { ticket }),
+          propertyId: PROPERTY,
+          ports,
+          io,
+        })
+
+        expect(exitCode).toBe(1)
+        expect(errors).toEqual([message])
+        expect(ports.findProperty).not.toHaveBeenCalled()
+        expect(ports.apply).not.toHaveBeenCalled()
+      }
+    },
+  )
+
   it('finds nothing to do on a second run', async () => {
     const { lines, ports, io } = harness({ scan: vi.fn(async () => []) })
 

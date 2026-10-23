@@ -213,6 +213,18 @@ function describeFound(found: Found) {
   }
 }
 
+/** The ledger's CHECK takes a ticket of 1 to 200 characters after trimming, or none. */
+const MAX_TICKET_LENGTH = 200
+
+function ticketRefusal(ticket: string | undefined): string | null {
+  if (ticket === undefined) return null
+  const trimmed = ticket.trim()
+  if (trimmed.length === 0) return 'refused: --ticket is blank'
+  return trimmed.length > MAX_TICKET_LENGTH
+    ? `refused: --ticket is longer than ${String(MAX_TICKET_LENGTH)} characters`
+    : null
+}
+
 function refuseUnknownProperty(io: OperatorIO): number {
   io.out(JSON.stringify({ outcome: 'property_not_found' }, null, 2))
   io.err('refused: no Property has that id')
@@ -272,7 +284,7 @@ async function apply(input: RunInput, found: Found): Promise<number> {
           candidates: found.candidates,
           audit: {
             operatorId: ctx.operatorId,
-            ticket: ctx.ticket ?? null,
+            ticket: ctx.ticket?.trim() ?? null,
             correlationId: ctx.correlationId,
             at: ports.now(),
           },
@@ -284,7 +296,7 @@ async function apply(input: RunInput, found: Found): Promise<number> {
         outcome: outcomeLabel(found, counts),
         operator: ctx.operatorId,
         reason: ctx.reason,
-        ticket: ctx.ticket ?? null,
+        ticket: ctx.ticket?.trim() ?? null,
         correlationId: ctx.correlationId,
         ...describeFound(found),
         results: Object.fromEntries(
@@ -312,6 +324,11 @@ async function apply(input: RunInput, found: Found): Promise<number> {
 export async function runInboxExcludeRestatedRevisionTargets(
   input: RunInput,
 ): Promise<number> {
+  const refusal = ticketRefusal(input.ctx.ticket)
+  if (refusal) {
+    input.io.err(refusal)
+    return 1
+  }
   const found = await find(input.ports, input.propertyId)
   if (!found) return refuseUnknownProperty(input.io)
   return input.ctx.dryRun ? report(input.io, found) : apply(input, found)
