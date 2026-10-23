@@ -63,6 +63,25 @@ export const googleReviewApiNotConfigured = (): Error =>
     code: GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
   })
 
+/**
+ * The `code` of the error a Google read throws when the Property's Google
+ * connection cannot be used at all: it waits for a reconnect, was disconnected,
+ * or lost the Business Profile scope. Nothing reached Google, and no retry can
+ * change that until someone reconnects, so a step that meets it ends quietly
+ * (the reconnect notice is already the signal) instead of failing and
+ * retrying. It is the integration authorizer's `connection_unusable`; the
+ * authorizer's other refusals (`authorization_denied`, `runtime_unavailable`,
+ * `stale_source`) stay loud.
+ */
+export const GOOGLE_CONNECTION_UNUSABLE_CODE = 'connection_unusable'
+
+/** Whether a rejected Google read was refused for an unusable connection. */
+export const isGoogleConnectionUnusable = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  error.code === GOOGLE_CONNECTION_UNUSABLE_CODE
+
 export type GoogleReviewApiErrorCode =
   | 'invalid_request'
   | 'cursor_not_found'

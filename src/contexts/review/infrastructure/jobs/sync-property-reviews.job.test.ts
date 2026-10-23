@@ -876,4 +876,187 @@ describe('sync-property-reviews snapshot handler', () => {
 
     expect(syncActivity.recordPushObserved).not.toHaveBeenCalled()
   })
+
+  // The Property's Google connection waits for a reconnect (a refresh Google
+  // refused for good, a disconnect, a lost scope). The reconnect notice is the
+  // signal, so a step that can no longer read Google ends as a returned
+  // outcome: no throw, so no BullMQ retry, no dead letter, no Sentry error and
+  // no latch on the family's repair state.
+  describe('when the Google connection cannot be used', () => {
+    const SKIPPED = { status: 'skipped', code: 'connection_unusable' } as const
+    const targeted = {
+      mode: 'targeted' as const,
+      propertyId: JOB_DATA.propertyId,
+      organizationId: JOB_DATA.organizationId,
+      connectionId: JOB_DATA.connectionId,
+      sourceEpoch: 7,
+      referenceRef: null,
+      deliveryId: '55555555-5555-4555-8555-555555555555',
+      acceptedAt: '2026-08-21T11:58:00.000Z',
+      notificationKind: 'NEW_REVIEW' as const,
+      initiator: { kind: 'system' as const, id: GBP_PUSH_SYNC_INITIATOR_ID },
+      correlationId: 'gbp-push-event',
+    }
+    const refused = (code: string) => Object.assign(new Error(code), { code })
+
+    function targetedHandler(runTargetedFetch: () => Promise<unknown>) {
+      const logger = { warn: vi.fn() }
+      const enqueueContinuation = vi.fn(async () => undefined)
+      const handler = createSyncPropertyReviewsHandler({
+        runSnapshot: vi.fn() as never,
+        runTargetedFetch: runTargetedFetch as never,
+        propertySourceEpoch,
+        enqueueContinuation,
+        logger,
+        ...ladderDeps(makeSyncActivity()),
+      })
+      return { handler, logger, enqueueContinuation }
+    }
+
+    it('ends a targeted fetch quietly, with one content-free warning', async () => {
+      const { handler, logger, enqueueContinuation } = targetedHandler(
+        async () => SKIPPED,
+      )
+
+      await expect(
+        handler({ id: 'gbp-push-event', data: targeted } as never),
+      ).resolves.toEqual(SKIPPED)
+
+      expect(enqueueContinuation).not.toHaveBeenCalled()
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        { event: 'review_sync_skipped_connection_unusable', mode: 'targeted' },
+        'Review sync skipped: the Google connection needs reconnecting',
+      )
+      const logged = JSON.stringify(logger.warn.mock.calls)
+      expect(logged).not.toContain(JOB_DATA.propertyId)
+      expect(logged).not.toContain(JOB_DATA.organizationId)
+      expect(logged).not.toContain(JOB_DATA.connectionId)
+    })
+
+    it.each(['authorization_denied', 'authorization_changed', 'runtime_unavailable'])(
+      'still fails a targeted fetch loudly when the connection is usable but %s',
+      async (code) => {
+        const { handler, logger } = targetedHandler(async () => {
+          throw refused(code)
+        })
+
+        await expect(
+          handler({ id: 'gbp-push-event', data: targeted } as never),
+        ).rejects.toMatchObject({ code })
+        expect(logger.warn).not.toHaveBeenCalled()
+      },
+    )
+
+    describe('in a snapshot step', () => {
+      const FAILED_UNUSABLE = {
+        status: 'failed' as const,
+        runId: '44444444-4444-4444-8444-444444444444',
+        code: 'connection_unusable' as const,
+      }
+
+      function snapshotHandler(rows: ReturnType<typeof fakeDiscoveryProperty>[]) {
+        const discoveryRepo = createFakeReviewDiscoveryRepository(rows)
+        const markDeferred = vi.spyOn(discoveryRepo, 'markDiscoveryDeferred')
+        const markSucceeded = vi.spyOn(discoveryRepo, 'markSyncSucceeded')
+        const logger = { warn: vi.fn() }
+        const enqueueContinuation = vi.fn(async () => undefined)
+        const handler = createSyncPropertyReviewsHandler({
+          runSnapshot: vi.fn(async () => FAILED_UNUSABLE) as never,
+          propertySourceEpoch,
+          enqueueContinuation,
+          syncActivity: makeSyncActivity(),
+          discoveryRepo,
+          clock: () => NOW,
+          hotIntervalMs: HOT_INTERVAL_MS,
+          logger,
+        })
+        return {
+          discoveryRepo,
+          handler,
+          logger,
+          enqueueContinuation,
+          markDeferred,
+          markSucceeded,
+        }
+      }
+
+      it('ends a run caught mid-way quietly, with no failure recorded and nothing continued', async () => {
+        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const { handler, logger, enqueueContinuation, markDeferred, markSucceeded } =
+          snapshotHandler([row])
+
+        await expect(
+          handler({
+            id: 'job-snapshot-unusable',
+            data: { ...JOB_DATA, runId: FAILED_UNUSABLE.runId },
+          } as never),
+        ).resolves.toEqual(SKIPPED)
+
+        expect(enqueueContinuation).not.toHaveBeenCalled()
+        expect(markDeferred).not.toHaveBeenCalled()
+        expect(markSucceeded).not.toHaveBeenCalled()
+        expect(logger.warn).toHaveBeenCalledTimes(1)
+        expect(logger.warn).toHaveBeenCalledWith(
+          { event: 'review_sync_skipped_connection_unusable', mode: 'snapshot' },
+          'Review sync skipped: the Google connection needs reconnecting',
+        )
+        expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(JOB_DATA.propertyId)
+      })
+
+      it('leaves the discovery state alone, so the first poll after a reconnect starts a fresh run', async () => {
+        const dueAt = new Date(NOW.getTime() + HOT_INTERVAL_MS)
+        const row = fakeDiscoveryProperty({
+          propertyId: JOB_DATA.propertyId,
+          nextDueAt: dueAt,
+        })
+        const { discoveryRepo, handler } = snapshotHandler([row])
+
+        await handler({ id: 'job-snapshot-unusable', data: JOB_DATA } as never)
+
+        // No failure recorded and no wait pushed out: the backoff ladder never
+        // sees a failure that only a reconnect can cure.
+        expect(row.errorClass).toBeNull()
+        expect(row.errorRetryAt).toBeNull()
+        expect(row.lastFailureAt).toBeNull()
+        expect(row.nextDueAt).toEqual(dueAt)
+
+        // While the connection waits, the sweep does not select the Property
+        // (it never enqueues a job that cannot run). Once it is reconnected the
+        // Property is due on its own date and comes back as a candidate with no
+        // outstanding failure.
+        row.connectionStatus = 'reauth_required'
+        expect(await discoveryRepo.findDuePropertiesBatch(dueAt, null, 10)).toEqual([])
+        row.connectionStatus = 'active'
+        const [candidate] = await discoveryRepo.findDuePropertiesBatch(dueAt, null, 10)
+        expect(candidate).toMatchObject({
+          propertyId: JOB_DATA.propertyId,
+          hasOutstandingFailure: false,
+        })
+      })
+
+      it('still records the failure and throws for authorization_denied, the refusal of a usable connection', async () => {
+        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const discoveryRepo = createFakeReviewDiscoveryRepository([row])
+        const handler = createSyncPropertyReviewsHandler({
+          runSnapshot: vi.fn(async () => ({
+            ...FAILED_UNUSABLE,
+            code: 'authorization_denied' as const,
+          })) as never,
+          propertySourceEpoch,
+          enqueueContinuation: vi.fn(async () => undefined),
+          syncActivity: makeSyncActivity(),
+          discoveryRepo,
+          clock: () => NOW,
+          hotIntervalMs: HOT_INTERVAL_MS,
+          logger: { warn: vi.fn() },
+        })
+
+        await expect(
+          handler({ id: 'job-snapshot-denied', data: JOB_DATA } as never),
+        ).rejects.toMatchObject({ failureCode: 'authorization_denied' })
+        expect(row.errorClass).toBe('authorization_denied')
+      })
+    })
+  })
 })

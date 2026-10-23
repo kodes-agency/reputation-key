@@ -18,6 +18,16 @@ export type ReviewProviderSnapshotFailureCode =
   | 'source_changed'
   | 'authorization_changed'
   | 'authorization_denied'
+  /**
+   * The Property's Google connection cannot be used (it waits for a reconnect,
+   * was disconnected, or lost the Business Profile scope), so the next step of
+   * the run cannot read Google. The reconnect notice is the signal: the run
+   * ends and discards its cursors, the sync job records no failure and no retry
+   * date and throws nothing, and the first poll after the reconnect starts a
+   * fresh run. Contrast `authorization_denied`, which refuses a connection that
+   * IS usable and fails loudly.
+   */
+  | 'connection_unusable'
   | 'runtime_unavailable'
   | 'stale_source'
   | 'provider_failure'

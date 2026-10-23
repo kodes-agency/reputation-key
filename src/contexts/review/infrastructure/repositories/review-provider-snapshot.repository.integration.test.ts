@@ -941,31 +941,72 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       await resetScope()
     })
 
-    it('reports a failed import with the closed reason and what it had listed', async () => {
+    // `connection_unusable` is a connection that waits for a reconnect: the run
+    // ends under its own code and the import's reader is told to reconnect, as
+    // for a refused authorization.
+    it.each(['authorization_denied', 'connection_unusable'] as const)(
+      'reports a failed import with the closed reason and what it had listed (%s)',
+      async (code) => {
+        await resetScope()
+        await importRepository.fixImportHistoryCutoff(scope)
+        const run = await importRepository.startOrResume({
+          ...scope,
+          observationOrigin: 'historical_onboarding',
+        })
+        await db
+          .update(reviewProviderSnapshotRuns)
+          .set({ mainUniqueCount: 12 })
+          .where(eq(reviewProviderSnapshotRuns.id, run.id))
+
+        await importRepository.failRun({
+          runId: run.id,
+          organizationId: scope.organizationId,
+          code,
+        })
+
+        const finished = await importFinishedPayloads()
+        expect(finished).toHaveLength(1)
+        expect(finished[0]?.payload).toMatchObject({
+          runId: run.id,
+          outcome: 'failed',
+          reviewsObserved: 12,
+          failureReason: 'google_authorization',
+        })
+        const [stored] = await db
+          .select({
+            state: reviewProviderSnapshotRuns.state,
+            failureCode: reviewProviderSnapshotRuns.failureCode,
+          })
+          .from(reviewProviderSnapshotRuns)
+          .where(eq(reviewProviderSnapshotRuns.id, run.id))
+        expect(stored).toEqual({ state: 'failed', failureCode: code })
+        await resetScope()
+      },
+    )
+
+    it('starts a fresh run, not the failed one, once a connection_unusable run is over', async () => {
       await resetScope()
-      await importRepository.fixImportHistoryCutoff(scope)
-      const run = await importRepository.startOrResume({
+      const ended = await importRepository.startOrResume({
         ...scope,
-        observationOrigin: 'historical_onboarding',
+        observationOrigin: 'ongoing',
       })
-      await db
-        .update(reviewProviderSnapshotRuns)
-        .set({ mainUniqueCount: 12 })
-        .where(eq(reviewProviderSnapshotRuns.id, run.id))
-
       await importRepository.failRun({
-        runId: run.id,
+        runId: ended.id,
         organizationId: scope.organizationId,
-        code: 'authorization_denied',
+        code: 'connection_unusable',
       })
 
-      const finished = await importFinishedPayloads()
-      expect(finished).toHaveLength(1)
-      expect(finished[0]?.payload).toMatchObject({
-        runId: run.id,
-        outcome: 'failed',
-        reviewsObserved: 12,
-        failureReason: 'google_authorization',
+      const FRESH_RUN_ID = '72000000-0000-4000-8000-0000000000a9'
+      const next = await createReviewProviderSnapshotRepository(
+        db,
+        () => FRESH_RUN_ID,
+      ).startOrResume({ ...scope, observationOrigin: 'ongoing' })
+
+      expect(ended.id).toBe(IMPORT_RUN_ID)
+      expect(next).toMatchObject({
+        id: FRESH_RUN_ID,
+        state: 'scanning',
+        mainPageIndex: 0,
       })
       await resetScope()
     })

@@ -1,10 +1,11 @@
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import { sha256Hex } from '#/shared/domain/sha256'
-import type {
-  GoogleReviewApiPort,
-  GoogleReviewPage,
-  GoogleReviewRead,
+import {
+  GOOGLE_CONNECTION_UNUSABLE_CODE,
+  type GoogleReviewApiPort,
+  type GoogleReviewPage,
+  type GoogleReviewRead,
 } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { GoogleReview } from '../../domain/types'
@@ -105,6 +106,7 @@ const failureCodeForProviderError = (
   if (code === 'authorization_changed') return 'authorization_changed'
   if (
     code === 'authorization_denied' ||
+    code === GOOGLE_CONNECTION_UNUSABLE_CODE ||
     code === 'runtime_unavailable' ||
     code === 'stale_source'
   ) {

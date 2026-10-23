@@ -21,6 +21,7 @@ import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/do
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { compareHead, type HeadComparison } from '../../domain/head-check'
 import {
+  GOOGLE_CONNECTION_UNUSABLE_CODE,
   GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
   type GoogleReviewApiPort,
 } from '../ports/google-review-api.port'
@@ -87,6 +88,7 @@ const AUTHORIZATION_CODES: ReadonlySet<string> = new Set([
   'authorization_changed',
   'reauthorization_required',
   'authorization_denied',
+  GOOGLE_CONNECTION_UNUSABLE_CODE,
   'stale_source',
   'capability_killed',
 ])

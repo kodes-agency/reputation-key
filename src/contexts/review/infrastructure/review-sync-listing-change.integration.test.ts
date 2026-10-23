@@ -454,8 +454,10 @@ describe('a listing that changes between the two scans of a run (real PostgreSQL
     expect((await runCodes()).slice(3)).toEqual(['confirmation_set_changed'])
   })
 
-  it('counts afresh after a completed run, and skips a run lost to a cursor store restart', async () => {
-    const changedRun = async (code: 'confirmation_set_changed' | 'cursor_lost') => {
+  it('counts afresh after a completed run, and skips a run lost to a cursor store restart or to a connection waiting for a reconnect', async () => {
+    const changedRun = async (
+      code: 'confirmation_set_changed' | 'cursor_lost' | 'connection_unusable',
+    ) => {
       const run = await snapshotRepository.startOrResume({
         organizationId: ORG,
         propertyId: PROPERTY,
@@ -473,6 +475,8 @@ describe('a listing that changes between the two scans of a run (real PostgreSQL
     await expect(changedRun('confirmation_set_changed')).resolves.toBe('listing_changed')
     // A deploy took the next run's cursor: it never got to compare its listings.
     await expect(changedRun('cursor_lost')).resolves.toBe('cursor_lost')
+    // The connection broke under the next one: it never compared its listings.
+    await expect(changedRun('connection_unusable')).resolves.toBe('connection_unusable')
     await expect(changedRun('confirmation_set_changed')).resolves.toBe('listing_changed')
     await expect(changedRun('confirmation_set_changed')).resolves.toBe(
       'confirmation_set_changed',

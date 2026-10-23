@@ -432,19 +432,21 @@ describe('checkReviewOnGoogle', () => {
       })
     })
 
-    it.each(['authorization_denied', 'stale_source', 'capability_killed'] as const)(
-      'treats an authorizer refusal (%s) as permanent',
-      async (code) => {
-        const { check } = setup({
-          getError: Object.assign(new Error('refused'), { code }),
-        })
+    it.each([
+      'authorization_denied',
+      'connection_unusable',
+      'stale_source',
+      'capability_killed',
+    ] as const)('treats an authorizer refusal (%s) as permanent', async (code) => {
+      const { check } = setup({
+        getError: Object.assign(new Error('refused'), { code }),
+      })
 
-        await expect(check(request)).resolves.toEqual({
-          status: 'unavailable',
-          retry: 'never',
-        })
-      },
-    )
+      await expect(check(request)).resolves.toEqual({
+        status: 'unavailable',
+        retry: 'never',
+      })
+    })
 
     it.each([
       [

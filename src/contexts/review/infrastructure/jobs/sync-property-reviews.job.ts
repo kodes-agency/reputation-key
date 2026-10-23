@@ -10,6 +10,7 @@ import {
 } from '../../application/ports/review-queue.port'
 import type { PropertySourceEpochPort } from '../../application/ports/property-source-epoch.port'
 import { historyImportFailureReason } from '../../application/historical-import-outcome'
+import { GOOGLE_CONNECTION_UNUSABLE_CODE } from '../../application/ports/google-review-api.port'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
 import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
 import type { ReviewProviderSnapshotFailureCode } from '../../application/ports/review-provider-snapshot.repository'
@@ -121,6 +122,35 @@ async function enqueueNextStep(
   else await deps.enqueueContinuation(continuation, { delayMs })
 }
 
+/**
+ * What a step returns when the Property's Google connection cannot be used (it
+ * waits for a reconnect, was disconnected, or lost the Business Profile scope).
+ */
+const SKIPPED_CONNECTION_UNUSABLE = Object.freeze({
+  status: 'skipped',
+  code: GOOGLE_CONNECTION_UNUSABLE_CODE,
+} as const)
+
+/**
+ * Ends a step quietly because Google cannot be read until someone reconnects.
+ * The reconnect notice is the signal, so the step is not a failure: it returns
+ * instead of throwing (BullMQ spends no retry, nothing is dead-lettered, Sentry
+ * sees nothing, the family's repair state is not latched) and writes one
+ * warning of closed codes. The log schema (BQC-7.3) bans tenant identifiers, so
+ * the line names no Property or connection; the notice and the connection row
+ * say which. It records nothing about the Property's discovery state either:
+ * no failure, no retry date, so the first poll after a reconnect starts a fresh
+ * run on its own schedule. Only the unusable connection is quiet; a refusal of
+ * a connection that IS usable (`authorization_denied`) still fails loudly.
+ */
+function skipUnusableConnection(deps: SyncHandlerDeps, mode: 'targeted' | 'snapshot') {
+  deps.logger?.warn(
+    { event: 'review_sync_skipped_connection_unusable', mode },
+    'Review sync skipped: the Google connection needs reconnecting',
+  )
+  return SKIPPED_CONNECTION_UNUSABLE
+}
+
 const REFERENCE_REF = /^[a-z][a-z0-9_-]{0,31}\.[A-Za-z0-9_-]{43}$/u
 
 type ProviderStepScope = Readonly<{
@@ -200,6 +230,7 @@ async function runTargetedFetchStep(
     deliveryId: data.deliveryId,
     ...arrival,
   })
+  if (result.status === 'skipped') return skipUnusableConnection(deps, 'targeted')
   if (result.status === 'reconcile') {
     await deps.enqueueContinuation(
       {
@@ -334,6 +365,12 @@ async function runSnapshotStep(
     locationName: data.locationName,
     ...(data.runId == null ? {} : { runId: data.runId }),
   })
+  // A run caught mid-way by a connection that stopped being usable: the use
+  // case already ended it and discarded its cursors. Nothing continues and no
+  // failure is recorded.
+  if (result.status === 'failed' && result.code === GOOGLE_CONNECTION_UNUSABLE_CODE) {
+    return skipUnusableConnection(deps, 'snapshot')
+  }
   if (result.status === 'checkpointed' || result.status === 'deleting') {
     await enqueueNextStep(
       deps,

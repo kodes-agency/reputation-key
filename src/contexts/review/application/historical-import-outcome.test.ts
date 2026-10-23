@@ -6,6 +6,7 @@ const ALL_CODES: ReadonlyArray<ReviewProviderSnapshotFailureCode> = [
   'source_changed',
   'authorization_changed',
   'authorization_denied',
+  'connection_unusable',
   'runtime_unavailable',
   'stale_source',
   'provider_failure',
@@ -33,6 +34,10 @@ describe('history import failure reason', () => {
     expect(historyImportFailureReason('authorization_denied')).toBe(
       'google_authorization',
     )
+  })
+
+  it('tells a reader to reconnect Google when the connection could not be used at all', () => {
+    expect(historyImportFailureReason('connection_unusable')).toBe('google_authorization')
   })
 
   it('tells a reader the location moved when the Property source changed underneath', () => {

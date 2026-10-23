@@ -1339,6 +1339,58 @@ describe('GoogleReviewApiAdapter reading a review before a reply is published', 
     })
   })
 
+  // The review-sync authorizer says `connection_unusable` for a connection that
+  // waits for a reconnect. A sync read carries that code through untouched, so
+  // the review context can end the step quietly; the reply's read before a
+  // publish keeps its own vocabulary.
+  it('carries connection_unusable through a sync read untouched', async () => {
+    const execute = vi.fn()
+    const { api } = createAdapter({
+      execute,
+      authorizeProviderCall: refusedWith('connection_unusable'),
+      findById: vi.fn().mockResolvedValue(waitingForConsent),
+    })
+
+    await expect(api.getReview(readInput())).rejects.toMatchObject({
+      code: 'connection_unusable',
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('reports reauthorization_required for a reply read refused as connection_unusable while the connection waits for a reconnect', async () => {
+    const { api } = createAdapter({
+      execute: vi.fn(),
+      authorizeProviderCall: refusedWith('connection_unusable'),
+      findById: vi.fn().mockResolvedValue(waitingForConsent),
+    })
+
+    const error = await failure(
+      api.getReview({ ...readInput(), forReplyPublication: true }),
+    )
+
+    expect(error).toMatchObject({
+      code: 'reauthorization_required',
+      recoverable: false,
+    })
+  })
+
+  it('keeps a reply read refused as connection_unusable terminal, with the closed code as not-sent evidence', async () => {
+    const { api } = createAdapter({
+      execute: vi.fn(),
+      authorizeProviderCall: refusedWith('connection_unusable'),
+    })
+
+    const error = await failure(
+      api.getReview({ ...readInput(), forReplyPublication: true }),
+    )
+
+    expect(error).toMatchObject({
+      code: 'authorization_changed',
+      recoverable: false,
+      failure: { executionCode: 'connection_unusable', dispatch: 'not_sent' },
+    })
+  })
+
   it('reads the review the same way and answers a missing one as not_found', async () => {
     const { api, authorizeProviderCall } = createAdapter({ execute: answered404() })
 
