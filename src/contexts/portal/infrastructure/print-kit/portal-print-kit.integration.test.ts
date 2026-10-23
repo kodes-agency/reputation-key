@@ -12,6 +12,7 @@ import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { getDb } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
+import { printKitSubject } from '#/shared/domain/portal-print-kit-pieces'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { buildPortalPublicUrls } from '../../application/portal-address-urls'
 import type { PortalPrintKitRenderer } from '../../application/ports/portal-print-kit-renderer.port'
@@ -32,6 +33,7 @@ import {
   WORKING_COPY_ORG,
   WORKING_COPY_OTHER_ORG,
 } from '../testing/portal-working-copy-scenarios'
+import { pdfSubject } from './__fixtures__/print-kit-face-fixtures'
 import { createPdfKitPrintKitRenderer } from './pdfkit-print-kit-renderer'
 import { createPropertyCountryReader } from './print-kit-property-country'
 
@@ -478,7 +480,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
       expect(pageSizes(file.pdf)).toEqual(sizes)
       const text = Buffer.from(file.pdf).toString('latin1')
       expect(text.match(/\/BleedBox/gu)).toHaveLength(sizes.length)
-      expect(text).toContain('Print kit, immersive on')
+      expect(pdfSubject(text)).toBe(printKitSubject('immersive', piece, paper))
     },
   )
 

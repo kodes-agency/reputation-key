@@ -6,6 +6,7 @@ import {
   type PrintKitWords,
   type PrintKitPaper,
 } from '#/shared/domain/portal-print-kit'
+import { pdfSubject } from './__fixtures__/print-kit-face-fixtures'
 import { createPdfKitPrintKitRenderer } from './pdfkit-print-kit-renderer'
 import type { PrintKitWarning } from './print-kit-pages'
 
@@ -102,7 +103,9 @@ describe('an Immersive print', () => {
     const text = await render(immersiveInput(choice('counter_card', ['en']), 'letter'))
     // #16130E, the property's field.
     expect(text).toMatch(/0\.0862\d* 0\.0745\d* 0\.0549\d* scn/u)
-    expect(text).toContain('(Print kit, immersive on letter paper)')
+    expect(pdfSubject(text)).toBe('Print kit: Immersive style, counter card, 4 × 6 in')
+    const a6 = await render(immersiveInput(choice('table_tent', ['en']), 'a4'))
+    expect(a6).toContain('(Print kit: Immersive style, table tent, A6)')
     expect(text.startsWith('%PDF-1.4')).toBe(true)
   })
 

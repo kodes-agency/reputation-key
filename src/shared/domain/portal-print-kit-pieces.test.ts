@@ -5,6 +5,7 @@ import {
   PRINT_KIT_STYLE_FACTS,
   printKitHowToPrint,
   printKitPaperNote,
+  printKitSubject,
   tight,
 } from './portal-print-kit-pieces'
 
@@ -170,5 +171,25 @@ describe('printKitPaperNote', () => {
         'Letter makes 4 × 6 in pieces. A4 makes A6 pieces.',
       )
     }
+  })
+})
+
+describe('printKitSubject', () => {
+  it('names the style, the piece and the paper as a manager reads them', () => {
+    expect(printKitSubject('paper', 'counter_card', 'letter')).toBe(
+      'Print kit: Paper style, counter card, US Letter',
+    )
+    expect(printKitSubject('paper', 'table_tent', 'a4')).toBe(
+      'Print kit: Paper style, table tent, A4',
+    )
+  })
+
+  it('names the piece’s size for a print shop, not a sheet', () => {
+    expect(printKitSubject('immersive', 'table_tent', 'a4')).toBe(
+      'Print kit: Immersive style, table tent, A6',
+    )
+    expect(printKitSubject('immersive', 'counter_card', 'letter')).toBe(
+      'Print kit: Immersive style, counter card, 4 × 6 in',
+    )
   })
 })

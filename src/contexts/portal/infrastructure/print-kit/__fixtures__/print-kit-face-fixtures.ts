@@ -132,3 +132,30 @@ export const wordsToCode = (
     code: Readonly<{ y: number }>
   }>,
 ): number => layout.code.y - (layout.stack.y + layout.stack.stack.heightPt)
+
+const PDF_ESCAPES: Readonly<Record<string, string>> = {
+  n: '\n',
+  r: '\r',
+  t: '\t',
+  b: '\b',
+  f: '\f',
+}
+
+/**
+ * The document's subject as text, from a PDF read as latin1: PDFKit writes a
+ * string with a character past ASCII as UTF-16BE behind a byte-order mark.
+ */
+export function pdfSubject(pdf: string): string {
+  // PDFKit writes the info dictionary's strings as objects of their own.
+  const object = /\/Subject (\d+) 0 R/u.exec(pdf)?.[1]
+  const header = `\n${object ?? ''} 0 obj`
+  const at = object === undefined ? -1 : pdf.indexOf(header)
+  const body = at < 0 ? '' : pdf.slice(at + header.length)
+  const raw = /^\s*\(((?:\\.|[^\\)])*)\)/su.exec(body)?.[1] ?? ''
+  const bytes = raw.replace(
+    /\\(.)/gsu,
+    (_, escaped: string) => PDF_ESCAPES[escaped] ?? escaped,
+  )
+  if (!bytes.startsWith('\u00fe\u00ff')) return bytes
+  return Buffer.from(bytes.slice(2), 'latin1').swap16().toString('utf16le')
+}

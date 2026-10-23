@@ -18,6 +18,7 @@ import {
   paperLogoPlate,
   paperPrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
+import { printKitSubject } from '#/shared/domain/portal-print-kit-pieces'
 import { printKitPages } from '#/shared/domain/portal-print-kit-sheets'
 import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
 import { brandDpi } from './print-kit-face-brand'
@@ -97,9 +98,6 @@ async function drawPrint(
   else await drawImmersivePrint(doc, fonts, input, paper, warn)
 }
 
-const subjectOf = (input: PrintKitRenderInput): string =>
-  `Print kit, ${input.style} on ${input.paper} paper`
-
 export function createPdfKitPrintKitRenderer(
   deps: PdfKitPrintKitRendererDeps,
 ): PortalPrintKitRenderer {
@@ -119,7 +117,7 @@ export function createPdfKitPrintKitRenderer(
         info: {
           Title: input.title,
           Author: 'Reputation Key',
-          Subject: subjectOf(input),
+          Subject: printKitSubject(input.style, input.piece, input.paper),
           CreationDate: deps.now(),
         },
       })

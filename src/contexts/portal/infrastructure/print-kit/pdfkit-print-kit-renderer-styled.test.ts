@@ -100,7 +100,7 @@ describe('a Paper print', () => {
 
   it('says it is a Paper print on its paper in the document’s subject', async () => {
     const text = await render(paperInput(choice('table_tent', ['en']), 'letter'))
-    expect(text).toContain('(Print kit, paper on letter paper)')
+    expect(text).toContain('(Print kit: Paper style, table tent, US Letter)')
   })
 
   it('warns, and still prints, when the logo would print soft', async () => {
