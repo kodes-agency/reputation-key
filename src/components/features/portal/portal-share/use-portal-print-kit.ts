@@ -36,6 +36,7 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     portalId: props.portalId,
     read: props.printKit?.read ?? NO_PRINT_KIT_READ,
     enabled: offered && hasLive,
+    countryCode: props.countryCode ?? null,
   })
   const nothingLive = offered && (!hasLive || isNothingLiveRefusal(printKit.error))
   const show = offered && !nothingLive

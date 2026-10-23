@@ -1,0 +1,64 @@
+name: Sentry release commits
+
+# Sends Sentry the commits of each main release (the one the image build named
+# after the commit), once CI has passed on main. Sentry then knows which
+# commits each release contains: it can name a suspect commit for a new error, and a commit message
+# saying "Fixes JAVASCRIPT-TANSTACKSTART-REACT-4" resolves that issue. The why
+# and the rules are in scripts/ci/sentry-release-commits.ts; the convention is
+# in docs/agents/issue-tracker.md ("Sentry").
+#
+# A WORKFLOW OF ITS OWN. It is not a step of CI, so a Sentry outage or a
+# rejected token shows red here and never on main's required checks, which
+# gate the deploy.
+#
+# TRUST. workflow_run runs the default branch's copy of this file with its
+# secrets. It takes only the finished run's head SHA from the event, as an
+# environment variable the script checks is a 40-character SHA, and it runs
+# only for CI runs on main started by a push to this repository, never for a
+# pull request (a fork's branch can be called main too).
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+# Releases are attached in the order main's CI finishes. A newer run replaces
+# a queued one; Sentry then counts the skipped release's commits in the next.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  set-commits:
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5 # a full checkout, Node, and up to half a minute waiting on Sentry
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The commits are read from this history, back to the previous
+          # release's commit, which can be any distance behind.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      # Plain Node runs the TypeScript script (type stripping): it imports
+      # nothing outside the repository, so there is no install.
+      - name: Send the release's commits to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_URL: https://us.sentry.io
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: node scripts/ci/sentry-release-commits.ts

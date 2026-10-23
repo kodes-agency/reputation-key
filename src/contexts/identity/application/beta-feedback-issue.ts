@@ -37,11 +37,15 @@ export type BetaFeedbackIssue = Readonly<{
   labels: ReadonlyArray<string>
 }>
 
-/** Only labels that already exist on the repository are ever requested. */
+/**
+ * Only labels that already exist on the repository are ever requested
+ * (docs/agents/triage-labels.md): `gh issue create` fails on an unknown one.
+ */
 const TYPE_LABEL: Readonly<Record<BetaFeedbackType, string>> = {
-  bug: 'bug',
-  suggestion: 'enhancement',
+  bug: 'type:bug',
+  suggestion: 'type:feature',
 }
+const SOURCE_LABEL = 'source:beta-feedback'
 
 function monitoringLink(
   label: string,
@@ -97,7 +101,7 @@ export function buildBetaFeedbackIssue(
   return {
     title,
     body,
-    labels: [TYPE_LABEL[source.feedbackType], 'needs-triage'],
+    labels: [TYPE_LABEL[source.feedbackType], SOURCE_LABEL, 'needs-triage'],
   }
 }
 

@@ -12,6 +12,7 @@ import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { getDb } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
+import { printKitSubject } from '#/shared/domain/portal-print-kit-pieces'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { buildPortalPublicUrls } from '../../application/portal-address-urls'
 import type { PortalPrintKitRenderer } from '../../application/ports/portal-print-kit-renderer.port'
@@ -32,7 +33,9 @@ import {
   WORKING_COPY_ORG,
   WORKING_COPY_OTHER_ORG,
 } from '../testing/portal-working-copy-scenarios'
+import { pdfSubject } from './__fixtures__/print-kit-face-fixtures'
 import { createPdfKitPrintKitRenderer } from './pdfkit-print-kit-renderer'
+import { createPropertyCountryReader } from './print-kit-property-country'
 
 const BASE_URL = 'https://app.example.test'
 const RAW_TOKEN = 'pt_AAAAAAAAAAAAAAAA_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
@@ -233,11 +236,33 @@ async function harness(options: HarnessOptions = {}) {
         baseUrl: BASE_URL,
       }),
       renderer,
+      propertyCountry: createPropertyCountryReader(db),
     }),
     renderedAddresses,
     ctx: buildTestAuthContext({ organizationId: WORKING_COPY_ORG }),
   }
 }
+
+/** Records the scenario Property's country, or clears it. */
+const setCountry = (countryCode: string | null) =>
+  getPool().query('UPDATE properties SET country_code = $2 WHERE id = $1::uuid', [
+    COMPLETE_SCENARIO.propertyId,
+    countryCode,
+  ])
+
+/** The size of every page of a PDF, from its MediaBoxes. */
+const pageSizes = (pdf: Uint8Array): number[][] =>
+  [
+    ...Buffer.from(pdf)
+      .toString('latin1')
+      .matchAll(/\/MediaBox \[([^\]]+)\]/gu),
+  ].map((match) =>
+    (match[1] ?? '')
+      .trim()
+      .split(/\s+/u)
+      .slice(2)
+      .map((value) => Math.round(Number(value))),
+  )
 
 const downloadRows = async () =>
   (
@@ -261,23 +286,24 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
     expect(view.look.logoUrl).toBe(`/api/public/portal-media/${LOGO_ASSET}`)
   })
 
-  it('draws a table tent with the photo, the logo and both languages', async () => {
+  it('draws an Immersive counter card with the photo, the logo and the Bulgarian words', async () => {
     const { make, ctx } = await harness()
 
     const file = await make(
       {
         portalId: COMPLETE_SCENARIO.portalId,
-        piece: 'table_tent',
-        languages: ['bg', 'en'],
+        piece: 'counter_card',
+        languages: ['bg'],
         callToAction: 'rate',
+        style: 'immersive',
       },
       ctx,
     )
 
     const text = Buffer.from(file.pdf).toString('latin1')
-    expect(file.fileName).toMatch(/-table-tent-bg-en\.pdf$/u)
-    expect(text.startsWith('%PDF-')).toBe(true)
-    // The photo and the logo, one picture each, however many panels show them.
+    expect(file.fileName).toMatch(/-counter-card-bg-immersive-(letter|a4)\.pdf$/u)
+    expect(text.startsWith('%PDF-1.4')).toBe(true)
+    // The photo and the logo: at least one picture each.
     expect(text.match(/\/Subtype \/Image/gu)?.length ?? 0).toBeGreaterThanOrEqual(2)
     // The Bulgarian call to action reached the file as embedded text.
     expect(text).toMatch(/<041E>/iu)
@@ -292,6 +318,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
         piece: 'counter_card',
         languages: ['bg'],
         callToAction: 'tell',
+        style: 'paper',
       },
       ctx,
     )
@@ -316,6 +343,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
           piece: 'counter_card',
           languages: ['bg'],
           callToAction: 'rate',
+          style: 'paper',
         },
         ctx,
       ),
@@ -337,6 +365,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
           piece: 'counter_card',
           languages: ['bg', 'en'],
           callToAction: 'rate',
+          style: 'paper',
         },
         ctx,
       ),
@@ -353,6 +382,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
           piece: 'counter_card',
           languages: ['en'],
           callToAction: 'rate',
+          style: 'paper',
         },
         buildTestAuthContext({ organizationId: organizationId('org-other-0000-0000') }),
       ),
@@ -368,9 +398,125 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
           piece: 'counter_card',
           languages: ['fr'],
           callToAction: 'rate',
+          style: 'paper',
         },
         ctx,
       ),
     ).rejects.toMatchObject({ code: 'locale_not_offered' })
+  })
+
+  it.each([
+    ['table_tent', 'letter', [[612, 792]]],
+    ['table_tent', 'a4', [[595, 842]]],
+    [
+      'counter_card',
+      'letter',
+      [
+        [612, 792],
+        [612, 792],
+      ],
+    ],
+    [
+      'counter_card',
+      'a4',
+      [
+        [595, 842],
+        [595, 842],
+      ],
+    ],
+  ] as const)('draws a Paper %s on %s sheets', async (piece, paper, sizes) => {
+    const { make, ctx } = await harness()
+    const file = await make(
+      {
+        portalId: COMPLETE_SCENARIO.portalId,
+        piece,
+        languages: ['bg', 'en'],
+        callToAction: 'rate',
+        style: 'paper',
+        paper,
+      },
+      ctx,
+    )
+    expect(file.fileName.endsWith(`-bg-en-${paper}.pdf`)).toBe(true)
+    expect(pageSizes(file.pdf)).toEqual(sizes)
+    expect(Buffer.from(file.pdf).toString('latin1')).not.toMatch(/\/BleedBox/u)
+  })
+
+  it.each([
+    [
+      'counter_card',
+      'letter',
+      [
+        [342, 486],
+        [342, 486],
+      ],
+    ],
+    ['table_tent', 'letter', [[342, 918]]],
+    [
+      'counter_card',
+      'a4',
+      [
+        [354, 476],
+        [354, 476],
+      ],
+    ],
+    ['table_tent', 'a4', [[354, 896]]],
+  ] as const)(
+    'draws an Immersive %s on %s for a print shop, with its photo and bleed',
+    async (piece, paper, sizes) => {
+      const { make, ctx } = await harness()
+      const file = await make(
+        {
+          portalId: COMPLETE_SCENARIO.portalId,
+          piece,
+          languages: ['bg', 'en'],
+          callToAction: 'rate',
+          style: 'immersive',
+          paper,
+        },
+        ctx,
+      )
+      expect(file.fileName.endsWith(`-bg-en-immersive-${paper}.pdf`)).toBe(true)
+      expect(pageSizes(file.pdf)).toEqual(sizes)
+      const text = Buffer.from(file.pdf).toString('latin1')
+      expect(text.match(/\/BleedBox/gu)).toHaveLength(sizes.length)
+      expect(pdfSubject(text)).toBe(printKitSubject('immersive', piece, paper))
+    },
+  )
+
+  it('prints an Immersive request on 4 × 6 in for a property with no country', async () => {
+    const { make, ctx } = await harness()
+    await setCountry(null)
+    const file = await make(
+      {
+        portalId: COMPLETE_SCENARIO.portalId,
+        piece: 'counter_card',
+        languages: ['bg'],
+        callToAction: 'rate',
+        style: 'immersive',
+      },
+      ctx,
+    )
+    expect(file.fileName.endsWith('-bg-immersive-letter.pdf')).toBe(true)
+    expect(pageSizes(file.pdf)).toEqual([[342, 486]])
+  })
+
+  it('prints a Paper request on Letter for a property with no country, and on A4 for one in Bulgaria', async () => {
+    const { make, ctx } = await harness()
+    const request = {
+      portalId: COMPLETE_SCENARIO.portalId,
+      piece: 'table_tent',
+      languages: ['bg'],
+      callToAction: 'rate',
+      style: 'paper',
+    } as const
+    await setCountry(null)
+    const unknown = await make(request, ctx)
+    expect(unknown.fileName.endsWith('-bg-letter.pdf')).toBe(true)
+    expect(pageSizes(unknown.pdf)).toEqual([[612, 792]])
+    await setCountry('BG')
+    const bulgarian = await make(request, ctx)
+    expect(bulgarian.fileName.endsWith('-bg-a4.pdf')).toBe(true)
+    expect(pageSizes(bulgarian.pdf)).toEqual([[595, 842]])
   })
 })

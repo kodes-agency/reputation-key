@@ -9,13 +9,19 @@ import type { PropertyId } from '#/shared/domain/ids'
 import type { GoogleConnection } from '../domain/types'
 import type { GoogleConnectionRepository } from './ports/google-connection.repository'
 import type { ActiveConnectionTokenProvider } from './active-connection-token-provider'
+import { errorFactTags } from '#/shared/observability/error-facts'
 import type {
   GoogleImportAuthorizationPropertySnapshot,
+  GoogleImportAuthorizerUnavailableStep,
   GoogleImportCommandAuthorizer,
   GoogleImportCommandAuthorizationResult,
 } from './google-import-discovery'
 import { GOOGLE_BUSINESS_MANAGE_SCOPE } from './google-provider-contract'
 import { canManageOrganizationGoogleConnections } from './google-organization-authority'
+
+// An error's class name as a log field: anything else (a name built from data)
+// is logged as `unknown`.
+const ERROR_NAME = /^[A-Za-z][A-Za-z0-9_$]{0,63}$/u
 
 type PropertyAuthorizationView = Readonly<{
   propertyId: PropertyId
@@ -191,7 +197,11 @@ export function createGoogleImportCommandAuthorizer(
 ): GoogleImportCommandAuthorizer {
   const warn = deps.warn ?? (() => {})
 
-  const deny = (code: Denied['code']): Denied => ({ ok: false, code })
+  // `runtime_unavailable` goes through `denyUnavailable`, which names the step.
+  const deny = (code: Exclude<Denied['code'], 'runtime_unavailable'>): Denied => ({
+    ok: false,
+    code,
+  })
 
   /**
    * `authorization_changed` is returned by six distinct checks, and the
@@ -208,6 +218,36 @@ export function createGoogleImportCommandAuthorizer(
     return deny('authorization_changed')
   }
 
+  /**
+   * `runtime_unavailable` is seven dependency reads, and every catch below used
+   * to swallow its error: on 2026-10-23 a stalled token refresh left only
+   * "temporarily unavailable" behind (#946). Each site now names its step and
+   * logs the error's class name and its content-free codes (each checked
+   * against a closed shape, error-facts.ts); never its message, which can carry tenant
+   * data. Discovery passes the step on to error monitoring.
+   */
+  const denyUnavailable = (
+    step: GoogleImportAuthorizerUnavailableStep,
+    error?: unknown,
+  ): Denied => {
+    warn(
+      {
+        step,
+        ...(error === undefined
+          ? {}
+          : {
+              errorName:
+                error instanceof Error && ERROR_NAME.test(error.name)
+                  ? error.name
+                  : 'unknown',
+              ...errorFactTags(error),
+            }),
+      },
+      'google_import.runtime_unavailable_detail',
+    )
+    return { ok: false, code: 'runtime_unavailable', step }
+  }
+
   /** Both organization-level capabilities, and the execution policy version they agreed on. */
   const authorizeOrganizationCapabilities = async (
     decideCapability: DecideCapability,
@@ -219,11 +259,11 @@ export function createGoogleImportCommandAuthorizer(
       if (!importDecision.allowed) return deny('authorization_denied')
       connectDecision = await decideCapability('property.connect_gbp')
       if (!connectDecision.allowed) return deny('authorization_denied')
-    } catch {
-      return deny('runtime_unavailable')
+    } catch (error) {
+      return denyUnavailable('capability_decision', error)
     }
     if (importDecision.policyVersion !== connectDecision.policyVersion) {
-      return deny('runtime_unavailable')
+      return denyUnavailable('policy_version_mismatch')
     }
     return staged(importDecision.policyVersion)
   }
@@ -256,8 +296,8 @@ export function createGoogleImportCommandAuthorizer(
         input.actor.organizationId,
         input.connectionId,
       )
-    } catch {
-      return deny('runtime_unavailable')
+    } catch (error) {
+      return denyUnavailable('connection_read', error)
     }
     return verifyConnection(input, connection, 'expected_connection_pre_token')
   }
@@ -307,8 +347,8 @@ export function createGoogleImportCommandAuthorizer(
         // `decide` call failing loudly instead of deciding from a stale
         // snapshot.
       }
-    } catch {
-      return deny('runtime_unavailable')
+    } catch (error) {
+      return denyUnavailable('property_snapshot', error)
     }
     return staged(null)
   }
@@ -323,10 +363,14 @@ export function createGoogleImportCommandAuthorizer(
         phase: input.phase,
         properties: input.properties ?? [],
       })
-      if (!result.ok) return deny(result.code)
+      if (!result.ok) {
+        return result.code === 'runtime_unavailable'
+          ? denyUnavailable('content_authorization')
+          : deny(result.code)
+      }
       return staged(result)
-    } catch {
-      return deny('runtime_unavailable')
+    } catch (error) {
+      return denyUnavailable('content_authorization', error)
     }
   }
 
@@ -342,12 +386,16 @@ export function createGoogleImportCommandAuthorizer(
         input.actor.organizationId,
         input.connectionId,
       )
+    } catch (error) {
+      return denyUnavailable('token_access', error)
+    }
+    try {
       reread = await deps.connectionRepo.findById(
         input.actor.organizationId,
         input.connectionId,
       )
-    } catch {
-      return deny('runtime_unavailable')
+    } catch (error) {
+      return denyUnavailable('token_reread', error)
     }
     const verified = verifyConnection(input, reread, 'expected_connection_post_token')
     if (!verified.ok) return verified

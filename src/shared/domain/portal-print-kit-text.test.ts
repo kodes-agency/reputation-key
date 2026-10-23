@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { breakAddress, fitFontSize, fitLines, wrapWords } from './portal-print-kit-text'
+import { balanceWords, fitFontSize, fitLines, wrapWords } from './portal-print-kit-text'
 
 const byLength = (text: string) => text.length
 
@@ -110,16 +110,26 @@ describe('fitLines', () => {
   })
 })
 
-describe('breakAddress', () => {
-  it('breaks before the last slash segment, so the code takes the second line', () => {
-    expect(breakAddress('https://a.example/p/pt_Code')).toEqual([
-      'https://a.example/p/',
-      'pt_Code',
+describe('balanceWords', () => {
+  it('keeps a text that fits on one line', () => {
+    expect(balanceWords('Pool & Terrace', 30, byLength)).toEqual(['Pool & Terrace'])
+  })
+
+  it('evens out the lines it needs instead of leaving a stub', () => {
+    // Greedy at 24: "Spa & Wellness Centre" over "Lobby".
+    expect(balanceWords('Spa & Wellness Centre Lobby', 24, byLength)).toEqual([
+      'Spa & Wellness',
+      'Centre Lobby',
     ])
   })
 
-  it('has no break when nothing follows the last slash or there is no slash', () => {
-    expect(breakAddress('https://a.example/p/')).toBeNull()
-    expect(breakAddress('example')).toBeNull()
+  it('keeps the number of lines greedy needs, three when it takes three', () => {
+    const lines = balanceWords('one two three four five six seven eight', 14, byLength)
+    expect(lines).toHaveLength(3)
+    expect(Math.max(...lines.map(byLength))).toBeLessThanOrEqual(14)
+  })
+
+  it('returns no lines for blank text', () => {
+    expect(balanceWords('  ', 10, byLength)).toEqual([])
   })
 })

@@ -73,6 +73,8 @@ export type PortalDetailResources = Readonly<{
   makeVersionLiveMutation: MakeVersionLiveAction
   /** The property's IANA zone, whose days History counts in. */
   propertyTimeZone: string
+  /** The property's country (ISO 3166-1 alpha-2), which sets the paper the print kit starts on. */
+  propertyCountryCode: string | null
   links: readonly LinkTreeLink[]
   /** Which wording each language has. Absent: the Languages section shows no counts. */
   languageCoverage?: PortalLanguageCoverage

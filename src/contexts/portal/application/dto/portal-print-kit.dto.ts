@@ -2,7 +2,9 @@ import { z } from 'zod/v4'
 import {
   PRINT_KIT_CALLS_TO_ACTION,
   PRINT_KIT_MAX_LANGUAGES,
+  PRINT_KIT_PAPERS,
   PRINT_KIT_PIECES,
+  PRINT_KIT_STYLES,
 } from '#/shared/domain/portal-print-kit'
 import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
 
@@ -15,6 +17,10 @@ export const portalPrintKitInputSchema = z.object({ portalId: portalIdSchema })
  * One piece, in one or two of the Portal's languages, with one call to action.
  * Whether the languages are the Portal's own is the use case's to say: it knows
  * the Portal, the schema only knows the catalogue.
+ *
+ * `style` is Paper unless the request says Immersive, and `paper` is the paper
+ * the Property's country prints on unless the request names one; for Immersive
+ * the paper names the size family, 4 × 6 in on Letter and A6 on A4.
  */
 export const downloadPortalPrintKitInputSchema = z.object({
   portalId: portalIdSchema,
@@ -27,6 +33,8 @@ export const downloadPortalPrintKitInputSchema = z.object({
       message: 'Choose two different languages',
     }),
   callToAction: z.enum(PRINT_KIT_CALLS_TO_ACTION),
+  style: z.enum(PRINT_KIT_STYLES).default('paper'),
+  paper: z.enum(PRINT_KIT_PAPERS).optional(),
 })
 
 type ParsedDownloadInput = z.infer<typeof downloadPortalPrintKitInputSchema>

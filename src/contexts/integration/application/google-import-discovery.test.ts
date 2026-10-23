@@ -1,6 +1,7 @@
 import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { errorFactTags } from '#/shared/observability/error-facts'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import { createGbpApiError } from '../domain/gbp-api-error'
 import type {
@@ -382,6 +383,29 @@ describe('Google import discovery', () => {
       )
     },
   )
+
+  // Sentry saw only "temporarily_unavailable" for a refresh that stalled in token
+  // access (#946). The step the authorizer names travels on the error as its
+  // failure code, which error monitoring turns into a `failure_code` tag.
+  it('carries the unavailable authorizer step to error monitoring', async () => {
+    const authorize = vi.fn(async () => ({
+      ok: false as const,
+      code: 'runtime_unavailable' as const,
+      step: 'token_access' as const,
+    }))
+    const { discovery } = setup({ authorize })
+
+    const error = await discovery.listAccounts({ connectionId }, actor).catch((e) => e)
+
+    expect(error).toMatchObject({
+      code: 'temporarily_unavailable',
+      failureCode: 'authorizer_token_access',
+    })
+    expect(errorFactTags(error)).toMatchObject({
+      error_code: 'temporarily_unavailable',
+      failure_code: 'authorizer_token_access',
+    })
+  })
 
   it('discards a parsed provider page when post-call authorization changes', async () => {
     const authorize = vi

@@ -29,6 +29,21 @@ describe('SegmentedControl', () => {
     expect(html.match(/role="radio"/g)).toHaveLength(3)
   })
 
+  it('is described by the line it names', () => {
+    const html = renderToStaticMarkup(
+      createElement(SegmentedControl, {
+        'aria-label': 'Paper size',
+        'aria-describedby': 'paper-note',
+        value: 'en',
+        onValueChange: () => undefined,
+        options: LANGUAGES,
+      }),
+    )
+
+    expect(html).toContain('aria-describedby="paper-note"')
+    expect(render('en')).not.toContain('aria-describedby')
+  })
+
   it('checks exactly the option whose value is selected', () => {
     const html = render('bg')
 

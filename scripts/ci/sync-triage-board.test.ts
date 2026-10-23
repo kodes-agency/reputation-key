@@ -56,14 +56,14 @@ const operations = (calls: readonly Call[]): readonly string[] =>
 
 describe('pickTriageColumn', () => {
   it('puts an issue with no triage label in no column', () => {
-    expect(pickTriageColumn(['bug', 'wayfinder:map'])).toEqual({
+    expect(pickTriageColumn(['type:bug', 'source:sentry'])).toEqual({
       column: null,
       ignored: [],
     })
   })
 
   it('puts an issue in the column of its one triage label', () => {
-    expect(pickTriageColumn(['bug', 'needs-info'])).toEqual({
+    expect(pickTriageColumn(['type:bug', 'needs-info'])).toEqual({
       column: 'needs-info',
       ignored: [],
     })
@@ -117,7 +117,7 @@ describe('syncIssue', () => {
   })
 
   it('clears the column of an open issue that lost its triage label', async () => {
-    const github = fakeGitHub(lookupAnswer({ state: 'OPEN', labels: ['bug'] }))
+    const github = fakeGitHub(lookupAnswer({ state: 'OPEN', labels: ['type:bug'] }))
 
     const result = await syncIssue(github.graphql, TARGET)
 

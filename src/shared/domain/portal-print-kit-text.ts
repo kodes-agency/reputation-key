@@ -12,21 +12,12 @@ export function wrapWords(
   maxWidth: number,
   measure: (line: string) => number,
 ): string[] {
-  const words = text.split(/\s+/u).filter((word) => word !== '')
-  if (words.length === 0) return []
-  const lines: string[] = []
-  let current = ''
-  for (const word of words) {
-    const candidate = current === '' ? word : `${current} ${word}`
-    if (current !== '' && measure(candidate) > maxWidth) {
-      lines.push(current)
-      current = word
-    } else {
-      current = candidate
-    }
-  }
-  lines.push(current)
-  return lines.length === 2 ? balancedPair(words, measure) : lines
+  const lines = fillWords(text, maxWidth, measure)
+  if (lines.length !== 2) return lines
+  return balancedPair(
+    text.split(/\s+/u).filter((word) => word !== ''),
+    measure,
+  )
 }
 
 function balancedPair(words: readonly string[], measure: (line: string) => number) {
@@ -41,6 +32,54 @@ function balancedPair(words: readonly string[], measure: (line: string) => numbe
     }
   }
   return best
+}
+
+/** How close the balanced width search gets, in the measure's units (points). */
+const BALANCE_PRECISION = 0.25
+
+/**
+ * `text` in as many lines as it needs at `maxWidth`, with the lines as even as
+ * that number of lines allows, as CSS `text-wrap: balance` sets a headline: the
+ * narrowest width that still breaks into the same number of lines. A word wider
+ * than the line stands alone, as in `wrapWords`.
+ */
+export function balanceWords(
+  text: string,
+  maxWidth: number,
+  measure: (line: string) => number,
+): string[] {
+  const greedy = (width: number) => fillWords(text, width, measure)
+  const lines = greedy(maxWidth)
+  if (lines.length < 2) return lines
+  let narrow = 0
+  let wide = maxWidth
+  while (wide - narrow > BALANCE_PRECISION) {
+    const middle = (narrow + wide) / 2
+    if (greedy(middle).length > lines.length) narrow = middle
+    else wide = middle
+  }
+  return greedy(wide)
+}
+
+/** The plain greedy fill, as a paragraph sets: each line takes as many words as fit. */
+export function fillWords(
+  text: string,
+  maxWidth: number,
+  measure: (line: string) => number,
+): string[] {
+  const lines: string[] = []
+  let current = ''
+  for (const word of text.split(/\s+/u).filter((part) => part !== '')) {
+    const candidate = current === '' ? word : `${current} ${word}`
+    if (current !== '' && measure(candidate) > maxWidth) {
+      lines.push(current)
+      current = word
+    } else {
+      current = candidate
+    }
+  }
+  if (current !== '') lines.push(current)
+  return lines
 }
 
 const SHRINK_STEP = 0.25
@@ -106,16 +145,4 @@ export function fitLines(
     if (fits || candidate <= SMALLEST_SIZE) return { lines, size: candidate }
     candidate = Math.max(SMALLEST_SIZE, candidate - SHRINK_STEP)
   }
-}
-
-/**
- * The two lines an address too long for one is broken into: before its last
- * slash, so they read host/path and then the code. Null when there is no such
- * break (the address stays on one line).
- */
-export function breakAddress(address: string): readonly [string, string] | null {
-  const cut = address.lastIndexOf('/') + 1
-  return cut > 0 && cut < address.length
-    ? [address.slice(0, cut), address.slice(cut)]
-    : null
 }

@@ -9,9 +9,12 @@ import {
   deriveFieldColour,
   isAccentReadableOnField,
   isFieldForLightText,
+  mixColour,
+  nudgeLightness,
   parseHexColour,
   readableForegroundOn,
   relativeLuminance,
+  toneOnTone,
 } from './portal-field-colour'
 
 /** Hue (0-360), saturation and lightness (0-1) of a parsed hex colour, computed apart from the module. */
@@ -353,5 +356,72 @@ describe('isFieldForLightText', () => {
     expect(isFieldForLightText('#808080')).toBe(false)
     expect(isFieldForLightText('#FFFFFF')).toBe(false)
     expect(isFieldForLightText('not a colour')).toBe(false)
+  })
+})
+
+describe('nudgeLightness', () => {
+  it('returns a colour that already reaches the target as it is, in upper case', () => {
+    expect(nudgeLightness('#eaD6a8', '#16130E', 7, 1)).toBe('#EAD6A8')
+  })
+
+  it('darkens in 1% steps, hue and saturation kept, until the contrast is reached', () => {
+    const darker = nudgeLightness('#EAD6A8', '#FDFCF9', 6, -1)
+    expect(darker).toBe('#765B1D')
+    expect(contrastRatio(darker, '#FDFCF9')).toBeGreaterThanOrEqual(6)
+    const before = hsl('#EAD6A8')
+    const after = hsl(darker)
+    expect(after.h).toBeCloseTo(before.h, 0)
+    expect(after.l).toBeLessThan(before.l)
+  })
+
+  it('lightens when asked to', () => {
+    const lighter = nudgeLightness('#0F8B8D', '#0E1616', 7, 1)
+    expect(lighter).toBe('#13B4B6')
+    expect(hsl(lighter).l).toBeGreaterThan(hsl('#0F8B8D').l)
+  })
+
+  it('stops at white or black when the target cannot be reached', () => {
+    expect(nudgeLightness('#808080', '#FFFFFF', 30, -1)).toBe('#000000')
+    expect(nudgeLightness('#808080', '#000000', 30, 1)).toBe('#FFFFFF')
+  })
+
+  it('returns what it cannot read unchanged', () => {
+    expect(nudgeLightness('red', '#000000', 4.5, 1)).toBe('red')
+    expect(nudgeLightness('#EAD6A8', 'blue', 4.5, 1)).toBe('#EAD6A8')
+  })
+})
+
+describe('mixColour', () => {
+  it('mixes channel by channel and rounds', () => {
+    expect(mixColour('#000000', '#FFFFFF', 0.5)).toBe('#808080')
+    expect(mixColour('#16130E', '#F6F1E8', 0.14)).toBe('#35322D')
+  })
+
+  it('is the first colour at 0 and the second at 1', () => {
+    expect(mixColour('#0F8B8D', '#F6F1E8', 0)).toBe('#0F8B8D')
+    expect(mixColour('#0F8B8D', '#F6F1E8', 1)).toBe('#F6F1E8')
+  })
+
+  it('returns the first colour when either cannot be read', () => {
+    expect(mixColour('#0F8B8D', 'blue', 0.5)).toBe('#0F8B8D')
+    expect(mixColour('red', '#FFFFFF', 0.5)).toBe('red')
+  })
+})
+
+describe('toneOnTone', () => {
+  it('lightens a mark that is too faint on its ground to 2.4:1', () => {
+    const tone = toneOnTone('#28251F', '#28251F')
+    expect(contrastRatio(tone, '#28251F')).toBeGreaterThanOrEqual(2.4)
+  })
+
+  it('mixes a mark that is too strong toward its ground until it is quiet', () => {
+    const tone = toneOnTone('#FFFFFF', '#28251F')
+    expect(contrastRatio('#FFFFFF', '#28251F')).toBeGreaterThan(10)
+    expect(contrastRatio(tone, '#28251F')).toBeLessThanOrEqual(2.6)
+    expect(contrastRatio(tone, '#28251F')).toBeGreaterThan(2)
+  })
+
+  it('leaves a mark that is already quiet alone', () => {
+    expect(toneOnTone('#685F4C', '#28251F')).toBe('#685F4C')
   })
 })

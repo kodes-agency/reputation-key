@@ -1,32 +1,33 @@
 // The print kit as a PDF, drawn with PDFKit (MIT, maintained) as vectors: the
 // code is rectangles, the type is the guest fonts embedded as subsets, and only
-// the photo and a logo are raster. Page by page, a sheet is its trim plus a
-// 3 mm bleed plus a margin for crop marks, with the trim and bleed declared in
-// the page boxes.
+// the photo and a logo are raster. A request names a style (Paper or Immersive)
+// and a paper: the page is the style's sheet on that paper (`print-kit-pages.ts`),
+// and the faces sit where `printKitPages` puts them, with the trim and bleed
+// declared in the page boxes.
 //
 // PDFKit is imported lazily and kept external to the server bundle: it reads
 // its own font metrics at load and resolves them from `node_modules`, which a
 // bundled copy would not find.
 
-import { PRINT_KIT_BLEED_MM, printKitSheets } from '#/shared/domain/portal-print-kit'
-import { SLUG_MM } from '#/shared/domain/portal-print-kit-layout'
-import type { PrintSheet } from '#/shared/domain/portal-print-kit'
 import type {
   PortalPrintKitRenderer,
   PrintKitRenderInput,
 } from '../../application/ports/portal-print-kit-renderer.port'
-import { PANEL_HEIGHT_MM, PANEL_WIDTH_MM, mm } from './print-kit-geometry'
-import { coverPhotoJpeg, logoPng } from './print-kit-image'
-import { openImage } from './print-kit-pdf-image'
 import {
-  drawCropMarks,
-  drawFoldMarks,
-  frameOf,
-  setPageBoxes,
-  type SheetFrame,
-} from './print-kit-marks'
-import { drawPanel, photoBox, type PanelArt, type PanelBleed } from './print-kit-panel'
-import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
+  logoNeedsPaperPlate,
+  paperLogoPlate,
+  paperPrintKitPalette,
+} from '#/shared/domain/portal-print-kit-palette'
+import { printKitSubject } from '#/shared/domain/portal-print-kit-pieces'
+import { printKitPages } from '#/shared/domain/portal-print-kit-sheets'
+import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
+import { brandDpi } from './print-kit-face-brand'
+import { logoArt } from './print-kit-image'
+import { drawImmersivePrint } from './print-kit-immersive-document'
+import { drawPrintCheck, drawTicks } from './print-kit-marks'
+import { drawPrintPages, layoutFaces, type PrintKitWarning } from './print-kit-pages'
+import { drawPaperFace, layoutPaperFace, type PaperFaceArt } from './print-kit-paper-face'
+import { openImage } from './print-kit-pdf-image'
 import { PrintKitFonts } from './print-kit-pdf-text'
 import { qrMatrix } from './print-kit-qr'
 
@@ -35,80 +36,66 @@ export type PdfKitPrintKitRendererDeps = Readonly<{
   now: () => Date
   /** Streams compress by default; a test turns it off to read what was drawn. */
   compress?: boolean
+  /** Told of what is worth a look but does not stop the print, such as a soft logo. */
+  warn?: (warning: PrintKitWarning) => void
 }>
 
-type PanelPlacement = Readonly<{ originX: number; originY: number; rotated: boolean }>
-
-function placementOf(
-  frame: SheetFrame,
-  panel: PrintSheet['panels'][number],
-): PanelPlacement {
-  return {
-    originX: frame.trimLeft,
-    originY: frame.trimTop + mm(panel.topMm),
-    rotated: panel.rotated,
-  }
-}
-
-/** A panel's bleed: none at the fold of a table tent, the full 3 mm elsewhere. */
-const bleedOf = (sheet: PrintSheet): PanelBleed => ({
-  topMm: sheet.foldAtMm === null ? PRINT_KIT_BLEED_MM : 0,
-  sideMm: PRINT_KIT_BLEED_MM,
-  bottomMm: PRINT_KIT_BLEED_MM,
-})
-
-async function artOf(
-  doc: PDFKit.PDFDocument,
-  input: PrintKitRenderInput,
-  bleed: PanelBleed,
-): Promise<PanelArt> {
-  const { photo, logo } = input
-  const box = photoBox(bleed)
-  return {
-    palette: printKitPalette(input.accentColour, input.fieldColour),
-    wordmark: input.wordmark,
-    logo: logo === null ? null : openImage(doc, (await logoPng(logo)).bytes),
-    photo:
-      photo === null
-        ? null
-        : openImage(
-            doc,
-            await coverPhotoJpeg(photo.bytes, {
-              ...box,
-              focalX: photo.focalX,
-              focalY: photo.focalY,
-            }),
-          ),
-    qr: qrMatrix(input.qrAddress),
-    shortAddress: input.shortAddress,
-  }
-}
-
-function drawSheet(
+/** A Paper print: ink on the customer's own sheet, with ticks and, on Letter cards, the print check. */
+async function drawPaperPrint(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
-  sheet: PrintSheet,
   input: PrintKitRenderInput,
-  art: PanelArt,
-): void {
-  const frame = frameOf(sheet)
-  doc.addPage({ size: [frame.pageWidth, frame.pageHeight], margin: 0 })
-  setPageBoxes(doc.page, frame)
-  const bleed = bleedOf(sheet)
-  for (const panel of sheet.panels) {
-    const face = input.faces.find((candidate) => candidate.side === panel.side)
-    if (face === undefined) continue
-    const placement = placementOf(frame, panel)
-    doc.save()
-    doc.translate(placement.originX, placement.originY)
-    if (placement.rotated) {
-      doc.rotate(180, { origin: [mm(PANEL_WIDTH_MM) / 2, mm(PANEL_HEIGHT_MM) / 2] })
-    }
-    drawPanel(doc, fonts, face, art, bleed)
-    doc.restore()
+  paper: PrintKitPaper,
+  warn: (warning: PrintKitWarning) => void,
+): Promise<void> {
+  const palette = paperPrintKitPalette(input.accentColour)
+  const logo = input.logo === null ? null : await logoArt(input.logo)
+  const plate = logo !== null && logoNeedsPaperPlate(logo.ink.luminance)
+  const art: PaperFaceArt = {
+    palette,
+    qr: qrMatrix(input.qrAddress),
+    brand: {
+      wordmark: input.wordmark,
+      colour: palette.ink,
+      logo:
+        logo === null
+          ? null
+          : {
+              image: openImage(doc, logo.bytes),
+              ink: logo.ink,
+              plate: plate ? paperLogoPlate(input.accentColour) : null,
+            },
+    },
   }
-  drawCropMarks(doc, frame)
-  if (sheet.foldAtMm !== null) drawFoldMarks(doc, frame, sheet.foldAtMm)
+  const pages = printKitPages(input.piece, input.faces.length, 'paper', paper)
+  const layouts = layoutFaces(input.faces, pages, (face, geometry) =>
+    layoutPaperFace(doc, fonts, face, art, geometry),
+  )
+  drawPrintPages(
+    { doc, faces: input.faces, warn },
+    pages,
+    layouts,
+    {
+      draw: (layout) => drawPaperFace(doc, fonts, layout),
+      logoDpi: (layout) => brandDpi(layout.brand.plan),
+    },
+    (page) => {
+      drawTicks(doc, page.ticks)
+      if (page.printCheck) drawPrintCheck(doc, fonts, palette)
+    },
+  )
+}
+
+/** A print: a style's pages on its paper. */
+async function drawPrint(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  input: PrintKitRenderInput,
+  warn: (warning: PrintKitWarning) => void,
+): Promise<void> {
+  const { style, paper } = input
+  if (style === 'paper') await drawPaperPrint(doc, fonts, input, paper, warn)
+  else await drawImmersivePrint(doc, fonts, input, paper, warn)
 }
 
 export function createPdfKitPrintKitRenderer(
@@ -117,7 +104,6 @@ export function createPdfKitPrintKitRenderer(
   return {
     render: async (input) => {
       const { default: PDFDocument } = await import('pdfkit')
-      const sheets = printKitSheets(input.piece, input.faces.length)
       const doc = new PDFDocument({
         autoFirstPage: false,
         // The art uses transparency (soft masks, opacity states, gradients), which
@@ -131,7 +117,7 @@ export function createPdfKitPrintKitRenderer(
         info: {
           Title: input.title,
           Author: 'Reputation Key',
-          Subject: `Print kit, ${SLUG_MM} mm slug with ${PRINT_KIT_BLEED_MM} mm bleed`,
+          Subject: printKitSubject(input.style, input.piece, input.paper),
           CreationDate: deps.now(),
         },
       })
@@ -142,11 +128,7 @@ export function createPdfKitPrintKitRenderer(
         doc.on('error', reject)
       })
       const fonts = new PrintKitFonts(doc)
-      // The pictures are cropped per bleed; the sheets of one piece share it.
-      const [first] = sheets
-      if (first === undefined) throw new Error('A print kit needs at least one face')
-      const art = await artOf(doc, input, bleedOf(first))
-      for (const sheet of sheets) drawSheet(doc, fonts, sheet, input, art)
+      await drawPrint(doc, fonts, input, deps.warn ?? (() => undefined))
       doc.end()
       await finished
       return new Uint8Array(Buffer.concat(chunks))

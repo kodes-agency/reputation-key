@@ -6,7 +6,9 @@ import type {
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type {
   PrintKitCallToAction,
+  PrintKitPaper,
   PrintKitPiece,
+  PrintKitStyle,
 } from '#/shared/domain/portal-print-kit'
 
 /** The read, as the route hands it in (a server function takes its input as `data`). */
@@ -17,6 +19,9 @@ export type PortalPrintKitReader = (args: {
 export type DownloadPrintKitInput = {
   data: {
     portalId: string
+    /** The print is always asked for by style and paper: the server holds the defaults, the section the choice. */
+    style: PrintKitStyle
+    paper: PrintKitPaper
     piece: PrintKitPiece
     languages: GuestLocale[]
     callToAction: PrintKitCallToAction

@@ -27,6 +27,34 @@ describe('downloadPortalPrintKitInputSchema', () => {
     ).toBe(true)
   })
 
+  it('accepts the Paper style, with a paper or without one', () => {
+    const parse = (extra: object) =>
+      downloadPortalPrintKitInputSchema.safeParse({ ...valid, ...extra })
+    expect(parse({ style: 'paper', paper: 'letter' }).data).toMatchObject({
+      style: 'paper',
+      paper: 'letter',
+    })
+    expect(parse({ style: 'paper', paper: 'a4' }).success).toBe(true)
+    expect(parse({ style: 'paper' }).data?.paper).toBeUndefined()
+  })
+
+  it('accepts the Immersive style, its paper naming the size family', () => {
+    const parse = (extra: object) =>
+      downloadPortalPrintKitInputSchema.safeParse({ ...valid, ...extra })
+    expect(parse({ style: 'immersive', paper: 'letter' }).data).toMatchObject({
+      style: 'immersive',
+      paper: 'letter',
+    })
+    expect(parse({ style: 'immersive', paper: 'a4' }).success).toBe(true)
+    expect(parse({ style: 'immersive' }).data?.paper).toBeUndefined()
+  })
+
+  it('makes a request that names no style a Paper request', () => {
+    const parsed = downloadPortalPrintKitInputSchema.parse(valid)
+    expect(parsed.style).toBe('paper')
+    expect(parsed.paper).toBeUndefined()
+  })
+
   it.each([
     ['a piece the kit does not have', { piece: 'poster' }],
     ['no language', { languages: [] }],
@@ -35,6 +63,8 @@ describe('downloadPortalPrintKitInputSchema', () => {
     ['a language the catalogue lacks', { languages: ['xx'] }],
     ['a call to action it does not have', { callToAction: 'stay' }],
     ['an empty Portal id', { portalId: '' }],
+    ['a style the kit does not have', { style: 'poster' }],
+    ['a paper the kit does not print on', { style: 'paper', paper: 'legal' }],
   ])('refuses %s', (_label, override) => {
     expect(
       downloadPortalPrintKitInputSchema.safeParse({ ...valid, ...override }).success,
