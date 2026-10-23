@@ -16,8 +16,8 @@ import { createReviewObservationRepository } from './repositories/review-observa
 
 const ORG = organizationId('review-envelope-org-a')
 const OTHER_ORG = organizationId('review-envelope-org-b')
-const PROPERTY = propertyId('af000000-0000-4000-8000-000000000001')
-const REVIEW = reviewId('af000000-0000-4000-8000-000000000002')
+const PROPERTY = propertyId('e7a10000-0000-4000-8000-000000000001')
+const REVIEW = reviewId('e7a10000-0000-4000-8000-000000000002')
 const OBSERVED_AT = new Date('2026-10-23T04:35:00.000Z')
 const CREATED_AT = new Date('2022-10-29T14:53:45.961Z')
 
