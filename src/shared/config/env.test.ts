@@ -92,6 +92,70 @@ describe('Portal address keyring', () => {
   })
 })
 
+describe('PORTAL_PRINT_ORIGIN', () => {
+  const parse = (value?: string, base: Record<string, unknown> = {}) =>
+    parseEnvironment({
+      ...testEnvironment({}),
+      ...base,
+      ...(value === undefined ? {} : { PORTAL_PRINT_ORIGIN: value }),
+    }).PORTAL_PRINT_ORIGIN
+
+  it('is optional: nothing changes at boot where it is unset', () => {
+    expect(parse()).toBeUndefined()
+  })
+
+  it('accepts the beta print host, with or without its trailing slash', () => {
+    expect(parse('https://ap.up.railway.app', productionEnvironment)).toBe(
+      'https://ap.up.railway.app',
+    )
+    expect(parse('https://ap.up.railway.app/', productionEnvironment)).toBe(
+      'https://ap.up.railway.app/',
+    )
+  })
+
+  it('accepts a host of 25 characters and refuses 26, naming the field', () => {
+    expect(parse(`https://${'a'.repeat(25)}`, productionEnvironment)).toBeDefined()
+    expect(() => parse(`https://${'a'.repeat(26)}`, productionEnvironment)).toThrow(
+      /PORTAL_PRINT_ORIGIN: .*at most 25 characters/,
+    )
+  })
+
+  it.each([
+    ['a path', 'https://ap.up.railway.app/p'],
+    ['a query', 'https://ap.up.railway.app?x=1'],
+    ['credentials', 'https://user:pass@ap.up.railway.app'],
+    ['text that is not a URL', 'ap.up.railway.app'],
+    ['an empty value', ''],
+  ])('refuses %s at boot, naming the field', (_label, value) => {
+    expect(() => parse(value, productionEnvironment)).toThrow('PORTAL_PRINT_ORIGIN')
+  })
+
+  it('refuses a plaintext print origin in production, as for the auth origin', () => {
+    expect(() => parse('http://ap.up.railway.app', productionEnvironment)).toThrow(
+      'Production PORTAL_PRINT_ORIGIN must use HTTPS',
+    )
+  })
+
+  it('allows plaintext outside production and on loopback, where nothing crosses a network', () => {
+    expect(parse('http://ap.localhost:3000')).toBe('http://ap.localhost:3000')
+    expect(parse('http://127.0.0.1:3001', productionEnvironment)).toBe(
+      'http://127.0.0.1:3001',
+    )
+  })
+
+  it('does not fail on the transport rule when the value is not a URL at all', () => {
+    // The shape message is the one to show; the transport check must not throw a
+    // TypeError of its own on a value the shape check already refused.
+    expect(() => parse('not a url', productionEnvironment)).toThrow(/PORTAL_PRINT_ORIGIN/)
+  })
+
+  it('accepts an origin equal to the app origin: the redirect turns itself off', () => {
+    expect(parse('https://app.reputationkey.app', productionEnvironment)).toBe(
+      'https://app.reputationkey.app',
+    )
+  })
+})
+
 describe('production auth transport policy', () => {
   it('refuses a plaintext auth origin that can be reached over a network', () => {
     // The reason the rule exists: a production auth origin decides

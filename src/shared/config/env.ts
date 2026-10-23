@@ -1,4 +1,5 @@
 import { z } from 'zod/v4'
+import { printOriginProblem } from '#/shared/config/print-origin'
 import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
 
 const PORTAL_ADDRESS_KEY_ENTRY = /^([1-9]\d{0,3}):[a-f0-9]{64}$/
@@ -195,6 +196,21 @@ const baseEnvSchema = z.object({
       isPortalAddressKeyring,
       'Must be <version>:<64 hex>[,...], at most four entries',
     )
+    .optional(),
+  // The short host a printed QR code or NFC tag carries (ADR 0069), for example
+  // https://ap.up.railway.app. Optional and non-secret: where it is unset nothing
+  // changes. Set, the web server answers only `/p/*` on that host, with a redirect
+  // to the app's own origin (BETTER_AUTH_URL), and a 404 for everything else; set
+  // to the app's own host, the redirect is off. Origin only, https in production,
+  // host at most 25 characters (what keeps the print QR a version 3 symbol). The
+  // host must stay attached to the web service for as long as anything printed
+  // with it exists. Web and worker read the same value.
+  PORTAL_PRINT_ORIGIN: z
+    .string()
+    .superRefine((value, context) => {
+      const problem = printOriginProblem(value)
+      if (problem !== undefined) context.addIssue({ code: 'custom', message: problem })
+    })
     .optional(),
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1),
@@ -537,6 +553,22 @@ const envSchema = baseEnvSchema.superRefine((env, context) => {
       code: 'custom',
       path: ['BETTER_AUTH_URL'],
       message: 'Production BETTER_AUTH_URL must use HTTPS',
+    })
+  }
+  // The print host is reached over the same network the auth origin is, and a
+  // card carries it for life: the same transport rule. A value the shape check
+  // refused never gets here as a URL, so it is read with a guard.
+  const printOrigin = env.PORTAL_PRINT_ORIGIN
+  if (
+    env.NODE_ENV === 'production' &&
+    printOrigin !== undefined &&
+    URL.canParse(printOrigin) &&
+    !isSecureAuthOrigin(new URL(printOrigin))
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['PORTAL_PRINT_ORIGIN'],
+      message: 'Production PORTAL_PRINT_ORIGIN must use HTTPS',
     })
   }
   if (
