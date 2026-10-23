@@ -1,9 +1,10 @@
 // What the Immersive preview needs that the PDF finds by measuring: which fit
-// step a face is set at (spec 2.5), whether it keeps its window, and the field's
-// CSS. The PDF measures every step with the fonts; the preview makes the same
-// choice from the widths it estimates (`estimatedStackHeight`), which err wide,
-// so it never keeps a window or a type size the file gives up. Within a step the
-// window grows and shrinks by itself, as the boards' flex-grow of 1000 makes it.
+// step a face is set at (spec 2.5), whether it keeps its window, the long-copy
+// sizes when no step leaves the words room, and the field's CSS. The PDF
+// measures every step with the fonts; the preview makes the same choice from the
+// widths it estimates (`estimatedStackHeight`), which err wide, so it never
+// keeps a window or a type size the file gives up. Within a step the window
+// grows and shrinks by itself, as the boards' flex-grow of 1000 makes it.
 //
 // Every measure is read from the files the PDF reads.
 
@@ -30,20 +31,27 @@ import {
   type ImmersiveFitStep,
   type ImmersiveGeometry,
 } from '#/shared/domain/portal-print-kit-immersive'
+import { scaleSizes, type StackSizes } from '#/shared/domain/portal-print-kit-long-copy'
 import { WORDMARK } from '#/shared/domain/portal-print-kit-measures'
 import {
   PRINT_KIT_WASH_ALPHA,
   type ImmersivePrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
 import { brandInkPt } from './print-kit-face-brand-art'
-import { estimatedStackHeight } from './print-kit-paper-art-layout'
+import { estimatedStackHeight, fittedSizes } from './print-kit-preview-fit'
 
 export type PreviewImmersiveFit = ImmersiveFitStep &
-  Readonly<{ wordmarkPt: number; logoHeightPt: number; window: boolean }>
+  Readonly<{
+    wordmarkPt: number
+    logoHeightPt: number
+    window: boolean
+    sizes: StackSizes
+  }>
 
 /**
  * The step an Immersive face is set at in the preview: the first that keeps the
- * window at its floor, else, with the window dropped, the first whose words fit.
+ * window at its floor, else, with the window dropped, the first whose words fit,
+ * else the tightest with the long-copy steps its words take.
  */
 export function previewImmersiveFit(
   face: PrintFace,
@@ -57,6 +65,7 @@ export function previewImmersiveFit(
     estimatedCueWidthPt,
   )
   const range = windowPictureRangePt(geometry)
+  const width = grid.widthPt - 2 * grid.sidePt
   const tries = immersiveFitSteps(languages, isTentPanel(geometry)).map((step) => {
     const brand = immersiveBrandSize(geometry, languages, step.brand)
     const brandHeight =
@@ -66,14 +75,16 @@ export function previewImmersiveFit(
       2 * grid.marginPt -
       brandInkPt(look, brand.wordmarkPt) +
       brandHeight +
-      estimatedStackHeight(
-        face,
-        step.scale,
-        grid.widthPt - 2 * grid.sidePt,
-        step.placeToHeadPt,
-      ) +
       code.heightPt
-    return { ...step, ...brand, spare: grid.heightPt - fixed }
+    const spareWith = (sizes: StackSizes) =>
+      grid.heightPt -
+      fixed -
+      estimatedStackHeight(face, step.scale, width, {
+        sizes,
+        placeToHeadPt: step.placeToHeadPt,
+      })
+    const sizes = scaleSizes(step.scale)
+    return { ...step, ...brand, sizes, spare: spareWith(sizes), spareWith }
   })
   const withWindow = wantsWindow(geometry, languages)
     ? tries.find(
@@ -81,11 +92,15 @@ export function previewImmersiveFit(
           attempt.spare - 3 * attempt.gapPt - 2 * WINDOW_FRAME_PT >= range.minPt,
       )
     : undefined
-  if (withWindow !== undefined) return { ...withWindow, window: true }
-  const words =
-    tries.find((attempt) => attempt.spare >= 2 * attempt.gapPt) ?? tries[tries.length - 1]
-  if (words === undefined) throw new Error('A face has at least one way to be set')
-  return { ...words, window: false }
+  const words = withWindow ?? tries.find((attempt) => attempt.spare >= 2 * attempt.gapPt)
+  const chosen = words ?? tries[tries.length - 1]
+  if (chosen === undefined) throw new Error('A face has at least one way to be set')
+  const { spare: _spare, spareWith, ...step } = chosen
+  const sizes =
+    words === undefined
+      ? fittedSizes(step.scale, (at) => spareWith(at) >= 2 * step.gapPt)
+      : step.sizes
+  return { ...step, sizes, window: withWindow !== undefined }
 }
 
 const rgba = (hex: string, alpha: number): string => {

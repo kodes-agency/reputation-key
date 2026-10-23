@@ -11,10 +11,10 @@
 
 import type { CSSProperties } from 'react'
 import type { PrintFace, PrintTextBlock } from '#/shared/domain/portal-print-kit'
-import { STACK, TYPE_PT } from '#/shared/domain/portal-print-kit-measures'
+import type { StackSizes } from '#/shared/domain/portal-print-kit-long-copy'
+import { STACK, type TypeScale } from '#/shared/domain/portal-print-kit-measures'
 import { LINING_FIGURES } from './print-kit-art-layout'
 import type { PointsToLength } from './print-kit-code-block-layout'
-import type { PaperScale } from './print-kit-paper-art-layout'
 
 /** The words' colours, from a style's palette. */
 export type FaceStackColours = Readonly<{
@@ -30,7 +30,10 @@ export type FaceStackColours = Readonly<{
 
 type Props = Readonly<{
   face: PrintFace
-  scale: PaperScale
+  /** The scale the gaps and the rule are set at. */
+  scale: TypeScale
+  /** The sizes: the scale's own, or the long-copy steps' (`print-kit-preview-fit.ts`). */
+  sizes: StackSizes
   align: 'centre' | 'start'
   colours: FaceStackColours
   pt: PointsToLength
@@ -49,6 +52,7 @@ const DISPLAY: CSSProperties = {
 export function PrintKitFaceStack({
   face,
   scale,
+  sizes,
   align,
   colours,
   pt,
@@ -56,7 +60,6 @@ export function PrintKitFaceStack({
 }: Props) {
   const [lead, second] = face.blocks
   if (lead === undefined) return null
-  const type: Readonly<Record<string, number>> = TYPE_PT[scale]
   const { leading } = STACK
   const tent = scale === 'tent'
   const gaps: Readonly<{ rule: number; placeToHead?: number }> = STACK.gapsPt[scale]
@@ -74,7 +77,7 @@ export function PrintKitFaceStack({
       }}
     />
   )
-  const size = (key: string) => pt(type[key] ?? 0)
+  const size = (key: keyof StackSizes) => pt(sizes[key])
   return (
     <>
       <div

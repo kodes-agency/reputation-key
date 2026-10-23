@@ -11,7 +11,10 @@
 //
 // Margins are optical, as in the PDF: the paddings are the margin less the
 // distance from the brand's box to its ink and plus the tile's outline. The
-// preview cannot read a logo's alpha, so it takes the boards' 1.2 mm edge.
+// preview cannot read a logo's alpha, so it takes the boards' 1.2 mm edge. The
+// type scale, the brand's size and the long-copy steps come from
+// `previewPaperFit`, by the PDF's rules, so a long title never pushes the code
+// block off the face.
 //
 // Laid out in container units of the face's own width, so it scales with its
 // column or its slot on a sheet. Inline styles on purpose, as the rest of the
@@ -26,12 +29,9 @@ import {
   CARD_GRID,
   CODE_BLOCK,
   FIT,
-  LOGO_BOX_MM,
   TENT_FACE,
   TENT_FACE_GRID,
   TENT_WORDMARK_PT,
-  WORDMARK,
-  mmToPt,
 } from '#/shared/domain/portal-print-kit-measures'
 import {
   PRINT_KIT_PAPER,
@@ -44,7 +44,12 @@ import {
 } from '#/shared/domain/portal-print-kit-sheets'
 import { PrintKitCodeBlock } from './print-kit-code-block'
 import type { PointsToLength } from './print-kit-code-block-layout'
-import { previewPaperScale, ptToContainerWidth } from './print-kit-paper-art-layout'
+import { ptToContainerWidth } from './print-kit-paper-art-layout'
+import {
+  previewPaperFit,
+  tentCodeOffsetPt,
+  type PreviewPaperFit,
+} from './print-kit-preview-fit'
 import { PrintKitFaceBrand, brandInkPt } from './print-kit-face-brand-art'
 import { PrintKitFaceStack } from './print-kit-face-stack'
 import { PrintKitImmersiveFace } from './print-kit-immersive-face-art'
@@ -118,10 +123,11 @@ const CodeBlock = ({ drawing }: Readonly<{ drawing: Drawing }>): ReactNode => (
 function PaperCard({
   drawing,
   geometry,
-}: Readonly<{ drawing: Drawing; geometry: 'card4x6' | 'cardA6' }>) {
+  fit,
+}: Readonly<{ drawing: Drawing; geometry: 'card4x6' | 'cardA6'; fit: PreviewPaperFit }>) {
   const grid = CARD_GRID.paper[geometry === 'card4x6' ? 'letter' : 'a4']
   const { pt, face } = drawing
-  const top = grid.marginPt - brandInkPt(drawing.look, WORDMARK.pt)
+  const top = grid.marginPt - brandInkPt(drawing.look, fit.wordmarkPt)
   const bottom = grid.marginPt + CODE_BLOCK.outlinePt
   return (
     <div
@@ -134,15 +140,16 @@ function PaperCard({
       <PrintKitFaceBrand
         look={drawing.look}
         colour={drawing.palette.ink}
-        wordmarkPt={WORDMARK.pt}
-        logoHeightPt={mmToPt(LOGO_BOX_MM.height)}
+        wordmarkPt={fit.wordmarkPt}
+        logoHeightPt={fit.logoHeightPt}
         align="centre"
         pt={pt}
       />
       <Gap min={FIT.paperGapPt.brand} pt={pt} />
       <PrintKitFaceStack
         face={face}
-        scale={previewPaperScale(face, geometry)}
+        scale={fit.scale}
+        sizes={fit.sizes}
         align="centre"
         colours={paperColours(drawing.palette)}
         pt={pt}
@@ -156,7 +163,12 @@ function PaperCard({
 function PaperTentFace({
   drawing,
   geometry,
-}: Readonly<{ drawing: Drawing; geometry: 'tentFaceLetter' | 'tentFaceA5' }>) {
+  fit,
+}: Readonly<{
+  drawing: Drawing
+  geometry: 'tentFaceLetter' | 'tentFaceA5'
+  fit: PreviewPaperFit
+}>) {
   const grid = TENT_FACE_GRID[geometry === 'tentFaceLetter' ? 'letter' : 'a4']
   const { pt, face } = drawing
   const bottom = brandInkPt(drawing.look, TENT_WORDMARK_PT) + CODE_BLOCK.outlinePt
@@ -196,7 +208,8 @@ function PaperTentFace({
         >
           <PrintKitFaceStack
             face={face}
-            scale="tent"
+            scale={fit.scale}
+            sizes={fit.sizes}
             align="start"
             colours={paperColours(drawing.palette)}
             pt={pt}
@@ -206,7 +219,7 @@ function PaperTentFace({
           style={{
             flex: 'none',
             width: pt(CODE_BLOCK.tilePt),
-            paddingTop: pt(TENT_FACE.codeTopOffsetPt),
+            paddingTop: pt(tentCodeOffsetPt(fit.sizes.place)),
           }}
         >
           <CodeBlock drawing={drawing} />
@@ -219,13 +232,15 @@ function PaperTentFace({
 
 /** A Paper face of the shape; Paper has no tent panels, which are Immersive's. */
 function paperArt(drawing: Drawing, geometry: PanelGeometry): ReactNode {
+  const fit = previewPaperFit(drawing.face, geometry, drawing.look)
+  if (fit === null) return null
   switch (geometry) {
     case 'card4x6':
     case 'cardA6':
-      return <PaperCard drawing={drawing} geometry={geometry} />
+      return <PaperCard drawing={drawing} geometry={geometry} fit={fit} />
     case 'tentFaceLetter':
     case 'tentFaceA5':
-      return <PaperTentFace drawing={drawing} geometry={geometry} />
+      return <PaperTentFace drawing={drawing} geometry={geometry} fit={fit} />
     default:
       return null
   }

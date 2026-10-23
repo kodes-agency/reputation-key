@@ -377,6 +377,10 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   floor (never under the lead headline), then the second language's block to
   its floors (11.5 pt headline, 9 pt subline and title), and only then, the last
   resort, the place label under its floor. The code block never gives way.
+  The Share tab's preview takes the same steps, and the same brand sizes, from
+  widths it estimates (`portal-print-kit-text-widths.ts`, measured from the
+  embedded fonts and never narrower than them), so it never sets the words
+  larger than the file and a long title cannot push its code block off the face.
 - **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
   family; lining figures on place labels and headlines; no ligatures on a tracked
   line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the

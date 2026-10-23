@@ -243,6 +243,7 @@ export function PrintKitImmersiveFace({
       <PrintKitFaceStack
         face={face}
         scale={fit.scale}
+        sizes={fit.sizes}
         align="centre"
         colours={{
           ink: palette.headline,
