@@ -381,6 +381,22 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   widths it estimates (`portal-print-kit-text-widths.ts`, measured from the
   embedded fonts and never narrower than them), so it never sets the words
   larger than the file and a long title cannot push its code block off the face.
+- **Sizes (round 3, in the domain, not yet drawn).** `PRINT_KIT_SIZES` is Large
+  (4 x 6 in, A6), Table (3.5 x 5 in, 90 x 130 mm) and Mini (2 x 3.5 in, 55 x 85
+  mm); the small tent is the `table_tent` piece at size Table, and today's
+  Letter-half tent is the same piece at size Large. `PRINT_KIT_SELECTABLE_SIZES`
+  lists Large only: Table, the tent and Mini wait for the short print address
+  and a phone test, so they are reachable from tests and stories only. The
+  measures per size are `portal-print-kit-sizes.ts` (trims, spacing, band, plate,
+  what each size drops), `portal-print-kit-size-type.ts` (type, logo optical
+  sizes) and `portal-print-kit-code-tile.ts`. The code tile is chosen by one
+  pure rule, `chooseCodeTile`: a module (tile over the symbol and its quiet zone)
+  of at least 0.85 mm. Large takes 1.75 in when its module reaches that and
+  otherwise today's 2 in tile, so it is never refused (the beta's address is a
+  version 9 symbol, 0.833 mm at 2 in); Table (1.4 in, 36 mm in Europe) and Mini
+  (1.25 in, 32 mm) refuse with `print_code_too_small`, cause `needs_short_code`
+  for a long address and `address_host_too_long` for a short one that is still
+  too dense. The faces and the PDF do not read any of this yet.
 - **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
   family; lining figures on place labels and headlines; no ligatures on a tracked
   line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the
