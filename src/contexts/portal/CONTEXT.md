@@ -28,7 +28,7 @@ assignment, and governed access artifacts.
 - `PortalRepository` is a read-only production port. Authoritative mutations are available only through Portal command stores; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
 - Lifecycle export and purge contributors stay outside `publicApi`; irreversible
   phases are composed only through the reviewed Identity lifecycle coordinator.
-- Not exported, and not queried: `portal_tokens` (address-token hash and the sealed raw address) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id. An exported artifact's `status` is the state of its code at the export snapshot (`published` while the code resolves, `retiring` through a rotation's grace window, `retired` after it, `revoked` when it was stopped), read from `portal_tokens` without exposing the join key. The stored column stays `published`: the scan path reads it, and moving it with the code would end scan counting inside a grace window. In the CSV summary `portal_id` names the Portal a record belongs to (its own id on a Portal row) and is empty for a group, an approved destination, a media asset and the Property's look and wording.
+- Not exported, and not queried: `portal_tokens` (the address-token hash, the sealed raw address and the print code hashes) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id. An exported artifact's `status` is the state of its code at the export snapshot (`published` while the code resolves, `retiring` through a rotation's grace window, `retired` after it, `revoked` when it was stopped), read from `portal_tokens` without exposing the join key. The stored column stays `published`: the scan path reads it, and moving it with the code would end scan counting inside a grace window. In the CSV summary `portal_id` names the Portal a record belongs to (its own id on a Portal row) and is empty for a group, an approved destination, a media asset and the Property's look and wording.
 - Not touched by any phase: `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
 
 ## Model
@@ -355,6 +355,23 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   a retry). The address on the code comes through the audited reveal of the
   sealed code (ADR 0064), so a code that kept no address cannot be printed.
   The address is never printed as words: the code and its cue carry the action.
+  Print codes (ADR 0069) arrive in steps: the schema, the codec and the field
+  policy exist and nothing mints, stores or resolves one yet, so the print still
+  carries the long address. When minting is on, the reveal also derives the
+  code's print codes and the print and the QR download carry the short address;
+  "Public address" and "Open page" stay on the long one.
+- **Print code.** The 20-character Crockford credential a printed QR or an NFC
+  tag carries instead of the long address (ADR 0069): 100 bits, one per access
+  artifact channel (qr, nfc), derived from the code's long address and that
+  artifact's id, and stored only as a keyed hash on `portal_tokens`
+  (`qr_print_code_hash`, `nfc_print_code_hash`). It opens the public guest page
+  and lets a visit be counted; it is a credential, never logged, evented or
+  exported (invariant 9).
+- **Print host.** The short host a print code is scanned on: `PORTAL_PRINT_ORIGIN`,
+  `https://ap.up.railway.app`. It only redirects `/p/<code>` to the app origin
+  (the guest page is not served there, because the guest `Origin` check is an
+  exact match against the app origin), and must stay attached to the web service
+  and keep its name for the life of the prints.
 - **One source of measures.** The PDF and the preview read the same files, so a
   preview cannot show a sheet the file does not print: `portal-print-kit.ts`
   (styles, papers, pieces, copy, faces, file name), `portal-print-kit-measures.ts`
@@ -398,9 +415,27 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   tent prints without a photo or monogram, because no window reaches its floor.
   D5: the cue's es, it, fr and de wording ships as a draft, as the rest of that
   copy does (owner decision 5, 2026-09-30). D6: replaced by the Letter-first
-  rule above. D7: no shorter printed token. D8: the Letter card sheet is cut down
+  rule above. D7: no shorter printed token (reversed 2026-10-23, ADR 0069). D8: the Letter card sheet is cut down
   on its three ticks and then across 6 in from the top edge, because the
   printer's border leaves no room for a tick beside the cards.
+- **Owner decisions of 2026-10-23 (print kit round 3).** D7: a short print
+  address, ADR 0069. The print host is `https://ap.up.railway.app` (17
+  characters), a redirect-only second Railway domain on the web service, so the
+  QR string `HTTPS://AP.UP.RAILWAY.APP/p/<20-character print code>` is 48
+  characters, a version 3 symbol at error correction M (version 4 in lowercase).
+  The app origin stays `BETTER_AUTH_URL`, and the code also works if the owner
+  later makes the print host the app's main URL (the redirect then turns off). A
+  Railway-provided name is never released or renamed once printed. D8: the Table
+  card is the default Table piece and the tent sits beside it. D9: Mini stays
+  portrait. D10: the two-language Table card stays as drawn, with every
+  reduction (band 0.95 in, 12 pt gaps). D11: Europe stays on 90 x 130 mm, no A7.
+  D12: the hint under the name switch reads "Large and Table cards. The tent and
+  Mini show the logo alone." Defaults taken for the plan's open questions: Large's
+  code tile is 1.75 in (1.5 in only if a real print passes it at 50 cm on every
+  phone); if the uppercase address fails a phone test on casing alone, the
+  builder switches to the lowercase form and Mini waits for a 1.4 in tile; the
+  current tent stays selectable until the small sizes are switched on; Mini and
+  the new tent sheet are Paper only.
 
 ## Runtime
 
@@ -507,6 +542,16 @@ without `portal.update` and `portal.write`, and on the Share tab itself. The tok
 also carries `madeBy`, the display name of the person `issued_by` recorded for the
 live code (an operator reads as the fixed label; null when unknown), which Share
 words as "Made 12 Mar by …". Only `getPortal` resolves it.
+
+Print codes (ADR 0069) hang off the same reveal once minting is on: it unseals the
+long address, derives the code's two print codes and compares their hashes with the
+stored ones. A missing hash is filled by one idempotent `UPDATE` with the tenant
+predicates (a derived value, so no revision fence); a mismatch or any fill error
+returns the long form for that channel, reports a content-free error and never fails
+the reveal. The reveal then returns `qr`, `nfc` and `direct` (the long address, no
+marker, for "Public address" and "Open page"), and issue and replace gain
+`Cache-Control: private, no-store`. A planned replacement leaves the old code's print
+codes live through its grace; a security replacement, stop and delete end them with it.
 
 `getPortalPreview` is the read behind the editor's live preview (A8): the guest page of one
 Portal, per language, from the saved working copy (`draft`) or the active verified snapshot
@@ -690,7 +735,7 @@ goes quiet (`s3-storage.adapter.endpoints.test.ts`).
 7. Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
 8. Soft-deleting a Portal revokes its live tokens; a deleted Portal never has a live
    token. Token issue, rotation, and revocation share the Portal revision fence.
-9. The raw address is request-local and never enters state, facts, logs, exports or Metric, with one exception: the sealed copy of an active code (ADR 0064). Replacing, stopping or deleting clears it in the same statement, and a CHECK refuses a sealed address on any other code.
+9. The raw address and the print codes are request-local and never enter state, facts, logs, exports or Metric, with one exception: the sealed copy of an active code (ADR 0064). Print codes are derived from it and stored only as keyed hashes (ADR 0069). Replacing, stopping or deleting clears the sealed copy in the same statement, and a CHECK refuses a sealed address on any other code.
 10. Portal lifecycle facts never copy Portal name, slug, description, theme, responsible-manager assignments, destination, or link content.
 11. An image enters the Portal only through the server-side ingest, which stores a re-encoded WebP and never the upload; no Portal request issues a presigned upload or writes `portals.hero_image_url`, and a published Portal with a null value remains valid.
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.

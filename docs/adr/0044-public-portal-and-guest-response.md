@@ -5,6 +5,14 @@ date: 2026-07-15
 
 # 0044 — Public Portal and Guest Response Policy
 
+> **Amended 2026-10-23 by [ADR 0069](0069-short-printed-portal-address.md).** "Token and
+> session" decision 1 stands for the long address (256 secret bits, only a keyed hash
+> stored). A printed QR or NFC tag may now carry a **print code** instead: 20 characters,
+> at least 96 bits, derived from the long address and stored only as a keyed hash, behind
+> a redirect-only print host. The 2026-10-01 amendment's rule that the printed kit shows
+> only the host under the code is now that the kit carries a print code and never prints
+> the address as words. Nothing else in this record changes.
+
 ## Context
 
 The existing public portal creates guest sessions client-side, accepts unsigned cookies, trusts raw `X-Forwarded-For`, records scans on page mount (inflated by refresh/bots), and allows review-link visibility to drift toward conditional feedback logic (review gating).
