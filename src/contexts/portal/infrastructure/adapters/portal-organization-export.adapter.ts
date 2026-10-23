@@ -57,7 +57,9 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *   or NFC artifact exists — is exported from `portal_access_artifacts`
  *   instead, without the token id that joins back to the secret. The sealed
  *   copy of the address (slice 33) lives in the same column and is excluded
- *   with it; only the record of each time it was handed out is exported.
+ *   with it; only the record of each time it was handed out is exported. The
+ *   keyed hashes of the code's print codes (ADR 0069) sit in the same table and
+ *   are excluded the same way.
  * - Goals reference Portals but are owned and exported by the Goal
  *   contributor; a second copy would let one archive disagree with itself.
  */
