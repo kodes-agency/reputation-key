@@ -18,6 +18,11 @@
 //      fresh id (request guard, BQC-7.6).
 //   4. a POST whose content-length exceeds REQUEST_BODY_LIMIT_BYTES is
 //      rejected 413 before routing (request guard, BQC-7.6).
+//   5. the print host (ADR 0069, PORTAL_PRINT_ORIGIN) redirects GET/HEAD /p/*
+//      to the app origin and answers everything else 404, by the wire Host and
+//      by a trusted X-Forwarded-Host, and leaves every other host alone. The
+//      request middleware is stripped from the browser build and registered
+//      only in the server chain, so a unit test cannot show it fires here.
 //
 // Secrets are generated randomly per run — never the CI/test placeholder
 // family (the production placeholder-secret boot guard refuses those).
@@ -27,6 +32,7 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { request as httpRequest } from 'node:http'
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:net'
 import { join, dirname } from 'node:path'
@@ -42,6 +48,9 @@ const POLL_INTERVAL_MS = 250
 // lives in src/shared/config/env.ts (REQUEST_BODY_LIMIT_BYTES).
 const BODY_LIMIT_BYTES = 1024
 const PROBE_UPLOAD_ORIGIN = 'https://uploads.security-probe.repkey.invalid'
+// BETTER_AUTH_URL below, and a print host short enough for the boot check (25).
+const PROBE_APP_ORIGIN = 'https://security-probe.repkey.invalid'
+const PROBE_PRINT_ORIGIN = 'https://ap.probe.repkey.invalid'
 
 // The B0.7 header set, exactly as served in production (HSTS included —
 // NODE_ENV=production). The CSP allows the application shell's per-response
@@ -103,7 +112,8 @@ function serverEnv(port) {
     // The server still binds to HOST/PORT above. BETTER_AUTH_URL is the
     // externally visible canonical origin, which is required to be HTTPS in
     // production and need not resolve for these liveness/header probes.
-    BETTER_AUTH_URL: 'https://security-probe.repkey.invalid',
+    BETTER_AUTH_URL: PROBE_APP_ORIGIN,
+    PORTAL_PRINT_ORIGIN: PROBE_PRINT_ORIGIN,
     RESEND_API_KEY: `re_probe_${hex(16)}`,
     GOOGLE_CLIENT_ID: `probe-${hex(8)}.apps.googleusercontent.com`,
     GOOGLE_CLIENT_SECRET: `GOCSPX-${hex(16)}`,
@@ -139,6 +149,132 @@ function assertHeaders(label, headers, failures) {
       )
     }
   }
+}
+
+/**
+ * One request with a chosen Host header. fetch cannot set one, and the print host
+ * is recognised by it. The body is read whole: every answer probed here is tiny.
+ */
+function requestWithHost(port, { method = 'GET', path, host, headers = {} }) {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { host: '127.0.0.1', port, method, path, headers: { host, ...headers } },
+      (res) => {
+        const chunks = []
+        res.on('data', (chunk) => chunks.push(chunk))
+        res.on('end', () =>
+          resolve({
+            status: res.statusCode,
+            headers: res.headers,
+            body: Buffer.concat(chunks).toString(),
+          }),
+        )
+      },
+    )
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+/** The print host (ADR 0069), against the booted artifact. Pushes one line per violation. */
+async function probePrintHost(port, failures) {
+  const printHost = new URL(PROBE_PRINT_ORIGIN).host
+  const appHost = `127.0.0.1:${port}`
+  const edge = { 'x-railway-edge': 'ams1', 'x-railway-request-id': `ci-probe-${hex(4)}` }
+  const code = '7K3QZ0VD9MWX4HT2BN6R'
+  const expectStatus = (label, answer, status) => {
+    if (answer.status !== status) {
+      failures.push(`print host: ${label} returned ${answer.status}, expected ${status}`)
+    }
+  }
+
+  const scan = await requestWithHost(port, {
+    path: `/p/${code}?locale=de`,
+    host: printHost,
+  })
+  expectStatus('GET /p/<code> on the print host', scan, 302)
+  const expectedLocation = `${PROBE_APP_ORIGIN}/p/${code}?locale=de`
+  if (scan.headers.location !== expectedLocation) {
+    failures.push(
+      `print host: Location = ${JSON.stringify(scan.headers.location)} (expected ${JSON.stringify(expectedLocation)})`,
+    )
+  }
+  if (scan.headers['cache-control'] !== 'no-store') {
+    failures.push(`print host: redirect cache-control = ${scan.headers['cache-control']}`)
+  }
+  if (scan.headers['referrer-policy'] !== 'no-referrer') {
+    failures.push(
+      `print host: redirect referrer-policy = ${scan.headers['referrer-policy']}`,
+    )
+  }
+  if (scan.body !== '') failures.push('print host: the redirect has a body')
+  if (scan.headers['x-content-type-options'] !== 'nosniff') {
+    failures.push(
+      'print host: the redirect skipped the response hooks (no security headers)',
+    )
+  }
+
+  expectStatus(
+    'HEAD /p/<code> on the print host',
+    await requestWithHost(port, { method: 'HEAD', path: `/p/${code}`, host: printHost }),
+    302,
+  )
+  // The server turns a Host it does not accept, such as a name with a trailing
+  // dot, into a placeholder in the request URL: only the header still names the host.
+  expectStatus(
+    'GET /p/<code> on the print host written with a trailing dot',
+    await requestWithHost(port, { path: `/p/${code}`, host: `${printHost}.` }),
+    302,
+  )
+  for (const [label, request] of [
+    ['GET / on the print host', { path: '/', host: printHost }],
+    [
+      'GET /api/health/live on the print host',
+      { path: '/api/health/live', host: printHost },
+    ],
+    [
+      'GET a server function on the print host',
+      { path: '/_serverFn/abc', host: printHost },
+    ],
+    [
+      'POST /p/<code> on the print host',
+      { method: 'POST', path: `/p/${code}`, host: printHost },
+    ],
+  ]) {
+    const answer = await requestWithHost(port, request)
+    expectStatus(label, answer, 404)
+    if (answer.body !== '') failures.push(`print host: ${label} has a body`)
+  }
+
+  // A trusted forwarded host counts. Without Railway's markers it is ignored, so
+  // the app host still answers (health needs no database).
+  expectStatus(
+    'GET /p/<code> forwarded for the print host, edge markers present',
+    await requestWithHost(port, {
+      path: `/p/${code}`,
+      host: appHost,
+      headers: { 'x-forwarded-host': printHost, ...edge },
+    }),
+    302,
+  )
+  expectStatus(
+    'GET /api/health/live forwarded for the print host, edge markers present',
+    await requestWithHost(port, {
+      path: '/api/health/live',
+      host: appHost,
+      headers: { 'x-forwarded-host': printHost, ...edge },
+    }),
+    404,
+  )
+  expectStatus(
+    'GET /api/health/live forwarded for the print host, no edge markers',
+    await requestWithHost(port, {
+      path: '/api/health/live',
+      host: appHost,
+      headers: { 'x-forwarded-host': printHost },
+    }),
+    200,
+  )
 }
 
 async function main() {
@@ -227,6 +363,11 @@ async function main() {
           failures.push('413 response is missing x-request-id')
         }
       }
+
+      // 5. The print host, by Host and by a trusted X-Forwarded-Host. The probes
+      // above ran with PORTAL_PRINT_ORIGIN set, on another host: that they all
+      // passed is the proof that every other host is left alone.
+      await probePrintHost(port, failures)
     }
   } finally {
     child.kill('SIGTERM')
@@ -244,7 +385,8 @@ async function main() {
   }
   console.log(
     `[security-headers] OK — booted artifact serves the full B0.7 set on 200 and 404 responses, ` +
-      `echoes/generates x-request-id, and rejects oversized bodies (413).`,
+      `echoes/generates x-request-id, rejects oversized bodies (413), and answers the print host ` +
+      `(redirect for /p/*, 404 for the rest).`,
   )
 }
 

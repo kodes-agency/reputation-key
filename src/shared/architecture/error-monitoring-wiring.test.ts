@@ -132,11 +132,12 @@ describe('production error-monitoring wiring', () => {
         `${name} may appear only in its import and the server branch`,
       ).toBe(2)
     }
-    // Sentry's request middleware first; the unknown-function answer sits inside
-    // it, so a missing function is a 404 response and never an exception for it
-    // to capture.
+    // Sentry's request middleware first; the print host's answer and the
+    // unknown-function answer sit inside it, so a request for the print host and
+    // a missing function are 404 (or redirect) responses and never an exception
+    // for it to capture.
     expect(start).toMatch(
-      /requestMiddleware: \[\s*\.\.\.sentry\.request,\s*csrfMiddleware,\s*unknownServerFunctionMiddleware,\s*cspNonceMiddleware,?\s*\]/u,
+      /requestMiddleware: \[\s*\.\.\.sentry\.request,\s*printHostMiddleware,\s*csrfMiddleware,\s*unknownServerFunctionMiddleware,\s*cspNonceMiddleware,?\s*\]/u,
     )
     // Sentry's function middleware stays first; the release check follows it.
     expect(start).toContain(

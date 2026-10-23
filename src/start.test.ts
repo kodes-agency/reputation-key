@@ -4,6 +4,8 @@ import {
   sentryGlobalRequestMiddleware,
 } from '@sentry/tanstackstart-react'
 import * as Sentry from '@sentry/node'
+import { resetEnv } from '#/shared/config/env'
+import { printHostMiddleware } from '#/shared/security/print-host-middleware'
 import { releaseSkewClientMiddleware } from '#/shared/stale-tab/release-skew-middleware'
 import { unknownServerFunctionMiddleware } from '#/shared/stale-tab/unknown-server-function'
 import {
@@ -31,7 +33,7 @@ async function invokeCsrfRequestMiddleware(
   handlerType: 'serverFn' | 'router' = 'serverFn',
 ) {
   const options = await startInstance.getOptions()
-  const middleware = options.requestMiddleware?.[1]
+  const middleware = options.requestMiddleware?.[2]
   if (!middleware?.options.server) throw new Error('request middleware is not wired')
   const next = vi.fn(async () => ({
     request,
@@ -65,7 +67,7 @@ describe('TanStack Start global middleware on the server', () => {
   it('runs Sentry request and function middleware before the application middleware', async () => {
     const options = await startInstance.getOptions()
 
-    expect(options.requestMiddleware).toHaveLength(4)
+    expect(options.requestMiddleware).toHaveLength(5)
     expect(options.requestMiddleware?.[0]).toBe(sentryGlobalRequestMiddleware)
     expect(options.requestMiddleware?.[0]?.options.server).toBeTypeOf('function')
     expect(options.functionMiddleware).toEqual([
@@ -169,7 +171,7 @@ describe('a request for a server function this build does not have', () => {
   it('is registered between the CSRF boundary and the nonce, inside Sentry', async () => {
     const options = await startInstance.getOptions()
 
-    expect(options.requestMiddleware?.[2]).toBe(unknownServerFunctionMiddleware)
+    expect(options.requestMiddleware?.[3]).toBe(unknownServerFunctionMiddleware)
   })
 
   // The thing the issue was about, through the chain the server registers.
@@ -230,5 +232,88 @@ describe('a request for a server function this build does not have', () => {
     await Sentry.flush(100)
 
     expect(sentEvents).toHaveLength(1)
+  })
+})
+
+describe('the print host in the request chain', () => {
+  const PRINT_ORIGIN = 'https://ap.up.railway.app'
+
+  beforeEach(() => {
+    vi.stubEnv('BETTER_AUTH_URL', 'https://web-closed-beta-v2.up.railway.app')
+    vi.stubEnv('PORTAL_PRINT_ORIGIN', PRINT_ORIGIN)
+    resetEnv()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    resetEnv()
+  })
+
+  it('is registered straight after Sentry, ahead of the CSRF boundary', async () => {
+    const options = await startInstance.getOptions()
+
+    expect(options.requestMiddleware?.[1]).toBe(printHostMiddleware)
+  })
+
+  // The reason for the position: a cross-origin call has no origin evidence, so
+  // CSRF would answer it 403 before the print host could say 404.
+  it('answers a server-function call on the print host 404, not 403, and not the app', async () => {
+    const options = await startInstance.getOptions()
+    const call = serverFnChainRequest('0123abcd')
+    let reachedApp = false
+
+    const response = await runRequestChain(
+      options.requestMiddleware ?? [],
+      async () => {
+        reachedApp = true
+        return { response: new Response('the app') }
+      },
+      {
+        ...call,
+        request: new Request(`${PRINT_ORIGIN}${call.pathname}`, {
+          method: 'POST',
+          headers: { 'Sec-Fetch-Site': 'cross-site' },
+        }),
+      },
+    )
+
+    expect(response.status).toBe(404)
+    expect(reachedApp).toBe(false)
+  })
+
+  it('redirects a scan on the print host, with its query', async () => {
+    const options = await startInstance.getOptions()
+
+    const response = await runRequestChain(
+      options.requestMiddleware ?? [],
+      async () => ({ response: new Response('the app') }),
+      {
+        request: new Request(`${PRINT_ORIGIN}/p/7K3QZ0VD9MWX4HT2BN6R?locale=de`),
+        pathname: '/p/7K3QZ0VD9MWX4HT2BN6R',
+        handlerType: 'router',
+      },
+    )
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(
+      'https://web-closed-beta-v2.up.railway.app/p/7K3QZ0VD9MWX4HT2BN6R?locale=de',
+    )
+  })
+
+  it('leaves a request for the app host to the rest of the chain', async () => {
+    const options = await startInstance.getOptions()
+    const answer = new Response('the app')
+
+    const response = await runRequestChain(
+      options.requestMiddleware ?? [],
+      async () => ({ response: answer }),
+      {
+        request: new Request('https://web-closed-beta-v2.up.railway.app/p/CODE'),
+        pathname: '/p/CODE',
+        handlerType: 'router',
+      },
+    )
+
+    expect(response.status).toBe(200)
   })
 })

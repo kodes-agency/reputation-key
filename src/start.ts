@@ -9,6 +9,7 @@ import {
   sentryGlobalFunctionMiddleware,
   sentryGlobalRequestMiddleware,
 } from '@sentry/tanstackstart-react'
+import { printHostMiddleware } from '#/shared/security/print-host-middleware'
 import { getSecurityHeaders } from '#/shared/security/security-headers'
 import { serverFunctionErrorAdapter } from '#/shared/auth/server-function-error'
 import { releaseSkewClientMiddleware } from '#/shared/stale-tab/release-skew-middleware'
@@ -78,12 +79,17 @@ export const startInstance = createStart(() => {
   const sentry = sentryGlobalMiddleware()
   return {
     serializationAdapters: [serverFunctionErrorAdapter],
-    // Sentry first, so it wraps everything below. CSRF next: only a same-origin
-    // caller learns anything from what follows. The unknown-function answer sits
-    // ahead of the nonce so that a request for a function this build lacks is a
-    // 404 response, not an exception for Sentry to capture on its way out.
+    // Sentry first, so it wraps everything below. The print host comes next: on
+    // that host everything but a scan redirect is a 404, a server-function call
+    // and a cross-origin one included, so nothing below it may answer first (it
+    // passes every other host through untouched, and every host where
+    // PORTAL_PRINT_ORIGIN is unset). CSRF next: only a same-origin caller learns
+    // anything from what follows. The unknown-function answer sits ahead of the
+    // nonce so that a request for a function this build lacks is a 404 response,
+    // not an exception for Sentry to capture on its way out.
     requestMiddleware: [
       ...sentry.request,
+      printHostMiddleware,
       csrfMiddleware,
       unknownServerFunctionMiddleware,
       cspNonceMiddleware,

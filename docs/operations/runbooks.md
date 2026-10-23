@@ -1574,8 +1574,9 @@ with the feature is repaired by a fix deployed forward.
 
 **Print codes and the print host (ADR 0069).** A short printed address,
 `https://ap.up.railway.app/p/<print code>`, replaces the long address on new prints.
-Migration 0070 and the codec are in; no print code is minted until the step that
-mints them ships, so everything below applies from that release on.
+Migration 0070, the codec and the print host redirect are in; no print code is
+minted until the step that mints them ships, so everything below applies from that
+release on. The redirect does nothing until `PORTAL_PRINT_ORIGIN` is set.
 
 - **The print host stays.** `ap.up.railway.app` is a second Railway domain on the web
   service and redirects `/p/<code>` to the app origin (`PORTAL_PRINT_ORIGIN`, set on
@@ -1583,6 +1584,35 @@ mints them ships, so everything below applies from that release on.
   anything is printed with it: another Railway account could claim it and receive
   every scan. A print code stops opening, and a printed card with it, the moment the
   host goes away.
+- **Setting `PORTAL_PRINT_ORIGIN`.** Non-secret: `https://ap.up.railway.app`, an
+  origin only (no path, query or credentials), https in production, host at most 25
+  characters (what keeps the print QR a version 3 symbol). A wrong value stops web
+  and worker at boot with the field named. Attach the domain to the web service
+  first, then set the variable on web and worker, staged with `--skip-deploys`, then
+  redeploy both. `BETTER_AUTH_URL` stays the app origin.
+- **What the print host answers.** `GET` and `HEAD` for `/p/<anything>` on
+  `ap.up.railway.app` are a 302 to the same path and query on the `BETTER_AUTH_URL`
+  origin (`Cache-Control: no-store`, `Referrer-Policy: no-referrer`); every other
+  path or method is a 404 with no body, so a manager who used that host as the app
+  signs in on the app host instead. Every other host is untouched, and nothing logs a
+  path or a code. Files Nitro serves from its public directory (`/assets`,
+  `robots.txt`, `favicon.ico`) still answer there: public build files, the same ones
+  the app host serves. The host is read from the `Host` the server received, and
+  from `X-Forwarded-Host` where the proxy is trusted (`TRUSTED_PROXY_MODE`).
+- **Checking it** (read-only, after the deploy): `curl -sI https://ap.up.railway.app/p/unknown-code`
+  answers 302 with `location: <app origin>/p/unknown-code`, and
+  `curl -s -o /dev/null -w '%{http_code}\n' https://ap.up.railway.app/` answers 404.
+  Following the redirect shows the app's "unavailable" page.
+  `pnpm check:security-headers` proves the same against the built artifact.
+- **If the app moves to the print host.** Set `BETTER_AUTH_URL` to
+  `https://ap.up.railway.app`. The redirect turns itself off when the print host
+  equals the app host, whether `PORTAL_PRINT_ORIGIN` is unset or the same value, and
+  print codes then resolve on `/p/$token` directly. If the app moves anywhere else,
+  `ap.up.railway.app` stays attached and keeps redirecting to the new app origin.
+- **Last resort.** Unsetting `PORTAL_PRINT_ORIGIN` and redeploying web makes
+  `ap.up.railway.app` serve the whole app again: a scan of a printed code then opens
+  the guest page, but its actions fail the exact `Origin` check. Fix a fault
+  forward instead (ADR 0069).
 - **A print kit needs the keyring, at every size.** The address comes through the
   audited reveal of the sealed code, so a code with no sealed copy cannot be printed
   (Share offers "Replace"). With no keyring set nothing can be printed.
