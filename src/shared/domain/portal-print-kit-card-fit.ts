@@ -1,4 +1,4 @@
-// How a Large card shares its height, and what gives when it is tight (round-3
+// How a card shares its height, and what gives when it is tight (round-3
 // spec-delta S3 and S4, on the fit order of round-2 spec-delta "Fit order").
 //
 // A card is three groups (brand, message, code) with two flexible gaps between
@@ -27,12 +27,21 @@
 // address Large prints its 2 in tile, so its gaps are smaller than the boards'
 // 1.75 in ones, and a two-language Immersive card with a logo and a two-line
 // name drops the name until the address is short.
+//
+// Table takes its own steps (S4, "Two languages on Table"): the band to its
+// minimum (which `shareCardHeight` does before any step), the call to action
+// 24 to 21 pt and on one line down to 20 pt, the lead sub-line 9.5 to 9 pt and
+// the second call to action 13 to 12 pt; Paper keeps its 2 pt lead. Mini has one
+// language, no eyebrow and no name, so its only step is a call to action 2 pt
+// smaller.
 
-import type { PrintKitStyle } from './portal-print-kit'
+import type { PrintKitSize, PrintKitStyle } from './portal-print-kit'
 import { FIT } from './portal-print-kit-measures'
 import {
   FACE_TYPE_PT,
   LOGO_OPTICAL,
+  TABLE_CTA_ONE_LINE_FLOOR_PT,
+  TABLE_TWO_LANGUAGE_FIT,
   type LogoOptical,
 } from './portal-print-kit-size-type'
 import type { CardMessageType } from './portal-print-kit-card-words'
@@ -78,6 +87,68 @@ export function largeCardFitSteps(style: PrintKitStyle): readonly CardFitStep[] 
   const second = { ...logo, cta2Pt: (type.cta2 ?? 0) - 2 }
   const named = [full, eyebrow, callToAction, sub, logo, second]
   return [...named, ...named.map((step) => ({ ...step, name: false }))]
+}
+
+/** A size's stop in `TABLE_TWO_LANGUAGE_FIT`: where its step ends. */
+function tableStepTo(step: 'cta' | 'sub' | 'cta2'): number {
+  const found = TABLE_TWO_LANGUAGE_FIT.find((candidate) => candidate.step === step)
+  if (found === undefined) throw new Error(`Table has a ${step} step`)
+  return found.to
+}
+
+/** The steps a Table card tries: the call to action, the sub-line, the second call to action; then without the name. */
+function tableCardFitSteps(style: PrintKitStyle): readonly CardFitStep[] {
+  const type = FACE_TYPE_PT.table
+  const cta = style === 'immersive' ? type.ctaImmersive : type.ctaPaper
+  // Paper steps down by as much as Immersive, so it keeps its lead.
+  const ctaDrop = type.ctaImmersive - tableStepTo('cta')
+  const full: CardFitStep = {
+    eyebrowPt: type.eyebrow ?? 0,
+    ctaPt: cta,
+    ctaOneLineFloorPt: null,
+    subPt: type.sub,
+    cta2Pt: type.cta2 ?? 0,
+    logo: LOGO_OPTICAL.table[style],
+    name: true,
+  }
+  const callToAction = {
+    ...full,
+    ctaPt: cta - ctaDrop,
+    ctaOneLineFloorPt: TABLE_CTA_ONE_LINE_FLOOR_PT,
+  }
+  const sub = { ...callToAction, subPt: tableStepTo('sub') }
+  const second = { ...sub, cta2Pt: tableStepTo('cta2') }
+  const named = [full, callToAction, sub, second]
+  return [...named, ...named.map((step) => ({ ...step, name: false }))]
+}
+
+/** What a Mini card's call to action steps down by: it has nothing else to give. */
+const MINI_CTA_STEP_PT = 2
+
+/** The steps a Mini card tries: its own type, then a smaller call to action. It prints no name. */
+function miniCardFitSteps(style: PrintKitStyle): readonly CardFitStep[] {
+  const type = FACE_TYPE_PT.mini
+  const cta = style === 'immersive' ? type.ctaImmersive : type.ctaPaper
+  const full: CardFitStep = {
+    eyebrowPt: 0,
+    ctaPt: cta,
+    ctaOneLineFloorPt: null,
+    subPt: type.sub,
+    cta2Pt: 0,
+    logo: LOGO_OPTICAL.mini[style],
+    name: false,
+  }
+  return [full, { ...full, ctaPt: cta - MINI_CTA_STEP_PT }]
+}
+
+/** The steps a card of `size` tries, roomiest first. */
+export function cardFitSteps(
+  size: PrintKitSize,
+  style: PrintKitStyle,
+): readonly CardFitStep[] {
+  if (size === 'table') return tableCardFitSteps(style)
+  if (size === 'mini') return miniCardFitSteps(style)
+  return largeCardFitSteps(style)
 }
 
 /** The photo band's target and minimum; null on Paper, which has none. */
