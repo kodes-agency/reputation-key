@@ -5,7 +5,9 @@
 //
 //   - The old Letter-half tent is the `table_tent` at size Large and is unchanged
 //     (OD3): Paper on an office printer, Immersive for a print shop. The small
-//     tent (the `table_tent` at size Table) is not built yet.
+//     tent (the `table_tent` at size Table) prints the same two ways: Paper two
+//     to a landscape sheet, Immersive one to a page for a print shop; an
+//     Immersive tent office sheet is not drawn (OD4). There is no Mini tent.
 //   - A Mini card carries one language (S4).
 //   - Paper prints on the customer's own printer, never as a print-shop file.
 //   - Immersive Mini prints only for a print shop, one card per page with bleed:
@@ -23,6 +25,10 @@ import {
   immersiveTableOfficePages,
 } from './portal-print-kit-office-sheets'
 import { paperMiniPages, paperTablePages } from './portal-print-kit-size-sheets'
+import {
+  paperSmallTentPage,
+  printShopSmallTentPage,
+} from './portal-print-kit-tent-sheets'
 import {
   printKitPages,
   printShopCardPages,
@@ -44,7 +50,7 @@ export type PrintKitFormatChoice = Readonly<{
 export function printKitFormatProblem(choice: PrintKitFormatChoice): string | null {
   const { piece, size, style, output } = choice
   if (piece === 'table_tent') {
-    if (size !== 'large') return 'The small table tent is not ready yet. Choose a card.'
+    if (size === 'mini') return 'There is no Mini table tent. Choose a card.'
     return output === (style === 'immersive' ? 'print_shop' : 'office')
       ? null
       : 'The table tent prints on your own printer in Paper, and at a print shop in Immersive.'
@@ -106,6 +112,11 @@ const cardPages: Readonly<
 export function printKitSheetPages(query: PrintKitSheetQuery): readonly PrintKitPage[] {
   const problem = printKitFormatProblem(query)
   if (problem !== null) throw new Error(`Not a printable choice: ${problem}`)
+  if (query.piece === 'table_tent' && query.size === 'table') {
+    return query.style === 'paper'
+      ? [paperSmallTentPage(query.paper, query.tilePt)]
+      : [printShopSmallTentPage(query.paper)]
+  }
   if (query.piece === 'table_tent') {
     return printKitPages('table_tent', query.faceCount, query.style, query.paper)
   }

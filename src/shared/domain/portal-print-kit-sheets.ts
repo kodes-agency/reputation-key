@@ -34,14 +34,15 @@ import {
   type PanelBleed,
   type SheetNote,
 } from './portal-print-kit-sheet-parts'
-import { SIZE_TRIM_PT } from './portal-print-kit-sizes'
+import { SIZE_TRIM_PT, TENT_SMALL_FACE } from './portal-print-kit-sizes'
 
 export { bleedAround, type PanelBleed, type SheetNote }
 export { PRINT_CHECK, printCheckLines } from './portal-print-kit-print-check'
 
 /**
  * The shapes a face can take: a card at each size, a Paper tent face or an
- * Immersive tent panel, per paper. The Large card is `card4x6` and `cardA6`.
+ * Immersive tent panel of the Letter-half tent, or a small tent's landscape
+ * face, per paper. The Large card is `card4x6` and `cardA6`.
  */
 export type PanelGeometry =
   | 'card4x6'
@@ -54,6 +55,8 @@ export type PanelGeometry =
   | 'tentFaceA5'
   | 'tentPanel4x6'
   | 'tentPanelA6'
+  | 'tentSmallLetter'
+  | 'tentSmallA4'
 
 const CARD_GEOMETRY: Readonly<
   Record<PrintKitSize, Readonly<Record<PrintKitPaper, PanelGeometry>>>
@@ -83,6 +86,8 @@ export const PANEL_SIZE_PT: Readonly<Record<PanelGeometry, Size>> = {
   tentFaceA5: sizeOf(TENT_FACE_GRID.a4),
   tentPanel4x6: sizeOf(IMMERSIVE_TENT_GRID.letter),
   tentPanelA6: sizeOf(IMMERSIVE_TENT_GRID.a4),
+  tentSmallLetter: TENT_SMALL_FACE.trimPt.letter,
+  tentSmallA4: TENT_SMALL_FACE.trimPt.a4,
 }
 
 /** The sheets a Paper piece prints on: US Letter, 8.5 × 11 in, and A4, 210 × 297 mm. */
@@ -291,7 +296,7 @@ function paperTentPage(paper: PrintKitPaper): PrintKitPage {
 const FLAT_FACE = { rotated: false, turned: false, bleed: NO_BLEED } as const
 
 /** An Immersive page: the trim inside its bleed and slug, which hold the crop marks. */
-function immersivePage(
+export function immersivePage(
   grid: Readonly<{ trimOriginPt: number; bleedPt: number }>,
   trim: Size,
   rest: Pick<PrintKitPage, 'foldAtPt' | 'panels'>,

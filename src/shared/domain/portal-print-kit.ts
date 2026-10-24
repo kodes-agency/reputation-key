@@ -133,14 +133,16 @@ export function printKitPieceNoun(piece: PrintKitPiece, size: PrintKitSize): str
 }
 
 /**
- * How many cards an office sheet holds, for its file name: Table 4, Mini 10 and
- * the Immersive Large office sheet 2; null for a print-shop file and for the
- * Large Paper sheets, whose names stay as they shipped.
+ * How many pieces an office sheet holds, for its file name: Table 4, Mini 10,
+ * the Immersive Large office sheet 2 and the small tent 2; null for a print-shop
+ * file and for the Large Paper sheets and the Letter-half tent, whose names stay
+ * as they shipped.
  */
 function cardsPerSheet(piece: PrintKitPiece, format: PrintKitFormat): number | null {
   const size = format.size ?? 'large'
   const output = format.output ?? defaultPrintKitOutput(format.style)
-  if (piece !== 'counter_card' || output !== 'office') return null
+  if (output !== 'office') return null
+  if (piece === 'table_tent') return size === 'table' ? 2 : null
   if (size === 'table') return 4
   if (size === 'mini') return 10
   return format.style === 'immersive' ? 2 : null

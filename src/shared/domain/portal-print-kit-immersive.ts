@@ -312,12 +312,21 @@ const SMALL_CARD_SLUG: Readonly<
   },
 }
 
+/** The small tent's flat, one to a print shop's page: two 5 × 3.5 in faces folded across its middle. */
+const SMALL_TENT_FACTS: Readonly<Record<PrintKitPaper, readonly string[]>> = {
+  letter: ['trim 5 × 7 in', 'bleed 1/8 in', 'fold 3.5 in', 'score'],
+  a4: ['trim 130 × 180 mm', 'bleed 3 mm', 'fold 90 mm', 'score'],
+}
+
 /** A piece's name and trim facts at a size: Large's are the piece's own. */
 function slugOf(
   piece: PrintKitPiece,
   paper: PrintKitPaper,
   size: PrintKitSize,
 ): Readonly<{ name: string; facts: readonly string[] }> {
+  if (piece === 'table_tent' && size === 'table') {
+    return { name: PIECE_NAME[piece], facts: SMALL_TENT_FACTS[paper] }
+  }
   if (size === 'large' || piece !== 'counter_card') {
     return { name: PIECE_NAME[piece], facts: TRIM_FACTS[paper][piece] }
   }

@@ -390,14 +390,25 @@ describe('printKitFormatProblem', () => {
     ).toBe('A Mini card prints one language. Choose one.')
   })
 
-  it('keeps the old tent as it is, and refuses the small tent until it is built', () => {
+  it('keeps the old tent as it is, and prints the small tent the same two ways, in two languages too', () => {
     const tent = { ...card, piece: 'table_tent' as const, size: 'large' as const }
     expect(printKitFormatProblem({ ...tent, output: 'print_shop' })).toBeNull()
     expect(printKitFormatProblem({ ...tent, style: 'paper' })).toBeNull()
     expect(printKitFormatProblem(tent)).not.toBeNull()
+    const small = { ...tent, size: 'table' as const, languageCount: 2 }
+    expect(printKitFormatProblem({ ...small, output: 'print_shop' })).toBeNull()
+    expect(printKitFormatProblem({ ...small, style: 'paper' })).toBeNull()
+  })
+
+  it('refuses an Immersive tent office sheet (not drawn), a Paper tent for a print shop and a Mini tent', () => {
+    const small = { ...card, piece: 'table_tent' as const, size: 'table' as const }
+    expect(printKitFormatProblem(small)).toMatch(/print shop in Immersive/u)
     expect(
-      printKitFormatProblem({ ...tent, size: 'table', output: 'print_shop' }),
-    ).toMatch(/not ready/u)
+      printKitFormatProblem({ ...small, style: 'paper', output: 'print_shop' }),
+    ).toMatch(/own printer in Paper/u)
+    expect(printKitFormatProblem({ ...small, size: 'mini', style: 'paper' })).toBe(
+      'There is no Mini table tent. Choose a card.',
+    )
   })
 
   it('gives no pages to a choice it refuses', () => {
