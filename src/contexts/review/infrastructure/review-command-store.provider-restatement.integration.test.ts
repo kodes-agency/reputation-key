@@ -174,10 +174,10 @@ describe('a review Google restated at an unmoved updateTime', () => {
 
     expect(restated.sourceRevision).toBe(1)
     expect(reread.sourceRevision).toBe(1)
+    // The reread matches the restated row, so it writes no row of its own.
     expect(await comparisonsOf()).toEqual([
       [1, 1, 'initial_material_revision'],
       [2, 1, 'normalization_shadow_match'],
-      [3, 1, 'unchanged'],
     ])
     const history = createReviewObservationRepository(getDb())
     expect(await history.findMaterialRevisions(REVIEW, ORG)).toHaveLength(1)
@@ -198,8 +198,7 @@ describe('a review Google restated at an unmoved updateTime', () => {
     expect(await comparisonsOf()).toEqual([
       [1, 1, 'initial_material_revision'],
       [2, 1, 'normalization_shadow_match'],
-      [3, 1, 'unchanged'],
-      [4, 2, 'material_change'],
+      [3, 2, 'material_change'],
     ])
     expect(await history.findMaterialRevisions(REVIEW, ORG)).toHaveLength(2)
     expect(await replyStatus()).toBe('draft')

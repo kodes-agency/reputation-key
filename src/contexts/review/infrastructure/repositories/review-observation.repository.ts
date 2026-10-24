@@ -558,9 +558,95 @@ async function writeObservedReviewRow(
 }
 
 /**
+ * Whether this observation only re-reads what the Review's newest observation
+ * already holds: same source epoch, live content, no material change, and the
+ * same observation digest (every provider value it stores, `updateTime`
+ * included). Each snapshot pass reads every review twice, so writing a row for
+ * such a read stored one more copy of the review's text per pass: 3.4M rows for
+ * 12,599 reviews on the beta by 2026-10-23, 99.3% of them a repeat of the row
+ * before (ADR 0055, note 2026-10-24).
+ */
+async function rereadsHeadObservation(
+  tx: Tx,
+  existing: ReviewRow,
+  input: ObservationInput,
+  material: MaterialReviewComparisonResult,
+  observationDigest: string,
+): Promise<boolean> {
+  if (
+    existing.sourceContentState !== 'active' ||
+    existing.sourceEpoch !== input.review.sourceEpoch ||
+    material.comparison !== 'unchanged' ||
+    material.createsMaterialRevision
+  ) {
+    return false
+  }
+  const heads = await tx
+    .select({
+      observationDigest: reviewSourceObservations.observationDigest,
+      materialRevision: reviewSourceObservations.materialRevision,
+      sourceEpoch: reviewSourceObservations.sourceEpoch,
+      contentState: reviewSourceObservations.contentState,
+    })
+    .from(reviewSourceObservations)
+    .where(
+      and(
+        eq(reviewSourceObservations.organizationId, existing.organizationId),
+        eq(reviewSourceObservations.reviewId, existing.id),
+        eq(
+          reviewSourceObservations.observationSequence,
+          existing.sourceObservationSequence,
+        ),
+      ),
+    )
+    .limit(1)
+  const head = heads[0]
+  return (
+    head != null &&
+    head.observationDigest === observationDigest &&
+    head.materialRevision === material.materialRevision &&
+    head.sourceEpoch === input.review.sourceEpoch &&
+    head.contentState === 'active'
+  )
+}
+
+/** A fetch of the same content restarts that content's 30-day clock (ADR
+ * 0031), so the newest observation takes the Review's new clock, which the
+ * lifecycle inspection requires it to match. Its `observed_at` stays the first
+ * time this content was seen; `updated_at` is the latest fetch that returned it. */
+async function refreshHeadObservation(
+  tx: Tx,
+  existing: ReviewRow,
+  observedReview: Omit<Review, 'createdAt' | 'updatedAt'>,
+  observationDigest: string,
+  observedAt: Date,
+): Promise<void> {
+  const rows = await tx
+    .update(reviewSourceObservations)
+    .set({ contentExpiresAt: observedReview.contentExpiresAt!, updatedAt: observedAt })
+    .where(
+      and(
+        eq(reviewSourceObservations.organizationId, existing.organizationId),
+        eq(reviewSourceObservations.reviewId, existing.id),
+        eq(
+          reviewSourceObservations.observationSequence,
+          existing.sourceObservationSequence,
+        ),
+        eq(reviewSourceObservations.observationDigest, observationDigest),
+        eq(reviewSourceObservations.contentState, 'active'),
+      ),
+    )
+    .returning({ observationSequence: reviewSourceObservations.observationSequence })
+  if (!rows[0]) {
+    throw reviewError('repo_upsert_failed', 'Newest Review observation is missing')
+  }
+}
+
+/**
  * Canonical REV-01 write adapter. The caller supplies a transaction so Review,
  * current source content, the observation/revision records, and any outbox fact
- * commit as one unit.
+ * commit as one unit. A re-read of what the newest observation holds writes no
+ * observation row; it moves that row's content clock instead.
  */
 export async function persistReviewObservation(
   tx: Tx,
@@ -641,12 +727,18 @@ export async function persistReviewObservation(
     ...input.review,
     sourceRevision: material.materialRevision,
   }
+  const rereadsHead =
+    existing != null &&
+    (await rereadsHeadObservation(tx, existing, input, material, observationDigest))
+  const appliedSequence = rereadsHead
+    ? existing.sourceObservationSequence
+    : observationSequence
   const persistedRow = await writeObservedReviewRow(
     tx,
     existing,
     observedReview,
     material,
-    observationSequence,
+    appliedSequence,
     input.observedAt,
   )
 
@@ -662,19 +754,29 @@ export async function persistReviewObservation(
     observationOrigin: input.observationOrigin ?? 'legacy_unknown',
     isInitialRevision: existing == null,
   })
-  await tx.insert(reviewSourceObservations).values(
-    sourceObservationValues({
-      review: observedReview,
-      observationSequence,
-      materialRevision: material.materialRevision,
-      observationKey,
+  if (rereadsHead) {
+    await refreshHeadObservation(
+      tx,
+      existing,
+      observedReview,
       observationDigest,
-      comparison: material.comparison,
-      sourceDigest: material.sourceDigest,
-      normalizedDigest: material.normalizedDigest,
-      observedAt: input.observedAt,
-    }),
-  )
+      input.observedAt,
+    )
+  } else {
+    await tx.insert(reviewSourceObservations).values(
+      sourceObservationValues({
+        review: observedReview,
+        observationSequence,
+        materialRevision: material.materialRevision,
+        observationKey,
+        observationDigest,
+        comparison: material.comparison,
+        sourceDigest: material.sourceDigest,
+        normalizedDigest: material.normalizedDigest,
+        observedAt: input.observedAt,
+      }),
+    )
+  }
   if (!(await upsertReviewSourceContent(tx, observedReview))) {
     throw reviewError(
       'repo_upsert_failed',
@@ -684,7 +786,7 @@ export async function persistReviewObservation(
 
   return {
     review: reviewFromRow(persistedRow),
-    observationSequence,
+    observationSequence: appliedSequence,
     materialRevision: material.materialRevision,
     comparison: material.comparison,
     createsMaterialRevision: material.createsMaterialRevision,
