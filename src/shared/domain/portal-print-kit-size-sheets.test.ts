@@ -13,9 +13,11 @@ import {
 } from './portal-print-kit-formats'
 import { inToPt, mmToPt } from './portal-print-kit-measures'
 import {
-  barMeasureText,
   immersiveLargeOfficePages,
   immersiveTableOfficePages,
+} from './portal-print-kit-office-sheets'
+import {
+  barMeasureText,
   paperMiniPages,
   paperTablePages,
 } from './portal-print-kit-size-sheets'

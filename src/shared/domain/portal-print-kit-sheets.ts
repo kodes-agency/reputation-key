@@ -23,15 +23,21 @@ import type {
 } from './portal-print-kit'
 import {
   CARD_GRID,
-  CODE_BLOCK,
   IMMERSIVE_TENT_GRID,
   TENT_FACE_GRID,
   inToPt,
   mmToPt,
-  ptToIn,
-  ptToMm,
 } from './portal-print-kit-measures'
+import {
+  NO_BLEED,
+  bleedAround,
+  type PanelBleed,
+  type SheetNote,
+} from './portal-print-kit-sheet-parts'
 import { SIZE_TRIM_PT } from './portal-print-kit-sizes'
+
+export { NO_BLEED, bleedAround, type PanelBleed, type SheetNote }
+export { PRINT_CHECK, printCheckLines } from './portal-print-kit-print-check'
 
 /**
  * The shapes a face can take: a card at each size, a Paper tent face or an
@@ -99,68 +105,6 @@ export type PrintKitTick = Readonly<{
   heightPt: number
 }>
 
-/**
- * The print check in the strip under the Letter cards, which is cut away: a
- * question, a bar exactly as wide as the bar under each code, and two lines on
- * what to measure and where to cut (spec 4.3). Its text may be smaller than what
- * a guest reads, because no guest reads it.
- */
-export const PRINT_CHECK = {
-  /** The top of the block, and the column it is centred in. */
-  topPt: inToPt(6.7),
-  centreXPt: inToPt(4.25),
-  widthPt: inToPt(5.5),
-  /** Between the question, the bar and the lines. */
-  gapPt: inToPt(0.09),
-  title: { text: 'Printed at Actual size?', sizePt: 9, leading: 1.2 },
-  bar: { widthPt: CODE_BLOCK.tilePt, heightPt: inToPt(0.14) },
-  lines: {
-    text: [
-      'The bar under each code and this bar both measure 2 in (5.1 cm).',
-      'Cut down on the three ticks, then across 6 in from the top edge.',
-    ],
-    sizePt: 8,
-    leading: 1.35,
-  },
-} as const
-
-/** A tile's width as the print check names it: "2 in (5.1 cm)", "1.75 in (4.4 cm)". */
-function tileMeasureText(tilePt: number): string {
-  const inches = Number(ptToIn(tilePt).toFixed(2))
-  return `${inches} in (${(ptToMm(tilePt) / 10).toFixed(1)} cm)`
-}
-
-/**
- * The print check's two lines for a card whose code sits on a tile `tilePt`
- * wide: the bar it draws is that wide, and so is the bar under each code. Today's
- * 2 in tile gives the lines of `PRINT_CHECK`.
- */
-export function printCheckLines(tilePt: number): readonly string[] {
-  const [, cut = ''] = PRINT_CHECK.lines.text
-  return [
-    `The bar under each code and this bar both measure ${tileMeasureText(tilePt)}.`,
-    cut,
-  ]
-}
-
-/** How far a face's art runs past each edge of its trim. */
-export type PanelBleed = Readonly<{
-  topPt: number
-  rightPt: number
-  bottomPt: number
-  leftPt: number
-}>
-
-export const NO_BLEED: PanelBleed = { topPt: 0, rightPt: 0, bottomPt: 0, leftPt: 0 }
-
-/** The same bleed on every edge. */
-export const bleedAround = (pt: number): PanelBleed => ({
-  topPt: pt,
-  rightPt: pt,
-  bottomPt: pt,
-  leftPt: pt,
-})
-
 export type PrintKitPagePanel = Readonly<{
   side: PrintFaceSide
   /** The top-left corner of the face's trim on the page, before any turn. */
@@ -177,20 +121,6 @@ export type PrintKitPagePanel = Readonly<{
    * so no card paints into its neighbour.
    */
   bleed: PanelBleed
-}>
-
-/** A short line of print instructions on an office sheet, set in the box it is given. */
-export type SheetNote = Readonly<{
-  /** The text, wrapped to the box's width. */
-  text: string
-  sizePt: number
-  /** The box the text fills, as it reads: turned, the lines run up the page from its bottom-left corner. */
-  leftPt: number
-  topPt: number
-  widthPt: number
-  heightPt: number
-  /** Turned a quarter anticlockwise, to run up a side margin. */
-  turned: boolean
 }>
 
 export type PrintKitPage = Readonly<{

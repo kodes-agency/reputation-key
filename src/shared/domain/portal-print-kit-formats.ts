@@ -21,9 +21,8 @@ import type {
 import {
   immersiveLargeOfficePages,
   immersiveTableOfficePages,
-  paperMiniPages,
-  paperTablePages,
-} from './portal-print-kit-size-sheets'
+} from './portal-print-kit-office-sheets'
+import { paperMiniPages, paperTablePages } from './portal-print-kit-size-sheets'
 import {
   printKitPages,
   printShopCardPages,
