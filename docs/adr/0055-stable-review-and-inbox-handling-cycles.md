@@ -784,6 +784,60 @@ suites. The ledger is enforced by `response-target-exclusion-readers`,
 and `inbox-organization-export.target-exclusion` integration suites and the
 command's unit and integration tests.
 
+## Note 2026-10-24 — a re-read of an unchanged review writes no observation row
+
+Owner decision 2026-10-24 (option A of the observation-growth proposal).
+Decision 3 versions every provider observation. Until now that meant one
+`review_source_observations` row per read, and each row carries the review's full
+text. A snapshot pass reads every review twice, and the reconciliation in
+decision 5 runs every six hours. So a review nobody touched gained four to eight
+copies of its text a day. Measured read-only on the beta on 2026-10-23: 3,425,776
+rows for 12,599 reviews (median 277 per review), 3,668 MB of a 4,388 MB database.
+3,400,389 of them (99.3%) repeat the row before them exactly, and about 86k more
+were still added each day after the polling cut. ADR 0031 allows raw content only
+inside a refresh-or-remove cache. Hundreds of identical copies per review is not a
+cache.
+
+- **What it does.** `persistReviewObservation` writes no row when the read
+  matches the Review's newest observation. That means: the same source epoch,
+  live content on the Review and on that row, comparison `unchanged` with no new
+  revision, the same material revision, and the same observation digest. The
+  digest covers rating, text, translation, language, reviewer name and photo,
+  `reviewedAt`, and Google's create and update times. Instead, the newest row
+  takes the Review's new `content_expires_at`, and `updated_at` becomes the time
+  of that fetch. A fetch of the same content restarts its 30-day clock (ADR
+  0031), and the lifecycle inspection requires the newest row's clock to equal
+  `review_source_contents`. Its `observed_at` stays the first time this content
+  was seen. Everything else is as before: the Review row, the source cache, the
+  revision row, the recorded path's analysis sequence and event, and the purge
+  of AI drafts whose time ran out. `reviews.source_observation_sequence` does
+  not move, and the result carries the newest row's sequence.
+- **What still writes a row.** Anything Google reports differently: an edit, a
+  restatement, a new translation, a new photo, an `updateTime` that moved, a new
+  source epoch, an out-of-order read, and the first read after erasure.
+  `googleReviewUrl` is in no digest, so a new or dropped page link is a refresh
+  in place, as it was already no new revision.
+- **Replays.** A key whose row exists is still a replay. A skipped read stored
+  no key. Keys are scoped to run, phase, page and review (or to the head check's
+  read generation), so a key repeats only when a job is retried. A retry then
+  matches the newest row and refreshes it again, or it is an out-of-order read.
+- **The head check.** Note (d) gave a reason for not storing a review that
+  matches its stored copy: "the writer records a source observation carrying the
+  review's full text on every call". That reason no longer holds. The rule
+  stands anyway, because it also saves the transaction and the lock.
+- **What every reader keeps.** The lifecycle inspection's newest row, the first
+  observation of each revision (`selectRevisionBindingComparisons`), and every
+  `material_change` with the applied row before it (`listRestatedRevisions`).
+  None of them read a repeat.
+- **Rows already written.** This note leaves them alone. The backlog prune and
+  the 30-day rule for superseded copies come with their own note.
+
+Enforced by `review-observation-head-refresh.integration.test.ts`: no row on
+either write path, the clock moved, lifecycle findings empty, a replayed key, a
+translation, a moved `updateTime`, an edit then its refresh, and a read after
+erasure. The Google-page and provider-restatement integration suites assert the
+smaller history.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,
