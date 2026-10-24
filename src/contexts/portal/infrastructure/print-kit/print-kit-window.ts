@@ -28,17 +28,27 @@ export type WindowArt = Readonly<{
   letter: string
 }>
 
-/** The board sets the letter 4% of its line box lower than centred: its caps sit visually centred then. */
-const LETTER_DROP_EM = 0.04
+/** How a monogram is set in its box: the letter's share of the height, the rules and how far the letter drops. */
+export type MonogramMeasures = Readonly<{
+  letterShare: number
+  ruleLengthPt: number
+  ruleWeightPt: number
+  gapPt: number
+  /** Down from centred, in ems of the letter: the window's board sets it 4 % lower, so its caps sit centred. */
+  dropEm: number
+}>
 
-function drawMonogram(
+const WINDOW_MONOGRAM: MonogramMeasures = { ...WINDOW.monogram, dropEm: 0.04 }
+
+/** The brand's first letter between two rules, on the monogram's ground, filling `picture`. */
+export function drawMonogram(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
   picture: Box,
-  art: WindowArt,
+  art: Pick<WindowArt, 'palette' | 'letter'>,
+  monogram: MonogramMeasures = WINDOW_MONOGRAM,
 ): void {
   const { palette, letter } = art
-  const { monogram } = WINDOW
   doc
     .rect(picture.x, picture.y, picture.widthPt, picture.heightPt)
     .fill(palette.plateTone)
@@ -62,7 +72,7 @@ function drawMonogram(
   if (letter === '') return
   drawLine(doc, fonts, letter, style, {
     x: left + monogram.ruleLengthPt + monogram.gapPt,
-    middleY: middle + LETTER_DROP_EM * size,
+    middleY: middle + monogram.dropEm * size,
   })
 }
 

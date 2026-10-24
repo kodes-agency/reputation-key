@@ -43,8 +43,24 @@ export type CardBrand =
   | Readonly<{ kind: 'logo'; ink: CardBox; plate: CardBox | null }>
   | Readonly<{ kind: 'wordmark'; lines: readonly CardLine[]; box: CardBox }>
 
-/** The corner radius of a logo plate. */
-export const CARD_PLATE_RADIUS_PT = mmToPt(1.6)
+/** The cream plate under a logo: its corners, and its soft shadow (CSS `0 0.5mm 1.6mm`, black at 28 %). */
+export const CARD_PLATE = {
+  radiusPt: mmToPt(1.6),
+  shadow: { offsetYPt: mmToPt(0.5), blurPt: mmToPt(1.6), alpha: 0.28 },
+} as const
+
+/**
+ * What the band holds with no photo: the brand's first letter, tone on tone on a
+ * lighter ground at 62 % of the band's height and lifted 6 % of its size, between
+ * two 12 mm rules 4 mm away (the round-3 boards' measures).
+ */
+export const CARD_BAND_MONOGRAM = {
+  letterShare: 0.62,
+  ruleLengthPt: mmToPt(12),
+  ruleWeightPt: mmToPt(0.3),
+  gapPt: mmToPt(4),
+  dropEm: -0.06,
+} as const
 
 export type BrandPlan = Readonly<{
   /** The brand's box: the plate, the drawing, or the wordmark's lines. */

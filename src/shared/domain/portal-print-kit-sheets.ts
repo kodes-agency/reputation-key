@@ -25,6 +25,8 @@ import {
   TENT_FACE_GRID,
   inToPt,
   mmToPt,
+  ptToIn,
+  ptToMm,
 } from './portal-print-kit-measures'
 
 /** The shapes a face can take: a card, a Paper tent face or an Immersive tent panel, per paper. */
@@ -89,6 +91,25 @@ export const PRINT_CHECK = {
     leading: 1.35,
   },
 } as const
+
+/** A tile's width as the print check names it: "2 in (5.1 cm)", "1.75 in (4.4 cm)". */
+function tileMeasureText(tilePt: number): string {
+  const inches = Number(ptToIn(tilePt).toFixed(2))
+  return `${inches} in (${(ptToMm(tilePt) / 10).toFixed(1)} cm)`
+}
+
+/**
+ * The print check's two lines for a card whose code sits on a tile `tilePt`
+ * wide: the bar it draws is that wide, and so is the bar under each code. Today's
+ * 2 in tile gives the lines of `PRINT_CHECK`.
+ */
+export function printCheckLines(tilePt: number): readonly string[] {
+  const [, cut = ''] = PRINT_CHECK.lines.text
+  return [
+    `The bar under each code and this bar both measure ${tileMeasureText(tilePt)}.`,
+    cut,
+  ]
+}
 
 export type PrintKitPagePanel = Readonly<{
   side: PrintFaceSide

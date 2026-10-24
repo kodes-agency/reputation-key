@@ -12,6 +12,7 @@ import type { PaperPrintKitPalette } from '#/shared/domain/portal-print-kit-pale
 import {
   PRINT_CHECK,
   TICK,
+  printCheckLines,
   type PrintKitPage,
   type PrintKitTick,
 } from '#/shared/domain/portal-print-kit-sheets'
@@ -61,16 +62,19 @@ export function drawTicks(doc: PDFKit.PDFDocument, ticks: readonly PrintKitTick[
 }
 
 /**
- * The print check under the Letter cards: the question, the 2 in bar in the
- * code's bar colour with the accent-ink outline drawn outside it (so the bar
- * itself is the 2 in), and two lines on what to measure and where to cut.
+ * The print check under the Letter cards: the question, a bar as wide as the
+ * cards' code tile (`tilePt`, today's 2 in unless named) in the code's bar colour
+ * with the accent-ink outline drawn outside it (so the bar itself is the tile),
+ * and two lines on what to measure and where to cut.
  */
 export function drawPrintCheck(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
   palette: PaperPrintKitPalette,
+  tilePt: number = PRINT_CHECK.bar.widthPt,
 ): void {
-  const { title, bar, lines, gapPt, centreXPt } = PRINT_CHECK
+  const { title, lines, gapPt, centreXPt } = PRINT_CHECK
+  const bar = { ...PRINT_CHECK.bar, widthPt: tilePt }
   const titleHeight = title.sizePt * title.leading
   const line = (
     text: string,
@@ -104,7 +108,7 @@ export function drawPrintCheck(
   doc.restore()
   y += bar.heightPt + gapPt
   const lineHeight = lines.sizePt * lines.leading
-  lines.text.forEach((text, index) => {
+  printCheckLines(tilePt).forEach((text, index) => {
     line(text, y + (index + 0.5) * lineHeight, 'body', lines.sizePt, palette.soft)
   })
 }
