@@ -153,6 +153,9 @@ export const ReplacePhoto: Story = {
     await expect(photo.getByText('terrace-evening.png')).toBeVisible()
     const checks = within(photo.getByRole('list', { name: 'Checks' }))
     await expect(checks.getByText(/Large enough for every phone/)).toBeVisible()
+    await expect(
+      checks.getByText('Wide enough to print sharply (1000 px across)'),
+    ).toBeVisible()
     await expect(checks.getByText('JPG, PNG or WebP, up to 10 MB')).toBeVisible()
     // A chosen file is not enough: the photo must be confirmed as usable.
     const send = photo.getByRole('button', { name: 'Use photo' })
@@ -221,6 +224,29 @@ export const SmallPhotoFailsTheCheck: Story = {
     await expect(checks.getByText(/Too small to stay sharp on a phone/)).toBeVisible()
     await userEvent.click(photo.getByRole('checkbox'))
     await expect(photo.getByRole('button', { name: 'Use photo' })).toBeDisabled()
+    await expect(args.uploadImage).not.toHaveBeenCalled()
+  },
+}
+
+/** A portrait photograph the server accepts but a card prints soft: advice in the warning tone, and it can still be sent. */
+export const NarrowPhotoGetsPrintAdviceButCanBeUsed: Story = {
+  play: async ({ canvasElement, args }) => {
+    const photo = await openPhotoDialog(canvasElement)
+    await userEvent.upload(
+      photo.getByLabelText('Photo file'),
+      await makeImageFile(500, 1000),
+    )
+    await photo.findByText(/500 × 1000/, {}, WAIT)
+    const checks = within(photo.getByRole('list', { name: 'Checks' }))
+    // The size rule is met: only the advice is not.
+    await expect(checks.getByText(/Large enough for every phone/)).toBeVisible()
+    const advice = checks.getByText(
+      /May look soft in print: use a photo at least 1000 px wide/,
+    )
+    await expect(advice.closest('li')).toHaveAttribute('data-state', 'advice')
+    await expect(checks.queryByText(/^Failed:/)).toBeNull()
+    await userEvent.click(photo.getByRole('checkbox'))
+    await expect(photo.getByRole('button', { name: 'Use photo' })).toBeEnabled()
     await expect(args.uploadImage).not.toHaveBeenCalled()
   },
 }

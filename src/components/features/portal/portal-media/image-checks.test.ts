@@ -25,6 +25,12 @@ describe('checkImageFacts', () => {
         label:
           'Large enough for every phone (needs 1000 px on the long side and 500 px on the short)',
       },
+      {
+        id: 'print',
+        passed: true,
+        advisory: true,
+        label: 'Wide enough to print sharply (1000 px across)',
+      },
       { id: 'format', passed: true, label: 'JPG, PNG or WebP, up to 10 MB' },
     ])
     expect(allImageChecksPass(checks)).toBe(true)
@@ -44,13 +50,14 @@ describe('checkImageFacts', () => {
   it('shows the shape only when the picture is too wide or too tall', () => {
     const odd = checkImageFacts('hero', facts({ width: 6000, height: 1000 }))
 
-    expect(odd.map((check) => check.id)).toEqual(['size', 'shape', 'format'])
-    expect(odd[1]).toMatchObject({
+    expect(odd.map((check) => check.id)).toEqual(['size', 'print', 'shape', 'format'])
+    expect(odd.find((check) => check.id === 'shape')).toMatchObject({
       passed: false,
       label: expect.stringMatching(/4 times/),
     })
     expect(checkImageFacts('hero', facts()).map((check) => check.id)).toEqual([
       'size',
+      'print',
       'format',
     ])
   })
@@ -62,6 +69,53 @@ describe('checkImageFacts', () => {
     const format = checkImageFacts('hero', image).find((check) => check.id === 'format')
 
     expect(format).toMatchObject({ passed: false, label: expect.stringMatching(message) })
+  })
+
+  it('advises a portrait photograph the server accepts to be wider, and still lets it in', () => {
+    // 500 × 1000 meets the size rule (1000 long, 500 short) but prints at about 118 dpi across a Large band.
+    const checks = checkImageFacts('hero', facts({ width: 500, height: 1000 }))
+
+    expect(checks.find((check) => check.id === 'size')?.passed).toBe(true)
+    expect(checks.find((check) => check.id === 'print')).toEqual({
+      id: 'print',
+      passed: false,
+      advisory: true,
+      label: 'May look soft in print: use a photo at least 1000 px wide',
+    })
+    expect(allImageChecksPass(checks)).toBe(true)
+  })
+
+  it('takes a photograph exactly as wide as the print needs, and not one a pixel narrower', () => {
+    const wide = checkImageFacts('hero', facts({ width: 1000, height: 500 }))
+    const narrow = checkImageFacts('hero', facts({ width: 999, height: 1000 }))
+
+    expect(wide.find((check) => check.id === 'print')?.passed).toBe(true)
+    expect(narrow.find((check) => check.id === 'print')?.passed).toBe(false)
+  })
+
+  it('still blocks for the checks that are rules, whatever the advice says', () => {
+    const small = checkImageFacts('hero', facts({ width: 600, height: 400 }))
+    const heic = checkImageFacts('hero', facts({ type: 'image/heic' }))
+
+    expect(allImageChecksPass(small)).toBe(false)
+    expect(allImageChecksPass(heic)).toBe(false)
+    // A narrow photograph that is also too small shows both.
+    expect(small.map((check) => [check.id, check.passed])).toEqual([
+      ['size', false],
+      ['print', false],
+      ['format', true],
+    ])
+  })
+
+  it('gives only a photograph the print advice: a logo and a tile picture have none', () => {
+    const logo = checkImageFacts(
+      'logo',
+      facts({ type: 'image/png', width: 200, height: 60 }),
+    )
+    const tile = checkImageFacts('link_image', facts({ width: 300, height: 200 }))
+
+    expect(logo.some((check) => check.id === 'print')).toBe(false)
+    expect(tile.some((check) => check.id === 'print')).toBe(false)
   })
 
   it('holds a logo to its own, smaller minimum and says so in its own words', () => {

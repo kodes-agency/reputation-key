@@ -302,7 +302,11 @@ hidden in a segment do not survive, and the original is never stored.
   previewed; a tile's uploaded photo and the live version's photograph and logo
   are drawn too. The browser checks a chosen file against the same size rules as
   the policy (`PORTAL_MEDIA_SIZE_RULES` in `src/shared/domain/portal-media.ts`)
-  before sending it. Only raster logos are accepted: no SVG.
+  before sending it. A hero photograph also gets one piece of advice, never a
+  stop: "May look soft in print" when it is under `PRINT_PHOTO_MIN_WIDTH_PX`
+  (1000 px) wide, the width at which every Large card band prints at 200 dpi or
+  better (the size rule alone lets a 500 x 1000 portrait in, which prints at
+  about 118 dpi). Only raster logos are accepted: no SVG.
 - **A tile's photo** is chosen in the Linktree editor's "Icon or photo" picker: the
   dashed tile uploads to `POST /api/portal-media` (`purpose=link_image`, with the
   Portal and the rights confirmation) and then puts the returned asset id on the
