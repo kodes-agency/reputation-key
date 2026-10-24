@@ -409,7 +409,7 @@ describe('printKitFormatProblem', () => {
         faceCount: 1,
         tilePt: 90,
       }),
-    ).toThrow()
+    ).toThrow(/Not a printable choice/u)
     expect(
       printKitSheetPages({ ...card, paper: 'letter', faceCount: 1, tilePt: TABLE_TILE }),
     ).toHaveLength(1)
