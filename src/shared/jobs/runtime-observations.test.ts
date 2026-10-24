@@ -944,7 +944,13 @@ describe('durable job runtime observations', () => {
         ],
         ['promoted to waiting', 'waiting', 0, 3 * MINUTE, 3 * MINUTE],
         ['promoted to prioritized', 'prioritized', 0, 3 * MINUTE, 3 * MINUTE],
-        ['promoted to waiting-children', 'waiting-children', 0, 3 * MINUTE, 3 * MINUTE],
+        [
+          'waiting on children with an add-time delay',
+          'waiting-children',
+          0,
+          3 * MINUTE,
+          3 * MINUTE,
+        ],
         ['added without a delay to waiting', 'waiting', 0, undefined, 0],
         ['added without a delay to prioritized', 'prioritized', 0, undefined, 0],
         [
