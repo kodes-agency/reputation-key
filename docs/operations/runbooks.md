@@ -2000,13 +2000,24 @@ tens of thousands. If it is still tens of thousands, the writer change is not
 live. Stop here.
 
 **Containment:** None needed. The prune runs online, and the sync keeps
-running. On the beta one batch covers every Review: one DELETE of about 3.5M
-rows, expected to take one to a few minutes and write a few GB of WAL (the
-volume had 44 GB free). It locks only the rows it deletes. The writers update a
-Review's newest row, which it never deletes. The one exception is a provider
-deletion (a snapshot's deletion phase erasing a removed review) that reaches a
-locked row: it waits and may fail on its 10 s `lock_timeout`. The next snapshot
-retries it.
+running. On the beta one batch covers every Review. It locks only the rows it
+deletes, and the writers only update a Review's newest row, which it never
+deletes. The one exception is a provider deletion (a snapshot's deletion phase
+erasing a removed review) that reaches a locked row: it waits, may fail on its
+10 s `lock_timeout`, and the next snapshot retries it.
+
+What the beta run on 2026-10-24 measured (20:55 to 21:35 UTC):
+
+- One DELETE of 3,497,717 rows took **40 minutes**, not the few minutes the scan
+  suggested. PostgreSQL estimated one repeat and deleted them one primary-key
+  probe at a time, in Review order. Each heap page was rewritten in full after
+  every checkpoint: about 20 GB of WAL at 8 to 15 MB/s, and 21 forced
+  checkpoints.
+- `pg_wal` stayed at `max_wal_size` (1 GB), so disk did not grow.
+- App commits waited up to about 0.5 s on the WAL lock in that window.
+- Nothing was blocked.
+
+Run it at a quiet hour.
 
 **Recovery:**
 
@@ -2024,13 +2035,32 @@ retries it.
    rewrites the table and takes an ACCESS EXCLUSIVE lock for as long as it reads
    the old heap: about 2.5 GB on the beta, so expect tens of seconds. Every sync
    write and every pre-publish read in that window waits and then fails on its
-   10 s `lock_timeout`. So stop the worker first, run it, then start the worker:
-   - scale the worker service to 0 replicas in Railway;
-   - run `VACUUM FULL review_source_observations` (through `railway ssh` into
-     web, outside a transaction);
-   - scale the worker back.
-     Web does not write this table. Skipping this step is safe: the table stops
-     growing either way.
+   10 s `lock_timeout`. Stop the worker first if you can, run it, then start
+   the worker. Run `VACUUM FULL review_source_observations` through `railway ssh`
+   into web, outside a transaction, with `lock_timeout` of about 5 s and a retry,
+   so the waiting request never queues every other query on the table behind it.
+   Web does not write this table. Skipping this step is safe: the table stops
+   growing either way.
+
+   **`railway scale --service worker us-west2=0` does not stop the worker**
+   (CLI 5.43, 2026-10-24). It answered `{"regions":{"us-west2":null}}` and
+   redeployed the worker with one replica. The vacuum then ran with the worker
+   live. It took 47 s and rewrote the table from 3,784 MB to 27 MB; the
+   database went from 4,545 MB to 787 MB. One sync page write failed on the
+   lock (`observation_failed`).
+
+   That step job carries the id of the run it belongs to. That run is now
+   `failed`, so every retry and every redrive re-reads it and fails at once,
+   and each attempt pushes the Property's backoff further (15 min, then 1 h).
+   So do not redrive it:
+   - `pnpm ops quarantine discard <id> ... --apply --yes ops:quarantine`;
+   - `pnpm ops jobs acknowledge-repair sync-property-reviews ... --apply`.
+
+   The next discovery starts a fresh run once the backoff passes. The
+   `worker.job-runtime-unready`, `queue.quarantine-nonempty` and
+   `sync.failed-nonzero` alerts clear at the next health check. To really pause
+   the worker, stop it from the Railway dashboard. Scaling back with
+   `us-west2=1` adds the replica to the current deployment, without a new one.
 
 **Verification:**
 
