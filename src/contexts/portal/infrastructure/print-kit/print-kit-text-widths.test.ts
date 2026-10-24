@@ -47,6 +47,10 @@ describe('the estimated widths', () => {
           text,
         )
       }
+      const italic = measureLine(doc, fonts, character, style('bodyItalic')) / 1000
+      expect(estimatedAdvanceEm('italic', character), character).toBeGreaterThanOrEqual(
+        italic,
+      )
     }
   })
 

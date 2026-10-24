@@ -141,6 +141,107 @@ export function measureLine(
   return runs.reduce((sum, run) => sum + run.width, 0) - style.spacing
 }
 
+/** A line's ink, from its pen origin and its baseline, in points (`descent` is below the baseline). */
+export type PdfLineInk = Readonly<{
+  leftPt: number
+  rightPt: number
+  ascentPt: number
+  descentPt: number
+}>
+
+type GlyphBox = Readonly<{ minX: number; minY: number; maxX: number; maxY: number }>
+type LaidGlyph = Readonly<{ bbox: GlyphBox }>
+type LaidPosition = Readonly<{ xAdvance: number; xOffset: number; yOffset: number }>
+type EmbeddedLayout = Readonly<{
+  /** Font units to thousandths of an em. */
+  scale: number
+  layout: (
+    text: string,
+    features: PDFKit.Mixins.TextOptions['features'],
+  ) => Readonly<{ glyphs: readonly LaidGlyph[]; positions: readonly LaidPosition[] }>
+}>
+
+/** The current font's shaper: PDFKit keeps the fontkit font behind it, which its typings leave out. */
+function currentLayout(doc: PDFKit.PDFDocument): EmbeddedLayout {
+  const font: unknown = Reflect.get(doc, '_font')
+  const layout: unknown =
+    font === null || typeof font !== 'object' ? undefined : Reflect.get(font, 'layout')
+  const scale: unknown =
+    font === null || typeof font !== 'object' ? undefined : Reflect.get(font, 'scale')
+  if (typeof layout !== 'function' || typeof scale !== 'number') {
+    throw new Error('This PDFKit font cannot lay out a line')
+  }
+  return { scale, layout: (text, features) => layout.call(font, text, features) }
+}
+
+const hasInk = (box: GlyphBox) =>
+  Number.isFinite(box.minX) && box.maxX > box.minX && box.maxY > box.minY
+
+/**
+ * The line's ink: the union of its glyphs' outlines as they are shaped and
+ * tracked, in points. A line with no ink (only spaces) measures zero.
+ */
+export function measureLineInk(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  text: string,
+  style: PdfTextStyle,
+): PdfLineInk {
+  const ink = { left: Infinity, right: -Infinity, top: -Infinity, bottom: Infinity }
+  const trackingEm = (style.spacing / style.size) * 1000
+  let pen = 0
+  for (const run of splitIntoFontRuns(stripUnsupportedCharacters(text))) {
+    fonts.use(style.face, run.subset, style.size)
+    const font = currentLayout(doc)
+    const laid = font.layout(run.text, featuresOf(style))
+    laid.glyphs.forEach((glyph, index) => {
+      const at = laid.positions[index]
+      const box = glyph.bbox
+      if (at !== undefined && hasInk(box)) {
+        const x = pen + at.xOffset
+        ink.left = Math.min(ink.left, x + box.minX * font.scale)
+        ink.right = Math.max(ink.right, x + box.maxX * font.scale)
+        ink.top = Math.max(ink.top, box.maxY * font.scale + at.yOffset)
+        ink.bottom = Math.min(ink.bottom, box.minY * font.scale + at.yOffset)
+      }
+      pen += (at?.xAdvance ?? 0) + trackingEm
+    })
+  }
+  if (ink.left === Infinity) return { leftPt: 0, rightPt: 0, ascentPt: 0, descentPt: 0 }
+  const pt = style.size / 1000
+  return {
+    leftPt: ink.left * pt,
+    rightPt: ink.right * pt,
+    ascentPt: ink.top * pt,
+    descentPt: -ink.bottom * pt,
+  }
+}
+
+/** How a line is anchored vertically: its middle (as CSS centres a line box) or its baseline. */
+type Anchor = Readonly<{ y: number; baseline: 'middle' | 'alphabetic' }>
+
+function drawRuns(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  text: string,
+  style: PdfTextStyle,
+  x: number,
+  anchor: Anchor,
+): void {
+  let pen = x
+  doc.fillColor(style.colour, style.opacity)
+  for (const run of measureRuns(doc, fonts, text, style)) {
+    fonts.use(style.face, run.subset, style.size)
+    doc.text(run.text, pen, anchor.y, {
+      lineBreak: false,
+      baseline: anchor.baseline,
+      characterSpacing: style.spacing,
+      features: featuresOf(style),
+    })
+    pen += run.width
+  }
+}
+
 /** A line starting at `x`, its vertical middle at `middleY`. */
 export function drawLine(
   doc: PDFKit.PDFDocument,
@@ -149,18 +250,18 @@ export function drawLine(
   style: PdfTextStyle,
   at: Readonly<{ x: number; middleY: number }>,
 ): void {
-  let x = at.x
-  doc.fillColor(style.colour, style.opacity)
-  for (const run of measureRuns(doc, fonts, text, style)) {
-    fonts.use(style.face, run.subset, style.size)
-    doc.text(run.text, x, at.middleY, {
-      lineBreak: false,
-      baseline: 'middle',
-      characterSpacing: style.spacing,
-      features: featuresOf(style),
-    })
-    x += run.width
-  }
+  drawRuns(doc, fonts, text, style, at.x, { y: at.middleY, baseline: 'middle' })
+}
+
+/** A line starting at `x`, sitting on `baselineY`: the final kit places its words by their ink, from the baseline. */
+export function drawLineOnBaseline(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  text: string,
+  style: PdfTextStyle,
+  at: Readonly<{ x: number; baselineY: number }>,
+): void {
+  drawRuns(doc, fonts, text, style, at.x, { y: at.baselineY, baseline: 'alphabetic' })
 }
 
 /** A line centred on `centreX`, its vertical middle at `middleY`. */

@@ -41,6 +41,7 @@ SOURCES = (
     "cormorant-garamond-cyrillic-600-normal",
     "ysabeau-office-cyrillic-400-normal",
     "ysabeau-office-cyrillic-600-normal",
+    "ysabeau-office-cyrillic-400-italic",
 )
 
 SCRIPT = "cyrl"

@@ -11,6 +11,7 @@
 
 import { err, ok, type Result } from './result'
 import { PRINT_KIT_QR_QUIET_ZONE_MODULES } from './portal-print-kit'
+import { estimatedLineWidthPt } from './portal-print-kit-text-widths'
 import type {
   PrintFinalAddress,
   PrintFinalFace,
@@ -37,7 +38,11 @@ export const printFinalModuleMm = (tilePt: number, symbolModules: number): numbe
   ptMm(tilePt) / (symbolModules + 2 * PRINT_KIT_QR_QUIET_ZONE_MODULES)
 
 export type PrintFinalCodeRefusal = Readonly<{
-  code: 'needs_short_code' | 'address_host_too_long' | 'tile_does_not_fit'
+  code:
+    | 'needs_short_code'
+    | 'address_host_too_long'
+    | 'tile_does_not_fit'
+    | 'cue_does_not_fit'
   /** What the module would have measured, in millimetres; null when the module is not the reason. */
   moduleMm: number | null
 }>
@@ -93,14 +98,26 @@ export function choosePrintFinalTile(
 // ---------------------------------------------------------------------------
 // The cue
 
+/** Fixed rule C: a cue keeps one cap height (0.7 × its size) of bar each side. */
+const CUE_PADDING_CAPS = 0.7
+
+/** What a cue line may measure: the tile less its padding each side. */
+const cueRoomPt = (tilePt: number, cuePt: number): number =>
+  tilePt - 2 * CUE_PADDING_CAPS * cuePt
+
+/** A cue line's width, read from the width tables the preview draws with, which err wide: the file's is never more. */
+const cueWidthPt = (line: string, cuePt: number): number =>
+  estimatedLineWidthPt(line, 'text', cuePt)
+
 /**
  * The cue's lines (§5.2): one per language, the first on top. One language
- * whose cue would break the padding (one cap height, 0.7 × the cue size, each
- * side) wraps at the space nearest its middle into the two-line bar. Its width
- * is estimated at 0.45 em a character, the estimate the boards were drawn with,
- * so the preview and the PDF wrap the same cue the same way whatever fonts
- * they measure with ("Mit der Kamera scannen" wraps on the tent and the Small
- * card).
+ * whose cue would break the padding wraps at the space nearest its middle into
+ * the two-line bar. The width is the tables', so the preview and the PDF wrap
+ * the same cue the same way, and a cue left on one line keeps its padding in the
+ * file ("Mit der Kamera scannen" wraps on the tent and the Small card; the
+ * Bulgarian cue, wider than its letters count, wraps there too). The boards'
+ * 0.45 em a character agrees on English, Spanish and German at US sizes and
+ * under-counts Cyrillic, and German in Europe.
  */
 export function printFinalCueLines(
   cues: readonly string[],
@@ -109,9 +126,7 @@ export function printFinalCueLines(
 ): readonly string[] {
   const [only] = cues
   if (cues.length !== 1 || only === undefined) return cues
-  const capPt = 0.7 * cuePt
-  const estimatePt = only.length * 0.45 * cuePt
-  if (estimatePt <= tilePt - 2 * capPt) return cues
+  if (cueWidthPt(only, cuePt) <= cueRoomPt(tilePt, cuePt)) return cues
   const middle = only.length / 2
   const spaces = [...only]
     .map((ch, index) => (ch === ' ' && index > 0 ? index : -1))
@@ -119,6 +134,22 @@ export function printFinalCueLines(
     .sort((a, b) => Math.abs(a - middle) - Math.abs(b - middle))
   const at = spaces[0]
   return at === undefined ? cues : [only.slice(0, at), only.slice(at + 1)]
+}
+
+/**
+ * Whether every cue line keeps rule C's padding. Two languages print one cue a
+ * line and cannot wrap, so a pair with a long cue (French or Italian on a tent
+ * or a Small card, German or Bulgarian there too) does not fit: the file would
+ * set text across the bar's edge. A single language always fits once it has
+ * wrapped, unless it is one long word.
+ */
+export function printFinalCuesFit(
+  lines: readonly string[],
+  tilePt: number,
+  cuePt: number,
+): boolean {
+  const room = cueRoomPt(tilePt, cuePt)
+  return lines.every((line) => cueWidthPt(line, cuePt) <= room)
 }
 
 // ---------------------------------------------------------------------------

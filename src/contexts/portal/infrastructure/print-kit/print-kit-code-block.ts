@@ -89,8 +89,8 @@ export function planFaceCodeBlock(
 
 type Corner = Readonly<{ x: number; y: number }>
 
-/** The tile's code: one rectangle per run of dark modules, inside its quiet zone. */
-function drawCode(
+/** The tile's code: one rectangle per run of dark modules, inside its quiet zone (the final kit draws it too). */
+export function drawCode(
   doc: PDFKit.PDFDocument,
   qr: QrMatrix,
   tilePt: number,

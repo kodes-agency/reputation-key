@@ -4,6 +4,7 @@ import {
   choosePrintFinalTile,
   printFinalCodeBlock,
   printFinalCueLines,
+  printFinalCuesFit,
   printFinalModuleMm,
 } from './portal-print-final-code'
 import { inPt, mmPt, ptMm } from './portal-print-final-measures'
@@ -127,6 +128,17 @@ describe('the code block (spec 5.2)', () => {
     ])
   })
 
+  it('wraps the cues whose letters are wider than their count, as the font sets them', () => {
+    // Bulgarian on the tent: 33.6 mm of cue in a 35.6 mm tile leaves under a cap height each side.
+    expect(printFinalCueLines(['Сканирайте с камерата'], inPt(1.4), 9)).toEqual([
+      'Сканирайте',
+      'с камерата',
+    ])
+    // German in Europe: the 36 mm tent tile and the 32 mm Small tile.
+    expect(printFinalCueLines(['Mit der Kamera scannen'], mmPt(36), 9)).toHaveLength(2)
+    expect(printFinalCueLines(['Mit der Kamera scannen'], mmPt(32), 8)).toHaveLength(2)
+  })
+
   it('gives two languages one cue line each, first language on top', () => {
     expect(
       printFinalCueLines(
@@ -135,6 +147,18 @@ describe('the code block (spec 5.2)', () => {
         8,
       ),
     ).toHaveLength(2)
+  })
+
+  it('says whether a pair of cues keeps its padding: English and Spanish do on every piece, French beside English does not on a tent or a Small card', () => {
+    const en = 'Scan with your camera'
+    const es = 'Escanee con la cámara'
+    const fr = 'Scannez avec l’appareil photo'
+    expect(printFinalCuesFit([en, es], inPt(1.5), 9)).toBe(true)
+    expect(printFinalCuesFit([en, es], inPt(1.4), 9)).toBe(true)
+    expect(printFinalCuesFit([en, es], inPt(1.25), 8)).toBe(true)
+    expect(printFinalCuesFit([en, es], mmPt(32), 8)).toBe(true)
+    expect(printFinalCuesFit([en, fr], inPt(1.4), 9)).toBe(false)
+    expect(printFinalCuesFit([en, fr], inPt(1.25), 8)).toBe(false)
   })
 
   it('draws the Paper outline outside the cream square and the bar', () => {
