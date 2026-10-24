@@ -8,6 +8,7 @@ import {
 } from './portal-print-final-code'
 import { inPt, mmPt, ptMm } from './portal-print-final-measures'
 import {
+  PRINT_FINAL_MAX_QUANTITY,
   PRINT_FINAL_PER_SHEET,
   printFinalChoiceTile,
   printFinalPieceCount,
@@ -160,8 +161,11 @@ describe('choices and refusals (spec 12)', () => {
   it('takes a whole quantity from 1 to 1000 and one or two languages', () => {
     expect(refusalOf({ quantity: 0 })).toBe('quantity_out_of_range')
     expect(refusalOf({ quantity: 2.5 })).toBe('quantity_out_of_range')
-    expect(refusalOf({ quantity: 1001 })).toBe('quantity_out_of_range')
-    expect(refusalOf({ quantity: 1000 })).toBeNull()
+    expect(refusalOf({ quantity: PRINT_FINAL_MAX_QUANTITY + 1 })).toBe(
+      'quantity_out_of_range',
+    )
+    expect(refusalOf({ quantity: PRINT_FINAL_MAX_QUANTITY })).toBeNull()
+    expect(PRINT_FINAL_MAX_QUANTITY).toBe(1000)
     expect(refusalOf({ languageCount: 3 })).toBe('languages_out_of_range')
     expect(refusalOf({ languageCount: 0 })).toBe('languages_out_of_range')
   })

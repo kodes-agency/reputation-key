@@ -72,7 +72,7 @@ export type PrintFinalPlan = Readonly<{
 }>
 
 /** A gap counts as 4u unless it is short by more than this (§5.3: the strict 4u). */
-export const PRINT_FINAL_GAP_TOLERANCE_PT = mmPt(0.05)
+const PRINT_FINAL_GAP_TOLERANCE_PT = mmPt(0.05)
 
 /**
  * The column the words wrap in: the live width upright; wide, from the left

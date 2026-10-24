@@ -8,6 +8,7 @@ import {
 import { ptMm } from './portal-print-final-measures'
 import {
   PRINT_FINAL_TYPE,
+  PRINT_FINAL_TYPE_SETTINGS,
   choosePrintFinalHeadline,
   printFinalHeadlineFloorPt,
   printFinalHeadlineSteps,
@@ -40,6 +41,14 @@ describe('the type scale (spec 3)', () => {
     for (const piece of ['counter', 'tent', 'small'] as const) {
       expect(PRINT_FINAL_TYPE[piece].secondLinePt).toBe(PRINT_FINAL_TYPE[piece].sublinePt)
     }
+  })
+
+  it('leads and tracks the shared roles as the design sets them', () => {
+    expect(PRINT_FINAL_TYPE_SETTINGS.wordmark).toEqual({ leading: 1.15, trackingEm: 0.3 })
+    expect(PRINT_FINAL_TYPE_SETTINGS.subline.leading).toBe(1.25)
+    expect(PRINT_FINAL_TYPE_SETTINGS.cue).toEqual({ leading: 1.12, lineGapMm: 0.3 })
+    expect(PRINT_FINAL_TYPE_SETTINGS.headlineToSubline).toBe(1.8)
+    expect(PRINT_FINAL_TYPE_SETTINGS.secondHeadlineToSubline).toBe(1.25)
   })
 
   it('tracks the kicker 0.16 em on Paper and 0.30 / 0.24 em on Immersive', () => {

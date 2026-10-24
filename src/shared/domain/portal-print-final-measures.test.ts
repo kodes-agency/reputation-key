@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   PRINT_FINAL_DEFAULT_ORIENTATION,
+  PRINT_FINAL_LOOKS,
+  PRINT_FINAL_ORIENTATIONS,
   PRINT_FINAL_PIECES,
+  PRINT_FINAL_PRINTERS,
   printFinalLanguageMode,
   printFinalRegionOf,
   type PrintFinalFace,
@@ -9,6 +12,8 @@ import {
 import {
   PRINT_FINAL_LONG_ADDRESS_COUNTER,
   PRINT_FINAL_MEASURES,
+  PRINT_FINAL_RULE_LENGTH_PT,
+  PRINT_FINAL_STARS,
   PRINT_FINAL_TILE_STEP_UP_PT,
   inPt,
   mmPt,
@@ -42,6 +47,12 @@ describe('the vocabulary', () => {
       tent: 'wide',
       small: 'wide',
     })
+  })
+
+  it('names both orientations, both looks and both printers, the manager’s own printer first', () => {
+    expect(PRINT_FINAL_ORIENTATIONS).toEqual(['upright', 'wide'])
+    expect(PRINT_FINAL_LOOKS).toEqual(['paper', 'immersive'])
+    expect(PRINT_FINAL_PRINTERS).toEqual(['my_printer', 'print_shop'])
   })
 
   it('prints the US pieces on Letter and the European ones on A4', () => {
@@ -126,6 +137,18 @@ describe('the measures table (spec 2.1)', () => {
       tent: inPt(1.5),
       small: inPt(1.4),
     })
+  })
+
+  it('draws the language rule 8 / 6 / 5 mm long, and stars on the Counter card only', () => {
+    expect(PRINT_FINAL_RULE_LENGTH_PT).toEqual({
+      counter: mmPt(8),
+      tent: mmPt(6),
+      small: mmPt(5),
+    })
+    expect(PRINT_FINAL_STARS.pieces).toEqual(['counter'])
+    expect(PRINT_FINAL_STARS.count).toBe(5)
+    expect(PRINT_FINAL_STARS.sizePt).toBe(inPt(0.13))
+    expect(mm(PRINT_FINAL_STARS.strokePt)).toBe(0.3)
   })
 
   it('puts the Paper outline outside the tile, and none on Immersive', () => {

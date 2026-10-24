@@ -67,7 +67,7 @@ export function printFinalPhotoDpi(
 /** The photo's sharpness tier: under 150 dpi "will look soft", 150 to 199 "may look soft", 200 and up sharp. Never a refusal. */
 export type PrintFinalPhotoTier = 'will_look_soft' | 'may_look_soft' | 'sharp'
 
-export const PRINT_FINAL_PHOTO_DPI = Object.freeze({ soft: 150, sharp: 200 })
+const PRINT_FINAL_PHOTO_DPI = Object.freeze({ soft: 150, sharp: 200 })
 
 export function printFinalPhotoTier(dpi: number): PrintFinalPhotoTier {
   if (dpi < PRINT_FINAL_PHOTO_DPI.soft) return 'will_look_soft'
