@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import { previewCardPlan } from '#/components/features/portal/portal-share/print-kit-card-art-layout'
 import { previewImmersiveFit } from '#/components/features/portal/portal-share/print-kit-immersive-art-layout'
 import { previewPaperFit } from '#/components/features/portal/portal-share/print-kit-preview-fit'
+import type { PrintKitPaper, PrintKitStyle } from '#/shared/domain/portal-print-kit'
+import type { LargeCardPlan } from '#/shared/domain/portal-print-kit-card'
+import type { CardTextRole } from '#/shared/domain/portal-print-kit-card-words'
+import { CODE_TILE } from '#/shared/domain/portal-print-kit-code-tile'
 import type { ImmersiveGeometry } from '#/shared/domain/portal-print-kit-immersive'
+import {
+  immersivePrintKitPalette,
+  paperPrintKitPalette,
+} from '#/shared/domain/portal-print-kit-palette'
 import type { StackSizes } from '#/shared/domain/portal-print-kit-long-copy'
 import type { PanelGeometry } from '#/shared/domain/portal-print-kit-sheets'
+import { layoutCardFace } from './print-kit-card-face'
 import type { FaceStack } from './print-kit-face-stack'
+import { qrMatrix } from './print-kit-qr'
 import {
   faceOf,
   layOutImmersive,
@@ -115,4 +126,65 @@ describe('the preview’s sizes against the PDF’s measured plan', () => {
       if (fit.window) expect(layout.window, label).not.toBeNull()
     }
   })
+})
+
+/** The largest size each role is set at on a card. */
+function roleSizes(plan: LargeCardPlan): Partial<Record<CardTextRole, number>> {
+  const sizes: Partial<Record<CardTextRole, number>> = {}
+  for (const item of plan.words) {
+    if (item.kind !== 'line') continue
+    sizes[item.role] = Math.max(sizes[item.role] ?? 0, item.style.sizePt)
+  }
+  return sizes
+}
+
+const CARD_QR = qrMatrix('HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R')
+
+describe('the preview’s Large card against the PDF’s', () => {
+  it.each([
+    ['immersive', 'letter'],
+    ['immersive', 'a4'],
+    ['paper', 'letter'],
+    ['paper', 'a4'],
+  ] as const)(
+    'takes a step no later, and sets no line larger, on %s %s',
+    (style: PrintKitStyle, paper: PrintKitPaper) => {
+      const { doc, fonts } = newDocument()
+      const tile = CODE_TILE.large[paper]
+      const palette =
+        style === 'paper'
+          ? paperPrintKitPalette(LOOK.accentColour)
+          : immersivePrintKitPalette(LOOK.accentColour, LOOK.fieldColour)
+      for (const { languages, titles } of CASES) {
+        const face = faceOf({ piece: 'counter_card', languages: [...languages] }, titles)
+        const label = `${style} ${paper} ${languages.join('+')} ${titles.en.length}`
+        const file = layoutCardFace(doc, fonts, face, {
+          style,
+          paper,
+          palette,
+          qr: CARD_QR,
+          tile,
+          wordmark: LOOK.wordmark,
+          propertyName: LOOK.propertyName,
+          logo: null,
+        }).plan
+        const preview = previewCardPlan({
+          style,
+          paper,
+          face,
+          look: LOOK,
+          tile,
+          logoAspect: null,
+        })
+        expect(preview.stepIndex, label).toBeGreaterThanOrEqual(file.stepIndex)
+        const fileSizes = roleSizes(file)
+        for (const [role, size] of Object.entries(roleSizes(preview))) {
+          expect(size, `${label}: ${role}`).toBeLessThanOrEqual(
+            (fileSizes[role as CardTextRole] ?? 0) + 1e-9,
+          )
+        }
+        expect(preview.code.y, label).toBeCloseTo(file.code.y, 0)
+      }
+    },
+  )
 })

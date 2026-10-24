@@ -26,7 +26,7 @@ type Specimen = Readonly<{
 
 /** One code block on the surface its style prints on: the paper, or the property's field. */
 function Block({ style, accent, locales }: Specimen) {
-  const codeUrl = usePrintKitCode(null)
+  const codeUrl = usePrintKitCode(null).url
   const palette = printKitPalette(accent, null, style)
   const surface = palette.style === 'paper' ? PRINT_KIT_PAPER : palette.field
   return (

@@ -21,6 +21,7 @@ import type {
 } from '#/shared/domain/portal-print-kit'
 import { PANEL_SIZE_PT, printKitPages } from '#/shared/domain/portal-print-kit-sheets'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { previewCardTile } from './print-kit-card-art-layout'
 import { PrintKitFaceArt } from './print-kit-face-art'
 import { PrintKitSheetArt } from './print-kit-sheet-art'
 import {
@@ -30,7 +31,7 @@ import {
   printKitSheetCaption,
   type PrintKitPreviewMode,
 } from './print-kit-preview-copy'
-import { usePrintKitCode } from './use-print-kit-code'
+import { usePrintKitCode, type PrintKitCode } from './use-print-kit-code'
 
 type Props = Readonly<{
   choice: PrintKitChoice | null
@@ -91,7 +92,7 @@ export function PortalPrintKitPreview({
   isRetrying = false,
   placement,
 }: Props) {
-  const codeUrl = usePrintKitCode(qrAddress)
+  const code = usePrintKitCode(qrAddress)
   const column = placement === 'column'
   return (
     <div className={cn(column && 'min-w-0 flex-1 bg-muted/40')}>
@@ -148,7 +149,7 @@ export function PortalPrintKitPreview({
               faces={faces}
               mode={mode}
               side={side}
-              codeUrl={codeUrl}
+              code={code}
               sample={qrAddress === null}
             />
           </figure>
@@ -165,7 +166,7 @@ function Drawing({
   faces,
   mode,
   side,
-  codeUrl,
+  code,
   sample,
 }: Readonly<{
   choice: PrintKitChoice
@@ -173,10 +174,12 @@ function Drawing({
   faces: readonly PrintFace[]
   mode: PrintKitPreviewMode
   side: PrintFaceSide
-  codeUrl: string | null
+  code: PrintKitCode
   sample: boolean
 }>) {
   const { style, piece, paper } = choice
+  // A card's tile is the one its address allows, as in the file.
+  const tile = previewCardTile(paper, code.address, code.symbolModules)
   const pages = printKitPages(piece, faces.length, style, paper)
   // A card's backs are its second page; a tent is one sheet with both faces.
   const index = side === 'back' && pages.length > 1 ? 1 : 0
@@ -203,7 +206,8 @@ function Drawing({
             paper={paper}
             faces={faces}
             look={view.look}
-            codeUrl={codeUrl}
+            codeUrl={code.url}
+            tile={tile}
             page={index}
           />
         </div>
@@ -214,7 +218,8 @@ function Drawing({
             geometry={geometry}
             face={face}
             look={view.look}
-            codeUrl={codeUrl}
+            codeUrl={code.url}
+            tile={tile}
             label={printKitFaceLabel(choice, face)}
           />
         </div>

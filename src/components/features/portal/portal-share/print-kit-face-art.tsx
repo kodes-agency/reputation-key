@@ -1,13 +1,11 @@
-// One face, drawn as the PDF draws it (spec 4.2 and 4.4): a Paper
-// counter card (4 × 6 in or A6) or a Paper tent face (8.5 × 5.5 in or A5), and
-// an Immersive card or tent panel through `PrintKitImmersiveFace`. The same flex
-// layout the design boards use, from the same measures the PDF reads:
-//
-//   - the card: the brand at the top margin, the code block at the bottom
-//     margin, the words centred between, two equal gaps either side of them;
-//   - the tent face: the brand top-left, then a row of the words and the code,
-//     whose tile's top sits on the place label's cap line, and three equal gaps
-//     so the margin at the fold is the margin at the sheet's edge.
+// One face, drawn as the PDF draws it: the Large card (4 × 6 in or A6) in
+// either style through `PrintKitCardArt`, from the plan the PDF draws from
+// (round-2 spec-delta R1 and R2, round-3 S3); a Paper tent face (8.5 × 5.5 in or
+// A5, spec 4.4); and an Immersive tent panel through `PrintKitImmersiveFace`.
+// The tent face is the flex layout its design board uses, from the measures the
+// PDF reads: the brand top-left, then a row of the words and the code, whose
+// tile's top sits on the place label's cap line, and three equal gaps so the
+// margin at the fold is the margin at the sheet's edge.
 //
 // Margins are optical, as in the PDF: the paddings are the margin less the
 // distance from the brand's box to its ink and plus the tile's outline. The
@@ -25,10 +23,9 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import type { PrintFace, PrintKitStyle } from '#/shared/domain/portal-print-kit'
 import { cueLinesFor } from '#/shared/domain/portal-print-kit-code-block'
+import { CODE_TILE, type CodeTile } from '#/shared/domain/portal-print-kit-code-tile'
 import {
-  CARD_GRID,
   CODE_BLOCK,
-  FIT,
   TENT_FACE,
   TENT_FACE_GRID,
   TENT_WORDMARK_PT,
@@ -42,6 +39,7 @@ import {
   PANEL_SIZE_PT,
   type PanelGeometry,
 } from '#/shared/domain/portal-print-kit-sheets'
+import { PrintKitCardArt } from './print-kit-card-art'
 import { PrintKitCodeBlock } from './print-kit-code-block'
 import type { PointsToLength } from './print-kit-code-block-layout'
 import { ptToContainerWidth } from './print-kit-paper-art-layout'
@@ -68,6 +66,10 @@ type Props = Readonly<{
    * into the bleed behind the face, so the sheet paints them (Immersive only).
    */
   bare?: boolean
+  /** A card's code tile, the one its address allows; the 1.75 in tile of the sample code when none is given. */
+  tile?: CodeTile
+  /** How far a print-shop sheet's bleed runs past a card's trim, for its band to run into; 0 alone. */
+  bleedPt?: number
 }>
 
 type Drawing = Readonly<{
@@ -119,46 +121,6 @@ const CodeBlock = ({ drawing }: Readonly<{ drawing: Drawing }>): ReactNode => (
     pt={drawing.pt}
   />
 )
-
-function PaperCard({
-  drawing,
-  geometry,
-  fit,
-}: Readonly<{ drawing: Drawing; geometry: 'card4x6' | 'cardA6'; fit: PreviewPaperFit }>) {
-  const grid = CARD_GRID.paper[geometry === 'card4x6' ? 'letter' : 'a4']
-  const { pt, face } = drawing
-  const top = grid.marginPt - brandInkPt(drawing.look, fit.wordmarkPt)
-  const bottom = grid.marginPt + CODE_BLOCK.outlinePt
-  return (
-    <div
-      style={{
-        ...surface(pt, `${pt(top)} ${pt(grid.sidePt)} ${pt(bottom)}`),
-        alignItems: 'center',
-        textAlign: 'center',
-      }}
-    >
-      <PrintKitFaceBrand
-        look={drawing.look}
-        colour={drawing.palette.ink}
-        wordmarkPt={fit.wordmarkPt}
-        logoHeightPt={fit.logoHeightPt}
-        align="centre"
-        pt={pt}
-      />
-      <Gap min={FIT.paperGapPt.brand} pt={pt} />
-      <PrintKitFaceStack
-        face={face}
-        scale={fit.scale}
-        sizes={fit.sizes}
-        align="centre"
-        colours={paperColours(drawing.palette)}
-        pt={pt}
-      />
-      <Gap min={FIT.paperGapPt.code} pt={pt} />
-      <CodeBlock drawing={drawing} />
-    </div>
-  )
-}
 
 function PaperTentFace({
   drawing,
@@ -230,14 +192,11 @@ function PaperTentFace({
   )
 }
 
-/** A Paper face of the shape; Paper has no tent panels, which are Immersive's. */
+/** A Paper tent face; the cards are `PrintKitCardArt`'s, and Paper has no tent panels, which are Immersive's. */
 function paperArt(drawing: Drawing, geometry: PanelGeometry): ReactNode {
   const fit = previewPaperFit(drawing.face, geometry, drawing.look)
   if (fit === null) return null
   switch (geometry) {
-    case 'card4x6':
-    case 'cardA6':
-      return <PaperCard drawing={drawing} geometry={geometry} fit={fit} />
     case 'tentFaceLetter':
     case 'tentFaceA5':
       return <PaperTentFace drawing={drawing} geometry={geometry} fit={fit} />
@@ -245,6 +204,12 @@ function paperArt(drawing: Drawing, geometry: PanelGeometry): ReactNode {
       return null
   }
 }
+
+/** The paper each card shape is printed on. */
+const CARD_PAPER = { card4x6: 'letter', cardA6: 'a4' } as const
+
+const isCard = (geometry: PanelGeometry): geometry is keyof typeof CARD_PAPER =>
+  geometry in CARD_PAPER
 
 export function PrintKitFaceArt({
   style,
@@ -254,6 +219,8 @@ export function PrintKitFaceArt({
   codeUrl,
   label,
   bare = false,
+  tile,
+  bleedPt = 0,
 }: Props) {
   const { widthPt, heightPt } = PANEL_SIZE_PT[geometry]
   const pt: PointsToLength = (points) => ptToContainerWidth(points, widthPt)
@@ -273,7 +240,18 @@ export function PrintKitFaceArt({
         containerType: 'inline-size',
       }}
     >
-      {style === 'paper' ? (
+      {isCard(geometry) ? (
+        <PrintKitCardArt
+          style={style}
+          paper={CARD_PAPER[geometry]}
+          face={face}
+          look={look}
+          codeUrl={codeUrl}
+          tile={tile ?? CODE_TILE.large[CARD_PAPER[geometry]]}
+          bleedPt={bleedPt}
+          pt={pt}
+        />
+      ) : style === 'paper' ? (
         paperArt(drawing, geometry)
       ) : (
         <PrintKitImmersiveFace
