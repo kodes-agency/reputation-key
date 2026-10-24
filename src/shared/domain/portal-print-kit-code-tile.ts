@@ -182,6 +182,19 @@ export type PrintCodeTooSmall = Readonly<{
   moduleMm: number
 }>
 
+/**
+ * What the manager reads when a size is refused: replace the code when it has
+ * no print code (that is the cure), and wait when the print host is the reason
+ * (replacing the code would not help). The server's refusal and the Share tab
+ * say the same words.
+ */
+export const PRINT_CODE_TOO_SMALL_COPY: Readonly<
+  Record<PrintCodeTooSmall['cause'], string>
+> = Object.freeze({
+  needs_short_code: 'Replace the code to print this size.',
+  address_host_too_long: 'This size cannot print from this server yet.',
+})
+
 export type CodeTileChoice = Readonly<{
   tile: CodeTile
   /** The module on paper in this tile, in millimetres. */

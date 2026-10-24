@@ -363,6 +363,17 @@ describe('createPortalPrintKit, at a size', () => {
     expect(rendered[0]).toMatchObject({ size: 'large', output: 'office' })
   })
 
+  it('prints the property’s name under the logo unless the request turns it off', async () => {
+    const { portal, make, rendered } = await setup()
+    await make({ portalId: portal.id, ...card }, buildTestAuthContext())
+    await make(
+      { portalId: portal.id, ...card, showPropertyName: false },
+      buildTestAuthContext(),
+    )
+    expect(rendered[0]?.propertyName).not.toBeNull()
+    expect(rendered[1]?.propertyName).toBeNull()
+  })
+
   it.each(['table', 'mini'] as const)(
     'refuses a %s card while it is not selectable, before it reveals the address',
     async (size) => {
@@ -429,12 +440,31 @@ describe('createPortalPrintKit, at a size', () => {
       make({ portalId: portal.id, ...card, size: 'mini' }, buildTestAuthContext()),
     ).rejects.toMatchObject({
       code: 'print_code_too_small',
-      message: 'This code is too long to scan on a Mini card. Choose Large.',
+      message: 'Replace the code to print this size.',
       context: { cause: 'needs_short_code', size: 'mini', moduleMm: 0.56 },
     })
   })
 
-  it('prints a selectable small tent two to a sheet, and names the tent in a refusal', async () => {
+  it('tells a manager whose print host is too long that replacing the code will not help', async () => {
+    const { portal, make } = await setup({
+      selectableSizes: PRINT_KIT_SIZES,
+      refuse: new PrintKitRenderRefusal({
+        code: 'print_code_too_small',
+        cause: 'address_host_too_long',
+        size: 'mini',
+        moduleMm: 0.77,
+      }),
+    })
+    await expect(
+      make({ portalId: portal.id, ...card, size: 'mini' }, buildTestAuthContext()),
+    ).rejects.toMatchObject({
+      code: 'print_code_too_small',
+      message: 'This size cannot print from this server yet.',
+      context: { cause: 'address_host_too_long' },
+    })
+  })
+
+  it('prints a selectable small tent two to a sheet, and refuses it with the same words', async () => {
     const { portal, make, rendered } = await setup({ selectableSizes: PRINT_KIT_SIZES })
     const file = await make(
       { portalId: portal.id, ...card, piece: 'table_tent', size: 'table' },
@@ -462,7 +492,7 @@ describe('createPortalPrintKit, at a size', () => {
       ),
     ).rejects.toMatchObject({
       code: 'print_code_too_small',
-      message: 'This code is too long to scan on a table tent. Choose Large.',
+      message: 'Replace the code to print this size.',
     })
   })
 

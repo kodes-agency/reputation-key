@@ -27,6 +27,10 @@ export const portalPrintKitInputSchema = z.object({ portalId: portalIdSchema })
  * `size` is Large unless the request names another (round 3); the use case
  * refuses a size managers may not choose yet. `output` is the style's own
  * unless named: a print shop for Immersive, the office printer for Paper.
+ *
+ * `showPropertyName` is on unless the request turns it off: a logo on a Large or
+ * Table card carries the property's name under it (round-2 R6). The tent and
+ * Mini never print it.
  */
 export const downloadPortalPrintKitInputSchema = z.object({
   portalId: portalIdSchema,
@@ -43,18 +47,20 @@ export const downloadPortalPrintKitInputSchema = z.object({
   paper: z.enum(PRINT_KIT_PAPERS).optional(),
   size: z.enum(PRINT_KIT_SIZES).default('large'),
   output: z.enum(PRINT_KIT_OUTPUTS).optional(),
+  showPropertyName: z.boolean().default(true),
 })
 
 type ParsedDownloadInput = z.infer<typeof downloadPortalPrintKitInputSchema>
 
 /**
  * The parsed input, with the languages read-only: nothing downstream edits them.
- * The size may be left out by a caller that has not parsed it (a test, a script):
- * it is Large, as the schema's default makes it.
+ * The size and the name line may be left out by a caller that has not parsed
+ * them (a test, a script): Large and on, as the schema's defaults make them.
  */
 export type DownloadPortalPrintKitInput = Readonly<
-  Omit<ParsedDownloadInput, 'languages' | 'size'> & {
+  Omit<ParsedDownloadInput, 'languages' | 'size' | 'showPropertyName'> & {
     languages: readonly ParsedDownloadInput['languages'][number][]
     size?: ParsedDownloadInput['size']
+    showPropertyName?: boolean
   }
 >

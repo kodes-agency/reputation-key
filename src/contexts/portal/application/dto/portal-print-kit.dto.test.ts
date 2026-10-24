@@ -55,6 +55,14 @@ describe('downloadPortalPrintKitInputSchema', () => {
     expect(parsed.paper).toBeUndefined()
   })
 
+  it('prints the property’s name under the logo unless the request says not to', () => {
+    const parse = (extra: object) =>
+      downloadPortalPrintKitInputSchema.safeParse({ ...valid, ...extra })
+    expect(parse({}).data?.showPropertyName).toBe(true)
+    expect(parse({ showPropertyName: false }).data?.showPropertyName).toBe(false)
+    expect(parse({ showPropertyName: 'no' }).success).toBe(false)
+  })
+
   it.each([
     ['a piece the kit does not have', { piece: 'poster' }],
     ['no language', { languages: [] }],
