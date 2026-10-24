@@ -275,7 +275,10 @@ export type JobRuntimeQueueJob = Readonly<{
   timestamp?: number
   /** BullMQ delay from timestamp; only overdue delayed work contributes age. */
   delay?: number
-  /** Add-time options. BullMQ zeroes `delay` on promotion; `opts.delay` keeps it. */
+  /**
+   * Add-time options. BullMQ zeroes `delay` on promotion, also for a job listed
+   * as delayed but promoted before it was read; `opts.delay` keeps it.
+   */
   opts?: Readonly<{ delay?: number; jobId?: string }>
   processedOn?: number
   finishedOn?: number
@@ -329,16 +332,21 @@ type QueuedJobState = 'waiting' | 'delayed' | 'prioritized' | 'waiting-children'
 /**
  * When queued work became runnable. BullMQ keeps a job's creation `timestamp`
  * through delays and retries, and zeroes `delay` when it promotes a delayed job
- * to waiting, so the add-time `opts.delay` places a first attempt. A job that
- * has started before was requeued by a retry whose due time BullMQ does not
- * record: it gives no queue age rather than a false one, and its failures
- * already surface as repair or stall reasons.
+ * to waiting, so the add-time `opts.delay` places a first attempt. BullMQ lists
+ * job ids first and reads each hash afterwards, so a job listed as delayed can
+ * be promoted in between and arrive here still 'delayed' with `delay` zeroed:
+ * its live `delay` places it while it waits (a rescheduled delay included), and
+ * `opts.delay` once promotion has cleared it. A job that has started before was
+ * requeued by a retry whose due time BullMQ does not record: it gives no queue
+ * age rather than a false one, and its failures already surface as repair or
+ * stall reasons.
  */
 function runnableSince(job: JobRuntimeQueueJob, state: QueuedJobState): Date | null {
   const timestamp = dateFromEpoch(job.timestamp)
   if (!timestamp || dateFromEpoch(job.processedOn) !== null) return null
+  const addTimeDelay = positiveDelay(job.opts?.delay)
   const delay =
-    state === 'delayed' ? positiveDelay(job.delay) : positiveDelay(job.opts?.delay)
+    state === 'delayed' ? positiveDelay(job.delay) || addTimeDelay : addTimeDelay
   return new Date(timestamp.getTime() + delay)
 }
 
