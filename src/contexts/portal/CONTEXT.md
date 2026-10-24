@@ -460,7 +460,11 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   pictogram to move, so the Italian and French scan cues do not fit one line:
   102.6 and 112 pt in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in Mini's
   85.7 pt. A test pins the languages that fit; the faces must refuse the rest,
-  use a two-line bar or set a smaller cue.
+  use a two-line bar or set a smaller cue. The small tent has a second open
+  question: its photo panel is tall and narrow, so "1000 px wide" does not make
+  it sharp (a landscape photo is enlarged by its height: 1000 x 667 prints at
+  about 184 dpi), and the Photo upload's advice needs its own number before the
+  tent is selectable. The Share notice already measures its panel correctly.
 - **The Share chooser (round 3, slice 14).** Top to bottom, as the share board
   draws it: Style, Size, Piece, Output, Paper size beside Languages, the name
   under the logo, Call to action; the Download with its file name; "How to
