@@ -47,8 +47,9 @@ export function balanceWords(
   text: string,
   maxWidth: number,
   measure: (line: string) => number,
+  breaks: LineBreaks = 'spaces',
 ): string[] {
-  const greedy = (width: number) => fillWords(text, width, measure)
+  const greedy = (width: number) => fillWords(text, width, measure, breaks)
   const lines = greedy(maxWidth)
   if (lines.length < 2) return lines
   let narrow = 0
@@ -61,19 +62,35 @@ export function balanceWords(
   return greedy(wide)
 }
 
+/**
+ * Where a line may break: at spaces only, or also after a hyphen between two
+ * letters, as a browser breaks "HOUSTON-NEAR" ("HOUSTON-" ends the line).
+ */
+export type LineBreaks = 'spaces' | 'spaces-and-hyphens'
+
+/** The pieces a line is built from, each with whether a space joins it to the one before. */
+function piecesOf(text: string, breaks: LineBreaks) {
+  const words = text.split(/\s+/u).filter((part) => part !== '')
+  return words.flatMap((word) => {
+    const parts = breaks === 'spaces' ? [word] : word.split(/(?<=[^\s-]-)(?=[^\s-])/u)
+    return parts.map((part, index) => ({ part, spaced: index === 0 }))
+  })
+}
+
 /** The plain greedy fill, as a paragraph sets: each line takes as many words as fit. */
 export function fillWords(
   text: string,
   maxWidth: number,
   measure: (line: string) => number,
+  breaks: LineBreaks = 'spaces',
 ): string[] {
   const lines: string[] = []
   let current = ''
-  for (const word of text.split(/\s+/u).filter((part) => part !== '')) {
-    const candidate = current === '' ? word : `${current} ${word}`
+  for (const { part, spaced } of piecesOf(text, breaks)) {
+    const candidate = current === '' ? part : `${current}${spaced ? ' ' : ''}${part}`
     if (current !== '' && measure(candidate) > maxWidth) {
       lines.push(current)
-      current = word
+      current = part
     } else {
       current = candidate
     }

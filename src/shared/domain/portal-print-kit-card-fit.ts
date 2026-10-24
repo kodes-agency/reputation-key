@@ -22,9 +22,11 @@
 // stops at the first step that does. One that cannot takes every type step and
 // lets its gaps go under the minimum, as the two-language Table board does,
 // down to 2 mm, the least any gap between two groups is; only past that does it
-// drop the name. With today's long address Large prints its 2 in tile, so its
-// gaps are smaller than the boards' 1.75 in ones, and a two-language Immersive
-// card with a logo and a two-line name drops the name until the address is short.
+// drop the name, and then it sets the rest from the roomiest step again, so the
+// room the name gave back goes to the type before the gaps. With today's long
+// address Large prints its 2 in tile, so its gaps are smaller than the boards'
+// 1.75 in ones, and a two-language Immersive card with a logo and a two-line
+// name drops the name until the address is short.
 
 import type { PrintKitStyle } from './portal-print-kit'
 import { FIT } from './portal-print-kit-measures'
@@ -49,7 +51,10 @@ export const CARD_CTA_ONE_LINE_FLOOR_PT = 20
 /** What the call to action steps down by, in points. */
 const CTA_STEP_PT = 4
 
-/** The steps a Large card tries, roomiest first. */
+/**
+ * The steps a Large card tries, roomiest first: the type steps with the name,
+ * then the same steps without it.
+ */
 export function largeCardFitSteps(style: PrintKitStyle): readonly CardFitStep[] {
   const type = FACE_TYPE_PT.large
   const cta = style === 'immersive' ? type.ctaImmersive : type.ctaPaper
@@ -71,7 +76,8 @@ export function largeCardFitSteps(style: PrintKitStyle): readonly CardFitStep[] 
   const sub = { ...callToAction, subPt: type.sub - 1 }
   const logo = { ...sub, logo: LOGO_OPTICAL.table[style] }
   const second = { ...logo, cta2Pt: (type.cta2 ?? 0) - 2 }
-  return [full, eyebrow, callToAction, sub, logo, second, { ...second, name: false }]
+  const named = [full, eyebrow, callToAction, sub, logo, second]
+  return [...named, ...named.map((step) => ({ ...step, name: false }))]
 }
 
 /** The photo band's target and minimum; null on Paper, which has none. */
@@ -104,19 +110,20 @@ export type CardFitChoice<T> = CardShare &
   Readonly<{ step: CardFitStep; index: number; value: T }>
 
 /**
- * The step a card prints at: the first whose gaps reach `gapMinPt`; else, every
- * type step taken, the gaps under their minimum but not under the 2 mm floor;
- * else the last step, without the name. `measure` lays the card out at a step
- * and says what its parts other than the band and the gaps take.
+ * The step a card prints at: the first named step whose gaps reach `gapMinPt`;
+ * else, every type step taken, the gaps under their minimum but not under the
+ * 2 mm floor; else the first step without the name whose gaps reach the
+ * minimum, or the tightest of those. `measure` lays the card out at a step and
+ * says what its parts other than the band and the gaps take.
  */
 export function chooseCardFit<T>(
   steps: readonly CardFitStep[],
   frame: Readonly<{ heightPt: number; band: CardBand; gapMinPt: number }>,
   measure: (step: CardFitStep) => Readonly<{ fixedPt: number; value: T }>,
 ): CardFitChoice<T> {
-  const at = (index: number): CardFitChoice<T> | null => {
+  const at = (index: number): CardFitChoice<T> => {
     const step = steps[index]
-    if (step === undefined) return null
+    if (step === undefined) throw new Error('A card has at least one way to be set')
     const { fixedPt, value } = measure(step)
     const share = shareCardHeight(
       { heightPt: frame.heightPt, fixedPt, band: frame.band },
@@ -124,14 +131,20 @@ export function chooseCardFit<T>(
     )
     return { ...share, step, index, value }
   }
-  const last = steps.length - 1
-  let tightest: CardFitChoice<T> | null = null
-  for (let index = 0; index < last; index += 1) {
-    tightest = at(index)
-    if (tightest !== null && tightest.gapPt >= frame.gapMinPt) return tightest
+  /** The first of `indices` whose gaps reach the minimum, else the last one tried. */
+  const firstRoomy = (indices: readonly number[]): CardFitChoice<T> | null => {
+    let tightest: CardFitChoice<T> | null = null
+    for (const index of indices) {
+      tightest = at(index)
+      if (tightest.gapPt >= frame.gapMinPt) return tightest
+    }
+    return tightest
   }
-  if (tightest !== null && tightest.gapPt >= FIT.gapPt.floor) return tightest
-  const chosen = at(last) ?? tightest
+  const indices = steps.map((_, index) => index)
+  const named = firstRoomy(indices.filter((index) => steps[index]?.name === true))
+  if (named !== null && named.gapPt >= FIT.gapPt.floor) return named
+  const nameless = firstRoomy(indices.filter((index) => steps[index]?.name === false))
+  const chosen = nameless ?? named
   if (chosen === null) throw new Error('A card has at least one way to be set')
   return chosen
 }

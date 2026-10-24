@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { balanceWords, fitFontSize, fitLines, wrapWords } from './portal-print-kit-text'
+import {
+  balanceWords,
+  fillWords,
+  fitFontSize,
+  fitLines,
+  wrapWords,
+} from './portal-print-kit-text'
 
 const byLength = (text: string) => text.length
 
@@ -131,5 +137,21 @@ describe('balanceWords', () => {
 
   it('returns no lines for blank text', () => {
     expect(balanceWords('  ', 10, byLength)).toEqual([])
+  })
+
+  it('breaks after a hyphen between letters only when asked, keeping the hyphen on the first line', () => {
+    const text = 'Harborline Inn Houston-Near The Galleria'
+    expect(balanceWords(text, 30, byLength, 'spaces-and-hyphens')).toEqual([
+      'Harborline Inn Houston-',
+      'Near The Galleria',
+    ])
+    expect(balanceWords(text, 30, byLength)).not.toContain('Harborline Inn Houston-')
+    // A dash standing alone, or a hyphen at a word's edge, is no break.
+    expect(fillWords('Spa - Pool -Bar', 3, byLength, 'spaces-and-hyphens')).toEqual([
+      'Spa',
+      '-',
+      'Pool',
+      '-Bar',
+    ])
   })
 })

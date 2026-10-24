@@ -11,9 +11,9 @@
 // test: Gate 2 prints each piece and scans it.
 //
 // Pure and shared. The PDF and the Share tab's preview both ask `chooseCodeTile`,
-// so the preview cannot show a tile the file would refuse. Nothing draws from this
-// yet: the faces still use today's 2 in `CODE_BLOCK`, which is also the tile Large
-// falls back to.
+// so the preview cannot show a tile the file would refuse. The Large card draws
+// from it (`largeCardTile`); the Letter-half tent keeps today's 2 in `CODE_BLOCK`,
+// which is also the tile Large falls back to.
 
 import { err, ok, type Result } from './result'
 import {

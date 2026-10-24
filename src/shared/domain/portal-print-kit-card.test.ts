@@ -219,9 +219,10 @@ describe('a two-language Large card', () => {
     expect(card.code.y - wordsFoot(card)).toBeCloseTo(card.gapPt, 6)
   })
 
-  it('at today’s 2 in drops only the name line, the last step, and keeps the band, the eyebrow and both calls to action', () => {
+  it('at today’s 2 in drops only the name line, the last step, and gives its room back to the type, keeping the band, the eyebrow and both calls to action', () => {
     const card = plan({ languages: ['en', 'es'], tile: TODAY_CODE_TILE })
-    expect(card.stepIndex).toBe(6)
+    expect(card.step.name).toBe(false)
+    expect(card.stepIndex).toBeLessThan(11)
     expect(lines(card, 'name')).toHaveLength(0)
     expect(card.bandPt).toBeGreaterThanOrEqual(inToPt(1.25) - 1e-9)
     expect(card.gapPt).toBeGreaterThanOrEqual(14)

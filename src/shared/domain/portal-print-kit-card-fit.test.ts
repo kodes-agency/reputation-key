@@ -34,7 +34,7 @@ const linesOf = (items: readonly unknown[]) =>
   items.filter((item): item is CardLine => (item as CardLine).kind === 'line')
 
 describe('largeCardFitSteps', () => {
-  it('steps the eyebrow, the call to action, the sub-line, the logo and the second call to action, then drops the name', () => {
+  it('steps the eyebrow, the call to action, the sub-line, the logo and the second call to action, then takes the same steps again without the name', () => {
     const steps = largeCardFitSteps('immersive')
     expect(
       steps.map((step) => [
@@ -51,6 +51,11 @@ describe('largeCardFitSteps', () => {
       [9, 24, 10, 15, true],
       [9, 24, 10, 15, true],
       [9, 24, 10, 13, true],
+      [10, 28, 11, 15, false],
+      [9, 28, 11, 15, false],
+      [9, 24, 11, 15, false],
+      [9, 24, 10, 15, false],
+      [9, 24, 10, 15, false],
       [9, 24, 10, 13, false],
     ])
     expect(steps[3]?.logo).toBe(LOGO_OPTICAL.large.immersive)
@@ -62,7 +67,7 @@ describe('largeCardFitSteps', () => {
     const paper = largeCardFitSteps('paper').map((step) => step.ctaPt)
     const immersive = largeCardFitSteps('immersive').map((step) => step.ctaPt)
     expect(paper.map((pt, index) => pt - (immersive[index] ?? 0))).toEqual(
-      Array(7).fill(2),
+      Array(12).fill(2),
     )
   })
 })
@@ -111,7 +116,7 @@ describe('chooseCardFit', () => {
     const choice = chooseCardFit(
       steps,
       frame,
-      card([room(10), room(12), room(15), 0, 0, 0, 0]),
+      card([room(10), room(12), room(15), 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     )
     expect(choice.index).toBe(2)
   })
@@ -124,18 +129,25 @@ describe('chooseCardFit', () => {
       room(6),
       room(7),
       room(FIT.gapPt.floor + 0.5),
-      room(30),
+      ...Array<number>(6).fill(room(30)),
     ]
     const choice = chooseCardFit(steps, frame, card(fixed))
     expect(choice.index).toBe(5)
     expect(choice.step.name).toBe(true)
   })
 
-  it('drops the name only when every type step leaves the gaps under 2 mm', () => {
-    const fixed = [room(1), room(1), room(2), room(2), room(3), room(4), room(20)]
-    const choice = chooseCardFit(steps, frame, card(fixed))
-    expect(choice.index).toBe(6)
+  it('drops the name only when every type step leaves the gaps under 2 mm, then sets the rest from the roomiest step that fits', () => {
+    const named = [room(1), room(1), room(2), room(2), room(3), room(4)]
+    const nameless = [room(9), room(16), room(20), room(20), room(20), room(20)]
+    const choice = chooseCardFit(steps, frame, card([...named, ...nameless]))
+    expect(choice.index).toBe(7)
     expect(choice.step.name).toBe(false)
+    expect(choice.step.ctaPt).toBe(28)
+  })
+
+  it('takes the tightest step without the name when none reaches the minimum', () => {
+    const fixed = [...Array<number>(6).fill(room(1)), ...Array<number>(6).fill(room(8))]
+    expect(chooseCardFit(steps, frame, card(fixed)).index).toBe(11)
   })
 })
 
@@ -152,6 +164,19 @@ describe('layoutCardName', () => {
       'HOUSTON HOBBY AIRPORT',
     ])
     expect(name.heightPt).toBeCloseTo(2 * 8.5 * 1.22, 10)
+  })
+
+  it('breaks after a hyphen when that balances the lines better, as the boards do', () => {
+    const name = layoutCardName(
+      'Harborline Inn Houston-Near The Galleria',
+      8.5,
+      150,
+      halfEm,
+    )
+    expect(name.items.map((line) => (line as CardLine).text)).toEqual([
+      'HARBORLINE INN HOUSTON-',
+      'NEAR THE GALLERIA',
+    ])
   })
 
   it('shrinks toward 7 pt only when two lines would not hold it', () => {

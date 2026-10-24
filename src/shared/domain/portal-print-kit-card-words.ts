@@ -124,8 +124,9 @@ const widthIn =
     measure(text, cardTextStyle(role, sizePt))
 
 /**
- * The property name in capitals, balanced into two lines at most: a name that
- * would need a third line shrinks, a quarter point at a time, toward 7 pt.
+ * The property name in capitals, balanced into two lines at most, breaking at
+ * a space or after a hyphen: a name that would need a third line shrinks, a
+ * quarter point at a time, toward 7 pt.
  */
 export function layoutCardName(
   name: string,
@@ -137,10 +138,13 @@ export function layoutCardName(
   if (text === '') return { items: [], heightPt: 0 }
   const { floorPt, maxLines } = CARD_TEXT.name
   let size = sizePt
-  let lines = balanceWords(text, widthPt, widthIn(measure, 'name', size))
+  // A name breaks after a hyphen too, as the boards' browser breaks it.
+  const balanced = (at: number) =>
+    balanceWords(text, widthPt, widthIn(measure, 'name', at), 'spaces-and-hyphens')
+  let lines = balanced(size)
   while (lines.length > maxLines && size > floorPt) {
     size = Math.max(floorPt, size - 0.25)
-    lines = balanceWords(text, widthPt, widthIn(measure, 'name', size))
+    lines = balanced(size)
   }
   const cursor: Cursor = { y: 0, items: [] }
   pushLines(cursor, { role: 'name', locale: null, sizePt: size }, lines, measure)

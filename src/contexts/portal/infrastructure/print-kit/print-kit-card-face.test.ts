@@ -128,7 +128,7 @@ describe('the Large card in the PDF’s fonts', () => {
     ['one language', ['en']],
     ['two languages', ['en', 'es']],
   ] as const)(
-    'keeps the band and the name with today’s long address on its 2 in tile, %s on Immersive',
+    'keeps the band with today’s long address on its 2 in tile, and the name with one language, %s on Immersive',
     async (_, languages) => {
       const layout = await layOut({
         style: 'immersive',
@@ -142,13 +142,12 @@ describe('the Large card in the PDF’s fonts', () => {
     },
   )
 
-  it('prints the name under a logo on Paper too', async () => {
+  it('prints the name under a logo on Paper too, broken after its hyphen as the board breaks it', async () => {
     const layout = await layOut({ style: 'paper', address: LONG, logo: 'harborline' })
-    expect(
-      names(layout)
-        .map((line) => line.text)
-        .join(' '),
-    ).toBe(HARBORLINE.toUpperCase())
+    expect(names(layout).map((line) => line.text)).toEqual([
+      'HARBORLINE INN HOUSTON-',
+      'NEAR THE GALLERIA',
+    ])
   })
 })
 
