@@ -868,7 +868,12 @@ Google no longer shows may be kept.
   over the heap, so a batch reads best as one sequential pass. Measured on the
   beta on 2026-10-24: every Review in one statement took 8 s to scan (3,497,715
   repeats). 100 Reviews, read through the index, took about 50 s, so the first
-  batch size of 100 would have taken hours. One batch covers the beta. A dry run is the default.
+  batch size of 100 would have taken hours. One batch covers the beta.
+  **Applied 2026-10-24** (owner approved). The batch deleted 3,497,717 rows and
+  kept 25,407. It took 40 min because the DELETE ran as primary-key probes.
+  `VACUUM FULL` then took the table from 3,784 MB to 27 MB and the database from
+  4,545 MB to 787 MB (runbooks §30 has the measurements and the one sync step
+  that failed on the lock). A dry run is the default.
   `--apply` needs a reason and the typed confirmation, and records one
   content-free `retention_runs` row (`review_source_observations.repeats`). A
   stopped run leaves whole batches done, and a re-run is safe. It is not
