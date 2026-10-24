@@ -29,7 +29,7 @@ export type PrintFinalWordsPart = Readonly<{
 }>
 
 /** The headline's style at `sizePt`: Cormorant Garamond on the Counter card and the tent, Ysabeau Office on the Small card. */
-export function printFinalHeadlineStyle(
+function printFinalHeadlineStyle(
   face: PrintFinalFace,
   sizePt: number,
 ): PrintFinalTextStyle {
@@ -46,7 +46,7 @@ export function printFinalHeadlineStyle(
 }
 
 /** The sub-line's style: Ysabeau Office 400, turned 600 where it is reversed under 9 pt. */
-export function printFinalSublineStyle(
+function printFinalSublineStyle(
   face: PrintFinalFace,
   italic = false,
 ): PrintFinalTextStyle {
@@ -62,7 +62,7 @@ export function printFinalSublineStyle(
 }
 
 /** The kicker's style, or null on the Small card, which has none. */
-export function printFinalKickerStyle(face: PrintFinalFace): PrintFinalTextStyle | null {
+function printFinalKickerStyle(face: PrintFinalFace): PrintFinalTextStyle | null {
   const sizePt = PRINT_FINAL_TYPE[face.piece].kickerPt
   if (sizePt === null) return null
   return {

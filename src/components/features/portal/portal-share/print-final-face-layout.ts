@@ -68,7 +68,7 @@ export const previewFinalMeasurer: PrintFinalTextMeasurer = {
 const PREVIEW_LOGO_ASPECT = 2
 
 /** The brand the preview plans with: the logo as its whole picture (never on a plate on Paper), or the wordmark. */
-export function previewFinalBrand(
+function previewFinalBrand(
   look: PortalPrintKitView['look'],
   face: PrintFinalFace,
   logoAspect: number | null,

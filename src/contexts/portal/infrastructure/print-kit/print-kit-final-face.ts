@@ -64,10 +64,7 @@ function fontFaceOf(style: PrintFinalTextStyle): PrintKitFontFace {
   return style.weight === 600 ? 'bodyStrong' : 'body'
 }
 
-export const pdfFinalTextStyle = (
-  style: PrintFinalTextStyle,
-  colour: string,
-): PdfTextStyle => ({
+const pdfFinalTextStyle = (style: PrintFinalTextStyle, colour: string): PdfTextStyle => ({
   face: fontFaceOf(style),
   size: style.sizePt,
   spacing: style.trackingEm * style.sizePt,

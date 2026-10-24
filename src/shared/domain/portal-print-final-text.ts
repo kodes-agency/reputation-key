@@ -64,7 +64,7 @@ export type PrintFinalSetText = Readonly<{
 }>
 
 /** The text as it prints: capitals for a tracked caps line. */
-export const printFinalDisplayText = (text: string, style: PrintFinalTextStyle) =>
+const printFinalDisplayText = (text: string, style: PrintFinalTextStyle) =>
   style.caps ? text.toUpperCase() : text
 
 /**

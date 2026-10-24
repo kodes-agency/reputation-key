@@ -8,7 +8,6 @@
 // Drawn in the face's coordinates, in points, from the block's outer top-left
 // corner (the outline's, on Paper), where the planner put it.
 
-import { PRINT_KIT_QR_QUIET_ZONE_MODULES } from '#/shared/domain/portal-print-kit'
 import type { PrintFinalCue } from '#/shared/domain/portal-print-final-face'
 import type { PrintFinalCodeBlock } from '#/shared/domain/portal-print-final-code'
 import {
@@ -17,13 +16,14 @@ import {
   type PrintFinalBox,
 } from '#/shared/domain/portal-print-final-measures'
 import { PRINT_FINAL_TYPE_SETTINGS } from '#/shared/domain/portal-print-final-type'
-import { PRINT_KIT_INK, PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
+import { PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
 import {
   drawCentredLine,
   type PdfTextStyle,
   type PrintKitFonts,
 } from './print-kit-pdf-text'
-import { qrDarkRuns, type QrMatrix } from './print-kit-qr'
+import { drawCode } from './print-kit-code-block'
+import type { QrMatrix } from './print-kit-qr'
 
 export type FinalCodeColours = Readonly<{
   /** The Paper outline; null on Immersive, which has none. */
@@ -38,23 +38,6 @@ export type FinalCodeArt = Readonly<{
   cuePt: number
   colours: FinalCodeColours
 }>
-
-type Corner = Readonly<{ x: number; y: number }>
-
-/** The symbol: one rectangle per run of dark modules, inside the quiet zone. */
-function drawSymbol(doc: PDFKit.PDFDocument, qr: QrMatrix, tilePt: number, at: Corner) {
-  const quiet = PRINT_KIT_QR_QUIET_ZONE_MODULES
-  const module = tilePt / (qr.size + 2 * quiet)
-  for (const run of qrDarkRuns(qr)) {
-    doc.rect(
-      at.x + (quiet + run.column) * module,
-      at.y + (quiet + run.row) * module,
-      run.length * module,
-      module,
-    )
-  }
-  doc.fill(PRINT_KIT_INK)
-}
 
 /** The cue lines, centred in the bar as one block: 1.12 line boxes, 0.3 mm apart. */
 function drawCues(
@@ -103,7 +86,7 @@ export function drawFinalCodeBlock(
   doc.save()
   doc.roundedRect(inner.x, inner.y, tilePt, tilePt + barPt, radius).clip()
   doc.rect(inner.x, inner.y, tilePt, tilePt).fill(PRINT_KIT_TILE)
-  drawSymbol(doc, art.qr, tilePt, inner)
+  drawCode(doc, art.qr, tilePt, inner)
   doc.rect(inner.x, inner.y + tilePt, tilePt, barPt).fill(art.colours.barFill)
   doc.restore()
   drawCues(doc, fonts, art, {
