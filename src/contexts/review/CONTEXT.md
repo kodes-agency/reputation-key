@@ -71,6 +71,16 @@ A stable Review survives source deletion and content expiry. Erasable source
 content and immutable observations attach to numbered Material Review Revisions;
 material changes and source-epoch carries create exact immutable bindings.
 
+An observation row records what Google showed, not each read of it. A re-read
+that matches the Review's newest observation writes no row: same epoch, live
+content, `unchanged`, and the same observation digest. The match moves that
+row's `content_expires_at` to the Review's new clock and sets its `updated_at`
+to the fetch (ADR 0055, note 2026-10-24). Its `observed_at` stays the first time
+the content was seen. Anything Google reports differently still writes a row: an
+edit, a restatement, a translation, a photo, a moved `updateTime`, a new epoch,
+an out-of-order read, or a read after erasure. Until 2026-10-24 every read wrote
+a row: 3.4M rows for 12,599 reviews on the beta.
+
 A Review's own page on Google (`googleReviewUrl`, Google's output-only
 `reviewReplyUrl`, migration 0065) is part of that erasable content. The review
 adapter keeps it only in the one shape Google sends for the review's own

@@ -259,13 +259,12 @@ describe.sequential("a Review's own page on Google", () => {
       before.contentExpiresAt?.getTime() ?? Infinity,
     )
     // Nothing reads as changed: the same revision, the same observation
-    // digest, an `unchanged` comparison, and no `review.updated` for the Inbox
-    // or the managers' notices.
+    // digest (the page is in none, so the refresh writes no observation row of
+    // its own), and no `review.updated` for the Inbox or the managers' notices.
     expect(after.sourceRevision).toBe(before.sourceRevision)
     const observations = await observationsOf(id)
     expect(observations.map((row) => row.comparison_result)).toEqual([
       'initial_material_revision',
-      'unchanged',
     ])
     expect(new Set(observations.map((row) => row.observation_digest)).size).toBe(1)
     expect(new Set(observations.map((row) => row.material_revision)).size).toBe(1)
