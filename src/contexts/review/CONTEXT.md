@@ -81,6 +81,17 @@ edit, a restatement, a translation, a photo, a moved `updateTime`, a new epoch,
 an out-of-order read, or a read after erasure. Until 2026-10-24 every read wrote
 a row: 3.4M rows for 12,599 reviews on the beta.
 
+Those repeats are deleted once by `pnpm ops review-observations prune`
+(`maintenance.observationRetention`, `observation-retention.repository.ts`; ADR
+0055, note 2026-10-24 (b)). The prune never touches a Review's newest row, the
+first row of a revision, an out-of-order row, or any row where Google showed
+something new. A row that is no longer the newest is a superseded copy. Nothing
+fetches it again, so its clock stays at the last fetch that returned it plus 30
+days. Once that clock has passed, the daily retention sweep blanks its provider
+content and marks it `source_expired`, keeping digests and comparison (subject
+`review_source_observations.superseded_expired`). The newest row follows the
+Review lifecycle.
+
 A Review's own page on Google (`googleReviewUrl`, Google's output-only
 `reviewReplyUrl`, migration 0065) is part of that erasable content. The review
 adapter keeps it only in the one shape Google sends for the review's own

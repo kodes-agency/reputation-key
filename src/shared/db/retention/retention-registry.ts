@@ -122,6 +122,38 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
+    id: 'google.superseded_observation_copies',
+    dataClass: 'google_source_content',
+    ownerContext: 'review',
+    ownerRole: 'Review context owner with the Google terms owner',
+    sourceKind: 'table',
+    source: 'review_source_observations',
+    operation: 'redact',
+    redactColumns: [
+      'rating',
+      'original_text',
+      'translated_text',
+      'language_code',
+      'reviewer_name',
+      'reviewer_profile_photo_url',
+      'reviewed_at',
+      'source_created_at',
+      'source_updated_at',
+    ],
+    eligibility: {
+      anchorColumn: 'content_expires_at',
+      horizon: { kind: 'row_deadline' },
+      predicate:
+        "content_state = 'active' AND observation_sequence <> (SELECT r.source_observation_sequence FROM reviews r WHERE r.id = review_id)",
+      query:
+        "SELECT review_id, observation_sequence FROM review_source_observations o JOIN reviews r ON r.id = o.review_id AND r.organization_id = o.organization_id WHERE o.content_state = 'active' AND o.content_expires_at <= now() AND o.observation_sequence <> r.source_observation_sequence. A copy's content_expires_at is the last fetch that returned it plus 30 days. Nothing fetches a superseded copy again, so its clock never moves.",
+      implementedBoundary:
+        "Live (ADR 0055, note 2026-10-24 (b)). The daily retention sweep subject review_source_observations.superseded_expired blanks these columns in batches of 500 (at most 100 batches a run) and sets content_state to source_expired. It keeps the digests, comparison, revision and RepKey's own times. The newest observation is the Review's current content; it stays with google.source_content and the Review lifecycle.",
+    },
+    evidenceSubject: 'review_source_observations.superseded_expired',
+    restoreImplication: RESTORE_REPLAYS_REDACTION,
+  }),
+  rule({
     id: 'google.import_discovery',
     dataClass: 'google_source_content',
     ownerContext: 'integration',
