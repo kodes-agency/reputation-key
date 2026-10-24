@@ -49,6 +49,7 @@ const PHOTO =
 
 const view = (overrides: Partial<PortalPrintKitView> = {}): PortalPrintKitView => ({
   portalId: 'portal-1',
+  kit: 'current',
   portalName: 'Pool & Terrace',
   primaryLocale: 'en',
   locales: ['en', 'bg'],

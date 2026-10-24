@@ -166,6 +166,8 @@ type PortalContextDeps = Readonly<{
   storage?: StoragePort
   /** Optional image processor override (tests inject a fake decoder); absent = sharp. */
   imageProcessor?: ImageProcessorPort
+  /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final print kit. Absent = today's kit. */
+  printKitFinalEnabled?: boolean
 }>
 
 type ResolvePublishedAccessArtifactRequest = Omit<
@@ -593,6 +595,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       propertyCountry: createPropertyCountryReader(deps.db),
       clock: deps.clock,
       logger: deps.logger,
+      finalKitEnabled: deps.printKitFinalEnabled ?? false,
     }),
     revokePortalTokens: revokePortalTokens({
       portalRepo,

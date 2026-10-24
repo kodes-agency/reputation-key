@@ -239,7 +239,7 @@ async function harness(options: HarnessOptions = {}) {
     },
   }
   return {
-    read: getPortalPrintKit(common),
+    read: getPortalPrintKit({ ...common, finalKitEnabled: false }),
     make: createPortalPrintKit({
       ...common,
       mediaRepo: createPortalMediaAssetRepository(db),

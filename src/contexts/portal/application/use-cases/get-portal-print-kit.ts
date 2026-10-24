@@ -4,7 +4,8 @@
 // languages it offers, and the Property's look, as the live version has them. It carries no address (the
 // preview draws a placeholder code), so reading it discloses nothing and needs
 // only `portal.read`, like the editor's other reads. The PDF itself is
-// `createPortalPrintKit`, which does disclose.
+// `createPortalPrintKit`, which does disclose. It also says which kit the Share
+// tab shows: today's, or the final kit where the server has it turned on.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
@@ -25,6 +26,8 @@ export type GetPortalPrintKitDeps = Readonly<{
     PortalPublicationRepository,
     'loadWorkingCopy' | 'findActiveForPortal'
   >
+  /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final kit instead of today's. */
+  finalKitEnabled: boolean
 }>
 
 export const getPortalPrintKit =
@@ -41,7 +44,11 @@ export const getPortalPrintKit =
       organizationId: ctx.organizationId,
       portal,
     })
-    return presentPortalPrintKit(portal.id, context)
+    return presentPortalPrintKit(
+      portal.id,
+      context,
+      deps.finalKitEnabled ? 'final' : 'current',
+    )
   }
 
 export type GetPortalPrintKit = ReturnType<typeof getPortalPrintKit>

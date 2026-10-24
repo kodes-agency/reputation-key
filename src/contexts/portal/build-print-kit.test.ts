@@ -18,7 +18,7 @@ const ADDRESS =
 
 const base = immersiveConfiguration()
 
-function wire(country: string | null = null) {
+function wire(country: string | null = null, finalKitEnabled = false) {
   const portal = buildTestPortal({ name: 'Harbor lobby' })
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([portal])
@@ -52,6 +52,7 @@ function wire(country: string | null = null) {
     propertyCountry: async () => country,
     clock: () => new Date('2026-10-01T10:00:00Z'),
     logger: { warn: vi.fn() },
+    finalKitEnabled,
   })
   return { portal, useCases, reveal }
 }
@@ -64,6 +65,16 @@ describe('buildPortalPrintKit', () => {
       buildTestAuthContext(),
     )
     expect(view.locales).toEqual(['en', 'bg'])
+    expect(view.kit).toBe('current')
+  })
+
+  it('tells the Share tab to show the final kit only where the server turns it on', async () => {
+    const { portal, useCases } = wire(null, true)
+    const view = await useCases.getPortalPrintKit(
+      { portalId: portal.id },
+      buildTestAuthContext(),
+    )
+    expect(view.kit).toBe('final')
   })
 
   it('draws a real PDF for the address of the live code', async () => {

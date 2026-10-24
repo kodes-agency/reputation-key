@@ -229,6 +229,30 @@ describe('REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED', () => {
   )
 })
 
+describe('PRINT_KIT_FINAL_ENABLED', () => {
+  const parse = (value?: string) =>
+    parseEnvironment({
+      ...testEnvironment({}),
+      ...(value === undefined ? {} : { PRINT_KIT_FINAL_ENABLED: value }),
+    }).PRINT_KIT_FINAL_ENABLED
+
+  it("is off when unset, so the Share tab keeps today's kit", () => {
+    expect(parse()).toBe(false)
+  })
+
+  it('is on for true and off for false', () => {
+    expect(parse('true')).toBe(true)
+    expect(parse('false')).toBe(false)
+  })
+
+  it.each(['True', '1', 'yes', 'on', ' true', ''])(
+    'refuses the near-miss %j at boot instead of guessing which kit to show',
+    (value) => {
+      expect(() => parse(value)).toThrow('PRINT_KIT_FINAL_ENABLED')
+    },
+  )
+})
+
 describe('REVIEW_HEAD_CHECKS', () => {
   const parse = (value?: string) =>
     parseEnvironment({

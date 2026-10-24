@@ -212,6 +212,17 @@ const baseEnvSchema = z.object({
       if (problem !== undefined) context.addIssue({ code: 'custom', message: problem })
     })
     .optional(),
+  // The final print kit (counter, tent and Small card, upright and wide; final
+  // design spec 2026-10-25). 'true' shows it on the Share tab; unset or 'false'
+  // keeps today's kit (the Large card and the Letter-half tent) unchanged.
+  // Exactly 'true' or 'false': a near-miss refuses at boot rather than quietly
+  // showing the wrong kit. Non-secret and optional, default off: nothing in the
+  // deployed environment has to change. Web-read; a restart applies it. Turned
+  // on only after the owner's phone test and real print test (release slice).
+  PRINT_KIT_FINAL_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
