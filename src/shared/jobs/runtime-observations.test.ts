@@ -892,6 +892,127 @@ describe('durable job runtime observations', () => {
       })
     })
 
+    describe('a delayed job promoted between the listing and the read', () => {
+      const MINUTE = 60_000
+      type QueuedState = 'waiting' | 'delayed' | 'prioritized' | 'waiting-children'
+
+      async function readQueued(state: QueuedState, job: Record<string, unknown>) {
+        const { store, contracts } = await bootedHealthCheck()
+        const report = await createJobRuntimeReportReader({
+          contracts,
+          store,
+          queues: {
+            default: null,
+            background: queue({
+              schedulers: scheduled,
+              jobs: { [state]: [{ name: 'health-check', ...job }] },
+            }),
+          },
+          quarantine: null,
+          clock: () => NOW,
+        }).read()
+        return report.rows[0]
+      }
+
+      it('ages a job listed as delayed but read after promotion from its due time', async () => {
+        // BullMQ lists job ids first and reads each hash afterwards. The job was
+        // delayed when listed and promoted a moment before its hash was read, so it
+        // arrives with `delay` zeroed, no `processedOn`, and the add-time `opts.delay`.
+        // It became due 500 ms ago; its creation was a full cadence earlier.
+        const row = await readQueued('delayed', {
+          timestamp: NOW.getTime() - (15 * MINUTE + 500),
+          delay: 0,
+          opts: { delay: 15 * MINUTE },
+        })
+
+        expect(row).toMatchObject({
+          ready: true,
+          reasons: [],
+          oldestWaitingAt: new Date(NOW.getTime() - 500).toISOString(),
+        })
+      })
+
+      it.each([
+        ['still delayed', 'delayed', 3 * MINUTE, 3 * MINUTE, 3 * MINUTE],
+        ['promoted before it was read', 'delayed', 0, 3 * MINUTE, 3 * MINUTE],
+        [
+          'delayed with a live delay that differs from opts.delay',
+          'delayed',
+          1 * MINUTE,
+          3 * MINUTE,
+          1 * MINUTE,
+        ],
+        ['promoted to waiting', 'waiting', 0, 3 * MINUTE, 3 * MINUTE],
+        ['promoted to prioritized', 'prioritized', 0, 3 * MINUTE, 3 * MINUTE],
+        [
+          'waiting on children with an add-time delay',
+          'waiting-children',
+          0,
+          3 * MINUTE,
+          3 * MINUTE,
+        ],
+        ['added without a delay to waiting', 'waiting', 0, undefined, 0],
+        ['added without a delay to prioritized', 'prioritized', 0, undefined, 0],
+        [
+          'added without a delay to waiting-children',
+          'waiting-children',
+          0,
+          undefined,
+          0,
+        ],
+      ] as const)(
+        'dates a job that is %s from its add-time due time (%s, delay %s, opts.delay %s)',
+        async (_situation, state, delay, optsDelay, expectedDueAfterAddMs) => {
+          // Added four minutes ago; every combination here is already due.
+          const addedAt = NOW.getTime() - 4 * MINUTE
+
+          const row = await readQueued(state, {
+            timestamp: addedAt,
+            delay,
+            opts: optsDelay === undefined ? {} : { delay: optsDelay },
+          })
+
+          expect(row).toMatchObject({
+            ready: true,
+            oldestWaitingAt: new Date(addedAt + expectedDueAfterAddMs).toISOString(),
+          })
+        },
+      )
+
+      it.each([
+        ['still delayed', 15 * MINUTE],
+        ['promoted before it was read', 0],
+      ])(
+        'still raises the queue age alert for a job that is %s and overdue past the objective',
+        async (_situation, delay) => {
+          // Due 400 s ago against a 300 s objective: the worker is not keeping up.
+          const dueAt = NOW.getTime() - 400_000
+
+          const row = await readQueued('delayed', {
+            timestamp: dueAt - 15 * MINUTE,
+            delay,
+            opts: { delay: 15 * MINUTE },
+          })
+
+          expect(row).toMatchObject({
+            ready: false,
+            reasons: ['queue_age_objective_missed'],
+            oldestWaitingAt: new Date(dueAt).toISOString(),
+          })
+        },
+      )
+
+      it('ignores a delayed job that is not yet due', async () => {
+        const row = await readQueued('delayed', {
+          timestamp: NOW.getTime() - 5 * MINUTE,
+          delay: 15 * MINUTE,
+          opts: { delay: 15 * MINUTE },
+        })
+
+        expect(row).toMatchObject({ ready: true, oldestWaitingAt: null })
+      })
+    })
+
     it('gives a job requeued by a retry no queue age', async () => {
       const { store, contracts } = await bootedHealthCheck()
 
