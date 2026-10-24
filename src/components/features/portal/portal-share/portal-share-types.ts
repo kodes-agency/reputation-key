@@ -3,9 +3,18 @@ import type { PortalTokenStatus } from '#/contexts/portal/application/public-api
 import type { PortalPublicationState } from '../shared/types'
 import type { PortalPrintKitResources } from './portal-print-kit-types'
 
+/**
+ * A code's three addresses (ADR 0069). `qr` and `nfc` are what is printed or
+ * written to a tag: the short print address when the code has a print code and
+ * the server shows them, the long address with its marker otherwise. `direct` is
+ * the long address with no marker, the one for websites and "Open page": a visit
+ * through it must never count as a scan.
+ */
+export type PortalAddresses = Readonly<{ qr: string; nfc: string; direct: string }>
+
 export type IssuedPortalLink = Readonly<{
   publicUrl: string
-  publicUrls?: Readonly<{ qr: string; nfc: string }>
+  publicUrls?: PortalAddresses
   /** Set by the page when the address was fetched again rather than made. */
   revealed?: boolean
   /**

@@ -3,6 +3,7 @@
 // These tests use real PostgreSQL because a mocked transaction cannot prove
 // that a constraint/fact failure rolls back Portal state and token revocation.
 
+import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
@@ -145,9 +146,15 @@ function accessArtifactCommandParts(
       sourceAggregateVersion: revision.toISOString(),
       occurredAt: revision,
     })
+  // Both channels of a code row store a hash of their own (ADR 0069). Fixtures
+  // stand in for the keyed hash with an unkeyed one of the marker, so no two rows
+  // or channels ever share one.
+  const hashOf = (channel: string, artifactId: string) =>
+    createHash('sha256').update(`${channel}|${artifactId}`).digest('hex')
   return {
     accessArtifacts,
     accessArtifactEvents: [eventFor(qrArtifact), eventFor(nfcArtifact)] as const,
+    printCodeHashes: { qr: hashOf('qr', id), nfc: hashOf('nfc', nfcId) },
   }
 }
 

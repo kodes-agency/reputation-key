@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   PNG_PIXELS_PER_MODULE,
+  QR_ERROR_CORRECTION,
   QR_QUIET_ZONE_MODULES,
   qrDownloadFileName,
   renderQrPngDataUrl,
@@ -115,6 +116,33 @@ describe('portal code rendering', () => {
   it('renders a smaller PNG for the on-screen preview', async () => {
     const preview = await renderQrPreviewDataUrl(ADDRESS)
     expect(pngWidth(preview)).toBeLessThan(pngWidth(await renderQrPngDataUrl(ADDRESS)))
+  })
+})
+
+// The short print address (ADR 0069) is a version 3 symbol, 29 modules, at error
+// correction M and in no other way: Q makes it version 4. The downloads, the
+// preview and the print kit's PDF must all draw the same symbol, so the level is
+// said, not defaulted.
+describe('the short print address', () => {
+  const SHORT = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
+
+  it('draws error correction M, named and not left to the library', () => {
+    expect(QR_ERROR_CORRECTION).toBe('M')
+  })
+
+  it('is a version 3 symbol in the SVG, 29 modules, 37 with the quiet zone', async () => {
+    const svg = await renderQrSvg(SHORT)
+    expect(svgSideInModules(svg)).toBe(37)
+    expect(svgSideInModules(await renderQrSvg(SHORT, 0))).toBe(29)
+  })
+
+  it('is the same symbol in the PNG', async () => {
+    const dataUrl = await renderQrPngDataUrl(SHORT)
+    expect(pngWidth(dataUrl)).toBe(37 * PNG_PIXELS_PER_MODULE)
+  })
+
+  it('is a version 4 symbol in lowercase, which is why the address is drawn in capitals', async () => {
+    expect(svgSideInModules(await renderQrSvg(SHORT.toLowerCase(), 0))).toBe(33)
   })
 })
 

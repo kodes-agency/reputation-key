@@ -10,7 +10,7 @@ import { Button } from '#/components/ui/button'
 import { PortalCodeActions } from './portal-code-actions'
 import { PortalDownloadMenu } from './portal-download-menu'
 import { describeMadeCode } from './portal-share-state'
-import { NFC_ADDRESS_HINT } from './portal-share-guidance'
+import { nfcAddressHint } from './portal-share-guidance'
 import { QR_INK, QR_PAPER } from './portal-qr'
 import { COPY_FAILED_MESSAGE } from './use-copy-link'
 import { usePortalCodeDownload, type ResolveQrAddress } from './use-portal-code-download'
@@ -119,7 +119,7 @@ export function PortalCodeBlock({
         </div>
         {canCopyNfc && (
           <p id={nfcHintId} className="text-xs text-muted-foreground">
-            {NFC_ADDRESS_HINT}
+            {nfcAddressHint(nfcAddress)}
           </p>
         )}
         {nfcCopyFailed && nfcAddress !== null && (

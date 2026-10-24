@@ -89,6 +89,7 @@ export function createInMemoryPortalCommandStore(deps: {
       portalId: string
       propertyId: string
       sealedAddress: SealedPortalAddress | null
+      printCodeHashes: Readonly<{ qr: string; nfc: string }>
       accessArtifacts: readonly [
         { id: string; channel: string },
         { id: string; channel: string },
@@ -105,6 +106,7 @@ export function createInMemoryPortalCommandStore(deps: {
       issuedAt: token.issuedAt,
       sealed: command.sealedAddress,
       accessArtifactIds: { qr: qr.id, nfc: nfc.id },
+      printCodeHashes: command.printCodeHashes,
     })
   }
   const fencePortal = async (

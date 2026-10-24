@@ -1,6 +1,8 @@
-// Portal context — "Download again" server function (round 4, slice 33).
-// Invokes the real handler: no-store first, then authorisation, then the rate
-// limit, then the use case, and nothing reaches the use case on any refusal.
+// Portal context — "Download again" server function (round 4, slice 33), and the
+// two other server functions that hand an address back: issue and replace (ADR
+// 0069). Invokes the real handlers: no-store first, then authorisation, then
+// (for the reveal) the rate limit, then the use case, and nothing reaches the use
+// case on any refusal.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
@@ -12,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   requireExecutionAllowed: vi.fn(),
   resolvePortalManagementScope: vi.fn(),
   revealPortalAddress: vi.fn(),
+  issuePortalToken: vi.fn(),
+  rotatePortalToken: vi.fn(),
   check: vi.fn(),
   setResponseHeader: vi.fn(),
 }))
@@ -41,6 +45,8 @@ vi.mock('#/composition', () => ({
       management: {
         resolvePortalManagementScope: mocks.resolvePortalManagementScope,
         revealPortalAddress: mocks.revealPortalAddress,
+        issuePortalToken: mocks.issuePortalToken,
+        rotatePortalToken: mocks.rotatePortalToken,
       },
     },
   })),
@@ -62,7 +68,11 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
   }
 })
 
-import { revealPortalAddress } from '#/contexts/portal/server/portals'
+import {
+  issuePortalToken,
+  revealPortalAddress,
+  rotatePortalToken,
+} from '#/contexts/portal/server/portals'
 
 const CTX = { userId: 'user-1', organizationId: 'org-1', role: 'AccountAdmin' } as const
 const INPUT = { portalId: 'portal-1', purpose: 'download' } as const
@@ -144,5 +154,61 @@ describe('revealPortalAddress handler (executable)', () => {
     await expect(
       withStartContext(() => revealPortalAddress({ data: INPUT })),
     ).rejects.toMatchObject({ code: 'address_unavailable', status: 422 })
+  })
+})
+
+const NO_STORE = ['Cache-Control', 'private, no-store, max-age=0'] as const
+
+type PortalCall = (input: { data: { portalId: string } }) => Promise<unknown>
+const ADDRESS_HANDLERS: readonly (readonly [
+  string,
+  PortalCall,
+  typeof mocks.issuePortalToken,
+])[] = [
+  ['issuePortalToken', (input) => issuePortalToken(input), mocks.issuePortalToken],
+  ['rotatePortalToken', (input) => rotatePortalToken(input), mocks.rotatePortalToken],
+]
+
+describe.each(ADDRESS_HANDLERS)('%s handler (executable)', (_name, handler, useCase) => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveTenantContext.mockResolvedValue(CTX)
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+    mocks.resolvePortalManagementScope.mockResolvedValue({
+      organizationId: 'org-1',
+      propertyId: 'property-1',
+      portalId: 'portal-1',
+    })
+  })
+
+  it('returns the addresses with the response marked uncacheable', async () => {
+    useCase.mockResolvedValue({ publicUrls: { qr: 'q', nfc: 'n', direct: 'd' } })
+
+    await withStartContext(() => handler({ data: { portalId: 'portal-1' } }))
+
+    expect(useCase).toHaveBeenCalledWith({ portalId: 'portal-1' }, CTX)
+    expect(mocks.setResponseHeader).toHaveBeenCalledWith(...NO_STORE)
+    expect(mocks.setResponseHeader).toHaveBeenCalledWith('Pragma', 'no-cache')
+  })
+
+  it('marks the response uncacheable first, so a refusal is not cached either', async () => {
+    mocks.requireExecutionAllowed.mockRejectedValue(policyDenial())
+
+    await expect(
+      withStartContext(() => handler({ data: { portalId: 'portal-1' } })),
+    ).rejects.toMatchObject({ code: 'scope_denied' })
+
+    expect(mocks.setResponseHeader).toHaveBeenCalledWith(...NO_STORE)
+    expect(useCase).not.toHaveBeenCalled()
+  })
+
+  it('answers a refused print code hash as a 409 the manager can retry', async () => {
+    useCase.mockRejectedValue(
+      portalError('print_code_collision', 'The new code could not be saved. Try again.'),
+    )
+
+    await expect(
+      withStartContext(() => handler({ data: { portalId: 'portal-1' } })),
+    ).rejects.toMatchObject({ code: 'print_code_collision', status: 409 })
   })
 })

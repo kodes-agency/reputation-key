@@ -1,16 +1,19 @@
-// The Share tab's addresses and what is done with them: the QR one (it carries
-// the access-artifact marker) draws the image, the direct one is shown and
-// copied, the NFC one is copied. "Download again" fetches the address once per
-// call, which the server records, and then works from memory like a made one.
+// The Share tab's addresses and what is done with them: the QR one draws the
+// image, the direct one is shown and copied, the NFC one is copied. The QR and
+// NFC addresses count a visit as a scan (the short print address by its code, the
+// long one by its marker); the direct one never does, so it comes from the server
+// as its own field and is never worked out from the QR one. "Download again"
+// fetches the addresses once per call, which the server records, and then works
+// from memory like made ones.
 
-import { directPortalAddress } from './portal-share-state'
+import { directAddressOf } from './portal-share-state'
 import type { PortalShareProps } from './portal-share-types'
 import { useAddressReveal } from './use-address-reveal'
 import { useCopyLink } from './use-copy-link'
 
 export function usePortalShareAddresses(props: PortalShareProps) {
   const publicUrl = props.issuedLink?.publicUrl ?? null
-  const directUrl = publicUrl === null ? null : directPortalAddress(publicUrl)
+  const directUrl = directAddressOf(props.issuedLink)
   const nfcPublicUrl = props.issuedLink?.publicUrls?.nfc ?? null
   const direct = useCopyLink(directUrl)
   const nfc = useCopyLink(nfcPublicUrl)

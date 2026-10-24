@@ -1,16 +1,27 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalAccessArtifactId, portalId } from '#/shared/domain/ids'
+import { portalId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
-import { buildPortalPublicUrls } from '../portal-address-urls'
+import type { PrintCodeReporter } from '../ports/print-code-reporter.port'
+import {
+  portalPublicUrls,
+  type PortalAddressFormat,
+  type PortalPublicUrls,
+} from '../portal-address-urls'
+import {
+  derivePrintCodesForNewCode,
+  printCodeHashesOf,
+  printCodesOf,
+  reportingPrintCodeCollision,
+} from '../print-code-lifecycle'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
+import { publishNewCodeArtifacts } from '../new-code-artifacts'
 import { rotateToken } from '../../domain/portal-token'
 import { portalError } from '../../domain/errors'
-import { portalAccessArtifactPublished, portalTokenRotated } from '../../domain/events'
-import { publishPortalAccessArtifact } from '../../domain/portal-access-artifact'
+import { portalTokenRotated } from '../../domain/events'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import { nextPortalCommandAt } from '../portal-command-version'
 
@@ -25,9 +36,10 @@ export type RotatePortalTokenDeps = Readonly<{
   addressCipher: PortalAddressCipher | null
   staffPublicApi: StaffPublicApi
   commandStore: PortalCommandStore
+  reportPrintCodeProblem: PrintCodeReporter
   idGen: () => string
   clock: () => Date
-  baseUrl: string
+  address: PortalAddressFormat
   defaultGracePeriodSeconds: number
 }>
 
@@ -44,7 +56,7 @@ export const rotatePortalToken =
     Readonly<{
       rawToken: string
       publicUrl: string
-      publicUrls: Readonly<{ qr: string; nfc: string }>
+      publicUrls: PortalPublicUrls
       tokenIdentifier: string
       version: number
       gracePeriodEnds: Date
@@ -125,55 +137,41 @@ export const rotatePortalToken =
       sourceAggregateVersion: revision.toISOString(),
       occurredAt,
     })
-    const qrArtifact = publishPortalAccessArtifact({
-      id: portalAccessArtifactId(deps.idGen()),
-      organizationId: portal.organizationId,
-      propertyId: portal.propertyId,
-      portalId: portal.id,
-      portalTokenId: result.newToken.id,
-      channel: 'qr',
-      now: occurredAt,
-    })
-    const nfcArtifact = publishPortalAccessArtifact({
-      id: portalAccessArtifactId(deps.idGen()),
-      organizationId: portal.organizationId,
-      propertyId: portal.propertyId,
-      portalId: portal.id,
-      portalTokenId: result.newToken.id,
-      channel: 'nfc',
-      now: occurredAt,
-    })
-    const accessArtifacts = [qrArtifact, nfcArtifact] as const
-    const eventFor = (artifact: (typeof accessArtifacts)[number]) =>
-      portalAccessArtifactPublished({
-        accessArtifactId: artifact.id,
-        portalId: portal.id,
-        organizationId: portal.organizationId,
-        propertyId: portal.propertyId,
-        channel: artifact.channel,
-        sourceAggregateVersion: revision.toISOString(),
+    const { accessArtifacts, accessArtifactEvents, artifactIds } =
+      publishNewCodeArtifacts({
+        portal,
+        portalTokenId: result.newToken.id,
+        idGen: deps.idGen,
         occurredAt,
+        revision,
       })
-    const accessArtifactEvents = [eventFor(qrArtifact), eventFor(nfcArtifact)] as const
-    await deps.commandStore.rotatePortalToken({
-      organizationId: ctx.organizationId,
-      propertyId: portal.propertyId,
-      portalId: portal.id,
-      expectedPortalUpdatedAt: portal.updatedAt,
-      oldToken: result.oldToken,
-      newToken: result.newToken,
-      // fallow-ignore-next-line code-duplication
-      issuedBy: ctx.userId,
-      sealedAddress,
-      accessArtifacts,
-      revision,
-      occurredAt,
-      event,
-      accessArtifactEvents,
+    const printCodes = derivePrintCodesForNewCode(deps.tokenCodec, {
+      rawToken: material.rawToken,
+      accessArtifactIds: artifactIds,
     })
-    const publicUrls = buildPortalPublicUrls(deps.baseUrl, material.rawToken, {
-      qr: qrArtifact.id,
-      nfc: nfcArtifact.id,
+    await reportingPrintCodeCollision(deps.reportPrintCodeProblem, () =>
+      deps.commandStore.rotatePortalToken({
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        portalId: portal.id,
+        expectedPortalUpdatedAt: portal.updatedAt,
+        oldToken: result.oldToken,
+        newToken: result.newToken,
+        // fallow-ignore-next-line code-duplication
+        issuedBy: ctx.userId,
+        sealedAddress,
+        printCodeHashes: printCodeHashesOf(printCodes),
+        accessArtifacts,
+        revision,
+        occurredAt,
+        event,
+        accessArtifactEvents,
+      }),
+    )
+    const publicUrls = portalPublicUrls(deps.address, {
+      rawToken: material.rawToken,
+      artifacts: artifactIds,
+      printCodes: printCodesOf(printCodes),
     })
     return {
       rawToken: material.rawToken,

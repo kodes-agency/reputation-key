@@ -93,7 +93,11 @@ async function setup(options: Options = {}) {
     options.reveal ??
       (async () => ({
         publicUrl: QR_ADDRESS,
-        publicUrls: { qr: QR_ADDRESS, nfc: `${QR_ADDRESS}-nfc` },
+        publicUrls: {
+          qr: QR_ADDRESS,
+          nfc: `${QR_ADDRESS}-nfc`,
+          direct: QR_ADDRESS.split('?')[0] ?? QR_ADDRESS,
+        },
         version: 1,
         issuedAt: new Date('2026-10-01T10:00:00Z'),
       })),

@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
+import type { PortalAddressFormat } from '../portal-address-urls'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { issueToken } from '../../domain/portal-token'
+import { portalError } from '../../domain/errors'
 import { createInMemoryPortalAddressRepo } from '#/shared/testing/in-memory-portal-address-repo'
 import { createInMemoryPortalAddressCipher } from '#/shared/testing/in-memory-portal-address-cipher'
 import { unbrand } from '#/shared/domain/ids'
+import { testPortalTokenCodec } from '../../infrastructure/testing/portal-token-codec-fixture'
 import { issuePortalToken } from './issue-portal-token'
 
 const NOW = new Date('2026-08-16T12:00:00.000Z')
@@ -18,11 +21,18 @@ const NEXT_REVISION = new Date(CURRENT_REVISION.getTime() + 1)
 const staffPublicApi = {
   getAccessiblePropertyIds: vi.fn(async () => null),
 } as unknown as StaffPublicApi
-const material = {
-  rawToken: 'raw-token',
-  tokenIdentifier: 'token-id',
-  tokenHash: 'token-hash',
-  tokenKeyVersion: 2,
+const QR_ID = '6a100000-0000-4000-8000-000000000002'
+const NFC_ID = '6a100000-0000-4000-8000-000000000003'
+const IDS = ['6a100000-0000-4000-8000-000000000001', QR_ID, NFC_ID] as const
+const ADDRESS: PortalAddressFormat = {
+  appOrigin: 'https://example.test',
+  printOrigin: 'https://ap.example.test',
+  printCodesEnabled: false,
+}
+
+const idSource = () => {
+  const ids = [...IDS]
+  return () => ids.shift() ?? 'extra-id'
 }
 
 describe('issuePortalToken', () => {
@@ -36,15 +46,11 @@ describe('issuePortalToken', () => {
       findLatestForPortal: vi.fn(async () => null),
       insert,
     } as unknown as PortalTokenRepository
-    const ids = [
-      '6a100000-0000-4000-8000-000000000001',
-      '6a100000-0000-4000-8000-000000000002',
-      '6a100000-0000-4000-8000-000000000003',
-    ]
+    const tokenCodec = testPortalTokenCodec()
     const useCase = issuePortalToken({
       portalRepo,
       portalTokenRepo,
-      tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
+      tokenCodec,
       addressCipher: null,
       staffPublicApi,
       commandStore: createInMemoryPortalCommandStore({
@@ -52,22 +58,25 @@ describe('issuePortalToken', () => {
         portalTokenRepo,
         outbox,
       }),
-      idGen: () => ids.shift()!,
+      reportPrintCodeProblem: vi.fn(),
+      idGen: idSource(),
       clock: () => NOW,
-      baseUrl: 'https://example.test',
+      address: ADDRESS,
     })
 
-    await expect(
-      useCase({ portalId: portal.id }, buildTestAuthContext()),
-    ).resolves.toEqual({
-      rawToken: 'raw-token',
-      publicUrl:
-        'https://example.test/p/raw-token?accessArtifact=6a100000-0000-4000-8000-000000000002',
+    const issued = await useCase({ portalId: portal.id }, buildTestAuthContext())
+
+    const long = (artifactId: string) =>
+      `https://example.test/p/${issued.rawToken}?accessArtifact=${artifactId}`
+    expect(issued).toEqual({
+      rawToken: expect.stringMatching(/^pt_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{43}$/u),
+      publicUrl: long(QR_ID),
       publicUrls: {
-        qr: 'https://example.test/p/raw-token?accessArtifact=6a100000-0000-4000-8000-000000000002',
-        nfc: 'https://example.test/p/raw-token?accessArtifact=6a100000-0000-4000-8000-000000000003',
+        qr: long(QR_ID),
+        nfc: long(NFC_ID),
+        direct: `https://example.test/p/${issued.rawToken}`,
       },
-      tokenIdentifier: 'token-id',
+      tokenIdentifier: expect.any(String),
       version: 1,
       issuedAt: NOW,
       addressRecoverable: false,
@@ -77,7 +86,7 @@ describe('issuePortalToken', () => {
         organizationId: portal.organizationId,
         propertyId: portal.propertyId,
         portalId: portal.id,
-        tokenHash: 'token-hash',
+        tokenHash: expect.any(String),
         printBatch: null,
       }),
     )
@@ -89,14 +98,14 @@ describe('issuePortalToken', () => {
     ])
     expect(outbox.byTag('portal.access_artifact.published')).toEqual([
       expect.objectContaining({
-        accessArtifactId: '6a100000-0000-4000-8000-000000000002',
+        accessArtifactId: QR_ID,
         portalId: portal.id,
         channel: 'qr',
         sourceAggregateVersion: NEXT_REVISION.toISOString(),
         occurredAt: NOW,
       }),
       expect.objectContaining({
-        accessArtifactId: '6a100000-0000-4000-8000-000000000003',
+        accessArtifactId: NFC_ID,
         portalId: portal.id,
         channel: 'nfc',
         sourceAggregateVersion: NEXT_REVISION.toISOString(),
@@ -130,7 +139,7 @@ describe('issuePortalToken', () => {
     const useCase = issuePortalToken({
       portalRepo,
       portalTokenRepo,
-      tokenCodec: { issue: vi.fn() } as unknown as PortalTokenCodec,
+      tokenCodec: testPortalTokenCodec(),
       addressCipher: null,
       staffPublicApi,
       commandStore: createInMemoryPortalCommandStore({
@@ -138,9 +147,10 @@ describe('issuePortalToken', () => {
         portalTokenRepo,
         outbox,
       }),
+      reportPrintCodeProblem: vi.fn(),
       idGen: () => 'portal-token-2',
       clock: () => NOW,
-      baseUrl: 'https://example.test',
+      address: ADDRESS,
     })
 
     await expect(
@@ -157,16 +167,11 @@ describe('issuePortalToken', () => {
       insert: vi.fn(async () => undefined),
     } as unknown as PortalTokenRepository
     const portalAddressRepo = createInMemoryPortalAddressRepo()
-    const ids = [
-      '6a100000-0000-4000-8000-000000000001',
-      '6a100000-0000-4000-8000-000000000002',
-      '6a100000-0000-4000-8000-000000000003',
-    ]
     const ctx = buildTestAuthContext()
     const useCase = issuePortalToken({
       portalRepo,
       portalTokenRepo,
-      tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
+      tokenCodec: testPortalTokenCodec(),
       addressCipher: createInMemoryPortalAddressCipher({ activeKeyVersion: 3 }),
       staffPublicApi,
       commandStore: createInMemoryPortalCommandStore({
@@ -175,9 +180,10 @@ describe('issuePortalToken', () => {
         portalAddressRepo,
         outbox: createRecordedOutbox(),
       }),
-      idGen: () => ids.shift()!,
+      reportPrintCodeProblem: vi.fn(),
+      idGen: idSource(),
       clock: () => NOW,
-      baseUrl: 'https://example.test',
+      address: ADDRESS,
     })
 
     const issued = await useCase({ portalId: portal.id }, ctx)
@@ -185,17 +191,14 @@ describe('issuePortalToken', () => {
     expect(issued.addressRecoverable).toBe(true)
     const sealed = await portalAddressRepo.findRevealable(ctx.organizationId, portal.id)
     expect(sealed).toMatchObject({
-      tokenId: '6a100000-0000-4000-8000-000000000001',
+      tokenId: IDS[0],
       version: 1,
       sealed: { keyVersion: 3 },
-      accessArtifactIds: {
-        qr: '6a100000-0000-4000-8000-000000000002',
-        nfc: '6a100000-0000-4000-8000-000000000003',
-      },
+      accessArtifactIds: { qr: QR_ID, nfc: NFC_ID },
     })
     // Bound to its own row: the fake refuses any other scope, as the real cipher does.
     expect(sealed?.sealed.ciphertext).toContain(
-      `${unbrand(ctx.organizationId)}/${unbrand(portal.propertyId)}/${unbrand(portal.id)}/6a100000-0000-4000-8000-000000000001/1`,
+      `${unbrand(ctx.organizationId)}/${unbrand(portal.propertyId)}/${unbrand(portal.id)}/${IDS[0]}/1`,
     )
   })
 
@@ -208,11 +211,10 @@ describe('issuePortalToken', () => {
       insert: vi.fn(async () => undefined),
     } as unknown as PortalTokenRepository
     const portalAddressRepo = createInMemoryPortalAddressRepo()
-    const ids = ['a', 'b', 'c']
     const useCase = issuePortalToken({
       portalRepo,
       portalTokenRepo,
-      tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
+      tokenCodec: testPortalTokenCodec(),
       addressCipher: null,
       staffPublicApi,
       commandStore: createInMemoryPortalCommandStore({
@@ -221,14 +223,172 @@ describe('issuePortalToken', () => {
         portalAddressRepo,
         outbox: createRecordedOutbox(),
       }),
-      idGen: () => ids.shift()!,
+      reportPrintCodeProblem: vi.fn(),
+      idGen: idSource(),
       clock: () => NOW,
-      baseUrl: 'https://example.test',
+      address: ADDRESS,
     })
 
     await expect(
       useCase({ portalId: portal.id }, buildTestAuthContext()),
-    ).resolves.toMatchObject({ rawToken: 'raw-token', addressRecoverable: false })
+    ).resolves.toMatchObject({
+      rawToken: expect.stringMatching(/^pt_/u),
+      addressRecoverable: false,
+    })
     expect(portalAddressRepo.sealedCount()).toBe(0)
+  })
+})
+
+describe('issuePortalToken — print codes (ADR 0069)', () => {
+  /** The use case over the in-memory stores, recording what the store was asked to write. */
+  function setup(
+    options: Readonly<{
+      address?: PortalAddressFormat
+      commandStore?: (inner: PortalCommandStore) => PortalCommandStore
+    }> = {},
+  ) {
+    const portalRepo = createInMemoryPortalRepo()
+    const portal = buildTestPortal({ updatedAt: CURRENT_REVISION })
+    portalRepo.seed([portal])
+    const portalTokenRepo = {
+      findLatestForPortal: vi.fn(async () => null),
+      insert: vi.fn(async () => undefined),
+    } as unknown as PortalTokenRepository
+    const outbox = createRecordedOutbox()
+    const inner = createInMemoryPortalCommandStore({
+      portalRepo,
+      portalTokenRepo,
+      outbox,
+    })
+    const issued: Parameters<PortalCommandStore['issuePortalToken']>[0][] = []
+    const recording: PortalCommandStore = {
+      ...inner,
+      issuePortalToken: async (command) => {
+        issued.push(command)
+        return inner.issuePortalToken(command)
+      },
+    }
+    const reportPrintCodeProblem = vi.fn()
+    const tokenCodec = testPortalTokenCodec()
+    const useCase = issuePortalToken({
+      portalRepo,
+      portalTokenRepo,
+      tokenCodec,
+      addressCipher: null,
+      staffPublicApi,
+      commandStore: options.commandStore ? options.commandStore(recording) : recording,
+      reportPrintCodeProblem,
+      idGen: idSource(),
+      clock: () => NOW,
+      address: options.address ?? ADDRESS,
+    })
+    return {
+      portal,
+      outbox,
+      issued,
+      tokenCodec,
+      reportPrintCodeProblem,
+      run: () => useCase({ portalId: portal.id }, buildTestAuthContext()),
+    }
+  }
+
+  it('stores both print code hashes with the new code, derived from its address and its two markers', async () => {
+    const { run, issued, tokenCodec } = setup()
+
+    const result = await run()
+
+    const derived = tokenCodec.derivePrintCodes({
+      rawToken: result.rawToken,
+      accessArtifactIds: { qr: QR_ID, nfc: NFC_ID },
+    })
+    expect(derived).not.toBeNull()
+    expect(issued).toHaveLength(1)
+    expect(issued[0]?.printCodeHashes).toEqual({
+      qr: derived?.qr.printCodeHash,
+      nfc: derived?.nfc.printCodeHash,
+    })
+    expect(derived?.qr.printCodeHash).not.toBe(derived?.nfc.printCodeHash)
+  })
+
+  it('mints the hashes even when the short address is switched off, and shows the long one', async () => {
+    const { run, issued } = setup({ address: { ...ADDRESS, printCodesEnabled: false } })
+
+    const result = await run()
+
+    expect(issued[0]?.printCodeHashes.qr).toMatch(/^[0-9a-f]{64}$/u)
+    expect(result.publicUrls.qr).toContain('?accessArtifact=')
+    expect(result.publicUrls.nfc).toContain('?accessArtifact=')
+    expect(result.publicUrl).toBe(result.publicUrls.qr)
+  })
+
+  it('shows the short addresses, and the long one only as direct, when it is switched on', async () => {
+    const { run, tokenCodec } = setup({
+      address: { ...ADDRESS, printCodesEnabled: true },
+    })
+
+    const result = await run()
+
+    const derived = tokenCodec.derivePrintCodes({
+      rawToken: result.rawToken,
+      accessArtifactIds: { qr: QR_ID, nfc: NFC_ID },
+    })
+    expect(result.publicUrls).toEqual({
+      qr: `HTTPS://AP.EXAMPLE.TEST/p/${derived?.qr.printCode}`,
+      nfc: `https://ap.example.test/p/${derived?.nfc.printCode}`,
+      direct: `https://example.test/p/${result.rawToken}`,
+    })
+    expect(result.publicUrl).toBe(result.publicUrls.qr)
+  })
+
+  it('reports a refused hash, with no code in the report, and lets the refusal through', async () => {
+    const refusal = portalError(
+      'print_code_collision',
+      'The new code could not be saved.',
+    )
+    const { run, reportPrintCodeProblem } = setup({
+      commandStore: (inner) => ({
+        ...inner,
+        issuePortalToken: async () => {
+          throw refusal
+        },
+      }),
+    })
+
+    await expect(run()).rejects.toBe(refusal)
+
+    expect(reportPrintCodeProblem.mock.calls).toEqual([['collision']])
+  })
+
+  it('does not report a failure that is not a collision', async () => {
+    const { run, reportPrintCodeProblem } = setup({
+      commandStore: (inner) => ({
+        ...inner,
+        issuePortalToken: async () => {
+          throw portalError('revision_conflict', 'Portal changed')
+        },
+      }),
+    })
+
+    await expect(run()).rejects.toMatchObject({ code: 'revision_conflict' })
+
+    expect(reportPrintCodeProblem).not.toHaveBeenCalled()
+  })
+
+  it('keeps every print code, its hash and the address out of the events it records', async () => {
+    const { run, outbox, issued } = setup({
+      address: { ...ADDRESS, printCodesEnabled: true },
+    })
+
+    const result = await run()
+
+    const recorded = JSON.stringify(outbox.facts)
+    expect(outbox.facts.length).toBeGreaterThanOrEqual(3)
+    const hashes = issued[0]?.printCodeHashes
+    const printCode = result.publicUrls.qr.split('/p/')[1] ?? ''
+    expect(printCode).toHaveLength(20)
+    for (const secret of [result.rawToken, printCode, hashes?.qr, hashes?.nfc]) {
+      expect(secret).toBeTruthy()
+      expect(recorded).not.toContain(secret)
+    }
   })
 })

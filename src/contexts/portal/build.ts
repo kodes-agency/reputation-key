@@ -93,6 +93,8 @@ import { issuePortalToken } from './application/use-cases/issue-portal-token'
 import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
 import { revealPortalAddress } from './application/use-cases/reveal-portal-address'
+import type { PortalAddressFormat } from './application/portal-address-urls'
+import { createPrintCodeReporter } from './infrastructure/print-code-reporter'
 import { buildPortalPrintKit } from './build-print-kit'
 import { createPropertyCountryReader } from './infrastructure/print-kit/print-kit-property-country'
 import {
@@ -142,6 +144,13 @@ type PortalContextDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
   baseUrl: string
+  /**
+   * The print host and the switch for the short address (ADR 0069). `printOrigin`
+   * is `PORTAL_PRINT_ORIGIN`; unset, a print code is scanned on the app's own
+   * origin. `enabled` is `PORTAL_PRINT_CODES_ENABLED`: off, every address a
+   * manager sees is the long one, though print codes are still derived and stored.
+   */
+  printCodes?: Readonly<{ printOrigin?: string; enabled: boolean }>
   idGen: () => string
   secureRandomBytes: (size: number) => Buffer
   tokenHashSecret: string
@@ -222,6 +231,12 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       })
     : null
   const portalAddressRepo = createPortalAddressRepository(deps.db)
+  const addressFormat: PortalAddressFormat = {
+    appOrigin: deps.baseUrl,
+    printOrigin: deps.printCodes?.printOrigin ?? new URL(deps.baseUrl).origin,
+    printCodesEnabled: deps.printCodes?.enabled ?? false,
+  }
+  const reportPrintCodeProblem = createPrintCodeReporter(deps.logger)
   const portalWorkflowFactStore = createPortalWorkflowFactStore(deps.db)
   const storage =
     deps.storage ??
@@ -255,8 +270,10 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     staffPublicApi: deps.staffPublicApi,
     portalAddressRepo,
     addressCipher: portalAddressCipher,
+    tokenCodec: portalTokenCodec,
+    reportPrintCodeProblem,
     clock: deps.clock,
-    baseUrl: deps.baseUrl,
+    address: addressFormat,
   })
   const useCases = {
     revalidatePortalApprovedDestinations: revalidatePortalApprovedDestinations({
@@ -568,8 +585,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       addressCipher: portalAddressCipher,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
+      reportPrintCodeProblem,
       idGen: deps.idGen,
-      baseUrl: deps.baseUrl,
+      address: addressFormat,
       clock: deps.clock,
     }),
     rotatePortalToken: rotatePortalToken({
@@ -579,9 +597,10 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       addressCipher: portalAddressCipher,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
+      reportPrintCodeProblem,
       idGen: deps.idGen,
       clock: deps.clock,
-      baseUrl: deps.baseUrl,
+      address: addressFormat,
       defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
     }),
     revealPortalAddress: revealAddress,

@@ -30,8 +30,11 @@ export type PortalPrintKitDeps = Readonly<{
   /** The Property's country, which sets the paper a print defaults to. */
   propertyCountry: PropertyCountryReader
   clock: () => Date
-  /** Hears what is worth a look but does not stop a print, such as a logo that prints soft. */
-  logger: Pick<LoggerPort, 'warn'>
+  /**
+   * Hears what is worth a look but does not stop a print, such as a logo that
+   * prints soft, and what shape of address a print carried (`info`).
+   */
+  logger: Pick<LoggerPort, 'warn' | 'info'>
   /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final kit instead of today's. */
   finalKitEnabled: boolean
 }>
@@ -42,7 +45,7 @@ export type PortalPrintKitDeps = Readonly<{
 // resolving them.
 const lazyRenderer = (
   now: () => Date,
-  logger: Pick<LoggerPort, 'warn'>,
+  logger: Pick<LoggerPort, 'warn' | 'info'>,
 ): PortalPrintKitRenderer => ({
   render: async (input) => {
     const { createPdfKitPrintKitRenderer } =
@@ -50,6 +53,8 @@ const lazyRenderer = (
     return createPdfKitPrintKitRenderer({
       now,
       warn: (warning) => logger.warn(warning.context, warning.message),
+      // The shape of the address and the symbol's version, never the address.
+      reportRender: (facts) => logger.info(facts, 'Print kit rendered'),
     }).render(input)
   },
 })

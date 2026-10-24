@@ -4,6 +4,9 @@ import {
   describeShareAccess,
   describeUnpublishedCode,
   describeWhoToAsk,
+  NFC_ADDRESS_HINT,
+  NFC_SHORT_ADDRESS_HINT,
+  nfcAddressHint,
 } from './portal-share-guidance'
 
 describe('describeShareAccess', () => {
@@ -127,5 +130,27 @@ describe('describeGraceCutoff', () => {
   it('is null without a cutoff or with one that is not a time', () => {
     expect(describeGraceCutoff(null, now, 'Europe/Sofia')).toBeNull()
     expect(describeGraceCutoff('soon', now, 'Europe/Sofia')).toBeNull()
+  })
+})
+
+describe('nfcAddressHint', () => {
+  const SHORT = 'https://ap.up.railway.app/p/7K3QZ0VD9MWX4HT2BN6R'
+  const LONG =
+    'https://web-closed-beta-v2.up.railway.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-aBcDe?accessArtifact=0b6d1c1e-52c4-4b34-9d63-6e3b4a1f9a10'
+
+  it('names the NTAG213 for the short print address, which fits one', () => {
+    expect(nfcAddressHint(SHORT)).toBe(NFC_SHORT_ADDRESS_HINT)
+    expect(NFC_SHORT_ADDRESS_HINT).toContain('NTAG213')
+    expect(Buffer.byteLength(SHORT)).toBeLessThanOrEqual(144)
+  })
+
+  it('says nothing about the tag for the long address, which does not fit an NTAG213', () => {
+    expect(nfcAddressHint(LONG)).toBe(NFC_ADDRESS_HINT)
+    expect(NFC_ADDRESS_HINT).not.toContain('NTAG')
+    expect(Buffer.byteLength(LONG)).toBeGreaterThan(144)
+  })
+
+  it('is the general hint while the address is not in memory', () => {
+    expect(nfcAddressHint(null)).toBe(NFC_ADDRESS_HINT)
   })
 })

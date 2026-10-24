@@ -27,14 +27,14 @@ export type PortalOpenPageControlProps = Readonly<{
 
 export function PortalOpenPageControl(props: PortalOpenPageControlProps) {
   const { issuedLink } = usePortalLinkIssuance()
-  const heldAddress = issuedLink?.publicUrl ?? null
+  const heldLink = issuedLink ?? null
   const mode = deriveOpenPageMode({
     canUpdate: props.canUpdate,
     portalWriteEnabled: props.portalWriteEnabled,
     publicationState: props.publicationState,
     tokenStatus: props.tokenStatus,
     activeTab: props.activeTab,
-    hasHeldAddress: heldAddress !== null,
+    hasHeldAddress: heldLink !== null,
   })
   if (mode === 'hidden') return null
   return (
@@ -42,7 +42,7 @@ export function PortalOpenPageControl(props: PortalOpenPageControlProps) {
       propertyId={props.propertyId}
       portalId={props.portalId}
       mode={mode}
-      heldAddress={heldAddress}
+      heldLink={heldLink}
       revealMutation={props.revealMutation}
     />
   )

@@ -6,6 +6,7 @@
 import type { PortalPublicationState } from '../shared/types'
 import { formatTimestamp, toInstant } from '#/lib/format'
 import { describeTimezone } from '#/shared/timezone-display'
+import { printAddressShape } from '#/shared/domain/portal-print-address'
 import { joinPeopleNames } from '../portal-review/portal-review-checks'
 
 /**
@@ -134,3 +135,17 @@ export function describeGraceCutoff(
 /** Under "Copy NFC address": what the address is for and how to check a tag. */
 export const NFC_ADDRESS_HINT =
   'Write this address to an NFC tag with any tag-writing app, then tap the tag with a phone to test it. Use this address, not the public one, so taps are counted as NFC.'
+
+/**
+ * The same, for the short print address (ADR 0069): 48 bytes on a tag, so the
+ * cheapest NTAG213 holds it. The long address is 159 bytes on the beta, which an
+ * NTAG213 (144) does not, so its hint says nothing about the tag.
+ */
+export const NFC_SHORT_ADDRESS_HINT =
+  'Write this address to an NFC tag (an NTAG213 or any larger one will do) with any tag-writing app, then tap the tag with a phone to test it. Use this address, not the public one, so taps are counted as NFC.'
+
+/** The hint for the NFC address the manager holds, or the general one while it is not in memory. */
+export const nfcAddressHint = (nfcAddress: string | null): string =>
+  nfcAddress !== null && printAddressShape(nfcAddress) === 'short'
+    ? NFC_SHORT_ADDRESS_HINT
+    : NFC_ADDRESS_HINT

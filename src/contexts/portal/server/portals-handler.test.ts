@@ -27,6 +27,12 @@ vi.mock('#/shared/auth/headers', () => ({
   headersFromContext: vi.fn(async () => new Headers()),
 }))
 
+// Issue, replace and "download again" mark their response uncacheable before
+// anything else can fail (ADR 0069); outside a request there is no response.
+vi.mock('@tanstack/react-start/server', () => ({
+  setResponseHeader: vi.fn(),
+}))
+
 vi.mock('#/shared/auth/middleware', () => ({
   resolveTenantContext: mocks.resolveTenantContext,
 }))

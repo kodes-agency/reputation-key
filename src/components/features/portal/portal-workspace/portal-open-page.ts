@@ -11,7 +11,7 @@ import type { PortalTokenStatus } from '#/contexts/portal/application/public-api
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
-import { directPortalAddress } from '../portal-share/portal-share-state'
+import { directAddressOf } from '../portal-share/portal-share-state'
 import type { PortalPublicationState } from '../shared/types'
 
 /** `hidden`: nothing useful to offer (no permission, or Share is already on screen). */
@@ -39,15 +39,20 @@ export function deriveOpenPageMode(
   return input.activeTab === 'share' ? 'hidden' : 'share'
 }
 
+/** What a link holds for opening its page: its QR address and, from the server, its direct one. */
+export type OpenableLink = Readonly<{
+  publicUrl: string
+  publicUrls?: { direct: string }
+}>
+
 /**
  * The address to open for a revealed link, or null when it is not a page of this
- * product. The QR marker is dropped: a visit carrying it is recorded as a scan
- * from a printed code, and a manager checking their own page is not one.
+ * product. It is the link's `direct` address, the long one with no marker: a visit
+ * through the QR address (a print code, or a marker) is recorded as a scan from a
+ * printed code, and a manager checking their own page is not one.
  */
-export function openablePageAddress(
-  link: Readonly<{ publicUrl: string }>,
-): string | null {
-  const address = directPortalAddress(link.publicUrl)
+export function openablePageAddress(link: OpenableLink): string | null {
+  const address = directAddressOf(link) ?? link.publicUrl
   try {
     const url = new URL(address)
     const isWeb = url.protocol === 'https:' || url.protocol === 'http:'
@@ -70,16 +75,15 @@ export type OpenPageOutcome = 'opened' | 'popup_blocked' | 'unavailable' | 'fail
  */
 export async function openLivePage(deps: {
   openBlankTab: () => BlankTab | null
-  reveal: (purpose: 'show') => Promise<Readonly<{ publicUrl: string }>>
+  reveal: (purpose: 'show') => Promise<OpenableLink>
   /**
-   * An address already held in memory (made or fetched again here). It opens
-   * directly: nothing needs revealing, so nothing is disclosed or counted.
+   * A link already held in memory (made or fetched again here). Its direct
+   * address opens: nothing needs revealing, so nothing is disclosed or counted.
    */
-  heldAddress?: string | null
+  heldLink?: OpenableLink | null
   openAddress?: (url: string) => void
 }): Promise<OpenPageOutcome> {
-  const held =
-    deps.heldAddress == null ? null : openablePageAddress({ publicUrl: deps.heldAddress })
+  const held = deps.heldLink == null ? null : openablePageAddress(deps.heldLink)
   if (held !== null && deps.openAddress !== undefined) {
     deps.openAddress(held)
     return 'opened'

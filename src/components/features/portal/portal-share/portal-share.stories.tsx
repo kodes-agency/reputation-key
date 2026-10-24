@@ -23,7 +23,7 @@ type RevokeInput = { data: { portalId: string; reason: string } }
 type RevealInput = { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } }
 type LinkResult = {
   publicUrl: string
-  publicUrls?: { qr: string; nfc: string }
+  publicUrls?: { qr: string; nfc: string; direct: string }
 }
 
 const publicUrl = 'https://portal.example/p/opaque-token-shown-once'
@@ -33,7 +33,7 @@ const qrPublicUrl = `${publicUrl}?accessArtifact=artifact-qr-1`
 const nfcPublicUrl = `${publicUrl}?accessArtifact=artifact-nfc-1`
 const issuedLink = {
   publicUrl: qrPublicUrl,
-  publicUrls: { qr: qrPublicUrl, nfc: nfcPublicUrl },
+  publicUrls: { qr: qrPublicUrl, nfc: nfcPublicUrl, direct: publicUrl },
 }
 
 const noActiveToken: PortalTokenStatus = {

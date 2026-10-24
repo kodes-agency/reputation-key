@@ -18,16 +18,21 @@ const ADDRESS =
 
 const base = immersiveConfiguration()
 
-function wire(country: string | null = null, finalKitEnabled = false) {
+function wire(
+  country: string | null = null,
+  finalKitEnabled = false,
+  address: string = ADDRESS,
+) {
   const portal = buildTestPortal({ name: 'Harbor lobby' })
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([portal])
   const reveal = vi.fn<RevealPortalAddress>(async () => ({
-    publicUrl: ADDRESS,
-    publicUrls: { qr: ADDRESS, nfc: ADDRESS },
+    publicUrl: address,
+    publicUrls: { qr: address, nfc: address, direct: address.split('?')[0] ?? address },
     version: 1,
     issuedAt: new Date('2026-10-01T10:00:00Z'),
   }))
+  const logger = { warn: vi.fn(), info: vi.fn() }
   const useCases = buildPortalPrintKit({
     portalRepo,
     staffPublicApi: {
@@ -51,10 +56,10 @@ function wire(country: string | null = null, finalKitEnabled = false) {
     revealAddress: reveal,
     propertyCountry: async () => country,
     clock: () => new Date('2026-10-01T10:00:00Z'),
-    logger: { warn: vi.fn() },
+    logger,
     finalKitEnabled,
   })
-  return { portal, useCases, reveal }
+  return { portal, useCases, reveal, logger }
 }
 
 describe('buildPortalPrintKit', () => {
@@ -113,4 +118,41 @@ describe('buildPortalPrintKit', () => {
     expect(file.fileName).toBe('harbor-lobby-counter-card-en-letter.pdf')
     expect(text.startsWith('%PDF-1.4')).toBe(true)
   })
+
+  // ADR 0069: a print says what shape of address it carried and which symbol it
+  // came to, so a manager's long address and the short one can be told apart in
+  // the logs, and never the address itself.
+  it.each([
+    ['a long address', ADDRESS, 'long', 8],
+    [
+      'a short print address',
+      'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R',
+      'short',
+      3,
+    ],
+  ] as const)(
+    'logs the shape and symbol version of %s, and not the address',
+    async (_label, address, addressShape, symbolVersion) => {
+      const { portal, useCases, logger } = wire(null, false, address)
+
+      await useCases.createPortalPrintKit(
+        {
+          portalId: portal.id,
+          piece: 'counter_card',
+          languages: ['en'],
+          callToAction: 'rate',
+          style: 'paper',
+        },
+        buildTestAuthContext(),
+      )
+
+      expect(logger.info).toHaveBeenCalledWith(
+        { addressShape, symbolVersion },
+        'Print kit rendered',
+      )
+      expect(
+        JSON.stringify([logger.info.mock.calls, logger.warn.mock.calls]),
+      ).not.toMatch(/pt_|7K3QZ0VD9MWX4HT2BN6R|accessArtifact/u)
+    },
+  )
 })

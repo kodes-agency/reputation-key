@@ -1574,9 +1574,44 @@ with the feature is repaired by a fix deployed forward.
 
 **Print codes and the print host (ADR 0069).** A short printed address,
 `https://ap.up.railway.app/p/<print code>`, replaces the long address on new prints.
-Migration 0070, the codec and the print host redirect are in; no print code is
-minted until the step that mints them ships, so everything below applies from that
-release on. The redirect does nothing until `PORTAL_PRINT_ORIGIN` is set.
+Migration 0070, the codec, the print host redirect and the minting are in. Every new
+or replaced code stores its two print code hashes, and a "Download again" fills the
+hashes of a code made before, whatever `PORTAL_PRINT_CODES_ENABLED` says; the switch
+only decides whether a manager is shown the short address. The redirect does nothing
+until `PORTAL_PRINT_ORIGIN` is set.
+
+- **`PORTAL_PRINT_CODES_ENABLED`.** `true` or `false`, default `false`, any other
+  spelling stops web and worker at boot with the field named. Off, the print kit, the QR
+  downloads and "Copy NFC address" carry the long address exactly as before, and the
+  Share tab's "Public address" and "Open page" are the long address in both states.
+  On, they carry `HTTPS://AP.UP.RAILWAY.APP/p/<code>` (QR) and
+  `https://ap.up.railway.app/p/<code>` (NFC). **Flip it once, after a phone test has
+  passed the uppercase QR on current and old cameras (and an NTAG213 has opened on
+  an iPhone and a Samsung):** a card printed afterwards carries the short address for
+  life, and the name it carries is Railway's, not ours (ADR 0069, known lock-in). Set
+  it on web with `--skip-deploys`, then redeploy web; the worker makes no code and prints
+  nothing, so it does nothing with it.
+  Flipping it back stops new prints from carrying the short address and nothing
+  else: a printed short code keeps opening, and the redirect must stay. Before
+  flipping it, check that the hashes are filling (the second query below) and that
+  `PrintCodeDeriveMismatch` has not fired.
+- **Progress of the hashes** (read-only, no secrets). Before the switch: how many
+  live codes could get print codes (a code with no sealed copy cannot print at all),
+  and afterwards how many still lack a hash:
+
+  ```sql
+  SELECT status, (encrypted_raw_token IS NOT NULL) AS sealed, count(*)
+  FROM portal_tokens GROUP BY 1, 2 ORDER BY 1, 2;
+
+  SELECT count(*) FILTER (WHERE qr_print_code_hash IS NULL OR nfc_print_code_hash IS NULL)
+           AS without_print_codes,
+         count(*) AS total
+  FROM portal_tokens WHERE status = 'active';
+  ```
+
+  A live code gets its hashes the first time its address is revealed (a print, a QR
+  download, "Copy NFC address" or "Download again"); there is no backfill command.
+  A new or replaced code has them from the start.
 
 - **The print host stays.** `ap.up.railway.app` is a second Railway domain on the web
   service and redirects `/p/<code>` to the app origin (`PORTAL_PRINT_ORIGIN`, set on
@@ -1622,9 +1657,17 @@ release on. The redirect does nothing until `PORTAL_PRINT_ORIGIN` is set.
   long address at once (no grace). A planned replacement keeps the old print codes
   live through its grace.
 - **In Sentry.** `PrintCodeDeriveMismatch` (a reveal found a stored hash that
-  differs from the derived one and fell back to the long address) and
-  `PrintCodeCollision` (a unique index refused a new code's hash) each need a look.
-  Neither carries a code or a hash.
+  differs from the derived one, or could not derive at all, and fell back to the
+  long address), `PrintCodeFillFailed` (a missing hash could not be stored) and
+  `PrintCodeCollision` (a unique index refused a hash, at issue, replace or fill)
+  each need a look. None carries a code or a hash; the log line carries only
+  `portal.print_code.derive_mismatch`, `portal.print_code.fill_failed` or
+  `portal.print_code.collision`. A collision at issue or replace reaches the manager
+  as "The new code could not be saved. Try again."; the odds are about 2^-59.
+- **Server logs show the shape, never the address.** The guest page read logs
+  `addressShape` (`long` or `short`), and a print kit render logs `addressShape` and
+  `symbolVersion` (3 for the short address on the print host). Use them to see the
+  short address in use after the switch.
 
 **Verification.** Make a code on a test Portal, reload, and confirm "Download
 again" is offered; download it, then read the Portal's History and confirm a

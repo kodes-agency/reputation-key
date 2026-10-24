@@ -223,6 +223,18 @@ const baseEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // Whether a manager gets the short address (ADR 0069): the print kit, the QR
+  // downloads and "Copy NFC address" carry `<print host>/p/<print code>` instead of
+  // the long address. Default 'false': every manager-visible output is exactly what
+  // it was (the print codes are still minted and filled, which changes nothing a
+  // manager sees). Flip it only once a phone test has passed the uppercase QR form
+  // on current and old cameras: a printed card cannot be redrawn. Exactly 'true'
+  // or 'false': any other spelling refuses boot, so a mistyped switch cannot print
+  // an address nobody tested. Web-read; a redeploy applies it.
+  PORTAL_PRINT_CODES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),

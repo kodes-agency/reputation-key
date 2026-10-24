@@ -10,6 +10,15 @@ import { fileNameSlug } from '#/shared/domain/file-name-slug'
 
 export const QR_QUIET_ZONE_MODULES = 4
 
+/**
+ * The error correction of every symbol the product draws: the print kit's PDF
+ * (`print-kit-qr.ts`), the preview and both downloads. Said here and not left to
+ * the library's default, because the short print address is a version 3 symbol
+ * only at this level (Q makes it version 4; ADR 0069), and the file and the
+ * picture must be one symbol.
+ */
+export const QR_ERROR_CORRECTION = 'M'
+
 /** Whole pixels per module keep the PNG's module edges sharp at any print size. */
 export const PNG_PIXELS_PER_MODULE = 24
 const PREVIEW_PIXELS_PER_MODULE = 6
@@ -44,6 +53,7 @@ export async function renderQrSvg(
   const QRCode = await qrcode()
   return QRCode.toString(address, {
     type: 'svg',
+    errorCorrectionLevel: QR_ERROR_CORRECTION,
     margin: quietZoneModules,
     color: colors,
   })
@@ -58,6 +68,7 @@ export async function renderQrPngDataUrl(
 ): Promise<string> {
   const QRCode = await qrcode()
   return QRCode.toDataURL(address, {
+    errorCorrectionLevel: QR_ERROR_CORRECTION,
     margin: QR_QUIET_ZONE_MODULES,
     scale: options.pixelsPerModule ?? PNG_PIXELS_PER_MODULE,
     color: COLORS,

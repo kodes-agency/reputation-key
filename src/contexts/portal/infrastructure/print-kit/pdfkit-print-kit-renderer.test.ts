@@ -19,6 +19,8 @@ import { qrDarkRuns, qrMatrix } from './print-kit-qr'
 
 const ADDRESS =
   'https://app.reputationkey.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-aBcDe?accessArtifact=0b6d1c1e-52c4-4b34-9d63-6e3b4a1f9a10'
+/** What a code carries once print codes are minted: the print host in capitals and a 20-character code. */
+const SHORT_ADDRESS = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
 const TITLES = { en: 'Pool & Terrace', bg: 'Басейн и тераса' }
 
 const renderer = createPdfKitPrintKitRenderer({
@@ -92,6 +94,29 @@ describe.each(PRINT_KIT_STYLES)('the %s print', (style) => {
         runs.filter((text) => /reputationkey|\/p\/|pt_|accessArtifact/u.test(text)),
       ).toEqual([])
     }
+  })
+
+  // ADR 0069: a print code is a credential. It is the code's picture and nothing
+  // else: never a run of text, whether or not the address around it is shown.
+  it('does not print a print code as words either', async () => {
+    for (const choice of [tentEnBg, cardEn]) {
+      const runs = await drawnRuns(inputFor(style, choice, { qrAddress: SHORT_ADDRESS }))
+      expect(
+        runs.filter((text) =>
+          /up\.railway|HTTPS?:|\/p\/|7K3QZ0VD9MWX4HT2BN6R|[0-9A-HJKMNP-TV-Z]{20}/iu.test(
+            text,
+          ),
+        ),
+      ).toEqual([])
+    }
+  })
+
+  it('draws the short print address as a version 3 symbol, 29 modules across', async () => {
+    expect(qrMatrix(SHORT_ADDRESS).size).toBe(29)
+    // The print draws the same symbol the Share tab downloads and a phone reads.
+    expect(
+      await renderText(inputFor(style, cardEn, { qrAddress: SHORT_ADDRESS })),
+    ).toMatch(/^%PDF-1\.4/u)
   })
 
   it('still draws the whole of a long brand, on more than one line when it must', async () => {

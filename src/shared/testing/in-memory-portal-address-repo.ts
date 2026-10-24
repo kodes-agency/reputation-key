@@ -29,6 +29,10 @@ export type InMemoryPortalAddressRepo = PortalAddressRepository &
     clear: (scope: Readonly<{ organizationId: string; portalId: string }>) => void
     downloads: () => readonly RecordedAddressDownload[]
     sealedCount: () => number
+    /** What the live code row stores, or null when nothing is sealed there. */
+    printCodeHashesOf: (
+      scope: Readonly<{ organizationId: string; portalId: string }>,
+    ) => RevealableAddress['printCodeHashes'] | null
   }>
 
 const keyOf = (scope: Readonly<{ organizationId: string; portalId: string }>): string =>
@@ -46,6 +50,7 @@ export function createInMemoryPortalAddressRepo(): InMemoryPortalAddressRepo {
     },
     downloads: () => [...recorded],
     sealedCount: () => live.size,
+    printCodeHashesOf: (scope) => live.get(keyOf(scope))?.printCodeHashes ?? null,
     findRevealable: async (organizationId, portalId) =>
       live.get(
         keyOf({ organizationId: unbrand(organizationId), portalId: unbrand(portalId) }),
@@ -64,6 +69,20 @@ export function createInMemoryPortalAddressRepo(): InMemoryPortalAddressRepo {
         at: input.at,
       })
       return true
+    },
+    fillPrintCodeHashes: async (input) => {
+      const scope = {
+        organizationId: unbrand(input.organizationId),
+        portalId: unbrand(input.portalId),
+      }
+      const held = live.get(keyOf(scope))
+      if (held?.tokenId !== input.tokenId) return null
+      const filled = {
+        qr: held.printCodeHashes.qr ?? input.qr,
+        nfc: held.printCodeHashes.nfc ?? input.nfc,
+      }
+      live.set(keyOf(scope), { ...held, printCodeHashes: filled })
+      return filled
     },
   }
 }

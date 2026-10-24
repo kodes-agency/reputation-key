@@ -156,6 +156,32 @@ describe('PORTAL_PRINT_ORIGIN', () => {
   })
 })
 
+describe('PORTAL_PRINT_CODES_ENABLED', () => {
+  const parse = (value?: string) =>
+    parseEnvironment({
+      ...testEnvironment({}),
+      ...(value === undefined ? {} : { PORTAL_PRINT_CODES_ENABLED: value }),
+    }).PORTAL_PRINT_CODES_ENABLED
+
+  it('is off where it is unset: no manager sees a short address', () => {
+    expect(parse()).toBe(false)
+  })
+
+  it.each([
+    ['true', true],
+    ['false', false],
+  ])('reads %s', (value, expected) => {
+    expect(parse(value)).toBe(expected)
+  })
+
+  it.each(['1', 'TRUE', 'yes', 'on', ''])(
+    'refuses %j at boot, so a mistyped switch cannot print an untested address',
+    (value) => {
+      expect(() => parse(value)).toThrow('PORTAL_PRINT_CODES_ENABLED')
+    },
+  )
+})
+
 describe('production auth transport policy', () => {
   it('refuses a plaintext auth origin that can be reached over a network', () => {
     // The reason the rule exists: a production auth origin decides

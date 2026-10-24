@@ -61,6 +61,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     .with(
       'slug_taken',
       'revision_conflict',
+      'print_code_collision',
       'destination_not_approved',
       'link_limit_reached',
       'brand_profile_missing',
@@ -689,11 +690,23 @@ export const deletePortal = createServerFn({ method: 'POST' })
     ),
   )
 
+/**
+ * The address is a secret: nothing in the path may keep a copy of this response.
+ * Issue, replace and "download again" all hand it back (ADR 0069), the QR and NFC
+ * addresses included, so each sets this before anything else can fail.
+ */
+function disableAddressCaching(): void {
+  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
+  setResponseHeader('Pragma', 'no-cache')
+  setResponseHeader('Expires', '0')
+}
+
 export const issuePortalToken = createServerFn({ method: 'POST' })
   .validator(issuePortalTokenInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
+        disableAddressCaching()
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
@@ -719,6 +732,7 @@ export const rotatePortalToken = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        disableAddressCaching()
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
@@ -738,13 +752,6 @@ export const rotatePortalToken = createServerFn({ method: 'POST' })
       'portal.rotatePortalToken',
     ),
   )
-
-/** The address is a secret: nothing in the path may keep a copy of this response. */
-function disableAddressCaching(): void {
-  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
-  setResponseHeader('Pragma', 'no-cache')
-  setResponseHeader('Expires', '0')
-}
 
 // "Download again" (ADR 0064). A POST, so the address never travels in a URL,
 // with no-store set before anything else can fail: an error response must not

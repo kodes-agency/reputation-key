@@ -317,6 +317,10 @@ function buildContainer(
     staffPublicApi: identity.publicApi.people,
     identityManagerFacts: identity.publicApi.managerFacts,
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
+    printCodes: {
+      printOrigin: env.PORTAL_PRINT_ORIGIN,
+      enabled: env.PORTAL_PRINT_CODES_ENABLED,
+    },
     idGen: () => crypto.randomUUID(),
     secureRandomBytes: randomBytes,
     tokenHashSecret: env.PORTAL_TOKEN_HASH_SECRET,

@@ -92,6 +92,16 @@ describe('openablePageAddress', () => {
     )
   })
 
+  // ADR 0069: with the short address the QR address has no marker to drop, and
+  // opening it would count as a scan. The server's `direct` field is the page.
+  it('opens the direct address, never the short print address, when the server sends one', () => {
+    const link = {
+      publicUrl: 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R',
+      publicUrls: { direct: 'https://app.example.com/p/tok_123' },
+    }
+    expect(openablePageAddress(link)).toBe('https://app.example.com/p/tok_123')
+  })
+
   it.each([
     ['a javascript: address', 'javascript:alert(1)'],
     ['an address that is not a page', 'https://app.example.com/admin'],
@@ -136,7 +146,7 @@ describe('openLivePage', () => {
     const outcome = await openLivePage({
       openBlankTab,
       reveal,
-      heldAddress: QR_ADDRESS,
+      heldLink: { publicUrl: QR_ADDRESS },
       openAddress,
     })
 
@@ -153,7 +163,7 @@ describe('openLivePage', () => {
     const outcome = await openLivePage({
       openBlankTab,
       reveal,
-      heldAddress: 'https://app.example.com/admin',
+      heldLink: { publicUrl: 'https://app.example.com/admin' },
       openAddress: vi.fn(),
     })
 
