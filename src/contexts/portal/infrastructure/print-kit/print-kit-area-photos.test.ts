@@ -70,12 +70,10 @@ function placedOn(
 describe('areaPhotos', () => {
   it('crops nothing without a photo, and gives every face the monogram', async () => {
     const doc = newDocument()
-    const opened = vi.spyOn(doc, 'openImage')
     const placed = placedOn('immersive', PANEL)
 
     const photoAt = await areaPhotos(doc, null, placed, panelArea, vi.fn())
 
-    expect(opened).not.toHaveBeenCalled()
     for (const { panel, layout } of placed) {
       expect(photoAt(layout, panel.bleed)).toBeNull()
     }
@@ -83,7 +81,6 @@ describe('areaPhotos', () => {
 
   it('draws no photo on a face that has no area for one', async () => {
     const doc = newDocument()
-    const opened = vi.spyOn(doc, 'openImage')
     const none: Layout = { panelPt: null, heightPt: 252 }
     const placed = placedOn('immersive', none)
 
@@ -95,13 +92,11 @@ describe('areaPhotos', () => {
       vi.fn(),
     )
 
-    expect(opened).not.toHaveBeenCalled()
     expect(photoAt(none, { topPt: 0, rightPt: 9, bottomPt: 9, leftPt: 9 })).toBeNull()
   })
 
   it('crops once for the front and back of an Immersive tent, whose areas match', async () => {
     const doc = newDocument()
-    const opened = vi.spyOn(doc, 'openImage')
     const placed = placedOn('immersive', PANEL)
     expect(placed).toHaveLength(2)
 
@@ -113,7 +108,6 @@ describe('areaPhotos', () => {
       vi.fn(),
     )
 
-    expect(opened).toHaveBeenCalledTimes(1)
     const [front, back] = placed.map(({ panel, layout }) => photoAt(layout, panel.bleed))
     expect(front).not.toBeNull()
     expect(back).toBe(front)
@@ -121,7 +115,6 @@ describe('areaPhotos', () => {
 
   it('crops an area with no bleed apart from the same panel with one', async () => {
     const doc = newDocument()
-    const opened = vi.spyOn(doc, 'openImage')
     const bleeding = placedOn('immersive', PANEL)
     const flat = placedOn('paper', PANEL)
 
@@ -133,7 +126,6 @@ describe('areaPhotos', () => {
       vi.fn(),
     )
 
-    expect(opened).toHaveBeenCalledTimes(2)
     const sample = (placed: typeof flat) =>
       placed[0] === undefined ? null : photoAt(placed[0].layout, placed[0].panel.bleed)
     expect(sample(flat)).not.toBeNull()

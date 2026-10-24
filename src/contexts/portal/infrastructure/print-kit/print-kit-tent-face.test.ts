@@ -109,7 +109,7 @@ describe('the small tent’s plan in the PDF’s fonts', () => {
 const BLEED = { topPt: 3, rightPt: 3, bottomPt: 3, leftPt: 3 } as const
 
 /** The rectangles a face's drawing makes, by their left, top, width and height. */
-const rectsOf = (rect: ReturnType<typeof vi.spyOn>): number[][] =>
+const rectsOf = (rect: Readonly<{ mock: { calls: readonly (readonly unknown[])[] } }>) =>
   rect.mock.calls.map((call) => call.slice(0, 4).map(Number))
 
 async function jpeg(doc: PDFKit.PDFDocument) {
