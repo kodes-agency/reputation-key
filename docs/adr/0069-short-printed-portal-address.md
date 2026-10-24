@@ -151,6 +151,18 @@ alphabet are the card's for life, so the entropy has to be right the first time.
     passes a phone test of the uppercase address on current and old cameras. If the
     uppercase form fails on casing only, the builder switches to the lowercase form
     (version 4); the codes stay valid because the server folds case.
+12. **Minting is always on; showing is a switch.** Issue and replace derive and
+    store both hashes whatever the environment says, and a reveal fills the hashes
+    an older code lacks, so every live code has its print codes by the time anyone
+    wants them. What a manager sees is decided by `PORTAL_PRINT_CODES_ENABLED`
+    (optional, `true` or `false`, default `false`, any other spelling refuses boot):
+    off, `qr` and `nfc` are the long addresses with their markers, exactly what they
+    were, and the print kit, the QR downloads and "Copy NFC address" carry them;
+    on, they are the short forms. `direct` is the long address with no marker in
+    both cases. The switch is flipped once, after a phone test has passed the
+    uppercase form on current and old cameras (decision 11), and a card printed
+    after that is a card printed for life. A code printed while it is off still
+    works when it is on, and the other way round: both shapes resolve either way.
 
 ## Consequences
 
@@ -175,6 +187,19 @@ alphabet are the card's for life, so the entropy has to be right the first time.
   0.85 mm, with a cause that says whether the code or the host is too long.
 - `PORTAL_PRINT_ORIGIN` is optional, so nothing changes where it is unset; it is set
   on web and worker with the step that adds the redirect.
+- **Known lock-in (owner decision, 2026-10-23).** `ap.up.railway.app` is a name
+  Railway provides, not a domain the product owns, and every short code ever printed
+  depends on it for the life of the print. If the name were ever released, another
+  Railway account could claim it and receive every scan. The owner chose it
+  ("actually https://ap.up.railway.app/ will be the url"), after the plan had proposed
+  a short host under `reputationkey.app` and warned that a Railway-provided name must
+  never be released once printed. The print kit's final design lists it again as an
+  open point (§13.10): it is a recorded lock-in, not an unseen one. What can be
+  done about it is operational: never release, rename or detach the name, and if the
+  product ever gets a short domain of its own, attach it to the same web service and
+  keep `ap.up.railway.app` attached and redirecting for as long as old prints exist.
+  New prints could then carry the new host, because the codes are the same and only
+  `PORTAL_PRINT_ORIGIN` changes.
 
 ## Rejected alternatives
 

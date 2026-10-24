@@ -362,13 +362,14 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   a retry). The address on the code comes through the audited reveal of the
   sealed code (ADR 0064), so a code that kept no address cannot be printed.
   The address is never printed as words: the code and its cue carry the action.
-  Print codes (ADR 0069) arrive in steps: the schema, the codec, the field
-  policy and resolution exist (the guest page, every guest mutation, the link
-  fallback and the scan beacon accept a print code already) and nothing mints,
-  stores or shows one yet, so the print still carries the long address. When
-  minting is on, the reveal also derives the code's print codes and the print and
-  the QR download carry the short address; "Public address" and "Open page" stay
-  on the long one.
+  Print codes (ADR 0069): the schema, the codec, the field policy, resolution
+  (the guest page, every guest mutation, the link fallback and the scan beacon
+  accept a print code) and minting exist. Every new or replaced code stores its
+  two print code hashes, and a reveal fills the hashes of an older code, whatever
+  `PORTAL_PRINT_CODES_ENABLED` says. That switch (optional, default off) decides
+  what a manager is shown: off, the print, the QR download and "Copy NFC address"
+  carry the long address, exactly as before; on, they carry the short address.
+  "Public address" and "Open page" are the long address with no marker either way.
 - **Print code.** The 20-character Crockford credential a printed QR or an NFC
   tag carries instead of the long address (ADR 0069): 100 bits, one per access
   artifact channel (qr, nfc), derived from the code's long address and that
@@ -539,7 +540,8 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   characters, a version 3 symbol at error correction M (version 4 in lowercase).
   The app origin stays `BETTER_AUTH_URL`, and the code also works if the owner
   later makes the print host the app's main URL (the redirect then turns off). A
-  Railway-provided name is never released or renamed once printed. D8: the Table
+  Railway-provided name is never released or renamed once printed; ADR 0069
+  records that as a known lock-in. D8: the Table
   card is the default Table piece and the tent sits beside it. D9: Mini stays
   portrait. D10: the two-language Table card stays as drawn, with every
   reduction (band 0.95 in, 12 pt gaps). D11: Europe stays on 90 x 130 mm, no A7.
@@ -550,6 +552,14 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   builder switches to the lowercase form and Mini waits for a 1.4 in tile; the
   current tent stays selectable until the small sizes are switched on; Mini and
   the new tent sheet are Paper only.
+- **The final kit's code rule.** `choosePrintFinalTile` (`portal-print-final-code.ts`,
+  pure) gives the Counter card, the tent face and the Small card their tile and module,
+  or refuses them: `needs_short_code` on a long address (only the Counter card prints,
+  on a 2.1 in tile), `address_host_too_long` when the short address is too dense for the
+  tile (at version 4, the lowercase fallback, that is the Small card) and
+  `tile_does_not_fit` for the wide Small card on the step-up tile. The floor is the same
+  0.85 mm as today's `chooseCodeTile`. A code that has no print code is a long address,
+  so minting (above) is what lets the final kit print more than the Counter card.
 
 ## Runtime
 
@@ -662,8 +672,8 @@ is a no-store POST behind an actor and Organization rate limit. The token status
 carries `addressRecoverable` so the page offers the download only when the
 keyring still holds the key that sealed the live code. Without a keyring the
 address is shown once, when a code is made, as before. The same reveal, for the
-purpose `show`, backs the workspace header's "Open page", which opens the bare
-`/p/<token>` address (no scan marker) in a new tab and is offered only for a live
+purpose `show`, backs the workspace header's "Open page", which opens the `direct`
+address (the long `/p/<token>`, no scan marker or print code) in a new tab and is offered only for a live
 portal with a recoverable live code (an address already held in the browser opens
 with no reveal); otherwise it links to Share, and it is absent for a caller
 without `portal.update` and `portal.write`, and on the Share tab itself. The token status
@@ -671,15 +681,29 @@ also carries `madeBy`, the display name of the person `issued_by` recorded for t
 live code (an operator reads as the fixed label; null when unknown), which Share
 words as "Made 12 Mar by …". Only `getPortal` resolves it.
 
-Print codes (ADR 0069) hang off the same reveal once minting is on: it unseals the
-long address, derives the code's two print codes and compares their hashes with the
-stored ones. A missing hash is filled by one idempotent `UPDATE` with the tenant
-predicates (a derived value, so no revision fence); a mismatch or any fill error
-returns the long form for that channel, reports a content-free error and never fails
-the reveal. The reveal then returns `qr`, `nfc` and `direct` (the long address, no
-marker, for "Public address" and "Open page"), and issue and replace gain
-`Cache-Control: private, no-store`. A planned replacement leaves the old code's print
-codes live through its grace; a security replacement, stop and delete end them with it.
+Print codes (ADR 0069) are minted by issue and replace and checked by the same reveal.
+Issue and replace derive both print codes from the new long address and the two new
+artifact ids and store the keyed hashes on the new `portal_tokens` row in the command's
+own transaction; a hash the unique index refuses is the typed `print_code_collision`
+(HTTP 409, no retry, reported as `PrintCodeCollision`, and the transaction leaves
+nothing behind). The reveal unseals the long address, derives the two print codes and
+compares their hashes with the stored ones. A missing hash is filled by one idempotent
+`UPDATE ... COALESCE` with the tenant predicates that answers what the row holds (a
+derived value, so no revision fence); a mismatch, a derive that cannot be done or any
+fill error returns the long form for that channel, reports a content-free error
+(`PrintCodeDeriveMismatch`, `PrintCodeFillFailed` or `PrintCodeCollision`: the
+reporter takes a name and nothing else) and never fails the reveal. The reveal, issue
+and replace return `qr`, `nfc` and `direct` (`direct` is the long address with no
+marker, for "Public address" and "Open page"), all three with
+`Cache-Control: private, no-store` set before anything can fail. `qr` is the QR
+address in capitals (`HTTPS://AP.UP.RAILWAY.APP/p/<code>`, version 3) and `nfc` keeps
+a lowercase scheme and host so a tag gets the `https://` prefix byte (48 bytes, an
+NTAG213 holds 144); `PORTAL_PRINT_CODES_ENABLED` off keeps both on the long address.
+The Share tab takes `direct` from the server and never works it out from `qr`: a
+short address has no marker to strip, and a visit through it is a counted scan. A
+planned replacement leaves the old code's print codes live through its grace; a
+security replacement, stop and delete end them with it. A print render logs the
+address shape and the symbol version, never the address.
 
 `getPortalPreview` is the read behind the editor's live preview (A8): the guest page of one
 Portal, per language, from the saved working copy (`draft`) or the active verified snapshot
