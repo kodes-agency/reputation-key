@@ -342,6 +342,30 @@ export const ImmersiveCardOutputsAreCounted: Story = {
   },
 }
 
+/** The share board's own state: Immersive, Table, a card for my printer, in English, with the property's name under the logo. */
+export const TheShareBoardState: Story = {
+  args: argsOf(),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: /^Immersive/ }))
+    await userEvent.click(radio(canvas, 'For my printer · 4 cards per sheet'))
+    await pickLanguages(canvas, 'English')
+    await expect(radio(canvas, /^Table ·/)).toBeChecked()
+    await expect(radio(canvas, /^Card/)).toBeChecked()
+    await expect(
+      canvas.getByText('oakmere-reception-table-card-en-immersive-4up-letter.pdf'),
+    ).toBeVisible()
+    await expect(await preview(canvasElement)).toHaveAccessibleName(
+      'Letter · four 3.5 × 5 in Table cards, one bleed around them',
+    )
+    await expect(
+      canvas.getByRole('checkbox', { name: 'Print the property name under the logo' }),
+    ).toBeChecked()
+    // One language: the print has no back, so no Front and Back to switch between.
+    await expect(canvas.queryByRole('radio', { name: 'Back' })).toBeNull()
+  },
+}
+
 /** An Immersive Large card has an office sheet of two, and an Immersive Mini or tent has one way to be printed. */
 export const OutputsFollowTheSizeAndPiece: Story = {
   args: argsOf(),
