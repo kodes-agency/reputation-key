@@ -36,7 +36,7 @@ import {
 } from './portal-print-kit-sheet-parts'
 import { SIZE_TRIM_PT } from './portal-print-kit-sizes'
 
-export { NO_BLEED, bleedAround, type PanelBleed, type SheetNote }
+export { bleedAround, type PanelBleed, type SheetNote }
 export { PRINT_CHECK, printCheckLines } from './portal-print-kit-print-check'
 
 /**
