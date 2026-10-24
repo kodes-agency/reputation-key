@@ -33,6 +33,20 @@ export const PRINT_KIT_STYLES = Object.freeze(['paper', 'immersive'] as const)
 export type PrintKitStyle = (typeof PRINT_KIT_STYLES)[number]
 
 /**
+ * Who prints an Immersive card: a print shop, from one card per page with bleed
+ * and crop marks, or the customer's own printer, from an office sheet whose
+ * cards bleed for a cutter (2 Large or 4 Table cards to a sheet). Paper is
+ * always printed on an office printer, and the old tent has one output in each
+ * style.
+ */
+export const PRINT_KIT_OUTPUTS = Object.freeze(['print_shop', 'office'] as const)
+export type PrintKitOutput = (typeof PRINT_KIT_OUTPUTS)[number]
+
+/** The output a style prints to unless the manager chooses otherwise: Immersive to a print shop, as it always has. */
+export const defaultPrintKitOutput = (style: PrintKitStyle): PrintKitOutput =>
+  style === 'immersive' ? 'print_shop' : 'office'
+
+/**
  * The two paper families, Letter first: most customers are in the US. Letter
  * makes 4 × 6 in cards and 8.5 × 5.5 in tent faces; A4 makes A6 cards and A5
  * faces.
