@@ -40,7 +40,7 @@ const PIECE_ICONS: Readonly<
 > = { table_tent: Triangle, counter_card: RectangleVertical }
 
 /** A heading for a group of choices, which names the group by its id. */
-function GroupLabel({ id, children }: Readonly<{ id: string; children: string }>) {
+export function GroupLabel({ id, children }: Readonly<{ id: string; children: string }>) {
   return (
     <p id={id} className="mb-2 text-sm font-medium">
       {children}

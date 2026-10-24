@@ -63,10 +63,6 @@ export function printKitTrimText(size: PrintKitSize, paper: PrintKitPaper): stri
   return tight(`${lengthText(widthPt, paper)} × ${lengthText(heightPt, paper)} ${unit}`)
 }
 
-/** A card's title on the Size row: "Large · 4 × 6 in". */
-export const printKitSizeTitle = (size: PrintKitSize, paper: PrintKitPaper): string =>
-  `${PRINT_KIT_SIZE_FACTS[size].label} · ${printKitTrimText(size, paper)}`
-
 /** The code tile's width on a size and paper: "1.75 in" on Letter, "44 mm" in Europe. */
 export function printKitTileText(size: PrintKitSize, paper: PrintKitPaper): string {
   const unit = paper === 'letter' ? 'in' : 'mm'

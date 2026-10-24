@@ -6,7 +6,6 @@
 // so the section above never holds a half-chosen print; the size's own choices
 // are `portal-print-kit-size-controls.tsx`.
 
-import type { ReactNode } from 'react'
 import { FormSelectField } from '#/components/forms/form-select-field'
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
@@ -35,6 +34,7 @@ import {
   printKitPaperNote,
 } from '#/shared/domain/portal-print-kit-pieces'
 import {
+  GroupLabel,
   NameSwitch,
   OutputRadios,
   PieceCards,
@@ -59,15 +59,6 @@ type ControlsProps = Props &
     /** The sizes offered: `PRINT_KIT_SELECTABLE_SIZES` unless a story shows the hidden ones. */
     sizes: readonly PrintKitSize[]
   }>
-
-/** A heading for a group of choices, which names the group by its id. */
-function GroupLabel({ id, children }: Readonly<{ id: string; children: ReactNode }>) {
-  return (
-    <p id={id} className="mb-2 text-sm font-medium">
-      {children}
-    </p>
-  )
-}
 
 export function PortalPrintKitControls({
   view,

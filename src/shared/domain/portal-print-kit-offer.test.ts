@@ -9,6 +9,7 @@ import {
 import { printKitFormatProblem } from './portal-print-kit-formats'
 import {
   PRINT_KIT_NAME_HINT,
+  PRINT_KIT_SIZE_FACTS,
   defaultPrintKitSize,
   printKitLanguageChoicesOf,
   printKitOutputLabel,
@@ -16,7 +17,6 @@ import {
   printKitPieceCardFacts,
   printKitPiecesOf,
   printKitSizeNote,
-  printKitSizeTitle,
   printKitSizedPaperNote,
   printKitTileText,
   printKitTrimText,
@@ -35,7 +35,10 @@ describe('the sizes’ names', () => {
     ['mini', 'letter', 'Mini · 2 × 3.5 in'],
     ['mini', 'a4', 'Mini · 55 × 85 mm'],
   ] as const)('titles %s on %s as "%s"', (size, paper, title) => {
-    expect(plain(printKitSizeTitle(size, paper))).toBe(title)
+    // The Size card sets the label and the trim in two weights; read together they are the title.
+    expect(
+      `${PRINT_KIT_SIZE_FACTS[size].label} · ${plain(printKitTrimText(size, paper))}`,
+    ).toBe(title)
   })
 
   it('says the code tile in the unit the paper is cut in', () => {

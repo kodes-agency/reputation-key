@@ -15,7 +15,9 @@ import { tight } from '#/shared/domain/portal-print-kit-pieces'
 import { printKitPrintShopLabel } from './print-kit-immersive-art-layout'
 import { printKitSheetLabel } from './print-kit-paper-art-layout'
 import {
+  backsSentence,
   isLegacyCopy,
+  languageName,
   sizedFaceName,
   sizedPreviewNote,
   sizedSheetCaption,
@@ -73,11 +75,6 @@ export function printKitFaceCaption(format: Format, side: PrintFaceSide): string
   return tight(`${faceName(format)} · ${side}`)
 }
 
-const languageName = (face: PrintFace | undefined, index: number): string | null => {
-  const block = face?.blocks[index]
-  return block === undefined ? null : GUEST_LOCALE_METADATA[block.locale].englishName
-}
-
 /** What a screen reader hears for a face shown on its own. */
 export function printKitFaceLabel(format: Format, face: PrintFace): string {
   const languages = face.blocks
@@ -91,12 +88,6 @@ const BLEED = { letter: '1/8 in', a4: '3 mm' } as const
 const FLAT = { letter: '4 × 12 in', a4: '105 × 296 mm' } as const
 const CARDS_PER_SHEET = { letter: 'two 4 × 6 in cards', a4: 'four A6 cards' } as const
 const TENT_FACES = { letter: 'two 8.5 × 5.5 in faces', a4: 'two A5 faces' } as const
-
-/** The sentence about a card's second page: only a card with a second language has one. */
-const backsSentence = (faces: readonly PrintFace[]): string => {
-  const second = languageName(faces[0], 1)
-  return second === null ? '' : `Page 2 holds the backs, ${second} first. `
-}
 
 /**
  * The note under the preview: what to do with the sheet. Paper is cut or folded

@@ -114,13 +114,16 @@ export function sizedSheetCaption(format: SizedFormat, page: SizedPosition): str
   return `${sheet} · ${cards} ${trim} ${noun}s${pageSuffix(page)}`
 }
 
-const languageName = (face: PrintFace | undefined, index: number): string | null => {
+export const languageName = (
+  face: PrintFace | undefined,
+  index: number,
+): string | null => {
   const block = face?.blocks[index]
   return block === undefined ? null : GUEST_LOCALE_METADATA[block.locale].englishName
 }
 
 /** The sentence about a card's second page: only a card with a second language has one. */
-const backsSentence = (faces: readonly PrintFace[]): string => {
+export const backsSentence = (faces: readonly PrintFace[]): string => {
   const second = languageName(faces[0], 1)
   return second === null ? '' : `Page 2 holds the backs, ${second} first. `
 }
