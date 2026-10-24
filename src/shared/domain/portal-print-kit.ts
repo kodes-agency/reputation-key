@@ -138,7 +138,10 @@ export function printKitPieceNoun(piece: PrintKitPiece, size: PrintKitSize): str
  * file and for the Large Paper sheets and the Letter-half tent, whose names stay
  * as they shipped.
  */
-function cardsPerSheet(piece: PrintKitPiece, format: PrintKitFormat): number | null {
+export function printKitCardsPerSheet(
+  piece: PrintKitPiece,
+  format: PrintKitFormat,
+): number | null {
   const size = format.size ?? 'large'
   const output = format.output ?? defaultPrintKitOutput(format.style)
   if (output !== 'office') return null
@@ -316,7 +319,7 @@ export function printKitFileName(
   format: PrintKitFormat,
 ): string {
   const noun = printKitPieceNoun(piece, format.size ?? 'large').replace(/\s+/gu, '-')
-  const count = cardsPerSheet(piece, format)
+  const count = printKitCardsPerSheet(piece, format)
   const look = [
     ...(format.style === 'immersive' ? ['immersive'] : []),
     ...(count === null ? [] : [`${count}up`]),
