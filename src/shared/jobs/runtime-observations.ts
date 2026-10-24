@@ -335,11 +335,10 @@ type QueuedJobState = 'waiting' | 'delayed' | 'prioritized' | 'waiting-children'
  * to waiting, so the add-time `opts.delay` places a first attempt. BullMQ lists
  * job ids first and reads each hash afterwards, so a job listed as delayed can
  * be promoted in between and arrive here still 'delayed' with `delay` zeroed:
- * its live `delay` places it while it waits (a rescheduled delay included), and
- * `opts.delay` once promotion has cleared it. A job that has started before was
- * requeued by a retry whose due time BullMQ does not record: it gives no queue
- * age rather than a false one, and its failures already surface as repair or
- * stall reasons.
+ * its live `delay` places it while it waits, and `opts.delay` once promotion has
+ * cleared it. A job that has started before was requeued by a retry whose due
+ * time BullMQ does not record: it gives no queue age rather than a false one,
+ * and its failures already surface as repair or stall reasons.
  */
 function runnableSince(job: JobRuntimeQueueJob, state: QueuedJobState): Date | null {
   const timestamp = dateFromEpoch(job.timestamp)

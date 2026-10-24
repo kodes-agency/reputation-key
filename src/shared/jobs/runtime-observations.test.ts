@@ -935,7 +935,13 @@ describe('durable job runtime observations', () => {
       it.each([
         ['still delayed', 'delayed', 3 * MINUTE, 3 * MINUTE, 3 * MINUTE],
         ['promoted before it was read', 'delayed', 0, 3 * MINUTE, 3 * MINUTE],
-        ['rescheduled while delayed', 'delayed', 1 * MINUTE, 3 * MINUTE, 1 * MINUTE],
+        [
+          'delayed with a live delay that differs from opts.delay',
+          'delayed',
+          1 * MINUTE,
+          3 * MINUTE,
+          1 * MINUTE,
+        ],
         ['promoted to waiting', 'waiting', 0, 3 * MINUTE, 3 * MINUTE],
         ['promoted to prioritized', 'prioritized', 0, 3 * MINUTE, 3 * MINUTE],
         ['promoted to waiting-children', 'waiting-children', 0, 3 * MINUTE, 3 * MINUTE],
