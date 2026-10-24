@@ -149,18 +149,24 @@ describe('an Immersive print', () => {
     ])
   })
 
-  it('refuses a card whose band photo would print under 120 dpi, before it draws a page', async () => {
+  it('prints a card whose band photo would print under 120 dpi, and says how soft it is', async () => {
+    // 200 px across the 111 mm band and its bleed: about 46 dpi, which used to be refused.
     const bytes = await photoOf(200, 120)
-    await expect(
-      render(
-        immersiveInput(choice('counter_card', ['en']), 'a4', {
-          photo: { bytes, focalX: 0.5, focalY: 0.5 },
-        }),
-      ),
-    ).rejects.toMatchObject({
-      name: 'PrintKitRenderRefusal',
-      refusal: { code: 'print_photo_too_soft', minimumDpi: 120 },
-    })
+    const warnings: PrintKitWarning[] = []
+    const text = await render(
+      immersiveInput(choice('counter_card', ['en']), 'a4', {
+        photo: { bytes, focalX: 0.5, focalY: 0.5 },
+      }),
+      warnings,
+    )
+    expect(text.startsWith('%PDF-1.4')).toBe(true)
+    expect(text.match(/\/Subtype \/Image/gu)).toHaveLength(1)
+    expect(warnings).toEqual([
+      {
+        message: 'The print kit photo prints below the resolution a print needs',
+        context: { dpi: 46, minimumDpi: 200 },
+      },
+    ])
   })
 
   it('puts a dark logo on the cream plate', async () => {

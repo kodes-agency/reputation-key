@@ -50,6 +50,15 @@ export const PORTAL_MEDIA_SIZE_RULES = Object.freeze({
   >
 >)
 
+/**
+ * How wide a hero photograph should be to print sharply: across a Large card's
+ * band and its bleed (4.4 in at the widest) a photograph this wide, and as
+ * short as the rules above allow, is 200 dots per inch or better. It is advice, not a rule: the size
+ * rules above are what an upload must meet, so photographs already stored keep
+ * working, and a narrower one prints with a notice instead of being refused.
+ */
+export const PRINT_PHOTO_MIN_WIDTH_PX = 1000
+
 export type PortalMediaSizeProblem = 'too_small' | 'extreme_aspect'
 
 /** Why a picture of this size does not suit the purpose, or null when it does. Too small is named before too extreme, as the policy does. */

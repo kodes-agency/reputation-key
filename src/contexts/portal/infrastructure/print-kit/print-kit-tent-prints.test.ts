@@ -217,7 +217,7 @@ describe('the photo panel', () => {
     expect(text.match(/\/Subtype \/Image/gu) ?? []).toHaveLength(1)
   })
 
-  it('warns under 200 dpi, and refuses under 120', async () => {
+  it('warns under 200 dpi, and still prints under 120', async () => {
     const warnings: PrintKitWarning[] = []
     const warned = createPdfKitPrintKitRenderer({
       now: () => new Date('2026-10-24T12:00:00Z'),
@@ -234,11 +234,10 @@ describe('the photo panel', () => {
       }),
     )
     const blurred = await photoOf(100, 300)
-    await expect(
-      warned.render({
-        ...inputFor({ style: 'immersive' }),
-        photo: { bytes: blurred, focalX: 0.5, focalY: 0.5 },
-      }),
-    ).rejects.toMatchObject({ refusal: { code: 'print_photo_too_soft' } })
+    const pdf = await warned.render({
+      ...inputFor({ style: 'immersive' }),
+      photo: { bytes: blurred, focalX: 0.5, focalY: 0.5 },
+    })
+    expect(Buffer.from(pdf).subarray(0, 5).toString()).toBe('%PDF-')
   })
 })

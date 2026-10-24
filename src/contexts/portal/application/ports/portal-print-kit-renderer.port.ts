@@ -48,19 +48,16 @@ export type PrintKitRenderInput = Readonly<{
   qrAddress: string
 }>
 
-/** A band photo too soft to print at the size asked for: its softest crop, and the least it may be. */
-export type PrintPhotoTooSoft = Readonly<{
-  code: 'print_photo_too_soft'
-  dpi: number
-  minimumDpi: number
-}>
-
-export type PrintKitRefusal = PrintCodeTooSmall | PrintPhotoTooSoft
+/**
+ * What the renderer refuses to print. A photo that would print soft is not one:
+ * it is reported and printed, and the manager is told before the file is made.
+ */
+export type PrintKitRefusal = PrintCodeTooSmall
 
 /**
- * What the renderer throws when the print it was asked for would not scan or
- * would print blurred: the use case turns it into a refusal the manager reads.
- * Thrown before any page is drawn.
+ * What the renderer throws when the print it was asked for would not scan: the
+ * use case turns it into a refusal the manager reads. Thrown before any page is
+ * drawn.
  */
 export class PrintKitRenderRefusal extends Error {
   readonly refusal: PrintKitRefusal

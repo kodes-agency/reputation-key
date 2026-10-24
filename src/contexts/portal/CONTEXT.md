@@ -445,14 +445,15 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   a print shop's page, bleeding on every edge but the fold
   (`print-kit-tent-print.ts`). The sheets are
   `portal-print-kit-size-sheets.ts` and `portal-print-kit-office-sheets.ts`;
-  every mark and note stays 0.25 in from the sheet's edge. A band photo under
-  200 dpi is reported, and under 120 dpi the card is refused
-  (`print_photo_too_soft`). One more thing to settle before Table or Mini is
-  selectable: their tiles (and the small tent's, which is Table's) have no
-  pictogram to move, so the Italian and French scan cues do not fit one line:
-  102.6 and 112 pt in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in
-  Mini's 85.7 pt. A test pins the languages that fit; the faces must refuse the
-  rest, use a two-line bar or set a smaller cue.
+  every mark and note stays 0.25 in from the sheet's edge. A band or panel
+  photo under 200 dpi is reported in the server log and the print is still made:
+  it is never refused (`photoPrintDpi` in `portal-print-kit-photo.ts` measures
+  it). One more thing to settle before Table or Mini is selectable: their tiles
+  (and the small tent's, which is Table's) have no pictogram to move, so the
+  Italian and French scan cues do not fit one line: 102.6 and 112 pt in Table's
+  96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in Mini's 85.7 pt. A test pins the
+  languages that fit; the faces must refuse the rest, use a two-line bar or set
+  a smaller cue.
 - **The Share chooser (round 3, slice 14).** Top to bottom, as the share board
   draws it: Style, Size, Piece, Output, Paper size beside Languages, the name
   under the logo, Call to action; the Download with its file name; "How to

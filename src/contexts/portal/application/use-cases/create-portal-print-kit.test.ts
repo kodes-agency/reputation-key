@@ -506,22 +506,6 @@ describe('createPortalPrintKit, at a size', () => {
     ).rejects.toMatchObject({ code: 'print_format_not_offered' })
     expect(rendered).toEqual([])
   })
-
-  it('turns a refusal of a soft band photo into words', async () => {
-    const { portal, make } = await setup({
-      refuse: new PrintKitRenderRefusal({
-        code: 'print_photo_too_soft',
-        dpi: 96,
-        minimumDpi: 120,
-      }),
-    })
-    await expect(
-      make({ portalId: portal.id, ...card, style: 'immersive' }, buildTestAuthContext()),
-    ).rejects.toMatchObject({
-      code: 'print_photo_too_soft',
-      context: { dpi: 96, minimumDpi: 120 },
-    })
-  })
 })
 
 describe('printKitDownloadOf', () => {

@@ -190,13 +190,6 @@ function checkPrintable(
 
 /** The renderer's refusal, in words a manager can act on. */
 function refusalError(refusal: PrintKitRefusal) {
-  if (refusal.code === 'print_photo_too_soft') {
-    return portalError(
-      'print_photo_too_soft',
-      'The photo is too small to print sharply at this size. Upload a larger photo, or choose Paper.',
-      { dpi: refusal.dpi, minimumDpi: refusal.minimumDpi },
-    )
-  }
   return portalError('print_code_too_small', PRINT_CODE_TOO_SMALL_COPY[refusal.cause], {
     cause: refusal.cause,
     size: refusal.size,

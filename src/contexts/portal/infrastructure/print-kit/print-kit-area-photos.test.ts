@@ -1,13 +1,13 @@
 // The photo areas of a small tent's panels as the PDF crops them: nothing
 // cropped when there is no photo or no area, one crop for the faces whose areas
-// are the same size, a report under 200 dpi and a refusal under 120.
+// are the same size, and a report under 200 dpi that never stops the print.
 
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
 import { describe, expect, it, vi } from 'vitest'
-import { PrintKitRenderRefusal } from '../../application/ports/portal-print-kit-renderer.port'
 import { CODE_TILE } from '#/shared/domain/portal-print-kit-code-tile'
 import { printKitSheetPages } from '#/shared/domain/portal-print-kit-formats'
+import { tentPanelArea } from '#/shared/domain/portal-print-kit-photo'
 import type { PrintKitPagePanel } from '#/shared/domain/portal-print-kit-sheets'
 import { areaPhotos, type AreaOf } from './print-kit-area-photos'
 import { panelLayouts } from './print-kit-pages'
@@ -18,13 +18,7 @@ type Layout = Readonly<{ panelPt: number | null; heightPt: number }>
 const PANEL: Layout = { panelPt: 86.4, heightPt: 252 }
 
 /** The panel down a tent's left with its bleed, as the tent print asks for it. */
-const panelArea: AreaOf<Layout> = (layout, bleed) =>
-  layout.panelPt === null
-    ? null
-    : {
-        widthPt: layout.panelPt + bleed.leftPt,
-        heightPt: layout.heightPt + bleed.topPt + bleed.bottomPt,
-      }
+const panelArea: AreaOf<Layout> = (layout, bleed) => tentPanelArea(layout, bleed)
 
 const newDocument = (): PDFKit.PDFDocument => {
   const doc = new PDFDocument({ autoFirstPage: false, font: '', compress: false })
@@ -163,18 +157,21 @@ describe('areaPhotos', () => {
     expect(first && photoAt(first.layout, first.panel.bleed)).not.toBeNull()
   })
 
-  it('refuses a photo that prints under 120 dpi', async () => {
-    const soft = areaPhotos(
+  it('prints a photo that is far under 120 dpi, with one report of how soft it is', async () => {
+    const warn = vi.fn()
+    const placed = placedOn('immersive', PANEL)
+
+    const photoAt = await areaPhotos(
       newDocument(),
       await photoOf(100, 300),
-      placedOn('immersive', PANEL),
+      placed,
       panelArea,
-      vi.fn(),
+      warn,
     )
 
-    await expect(soft).rejects.toBeInstanceOf(PrintKitRenderRefusal)
-    await expect(soft).rejects.toMatchObject({
-      refusal: { code: 'print_photo_too_soft', minimumDpi: 120 },
-    })
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]?.[0].context).toMatchObject({ dpi: 75, minimumDpi: 200 })
+    const [first] = placed
+    expect(first && photoAt(first.layout, first.panel.bleed)).not.toBeNull()
   })
 })
