@@ -140,21 +140,25 @@ const TEXT_WIDTHS: WidthTable = {
 }
 
 /**
- * Ysabeau Office 400 italic, where it sets wider than the text table says: the
- * final kit's second-language line. Every other character reads the text table.
+ * Ysabeau Office 400 and 600 italic, where the wider of the two sets wider than
+ * the text table says: the final kit's second-language line, semibold where it
+ * is reversed under 9 pt. Every other character reads the text table.
  */
 const ITALIC_WIDER: WidthTable = {
-  270: 'l',
-  330: 'J',
-  390: 'r',
-  400: '\\',
-  500: 'kл',
-  510: 'aàáâäа',
-  570: '+',
-  580: '=',
+  270: 'l.:',
+  340: 'J',
+  380: '?',
+  400: '/r',
+  410: '\\',
+  470: 'v',
+  510: 'kл',
+  520: 'aàáâäа',
+  540: '$',
+  580: '+',
+  590: '=',
   620: 'ф',
-  640: 'TТ',
-  650: 'м',
+  650: 'TТ',
+  660: 'KКм',
   720: 'ж',
   780: '&',
 }

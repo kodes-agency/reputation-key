@@ -42,6 +42,7 @@ SOURCES = (
     "ysabeau-office-cyrillic-400-normal",
     "ysabeau-office-cyrillic-600-normal",
     "ysabeau-office-cyrillic-400-italic",
+    "ysabeau-office-cyrillic-600-italic",
 )
 
 SCRIPT = "cyrl"

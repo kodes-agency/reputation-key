@@ -2,7 +2,7 @@
 //
 // They are the faces and subsets guest pages serve from `public/fonts/guest/`
 // (Cormorant Garamond 600 for display, Ysabeau Office 400 and 600 for text, and
-// Ysabeau Office 400 italic for the final kit's second-language line),
+// Ysabeau Office 400 and 600 italic for the final kit's second-language line),
 // as TrueType in `./fonts/`. The woff2 files cannot be embedded: fontkit, which
 // PDFKit embeds fonts with, mis-reads the transformed `glyf` table of a woff2
 // font. Ysabeau fails to subset at all (an accented letter, a quotation mark
@@ -13,7 +13,7 @@
 // font.save(target)`). Both families are licensed under the SIL OFL 1.1; the
 // licences sit beside the files.
 //
-// The four Cyrillic files are not quite the browser's: the Bulgarian forms of
+// The five Cyrillic files are not quite the browser's: the Bulgarian forms of
 // the letters Bulgarian draws differently (д, л, т, г and others) are frozen into
 // them (`scripts/fonts/freeze-bg-locl.py`). A browser picks those forms from
 // `lang="bg"`; PDFKit gives fontkit no language, so a PDF would print the
@@ -50,8 +50,13 @@ import bodyItalic_latin from './fonts/ysabeau-office-latin-400-italic.ttf?inline
 import bodyItalic_latin_ext from './fonts/ysabeau-office-latin-ext-400-italic.ttf?inline'
 import bodyItalic_cyrillic from './fonts/ysabeau-office-cyrillic-400-italic.ttf?inline'
 import bodyItalic_cyrillic_ext from './fonts/ysabeau-office-cyrillic-ext-400-italic.ttf?inline'
+import bodyStrongItalic_latin from './fonts/ysabeau-office-latin-600-italic.ttf?inline'
+import bodyStrongItalic_latin_ext from './fonts/ysabeau-office-latin-ext-600-italic.ttf?inline'
+import bodyStrongItalic_cyrillic from './fonts/ysabeau-office-cyrillic-600-italic.ttf?inline'
+import bodyStrongItalic_cyrillic_ext from './fonts/ysabeau-office-cyrillic-ext-600-italic.ttf?inline'
 
-export type PrintKitFontFace = 'display' | 'body' | 'bodyStrong' | 'bodyItalic'
+export type PrintKitFontFace =
+  'display' | 'body' | 'bodyStrong' | 'bodyItalic' | 'bodyStrongItalic'
 
 const DATA_URIS: Readonly<
   Record<PrintKitFontFace, Readonly<Record<FontSubset, string>>>
@@ -80,6 +85,12 @@ const DATA_URIS: Readonly<
     cyrillic: bodyItalic_cyrillic,
     'cyrillic-ext': bodyItalic_cyrillic_ext,
   },
+  bodyStrongItalic: {
+    latin: bodyStrongItalic_latin,
+    'latin-ext': bodyStrongItalic_latin_ext,
+    cyrillic: bodyStrongItalic_cyrillic,
+    'cyrillic-ext': bodyStrongItalic_cyrillic_ext,
+  },
 }
 
 const decoded = new Map<string, Buffer>()
@@ -100,4 +111,5 @@ export const PRINT_KIT_FONT_FACES: readonly PrintKitFontFace[] = [
   'body',
   'bodyStrong',
   'bodyItalic',
+  'bodyStrongItalic',
 ]

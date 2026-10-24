@@ -163,13 +163,14 @@ describe('the vendored guest fonts', () => {
   const real = faces.filter((face) => face.src.includes('/fonts/guest/'))
   const subsets = ['latin', 'latin-ext', 'cyrillic', 'cyrillic-ext']
 
-  it('covers Cormorant Garamond 600 and 500 italic, and Ysabeau Office 400, 600 and 400 italic, in four subsets each', () => {
+  it('covers Cormorant Garamond 600 and 500 italic, and Ysabeau Office 400, 600, 400 italic and 600 italic, in four subsets each', () => {
     const wanted = subsets.flatMap((subset) => [
       `Cormorant Garamond|normal|600|${subset}`,
       `Cormorant Garamond|italic|500|${subset}`,
       `Ysabeau Office|normal|400|${subset}`,
       `Ysabeau Office|normal|600|${subset}`,
       `Ysabeau Office|italic|400|${subset}`,
+      `Ysabeau Office|italic|600|${subset}`,
     ])
     const found = real.map((face) => {
       const file =
