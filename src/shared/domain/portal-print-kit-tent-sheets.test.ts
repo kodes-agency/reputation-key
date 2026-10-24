@@ -178,7 +178,9 @@ describe('the small tent’s pages, file name and subject', () => {
       output: 'print_shop',
     })
     expect(shop?.marks).toBe('crop')
-    expect(() => printKitSheetPages({ ...choice, style: 'immersive' })).toThrow()
+    expect(() => printKitSheetPages({ ...choice, style: 'immersive' })).toThrow(
+      /Not a printable choice/u,
+    )
   })
 
   it('says it holds 2 on a sheet, so a Paper sheet never shares a name with the Letter-half tent', () => {
