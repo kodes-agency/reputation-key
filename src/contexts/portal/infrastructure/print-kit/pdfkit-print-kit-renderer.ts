@@ -18,6 +18,7 @@ import {
   paperLogoPlate,
   paperPrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
+import { printKitFormatProblem } from '#/shared/domain/portal-print-kit-formats'
 import { printKitSubject } from '#/shared/domain/portal-print-kit-pieces'
 import { printKitPages } from '#/shared/domain/portal-print-kit-sheets'
 import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
@@ -88,9 +89,10 @@ async function drawPaperPrint(
 }
 
 /**
- * A print: a style's pages on its paper. The counter card is the Large card in
- * the round-3 look (`print-kit-card-print.ts`); the Letter-half tent keeps the
- * look it shipped with until it is retired.
+ * A print: a style's pages on its paper. The counter card is a card at its size
+ * in the round-3 look (`print-kit-card-print.ts`); the Letter-half tent keeps the
+ * look it shipped with until it is retired. A choice the kit does not offer is
+ * a bug in the caller, which checks it first.
  */
 async function drawPrint(
   doc: PDFKit.PDFDocument,
@@ -99,6 +101,14 @@ async function drawPrint(
   warn: (warning: PrintKitWarning) => void,
 ): Promise<void> {
   const { style, paper } = input
+  const problem = printKitFormatProblem({
+    piece: input.piece,
+    size: input.size,
+    style,
+    output: input.output,
+    languageCount: input.faces[0]?.blocks.length ?? 1,
+  })
+  if (problem !== null) throw new Error(`Not a printable choice: ${problem}`)
   if (input.piece === 'counter_card') await drawCardPrint(doc, fonts, input, warn)
   else if (style === 'paper') await drawPaperPrint(doc, fonts, input, paper, warn)
   else await drawImmersivePrint(doc, fonts, input, paper, warn)
@@ -123,7 +133,7 @@ export function createPdfKitPrintKitRenderer(
         info: {
           Title: input.title,
           Author: 'Reputation Key',
-          Subject: printKitSubject(input.style, input.piece, input.paper),
+          Subject: printKitSubject(input.style, input.piece, input.paper, input.size),
           CreationDate: deps.now(),
         },
       })

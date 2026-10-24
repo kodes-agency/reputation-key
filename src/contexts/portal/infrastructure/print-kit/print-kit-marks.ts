@@ -5,7 +5,8 @@
 // And what an office printer's sheet carries instead (spec 4.3 and 4.4): grey
 // ticks where it is cut or folded, and on the Letter card sheet a print check in
 // the strip that is cut away, whose bar measures 2 in when the sheet was printed
-// at Actual size.
+// at Actual size. The round-3 office sheets carry a short note instead, and an
+// Immersive office sheet's crop marks are plain black, not registration.
 
 import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
 import type { PaperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
@@ -15,7 +16,9 @@ import {
   printCheckLines,
   type PrintKitPage,
   type PrintKitTick,
+  type SheetNote,
 } from '#/shared/domain/portal-print-kit-sheets'
+import { fillWords } from '#/shared/domain/portal-print-kit-text'
 import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
 import {
   PRINT_SHOP_MARK,
@@ -24,6 +27,7 @@ import {
 } from '#/shared/domain/portal-print-kit-immersive'
 import {
   drawCentredLine,
+  drawLine,
   measureLine,
   type PdfTextStyle,
   type PrintKitFonts,
@@ -52,12 +56,71 @@ export function setPageBoxes(page: PDFKit.PDFPage, sheet: PrintKitPage): void {
   Object.assign(page.dictionary.data, boxes)
 }
 
-/** The grey ticks of a Paper sheet, as filled rectangles: their weight is exact at any zoom. */
-export function drawTicks(doc: PDFKit.PDFDocument, ticks: readonly PrintKitTick[]): void {
+/** The black of an office sheet's crop marks: the boards' ink, one colour on any printer. */
+export const OFFICE_CROP_MARK = '#121614'
+
+/** The grey of a note on an office sheet. */
+const NOTE_COLOUR = '#5C5650'
+
+/**
+ * The ticks of an office sheet, as filled rectangles: their weight is exact at
+ * any zoom. Grey on Paper, plain black for an Immersive office sheet's crop marks.
+ */
+export function drawTicks(
+  doc: PDFKit.PDFDocument,
+  ticks: readonly PrintKitTick[],
+  colour: string = TICK.colour,
+): void {
   if (ticks.length === 0) return
   doc.save()
   for (const tick of ticks) doc.rect(tick.xPt, tick.yPt, tick.widthPt, tick.heightPt)
-  doc.fill(TICK.colour)
+  doc.fill(colour)
+  doc.restore()
+}
+
+const NOTE_LEADING = 1.2
+const NOTE_FLOOR_PT = 5
+
+/**
+ * A sheet's note, wrapped to its box: at its size, or a quarter point smaller
+ * at a time, down to 5 pt, until its lines fit the box's height. A turned note
+ * runs up the page from the box's bottom-left corner.
+ */
+export function drawSheetNote(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  note: SheetNote,
+): void {
+  const styleAt = (size: number): PdfTextStyle => ({
+    face: 'body',
+    size,
+    spacing: 0,
+    colour: NOTE_COLOUR,
+    opacity: 1,
+  })
+  const linesAt = (size: number) =>
+    fillWords(note.text, note.widthPt, (line) =>
+      measureLine(doc, fonts, line, styleAt(size)),
+    )
+  let size = note.sizePt
+  let lines = linesAt(size)
+  while (lines.length * size * NOTE_LEADING > note.heightPt && size > NOTE_FLOOR_PT) {
+    size = Math.max(NOTE_FLOOR_PT, size - 0.25)
+    lines = linesAt(size)
+  }
+  doc.save()
+  if (note.turned) {
+    doc.translate(note.leftPt, note.topPt).rotate(-90)
+  } else {
+    doc.translate(note.leftPt, note.topPt)
+  }
+  const lineHeight = size * NOTE_LEADING
+  lines.forEach((line, index) => {
+    drawLine(doc, fonts, line, styleAt(size), {
+      x: 0,
+      middleY: (index + 0.5) * lineHeight,
+    })
+  })
   doc.restore()
 }
 

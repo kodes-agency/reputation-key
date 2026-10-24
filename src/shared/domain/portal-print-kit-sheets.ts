@@ -10,28 +10,62 @@
 //
 // Paper prints on the customer's own sheet, at Actual size: no bleed, so the
 // trim is the page, and the only marks are grey ticks. Immersive is for a print
-// shop: one trim per page with a bleed and a slug round it for crop marks.
+// shop: one trim per page with a bleed and a slug round it for crop marks. The
+// round-3 sizes' office sheets (Table 4-up, Mini 10-up, the Immersive office
+// sheets) are `portal-print-kit-size-sheets.ts`, built from the shapes here.
 
 import type {
   PrintFaceSide,
   PrintKitPaper,
   PrintKitPiece,
+  PrintKitSize,
   PrintKitStyle,
 } from './portal-print-kit'
 import {
   CARD_GRID,
-  CODE_BLOCK,
   IMMERSIVE_TENT_GRID,
   TENT_FACE_GRID,
   inToPt,
   mmToPt,
-  ptToIn,
-  ptToMm,
 } from './portal-print-kit-measures'
+import {
+  NO_BLEED,
+  bleedAround,
+  type PanelBleed,
+  type SheetNote,
+} from './portal-print-kit-sheet-parts'
+import { SIZE_TRIM_PT } from './portal-print-kit-sizes'
 
-/** The shapes a face can take: a card, a Paper tent face or an Immersive tent panel, per paper. */
+export { bleedAround, type PanelBleed, type SheetNote }
+export { PRINT_CHECK, printCheckLines } from './portal-print-kit-print-check'
+
+/**
+ * The shapes a face can take: a card at each size, a Paper tent face or an
+ * Immersive tent panel, per paper. The Large card is `card4x6` and `cardA6`.
+ */
 export type PanelGeometry =
-  'card4x6' | 'cardA6' | 'tentFaceLetter' | 'tentFaceA5' | 'tentPanel4x6' | 'tentPanelA6'
+  | 'card4x6'
+  | 'cardA6'
+  | 'cardTableLetter'
+  | 'cardTableA4'
+  | 'cardMiniLetter'
+  | 'cardMiniA4'
+  | 'tentFaceLetter'
+  | 'tentFaceA5'
+  | 'tentPanel4x6'
+  | 'tentPanelA6'
+
+const CARD_GEOMETRY: Readonly<
+  Record<PrintKitSize, Readonly<Record<PrintKitPaper, PanelGeometry>>>
+> = {
+  large: { letter: 'card4x6', a4: 'cardA6' },
+  table: { letter: 'cardTableLetter', a4: 'cardTableA4' },
+  mini: { letter: 'cardMiniLetter', a4: 'cardMiniA4' },
+}
+
+/** The shape of a card of `size` on `paper`. */
+export const cardGeometryOf = (size: PrintKitSize, paper: PrintKitPaper): PanelGeometry =>
+  CARD_GEOMETRY[size][paper]
 
 type Size = Readonly<{ widthPt: number; heightPt: number }>
 
@@ -41,6 +75,10 @@ const sizeOf = (grid: Size): Size => ({ widthPt: grid.widthPt, heightPt: grid.he
 export const PANEL_SIZE_PT: Readonly<Record<PanelGeometry, Size>> = {
   card4x6: sizeOf(CARD_GRID.paper.letter),
   cardA6: sizeOf(CARD_GRID.paper.a4),
+  cardTableLetter: SIZE_TRIM_PT.table.letter,
+  cardTableA4: SIZE_TRIM_PT.table.a4,
+  cardMiniLetter: SIZE_TRIM_PT.mini.letter,
+  cardMiniA4: SIZE_TRIM_PT.mini.a4,
   tentFaceLetter: sizeOf(TENT_FACE_GRID.letter),
   tentFaceA5: sizeOf(TENT_FACE_GRID.a4),
   tentPanel4x6: sizeOf(IMMERSIVE_TENT_GRID.letter),
@@ -48,7 +86,7 @@ export const PANEL_SIZE_PT: Readonly<Record<PanelGeometry, Size>> = {
 }
 
 /** The sheets a Paper piece prints on: US Letter, 8.5 × 11 in, and A4, 210 × 297 mm. */
-const SHEET_PT: Readonly<Record<PrintKitPaper, Size>> = {
+export const SHEET_PT: Readonly<Record<PrintKitPaper, Size>> = {
   letter: { widthPt: inToPt(8.5), heightPt: inToPt(11) },
   a4: { widthPt: mmToPt(210), heightPt: mmToPt(297) },
 }
@@ -67,58 +105,22 @@ export type PrintKitTick = Readonly<{
   heightPt: number
 }>
 
-/**
- * The print check in the strip under the Letter cards, which is cut away: a
- * question, a bar exactly as wide as the bar under each code, and two lines on
- * what to measure and where to cut (spec 4.3). Its text may be smaller than what
- * a guest reads, because no guest reads it.
- */
-export const PRINT_CHECK = {
-  /** The top of the block, and the column it is centred in. */
-  topPt: inToPt(6.7),
-  centreXPt: inToPt(4.25),
-  widthPt: inToPt(5.5),
-  /** Between the question, the bar and the lines. */
-  gapPt: inToPt(0.09),
-  title: { text: 'Printed at Actual size?', sizePt: 9, leading: 1.2 },
-  bar: { widthPt: CODE_BLOCK.tilePt, heightPt: inToPt(0.14) },
-  lines: {
-    text: [
-      'The bar under each code and this bar both measure 2 in (5.1 cm).',
-      'Cut down on the three ticks, then across 6 in from the top edge.',
-    ],
-    sizePt: 8,
-    leading: 1.35,
-  },
-} as const
-
-/** A tile's width as the print check names it: "2 in (5.1 cm)", "1.75 in (4.4 cm)". */
-function tileMeasureText(tilePt: number): string {
-  const inches = Number(ptToIn(tilePt).toFixed(2))
-  return `${inches} in (${(ptToMm(tilePt) / 10).toFixed(1)} cm)`
-}
-
-/**
- * The print check's two lines for a card whose code sits on a tile `tilePt`
- * wide: the bar it draws is that wide, and so is the bar under each code. Today's
- * 2 in tile gives the lines of `PRINT_CHECK`.
- */
-export function printCheckLines(tilePt: number): readonly string[] {
-  const [, cut = ''] = PRINT_CHECK.lines.text
-  return [
-    `The bar under each code and this bar both measure ${tileMeasureText(tilePt)}.`,
-    cut,
-  ]
-}
-
 export type PrintKitPagePanel = Readonly<{
   side: PrintFaceSide
-  /** The top-left corner of the face's trim on the page. */
+  /** The top-left corner of the face's trim on the page, before any turn. */
   leftPt: number
   topPt: number
   /** Printed upside down, so it reads upright after the fold. */
   rotated: boolean
+  /** Turned a quarter, anticlockwise about its centre: a portrait Mini in a landscape business-card cell. */
+  turned: boolean
   geometry: PanelGeometry
+  /**
+   * How far its art runs past each edge: nothing on Paper or across a tent's
+   * fold, and on an office sheet of abutting cards only the block's outer edges,
+   * so no card paints into its neighbour.
+   */
+  bleed: PanelBleed
 }>
 
 export type PrintKitPage = Readonly<{
@@ -128,9 +130,15 @@ export type PrintKitPage = Readonly<{
   trim: Readonly<{ leftPt: number; topPt: number; widthPt: number; heightPt: number }>
   /** Art past the trim for a cutter: 0 on Paper, 1/8 in or 3 mm on Immersive. */
   bleedPt: number
-  /** Grey ticks on Paper, crop marks for a print shop on Immersive. */
-  marks: 'ticks' | 'crop'
+  /**
+   * Grey ticks on Paper, crop marks for a print shop on Immersive, and on an
+   * Immersive office sheet crop marks in plain black, drawn as `ticks` are:
+   * registration black would put four inks on an office printer.
+   */
+  marks: 'ticks' | 'crop' | 'office-crop'
   ticks: readonly PrintKitTick[]
+  /** The office sheet's printing note; null where it has none or carries the print check. */
+  note: SheetNote | null
   /** Whether the page carries the Letter card sheet's print check. */
   printCheck: boolean
   /** Where the sheet folds, down the page; null for a flat card. */
@@ -138,7 +146,7 @@ export type PrintKitPage = Readonly<{
   panels: readonly PrintKitPagePanel[]
 }>
 
-const SIDES: readonly PrintFaceSide[] = ['front', 'back']
+export const SIDES: readonly PrintFaceSide[] = ['front', 'back']
 const tick = (xPt: number, yPt: number, widthPt: number, heightPt: number) => ({
   xPt,
   yPt,
@@ -201,14 +209,19 @@ const TENT_FOLD_TICKS: Readonly<
   ],
 }
 
-const paperPage = (
+export const paperPage = (
   paper: PrintKitPaper,
-  rest: Omit<PrintKitPage, 'widthPt' | 'heightPt' | 'trim' | 'bleedPt' | 'marks'>,
+  rest: Omit<
+    PrintKitPage,
+    'widthPt' | 'heightPt' | 'trim' | 'bleedPt' | 'marks' | 'note'
+  > &
+    Partial<Pick<PrintKitPage, 'note'>>,
 ): PrintKitPage => ({
   ...SHEET_PT[paper],
   trim: { leftPt: 0, topPt: 0, ...SHEET_PT[paper] },
   bleedPt: 0,
   marks: 'ticks',
+  note: null,
   ...rest,
 })
 
@@ -239,14 +252,16 @@ function paperCardPages(
         leftPt,
         topPt,
         rotated: false,
+        turned: false,
         geometry,
+        bleed: NO_BLEED,
       })),
     })
   })
 }
 
 /** The slots of a row read right to left: what a long-edge flip makes of the columns. */
-function swapColumns(
+export function swapColumns(
   slots: readonly (readonly [number, number])[],
 ): readonly (readonly [number, number])[] {
   const rows = [...new Set(slots.map(([, top]) => top))]
@@ -266,11 +281,14 @@ function paperTentPage(paper: PrintKitPaper): PrintKitPage {
     printCheck: false,
     foldAtPt: fold,
     panels: [
-      { side: 'back', leftPt: 0, topPt: 0, rotated: true, geometry },
-      { side: 'front', leftPt: 0, topPt: fold, rotated: false, geometry },
+      { ...FLAT_FACE, side: 'back', leftPt: 0, topPt: 0, rotated: true, geometry },
+      { ...FLAT_FACE, side: 'front', leftPt: 0, topPt: fold, geometry },
     ],
   })
 }
+
+/** A face as most sheets print it: upright, unturned, with no bleed. */
+const FLAT_FACE = { rotated: false, turned: false, bleed: NO_BLEED } as const
 
 /** An Immersive page: the trim inside its bleed and slug, which hold the crop marks. */
 function immersivePage(
@@ -286,56 +304,74 @@ function immersivePage(
     bleedPt: grid.bleedPt,
     marks: 'crop',
     ticks: [],
+    note: null,
     printCheck: false,
     ...rest,
   }
 }
 
 /**
- * Immersive cards print one face to a page; the tent is two card-size panels on
- * one flat page, folded across the middle, the back panel upside down.
+ * The Immersive tent: two card-size panels on one flat page, folded across the
+ * middle, the back panel upside down. Neither panel bleeds across the fold.
  */
-function immersivePages(
-  piece: PrintKitPiece,
+function immersiveTentPages(paper: PrintKitPaper): readonly PrintKitPage[] {
+  const grid = IMMERSIVE_TENT_GRID[paper]
+  const geometry: PanelGeometry = paper === 'letter' ? 'tentPanel4x6' : 'tentPanelA6'
+  const origin = grid.trimOriginPt
+  const bleed = { ...bleedAround(grid.bleedPt), topPt: 0 }
+  return [
+    immersivePage(
+      grid,
+      { widthPt: grid.widthPt, heightPt: 2 * grid.heightPt },
+      {
+        foldAtPt: origin + grid.heightPt,
+        panels: [
+          {
+            ...FLAT_FACE,
+            side: 'back',
+            leftPt: origin,
+            topPt: origin,
+            rotated: true,
+            geometry,
+            bleed,
+          },
+          {
+            ...FLAT_FACE,
+            side: 'front',
+            leftPt: origin,
+            topPt: origin + grid.heightPt,
+            geometry,
+            bleed,
+          },
+        ],
+      },
+    ),
+  ]
+}
+
+/**
+ * An Immersive card of any size for a print shop: one face to a page, its trim
+ * inside the bleed and slug every Immersive card page has (1/8 in in a 0.375 in
+ * slug on Letter, 3 mm in 10 mm on A4).
+ */
+export function printShopCardPages(
+  size: PrintKitSize,
   faceCount: number,
   paper: PrintKitPaper,
 ): readonly PrintKitPage[] {
-  if (piece === 'table_tent') {
-    const grid = IMMERSIVE_TENT_GRID[paper]
-    const geometry: PanelGeometry = paper === 'letter' ? 'tentPanel4x6' : 'tentPanelA6'
-    const origin = grid.trimOriginPt
-    return [
-      immersivePage(
-        grid,
-        { widthPt: grid.widthPt, heightPt: 2 * grid.heightPt },
-        {
-          foldAtPt: origin + grid.heightPt,
-          panels: [
-            { side: 'back', leftPt: origin, topPt: origin, rotated: true, geometry },
-            {
-              side: 'front',
-              leftPt: origin,
-              topPt: origin + grid.heightPt,
-              rotated: false,
-              geometry,
-            },
-          ],
-        },
-      ),
-    ]
-  }
   const grid = CARD_GRID.immersive[paper]
-  const geometry: PanelGeometry = paper === 'letter' ? 'card4x6' : 'cardA6'
+  const geometry = cardGeometryOf(size, paper)
   return SIDES.slice(0, faceCount).map((side) =>
-    immersivePage(grid, sizeOf(grid), {
+    immersivePage(grid, PANEL_SIZE_PT[geometry], {
       foldAtPt: null,
       panels: [
         {
+          ...FLAT_FACE,
           side,
           leftPt: grid.trimOriginPt,
           topPt: grid.trimOriginPt,
-          rotated: false,
           geometry,
+          bleed: bleedAround(grid.bleedPt),
         },
       ],
     }),
@@ -353,7 +389,11 @@ export function printKitPages(
   style: PrintKitStyle,
   paper: PrintKitPaper,
 ): readonly PrintKitPage[] {
-  if (style === 'immersive') return immersivePages(piece, faceCount, paper)
+  if (style === 'immersive') {
+    return piece === 'table_tent'
+      ? immersiveTentPages(paper)
+      : printShopCardPages('large', faceCount, paper)
+  }
   return piece === 'table_tent'
     ? [paperTentPage(paper)]
     : paperCardPages(faceCount, paper)

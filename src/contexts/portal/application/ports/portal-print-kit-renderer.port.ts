@@ -6,10 +6,13 @@
 
 import type {
   PrintFace,
+  PrintKitOutput,
   PrintKitPaper,
   PrintKitPiece,
+  PrintKitSize,
   PrintKitStyle,
 } from '#/shared/domain/portal-print-kit'
+import type { PrintCodeTooSmall } from '#/shared/domain/portal-print-kit-code-tile'
 
 export type PrintKitPhoto = Readonly<{
   /** The stored image, as the media store holds it. */
@@ -28,6 +31,10 @@ export type PrintKitRenderInput = Readonly<{
    */
   style: PrintKitStyle
   paper: PrintKitPaper
+  /** The piece's size (round 3): the old tent is the `table_tent` at size Large. */
+  size: PrintKitSize
+  /** Who prints it: a print shop, from one piece per page, or an office printer, from a sheet. */
+  output: PrintKitOutput
   faces: readonly PrintFace[]
   /** The brand set as text when there is no logo. */
   wordmark: string
@@ -40,6 +47,30 @@ export type PrintKitRenderInput = Readonly<{
   /** What the code encodes: the QR address, with its access-artifact marker. */
   qrAddress: string
 }>
+
+/** A band photo too soft to print at the size asked for: its softest crop, and the least it may be. */
+export type PrintPhotoTooSoft = Readonly<{
+  code: 'print_photo_too_soft'
+  dpi: number
+  minimumDpi: number
+}>
+
+export type PrintKitRefusal = PrintCodeTooSmall | PrintPhotoTooSoft
+
+/**
+ * What the renderer throws when the print it was asked for would not scan or
+ * would print blurred: the use case turns it into a refusal the manager reads.
+ * Thrown before any page is drawn.
+ */
+export class PrintKitRenderRefusal extends Error {
+  readonly refusal: PrintKitRefusal
+
+  constructor(refusal: PrintKitRefusal) {
+    super(`The print kit was refused: ${refusal.code}`)
+    this.name = 'PrintKitRenderRefusal'
+    this.refusal = refusal
+  }
+}
 
 export type PortalPrintKitRenderer = Readonly<{
   render: (input: PrintKitRenderInput) => Promise<Uint8Array>

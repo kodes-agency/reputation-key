@@ -33,6 +33,8 @@ function paperInput(
     piece: choice.piece,
     style: 'paper',
     paper,
+    size: 'large',
+    output: 'office',
     faces: printKitFaces(choice, TITLES, 'Pool & Terrace'),
     wordmark: 'Avela',
     propertyName: 'Avela Beach Resort',

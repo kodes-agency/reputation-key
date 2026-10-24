@@ -21,10 +21,12 @@ import type { PortalPublicationConfiguration } from '../../domain/portal-publica
 import type { PortalPublicationSnapshot } from '../../domain/portal-publication-snapshot'
 import { portalError } from '../../domain/errors'
 import type { PortalPublicationSource } from '../../domain/portal-publication-source'
-import type {
-  PortalPrintKitRenderer,
-  PrintKitRenderInput,
+import {
+  PrintKitRenderRefusal,
+  type PortalPrintKitRenderer,
+  type PrintKitRenderInput,
 } from '../ports/portal-print-kit-renderer.port'
+import { PRINT_KIT_SIZES, type PrintKitSize } from '#/shared/domain/portal-print-kit'
 import { createPortalPrintKit, printKitDownloadOf } from './create-portal-print-kit'
 import type { RevealPortalAddress } from './reveal-portal-address'
 
@@ -57,6 +59,10 @@ type Options = Readonly<{
   heroHash?: string
   /** The Property's country; null when it has none recorded. */
   country?: string | null
+  /** The sizes a manager may choose; the shipped list unless a test reaches for the hidden ones. */
+  selectableSizes?: readonly PrintKitSize[]
+  /** What the renderer does instead of returning the PDF. */
+  refuse?: PrintKitRenderRefusal
 }>
 
 async function setup(options: Options = {}) {
@@ -97,6 +103,7 @@ async function setup(options: Options = {}) {
   const renderer: PortalPrintKitRenderer = {
     render: vi.fn(async (input) => {
       rendered.push(input)
+      if (options.refuse) throw options.refuse
       return PDF
     }),
   }
@@ -116,6 +123,7 @@ async function setup(options: Options = {}) {
     revealAddress: reveal,
     renderer,
     propertyCountry,
+    ...(options.selectableSizes ? { selectableSizes: options.selectableSizes } : {}),
   })
   return { portal, make, reveal, renderer, rendered, propertyCountry }
 }
@@ -123,6 +131,7 @@ async function setup(options: Options = {}) {
 const choice = {
   style: 'paper',
   piece: 'table_tent',
+  size: 'large',
   languages: ['en', 'bg'],
   callToAction: 'rate',
 } as const
@@ -342,6 +351,103 @@ describe('createPortalPrintKit', () => {
       make({ portalId: portal.id, ...choice }, buildTestAuthContext()),
     ).rejects.toMatchObject({ code: 'address_unavailable' })
     expect(renderer.render).not.toHaveBeenCalled()
+  })
+})
+
+describe('createPortalPrintKit, at a size', () => {
+  const card = { ...choice, piece: 'counter_card', languages: ['en'] } as const
+
+  it('prints Large, in the style’s own output, when the request names neither', async () => {
+    const { portal, make, rendered } = await setup()
+    await make({ portalId: portal.id, ...card, size: undefined }, buildTestAuthContext())
+    expect(rendered[0]).toMatchObject({ size: 'large', output: 'office' })
+  })
+
+  it.each(['table', 'mini'] as const)(
+    'refuses a %s card while it is not selectable, before it reveals the address',
+    async (size) => {
+      const { portal, make, reveal } = await setup()
+      await expect(
+        make({ portalId: portal.id, ...card, size }, buildTestAuthContext()),
+      ).rejects.toMatchObject({ code: 'print_format_not_offered', context: { size } })
+      expect(reveal).not.toHaveBeenCalled()
+    },
+  )
+
+  it('refuses a print the kit does not make, before it reveals the address', async () => {
+    const { portal, make, reveal } = await setup({ selectableSizes: PRINT_KIT_SIZES })
+    await expect(
+      make(
+        { portalId: portal.id, ...card, size: 'mini', languages: ['en', 'bg'] },
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      message: 'A Mini card prints one language. Choose one.',
+    })
+    await expect(
+      make(
+        { portalId: portal.id, ...card, style: 'paper', output: 'print_shop' },
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({ code: 'print_format_not_offered' })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('prints a selectable Table card as an Immersive office sheet, named for its size and count', async () => {
+    const { portal, make, rendered } = await setup({ selectableSizes: PRINT_KIT_SIZES })
+    const file = await make(
+      {
+        portalId: portal.id,
+        ...card,
+        size: 'table',
+        style: 'immersive',
+        output: 'office',
+      },
+      buildTestAuthContext(),
+    )
+    expect(rendered[0]).toMatchObject({
+      size: 'table',
+      output: 'office',
+      style: 'immersive',
+    })
+    expect(rendered[0]?.title).toBe('Harbor lobby table card')
+    expect(file.fileName).toBe('harbor-lobby-table-card-en-immersive-4up-letter.pdf')
+  })
+
+  it('turns the renderer’s refusal of a long address on a small tile into words', async () => {
+    const { portal, make } = await setup({
+      selectableSizes: PRINT_KIT_SIZES,
+      refuse: new PrintKitRenderRefusal({
+        code: 'print_code_too_small',
+        cause: 'needs_short_code',
+        size: 'mini',
+        moduleMm: 0.56,
+      }),
+    })
+    await expect(
+      make({ portalId: portal.id, ...card, size: 'mini' }, buildTestAuthContext()),
+    ).rejects.toMatchObject({
+      code: 'print_code_too_small',
+      message: 'This code is too long to scan on a Mini card. Choose Large.',
+      context: { cause: 'needs_short_code', size: 'mini', moduleMm: 0.56 },
+    })
+  })
+
+  it('turns a refusal of a soft band photo into words', async () => {
+    const { portal, make } = await setup({
+      refuse: new PrintKitRenderRefusal({
+        code: 'print_photo_too_soft',
+        dpi: 96,
+        minimumDpi: 120,
+      }),
+    })
+    await expect(
+      make({ portalId: portal.id, ...card, style: 'immersive' }, buildTestAuthContext()),
+    ).rejects.toMatchObject({
+      code: 'print_photo_too_soft',
+      context: { dpi: 96, minimumDpi: 120 },
+    })
   })
 })
 

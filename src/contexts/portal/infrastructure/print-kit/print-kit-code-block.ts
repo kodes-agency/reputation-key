@@ -146,10 +146,14 @@ function drawBar(
   const barTop = at.y + tilePt
   const centreX = at.x + tilePt / 2
 
+  // Beside or under the pictogram the lines are left-aligned (spec 2.4); with
+  // no pictogram each is centred in the column the widest sets (round-3 S2).
+  const centred = plan.iconPt === 0
   const drawCues = (left: number, top: number) =>
     art.cues.forEach((cue, index) => {
+      const indent = centred ? (textWidth - (widths[index] ?? textWidth)) / 2 : 0
       drawLine(doc, fonts, cue.text, style, {
-        x: left,
+        x: left + indent,
         middleY: top + index * (lineHeight + CODE_BLOCK.cueGapPt) + lineHeight / 2,
       })
     })

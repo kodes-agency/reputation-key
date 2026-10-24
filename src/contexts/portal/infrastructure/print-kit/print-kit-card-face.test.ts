@@ -8,6 +8,7 @@ import sharp from 'sharp'
 import { describe, expect, it, vi } from 'vitest'
 import type { PrintKitRenderInput } from '../../application/ports/portal-print-kit-renderer.port'
 import {
+  defaultPrintKitOutput,
   printKitFaces,
   type PrintKitStyle,
   type PrintKitWords,
@@ -85,6 +86,7 @@ async function layOut(options: Case): Promise<CardFaceLayout> {
   const size =
     options.logo === 'oakmere' ? { width: 327, height: 321 } : { width: 766, height: 426 }
   return layoutCardFace(doc, fonts, faceOf(options.languages ?? ['en']), {
+    size: 'large',
     style: options.style,
     paper: 'letter',
     palette: immersive
@@ -162,6 +164,8 @@ function inputFor(style: PrintKitStyle, address: string): PrintKitRenderInput {
     piece: 'counter_card',
     style,
     paper: 'letter',
+    size: 'large',
+    output: defaultPrintKitOutput(style),
     faces: printKitFaces(
       { piece: 'counter_card', languages: ['en'], callToAction: 'rate' },
       { en: 'Reception' },

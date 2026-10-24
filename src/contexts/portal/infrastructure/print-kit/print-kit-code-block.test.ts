@@ -10,7 +10,7 @@ import {
   estimatedCueWidthPt,
   planCodeBlock,
 } from '#/shared/domain/portal-print-kit-code-block'
-import { CODE_MODULE_MIN_MM } from '#/shared/domain/portal-print-kit-code-tile'
+import { CODE_MODULE_MIN_MM, CODE_TILE } from '#/shared/domain/portal-print-kit-code-tile'
 import {
   CODE_BLOCK,
   codeSymbolPt,
@@ -243,6 +243,29 @@ describe('drawCodeBlock', () => {
     const groupLeft = start - CODE_BLOCK.iconGapPt - plan.iconPt
     const groupRight = start + widest
     near(groupLeft - 100, 244 - groupRight)
+  })
+
+  it('centres each cue line on a tile with no pictogram (round-3 S2)', () => {
+    const { doc, fonts } = newDocument()
+    const text = vi.spyOn(doc, 'text')
+    const cues = cueLinesFor(['en', 'bg'])
+    const tile = CODE_TILE.table.a4
+    const plan = planPdfCodeBlock(doc, fonts, cues, tile)
+    expect(plan.iconPt).toBe(0)
+    const colours = codeBlockColours(printKitPalette('#EAD6A8', null, 'immersive'))
+    drawCodeBlock(doc, fonts, { qr: QR, cues, colours }, plan, { x: 100, y: 50 })
+    const style = {
+      ...cueStyle(plan.cuePt),
+      spacing: plan.cuePt * CODE_BLOCK.cueTrackingEm,
+    }
+    const lines = text.mock.calls.map((call) => call as unknown as [string, number])
+    for (const cue of cues) {
+      const start = lines.find(
+        ([line]) => line.trim() !== '' && cue.text.startsWith(line),
+      )?.[1]
+      const width = measureLine(doc, fonts, cue.text, style)
+      near((start ?? Number.NaN) + width / 2, 100 + tile.tilePt / 2)
+    }
   })
 
   it('moves the pictogram above the lines, in a taller bar, when a line does not fit beside it', () => {

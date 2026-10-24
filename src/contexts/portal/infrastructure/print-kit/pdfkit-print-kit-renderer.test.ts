@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { PrintKitRenderInput } from '../../application/ports/portal-print-kit-renderer.port'
 import {
   PRINT_KIT_STYLES,
+  defaultPrintKitOutput,
   printKitFaces,
   type PrintKitWords,
   type PrintKitStyle,
@@ -37,6 +38,8 @@ function inputFor(
     piece: choice.piece,
     style,
     paper: 'letter',
+    size: 'large',
+    output: defaultPrintKitOutput(style),
     faces: printKitFaces(choice, TITLES, 'Pool & Terrace'),
     wordmark: 'Avela',
     propertyName: 'Avela Beach Resort',

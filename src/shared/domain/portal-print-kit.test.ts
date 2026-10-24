@@ -13,6 +13,7 @@ import {
   defaultPrintKitPaper,
   isPrintKitLanguageChoice,
   isSelectablePrintKitSize,
+  printKitPieceNoun,
   printKitFaces,
   printKitFileName,
   printKitLanguageChoices,
@@ -273,5 +274,47 @@ describe('the sizes', () => {
     for (const size of PRINT_KIT_SELECTABLE_SIZES) {
       expect(PRINT_KIT_SIZES).toContain(size)
     }
+  })
+})
+
+describe('printKitFileName at a size and output', () => {
+  it('names the smaller cards for their size and an office sheet for how many it holds', () => {
+    const name = (format: Parameters<typeof printKitFileName>[3]) =>
+      printKitFileName('Oakmere Reception', 'counter_card', ['en'], format)
+    expect(
+      name({ style: 'immersive', paper: 'letter', size: 'table', output: 'office' }),
+    ).toBe('oakmere-reception-table-card-en-immersive-4up-letter.pdf')
+    expect(name({ style: 'paper', paper: 'a4', size: 'mini', output: 'office' })).toBe(
+      'oakmere-reception-mini-card-en-10up-a4.pdf',
+    )
+    expect(
+      name({ style: 'immersive', paper: 'letter', size: 'table', output: 'print_shop' }),
+    ).toBe('oakmere-reception-table-card-en-immersive-letter.pdf')
+    expect(
+      name({ style: 'immersive', paper: 'letter', size: 'large', output: 'office' }),
+    ).toBe('oakmere-reception-counter-card-en-immersive-2up-letter.pdf')
+  })
+
+  it('keeps the Large Paper sheets’ and the print-shop files’ names as they shipped', () => {
+    expect(
+      printKitFileName('Oakmere', 'counter_card', ['en'], {
+        style: 'paper',
+        paper: 'letter',
+        size: 'large',
+      }),
+    ).toBe('oakmere-counter-card-en-letter.pdf')
+    expect(
+      printKitFileName('Oakmere', 'counter_card', ['en'], {
+        style: 'immersive',
+        paper: 'a4',
+      }),
+    ).toBe('oakmere-counter-card-en-immersive-a4.pdf')
+  })
+
+  it('calls the smaller cards by their size, and the Large card and the tent as before', () => {
+    expect(printKitPieceNoun('counter_card', 'table')).toBe('table card')
+    expect(printKitPieceNoun('counter_card', 'mini')).toBe('mini card')
+    expect(printKitPieceNoun('counter_card', 'large')).toBe('counter card')
+    expect(printKitPieceNoun('table_tent', 'large')).toBe('table tent')
   })
 })

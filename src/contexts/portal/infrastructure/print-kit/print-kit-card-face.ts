@@ -1,7 +1,7 @@
-// A Large card, 4 × 6 in or A6, drawn from its plan (`planLargeCard`, round-2
-// spec-delta R1 and R2, round-3 S3): the words measured in the fonts the PDF
-// embeds, the logo measured to its ink, and on Immersive the photo band run into
-// the bleed on the top and both sides with the cream plate straddling its edge.
+// A card of any size drawn from its plan (`planCard`, round-2 spec-delta R1 and
+// R2, round-3 S3): the words measured in the fonts the PDF embeds, the logo
+// measured to its ink, and on Immersive the photo band run into the bleed on
+// the top and on each side that bleeds, with the cream plate straddling its edge.
 //
 // Laid out in the face's own coordinates, in points, from the top-left corner of
 // its trim; the page places it and says how far it bleeds.
@@ -9,6 +9,7 @@
 import type {
   PrintFace,
   PrintKitPaper,
+  PrintKitSize,
   PrintKitStyle,
 } from '#/shared/domain/portal-print-kit'
 import {
@@ -16,7 +17,7 @@ import {
   CARD_PLATE,
   type CardBox,
 } from '#/shared/domain/portal-print-kit-card-brand'
-import { planLargeCard, type LargeCardPlan } from '#/shared/domain/portal-print-kit-card'
+import { planCard, type CardPlan } from '#/shared/domain/portal-print-kit-card'
 import {
   cardColours,
   type CardColours,
@@ -47,6 +48,7 @@ import type { QrMatrix } from './print-kit-qr'
 import { drawMonogram } from './print-kit-window'
 
 export type CardFaceArt = Readonly<{
+  size: PrintKitSize
   style: PrintKitStyle
   paper: PrintKitPaper
   palette: PrintKitPalette
@@ -59,7 +61,7 @@ export type CardFaceArt = Readonly<{
 }>
 
 export type CardFaceLayout = Readonly<{
-  plan: LargeCardPlan
+  plan: CardPlan
   code: CodeBlockArt
   logo: FaceLogo | null
   palette: PrintKitPalette
@@ -71,7 +73,7 @@ const inkAspect = (logo: FaceLogo): number =>
   (logo.image.width * (logo.ink.right - logo.ink.left)) /
   Math.max(1, logo.image.height * (logo.ink.bottom - logo.ink.top))
 
-/** Where everything on a Large card goes. */
+/** Where everything on a card of its size goes. */
 export function layoutCardFace(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
@@ -80,7 +82,8 @@ export function layoutCardFace(
 ): CardFaceLayout {
   const code = planFaceCodeBlock(doc, fonts, face, art.qr, art.palette, art.tile)
   const display = fontMetrics(doc, fonts, 'display')
-  const plan = planLargeCard({
+  const plan = planCard({
+    size: art.size,
     style: art.style,
     paper: art.paper,
     face,
@@ -176,7 +179,7 @@ export type CardFaceDrawing = Readonly<{
   letter: string
 }>
 
-/** The band across the top: the photo or the monogram, run into the bleed on the top and both sides. */
+/** The band across the top: the photo or the monogram, run into the bleed on the top and each side that bleeds. */
 function drawBand(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
@@ -187,9 +190,9 @@ function drawBand(
   const { plan, palette } = layout
   if (plan.bandPt === null) return
   const area = {
-    x: -bleed.sidePt,
+    x: -bleed.leftPt,
     y: -bleed.topPt,
-    width: plan.widthPt + 2 * bleed.sidePt,
+    width: plan.widthPt + bleed.leftPt + bleed.rightPt,
     height: plan.bandPt + bleed.topPt,
   }
   doc.save()

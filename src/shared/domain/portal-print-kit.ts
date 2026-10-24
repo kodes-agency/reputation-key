@@ -33,6 +33,20 @@ export const PRINT_KIT_STYLES = Object.freeze(['paper', 'immersive'] as const)
 export type PrintKitStyle = (typeof PRINT_KIT_STYLES)[number]
 
 /**
+ * Who prints an Immersive card: a print shop, from one card per page with bleed
+ * and crop marks, or the customer's own printer, from an office sheet whose
+ * cards bleed for a cutter (2 Large or 4 Table cards to a sheet). Paper is
+ * always printed on an office printer, and the old tent has one output in each
+ * style.
+ */
+export const PRINT_KIT_OUTPUTS = Object.freeze(['print_shop', 'office'] as const)
+export type PrintKitOutput = (typeof PRINT_KIT_OUTPUTS)[number]
+
+/** The output a style prints to unless the manager chooses otherwise: Immersive to a print shop, as it always has. */
+export const defaultPrintKitOutput = (style: PrintKitStyle): PrintKitOutput =>
+  style === 'immersive' ? 'print_shop' : 'office'
+
+/**
  * The two paper families, Letter first: most customers are in the US. Letter
  * makes 4 × 6 in cards and 8.5 × 5.5 in tent faces; A4 makes A6 cards and A5
  * faces.
@@ -100,8 +114,37 @@ export const PRINT_KIT_SELECTABLE_SIZES: readonly PrintKitSize[] = Object.freeze
 export const isSelectablePrintKitSize = (size: PrintKitSize): boolean =>
   PRINT_KIT_SELECTABLE_SIZES.includes(size)
 
-/** The print a download asks for: its look and the paper it prints on. */
-export type PrintKitFormat = Readonly<{ style: PrintKitStyle; paper: PrintKitPaper }>
+/**
+ * The print a download asks for: its look and the paper it prints on, and,
+ * from round 3, its size and output (Large, and the style's own output, unless
+ * named).
+ */
+export type PrintKitFormat = Readonly<{
+  style: PrintKitStyle
+  paper: PrintKitPaper
+  size?: PrintKitSize
+  output?: PrintKitOutput
+}>
+
+/** A piece's name at a size: the smaller cards are named for their size, the Large card and the old tent as before. */
+export function printKitPieceNoun(piece: PrintKitPiece, size: PrintKitSize): string {
+  if (piece !== 'counter_card' || size === 'large') return PRINT_KIT_PIECE_NOUNS[piece]
+  return `${size} card`
+}
+
+/**
+ * How many cards an office sheet holds, for its file name: Table 4, Mini 10 and
+ * the Immersive Large office sheet 2; null for a print-shop file and for the
+ * Large Paper sheets, whose names stay as they shipped.
+ */
+function cardsPerSheet(piece: PrintKitPiece, format: PrintKitFormat): number | null {
+  const size = format.size ?? 'large'
+  const output = format.output ?? defaultPrintKitOutput(format.style)
+  if (piece !== 'counter_card' || output !== 'office') return null
+  if (size === 'table') return 4
+  if (size === 'mini') return 10
+  return format.style === 'immersive' ? 2 : null
+}
 
 /** One or two languages on a print: more would crowd an A6 face. */
 export const PRINT_KIT_MAX_LANGUAGES = 2
@@ -260,7 +303,9 @@ export function printKitFaces(
  *
  * A print ends with its paper, `…-en-es-letter.pdf`, and Immersive names itself
  * before it, `…-en-es-immersive-letter.pdf` (spec 7.2): Paper is the default
- * style, so it goes unnamed.
+ * style, so it goes unnamed. A smaller card is named for its size, and an office
+ * sheet says how many cards it holds before the paper (round-3 S7, round-2 R6):
+ * `…-table-card-en-immersive-4up-letter.pdf`.
  */
 export function printKitFileName(
   portalName: string,
@@ -268,8 +313,13 @@ export function printKitFileName(
   languages: readonly GuestLocale[],
   format: PrintKitFormat,
 ): string {
-  const noun = PRINT_KIT_PIECE_NOUNS[piece].replace(/\s+/gu, '-')
-  const look = [...(format.style === 'immersive' ? ['immersive'] : []), format.paper]
+  const noun = printKitPieceNoun(piece, format.size ?? 'large').replace(/\s+/gu, '-')
+  const count = cardsPerSheet(piece, format)
+  const look = [
+    ...(format.style === 'immersive' ? ['immersive'] : []),
+    ...(count === null ? [] : [`${count}up`]),
+    format.paper,
+  ]
   return (
     [fileNameSlug(portalName) || 'portal', noun, ...languages, ...look].join('-') + '.pdf'
   )
