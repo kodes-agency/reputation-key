@@ -13,6 +13,13 @@ import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-sto
 import { getDb } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
 import { printKitSubject } from '#/shared/domain/portal-print-kit-pieces'
+import {
+  PRINT_KIT_SIZES,
+  type PrintKitOutput,
+  type PrintKitPaper,
+  type PrintKitSize,
+  type PrintKitStyle,
+} from '#/shared/domain/portal-print-kit'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { buildPortalPublicUrls } from '../../application/portal-address-urls'
 import type { PortalPrintKitRenderer } from '../../application/ports/portal-print-kit-renderer.port'
@@ -191,7 +198,17 @@ async function seedCode(sealed: boolean): Promise<void> {
   }
 }
 
-type HarnessOptions = Readonly<{ sealed?: boolean; locales?: readonly ('bg' | 'en')[] }>
+type HarnessOptions = Readonly<{
+  sealed?: boolean
+  locales?: readonly ('bg' | 'en')[]
+  /** The sizes a manager may choose: the hidden ones too, for a test. */
+  selectableSizes?: readonly PrintKitSize[]
+  /**
+   * What the renderer draws in place of the revealed address: a short print
+   * address, as the code will carry once print codes are minted (plan slice 5).
+   */
+  printAddress?: string
+}>
 
 async function harness(options: HarnessOptions = {}) {
   await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
@@ -217,7 +234,8 @@ async function harness(options: HarnessOptions = {}) {
   const renderer: PortalPrintKitRenderer = {
     render: async (input) => {
       renderedAddresses.push(input.qrAddress)
-      return real.render(input)
+      const qrAddress = options.printAddress ?? input.qrAddress
+      return real.render({ ...input, qrAddress })
     },
   }
   return {
@@ -237,6 +255,7 @@ async function harness(options: HarnessOptions = {}) {
       }),
       renderer,
       propertyCountry: createPropertyCountryReader(db),
+      ...(options.selectableSizes ? { selectableSizes: options.selectableSizes } : {}),
     }),
     renderedAddresses,
     ctx: buildTestAuthContext({ organizationId: WORKING_COPY_ORG }),
@@ -518,5 +537,137 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
     const bulgarian = await make(request, ctx)
     expect(bulgarian.fileName.endsWith('-bg-a4.pdf')).toBe(true)
     expect(pageSizes(bulgarian.pdf)).toEqual([[595, 842]])
+  })
+
+  describe('at the round-3 sizes, made selectable for the test', () => {
+    /** A short print address on the print host: a version 3 symbol. */
+    const PRINT_ADDRESS = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
+    const request = (
+      size: PrintKitSize,
+      style: PrintKitStyle,
+      paper: PrintKitPaper,
+      output: PrintKitOutput,
+    ) =>
+      ({
+        portalId: COMPLETE_SCENARIO.portalId,
+        piece: 'counter_card',
+        languages: ['bg'],
+        callToAction: 'rate',
+        style,
+        paper,
+        size,
+        output,
+      }) as const
+
+    it.each([
+      ['table', 'paper', 'letter', 'office', [612, 792], '-table-card-bg-4up-letter.pdf'],
+      ['table', 'paper', 'a4', 'office', [595, 842], '-table-card-bg-4up-a4.pdf'],
+      [
+        'table',
+        'immersive',
+        'letter',
+        'office',
+        [612, 792],
+        '-table-card-bg-immersive-4up-letter.pdf',
+      ],
+      [
+        'table',
+        'immersive',
+        'a4',
+        'office',
+        [595, 842],
+        '-table-card-bg-immersive-4up-a4.pdf',
+      ],
+      [
+        'table',
+        'immersive',
+        'letter',
+        'print_shop',
+        [306, 414],
+        '-table-card-bg-immersive-letter.pdf',
+      ],
+      [
+        'table',
+        'immersive',
+        'a4',
+        'print_shop',
+        [312, 425],
+        '-table-card-bg-immersive-a4.pdf',
+      ],
+      ['mini', 'paper', 'letter', 'office', [612, 792], '-mini-card-bg-10up-letter.pdf'],
+      ['mini', 'paper', 'a4', 'office', [595, 842], '-mini-card-bg-10up-a4.pdf'],
+      [
+        'mini',
+        'immersive',
+        'letter',
+        'print_shop',
+        [198, 306],
+        '-mini-card-bg-immersive-letter.pdf',
+      ],
+      [
+        'mini',
+        'immersive',
+        'a4',
+        'print_shop',
+        [213, 298],
+        '-mini-card-bg-immersive-a4.pdf',
+      ],
+      [
+        'large',
+        'immersive',
+        'letter',
+        'office',
+        [792, 612],
+        '-counter-card-bg-immersive-2up-letter.pdf',
+      ],
+      [
+        'large',
+        'immersive',
+        'a4',
+        'office',
+        [842, 595],
+        '-counter-card-bg-immersive-2up-a4.pdf',
+      ],
+    ] as const)(
+      'draws a %s %s card on %s for %s, with the photo and the logo',
+      async (size, style, paper, output, page, ending) => {
+        const { make, ctx } = await harness({
+          selectableSizes: PRINT_KIT_SIZES,
+          printAddress: PRINT_ADDRESS,
+        })
+        const file = await make(request(size, style, paper, output), ctx)
+        expect(file.fileName.endsWith(ending)).toBe(true)
+        expect(pageSizes(file.pdf)).toEqual([page])
+        const text = Buffer.from(file.pdf).toString('latin1')
+        // Paper has no photo; the logo is a picture on every card.
+        const pictures = text.match(/\/Subtype \/Image/gu)?.length ?? 0
+        expect(pictures).toBeGreaterThanOrEqual(style === 'immersive' ? 2 : 1)
+        expect(text.match(/\/BleedBox/gu) ?? []).toHaveLength(
+          output === 'print_shop' ? 1 : 0,
+        )
+        expect(pdfSubject(text)).toBe(printKitSubject(style, 'counter_card', paper, size))
+      },
+    )
+
+    it('refuses today’s long address on a Table card: its tile would print the code too small', async () => {
+      const { make, ctx } = await harness({ selectableSizes: PRINT_KIT_SIZES })
+      await expect(
+        make(request('table', 'paper', 'letter', 'office'), ctx),
+      ).rejects.toMatchObject({
+        code: 'print_code_too_small',
+        context: { cause: 'needs_short_code', size: 'table' },
+      })
+    })
+
+    it('refuses a size managers may not choose yet, before it reveals or records anything', async () => {
+      const { make, ctx, renderedAddresses } = await harness()
+      await expect(
+        make(request('mini', 'paper', 'letter', 'office'), ctx),
+      ).rejects.toMatchObject({
+        code: 'print_format_not_offered',
+      })
+      expect(renderedAddresses).toEqual([])
+      expect(await downloadRows()).toEqual([])
+    })
   })
 })
