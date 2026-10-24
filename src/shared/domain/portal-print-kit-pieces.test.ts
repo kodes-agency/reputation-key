@@ -39,7 +39,7 @@ describe('the facts of each style', () => {
     })
     expect(PRINT_KIT_STYLE_FACTS.immersive).toEqual({
       label: 'Immersive',
-      detail: 'Dark, with your photo. Best from a print shop.',
+      detail: 'Dark, with your photo.',
     })
   })
 })

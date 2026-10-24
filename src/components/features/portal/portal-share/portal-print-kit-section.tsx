@@ -1,7 +1,7 @@
 // The Print kit section of the Share tab, top to bottom as the share board draws
-// it (spec 7.2): what to make (style, piece, paper, languages, call to action),
-// the download with the file's name beside it, and how to print what was
-// chosen. What is chosen drives the preview beside it; the PDF is made by the
+// it (spec 7.2, round-3 S7): what to make (style, size, piece, output, paper,
+// languages, the name under the logo, call to action), the download with the
+// file's name beside it, and how to print what was chosen. What is chosen drives the preview beside it; the PDF is made by the
 // server from the same choice. Below `lg` the preview is handed in and sits
 // between the choices and the download, so a phone shows what it is about to
 // download first.
@@ -12,12 +12,16 @@ import { Button } from '#/components/ui/button'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
-import { printKitFileName, type PrintKitChoice } from '#/shared/domain/portal-print-kit'
 import {
-  PRINT_KIT_PIECE_FACTS,
-  PRINT_KIT_STYLE_FACTS,
-  printKitHowToPrint,
-} from '#/shared/domain/portal-print-kit-pieces'
+  PRINT_KIT_SELECTABLE_SIZES,
+  printKitFileName,
+  type PrintKitChoice,
+  type PrintKitSize,
+} from '#/shared/domain/portal-print-kit'
+import {
+  printKitHowToSteps,
+  printKitHowToTitle,
+} from '#/shared/domain/portal-print-kit-how-to'
 import { PortalPrintKitControls } from './portal-print-kit-controls'
 import { PortalPrintKitHowTo } from './portal-print-kit-how-to'
 
@@ -30,6 +34,10 @@ type Props = Readonly<{
   /** Try again is reading; the error stays, its button busy. */
   isRetrying?: boolean
   onChoiceChange: (choice: PrintKitChoice) => void
+  /** The sizes offered: `PRINT_KIT_SELECTABLE_SIZES` unless a story shows the hidden ones. */
+  sizes?: readonly PrintKitSize[]
+  /** The bar under each code as the tile makes it ("1.4 in (3.6 cm)"), for "How to print"; null while the tile is not known or the size is refused. */
+  barMeasure?: string | null
   /** Names the characters the fonts lack, which the print leaves out; null when all will print. */
   unprintableNote: string | null
   /** Why the download is off, or null when it is on. */
@@ -47,6 +55,8 @@ export function PortalPrintKitSection({
   onRetry,
   isRetrying = false,
   onChoiceChange,
+  sizes = PRINT_KIT_SELECTABLE_SIZES,
+  barMeasure = null,
   unprintableNote,
   unavailableReason,
   isWorking,
@@ -76,6 +86,7 @@ export function PortalPrintKitSection({
         <PortalPrintKitControls
           view={view}
           choice={choice}
+          sizes={sizes}
           onChoiceChange={onChoiceChange}
         />
       ) : (
@@ -110,15 +121,14 @@ export function PortalPrintKitSection({
           <p className="text-sm text-muted-foreground">{unavailableReason}</p>
         )}
       </div>
-      {ready && (
+      {ready && barMeasure !== null && (
         <PortalPrintKitHowTo
-          title={`${PRINT_KIT_STYLE_FACTS[choice.style].label} ${PRINT_KIT_PIECE_FACTS[choice.style][choice.piece][choice.paper].noun}`}
-          steps={printKitHowToPrint(
-            choice.style,
-            choice.piece,
-            choice.paper,
-            choice.languages.length,
-          )}
+          title={printKitHowToTitle(choice)}
+          steps={printKitHowToSteps({
+            ...choice,
+            languageCount: choice.languages.length,
+            bar: barMeasure,
+          })}
         />
       )}
     </section>

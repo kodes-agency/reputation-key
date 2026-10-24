@@ -23,8 +23,8 @@ import {
 import { printKitFormatProblem } from './portal-print-kit-formats'
 import { CODE_TILE } from './portal-print-kit-code-tile'
 import { ptToIn, ptToMm } from './portal-print-kit-measures'
-import { SIZE_TRIM_PT } from './portal-print-kit-sizes'
-import { tight } from './portal-print-kit-pieces'
+import { SIZE_TRIM_PT, TENT_SMALL_FACE } from './portal-print-kit-sizes'
+import { PRINT_KIT_PIECE_FACTS, tight } from './portal-print-kit-pieces'
 import type { GuestLocale } from './guest-locale'
 
 export type PrintKitSizeFacts = Readonly<{
@@ -46,6 +46,13 @@ function lengthText(pt: number, paper: PrintKitPaper): string {
   return paper === 'letter'
     ? `${Number(ptToIn(pt).toFixed(2))}`
     : `${Math.round(ptToMm(pt))}`
+}
+
+/** A face of the small tent as it is cut: "5 × 3.5 in" on Letter, "130 × 90 mm" in Europe. */
+function tentFaceText(paper: PrintKitPaper): string {
+  const { widthPt, heightPt } = TENT_SMALL_FACE.trimPt[paper]
+  const unit = paper === 'letter' ? 'in' : 'mm'
+  return tight(`${lengthText(widthPt, paper)} × ${lengthText(heightPt, paper)} ${unit}`)
 }
 
 /** A size's trim as it is cut: "4 × 6 in" on Letter, "90 × 130 mm" in Europe (Large is A6). */
@@ -173,3 +180,29 @@ export function printKitSizedPaperNote(
 /** The hint under the switch for the name under the logo (D12): where the name is printed. */
 export const PRINT_KIT_NAME_HINT =
   'Large and Table cards. The tent and Mini show the logo alone.'
+
+/**
+ * What a piece's card on the Share tab says at a size: Large's are the piece's
+ * own (a counter card and the Letter-half tent), the smaller sizes name a card
+ * for the holder it stands in and the small tent for its faces (round-3 S7).
+ */
+export function printKitPieceCardFacts(
+  style: PrintKitStyle,
+  piece: PrintKitPiece,
+  paper: PrintKitPaper,
+  size: PrintKitSize,
+): Readonly<{ label: string; detail: string }> {
+  if (size === 'large') {
+    const { label, detail } = PRINT_KIT_PIECE_FACTS[style][piece][paper]
+    return { label, detail }
+  }
+  if (piece === 'table_tent') {
+    return {
+      label: 'Table tent',
+      detail: tight(`Stands on its own, ${tentFaceText(paper)} faces`),
+    }
+  }
+  const trim = printKitTrimText(size, paper)
+  const where = size === 'table' ? 'for a holder' : 'for key-card sleeves'
+  return { label: 'Card', detail: tight(`${trim}, ${where}`) }
+}

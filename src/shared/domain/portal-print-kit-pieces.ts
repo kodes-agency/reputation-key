@@ -36,7 +36,7 @@ export const PRINT_KIT_STYLE_FACTS: Readonly<Record<PrintKitStyle, PrintKitStyle
     paper: { label: 'Paper', detail: 'Prints on any printer. Letter or A4, no bleed.' },
     immersive: {
       label: 'Immersive',
-      detail: 'Dark, with your photo. Best from a print shop.',
+      detail: 'Dark, with your photo.',
     },
   })
 

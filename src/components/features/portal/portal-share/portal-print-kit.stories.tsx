@@ -350,13 +350,13 @@ export const ImmersiveIsForAPrintShop: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('radio', { name: /^Immersive/ }))
-    await expect(canvas.getByText('4 × 6 in · print shop')).toBeVisible()
+    await expect(canvas.getByText('4 × 6 in')).toBeVisible()
     await expect(canvas.getByText('4 × 6 in, folded · print shop')).toBeVisible()
     await expect(
       canvas.getByText('Letter makes 4 × 6 in pieces. A4 makes A6 pieces.'),
     ).toBeVisible()
     await expect(
-      canvas.getByText(/^How to print · Immersive counter card$/),
+      canvas.getByText(/^How to print · Immersive counter card · print shop$/),
     ).toBeVisible()
     await expect(
       canvas.getByText('Made for a print shop. Send the PDF as it is.'),
@@ -396,12 +396,12 @@ export const HowToPrintStaysAsLeft: Story = {
   },
 }
 
-/** One face is the face as it prints; the Back switch is for a print with two sides. */
+/** One card is the face as it prints; the Back switch is for a print with two sides. */
 export const OneFaceAndItsBack: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One card' }))
     const front = await preview(canvasElement)
     await expect(front).toHaveAccessibleName(
       /4 × 6 in counter card, front, English and Bulgarian, "Rate your visit"/i,
@@ -432,7 +432,7 @@ export const CallToActionIsOnThePrint: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One card' }))
     await userEvent.click(
       canvas.getByRole('radio', { name: /how was your visit\? about 30 seconds/i }),
     )
@@ -461,7 +461,7 @@ export const LongCopyShrinksAsInTheFile: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One card' }))
     await userEvent.click(
       canvas.getByRole('radio', { name: /how was your visit\? about 30 seconds/i }),
     )
@@ -498,7 +498,7 @@ export const WithThePropertyPhoto: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('radio', { name: /^Immersive/ }))
-    await userEvent.click(canvas.getByRole('radio', { name: 'One face' }))
+    await userEvent.click(canvas.getByRole('radio', { name: 'One card' }))
     const front = await preview(canvasElement)
     await expect(front.querySelector(`img[src="${PHOTO}"]`)).not.toBeNull()
     await userEvent.click(canvas.getByRole('radio', { name: /^Paper/ }))
@@ -526,7 +526,7 @@ export const LongBrandAndTitle: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One card' }))
     const front = await preview(canvasElement)
     // The card sets the wordmark and the title in capitals, as the file does.
     for (const word of [/KEMPINSKI/u, /BANSKO/u, /SPA & WELLNESS CENTRE/u]) {
@@ -551,7 +551,7 @@ export const CharactersTheFontsLackAreLeftOutAndNamed: Story = {
         'These characters will not print, because the print kit’s fonts don’t have them: Α Θ Ή Ν.',
       ),
     ).toBeVisible()
-    await userEvent.click(canvas.getByRole('radio', { name: 'One face' }))
+    await userEvent.click(canvas.getByRole('radio', { name: 'One card' }))
     const front = await preview(canvasElement)
     await expect(within(front).getByText('HOTEL')).toBeInTheDocument()
     await expect(within(front).queryByText(/Αθ|ΑΘ/u)).toBeNull()
@@ -569,7 +569,7 @@ export const TrackedLinesKeepEveryLetterSeparate: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
+    await userEvent.click(await canvas.findByRole('radio', { name: 'One card' }))
     const front = within(await preview(canvasElement))
     const ligatures = (element: HTMLElement) =>
       getComputedStyle(element).fontVariantLigatures
@@ -579,7 +579,7 @@ export const TrackedLinesKeepEveryLetterSeparate: Story = {
   },
 }
 
-/** The download is asked for by style and paper, always: the server's defaults are for anyone else. */
+/** The download is asked for by style, paper, size and output, always: the server's defaults are for anyone else. */
 export const DownloadsThePdf: Story = {
   args: baseArgs,
   play: async ({ canvasElement, args }) => {
@@ -597,9 +597,12 @@ export const DownloadsThePdf: Story = {
           portalId: 'portal-1',
           style: 'paper',
           paper: 'letter',
+          size: 'large',
+          output: 'office',
           piece: 'counter_card',
           languages: ['bg'],
           callToAction: 'rate',
+          showPropertyName: true,
         },
       }),
     )
@@ -623,9 +626,12 @@ export const DownloadsTheChosenStyleAndPaper: Story = {
           portalId: 'portal-1',
           style: 'immersive',
           paper: 'letter',
+          size: 'large',
+          output: 'print_shop',
           piece: 'counter_card',
           languages: ['en', 'bg'],
           callToAction: 'rate',
+          showPropertyName: true,
         },
       }),
     )

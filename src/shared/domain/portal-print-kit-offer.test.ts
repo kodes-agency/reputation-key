@@ -13,6 +13,7 @@ import {
   printKitLanguageChoicesOf,
   printKitOutputLabel,
   printKitOutputsOf,
+  printKitPieceCardFacts,
   printKitPiecesOf,
   printKitSizeNote,
   printKitSizeTitle,
@@ -261,5 +262,34 @@ describe('the name hint', () => {
     expect(PRINT_KIT_NAME_HINT).toBe(
       'Large and Table cards. The tent and Mini show the logo alone.',
     )
+  })
+})
+
+describe('printKitPieceCardFacts', () => {
+  it('keeps the Large card and the Letter-half tent as they have always read', () => {
+    const large = printKitPieceCardFacts('paper', 'counter_card', 'letter', 'large')
+    expect(large.label).toBe('Counter card')
+    expect(plain(large.detail)).toBe('4 × 6 in · 2 on a Letter sheet')
+  })
+
+  it('names a Table card for its holder, and the small tent for its faces, as the board does', () => {
+    const card = printKitPieceCardFacts('immersive', 'counter_card', 'letter', 'table')
+    expect(card.label).toBe('Card')
+    expect(plain(card.detail)).toBe('3.5 × 5 in, for a holder')
+    const tent = printKitPieceCardFacts('immersive', 'table_tent', 'letter', 'table')
+    expect(tent.label).toBe('Table tent')
+    expect(plain(tent.detail)).toBe('Stands on its own, 5 × 3.5 in faces')
+  })
+
+  it('reads the A4 trims in millimetres', () => {
+    expect(
+      plain(printKitPieceCardFacts('paper', 'counter_card', 'a4', 'table').detail),
+    ).toBe('90 × 130 mm, for a holder')
+    expect(
+      plain(printKitPieceCardFacts('paper', 'table_tent', 'a4', 'table').detail),
+    ).toBe('Stands on its own, 130 × 90 mm faces')
+    expect(
+      plain(printKitPieceCardFacts('paper', 'counter_card', 'a4', 'mini').detail),
+    ).toBe('55 × 85 mm, for key-card sleeves')
   })
 })

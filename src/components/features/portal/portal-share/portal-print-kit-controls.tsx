@@ -1,11 +1,12 @@
 // What the manager chooses for a print, top to bottom as the share board draws
-// it (spec 7.2): the style, the piece, the paper beside the languages, and the
-// call to action. Every choice is a real control with a name: radio cards, a
-// segmented radio, a select and radios. Each choice rewrites the whole choice,
-// so the section above never holds a half-chosen print.
+// it (spec 7.2, round-3 S7): the style, the size, the piece at that size, the
+// output, the paper beside the languages, the name under the logo and the call to
+// action. Every choice is a real control with a name: radio cards, a segmented
+// radio, a select, a checkbox and radios. Each choice rewrites the whole choice,
+// so the section above never holds a half-chosen print; the size's own choices
+// are `portal-print-kit-size-controls.tsx`.
 
-import { RectangleVertical, Triangle } from 'lucide-react'
-import type { ComponentType, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { FormSelectField } from '#/components/forms/form-select-field'
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
@@ -16,28 +17,31 @@ import {
   PRINT_KIT_CALL_TO_ACTION_LABELS,
   PRINT_KIT_PAPERS,
   PRINT_KIT_STYLES,
+  defaultPrintKitOutput,
   printKitLanguageChoices,
   type PrintKitCallToAction,
   type PrintKitChoice,
   type PrintKitPaper,
-  type PrintKitPiece,
+  type PrintKitSize,
   type PrintKitStyle,
 } from '#/shared/domain/portal-print-kit'
 import {
+  printKitLanguageChoicesOf,
+  printKitSizedPaperNote,
+} from '#/shared/domain/portal-print-kit-offer'
+import {
   PRINT_KIT_PAPER_LABELS,
-  PRINT_KIT_PIECE_FACTS,
   PRINT_KIT_STYLE_FACTS,
   printKitPaperNote,
 } from '#/shared/domain/portal-print-kit-pieces'
+import {
+  NameSwitch,
+  OutputRadios,
+  PieceCards,
+  SizeCards,
+} from './portal-print-kit-size-controls'
 import { PrintKitChoiceCard, PrintKitStyleThumbnail } from './print-kit-choice-card'
 import { languageChoiceLabel } from './print-kit-state'
-
-const PIECE_ICONS: Readonly<
-  Record<PrintKitPiece, ComponentType<{ className?: string }>>
-> = { table_tent: Triangle, counter_card: RectangleVertical }
-
-/** The share board lists the card first: it is the piece most customers print. */
-const PIECE_ORDER: readonly PrintKitPiece[] = ['counter_card', 'table_tent']
 
 const PAPER_OPTIONS = PRINT_KIT_PAPERS.map((paper) => ({
   value: paper,
@@ -50,6 +54,12 @@ type Props = Readonly<{
   onChoiceChange: (choice: PrintKitChoice) => void
 }>
 
+type ControlsProps = Props &
+  Readonly<{
+    /** The sizes offered: `PRINT_KIT_SELECTABLE_SIZES` unless a story shows the hidden ones. */
+    sizes: readonly PrintKitSize[]
+  }>
+
 /** A heading for a group of choices, which names the group by its id. */
 function GroupLabel({ id, children }: Readonly<{ id: string; children: ReactNode }>) {
   return (
@@ -59,12 +69,24 @@ function GroupLabel({ id, children }: Readonly<{ id: string; children: ReactNode
   )
 }
 
-export function PortalPrintKitControls({ view, choice, onChoiceChange }: Props) {
+export function PortalPrintKitControls({
+  view,
+  choice,
+  sizes,
+  onChoiceChange,
+}: ControlsProps) {
   return (
     <>
       <StyleCards view={view} choice={choice} onChoiceChange={onChoiceChange} />
+      <SizeCards choice={choice} sizes={sizes} onChoiceChange={onChoiceChange} />
       <PieceCards choice={choice} onChoiceChange={onChoiceChange} />
+      <OutputRadios choice={choice} onChoiceChange={onChoiceChange} />
       <PaperAndLanguages view={view} choice={choice} onChoiceChange={onChoiceChange} />
+      <NameSwitch
+        hasLogo={view.look.logoUrl !== null}
+        choice={choice}
+        onChoiceChange={onChoiceChange}
+      />
       <CallToAction choice={choice} onChoiceChange={onChoiceChange} />
     </>
   )
@@ -79,7 +101,12 @@ function StyleCards({ view, choice, onChoiceChange }: Props) {
         className="grid grid-cols-1 gap-2 sm:grid-cols-2"
         value={choice.style}
         onValueChange={(style) =>
-          onChoiceChange({ ...choice, style: style as PrintKitStyle })
+          // Each style starts on its own output: Immersive to a print shop, Paper on the manager's printer.
+          onChoiceChange({
+            ...choice,
+            style: style as PrintKitStyle,
+            output: defaultPrintKitOutput(style as PrintKitStyle),
+          })
         }
       >
         {PRINT_KIT_STYLES.map((style) => (
@@ -97,44 +124,16 @@ function StyleCards({ view, choice, onChoiceChange }: Props) {
   )
 }
 
-function PieceCards({ choice, onChoiceChange }: Omit<Props, 'view'>) {
-  return (
-    <div>
-      <GroupLabel id="print-kit-piece-label">Piece</GroupLabel>
-      <RadioGroup
-        aria-labelledby="print-kit-piece-label"
-        className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-        value={choice.piece}
-        onValueChange={(piece) =>
-          onChoiceChange({ ...choice, piece: piece as PrintKitPiece })
-        }
-      >
-        {PIECE_ORDER.map((piece) => {
-          const Icon = PIECE_ICONS[piece]
-          const facts = PRINT_KIT_PIECE_FACTS[choice.style][piece][choice.paper]
-          return (
-            <PrintKitChoiceCard
-              key={piece}
-              id={`print-kit-piece-${piece}`}
-              value={piece}
-              title={facts.label}
-              detail={facts.detail}
-              art={<Icon className="size-5 shrink-0 text-muted-foreground" />}
-            />
-          )
-        })}
-      </RadioGroup>
-    </div>
-  )
-}
-
 /**
  * The paper beside the languages, with the line on what each paper makes under
  * both. The languages are a select, not radios: with three or four choices the
  * radios wrapped onto an orphan line on a phone.
  */
 function PaperAndLanguages({ view, choice, onChoiceChange }: Props) {
-  const languageChoices = printKitLanguageChoices(view.locales)
+  const languageChoices = printKitLanguageChoicesOf(
+    printKitLanguageChoices(view.locales),
+    choice.size,
+  )
   return (
     <div
       className="grid items-end gap-x-6 gap-y-1.5"
@@ -176,7 +175,8 @@ function PaperAndLanguages({ view, choice, onChoiceChange }: Props) {
         id="print-kit-paper-note"
         className="col-span-2 text-[13px] text-pretty text-muted-foreground"
       >
-        {printKitPaperNote(choice.style, choice.piece)}
+        {printKitSizedPaperNote(choice.piece, choice.size) ??
+          printKitPaperNote(choice.style, choice.piece)}
       </p>
     </div>
   )
