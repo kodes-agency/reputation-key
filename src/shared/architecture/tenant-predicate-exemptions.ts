@@ -309,7 +309,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     file: 'src/contexts/review/infrastructure/repositories/observation-retention.repository.ts',
     symbol,
     reason:
-      "The operator's repeat prune (ADR 0055, note 2026-10-24 (b)) pages Reviews across tenants by id, or within the one Organization it is given, and ties every observation row to its Review on Organization; it returns counts and a Review id only.",
+      "The operator's repeat prune (ADR 0055, note 2026-10-24 (b)) pages Reviews across tenants by id, or within the one Organization it is given, and reads each Review's observations by its id, whose tenant the foreign key fixes; it returns counts and a Review id only.",
     category: 'LEGITIMATE-GLOBAL' as const,
   })),
   {

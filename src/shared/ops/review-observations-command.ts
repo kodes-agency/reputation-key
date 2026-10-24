@@ -39,7 +39,9 @@ export const reviewObservationsCommandSpec: OperatorCommandSpec = Object.freeze(
   scope: 'global',
   mutation: true,
   destructive: true,
-  batchSize: { default: 100, max: 200 },
+  // One pass over the table per batch; one batch covers the beta (the
+  // repository's MAX_REPEAT_BATCH_REVIEWS says why).
+  batchSize: { default: 20_000, max: 20_000 },
   usage:
     'pnpm ops review-observations prune --operator <id> [--org <id>] [--batch-size <n>] ' +
     '[--reason <text> --yes ops:review-observations --apply]',

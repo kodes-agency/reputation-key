@@ -397,8 +397,8 @@ describe('the repeat prune', () => {
 
   it('refuses a batch size it was not built for', async () => {
     await expect(
-      retention().pruneRepeats({ after: null, limit: 201, scope: SCOPE }),
-    ).rejects.toThrow('Repeat batch size must be between 1 and 200')
+      retention().pruneRepeats({ after: null, limit: 20_001, scope: SCOPE }),
+    ).rejects.toThrow('Repeat batch size must be between 1 and 20000')
   })
 })
 

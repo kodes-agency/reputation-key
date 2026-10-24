@@ -863,8 +863,12 @@ Google no longer shows may be kept.
 
 - **The prune is an operator command, run once.**
   `pnpm ops review-observations prune` (runbooks §30) walks the Reviews in id
-  order, 100 per batch by default, across every Organization or within one. It
-  deletes each batch's repeats in one statement. A dry run is the default.
+  order, up to 20,000 per batch, across every Organization or within one. It
+  deletes each batch's repeats in one statement. A Review's rows are scattered
+  over the heap, so a batch reads best as one sequential pass. Measured on the
+  beta on 2026-10-24: every Review in one statement took 8 s to scan (3,497,715
+  repeats). 100 Reviews, read through the index, took about 50 s, so the first
+  batch size of 100 would have taken hours. One batch covers the beta. A dry run is the default.
   `--apply` needs a reason and the typed confirmation, and records one
   content-free `retention_runs` row (`review_source_observations.repeats`). A
   stopped run leaves whole batches done, and a re-run is safe. It is not

@@ -1999,8 +1999,14 @@ The second number should be about the day's new reviews and real changes, not
 tens of thousands. If it is still tens of thousands, the writer change is not
 live. Stop here.
 
-**Containment:** None needed. The prune runs online. Each batch is one short
-DELETE, and the sync keeps running.
+**Containment:** None needed. The prune runs online, and the sync keeps
+running. On the beta one batch covers every Review: one DELETE of about 3.5M
+rows, expected to take one to a few minutes and write a few GB of WAL (the
+volume had 44 GB free). It locks only the rows it deletes. The writers update a
+Review's newest row, which it never deletes. The one exception is a provider
+deletion (a snapshot's deletion phase erasing a removed review) that reaches a
+locked row: it waits and may fail on its 10 s `lock_timeout`. The next snapshot
+retries it.
 
 **Recovery:**
 
