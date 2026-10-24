@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { estimatedReachEm } from '#/components/features/portal/portal-share/print-final-ink-estimates'
 import {
   previewFinalMeasurer,
   previewFinalFaceLayout,
@@ -80,6 +81,34 @@ describe('the preview’s estimated lines', () => {
       expect(preview.rightPt - preview.leftPt, line).toBeGreaterThanOrEqual(
         file.rightPt - file.leftPt - 0.5,
       )
+    }
+  })
+})
+
+describe('the preview’s reach tables', () => {
+  const characters = [
+    ...' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~’‘“”–—…·',
+    ...'éÉàÀüÜßñçœОценетпосщи',
+  ]
+  const faces = [
+    ['serif', style({ family: 'serif', weight: 600, sizePt: 1000 })],
+    ['sans', style({ sizePt: 1000 })],
+    ['sans', style({ weight: 600, sizePt: 1000 })],
+    ['sans', style({ italic: true, sizePt: 1000 })],
+  ] as const
+
+  it('never say a character reaches less far above or below its baseline than the font draws it', () => {
+    for (const [family, s] of faces) {
+      for (const character of characters) {
+        const file = pdf.ink(character, s)
+        const reach = estimatedReachEm(family, character)
+        expect(reach.up * 1000, `${family} ${character}`).toBeGreaterThanOrEqual(
+          file.ascentPt,
+        )
+        expect(reach.down * 1000, `${family} ${character}`).toBeGreaterThanOrEqual(
+          file.descentPt,
+        )
+      }
     }
   })
 })

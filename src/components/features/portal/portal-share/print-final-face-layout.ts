@@ -2,10 +2,11 @@
 // lays it out with (`layoutPrintFinalFace`): the same planner, the same long-copy
 // step, the same second-language form. The preview cannot measure the guest
 // fonts, so it estimates them: advances from the width tables
-// (`portal-print-kit-text-widths.ts`, which err wide), and ink from each face's
-// tallest and deepest glyphs, so a line's ink box is never smaller than the
-// file's. Its faces therefore crowd no less than the file's: the preview takes a
-// long-copy step no later and never sets a line larger.
+// (`portal-print-kit-text-widths.ts`) and each line's reach above and below its
+// baseline from its characters' (`print-final-ink-estimates.ts`), both erring
+// large, so a line's ink box is never smaller than the file's. Its faces
+// therefore crowd no less than the file's: the preview takes a long-copy step no
+// later and never sets a line larger.
 //
 // The preview cannot read a logo's alpha either, so its drawing is the whole
 // image, at the picture's own proportions once it has loaded.
@@ -28,56 +29,18 @@ import {
   estimatedLineWidthPt,
   type EstimatedFace,
 } from '#/shared/domain/portal-print-kit-text-widths'
+import { estimatedLineReachEm } from './print-final-ink-estimates'
 
 /**
- * Each family's vertical measures, in ems, read from the files the PDF embeds:
- * the line box's ascender and descender (where a browser puts the baseline),
- * and the ink of the tallest and deepest glyphs, for plain ASCII and for
- * anything else (accented capitals reach up to the ascender).
+ * Each family's line box, in ems, from the files the PDF embeds: its ascender
+ * and descender, which decide where a browser puts the baseline in a line box.
  */
-export const PRINT_FINAL_FONT_METRICS: Readonly<
-  Record<
-    PrintFinalFamily,
-    Readonly<{
-      ascender: number
-      descender: number
-      inkAscentAscii: number
-      inkAscent: number
-      inkDescent: number
-    }>
-  >
+const PRINT_FINAL_LINE_BOX: Readonly<
+  Record<PrintFinalFamily, Readonly<{ ascender: number; descender: number }>>
 > = Object.freeze({
-  serif: {
-    ascender: 0.924,
-    descender: -0.287,
-    inkAscentAscii: 0.74,
-    inkAscent: 0.924,
-    inkDescent: 0.29,
-  },
-  sans: {
-    ascender: 1.054,
-    descender: -0.289,
-    inkAscentAscii: 0.78,
-    inkAscent: 1.054,
-    inkDescent: 0.29,
-  },
+  serif: { ascender: 0.924, descender: -0.287 },
+  sans: { ascender: 1.054, descender: -0.289 },
 })
-
-/** How far below its baseline a line with no descender reaches: the overshoot of round letters. */
-const OVERSHOOT_EM = 0.02
-
-const PLAIN_ASCII = /^[\x20-\x7E]*$/u
-/** Characters that reach below the baseline, in both families (and the serif's figures, to be safe). */
-const DESCENDERS = /[gjpqyQ(),;[\]{}|_/@$\\]/u
-const SERIF_DESCENDERS = /[0-9]/u
-
-function inkDescentEm(text: string, family: PrintFinalFamily): number {
-  const deep =
-    !PLAIN_ASCII.test(text) ||
-    DESCENDERS.test(text) ||
-    (family === 'serif' && SERIF_DESCENDERS.test(text))
-  return deep ? PRINT_FINAL_FONT_METRICS[family].inkDescent : OVERSHOOT_EM
-}
 
 const estimatedFaceOf = (style: PrintFinalTextStyle): EstimatedFace => {
   if (style.family === 'serif') return 'display'
@@ -87,17 +50,16 @@ const estimatedFaceOf = (style: PrintFinalTextStyle): EstimatedFace => {
 const advanceOf = (text: string, style: PrintFinalTextStyle) =>
   estimatedLineWidthPt(text, estimatedFaceOf(style), style.sizePt, style.trackingEm)
 
-/** The preview's measures: estimated advances, and ink from the whole advance and the family's extremes. */
+/** The preview's measures: estimated advances, and ink across the whole advance and as high and deep as the line's characters reach. */
 export const previewFinalMeasurer: PrintFinalTextMeasurer = {
   advancePt: advanceOf,
   ink: (text, style) => {
-    const metrics = PRINT_FINAL_FONT_METRICS[style.family]
-    const ascent = PLAIN_ASCII.test(text) ? metrics.inkAscentAscii : metrics.inkAscent
+    const reach = estimatedLineReachEm(style.family, text)
     return {
       leftPt: 0,
       rightPt: advanceOf(text, style),
-      ascentPt: ascent * style.sizePt,
-      descentPt: inkDescentEm(text, style.family) * style.sizePt,
+      ascentPt: reach.up * style.sizePt,
+      descentPt: reach.down * style.sizePt,
     }
   },
 }
@@ -144,6 +106,6 @@ export function previewFinalFaceLayout(
 
 /** Where a line box's top goes for its baseline to sit at `baselinePt`, as a browser centres the content area in the line box. */
 export function previewLineTopPt(style: PrintFinalTextStyle, baselinePt: number): number {
-  const { ascender, descender } = PRINT_FINAL_FONT_METRICS[style.family]
+  const { ascender, descender } = PRINT_FINAL_LINE_BOX[style.family]
   return baselinePt - style.sizePt * (style.leading / 2 + (ascender + descender) / 2)
 }
