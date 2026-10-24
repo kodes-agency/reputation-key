@@ -79,7 +79,13 @@ export function SizeCards({
             title={PRINT_KIT_SIZE_FACTS[size].label}
             qualifier={printKitTrimText(size, choice.paper)}
             detail={PRINT_KIT_SIZE_FACTS[size].where}
-            art={<PrintKitSizeOutline size={size} paper={choice.paper} />}
+            art={
+              <PrintKitSizeOutline
+                size={size}
+                paper={choice.paper}
+                selected={choice.size === size}
+              />
+            }
           />
         ))}
       </RadioGroup>

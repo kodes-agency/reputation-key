@@ -47,7 +47,7 @@ export function PrintKitChoiceCard({
   return (
     <Label
       htmlFor={id}
-      className="group relative flex min-h-20 cursor-pointer items-start gap-3 rounded-md border p-3 font-normal has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+      className="relative flex min-h-20 cursor-pointer items-start gap-3 rounded-md border p-3 font-normal has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
     >
       {art}
       <span className="flex flex-col gap-0.5 pr-5">
@@ -183,22 +183,36 @@ export function PrintKitStyleThumbnail({
 /** Pixels to the inch of the outlines on the Size cards: Large, Table and Mini stand at one scale, as the board draws them. */
 const OUTLINE_PX_PER_INCH = 6
 
-/** A card's outline at the scale all the sizes share, standing on a common line; it takes the primary colour when its card is chosen. */
+/**
+ * A card's outline at the scale all the sizes share, standing on a common line; it
+ * takes the primary colour when its card is chosen. Inline styles, as the
+ * thumbnails above: the first-paint stylesheet is built by scanning `src/` for
+ * class names, and an arbitrary value here would land in every page's.
+ */
 export function PrintKitSizeOutline({
   size,
   paper,
-}: Readonly<{ size: PrintKitSize; paper: PrintKitPaper }>) {
+  selected,
+}: Readonly<{ size: PrintKitSize; paper: PrintKitPaper; selected: boolean }>) {
   const { widthPt, heightPt } = SIZE_TRIM_PT[size][paper]
   const largest = SIZE_TRIM_PT.large[paper].heightPt
   return (
     <span
       aria-hidden
-      className="flex flex-none items-end"
-      style={{ height: (largest * OUTLINE_PX_PER_INCH) / 72, width: 28 }}
+      style={{
+        flex: 'none',
+        display: 'flex',
+        alignItems: 'flex-end',
+        height: (largest * OUTLINE_PX_PER_INCH) / 72,
+        width: 28,
+      }}
     >
       <span
-        className="block rounded-[3px] border-[1.5px] border-muted-foreground group-has-[[data-state=checked]]:border-primary"
         style={{
+          display: 'block',
+          boxSizing: 'border-box',
+          borderRadius: 3,
+          border: `1.5px solid ${selected ? 'var(--primary)' : 'var(--muted-foreground)'}`,
           width: (widthPt * OUTLINE_PX_PER_INCH) / 72,
           height: (heightPt * OUTLINE_PX_PER_INCH) / 72,
         }}
