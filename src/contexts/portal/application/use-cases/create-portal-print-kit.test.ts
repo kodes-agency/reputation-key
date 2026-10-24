@@ -434,6 +434,49 @@ describe('createPortalPrintKit, at a size', () => {
     })
   })
 
+  it('prints a selectable small tent two to a sheet, and names the tent in a refusal', async () => {
+    const { portal, make, rendered } = await setup({ selectableSizes: PRINT_KIT_SIZES })
+    const file = await make(
+      { portalId: portal.id, ...card, piece: 'table_tent', size: 'table' },
+      buildTestAuthContext(),
+    )
+    expect(rendered[0]).toMatchObject({
+      piece: 'table_tent',
+      size: 'table',
+      output: 'office',
+    })
+    expect(file.fileName).toBe('harbor-lobby-table-tent-en-2up-letter.pdf')
+    const refused = await setup({
+      selectableSizes: PRINT_KIT_SIZES,
+      refuse: new PrintKitRenderRefusal({
+        code: 'print_code_too_small',
+        cause: 'needs_short_code',
+        size: 'table',
+        moduleMm: 0.62,
+      }),
+    })
+    await expect(
+      refused.make(
+        { portalId: refused.portal.id, ...card, piece: 'table_tent', size: 'table' },
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({
+      code: 'print_code_too_small',
+      message: 'This code is too long to scan on a table tent. Choose Large.',
+    })
+  })
+
+  it('refuses the small tent while managers may not choose its size', async () => {
+    const { portal, make, rendered } = await setup()
+    await expect(
+      make(
+        { portalId: portal.id, ...card, piece: 'table_tent', size: 'table' },
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({ code: 'print_format_not_offered' })
+    expect(rendered).toEqual([])
+  })
+
   it('turns a refusal of a soft band photo into words', async () => {
     const { portal, make } = await setup({
       refuse: new PrintKitRenderRefusal({

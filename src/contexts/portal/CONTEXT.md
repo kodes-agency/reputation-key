@@ -430,24 +430,40 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   sheet, abutting, each bleeding only on the block's outer edges); Paper prints
   Large as before, Table 4 and Mini 10 to a sheet. `printKitFormatProblem` says
   what is not offered: a Paper print-shop file, a two-language Mini, an
-  Immersive Mini office sheet, and the small tent (not built). The sheets are
+  Immersive Mini office sheet, an Immersive small-tent office sheet (not drawn)
+  and a Mini tent. The small tent is one pure plan too, `planTent`
+  (`portal-print-kit-tent.ts`): a 5 x 3.5 in (130 x 90 mm) landscape face whose
+  top edge is the fold, one language a face (the lead on the front, the second
+  on the back), no name line, on Immersive a 1.2 in photo panel down the left,
+  then the words and Table's code tile in a row centred down the face (0.9 in
+  fold and foot clearance); long copy steps the call to action down 2 pt twice
+  before the row grows. Paper prints two tents on a landscape sheet with cut and
+  dashed fold ticks (`portal-print-kit-tent-sheets.ts`), Immersive one tent to
+  a print shop's page, bleeding on every edge but the fold
+  (`print-kit-tent-print.ts`). The sheets are
   `portal-print-kit-size-sheets.ts` and `portal-print-kit-office-sheets.ts`;
   every mark and note stays 0.25 in from the sheet's edge. A band photo under
   200 dpi is reported, and under 120 dpi the card is refused
   (`print_photo_too_soft`). One more thing to settle before Table or Mini is
-  selectable: their tiles have no pictogram to move, so the Italian and French
-  scan cues do not fit one line: 102.6 and 112 pt in Table's 96.5 pt room, 91.2
-  and 99.5 pt (at 8 pt) in Mini's 85.7 pt. A test pins the languages that fit;
-  the faces must refuse the rest, use a two-line bar or set a smaller cue.
+  selectable: their tiles (and the small tent's, which is Table's) have no
+  pictogram to move, so the Italian and French scan cues do not fit one line:
+  102.6 and 112 pt in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in
+  Mini's 85.7 pt. A test pins the languages that fit; the faces must refuse the
+  rest, use a two-line bar or set a smaller cue.
 - **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
   family; lining figures on place labels and headlines; no ligatures on a tracked
   line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the
   Bulgarian `locl` forms. Nothing a guest reads is below 9 pt. The PDF is 1.4,
   because the washes use transparency, and an Immersive page declares a
   `TrimBox` and `BleedBox`; a Paper page declares no `BleedBox`.
-- **File name.** `<portal>-<piece>-<languages>[-immersive]-<paper>.pdf`, for
-  example `pool-terrace-counter-card-en-es-letter.pdf`; two downloads that differ
-  in language, style or paper never share a name.
+- **File name.** `<portal>-<piece>-<languages>[-immersive][-<n>up]-<paper>.pdf`,
+  for example `pool-terrace-counter-card-en-es-letter.pdf`; an office sheet of
+  the round-3 sizes says how many pieces it holds (`-table-card-…-4up-letter`,
+  `-table-tent-…-2up-letter` for the small tent), so two downloads that differ
+  in language, style or paper never share a name. The small tent's Immersive
+  print-shop file, `…-table-tent-en-immersive-letter.pdf`, is named as the
+  Letter-half tent's is, because both are the `table_tent`: the two are never
+  offered together (the flip retires the Letter-half tent as it selects Table).
 - **Owner decisions of 2026-10-22.** D1: "Rate your visit" is the default call
   to action; the second reads "How was your visit? About 30 seconds" in every
   language, since the owner removed "Tell us privately" everywhere on

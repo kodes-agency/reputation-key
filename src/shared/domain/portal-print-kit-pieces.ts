@@ -235,6 +235,23 @@ const SUBJECT_TRIM: Readonly<
   mini: { letter: '2 × 3.5 in', a4: '55 × 85 mm' },
 }
 
+/** What an Immersive subject calls the small tent: its faces, as the Share tab names them. */
+const SUBJECT_TENT_SMALL: Readonly<Record<PrintKitPaper, string>> = {
+  letter: '5 × 3.5 in faces',
+  a4: '130 × 90 mm faces',
+}
+
+/** Where an Immersive piece of a smaller size is: its trim; null for one of today's Large pieces. */
+function immersiveTrimOf(
+  piece: PrintKitPiece,
+  paper: PrintKitPaper,
+  size: PrintKitSize,
+): string | null {
+  if (size === 'large') return null
+  if (piece === 'counter_card') return SUBJECT_TRIM[size][paper]
+  return size === 'table' ? SUBJECT_TENT_SMALL[paper] : null
+}
+
 /** The PDF's subject: "Print kit: Paper style, counter card, US Letter". */
 export function printKitSubject(
   style: PrintKitStyle,
@@ -243,9 +260,7 @@ export function printKitSubject(
   size: PrintKitSize = 'large',
 ): string {
   const styleName = PRINT_KIT_STYLE_FACTS[style].label
-  const where =
-    style === 'immersive' && size !== 'large' && piece === 'counter_card'
-      ? SUBJECT_TRIM[size][paper]
-      : SUBJECT_PAPER[style][paper]
+  const trim = style === 'immersive' ? immersiveTrimOf(piece, paper, size) : null
+  const where = trim ?? SUBJECT_PAPER[style][paper]
   return `Print kit: ${styleName} style, ${printKitPieceNoun(piece, size)}, ${where}`
 }

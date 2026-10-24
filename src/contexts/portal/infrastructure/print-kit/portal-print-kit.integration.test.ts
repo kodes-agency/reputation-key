@@ -649,6 +649,74 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
       },
     )
 
+    it.each([
+      ['paper', 'letter', 'office', [792, 612], '-table-tent-en-bg-2up-letter.pdf'],
+      ['paper', 'a4', 'office', [842, 595], '-table-tent-en-bg-2up-a4.pdf'],
+      [
+        'immersive',
+        'letter',
+        'print_shop',
+        [414, 558],
+        '-table-tent-en-bg-immersive-letter.pdf',
+      ],
+      ['immersive', 'a4', 'print_shop', [425, 567], '-table-tent-en-bg-immersive-a4.pdf'],
+    ] as const)(
+      'draws a %s small table tent on %s for %s, one language a face',
+      async (style, paper, output, page, ending) => {
+        const { make, ctx } = await harness({
+          selectableSizes: PRINT_KIT_SIZES,
+          printAddress: PRINT_ADDRESS,
+        })
+        const file = await make(
+          {
+            ...request('table', style, paper, output),
+            piece: 'table_tent',
+            languages: ['en', 'bg'],
+          },
+          ctx,
+        )
+        expect(file.fileName.endsWith(ending)).toBe(true)
+        expect(pageSizes(file.pdf)).toEqual([page])
+        const text = Buffer.from(file.pdf).toString('latin1')
+        // Paper has no photo; the logo is a picture on every face.
+        const pictures = text.match(/\/Subtype \/Image/gu)?.length ?? 0
+        expect(pictures).toBeGreaterThanOrEqual(style === 'immersive' ? 2 : 1)
+        expect(text.match(/\/BleedBox/gu) ?? []).toHaveLength(
+          output === 'print_shop' ? 1 : 0,
+        )
+        expect(pdfSubject(text)).toBe(
+          printKitSubject(style, 'table_tent', paper, 'table'),
+        )
+      },
+    )
+
+    it('refuses an Immersive small tent office sheet, before it reveals or records anything', async () => {
+      const { make, ctx, renderedAddresses } = await harness({
+        selectableSizes: PRINT_KIT_SIZES,
+      })
+      await expect(
+        make(
+          { ...request('table', 'immersive', 'letter', 'office'), piece: 'table_tent' },
+          ctx,
+        ),
+      ).rejects.toMatchObject({ code: 'print_format_not_offered' })
+      expect(renderedAddresses).toEqual([])
+      expect(await downloadRows()).toEqual([])
+    })
+
+    it('refuses today’s long address on a small table tent', async () => {
+      const { make, ctx } = await harness({ selectableSizes: PRINT_KIT_SIZES })
+      await expect(
+        make(
+          { ...request('table', 'paper', 'letter', 'office'), piece: 'table_tent' },
+          ctx,
+        ),
+      ).rejects.toMatchObject({
+        code: 'print_code_too_small',
+        context: { cause: 'needs_short_code', size: 'table' },
+      })
+    })
+
     it('refuses today’s long address on a Table card: its tile would print the code too small', async () => {
       const { make, ctx } = await harness({ selectableSizes: PRINT_KIT_SIZES })
       await expect(
