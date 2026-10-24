@@ -34,6 +34,7 @@ import {
   PRINT_KIT_SELECTABLE_SIZES,
   type PrintKitFormat,
   type PrintKitOutput,
+  type PrintKitPiece,
   type PrintKitSize,
 } from '#/shared/domain/portal-print-kit'
 import { printKitFormatProblem } from '#/shared/domain/portal-print-kit-formats'
@@ -193,8 +194,12 @@ const SIZE_NAMES: Readonly<Record<PrintKitSize, string>> = {
   mini: 'Mini',
 }
 
+/** What a refusal calls the piece: the small tent by name, a card by its size. */
+const pieceName = (piece: PrintKitPiece, size: PrintKitSize): string =>
+  piece === 'table_tent' ? 'table tent' : `${SIZE_NAMES[size]} card`
+
 /** The renderer's refusal, in words a manager can act on. */
-function refusalError(refusal: PrintKitRefusal) {
+function refusalError(refusal: PrintKitRefusal, piece: PrintKitPiece) {
   if (refusal.code === 'print_photo_too_soft') {
     return portalError(
       'print_photo_too_soft',
@@ -206,7 +211,7 @@ function refusalError(refusal: PrintKitRefusal) {
     refusal.cause === 'needs_short_code' ? 'This code is' : 'This print address is'
   return portalError(
     'print_code_too_small',
-    `${what} too long to scan on a ${SIZE_NAMES[refusal.size]} card. Choose Large.`,
+    `${what} too long to scan on a ${pieceName(piece, refusal.size)}. Choose Large.`,
     { cause: refusal.cause, size: refusal.size, moduleMm: refusal.moduleMm },
   )
 }
@@ -219,7 +224,9 @@ async function renderOrRefuse(
   try {
     return await renderer.render(input)
   } catch (error) {
-    if (error instanceof PrintKitRenderRefusal) throw refusalError(error.refusal)
+    if (error instanceof PrintKitRenderRefusal) {
+      throw refusalError(error.refusal, input.piece)
+    }
     throw error
   }
 }

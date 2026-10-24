@@ -31,6 +31,7 @@ import { drawPrintPages, layoutFaces, type PrintKitWarning } from './print-kit-p
 import { drawPaperFace, layoutPaperFace, type PaperFaceArt } from './print-kit-paper-face'
 import { openImage } from './print-kit-pdf-image'
 import { PrintKitFonts } from './print-kit-pdf-text'
+import { drawSmallTentPrint } from './print-kit-tent-print'
 import { qrMatrix } from './print-kit-qr'
 
 export type PdfKitPrintKitRendererDeps = Readonly<{
@@ -90,8 +91,9 @@ async function drawPaperPrint(
 
 /**
  * A print: a style's pages on its paper. The counter card is a card at its size
- * in the round-3 look (`print-kit-card-print.ts`); the Letter-half tent keeps the
- * look it shipped with until it is retired. A choice the kit does not offer is
+ * in the round-3 look (`print-kit-card-print.ts`), the tent at size Table is the
+ * small landscape tent (`print-kit-tent-print.ts`); the Letter-half tent keeps
+ * the look it shipped with until it is retired. A choice the kit does not offer is
  * a bug in the caller, which checks it first.
  */
 async function drawPrint(
@@ -110,6 +112,7 @@ async function drawPrint(
   })
   if (problem !== null) throw new Error(`Not a printable choice: ${problem}`)
   if (input.piece === 'counter_card') await drawCardPrint(doc, fonts, input, warn)
+  else if (input.size === 'table') await drawSmallTentPrint(doc, fonts, input, warn)
   else if (style === 'paper') await drawPaperPrint(doc, fonts, input, paper, warn)
   else await drawImmersivePrint(doc, fonts, input, paper, warn)
 }

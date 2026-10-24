@@ -13,6 +13,7 @@
 // 200 dpi is reported, and under 120 dpi the print is refused.
 
 import { cardTile } from '#/shared/domain/portal-print-kit-card'
+import type { CardBrand } from '#/shared/domain/portal-print-kit-card-brand'
 import { printKitSheetPages } from '#/shared/domain/portal-print-kit-formats'
 import { printedDpi } from '#/shared/domain/portal-print-kit-measures'
 import { monogramLetter } from '#/shared/domain/portal-print-kit-immersive'
@@ -37,6 +38,7 @@ import {
   type CardFaceArt,
   type CardFaceLayout,
 } from './print-kit-card-face'
+import type { FaceLogo } from './print-kit-face-brand'
 import { bandPhotoJpeg, logoArt } from './print-kit-image'
 import {
   OFFICE_CROP_MARK,
@@ -76,7 +78,8 @@ function tileFor(input: PrintKitRenderInput, qr: QrMatrix): CodeTile {
   return choice.value.tile
 }
 
-async function cardArtOf(
+/** The art every face of a print shares: its palette, its code on the tile the size allows, its brand. */
+export async function cardArtOf(
   doc: PDFKit.PDFDocument,
   input: PrintKitRenderInput,
 ): Promise<CardFaceArt> {
@@ -148,8 +151,10 @@ function bandPhotos(
   )
 }
 
-/** The dots per inch a card's logo prints at; null for a wordmark. */
-function logoDpi(layout: CardFaceLayout): number | null {
+/** The dots per inch a face's logo prints at; null for a wordmark. */
+export function logoDpi(
+  layout: Readonly<{ plan: Readonly<{ brand: CardBrand }>; logo: FaceLogo | null }>,
+): number | null {
   const { brand } = layout.plan
   if (brand.kind !== 'logo' || layout.logo === null) return null
   const { image, ink } = layout.logo
@@ -176,7 +181,6 @@ export async function drawCardPrint(
   input: PrintKitRenderInput,
   warn: Warn,
 ): Promise<void> {
-  const { paper } = input
   const art = await cardArtOf(doc, input)
   const pages = pagesOf(input, art.tile)
   const layouts: FaceLayouts<CardFaceLayout> = layoutFaces(input.faces, pages, (face) =>
@@ -196,20 +200,35 @@ export async function drawCardPrint(
       },
       logoDpi,
     },
-    (page) => {
-      if (page.marks === 'crop') {
-        drawPrintShopMarks(doc, fonts, page, paper, slugLinesOf(input, paper, page))
-        return
-      }
-      drawTicks(
-        doc,
-        page.ticks,
-        page.marks === 'office-crop' ? OFFICE_CROP_MARK : undefined,
-      )
-      if (page.note !== null) drawSheetNote(doc, fonts, page.note)
-      if (page.printCheck && art.palette.style === 'paper') {
-        drawPrintCheck(doc, fonts, art.palette, art.tile.tilePt)
-      }
-    },
+    sheetMarks(doc, fonts, input, art),
   )
+}
+
+/**
+ * What a sheet carries round its faces: a print shop's crop marks, fold marks
+ * and slug, or an office sheet's ticks (black crop marks on Immersive), its note
+ * and, on the Letter Large Paper sheet, the print check at the tile's width.
+ */
+export function sheetMarks(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  input: PrintKitRenderInput,
+  art: Pick<CardFaceArt, 'palette' | 'tile'>,
+): (page: PrintKitPage) => void {
+  const { paper } = input
+  return (page) => {
+    if (page.marks === 'crop') {
+      drawPrintShopMarks(doc, fonts, page, paper, slugLinesOf(input, paper, page))
+      return
+    }
+    drawTicks(
+      doc,
+      page.ticks,
+      page.marks === 'office-crop' ? OFFICE_CROP_MARK : undefined,
+    )
+    if (page.note !== null) drawSheetNote(doc, fonts, page.note)
+    if (page.printCheck && art.palette.style === 'paper') {
+      drawPrintCheck(doc, fonts, art.palette, art.tile.tilePt)
+    }
+  }
 }

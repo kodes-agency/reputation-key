@@ -16,6 +16,7 @@ import {
   CARD_BAND_MONOGRAM,
   CARD_PLATE,
   type CardBox,
+  type CardBrand,
 } from '#/shared/domain/portal-print-kit-card-brand'
 import { planCard, type CardPlan } from '#/shared/domain/portal-print-kit-card'
 import {
@@ -28,7 +29,7 @@ import type {
   PrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
 import { pdfStyleOf } from './print-kit-card-style'
-import { drawCardWords } from './print-kit-card-words'
+import { drawCardWords, type WordsAlign } from './print-kit-card-words'
 import {
   drawCodeBlock,
   planFaceCodeBlock,
@@ -69,7 +70,7 @@ export type CardFaceLayout = Readonly<{
 }>
 
 /** The drawing's width over its height, measured to its ink. */
-const inkAspect = (logo: FaceLogo): number =>
+export const inkAspect = (logo: FaceLogo): number =>
   (logo.image.width * (logo.ink.right - logo.ink.left)) /
   Math.max(1, logo.image.height * (logo.ink.bottom - logo.ink.top))
 
@@ -147,30 +148,40 @@ function drawLogo(doc: PDFKit.PDFDocument, logo: FaceLogo, ink: CardBox): void {
   doc.restore()
 }
 
-function drawBrand(
+/** What a placed brand is drawn with: the logo and its plate, the style, and the wordmark's colour. */
+export type BrandArt = Readonly<{
+  logo: FaceLogo | null
+  style: PrintKitStyle
+  colours: CardColours
+}>
+
+/**
+ * Draws a placed brand: the logo on its plate (with the plate's shadow on
+ * Immersive), or the wordmark's lines in `column`, centred (a card) or from its
+ * left edge (the small tent).
+ */
+export function drawBrand(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
-  layout: CardFaceLayout,
+  brand: CardBrand,
+  art: BrandArt,
+  column: Readonly<{ x: number; widthPt: number; align: WordsAlign }>,
 ): void {
-  const { brand } = layout.plan
   if (brand.kind === 'wordmark') {
-    drawCardWords(doc, fonts, brand.lines, layout.colours, {
-      x: 0,
-      widthPt: layout.plan.widthPt,
-    })
+    drawCardWords(doc, fonts, brand.lines, art.colours, column, column.align)
     return
   }
-  if (layout.logo === null) return
+  if (art.logo === null) return
   const plate = brand.plate
-  if (plate !== null && layout.logo.plate !== null) {
-    if (layout.plan.style === 'immersive') drawPlateShadow(doc, plate)
+  if (plate !== null && art.logo.plate !== null) {
+    if (art.style === 'immersive') drawPlateShadow(doc, plate)
     doc.save()
     doc
       .roundedRect(plate.x, plate.y, plate.widthPt, plate.heightPt, CARD_PLATE.radiusPt)
-      .fill(layout.logo.plate)
+      .fill(art.logo.plate)
     doc.restore()
   }
-  drawLogo(doc, layout.logo, brand.ink)
+  drawLogo(doc, art.logo, brand.ink)
 }
 
 export type CardFaceDrawing = Readonly<{
@@ -231,7 +242,13 @@ export function drawCardFace(
     drawField(doc, layout.palette, plan, bleed, null)
     drawBand(doc, fonts, layout, drawing, bleed)
   }
-  drawBrand(doc, fonts, layout)
+  drawBrand(
+    doc,
+    fonts,
+    plan.brand,
+    { logo: layout.logo, style: plan.style, colours: layout.colours },
+    { x: 0, widthPt: plan.widthPt, align: 'centre' },
+  )
   drawCardWords(doc, fonts, plan.words, layout.colours, plan.column)
   drawCodeBlock(doc, fonts, layout.code, plan.code.plan, plan.code)
 }
