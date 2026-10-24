@@ -32,6 +32,8 @@ export type PortalPrintKitDeps = Readonly<{
   clock: () => Date
   /** Hears what is worth a look but does not stop a print, such as a logo that prints soft. */
   logger: Pick<LoggerPort, 'warn'>
+  /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final kit instead of today's. */
+  finalKitEnabled: boolean
 }>
 
 // The PDF renderer carries the font data URIs, which only the bundlers (Vite,
@@ -58,6 +60,7 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       portalRepo: deps.portalRepo,
       staffPublicApi: deps.staffPublicApi,
       publicationRepo: deps.publicationRepo,
+      finalKitEnabled: deps.finalKitEnabled,
     }),
     createPortalPrintKit: createPortalPrintKit({
       portalRepo: deps.portalRepo,

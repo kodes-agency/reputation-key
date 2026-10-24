@@ -188,8 +188,10 @@ describe('presentPortalPrintKit', () => {
     const view = presentPortalPrintKit(
       'portal-1',
       buildPortalPrintKitContext(publicationSource()),
+      'current',
     )
     expect(view.portalId).toBe('portal-1')
+    expect(view.kit).toBe('current')
     expect(view.look.heroUrl).toBe(`/api/public/portal-media/${SOURCE_HERO_ASSET_ID}`)
     expect(view.look.logoUrl).toBe(`/api/public/portal-media/${SOURCE_LOGO_ASSET_ID}`)
     expect(view.look.heroFocal).toEqual({ x: 0.4, y: 0.6 })
@@ -201,6 +203,7 @@ describe('presentPortalPrintKit', () => {
     const view = presentPortalPrintKit(
       'portal-1',
       buildPortalPrintKitContext(publicationSource({ look: null })),
+      'final',
     )
     expect(view.look.heroUrl).toBeNull()
     expect(view.look.logoUrl).toBeNull()

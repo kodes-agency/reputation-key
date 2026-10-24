@@ -48,6 +48,7 @@ function setup(
               configuration: options.live ?? immersiveConfiguration(),
             } as PortalPublicationSnapshot),
     },
+    finalKitEnabled: false,
   })
   return { portal, read }
 }

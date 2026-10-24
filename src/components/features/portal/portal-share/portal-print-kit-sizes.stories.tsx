@@ -60,6 +60,7 @@ const PHOTO =
 /** The board's Oakmere: a logo, a photo and a long name, in English and Spanish. */
 const view = (withLogo = true): PortalPrintKitView => ({
   portalId: 'portal-1',
+  kit: 'current',
   portalName: 'Oakmere Reception',
   primaryLocale: 'en',
   locales: ['en', 'es'],

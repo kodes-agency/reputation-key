@@ -332,6 +332,7 @@ function buildContainer(
       presignEndpoint: env.S3_PRESIGN_ENDPOINT,
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
     },
+    printKitFinalEnabled: env.PRINT_KIT_FINAL_ENABLED,
   })
 
   const guest = buildGuestContext({
