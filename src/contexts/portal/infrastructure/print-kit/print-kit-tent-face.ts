@@ -9,13 +9,16 @@
 // far it bleeds.
 
 import type { PrintFace } from '#/shared/domain/portal-print-kit'
-import { CARD_BAND_MONOGRAM } from '#/shared/domain/portal-print-kit-card-brand'
 import {
   cardColours,
   type CardColours,
 } from '#/shared/domain/portal-print-kit-card-colours'
 import type { ImmersivePrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
-import { planTent, type TentPlan } from '#/shared/domain/portal-print-kit-tent'
+import {
+  planTent,
+  tentPanelMonogram,
+  type TentPlan,
+} from '#/shared/domain/portal-print-kit-tent'
 import { drawBrand, type CardFaceArt } from './print-kit-card-face'
 import { drawCardWords } from './print-kit-card-words'
 import {
@@ -76,21 +79,6 @@ export type TentFaceDrawing = Readonly<{
   letter: string
 }>
 
-/**
- * The panel with no photo: the brand's first letter on the lighter ground, set
- * to 62 % of the panel's width (the band's share of its height, turned to fit a
- * panel narrower than it is tall), with no rules: the band's two 12 mm rules
- * are wider than the panel. Not drawn on the boards.
- */
-function panelMonogram(plan: TentPlan, panelPt: number) {
-  return {
-    ...CARD_BAND_MONOGRAM,
-    letterShare: (CARD_BAND_MONOGRAM.letterShare * panelPt) / plan.heightPt,
-    ruleLengthPt: 0,
-    gapPt: 0,
-  }
-}
-
 /** The photo panel down the left: the photo or the monogram, run into the bleed on the left, top and foot. */
 function drawPanel(
   doc: PDFKit.PDFDocument,
@@ -111,7 +99,11 @@ function drawPanel(
       height: plan.heightPt + bleed.topPt + bleed.bottomPt,
     },
     { x: 0, y: 0, widthPt: plan.panelPt, heightPt: plan.heightPt },
-    { palette, ...drawing, monogram: panelMonogram(plan, plan.panelPt) },
+    {
+      palette,
+      ...drawing,
+      monogram: tentPanelMonogram({ panelPt: plan.panelPt, heightPt: plan.heightPt }),
+    },
   )
 }
 

@@ -18,6 +18,7 @@ import {
   type PrintKitTick,
   type SheetNote,
 } from '#/shared/domain/portal-print-kit-sheets'
+import { SHEET_NOTE } from '#/shared/domain/portal-print-kit-sheet-parts'
 import { fillWords } from '#/shared/domain/portal-print-kit-text'
 import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
 import {
@@ -56,12 +57,6 @@ export function setPageBoxes(page: PDFKit.PDFPage, sheet: PrintKitPage): void {
   Object.assign(page.dictionary.data, boxes)
 }
 
-/** The black of an office sheet's crop marks: the boards' ink, one colour on any printer. */
-export const OFFICE_CROP_MARK = '#121614'
-
-/** The grey of a note on an office sheet. */
-const NOTE_COLOUR = '#5C5650'
-
 /**
  * The ticks of an office sheet, as filled rectangles: their weight is exact at
  * any zoom. Grey on Paper, plain black for an Immersive office sheet's crop marks.
@@ -78,7 +73,7 @@ export function drawTicks(
   doc.restore()
 }
 
-const NOTE_LEADING = 1.2
+const NOTE_LEADING = SHEET_NOTE.leading
 const NOTE_FLOOR_PT = 5
 
 /**
@@ -95,7 +90,7 @@ export function drawSheetNote(
     face: 'body',
     size,
     spacing: 0,
-    colour: NOTE_COLOUR,
+    colour: SHEET_NOTE.colour,
     opacity: 1,
   })
   const linesAt = (size: number) =>

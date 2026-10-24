@@ -23,6 +23,7 @@
 
 import type { PrintFace, PrintKitPaper, PrintKitStyle } from './portal-print-kit'
 import {
+  CARD_BAND_MONOGRAM,
   planCardBrand,
   type CardBrand,
   type CardBrandInput,
@@ -75,6 +76,22 @@ export type TentPlan = Readonly<{
   /** The call to action's size, after any step down. */
   ctaPt: number
 }>
+
+/**
+ * What the photo panel holds with no photo: the brand's first letter, set to
+ * 62 % of the panel's width (the band's share of its height, turned to fit a
+ * panel narrower than it is tall), with no rules: the band's two 12 mm rules are
+ * wider than the panel. Not drawn on the boards. The PDF and the Share tab's
+ * preview both read it.
+ */
+export function tentPanelMonogram(plan: Readonly<{ panelPt: number; heightPt: number }>) {
+  return {
+    ...CARD_BAND_MONOGRAM,
+    letterShare: (CARD_BAND_MONOGRAM.letterShare * plan.panelPt) / plan.heightPt,
+    ruleLengthPt: 0,
+    gapPt: 0,
+  }
+}
 
 /** The least room between the brand and the message: Table's group-gap minimum. */
 export const TENT_WORDS_GAP_MIN_PT = 12

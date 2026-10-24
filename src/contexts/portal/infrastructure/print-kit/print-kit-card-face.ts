@@ -50,7 +50,8 @@ export type CardFaceArt = Readonly<{
   qr: QrMatrix
   tile: CodeTile
   wordmark: string
-  propertyName: string
+  /** The property's name under a logo; null for none. */
+  propertyName: string | null
   /** The logo, and the plate it sits on (every logo on Immersive); null for the wordmark. */
   logo: FaceLogo | null
 }>

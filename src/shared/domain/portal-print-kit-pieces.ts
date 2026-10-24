@@ -36,7 +36,7 @@ export const PRINT_KIT_STYLE_FACTS: Readonly<Record<PrintKitStyle, PrintKitStyle
     paper: { label: 'Paper', detail: 'Prints on any printer. Letter or A4, no bleed.' },
     immersive: {
       label: 'Immersive',
-      detail: 'Dark, with your photo. Best from a print shop.',
+      detail: 'Dark, with your photo.',
     },
   })
 
@@ -55,26 +55,30 @@ export type PrintKitPieceFacts = Readonly<{
   noun: string
   /** Under the piece's name on its card: its size, and how many fit a sheet. */
   detail: string
-  howToPrint: readonly PrintKitHowToStep[]
+  /** The steps, with the bar's width as the code's tile makes it ("2 in (5.1 cm)"). */
+  howToPrint: (bar: string) => readonly PrintKitHowToStep[]
 }>
 
-const step = (text: string, rest: Omit<PrintKitHowToStep, 'text'> = {}) => ({
+export const step = (text: string, rest: Omit<PrintKitHowToStep, 'text'> = {}) => ({
   text: tight(text),
   ...rest,
 })
 
-const ACTUAL_SIZE = step('Print at Actual size (100%). Never “Fit to page”.', {
+export const ACTUAL_SIZE = step('Print at Actual size (100%). Never “Fit to page”.', {
   strong: 'Actual size (100%)',
 })
-const CHECK_SIZE = step(
-  'Check the size: the coloured bar under each code measures 2 in (5.1 cm).',
-)
-const DUPLEX = step('Two languages print double-sided: flip on the long edge.', {
+/** The bar check: what to measure, as wide as the code's tile (`bar`: "1.4 in (3.6 cm)"). */
+export const checkSize = (bar: string) =>
+  step(`Check the size: the coloured bar under each code measures ${bar}.`)
+export const DUPLEX = step('Two languages print double-sided: flip on the long edge.', {
   withSecondLanguage: true,
 })
 
+/** The bar a Large card or the Letter-half tent prints today: the 2 in tile. */
+const TODAY_BAR = '2 in (5.1 cm)'
+
 /** The paper step: card stock if the printer takes it, else plain paper in a holder. */
-const STOCK: Readonly<Record<PrintKitPaper, (holder: string) => string>> = {
+export const STOCK: Readonly<Record<PrintKitPaper, (holder: string) => string>> = {
   letter: (holder) =>
     `Use 65–110 lb cover card stock if your printer takes it, or plain paper in ${holder}.`,
   a4: (holder) =>
@@ -103,21 +107,22 @@ const PAPER_DETAIL = {
 } as const
 
 const IMMERSIVE_DETAIL = {
-  counter_card: { letter: '4 × 6 in · print shop', a4: 'A6 · print shop' },
+  // A card's output is the manager's to choose (print shop or office sheet), so its detail says its size only.
+  counter_card: { letter: '4 × 6 in', a4: 'A6' },
   table_tent: {
     letter: '4 × 6 in, folded · print shop',
     a4: 'A6, folded · print shop',
   },
 } as const
 
-const IMMERSIVE_STOCK: Readonly<Record<PrintKitPaper, string>> = {
+export const IMMERSIVE_STOCK: Readonly<Record<PrintKitPaper, string>> = {
   letter:
     'Cards 100–130 lb cover, matte or uncoated; tents 80–100 lb cover, scored, grain along the fold; no gloss.',
   a4: 'Cards 350 g/m², matte or uncoated; tents 300–350 g/m², scored, grain along the fold; no gloss.',
 }
 
 /** What a print shop is told: the file is theirs to print as it is (spec 5.4). */
-const SHOP_LINE =
+export const SHOP_LINE =
   'Convert to CMYK with your profile. Field as a warm rich black, at most 280% total ink. Code modules as 100K.'
 
 const LABELS: Readonly<Record<PrintKitPiece, string>> = {
@@ -131,20 +136,21 @@ function paperFacts(piece: PrintKitPiece, paper: PrintKitPaper): PrintKitPieceFa
     label: LABELS[piece],
     noun: PRINT_KIT_PIECE_NOUNS[piece],
     detail: tight(PAPER_DETAIL[piece][paper]),
-    howToPrint: card
-      ? [
-          ACTUAL_SIZE,
-          CHECK_SIZE,
-          DUPLEX,
-          step(STOCK[paper](CARD_HOLDER[paper])),
-          step(CARD_CUTS[paper]),
-        ]
-      : [
-          ACTUAL_SIZE,
-          CHECK_SIZE,
-          step(STOCK[paper](TENT_HOLDER[paper])),
-          step('Fold on the grey ticks; the fold line stays blank.'),
-        ],
+    howToPrint: (bar) =>
+      card
+        ? [
+            ACTUAL_SIZE,
+            checkSize(bar),
+            DUPLEX,
+            step(STOCK[paper](CARD_HOLDER[paper])),
+            step(CARD_CUTS[paper]),
+          ]
+        : [
+            ACTUAL_SIZE,
+            checkSize(bar),
+            step(STOCK[paper](TENT_HOLDER[paper])),
+            step('Fold on the grey ticks; the fold line stays blank.'),
+          ],
   }
 }
 
@@ -153,7 +159,7 @@ function immersiveFacts(piece: PrintKitPiece, paper: PrintKitPaper): PrintKitPie
     label: LABELS[piece],
     noun: PRINT_KIT_PIECE_NOUNS[piece],
     detail: tight(IMMERSIVE_DETAIL[piece][paper]),
-    howToPrint: [
+    howToPrint: () => [
       step('Made for a print shop. Send the PDF as it is.'),
       step(IMMERSIVE_STOCK[paper]),
       step(SHOP_LINE),
@@ -187,16 +193,21 @@ export const PRINT_KIT_PIECE_FACTS: Readonly<
   >
 > = Object.freeze({ paper: piecesOf('paper'), immersive: piecesOf('immersive') })
 
-/** The steps a choice needs: a card with one language has no back to print. */
+/**
+ * The steps a Large card or the Letter-half tent needs: a card with one language
+ * has no back to print. `bar` is the bar's width as the tile makes it, today's
+ * 2 in tile unless the caller knows better.
+ */
 export function printKitHowToPrint(
   style: PrintKitStyle,
   piece: PrintKitPiece,
   paper: PrintKitPaper,
   languageCount: number,
+  bar: string = TODAY_BAR,
 ): readonly PrintKitHowToStep[] {
-  return PRINT_KIT_PIECE_FACTS[style][piece][paper].howToPrint.filter(
-    (entry) => languageCount > 1 || entry.withSecondLanguage !== true,
-  )
+  return PRINT_KIT_PIECE_FACTS[style][piece][paper]
+    .howToPrint(bar)
+    .filter((entry) => languageCount > 1 || entry.withSecondLanguage !== true)
 }
 
 const PAPER_NOTES = {

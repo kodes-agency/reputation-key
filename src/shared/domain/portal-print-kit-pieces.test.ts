@@ -15,6 +15,8 @@ const words = (steps: ReturnType<typeof printKitHowToPrint>): string[] =>
 
 const plain = (text: string): string => text.replaceAll(' ', ' ')
 
+const TODAY = '2 in (5.1 cm)'
+
 describe('tight', () => {
   it('joins a measure to its unit, and the sides of a size, with no-break spaces', () => {
     expect(tight('4 × 6 in')).toBe('4 × 6 in')
@@ -37,7 +39,7 @@ describe('the facts of each style', () => {
     })
     expect(PRINT_KIT_STYLE_FACTS.immersive).toEqual({
       label: 'Immersive',
-      detail: 'Dark, with your photo. Best from a print shop.',
+      detail: 'Dark, with your photo.',
     })
   })
 })
@@ -49,7 +51,7 @@ describe('the facts of each piece', () => {
         for (const paper of PRINT_KIT_PAPERS) {
           const facts = PRINT_KIT_PIECE_FACTS[style][piece][paper]
           expect(facts.label, `${style} ${piece} ${paper}`).not.toBe('')
-          expect(facts.howToPrint.length).toBeGreaterThan(0)
+          expect(facts.howToPrint(TODAY).length).toBeGreaterThan(0)
         }
       }
     }
@@ -60,9 +62,9 @@ describe('the facts of each piece', () => {
     ['paper', 'table_tent', 'letter', 'Table tent', 'Letter, folded in half'],
     ['paper', 'counter_card', 'a4', 'Counter card', 'A6 · 4 on an A4 sheet'],
     ['paper', 'table_tent', 'a4', 'Table tent', 'A4, folded in half'],
-    ['immersive', 'counter_card', 'letter', 'Counter card', '4 × 6 in · print shop'],
+    ['immersive', 'counter_card', 'letter', 'Counter card', '4 × 6 in'],
     ['immersive', 'table_tent', 'letter', 'Table tent', '4 × 6 in, folded · print shop'],
-    ['immersive', 'counter_card', 'a4', 'Counter card', 'A6 · print shop'],
+    ['immersive', 'counter_card', 'a4', 'Counter card', 'A6'],
     ['immersive', 'table_tent', 'a4', 'Table tent', 'A6, folded · print shop'],
   ] as const)(
     'calls the %s %s on %s “%s”, over “%s”',

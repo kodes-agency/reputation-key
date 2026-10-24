@@ -330,13 +330,14 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
 - **Two styles.** _Paper_ (the default, "Prints on any printer") is ink on the
   customer's own paper: no photo, no bleed, printed at Actual size, with grey
   cut and fold ticks and, on the Letter card sheet, a print check whose bar
-  measures 2 in. _Immersive_ ("Best from a print shop") is the guest page's dark
-  field with a framed photo window, or a monogram when there is no photo, a
-  1/8 in or 3 mm bleed, crop marks, fold marks and a slug line. Both styles use
-  one code block: a 2 in cream tile with the accent's bar under it, and the cue
-  "Scan with your camera" in each language on the print. The bar's 2 in is how a
-  manager checks the print was not shrunk. The place label (the portal's title)
-  is the largest type on every face.
+  measures the tile's width. _Immersive_ ("Dark, with your photo") is the guest
+  page's dark field with a photo band across a card (a panel on the small tent),
+  or a monogram when there is no photo, a 1/8 in or 3 mm bleed, crop marks, fold
+  marks and a slug line. Both styles use one code block: a cream tile, its size
+  the size's own (Sizes, below), with the accent's bar under it, and the cue "Scan
+  with your camera" in each language on the print. The bar's width is how a
+  manager checks the print was not scaled. The call to action is the largest type
+  on every card face.
 - **Paper follows the property's country.** Letter (4 x 6 in cards, two to a
   sheet; Letter folded into two 8.5 x 5.5 in faces; Immersive 4 x 6 in pieces
   with a 1/8 in bleed) for the countries in `PRINT_KIT_LETTER_COUNTRIES` (CLDR's
@@ -345,9 +346,11 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   The manager's choice wins and is kept for the session; the browser's locale is
   not read, because it says where the manager sits and not where the piece will
   stand. The Share tab starts on a Paper counter card (the share board's own
-  state) on `defaultPrintKitPaper(countryCode)` and always sends `style` and
-  `paper`; the server defaults a missing style to Paper and a missing paper to
-  the same rule, reading `properties.country_code` only then.
+  state) on `defaultPrintKitPaper(countryCode)` and always sends `style`, `paper`,
+  `size`, `output` and `showPropertyName`; the server defaults a missing style to
+  Paper, a missing paper to the same rule (reading `properties.country_code` only
+  then), a missing size to Large, a missing output to the style's own and the name
+  line to on.
 - **A print is the live version.** Its languages, titles and look come from what
   guests can open now, never from a draft: a language added in the editor and not
   published is refused (`locale_not_offered`), and a portal with nothing live has
@@ -450,6 +453,47 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   102.6 and 112 pt in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in
   Mini's 85.7 pt. A test pins the languages that fit; the faces must refuse the
   rest, use a two-line bar or set a smaller cue.
+- **The Share chooser (round 3, slice 14).** Top to bottom, as the share board
+  draws it: Style, Size, Piece, Output, Paper size beside Languages, the name
+  under the logo, Call to action; the Download with its file name; "How to
+  print". What each choice offers is pure and shared (`portal-print-kit-offer.ts`,
+  `portal-print-kit-how-to.ts`), so the controls, the preview's captions and the
+  server read one answer, and `printKitFormatProblem` stays the only judge of what
+  the kit makes: the pieces a size comes in (a card and a tent at Large, today's
+  Letter-half tent, and at Table, the small tent; a card alone at Mini, so no Piece
+  control), the outputs a style and piece take (an Immersive Large or Table card
+  has "For a print shop · 1 card per page with bleed" and "For my printer · 4
+  cards per sheet" (2 at Large); every other print has one way to be made, so no
+  Output control), and the languages (a Mini card takes one). A change of style
+  starts on that style's own output (Immersive to a print shop), and
+  `settlePrintKitFormat` makes any choice one the kit makes, by identity when
+  nothing changes. The Share tab offers only `PRINT_KIT_SELECTABLE_SIZES`
+  (`PortalPrintKitResources.sizes` names others, for stories): with Large alone
+  there is no Size control, because a lone card is not a choice, and from two sizes
+  up it is three cards (outlines at one scale, where each goes, the note "The code
+  shrinks with the size") and Table is the default. The name switch ("Print the
+  property name under the logo", on by default, sent as `showPropertyName`) is
+  shown only for a property with a logo, since a wordmark is the name; its hint is
+  "Large and Table cards. The tent and Mini show the logo alone." (D12). "How to
+  print" names the bar each tile makes (1.75 in, 1.4 in, 1.25 in; 44, 36, 32 mm),
+  from the tile the preview draws; a Large card whose address is not in memory
+  (the preview draws a sample) says both 1.75 in and today's 2 in, because a code
+  that still has a long address prints on 2 in. The preview is the file: it draws
+  every size, piece and output from the same plans (`planCard`, `planTent`), pages
+  (`printKitSheetPages`) and tile rule (`printKitTile`) the PDF draws from, turns a
+  Mini a quarter in its business-card cell, lets an office sheet's cards bleed edge
+  by edge and sets its note and black crop marks, and
+  `print-kit-preview-parity.test.ts` holds its sizes to the PDF's for every card
+  size and the small tent. The preview's sample code has a short print address's
+  shape (a version 3 symbol), so no size is refused for a sample; for the live
+  address a size whose tile would print it too small is not drawn, the section says
+  what to do in the server's words ("Replace the code to print this size." when the
+  code has no print code, "This size cannot print from this server yet." when the
+  print host is the reason), and the download stays off. Stories show every style,
+  size and piece (`print-kit-size-art.stories.tsx`, `portal-print-kit-sizes.stories.tsx`).
+  Not built, still owed: round 2's title warning ("Change title") waits on its open
+  question 6 (which titles read like a call to action), and the Letter-half tent's
+  card still reads "Letter, folded in half".
 - **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
   family; lining figures on place labels and headlines; no ligatures on a tracked
   line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the

@@ -23,7 +23,9 @@ import {
   codeModuleMm,
   codeTileCueRoomPt,
   codeTileHeightPt,
+  PRINT_CODE_TOO_SMALL_COPY,
   printAddressShape,
+  printKitTile,
   type PrintAddressShape,
 } from './portal-print-kit-code-tile'
 import {
@@ -420,5 +422,53 @@ describe('printAddressShape', () => {
       'long',
     )
     expect(printAddressShape('not an address')).toBe('long')
+  })
+})
+
+describe('printKitTile', () => {
+  const long = { symbolModules: 53, addressShape: 'long' } as const
+  const short = { symbolModules: 29, addressShape: 'short' } as const
+
+  it('keeps the Letter-half tent on today’s 2 in tile, which a long address never refuses', () => {
+    const choice = printKitTile('table_tent', { size: 'large', paper: 'letter', ...long })
+    expect(choice._unsafeUnwrap().tile).toBe(TODAY_CODE_TILE)
+  })
+
+  it('gives a card and the small tent the tile their size chooses', () => {
+    for (const piece of ['counter_card', 'table_tent'] as const) {
+      const choice = printKitTile(piece, { size: 'table', paper: 'letter', ...short })
+      expect(choice._unsafeUnwrap().tile).toBe(tileOf('table', 'letter'))
+    }
+    expect(
+      printKitTile('counter_card', {
+        size: 'large',
+        paper: 'letter',
+        ...long,
+      })._unsafeUnwrap().tile,
+    ).toBe(TODAY_CODE_TILE)
+  })
+
+  it('refuses the small tent and the cards of Table and Mini for a long address', () => {
+    expect(
+      printKitTile('table_tent', {
+        size: 'table',
+        paper: 'letter',
+        ...long,
+      })._unsafeUnwrapErr().cause,
+    ).toBe('needs_short_code')
+    expect(
+      printKitTile('counter_card', { size: 'mini', paper: 'a4', ...long }).isErr(),
+    ).toBe(true)
+  })
+})
+
+describe('PRINT_CODE_TOO_SMALL_COPY', () => {
+  it('says to replace the code when it has no print code, and that nothing helps when the host is too long', () => {
+    expect(PRINT_CODE_TOO_SMALL_COPY.needs_short_code).toBe(
+      'Replace the code to print this size.',
+    )
+    expect(PRINT_CODE_TOO_SMALL_COPY.address_host_too_long).toBe(
+      'This size cannot print from this server yet.',
+    )
   })
 })

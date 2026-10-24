@@ -3,8 +3,13 @@ import type { PortalPrintKitView } from '#/contexts/portal/application/public-ap
 import { previewCardPlan } from '#/components/features/portal/portal-share/print-kit-card-art-layout'
 import { previewImmersiveFit } from '#/components/features/portal/portal-share/print-kit-immersive-art-layout'
 import { previewPaperFit } from '#/components/features/portal/portal-share/print-kit-preview-fit'
-import type { PrintKitPaper, PrintKitStyle } from '#/shared/domain/portal-print-kit'
-import type { LargeCardPlan } from '#/shared/domain/portal-print-kit-card'
+import { previewTentPlan } from '#/components/features/portal/portal-share/print-kit-tent-art-layout'
+import type {
+  PrintKitPaper,
+  PrintKitSize,
+  PrintKitStyle,
+} from '#/shared/domain/portal-print-kit'
+import type { CardPlan } from '#/shared/domain/portal-print-kit-card'
 import type { CardTextRole } from '#/shared/domain/portal-print-kit-card-words'
 import { CODE_TILE } from '#/shared/domain/portal-print-kit-code-tile'
 import type { ImmersiveGeometry } from '#/shared/domain/portal-print-kit-immersive'
@@ -15,6 +20,7 @@ import {
 import type { StackSizes } from '#/shared/domain/portal-print-kit-long-copy'
 import type { PanelGeometry } from '#/shared/domain/portal-print-kit-sheets'
 import { layoutCardFace } from './print-kit-card-face'
+import { layoutTentFace } from './print-kit-tent-face'
 import type { FaceStack } from './print-kit-face-stack'
 import { qrMatrix } from './print-kit-qr'
 import {
@@ -129,7 +135,7 @@ describe('the preview’s sizes against the PDF’s measured plan', () => {
 })
 
 /** The largest size each role is set at on a card. */
-function roleSizes(plan: LargeCardPlan): Partial<Record<CardTextRole, number>> {
+function roleSizes(plan: CardPlan): Partial<Record<CardTextRole, number>> {
   const sizes: Partial<Record<CardTextRole, number>> = {}
   for (const item of plan.words) {
     if (item.kind !== 'line') continue
@@ -140,26 +146,40 @@ function roleSizes(plan: LargeCardPlan): Partial<Record<CardTextRole, number>> {
 
 const CARD_QR = qrMatrix('HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R')
 
-describe('the preview’s Large card against the PDF’s', () => {
+const paletteOf = (style: PrintKitStyle) =>
+  style === 'paper'
+    ? paperPrintKitPalette(LOOK.accentColour)
+    : immersivePrintKitPalette(LOOK.accentColour, LOOK.fieldColour)
+
+// A Mini card prints one language, so it is set only with the one-language cases.
+const casesOf = (size: PrintKitSize) =>
+  size === 'mini' ? CASES.filter(({ languages }) => languages.length === 1) : CASES
+
+describe('the preview’s cards against the PDF’s', () => {
   it.each([
-    ['immersive', 'letter'],
-    ['immersive', 'a4'],
-    ['paper', 'letter'],
-    ['paper', 'a4'],
+    ['immersive', 'letter', 'large'],
+    ['immersive', 'a4', 'large'],
+    ['paper', 'letter', 'large'],
+    ['paper', 'a4', 'large'],
+    ['immersive', 'letter', 'table'],
+    ['immersive', 'a4', 'table'],
+    ['paper', 'letter', 'table'],
+    ['paper', 'a4', 'table'],
+    ['immersive', 'letter', 'mini'],
+    ['immersive', 'a4', 'mini'],
+    ['paper', 'letter', 'mini'],
+    ['paper', 'a4', 'mini'],
   ] as const)(
-    'takes a step no later, and sets no line larger, on %s %s',
-    (style: PrintKitStyle, paper: PrintKitPaper) => {
+    'takes a step no later, and sets no line larger, on %s %s %s',
+    (style: PrintKitStyle, paper: PrintKitPaper, size: PrintKitSize) => {
       const { doc, fonts } = newDocument()
-      const tile = CODE_TILE.large[paper]
-      const palette =
-        style === 'paper'
-          ? paperPrintKitPalette(LOOK.accentColour)
-          : immersivePrintKitPalette(LOOK.accentColour, LOOK.fieldColour)
-      for (const { languages, titles } of CASES) {
+      const tile = CODE_TILE[size][paper]
+      const palette = paletteOf(style)
+      for (const { languages, titles } of casesOf(size)) {
         const face = faceOf({ piece: 'counter_card', languages: [...languages] }, titles)
-        const label = `${style} ${paper} ${languages.join('+')} ${titles.en.length}`
+        const label = `${style} ${paper} ${size} ${languages.join('+')} ${titles.en.length}`
         const file = layoutCardFace(doc, fonts, face, {
-          size: 'large',
+          size,
           style,
           paper,
           palette,
@@ -170,6 +190,7 @@ describe('the preview’s Large card against the PDF’s', () => {
           logo: null,
         }).plan
         const preview = previewCardPlan({
+          size,
           style,
           paper,
           face,
@@ -179,12 +200,58 @@ describe('the preview’s Large card against the PDF’s', () => {
         })
         expect(preview.stepIndex, label).toBeGreaterThanOrEqual(file.stepIndex)
         const fileSizes = roleSizes(file)
-        for (const [role, size] of Object.entries(roleSizes(preview))) {
-          expect(size, `${label}: ${role}`).toBeLessThanOrEqual(
+        for (const [role, sized] of Object.entries(roleSizes(preview))) {
+          expect(sized, `${label}: ${role}`).toBeLessThanOrEqual(
             (fileSizes[role as CardTextRole] ?? 0) + 1e-9,
           )
         }
         expect(preview.code.y, label).toBeCloseTo(file.code.y, 0)
+      }
+    },
+  )
+})
+
+describe('the preview’s small tent against the PDF’s', () => {
+  it.each([
+    ['immersive', 'letter'],
+    ['immersive', 'a4'],
+    ['paper', 'letter'],
+    ['paper', 'a4'],
+  ] as const)(
+    'sets the call to action no larger, and the row where the file puts it, on %s %s',
+    (style: PrintKitStyle, paper: PrintKitPaper) => {
+      const { doc, fonts } = newDocument()
+      const tile = CODE_TILE.table[paper]
+      for (const { languages, titles } of CASES) {
+        const face = faceOf({ piece: 'table_tent', languages: [...languages] }, titles)
+        const label = `${style} ${paper} ${languages.join('+')} ${titles.en.length}`
+        const file = layoutTentFace(doc, fonts, face, {
+          size: 'table',
+          style,
+          paper,
+          palette: paletteOf(style),
+          qr: CARD_QR,
+          tile,
+          wordmark: LOOK.wordmark,
+          propertyName: null,
+          logo: null,
+        }).plan
+        const preview = previewTentPlan({
+          style,
+          paper,
+          face,
+          look: LOOK,
+          tile,
+          logoAspect: null,
+        })
+        expect(preview.ctaPt, label).toBeLessThanOrEqual(file.ctaPt + 1e-9)
+        expect(preview.code.x, label).toBeCloseTo(file.code.x, 3)
+        expect(preview.panelPt, label).toBe(file.panelPt)
+        // The row stays centred down the face, as the file centres it.
+        expect(preview.row.topPt + preview.row.heightPt / 2, label).toBeCloseTo(
+          file.heightPt / 2,
+          3,
+        )
       }
     },
   )

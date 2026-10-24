@@ -1,11 +1,14 @@
-// One face, drawn as the PDF draws it: the Large card (4 × 6 in or A6) in
-// either style through `PrintKitCardArt`, from the plan the PDF draws from
-// (round-2 spec-delta R1 and R2, round-3 S3); a Paper tent face (8.5 × 5.5 in or
-// A5, spec 4.4); and an Immersive tent panel through `PrintKitImmersiveFace`.
-// The tent face is the flex layout its design board uses, from the measures the
-// PDF reads: the brand top-left, then a row of the words and the code, whose
-// tile's top sits on the place label's cap line, and three equal gaps so the
-// margin at the fold is the margin at the sheet's edge.
+// One face, drawn as the PDF draws it: a card of any size (Large 4 × 6 in or A6,
+// Table 3.5 × 5 in or 90 × 130 mm, Mini 2 × 3.5 in or 55 × 85 mm) in either style
+// through `PrintKitCardArt`, and the small tent's landscape face (5 × 3.5 in or
+// 130 × 90 mm) through `PrintKitTentArt`, both from the plans the PDF draws from
+// (round-2 spec-delta R1 and R2, round-3 S3 and S5); the Letter-half tent's Paper
+// face (8.5 × 5.5 in or A5, spec 4.4); and its Immersive panel through
+// `PrintKitImmersiveFace`. The Letter-half tent face is the flex layout its design
+// board uses, from the measures the PDF reads: the brand top-left, then a row of
+// the words and the code, whose tile's top sits on the place label's cap line,
+// and three equal gaps so the margin at the fold is the margin at the sheet's
+// edge.
 //
 // Margins are optical, as in the PDF: the paddings are the margin less the
 // distance from the brand's box to its ink and plus the tile's outline. The
@@ -21,7 +24,12 @@
 
 import type { CSSProperties, ReactNode } from 'react'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
-import type { PrintFace, PrintKitStyle } from '#/shared/domain/portal-print-kit'
+import type {
+  PrintFace,
+  PrintKitPaper,
+  PrintKitSize,
+  PrintKitStyle,
+} from '#/shared/domain/portal-print-kit'
 import { cueLinesFor } from '#/shared/domain/portal-print-kit-code-block'
 import { CODE_TILE, type CodeTile } from '#/shared/domain/portal-print-kit-code-tile'
 import {
@@ -35,6 +43,7 @@ import {
   paperPrintKitPalette,
   type PaperPrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
+import { NO_BLEED, type PanelBleed } from '#/shared/domain/portal-print-kit-sheet-parts'
 import {
   PANEL_SIZE_PT,
   type PanelGeometry,
@@ -51,6 +60,7 @@ import {
 import { PrintKitFaceBrand, brandInkPt } from './print-kit-face-brand-art'
 import { PrintKitFaceStack } from './print-kit-face-stack'
 import { PrintKitImmersiveFace } from './print-kit-immersive-face-art'
+import { PrintKitTentArt } from './print-kit-tent-art'
 
 type Props = Readonly<{
   style: PrintKitStyle
@@ -66,10 +76,12 @@ type Props = Readonly<{
    * into the bleed behind the face, so the sheet paints them (Immersive only).
    */
   bare?: boolean
-  /** A card's code tile, the one its address allows; the 1.75 in tile of the sample code when none is given. */
+  /** The code tile of a card or the small tent, the one its address allows; the size's own tile when none is given. */
   tile?: CodeTile
-  /** How far a print-shop sheet's bleed runs past a card's trim, for its band to run into; 0 alone. */
-  bleedPt?: number
+  /** How far a print-shop or office sheet's bleed runs past the face's trim, edge by edge, for its photo to run into; none alone. */
+  bleed?: PanelBleed
+  /** The property's name under a logo, which the manager may turn off; on when left out. */
+  showPropertyName?: boolean
 }>
 
 type Drawing = Readonly<{
@@ -205,11 +217,23 @@ function paperArt(drawing: Drawing, geometry: PanelGeometry): ReactNode {
   }
 }
 
-/** The paper each card shape is printed on. */
-const CARD_PAPER = { card4x6: 'letter', cardA6: 'a4' } as const
+/** What each card shape is: its size and the paper it is cut for. */
+const CARD_SPEC = {
+  card4x6: { size: 'large', paper: 'letter' },
+  cardA6: { size: 'large', paper: 'a4' },
+  cardTableLetter: { size: 'table', paper: 'letter' },
+  cardTableA4: { size: 'table', paper: 'a4' },
+  cardMiniLetter: { size: 'mini', paper: 'letter' },
+  cardMiniA4: { size: 'mini', paper: 'a4' },
+} as const satisfies Partial<
+  Record<PanelGeometry, Readonly<{ size: PrintKitSize; paper: PrintKitPaper }>>
+>
 
-const isCard = (geometry: PanelGeometry): geometry is keyof typeof CARD_PAPER =>
-  geometry in CARD_PAPER
+/** The paper each small tent shape is printed on. */
+const TENT_SMALL_PAPER = { tentSmallLetter: 'letter', tentSmallA4: 'a4' } as const
+
+const cardSpecOf = (geometry: PanelGeometry) =>
+  geometry in CARD_SPEC ? CARD_SPEC[geometry as keyof typeof CARD_SPEC] : null
 
 export function PrintKitFaceArt({
   style,
@@ -220,7 +244,8 @@ export function PrintKitFaceArt({
   label,
   bare = false,
   tile,
-  bleedPt = 0,
+  bleed = NO_BLEED,
+  showPropertyName = true,
 }: Props) {
   const { widthPt, heightPt } = PANEL_SIZE_PT[geometry]
   const pt: PointsToLength = (points) => ptToContainerWidth(points, widthPt)
@@ -231,6 +256,11 @@ export function PrintKitFaceArt({
     palette: paperPrintKitPalette(look.accentColour),
     pt,
   }
+  const card = cardSpecOf(geometry)
+  const smallTent =
+    geometry in TENT_SMALL_PAPER
+      ? TENT_SMALL_PAPER[geometry as keyof typeof TENT_SMALL_PAPER]
+      : null
   return (
     <div
       {...(label === undefined ? {} : { role: 'img', 'aria-label': label })}
@@ -240,15 +270,30 @@ export function PrintKitFaceArt({
         containerType: 'inline-size',
       }}
     >
-      {isCard(geometry) ? (
+      {card !== null ? (
         <PrintKitCardArt
           style={style}
-          paper={CARD_PAPER[geometry]}
+          size={card.size}
+          paper={card.paper}
           face={face}
           look={look}
           codeUrl={codeUrl}
-          tile={tile ?? CODE_TILE.large[CARD_PAPER[geometry]]}
-          bleedPt={bleedPt}
+          tile={tile ?? CODE_TILE[card.size][card.paper]}
+          bleed={bleed}
+          bare={bare}
+          showPropertyName={showPropertyName}
+          pt={pt}
+        />
+      ) : smallTent !== null ? (
+        <PrintKitTentArt
+          style={style}
+          paper={smallTent}
+          face={face}
+          look={look}
+          codeUrl={codeUrl}
+          tile={tile ?? CODE_TILE.table[smallTent]}
+          bleed={bleed}
+          bare={bare}
           pt={pt}
         />
       ) : style === 'paper' ? (

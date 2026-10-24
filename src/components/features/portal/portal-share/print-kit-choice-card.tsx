@@ -1,7 +1,7 @@
-// A radio drawn as a card (the share board's Style and Piece cards): a picture
-// at the start, the name over what it is, and the radio at the top end. The whole
-// card is the radio's label, so it is one target; the checked card wears the
-// primary ring and tint, as the section's Piece cards did.
+// A radio drawn as a card (the share board's Style, Size and Piece cards): a
+// picture at the start, the name over what it is, and the radio at the top end.
+// The whole card is the radio's label, so it is one target; the checked card wears
+// the primary ring and tint, as the section's Piece cards did.
 //
 // The Style cards' pictures are small thumbnails of the prints themselves, in
 // the property's own accent and field, so the choice shows what it will make.
@@ -12,7 +12,12 @@ import type { ReactNode } from 'react'
 import { Label } from '#/components/ui/label'
 import { RadioGroupItem } from '#/components/ui/radio-group'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
-import type { PrintKitStyle } from '#/shared/domain/portal-print-kit'
+import type {
+  PrintKitPaper,
+  PrintKitSize,
+  PrintKitStyle,
+} from '#/shared/domain/portal-print-kit'
+import { SIZE_TRIM_PT } from '#/shared/domain/portal-print-kit-sizes'
 import {
   PRINT_KIT_INK,
   PRINT_KIT_PAPER,
@@ -24,12 +29,21 @@ type CardProps = Readonly<{
   id: string
   value: string
   title: string
+  /** After the title, lighter: "Large · 4 × 6 in" has "4 × 6 in" here. */
+  qualifier?: string
   detail: string
   /** The picture at the start: decorative, the title and detail name the card. */
   art: ReactNode
 }>
 
-export function PrintKitChoiceCard({ id, value, title, detail, art }: CardProps) {
+export function PrintKitChoiceCard({
+  id,
+  value,
+  title,
+  qualifier,
+  detail,
+  art,
+}: CardProps) {
   return (
     <Label
       htmlFor={id}
@@ -37,7 +51,15 @@ export function PrintKitChoiceCard({ id, value, title, detail, art }: CardProps)
     >
       {art}
       <span className="flex flex-col gap-0.5 pr-5">
-        <span className="text-[13px] leading-[18px] font-medium">{title}</span>
+        <span className="text-[13px] leading-[18px] font-medium">
+          {title}
+          {qualifier !== undefined && (
+            <>
+              {/* The space is outside the span: an accessible name trims each inline child. */}{' '}
+              <span className="font-normal text-muted-foreground">· {qualifier}</span>
+            </>
+          )}
+        </span>
         <span className="text-xs leading-4 text-pretty text-muted-foreground">
           {detail}
         </span>
@@ -155,5 +177,46 @@ export function PrintKitStyleThumbnail({
     <PaperThumbnail accent={look.accentColour} />
   ) : (
     <ImmersiveThumbnail accent={look.accentColour} field={look.fieldColour} />
+  )
+}
+
+/** Pixels to the inch of the outlines on the Size cards: Large, Table and Mini stand at one scale, as the board draws them. */
+const OUTLINE_PX_PER_INCH = 6
+
+/**
+ * A card's outline at the scale all the sizes share, standing on a common line; it
+ * takes the primary colour when its card is chosen. Inline styles, as the
+ * thumbnails above: the first-paint stylesheet is built by scanning `src/` for
+ * class names, and an arbitrary value here would land in every page's.
+ */
+export function PrintKitSizeOutline({
+  size,
+  paper,
+  selected,
+}: Readonly<{ size: PrintKitSize; paper: PrintKitPaper; selected: boolean }>) {
+  const { widthPt, heightPt } = SIZE_TRIM_PT[size][paper]
+  const largest = SIZE_TRIM_PT.large[paper].heightPt
+  return (
+    <span
+      aria-hidden
+      style={{
+        flex: 'none',
+        display: 'flex',
+        alignItems: 'flex-end',
+        height: (largest * OUTLINE_PX_PER_INCH) / 72,
+        width: 28,
+      }}
+    >
+      <span
+        style={{
+          display: 'block',
+          boxSizing: 'border-box',
+          borderRadius: 3,
+          border: `1.5px solid ${selected ? 'var(--primary)' : 'var(--muted-foreground)'}`,
+          width: (widthPt * OUTLINE_PX_PER_INCH) / 72,
+          height: (heightPt * OUTLINE_PX_PER_INCH) / 72,
+        }}
+      />
+    </span>
   )
 }

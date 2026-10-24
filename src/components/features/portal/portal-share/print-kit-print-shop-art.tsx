@@ -1,8 +1,11 @@
-// What a print-shop page carries round its Immersive faces, as the PDF draws it
-// (spec 5.3): the field and washes run into the bleed behind each face, the
-// ridge band across the full bleed at a tent's fold, the crop marks outside the
-// bleed, dashed fold marks in the side slugs, and the slug line naming the piece.
-// The marks come from `printShopMarks`, which the PDF draws from too.
+// What a print-shop page, or an Immersive office sheet, carries round its
+// Immersive faces, as the PDF draws it (spec 5.3, round-3 S6): the field and
+// washes run into the bleed behind each face, edge by edge (an office sheet's
+// abutting cards bleed only on the block's outer edges, a tent never across its
+// fold), the Letter-half tent's ridge band across the full bleed at its fold, the
+// crop marks outside the bleed, dashed fold marks in the side slugs, and the slug
+// line naming the piece. The marks come from `printShopMarks`, which the PDF
+// draws from too.
 //
 // Laid out in the sheet's container units (`u`), as the sheet is.
 
@@ -11,9 +14,11 @@ import type {
   PrintFace,
   PrintKitPaper,
   PrintKitPiece,
+  PrintKitSize,
 } from '#/shared/domain/portal-print-kit'
 import {
   PRINT_SHOP_MARK,
+  isTentPanel,
   printShopMarks,
   printShopSlugLines,
   type MarkLine,
@@ -33,7 +38,7 @@ const RIDGE_HAIRLINE_PT = mmToPt(0.3)
 /** The slug's average advance, in ems, erring wide: the preview cannot measure its font. */
 const SLUG_ADVANCE_EM = 0.5
 
-/** The field behind each face, run into the bleed on every side but a tent's fold. */
+/** The field behind each face, run into the bleed on each edge the face bleeds. */
 export function PrintShopGrounds({
   page,
   palette,
@@ -43,16 +48,16 @@ export function PrintShopGrounds({
   palette: ImmersivePrintKitPalette
   u: PointsToLength
 }>) {
-  const bleed = page.bleedPt
-  const top = page.foldAtPt === null ? bleed : 0
+  const ridgeTent = page.panels.find((panel) => isTentPanel(panel.geometry))
   const ridge =
-    page.panels[0]?.geometry === 'tentPanelA6'
+    ridgeTent?.geometry === 'tentPanelA6'
       ? IMMERSIVE_TENT_GRID.a4.ridgePt
       : IMMERSIVE_TENT_GRID.letter.ridgePt
   return (
     <>
       {page.panels.map((panel) => {
         const { widthPt, heightPt } = PANEL_SIZE_PT[panel.geometry]
+        const { bleed } = panel
         return (
           <div
             key={`${panel.leftPt}:${panel.topPt}`}
@@ -63,31 +68,37 @@ export function PrintShopGrounds({
               top: u(panel.topPt),
               width: u(widthPt),
               height: u(heightPt),
-              transform: panel.rotated ? 'rotate(180deg)' : undefined,
+              transform:
+                [
+                  panel.rotated ? 'rotate(180deg)' : '',
+                  panel.turned ? 'rotate(-90deg)' : '',
+                ]
+                  .join(' ')
+                  .trim() || undefined,
             }}
           >
             <div
               style={{
                 position: 'absolute',
-                left: u(-bleed),
-                top: u(-top),
-                width: u(widthPt + 2 * bleed),
-                height: u(heightPt + top + bleed),
+                left: u(-bleed.leftPt),
+                top: u(-bleed.topPt),
+                width: u(widthPt + bleed.leftPt + bleed.rightPt),
+                height: u(heightPt + bleed.topPt + bleed.bottomPt),
                 background: immersiveBackground(palette),
               }}
             />
           </div>
         )
       })}
-      {page.foldAtPt !== null && (
+      {ridgeTent !== undefined && page.foldAtPt !== null && (
         <div
           aria-hidden
           data-print-ridge
           style={{
             position: 'absolute',
-            left: u(page.trim.leftPt - bleed),
+            left: u(page.trim.leftPt - page.bleedPt),
             top: u(page.foldAtPt - ridge),
-            width: u(page.trim.widthPt + 2 * bleed),
+            width: u(page.trim.widthPt + 2 * page.bleedPt),
             height: u(2 * ridge),
             boxSizing: 'border-box',
             background: palette.lift,
@@ -122,6 +133,7 @@ function lineStyle(line: MarkLine, u: PointsToLength, dashed: boolean): CSSPrope
 export function PrintShopMarks({
   page,
   piece,
+  size = 'large',
   paper,
   faces,
   wordmark,
@@ -129,6 +141,7 @@ export function PrintShopMarks({
 }: Readonly<{
   page: PrintKitPage
   piece: PrintKitPiece
+  size?: PrintKitSize
   paper: PrintKitPaper
   faces: readonly PrintFace[]
   wordmark: string
@@ -138,11 +151,12 @@ export function PrintShopMarks({
   const { slug } = PRINT_SHOP_MARK
   const side =
     piece === 'counter_card' && faces.length > 1 ? (page.panels[0]?.side ?? null) : null
-  const lines = printShopSlugLines(piece, paper, {
-    brand: wordmark,
-    place: faces[0]?.blocks[0]?.kicker ?? '',
-    side,
-  })
+  const lines = printShopSlugLines(
+    piece,
+    paper,
+    { brand: wordmark, place: faces[0]?.blocks[0]?.kicker ?? '', side },
+    size,
+  )
   const text = lines.find(
     (line) => [...line].length * slug.sizePt * SLUG_ADVANCE_EM <= marks.slug.widthPt,
   )

@@ -138,7 +138,10 @@ export function printKitPieceNoun(piece: PrintKitPiece, size: PrintKitSize): str
  * file and for the Large Paper sheets and the Letter-half tent, whose names stay
  * as they shipped.
  */
-function cardsPerSheet(piece: PrintKitPiece, format: PrintKitFormat): number | null {
+export function printKitCardsPerSheet(
+  piece: PrintKitPiece,
+  format: PrintKitFormat,
+): number | null {
   const size = format.size ?? 'large'
   const output = format.output ?? defaultPrintKitOutput(format.style)
   if (output !== 'office') return null
@@ -217,10 +220,15 @@ export type PrintKitChoice = Readonly<{
   /** The look, and the paper family it prints on (Letter or A4). */
   style: PrintKitStyle
   paper: PrintKitPaper
+  /** The piece's size (round 3) and who prints it; `portal-print-kit-offer.ts` says which pairs are offered. */
+  size: PrintKitSize
+  output: PrintKitOutput
   piece: PrintKitPiece
   /** One or two of the portal's languages; the first is the larger. */
   languages: readonly GuestLocale[]
   callToAction: PrintKitCallToAction
+  /** The property's name under a logo on a Large or Table card (round-2 R6); on unless the manager turns it off. */
+  showPropertyName: boolean
 }>
 
 /** What decides what a print says: the piece, its languages and its call to action. */
@@ -316,7 +324,7 @@ export function printKitFileName(
   format: PrintKitFormat,
 ): string {
   const noun = printKitPieceNoun(piece, format.size ?? 'large').replace(/\s+/gu, '-')
-  const count = cardsPerSheet(piece, format)
+  const count = printKitCardsPerSheet(piece, format)
   const look = [
     ...(format.style === 'immersive' ? ['immersive'] : []),
     ...(count === null ? [] : [`${count}up`]),

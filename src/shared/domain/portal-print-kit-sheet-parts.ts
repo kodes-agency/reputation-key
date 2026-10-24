@@ -33,3 +33,9 @@ export type SheetNote = Readonly<{
   /** Turned a quarter anticlockwise, to run up a side margin. */
   turned: boolean
 }>
+
+/** The black of an Immersive office sheet's crop marks: the boards' ink, one colour on any printer. */
+export const OFFICE_CROP_COLOUR = '#121614'
+
+/** The grey of a note on an office sheet, and the leading its lines are set at. */
+export const SHEET_NOTE = { colour: '#5C5650', leading: 1.2 } as const
