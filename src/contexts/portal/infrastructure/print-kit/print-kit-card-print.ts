@@ -26,7 +26,6 @@ import {
   type PrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
 import type { PrintKitPage } from '#/shared/domain/portal-print-kit-sheets'
-import { BAND_PHOTO_DPI } from '#/shared/domain/portal-print-kit-sizes'
 import type { CodeTile } from '#/shared/domain/portal-print-kit-code-tile'
 import {
   PrintKitRenderRefusal,
@@ -38,8 +37,9 @@ import {
   type CardFaceArt,
   type CardFaceLayout,
 } from './print-kit-card-face'
+import { areaPhotos, type AreaOf } from './print-kit-area-photos'
 import type { FaceLogo } from './print-kit-face-brand'
-import { bandPhotoJpeg, logoArt } from './print-kit-image'
+import { logoArt } from './print-kit-image'
 import {
   OFFICE_CROP_MARK,
   drawPrintCheck,
@@ -51,13 +51,11 @@ import {
   drawPrintPages,
   layoutFaces,
   panelLayouts,
-  type FaceBleed,
   type FaceLayouts,
   type PrintKitWarning,
 } from './print-kit-pages'
 import { slugLinesOf } from './print-kit-immersive-document'
-import { openImage, type OpenedImage } from './print-kit-pdf-image'
-import { cropPhotoOnce } from './print-kit-photo-crops'
+import { openImage } from './print-kit-pdf-image'
 import type { PrintKitFonts } from './print-kit-pdf-text'
 import { qrMatrix, type QrMatrix } from './print-kit-qr'
 
@@ -111,45 +109,14 @@ export async function cardArtOf(
   }
 }
 
-/** A band's size with its bleed, to the hundredth of a point: bands of one size share a crop. */
-const bandKey = (layout: CardFaceLayout, bleed: FaceBleed): string | null =>
+/** A card's band with its bleed: across the top, and into the bleed on the top and each side that bleeds. */
+const bandArea: AreaOf<CardFaceLayout> = (layout, bleed) =>
   layout.plan.bandPt === null
     ? null
-    : `${(layout.plan.widthPt + bleed.leftPt + bleed.rightPt).toFixed(2)}x${(layout.plan.bandPt + bleed.topPt).toFixed(2)}`
-
-/**
- * The photo cropped for every band the pages show, with the bleed each card has
- * there (an office sheet's cards bleed on their outer edges only), each embedded
- * once; a print whose softest band is under 120 dpi is refused.
- */
-function bandPhotos(
-  doc: PDFKit.PDFDocument,
-  input: PrintKitRenderInput,
-  placed: ReturnType<typeof panelLayouts<CardFaceLayout>>,
-  warn: Warn,
-): Promise<ReadonlyMap<string, OpenedImage>> {
-  const { photo } = input
-  if (photo === null) return Promise.resolve(new Map())
-  return cropPhotoOnce(
-    doc,
-    placed,
-    ({ panel, layout }) => {
-      const key = bandKey(layout, panel.bleed)
-      const { bandPt, widthPt } = layout.plan
-      if (key === null || bandPt === null) return null
-      const crop = () =>
-        bandPhotoJpeg(photo.bytes, {
-          widthPt: widthPt + panel.bleed.leftPt + panel.bleed.rightPt,
-          heightPt: bandPt + panel.bleed.topPt,
-          focalX: photo.focalX,
-          focalY: photo.focalY,
-        })
-      return { key, crop }
-    },
-    warn,
-    { warnBelow: BAND_PHOTO_DPI.warnBelow, refuseBelow: BAND_PHOTO_DPI.refuseBelow },
-  )
-}
+    : {
+        widthPt: layout.plan.widthPt + bleed.leftPt + bleed.rightPt,
+        heightPt: layout.plan.bandPt + bleed.topPt,
+      }
 
 /** The dots per inch a face's logo prints at; null for a wordmark. */
 export function logoDpi(
@@ -186,18 +153,22 @@ export async function drawCardPrint(
   const layouts: FaceLayouts<CardFaceLayout> = layoutFaces(input.faces, pages, (face) =>
     layoutCardFace(doc, fonts, face, art),
   )
-  const photos = await bandPhotos(doc, input, panelLayouts(pages, layouts), warn)
+  const placed = panelLayouts(pages, layouts)
+  const photoAt = await areaPhotos(doc, input.photo, placed, bandArea, warn)
   const letter = monogramLetter(input.wordmark)
   drawPrintPages(
     { doc, faces: input.faces, warn },
     pages,
     layouts,
     {
-      draw: (layout, bleed) => {
-        const key = bandKey(layout, bleed)
-        const photo = key === null ? null : (photos.get(key) ?? null)
-        drawCardFace(doc, fonts, layout, { photo, letter }, bleed)
-      },
+      draw: (layout, bleed) =>
+        drawCardFace(
+          doc,
+          fonts,
+          layout,
+          { photo: photoAt(layout, bleed), letter },
+          bleed,
+        ),
       logoDpi,
     },
     sheetMarks(doc, fonts, input, art),

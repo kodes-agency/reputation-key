@@ -37,7 +37,7 @@ import {
 } from './portal-print-kit-size-sheets'
 
 /** The small tent's face on each paper. */
-export const tentSmallGeometryOf = (paper: PrintKitPaper): PanelGeometry =>
+const tentSmallGeometryOf = (paper: PrintKitPaper): PanelGeometry =>
   paper === 'letter' ? 'tentSmallLetter' : 'tentSmallA4'
 
 /** The landscape sheets: Letter 11 × 8.5 in, A4 297 × 210 mm. */

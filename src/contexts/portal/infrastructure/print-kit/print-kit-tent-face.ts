@@ -16,8 +16,7 @@ import {
 } from '#/shared/domain/portal-print-kit-card-colours'
 import type { ImmersivePrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { planTent, type TentPlan } from '#/shared/domain/portal-print-kit-tent'
-import { drawBrand, inkAspect, type CardFaceArt } from './print-kit-card-face'
-import { pdfStyleOf } from './print-kit-card-style'
+import { drawBrand, type CardFaceArt } from './print-kit-card-face'
 import { drawCardWords } from './print-kit-card-words'
 import {
   drawCodeBlock,
@@ -27,14 +26,9 @@ import {
 import type { FaceLogo } from './print-kit-face-brand'
 import { drawField } from './print-kit-immersive-field'
 import type { FaceBleed } from './print-kit-pages'
-import { drawImage, type OpenedImage } from './print-kit-pdf-image'
-import {
-  capTopInLineBox,
-  fontMetrics,
-  measureLine,
-  type PrintKitFonts,
-} from './print-kit-pdf-text'
-import { drawMonogram } from './print-kit-window'
+import { drawPhotoArea, faceBrandInput, faceMeasures } from './print-kit-face-parts'
+import type { OpenedImage } from './print-kit-pdf-image'
+import type { PrintKitFonts } from './print-kit-pdf-text'
 
 export type TentFaceLayout = Readonly<{
   plan: TentPlan
@@ -59,22 +53,13 @@ export function layoutTentFace(
 ): TentFaceLayout {
   const lead = leadLanguageOf(face)
   const code = planFaceCodeBlock(doc, fonts, lead, art.qr, art.palette, art.tile)
-  const display = fontMetrics(doc, fonts, 'display')
   const plan = planTent({
     style: art.style,
     paper: art.paper,
     face: lead,
-    brand:
-      art.logo === null
-        ? { kind: 'wordmark', text: art.wordmark }
-        : {
-            kind: 'logo',
-            inkAspect: inkAspect(art.logo),
-            plate: art.logo.plate !== null,
-          },
+    brand: faceBrandInput(art),
     code: code.plan,
-    measure: (text, style) => measureLine(doc, fonts, text, pdfStyleOf(style, '#000000')),
-    wordmarkInkTopPt: (size) => capTopInLineBox(display, size, 0.75),
+    ...faceMeasures(doc, fonts),
   })
   return {
     plan,
@@ -116,27 +101,18 @@ function drawPanel(
 ): void {
   const { plan, palette } = layout
   if (plan.panelPt === null) return
-  const area = {
-    x: -bleed.leftPt,
-    y: -bleed.topPt,
-    width: plan.panelPt + bleed.leftPt,
-    height: plan.heightPt + bleed.topPt + bleed.bottomPt,
-  }
-  doc.save()
-  doc.rect(area.x, area.y, area.width, area.height).clip()
-  if (drawing.photo !== null) {
-    drawImage(doc, drawing.photo, area)
-  } else {
-    doc.rect(area.x, area.y, area.width, area.height).fill(palette.plateTone)
-    drawMonogram(
-      doc,
-      fonts,
-      { x: 0, y: 0, widthPt: plan.panelPt, heightPt: plan.heightPt },
-      { palette, letter: drawing.letter },
-      panelMonogram(plan, plan.panelPt),
-    )
-  }
-  doc.restore()
+  drawPhotoArea(
+    doc,
+    fonts,
+    {
+      x: -bleed.leftPt,
+      y: -bleed.topPt,
+      width: plan.panelPt + bleed.leftPt,
+      height: plan.heightPt + bleed.topPt + bleed.bottomPt,
+    },
+    { x: 0, y: 0, widthPt: plan.panelPt, heightPt: plan.heightPt },
+    { palette, ...drawing, monogram: panelMonogram(plan, plan.panelPt) },
+  )
 }
 
 const isImmersive = (
