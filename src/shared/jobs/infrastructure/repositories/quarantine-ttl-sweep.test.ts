@@ -106,7 +106,7 @@ describe('quarantine TTL sweep (BQC-7.8, integration)', () => {
     expect(evidence.rows).toHaveLength(1)
     expect(evidence.rows[0]).toMatchObject({ outcome: 'completed' })
     expect(Number(evidence.rows[0].rows_deleted)).toBe(1)
-    // RETENTION_POLICY_VERSION 9: the consumer-receipt rule left and the two visit rules arrived.
-    expect(Number(evidence.rows[0].policy_version)).toBe(9)
+    // RETENTION_POLICY_VERSION 10: the Review observation subjects arrived.
+    expect(Number(evidence.rows[0].policy_version)).toBe(10)
   })
 })

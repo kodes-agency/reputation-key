@@ -25,6 +25,7 @@ import type { ReplyLookups, ReplyRepository } from './application/ports/reply.re
 import type { ReplyTemplateRepository } from './application/ports/reply-template.repository'
 import type { FindAmbiguousPublicationReconciliationCandidates } from './application/ports/publication-reconciliation-maintenance.port'
 import type { ListRestatedMaterialRevisions } from './application/ports/restated-revision-maintenance.port'
+import type { ObservationRetention } from './application/ports/observation-retention.port'
 import type { ReplyCommandStore } from './application/ports/reply-command-store.port'
 import type {
   ReviewHeadCheckQueuePort,
@@ -49,6 +50,7 @@ import { createReplyRepository } from './infrastructure/repositories/reply.repos
 import { createReplyTemplateRepository } from './infrastructure/repositories/reply-template.repository'
 import { createPublicationReconciliationCandidateQuery } from './infrastructure/repositories/publication-reconciliation-candidate.repository'
 import { createRestatedRevisionQuery } from './infrastructure/repositories/restated-revision.repository'
+import { createObservationRetention } from './infrastructure/repositories/observation-retention.repository'
 import { createServingStats } from './infrastructure/serving-stats'
 import type { ReviewServingStats } from './application/ports/serving-stats.port'
 import { createGoogleRatingReads } from './infrastructure/google-rating-reads'
@@ -244,6 +246,9 @@ export type ReviewContextApi = Readonly<{
     /** Past Material Review Revisions Google only restated; Inbox's operator
      * command leaves their Response Targets out of its counts. */
     restatedRevisions: Readonly<{ list: ListRestatedMaterialRevisions }>
+    /** The operator's repeat prune and the daily blanking of superseded
+     * observation copies past their clock (ADR 0055, note 2026-10-24 (b)). */
+    observationRetention: ObservationRetention
   }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
@@ -779,6 +784,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       restatedRevisions: Object.freeze({
         list: createRestatedRevisionQuery(input.db).listRestatedRevisions,
       }),
+      // ADR 0055, note 2026-10-24 (b): the repeat prune (an operator command)
+      // and the daily blanking of superseded copies past their clock.
+      observationRetention: createObservationRetention(input.db),
     }),
     worker: Object.freeze({
       registerOutboxConsumers,

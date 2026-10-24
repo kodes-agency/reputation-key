@@ -26,6 +26,9 @@ export const GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT =
   'integration.google_import_v2.lifecycle' as const
 export const GUEST_CONTACT_REQUEST_RETENTION_SUBJECT =
   'guest_contact_requests.expired_material' as const
+/** ADR 0055, note 2026-10-24 (b): superseded observation copies past their clock. */
+export const REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT =
+  'review_source_observations.superseded_expired' as const
 const GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE = 100
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -300,6 +303,10 @@ type RetentionSweepDeps = Readonly<{
       completedThrough: Date | null
     }>
   >
+  /** Review blanks the provider content of superseded observation copies. */
+  reviewObservationRetentionSweep?: (input: {
+    batchSize: number
+  }) => Promise<Readonly<{ batches: number; processed: number; capped: boolean }>>
   googleImportLifecycleSweep?: () => Promise<
     Readonly<{
       expiredItemsVisited: number
@@ -373,6 +380,44 @@ async function sweepGuestContactRequests(
       failures,
       logger,
       'Contact Request retention sweep failed',
+    )
+  }
+}
+
+async function sweepReviewObservations(
+  deps: RetentionSweepDeps,
+  sweep: NonNullable<RetentionSweepDeps['reviewObservationRetentionSweep']>,
+  batchSize: number,
+  failures: RetentionSweepFailure[],
+  logger: RetentionSweepLogger,
+): Promise<void> {
+  const subject = REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT
+  const startedAt = deps.clock()
+  const runId = await openRetentionRun(deps.db, subject, batchSize, startedAt)
+  try {
+    const result = await sweep({ batchSize })
+    await closeRetentionRun(deps.db, runId, {
+      finishedAt: deps.clock(),
+      batches: result.batches,
+      rowsDeleted: 0,
+      rowsRedacted: result.processed,
+      outcome: 'completed',
+    })
+    logger.info(
+      { subject, ...result },
+      result.capped
+        ? 'Superseded observation retention sweep reached its batch cap'
+        : 'Superseded observation retention sweep completed',
+    )
+  } catch (err) {
+    await recordRetentionFailure(
+      deps,
+      runId,
+      subject,
+      err,
+      failures,
+      logger,
+      'Superseded observation retention sweep failed',
     )
   }
 }
@@ -476,6 +521,11 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
       const guestSweep = deps.guestContactRequestRetentionSweep
       if (guestSweep) {
         await sweepGuestContactRequests(deps, guestSweep, batchSize, failures, logger)
+      }
+
+      const observationSweep = deps.reviewObservationRetentionSweep
+      if (observationSweep) {
+        await sweepReviewObservations(deps, observationSweep, batchSize, failures, logger)
       }
 
       const importSweep = deps.googleImportLifecycleSweep

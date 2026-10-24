@@ -29,6 +29,7 @@ import {
   GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
   GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
   RETENTION_RULES,
+  REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT,
 } from './retention-sweep.job'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import type { RetentionRule } from '#/shared/db/retention/execute-retention-rule'
@@ -354,6 +355,77 @@ describe('retention sweep job (BQC-1.6)', () => {
         rowsRedacted: 7,
         outcome: 'completed',
       },
+    )
+  })
+
+  it('records the Review superseded-copy blanking as bounded redaction evidence', async () => {
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 1,
+      rowsDeleted: 2,
+    })
+    const reviewObservationRetentionSweep = vi.fn(async () => ({
+      batches: 3,
+      processed: 1200,
+      capped: false,
+    }))
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      batchSize: 500,
+      reviewObservationRetentionSweep,
+    })
+
+    await handler({} as never)
+
+    expect(reviewObservationRetentionSweep).toHaveBeenCalledWith({ batchSize: 500 })
+    expect(openRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT,
+      500,
+      NOW,
+    )
+    expect(closeRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      `run-${REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT}`,
+      {
+        finishedAt: NOW,
+        batches: 3,
+        rowsDeleted: 0,
+        rowsRedacted: 1200,
+        outcome: 'completed',
+      },
+    )
+  })
+
+  it('keeps ordinary retention running and fails the job when the Review sweep fails', async () => {
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 1,
+      rowsDeleted: 2,
+    })
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      reviewObservationRetentionSweep: vi.fn(async () => {
+        throw new Error('observation store unavailable')
+      }),
+    })
+
+    await expect(handler({} as never)).rejects.toThrow(
+      REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT,
+    )
+    expect(executeRetentionRule).toHaveBeenCalledTimes(1)
+    expect(closeRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      `run-${REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT}`,
+      expect.objectContaining({
+        outcome: 'failed',
+        errorCode: 'observation store unavailable',
+      }),
     )
   })
 

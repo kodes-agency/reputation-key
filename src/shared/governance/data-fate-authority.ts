@@ -654,12 +654,20 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'googleReplyObservations',
       'materialReviewRevisions',
       'reviewProviderSnapshotMembers',
-      'reviewSourceObservations',
     ],
     owner: 'review',
     disposition: 'recoverable_archive',
     authority: 'REV-01',
     exitCriteria: RETAINED_HISTORY,
+  }),
+  ...rows({
+    schemaFile: 'review.schema.ts',
+    exportNames: ['reviewSourceObservations'],
+    owner: 'review',
+    disposition: 'recoverable_archive',
+    authority: 'REV-01/ADR 0055',
+    exitCriteria:
+      "One row per state Google showed, not per read (ADR 0055, note 2026-10-24). A superseded copy keeps its digests, comparison and revision as history, and the review_source_observations.superseded_expired retention subject blanks its provider content once the 30-day clock of the last fetch that returned it has passed. The newest row is the Review's current content and follows the Review lifecycle. Include it in scoped export, restore, retention and erasure evidence.",
   }),
   ...rows({
     schemaFile: 'review-analysis-released-sequences.schema.ts',

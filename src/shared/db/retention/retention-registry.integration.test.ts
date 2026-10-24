@@ -171,6 +171,7 @@ describe('retention registry report-only mode', () => {
       .filter(({ eligibleRows }) => eligibleRows !== null)
       .map(({ ruleId }) => ruleId)
     expect(countable).toEqual([
+      'google.superseded_observation_copies',
       'google.import_discovery',
       'platform.idempotency_receipts',
       'review.sync_runs',
