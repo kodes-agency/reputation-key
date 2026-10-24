@@ -39,6 +39,7 @@ function inputFor(
     paper: 'letter',
     faces: printKitFaces(choice, TITLES, 'Pool & Terrace'),
     wordmark: 'Avela',
+    propertyName: 'Avela Beach Resort',
     logo: null,
     photo: null,
     accentColour: '#EAD6A8',
@@ -110,7 +111,10 @@ describe.each(PRINT_KIT_STYLES)('the %s print', (style) => {
     )
     const drawn = runs.join(' ')
     expect(drawn).toContain('Rate your visit')
-    for (const word of longTitle.split(/\s+/u)) expect(drawn).toContain(word)
+    // The counter card sets the title as its eyebrow, in capitals.
+    for (const word of longTitle.split(/\s+/u)) {
+      expect(drawn.toUpperCase()).toContain(word.toUpperCase())
+    }
   })
 
   it('declares PDF 1.4, the first level with the transparency a print may use', async () => {

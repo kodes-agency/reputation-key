@@ -21,6 +21,7 @@ import {
 import { printKitSubject } from '#/shared/domain/portal-print-kit-pieces'
 import { printKitPages } from '#/shared/domain/portal-print-kit-sheets'
 import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
+import { drawCardPrint } from './print-kit-card-print'
 import { brandDpi } from './print-kit-face-brand'
 import { logoArt } from './print-kit-image'
 import { drawImmersivePrint } from './print-kit-immersive-document'
@@ -86,7 +87,11 @@ async function drawPaperPrint(
   )
 }
 
-/** A print: a style's pages on its paper. */
+/**
+ * A print: a style's pages on its paper. The counter card is the Large card in
+ * the round-3 look (`print-kit-card-print.ts`); the Letter-half tent keeps the
+ * look it shipped with until it is retired.
+ */
 async function drawPrint(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
@@ -94,7 +99,8 @@ async function drawPrint(
   warn: (warning: PrintKitWarning) => void,
 ): Promise<void> {
   const { style, paper } = input
-  if (style === 'paper') await drawPaperPrint(doc, fonts, input, paper, warn)
+  if (input.piece === 'counter_card') await drawCardPrint(doc, fonts, input, warn)
+  else if (style === 'paper') await drawPaperPrint(doc, fonts, input, paper, warn)
   else await drawImmersivePrint(doc, fonts, input, paper, warn)
 }
 

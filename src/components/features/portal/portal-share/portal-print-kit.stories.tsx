@@ -16,6 +16,7 @@ import {
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { FACE_TYPE_PT } from '#/shared/domain/portal-print-kit-size-type'
 import { PortalShare } from './portal-share'
 import type { DownloadPrintKitInput } from './portal-print-kit-types'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
@@ -53,6 +54,7 @@ const view = (overrides: Partial<PortalPrintKitView> = {}): PortalPrintKitView =
   titles: { en: 'Pool & Terrace', bg: 'Басейн и тераса' },
   look: {
     wordmark: 'Avela',
+    propertyName: 'Avela Beach Resort',
     accentColour: '#EAD6A8',
     fieldColour: '#15110D',
     heroUrl: null,
@@ -464,9 +466,9 @@ export const LongCopyShrinksAsInTheFile: Story = {
       canvas.getByRole('radio', { name: /how was your visit\? about 30 seconds/i }),
     )
     const front = await preview(canvasElement)
-    const headline = within(front).getByText('Comment s’est passée votre visite ?')
-    // The two-language headline is 18 pt on a 4 × 6 in card, 288 pt wide: the full scale is 6.25 cqw.
-    const fullSize = (18 * 100) / 288
+    const headline = within(front).getByText(/^Comment s’est/u)
+    // The call to action is 30 pt on a Paper 4 × 6 in card, 288 pt wide: the full scale is 10.42 cqw.
+    const fullSize = (FACE_TYPE_PT.large.ctaPaper * 100) / 288
     await expect(Number.parseFloat(headline.style.fontSize)).toBeLessThanOrEqual(
       fullSize + 0.01,
     )
@@ -482,6 +484,7 @@ export const WithThePropertyPhoto: Story = {
         view({
           look: {
             wordmark: 'Avela',
+            propertyName: 'Avela Beach Resort',
             accentColour: '#EAD6A8',
             fieldColour: '#15110D',
             heroUrl: PHOTO,
@@ -525,7 +528,8 @@ export const LongBrandAndTitle: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('radio', { name: 'One face' }))
     const front = await preview(canvasElement)
-    for (const word of [/Kempinski/u, /Bansko/u, /Spa & Wellness Centre/u]) {
+    // The card sets the wordmark and the title in capitals, as the file does.
+    for (const word of [/KEMPINSKI/u, /BANSKO/u, /SPA & WELLNESS CENTRE/u]) {
       await expect(within(front).getByText(word)).toBeInTheDocument()
     }
   },
@@ -549,8 +553,8 @@ export const CharactersTheFontsLackAreLeftOutAndNamed: Story = {
     ).toBeVisible()
     await userEvent.click(canvas.getByRole('radio', { name: 'One face' }))
     const front = await preview(canvasElement)
-    await expect(within(front).getByText('Hotel')).toBeInTheDocument()
-    await expect(within(front).queryByText(/Αθ/u)).toBeNull()
+    await expect(within(front).getByText('HOTEL')).toBeInTheDocument()
+    await expect(within(front).queryByText(/Αθ|ΑΘ/u)).toBeNull()
   },
 }
 
@@ -569,7 +573,7 @@ export const TrackedLinesKeepEveryLetterSeparate: Story = {
     const front = within(await preview(canvasElement))
     const ligatures = (element: HTMLElement) =>
       getComputedStyle(element).fontVariantLigatures
-    await expect(ligatures(front.getByText('Trattoria'))).toBe('none')
+    await expect(ligatures(front.getByText('TRATTORIA'))).toBe('none')
     // Running words keep the font's own.
     await expect(ligatures(front.getByText('Rate your visit'))).toBe('normal')
   },

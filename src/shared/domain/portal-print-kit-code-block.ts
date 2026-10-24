@@ -5,16 +5,18 @@
 //
 // A cue line fits beside the pictogram, at its nominal size or at 9 pt, or the
 // pictogram moves above the lines and the bar grows by 0.08 in. The cue never
-// goes under 9 pt.
+// goes under 9 pt. Every measure is the tile's (`portal-print-kit-code-tile.ts`):
+// today's 2 in block unless a face asks for another, and a tile too small for the
+// pictogram has none, so its cue keeps the whole bar.
 
 import type { GuestLocale } from './guest-locale'
 import { PRINT_KIT_MAX_LANGUAGES, PRINT_KIT_SCAN_CUE } from './portal-print-kit'
 import {
-  CODE_BLOCK,
-  codeBlockHeightPt,
-  cueRoomPt,
-  type CueLines,
-} from './portal-print-kit-measures'
+  TODAY_CODE_TILE,
+  codeTileCueRoomPt,
+  type CodeTile,
+} from './portal-print-kit-code-tile'
+import { CODE_BLOCK, type CueLines } from './portal-print-kit-measures'
 import type { PrintKitPalette } from './portal-print-kit-palette'
 
 /** One line of the cue in the bar, with the language it is set in. */
@@ -52,9 +54,12 @@ export function codeBlockColours(palette: PrintKitPalette): CodeBlockColours {
 }
 
 export type CodeBlockPlan = Readonly<{
+  /** The tile the block is drawn on, and its bar. */
+  tile: CodeTile
   /** How many cue lines: one language, or two. */
   lines: CueLines
   cuePt: number
+  /** The pictogram's box; 0 on a tile that has none. */
   iconPt: number
   /** The pictogram sits above the lines, because a line does not fit beside it. */
   iconAbove: boolean
@@ -64,42 +69,38 @@ export type CodeBlockPlan = Readonly<{
 }>
 
 /**
- * Where the pictogram goes and how tall the bar is, for `cues`. `widthAt`
- * measures a cue line set at a size in points, tracking included.
+ * Where the pictogram goes and how tall the bar is, for `cues` on `tile`.
+ * `widthAt` measures a cue line set at a size in points, tracking included.
  */
 export function planCodeBlock(
   cues: readonly CueLine[],
   widthAt: (cue: CueLine, sizePt: number) => number,
+  tile: CodeTile = TODAY_CODE_TILE,
 ): CodeBlockPlan {
   const lines: CueLines = cues.length > 1 ? 'two' : 'one'
   const widest = (sizePt: number) =>
     Math.max(0, ...cues.map((cue) => widthAt(cue, sizePt)))
   // Nominal first; the floor is the last size a line may be set at.
-  const sizes = [...new Set([CODE_BLOCK.cuePt[lines], CODE_BLOCK.cueFloorPt])]
-  const beside = sizes.find((size) => widest(size) <= cueRoomPt(lines))
-  const iconPt = CODE_BLOCK.iconPt[lines]
-  if (beside !== undefined) {
-    const barPt = CODE_BLOCK.barPt[lines]
-    return {
-      lines,
-      cuePt: beside,
-      iconPt,
-      iconAbove: false,
-      barPt,
-      heightPt: codeBlockHeightPt(barPt),
-    }
-  }
-  const fullRoom = CODE_BLOCK.tilePt - 2 * CODE_BLOCK.barPaddingPt
-  const cuePt = sizes.find((size) => widest(size) <= fullRoom) ?? CODE_BLOCK.cueFloorPt
-  const barPt = CODE_BLOCK.barPt[lines] + CODE_BLOCK.barAbovePt
-  return {
+  const nominal = tile.cuePt[lines]
+  const floor = Math.min(nominal, CODE_BLOCK.cueFloorPt)
+  const sizes = [...new Set([nominal, floor])]
+  const iconPt = tile.pictogramPt?.[lines] ?? 0
+  const beside = sizes.find((size) => widest(size) <= codeTileCueRoomPt(tile, lines))
+  const barOf = (cuePt: number, iconAbove: boolean, barPt: number): CodeBlockPlan => ({
+    tile,
     lines,
     cuePt,
     iconPt,
-    iconAbove: true,
+    iconAbove,
     barPt,
-    heightPt: codeBlockHeightPt(barPt),
+    heightPt: tile.tilePt + barPt,
+  })
+  if (beside !== undefined || tile.pictogramPt === null) {
+    return barOf(beside ?? floor, false, tile.barPt[lines])
   }
+  const fullRoom = tile.tilePt - 2 * tile.barPaddingPt
+  const cuePt = sizes.find((size) => widest(size) <= fullRoom) ?? floor
+  return barOf(cuePt, true, tile.barPt[lines] + CODE_BLOCK.barAbovePt)
 }
 
 /** One cue line's height, and the whole block of cue lines with the gap between them. */

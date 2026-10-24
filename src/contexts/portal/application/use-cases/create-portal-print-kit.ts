@@ -182,6 +182,7 @@ export const createPortalPrintKit =
       ...format,
       faces,
       wordmark: context.look.wordmark,
+      propertyName: context.look.propertyName,
       logo: logoBytes,
       photo:
         hero && photoBytes

@@ -16,6 +16,7 @@ import type {
   PrintKitPiece,
   PrintKitStyle,
 } from '#/shared/domain/portal-print-kit'
+import { CODE_TILE, type CodeTile } from '#/shared/domain/portal-print-kit-code-tile'
 import { PRINT_SHOP_PAGE } from '#/shared/domain/portal-print-kit-immersive'
 import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
 import {
@@ -27,6 +28,7 @@ import {
   PANEL_SIZE_PT,
   PRINT_CHECK,
   TICK,
+  printCheckLines,
   printKitPages,
 } from '#/shared/domain/portal-print-kit-sheets'
 import type { PointsToLength } from './print-kit-code-block-layout'
@@ -44,13 +46,21 @@ type Props = Readonly<{
   faces: readonly PrintFace[]
   look: PortalPrintKitView['look']
   codeUrl: string | null
+  /** A card's code tile, the one its address allows; the 1.75 in tile of the sample code when none is given. */
+  tile?: CodeTile
   /** Which page of the print: 0 for the fronts, 1 for a card's backs. */
   page?: number
 }>
 
-function PrintCheck({ accent, u }: Readonly<{ accent: string; u: PointsToLength }>) {
+function PrintCheck({
+  accent,
+  tilePt,
+  u,
+}: Readonly<{ accent: string; tilePt: number; u: PointsToLength }>) {
   const palette = paperPrintKitPalette(accent)
-  const { title, bar, lines } = PRINT_CHECK
+  const { title, lines } = PRINT_CHECK
+  // As wide as the cards' code tile, as the bar under each code is.
+  const bar = { ...PRINT_CHECK.bar, widthPt: tilePt }
   return (
     <div
       aria-hidden
@@ -83,12 +93,12 @@ function PrintCheck({ accent, u }: Readonly<{ accent: string; u: PointsToLength 
           width: u(bar.widthPt),
           height: u(bar.heightPt),
           background: palette.barFill,
-          // Outside the bar, so the bar itself measures the 2 in.
+          // Outside the bar, so the bar itself measures the tile.
           boxShadow: `0 0 0 ${u(CODE_BLOCK.outlinePt)} ${palette.accentInk}`,
         }}
       />
       <p style={{ margin: 0, fontSize: u(lines.sizePt), lineHeight: lines.leading }}>
-        {lines.text.map((line) => (
+        {printCheckLines(tilePt).map((line) => (
           <span key={line} style={{ display: 'block' }}>
             {line}
           </span>
@@ -105,6 +115,7 @@ export function PrintKitSheetArt({
   faces,
   look,
   codeUrl,
+  tile,
   page = 0,
 }: Props) {
   const pages = printKitPages(piece, faces.length, style, paper)
@@ -114,6 +125,7 @@ export function PrintKitSheetArt({
   const u: PointsToLength = (points) => ptToContainerWidth(points, sheet.widthPt)
   const immersive = style === 'immersive'
   const position = { index, count: pages.length, faces: sheet.panels.length }
+  const cardTile = tile ?? CODE_TILE.large[paper]
   return (
     <div
       role="img"
@@ -162,6 +174,8 @@ export function PrintKitSheetArt({
               face={face}
               look={look}
               codeUrl={codeUrl}
+              tile={cardTile}
+              bleedPt={immersive ? sheet.bleedPt : 0}
             />
           </div>
         )
@@ -181,7 +195,9 @@ export function PrintKitSheetArt({
           }}
         />
       ))}
-      {sheet.printCheck && <PrintCheck accent={look.accentColour} u={u} />}
+      {sheet.printCheck && (
+        <PrintCheck accent={look.accentColour} tilePt={cardTile.tilePt} u={u} />
+      )}
       {immersive && (
         <PrintShopMarks
           page={sheet}

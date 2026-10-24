@@ -23,6 +23,7 @@ import {
   codeModuleMm,
   codeTileCueRoomPt,
   codeTileHeightPt,
+  printAddressShape,
   type PrintAddressShape,
 } from './portal-print-kit-code-tile'
 import {
@@ -398,4 +399,26 @@ describe('the cue on a small tile', () => {
       }
     },
   )
+})
+
+describe('printAddressShape', () => {
+  it('reads the print host and a 20-character print code as short, in either case', () => {
+    expect(printAddressShape(SHORT_ADDRESS)).toBe('short')
+    expect(printAddressShape(SHORT_ADDRESS.toLowerCase())).toBe('short')
+    expect(printAddressShape(LONG_HOST_SHORT_CODE)).toBe('short')
+  })
+
+  it('reads the whole token with its marker as long, on any host', () => {
+    expect(printAddressShape(BETA_ADDRESS)).toBe('long')
+    expect(printAddressShape(FIXTURE_ADDRESS)).toBe('long')
+  })
+
+  it('reads anything else as long: a query, a code of another length, a letter Crockford leaves out, not a URL', () => {
+    expect(printAddressShape(`${SHORT_ADDRESS}?accessArtifact=${MARKER}`)).toBe('long')
+    expect(printAddressShape(SHORT_ADDRESS.slice(0, -1))).toBe('long')
+    expect(printAddressShape(`HTTPS://AP.UP.RAILWAY.APP/p/${'U'.repeat(20)}`)).toBe(
+      'long',
+    )
+    expect(printAddressShape('not an address')).toBe('long')
+  })
 })

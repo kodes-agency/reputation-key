@@ -8,7 +8,6 @@
 
 import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
 import {
-  PHOTO_MIN_DPI,
   monogramLetter,
   printShopSlugLines,
 } from '#/shared/domain/portal-print-kit-immersive'
@@ -35,6 +34,7 @@ import {
   type PrintKitWarning,
 } from './print-kit-pages'
 import { openImage, type OpenedImage } from './print-kit-pdf-image'
+import { cropPhotoOnce } from './print-kit-photo-crops'
 import type { PrintKitFonts } from './print-kit-pdf-text'
 import { qrMatrix } from './print-kit-qr'
 
@@ -49,38 +49,34 @@ const pictureKey = (layout: ImmersiveFaceLayout): string | null => {
 }
 
 /** The photo cropped and dimmed for every window size the layouts made, each embedded once. */
-async function windowPhotos(
+function windowPhotos(
   doc: PDFKit.PDFDocument,
   input: PrintKitRenderInput,
   layouts: FaceLayouts<ImmersiveFaceLayout>,
   field: string,
   warn: Warn,
 ): Promise<ReadonlyMap<string, OpenedImage>> {
-  const photos = new Map<string, OpenedImage>()
   const { photo } = input
-  if (photo === null) return photos
-  let lowestDpi = Number.POSITIVE_INFINITY
-  for (const layout of layouts.values()) {
-    const key = pictureKey(layout)
-    const picture = layout.window?.picture
-    if (key === null || picture === undefined || photos.has(key)) continue
-    const crop = await windowPhotoJpeg(photo.bytes, {
-      widthPt: picture.widthPt,
-      heightPt: picture.heightPt,
-      focalX: photo.focalX,
-      focalY: photo.focalY,
-      field,
-    })
-    lowestDpi = Math.min(lowestDpi, crop.dpi)
-    photos.set(key, openImage(doc, crop.bytes))
-  }
-  if (lowestDpi < PHOTO_MIN_DPI) {
-    warn({
-      message: 'The print kit photo prints below the resolution a print needs',
-      context: { dpi: Math.round(lowestDpi), minimumDpi: PHOTO_MIN_DPI },
-    })
-  }
-  return photos
+  if (photo === null) return Promise.resolve(new Map())
+  return cropPhotoOnce(
+    doc,
+    layouts.values(),
+    (layout) => {
+      const key = pictureKey(layout)
+      const picture = layout.window?.picture
+      if (key === null || picture === undefined) return null
+      const crop = () =>
+        windowPhotoJpeg(photo.bytes, {
+          widthPt: picture.widthPt,
+          heightPt: picture.heightPt,
+          focalX: photo.focalX,
+          focalY: photo.focalY,
+          field,
+        })
+      return { key, crop }
+    },
+    warn,
+  )
 }
 
 async function faceArtOf(
@@ -110,7 +106,7 @@ async function faceArtOf(
 }
 
 /** What a page's slug line may say: the brand, the front's place label, the piece and which face. */
-function slugLinesOf(
+export function slugLinesOf(
   input: PrintKitRenderInput,
   paper: PrintKitPaper,
   page: PrintKitPage,

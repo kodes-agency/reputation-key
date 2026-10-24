@@ -93,7 +93,21 @@ describe('logoInk', () => {
     expect(logoInk(empty, { width: 4, height: 4, channels: 4 })).toEqual({
       top: 0,
       left: 0,
+      bottom: 1,
+      right: 1,
       luminance: null,
+    })
+  })
+
+  it('measures where the drawing ends as well as where it starts', () => {
+    // A 4 × 4 image whose drawing covers columns 1–2 of row 1 only.
+    const pixels = new Uint8Array(4 * 4 * 4)
+    for (const x of [1, 2]) pixels.set([0, 0, 0, 255], (1 * 4 + x) * 4)
+    expect(logoInk(pixels, { width: 4, height: 4, channels: 4 })).toMatchObject({
+      top: 0.25,
+      left: 0.25,
+      bottom: 0.5,
+      right: 0.75,
     })
   })
 
@@ -102,6 +116,8 @@ describe('logoInk', () => {
     expect(logoInk(white, { width: 2, height: 2, channels: 3 })).toEqual({
       top: 0,
       left: 0,
+      bottom: 1,
+      right: 1,
       luminance: 1,
     })
   })

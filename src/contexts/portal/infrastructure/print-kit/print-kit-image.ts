@@ -122,6 +122,12 @@ export type WindowPhoto = Readonly<{
   dpi: number
 }>
 
+/** A box in points as whole pixels at the print's resolution, never none. */
+const printPixels = (box: Readonly<{ widthPt: number; heightPt: number }>) => ({
+  width: Math.max(1, Math.round(ptToIn(box.widthPt) * PRINT_DPI)),
+  height: Math.max(1, Math.round(ptToIn(box.heightPt) * PRINT_DPI)),
+})
+
 /**
  * The photo for an Immersive window (spec 3.2 and 5.2): cropped to the picture's
  * own shape, which differs between the 4 × 6 in and A6 windows and with the fit,
@@ -132,10 +138,7 @@ export async function windowPhotoJpeg(
   bytes: Uint8Array,
   box: WindowPhotoBox,
 ): Promise<WindowPhoto> {
-  const size = {
-    width: Math.max(1, Math.round(ptToIn(box.widthPt) * PRINT_DPI)),
-    height: Math.max(1, Math.round(ptToIn(box.heightPt) * PRINT_DPI)),
-  }
+  const size = printPixels(box)
   const cover = await coverCrop(bytes, size, box)
   const dim = photoDim(meanLuminance(cover.raw.data, cover.raw.info))
   const [r, g, b] = parseHexColour(box.field) ?? [0, 0, 0]
@@ -151,6 +154,28 @@ export async function windowPhotoJpeg(
     dim,
     dpi: printedDpi(cover.sourceWidth, box.widthPt),
   }
+}
+
+export type BandPhotoBox = Readonly<{
+  /** The band with its bleed, in points. */
+  widthPt: number
+  heightPt: number
+  focalX: number
+  focalY: number
+}>
+
+/**
+ * The photo for an Immersive card's band (round-2 R1): cropped to the band's
+ * shape with its bleed, placed by its focal point, and never dimmed, because no
+ * type sits on the band.
+ */
+export async function bandPhotoJpeg(
+  bytes: Uint8Array,
+  box: BandPhotoBox,
+): Promise<Readonly<{ bytes: Buffer; dpi: number }>> {
+  const size = printPixels(box)
+  const cover = await coverCrop(bytes, size, box)
+  return { bytes: await jpegOf(cover), dpi: printedDpi(cover.sourceWidth, box.widthPt) }
 }
 
 export type LogoImage = Readonly<{ bytes: Buffer; width: number; height: number }>
@@ -172,6 +197,9 @@ export type LogoInk = Readonly<{
   /** How much of the image, as a share of its height or width, is transparent above and left of the drawing. */
   top: number
   left: number
+  /** Where the drawing ends, as a share of the image's height or width: 1 when it runs to the edge. */
+  bottom: number
+  right: number
   /** The drawing's relative luminance, weighted by alpha, 0 to 1; null for an empty image. */
   luminance: number | null
 }>
@@ -194,6 +222,8 @@ export function logoInk(
   const { width, height, channels } = size
   let top = height
   let left = width
+  let bottom = -1
+  let right = -1
   let weight = 0
   let light = 0
   for (let y = 0; y < height; y += 1) {
@@ -203,6 +233,8 @@ export function logoInk(
       if (alpha <= INK_ALPHA) continue
       top = Math.min(top, y)
       left = Math.min(left, x)
+      bottom = Math.max(bottom, y)
+      right = Math.max(right, x)
       const luminance =
         0.2126 * linear(pixels[at] ?? 0) +
         0.7152 * linear(pixels[at + 1] ?? 0) +
@@ -211,8 +243,14 @@ export function logoInk(
       light += luminance * alpha
     }
   }
-  if (weight === 0) return { top: 0, left: 0, luminance: null }
-  return { top: top / height, left: left / width, luminance: light / weight }
+  if (weight === 0) return { top: 0, left: 0, bottom: 1, right: 1, luminance: null }
+  return {
+    top: top / height,
+    left: left / width,
+    bottom: (bottom + 1) / height,
+    right: (right + 1) / width,
+    luminance: light / weight,
+  }
 }
 
 export type LogoArt = LogoImage & Readonly<{ ink: LogoInk }>

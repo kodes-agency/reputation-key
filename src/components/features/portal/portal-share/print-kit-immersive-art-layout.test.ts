@@ -28,6 +28,7 @@ const choice = (
 
 const look = (logoUrl: string | null = null): PortalPrintKitView['look'] => ({
   wordmark: 'Avela',
+  propertyName: 'Avela Beach Resort',
   accentColour: '#EAD6A8',
   fieldColour: '#16130E',
   heroUrl: null,

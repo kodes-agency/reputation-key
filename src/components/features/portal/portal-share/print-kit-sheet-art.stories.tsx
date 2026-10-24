@@ -78,6 +78,7 @@ const TRATTORIA: Sample = {
 
 const lookOf = (sample: Sample): PortalPrintKitView['look'] => ({
   wordmark: sample.wordmark,
+  propertyName: sample.wordmark,
   accentColour: sample.accent,
   fieldColour: sample.field ?? '#16130E',
   heroUrl: sample.photo === true ? PHOTO : null,
@@ -111,7 +112,7 @@ const pageWidthIn = (style: PrintKitStyle, paper: PrintKitPaper) => {
 }
 
 function Sheet({ style = 'paper', sample, piece, paper, page }: SheetArgs) {
-  const codeUrl = usePrintKitCode(null)
+  const codeUrl = usePrintKitCode(null).url
   const width = pageWidthIn(style, paper) * PIXELS_PER_INCH
   return (
     <main style={{ padding: 24, background: 'var(--muted)' }}>
@@ -146,11 +147,15 @@ function codeBlocks(canvasElement: HTMLElement): DOMRect[] {
   )
 }
 
-async function expectBarsAtTwoInches(canvasElement: HTMLElement) {
+/**
+ * Every code block as wide as its tile: the Large card's 1.75 in for the sample
+ * code (a version 3 symbol, as a short print address makes), the tent's 2 in.
+ */
+async function expectBarsAt(canvasElement: HTMLElement, inches: number) {
   const blocks = codeBlocks(canvasElement)
   await expect(blocks.length).toBeGreaterThan(0)
   for (const rect of blocks) {
-    await expect(rect.width).toBeCloseTo(2 * PIXELS_PER_INCH, 0)
+    await expect(rect.width).toBeCloseTo(inches * PIXELS_PER_INCH, 0)
   }
 }
 
@@ -166,7 +171,7 @@ export const PaperCardsLetter: Story = {
     await expect(canvasElement.querySelectorAll('[data-panel="card4x6"]')).toHaveLength(2)
     await expect(canvasElement.querySelectorAll('[data-tick]')).toHaveLength(3)
     await expect(canvas.getByText('Printed at Actual size?')).toBeVisible()
-    await expectBarsAtTwoInches(canvasElement)
+    await expectBarsAt(canvasElement, 1.75)
   },
 }
 
@@ -175,7 +180,7 @@ export const PaperCardsLetterBacks: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // The backs lead with Spanish, and carry no ticks and no print check.
-    await expect(canvas.getAllByText('Piscina y terraza')[0]).toHaveAttribute(
+    await expect(canvas.getAllByText(/^PISCINA Y TERRAZA · /u)[0]).toHaveAttribute(
       'lang',
       'es',
     )
@@ -206,7 +211,7 @@ export const PaperTentLetter: Story = {
     // The back face reads upright once folded: it is printed upside down.
     await expect(panels[0]?.style.transform).toBe('rotate(180deg)')
     await expect(canvasElement.querySelectorAll('[data-tick]')).toHaveLength(2)
-    await expectBarsAtTwoInches(canvasElement)
+    await expectBarsAt(canvasElement, 2)
   },
 }
 
@@ -238,7 +243,7 @@ type FaceArgs = Readonly<{
 
 /** One face at its real size, as One face shows it: 96 CSS px to the inch. */
 function Face({ sample, geometry, style = 'paper' }: FaceArgs) {
-  const codeUrl = usePrintKitCode(null)
+  const codeUrl = usePrintKitCode(null).url
   const piece: PrintKitPiece = geometry.startsWith('card') ? 'counter_card' : 'table_tent'
   const [front] = facesOf(sample, piece)
   if (front === undefined) return null
@@ -259,14 +264,20 @@ function Face({ sample, geometry, style = 'paper' }: FaceArgs) {
   )
 }
 
+/** A face shown alone is drawn at its real size: 4 × 6 in at 96 px to the inch. */
+async function expectFourBySixFace(canvasElement: HTMLElement) {
+  const face = canvasElement.querySelector('[data-face]')?.getBoundingClientRect()
+  await expect(face?.width).toBeCloseTo(4 * 96, 0)
+  await expect(face?.height).toBeCloseTo(6 * 96, 0)
+}
+
 export const OneFaceCard4x6: StoryObj<typeof Face> = {
   render: (args) => <Face {...args} />,
   args: { sample: AVELA_US, geometry: 'card4x6' },
   play: async ({ canvasElement }) => {
-    const face = canvasElement.querySelector('[data-face]')?.getBoundingClientRect()
-    await expect(face?.width).toBeCloseTo(4 * 96, 0)
-    await expect(face?.height).toBeCloseTo(6 * 96, 0)
-    await expect(within(canvasElement).getByText('Piscina y terraza')).toHaveAttribute(
+    await expectFourBySixFace(canvasElement)
+    // The second language keeps its call to action alone, in its own language (R5).
+    await expect(within(canvasElement).getByText('Valore su visita')).toHaveAttribute(
       'lang',
       'es',
     )
@@ -298,9 +309,9 @@ const LIGHT_LOGO =
   )
 
 /** The crop marks start outside the bleed: none of them touches the field. */
-async function expectPrintShopPage(canvasElement: HTMLElement) {
+async function expectPrintShopPage(canvasElement: HTMLElement, barInches: number) {
   await expect(canvasElement.querySelectorAll('[data-crop-mark]')).toHaveLength(8)
-  await expectBarsAtTwoInches(canvasElement)
+  await expectBarsAt(canvasElement, barInches)
 }
 
 export const ImmersiveCardLetter: Story = {
@@ -317,15 +328,13 @@ export const ImmersiveCardLetter: Story = {
         name: '4 × 6 in counter card for a print shop, with bleed and crop marks · page 1 of 2, front',
       }),
     ).toBeVisible()
-    await expect(canvasElement.querySelectorAll('[data-print-window] img')).toHaveLength(
-      1,
-    )
+    await expect(canvasElement.querySelectorAll('img[data-print-band]')).toHaveLength(1)
     await expect(
       canvas.getByText(
         'Avela · Pool & Terrace · counter card, front · trim 4 × 6 in · bleed 1/8 in',
       ),
     ).toBeVisible()
-    await expectPrintShopPage(canvasElement)
+    await expectPrintShopPage(canvasElement, 1.75)
   },
 }
 
@@ -337,9 +346,8 @@ export const ImmersiveCardLetterMonogram: Story = {
   args: { style: 'immersive', sample: KADIFE, piece: 'counter_card', paper: 'letter' },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByText('K')).toBeVisible()
-    await expect(canvasElement.querySelectorAll('[data-print-window] img')).toHaveLength(
-      0,
-    )
+    await expect(canvasElement.querySelectorAll('[data-print-band]')).toHaveLength(1)
+    await expect(canvasElement.querySelectorAll('img[data-print-band]')).toHaveLength(0)
   },
 }
 
@@ -354,7 +362,7 @@ export const ImmersiveCardA4: Story = {
     piece: 'counter_card',
     paper: 'a4',
   },
-  play: async ({ canvasElement }) => expectPrintShopPage(canvasElement),
+  play: async ({ canvasElement }) => expectPrintShopPage(canvasElement, 1.75),
 }
 
 export const ImmersiveCardA4Monogram: Story = {
@@ -376,7 +384,7 @@ export const ImmersiveTentLetter: Story = {
     await expect(panels[0]?.style.transform).toBe('rotate(180deg)')
     await expect(canvasElement.querySelectorAll('[data-fold-mark]')).toHaveLength(2)
     await expect(canvasElement.querySelectorAll('[data-print-ridge]')).toHaveLength(1)
-    await expectPrintShopPage(canvasElement)
+    await expectPrintShopPage(canvasElement, 2)
   },
 }
 
@@ -424,14 +432,10 @@ export const OneFaceImmersiveCard4x6: StoryObj<typeof Face> = {
   render: (args) => <Face {...args} />,
   args: { style: 'immersive', sample: { ...AVELA_US, photo: true }, geometry: 'card4x6' },
   play: async ({ canvasElement }) => {
-    const face = canvasElement.querySelector('[data-face]')?.getBoundingClientRect()
-    await expect(face?.width).toBeCloseTo(4 * 96, 0)
-    await expect(face?.height).toBeCloseTo(6 * 96, 0)
-    const window = canvasElement
-      .querySelector('[data-print-window]')
-      ?.getBoundingClientRect()
-    // The window is never under its 0.55 in floor, frame included.
-    await expect(window?.height ?? 0).toBeGreaterThanOrEqual(0.55 * 96)
+    await expectFourBySixFace(canvasElement)
+    const band = canvasElement.querySelector('[data-print-band]')?.getBoundingClientRect()
+    // The band is always there, and never under its 1.25 in minimum (round 3).
+    await expect(band?.height ?? 0).toBeGreaterThanOrEqual(1.25 * 96 - 0.5)
   },
 }
 

@@ -5,7 +5,8 @@
 //
 // The plan (where the camera goes, how tall the bar is) and every measure come
 // from the files the PDF reads. A face passes its own `pt` to size it in its
-// container's units; alone, it is at its real size, 2 in or 192 px wide.
+// container's units; alone, it is at its real size (today's 2 in tile is 192 px
+// wide). The tile is the face's: today's 2 in unless a size chose another.
 
 import {
   CAMERA_ICON,
@@ -14,6 +15,10 @@ import {
   planCodeBlock,
   type CueLine,
 } from '#/shared/domain/portal-print-kit-code-block'
+import {
+  TODAY_CODE_TILE,
+  type CodeTile,
+} from '#/shared/domain/portal-print-kit-code-tile'
 import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import {
   codeBlockStyles,
@@ -29,6 +34,8 @@ type Props = Readonly<{
   codeUrl: string | null
   /** Points on the print, as a length. Default: CSS pixels at 96 to the inch. */
   pt?: PointsToLength
+  /** The tile the size chose; today's 2 in when none is given. */
+  tile?: CodeTile
 }>
 
 export function PrintKitCodeBlock({
@@ -36,8 +43,9 @@ export function PrintKitCodeBlock({
   cues,
   codeUrl,
   pt = pointsToPixels,
+  tile = TODAY_CODE_TILE,
 }: Props) {
-  const plan = planCodeBlock(cues, estimatedCueWidthPt)
+  const plan = planCodeBlock(cues, estimatedCueWidthPt, tile)
   const styles = codeBlockStyles(plan, codeBlockColours(palette), pt)
   return (
     <div aria-hidden data-print-code style={styles.root}>

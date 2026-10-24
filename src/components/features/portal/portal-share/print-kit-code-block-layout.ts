@@ -38,19 +38,19 @@ export function codeBlockStyles(
   colours: CodeBlockColours,
   pt: PointsToLength,
 ): CodeBlockStyles {
-  const { iconAbove } = plan
+  const { iconAbove, tile } = plan
   return {
     root: {
       flex: 'none',
       boxSizing: 'border-box',
       display: 'flex',
       flexDirection: 'column',
-      width: pt(CODE_BLOCK.tilePt),
+      width: pt(tile.tilePt),
       height: pt(plan.heightPt),
-      borderRadius: pt(CODE_BLOCK.radiusPt),
+      borderRadius: pt(tile.radiusPt),
       overflow: 'hidden',
       background: PRINT_KIT_TILE,
-      // Outside the 2 in, so the bar stays exactly as wide as the print check says.
+      // Outside the tile, so the bar stays exactly as wide as the print check says.
       boxShadow:
         colours.outline === null
           ? 'none'
@@ -60,8 +60,8 @@ export function codeBlockStyles(
     code: {
       display: 'block',
       flex: 'none',
-      width: pt(CODE_BLOCK.tilePt),
-      height: pt(CODE_BLOCK.tilePt),
+      width: pt(tile.tilePt),
+      height: pt(tile.tilePt),
     },
     bar: {
       flex: 'none',
@@ -71,13 +71,17 @@ export function codeBlockStyles(
       alignItems: 'center',
       // Above the lines, the same space over, between and under the pictogram and the lines.
       justifyContent: iconAbove ? 'space-evenly' : 'center',
-      gap: iconAbove ? 0 : pt(CODE_BLOCK.iconGapPt),
+      gap: iconAbove ? 0 : pt(tile.iconGapPt),
       height: pt(plan.barPt),
-      padding: `0 ${pt(CODE_BLOCK.barPaddingPt)}`,
+      padding: `0 ${pt(tile.barPaddingPt)}`,
       background: colours.barFill,
       color: colours.barText,
     },
-    icon: { flex: 'none', width: pt(plan.iconPt), height: pt(plan.iconPt) },
+    // A tile too small for the pictogram has none: its cue is centred alone.
+    icon:
+      plan.iconPt === 0
+        ? { display: 'none' }
+        : { flex: 'none', width: pt(plan.iconPt), height: pt(plan.iconPt) },
     cues: {
       display: 'flex',
       flexDirection: 'column',

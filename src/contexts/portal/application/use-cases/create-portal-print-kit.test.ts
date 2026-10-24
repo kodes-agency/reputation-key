@@ -147,6 +147,7 @@ describe('createPortalPrintKit', () => {
       'Оценете посещението си',
     ])
     expect(input?.wordmark).toBe('HARBOR')
+    expect(input?.propertyName).toBe('The Harbor Hotel')
     expect(input?.title).toBe('Harbor lobby table tent')
   })
 

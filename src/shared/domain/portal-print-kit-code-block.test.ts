@@ -12,6 +12,7 @@ import {
   planCodeBlock,
   type CueLine,
 } from './portal-print-kit-code-block'
+import { CODE_TILE, TODAY_CODE_TILE } from './portal-print-kit-code-tile'
 import { CODE_BLOCK, cueRoomPt, inToPt, ptToIn } from './portal-print-kit-measures'
 import { printKitPalette } from './portal-print-kit-palette'
 
@@ -149,5 +150,37 @@ describe('the pictogram', () => {
     expect(CAMERA_ICON.strokeWidth).toBe(1.7)
     expect(CAMERA_ICON.body.startsWith('M3.5 8.5')).toBe(true)
     expect(CAMERA_ICON.lens).toEqual({ cx: 12, cy: 12.8, r: 3.6 })
+  })
+})
+
+describe('planCodeBlock on a chosen tile', () => {
+  const large = CODE_TILE.large.letter
+  const table = CODE_TILE.table.letter
+
+  it('reads every measure from the tile: Large sets its cue at 9 pt in a 0.36 in bar under 1.75 in', () => {
+    const plan = planCodeBlock(cueLinesFor(['en']), estimatedCueWidthPt, large)
+    expect(plan.tile).toBe(large)
+    expect(plan).toMatchObject({ cuePt: 9, iconAbove: false })
+    expect(ptToIn(plan.iconPt)).toBeCloseTo(0.15, 10)
+    expect(ptToIn(plan.barPt)).toBeCloseTo(0.36, 10)
+    expect(ptToIn(plan.heightPt)).toBeCloseTo(2.11, 10)
+  })
+
+  it('moves the pictogram above a cue too wide to sit beside it on 1.75 in, as on 2 in', () => {
+    const plan = planCodeBlock(cueLinesFor(['fr']), estimatedCueWidthPt, large)
+    expect(plan.iconAbove).toBe(true)
+    expect(plan.barPt).toBeCloseTo(large.barPt.one + CODE_BLOCK.barAbovePt, 10)
+  })
+
+  it('gives a tile with no pictogram none: the cue keeps the whole bar, which never grows', () => {
+    const plan = planCodeBlock(cueLinesFor(['fr', 'de']), estimatedCueWidthPt, table)
+    expect(plan).toMatchObject({ iconPt: 0, iconAbove: false, cuePt: 9 })
+    expect(plan.barPt).toBe(table.barPt.two)
+  })
+
+  it('plans today’s 2 in block when no tile is named', () => {
+    const plan = planCodeBlock(cueLinesFor(['en']), estimatedCueWidthPt)
+    expect(plan.tile).toBe(TODAY_CODE_TILE)
+    expect(plan.cuePt).toBe(9.5)
   })
 })
