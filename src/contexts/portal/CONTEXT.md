@@ -446,9 +446,10 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   200 dpi is reported, and under 120 dpi the card is refused
   (`print_photo_too_soft`). One more thing to settle before Table or Mini is
   selectable: their tiles (and the small tent's, which is Table's) have no
-  pictogram to move, so the Italian and French scan cues do not fit one line: 102.6 and 112 pt in Table's 96.5 pt room, 91.2
-  and 99.5 pt (at 8 pt) in Mini's 85.7 pt. A test pins the languages that fit;
-  the faces must refuse the rest, use a two-line bar or set a smaller cue.
+  pictogram to move, so the Italian and French scan cues do not fit one line:
+  102.6 and 112 pt in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in
+  Mini's 85.7 pt. A test pins the languages that fit; the faces must refuse the
+  rest, use a two-line bar or set a smaller cue.
 - **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
   family; lining figures on place labels and headlines; no ligatures on a tracked
   line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the
@@ -459,7 +460,10 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   for example `pool-terrace-counter-card-en-es-letter.pdf`; an office sheet of
   the round-3 sizes says how many pieces it holds (`-table-card-…-4up-letter`,
   `-table-tent-…-2up-letter` for the small tent), so two downloads that differ
-  in language, style, paper or size never share a name.
+  in language, style or paper never share a name. The small tent's Immersive
+  print-shop file, `…-table-tent-en-immersive-letter.pdf`, is named as the
+  Letter-half tent's is, because both are the `table_tent`: the two are never
+  offered together (the flip retires the Letter-half tent as it selects Table).
 - **Owner decisions of 2026-10-22.** D1: "Rate your visit" is the default call
   to action; the second reads "How was your visit? About 30 seconds" in every
   language, since the owner removed "Tell us privately" everywhere on

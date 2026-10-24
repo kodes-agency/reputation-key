@@ -181,7 +181,7 @@ describe('the small tent’s pages, file name and subject', () => {
     expect(() => printKitSheetPages({ ...choice, style: 'immersive' })).toThrow()
   })
 
-  it('says it holds 2 on a sheet, so it never shares a name with the Letter-half tent', () => {
+  it('says it holds 2 on a sheet, so a Paper sheet never shares a name with the Letter-half tent', () => {
     const format = { style: 'paper', paper: 'letter' } as const
     expect(
       printKitFileName('Reception', 'table_tent', ['en', 'es'], {
