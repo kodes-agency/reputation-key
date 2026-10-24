@@ -22,6 +22,9 @@ export function qrMatrix(address: string): QrMatrix {
   }
 }
 
+/** The QR version of a symbol `size` modules wide: a version N symbol is 17 + 4N across. */
+export const qrSymbolVersion = (matrix: QrMatrix): number => (matrix.size - 17) / 4
+
 export type QrRun = Readonly<{ row: number; column: number; length: number }>
 
 /** The dark modules as horizontal runs: one rectangle each, not one per module. */

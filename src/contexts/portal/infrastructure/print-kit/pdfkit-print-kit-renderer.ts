@@ -18,6 +18,10 @@ import {
   paperLogoPlate,
   paperPrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
+import {
+  printAddressShape,
+  type PrintAddressShape,
+} from '#/shared/domain/portal-print-address'
 import { printKitFormatProblem } from '#/shared/domain/portal-print-kit-formats'
 import { printKitSubject } from '#/shared/domain/portal-print-kit-pieces'
 import { printKitPages } from '#/shared/domain/portal-print-kit-sheets'
@@ -32,7 +36,7 @@ import { drawPaperFace, layoutPaperFace, type PaperFaceArt } from './print-kit-p
 import { openImage } from './print-kit-pdf-image'
 import { PrintKitFonts } from './print-kit-pdf-text'
 import { drawSmallTentPrint } from './print-kit-tent-print'
-import { qrMatrix } from './print-kit-qr'
+import { qrMatrix, qrSymbolVersion } from './print-kit-qr'
 
 export type PdfKitPrintKitRendererDeps = Readonly<{
   /** The clock the document's creation date reads. */
@@ -41,6 +45,17 @@ export type PdfKitPrintKitRendererDeps = Readonly<{
   compress?: boolean
   /** Told of what is worth a look but does not stop the print, such as a soft logo. */
   warn?: (warning: PrintKitWarning) => void
+  /**
+   * Told, once a print is drawn, what shape of address it carries and which QR
+   * version it came to. Never the address: it is a credential (ADR 0069).
+   */
+  reportRender?: (facts: PrintKitRenderFacts) => void
+}>
+
+/** What is worth knowing about a drawn print without the address in it. */
+export type PrintKitRenderFacts = Readonly<{
+  addressShape: PrintAddressShape
+  symbolVersion: number
 }>
 
 /** A Paper print: ink on the customer's own sheet, with ticks and, on Letter cards, the print check. */
@@ -148,6 +163,10 @@ export function createPdfKitPrintKitRenderer(
       })
       const fonts = new PrintKitFonts(doc)
       await drawPrint(doc, fonts, input, deps.warn ?? (() => undefined))
+      deps.reportRender?.({
+        addressShape: printAddressShape(input.qrAddress),
+        symbolVersion: qrSymbolVersion(qrMatrix(input.qrAddress)),
+      })
       doc.end()
       await finished
       return new Uint8Array(Buffer.concat(chunks))

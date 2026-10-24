@@ -88,7 +88,10 @@ describe('getPortalPrintKit', () => {
   it('carries no address: the preview draws a placeholder code', async () => {
     const { portal, read } = setup()
     const view = await read({ portalId: portal.id }, buildTestAuthContext())
-    expect(JSON.stringify(view)).not.toMatch(/accessArtifact|\/p\/pt_/u)
+    // Neither the long address nor a short print address (ADR 0069) is in the read.
+    expect(JSON.stringify(view)).not.toMatch(
+      /accessArtifact|\/p\/pt_|up\.railway|\/p\/[0-9A-HJKMNP-TV-Z]{20}/iu,
+    )
   })
 
   it('refuses a caller who holds no Portal read permission', async () => {
