@@ -146,7 +146,6 @@ export function liveLocalesOf(
   return isLocalizedConfiguration(configuration) ? configuration.localeSet : ['en']
 }
 
-/** What the browser is given: the same facts, with each image as a same-origin path. */
 /**
  * Which print kit the Share tab shows: today's (the Large card and the
  * Letter-half tent) or the final kit (counter, tent and Small card, upright and
@@ -154,6 +153,7 @@ export function liveLocalesOf(
  */
 export type PortalPrintKitGeneration = 'current' | 'final'
 
+/** What the browser is given: the same facts, with each image as a same-origin path. */
 export type PortalPrintKitView = Readonly<{
   portalId: string
   kit: PortalPrintKitGeneration
@@ -178,7 +178,7 @@ export type PortalPrintKitView = Readonly<{
 export function presentPortalPrintKit(
   portalId: string,
   context: PortalPrintKitContext,
-  kit: PortalPrintKitGeneration = 'current',
+  kit: PortalPrintKitGeneration,
 ): PortalPrintKitView {
   const { look } = context
   return {
