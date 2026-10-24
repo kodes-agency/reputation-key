@@ -27,9 +27,12 @@ const SHORT_ADDRESS = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
 const LONG_ADDRESS =
   'https://web-closed-beta-v2.up.railway.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-aBcDe?accessArtifact=0b6d1c1e-52c4-4b34-9d63-6e3b4a1f9a10'
 
+/** The long address with no marker: what "Public address" and "Open page" use whichever address is printed. */
+const DIRECT_ADDRESS = LONG_ADDRESS.split('?')[0] ?? LONG_ADDRESS
+
 const linkOf = (address: string): IssuedPortalLink => ({
   publicUrl: address,
-  publicUrls: { qr: address, nfc: address.toLowerCase() },
+  publicUrls: { qr: address, nfc: address.toLowerCase(), direct: DIRECT_ADDRESS },
   addressRecoverable: true,
 })
 

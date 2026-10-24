@@ -26,7 +26,11 @@ const QR_ADDRESS =
   'https://app.reputationkey.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-aBcDe?accessArtifact=0b6d1c1e-52c4-4b34-9d63-6e3b4a1f9a10'
 const issuedLink: IssuedPortalLink = {
   publicUrl: QR_ADDRESS,
-  publicUrls: { qr: QR_ADDRESS, nfc: `${QR_ADDRESS}-nfc` },
+  publicUrls: {
+    qr: QR_ADDRESS,
+    nfc: `${QR_ADDRESS}-nfc`,
+    direct: QR_ADDRESS.split('?')[0] ?? QR_ADDRESS,
+  },
   addressRecoverable: true,
 }
 

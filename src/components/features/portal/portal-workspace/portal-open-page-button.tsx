@@ -8,14 +8,14 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '#/components/ui/button'
 import type { PortalShareMutations } from '../portal-share/portal-share-types'
-import { openLivePage, type BlankTab } from './portal-open-page'
+import { openLivePage, type BlankTab, type OpenableLink } from './portal-open-page'
 
 export type PortalOpenPageButtonProps = Readonly<{
   propertyId: string
   portalId: string
   mode: 'reveal' | 'share'
-  /** The live code's address when it is already in memory: opened with no reveal. */
-  heldAddress?: string | null
+  /** The live code's addresses when they are already in memory: its page opens with no reveal. */
+  heldLink?: OpenableLink | null
   /** Fetches the live code's address; its own refusals are worded by the caller's action (`openPageErrorMessage`). */
   revealMutation: PortalShareMutations['revealMutation']
 }>
@@ -39,7 +39,7 @@ function openBrowserTab(): BlankTab | null {
 }
 
 export function PortalOpenPageButton(props: PortalOpenPageButtonProps) {
-  const { propertyId, portalId, mode, heldAddress = null, revealMutation } = props
+  const { propertyId, portalId, mode, heldLink = null, revealMutation } = props
   const [isOpening, setIsOpening] = useState(false)
 
   if (mode === 'share') {
@@ -63,7 +63,7 @@ export function PortalOpenPageButton(props: PortalOpenPageButtonProps) {
       const outcome = await openLivePage({
         openBlankTab: openBrowserTab,
         reveal: (purpose) => revealMutation({ data: { portalId, purpose } }),
-        heldAddress,
+        heldLink,
         openAddress: openAddressInNewTab,
       })
       if (outcome === 'popup_blocked') toast.error(POPUP_BLOCKED_MESSAGE)
