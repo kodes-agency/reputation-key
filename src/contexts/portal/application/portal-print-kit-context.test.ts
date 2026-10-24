@@ -30,6 +30,8 @@ describe('buildPortalPrintKitContext', () => {
     expect(context.look.accentColour).toBe('#C8A45A')
     expect(context.look.hero).toEqual({
       assetId: SOURCE_HERO_ASSET_ID,
+      width: 1600,
+      height: 1000,
       focalX: 0.4,
       focalY: 0.6,
     })
@@ -126,7 +128,13 @@ describe('printKitContextOfLive', () => {
       propertyName: 'The Harbor Hotel',
       accentColour: '#C8A45A',
       fieldColour: '#14110F',
-      hero: { assetId: IMMERSIVE_HERO_ASSET_ID, focalX: 0.4, focalY: 0.6 },
+      hero: {
+        assetId: IMMERSIVE_HERO_ASSET_ID,
+        width: 1600,
+        height: 1000,
+        focalX: 0.4,
+        focalY: 0.6,
+      },
       logo: { assetId: IMMERSIVE_LOGO_ASSET_ID },
     })
   })
@@ -185,6 +193,7 @@ describe('presentPortalPrintKit', () => {
     expect(view.look.heroUrl).toBe(`/api/public/portal-media/${SOURCE_HERO_ASSET_ID}`)
     expect(view.look.logoUrl).toBe(`/api/public/portal-media/${SOURCE_LOGO_ASSET_ID}`)
     expect(view.look.heroFocal).toEqual({ x: 0.4, y: 0.6 })
+    expect(view.look.heroSize).toEqual({ width: 1600, height: 1000 })
     expect(JSON.stringify(view)).not.toContain('assetId')
   })
 
@@ -196,5 +205,6 @@ describe('presentPortalPrintKit', () => {
     expect(view.look.heroUrl).toBeNull()
     expect(view.look.logoUrl).toBeNull()
     expect(view.look.heroFocal).toBeNull()
+    expect(view.look.heroSize).toBeNull()
   })
 })

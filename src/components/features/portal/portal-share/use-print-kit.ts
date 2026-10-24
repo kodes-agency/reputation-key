@@ -30,6 +30,7 @@ import {
   reconcilePrintKitChoice,
   unprintableCharacters,
 } from './print-kit-state'
+import { softPhotoNotice } from './print-kit-photo-notice'
 import { usePrintKitCode } from './use-print-kit-code'
 
 type Input = Readonly<{
@@ -86,6 +87,7 @@ export function usePrintKit({
       ? []
       : printKitFaces(choice, view.titles, view.portalName)
   const side = planned.some((face) => face.side === chosenSide) ? chosenSide : 'front'
+  const faces = planned.map(printableFace)
   return {
     view,
     choice,
@@ -106,7 +108,7 @@ export function usePrintKit({
         ? PRINT_CODE_TOO_SMALL_COPY[tile.error.cause]
         : null,
     /** The faces as the file prints them: without the characters no font carries. */
-    faces: planned.map(printableFace),
+    faces,
     mode,
     setMode,
     side,
@@ -116,6 +118,11 @@ export function usePrintKit({
       view === null
         ? null
         : describeUnprintable(unprintableCharacters(view.look, planned)),
+    /** Says the photo would print soft on this print, which is made all the same; null when it prints sharp or the print shows no photo. */
+    softPhotoNote:
+      view !== null && choice !== null && tile?.isOk() === true
+        ? softPhotoNotice({ choice, look: view.look, faces, tile: tile.value.tile })
+        : null,
     isPending: query.isPending && enabled,
     isError: hasFailed(query),
     error: query.error,

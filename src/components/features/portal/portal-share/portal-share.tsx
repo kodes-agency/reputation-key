@@ -158,6 +158,7 @@ export function PortalShare(props: PortalShareProps) {
             sizes={printKit.sizes}
             barMeasure={printKit.barMeasure}
             unprintableNote={printKit.unprintableNote}
+            softPhotoNote={printKit.softPhotoNote}
             unavailableReason={unavailableReason}
             isWorking={printKitDownload.isWorking}
             onDownload={() => void printKitDownload.download()}

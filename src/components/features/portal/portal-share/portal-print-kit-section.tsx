@@ -8,6 +8,7 @@
 
 import { Download } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -40,6 +41,8 @@ type Props = Readonly<{
   barMeasure?: string | null
   /** Names the characters the fonts lack, which the print leaves out; null when all will print. */
   unprintableNote: string | null
+  /** Says the photo is small for this print and may look soft; the download stays on. Null when it prints sharp. */
+  softPhotoNote?: string | null
   /** Why the download is off, or null when it is on. */
   unavailableReason: string | null
   isWorking: boolean
@@ -58,6 +61,7 @@ export function PortalPrintKitSection({
   sizes = PRINT_KIT_SELECTABLE_SIZES,
   barMeasure = null,
   unprintableNote,
+  softPhotoNote = null,
   unavailableReason,
   isWorking,
   onDownload,
@@ -96,6 +100,12 @@ export function PortalPrintKitSection({
         <p className="text-sm text-muted-foreground">{unprintableNote}</p>
       )}
       {preview}
+      {softPhotoNote !== null && (
+        // Advice, not a stop: the file is made either way, so it waits its turn to be read.
+        <Alert variant="warning" role="status">
+          <AlertDescription>{softPhotoNote}</AlertDescription>
+        </Alert>
+      )}
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Button

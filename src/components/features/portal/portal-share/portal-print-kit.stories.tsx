@@ -17,6 +17,7 @@ import {
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { FACE_TYPE_PT } from '#/shared/domain/portal-print-kit-size-type'
+import { SOFT_PHOTO_NOTICE } from './print-kit-photo-notice'
 import { PortalShare } from './portal-share'
 import type { DownloadPrintKitInput } from './portal-print-kit-types'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
@@ -59,6 +60,7 @@ const view = (overrides: Partial<PortalPrintKitView> = {}): PortalPrintKitView =
     fieldColour: '#15110D',
     heroUrl: null,
     heroFocal: null,
+    heroSize: null,
     logoUrl: null,
   },
   ...overrides,
@@ -489,6 +491,7 @@ export const WithThePropertyPhoto: Story = {
             fieldColour: '#15110D',
             heroUrl: PHOTO,
             heroFocal: { x: 0.7, y: 0.3 },
+            heroSize: { width: 2400, height: 1600 },
             logoUrl: null,
           },
         }),
@@ -505,6 +508,59 @@ export const WithThePropertyPhoto: Story = {
     await expect(
       (await preview(canvasElement)).querySelector(`img[src="${PHOTO}"]`),
     ).toBeNull()
+  },
+}
+
+/** A property whose photo is `heroSize` pixels, as the upload stored it. */
+const photoView = (heroSize: Readonly<{ width: number; height: number }>) =>
+  view({
+    look: { ...view().look, heroUrl: PHOTO, heroFocal: { x: 0.5, y: 0.5 }, heroSize },
+  })
+
+/** A portrait photo the upload accepts (500 × 1000) prints soft across Large's band: one warning, and the download stays on. */
+export const SoftPhotoWarnsAndStillDownloads: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () => photoView({ width: 500, height: 1000 }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    // Paper has no photo, so there is nothing to warn of.
+    await userEvent.click(await canvas.findByRole('radio', { name: /^Paper/ }))
+    await expect(canvas.queryByText(SOFT_PHOTO_NOTICE)).toBeNull()
+    await userEvent.click(canvas.getByRole('radio', { name: /^Immersive/ }))
+    const notice = await canvas.findByText(SOFT_PHOTO_NOTICE)
+    await expect(notice.closest('[data-slot="alert"]')).toHaveAttribute(
+      'data-variant',
+      'warning',
+    )
+    const button = canvas.getByRole('button', { name: /download print kit \(pdf\)/i })
+    await expect(button).toBeEnabled()
+    await userEvent.click(button)
+    const download = args.printKit?.downloadMutation as unknown as ReturnType<typeof fn>
+    await waitFor(() => expect(download).toHaveBeenCalledTimes(1))
+    await userEvent.click(canvas.getByRole('radio', { name: /^Paper/ }))
+    await waitFor(() => expect(canvas.queryByText(SOFT_PHOTO_NOTICE)).toBeNull())
+  },
+}
+
+/** A photo as wide as the upload hint asks for prints sharp: Immersive shows no notice. */
+export const SharpPhotoShowsNoNotice: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () => photoView({ width: 1000, height: 500 }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: /^Immersive/ }))
+    await expect(await preview(canvasElement)).toBeVisible()
+    await expect(canvas.queryByText(SOFT_PHOTO_NOTICE)).toBeNull()
   },
 }
 

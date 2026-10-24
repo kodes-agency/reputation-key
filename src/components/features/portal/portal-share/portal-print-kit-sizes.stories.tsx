@@ -71,6 +71,7 @@ const view = (withLogo = true): PortalPrintKitView => ({
     fieldColour: '#001E57',
     heroUrl: PHOTO,
     heroFocal: { x: 0.5, y: 0.5 },
+    heroSize: { width: 2400, height: 1600 },
     logoUrl: withLogo ? LOGO : null,
   },
 })
