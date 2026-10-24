@@ -37,6 +37,8 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     read: props.printKit?.read ?? NO_PRINT_KIT_READ,
     enabled: offered && hasLive,
     countryCode: props.countryCode ?? null,
+    qrAddress: props.issuedLink?.publicUrl ?? null,
+    sizes: props.printKit?.sizes,
   })
   const nothingLive = offered && (!hasLive || isNothingLiveRefusal(printKit.error))
   const show = offered && !nothingLive
@@ -55,6 +57,6 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     notLive,
     printKit,
     download,
-    unavailableReason: notLive?.body ?? availability.reason,
+    unavailableReason: notLive?.body ?? availability.reason ?? printKit.refusal,
   }
 }

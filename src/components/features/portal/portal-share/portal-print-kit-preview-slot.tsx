@@ -11,11 +11,9 @@ import type { usePrintKit } from './use-print-kit'
 type Props = Readonly<{
   where: 'column' | 'inline'
   printKit: ReturnType<typeof usePrintKit>
-  /** The live code's QR address, when it is in memory. */
-  qrAddress: string | null
 }>
 
-export function PortalPrintKitPreviewSlot({ where, printKit, qrAddress }: Props) {
+export function PortalPrintKitPreviewSlot({ where, printKit }: Props) {
   const stacked = useIsBelowLarge()
   if ((where === 'inline') !== stacked) return null
   return (
@@ -27,7 +25,9 @@ export function PortalPrintKitPreviewSlot({ where, printKit, qrAddress }: Props)
       onModeChange={printKit.setMode}
       side={printKit.side}
       onSideChange={printKit.setSide}
-      qrAddress={qrAddress}
+      code={printKit.code}
+      sample={printKit.sample}
+      tile={printKit.tile}
       isError={printKit.isError}
       onRetry={printKit.retry}
       isRetrying={printKit.isRetrying}

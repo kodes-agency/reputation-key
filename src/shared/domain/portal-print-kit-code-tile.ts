@@ -19,6 +19,7 @@ import { err, ok, type Result } from './result'
 import {
   PRINT_KIT_QR_QUIET_ZONE_MODULES,
   type PrintKitPaper,
+  type PrintKitPiece,
   type PrintKitSize,
 } from './portal-print-kit'
 import {
@@ -231,4 +232,24 @@ export function chooseCodeTile(
   }
   const cause = addressShape === 'long' ? 'needs_short_code' : 'address_host_too_long'
   return err({ code: 'print_code_too_small', cause, size, moduleMm })
+}
+
+/**
+ * The tile a piece prints its code on, whichever piece it is: a card at any size
+ * and the small tent (Table's tile) choose as `chooseCodeTile` does, and the
+ * Letter-half tent (the `table_tent` at size Large) keeps today's 2 in tile, which
+ * is never refused. The Share tab asks this for the bar it tells a manager to
+ * measure and for the refusal it shows, so it says what the file will do.
+ */
+export function printKitTile(
+  piece: PrintKitPiece,
+  query: CodeTileQuery,
+): Result<CodeTileChoice, PrintCodeTooSmall> {
+  if (piece === 'table_tent' && query.size === 'large') {
+    return ok({
+      tile: TODAY_CODE_TILE,
+      moduleMm: codeModuleMm(TODAY_CODE_TILE.tilePt, query.symbolModules),
+    })
+  }
+  return chooseCodeTile(query)
 }

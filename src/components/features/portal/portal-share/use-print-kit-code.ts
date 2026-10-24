@@ -10,11 +10,12 @@ import { QR_QUIET_ZONE_MODULES, renderQrSvg } from './portal-qr'
 
 /**
  * Drawn when the live address is not in memory: a code that opens nothing of
- * ours. It is a version 3 symbol on purpose, the size of the short print
- * address (a test pins that), so a card's preview shows the density a Table or
- * Mini card prints at, not the 53-module code of today's long address.
+ * ours. It has the short print address's shape (a host, `/p/` and a 20-character
+ * print code) and is a version 3 symbol on purpose (a test pins both), so a
+ * card's preview shows the density a Table or Mini card prints at, not the
+ * 53-module code of today's long address, and no size is refused for a sample.
  */
-export const PREVIEW_SAMPLE_ADDRESS = 'https://example.com/p/sample'
+export const PREVIEW_SAMPLE_ADDRESS = 'https://example.com/p/7K3QZ0VD9MWX4HT2BN6R'
 
 export type PrintKitCode = Readonly<{
   /** The address the code encodes: the live one, or the sample. */
@@ -34,11 +35,13 @@ export function symbolModulesOfSvg(svg: string): number | null {
 
 type Drawn = Readonly<{ source: string; url: string; symbolModules: number | null }>
 
-export function usePrintKitCode(address: string | null): PrintKitCode {
+/** `enabled` is off while there is no print kit to preview: the code is then not drawn. */
+export function usePrintKitCode(address: string | null, enabled = true): PrintKitCode {
   const source = address ?? PREVIEW_SAMPLE_ADDRESS
   const [drawn, setDrawn] = useState<Drawn | null>(null)
 
   useEffect(() => {
+    if (!enabled) return undefined
     let cancelled = false
     void renderQrSvg(source, QR_QUIET_ZONE_MODULES, {
       dark: PRINT_KIT_INK,
@@ -57,7 +60,7 @@ export function usePrintKitCode(address: string | null): PrintKitCode {
     return () => {
       cancelled = true
     }
-  }, [source])
+  }, [source, enabled])
 
   const current = drawn?.source === source ? drawn : null
   return {

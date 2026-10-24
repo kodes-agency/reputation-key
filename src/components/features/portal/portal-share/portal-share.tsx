@@ -159,13 +159,7 @@ export function PortalShare(props: PortalShareProps) {
             unavailableReason={unavailableReason}
             isWorking={printKitDownload.isWorking}
             onDownload={() => void printKitDownload.download()}
-            preview={
-              <PortalPrintKitPreviewSlot
-                where="inline"
-                printKit={printKit}
-                qrAddress={publicUrl}
-              />
-            }
+            preview={<PortalPrintKitPreviewSlot where="inline" printKit={printKit} />}
           />
         )}
 
@@ -173,13 +167,7 @@ export function PortalShare(props: PortalShareProps) {
           {liveStatusMessage(isPending, copied || nfcCopied)}
         </p>
       </FullBleedFrame>
-      {showPrintKit && (
-        <PortalPrintKitPreviewSlot
-          where="column"
-          printKit={printKit}
-          qrAddress={publicUrl}
-        />
-      )}
+      {showPrintKit && <PortalPrintKitPreviewSlot where="column" printKit={printKit} />}
     </div>
   )
 }

@@ -15,6 +15,7 @@
 import { cardTile } from '#/shared/domain/portal-print-kit-card'
 import type { CardBrand } from '#/shared/domain/portal-print-kit-card-brand'
 import { printKitSheetPages } from '#/shared/domain/portal-print-kit-formats'
+import { OFFICE_CROP_COLOUR } from '#/shared/domain/portal-print-kit-sheet-parts'
 import { printedDpi } from '#/shared/domain/portal-print-kit-measures'
 import { monogramLetter } from '#/shared/domain/portal-print-kit-immersive'
 import {
@@ -41,7 +42,6 @@ import { areaPhotos, type AreaOf } from './print-kit-area-photos'
 import type { FaceLogo } from './print-kit-face-brand'
 import { logoArt } from './print-kit-image'
 import {
-  OFFICE_CROP_MARK,
   drawPrintCheck,
   drawPrintShopMarks,
   drawSheetNote,
@@ -195,7 +195,7 @@ export function sheetMarks(
     drawTicks(
       doc,
       page.ticks,
-      page.marks === 'office-crop' ? OFFICE_CROP_MARK : undefined,
+      page.marks === 'office-crop' ? OFFICE_CROP_COLOUR : undefined,
     )
     if (page.note !== null) drawSheetNote(doc, fonts, page.note)
     if (page.printCheck && art.palette.style === 'paper') {

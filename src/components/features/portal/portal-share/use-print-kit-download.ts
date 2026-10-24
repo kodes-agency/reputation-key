@@ -30,9 +30,12 @@ export function usePrintKitDownload({ portalId, choice, downloadMutation }: Inpu
           portalId,
           style: choice.style,
           paper: choice.paper,
+          size: choice.size,
+          output: choice.output,
           piece: choice.piece,
           languages: [...choice.languages],
           callToAction: choice.callToAction,
+          showPropertyName: choice.showPropertyName,
         },
       })
       saveBlob(

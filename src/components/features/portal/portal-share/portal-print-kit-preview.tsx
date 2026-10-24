@@ -1,9 +1,11 @@
 // The print beside the Share tab's section, as the share board draws it (spec
 // 7.2): the whole sheet the PDF prints, composed from the same pages, or one
 // face of it, with a caption, a Front and Back switch when the print has two
-// sides, and a note on what to do with it. It follows the choice and the
-// Property's look; the code is the live code's when its address is in memory and
-// a sample otherwise, and the note says which.
+// sides, and a note on what to do with it. It follows the choice (its size, piece
+// and output included) and the Property's look; the code is the live code's when
+// its address is in memory and a sample otherwise, and the note says which. A size
+// whose tile would print the live address too small is not drawn: the preview says
+// what to do instead, in the server's own words.
 //
 // It sits in a column of its own from `lg`, sticky beside the section; below
 // that the section holds it inline, between the choices and the download.
@@ -19,9 +21,18 @@ import type {
   PrintFaceSide,
   PrintKitChoice,
 } from '#/shared/domain/portal-print-kit'
-import { PANEL_SIZE_PT, printKitPages } from '#/shared/domain/portal-print-kit-sheets'
+import {
+  PRINT_CODE_TOO_SMALL_COPY,
+  type CodeTileChoice,
+  type PrintCodeTooSmall,
+} from '#/shared/domain/portal-print-kit-code-tile'
+import type { Result } from '#/shared/domain/result'
+import {
+  printKitFormatProblem,
+  printKitSheetPages,
+} from '#/shared/domain/portal-print-kit-formats'
+import { PANEL_SIZE_PT } from '#/shared/domain/portal-print-kit-sheets'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
-import { previewCardTile } from './print-kit-card-art-layout'
 import { PrintKitFaceArt } from './print-kit-face-art'
 import { PrintKitSheetArt } from './print-kit-sheet-art'
 import {
@@ -31,7 +42,7 @@ import {
   printKitSheetCaption,
   type PrintKitPreviewMode,
 } from './print-kit-preview-copy'
-import { usePrintKitCode, type PrintKitCode } from './use-print-kit-code'
+import type { PrintKitCode } from './use-print-kit-code'
 
 type Props = Readonly<{
   choice: PrintKitChoice | null
@@ -42,8 +53,12 @@ type Props = Readonly<{
   onModeChange: (mode: PrintKitPreviewMode) => void
   side: PrintFaceSide
   onSideChange: (side: PrintFaceSide) => void
-  /** The live code's QR address, when it is in memory. */
-  qrAddress: string | null
+  /** The code the preview draws: the live code's address when it is in memory, else a sample. */
+  code: PrintKitCode
+  /** Whether that code is the sample. */
+  sample: boolean
+  /** The tile the file would print the code on, or why it would not: from the same rule the file asks. */
+  tile: Result<CodeTileChoice, PrintCodeTooSmall> | null
   isError: boolean
   onRetry: () => void
   /** Try again is reading; the error stays, its button busy. */
@@ -52,10 +67,12 @@ type Props = Readonly<{
   placement: 'column' | 'inline'
 }>
 
-const MODE_OPTIONS = [
-  { value: 'sheet', label: 'Whole sheet' },
-  { value: 'face', label: 'One face' },
-] as const
+/** A card is "One card", a tent's side "One face": the board's words for what the toggle shows. */
+const modeOptions = (piece: PrintKitChoice['piece']) =>
+  [
+    { value: 'sheet', label: 'Whole sheet' },
+    { value: 'face', label: piece === 'counter_card' ? 'One card' : 'One face' },
+  ] as const
 
 const SIDE_OPTIONS = [
   { value: 'front', label: 'Front' },
@@ -86,13 +103,14 @@ export function PortalPrintKitPreview({
   onModeChange,
   side,
   onSideChange,
-  qrAddress,
+  code,
+  sample,
+  tile,
   isError,
   onRetry,
   isRetrying = false,
   placement,
 }: Props) {
-  const code = usePrintKitCode(qrAddress)
   const column = placement === 'column'
   return (
     <div className={cn(column && 'min-w-0 flex-1 bg-muted/40')}>
@@ -116,7 +134,7 @@ export function PortalPrintKitPreview({
             aria-label="Preview"
             value={mode}
             onValueChange={(next) => onModeChange(next as PrintKitPreviewMode)}
-            options={MODE_OPTIONS}
+            options={modeOptions(choice?.piece ?? 'counter_card')}
             touch
           />
           {faces.length > 1 && (
@@ -150,12 +168,22 @@ export function PortalPrintKitPreview({
               mode={mode}
               side={side}
               code={code}
-              sample={qrAddress === null}
+              sample={sample}
+              tile={tile}
             />
           </figure>
         )}
       </section>
     </div>
+  )
+}
+
+/** What the preview says in place of a size it cannot draw: what to do, in the server's own words. */
+function Refused({ refusal }: Readonly<{ refusal: PrintCodeTooSmall }>) {
+  return (
+    <p className="max-w-md text-center text-sm text-balance text-muted-foreground">
+      {PRINT_CODE_TOO_SMALL_COPY[refusal.cause]}
+    </p>
   )
 }
 
@@ -168,6 +196,7 @@ function Drawing({
   side,
   code,
   sample,
+  tile,
 }: Readonly<{
   choice: PrintKitChoice
   view: PortalPrintKitView
@@ -176,11 +205,28 @@ function Drawing({
   side: PrintFaceSide
   code: PrintKitCode
   sample: boolean
+  tile: Result<CodeTileChoice, PrintCodeTooSmall> | null
 }>) {
-  const { style, piece, paper } = choice
-  // A card's tile is the one its address allows, as in the file.
-  const tile = previewCardTile(paper, code.address, code.symbolModules)
-  const pages = printKitPages(piece, faces.length, style, paper)
+  const { style, piece, paper, size, output, showPropertyName } = choice
+  if (tile === null) return null
+  // A card's tile is the one its address allows, as in the file; a size that has none is not drawn.
+  if (tile.isErr()) return <Refused refusal={tile.error} />
+  const cardTile = tile.value.tile
+  const languageCount = faces[0]?.blocks.length ?? 1
+  // A print the kit does not make has no pages; the controls never offer one.
+  if (printKitFormatProblem({ piece, size, style, output, languageCount }) !== null) {
+    return null
+  }
+  const pages = printKitSheetPages({
+    piece,
+    size,
+    style,
+    output,
+    languageCount,
+    paper,
+    faceCount: faces.length,
+    tilePt: cardTile.tilePt,
+  })
   // A card's backs are its second page; a tent is one sheet with both faces.
   const index = side === 'back' && pages.length > 1 ? 1 : 0
   const page = pages[index]
@@ -203,11 +249,14 @@ function Drawing({
           <PrintKitSheetArt
             style={style}
             piece={piece}
+            size={size}
+            output={output}
             paper={paper}
             faces={faces}
             look={view.look}
             codeUrl={code.url}
-            tile={tile}
+            tile={cardTile}
+            showPropertyName={showPropertyName}
             page={index}
           />
         </div>
@@ -219,7 +268,8 @@ function Drawing({
             face={face}
             look={view.look}
             codeUrl={code.url}
-            tile={tile}
+            tile={cardTile}
+            showPropertyName={showPropertyName}
             label={printKitFaceLabel(choice, face)}
           />
         </div>

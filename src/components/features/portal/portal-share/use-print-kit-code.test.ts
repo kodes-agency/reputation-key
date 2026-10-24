@@ -4,6 +4,7 @@
 
 import QRCode from 'qrcode'
 import { describe, expect, it } from 'vitest'
+import { printAddressShape } from '#/shared/domain/portal-print-kit-code-tile'
 import { QR_QUIET_ZONE_MODULES, renderQrSvg } from './portal-qr'
 import { PREVIEW_SAMPLE_ADDRESS, symbolModulesOfSvg } from './use-print-kit-code'
 
@@ -12,6 +13,10 @@ describe('the preview sample address', () => {
     const symbol = QRCode.create(PREVIEW_SAMPLE_ADDRESS, { errorCorrectionLevel: 'M' })
     expect(symbol.version).toBe(3)
     expect(symbol.modules.size).toBe(29)
+  })
+
+  it('has the shape of a short print address, so no size is refused for a sample', () => {
+    expect(printAddressShape(PREVIEW_SAMPLE_ADDRESS)).toBe('short')
   })
 
   it('opens nothing of ours', () => {
