@@ -8,7 +8,6 @@
 
 import { Download } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -25,6 +24,7 @@ import {
 } from '#/shared/domain/portal-print-kit-how-to'
 import { PortalPrintKitControls } from './portal-print-kit-controls'
 import { PortalPrintKitHowTo } from './portal-print-kit-how-to'
+import { PortalPrintKitSoftPhotoNotice } from './portal-share-notices'
 
 type Props = Readonly<{
   /** Null while the Portal's languages and look are read. */
@@ -100,12 +100,7 @@ export function PortalPrintKitSection({
         <p className="text-sm text-muted-foreground">{unprintableNote}</p>
       )}
       {preview}
-      {softPhotoNote !== null && (
-        // Advice, not a stop: the file is made either way, so it waits its turn to be read.
-        <Alert variant="warning" role="status">
-          <AlertDescription>{softPhotoNote}</AlertDescription>
-        </Alert>
-      )}
+      <PortalPrintKitSoftPhotoNotice note={softPhotoNote} />
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Button

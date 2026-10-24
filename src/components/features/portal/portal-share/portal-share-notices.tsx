@@ -87,3 +87,18 @@ export function PortalScanGoalReadinessNotice({ show }: NoticeProps) {
     </Alert>
   )
 }
+
+/**
+ * The chosen print shows a photo that would print soft. Advice, never a stop (the
+ * file is made either way), so it waits its turn to be read as the choice changes.
+ */
+export function PortalPrintKitSoftPhotoNotice({
+  note,
+}: Readonly<{ note: string | null }>) {
+  if (note === null) return null
+  return (
+    <Alert variant="warning" role="status">
+      <AlertDescription>{note}</AlertDescription>
+    </Alert>
+  )
+}
