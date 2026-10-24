@@ -668,6 +668,8 @@ function buildContainer(
     opsQueues,
     operationsSnapshot,
     guestContactRequestRetentionSweep: guest.contactRequestReadiness.retentionSweep,
+    reviewObservationRetentionSweep:
+      review.maintenance.observationRetention.sweepExpiredSupersededCopies,
     aiPublicApi: ai.publicApi,
     aiWorkerRuntime: ai.worker,
     // BQC-7.4: one composition-owned dispatcher shares the structured log,

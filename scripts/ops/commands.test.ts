@@ -13,6 +13,7 @@ import { GOOGLE_PROVIDER_OPERATOR_COMMANDS } from '../../src/shared/ops/google-p
 import { aiReleaseOrphanSequencesCommandSpec } from '../../src/shared/ops/ai-release-orphan-sequences-command'
 import { inboxExcludeRestatedRevisionTargetsCommandSpec } from '../../src/shared/ops/inbox-exclude-restated-revision-targets-command'
 import { jobRepairCommandSpec } from '../../src/shared/ops/job-repair-command'
+import { reviewObservationsCommandSpec } from '../../src/shared/ops/review-observations-command'
 import { COMMANDS } from './commands'
 
 const ROOT = resolve(import.meta.dirname, '../..')
@@ -316,5 +317,20 @@ describe('what the report-only commands point to, under the runbook stops', () =
     expect(section(6)).toContain('each due check passes without a read')
     expect(section(6)).toContain('stop `property.publish_reply` alone')
     expect(section(6)).toContain('until the capabilities are back for that Organization')
+  })
+})
+
+// The one-off prune of the observation rows the old writer stored per read
+// (ADR 0055, note 2026-10-24 (b); runbooks §30).
+describe('pnpm ops review-observations prune', () => {
+  it('is dispatched to its script under its own name, as a destructive mutation', () => {
+    expect(COMMANDS['review-observations']).toEqual([
+      'scripts/ops/review-observations.ts',
+    ])
+    expect(reviewObservationsCommandSpec).toMatchObject({
+      name: 'ops:review-observations',
+      mutation: true,
+      destructive: true,
+    })
   })
 })

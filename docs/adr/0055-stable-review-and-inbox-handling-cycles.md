@@ -838,6 +838,74 @@ translation, a moved `updateTime`, an edit then its refresh, and a read after
 erasure. The Google-page and provider-restatement integration suites assert the
 smaller history.
 
+## Note 2026-10-24 (b) — the repeats are pruned once, and a superseded copy expires
+
+Owner decision 2026-10-24 (option A, parts 2 and 3). The note above stops new
+repeats. This one deals with the rows already written, and with how long a copy
+Google no longer shows may be kept.
+
+- **A repeat.** A repeat is an `unchanged` row that meets three conditions:
+  - it is not its Review's newest row;
+  - an applied row comes before it (the nearest earlier row that is not
+    `out_of_order_ignored`);
+  - that row has the same source epoch, material revision, observation digest
+    and content state.
+
+  On the beta, 3,400,389 of 3,425,776 rows are repeats. Deleting them changes no
+  reader's answer:
+  - The lifecycle inspection's newest row stays.
+  - The first row of a revision is never `unchanged`, so
+    `selectRevisionBindingComparisons` reads the same row.
+  - The applied row before any `material_change` is either kept or has the same
+    digest as the kept row before it, so `listRestatedRevisions` and the
+    runbook §29 queries see the same `source_updated_at` and epoch.
+  - An out-of-order row is kept.
+
+- **The prune is an operator command, run once.**
+  `pnpm ops review-observations prune` (runbooks §30) walks the Reviews in id
+  order, 100 per batch by default, across every Organization or within one. It
+  deletes each batch's repeats in one statement. A dry run is the default.
+  `--apply` needs a reason and the typed confirmation, and records one
+  content-free `retention_runs` row (`review_source_observations.repeats`). A
+  stopped run leaves whole batches done, and a re-run is safe. It is not
+  scheduled, because the writer makes no new repeats.
+- **A superseded copy expires.** A row that is no longer its Review's newest is
+  never fetched again, so its `content_expires_at` stays at the last fetch that
+  returned that content plus 30 days. ADR 0031 allows raw content only as a cache
+  that is refreshed or removed. Google's 2026-07-14 response says the same: raw
+  review content "should be refreshed or removed in accordance with the
+  applicable 30-day policy". Nothing refreshes a superseded copy, so it is
+  removed. The daily retention sweep subject
+  `review_source_observations.superseded_expired` blanks the rating, text,
+  translation, language, reviewer name and photo address, and Google's create and
+  update times, of such a row once that clock has passed. It runs 500 rows per
+  batch, at most 100 batches per run, oldest clock first, with `SKIP LOCKED`. It
+  sets `content_state = 'source_expired'`, the state erasure writes, so the
+  table's CHECK holds as it is. The digests, comparison, revision and RepKey's
+  own times stay. The newest row is the Review's current content, refreshed by
+  every pass. It stays with the Review lifecycle, which this never touches.
+- **What the expiry costs.** After 30 days, a superseded row no longer shows
+  Google's `updateTime`. So `listRestatedRevisions` and the runbook §29 queries
+  can no longer judge a `material_change` whose previous row was superseded
+  more than 30 days ago. Their one use, the 2026-10-23 restatements, is done
+  (the exclusion ledger above). From that rule on, a restatement creates no
+  revision.
+- **Registry.** `google.superseded_observation_copies` (data class
+  `google_source_content`, horizon `row_deadline` on `content_expires_at`,
+  operation `redact`) is in `retention-registry.ts`. The data-fate row of
+  `reviewSourceObservations` states its exit criteria. Retention policy version
+  10 stamps the new evidence.
+
+Enforced by `observation-retention.repository.integration.test.ts`. On the
+prune side it covers: only repeats deleted, the newest row, the out-of-order row
+and the revision rows kept, the binding comparisons, lifecycle findings and
+restated list unchanged, scan writes nothing, a second prune finds nothing,
+keyset batches, and an erased Review. On the redaction side: only superseded
+copies past their clock, digests kept, the newest row untouched even when its
+clock has passed, and the sweep cap. Also enforced by `retention-sweep.job.test.ts`
+(evidence and failure isolation), `review-observations-command.test.ts`, the
+tenant-predicate canary and the retention registry tests.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

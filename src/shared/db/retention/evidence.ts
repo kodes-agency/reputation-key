@@ -19,8 +19,12 @@ import type { Database } from '#/shared/db'
  *   9: − the event_consumer_receipts subject: a receipt is deleted with its
  *      outbox event (outbox_events.published), never by a rule of its own;
  *      + 24-month deletion of the counted Guest visit and the visit record.
+ *  10: + review_source_observations.superseded_expired, the daily blanking of
+ *      superseded observation copies past their clock, and the one-off
+ *      operator prune of repeated observations
+ *      (review_source_observations.repeats).
  */
-const RETENTION_POLICY_VERSION = 9
+const RETENTION_POLICY_VERSION = 10
 
 export async function openRetentionRun(
   db: Database,

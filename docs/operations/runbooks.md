@@ -1962,3 +1962,84 @@ is live, the restatement rule is not catching a new format: keep the
 **Evidence:** Retain the dry-run and apply records the command printed (operator,
 reason, ticket, correlation id, counts), the affected Property ids, the release
 SHAs, and the number of notices that reached managers. Do not retain review text.
+
+## 30. Review Observation Backlog (Repeated Rows)
+
+**Trigger/Symptoms:** `review_source_observations` is most of the database.
+On the beta on 2026-10-23 it was 3,668 MB of 4,388 MB: 3,425,776 rows for 12,599
+Reviews, a median of 277 per Review. Until 2026-10-24 every read of a review wrote
+a full-text row, and each snapshot pass reads every review twice. The writer now
+records a state, not a read (ADR 0055, note 2026-10-24), so the table should
+stop growing once that release is live. The rows already written stay until this
+runbook removes them.
+
+**Impact:** P3. Nothing is wrong for users. The cost is storage and backup size,
+slower scans of the table, migrations that cannot touch it (a CHECK on it holds
+an ACCESS EXCLUSIVE lock for minutes), and hundreds of stored copies of every
+review's text.
+
+**Prerequisites:**
+
+- The release with the writer change (PR #964) is deployed on web and worker.
+- The release with `pnpm ops review-observations` is deployed.
+- An incident or change record is open.
+- The owner has approved the apply. It deletes rows, and the deleted rows come
+  back only from a backup.
+
+**Diagnostics:** Measure first, and keep the numbers for the evidence.
+
+```sql
+SELECT pg_size_pretty(pg_total_relation_size('review_source_observations')) AS total,
+       pg_size_pretty(pg_database_size(current_database())) AS database;
+SELECT count(*) FROM review_source_observations
+WHERE created_at > now() - interval '1 day';
+```
+
+The second number should be about the day's new reviews and real changes, not
+tens of thousands. If it is still tens of thousands, the writer change is not
+live. Stop here.
+
+**Containment:** None needed. The prune runs online. Each batch is one short
+DELETE, and the sync keeps running.
+
+**Recovery:**
+
+1. Dry run (writes nothing):
+   `pnpm ops review-observations prune --operator <id>`. It prints the Reviews,
+   rows, repeats and kept rows. On the beta, expect about 3.40M repeats and about
+   25k kept rows. Optionally try one Organization first with `--org <id>`.
+2. Apply:
+   `pnpm ops review-observations prune --operator <id> --reason <text> --yes ops:review-observations --apply`.
+   It prints progress every 10 batches and a final record. If it stops, read
+   `resumeAfter` and the error, fix the cause, and run it again. Batches already
+   done stay done.
+3. Give the space back (optional, owner's call). Plain VACUUM makes the space
+   reusable but leaves the file at its size. `VACUUM FULL review_source_observations`
+   rewrites the table and takes an ACCESS EXCLUSIVE lock for as long as it reads
+   the old heap: about 2.5 GB on the beta, so expect tens of seconds. Every sync
+   write and every pre-publish read in that window waits and then fails on its
+   10 s `lock_timeout`. So stop the worker first, run it, then start the worker:
+   - scale the worker service to 0 replicas in Railway;
+   - run `VACUUM FULL review_source_observations` (through `railway ssh` into
+     web, outside a transaction);
+   - scale the worker back.
+     Web does not write this table. Skipping this step is safe: the table stops
+     growing either way.
+
+**Verification:**
+
+- A second dry run prints `no repeated observation to delete`.
+- `SELECT count(*) FROM review_source_observations` equals the kept count.
+- The lifecycle inspection reports no new `active_observation_*` findings.
+- `pnpm ops inbox exclude-restated-revision-targets <propertyId>` still lists
+  the same restated revisions as before the prune, for any Property where it ever
+  found one.
+
+**Escalation:** Bozhidar Denev. A dry run that reports far more kept rows than
+Reviews plus real changes means rows differ in a way the rule does not expect.
+Do not apply; look at one such Review's rows (ids, comparisons and times only).
+
+**Evidence:** Keep the dry-run and apply records the command printed (operator,
+reason, correlation id, counts), the size queries before and after, and the
+`retention_runs` row for `review_source_observations.repeats`. Do not keep review
+text.

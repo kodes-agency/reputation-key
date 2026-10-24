@@ -305,6 +305,20 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
       'The bounded review-content lifecycle sweeps (refresh-expiring and purge-expired) intentionally page live review content across all tenants by one stable expiration cursor so every eligible row is reached, and preserve tenant identity on every result.',
     category: 'LEGITIMATE-GLOBAL',
   },
+  ...(['repeatCtes', 'scanRepeats', 'pruneRepeats'] as const).map((symbol) => ({
+    file: 'src/contexts/review/infrastructure/repositories/observation-retention.repository.ts',
+    symbol,
+    reason:
+      "The operator's repeat prune (ADR 0055, note 2026-10-24 (b)) pages Reviews across tenants by id, or within the one Organization it is given, and ties every observation row to its Review on Organization; it returns counts and a Review id only.",
+    category: 'LEGITIMATE-GLOBAL' as const,
+  })),
+  {
+    file: 'src/contexts/review/infrastructure/repositories/observation-retention.repository.ts',
+    symbol: 'redactExpiredSupersededCopies',
+    reason:
+      'The daily retention sweep blanks superseded observation copies past their content clock across tenants, oldest clock first in bounded batches, joining each row to its Review on Organization; it returns a count only.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
   {
     file: 'src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts',
     symbol: 'findCurrentReviewIdsByAspect',

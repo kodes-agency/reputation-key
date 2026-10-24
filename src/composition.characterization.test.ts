@@ -115,6 +115,8 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'registerOutboxConsumers',
   'registerReviewWorkerJobs',
   'reviewMaintenanceRuntime',
+  // The daily retention sweep's Review subject: superseded observation copies.
+  'reviewObservationRetentionSweep',
   'reviewPublicApi',
   // Container-owned release seam. Static policy starts no background work,
   // while queues and future process resources still share one shutdown path.
