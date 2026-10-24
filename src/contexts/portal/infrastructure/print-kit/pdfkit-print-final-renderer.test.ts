@@ -3,7 +3,8 @@ import {
   PrintFinalRenderRefusal,
   type PrintFinalRenderInput,
 } from '../../application/ports/portal-print-final-renderer.port'
-import { printKitFaces, type GuestLocale } from '#/shared/domain/portal-print-kit'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
+import { printKitFaces } from '#/shared/domain/portal-print-kit'
 import {
   PRINT_FINAL_ORIENTATIONS,
   PRINT_FINAL_PIECES,
