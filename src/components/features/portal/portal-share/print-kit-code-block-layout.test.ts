@@ -5,6 +5,7 @@ import {
   estimatedCueWidthPt,
   planCodeBlock,
 } from '#/shared/domain/portal-print-kit-code-block'
+import { CODE_TILE } from '#/shared/domain/portal-print-kit-code-tile'
 import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { codeBlockStyles, pointsToPixels } from './print-kit-code-block-layout'
 
@@ -66,6 +67,18 @@ describe('codeBlockStyles', () => {
       padding: '0 7.2pt',
     })
     expect(styles.icon).toMatchObject({ width: '12.96pt', height: '12.96pt' })
+  })
+
+  it('left-aligns the lines beside a pictogram and centres each on a tile with none', () => {
+    expect(stylesFor(['en', 'es'], 'paper').styles.cues.alignItems).toBe('stretch')
+    const plan = planCodeBlock(
+      cueLinesFor(['en', 'bg']),
+      estimatedCueWidthPt,
+      CODE_TILE.table.a4,
+    )
+    const colours = codeBlockColours(printKitPalette('#EAD6A8', null, 'paper'))
+    expect(plan.iconPt).toBe(0)
+    expect(codeBlockStyles(plan, colours, inPoints).cues.alignItems).toBe('center')
   })
 
   it('stacks the pictogram above the lines, evenly spaced, when a line does not fit beside it', () => {

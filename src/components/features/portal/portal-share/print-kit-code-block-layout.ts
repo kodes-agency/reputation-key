@@ -85,6 +85,8 @@ export function codeBlockStyles(
     cues: {
       display: 'flex',
       flexDirection: 'column',
+      // Left-aligned beside a pictogram; with none, each line centred, as the PDF draws it.
+      alignItems: plan.iconPt === 0 ? 'center' : 'stretch',
       gap: pt(CODE_BLOCK.cueGapPt),
       minWidth: 0,
     },

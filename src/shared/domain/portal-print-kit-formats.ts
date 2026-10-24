@@ -47,7 +47,7 @@ export function printKitFormatProblem(choice: PrintKitFormatChoice): string | nu
     if (size !== 'large') return 'The small table tent is not ready yet. Choose a card.'
     return output === (style === 'immersive' ? 'print_shop' : 'office')
       ? null
-      : 'The table tent prints in one way for each style.'
+      : 'The table tent prints on your own printer in Paper, and at a print shop in Immersive.'
   }
   if (style === 'paper' && output !== 'office') {
     return 'Paper prints on your own printer. Choose Immersive for a print shop.'
