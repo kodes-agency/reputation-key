@@ -29,9 +29,9 @@ const RIDGE_HAIRLINE_PT = mmToPt(0.3)
 type Rect = readonly [number, number, number, number]
 
 const bleedRect = (size: Size, bleed: FaceBleed): Rect => [
-  -bleed.sidePt,
+  -bleed.leftPt,
   -bleed.topPt,
-  size.widthPt + 2 * bleed.sidePt,
+  size.widthPt + bleed.leftPt + bleed.rightPt,
   size.heightPt + bleed.topPt + bleed.bottomPt,
 ]
 

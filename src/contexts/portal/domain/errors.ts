@@ -39,6 +39,9 @@ export type PortalErrorCode =
   | 'upload_failed'
   | 'image_rejected'
   | 'media_not_found'
+  | 'print_format_not_offered'
+  | 'print_code_too_small'
+  | 'print_photo_too_soft'
   | 'responsible_manager_ineligible'
   | 'revision_conflict'
 

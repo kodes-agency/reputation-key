@@ -69,6 +69,8 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     .with(
       'upload_failed',
       'image_rejected',
+      'print_code_too_small',
+      'print_photo_too_soft',
       'token_unavailable',
       'address_unavailable',
       'responsible_manager_ineligible',
@@ -95,6 +97,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'invalid_icon',
       'invalid_title',
       'locale_not_offered',
+      'print_format_not_offered',
       () => 400,
     )
     .exhaustive()

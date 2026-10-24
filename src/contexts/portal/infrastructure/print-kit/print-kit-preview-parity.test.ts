@@ -159,6 +159,7 @@ describe('the preview’s Large card against the PDF’s', () => {
         const face = faceOf({ piece: 'counter_card', languages: [...languages] }, titles)
         const label = `${style} ${paper} ${languages.join('+')} ${titles.en.length}`
         const file = layoutCardFace(doc, fonts, face, {
+          size: 'large',
           style,
           paper,
           palette,

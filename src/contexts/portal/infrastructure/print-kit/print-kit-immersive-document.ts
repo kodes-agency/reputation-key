@@ -114,11 +114,16 @@ export function slugLinesOf(
   const [front] = input.faces
   const [panel] = page.panels
   const cardWithBack = input.piece === 'counter_card' && input.faces.length > 1
-  return printShopSlugLines(input.piece, paper, {
-    brand: input.wordmark,
-    place: front?.blocks[0]?.kicker ?? '',
-    side: cardWithBack && panel !== undefined ? panel.side : null,
-  })
+  return printShopSlugLines(
+    input.piece,
+    paper,
+    {
+      brand: input.wordmark,
+      place: front?.blocks[0]?.kicker ?? '',
+      side: cardWithBack && panel !== undefined ? panel.side : null,
+    },
+    input.size,
+  )
 }
 
 /** Draws an Immersive print on the size family of `paper`: 4 × 6 in on Letter, A6 on A4. */

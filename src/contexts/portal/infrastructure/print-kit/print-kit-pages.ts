@@ -7,15 +7,18 @@
 // Laying out comes first, for every face of the print, so an Immersive print can
 // crop its photo to each window the layout made before anything is drawn.
 //
-// The style says how a face is laid out and drawn; the page says how far it
-// bleeds. A Paper face has no bleed and is clipped to its trim, so nothing of one
-// card prints on its neighbour; an Immersive face runs its field past the trim on
-// every side but a tent's fold.
+// The style says how a face is laid out and drawn; the sheet says how far each
+// face bleeds, edge by edge. A Paper face has no bleed and is clipped to its
+// trim, so nothing of one card prints on its neighbour; an Immersive face runs
+// its field past the trim on every side but a tent's fold and, on an office
+// sheet of abutting cards, the edges it shares with its neighbours. A Mini on
+// the business-card grid is turned a quarter about its centre.
 
 import type { PrintFace, PrintFaceSide } from '#/shared/domain/portal-print-kit'
 import { LOGO_MIN_DPI } from '#/shared/domain/portal-print-kit-measures'
 import {
   PANEL_SIZE_PT,
+  type PanelBleed,
   type PanelGeometry,
   type PrintKitPage,
   type PrintKitPagePanel,
@@ -34,8 +37,8 @@ export type PrintDocument = Readonly<{
   warn: (warning: PrintKitWarning) => void
 }>
 
-/** How far a face's art runs past its trim on each side; none at a tent's fold, none on Paper. */
-export type FaceBleed = Readonly<{ topPt: number; sidePt: number; bottomPt: number }>
+/** How far a face's art runs past each edge of its trim; none at a tent's fold, none on Paper. */
+export type FaceBleed = PanelBleed
 
 type LayoutKey = `${PrintFaceSide}:${PanelGeometry}`
 
@@ -43,6 +46,19 @@ type LayoutKey = `${PrintFaceSide}:${PanelGeometry}`
 export type FaceLayouts<L> = ReadonlyMap<LayoutKey, L>
 
 const keyOf = (panel: PrintKitPagePanel): LayoutKey => `${panel.side}:${panel.geometry}`
+
+/** Each panel the pages show, with the face laid out for it. */
+export function panelLayouts<L>(
+  pages: readonly PrintKitPage[],
+  layouts: FaceLayouts<L>,
+): readonly Readonly<{ panel: PrintKitPagePanel; layout: L }>[] {
+  return pages.flatMap((page) =>
+    page.panels.flatMap((panel) => {
+      const layout = layouts.get(keyOf(panel))
+      return layout === undefined ? [] : [{ panel, layout }]
+    }),
+  )
+}
 
 /** How a style draws a face it has laid out. */
 export type FaceDrawer<L> = Readonly<{
@@ -85,33 +101,25 @@ function warnOfSoftLogo<L>(
   })
 }
 
-/** How far a face on `page` bleeds: the page's bleed, except across a tent's fold. */
-function bleedOf(page: PrintKitPage): FaceBleed {
-  return {
-    topPt: page.foldAtPt === null ? page.bleedPt : 0,
-    sidePt: page.bleedPt,
-    bottomPt: page.bleedPt,
-  }
-}
-
 function drawPanel<L>(
   target: PrintDocument,
-  page: PrintKitPage,
   panel: PrintKitPagePanel,
   layout: L,
   drawer: FaceDrawer<L>,
 ): void {
   const { widthPt, heightPt } = PANEL_SIZE_PT[panel.geometry]
-  const bleed = bleedOf(page)
+  const { bleed } = panel
   const { doc } = target
+  const centre: [number, number] = [widthPt / 2, heightPt / 2]
   doc.save()
   doc.translate(panel.leftPt, panel.topPt)
-  if (panel.rotated) doc.rotate(180, { origin: [widthPt / 2, heightPt / 2] })
+  if (panel.rotated) doc.rotate(180, { origin: centre })
+  if (panel.turned) doc.rotate(-90, { origin: centre })
   doc
     .rect(
-      -bleed.sidePt,
+      -bleed.leftPt,
       -bleed.topPt,
-      widthPt + 2 * bleed.sidePt,
+      widthPt + bleed.leftPt + bleed.rightPt,
       heightPt + bleed.topPt + bleed.bottomPt,
     )
     .clip()
@@ -132,7 +140,7 @@ export function drawPrintPages<L>(
     setPageBoxes(target.doc.page, page)
     for (const panel of page.panels) {
       const layout = layouts.get(keyOf(panel))
-      if (layout !== undefined) drawPanel(target, page, panel, layout, drawer)
+      if (layout !== undefined) drawPanel(target, panel, layout, drawer)
     }
     decorate(page)
   }

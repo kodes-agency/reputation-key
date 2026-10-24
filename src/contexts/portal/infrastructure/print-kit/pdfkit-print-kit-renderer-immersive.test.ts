@@ -37,6 +37,8 @@ function immersiveInput(
     piece: picked.piece,
     style: 'immersive',
     paper,
+    size: 'large',
+    output: 'print_shop',
     faces: printKitFaces(picked, TITLES, 'Pool & Terrace'),
     wordmark: 'Avela',
     propertyName: 'Avela Beach Resort',
@@ -124,12 +126,14 @@ describe('an Immersive print', () => {
     expect(text.match(/\/Subtype \/Image/gu)).toHaveLength(1)
   })
 
-  it('warns, and still prints, when the photo would print soft', async () => {
-    const bytes = await sharp({
-      create: { width: 200, height: 120, channels: 3, background: '#6D7F6A' },
-    })
+  const photoOf = (width: number, height: number) =>
+    sharp({ create: { width, height, channels: 3, background: '#6D7F6A' } })
       .jpeg()
       .toBuffer()
+
+  it('warns, and still prints, when the band photo would print under 200 dpi', async () => {
+    // 750 px across the A6 band and its bleed, 111 mm: about 171 dpi.
+    const bytes = await photoOf(750, 450)
     const warnings: PrintKitWarning[] = []
     await render(
       immersiveInput(choice('counter_card', ['en']), 'a4', {
@@ -137,9 +141,26 @@ describe('an Immersive print', () => {
       }),
       warnings,
     )
-    expect(warnings.map((warning) => warning.message)).toEqual([
-      'The print kit photo prints below the resolution a print needs',
+    expect(warnings).toEqual([
+      {
+        message: 'The print kit photo prints below the resolution a print needs',
+        context: { dpi: 172, minimumDpi: 200 },
+      },
     ])
+  })
+
+  it('refuses a card whose band photo would print under 120 dpi, before it draws a page', async () => {
+    const bytes = await photoOf(200, 120)
+    await expect(
+      render(
+        immersiveInput(choice('counter_card', ['en']), 'a4', {
+          photo: { bytes, focalX: 0.5, focalY: 0.5 },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      name: 'PrintKitRenderRefusal',
+      refusal: { code: 'print_photo_too_soft', minimumDpi: 120 },
+    })
   })
 
   it('puts a dark logo on the cream plate', async () => {

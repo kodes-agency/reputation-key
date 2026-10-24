@@ -88,6 +88,14 @@ export const BAND: Readonly<
   mini: { targetPt: inToPt(0.75), minPt: inToPt(0.65) },
 }
 
+/**
+ * The photo in the band, in its own pixels per printed inch (round-2 spec-delta
+ * S6): under 200 it is reported as soft; under 120 the card is refused, because
+ * a band that soft prints visibly blurred. The band is cropped to its own shape
+ * at each size and bleed, so each crop is measured on its own.
+ */
+export const BAND_PHOTO_DPI = { warnBelow: 200, refuseBelow: 120 } as const
+
 export type FaceSpacing = Readonly<{
   /** The side margin; the tent's is 18 from the photo, 22 on Paper. */
   sidePt: PerStyle<number>

@@ -9,8 +9,10 @@
 
 import {
   PRINT_KIT_PIECE_NOUNS,
+  printKitPieceNoun,
   type PrintKitPaper,
   type PrintKitPiece,
+  type PrintKitSize,
   type PrintKitStyle,
 } from './portal-print-kit'
 
@@ -225,12 +227,25 @@ const SUBJECT_PAPER: Readonly<
   immersive: { letter: '4 × 6 in', a4: 'A6' },
 }
 
+/** What an Immersive subject calls the smaller cards' trims. */
+const SUBJECT_TRIM: Readonly<
+  Record<Exclude<PrintKitSize, 'large'>, Readonly<Record<PrintKitPaper, string>>>
+> = {
+  table: { letter: '3.5 × 5 in', a4: '90 × 130 mm' },
+  mini: { letter: '2 × 3.5 in', a4: '55 × 85 mm' },
+}
+
 /** The PDF's subject: "Print kit: Paper style, counter card, US Letter". */
 export function printKitSubject(
   style: PrintKitStyle,
   piece: PrintKitPiece,
   paper: PrintKitPaper,
+  size: PrintKitSize = 'large',
 ): string {
   const styleName = PRINT_KIT_STYLE_FACTS[style].label
-  return `Print kit: ${styleName} style, ${PRINT_KIT_PIECE_NOUNS[piece]}, ${SUBJECT_PAPER[style][paper]}`
+  const where =
+    style === 'immersive' && size !== 'large' && piece === 'counter_card'
+      ? SUBJECT_TRIM[size][paper]
+      : SUBJECT_PAPER[style][paper]
+  return `Print kit: ${styleName} style, ${printKitPieceNoun(piece, size)}, ${where}`
 }

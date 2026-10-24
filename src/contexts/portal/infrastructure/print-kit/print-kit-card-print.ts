@@ -1,15 +1,19 @@
-// A Large card print in either style, from the request to the pages (round-2
-// spec-delta R1, R2 and R5; round-3 S2 and S3): the code's tile chosen from the
-// address (1.75 in when its modules allow, else today's 2 in), every face
-// planned on it, on Immersive the photo cropped once per band with its bleed,
-// and the pages drawn on the sheets already on main: Paper's Letter 2-up with
-// the print check and A4 4-up, Immersive's print-shop page with crop marks and
-// the slug line.
+// A card print at any size and in either style, from the request to the pages
+// (round-2 spec-delta R1, R2, R4 and R5; round-3 S2, S3 and S6): the code's tile
+// chosen from the address and the size (Large 1.75 in when its modules allow,
+// else today's 2 in; Table and Mini refused when their tile would print the
+// modules too small), every face planned on it, on Immersive the photo cropped
+// once per band and bleed, and the pages of the size, style and output drawn:
+// Paper's Letter 2-up with the print check and A4 4-up for Large, Table 4-up and
+// Mini 10-up; Immersive's print-shop page with crop marks and the slug line, or
+// an office sheet with plain black crop marks and a note.
 //
 // On Immersive every logo sits on the cream plate (R1); on Paper a logo too
-// light for the paper sits on the field colour, as before.
+// light for the paper sits on the field colour, as before. A band photo under
+// 200 dpi is reported, and under 120 dpi the print is refused.
 
-import { largeCardTile } from '#/shared/domain/portal-print-kit-card'
+import { cardTile } from '#/shared/domain/portal-print-kit-card'
+import { printKitSheetPages } from '#/shared/domain/portal-print-kit-formats'
 import { printedDpi } from '#/shared/domain/portal-print-kit-measures'
 import { monogramLetter } from '#/shared/domain/portal-print-kit-immersive'
 import {
@@ -20,8 +24,13 @@ import {
   paperPrintKitPalette,
   type PrintKitPalette,
 } from '#/shared/domain/portal-print-kit-palette'
-import { printKitPages } from '#/shared/domain/portal-print-kit-sheets'
-import type { PrintKitRenderInput } from '../../application/ports/portal-print-kit-renderer.port'
+import type { PrintKitPage } from '#/shared/domain/portal-print-kit-sheets'
+import { BAND_PHOTO_DPI } from '#/shared/domain/portal-print-kit-sizes'
+import type { CodeTile } from '#/shared/domain/portal-print-kit-code-tile'
+import {
+  PrintKitRenderRefusal,
+  type PrintKitRenderInput,
+} from '../../application/ports/portal-print-kit-renderer.port'
 import {
   drawCardFace,
   layoutCardFace,
@@ -29,10 +38,18 @@ import {
   type CardFaceLayout,
 } from './print-kit-card-face'
 import { bandPhotoJpeg, logoArt } from './print-kit-image'
-import { drawPrintCheck, drawPrintShopMarks, drawTicks } from './print-kit-marks'
+import {
+  OFFICE_CROP_MARK,
+  drawPrintCheck,
+  drawPrintShopMarks,
+  drawSheetNote,
+  drawTicks,
+} from './print-kit-marks'
 import {
   drawPrintPages,
   layoutFaces,
+  panelLayouts,
+  type FaceBleed,
   type FaceLayouts,
   type PrintKitWarning,
 } from './print-kit-pages'
@@ -40,7 +57,7 @@ import { slugLinesOf } from './print-kit-immersive-document'
 import { openImage, type OpenedImage } from './print-kit-pdf-image'
 import { cropPhotoOnce } from './print-kit-photo-crops'
 import type { PrintKitFonts } from './print-kit-pdf-text'
-import { qrMatrix } from './print-kit-qr'
+import { qrMatrix, type QrMatrix } from './print-kit-qr'
 
 type Warn = (warning: PrintKitWarning) => void
 
@@ -49,23 +66,35 @@ const paletteOf = (input: PrintKitRenderInput): PrintKitPalette =>
     ? paperPrintKitPalette(input.accentColour)
     : immersivePrintKitPalette(input.accentColour, input.fieldColour)
 
+/** The tile the size prints this address on; a size whose tile would print it too small is refused. */
+function tileFor(input: PrintKitRenderInput, qr: QrMatrix): CodeTile {
+  const choice = cardTile(input.size, input.paper, {
+    text: input.qrAddress,
+    symbolModules: qr.size,
+  })
+  if (choice.isErr()) throw new PrintKitRenderRefusal(choice.error)
+  return choice.value.tile
+}
+
 async function cardArtOf(
   doc: PDFKit.PDFDocument,
   input: PrintKitRenderInput,
 ): Promise<CardFaceArt> {
   const palette = paletteOf(input)
   const qr = qrMatrix(input.qrAddress)
+  const tile = tileFor(input, qr)
   const logo = input.logo === null ? null : await logoArt(input.logo)
   const plateOf = (luminance: number | null): string | null => {
     if (input.style === 'immersive') return IMMERSIVE_LOGO_PLATE
     return logoNeedsPaperPlate(luminance) ? paperLogoPlate(input.accentColour) : null
   }
   return {
+    size: input.size,
     style: input.style,
     paper: input.paper,
     palette,
     qr,
-    tile: largeCardTile(input.paper, { text: input.qrAddress, symbolModules: qr.size }),
+    tile,
     wordmark: input.wordmark,
     propertyName: input.propertyName,
     logo:
@@ -80,38 +109,42 @@ async function cardArtOf(
 }
 
 /** A band's size with its bleed, to the hundredth of a point: bands of one size share a crop. */
-const bandKey = (layout: CardFaceLayout, bleedPt: number): string | null =>
+const bandKey = (layout: CardFaceLayout, bleed: FaceBleed): string | null =>
   layout.plan.bandPt === null
     ? null
-    : `${(layout.plan.widthPt + 2 * bleedPt).toFixed(2)}x${(layout.plan.bandPt + bleedPt).toFixed(2)}`
+    : `${(layout.plan.widthPt + bleed.leftPt + bleed.rightPt).toFixed(2)}x${(layout.plan.bandPt + bleed.topPt).toFixed(2)}`
 
-/** The photo cropped for every band the layouts made, with its bleed, each embedded once. */
+/**
+ * The photo cropped for every band the pages show, with the bleed each card has
+ * there (an office sheet's cards bleed on their outer edges only), each embedded
+ * once; a print whose softest band is under 120 dpi is refused.
+ */
 function bandPhotos(
   doc: PDFKit.PDFDocument,
   input: PrintKitRenderInput,
-  layouts: FaceLayouts<CardFaceLayout>,
-  bleedPt: number,
+  placed: ReturnType<typeof panelLayouts<CardFaceLayout>>,
   warn: Warn,
 ): Promise<ReadonlyMap<string, OpenedImage>> {
   const { photo } = input
   if (photo === null) return Promise.resolve(new Map())
   return cropPhotoOnce(
     doc,
-    layouts.values(),
-    (layout) => {
-      const key = bandKey(layout, bleedPt)
+    placed,
+    ({ panel, layout }) => {
+      const key = bandKey(layout, panel.bleed)
       const { bandPt, widthPt } = layout.plan
       if (key === null || bandPt === null) return null
       const crop = () =>
         bandPhotoJpeg(photo.bytes, {
-          widthPt: widthPt + 2 * bleedPt,
-          heightPt: bandPt + bleedPt,
+          widthPt: widthPt + panel.bleed.leftPt + panel.bleed.rightPt,
+          heightPt: bandPt + panel.bleed.topPt,
           focalX: photo.focalX,
           focalY: photo.focalY,
         })
       return { key, crop }
     },
     warn,
+    { warnBelow: BAND_PHOTO_DPI.warnBelow, refuseBelow: BAND_PHOTO_DPI.refuseBelow },
   )
 }
 
@@ -123,21 +156,33 @@ function logoDpi(layout: CardFaceLayout): number | null {
   return printedDpi(image.width * (ink.right - ink.left), brand.ink.widthPt)
 }
 
-/** Draws a Large card print in its style, on the sheets of its paper. */
+/** The pages a card prints on: its size's, in its style and output. */
+const pagesOf = (input: PrintKitRenderInput, tile: CodeTile): readonly PrintKitPage[] =>
+  printKitSheetPages({
+    piece: 'counter_card',
+    size: input.size,
+    style: input.style,
+    output: input.output,
+    languageCount: input.faces[0]?.blocks.length ?? 1,
+    paper: input.paper,
+    faceCount: input.faces.length,
+    tilePt: tile.tilePt,
+  })
+
+/** Draws a card print in its size and style, on the sheets of its output and paper. */
 export async function drawCardPrint(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
   input: PrintKitRenderInput,
   warn: Warn,
 ): Promise<void> {
-  const { style, paper } = input
+  const { paper } = input
   const art = await cardArtOf(doc, input)
-  const pages = printKitPages('counter_card', input.faces.length, style, paper)
-  const layouts = layoutFaces(input.faces, pages, (face) =>
+  const pages = pagesOf(input, art.tile)
+  const layouts: FaceLayouts<CardFaceLayout> = layoutFaces(input.faces, pages, (face) =>
     layoutCardFace(doc, fonts, face, art),
   )
-  const bleedPt = pages[0]?.bleedPt ?? 0
-  const photos = await bandPhotos(doc, input, layouts, bleedPt, warn)
+  const photos = await bandPhotos(doc, input, panelLayouts(pages, layouts), warn)
   const letter = monogramLetter(input.wordmark)
   drawPrintPages(
     { doc, faces: input.faces, warn },
@@ -145,18 +190,23 @@ export async function drawCardPrint(
     layouts,
     {
       draw: (layout, bleed) => {
-        const key = bandKey(layout, bleedPt)
+        const key = bandKey(layout, bleed)
         const photo = key === null ? null : (photos.get(key) ?? null)
         drawCardFace(doc, fonts, layout, { photo, letter }, bleed)
       },
       logoDpi,
     },
     (page) => {
-      if (style === 'immersive') {
+      if (page.marks === 'crop') {
         drawPrintShopMarks(doc, fonts, page, paper, slugLinesOf(input, paper, page))
         return
       }
-      drawTicks(doc, page.ticks)
+      drawTicks(
+        doc,
+        page.ticks,
+        page.marks === 'office-crop' ? OFFICE_CROP_MARK : undefined,
+      )
+      if (page.note !== null) drawSheetNote(doc, fonts, page.note)
       if (page.printCheck && art.palette.style === 'paper') {
         drawPrintCheck(doc, fonts, art.palette, art.tile.tilePt)
       }

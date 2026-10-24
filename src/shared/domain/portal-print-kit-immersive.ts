@@ -8,7 +8,12 @@
 // Everything is in points, as the measures are; a page's marks are placed from
 // its trim, with the origin at the page's top-left corner.
 
-import type { PrintFaceSide, PrintKitPaper, PrintKitPiece } from './portal-print-kit'
+import type {
+  PrintFaceSide,
+  PrintKitPaper,
+  PrintKitPiece,
+  PrintKitSize,
+} from './portal-print-kit'
 import { stripUnsupportedCharacters } from './portal-print-kit-font-ranges'
 import {
   CARD_GRID,
@@ -284,6 +289,42 @@ const PIECE_NAME: Readonly<Record<PrintKitPiece, string>> = {
   table_tent: 'table tent',
 }
 
+/** The cards of the smaller sizes: their name and trim on a print shop's slug. */
+const SMALL_CARD_SLUG: Readonly<
+  Record<
+    Exclude<PrintKitSize, 'large'>,
+    Readonly<{ name: string; facts: Readonly<Record<PrintKitPaper, readonly string[]>> }>
+  >
+> = {
+  table: {
+    name: 'table card',
+    facts: {
+      letter: ['trim 3.5 × 5 in', 'bleed 1/8 in'],
+      a4: ['trim 90 × 130 mm', 'bleed 3 mm'],
+    },
+  },
+  mini: {
+    name: 'mini card',
+    facts: {
+      letter: ['trim 2 × 3.5 in', 'bleed 1/8 in'],
+      a4: ['trim 55 × 85 mm', 'bleed 3 mm'],
+    },
+  },
+}
+
+/** A piece's name and trim facts at a size: Large's are the piece's own. */
+function slugOf(
+  piece: PrintKitPiece,
+  paper: PrintKitPaper,
+  size: PrintKitSize,
+): Readonly<{ name: string; facts: readonly string[] }> {
+  if (size === 'large' || piece !== 'counter_card') {
+    return { name: PIECE_NAME[piece], facts: TRIM_FACTS[paper][piece] }
+  }
+  const card = SMALL_CARD_SLUG[size]
+  return { name: card.name, facts: card.facts[paper] }
+}
+
 /**
  * The slug lines a page may carry, longest first: the brand, the place, the
  * piece (and which face, for a card with a back), then the trim, bleed and fold.
@@ -294,10 +335,11 @@ export function printShopSlugLines(
   piece: PrintKitPiece,
   paper: PrintKitPaper,
   names: Readonly<{ brand: string; place: string; side: PrintFaceSide | null }>,
+  size: PrintKitSize = 'large',
 ): readonly string[] {
-  const pieceName =
-    names.side === null ? PIECE_NAME[piece] : `${PIECE_NAME[piece]}, ${names.side}`
-  const facts = [pieceName, ...TRIM_FACTS[paper][piece]]
+  const slug = slugOf(piece, paper, size)
+  const pieceName = names.side === null ? slug.name : `${slug.name}, ${names.side}`
+  const facts = [pieceName, ...slug.facts]
   const named = [names.brand, names.place].filter((name) => name.trim() !== '')
   return [[...named, ...facts], [...named.slice(0, 1), ...facts], facts].map((parts) =>
     parts.join(' · '),
