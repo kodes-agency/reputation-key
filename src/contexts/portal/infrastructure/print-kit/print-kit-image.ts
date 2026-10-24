@@ -8,7 +8,8 @@
 import type { OutputInfo, OverlayOptions } from 'sharp'
 import { parseHexColour } from '#/shared/domain/portal-field-colour'
 import { photoDim } from '#/shared/domain/portal-print-kit-immersive'
-import { printedDpi, ptToIn } from '#/shared/domain/portal-print-kit-measures'
+import { ptToIn } from '#/shared/domain/portal-print-kit-measures'
+import { photoPrintDpi, type PhotoPixels } from '#/shared/domain/portal-print-kit-photo'
 
 async function sharpFactory() {
   const { default: sharp } = await import('sharp')
@@ -25,8 +26,8 @@ const clamp = (value: number, low: number, high: number) =>
 type Cover = Readonly<{
   /** The crop at print resolution, as raw RGB. */
   raw: Readonly<{ data: Buffer; info: OutputInfo }>
-  /** How many of the photo's own pixels the crop spans across. */
-  sourceWidth: number
+  /** The photo's own size: what its resolution as printed is measured from. */
+  source: PhotoPixels
 }>
 
 /**
@@ -67,7 +68,7 @@ async function coverCrop(
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true })
-  return { raw, sourceWidth: width / scale }
+  return { raw, source: { widthPx: sourceWidth, heightPx: sourceHeight } }
 }
 
 async function jpegOf(cover: Cover, overlay?: OverlayOptions): Promise<Buffer> {
@@ -152,7 +153,7 @@ export async function windowPhotoJpeg(
   return {
     bytes: await jpegOf(cover, { input: veil }),
     dim,
-    dpi: printedDpi(cover.sourceWidth, box.widthPt),
+    dpi: photoPrintDpi(cover.source, box),
   }
 }
 
@@ -175,7 +176,7 @@ export async function bandPhotoJpeg(
 ): Promise<Readonly<{ bytes: Buffer; dpi: number }>> {
   const size = printPixels(box)
   const cover = await coverCrop(bytes, size, box)
-  return { bytes: await jpegOf(cover), dpi: printedDpi(cover.sourceWidth, box.widthPt) }
+  return { bytes: await jpegOf(cover), dpi: photoPrintDpi(cover.source, box) }
 }
 
 export type LogoImage = Readonly<{ bytes: Buffer; width: number; height: number }>

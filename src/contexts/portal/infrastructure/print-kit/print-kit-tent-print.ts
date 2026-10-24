@@ -11,6 +11,7 @@
 
 import { printKitSheetPages } from '#/shared/domain/portal-print-kit-formats'
 import { monogramLetter } from '#/shared/domain/portal-print-kit-immersive'
+import { tentPanelArea } from '#/shared/domain/portal-print-kit-photo'
 import type { PrintKitRenderInput } from '../../application/ports/portal-print-kit-renderer.port'
 import { areaPhotos, type AreaOf } from './print-kit-area-photos'
 import { cardArtOf, logoDpi, sheetMarks } from './print-kit-card-print'
@@ -26,14 +27,9 @@ import { drawTentFace, layoutTentFace, type TentFaceLayout } from './print-kit-t
 
 type Warn = (warning: PrintKitWarning) => void
 
-/** A tent's photo panel with its bleed: down the left, into the bleed on the left, top and foot. */
+/** A tent's photo panel with its bleed: the area the Share tab's notice measures too. */
 const panelArea: AreaOf<TentFaceLayout> = (layout, bleed) =>
-  layout.plan.panelPt === null
-    ? null
-    : {
-        widthPt: layout.plan.panelPt + bleed.leftPt,
-        heightPt: layout.plan.heightPt + bleed.topPt + bleed.bottomPt,
-      }
+  tentPanelArea(layout.plan, bleed)
 
 /** Draws a small tent print in its style, on the pages of its paper. */
 export async function drawSmallTentPrint(

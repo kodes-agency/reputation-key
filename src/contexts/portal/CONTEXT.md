@@ -302,7 +302,11 @@ hidden in a segment do not survive, and the original is never stored.
   previewed; a tile's uploaded photo and the live version's photograph and logo
   are drawn too. The browser checks a chosen file against the same size rules as
   the policy (`PORTAL_MEDIA_SIZE_RULES` in `src/shared/domain/portal-media.ts`)
-  before sending it. Only raster logos are accepted: no SVG.
+  before sending it. A hero photograph also gets one piece of advice, never a
+  stop: "May look soft in print" when it is under `PRINT_PHOTO_MIN_WIDTH_PX`
+  (1000 px) wide, the width at which every Large card band prints at 200 dpi or
+  better (the size rule alone lets a 500 x 1000 portrait in, which prints at
+  about 118 dpi). Only raster logos are accepted: no SVG.
 - **A tile's photo** is chosen in the Linktree editor's "Icon or photo" picker: the
   dashed tile uploads to `POST /api/portal-media` (`purpose=link_image`, with the
   Portal and the rights confirmation) and then puts the returned asset id on the
@@ -445,14 +449,22 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   a print shop's page, bleeding on every edge but the fold
   (`print-kit-tent-print.ts`). The sheets are
   `portal-print-kit-size-sheets.ts` and `portal-print-kit-office-sheets.ts`;
-  every mark and note stays 0.25 in from the sheet's edge. A band photo under
-  200 dpi is reported, and under 120 dpi the card is refused
-  (`print_photo_too_soft`). One more thing to settle before Table or Mini is
-  selectable: their tiles (and the small tent's, which is Table's) have no
+  every mark and note stays 0.25 in from the sheet's edge. A band or panel
+  photo under 200 dpi is reported in the server log and the print is still made:
+  it is never refused. The Share tab says so too, in a warning above Download
+  ("Your photo is small for print and may look soft"), measured with the PDF's
+  own function (`photoPrintDpi`, `portal-print-kit-photo.ts`) from the photo's
+  stored width and height, which the view carries as `look.heroSize`
+  (`print-kit-photo-notice.ts`). One more thing to settle before Table or Mini
+  is selectable: their tiles (and the small tent's, which is Table's) have no
   pictogram to move, so the Italian and French scan cues do not fit one line:
-  102.6 and 112 pt in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in
-  Mini's 85.7 pt. A test pins the languages that fit; the faces must refuse the
-  rest, use a two-line bar or set a smaller cue.
+  102.6 and 112 pt in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in Mini's
+  85.7 pt. A test pins the languages that fit; the faces must refuse the rest,
+  use a two-line bar or set a smaller cue. The small tent has a second open
+  question: its photo panel is tall and narrow, so "1000 px wide" does not make
+  it sharp (a landscape photo is enlarged by its height: 1000 x 667 prints at
+  about 184 dpi), and the Photo upload's advice needs its own number before the
+  tent is selectable. The Share notice already measures its panel correctly.
 - **The Share chooser (round 3, slice 14).** Top to bottom, as the share board
   draws it: Style, Size, Piece, Output, Paper size beside Languages, the name
   under the logo, Call to action; the Download with its file name; "How to

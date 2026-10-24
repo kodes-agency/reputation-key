@@ -83,6 +83,7 @@ const lookOf = (sample: Sample): PortalPrintKitView['look'] => ({
   fieldColour: sample.field ?? '#16130E',
   heroUrl: sample.photo === true ? PHOTO : null,
   heroFocal: sample.photo === true ? { x: 0.5, y: 0.94 } : null,
+  heroSize: sample.photo === true ? { width: 2400, height: 1600 } : null,
   logoUrl: sample.logo ?? null,
 })
 

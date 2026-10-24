@@ -2,11 +2,14 @@
 // list under the picture ("Large enough for every phone"). The browser knows the
 // picture's real size (it decoded it), so the manager hears about a small or odd
 // picture before anything is uploaded. The server checks again and is the only
-// authority; these rules are the same numbers (`PORTAL_MEDIA_SIZE_RULES`).
+// authority; these rules are the same numbers (`PORTAL_MEDIA_SIZE_RULES`). A
+// check may also be advice: it is listed and counted like the others but never
+// stops the upload (a hero photograph narrower than a print needs).
 
 import {
   PORTAL_MEDIA_MAX_UPLOAD_BYTES,
   PORTAL_MEDIA_SIZE_RULES,
+  PRINT_PHOTO_MIN_WIDTH_PX,
   portalMediaSizeProblem,
   type PortalMediaPurpose,
 } from '#/shared/domain/portal-media'
@@ -22,8 +25,10 @@ export type ImageFacts = Readonly<{
 }>
 
 export type ImageCheck = Readonly<{
-  id: 'size' | 'shape' | 'format'
+  id: 'size' | 'print' | 'shape' | 'format'
   passed: boolean
+  /** Advice, not a rule: when it fails the picture can still be sent. */
+  advisory?: true
   label: string
 }>
 
@@ -69,6 +74,20 @@ function sizeCheck(purpose: PortalMediaPurpose, facts: ImageFacts): ImageCheck {
   }
 }
 
+/** The photograph prints sharp on a card: wide enough for the band across a Large card. Advice only, so photographs already stored keep working. */
+function printCheck(purpose: PortalMediaPurpose, facts: ImageFacts): ImageCheck | null {
+  if (purpose !== 'hero') return null
+  const isWideEnough = facts.width >= PRINT_PHOTO_MIN_WIDTH_PX
+  return {
+    id: 'print',
+    passed: isWideEnough,
+    advisory: true,
+    label: isWideEnough
+      ? `Wide enough to print sharply (${PRINT_PHOTO_MIN_WIDTH_PX} px across)`
+      : `May look soft in print: use a photo at least ${PRINT_PHOTO_MIN_WIDTH_PX} px wide`,
+  }
+}
+
 function shapeCheck(purpose: PortalMediaPurpose, facts: ImageFacts): ImageCheck | null {
   const isExtreme =
     portalMediaSizeProblem(purpose, facts.width, facts.height) === 'extreme_aspect'
@@ -94,7 +113,8 @@ function formatCheck(facts: ImageFacts): ImageCheck {
 /**
  * The checks for a picture, in the order they are listed. Size and format are
  * always shown, so a good picture reads as passing them; the shape is shown only
- * when it is the problem.
+ * when it is the problem. A photograph also gets the print advice, next to the
+ * size it is about.
  */
 export function checkImageFacts(
   purpose: PortalMediaPurpose,
@@ -102,10 +122,12 @@ export function checkImageFacts(
 ): readonly ImageCheck[] {
   return [
     sizeCheck(purpose, facts),
+    printCheck(purpose, facts),
     shapeCheck(purpose, facts),
     formatCheck(facts),
   ].filter((check): check is ImageCheck => check !== null)
 }
 
+/** Whether the picture may be sent: every rule is met. Advice that fails does not stop it. */
 export const allImageChecksPass = (checks: readonly ImageCheck[]): boolean =>
-  checks.every((check) => check.passed)
+  checks.every((check) => check.passed || check.advisory === true)

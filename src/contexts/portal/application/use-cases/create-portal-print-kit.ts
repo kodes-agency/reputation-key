@@ -15,8 +15,9 @@
 //      disclosure (as a download) before it decrypts, and refuses a code that
 //      was not sealed or is no longer live;
 //   5. draw. The renderer refuses a size whose code tile would print the code
-//      too small to scan (a long address on Table or Mini) or whose band photo
-//      would print blurred, and the refusal is turned into words here.
+//      too small to scan (a long address on Table or Mini), and the refusal is
+//      turned into words here. A photo that would print soft is not refused: the
+//      renderer reports it and the Share tab warns before the file is asked for.
 //
 // Nothing is fetched by address: a picture is read from the store by its asset
 // id, so a stored URL cannot make the server request anything.
@@ -190,13 +191,6 @@ function checkPrintable(
 
 /** The renderer's refusal, in words a manager can act on. */
 function refusalError(refusal: PrintKitRefusal) {
-  if (refusal.code === 'print_photo_too_soft') {
-    return portalError(
-      'print_photo_too_soft',
-      'The photo is too small to print sharply at this size. Upload a larger photo, or choose Paper.',
-      { dpi: refusal.dpi, minimumDpi: refusal.minimumDpi },
-    )
-  }
   return portalError('print_code_too_small', PRINT_CODE_TOO_SMALL_COPY[refusal.cause], {
     cause: refusal.cause,
     size: refusal.size,

@@ -10,13 +10,14 @@
 //
 // On Immersive every logo sits on the cream plate (R1); on Paper a logo too
 // light for the paper sits on the field colour, as before. A band photo under
-// 200 dpi is reported, and under 120 dpi the print is refused.
+// 200 dpi is reported, and the print is still made.
 
 import { cardTile } from '#/shared/domain/portal-print-kit-card'
 import type { CardBrand } from '#/shared/domain/portal-print-kit-card-brand'
 import { printKitSheetPages } from '#/shared/domain/portal-print-kit-formats'
 import { OFFICE_CROP_COLOUR } from '#/shared/domain/portal-print-kit-sheet-parts'
 import { printedDpi } from '#/shared/domain/portal-print-kit-measures'
+import { cardBandArea } from '#/shared/domain/portal-print-kit-photo'
 import { monogramLetter } from '#/shared/domain/portal-print-kit-immersive'
 import {
   IMMERSIVE_LOGO_PLATE,
@@ -109,14 +110,9 @@ export async function cardArtOf(
   }
 }
 
-/** A card's band with its bleed: across the top, and into the bleed on the top and each side that bleeds. */
+/** A card's band with its bleed: the area the Share tab's notice measures too. */
 const bandArea: AreaOf<CardFaceLayout> = (layout, bleed) =>
-  layout.plan.bandPt === null
-    ? null
-    : {
-        widthPt: layout.plan.widthPt + bleed.leftPt + bleed.rightPt,
-        heightPt: layout.plan.bandPt + bleed.topPt,
-      }
+  cardBandArea(layout.plan, bleed)
 
 /** The dots per inch a face's logo prints at; null for a wordmark. */
 export function logoDpi(

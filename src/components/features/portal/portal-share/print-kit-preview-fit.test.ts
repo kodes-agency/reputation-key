@@ -29,6 +29,7 @@ const look = (logoUrl: string | null = null): PortalPrintKitView['look'] => ({
   fieldColour: '#16130E',
   heroUrl: null,
   heroFocal: null,
+  heroSize: null,
   logoUrl,
 })
 

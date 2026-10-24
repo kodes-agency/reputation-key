@@ -16,6 +16,7 @@ import { portalMediaPublicPath } from '#/shared/domain/portal-media'
 import {
   IMMERSIVE_HUB_SCHEMA_VERSION,
   isLocalizedConfiguration,
+  type ImmersiveHeroReference,
   type ImmersivePortalPublicationConfiguration,
   type PortalPublicationConfiguration,
 } from '../domain/portal-publication-snapshot'
@@ -31,7 +32,8 @@ export type PortalPrintKitLook = Readonly<{
   propertyName: string
   accentColour: string
   fieldColour: string
-  hero: Readonly<{ assetId: string; focalX: number; focalY: number }> | null
+  /** The photo, with its stored size in pixels: the Share tab tells how sharp it prints from it. */
+  hero: ImmersiveHeroReference | null
   logo: Readonly<{ assetId: string }> | null
 }>
 
@@ -47,6 +49,18 @@ export type PortalPrintKitContext = Readonly<{
 
 const written = (text: string | null | undefined): text is string =>
   text !== null && text !== undefined && text.trim() !== ''
+
+/** The photo as the print keeps it: what the file crops and what the Share tab measures. */
+const heroOf = (hero: ImmersiveHeroReference | null): PortalPrintKitLook['hero'] =>
+  hero === null
+    ? null
+    : {
+        assetId: hero.assetId,
+        width: hero.width,
+        height: hero.height,
+        focalX: hero.focalX,
+        focalY: hero.focalY,
+      }
 
 /**
  * The title of each language, a language with none written reading the primary
@@ -89,13 +103,7 @@ export function buildPortalPrintKitContext(
       propertyName: brand.displayName,
       accentColour: brand.accentColour,
       fieldColour: brand.fieldColour,
-      hero: brand.hero
-        ? {
-            assetId: brand.hero.assetId,
-            focalX: brand.hero.focalX,
-            focalY: brand.hero.focalY,
-          }
-        : null,
+      hero: heroOf(brand.hero),
       logo: brand.logo ? { assetId: brand.logo.assetId } : null,
     },
   }
@@ -120,13 +128,7 @@ export function printKitContextOfLive(
       propertyName: brand.displayName,
       accentColour: brand.accentColour,
       fieldColour: brand.fieldColour,
-      hero: brand.hero
-        ? {
-            assetId: brand.hero.assetId,
-            focalX: brand.hero.focalX,
-            focalY: brand.hero.focalY,
-          }
-        : null,
+      hero: heroOf(brand.hero),
       logo: brand.logo ? { assetId: brand.logo.assetId } : null,
     },
   }
@@ -159,6 +161,8 @@ export type PortalPrintKitView = Readonly<{
     fieldColour: string
     heroUrl: string | null
     heroFocal: Readonly<{ x: number; y: number }> | null
+    /** The photo's stored size in pixels, which says how sharp it prints; null with no photo. */
+    heroSize: Readonly<{ width: number; height: number }> | null
     logoUrl: string | null
   }>
 }>
@@ -181,6 +185,7 @@ export function presentPortalPrintKit(
       fieldColour: look.fieldColour,
       heroUrl: look.hero ? portalMediaPublicPath(look.hero.assetId) : null,
       heroFocal: look.hero ? { x: look.hero.focalX, y: look.hero.focalY } : null,
+      heroSize: look.hero ? { width: look.hero.width, height: look.hero.height } : null,
       logoUrl: look.logo ? portalMediaPublicPath(look.logo.assetId) : null,
     },
   }

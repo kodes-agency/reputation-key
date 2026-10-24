@@ -20,6 +20,7 @@ const LOOK: PortalPrintKitView['look'] = {
   fieldColour: '#001E57',
   heroUrl: '/media/hero',
   heroFocal: { x: 0.5, y: 0.5 },
+  heroSize: { width: 2400, height: 1600 },
   logoUrl: '/media/logo',
 }
 

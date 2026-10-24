@@ -70,7 +70,6 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'upload_failed',
       'image_rejected',
       'print_code_too_small',
-      'print_photo_too_soft',
       'token_unavailable',
       'address_unavailable',
       'responsible_manager_ineligible',

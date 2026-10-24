@@ -302,6 +302,7 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
     expect(view.look.wordmark).toBe('RILA')
     expect(view.look.heroUrl).toBe(`/api/public/portal-media/${SCENARIO_HERO_ASSET}`)
     expect(view.look.heroFocal).toEqual({ x: 0.3, y: 0.7 })
+    expect(view.look.heroSize).toEqual({ width: 1600, height: 1000 })
     expect(view.look.logoUrl).toBe(`/api/public/portal-media/${LOGO_ASSET}`)
   })
 
