@@ -19,6 +19,10 @@ import { portalError } from '../domain/errors'
 import { fencePortalContent } from './portal-aggregate-fence'
 import { sameInstant } from './portal-command-guards'
 import { NO_SEALED_ADDRESS } from './portal-sealed-address-columns'
+import {
+  areWellFormedPrintCodeHashes,
+  refusingPrintCodeCollision,
+} from './portal-print-code-hashes'
 
 export type PortalTokenCommandStore = Pick<
   PortalCommandStore,
@@ -50,13 +54,28 @@ function isWellFormedSealedAddress(
   )
 }
 
+/** What a command that makes a code carries besides its rows: the sealed address and the two print code hashes. */
+function isWellFormedProvenance(
+  command: Pick<IssuePortalTokenCommand, 'sealedAddress' | 'printCodeHashes'>,
+): boolean {
+  return (
+    isWellFormedSealedAddress(command.sealedAddress) &&
+    areWellFormedPrintCodeHashes(command.printCodeHashes)
+  )
+}
+
 function portalTokenToRow(
   token: import('../domain/portal-token').PortalToken,
-  provenance: Pick<IssuePortalTokenCommand, 'issuedBy' | 'sealedAddress'>,
+  provenance: Pick<
+    IssuePortalTokenCommand,
+    'issuedBy' | 'sealedAddress' | 'printCodeHashes'
+  >,
 ): typeof portalTokens.$inferInsert {
   return {
     ...sealedAddressColumns(provenance.sealedAddress),
     issuedBy: unbrand(provenance.issuedBy),
+    qrPrintCodeHash: provenance.printCodeHashes.qr,
+    nfcPrintCodeHash: provenance.printCodeHashes.nfc,
     id: token.id,
     organizationId: token.organizationId,
     propertyId: token.propertyId,
@@ -147,7 +166,7 @@ function assertIssueTokenCommand(command: IssuePortalTokenCommand): void {
     command.event.sourceAggregateVersion !== command.revision.toISOString() ||
     !sameInstant(command.event.occurredAt, command.occurredAt) ||
     !sameInstant(command.token.issuedAt, command.occurredAt) ||
-    !isWellFormedSealedAddress(command.sealedAddress)
+    !isWellFormedProvenance(command)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal token issue')
   }
@@ -177,7 +196,7 @@ function assertRotateTokenCommand(command: RotatePortalTokenCommand): void {
     !sameInstant(command.event.gracePeriodEnds, oldToken.gracePeriodEnds) ||
     !sameInstant(command.event.occurredAt, command.occurredAt) ||
     !sameInstant(newToken.issuedAt, command.occurredAt) ||
-    !isWellFormedSealedAddress(command.sealedAddress)
+    !isWellFormedProvenance(command)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal token rotate')
   }
@@ -233,7 +252,9 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
               'Portal token version changed during issue',
             )
           }
-          await tx.insert(portalTokens).values(portalTokenToRow(command.token, command))
+          await refusingPrintCodeCollision(() =>
+            tx.insert(portalTokens).values(portalTokenToRow(command.token, command)),
+          )
           await tx
             .insert(portalAccessArtifacts)
             .values(command.accessArtifacts.map(accessArtifactToRow))
@@ -275,9 +296,9 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
           if (!rotated) {
             throw portalError('revision_conflict', 'Portal token changed during rotation')
           }
-          await tx
-            .insert(portalTokens)
-            .values(portalTokenToRow(command.newToken, command))
+          await refusingPrintCodeCollision(() =>
+            tx.insert(portalTokens).values(portalTokenToRow(command.newToken, command)),
+          )
           await tx
             .insert(portalAccessArtifacts)
             .values(command.accessArtifacts.map(accessArtifactToRow))

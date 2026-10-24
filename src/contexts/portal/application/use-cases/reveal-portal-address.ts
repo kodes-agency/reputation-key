@@ -7,18 +7,29 @@
 // that cannot disclose (no keyring, no sealed copy, a retired key, a stopped
 // code) writes no row. The rate limit is the server function's, at the trust
 // boundary, like every other limiter in the tree.
+//
+// After the decrypt it derives the code's print codes (ADR 0069), fills the
+// hashes an older code lacks, and returns the short addresses the row vouches
+// for; the long address stays for anything it cannot.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
+import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
+import type { PrintCodeReporter } from '../ports/print-code-reporter.port'
 import type {
   AddressDownloadPurpose,
   PortalAddressRepository,
 } from '../ports/portal-address.repository'
 import { loadPortalOrThrow } from '../load-accessible-portal'
-import { buildPortalPublicUrls, type PortalPublicUrls } from '../portal-address-urls'
+import {
+  portalPublicUrls,
+  type PortalAddressFormat,
+  type PortalPublicUrls,
+} from '../portal-address-urls'
+import { revealedPrintCodes } from '../print-code-reveal'
 import { portalError } from '../../domain/errors'
 
 export type RevealPortalAddressDeps = Readonly<{
@@ -27,8 +38,10 @@ export type RevealPortalAddressDeps = Readonly<{
   portalAddressRepo: PortalAddressRepository
   /** Null when no keyring is configured: nothing can be revealed. */
   addressCipher: PortalAddressCipher | null
+  tokenCodec: Pick<PortalTokenCodec, 'derivePrintCodes'>
+  reportPrintCodeProblem: PrintCodeReporter
   clock: () => Date
-  baseUrl: string
+  address: PortalAddressFormat
 }>
 
 export type RevealedPortalAddress = Readonly<{
@@ -88,11 +101,21 @@ export const revealPortalAddress =
     } catch {
       throw unavailable()
     }
-    const publicUrls = buildPortalPublicUrls(
-      deps.baseUrl,
+    const printCodes = await revealedPrintCodes(
+      deps,
+      {
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        portalId: portal.id,
+      },
+      live,
       rawToken,
-      live.accessArtifactIds,
     )
+    const publicUrls = portalPublicUrls(deps.address, {
+      rawToken,
+      artifacts: live.accessArtifactIds,
+      printCodes,
+    })
     return {
       publicUrl: publicUrls.qr,
       publicUrls,

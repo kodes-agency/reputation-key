@@ -157,7 +157,27 @@ describe('portal address repository', () => {
       issuedAt: NOW,
       sealed: { ciphertext: 'ciphertext-for-address-one', keyVersion: 3 },
       accessArtifactIds: { qr: QR, nfc: NFC },
+      printCodeHashes: { qr: null, nfc: null },
     })
+  })
+
+  it('reads the print code hashes the code row stores, a channel at a time', async () => {
+    await seedToken({
+      id: TOKEN,
+      org: ORG,
+      property: PROPERTY,
+      portal: PORTAL,
+      identifier: 'address-one',
+    })
+    await seedMarkers(ORG, PROPERTY, PORTAL, TOKEN, [QR, NFC])
+    await pool.query('UPDATE portal_tokens SET qr_print_code_hash = $2 WHERE id = $1', [
+      TOKEN,
+      hash('stored-qr'),
+    ])
+
+    await expect(
+      createPortalAddressRepository(getDb()).findRevealable(ORG, PORTAL),
+    ).resolves.toMatchObject({ printCodeHashes: { qr: hash('stored-qr'), nfc: null } })
   })
 
   it('never crosses a tenant, whichever Portal id is asked for', async () => {

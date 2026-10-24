@@ -28,6 +28,7 @@ import { getPortalPrintKit } from '../../application/use-cases/get-portal-print-
 import { revealPortalAddress } from '../../application/use-cases/reveal-portal-address'
 import { bulgarianPrimaryConfiguration } from '../../domain/__fixtures__/immersive-configuration'
 import { createPortalAddressCipher } from '../adapters/portal-address-cipher'
+import { testPortalTokenCodec } from '../testing/portal-token-codec-fixture'
 import { createPortalAddressRepository } from '../repositories/portal-address.repository'
 import { createPortalMediaAssetRepository } from '../repositories/portal-media-asset.repository'
 import { createPortalPublicationRepository } from '../repositories/portal-publication.repository'
@@ -45,6 +46,7 @@ import { createPdfKitPrintKitRenderer } from './pdfkit-print-kit-renderer'
 import { createPropertyCountryReader } from './print-kit-property-country'
 
 const BASE_URL = 'https://app.example.test'
+const PRINT_ORIGIN = 'https://ap.example.test'
 const RAW_TOKEN = 'pt_AAAAAAAAAAAAAAAA_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 const TOKEN_ID = 'c6000000-0000-4000-8000-000000000001'
 const QR_MARKER = 'c7000000-0000-4000-8000-000000000001'
@@ -208,6 +210,8 @@ type HarnessOptions = Readonly<{
    * address, as the code will carry once print codes are minted (plan slice 5).
    */
   printAddress?: string
+  /** `PORTAL_PRINT_CODES_ENABLED`: the reveal hands the renderer the short address. */
+  printCodes?: boolean
 }>
 
 async function harness(options: HarnessOptions = {}) {
@@ -231,6 +235,7 @@ async function harness(options: HarnessOptions = {}) {
     compress: false,
   })
   const renderedAddresses: string[] = []
+  const reported: string[] = []
   const renderer: PortalPrintKitRenderer = {
     render: async (input) => {
       renderedAddresses.push(input.qrAddress)
@@ -250,14 +255,21 @@ async function harness(options: HarnessOptions = {}) {
         staffPublicApi,
         portalAddressRepo: createPortalAddressRepository(db),
         addressCipher: cipher,
+        tokenCodec: testPortalTokenCodec(),
+        reportPrintCodeProblem: (problem) => reported.push(problem),
         clock: () => new Date('2026-10-01T10:00:00Z'),
-        baseUrl: BASE_URL,
+        address: {
+          appOrigin: BASE_URL,
+          printOrigin: PRINT_ORIGIN,
+          printCodesEnabled: options.printCodes ?? false,
+        },
       }),
       renderer,
       propertyCountry: createPropertyCountryReader(db),
       ...(options.selectableSizes ? { selectableSizes: options.selectableSizes } : {}),
     }),
     renderedAddresses,
+    reported,
     ctx: buildTestAuthContext({ organizationId: WORKING_COPY_ORG }),
   }
 }
@@ -343,14 +355,52 @@ describe.sequential('Portal print kit (real PostgreSQL)', () => {
       ctx,
     )
 
-    const expected = buildPortalPublicUrls(BASE_URL, RAW_TOKEN, {
-      qr: QR_MARKER,
-      nfc: NFC_MARKER,
+    const expected = buildPortalPublicUrls({
+      appOrigin: BASE_URL,
+      printOrigin: PRINT_ORIGIN,
+      rawToken: RAW_TOKEN,
+      artifacts: { qr: QR_MARKER, nfc: NFC_MARKER },
+      printCodes: { qr: null, nfc: null },
     }).qr
     expect(renderedAddresses).toEqual([expected])
     expect(await downloadRows()).toEqual([
       { purpose: 'download', portal_token_id: TOKEN_ID },
     ])
+  })
+
+  it('prints the short address of a code that had no print codes, and stores them for next time', async () => {
+    const { make, ctx, renderedAddresses, reported } = await harness({ printCodes: true })
+    const request = {
+      portalId: COMPLETE_SCENARIO.portalId,
+      piece: 'counter_card',
+      languages: ['bg'],
+      callToAction: 'rate',
+      style: 'paper',
+    } as const
+    const hashes = async () =>
+      (
+        await getPool().query<{ qr: string | null; nfc: string | null }>(
+          `SELECT qr_print_code_hash AS qr, nfc_print_code_hash AS nfc
+           FROM portal_tokens WHERE id = $1`,
+          [TOKEN_ID],
+        )
+      ).rows[0]
+    expect(await hashes()).toEqual({ qr: null, nfc: null })
+
+    const file = await make(request, ctx)
+    await make(request, ctx)
+
+    // A version 3 symbol: the print host in capitals, then `/p/` and the code.
+    expect(renderedAddresses[0]).toMatch(
+      /^HTTPS:\/\/AP\.EXAMPLE\.TEST\/p\/[0-9A-Z]{20}$/u,
+    )
+    expect(renderedAddresses[1]).toBe(renderedAddresses[0])
+    expect(Buffer.from(file.pdf).toString('latin1').startsWith('%PDF-1.4')).toBe(true)
+    expect(await hashes()).toEqual({
+      qr: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      nfc: expect.stringMatching(/^[0-9a-f]{64}$/u),
+    })
+    expect(reported).toEqual([])
   })
 
   it('makes no file and records nothing for a code that was never sealed', async () => {

@@ -28,7 +28,7 @@ function wire(
   portalRepo.seed([portal])
   const reveal = vi.fn<RevealPortalAddress>(async () => ({
     publicUrl: address,
-    publicUrls: { qr: address, nfc: address },
+    publicUrls: { qr: address, nfc: address, direct: address.split('?')[0] ?? address },
     version: 1,
     issuedAt: new Date('2026-10-01T10:00:00Z'),
   }))

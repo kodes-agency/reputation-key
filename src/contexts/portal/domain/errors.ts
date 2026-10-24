@@ -41,6 +41,7 @@ export type PortalErrorCode =
   | 'media_not_found'
   | 'print_format_not_offered'
   | 'print_code_too_small'
+  | 'print_code_collision'
   | 'responsible_manager_ineligible'
   | 'revision_conflict'
 

@@ -407,10 +407,15 @@ type PortalTokenCommandBase = PortalContentCommandBase
  * What a command that makes a code also carries (ADR 0064): who made it, and
  * the sealed copy of its address when a keyring is configured. The store writes
  * both with the token row, so a code never exists without its owner's record.
+ *
+ * It carries the two keyed print code hashes too (ADR 0069), one per access
+ * artifact channel, written on the same row in the same transaction. A hash that
+ * a unique index refuses is the typed `print_code_collision`, with no retry.
  */
 type PortalCodeProvenance = Readonly<{
   issuedBy: UserId
   sealedAddress: SealedPortalAddress | null
+  printCodeHashes: Readonly<{ qr: string; nfc: string }>
 }>
 
 export type IssuePortalTokenCommand = PortalTokenCommandBase &
