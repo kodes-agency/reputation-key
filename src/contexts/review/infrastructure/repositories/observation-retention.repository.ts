@@ -33,8 +33,14 @@ import type {
   ObservationRetentionScope,
 } from '../../application/ports/observation-retention.port'
 
-/** Reviews read per repeat batch. Each holds ~277 rows on the beta today. */
-export const MAX_REPEAT_BATCH_REVIEWS = 200
+/**
+ * Reviews read per repeat batch. A Review's rows are scattered over the whole
+ * heap (each pass appended one row per Review), so a batch reads best as one
+ * sequential pass over the table: measured on the beta on 2026-10-24, every
+ * Review in one statement took 8 s, 2,000 Reviews took 37 s and 100 Reviews,
+ * read through the index, about 50 s. One batch covers the beta today.
+ */
+export const MAX_REPEAT_BATCH_REVIEWS = 20_000
 /** Rows redacted per superseded-copy batch. */
 export const MAX_REDACTION_BATCH_ROWS = 500
 
@@ -77,7 +83,10 @@ function repeatCtes(input: ObservationRepeatBatchInput) {
              lag(o.observation_digest) OVER history AS previous_digest,
              lag(o.content_state) OVER history AS previous_state
       FROM review_source_observations o
-      JOIN batch ON batch.id = o.review_id AND batch.organization_id = o.organization_id
+      -- On the Review id alone: the observation's tenant is its Review's by
+      -- foreign key, and a second join column made the planner expect a
+      -- handful of rows and read them one index probe at a time.
+      JOIN batch ON batch.id = o.review_id
       WHERE o.comparison_result <> 'out_of_order_ignored'
       WINDOW history AS (PARTITION BY o.review_id ORDER BY o.observation_sequence)
     ),
@@ -97,7 +106,7 @@ const batchSummary = sql`
   (SELECT count(*)::int FROM batch) AS reviews,
   (SELECT count(*)::int
      FROM review_source_observations o
-     JOIN batch ON batch.id = o.review_id AND batch.organization_id = o.organization_id
+     JOIN batch ON batch.id = o.review_id
   ) AS observations,
   (SELECT id::text FROM batch ORDER BY id DESC LIMIT 1) AS last`
 
