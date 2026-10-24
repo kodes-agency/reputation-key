@@ -17,9 +17,12 @@ import {
 const CARD: PrintKitChoice = {
   style: 'paper',
   paper: 'letter',
+  size: 'large',
+  output: 'office',
   piece: 'counter_card',
   languages: ['en', 'bg'],
   callToAction: 'rate',
+  showPropertyName: true,
 }
 const TENT: PrintKitChoice = { ...CARD, piece: 'table_tent' }
 
@@ -75,18 +78,17 @@ describe('reconcilePrintKitChoice', () => {
 
   it('keeps the style, the paper, the piece and the call to action when only the languages have to change', () => {
     const chosen = {
+      ...CARD,
       style: 'immersive',
       paper: 'a4',
-      piece: 'counter_card',
+      output: 'print_shop',
       languages: ['fr'],
       callToAction: 'tell',
+      showPropertyName: false,
     } as const
     expect(reconcilePrintKitChoice(chosen, ['en', 'bg'], 'US')).toEqual({
-      style: 'immersive',
-      paper: 'a4',
-      piece: 'counter_card',
+      ...chosen,
       languages: ['en', 'bg'],
-      callToAction: 'tell',
     })
   })
 })

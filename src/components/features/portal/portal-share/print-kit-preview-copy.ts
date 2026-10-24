@@ -14,11 +14,18 @@ import {
 import { tight } from '#/shared/domain/portal-print-kit-pieces'
 import { printKitPrintShopLabel } from './print-kit-immersive-art-layout'
 import { printKitSheetLabel } from './print-kit-paper-art-layout'
+import {
+  isLegacyCopy,
+  sizedFaceName,
+  sizedPreviewNote,
+  sizedSheetCaption,
+} from './print-kit-sized-copy'
 
 /** Whole sheet, or one face of it. */
 export type PrintKitPreviewMode = 'sheet' | 'face'
 
-type Format = Pick<PrintKitChoice, 'style' | 'piece' | 'paper'>
+/** What the copy needs of a choice. Large and the Letter-half tent are read as they always were; every other print is `print-kit-sized-copy.ts`'s. */
+type Format = Pick<PrintKitChoice, 'style' | 'piece' | 'paper' | 'size' | 'output'>
 
 /** Where a sheet's page is among the print's: the caption says "page 1 of 2". */
 export type PrintKitSheetPosition = Readonly<{
@@ -30,9 +37,11 @@ export type PrintKitSheetPosition = Readonly<{
 
 /** The caption of a whole sheet: its paper, what is on it and which page it is. */
 export function printKitSheetCaption(
-  { style, piece, paper }: Format,
+  format: Format,
   page: PrintKitSheetPosition,
 ): string {
+  if (!isLegacyCopy(format)) return sizedSheetCaption(format, page)
+  const { style, piece, paper } = format
   return style === 'immersive'
     ? printKitPrintShopLabel(piece, paper, page)
     : printKitSheetLabel(piece, paper, page)
@@ -50,7 +59,9 @@ const FACE_SIZES = {
 } as const
 
 /** What a face is: "4 × 6 in counter card", "8.5 × 5.5 in table tent face", "A6 table tent panel". */
-function faceName({ style, piece, paper }: Format): string {
+function faceName(format: Format): string {
+  if (!isLegacyCopy(format)) return sizedFaceName(format)
+  const { style, piece, paper } = format
   const size = FACE_SIZES[style][piece][paper]
   const noun = PRINT_KIT_PIECE_NOUNS[piece]
   if (piece === 'counter_card') return `${size} ${noun}`
@@ -92,10 +103,9 @@ const backsSentence = (faces: readonly PrintFace[]): string => {
  * on its ticks; Immersive is a print shop's, with its bleed and marks in the file.
  * A two-language Immersive tent has no photo, and says why.
  */
-export function printKitPreviewNote(
-  { style, piece, paper }: Format,
-  faces: readonly PrintFace[],
-): string {
+export function printKitPreviewNote(format: Format, faces: readonly PrintFace[]): string {
+  if (!isLegacyCopy(format)) return sizedPreviewNote(format, faces)
+  const { style, piece, paper } = format
   const second = languageName(faces[0], 1)
   if (style === 'paper' && piece === 'counter_card') {
     return tight(`${backsSentence(faces)}Cut on the ticks: ${CARDS_PER_SHEET[paper]}.`)

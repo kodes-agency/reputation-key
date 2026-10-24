@@ -220,10 +220,15 @@ export type PrintKitChoice = Readonly<{
   /** The look, and the paper family it prints on (Letter or A4). */
   style: PrintKitStyle
   paper: PrintKitPaper
+  /** The piece's size (round 3) and who prints it; `portal-print-kit-offer.ts` says which pairs are offered. */
+  size: PrintKitSize
+  output: PrintKitOutput
   piece: PrintKitPiece
   /** One or two of the portal's languages; the first is the larger. */
   languages: readonly GuestLocale[]
   callToAction: PrintKitCallToAction
+  /** The property's name under a logo on a Large or Table card (round-2 R6); on unless the manager turns it off. */
+  showPropertyName: boolean
 }>
 
 /** What decides what a print says: the piece, its languages and its call to action. */

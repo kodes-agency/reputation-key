@@ -6,12 +6,22 @@ import type { PortalPrintKitView } from '#/contexts/portal/application/public-ap
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
 import {
+  PRINT_KIT_SELECTABLE_SIZES,
+  defaultPrintKitOutput,
   defaultPrintKitPaper,
   isPrintKitLanguageChoice,
   printKitLanguageChoices,
   type PrintFace,
   type PrintKitChoice,
+  type PrintKitSize,
 } from '#/shared/domain/portal-print-kit'
+import {
+  defaultPrintKitSize,
+  printKitLanguageChoicesOf,
+  settlePrintKitFormat,
+} from '#/shared/domain/portal-print-kit-offer'
+import { TODAY_CODE_TILE } from '#/shared/domain/portal-print-kit-code-tile'
+import { barMeasureText } from '#/shared/domain/portal-print-kit-size-sheets'
 import {
   stripUnsupportedCharacters,
   unsupportedCharacters,
@@ -21,40 +31,51 @@ import type { PortalPublicationState } from '../shared/types'
 /**
  * What the section starts with: a Paper counter card (the share board's own
  * state) on the paper the property's country prints on (Letter when it has none,
- * spec 7.1), in the first language choice the portal offers, asking for a
- * rating. The browser's locale says where the manager sits, not where the piece
- * will stand, so it is not asked.
+ * spec 7.1), at the size managers start on (Table once it is offered, else the
+ * first size offered), in the first language choice the portal offers, asking for
+ * a rating, with the property's name under the logo. The browser's locale says
+ * where the manager sits, not where the piece will stand, so it is not asked.
  */
 export function initialPrintKitChoice(
   locales: readonly GuestLocale[],
   countryCode: string | null,
+  sizes: readonly PrintKitSize[] = PRINT_KIT_SELECTABLE_SIZES,
 ): PrintKitChoice {
-  const [first] = printKitLanguageChoices(locales)
+  const size = defaultPrintKitSize(sizes)
+  const [first] = printKitLanguageChoicesOf(printKitLanguageChoices(locales), size)
   return {
     style: 'paper',
     paper: defaultPrintKitPaper(countryCode),
+    size,
+    output: defaultPrintKitOutput('paper'),
     piece: 'counter_card',
     languages: first ?? [],
     callToAction: 'rate',
+    showPropertyName: true,
   }
 }
 
 /**
- * The manager's choice, or a fresh one when it names a language the portal no
- * longer offers (the Languages section can change while this tab is open). The
- * style, paper, piece and call to action are kept: only the languages were
- * invalidated, and a paper the manager chose beats the country's.
+ * The manager's choice, settled on what is offered: a fresh one when it names a
+ * language the portal no longer offers (the Languages section can change while
+ * this tab is open), and a size, piece or output the print can no longer take
+ * made one it can (`settlePrintKitFormat`). Everything else is kept: a paper the
+ * manager chose beats the country's, and so does a style or a call to action.
  */
 export function reconcilePrintKitChoice(
   choice: PrintKitChoice | null,
   locales: readonly GuestLocale[],
   countryCode: string | null,
+  sizes: readonly PrintKitSize[] = PRINT_KIT_SELECTABLE_SIZES,
 ): PrintKitChoice {
-  const initial = initialPrintKitChoice(locales, countryCode)
-  if (choice === null) return initial
-  return isPrintKitLanguageChoice(locales, choice.languages)
-    ? choice
-    : { ...choice, languages: initial.languages }
+  if (choice === null) return initialPrintKitChoice(locales, countryCode, sizes)
+  const settled = settlePrintKitFormat(choice, sizes)
+  if (isPrintKitLanguageChoice(locales, settled.languages)) return settled
+  const [first] = printKitLanguageChoicesOf(
+    printKitLanguageChoices(locales),
+    settled.size,
+  )
+  return { ...settled, languages: first ?? [] }
 }
 
 /**
@@ -192,4 +213,23 @@ export function printKitAvailability(
         reason:
           'The print kit needs the code’s address, and this code did not keep it. Replace the code to make one that can be downloaded again.',
       }
+}
+
+/**
+ * The bar a manager measures to check a print was not scaled, as the tile makes
+ * it: "1.4 in (3.6 cm)". A Large card prints 1.75 in, or today's 2 in for a code
+ * that still has a long address; while the preview draws a sample code that
+ * address is not known, so the line gives both.
+ */
+export function printKitBarMeasure(
+  choice: Pick<PrintKitChoice, 'piece' | 'size' | 'paper'>,
+  tilePt: number,
+  isSample: boolean,
+): string {
+  const bar = barMeasureText(tilePt, choice.paper)
+  const mayFallBack =
+    isSample && choice.size === 'large' && choice.piece === 'counter_card'
+  return mayFallBack
+    ? `${bar}, or ${barMeasureText(TODAY_CODE_TILE.tilePt, choice.paper)} if the code still has a long address`
+    : bar
 }
