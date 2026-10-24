@@ -5,9 +5,10 @@
 // 95th-percentile brightness under it; a light logo straight on the photo must
 // reach 4.5:1 against a 1.5 mm ring round it.
 //
-// The photo is read from its 240 px sample, the same sample the ground comes
-// from, at a point every half millimetre across the word's ink box. Pure and
-// shared, so the file and the preview deepen their scrims alike.
+// The photo is read from its detail sample (960 px wide, or the photo's own
+// width when smaller) at a point every quarter millimetre across the word's ink
+// box, so a pattern's highlights count. Pure and shared, so the file and the
+// preview deepen their scrims alike.
 
 import { luminanceOfChannels, parseHexColour } from './portal-field-colour'
 import type { PrintFinalArt } from './portal-print-final-art'
@@ -28,14 +29,17 @@ import {
 
 /** The photo as a face shows it: its sample, its own size, where it is centred and how the manager framed it. */
 export type PrintFinalScenePhoto = Readonly<{
+  /** Decoded 240 px wide: what the ground and the kicker are read from (§6.1). */
   sample: PrintFinalPhotoSample
+  /** Decoded wider, so a pattern's highlights under a word are not averaged away: what each word is read against. */
+  detail: PrintFinalPhotoSample
   pixels: PrintFinalPhotoPixels
   focal: PrintFinalFocal
   framing: PrintFinalFraming
 }>
 
 /** A point every this far across a word's box is read. */
-const READ_STEP_PT = mmPt(0.5)
+const READ_STEP_PT = mmPt(0.25)
 const PERCENTILE = Object.freeze({ high: 0.95, low: 0.05 })
 /** The ring round a logo that sits straight on the photo (§4). */
 const LOGO_RING_PT = mmPt(1.5)
@@ -68,8 +72,9 @@ function photoReader(art: PrintFinalArt, photo: PrintFinalScenePhoto | null) {
     photo.focal,
     photo.framing,
   )
-  const across = photo.sample.widthPx / photo.pixels.widthPx
-  const down = photo.sample.heightPx / photo.pixels.heightPx
+  const { detail } = photo
+  const across = detail.widthPx / photo.pixels.widthPx
+  const down = detail.heightPx / photo.pixels.heightPx
   return (
     x: number,
     y: number,
@@ -78,7 +83,7 @@ function photoReader(art: PrintFinalArt, photo: PrintFinalScenePhoto | null) {
     const sourceX = crop.leftPx + ((x - cover.leftPt) / coverWidth) * crop.widthPx
     const sourceY = crop.topPx + ((y - cover.topPt) / coverHeight) * crop.heightPx
     return {
-      rgb: samplePixel(photo.sample, sourceX * across, sourceY * down),
+      rgb: samplePixel(detail, sourceX * across, sourceY * down),
       alpha: rampAlpha(shown.fade, shown.fade.axis === 'x' ? x : y),
     }
   }

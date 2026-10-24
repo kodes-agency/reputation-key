@@ -3,9 +3,12 @@
 // outlines, and drawn where it put each part's ink: the logo or the wordmark,
 // the stars, the words, the rule between two languages and the code block.
 //
-// Paper prints no ground: plain paper, ink and soft text, the accent ink on the
-// kicker, the stars, the rule and the tile's outline, the accent on the bar.
-// Drawn in the face's coordinates, in points, from its trim's top-left corner.
+// The words, marks and code are drawn the same in both looks, in the look's
+// colours (`PrintFinalColours`): Paper prints them on plain paper, with the
+// accent ink on the kicker, the stars, the rule and the tile's outline;
+// Immersive over its art (`print-kit-final-art.ts`), white and off-white with
+// the kicker tint, the logo on its cream plate unless it is light. Drawn in the
+// face's coordinates, in points, from its trim's top-left corner.
 
 import type { PrintFinalFace } from '#/shared/domain/portal-print-final'
 import type { PrintFinalBrandBox } from '#/shared/domain/portal-print-final-brand'
@@ -28,12 +31,12 @@ import type {
   PrintFinalTextMeasurer,
   PrintFinalTextStyle,
 } from '#/shared/domain/portal-print-final-text'
-import type { PrintFinalTone } from '#/shared/domain/portal-print-final-words'
-import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import {
-  PRINT_KIT_TILE,
-  type PaperPrintKitPalette,
-} from '#/shared/domain/portal-print-kit-palette'
+  printFinalToneColour,
+  type PrintFinalColours,
+} from '#/shared/domain/portal-print-final-colours'
+import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
+import { PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
 import { drawFinalCodeBlock } from './print-kit-final-code'
 import type { LogoInk } from './print-kit-image'
 import { drawImage, type OpenedImage } from './print-kit-pdf-image'
@@ -50,7 +53,7 @@ import type { QrMatrix } from './print-kit-qr'
 export type FinalFaceLogo = Readonly<{ image: OpenedImage; ink: LogoInk }>
 
 export type FinalFaceArt = Readonly<{
-  palette: PaperPrintKitPalette
+  colours: PrintFinalColours
   qr: QrMatrix
   /** The logo, or null to set the wordmark. */
   logo: FinalFaceLogo | null
@@ -60,7 +63,7 @@ export type FinalFaceArt = Readonly<{
 /** The embedded file a style is set in. */
 function fontFaceOf(style: PrintFinalTextStyle): PrintKitFontFace {
   if (style.family === 'serif') return 'display'
-  if (style.italic) return 'bodyItalic'
+  if (style.italic) return style.weight === 600 ? 'bodyStrongItalic' : 'bodyItalic'
   return style.weight === 600 ? 'bodyStrong' : 'body'
 }
 
@@ -85,19 +88,19 @@ export function pdfFinalMeasurer(
   }
 }
 
-/** The brand the planner sizes: the logo by its drawn pixels, or the wordmark. */
+/** The logo's drawn pixels: its picture without the transparent margin round it. */
+export const finalLogoInkSize = (logo: FinalFaceLogo) => ({
+  inkWidth: logo.image.width * (logo.ink.right - logo.ink.left),
+  inkHeight: logo.image.height * (logo.ink.bottom - logo.ink.top),
+})
+
+/** The brand a Paper face's planner sizes: the logo by its drawn pixels, bare on the paper, or the wordmark. */
 function brandInput(art: FinalFaceArt): PrintFinalBrandInput {
   if (art.logo === null) return { kind: 'wordmark', text: art.wordmark }
-  const { image, ink } = art.logo
-  return {
-    kind: 'logo',
-    inkWidth: image.width * (ink.right - ink.left),
-    inkHeight: image.height * (ink.bottom - ink.top),
-    onPlate: false,
-  }
+  return { kind: 'logo', ...finalLogoInkSize(art.logo), onPlate: false }
 }
 
-/** Lays a face out in the PDF's own measures. */
+/** Lays a Paper face out in the PDF's own measures. */
 export function layoutFinalFace(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
@@ -116,9 +119,6 @@ export function layoutFinalFace(
     measurer: pdfFinalMeasurer(doc, fonts),
   })
 }
-
-const toneColour = (palette: PaperPrintKitPalette, tone: PrintFinalTone): string =>
-  ({ ink: palette.ink, soft: palette.soft, accent: palette.accentInk })[tone]
 
 function drawText(
   doc: PDFKit.PDFDocument,
@@ -190,23 +190,29 @@ function drawContent(
   content: PrintFinalContent,
   part: PrintFinalPlacedPart,
 ) {
-  const { palette } = art
+  const { colours } = art
   switch (content.kind) {
     case 'wordmark':
-      return drawText(doc, fonts, content.set, part, palette.ink)
+      return drawText(doc, fonts, content.set, part, colours.ink)
     case 'words':
-      return drawText(doc, fonts, content.set, part, toneColour(palette, content.tone))
+      return drawText(
+        doc,
+        fonts,
+        content.set,
+        part,
+        printFinalToneColour(colours, content.tone),
+      )
     case 'logo':
       return art.logo === null ? undefined : drawLogo(doc, art.logo, content.box, part)
     case 'stars':
-      return drawStars(doc, content.stars, part, palette.accentInk)
+      return drawStars(doc, content.stars, part, colours.accent)
     case 'rule':
-      doc.rect(part.xPt, part.yPt, part.widthPt, part.heightPt).fill(palette.accentInk)
+      doc.rect(part.xPt, part.yPt, part.widthPt, part.heightPt).fill(colours.accent)
   }
 }
 
-/** Draws a laid-out Paper face. Nothing is painted under it: the paper is the customer's. */
-export function drawFinalPaperFace(
+/** Draws a laid-out face's words, marks and code; whatever is under them is drawn first. */
+export function drawFinalFace(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
   layout: PrintFinalFaceLayout,
@@ -225,9 +231,9 @@ export function drawFinalPaperFace(
       cues: layout.cues,
       cuePt: PRINT_FINAL_MEASURES[plan.face.region][plan.face.piece].cuePt,
       colours: {
-        outline: art.palette.accentInk,
-        barFill: art.palette.barFill,
-        barText: art.palette.barText,
+        outline: art.colours.outline,
+        barFill: art.colours.barFill,
+        barText: art.colours.barText,
       },
     },
     layout.code,

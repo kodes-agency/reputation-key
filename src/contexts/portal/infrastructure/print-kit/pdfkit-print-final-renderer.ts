@@ -1,8 +1,9 @@
-// The final print kit as a PDF (final design spec, slice 3): single pieces, one
-// face per page at its trim, drawn with PDFKit as vectors (the code is
-// rectangles, the type is the guest fonts embedded as subsets; only a logo is
-// raster). Paper faces only so far: the Immersive renderer and the office
-// sheets are later slices, and a request for either is a bug in the caller.
+// The final print kit as a PDF (final design spec, slices 3 and 4): single
+// pieces, one face per page at its trim, drawn with PDFKit. Paper is vectors
+// (the code is rectangles, the type is the guest fonts embedded as subsets;
+// only a logo is raster). Immersive adds its art under them: the ground and
+// washes as vectors, the photo with its fade as a soft mask, the scrims, the
+// grain (`print-kit-final-immersive.ts`). Office sheets come in later slices.
 //
 // The tile follows the symbol the address makes (`choosePrintFinalTile`): a
 // piece whose module would print under 0.85 mm is refused before any page is
@@ -17,18 +18,25 @@ import {
 import {
   choosePrintFinalTile,
   printFinalCuesFit,
+  type PrintFinalTile,
 } from '#/shared/domain/portal-print-final-code'
 import { PRINT_FINAL_MEASURES } from '#/shared/domain/portal-print-final-measures'
+import { printFinalPaperColours } from '#/shared/domain/portal-print-final-colours'
 import { paperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import {
-  drawFinalPaperFace,
+  drawFinalFace,
   layoutFinalFace,
   type FinalFaceArt,
+  type FinalFaceLogo,
 } from './print-kit-final-face'
+import {
+  prepareFinalImmersiveFace,
+  type FinalPreparedFace,
+} from './print-kit-final-immersive'
 import { logoArt } from './print-kit-image'
 import { openImage } from './print-kit-pdf-image'
 import { PrintKitFonts } from './print-kit-pdf-text'
-import { qrMatrix } from './print-kit-qr'
+import { qrMatrix, type QrMatrix } from './print-kit-qr'
 
 export type PdfKitPrintFinalRendererDeps = Readonly<{
   /** The clock the document's creation date reads. */
@@ -37,14 +45,37 @@ export type PdfKitPrintFinalRendererDeps = Readonly<{
   compress?: boolean
 }>
 
+function preparePaperFace(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  common: Readonly<{
+    input: PrintFinalRenderInput
+    tile: PrintFinalTile
+    qr: QrMatrix
+    logo: FinalFaceLogo | null
+  }>,
+): FinalPreparedFace {
+  const { input, tile, qr, logo } = common
+  const art: FinalFaceArt = {
+    colours: printFinalPaperColours(paperPrintKitPalette(input.accentColour)),
+    qr,
+    wordmark: input.wordmark,
+    logo,
+  }
+  const layout = layoutFinalFace(doc, fonts, {
+    face: input.face,
+    blocks: input.blocks,
+    tile,
+    art,
+  })
+  return { layout, draw: () => drawFinalFace(doc, fonts, layout, art) }
+}
+
 async function drawPiece(
   doc: PDFKit.PDFDocument,
   input: PrintFinalRenderInput,
 ): Promise<void> {
   const { face } = input
-  if (face.look !== 'paper') {
-    throw new Error('The final print kit draws Paper faces so far, not Immersive ones')
-  }
   const qr = qrMatrix(input.qrAddress)
   const tile = choosePrintFinalTile({
     ...face,
@@ -52,27 +83,22 @@ async function drawPiece(
     symbolModules: qr.size,
   })
   if (tile.isErr()) throw new PrintFinalRenderRefusal(tile.error)
-  const logo = input.logo === null ? null : await logoArt(input.logo)
-  const art: FinalFaceArt = {
-    palette: paperPrintKitPalette(input.accentColour),
-    qr,
-    wordmark: input.wordmark,
-    logo: logo === null ? null : { image: openImage(doc, logo.bytes), ink: logo.ink },
-  }
+  const art = input.logo === null ? null : await logoArt(input.logo)
+  const logo = art === null ? null : { image: openImage(doc, art.bytes), ink: art.ink }
   const fonts = new PrintKitFonts(doc)
-  const layout = layoutFinalFace(doc, fonts, {
-    face,
-    blocks: input.blocks,
-    tile: tile.value,
-    art,
-  })
+  const common = { input, tile: tile.value, qr, logo }
+  const prepared =
+    face.look === 'paper'
+      ? preparePaperFace(doc, fonts, common)
+      : await prepareFinalImmersiveFace(doc, fonts, common)
   const { cuePt } = PRINT_FINAL_MEASURES[face.region][face.piece]
-  const cueLines = layout.cues.map((cue) => cue.text)
+  const cueLines = prepared.layout.cues.map((cue) => cue.text)
   if (!printFinalCuesFit(cueLines, tile.value.tilePt, cuePt)) {
     throw new PrintFinalRenderRefusal({ code: 'cue_does_not_fit', moduleMm: null })
   }
-  doc.addPage({ size: [layout.plan.widthPt, layout.plan.heightPt], margin: 0 })
-  drawFinalPaperFace(doc, fonts, layout, art)
+  const { plan } = prepared.layout
+  doc.addPage({ size: [plan.widthPt, plan.heightPt], margin: 0 })
+  prepared.draw()
 }
 
 export function createPdfKitPrintFinalRenderer(

@@ -18,8 +18,14 @@ import {
   parseHexColour,
 } from './portal-field-colour'
 
-/** The width a photo is decoded at to be read (§6.1). */
+/** The width a photo is decoded at to be read for its ground and kicker (§6.1). */
 export const PRINT_FINAL_SAMPLE_WIDTH_PX = 240
+/**
+ * The width a photo is decoded at to be read under each word (§6.3), never
+ * wider than the photo: fine enough that a pattern's highlights (a damask, lit
+ * windows) count, as they did on the boards, which were measured on screen.
+ */
+export const PRINT_FINAL_DETAIL_WIDTH_PX = 960
 
 export type PrintFinalRgb = readonly [number, number, number]
 

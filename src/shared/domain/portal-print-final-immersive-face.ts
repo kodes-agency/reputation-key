@@ -124,7 +124,8 @@ function decidePlate(
   palette: PrintFinalImmersivePalette,
 ): boolean {
   const { brand } = input
-  if (brand.kind !== 'logo' || brand.medianInkLuminance === null) return true
+  if (brand.kind === 'wordmark') return false
+  if (brand.medianInkLuminance === null) return true
   const tone = { medianInkLuminance: brand.medianInkLuminance, ringContrast: null }
   if (!printFinalLogoOnPlate('immersive', tone)) return false
   const bare = layoutWith(input, false)

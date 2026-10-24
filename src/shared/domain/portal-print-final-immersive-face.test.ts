@@ -36,6 +36,7 @@ function flat(rgb: readonly [number, number, number]): PrintFinalScenePhoto {
   const sample: PrintFinalPhotoSample = { widthPx, heightPx, rgb: data }
   return {
     sample,
+    detail: sample,
     pixels: { widthPx: 1620, heightPx: 1080 },
     focal: { x: 0.5, y: 0.4 },
     framing: PRINT_FINAL_DEFAULT_FRAMING,
