@@ -139,10 +139,30 @@ const TEXT_WIDTHS: WidthTable = {
   1060: 'Щ',
 }
 
+/**
+ * Ysabeau Office 400 italic, where it sets wider than the text table says: the
+ * final kit's second-language line. Every other character reads the text table.
+ */
+const ITALIC_WIDER: WidthTable = {
+  270: 'l',
+  330: 'J',
+  390: 'r',
+  400: '\\',
+  500: 'kл',
+  510: 'aàáâäа',
+  570: '+',
+  580: '=',
+  620: 'ф',
+  640: 'TТ',
+  650: 'м',
+  720: 'ж',
+  780: '&',
+}
+
 /** A character in neither table: wider than any lowercase letter. */
 const UNLISTED_EM = 0.8
 
-export type EstimatedFace = 'display' | 'text'
+export type EstimatedFace = 'display' | 'text' | 'italic'
 
 const byCharacter = (table: WidthTable): ReadonlyMap<string, number> =>
   new Map(
@@ -154,6 +174,7 @@ const byCharacter = (table: WidthTable): ReadonlyMap<string, number> =>
 const ADVANCES: Readonly<Record<EstimatedFace, ReadonlyMap<string, number>>> = {
   display: byCharacter(DISPLAY_WIDTHS),
   text: byCharacter(TEXT_WIDTHS),
+  italic: new Map([...byCharacter(TEXT_WIDTHS), ...byCharacter(ITALIC_WIDER)]),
 }
 
 /** One character's advance in ems, erring wide. */
