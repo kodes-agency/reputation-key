@@ -1,16 +1,34 @@
 import { describe, expect, it } from 'vitest'
 import golden from '#/shared/domain/__fixtures__/portal-print-final-golden.json'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { PRINT_KIT_COPY, type PrintTextBlock } from '#/shared/domain/portal-print-kit'
-import type { PrintFinalFace, PrintFinalPiece } from '#/shared/domain/portal-print-final'
-import { choosePrintFinalTile } from '#/shared/domain/portal-print-final-code'
+import { GUEST_LOCALES } from '#/shared/domain/guest-locale'
+import {
+  PRINT_KIT_COPY,
+  PRINT_KIT_SCAN_CUE,
+  type PrintTextBlock,
+} from '#/shared/domain/portal-print-kit'
+import {
+  PRINT_FINAL_PIECES,
+  type PrintFinalFace,
+  type PrintFinalPiece,
+  type PrintFinalRegion,
+} from '#/shared/domain/portal-print-final'
+import {
+  choosePrintFinalTile,
+  printFinalCueLines,
+} from '#/shared/domain/portal-print-final-code'
 import {
   layoutPrintFinalFace,
   type PrintFinalBrandInput,
 } from '#/shared/domain/portal-print-final-face'
-import { mmPt, ptMm } from '#/shared/domain/portal-print-final-measures'
+import {
+  PRINT_FINAL_MEASURES,
+  mmPt,
+  ptMm,
+} from '#/shared/domain/portal-print-final-measures'
 import { newDocument } from './__fixtures__/print-kit-face-fixtures'
 import { pdfFinalMeasurer } from './print-kit-final-face'
+import { measureLine } from './print-kit-pdf-text'
 
 // The final faces as the PDF lays them out, measured with the embedded fonts'
 // own glyph outlines, against the design boards (final-design-2026-10-25):
@@ -130,4 +148,33 @@ describe('the final Paper faces in the PDF against the boards', () => {
     const { code } = laidOut(card)
     expect(code.widthPt - code.tilePt).toBeCloseTo(mmPt(0.7))
   })
+})
+
+describe('the scan cue in the embedded font', () => {
+  // Fixed rule C: a cue keeps one cap height (0.7 × its size) of bar each side.
+  // A single language wraps into the two-line bar when it would not; two
+  // languages print one cue a line and cannot wrap.
+  const cases = (['us', 'eu'] as readonly PrintFinalRegion[]).flatMap((region) =>
+    PRINT_FINAL_PIECES.flatMap((piece) =>
+      GUEST_LOCALES.map((locale) => [region, piece, locale] as const),
+    ),
+  )
+
+  it.each(cases.map((c) => [c.join(' '), ...c] as const))(
+    '%s: no line of a single-language cue comes within a cap height of the bar’s edge',
+    (_, region, piece, locale) => {
+      const { tilePt, cuePt } = PRINT_FINAL_MEASURES[region][piece]
+      const lines = printFinalCueLines([PRINT_KIT_SCAN_CUE[locale]], tilePt, cuePt)
+      for (const line of lines) {
+        const widthPt = measureLine(doc, fonts, line, {
+          face: 'bodyStrong',
+          size: cuePt,
+          spacing: 0,
+          colour: '#000000',
+          opacity: 1,
+        })
+        expect(widthPt, line).toBeLessThanOrEqual(tilePt - 2 * 0.7 * cuePt)
+      }
+    },
+  )
 })

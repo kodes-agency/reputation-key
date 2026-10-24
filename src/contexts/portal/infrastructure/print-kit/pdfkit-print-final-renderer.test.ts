@@ -102,6 +102,29 @@ describe('createPdfKitPrintFinalRenderer', () => {
     }
   })
 
+  it.each(
+    PRINT_FINAL_PIECES.flatMap((piece) =>
+      PRINT_FINAL_ORIENTATIONS.map((orientation) => [piece, orientation] as const),
+    ),
+  )(
+    'prints a Paper %s %s in English and Spanish, the cues in the bar',
+    async (piece, orientation) => {
+      const pdf = await renderer.render(inputFor(paper(piece, orientation), ['en', 'es']))
+      expect(text(pdf)).toContain('/MediaBox')
+    },
+  )
+
+  it('wraps a French cue into the two-line bar when it stands alone, and refuses it beside another language', async () => {
+    const alone = await renderer.render(inputFor(paper('tent', 'wide'), ['fr']))
+    expect(text(alone)).toContain('/MediaBox')
+    for (const piece of ['tent', 'small'] as const) {
+      const pair = renderer.render(inputFor(paper(piece, 'wide'), ['en', 'fr']))
+      await expect(pair).rejects.toMatchObject({
+        refusal: { code: 'cue_does_not_fit' },
+      })
+    }
+  })
+
   it('draws Paper faces only so far', async () => {
     const immersive = { ...paper('counter', 'upright'), look: 'immersive' } as const
     await expect(renderer.render(inputFor(immersive))).rejects.toThrow(/Paper faces/u)

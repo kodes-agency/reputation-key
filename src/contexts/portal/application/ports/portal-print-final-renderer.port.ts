@@ -29,7 +29,7 @@ export type PrintFinalRenderInput = Readonly<{
   address: PrintFinalAddress
 }>
 
-/** What the renderer throws when the symbol would print too small for the piece: thrown before any page is drawn. */
+/** What the renderer throws when the symbol would print too small for the piece, or two cues would not fit the bar: thrown before any page is drawn. */
 export class PrintFinalRenderRefusal extends Error {
   readonly refusal: PrintFinalCodeRefusal
 

@@ -6,14 +6,19 @@
 //
 // The tile follows the symbol the address makes (`choosePrintFinalTile`): a
 // piece whose module would print under 0.85 mm is refused before any page is
-// drawn. PDFKit is imported lazily, as for today's kit.
+// drawn, and so is a pair of languages whose cues would not keep their padding
+// in the bar (`cue_does_not_fit`). PDFKit is imported lazily, as for today's kit.
 
 import {
   PrintFinalRenderRefusal,
   type PortalPrintFinalRenderer,
   type PrintFinalRenderInput,
 } from '../../application/ports/portal-print-final-renderer.port'
-import { choosePrintFinalTile } from '#/shared/domain/portal-print-final-code'
+import {
+  choosePrintFinalTile,
+  printFinalCuesFit,
+} from '#/shared/domain/portal-print-final-code'
+import { PRINT_FINAL_MEASURES } from '#/shared/domain/portal-print-final-measures'
 import { paperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import {
   drawFinalPaperFace,
@@ -61,6 +66,11 @@ async function drawPiece(
     tile: tile.value,
     art,
   })
+  const { cuePt } = PRINT_FINAL_MEASURES[face.region][face.piece]
+  const cueLines = layout.cues.map((cue) => cue.text)
+  if (!printFinalCuesFit(cueLines, tile.value.tilePt, cuePt)) {
+    throw new PrintFinalRenderRefusal({ code: 'cue_does_not_fit', moduleMm: null })
+  }
   doc.addPage({ size: [layout.plan.widthPt, layout.plan.heightPt], margin: 0 })
   drawFinalPaperFace(doc, fonts, layout, art)
 }
