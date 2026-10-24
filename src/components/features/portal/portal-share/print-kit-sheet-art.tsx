@@ -22,10 +22,6 @@ import {
   type PrintKitStyle,
 } from '#/shared/domain/portal-print-kit'
 import { CODE_TILE, type CodeTile } from '#/shared/domain/portal-print-kit-code-tile'
-import {
-  printKitFormatProblem,
-  printKitSheetPages,
-} from '#/shared/domain/portal-print-kit-formats'
 import { PRINT_SHOP_PAGE } from '#/shared/domain/portal-print-kit-immersive'
 import { CODE_BLOCK } from '#/shared/domain/portal-print-kit-measures'
 import {
@@ -45,6 +41,7 @@ import { PrintKitFaceArt } from './print-kit-face-art'
 import { ptToContainerWidth } from './print-kit-paper-art-layout'
 import { printKitSheetCaption } from './print-kit-preview-copy'
 import { PrintShopGrounds, PrintShopMarks } from './print-kit-print-shop-art'
+import { previewSheetPages } from './print-kit-sheet-pages'
 import { SheetNoteArt } from './print-kit-sheet-note-art'
 
 type Props = Readonly<{
@@ -147,21 +144,13 @@ export function PrintKitSheetArt({
   page = 0,
 }: Props) {
   const cardTile = tile ?? CODE_TILE[size][paper]
-  const languageCount = faces[0]?.blocks.length ?? 1
   // A choice the kit does not make has no pages: the Share tab never offers one.
-  if (printKitFormatProblem({ piece, size, style, output, languageCount }) !== null) {
-    return null
-  }
-  const pages = printKitSheetPages({
-    piece,
-    size,
-    style,
-    output,
-    languageCount,
-    paper,
-    faceCount: faces.length,
-    tilePt: cardTile.tilePt,
-  })
+  const pages = previewSheetPages(
+    { piece, size, style, output, paper },
+    faces,
+    cardTile.tilePt,
+  )
+  if (pages === null) return null
   const index = Math.min(Math.max(0, page), pages.length - 1)
   const sheet = pages[index]
   if (sheet === undefined) return null

@@ -23,20 +23,13 @@ import type {
   PrintKitStyle,
 } from '#/shared/domain/portal-print-kit'
 import { CARD_BAND_MONOGRAM } from '#/shared/domain/portal-print-kit-card-brand'
-import { cardColours } from '#/shared/domain/portal-print-kit-card-colours'
 import { cueLinesFor } from '#/shared/domain/portal-print-kit-code-block'
 import type { CodeTile } from '#/shared/domain/portal-print-kit-code-tile'
-import {
-  PRINT_KIT_PAPER,
-  immersivePrintKitPalette,
-  paperPrintKitPalette,
-} from '#/shared/domain/portal-print-kit-palette'
 import { NO_BLEED, type PanelBleed } from '#/shared/domain/portal-print-kit-sheet-parts'
 import { previewCardPlan } from './print-kit-card-art-layout'
-import { Brand, Word } from './print-kit-card-parts-art'
+import { Brand, FaceCanvas, Word, faceLook } from './print-kit-card-parts-art'
 import { PrintKitCodeBlock } from './print-kit-code-block'
 import type { PointsToLength } from './print-kit-code-block-layout'
-import { immersiveBackground } from './print-kit-immersive-art-layout'
 import { PrintKitPhotoArea } from './print-kit-photo-area-art'
 
 type Props = Readonly<{
@@ -80,24 +73,9 @@ export function PrintKitCardArt({
     logoAspect,
     showPropertyName,
   })
-  const palette =
-    style === 'paper'
-      ? paperPrintKitPalette(look.accentColour)
-      : immersivePrintKitPalette(look.accentColour, look.fieldColour)
-  const colours = cardColours(palette)
-  const ground =
-    palette.style === 'paper' ? PRINT_KIT_PAPER : immersiveBackground(palette)
+  const { palette, colours, ground } = faceLook(style, look)
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-        // On a sheet the band runs into the bleed the sheet painted.
-        overflow: bare ? 'visible' : 'hidden',
-        background: bare ? 'transparent' : ground,
-      }}
-    >
+    <FaceCanvas ground={ground} bare={bare}>
       {palette.style === 'immersive' && plan.bandPt !== null && (
         <PrintKitPhotoArea
           trimmed={{ x: 0, y: 0, widthPt: plan.widthPt, heightPt: plan.bandPt }}
@@ -134,6 +112,6 @@ export function PrintKitCardArt({
           tile={tile}
         />
       </div>
-    </div>
+    </FaceCanvas>
   )
 }

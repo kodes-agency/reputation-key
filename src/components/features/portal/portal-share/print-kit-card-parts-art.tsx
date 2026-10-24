@@ -8,13 +8,66 @@
 // stylesheet is built by scanning `src/` for class names, and a measure this
 // specific would land in every page's.
 
+import type { ReactNode } from 'react'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PrintKitStyle } from '#/shared/domain/portal-print-kit'
 import { CARD_PLATE, type CardBrand } from '#/shared/domain/portal-print-kit-card-brand'
-import type { CardColours } from '#/shared/domain/portal-print-kit-card-colours'
+import {
+  cardColours,
+  type CardColours,
+} from '#/shared/domain/portal-print-kit-card-colours'
 import type { CardLine, CardRule } from '#/shared/domain/portal-print-kit-card-words'
-import { IMMERSIVE_LOGO_PLATE } from '#/shared/domain/portal-print-kit-palette'
+import {
+  IMMERSIVE_LOGO_PLATE,
+  PRINT_KIT_PAPER,
+  immersivePrintKitPalette,
+  paperPrintKitPalette,
+  type PrintKitPalette,
+} from '#/shared/domain/portal-print-kit-palette'
 import { CARD_FONT, cardBox } from './print-kit-card-art-layout'
 import type { PointsToLength } from './print-kit-code-block-layout'
+import { immersiveBackground } from './print-kit-immersive-art-layout'
+
+/** The palette a style draws a face in, the colour of each part of its words, and the ground it stands on. */
+export function faceLook(
+  style: PrintKitStyle,
+  look: PortalPrintKitView['look'],
+): Readonly<{ palette: PrintKitPalette; colours: CardColours; ground: string }> {
+  const palette =
+    style === 'paper'
+      ? paperPrintKitPalette(look.accentColour)
+      : immersivePrintKitPalette(look.accentColour, look.fieldColour)
+  return {
+    palette,
+    colours: cardColours(palette),
+    ground: palette.style === 'paper' ? PRINT_KIT_PAPER : immersiveBackground(palette),
+  }
+}
+
+/**
+ * The face's own ground, filling its container. On a print-shop or office sheet the
+ * sheet has painted the field into the bleed (`bare`), so the face has none and lets
+ * its photo run past its trim.
+ */
+export function FaceCanvas({
+  ground,
+  bare,
+  children,
+}: Readonly<{ ground: string; bare: boolean; children: ReactNode }>) {
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        overflow: bare ? 'visible' : 'hidden',
+        background: bare ? 'transparent' : ground,
+      }}
+    >
+      {children}
+    </div>
+  )
+}
 
 /** How the words sit in their column: centred on a card, from its left edge on the small tent. */
 export type WordsAlign = 'centre' | 'left'

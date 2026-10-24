@@ -27,14 +27,11 @@ import {
   type PrintCodeTooSmall,
 } from '#/shared/domain/portal-print-kit-code-tile'
 import type { Result } from '#/shared/domain/result'
-import {
-  printKitFormatProblem,
-  printKitSheetPages,
-} from '#/shared/domain/portal-print-kit-formats'
 import { PANEL_SIZE_PT } from '#/shared/domain/portal-print-kit-sheets'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { PrintKitFaceArt } from './print-kit-face-art'
 import { PrintKitSheetArt } from './print-kit-sheet-art'
+import { previewSheetPages } from './print-kit-sheet-pages'
 import {
   printKitFaceCaption,
   printKitFaceLabel,
@@ -212,21 +209,13 @@ function Drawing({
   // A card's tile is the one its address allows, as in the file; a size that has none is not drawn.
   if (tile.isErr()) return <Refused refusal={tile.error} />
   const cardTile = tile.value.tile
-  const languageCount = faces[0]?.blocks.length ?? 1
   // A print the kit does not make has no pages; the controls never offer one.
-  if (printKitFormatProblem({ piece, size, style, output, languageCount }) !== null) {
-    return null
-  }
-  const pages = printKitSheetPages({
-    piece,
-    size,
-    style,
-    output,
-    languageCount,
-    paper,
-    faceCount: faces.length,
-    tilePt: cardTile.tilePt,
-  })
+  const pages = previewSheetPages(
+    { piece, size, style, output, paper },
+    faces,
+    cardTile.tilePt,
+  )
+  if (pages === null) return null
   // A card's backs are its second page; a tent is one sheet with both faces.
   const index = side === 'back' && pages.length > 1 ? 1 : 0
   const page = pages[index]
