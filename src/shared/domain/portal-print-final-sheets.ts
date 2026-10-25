@@ -149,14 +149,14 @@ const A4: Rows = {
 }
 
 /** The paper's own size, portrait. */
-export const PAGES: Readonly<
+const PAGES: Readonly<
   Record<PrintKitPaper, Readonly<{ widthPt: number; heightPt: number }>>
 > = Object.freeze({
   letter: { widthPt: inPt(8.5), heightPt: inPt(11) },
   a4: { widthPt: mmPt(210), heightPt: mmPt(297) },
 })
 
-export const toCell =
+const toCell =
   (unit: (value: number) => number) =>
   ([x, y, w, h, turned]: Row): PrintFinalSheetCell => ({
     leftPt: unit(x),
