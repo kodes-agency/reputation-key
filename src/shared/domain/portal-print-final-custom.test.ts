@@ -5,7 +5,7 @@ import {
   printFinalCopyOf,
   printFinalCustomProblem,
   printFinalIsOwnCopy,
-  printFinalStoredCustom,
+  printFinalOwnWordsToSend,
   printFinalWordsHeldLanguage,
   tidyPrintFinalTyping,
 } from './portal-print-final-custom'
@@ -69,20 +69,21 @@ describe('the words a print resolves to', () => {
     ).toBe(true)
   })
 
-  it('stores the own words normalised, only for the print’s languages, and nothing without them', () => {
+  it('sends the own words normalised, only for the print’s languages that changed, and nothing without them', () => {
     expect(
-      printFinalStoredCustom(
+      printFinalOwnWordsToSend(
         {
           preset: 'how_did_we_do',
           custom: {
             en: { headline: ' How was today? ', subline: '' },
             de: { headline: 'Wie war es?', subline: '' },
+            es: { headline: '¿Cómo lo hicimos?', subline: 'Unos 30 segundos' },
           },
         },
-        ['en'],
+        ['en', 'es'],
       ),
     ).toEqual({ en: { headline: 'How was today?', subline: '' } })
-    expect(printFinalStoredCustom({ preset: 'how_did_we_do' }, ['en'])).toBeNull()
+    expect(printFinalOwnWordsToSend({ preset: 'how_did_we_do' }, ['en'])).toBeNull()
   })
 
   it('holds a wording back only where a language would print its held copy', () => {

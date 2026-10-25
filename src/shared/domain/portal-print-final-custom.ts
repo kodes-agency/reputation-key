@@ -120,17 +120,18 @@ export function printFinalIsOwnCopy(
   return own.headline !== preset.headline || own.subline !== preset.subline
 }
 
-/** The own words of a print as stored and sent: normalised, only the print's languages; null with none. */
-export function printFinalStoredCustom(
+/**
+ * The own words a print sends and stores: normalised, for each language of the
+ * print whose words differ from the wording's copy; null when none does (fields
+ * left as prefilled print the wording, and are the wording).
+ */
+export function printFinalOwnWordsToSend(
   words: PrintFinalWordsChoice,
   languages: readonly GuestLocale[],
 ): PrintFinalCustomWords | null {
-  if (words.custom == null) return null
-  const entries = languages.flatMap((locale) =>
-    words.custom?.[locale] === undefined
-      ? []
-      : [[locale, printFinalCopyOf(words, locale)] as const],
-  )
+  const entries = languages
+    .filter((locale) => printFinalIsOwnCopy(words, locale))
+    .map((locale) => [locale, printFinalCopyOf(words, locale)] as const)
   return entries.length === 0 ? null : Object.fromEntries(entries)
 }
 

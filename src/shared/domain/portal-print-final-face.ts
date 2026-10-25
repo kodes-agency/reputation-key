@@ -58,6 +58,12 @@ export type PrintFinalFaceInput = Readonly<{
   brand: PrintFinalBrandInput
   tile: PrintFinalTile
   measurer: PrintFinalTextMeasurer
+  /**
+   * Step the headline for this orientation alone. Off (the print's way), both
+   * orientations of the piece take the same step; Share's fit check turns it on
+   * to tell a step this orientation needs from one only the other forces.
+   */
+  ownStepOnly?: boolean
 }>
 
 /** What each placed part draws, in the plan's order. */
@@ -246,8 +252,10 @@ function planAt(
 export function layoutPrintFinalFace(input: PrintFinalFaceInput): PrintFinalFaceLayout {
   const { face } = input
   const cueLines = cueLinesOf(input)
+  const orientations =
+    input.ownStepOnly === true ? [face.orientation] : PRINT_FINAL_ORIENTATIONS
   const choice = choosePrintFinalHeadline(face.piece, (headlinePt) =>
-    PRINT_FINAL_ORIENTATIONS.every(
+    orientations.every(
       (orientation) =>
         planAt(input, { ...face, orientation }, headlinePt, cueLines.length).plan.fits,
     ),
