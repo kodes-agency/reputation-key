@@ -17,6 +17,7 @@ import { activePropertyCondition } from './active-property'
 import { silentRouteFact } from '../silent-route-fact'
 
 type PendingRow = Readonly<{
+  eventType: string
   pending: number
   oldest: Date | string | null
 }>
@@ -42,6 +43,14 @@ const asDate = (value: Date | string | null | undefined): Date | null =>
     : value instanceof Date
       ? value
       : new Date(value)
+
+/** The earliest of the dates given, or null when there are none. */
+const earliest = (values: ReadonlyArray<Date | null>): Date | null => {
+  const dates = values.filter((value): value is Date => value !== null)
+  return dates.length === 0
+    ? null
+    : new Date(Math.min(...dates.map((value) => value.getTime())))
+}
 
 const activeNotificationTypeValues = sql.join(
   [
@@ -194,19 +203,23 @@ const readSendableImmediateEmailRows = async (
 }
 
 /**
- * Durable source facts whose base consumer receipt is still absent (bounded).
- * A fact its route consumes only to announce nothing is not a notice waiting
- * (silent-route-fact.ts): an import writes two per past review.
+ * Durable source facts whose base consumer receipt is still absent (bounded),
+ * counted per route event type. A fact its route consumes only to announce
+ * nothing is not a notice waiting (silent-route-fact.ts): an import writes up
+ * to three per past review.
  */
 const readSourceReceiptPending = async (
   db: Pick<Database, 'execute'>,
   window: NotificationDeliveryLagWindow,
-): Promise<PendingRow | undefined> => {
+): Promise<ReadonlyArray<PendingRow>> => {
   const result = await db.execute<PendingRow>(sql`
     WITH routes(event_type, consumer_name) AS (VALUES ${routeValues})
-    SELECT count(*)::int AS pending, min(candidate.created_at) AS oldest
+    SELECT
+      candidate.event_type AS "eventType",
+      count(*)::int AS pending,
+      min(candidate.created_at) AS oldest
     FROM (
-      SELECT event.created_at
+      SELECT event.event_type, event.created_at
       FROM ${outboxEvents} AS event
       JOIN routes ON routes.event_type = event.event_type
       WHERE event.created_at >= ${window.recordedAtOrAfter}::timestamptz
@@ -222,8 +235,10 @@ const readSourceReceiptPending = async (
       ORDER BY event.created_at, event.id
       LIMIT ${window.scanLimit}
     ) AS candidate
+    GROUP BY candidate.event_type
+    ORDER BY candidate.event_type
   `)
-  return result.rows[0]
+  return result.rows
 }
 
 /** Redis-accepted deliveries still without their materialization receipt (bounded). */
@@ -269,7 +284,8 @@ const readMaterializationPending = async (
 }
 
 /**
- * Reads only identifiers, receipt names, and timestamps. Event payload is
+ * Reads only identifiers, receipt names, route event type names (a closed set
+ * the notification routes name), and timestamps. Event payload is
  * intentionally absent from every SELECT list (the silent-fact filter reads
  * identifier-only payload fields in WHERE), so content cannot leak into a
  * health response or log through this repository. The email scopes'
@@ -306,12 +322,12 @@ export const createNotificationDeliveryLagRepository = (
       // One read-only transaction under a PostgreSQL statement timeout: a
       // stalled statement is cancelled and ends the read, so nothing keeps
       // running once the health snapshot has stopped waiting for it.
-      const { sourceRow, materializationRow, immediateEmailRows } =
+      const { sourceRows, materializationRow, immediateEmailRows } =
         await withHealthReadTimeout(
           db,
           window.statementTimeoutMs,
           async (transaction) => ({
-            sourceRow: await readSourceReceiptPending(transaction, window),
+            sourceRows: await readSourceReceiptPending(transaction, window),
             materializationRow: await readMaterializationPending(transaction, window),
             immediateEmailRows: await readSendableImmediateEmailRows(
               transaction,
@@ -321,7 +337,11 @@ export const createNotificationDeliveryLagRepository = (
           }),
         )
 
-      const sourceReceiptPending = sourceRow?.pending ?? 0
+      const sourceReceiptPending = sourceRows.reduce((sum, row) => sum + row.pending, 0)
+      const sourceReceiptPendingByEventType = Object.fromEntries(
+        sourceRows.map((row) => [row.eventType, row.pending]),
+      )
+      const oldestSourceRecordedAt = earliest(sourceRows.map((row) => asDate(row.oldest)))
       const materializationPending = materializationRow?.pending ?? 0
       const immediateEmailSaturated = immediateEmailRows.length > window.scanLimit
       const immediateEmailSample = immediateEmailRows.slice(0, window.scanLimit)
@@ -334,13 +354,11 @@ export const createNotificationDeliveryLagRepository = (
         if (acceptedAt === null || sourceRecordedAt === null) return []
         return [Math.max(0, acceptedAt.getTime() - sourceRecordedAt.getTime())]
       })
-      const linkedAwaitingSourceTimes = awaitingImmediateEmail
-        .map((row) => asDate(row.sourceRecordedAt))
-        .filter((value): value is Date => value !== null)
       return {
         sourceReceiptPending,
+        sourceReceiptPendingByEventType,
         materializationPending,
-        oldestSourceRecordedAt: asDate(sourceRow?.oldest),
+        oldestSourceRecordedAt,
         oldestMaterializationSourceRecordedAt: asDate(materializationRow?.oldestSource),
         oldestMaterializationEnqueuedAt: asDate(materializationRow?.oldestEnqueued),
         sourceSaturated: sourceReceiptPending >= window.scanLimit,
@@ -350,12 +368,9 @@ export const createNotificationDeliveryLagRepository = (
           attemptedAwaitingProviderAcceptance: awaitingImmediateEmail.filter(
             (row) => row.attemptedAt !== null,
           ).length,
-          oldestAwaitingSourceRecordedAt:
-            linkedAwaitingSourceTimes.length === 0
-              ? null
-              : new Date(
-                  Math.min(...linkedAwaitingSourceTimes.map((value) => value.getTime())),
-                ),
+          oldestAwaitingSourceRecordedAt: earliest(
+            awaitingImmediateEmail.map((row) => asDate(row.sourceRecordedAt)),
+          ),
           acceptedLatencyP99Ms: immediateEmailSaturated
             ? null
             : nearestRankP99(acceptedLatencies),

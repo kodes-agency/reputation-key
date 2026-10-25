@@ -346,6 +346,7 @@ describe('health checker content safety (BQC-4.3)', () => {
         missingForInboxItemCount: 0,
         deliveryLag: {
           sourceReceiptPending: 0,
+          sourceReceiptPendingByEventType: {},
           materializationPending: 0,
           oldestSourceRecordedAt: null,
           oldestSourceAgeMs: null,
@@ -696,6 +697,10 @@ describe('health checker notification delivery metrics', () => {
     const snapshot = await createHealthChecker(db, undefined, {
       readNotificationDeliveryLag: async () => ({
         sourceReceiptPending: 2,
+        sourceReceiptPendingByEventType: {
+          'inbox.handling_cycle.closed': 1,
+          'inbox.inbox_item.created': 1,
+        },
         materializationPending: 3,
         oldestSourceRecordedAt: source,
         oldestMaterializationSourceRecordedAt: source,
@@ -718,6 +723,10 @@ describe('health checker notification delivery metrics', () => {
 
     expect(snapshot.notifications.deliveryLag).toEqual({
       sourceReceiptPending: 2,
+      sourceReceiptPendingByEventType: {
+        'inbox.handling_cycle.closed': 1,
+        'inbox.inbox_item.created': 1,
+      },
       materializationPending: 3,
       oldestSourceRecordedAt: source.toISOString(),
       oldestSourceAgeMs: expect.any(Number),
