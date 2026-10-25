@@ -28,7 +28,7 @@ import {
 import {
   printFinalCellPlacements,
   printFinalSheetFills,
-  type PrintFinalPaperSheet,
+  type PrintFinalSheet,
   type PrintFinalSheetPlacement,
 } from '#/shared/domain/portal-print-final-sheets'
 import { fillWords } from '#/shared/domain/portal-print-kit-text'
@@ -41,7 +41,7 @@ import {
 } from './print-kit-pdf-text'
 
 export type FinalPaperSheetsInput = Readonly<{
-  sheet: PrintFinalPaperSheet
+  sheet: PrintFinalSheet
   /** The face every cell holds, laid out once. */
   face: FinalPreparedFace
   /** The code's cream square as printed: the note names its size. */

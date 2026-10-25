@@ -1,7 +1,9 @@
-// The final print kit's Paper office sheets (final design spec §10.1 and §10.2):
-// one geometry table, piece × orientation × paper, holding the page, the cells
-// each piece or tent flat fills, and how each is turned. Pure and shared, so the
-// PDF and the Share tab's preview place the same pieces in the same cells.
+// The final print kit's office sheets (final design spec §10.1 and §10.2): one
+// geometry table per look, piece × orientation × paper, holding the page, the
+// cells each piece or tent flat fills, and how each is turned. This file holds
+// the shapes both looks share and the Paper table; the Immersive table, with its
+// bleed and gaps, is `portal-print-final-immersive-sheets.ts`. Pure and shared,
+// so the PDF and the Share tab's preview place the same pieces in the same cells.
 //
 // The numbers are the design's own, copied from the generator that drew and
 // measured the boards (`final-sheets.mjs`, `layoutFor`), in the units the spec
@@ -18,15 +20,16 @@
 //   - Paper cells share their cuts and may touch the sheet's edge: the guard is
 //     in each face's own margins (`printFinalLiveArea`), so ink stays 0.5 in from
 //     the paper's short edges and 0.34 in from its long edges.
-//
-// Immersive sheets (a bleed and crop marks round each piece, with gaps between
-// them) are a later slice and add their own rows.
 
 import type { PrintKitPaper } from './portal-print-kit'
-import type { PrintFinalOrientation, PrintFinalPiece } from './portal-print-final'
+import type {
+  PrintFinalLook,
+  PrintFinalOrientation,
+  PrintFinalPiece,
+} from './portal-print-final'
 import { inPt, mmPt } from './portal-print-final-measures'
 
-export type PrintFinalPaperSheetKey = Readonly<{
+export type PrintFinalSheetKey = Readonly<{
   piece: PrintFinalPiece
   orientation: PrintFinalOrientation
   paper: PrintKitPaper
@@ -49,8 +52,11 @@ export type PrintFinalSheetCell = Readonly<{
   turned: boolean
 }>
 
-export type PrintFinalPaperSheet = Readonly<
-  PrintFinalPaperSheetKey & {
+export type PrintFinalSheet = Readonly<
+  PrintFinalSheetKey & {
+    look: PrintFinalLook
+    /** How far each piece's art runs past its trim: none on Paper, the paper's bleed on Immersive. */
+    bleedPt: number
     widthPt: number
     heightPt: number
     landscape: boolean
@@ -62,30 +68,31 @@ export type PrintFinalPaperSheet = Readonly<
 >
 
 /** x, y, width, height and whether the card is turned, in the paper's unit. */
-type Row = readonly [x: number, y: number, w: number, h: number, turned?: true]
+export type Row = readonly [x: number, y: number, w: number, h: number, turned?: true]
 
-type SheetRows = Readonly<{
+export type SheetRows = Readonly<{
   landscape: boolean
   kind: PrintFinalSheetKind
   rows: readonly Row[]
 }>
 
-type Rows = Readonly<
+export type Rows = Readonly<
   Record<PrintFinalPiece, Readonly<Record<PrintFinalOrientation, SheetRows>>>
 >
 
-/** `cols` × `rows` equal cells, abutting, from `origin`. */
-function grid(
+/** `cols` × `rows` equal cells, `gap` apart (none: abutting), row by row from `origin`. */
+export function grid(
   cell: readonly [w: number, h: number],
   cols: number,
   rows: number,
   origin: readonly [x: number, y: number],
+  gap = 0,
 ): readonly Row[] {
   const [w, h] = cell
   return Array.from({ length: cols * rows }, (_, index): Row => {
     const col = index % cols
     const row = Math.floor(index / cols)
-    return [origin[0] + col * w, origin[1] + row * h, w, h]
+    return [origin[0] + col * (w + gap), origin[1] + row * (h + gap), w, h]
   })
 }
 
@@ -142,14 +149,14 @@ const A4: Rows = {
 }
 
 /** The paper's own size, portrait. */
-const PAGES: Readonly<
+export const PAGES: Readonly<
   Record<PrintKitPaper, Readonly<{ widthPt: number; heightPt: number }>>
 > = Object.freeze({
   letter: { widthPt: inPt(8.5), heightPt: inPt(11) },
   a4: { widthPt: mmPt(210), heightPt: mmPt(297) },
 })
 
-const toCell =
+export const toCell =
   (unit: (value: number) => number) =>
   ([x, y, w, h, turned]: Row): PrintFinalSheetCell => ({
     leftPt: unit(x),
@@ -159,13 +166,19 @@ const toCell =
     turned: turned === true,
   })
 
-/** One Paper sheet: the page, turned to landscape where the piece turns it, and its cells. */
-export function printFinalPaperSheet(key: PrintFinalPaperSheetKey): PrintFinalPaperSheet {
+/** The sheet a table row makes: the page, turned to landscape where the piece turns it, and its cells. */
+export function sheetOf(
+  key: PrintFinalSheetKey,
+  look: PrintFinalLook,
+  bleedPt: number,
+  { landscape, kind, rows }: SheetRows,
+): PrintFinalSheet {
   const letter = key.paper === 'letter'
-  const { landscape, kind, rows } = (letter ? LETTER : A4)[key.piece][key.orientation]
   const portrait = PAGES[key.paper]
   return {
     ...key,
+    look,
+    bleedPt,
     widthPt: landscape ? portrait.heightPt : portrait.widthPt,
     heightPt: landscape ? portrait.widthPt : portrait.heightPt,
     landscape,
@@ -173,6 +186,12 @@ export function printFinalPaperSheet(key: PrintFinalPaperSheetKey): PrintFinalPa
     folds: key.piece === 'tent',
     cells: rows.map(toCell(letter ? inPt : mmPt)),
   }
+}
+
+/** One Paper sheet: pieces that share their cuts and have no bleed. */
+export function printFinalPaperSheet(key: PrintFinalSheetKey): PrintFinalSheet {
+  const table = key.paper === 'letter' ? LETTER : A4
+  return sheetOf(key, 'paper', 0, table[key.piece][key.orientation])
 }
 
 /** One face's place on the sheet: the box it fills and how it is turned to fill it. */
@@ -191,7 +210,7 @@ export type PrintFinalSheetPlacement = Readonly<{
 
 /** The faces a cell holds: a card, or a tent flat's back face (upside down, above the fold) and front face. */
 export function printFinalCellPlacements(
-  sheet: Pick<PrintFinalPaperSheet, 'folds'>,
+  sheet: Pick<PrintFinalSheet, 'folds'>,
   cell: PrintFinalSheetCell,
 ): readonly PrintFinalSheetPlacement[] {
   const { leftPt, topPt, widthPt, heightPt } = cell
@@ -227,7 +246,7 @@ export type PrintFinalSheetCuts = Readonly<{
 }>
 
 export function printFinalSheetCuts(
-  sheet: Pick<PrintFinalPaperSheet, 'widthPt' | 'heightPt'>,
+  sheet: Pick<PrintFinalSheet, 'widthPt' | 'heightPt'>,
   cells: readonly PrintFinalSheetCell[],
 ): PrintFinalSheetCuts {
   return {
