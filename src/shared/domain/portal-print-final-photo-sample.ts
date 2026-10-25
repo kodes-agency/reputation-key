@@ -125,7 +125,7 @@ function greyOf(luminance: number): string {
 }
 
 /** `pixel` under the scrim ink at `alpha`. */
-export const underScrim = (pixel: PrintFinalRgb, alpha: number): PrintFinalRgb => [
+const underScrim = (pixel: PrintFinalRgb, alpha: number): PrintFinalRgb => [
   pixel[0] * (1 - alpha) + PRINT_FINAL_SCRIM_INK[0] * alpha,
   pixel[1] * (1 - alpha) + PRINT_FINAL_SCRIM_INK[1] * alpha,
   pixel[2] * (1 - alpha) + PRINT_FINAL_SCRIM_INK[2] * alpha,

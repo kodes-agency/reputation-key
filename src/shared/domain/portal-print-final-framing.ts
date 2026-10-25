@@ -20,7 +20,7 @@ export type PrintFinalFraming = Readonly<{
 }>
 
 /** Zoom 1.0 to 1.5 (§6.4). */
-export const PRINT_FINAL_ZOOM = Object.freeze({ min: 1, max: 1.5 })
+const PRINT_FINAL_ZOOM = Object.freeze({ min: 1, max: 1.5 })
 
 /** The framing a photo has until the manager moves it: the plain cover crop. */
 export const PRINT_FINAL_DEFAULT_FRAMING: PrintFinalFraming = Object.freeze({

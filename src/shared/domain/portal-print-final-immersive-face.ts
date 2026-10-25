@@ -81,7 +81,7 @@ export type PrintFinalImmersiveFace = Readonly<{
 }>
 
 /** The scrims deepen this much at a time, up to the most (§6.3). */
-export const PRINT_FINAL_SCRIM_BOOST = Object.freeze({ step: 0.06, max: 0.3 })
+const PRINT_FINAL_SCRIM_BOOST = Object.freeze({ step: 0.06, max: 0.3 })
 /** Every word reaches this before the scrims stop deepening. */
 const WORD_CONTRAST_TARGET = 4.6
 
