@@ -181,4 +181,48 @@ describe('the notes’ copy', () => {
   it('names the A4 tile in millimetres', () => {
     expect(textsOf('small', 'wide', 'a4')[0]).toContain('measures 32 mm.')
   })
+
+  describe('on a last sheet with fewer pieces', () => {
+    const notesFor = (
+      piece: PrintFinalPaperSheet['piece'],
+      orientation: PrintFinalPaperSheet['orientation'],
+      pieces: number,
+    ) => {
+      const sheet = printFinalPaperSheet({ piece, orientation, paper: 'letter' })
+      return printFinalSheetNotes(sheet, tileOf(sheet), sheet.cells.slice(0, pieces))
+    }
+
+    it('cuts no lower strip off when no card lies across it', () => {
+      for (const pieces of [1, 2]) {
+        expect(notesFor('counter', 'upright', pieces)[0]?.text).toBe(
+          'Print at Actual size (100%): each cream code square measures 1.5 in (3.8 cm). Cut each card on the grey ticks.',
+        )
+      }
+      expect(notesFor('counter', 'wide', 1)[0]?.text).not.toContain('strip')
+    })
+
+    it('still cuts the strip off first when the third card is there', () => {
+      expect(notesFor('counter', 'upright', 3)[0]?.text).toContain(
+        'Cut the lower strip off first',
+      )
+    })
+
+    it('counts the cuts of the cards that are there', () => {
+      expect(notesFor('small', 'wide', 10)[1]?.text).toBe(
+        'Cut on the grey ticks: 3 lines down, 6 across.',
+      )
+      expect(notesFor('small', 'wide', 2)[1]?.text).toBe(
+        'Cut on the grey ticks: 3 lines down, 2 across.',
+      )
+      expect(notesFor('small', 'upright', 1)[1]?.text).toBe(
+        'Cut on the grey ticks: 2 lines down, 2 across.',
+      )
+    })
+
+    it('keeps the boxes where they are', () => {
+      const full = notesFor('small', 'wide', 10).map(({ text: _text, ...box }) => box)
+      const part = notesFor('small', 'wide', 1).map(({ text: _text, ...box }) => box)
+      expect(part).toEqual(full)
+    })
+  })
 })

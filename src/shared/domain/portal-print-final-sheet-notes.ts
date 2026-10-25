@@ -15,6 +15,7 @@ import { inPt, mmPt } from './portal-print-final-measures'
 import {
   printFinalSheetCuts,
   type PrintFinalPaperSheet,
+  type PrintFinalSheetCell,
 } from './portal-print-final-sheets'
 
 export const PRINT_FINAL_SHEET_NOTE = Object.freeze({
@@ -76,21 +77,30 @@ const A4: Readonly<Record<string, readonly NoteRow[]>> = {
 function textOf(
   says: NoteRow['says'],
   sheet: PrintFinalPaperSheet,
+  cells: readonly PrintFinalSheetCell[],
   tile: string,
 ): string {
   if (says === 'size') return SIZE_SENTENCE(tile)
   if (says === 'strip') {
+    // The turned card lies across the strip: with no card there, there is no strip to cut off.
+    const stripHasCard = cells.some((cell) => cell.turned)
+    if (!stripHasCard) return `${SIZE_SENTENCE(tile)} Cut each card on the grey ticks.`
     const side = sheet.orientation === 'upright' ? 'lower' : 'right-hand'
     return `${SIZE_SENTENCE(tile)} Cut the ${side} strip off first, then each card on the grey ticks.`
   }
-  const cuts = printFinalSheetCuts(sheet, sheet.cells)
+  const cuts = printFinalSheetCuts(sheet, cells)
   return `Cut on the grey ticks: ${cuts.xsPt.length} lines down, ${cuts.ysPt.length} across.`
 }
 
-/** The notes a sheet prints, for the code's cream square of `tilePt`. */
+/**
+ * The notes a sheet prints, for the code's cream square of `tilePt`. They say
+ * what the sheet holds: on a last sheet with fewer pieces (`cells`, the first of
+ * its cells) the cut count, and the lower strip, follow the pieces that are there.
+ */
 export function printFinalSheetNotes(
   sheet: PrintFinalPaperSheet,
   tilePt: number,
+  cells: readonly PrintFinalSheetCell[] = sheet.cells,
 ): readonly PrintFinalSheetNote[] {
   const letter = sheet.paper === 'letter'
   const rows = (letter ? LETTER : A4)[`${sheet.piece}-${sheet.orientation}`] ?? []
@@ -101,6 +111,6 @@ export function printFinalSheetNotes(
     topPt: unit(y),
     widthPt: unit(w),
     heightPt: unit(h),
-    text: textOf(says, sheet, tile),
+    text: textOf(says, sheet, cells, tile),
   }))
 }

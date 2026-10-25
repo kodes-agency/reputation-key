@@ -165,7 +165,7 @@ export function drawFinalPaperSheets(
   input: FinalPaperSheetsInput,
 ): void {
   const { sheet, face, tilePt, pieceCount } = input
-  const notes = printFinalSheetNotes(sheet, tilePt)
+  const hasNote = printFinalSheetNotes(sheet, tilePt).length > 0
   for (const filled of printFinalSheetFills(sheet.cells.length, pieceCount)) {
     const cells = sheet.cells.slice(0, filled)
     doc.addPage({ size: [sheet.widthPt, sheet.heightPt], margin: 0 })
@@ -175,7 +175,9 @@ export function drawFinalPaperSheets(
       }
     }
     drawMarks(doc, printFinalSheetMarks(sheet, cells))
-    for (const note of notes) drawNote(doc, fonts, note)
+    for (const note of printFinalSheetNotes(sheet, tilePt, cells)) {
+      drawNote(doc, fonts, note)
+    }
   }
-  if (notes.length === 0) askForActualSize(doc)
+  if (!hasNote) askForActualSize(doc)
 }
