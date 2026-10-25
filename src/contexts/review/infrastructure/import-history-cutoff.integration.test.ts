@@ -503,6 +503,14 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       runId: first.runId,
       code: 'observation_failed',
     })
+    // The queue retrying that step finds the run over. It answers with the same
+    // code, marked as a replay, so the sync job does not fail the job again.
+    await expect(step(property, 'historical_onboarding', first.runId)).resolves.toEqual({
+      status: 'failed',
+      runId: first.runId,
+      code: 'observation_failed',
+      alreadyFailed: true,
+    })
 
     // The discovery sweep finishes the listing well after the import began.
     failObservationOf = null

@@ -14,7 +14,10 @@
 // moving under run after run; the first two runs of such a move are
 // `listing_changed`. So does `duplicate_resource` when a review sits on two
 // pages of a scan, but a page that lists a review twice is stored as it on
-// its first run (ADR 0055, note 2026-10-20).
+// its first run (ADR 0055, note 2026-10-20). `run_already_failed` is not
+// listed: it is the sync job's returned outcome for a step that finds its run
+// already failed, never a code of a run or of `error_class` (ADR 0055, note
+// 2026-10-25).
 
 export const SYNC_FAILURE_CODES = [
   'source_changed',

@@ -290,6 +290,8 @@ SELECT listing_complete, count(*), max(evaluated_at)
 
 **Reading it.** The worker log line `Review snapshot failed; the next retry is backed off` (`event: review_snapshot_failure_deferred`) carries `failureCode` and `retryAfterMs`, with no Property id. A Property that failed three attempts of one job in a minute is one failure, not three: a failure that lands before the previous retry date keeps the previous wait.
 
+**A retried step (`run_already_failed`).** A snapshot step carries the id of its run. The step that fails the run throws once, dates the backoff above and logs `review_snapshot_failure_deferred`. BullMQ then retries that job, and the retry (like a redrive of a dead letter left from before this behaviour) finds the run `failed`. It does nothing and ends as a returned outcome `{ status: 'skipped', code: 'run_already_failed' }` with one worker warning, `review_sync_skipped_run_already_failed` (`failureCode` is the run's code; no Property or run id, because the log schema bans them). No further retry is spent, nothing is dead-lettered, `worker.job-runtime-unready` does not latch, and `review_sync_state` is untouched, so the retry neither moves `error_retry_at` nor climbs the ladder. A run lost as `cursor_lost` or `listing_changed` is the exception: its replay still queues the fresh run, because the step that lost it may have died before queueing one. A failure of a step that continues a run therefore ends with its retry instead of exhausting the job, so it produces no Sentry event and no quarantine entry; it shows as the `job failed` error line, the deferral warning and `sync.failed-nonzero` once its retry is due. The first step of a run has no run id: its retry starts a new run, which can fail on its own, and three failed attempts still end in a dead letter and a Sentry event. Before this behaviour (until the release that carries it) each retry of a continuation step threw the old failure again, which dead-lettered the job (§30, 2026-10-24).
+
 **Retry sooner.** Fix the cause first. The sweep takes a failed Property at its retry date. To retry earlier, set `next_incremental_at` and `error_retry_at` of that `review_sync_state` row to now in an operator session; leave `error_class` in place, because a completed run clears it and the alert reads it. `ops:refresh reviews` does not do this: it reruns the hourly content refresh below, which moves only Properties with reviews about to expire and never one still inside its backoff.
 
 ### A Google connection that needs reconnecting (`connection_unusable`)
@@ -336,7 +338,7 @@ Only on-demand work lands here. A schedule firing is never dead-lettered: every 
 2. The quarantine reason. `ops:quarantine list` prints it under each entry: the error name and its first message line, followed by `(policy: policy_unavailable)` when the attempt that exhausted the job was refused by the delayed-execution gate because it could not read the policy. That one is a policy outage, not a handler bug: restore the policy read before any redrive. It never appears for a schedule firing: a firing whose retries were all spent on an unreadable policy is not dead-lettered, so look for `delayed execution denied — retry (policy_unavailable)` in the worker's `job failed` log and for `repair_required` on the family's row (§17) instead. Anything else is a handler that threw past its retry budget. No region or routing reason exists, and no alert watches for one.
 3. `queue.quarantine.oldest_age_ms` versus `QUARANTINE_TTL_DAYS`. This tells you how much time is left before the TTL sweep deletes the evidence along with the work. The gauge, the listing, and the TTL sweep all read the quarantine oldest-first, so a burst of fresh dead letters cannot hide an aged one.
 
-**Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then match each entry's job family to the event-job catalogue. For an enabled family, first run `ops:quarantine redrive <id> --operator <registered-operator>` for the dry-run report, then add `--reason <incident-reason> --apply`; redrive returns the job to its original queue. For a blocked or quarantined family, never redrive: first run `ops:quarantine discard <id> --operator <registered-operator>`, record the identifiers and disposition in the incident, then add `--reason <incident-reason> --apply --yes ops:quarantine`. Discard permanently removes the quarantined job without executing or re-enqueuing it, which is why it alone needs the typed confirmation. An entry of an enabled family that a redrive cannot repair, because it continues a run that already failed and so fails again, is discarded the same way once the incident record says why; the family's `repair_required` is then acknowledged (§17). For `pending_failure`, the redrive apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at the redrive boundary, so a concurrent privacy-verification scan cannot miss content moved between queues.
+**Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then match each entry's job family to the event-job catalogue. For an enabled family, first run `ops:quarantine redrive <id> --operator <registered-operator>` for the dry-run report, then add `--reason <incident-reason> --apply`; redrive returns the job to its original queue. For a blocked or quarantined family, never redrive: first run `ops:quarantine discard <id> --operator <registered-operator>`, record the identifiers and disposition in the incident, then add `--reason <incident-reason> --apply --yes ops:quarantine`. Discard permanently removes the quarantined job without executing or re-enqueuing it, which is why it alone needs the typed confirmation. An entry of an enabled family that a redrive cannot repair is discarded the same way once the incident record says why; the family's `repair_required` is then acknowledged (§17). A review sync step that continues a run that already failed is no longer one of them: since the release that carries `run_already_failed` (§13) its redrive ends as a skipped outcome and succeeds, so redrive it. Before that release the redrive failed again, and such an entry was discarded. For `pending_failure`, the redrive apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at the redrive boundary, so a concurrent privacy-verification scan cannot miss content moved between queues.
 
 **Verification:** `queue.quarantine.depth` returns to 0, redriven jobs complete in their original queue, and discarded jobs were never executed or re-enqueued. A discard, like the TTL sweep's expiry, does not clear the family's `repair_required` (§17): when the cause is fixed and the family's later runs completed, acknowledge the failure with `pnpm ops jobs acknowledge-repair <jobName> --operator <registered-operator>` (dry run first, then `--reason <incident-reason> --apply`), which refuses while any of the family's dead letters remains or no success has followed the failure.
 
@@ -770,12 +772,14 @@ each family. It contains no tenant or payload content.
    dead-lettered on-demand job, or a failed manual run of a scheduled family,
    listed by `pnpm ops quarantine list`. A successful redrive of it (§14)
    clears it; a later firing does not, and neither does discarding the dead
-   letter or its expiry under `quarantine-ttl-sweep`. A redrive cannot succeed
-   when the dead letter continues a run that already failed (a snapshot sync's
-   continuations do): it fails again, so nothing would ever repair the family
-   and the alert would outlive the incident. Once the cause is fixed and the
-   family's later runs complete, acknowledge the failure instead. First
-   discard the family's dead letters (§14), then run
+   letter or its expiry under `quarantine-ttl-sweep`. A redrive of a dead letter that
+   continues a run that already failed (a snapshot sync's continuations do)
+   succeeds since the release that carries `run_already_failed` (§13): the step
+   ends as a skipped outcome, which answers the failure. Before that release it
+   failed again, so nothing would ever repair the family and the alert would
+   outlive the incident. For any dead letter a redrive cannot repair, once the
+   cause is fixed and the family's later runs complete, acknowledge the failure
+   instead. First discard the family's dead letters (§14), then run
    `pnpm ops jobs acknowledge-repair <jobName> --operator <registered-operator>`
    for the dry run, which prints the row's failure and repair times and its
    reasons, and add `--reason <incident-reason> --apply`. The command refuses, and says
@@ -2092,16 +2096,29 @@ Run it at a quiet hour.
    database went from 4,545 MB to 787 MB. One sync page write failed on the
    lock (`observation_failed`).
 
-   That step job carries the id of the run it belongs to. That run is now
-   `failed`, so every retry and every redrive re-reads it and fails at once,
-   and each attempt pushes the Property's backoff further (15 min, then 1 h).
-   So do not redrive it:
-   - `pnpm ops quarantine discard <id> ... --apply --yes ops:quarantine`;
-   - `pnpm ops jobs acknowledge-repair sync-property-reviews ... --apply`.
+   That step job carries the id of the run it belongs to, and that run is now
+   `failed`. Before the release that ends a replayed step quietly, every retry
+   and every redrive re-read the failed run and failed the job at once, each
+   attempt pushing the Property's backoff further (15 min, then 1 h), until the
+   job was a dead letter no redrive could clear. Since that release (§13,
+   `run_already_failed`) only the step that fails a run fails its job. Its
+   retries, and a redrive of its dead letter, find the run `failed` and end as
+   `{ status: 'skipped', code: 'run_already_failed' }`: no throw, no new
+   backoff. So:
+   - With the release live, the one failed step is the whole incident: its
+     retry ends quietly, so no dead letter and no repair latch follow. A dead
+     letter left from before the release is redriven
+     (`pnpm ops quarantine redrive <id> ... --apply`, §14). It completes
+     quietly, and a successful redrive answers `worker.job-runtime-unready` (§17).
+   - Without it, do not redrive it. Discard it and acknowledge the repair:
+     `pnpm ops quarantine discard <id> ... --apply --yes ops:quarantine`, then
+     `pnpm ops jobs acknowledge-repair sync-property-reviews ... --apply`.
 
    The next discovery starts a fresh run once the backoff passes. The
-   `worker.job-runtime-unready`, `queue.quarantine-nonempty` and
-   `sync.failed-nonzero` alerts clear at the next health check. To really pause
+   `queue.quarantine-nonempty` and `worker.job-runtime-unready` alerts, when a
+   dead letter exists, clear at the next health check after it is redriven or
+   discarded (and acknowledged); `sync.failed-nonzero` clears when that fresh
+   run completes. To really pause
    the worker, stop it from the Railway dashboard. Scaling back with
    `us-west2=1` adds the replica to the current deployment, without a new one.
 

@@ -628,7 +628,9 @@ day. The wait now grows with consecutive failures:
   and a job has three attempts. A failure that lands before the previous
   failure's retry date is that same attempt retried by the queue: it keeps the
   previous wait instead of climbing a rung per attempt. Only a failure after the
-  retry came due counts as the next consecutive one.
+  retry came due counts as the next consecutive one. (A retry of a step that
+  continues a run no longer reaches this rule: it finds the run failed and ends
+  quietly, note 2026-10-25.)
 - **A push does not shorten a backoff.** A Pub/Sub notice pulls a parked poll
   forward to the hot interval, but never ahead of `error_retry_at`
   (`recordPushObserved`), so a busy Property cannot bypass its wait with every
@@ -914,6 +916,71 @@ copies past their clock, digests kept, the newest row untouched even when its
 clock has passed, and the sweep cap. Also enforced by `retention-sweep.job.test.ts`
 (evidence and failure isolation), `review-observations-command.test.ts`, the
 tenant-predicate canary and the retention registry tests.
+
+## Note 2026-10-25 — a step that finds its run already failed ends quietly
+
+A snapshot step is queued with the id of the run it continues. When that step
+fails the run, the job throws, and BullMQ retries it with the same run id. The
+retry reads the run, finds it `failed`, and used to return the stored failure,
+which the sync job treated as a new one: it threw again and dated a longer
+backoff each time (15 minutes, then 1 hour), and after the last attempt the job
+was a dead letter. On the beta on 2026-10-24 a VACUUM FULL of
+`review_source_observations` held an ACCESS EXCLUSIVE lock, one step's
+observation read hit its 10 s `lock_timeout`, and the run failed as
+`observation_failed` (a correct, loud failure). Its three retries then
+re-read the same failed run, and the job dead-lettered: Sentry
+JAVASCRIPT-TANSTACKSTART-REACT-4 again, `queue.quarantine-nonempty`,
+`worker.job-runtime-unready` (the repair latch) and `sync.failed-nonzero`. No
+redrive could ever succeed, because the run stays failed, so runbooks §30 had
+the operator discard the dead letter and acknowledge the repair. It was the
+third time this pattern needed manual cleanup.
+
+**Decision (owner, 2026-10-25).** Only the step that fails a run fails its job.
+
+- **The use case marks a replay.** Reading a run that is already `failed`
+  returns the stored failure with `alreadyFailed: true` and discards the run's
+  cursors again, as before. `startOrResume` never returns a terminal run, so
+  only a step queued with a run id can see this. A step that fails the run now
+  returns the plain `failed` result, without the mark.
+- **The job ends a marked step quietly.** It returns
+  `{ status: 'skipped', code: 'run_already_failed' }` and writes one
+  `review_sync_skipped_run_already_failed` warning with the run's failure code
+  and nothing else (no identifier, BQC-7.3). It throws nothing, so BullMQ spends
+  no retry, nothing is dead-lettered, Sentry gets no event for the retry and the
+  repair latch is not set. It records nothing in `review_sync_state`: the
+  failing step's `error_class` and retry date stand, and the ladder does not
+  climb. A completed job counts as a success for the family, and a successful
+  quarantine redrive of it answers `repair_required`, so a dead letter left from
+  before this change is cleared by redriving it, not by discarding it.
+- **The step that fails the run is unchanged.** It still records the failure
+  with its backoff, logs `review_snapshot_failure_deferred` and throws
+  `ReviewProviderSnapshotFailure`. A location over the cap is still parked.
+- **Order of the job's checks.** A replay of a run lost as `cursor_lost` or
+  `listing_changed` still queues the fresh run (the step that lost the run may
+  have died before it queued one, and starting a run joins the active one), and
+  a replay of `connection_unusable` is still the reconnect skip. Only the other
+  codes end as `run_already_failed`.
+- **Not stored.** `run_already_failed` is a returned job outcome, not a failure
+  code of a run or of `review_sync_state`, so it is not in
+  `SYNC_FAILURE_CODES` and never counts in `sync.failed-nonzero`.
+
+**What it costs.** A failed attempt used to be retried to exhaustion, and
+exhaustion is what captured the job in error monitoring and dead-lettered it.
+A step that continues a run now fails once and its retry completes, so such a
+failure no longer produces a Sentry event or a quarantine entry. It remains
+visible as the worker's `job failed` error line, the
+`review_snapshot_failure_deferred` warning, and `sync.failed-nonzero` once its
+retry date has passed, which the next completed run clears. The first step
+of a run has no run id: its retry starts a new run, which can fail again, and
+three failures still end in a dead letter and a Sentry event as before.
+
+Enforced by `run-review-provider-snapshot.test.ts` (the mark, the cursors
+discarded again, no work done, the failing step unmarked),
+`sync-property-reviews.job.test.ts` (the quiet end for each code, the incident
+sequence with one deferral, the failing step still throwing, a capped location
+left parked, the restart and reconnect replays), and the
+`import-history-cutoff` and `review-sync-listing-change` integration suites
+against PostgreSQL.
 
 ## Merged from ADR 0003
 

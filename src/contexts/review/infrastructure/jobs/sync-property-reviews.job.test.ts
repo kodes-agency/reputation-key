@@ -1059,4 +1059,249 @@ describe('sync-property-reviews snapshot handler', () => {
       })
     })
   })
+
+  // A step is queued with the id of its run. A run that already failed cannot
+  // be continued, so a step that finds it so (the queue retrying the step that
+  // failed it, a redrive of its dead letter) has nothing left to fail. The
+  // attempt that failed the run was loud; a replay that fails again only
+  // pushes the Property's backoff out, dead-letters the job and latches the
+  // family's repair state, and no redrive can ever succeed.
+  describe('when the run a step continues has already failed', () => {
+    const RUN_ID = '44444444-4444-4444-8444-444444444444'
+    const SKIPPED = { status: 'skipped', code: 'run_already_failed' } as const
+    const STEP = { ...JOB_DATA, runId: RUN_ID }
+    const MINUTE_MS = 60 * 1000
+
+    const fresh = (code: string) => ({ status: 'failed' as const, runId: RUN_ID, code })
+    const replay = (code: string) => ({ ...fresh(code), alreadyFailed: true as const })
+
+    function replayHandler(
+      outcomes: readonly unknown[],
+      row: ReturnType<typeof fakeDiscoveryProperty>,
+      clock: { now: Date } = { now: NOW },
+    ) {
+      const discoveryRepo = createFakeReviewDiscoveryRepository([row])
+      const markDeferred = vi.spyOn(discoveryRepo, 'markDiscoveryDeferred')
+      const markSucceeded = vi.spyOn(discoveryRepo, 'markSyncSucceeded')
+      const logger = { warn: vi.fn() }
+      const enqueueContinuation = vi.fn(async () => undefined)
+      const runSnapshot = vi.fn()
+      for (const outcome of outcomes) runSnapshot.mockResolvedValueOnce(outcome)
+      const handler = createSyncPropertyReviewsHandler({
+        runSnapshot: runSnapshot as never,
+        propertySourceEpoch,
+        enqueueContinuation,
+        syncActivity: makeSyncActivity(),
+        discoveryRepo,
+        clock: () => clock.now,
+        hotIntervalMs: HOT_INTERVAL_MS,
+        logger,
+      })
+      return { handler, logger, enqueueContinuation, markDeferred, markSucceeded }
+    }
+
+    // The Property is inside the backoff the failing attempt earned.
+    const failedRow = () =>
+      fakeDiscoveryProperty({
+        propertyId: JOB_DATA.propertyId,
+        errorClass: 'observation_failed',
+        lastFailureAt: NOW,
+        errorRetryAt: new Date(NOW.getTime() + HOT_INTERVAL_MS),
+        nextDueAt: new Date(NOW.getTime() + HOT_INTERVAL_MS),
+      })
+
+    it.each([
+      'observation_failed',
+      'provider_failure',
+      'cursor_failure',
+      'malformed_page',
+      'authorization_denied',
+      'confirmation_set_changed',
+    ])(
+      'ends quietly when the run failed as %s: no throw, no failure recorded, nothing continued',
+      async (code) => {
+        const row = failedRow()
+        const before = { ...row }
+        const { handler, enqueueContinuation, markDeferred, markSucceeded } =
+          replayHandler([replay(code)], row)
+
+        await expect(handler({ id: 'job-replay', data: STEP } as never)).resolves.toEqual(
+          SKIPPED,
+        )
+
+        expect(markDeferred).not.toHaveBeenCalled()
+        expect(markSucceeded).not.toHaveBeenCalled()
+        expect(enqueueContinuation).not.toHaveBeenCalled()
+        expect(row).toEqual(before)
+      },
+    )
+
+    it('writes one warning of closed codes and names no tenant identifier', async () => {
+      const { handler, logger } = replayHandler(
+        [replay('observation_failed')],
+        failedRow(),
+      )
+
+      await handler({ id: 'job-replay', data: STEP } as never)
+
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        {
+          event: 'review_sync_skipped_run_already_failed',
+          failureCode: 'observation_failed',
+        },
+        'Review sync skipped: the run had already failed',
+      )
+      const logged = JSON.stringify(logger.warn.mock.calls)
+      expect(logged).not.toContain(JOB_DATA.propertyId)
+      expect(logged).not.toContain(JOB_DATA.organizationId)
+      expect(logged).not.toContain(JOB_DATA.connectionId)
+      expect(logged).not.toContain(RUN_ID)
+    })
+
+    // The beta on 2026-10-24: a VACUUM FULL held a lock, one step's observation
+    // write timed out and failed its run, and every retry of that step failed
+    // the job again until it was dead-lettered.
+    it('fails the job for the step that failed the run, and only for that step', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const clock = { now: NOW }
+      const { handler, markDeferred, logger } = replayHandler(
+        [
+          fresh('observation_failed'),
+          replay('observation_failed'),
+          replay('observation_failed'),
+        ],
+        row,
+        clock,
+      )
+
+      await expect(
+        handler({ id: 'job-incident', data: STEP } as never),
+      ).rejects.toMatchObject({
+        name: 'ReviewProviderSnapshotFailure',
+        message: 'observation_failed',
+        failureCode: 'observation_failed',
+      })
+      const earned = { ...row }
+      expect((row.nextDueAt as Date).getTime() - NOW.getTime()).toBe(HOT_INTERVAL_MS)
+
+      clock.now = new Date(NOW.getTime() + 18 * MINUTE_MS) // BullMQ attempt 2
+      await expect(handler({ id: 'job-incident', data: STEP } as never)).resolves.toEqual(
+        SKIPPED,
+      )
+      clock.now = new Date(NOW.getTime() + 19 * MINUTE_MS) // BullMQ attempt 3
+      await expect(handler({ id: 'job-incident', data: STEP } as never)).resolves.toEqual(
+        SKIPPED,
+      )
+
+      // One deferral, dated by the failing attempt; the replays moved nothing.
+      expect(markDeferred).toHaveBeenCalledTimes(1)
+      expect(markDeferred).toHaveBeenCalledWith(
+        JOB_DATA.propertyId,
+        NOW,
+        new Date(NOW.getTime() + HOT_INTERVAL_MS),
+        'observation_failed',
+      )
+      expect(row).toEqual(earned)
+      expect(
+        logger.warn.mock.calls.filter(
+          ([fields]) => fields.event === 'review_snapshot_failure_deferred',
+        ),
+      ).toHaveLength(1)
+    })
+
+    it('records the failure and throws when the run fails in this very step', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler, markDeferred, logger } = replayHandler(
+        [fresh('provider_failure')],
+        row,
+      )
+
+      await expect(
+        handler({ id: 'job-fresh', data: STEP } as never),
+      ).rejects.toMatchObject({
+        name: 'ReviewProviderSnapshotFailure',
+        failureCode: 'provider_failure',
+      })
+
+      expect(markDeferred).toHaveBeenCalledWith(
+        JOB_DATA.propertyId,
+        NOW,
+        new Date(NOW.getTime() + HOT_INTERVAL_MS),
+        'provider_failure',
+      )
+      expect(row.errorClass).toBe('provider_failure')
+      expect(logger.warn).toHaveBeenCalledWith(
+        {
+          event: 'review_snapshot_failure_deferred',
+          failureCode: 'provider_failure',
+          retryAfterMs: HOT_INTERVAL_MS,
+        },
+        'Review snapshot failed; the next retry is backed off',
+      )
+    })
+
+    it('leaves a location parked for being over the cap parked', async () => {
+      const parkedUntil = new Date(NOW.getTime() + 24 * 60 * MINUTE_MS)
+      const row = fakeDiscoveryProperty({
+        propertyId: JOB_DATA.propertyId,
+        errorClass: 'review_cap_exceeded',
+        lastFailureAt: NOW,
+        errorRetryAt: parkedUntil,
+        nextDueAt: parkedUntil,
+      })
+      const { handler, markDeferred } = replayHandler(
+        [replay('review_cap_exceeded')],
+        row,
+      )
+
+      await expect(handler({ id: 'job-parked', data: STEP } as never)).resolves.toEqual(
+        SKIPPED,
+      )
+
+      expect(markDeferred).not.toHaveBeenCalled()
+      expect(row.nextDueAt).toEqual(parkedUntil)
+    })
+
+    // The step that lost the run may have died before it queued the fresh one
+    // (a Redis blip on the enqueue): its retry is the only thing that does.
+    it.each(['cursor_lost', 'listing_changed'] as const)(
+      'still starts the fresh run when it finds the run lost as %s',
+      async (code) => {
+        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const { handler, enqueueContinuation, markDeferred } = replayHandler(
+          [replay(code)],
+          row,
+        )
+
+        await expect(
+          handler({ id: 'job-restart', data: STEP } as never),
+        ).resolves.not.toEqual(SKIPPED)
+
+        expect(enqueueContinuation).toHaveBeenCalledTimes(1)
+        expect(enqueueContinuation).toHaveBeenCalledWith({ ...JOB_DATA, sourceEpoch: 7 })
+        expect(markDeferred).not.toHaveBeenCalled()
+        expect(row.errorClass).toBeNull()
+      },
+    )
+
+    it('keeps the reconnect skip for a run that failed as connection_unusable', async () => {
+      const { handler, logger, markDeferred } = replayHandler(
+        [replay('connection_unusable')],
+        failedRow(),
+      )
+
+      await expect(handler({ id: 'job-replay', data: STEP } as never)).resolves.toEqual({
+        status: 'skipped',
+        code: 'connection_unusable',
+      })
+
+      expect(markDeferred).not.toHaveBeenCalled()
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        { event: 'review_sync_skipped_connection_unusable', mode: 'snapshot' },
+        'Review sync skipped: the Google connection needs reconnecting',
+      )
+    })
+  })
 })
