@@ -1,10 +1,10 @@
-// The final print kit as a PDF (final design spec, slices 3 to 5): single
-// pieces, one face per page at its trim, and Paper office sheets, drawn with
-// PDFKit. Paper is vectors (the code is rectangles, the type is the guest fonts
-// embedded as subsets; only a logo is raster). Immersive adds its art under
-// them: the ground and washes as vectors, the photo with its fade as a soft
-// mask, the scrims, the grain (`print-kit-final-immersive.ts`). Immersive
-// office sheets come in a later slice.
+// The final print kit as a PDF (final design spec, slices 3 to 6): single
+// pieces, one face per page at its trim, and office sheets in both looks, drawn
+// with PDFKit. Paper is vectors (the code is rectangles, the type is the guest
+// fonts embedded as subsets; only a logo is raster). Immersive adds its art
+// under them: the ground and washes as vectors, the photo with its fade as a
+// soft mask, the scrims, the grain (`print-kit-final-immersive.ts`); on an
+// office sheet each piece's art runs into its bleed.
 //
 // The tile follows the symbol the address makes (`choosePrintFinalTile`): a
 // piece whose module would print under 0.85 mm is refused before any page is
@@ -23,12 +23,19 @@ import {
   type PrintFinalTile,
 } from '#/shared/domain/portal-print-final-code'
 import { printFinalPaperOf } from '#/shared/domain/portal-print-final'
+import {
+  printFinalSheet,
+  printFinalSheetFaceBleed,
+} from '#/shared/domain/portal-print-final-immersive-sheets'
+import {
+  PRINT_FINAL_NO_BLEED,
+  type PrintFinalBleed,
+} from '#/shared/domain/portal-print-final-layers'
 import { PRINT_FINAL_MEASURES } from '#/shared/domain/portal-print-final-measures'
 import {
   PRINT_FINAL_MAX_QUANTITY,
   printFinalPieceCount,
 } from '#/shared/domain/portal-print-final-offer'
-import { printFinalPaperSheet } from '#/shared/domain/portal-print-final-sheets'
 import { printFinalPaperColours } from '#/shared/domain/portal-print-final-colours'
 import { paperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import {
@@ -41,7 +48,7 @@ import {
   prepareFinalImmersiveFace,
   type FinalPreparedFace,
 } from './print-kit-final-immersive'
-import { drawFinalPaperSheets } from './print-kit-final-sheets'
+import { drawFinalSheets } from './print-kit-final-sheets'
 import { logoArt } from './print-kit-image'
 import { openImage } from './print-kit-pdf-image'
 import { PrintKitFonts } from './print-kit-pdf-text'
@@ -77,7 +84,11 @@ function preparePaperFace(
     tile,
     art,
   })
-  return { layout, draw: () => drawFinalFace(doc, fonts, layout, art) }
+  return {
+    layout,
+    bleed: PRINT_FINAL_NO_BLEED,
+    draw: () => drawFinalFace(doc, fonts, layout, art),
+  }
 }
 
 type PreparedPrint = Readonly<{
@@ -86,10 +97,15 @@ type PreparedPrint = Readonly<{
   fonts: PrintKitFonts
 }>
 
-/** Reads the code and the logo and lays the face out; every refusal comes here, before any page is added. */
+/**
+ * Reads the code and the logo and lays the face out; every refusal comes here,
+ * before any page is added. An Immersive face's art runs into `bleed` (Paper has
+ * nothing to run off the edge).
+ */
 async function prepareFace(
   doc: PDFKit.PDFDocument,
   input: PrintFinalRenderInput,
+  bleed: PrintFinalBleed = PRINT_FINAL_NO_BLEED,
 ): Promise<PreparedPrint> {
   const { face } = input
   const qr = qrMatrix(input.qrAddress)
@@ -102,7 +118,7 @@ async function prepareFace(
   const art = input.logo === null ? null : await logoArt(input.logo)
   const logo = art === null ? null : { image: openImage(doc, art.bytes), ink: art.ink }
   const fonts = new PrintKitFonts(doc)
-  const common = { input, tile: tile.value, qr, logo }
+  const common = { input, tile: tile.value, qr, logo, bleed }
   const prepared =
     face.look === 'paper'
       ? preparePaperFace(doc, fonts, common)
@@ -146,17 +162,19 @@ async function drawSheets(
   sheets: PrintFinalSheetsInput,
 ): Promise<void> {
   const { face } = input
-  if (face.look !== 'paper') {
-    throw new Error('The final Immersive office sheets are not drawn yet')
-  }
-  const sheet = printFinalPaperSheet({
+  const sheet = printFinalSheet({
     piece: face.piece,
     orientation: face.orientation,
+    look: face.look,
     paper: printFinalPaperOf(face.region),
   })
   const pieceCount = pieceCountOf(sheets, sheet.cells.length)
-  const { prepared, tile, fonts } = await prepareFace(doc, input)
-  drawFinalPaperSheets(doc, fonts, {
+  const { prepared, tile, fonts } = await prepareFace(
+    doc,
+    input,
+    printFinalSheetFaceBleed(sheet),
+  )
+  drawFinalSheets(doc, fonts, {
     sheet,
     face: prepared,
     tilePt: tile.tilePt,

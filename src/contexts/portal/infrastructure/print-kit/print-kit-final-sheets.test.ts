@@ -237,17 +237,6 @@ describe('the final Paper office sheets', () => {
       ),
     ).rejects.toMatchObject({ refusal: { code: 'needs_short_code' } })
   })
-
-  it('has no Immersive office sheets yet', async () => {
-    await expect(
-      renderer.render(
-        inputFor(
-          { piece: 'tent', orientation: 'wide', look: 'immersive', region: 'us' },
-          { quantity: 2, fillSpares: false },
-        ),
-      ),
-    ).rejects.toThrow('not drawn yet')
-  })
 })
 
 describe('the printed note', () => {
