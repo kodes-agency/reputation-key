@@ -21,7 +21,7 @@ import type {
   DownloadPrintKitInput,
 } from './portal-print-kit-types'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
-import { DARK_LOGO, PHOTO } from './print-final-story-pictures'
+import { DARK_LOGO, PHOTO } from './print-final-story-fixtures'
 
 const QR_ADDRESS = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
 const issuedLink: IssuedPortalLink = {

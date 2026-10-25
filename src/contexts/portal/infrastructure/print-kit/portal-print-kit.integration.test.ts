@@ -44,7 +44,7 @@ import {
   seedPrintKitCode,
   sha256Hex,
   storePrintKitPicture,
-} from '../testing/portal-print-kit-live-seed'
+} from './__fixtures__/print-kit-live-seed'
 import { seedPortalWorkingCopy } from '../testing/portal-working-copy-seed'
 import {
   COMPLETE_SCENARIO,

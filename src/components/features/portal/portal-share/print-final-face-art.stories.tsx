@@ -20,7 +20,7 @@ import { printFinalLiveArea } from '#/shared/domain/portal-print-final-measures'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { pointsToPixels } from './print-kit-code-block-layout'
 import { PrintFinalFaceArt } from './print-final-face-art'
-import { BADGE_LOGO, DARK_LOGO, PHOTO } from './print-final-story-pictures'
+import { BADGE_LOGO, DARK_LOGO, PHOTO } from './print-final-story-fixtures'
 import { usePrintKitCode } from './use-print-kit-code'
 
 type LookKind = 'paper' | 'immersive'

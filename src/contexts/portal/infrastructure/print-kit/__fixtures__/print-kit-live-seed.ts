@@ -7,10 +7,13 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { Pool } from 'pg'
 import sharp from 'sharp'
-import type { StoragePort } from '../../application/ports/storage.port'
-import { bulgarianPrimaryConfiguration } from '../../domain/__fixtures__/immersive-configuration'
-import { createPortalAddressCipher } from '../adapters/portal-address-cipher'
-import { COMPLETE_SCENARIO, SCENARIO_HERO_ASSET } from './portal-working-copy-scenarios'
+import type { StoragePort } from '../../../application/ports/storage.port'
+import { bulgarianPrimaryConfiguration } from '../../../domain/__fixtures__/immersive-configuration'
+import { createPortalAddressCipher } from '../../adapters/portal-address-cipher'
+import {
+  COMPLETE_SCENARIO,
+  SCENARIO_HERO_ASSET,
+} from '../../testing/portal-working-copy-scenarios'
 
 export const BASE_URL = 'https://app.example.test'
 export const PRINT_ORIGIN = 'https://ap.example.test'
