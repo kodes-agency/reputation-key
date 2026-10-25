@@ -1,8 +1,9 @@
 // The words Share's warning list looks for in the manager's own call to action,
 // per language (final design spec §5.8, `cta-research.md`). Data only; the
 // matching is `portal-print-final-warnings.ts`. Whole words and phrases, matched
-// with case and accents folded, so "Évaluez" and "evaluez" are one word. Every
-// non-English form is a draft that needs a native check (slice C9).
+// with case and accents folded (the matcher folds these lists as it folds the
+// typed text), so "Évaluez" and "evaluez" are one word. Every non-English form is
+// a draft that needs a native check (slice C9).
 //
 // Only a clear offer blocks a print: Google removes reviews given for a discount
 // or a gift. Everything else warns and never blocks. Two of the spec's offer

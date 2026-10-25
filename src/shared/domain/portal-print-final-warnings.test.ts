@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { GUEST_LOCALES } from './guest-locale'
 import { PRINT_FINAL_CALLS_TO_ACTION, PRINT_FINAL_COPY } from './portal-print-final-copy'
+import { PRINT_FINAL_WARNING_WORDS } from './portal-print-final-warning-words'
 import {
   printFinalTextWarning,
   printFinalWordsOffer,
@@ -45,6 +46,33 @@ describe('the warning list (spec 5.8)', () => {
   it('folds case and accents, and reads apostrophes either way', () => {
     expect(say('N’oubliez pas de noter', 'fr')).toBe("warn pressure N'oubliez pas")
     expect(say('Una reseña anónima', 'es')).toBe('warn privacy anónima')
+  })
+
+  it('finds every phrase of every list as it is written, in every language', () => {
+    // The lists are folded as the typed text is (Bulgarian й is и with a breve), so none can be missed.
+    for (const locale of GUEST_LOCALES) {
+      const lists = PRINT_FINAL_WARNING_WORDS[locale]
+      for (const phrase of [
+        ...lists.offers,
+        ...lists.offerWords,
+        ...lists.mood,
+        ...lists.pressure,
+        ...lists.privacy,
+      ]) {
+        expect(
+          printFinalTextWarning(phrase, locale),
+          `${locale} ${phrase}`,
+        ).not.toBeNull()
+      }
+      for (const word of lists.time) {
+        expect(
+          printFinalTextWarning(`5 ${word}`, locale),
+          `${locale} ${word}`,
+        ).not.toBeNull()
+      }
+    }
+    expect(say('Не забравяйте да оцените', 'bg')).toBe('warn pressure Не забравяйте')
+    expect(say('Попитайте за Мария', 'bg')).toBe('warn pressure Попитайте за')
   })
 
   it('finds no offer, mood, pressure or privacy word in any wording or sub-line, in any language', () => {

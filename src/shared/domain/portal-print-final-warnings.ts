@@ -131,11 +131,35 @@ function timeClaim(
   return index < 0 ? null : `${tokens[index]?.typed} ${tokens[index + 1]?.typed}`
 }
 
+/**
+ * The lists folded as the typed text is: a phrase written with an accent the
+ * folding takes off ("попитайте", whose й is и with a breve) must still be found
+ * in what the manager typed.
+ */
+const foldedWords = (words: PrintFinalWarningWords): PrintFinalWarningWords => ({
+  offers: words.offers.map(fold),
+  free: words.free.map(fold),
+  things: words.things.map(fold),
+  off: words.off.map(fold),
+  offerWords: words.offerWords.map(fold),
+  mood: words.mood.map(fold),
+  pressure: words.pressure.map(fold),
+  privacy: words.privacy.map(fold),
+  time: words.time.map(fold),
+})
+
+const FOLDED_WORDS: Readonly<Record<GuestLocale, PrintFinalWarningWords>> = {
+  en: foldedWords(PRINT_FINAL_WARNING_WORDS.en),
+  es: foldedWords(PRINT_FINAL_WARNING_WORDS.es),
+  it: foldedWords(PRINT_FINAL_WARNING_WORDS.it),
+  fr: foldedWords(PRINT_FINAL_WARNING_WORDS.fr),
+  de: foldedWords(PRINT_FINAL_WARNING_WORDS.de),
+  bg: foldedWords(PRINT_FINAL_WARNING_WORDS.bg),
+}
+
 /** The lists a language's field is read with: its own, and English, which managers type everywhere. */
 const listsFor = (locale: GuestLocale): readonly PrintFinalWarningWords[] =>
-  locale === 'en'
-    ? [PRINT_FINAL_WARNING_WORDS.en]
-    : [PRINT_FINAL_WARNING_WORDS[locale], PRINT_FINAL_WARNING_WORDS.en]
+  locale === 'en' ? [FOLDED_WORDS.en] : [FOLDED_WORDS[locale], FOLDED_WORDS.en]
 
 type Check = Readonly<{
   kind: PrintFinalWordsWarning['kind']
