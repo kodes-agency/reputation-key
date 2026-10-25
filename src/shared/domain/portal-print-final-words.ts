@@ -21,7 +21,7 @@ import {
 export type PrintFinalTone = 'ink' | 'soft' | 'accent'
 
 export type PrintFinalWordsPart = Readonly<{
-  key: Exclude<PrintFinalPartKey, 'brand' | 'stars' | 'rule'>
+  key: Exclude<PrintFinalPartKey, 'brand' | 'stars' | 'rule' | 'name'>
   text: string
   locale: GuestLocale
   style: PrintFinalTextStyle
@@ -86,6 +86,20 @@ export function printFinalWordmarkStyle(face: PrintFinalFace): PrintFinalTextSty
     sizePt: PRINT_FINAL_TYPE[face.piece].wordmarkPt,
     trackingEm: wordmark.trackingEm,
     leading: wordmark.leading,
+    caps: true,
+  }
+}
+
+/** The back page's property name: Ysabeau Office 600 in tracked capitals, smaller than the wordmark (§10.4). */
+export function printFinalNameStyle(face: PrintFinalFace): PrintFinalTextStyle {
+  const { name } = PRINT_FINAL_TYPE_SETTINGS
+  return {
+    family: 'sans',
+    weight: 600,
+    italic: false,
+    sizePt: PRINT_FINAL_TYPE[face.piece].namePt,
+    trackingEm: name.trackingEm,
+    leading: name.leading,
     caps: true,
   }
 }

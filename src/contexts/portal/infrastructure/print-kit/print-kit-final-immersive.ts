@@ -12,6 +12,8 @@ import {
   PRINT_FINAL_NO_BLEED,
   type PrintFinalBleed,
 } from '#/shared/domain/portal-print-final-layers'
+import type { PrintFinalColours } from '#/shared/domain/portal-print-final-colours'
+import type { PrintFinalImmersivePalette } from '#/shared/domain/portal-print-final-immersive'
 import {
   layoutPrintFinalImmersiveFace,
   type PrintFinalImmersiveBrand,
@@ -28,8 +30,18 @@ import { finalLogoTone, finalPhotoImage, finalScenePhoto } from './print-kit-fin
 import type { PrintKitFonts } from './print-kit-pdf-text'
 import type { QrMatrix } from './print-kit-qr'
 
+/** What a face is painted in, which its back page takes up so both sides agree. */
+export type FinalFaceLook = Readonly<{
+  colours: PrintFinalColours
+  /** The Immersive palette (the ground the back stands on); null on Paper. */
+  palette: PrintFinalImmersivePalette | null
+  /** The logo sits on its cream plate. */
+  logoOnPlate: boolean
+}>
+
 export type FinalPreparedFace = Readonly<{
   layout: PrintFinalFaceLayout
+  look: FinalFaceLook
   /** How far its art runs past each trim edge: none on a lone piece, the bleed on an Immersive sheet's. */
   bleed: PrintFinalBleed
   /** Draws the face on the current page. */
@@ -86,6 +98,11 @@ export async function prepareFinalImmersiveFace(
   const images = { photo, grain: grainTile(doc), scrims: scrimImages(doc, art) }
   return {
     layout: immersive.layout,
+    look: {
+      colours: immersive.colours,
+      palette: immersive.palette,
+      logoOnPlate: immersive.logoOnPlate,
+    },
     bleed,
     immersive,
     draw: () => {

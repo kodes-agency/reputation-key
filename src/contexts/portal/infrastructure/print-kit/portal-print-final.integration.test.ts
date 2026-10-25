@@ -204,6 +204,45 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
     expect(text.match(/\/Subtype \/Image/gu)?.length ?? 0).toBeGreaterThanOrEqual(2)
   })
 
+  it('follows each sheet of Paper Counter cards with its back, after the live property’s name', async () => {
+    const { make, ctx, rendered } = await harness()
+    await setCountry('US')
+
+    const file = await make(
+      request({
+        piece: 'counter',
+        orientation: 'upright',
+        quantity: 4,
+        languages: ['en'],
+        backPage: true,
+      }),
+      ctx,
+    )
+
+    expect(file.fileName).toBe('lobby-portal-counter-cards-upright-en-back-letter.pdf')
+    // Four cards are two sheets of three; each sheet is followed by its back.
+    expect(pageSizes(file.pdf)).toEqual([
+      [612, 792],
+      [612, 792],
+      [612, 792],
+      [612, 792],
+    ])
+    expect(rendered[0]?.back?.propertyName).toBeTruthy()
+    expect(await downloads()).toBe(1)
+  })
+
+  it('refuses a back page on a tent without disclosing the code', async () => {
+    const { make, ctx } = await harness()
+
+    await expect(
+      make(request({ languages: ['bg'], backPage: true }), ctx),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      context: { cause: 'no_back_for_tents' },
+    })
+    expect(await downloads()).toBe(0)
+  })
+
   it('refuses English and Bulgarian together: the Bulgarian cue does not fit the bar on one line', async () => {
     const { make, ctx } = await harness()
 

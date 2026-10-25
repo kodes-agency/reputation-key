@@ -31,6 +31,7 @@ describe('resolvePrintFinalChoice', () => {
       fillSpares: false,
       perSheet: 4,
       chosenPerSheet: undefined,
+      backPage: false,
       languages: ['en', 'es'],
       callToAction: 'rate',
     })
@@ -55,6 +56,16 @@ describe('resolvePrintFinalChoice', () => {
       paper: 'letter',
       countryPaper: 'a4',
     })
+  })
+
+  it('prints a back page for a card that asked for one, and never for a tent', () => {
+    expect(resolve({ piece: 'counter', backPage: true }).backPage).toBe(true)
+    expect(resolve({ piece: 'small', backPage: true }).backPage).toBe(true)
+    expect(resolve({ piece: 'counter' }).backPage).toBe(false)
+    // The choice is remembered while a tent is on show, and the tent prints its front on both faces.
+    expect(resolve({ piece: 'tent', backPage: true }).backPage).toBe(false)
+    expect(resolve({ printer: 'print_shop', backPage: true }).piece).toBe('counter')
+    expect(resolve({ printer: 'print_shop', backPage: true }).backPage).toBe(true)
   })
 
   it('offers Counter cards in place of tents for a print shop', () => {
@@ -112,6 +123,15 @@ describe('printFinalShareCount', () => {
 })
 
 describe('printFinalShareCheck', () => {
+  it('prints a card with a back page, and a tent never asks for one', () => {
+    expect(
+      printFinalShareCheck(resolve({ piece: 'counter', backPage: true }), SHORT).refusal,
+    ).toBeNull()
+    expect(
+      printFinalShareCheck(resolve({ piece: 'tent', backPage: true }), SHORT).refusal,
+    ).toBeNull()
+  })
+
   it('prints the board’s tents on the 1.4 in tile', () => {
     const check = printFinalShareCheck(resolve(), SHORT)
     expect(check.refusal).toBeNull()

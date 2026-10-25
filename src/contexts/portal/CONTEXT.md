@@ -569,6 +569,18 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   renderer's refusals (the code, or two cues that do not fit the bar) come after, in
   the words the Share tab uses (`PRINT_FINAL_REFUSAL_COPY`). From the manager's
   printer the pieces go on office sheets; a print shop gets one piece per page.
+- **The final kit's back page.** A Counter card or a Small card may print a back
+  (`backPage`, off by default, More options): the logo (or the wordmark) and the
+  Property's name 2u below it, placed by their ink 44 : 56 in the front's live area,
+  no code (`layoutPrintFinalBack`, `portal-print-final-back.ts`). A tent has none: it
+  prints its front on both faces, and the offer refuses a back on one
+  (`no_back_for_tents`). A Paper back is bare paper; an Immersive back stands on the
+  front's ground and washes with no photo, the logo on its plate where the front put
+  it. A lone card's back is page 2; on office sheets each sheet is followed by its
+  reverse, the cells mirrored left to right so the backs lie behind the fronts when
+  the sheet is turned like the page of a book, the card that lies across its cell on
+  the Letter Paper Counter sheet turned the other way, and with no marks and no note
+  on it (`portal-print-final-back-sheets.ts`).
 
 ## Runtime
 

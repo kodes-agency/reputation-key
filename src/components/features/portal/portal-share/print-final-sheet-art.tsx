@@ -4,7 +4,8 @@
 // sheet fills (a card upright or a quarter turn across its cell, a tent flat with
 // its back face upside down above the fold), each Immersive face run into its
 // bleed, then the sheet's marks and its printed note. So the sheet a manager sees
-// is the sheet the file prints.
+// is the sheet the file prints. Its reverse (`back`) shows each filled cell's back
+// in the cell behind it, the cells mirrored, with no marks and no note.
 //
 // Laid out in container units of the sheet's width; every face is the same face,
 // laid out once (`usePrintFinalDrawnFace`) and drawn in each cell. Inline styles,
@@ -22,6 +23,7 @@ import {
   PRINT_FINAL_SHEET_NOTE,
   printFinalSheetNotes,
 } from '#/shared/domain/portal-print-final-sheet-notes'
+import { printFinalBackPlacement } from '#/shared/domain/portal-print-final-back-sheets'
 import {
   printFinalCellPlacements,
   type PrintFinalSheet,
@@ -31,7 +33,9 @@ import { printFinalSheetFaceBleed } from '#/shared/domain/portal-print-final-imm
 import { printFinalLiveArea } from '#/shared/domain/portal-print-final-measures'
 import { PRINT_KIT_PAPER } from '#/shared/domain/portal-print-kit-palette'
 import { ptToContainerWidth } from './print-kit-paper-art-layout'
+import { PrintFinalDrawnBackArt } from './print-final-back-art'
 import { PrintFinalDrawnFaceArt } from './print-final-face-art'
+import { usePrintFinalDrawnBack } from './use-print-final-drawn-back'
 import {
   usePrintFinalDrawnFace,
   type PrintFinalFaceInput,
@@ -49,6 +53,8 @@ type Props = Readonly<{
   tilePt: number
   /** What the picture is, for a screen reader: "Letter landscape · sheet 1 of 5". */
   label: string
+  /** Show the sheet's reverse: the backs of a card's back page, in mirrored cells. Absent: the front. */
+  back?: boolean
 }>
 
 /** One face in its place on the sheet: its own size, centred in its box and turned to fill it. */
@@ -123,6 +129,7 @@ export function PrintFinalSheetArt({
   framing,
   tilePt,
   label,
+  back = false,
 }: Props) {
   // Held per sheet: a new bleed would lay the Immersive face out again on every render.
   const { piece, bleedPt } = sheet
@@ -132,6 +139,13 @@ export function PrintFinalSheetArt({
     [immersive, piece, bleedPt],
   )
   const drawn = usePrintFinalDrawnFace({ ...face, bleed })
+  const drawnBack = usePrintFinalDrawnBack({
+    face: face.face,
+    look: face.look,
+    front: drawn,
+    enabled: back,
+    bleed,
+  })
   const u = (points: number) => ptToContainerWidth(points, sheet.widthPt)
   const cells = sheet.cells.slice(0, filled)
   const { widthPt, heightPt } = printFinalLiveArea(face.face)
@@ -149,7 +163,10 @@ export function PrintFinalSheetArt({
       }}
     >
       {cells.flatMap((cell) =>
-        printFinalCellPlacements(sheet, cell).map((placement) => (
+        (drawnBack === null
+          ? printFinalCellPlacements(sheet, cell)
+          : [printFinalBackPlacement(sheet, cell)]
+        ).map((placement) => (
           <Placed
             key={`${placement.leftPt}:${placement.topPt}`}
             placement={placement}
@@ -157,38 +174,51 @@ export function PrintFinalSheetArt({
             heightPt={heightPt}
             u={u}
           >
-            <PrintFinalDrawnFaceArt
-              drawn={drawn}
-              look={face.look}
-              codeUrl={codeUrl}
-              framing={framing}
-              bleed={bleed}
-              pt={u}
-            />
+            {drawnBack === null ? (
+              <PrintFinalDrawnFaceArt
+                drawn={drawn}
+                look={face.look}
+                codeUrl={codeUrl}
+                framing={framing}
+                bleed={bleed}
+                pt={u}
+              />
+            ) : (
+              <PrintFinalDrawnBackArt
+                drawn={drawnBack}
+                look={face.look}
+                bleed={bleed}
+                pt={u}
+              />
+            )}
           </Placed>
         )),
       )}
-      <Marks sheet={sheet} marks={printFinalSheetMarks(sheet, cells)} />
-      {printFinalSheetNotes(sheet, tilePt, cells).map((note) => (
-        <p
-          key={`${note.leftPt}:${note.topPt}`}
-          aria-hidden
-          style={{
-            position: 'absolute',
-            margin: 0,
-            left: u(note.leftPt),
-            top: u(note.topPt),
-            width: u(note.widthPt),
-            fontFamily: 'var(--font-guest-body)',
-            fontWeight: 400,
-            fontSize: u(PRINT_FINAL_SHEET_NOTE.sizePt),
-            lineHeight: PRINT_FINAL_SHEET_NOTE.leading,
-            color: PRINT_FINAL_SHEET_NOTE.colour,
-          }}
-        >
-          {note.text}
-        </p>
-      ))}
+      {drawnBack === null && (
+        <Marks sheet={sheet} marks={printFinalSheetMarks(sheet, cells)} />
+      )}
+      {(drawnBack === null ? printFinalSheetNotes(sheet, tilePt, cells) : []).map(
+        (note) => (
+          <p
+            key={`${note.leftPt}:${note.topPt}`}
+            aria-hidden
+            style={{
+              position: 'absolute',
+              margin: 0,
+              left: u(note.leftPt),
+              top: u(note.topPt),
+              width: u(note.widthPt),
+              fontFamily: 'var(--font-guest-body)',
+              fontWeight: 400,
+              fontSize: u(PRINT_FINAL_SHEET_NOTE.sizePt),
+              lineHeight: PRINT_FINAL_SHEET_NOTE.leading,
+              color: PRINT_FINAL_SHEET_NOTE.colour,
+            }}
+          >
+            {note.text}
+          </p>
+        ),
+      )}
     </div>
   )
 }

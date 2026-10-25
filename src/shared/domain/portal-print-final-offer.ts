@@ -10,7 +10,9 @@
 //     would print at 0.77 mm: `address_host_too_long`;
 //   - on the step-up ladder, the wide Small card: `tile_does_not_fit`;
 //   - with a print shop, tents, which stay office-only (Share offers Counter
-//     cards instead): `tents_office_only`.
+//     cards instead): `tents_office_only`;
+//   - a back page on a tent, which prints its front on both faces:
+//     `no_back_for_tents` (Share offers the back page for cards only).
 
 import { err, ok, type Result } from './result'
 import { PRINT_KIT_MAX_LANGUAGES, type PrintKitPaper } from './portal-print-kit'
@@ -44,6 +46,8 @@ export type PrintFinalChoice = Readonly<{
   /** How many pieces go on each office sheet, when the manager asks for fewer than fit (More options); absent: all that fit. */
   perSheet?: number
   languageCount: number
+  /** The optional back page (More options), off unless asked for; cards only. */
+  backPage?: boolean
 }>
 
 /** The code a choice prints: the address's shape and its symbol's modules, the quiet zone not included. */
@@ -58,6 +62,7 @@ export type PrintFinalRefusal =
   | Readonly<{
       code:
         | 'tents_office_only'
+        | 'no_back_for_tents'
         | 'quantity_out_of_range'
         | 'per_sheet_out_of_range'
         | 'languages_out_of_range'
@@ -104,8 +109,9 @@ export const printFinalPerSheetOf = (
 
 /**
  * What is wrong with a choice before its code is known: a quantity or a count
- * per sheet out of range, a number of languages a print cannot carry, or a tent
- * for a print shop. The server asks this before it reveals an address.
+ * per sheet out of range, a number of languages a print cannot carry, a tent
+ * for a print shop, or a back page on a tent. The server asks this before it
+ * reveals an address.
  */
 export function printFinalChoiceProblem(
   choice: PrintFinalChoice,
@@ -123,6 +129,9 @@ export function printFinalChoiceProblem(
   }
   if (choice.piece === 'tent' && choice.printer === 'print_shop') {
     return { code: 'tents_office_only' }
+  }
+  if (choice.piece === 'tent' && choice.backPage === true) {
+    return { code: 'no_back_for_tents' }
   }
   return null
 }

@@ -86,7 +86,8 @@ export type PrintFinalFaceLayout = Readonly<{
   overflows: boolean
 }>
 
-type Built = Readonly<{
+/** Parts as they are measured, and what each draws, in the same order. */
+export type PrintFinalBuilt = Readonly<{
   parts: readonly PrintFinalPart[]
   contents: readonly PrintFinalContent[]
 }>
@@ -107,13 +108,18 @@ function cuesOf(input: PrintFinalFaceInput): readonly PrintFinalCue[] {
   }))
 }
 
-function brandOf(
-  input: PrintFinalFaceInput,
+/**
+ * The brand of a face: the logo at its optical size (on its plate when it has
+ * one), or the wordmark broken in `column` points. The front and the back page
+ * set it alike.
+ */
+export function printFinalBrandPart(
+  brand: PrintFinalBrandInput,
   face: PrintFinalFace,
   column: number,
   align: PrintFinalAlign,
-): Built {
-  const { brand } = input
+  measurer: PrintFinalTextMeasurer,
+): PrintFinalBuilt {
   if (brand.kind === 'logo') {
     const box = printFinalBrandBox(face.piece, face.look, brand, brand.onPlate)
     return {
@@ -124,7 +130,7 @@ function brandOf(
   const style = printFinalWordmarkStyle(face)
   // The wordmark is padded by its tracking on the left, so each line's box is symmetric about its ink.
   const room = column - style.trackingEm * style.sizePt
-  const set = setPrintFinalText(brand.text, style, room, align, input.measurer)
+  const set = setPrintFinalText(brand.text, style, room, align, measurer)
   if (set === null) return { parts: [], contents: [] }
   return {
     parts: [{ key: 'brand', widthPt: set.widthPt, heightPt: set.heightPt }],
@@ -137,7 +143,7 @@ function wordsOf(
   words: readonly PrintFinalWordsPart[],
   column: number,
   align: PrintFinalAlign,
-): Built {
+): PrintFinalBuilt {
   const built = words.flatMap((word) => {
     const set = setPrintFinalText(word.text, word.style, column, align, input.measurer)
     if (set === null) return []
@@ -154,11 +160,11 @@ function buildFace(
   input: PrintFinalFaceInput,
   face: PrintFinalFace,
   headlinePt: number,
-): Built {
+): PrintFinalBuilt {
   const column = printFinalTextColumn(face, input.tile.tilePt)
   const columnPt = column.rightPt - column.leftPt
   const align: PrintFinalAlign = face.orientation === 'upright' ? 'centre' : 'left'
-  const brand = brandOf(input, face, columnPt, align)
+  const brand = printFinalBrandPart(input.brand, face, columnPt, align, input.measurer)
   const { words, rule } = printFinalWords(face, input.blocks, headlinePt)
   const firstLanguage = words.filter(
     (w) => !['headline2', 'subline2', 'secondLine'].includes(w.key),

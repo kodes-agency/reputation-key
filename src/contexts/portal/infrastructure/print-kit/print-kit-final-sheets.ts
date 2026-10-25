@@ -16,6 +16,8 @@
 // A sheet with no note has no free paper to say "print at Actual size", so its
 // PDF asks the print dialog for it instead: `PrintScaling /None`.
 
+import { printFinalBackPlacement } from '#/shared/domain/portal-print-final-back-sheets'
+import type { PrintFinalBleed } from '#/shared/domain/portal-print-final-layers'
 import {
   PRINT_FINAL_SHEET_MARKS,
   printFinalMarkColour,
@@ -32,9 +34,11 @@ import {
   printFinalCellPlacements,
   printFinalSheetFills,
   type PrintFinalSheet,
+  type PrintFinalSheetCell,
   type PrintFinalSheetPlacement,
 } from '#/shared/domain/portal-print-final-sheets'
 import { fillWords } from '#/shared/domain/portal-print-kit-text'
+import type { FinalPreparedBack } from './print-kit-final-back'
 import type { FinalPreparedFace } from './print-kit-final-immersive'
 import {
   drawLine,
@@ -47,6 +51,8 @@ export type FinalSheetsInput = Readonly<{
   sheet: PrintFinalSheet
   /** The face every cell holds, laid out once. */
   face: FinalPreparedFace
+  /** The back every cell of the sheet behind holds; each sheet is followed by its back. Cards only. */
+  back?: FinalPreparedBack
   /** The code's cream square as printed: the note names its size. */
   tilePt: number
   /** How many pieces to print: the quantity, or every cell of the last sheet when it is filled with spares. */
@@ -55,10 +61,17 @@ export type FinalSheetsInput = Readonly<{
   perSheet?: number
 }>
 
+/** What a cell holds, front or back: its trim, how far its art runs past it, and how to draw it. */
+type Drawable = Readonly<{
+  layout: Readonly<{ plan: Readonly<{ widthPt: number; heightPt: number }> }>
+  bleed: PrintFinalBleed
+  draw: () => void
+}>
+
 /** A face drawn in its place: turned as the placement says, and clipped to its trim and bleed. */
 function drawPlaced(
   doc: PDFKit.PDFDocument,
-  face: FinalPreparedFace,
+  face: Drawable,
   placement: PrintFinalSheetPlacement,
 ): void {
   const { leftPt, topPt, widthPt, heightPt, turnDeg } = placement
@@ -68,6 +81,9 @@ function drawPlaced(
   if (turnDeg === -90) {
     // Turned a quarter counter-clockwise, its top edge becomes the cell's left.
     doc.translate(leftPt, topPt + heightPt).rotate(-90)
+  } else if (turnDeg === 90) {
+    // Turned a quarter clockwise, its top edge becomes the cell's right: a back across its cell.
+    doc.translate(leftPt + widthPt, topPt).rotate(90)
   } else if (turnDeg === 180) {
     doc.translate(leftPt, topPt).rotate(180, { origin: [widthPt / 2, heightPt / 2] })
   } else {
@@ -175,7 +191,23 @@ function askForActualSize(doc: PDFKit.PDFDocument): void {
   catalogue.data.ViewerPreferences = doc.ref({ PrintScaling: 'None' })
 }
 
-/** Adds the sheets a count takes to the document, one page each. */
+/**
+ * The reverse of a sheet: each filled cell's back in the cell behind it. It
+ * carries no marks and no note; the cuts are made from the front.
+ */
+function drawBackSheet(
+  doc: PDFKit.PDFDocument,
+  back: FinalPreparedBack,
+  sheet: PrintFinalSheet,
+  cells: readonly PrintFinalSheetCell[],
+): void {
+  doc.addPage({ size: [sheet.widthPt, sheet.heightPt], margin: 0 })
+  for (const cell of cells) {
+    drawPlaced(doc, back, printFinalBackPlacement(sheet, cell))
+  }
+}
+
+/** Adds the sheets a count takes to the document, one page each, and after each its back where there is one. */
 export function drawFinalSheets(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
@@ -197,6 +229,7 @@ export function drawFinalSheets(
     for (const note of printFinalSheetNotes(sheet, tilePt, cells)) {
       drawNote(doc, fonts, note)
     }
+    if (input.back !== undefined) drawBackSheet(doc, input.back, sheet, cells)
   }
   if (!hasNote) askForActualSize(doc)
 }

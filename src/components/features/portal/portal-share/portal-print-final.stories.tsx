@@ -257,11 +257,77 @@ export const DownloadSendsTheChoice: Story = {
           printer: 'my_printer',
           quantity: 10,
           fillSpares: true,
+          backPage: false,
           languages: ['en', 'es'],
           callToAction: 'rate',
         },
       }),
     )
+  },
+}
+
+/** A card's back page: under More options, off until asked for; the summary says both sides, the preview gets a Back side, and the download asks for it. */
+export const CounterCardBackPage: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: /^Counter cards/ }))
+    await expect(canvas.getByText(/10 cards · upright · Letter · one side/)).toBeVisible()
+    await expect(canvas.queryByRole('radio', { name: 'Back' })).toBeNull()
+    await userEvent.click(canvas.getByText('More options'))
+    const back = canvas.getByRole('checkbox', { name: 'Print a back page' })
+    await expect(back).not.toBeChecked()
+    await userEvent.click(back)
+    await expect(
+      canvas.getByText(/10 cards · upright · Letter · both sides/),
+    ).toBeVisible()
+    await userEvent.click(canvas.getByRole('radio', { name: 'Back' }))
+    await expect(
+      await canvas.findByRole('img', { name: 'Upright back, shown smaller' }),
+    ).toBeVisible()
+    await expect(
+      await canvas.findByRole('img', {
+        name: 'Your sheet, Letter · back of sheet 1 of 4',
+      }),
+    ).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: /download pdf/i }))
+    await waitFor(() =>
+      expect(args.printKit?.downloadFinalMutation).toHaveBeenCalledWith({
+        data: expect.objectContaining({ piece: 'counter', backPage: true }),
+      }),
+    )
+  },
+}
+
+/** A tent prints its front on both faces: there is no back page to ask for. */
+export const TentsHaveNoBackPage: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByText('More options'))
+    await expect(canvas.getByRole('combobox', { name: 'Tents per sheet' })).toBeVisible()
+    await expect(canvas.queryByRole('checkbox', { name: 'Print a back page' })).toBeNull()
+  },
+}
+
+/** A print shop gets a card's back as its second page; More options holds just the back page. */
+export const PrintShopCardBackPage: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'A print shop' }))
+    await userEvent.click(canvas.getByText('More options'))
+    await expect(canvas.queryByRole('combobox', { name: /per sheet/ })).toBeNull()
+    await userEvent.click(canvas.getByRole('checkbox', { name: 'Print a back page' }))
+    await expect(
+      canvas.getByText(/one card per page · upright · 4 × 6 in · both sides/),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText(/the front on page 1 and the back on page 2\./),
+    ).toBeVisible()
   },
 }
 

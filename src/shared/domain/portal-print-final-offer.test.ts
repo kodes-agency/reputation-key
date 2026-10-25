@@ -184,6 +184,19 @@ describe('choices and refusals (spec 12)', () => {
     expect(refusalOf({ piece: 'small', printer: 'print_shop' })).toBeNull()
   })
 
+  it('gives the cards a back page and leaves the tent’s two faces the front', () => {
+    for (const printer of ['my_printer', 'print_shop'] as const) {
+      expect(refusalOf({ piece: 'counter', printer, backPage: true })).toBeNull()
+      expect(refusalOf({ piece: 'small', printer, backPage: true })).toBeNull()
+    }
+    expect(refusalOf({ piece: 'tent', backPage: true })).toBe('no_back_for_tents')
+    expect(refusalOf({ piece: 'tent', backPage: false })).toBeNull()
+    expect(refusalOf({ piece: 'tent' })).toBeNull()
+    expect(printFinalChoiceProblem(choice({ piece: 'tent', backPage: true }))).toEqual({
+      code: 'no_back_for_tents',
+    })
+  })
+
   it('takes a whole quantity from 1 to 1000 and one or two languages', () => {
     expect(refusalOf({ quantity: 0 })).toBe('quantity_out_of_range')
     expect(refusalOf({ quantity: 2.5 })).toBe('quantity_out_of_range')

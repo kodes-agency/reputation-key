@@ -66,6 +66,7 @@ function requestOf(portalId: string, print: PrintFinalSharePrint) {
     printer: print.printer,
     quantity: print.quantity ?? 1,
     fillSpares: print.fillSpares,
+    backPage: print.backPage,
     ...(print.chosenPerSheet === undefined ? {} : { perSheet: print.chosenPerSheet }),
     languages: [...print.languages],
     callToAction: print.callToAction,

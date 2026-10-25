@@ -202,10 +202,10 @@ export type PrintFinalSheetPlacement = Readonly<{
   heightPt: number
   /**
    * The face's turn in degrees, positive clockwise as CSS and PDFKit turn: a
-   * quarter turn counter-clockwise (-90), or upside down (180). The box is the
-   * turned face's.
+   * quarter turn counter-clockwise (-90) or clockwise (90), or upside down
+   * (180). The box is the turned face's.
    */
-  turnDeg: 0 | 180 | -90
+  turnDeg: 0 | 90 | 180 | -90
 }>
 
 /** The faces a cell holds: a card, or a tent flat's back face (upside down, above the fold) and front face. */

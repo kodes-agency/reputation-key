@@ -51,6 +51,8 @@ export type DownloadPrintFinalInput = {
     printer: PrintFinalPrinter
     quantity: number
     fillSpares: boolean
+    /** The optional back page of a card. */
+    backPage: boolean
     perSheet?: number
     languages: GuestLocale[]
     callToAction: PrintKitCallToAction

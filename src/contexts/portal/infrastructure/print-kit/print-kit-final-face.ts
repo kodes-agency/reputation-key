@@ -120,7 +120,8 @@ export function layoutFinalFace(
   })
 }
 
-function drawText(
+/** One set part's lines on their baselines, where its ink box was placed. */
+export function drawText(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
   set: PrintFinalSetText,
@@ -137,7 +138,7 @@ function drawText(
 }
 
 /** The logo with its drawing filling the planned box (on its plate, when it has one); its transparent edge falls outside. */
-function drawLogo(
+export function drawLogo(
   doc: PDFKit.PDFDocument,
   logo: FinalFaceLogo,
   box: PrintFinalBrandBox,

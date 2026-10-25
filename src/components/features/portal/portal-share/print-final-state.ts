@@ -27,6 +27,7 @@ import {
   printFinalCueLines,
   printFinalCuesFit,
 } from '#/shared/domain/portal-print-final-code'
+import { printFinalHasBack } from '#/shared/domain/portal-print-final-back'
 import { printFinalLanguageChoices } from '#/shared/domain/portal-print-final-languages'
 import { PRINT_FINAL_MEASURES } from '#/shared/domain/portal-print-final-measures'
 import {
@@ -52,6 +53,8 @@ export type PrintFinalShareChoice = Readonly<{
   fillSpares: boolean
   /** Null: every cell of the sheet. */
   perSheet: number | null
+  /** The optional back page (More options): off until asked for, and only a card has one. */
+  backPage: boolean
   /** Null until the manager picks: the portal's first choice (its primary and the next language). */
   languages: readonly GuestLocale[] | null
   callToAction: PrintKitCallToAction
@@ -67,6 +70,7 @@ export const INITIAL_PRINT_FINAL_CHOICE: PrintFinalShareChoice = Object.freeze({
   quantityText: '10',
   fillSpares: false,
   perSheet: null,
+  backPage: false,
   languages: null,
   callToAction: 'rate',
 })
@@ -87,6 +91,8 @@ export type PrintFinalSharePrint = Readonly<{
   perSheet: number
   /** The manager's own count, sent with the download; absent for every cell. */
   chosenPerSheet: number | undefined
+  /** The back page is printed: asked for, on a card (a tent prints its front on both faces). */
+  backPage: boolean
   languages: readonly GuestLocale[]
   callToAction: PrintKitCallToAction
 }>
@@ -126,6 +132,7 @@ export function resolvePrintFinalChoice(
     fillSpares: choice.fillSpares,
     perSheet: chosenPerSheet ?? fits,
     chosenPerSheet,
+    backPage: choice.backPage && printFinalHasBack(piece),
     languages,
     callToAction: choice.callToAction,
   }

@@ -217,6 +217,10 @@ export function printFinalCountryName(countryCode: string): string | null {
   return WITH_THE.has(code) ? `the ${name}` : name
 }
 
+/** What a print puts on its pages: "one side", or "both sides" with a back page. */
+export const printFinalSides = (backPage: boolean | undefined): string =>
+  backPage === true ? 'both sides' : 'one side'
+
 const STOCK: Readonly<Record<PrintFinalRegion, string>> = {
   us: 'Card stock, 65–80 lb cover (176–216 g/m²)',
   eu: 'Card, 160–220 g/m²',
@@ -240,11 +244,14 @@ export function printFinalStockLine(
     /** The paper the property's country prints on. */
     countryPaper: PrintKitPaper
     countryCode: string | null
+    /** The optional back page: both sides are printed. */
+    backPage?: boolean
   }>,
 ): string {
   const { piece, look, paper } = input
   const region = printFinalRegionOf(paper)
-  const stock = `${STOCK[region]}${look === 'immersive' ? ', matte' : ''}, one side, through the manual slot.`
+  const sides = printFinalSides(input.backPage)
+  const stock = `${STOCK[region]}${look === 'immersive' ? ', matte' : ''}, ${sides}, through the manual slot.`
   const country =
     input.countryCode === null ? null : printFinalCountryName(input.countryCode)
   const because =

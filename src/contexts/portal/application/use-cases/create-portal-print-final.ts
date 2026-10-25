@@ -17,8 +17,10 @@
 //      fit its bar, and the refusal is turned into words here.
 //
 // From the manager's own printer the pieces go on office sheets, exactly as many
-// as asked for; a print shop gets one piece per page. Nothing is fetched by
-// address: a picture is read from the store by its asset id.
+// as asked for; a print shop gets one piece per page. A card may ask for its back
+// page (the logo and the Property's name, no code), which follows each page or
+// sheet; a tent has none. Nothing is fetched by address: a picture is read from
+// the store by its asset id.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
@@ -116,6 +118,7 @@ async function choiceOf(
     quantity: input.quantity,
     perSheet: input.perSheet,
     languageCount: input.languages.length,
+    backPage: input.backPage ?? false,
   }
 }
 
@@ -181,6 +184,9 @@ export const createPortalPrintFinal =
       photo: pictures.photo,
       qrAddress: pictures.qrAddress,
       address: printAddressShape(pictures.qrAddress),
+      ...(choice.backPage === true
+        ? { back: { propertyName: context.look.propertyName } }
+        : {}),
       ...(choice.printer === 'my_printer'
         ? {
             sheets: {
