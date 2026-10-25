@@ -139,11 +139,38 @@ function usePicture<T>(
   return held?.url === url ? held.read : { status: 'reading' }
 }
 
+/** The pictures a page decodes are few: the photo and the logo, kept by address. */
+const REMEMBERED_PICTURES = 4
+
+/**
+ * `read`, run once per address: the face on its own and every cell of the sheet
+ * ask for the same photo, and decoding it is the costly part. A failed read is
+ * forgotten, so the next mount tries again.
+ */
+function remembered<T>(read: (url: string) => Promise<T>): (url: string) => Promise<T> {
+  const reads = new Map<string, Promise<T>>()
+  return (url) => {
+    const held = reads.get(url)
+    if (held !== undefined) return held
+    const reading = read(url)
+    reads.set(url, reading)
+    if (reads.size > REMEMBERED_PICTURES) {
+      const [oldest] = reads.keys()
+      if (oldest !== undefined) reads.delete(oldest)
+    }
+    reading.catch(() => reads.delete(url))
+    return reading
+  }
+}
+
+const readPhotoOnce = remembered(readPhoto)
+const readLogoOnce = remembered(readLogo)
+
 /** The photo as the preview reads it, once decoded. */
 export const usePreviewFinalPhoto = (
   url: string | null,
-): PictureRead<PreviewFinalPhoto> => usePicture(url, readPhoto)
+): PictureRead<PreviewFinalPhoto> => usePicture(url, readPhotoOnce)
 
 /** The logo's proportions and ink, once decoded. */
 export const usePreviewFinalLogo = (url: string | null): PictureRead<PreviewFinalLogo> =>
-  usePicture(url, readLogo)
+  usePicture(url, readLogoOnce)

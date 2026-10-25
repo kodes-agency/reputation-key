@@ -5,6 +5,7 @@
 // Up and Down working for screen-reader users), and Tab enters and leaves the group once — so it
 // wears `role="radiogroup"` with a `role="radio"` per segment, as the round-4
 // boards draw it. Not `Tabs`: nothing here swaps a panel.
+import type { ReactNode } from 'react'
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
 import { cn } from '#/lib/utils'
 import {
@@ -26,6 +27,8 @@ export type SegmentedControlOption = Readonly<{
    * says everything.
    */
   accessibleLabel?: string
+  /** A small picture before the label (the print kit's portrait and landscape shapes): decorative, the label names the segment. */
+  icon?: ReactNode
   disabled?: boolean
 }>
 
@@ -88,6 +91,7 @@ export function SegmentedControl({
           }
           className={cn(SEGMENT_CLASS, touch && SEGMENT_TOUCH_CLASS)}
         >
+          {option.icon}
           {option.label}
         </RadioGroupPrimitive.Item>
       ))}

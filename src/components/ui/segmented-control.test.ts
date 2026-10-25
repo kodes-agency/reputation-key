@@ -65,6 +65,27 @@ describe('SegmentedControl', () => {
     expect(html).toMatch(/disabled=""[^>]*value="es"|value="es"[^>]*disabled=""/)
   })
 
+  it('draws an option’s picture before its label, leaving the name to the label', () => {
+    const html = renderToStaticMarkup(
+      createElement(SegmentedControl, {
+        'aria-label': 'Orientation',
+        value: 'upright',
+        onValueChange: () => undefined,
+        options: [
+          {
+            value: 'upright',
+            label: 'Upright',
+            icon: createElement('svg', { 'aria-hidden': true, 'data-icon': 'upright' }),
+          },
+          { value: 'wide', label: 'Wide' },
+        ],
+      }),
+    )
+
+    expect(html).toMatch(/<svg aria-hidden="true" data-icon="upright"><\/svg>Upright/)
+    expect(html).not.toContain('aria-label="Upright')
+  })
+
   it('adds no aria-label to an option with no separate accessible name', () => {
     const html = renderToStaticMarkup(
       createElement(SegmentedControl, {
