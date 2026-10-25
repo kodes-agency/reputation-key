@@ -9,7 +9,6 @@
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
 import {
-  PRINT_KIT_SCAN_CUE,
   defaultPrintKitPaper,
   isPrintKitLanguageChoice,
   type PrintKitCallToAction,
@@ -25,9 +24,10 @@ import {
 } from '#/shared/domain/portal-print-final'
 import type { PrintFinalTile } from '#/shared/domain/portal-print-final-code'
 import {
+  PRINT_FINAL_SCAN_CUE,
   printFinalCueLines,
   printFinalCuesFit,
-} from '#/shared/domain/portal-print-final-code'
+} from '#/shared/domain/portal-print-final-cue'
 import { printFinalHasBack } from '#/shared/domain/portal-print-final-back'
 import { printFinalLanguageChoices } from '#/shared/domain/portal-print-final-languages'
 import { PRINT_FINAL_MEASURES } from '#/shared/domain/portal-print-final-measures'
@@ -40,6 +40,7 @@ import {
   type PrintFinalCodeFacts,
   type PrintFinalRefusal,
 } from '#/shared/domain/portal-print-final-offer'
+import { previewFinalMeasurer } from './print-final-face-layout'
 
 export type PrintFinalShareChoice = Readonly<{
   piece: PrintFinalPiece
@@ -228,9 +229,10 @@ export function printFinalShareCount(
 function cueLinesOf(print: PrintFinalSharePrint, tilePt: number): readonly string[] {
   const { cuePt } = PRINT_FINAL_MEASURES[printFinalRegionOf(print.paper)][print.piece]
   return printFinalCueLines(
-    print.languages.map((locale) => PRINT_KIT_SCAN_CUE[locale]),
+    print.languages.map((locale) => PRINT_FINAL_SCAN_CUE[locale]),
     tilePt,
     cuePt,
+    previewFinalMeasurer,
   )
 }
 
@@ -263,7 +265,9 @@ export function printFinalShareCheck(
   if (tile.isErr()) return { tile: null, refusal: tile.error.code }
   const { tilePt } = tile.value
   const { cuePt } = PRINT_FINAL_MEASURES[printFinalRegionOf(print.paper)][print.piece]
-  if (!printFinalCuesFit(cueLinesOf(print, tilePt), tilePt, cuePt)) {
+  if (
+    !printFinalCuesFit(cueLinesOf(print, tilePt), tilePt, cuePt, previewFinalMeasurer)
+  ) {
     return { tile: tile.value, refusal: 'cue_does_not_fit' }
   }
   const quantityMissing = print.quantity === null && print.printer === 'my_printer'

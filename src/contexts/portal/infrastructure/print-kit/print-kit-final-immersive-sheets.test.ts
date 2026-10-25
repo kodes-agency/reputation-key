@@ -17,7 +17,8 @@ import {
   printFinalSheetMarks,
 } from '#/shared/domain/portal-print-final-sheet-marks'
 import { printFinalSheetNotes } from '#/shared/domain/portal-print-final-sheet-notes'
-import { printKitFaces, type PrintKitPaper } from '#/shared/domain/portal-print-kit'
+import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
+import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import { createPdfKitPrintFinalRenderer } from './pdfkit-print-final-renderer'
 
 // The final Immersive office sheets as PDFs: a page per sheet at the paper's
@@ -65,15 +66,16 @@ async function inputFor(
   sheets: NonNullable<PrintFinalRenderInput['sheets']>,
   over: Partial<PrintFinalRenderInput> = {},
 ): Promise<PrintFinalRenderInput> {
-  const [front] = printKitFaces(
-    { piece: 'counter_card', languages: ['en'], callToAction: 'rate' },
+  const blocks = printFinalBlocks(
+    ['en'],
+    'rate',
     { en: 'Review us on Google' },
     'Reception',
   )
   return {
     title: 'Hotel Elegance sheets',
     face,
-    blocks: front?.blocks ?? [],
+    blocks: blocks,
     wordmark: 'Hotel Elegance',
     logo: null,
     accentColour: '#E3B873',

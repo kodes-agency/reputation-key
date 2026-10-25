@@ -13,6 +13,7 @@ import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixture
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { portalMediaAssetId } from '#/shared/domain/ids'
+import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-refusals'
 import type { PortalPublicationSnapshot } from '../../domain/portal-publication-snapshot'
 import { immersiveConfiguration } from '../../domain/__fixtures__/immersive-configuration'
 import {
@@ -155,8 +156,8 @@ describe('createPortalPrintFinal', () => {
     expect(input?.qrAddress).toBe(SHORT_ADDRESS)
     expect(input?.address).toBe('short')
     expect(input?.blocks.map((block) => block.headline)).toEqual([
-      'Rate your visit',
-      'Оценете посещението си',
+      'How did we do?',
+      'Как беше при нас?',
     ])
     expect(input?.title).toBe('Reception table tents')
     expect(input?.photo).not.toBeNull()
@@ -443,5 +444,18 @@ describe('createPortalPrintFinal', () => {
         'Replace the code to print tents and Small cards. Counter cards print with the code you have.',
       context: { cause: 'needs_short_code' },
     })
+  })
+
+  it('says when the words do not fit the piece, in the Share tab’s words, and keeps nothing', async () => {
+    const { portal, make, lastPrintRepo } = await setup({
+      refuse: new PrintFinalRenderRefusal({ code: 'words_do_not_fit', moduleMm: null }),
+    })
+
+    await expect(make(tents(portal.id), buildTestAuthContext())).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      message: PRINT_FINAL_REFUSAL_COPY.words_do_not_fit,
+      context: { cause: 'words_do_not_fit' },
+    })
+    expect(lastPrintRepo.recorded()).toEqual([])
   })
 })

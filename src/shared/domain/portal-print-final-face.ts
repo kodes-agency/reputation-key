@@ -1,30 +1,30 @@
 // One final face, laid out (final design spec §2.3, §3, §5 and §8): the brand,
-// the stars (Counter card only), the words and the code block, measured by their
-// ink and placed by the face's planner. Pure and shared: the PDF lays a face out
-// with the guest fonts' outlines and the Share tab's preview with its width
-// estimates, and both draw what this returns.
+// the words and the code block, measured by their ink and placed by the face's
+// planner. Pure and shared: the PDF lays a face out with the guest fonts'
+// outlines and the Share tab's preview with its width estimates, and both draw
+// what this returns.
 //
 // Long copy (§5.3): the headline steps down 1 pt at a time until both
-// orientations of the piece keep their group gaps at 4u or more, never under
-// 1.8 × the sub-line. Both orientations take the same step, so turning a piece
-// never changes its headline's size.
+// orientations of the piece keep their group gaps at 4u or more and their words
+// within 3 lines for the headline and 2 for the sub-line, never under 1.8 × the
+// sub-line. Both orientations take the same step, so turning a piece never
+// changes its headline's size. What the floor cannot hold is refused.
 
 import type { GuestLocale } from './guest-locale'
-import { PRINT_KIT_SCAN_CUE, type PrintTextBlock } from './portal-print-kit'
+import type { PrintTextBlock } from './portal-print-kit'
 import { PRINT_FINAL_ORIENTATIONS, type PrintFinalFace } from './portal-print-final'
 import { printFinalBrandBox, type PrintFinalBrandBox } from './portal-print-final-brand'
 import {
   printFinalCodeBlock,
-  printFinalCueLines,
   type PrintFinalCodeBlock,
   type PrintFinalTile,
 } from './portal-print-final-code'
 import {
-  printFinalHasStars,
-  printFinalRule,
-  printFinalStars,
-  type PrintFinalStars,
-} from './portal-print-final-marks'
+  PRINT_FINAL_SCAN_CUE,
+  placePrintFinalCues,
+  printFinalCueLines,
+} from './portal-print-final-cue'
+import { printFinalRule } from './portal-print-final-marks'
 import { PRINT_FINAL_MEASURES } from './portal-print-final-measures'
 import type { PrintFinalPart } from './portal-print-final-parts'
 import {
@@ -64,7 +64,6 @@ export type PrintFinalFaceInput = Readonly<{
 export type PrintFinalContent =
   | Readonly<{ kind: 'wordmark'; set: PrintFinalSetText }>
   | Readonly<{ kind: 'logo'; box: PrintFinalBrandBox }>
-  | Readonly<{ kind: 'stars'; stars: PrintFinalStars }>
   | Readonly<{ kind: 'rule' }>
   | Readonly<{
       kind: 'words'
@@ -73,7 +72,12 @@ export type PrintFinalContent =
       tone: PrintFinalTone
     }>
 
-export type PrintFinalCue = Readonly<{ text: string; locale: GuestLocale }>
+export type PrintFinalCue = Readonly<{
+  text: string
+  locale: GuestLocale
+  /** The cue line's baseline, from the bar's top: the lines are centred in the bar by their ink. */
+  baselinePt: number
+}>
 
 export type PrintFinalFaceLayout = Readonly<{
   plan: PrintFinalPlan
@@ -82,7 +86,13 @@ export type PrintFinalFaceLayout = Readonly<{
   code: PrintFinalCodeBlock
   cues: readonly PrintFinalCue[]
   headlinePt: number
-  /** The headline is at its floor and the words still crowd the face. */
+  /**
+   * The face does not hold its words at the size it prints: a group gap under 4u,
+   * ink past the live area, or a headline over 3 lines or a sub-line over 2, with
+   * the headline at the floor. The print is refused (`words_do_not_fit`). When
+   * only the other orientation misses, this one prints at the shared size and is
+   * not refused.
+   */
   overflows: boolean
 }>
 
@@ -92,20 +102,40 @@ export type PrintFinalBuilt = Readonly<{
   contents: readonly PrintFinalContent[]
 }>
 
-/** The cue lines in the bar: one per language, or one long cue broken in two. */
-function cuesOf(input: PrintFinalFaceInput): readonly PrintFinalCue[] {
-  const { face, blocks, tile } = input
+/** The cue lines in the bar: one per language, or one long cue broken in two, and each line's language. */
+function cueLinesOf(
+  input: PrintFinalFaceInput,
+): readonly Readonly<{ text: string; locale: GuestLocale }>[] {
+  const { face, blocks, tile, measurer } = input
   const cuePt = PRINT_FINAL_MEASURES[face.region][face.piece].cuePt
   const texts = printFinalCueLines(
-    blocks.map((block) => PRINT_KIT_SCAN_CUE[block.locale]),
+    blocks.map((block) => PRINT_FINAL_SCAN_CUE[block.locale]),
     tile.tilePt,
     cuePt,
+    measurer,
   )
   const lead = blocks[0]?.locale ?? 'en'
   return texts.map((text, index) => ({
     text,
     locale: texts.length === blocks.length ? (blocks[index]?.locale ?? lead) : lead,
   }))
+}
+
+/** The cue lines placed in a bar `barPt` tall, centred by their ink. */
+function cuesIn(
+  input: PrintFinalFaceInput,
+  lines: readonly Readonly<{ text: string; locale: GuestLocale }>[],
+  barPt: number,
+): readonly PrintFinalCue[] {
+  const { face, measurer } = input
+  const cuePt = PRINT_FINAL_MEASURES[face.region][face.piece].cuePt
+  const baselines = placePrintFinalCues(
+    lines.map((line) => line.text),
+    cuePt,
+    barPt,
+    measurer,
+  )
+  return lines.map((line, index) => ({ ...line, baselinePt: baselines[index] ?? 0 }))
 }
 
 /**
@@ -149,7 +179,15 @@ function wordsOf(
     if (set === null) return []
     const content = { kind: 'words', set, locale: word.locale, tone: word.tone } as const
     return [
-      { part: { key: word.key, widthPt: set.widthPt, heightPt: set.heightPt }, content },
+      {
+        part: {
+          key: word.key,
+          widthPt: set.widthPt,
+          heightPt: set.heightPt,
+          lines: set.lines.length,
+        },
+        content,
+      },
     ]
   })
   return { parts: built.map((b) => b.part), contents: built.map((b) => b.content) }
@@ -172,21 +210,16 @@ function buildFace(
   const secondLanguage = words.filter((w) => !firstLanguage.includes(w))
   const first = wordsOf(input, firstLanguage, columnPt, align)
   const second = wordsOf(input, secondLanguage, columnPt, align)
-  const stars = printFinalHasStars(face.piece) ? printFinalStars() : null
   const ruleBox = printFinalRule(face.piece)
   return {
     parts: [
       ...brand.parts,
-      ...(stars === null
-        ? []
-        : [{ key: 'stars', widthPt: stars.widthPt, heightPt: stars.heightPt } as const]),
       ...first.parts,
       ...(rule ? [{ key: 'rule', ...ruleBox } as const] : []),
       ...second.parts,
     ],
     contents: [
       ...brand.contents,
-      ...(stars === null ? [] : [{ kind: 'stars', stars } as const]),
       ...first.contents,
       ...(rule ? [{ kind: 'rule' } as const] : []),
       ...second.contents,
@@ -194,9 +227,14 @@ function buildFace(
   }
 }
 
-function planAt(input: PrintFinalFaceInput, face: PrintFinalFace, headlinePt: number) {
+function planAt(
+  input: PrintFinalFaceInput,
+  face: PrintFinalFace,
+  headlinePt: number,
+  cueLineCount: number,
+) {
   const built = buildFace(input, face, headlinePt)
-  const code = printFinalCodeBlock(face, input.tile, cuesOf(input).length)
+  const code = printFinalCodeBlock(face, input.tile, cueLineCount)
   return { ...built, code, plan: planPrintFinalFace({ face, parts: built.parts, code }) }
 }
 
@@ -207,18 +245,20 @@ function planAt(input: PrintFinalFaceInput, face: PrintFinalFace, headlinePt: nu
  */
 export function layoutPrintFinalFace(input: PrintFinalFaceInput): PrintFinalFaceLayout {
   const { face } = input
+  const cueLines = cueLinesOf(input)
   const choice = choosePrintFinalHeadline(face.piece, (headlinePt) =>
     PRINT_FINAL_ORIENTATIONS.every(
-      (orientation) => planAt(input, { ...face, orientation }, headlinePt).plan.fits,
+      (orientation) =>
+        planAt(input, { ...face, orientation }, headlinePt, cueLines.length).plan.fits,
     ),
   )
-  const laid = planAt(input, face, choice.headlinePt)
+  const laid = planAt(input, face, choice.headlinePt, cueLines.length)
   return {
     plan: laid.plan,
     contents: laid.contents,
     code: laid.code,
-    cues: cuesOf(input),
+    cues: cuesIn(input, cueLines, laid.code.barPt),
     headlinePt: choice.headlinePt,
-    overflows: choice.overflows,
+    overflows: !laid.plan.fits,
   }
 }

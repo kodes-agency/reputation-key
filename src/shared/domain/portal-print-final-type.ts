@@ -85,6 +85,13 @@ export const PRINT_FINAL_TYPE_SETTINGS = Object.freeze({
   reversedRegularFloorPt: 9,
 })
 
+/**
+ * How many lines a piece's words may take (§3): the headline 3, the sub-line 2,
+ * on every piece. A 4-line headline reads as a paragraph, so it is refused even
+ * where the group gaps would hold; the long-copy step tries a smaller size first.
+ */
+export const PRINT_FINAL_LINE_CAPS = Object.freeze({ headline: 3, subline: 2 })
+
 /** The kicker's tracking: 0.16 em on Paper; on Immersive 0.30 em upright and 0.24 em wide. */
 export function printFinalKickerTrackingEm(
   look: PrintFinalLook,
@@ -128,7 +135,7 @@ export function printFinalHeadlineSteps(piece: PrintFinalPiece): readonly number
 
 export type PrintFinalHeadlineChoice = Readonly<{
   headlinePt: number
-  /** True when even the floor leaves a group gap under 4u: the words are too long to fit well. */
+  /** True when even the floor does not fit every orientation: the words are too long to fit both. */
   overflows: boolean
 }>
 

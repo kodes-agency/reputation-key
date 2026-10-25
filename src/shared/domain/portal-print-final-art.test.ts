@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { printKitFaces } from './portal-print-kit'
+import { printFinalBlocks } from './portal-print-final-languages'
 import type { PrintFinalFace } from './portal-print-final'
 import { printFinalArt, type PrintFinalArt } from './portal-print-final-art'
 import { choosePrintFinalTile } from './portal-print-final-code'
@@ -51,12 +51,12 @@ function planOf(
   face: PrintFinalFace,
   languages: readonly ('en' | 'es')[] = ['en'],
 ): PrintFinalPlan {
-  const blocks =
-    printKitFaces(
-      { piece: 'counter_card', languages, callToAction: 'rate' },
-      { en: 'Reception', es: 'Recepción' },
-      'Reception',
-    )[0]?.blocks ?? []
+  const blocks = printFinalBlocks(
+    languages,
+    'rate',
+    { en: 'Reception', es: 'Recepción' },
+    'Reception',
+  )
   const tile = choosePrintFinalTile({ ...face, address: 'short', symbolModules: 29 })
   return layoutPrintFinalFace({
     face,

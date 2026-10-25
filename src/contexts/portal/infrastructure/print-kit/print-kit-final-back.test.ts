@@ -14,7 +14,7 @@ import {
   mmPt,
   ptMm,
 } from '#/shared/domain/portal-print-final-measures'
-import { printKitFaces } from '#/shared/domain/portal-print-kit'
+import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import { newDocument } from './__fixtures__/print-kit-face-fixtures'
 import { createPdfKitPrintFinalRenderer } from './pdfkit-print-final-renderer'
 import { pdfFinalMeasurer } from './print-kit-final-face'
@@ -106,15 +106,16 @@ async function inputFor(
   face: PrintFinalFace,
   over: Partial<PrintFinalRenderInput> = {},
 ): Promise<PrintFinalRenderInput> {
-  const [front] = printKitFaces(
-    { piece: 'counter_card', languages: ['en'], callToAction: 'rate' },
+  const blocks = printFinalBlocks(
+    ['en'],
+    'rate',
     { en: 'Review us on Google' },
     'Reception',
   )
   return {
     title: 'Harborline cards',
     face,
-    blocks: front?.blocks ?? [],
+    blocks: blocks,
     wordmark: 'Harborline',
     logo: await logoBytes(),
     accentColour: '#A8C6FE',

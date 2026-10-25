@@ -1,14 +1,14 @@
 // A final face in the PDF (final design spec §2 to §5, §7 and §8): laid out by
 // the shared planner (`layoutPrintFinalFace`) from the guest fonts' own glyph
 // outlines, and drawn where it put each part's ink: the logo or the wordmark,
-// the stars, the words, the rule between two languages and the code block.
+// the words, the rule between two languages and the code block.
 //
 // The words, marks and code are drawn the same in both looks, in the look's
 // colours (`PrintFinalColours`): Paper prints them on plain paper, with the
-// accent ink on the kicker, the stars, the rule and the tile's outline;
-// Immersive over its art (`print-kit-final-art.ts`), white and off-white with
-// the kicker tint, the logo on its cream plate unless it is light. Drawn in the
-// face's coordinates, in points, from its trim's top-left corner.
+// accent ink on the kicker, the rule and the tile's outline; Immersive over its
+// art (`print-kit-final-art.ts`), white and off-white with the kicker tint, the
+// logo on its cream plate unless it is light. Drawn in the face's coordinates, in
+// points, from its trim's top-left corner.
 
 import type { PrintFinalFace } from '#/shared/domain/portal-print-final'
 import type { PrintFinalBrandBox } from '#/shared/domain/portal-print-final-brand'
@@ -20,10 +20,6 @@ import {
   type PrintFinalFaceLayout,
 } from '#/shared/domain/portal-print-final-face'
 import { PRINT_FINAL_PLATE } from '#/shared/domain/portal-print-final-brand'
-import {
-  PRINT_FINAL_STAR,
-  type PrintFinalStars,
-} from '#/shared/domain/portal-print-final-marks'
 import { PRINT_FINAL_MEASURES } from '#/shared/domain/portal-print-final-measures'
 import type { PrintFinalPlacedPart } from '#/shared/domain/portal-print-final-parts'
 import type {
@@ -168,22 +164,6 @@ export function drawLogo(
   })
 }
 
-function drawStars(
-  doc: PDFKit.PDFDocument,
-  stars: PrintFinalStars,
-  part: PrintFinalPlacedPart,
-  colour: string,
-) {
-  const scale = stars.sizePt / PRINT_FINAL_STAR.grid
-  for (const origin of stars.origins) {
-    doc.save()
-    doc.translate(part.xPt + origin.xPt, part.yPt + origin.yPt).scale(scale)
-    doc.lineWidth(stars.strokePt / scale).lineJoin('round')
-    doc.path(PRINT_FINAL_STAR.path).stroke(colour)
-    doc.restore()
-  }
-}
-
 function drawContent(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
@@ -205,8 +185,6 @@ function drawContent(
       )
     case 'logo':
       return art.logo === null ? undefined : drawLogo(doc, art.logo, content.box, part)
-    case 'stars':
-      return drawStars(doc, content.stars, part, colours.accent)
     case 'rule':
       doc.rect(part.xPt, part.yPt, part.widthPt, part.heightPt).fill(colours.accent)
   }

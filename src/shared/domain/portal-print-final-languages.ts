@@ -6,10 +6,10 @@
 import { GUEST_LOCALE_METADATA, type GuestLocale } from './guest-locale'
 import {
   PRINT_KIT_CALLS_TO_ACTION,
-  PRINT_KIT_COPY,
   type PrintKitCallToAction,
   type PrintTextBlock,
 } from './portal-print-kit'
+import { PRINT_FINAL_COPY } from './portal-print-final-copy'
 
 /**
  * Every choice of languages a portal's languages make: each language with each
@@ -39,13 +39,13 @@ export function printFinalLanguageChoiceLabel(languages: readonly GuestLocale[])
 export const printFinalLanguageValue = (languages: readonly GuestLocale[]): string =>
   languages.join('+')
 
-/** Each call to action as the print says it in English: "Rate your visit · Private, about 30 seconds". */
+/** Each call to action as the print says it in English: "How did we do? · About 30 seconds". */
 export const PRINT_FINAL_CALL_TO_ACTION_LABELS: Readonly<
   Record<PrintKitCallToAction, string>
 > = Object.freeze(
   Object.fromEntries(
     PRINT_KIT_CALLS_TO_ACTION.map((callToAction) => {
-      const { headline, subline } = PRINT_KIT_COPY.en[callToAction]
+      const { headline, subline } = PRINT_FINAL_COPY.en[callToAction]
       return [callToAction, `${headline} · ${subline}`]
     }),
   ) as Record<PrintKitCallToAction, string>,
@@ -65,6 +65,6 @@ export function printFinalBlocks(
   return languages.map((locale) => ({
     locale,
     kicker: titles[locale] ?? fallbackTitle,
-    ...PRINT_KIT_COPY[locale][callToAction],
+    ...PRINT_FINAL_COPY[locale][callToAction],
   }))
 }

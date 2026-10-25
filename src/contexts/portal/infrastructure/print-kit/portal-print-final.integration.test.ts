@@ -311,12 +311,32 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
     expect(await downloads()).toBe(0)
   })
 
-  it('refuses English and Bulgarian together: the Bulgarian cue does not fit the bar on one line', async () => {
+  it('prints English and Bulgarian together: each language’s short cue keeps one line of the bar', async () => {
     const { make, ctx } = await harness()
+    await setCountry('US')
 
-    await expect(make(request(), ctx)).rejects.toMatchObject({
+    const file = await make(request(), ctx)
+
+    expect(file.fileName).toBe('lobby-portal-table-tents-wide-en-bg-letter.pdf')
+  })
+
+  it('refuses Bulgarian first, then English, on the upright Immersive tent on A4: the words do not fit, said in the Share tab’s words', async () => {
+    const { make, ctx } = await harness()
+    await setCountry('BG')
+
+    await expect(
+      make(
+        request({
+          orientation: 'upright',
+          look: 'immersive',
+          languages: ['bg', 'en'],
+          callToAction: 'tell',
+        }),
+        ctx,
+      ),
+    ).rejects.toMatchObject({
       code: 'print_format_not_offered',
-      context: { cause: 'cue_does_not_fit' },
+      context: { cause: 'words_do_not_fit' },
     })
   })
 

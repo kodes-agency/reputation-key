@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GuestLocale } from './guest-locale'
-import { printKitFaces } from './portal-print-kit'
+import { printFinalBlocks } from './portal-print-final-languages'
 import type { PrintFinalFace } from './portal-print-final'
 import { choosePrintFinalTile } from './portal-print-final-code'
 import type { PrintFinalScenePhoto } from './portal-print-final-contrast'
@@ -53,12 +53,12 @@ function inputFor(
   over: Partial<PrintFinalImmersiveFaceInput> = {},
   languages: readonly GuestLocale[] = ['en'],
 ): PrintFinalImmersiveFaceInput {
-  const blocks =
-    printKitFaces(
-      { piece: 'counter_card', languages, callToAction: 'rate' },
-      { en: 'Review us on Google' },
-      'Reception',
-    )[0]?.blocks ?? []
+  const blocks = printFinalBlocks(
+    languages,
+    'rate',
+    { en: 'Review us on Google' },
+    'Reception',
+  )
   const tile = choosePrintFinalTile({ ...face, address: 'short', symbolModules: 29 })
   return {
     face,

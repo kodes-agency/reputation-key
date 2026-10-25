@@ -11,7 +11,9 @@
 // The tile follows the symbol the address makes (`choosePrintFinalTile`): a
 // piece whose module would print under 0.85 mm is refused before any page is
 // drawn, and so is a pair of languages whose cues would not keep their padding
-// in the bar (`cue_does_not_fit`). PDFKit is imported lazily, as for today's kit.
+// in the bar (`cue_does_not_fit`), and so are words the face cannot hold at the
+// smallest headline (`words_do_not_fit`). PDFKit is imported lazily, as for
+// today's kit.
 
 import {
   PrintFinalRenderRefusal,
@@ -22,9 +24,9 @@ import {
 } from '../../application/ports/portal-print-final-renderer.port'
 import {
   choosePrintFinalTile,
-  printFinalCuesFit,
   type PrintFinalTile,
 } from '#/shared/domain/portal-print-final-code'
+import { printFinalCuesFit } from '#/shared/domain/portal-print-final-cue'
 import { printFinalPaperOf } from '#/shared/domain/portal-print-final'
 import { printFinalHasBack } from '#/shared/domain/portal-print-final-back'
 import {
@@ -50,6 +52,7 @@ import { prepareFinalBack, type FinalPreparedBack } from './print-kit-final-back
 import {
   drawFinalFace,
   layoutFinalFace,
+  pdfFinalMeasurer,
   type FinalFaceArt,
   type FinalFaceLogo,
 } from './print-kit-final-face'
@@ -141,8 +144,15 @@ async function prepareFace(
       : await prepareFinalImmersiveFace(doc, fonts, common)
   const { cuePt } = PRINT_FINAL_MEASURES[face.region][face.piece]
   const cueLines = prepared.layout.cues.map((cue) => cue.text)
-  if (!printFinalCuesFit(cueLines, tile.value.tilePt, cuePt)) {
+  const measurer = pdfFinalMeasurer(doc, fonts)
+  if (!printFinalCuesFit(cueLines, tile.value.tilePt, cuePt, measurer)) {
     throw new PrintFinalRenderRefusal({ code: 'cue_does_not_fit', moduleMm: null })
+  }
+  // The headline is at its floor and the words still crowd the face (a group gap
+  // under 4u, ink past the live area, a headline over 3 lines or a sub-line over
+  // 2): refused, as the Share tab holds the print back before it asks.
+  if (prepared.layout.overflows) {
+    throw new PrintFinalRenderRefusal({ code: 'words_do_not_fit', moduleMm: null })
   }
   const back =
     input.back === undefined

@@ -16,7 +16,8 @@ import {
   printFinalSheetNotes,
 } from '#/shared/domain/portal-print-final-sheet-notes'
 import { printFinalPaperSheet } from '#/shared/domain/portal-print-final-sheets'
-import { printKitFaces, type PrintKitPaper } from '#/shared/domain/portal-print-kit'
+import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
+import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import { createPdfKitPrintFinalRenderer } from './pdfkit-print-final-renderer'
 import { setFinalSheetNote } from './print-kit-final-sheets'
 import { PrintKitFonts } from './print-kit-pdf-text'
@@ -48,15 +49,16 @@ function inputFor(
   sheets: NonNullable<PrintFinalRenderInput['sheets']>,
   over: Partial<PrintFinalRenderInput> = {},
 ): PrintFinalRenderInput {
-  const [front] = printKitFaces(
-    { piece: 'counter_card', languages: ['en'], callToAction: 'rate' },
+  const blocks = printFinalBlocks(
+    ['en'],
+    'rate',
     { en: 'Review us on Google' },
     'Reception',
   )
   return {
     title: 'Hotel Elegance sheets',
     face,
-    blocks: front?.blocks ?? [],
+    blocks: blocks,
     wordmark: 'Hotel Elegance',
     logo: null,
     accentColour: '#A8C6FE',
@@ -222,15 +224,16 @@ describe('the final Paper office sheets', () => {
     )
 
     it('leaves a single piece’s PDF at the viewer’s default', async () => {
-      const [front] = printKitFaces(
-        { piece: 'counter_card', languages: ['en'], callToAction: 'rate' },
+      const blocks = printFinalBlocks(
+        ['en'],
+        'rate',
         { en: 'Review us on Google' },
         'Reception',
       )
       const { sheets: _sheets, ...single } = inputFor(
         { piece: 'tent', orientation: 'wide', look: 'paper', region: 'us' },
         { quantity: 1, fillSpares: false },
-        { blocks: front?.blocks ?? [] },
+        { blocks: blocks },
       )
       expect(text(await renderer.render(single))).not.toContain('/PrintScaling')
     })

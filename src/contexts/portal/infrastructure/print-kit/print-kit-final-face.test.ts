@@ -1,34 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import golden from '#/shared/domain/__fixtures__/portal-print-final-golden.json'
+import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { GUEST_LOCALES } from '#/shared/domain/guest-locale'
-import {
-  PRINT_KIT_COPY,
-  PRINT_KIT_SCAN_CUE,
-  type PrintTextBlock,
-} from '#/shared/domain/portal-print-kit'
-import {
-  PRINT_FINAL_PIECES,
-  type PrintFinalFace,
-  type PrintFinalPiece,
-  type PrintFinalRegion,
-} from '#/shared/domain/portal-print-final'
-import {
-  choosePrintFinalTile,
-  printFinalCueLines,
-} from '#/shared/domain/portal-print-final-code'
+import type { PrintFinalFace, PrintFinalPiece } from '#/shared/domain/portal-print-final'
+import { choosePrintFinalTile } from '#/shared/domain/portal-print-final-code'
 import {
   layoutPrintFinalFace,
   type PrintFinalBrandInput,
 } from '#/shared/domain/portal-print-final-face'
-import {
-  PRINT_FINAL_MEASURES,
-  mmPt,
-  ptMm,
-} from '#/shared/domain/portal-print-final-measures'
+import { mmPt, ptMm } from '#/shared/domain/portal-print-final-measures'
 import { newDocument } from './__fixtures__/print-kit-face-fixtures'
-import { pdfFinalMeasurer } from './print-kit-final-face'
-import { measureLine } from './print-kit-pdf-text'
+import { drawText, pdfFinalMeasurer } from './print-kit-final-face'
 
 // The final faces as the PDF lays them out, measured with the embedded fonts'
 // own glyph outlines, against the design boards (final-design-2026-10-25):
@@ -42,17 +24,6 @@ type GoldenCard = (typeof golden.cards)[number]
 const TOLERANCE_MM = 0.25
 const SYMBOL_MODULES = { short: 29, long: 53 } as const
 
-const BOARD_COPY = {
-  en: { kicker: 'Review us on Google', ...PRINT_KIT_COPY.en.rate },
-  es: { kicker: 'Review us on Google', ...PRINT_KIT_COPY.es.rate },
-  // The boards' German, longer than the kit's draft: it is the long-copy case.
-  de: {
-    kicker: 'Bewerten Sie uns auf Google',
-    headline: 'Bewerten Sie Ihren Aufenthalt',
-    subline: 'Vertraulich, etwa 30 Sekunden',
-  },
-} as const
-
 const paperCards = golden.cards.filter(
   (card) => card.look === 'paper' && card.board !== 'tile-ladder',
 )
@@ -64,14 +35,9 @@ const faceOf = (card: GoldenCard): PrintFinalFace => ({
   region: card.region as PrintFinalFace['region'],
 })
 
-function blocksOf(card: GoldenCard): readonly PrintTextBlock[] {
-  const languages: readonly GuestLocale[] =
-    card.board === 'long-text' ? ['de'] : card.languages === 'one' ? ['en'] : ['en', 'es']
-  return languages.map((locale) => ({
-    locale,
-    ...BOARD_COPY[locale as 'en' | 'es' | 'de'],
-  }))
-}
+/** The words the board printed: its kicker, headline and sub-line in each language. */
+const blocksOf = (card: GoldenCard): readonly PrintTextBlock[] =>
+  card.blocks.map((block) => ({ ...block, locale: block.locale as GuestLocale }))
 
 function brandOf(card: GoldenCard): PrintFinalBrandInput {
   if (card.board === 'no-logo') return { kind: 'wordmark', text: 'Hotel Elegance' }
@@ -113,9 +79,9 @@ const nameOf = (card: GoldenCard) =>
   `${card.board}: ${card.piece} ${card.orientation} (${card.region}, ${card.address})`
 
 describe('the final Paper faces in the PDF against the boards', () => {
-  it('covers the family, Europe, the long address, two languages, no logo and long copy', () => {
-    expect(new Set(paperCards.map((card) => card.board)).size).toBe(6)
-    expect(paperCards).toHaveLength(32)
+  it('covers the family, Europe, the long address, two languages, no logo, German and the scan cues', () => {
+    expect(new Set(paperCards.map((card) => card.board)).size).toBe(7)
+    expect(paperCards).toHaveLength(44)
   })
 
   it.each(paperCards.map((card) => [nameOf(card), card] as const))(
@@ -150,31 +116,134 @@ describe('the final Paper faces in the PDF against the boards', () => {
   })
 })
 
-describe('the scan cue in the embedded font', () => {
-  // Fixed rule C: a cue keeps one cap height (0.7 × its size) of bar each side.
-  // A single language wraps into the two-line bar when it would not; two
-  // languages print one cue a line and cannot wrap.
-  const cases = (['us', 'eu'] as readonly PrintFinalRegion[]).flatMap((region) =>
-    PRINT_FINAL_PIECES.flatMap((piece) =>
-      GUEST_LOCALES.map((locale) => [region, piece, locale] as const),
-    ),
-  )
+describe('a manager’s own headline in the embedded font (spec 5.7, measured US Paper)', () => {
+  const HARBORLINE = {
+    kind: 'logo',
+    inkWidth: 22.8,
+    inkHeight: 12.68,
+    onPlate: false,
+  } as const
 
-  it.each(cases.map((c) => [c.join(' '), ...c] as const))(
-    '%s: no line of a single-language cue comes within a cap height of the bar’s edge',
-    (_, region, piece, locale) => {
-      const { tilePt, cuePt } = PRINT_FINAL_MEASURES[region][piece]
-      const lines = printFinalCueLines([PRINT_KIT_SCAN_CUE[locale]], tilePt, cuePt)
-      for (const line of lines) {
-        const widthPt = measureLine(doc, fonts, line, {
-          face: 'bodyStrong',
-          size: cuePt,
-          spacing: 0,
-          colour: '#000000',
-          opacity: 1,
-        })
-        expect(widthPt, line).toBeLessThanOrEqual(tilePt - 2 * 0.7 * cuePt)
+  function layoutWords(
+    piece: PrintFinalPiece,
+    orientation: PrintFinalFace['orientation'],
+    headline: string,
+  ) {
+    const face: PrintFinalFace = { piece, orientation, look: 'paper', region: 'us' }
+    const tile = choosePrintFinalTile({ ...face, address: 'short', symbolModules: 29 })
+    return layoutPrintFinalFace({
+      face,
+      blocks: [
+        {
+          locale: 'en',
+          kicker: 'Review us on Google',
+          headline,
+          subline: 'About 30 seconds',
+        },
+      ],
+      brand: HARBORLINE,
+      tile: tile._unsafeUnwrap(),
+      measurer: pdfFinalMeasurer(doc, fonts),
+    })
+  }
+
+  const linesOf = (laid: ReturnType<typeof layoutWords>) =>
+    laid.plan.parts.find((part) => part.key === 'headline')?.lines
+
+  it('prints "Thanks for staying with us" at full size on two lines', () => {
+    const headline = 'Thanks for staying with us'
+    expect(layoutWords('counter', 'upright', headline)).toMatchObject({
+      headlinePt: 28,
+      overflows: false,
+    })
+    for (const orientation of ['upright', 'wide'] as const) {
+      const tent = layoutWords('tent', orientation, headline)
+      expect([tent.headlinePt, linesOf(tent), tent.overflows]).toEqual([19, 2, false])
+    }
+    expect(layoutWords('small', 'wide', headline)).toMatchObject({
+      headlinePt: 15,
+      overflows: false,
+    })
+  })
+
+  it('steps "How was your stay with us tonight?" to 17 pt on both tents, the size the pair needs', () => {
+    const headline = 'How was your stay with us tonight?'
+    for (const orientation of ['upright', 'wide'] as const) {
+      const tent = layoutWords('tent', orientation, headline)
+      expect([tent.headlinePt, linesOf(tent), tent.overflows]).toEqual([17, 2, false])
+    }
+    expect(layoutWords('counter', 'upright', headline).headlinePt).toBe(28)
+    expect(layoutWords('small', 'wide', headline).headlinePt).toBe(15)
+  })
+
+  it('refuses the 48-character headline on the upright tent, and prints it at the floor on the wide one', () => {
+    const headline = 'Tell us how your visit went today, in a few taps'
+    const upright = layoutWords('tent', 'upright', headline)
+    expect(upright.overflows).toBe(true)
+    expect(upright.plan.problems).toContain('gap_under_4u')
+    const wide = layoutWords('tent', 'wide', headline)
+    expect([wide.headlinePt, linesOf(wide), wide.overflows]).toEqual([16.5, 3, false])
+    expect(layoutWords('counter', 'upright', headline)).toMatchObject({
+      headlinePt: 28,
+      overflows: false,
+    })
+    const counter = layoutWords('counter', 'upright', headline)
+    expect(linesOf(counter)).toBe(3)
+    const small = layoutWords('small', 'wide', headline)
+    expect([small.headlinePt, linesOf(small), small.overflows]).toEqual([15, 3, false])
+  })
+})
+
+describe('lining figures in a headline (spec 3)', () => {
+  it('sets "30" in Cormorant with its lining glyphs, not the old-style ones', () => {
+    const face: PrintFinalFace = {
+      piece: 'tent',
+      orientation: 'wide',
+      look: 'paper',
+      region: 'us',
+    }
+    const tile = choosePrintFinalTile({ ...face, address: 'short', symbolModules: 29 })
+    const laid = layoutPrintFinalFace({
+      face,
+      blocks: [
+        {
+          locale: 'en',
+          kicker: 'Review us on Google',
+          headline: 'Got 30 seconds?',
+          subline: 'Tell us how it went',
+        },
+      ],
+      brand: { kind: 'wordmark', text: 'Hotel Elegance' },
+      tile: tile._unsafeUnwrap(),
+      measurer: pdfFinalMeasurer(doc, fonts),
+    })
+    const index = laid.plan.parts.findIndex((part) => part.key === 'headline')
+    const part = laid.plan.parts[index]
+    const content = laid.contents[index]
+    if (part === undefined || content?.kind !== 'words') throw new Error('a headline')
+
+    const asked: (Record<string, boolean> | undefined)[] = []
+    const original = doc.text.bind(doc) as (...args: unknown[]) => PDFKit.PDFDocument
+    const spy = vi.spyOn(doc, 'text').mockImplementation(((...args: unknown[]) => {
+      const options = args[3] as { features?: Record<string, boolean> }
+      asked.push(options.features === undefined ? undefined : { ...options.features })
+      return original(...args)
+    }) as never)
+    drawText(doc, fonts, content.set, part, '#121614')
+    spy.mockRestore()
+
+    expect(asked).toEqual([{ lnum: true }])
+    const { _font: font } = doc as unknown as {
+      _font: {
+        layout: (
+          text: string,
+          features?: Record<string, boolean>,
+        ) => { glyphs: readonly { name: string }[] }
       }
-    },
-  )
+    }
+    const names = (features?: Record<string, boolean>) =>
+      font.layout('Got 30 seconds?', features).glyphs.map((glyph) => glyph.name)
+    expect(names({ lnum: true })).toEqual(expect.arrayContaining(['three.lf', 'zero.lf']))
+    expect(names()).not.toContain('three.lf')
+  })
 })

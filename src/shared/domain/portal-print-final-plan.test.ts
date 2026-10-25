@@ -45,6 +45,46 @@ function plan(
   return planPrintFinalFace({ face: f, parts, code: printFinalCodeBlock(f, m, cueLines) })
 }
 
+describe('the line caps (spec 3)', () => {
+  const words = (
+    headlineLines: number,
+    sublineLines: number,
+  ): readonly PrintFinalPart[] => [
+    part('brand', 20, 10),
+    part('kicker', 40, 2),
+    { ...part('headline', 50, 8), lines: headlineLines },
+    { ...part('subline', 40, 3), lines: sublineLines },
+  ]
+
+  it('allows a headline on 3 lines and a sub-line on 2', () => {
+    const p = plan(face(), words(3, 2))
+    expect(p.problems).toEqual([])
+    expect(p.fits).toBe(true)
+  })
+
+  it('refuses a 4-line headline even where the gaps would hold', () => {
+    const p = plan(face(), words(4, 1))
+    expect(p.problems).toEqual(['headline_over_cap'])
+    expect(p.fits).toBe(false)
+  })
+
+  it('refuses a 3-line sub-line', () => {
+    const p = plan(face(), words(1, 3))
+    expect(p.problems).toEqual(['subline_over_cap'])
+    expect(p.fits).toBe(false)
+  })
+
+  it('does not hold the second language to the caps, nor parts that carry no line count', () => {
+    const p = plan(face(), [
+      ...words(1, 1),
+      { ...part('headline2', 30, 4), lines: 6 },
+      part('subline2', 40, 3),
+    ])
+    expect(p.problems).not.toContain('headline_over_cap')
+    expect(plan(face()).problems).toEqual([])
+  })
+})
+
 describe('the gaps inside a group', () => {
   it('are 1u, and 2u on each side of the rule before the second language', () => {
     expect(printFinalGapUnitsBefore(null, 'brand')).toBe(0)

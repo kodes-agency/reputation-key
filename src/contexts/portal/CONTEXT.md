@@ -560,14 +560,34 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   `tile_does_not_fit` for the wide Small card on the step-up tile. The floor is the same
   0.85 mm as today's `chooseCodeTile`. A code that has no print code is a long address,
   so minting (above) is what lets the final kit print more than the Counter card.
+- **The final kit's words (call to action, 2026-10-25).** The final kit reads its own
+  copy table, `PRINT_FINAL_COPY` (`portal-print-final-copy.ts`); today's `PRINT_KIT_COPY`
+  stays with today's kit. The default says "How did we do?" over "About 30 seconds" in all
+  six languages, and no word anywhere in the final kit says "private" or "privately"
+  (fixed rule NP; the guest page's own "Send privately" stays). The stored ids are still
+  `rate` and `tell`, so `rate` is the default slot (the spec's `how_did_we_do`) until the
+  preset model replaces the two ids; the non-English strings are drafts that need a native
+  check (the copy table lists the doubtful ones). No piece carries stars (fixed rule NS).
+  The kicker is left out when the headline repeats it once both are normalised
+  (`printFinalKickerRepeated`), and the message group re-centres. The headline prints on at
+  most 3 lines and the sub-line on 2 (`PRINT_FINAL_LINE_CAPS`, held by the planner as
+  `headline_over_cap` and `subline_over_cap`): the long-copy step tries smaller sizes
+  first, and words the chosen orientation cannot hold at the floor are refused with
+  `words_do_not_fit` (the other orientation missing is not a refusal). The Share tab does
+  not hold the print back for it yet: its estimates err wide, so it would refuse prints the
+  file makes, and the server's answer is the exact one. The scan cue is one short cue per
+  language (`PRINT_FINAL_SCAN_CUE`, `portal-print-final-cue.ts`) that fits one line on every
+  bar, measured with the font by the PDF and by the width tables in the preview, and is
+  centred in the bar by its ink; the wrap into the two-line bar stays as the fallback.
 - **The final kit's download.** `createPortalPrintFinal` makes the final kit's PDF
   where `PRINT_KIT_FINAL_ENABLED` is on (it refuses every request otherwise), beside
   today's `createPortalPrintKit`, which it leaves alone. It takes the piece, its
   orientation, the look, the paper (the country's unless named), who prints, the
   quantity, the spares and a count a sheet, the languages and the call to action, and
   refuses what `printFinalChoiceProblem` refuses before it reveals the address; the
-  renderer's refusals (the code, or two cues that do not fit the bar) come after, in
-  the words the Share tab uses (`PRINT_FINAL_REFUSAL_COPY`). From the manager's
+  renderer's refusals (the code, two cues that do not fit the bar, or words the face
+  cannot hold at the smallest headline) come after, in the words the Share tab uses
+  (`PRINT_FINAL_REFUSAL_COPY`). From the manager's
   printer the pieces go on office sheets; a print shop gets one piece per page.
 - **The final kit's back page.** A Counter card or a Small card may print a back
   (`backPage`, off by default, More options): the logo (or the wordmark) and the

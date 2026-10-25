@@ -6,7 +6,8 @@ import {
 } from '#/components/features/portal/portal-share/print-final-face-layout'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { printKitFaces, type PrintTextBlock } from '#/shared/domain/portal-print-kit'
+import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
+import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import {
   PRINT_FINAL_ORIENTATIONS,
   PRINT_FINAL_PIECES,
@@ -48,13 +49,13 @@ const STYLES: readonly PrintFinalTextStyle[] = [
 ]
 
 const LINES = [
-  'Rate your visit',
-  'Private, about 30 seconds',
+  'How did we do?',
+  'About 30 seconds',
   'REVIEW US ON GOOGLE',
-  'Bewerten Sie Ihren Besuch',
+  'Wie war es bei uns?',
   'Évaluez votre visite',
-  'Оценете посещението си',
-  'Comment s’est passée votre visite ?',
+  'Как беше при нас?',
+  'Votre avis sur nous\u00a0?',
   'HOTEL ELEGANCE',
   'Chair 3 · Sala 12',
 ]
@@ -131,13 +132,13 @@ const LANGUAGES: readonly (readonly GuestLocale[])[] = [
   ['bg', 'en'],
 ]
 
-/** The boards' German, which steps the tent's headline down: the long-copy case. */
-const BOARD_GERMAN: readonly PrintTextBlock[] = [
+/** A manager's own long headline, which steps the tent's headline down: the long-copy case. */
+const LONG_COPY: readonly PrintTextBlock[] = [
   {
-    locale: 'de',
-    kicker: 'Bewerten Sie uns auf Google',
-    headline: 'Bewerten Sie Ihren Aufenthalt',
-    subline: 'Vertraulich, etwa 30 Sekunden',
+    locale: 'en',
+    kicker: 'Review us on Google',
+    headline: 'How was your stay with us tonight?',
+    subline: 'About 30 seconds',
   },
 ]
 
@@ -145,15 +146,10 @@ function blockSets(
   titles: (typeof TITLES)[number],
 ): readonly (readonly PrintTextBlock[])[] {
   return [
-    ...LANGUAGES.map(
-      (languages) =>
-        printKitFaces(
-          { piece: 'counter_card', languages, callToAction: 'rate' },
-          titles,
-          'Reception',
-        )[0]?.blocks ?? [],
+    ...LANGUAGES.map((languages) =>
+      printFinalBlocks(languages, 'rate', titles, 'Reception'),
     ),
-    BOARD_GERMAN,
+    LONG_COPY,
   ]
 }
 

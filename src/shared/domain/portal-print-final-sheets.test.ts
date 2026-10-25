@@ -282,18 +282,18 @@ describe('the paper guard', () => {
   // The spec's table of ink to the short and the long edge, which the boards measured
   // from the stand-in set; the golden fixture holds that set's ink margins.
   const INK_IN: Readonly<Record<string, readonly [short: number, long: number]>> = {
-    'counter upright on letter': [0.97, 1.15],
+    'counter upright on letter': [1.09, 1.04],
     'counter wide on letter': [0.82, 1.2],
-    'counter upright on a4': [0.52, 0.97],
+    'counter upright on a4': [0.64, 0.86],
     'counter wide on a4': [0.52, 1.0],
     'tent wide on letter': [0.67, 0.34],
-    'tent upright on letter': [0.58, 0.5],
+    'tent upright on letter': [0.55, 0.5],
     'tent wide on a4': [0.75, 0.34],
-    'tent upright on a4': [0.67, 0.5],
+    'tent upright on a4': [0.64, 0.5],
     'small wide on letter': [0.71, 0.94],
-    'small upright on letter': [0.87, 1.03],
+    'small upright on letter': [0.83, 1.04],
     'small wide on a4': [0.8, 0.98],
-    'small upright on a4': [0.96, 0.98],
+    'small upright on a4': [0.92, 0.99],
   }
 
   it.each(KEYS.map((key) => [nameOf(key), key] as const))(

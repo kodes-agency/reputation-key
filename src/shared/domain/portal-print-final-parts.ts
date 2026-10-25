@@ -8,7 +8,6 @@ import type { PrintFinalCodeBlock } from './portal-print-final-code'
 
 export type PrintFinalPartKey =
   | 'brand'
-  | 'stars'
   | 'kicker'
   | 'headline'
   | 'subline'
@@ -23,6 +22,8 @@ export type PrintFinalPart = Readonly<{
   key: PrintFinalPartKey
   widthPt: number
   heightPt: number
+  /** How many lines a part of words is set on; the planner holds the headline and the sub-line to their caps. */
+  lines?: number
 }>
 
 /** A part placed: its ink box's top-left corner, from the trim's top-left. */

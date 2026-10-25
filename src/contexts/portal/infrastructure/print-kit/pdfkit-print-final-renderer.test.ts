@@ -1,10 +1,11 @@
+import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import {
   PrintFinalRenderRefusal,
   type PrintFinalRenderInput,
 } from '../../application/ports/portal-print-final-renderer.port'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { printKitFaces } from '#/shared/domain/portal-print-kit'
+import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import {
   PRINT_FINAL_ORIENTATIONS,
   PRINT_FINAL_PIECES,
@@ -31,15 +32,16 @@ function inputFor(
   languages: readonly GuestLocale[] = ['en'],
   over: Partial<PrintFinalRenderInput> = {},
 ): PrintFinalRenderInput {
-  const [front] = printKitFaces(
-    { piece: 'counter_card', languages, callToAction: 'rate' },
+  const blocks = printFinalBlocks(
+    languages,
+    'rate',
     { en: 'Review us on Google', es: 'Reseñe en Google' },
     'Reception',
   )
   return {
     title: 'Hotel Elegance counter card',
     face,
-    blocks: front?.blocks ?? [],
+    blocks: blocks,
     wordmark: 'Hotel Elegance',
     logo: null,
     accentColour: '#A8C6FE',
@@ -116,14 +118,54 @@ describe('createPdfKitPrintFinalRenderer', () => {
     },
   )
 
-  it('wraps a French cue into the two-line bar when it stands alone, and refuses it beside another language', async () => {
-    const alone = await renderer.render(inputFor(paper('tent', 'wide'), ['fr']))
-    expect(text(alone)).toContain('/MediaBox')
-    for (const piece of ['tent', 'small'] as const) {
-      const pair = renderer.render(inputFor(paper(piece, 'wide'), ['en', 'fr']))
-      await expect(pair).rejects.toMatchObject({
-        refusal: { code: 'cue_does_not_fit' },
-      })
+  it('keeps every short cue on one line, alone and beside English, on the pieces whose bars are narrowest', async () => {
+    for (const locale of ['fr', 'de', 'bg', 'it'] as const) {
+      const alone = await renderer.render(inputFor(paper('tent', 'wide'), [locale]))
+      expect(text(alone)).toContain('/MediaBox')
+      for (const piece of ['tent', 'small'] as const) {
+        const pair = await renderer.render(inputFor(paper(piece, 'wide'), ['en', locale]))
+        expect(text(pair)).toContain('/MediaBox')
+      }
     }
+  })
+
+  it('refuses words the piece cannot hold at the smallest headline, before any page, and prints the other way up', async () => {
+    const [block] = printFinalBlocks(['en'], 'rate', {}, 'Reception')
+    if (block === undefined) throw new Error('one block')
+    const long = [
+      {
+        ...block,
+        headline: 'Tell us how your visit went today, in a few quick taps now',
+      },
+    ]
+    const upright = renderer.render(
+      inputFor(paper('tent', 'upright'), ['en'], { blocks: long }),
+    )
+    await expect(upright).rejects.toBeInstanceOf(PrintFinalRenderRefusal)
+    await expect(upright).rejects.toMatchObject({ refusal: { code: 'words_do_not_fit' } })
+    const wide = await renderer.render(
+      inputFor(paper('tent', 'wide'), ['en'], { blocks: long }),
+    )
+    expect(text(wide)).toContain('/MediaBox')
+  })
+
+  it('refuses "How was your visit?" in English and Spanish on an upright Paper tent, as the sweep says, and prints it wide', async () => {
+    const blocks = printFinalBlocks(['en', 'es'], 'tell', {}, 'Reception')
+    // A badge as wide as Harborline's, so the brand is as tall as the boards' (8.2 mm on a tent).
+    const logo = new Uint8Array(
+      await sharp({
+        create: { width: 910, height: 506, channels: 4, background: '#1D4FB8' },
+      })
+        .png()
+        .toBuffer(),
+    )
+    const upright = renderer.render(
+      inputFor(paper('tent', 'upright'), ['en', 'es'], { blocks, logo }),
+    )
+    await expect(upright).rejects.toMatchObject({ refusal: { code: 'words_do_not_fit' } })
+    const wide = await renderer.render(
+      inputFor(paper('tent', 'wide'), ['en', 'es'], { blocks, logo }),
+    )
+    expect(text(wide)).toContain('/MediaBox')
   })
 })
