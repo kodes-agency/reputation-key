@@ -51,6 +51,8 @@ export type DownloadPrintFinalInput = {
     printer: PrintFinalPrinter
     quantity: number
     fillSpares: boolean
+    /** A print shop's crop marks; the manager's own printer ignores them. */
+    cropMarks: boolean
     /** The optional back page of a card. */
     backPage: boolean
     perSheet?: number

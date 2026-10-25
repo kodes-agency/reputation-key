@@ -32,6 +32,7 @@ describe('resolvePrintFinalChoice', () => {
       perSheet: 4,
       chosenPerSheet: undefined,
       backPage: false,
+      cropMarks: false,
       languages: ['en', 'es'],
       callToAction: 'rate',
     })
@@ -70,6 +71,13 @@ describe('resolvePrintFinalChoice', () => {
 
   it('offers Counter cards in place of tents for a print shop', () => {
     expect(resolve({ printer: 'print_shop' }).piece).toBe('counter')
+  })
+
+  it('adds crop marks only to a print shop’s file, and only when asked for', () => {
+    expect(resolve({ printer: 'print_shop' }).cropMarks).toBe(false)
+    expect(resolve({ printer: 'print_shop', cropMarks: true }).cropMarks).toBe(true)
+    // The choice is remembered while the manager's own printer is on show, where a page has no marks to add.
+    expect(resolve({ cropMarks: true }).cropMarks).toBe(false)
   })
 
   it('keeps a count a sheet only while it is fewer than fit', () => {

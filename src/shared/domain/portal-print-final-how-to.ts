@@ -149,7 +149,12 @@ export function printFinalSummary(
   const region = printFinalRegionOf(print.paper)
   if (print.printer === 'print_shop') {
     const size = printFinalTrimLabel(print.piece, print.orientation, region)
-    const parts = [`one ${one} per page`, print.orientation, size]
+    const parts = [
+      `one ${one} per page`,
+      print.orientation,
+      size,
+      ...(print.cropMarks === true ? ['crop marks'] : []),
+    ]
     return {
       lead: print.backPage === true ? '2 pages' : '1 page',
       rest: [

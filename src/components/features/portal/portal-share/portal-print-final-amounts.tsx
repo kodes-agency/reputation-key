@@ -1,8 +1,9 @@
 // The last two steps of the final Print cards section (final design spec §11.4
 // and §11.5, the boards share-desktop-light and share-phone): how many, with the
 // exact sheets it takes and the spares checkbox, and the words: an ordered pair
-// of languages, the call to action, and More options with the count a sheet. A
-// print shop's file is one piece per page, so How many is not asked for it.
+// of languages, the call to action, and More options: the count a sheet, or for a
+// print shop the crop marks, and a card's back page. A print shop's file is one
+// piece per page, so How many is not asked for it.
 
 import { ChevronRight } from 'lucide-react'
 import { FormSelectField } from '#/components/forms/form-select-field'
@@ -19,6 +20,10 @@ import {
   PRINT_KIT_CALLS_TO_ACTION,
   type PrintKitCallToAction,
 } from '#/shared/domain/portal-print-kit'
+import {
+  PRINT_FINAL_SHOP_CROP_MARKS_HELP,
+  PRINT_FINAL_SHOP_CROP_MARKS_LABEL,
+} from '#/shared/domain/portal-print-final-shop-copy'
 import {
   PRINT_FINAL_CALL_TO_ACTION_LABELS,
   printFinalLanguageChoiceLabel,
@@ -151,13 +156,36 @@ function BackPageOption({ final, print }: StepProps) {
   )
 }
 
+/** A print shop's crop marks: a checkbox like the back page, off unless asked for, because most shops cut from the page edge. */
+function CropMarksOption({ final, print }: StepProps) {
+  return (
+    <div className="flex items-start gap-2">
+      <Checkbox
+        id="print-final-crop-marks"
+        checked={print.cropMarks}
+        onCheckedChange={(checked) => final.change({ cropMarks: checked === true })}
+        aria-describedby="print-final-crop-marks-help"
+        className="mt-0.5"
+      />
+      <div className="flex flex-col gap-0.5">
+        <Label htmlFor="print-final-crop-marks" className="font-normal">
+          {PRINT_FINAL_SHOP_CROP_MARKS_LABEL}
+        </Label>
+        <p id="print-final-crop-marks-help" className="text-xs text-muted-foreground">
+          {PRINT_FINAL_SHOP_CROP_MARKS_HELP}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function MoreOptions(props: StepProps) {
   const { print } = props
   const { noun } = PRINT_FINAL_PIECE_FACTS[print.piece]
-  const perSheet = print.printer === 'my_printer'
+  // The office printer's sheets hold several pieces; a print shop's file is one page, which may have marks.
+  const shop = print.printer === 'print_shop'
   const back = printFinalHasBack(print.piece)
-  if (!perSheet && !back) return null
-  const hint = [perSheet ? `${noun} per sheet` : null, back ? 'a back page' : null]
+  const hint = [shop ? 'crop marks' : `${noun} per sheet`, back ? 'a back page' : null]
     .filter((part) => part !== null)
     .join(', ')
   return (
@@ -171,7 +199,7 @@ function MoreOptions(props: StepProps) {
         <span className="hidden sm:inline">· {hint}</span>
       </summary>
       <div className="mt-2 flex flex-col gap-3">
-        {perSheet && <PerSheetSelect {...props} />}
+        {shop ? <CropMarksOption {...props} /> : <PerSheetSelect {...props} />}
         {back && <BackPageOption {...props} />}
       </div>
     </details>

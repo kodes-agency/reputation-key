@@ -182,7 +182,9 @@ export function printFinalSheetCutCount(
 /**
  * What each look says under its name. The chosen look gives the whole sheet
  * (how many, and how a Paper tent sheet is cut, or how many cuts an Immersive
- * sheet takes); the other look says only how many it fits and what it costs.
+ * sheet takes); the other look says only how many it fits and what it costs. A
+ * print shop's file is one card a page, cut by the shop, so its looks say only
+ * what they print.
  */
 export function printFinalLookFacts(
   look: PrintFinalLook,
@@ -191,9 +193,15 @@ export function printFinalLookFacts(
     orientation: PrintFinalOrientation
     look: PrintFinalLook
     paper: PrintKitPaper
+    printer?: PrintFinalPrinter
   }>,
 ): string {
   const { piece, orientation, paper } = chosen
+  if (chosen.printer === 'print_shop') {
+    return look === 'paper'
+      ? 'White, little ink.'
+      : 'Your photo, like your guest page, to the edge of the card.'
+  }
   const { noun } = PRINT_FINAL_PIECE_FACTS[piece]
   const perSheet = PRINT_FINAL_PER_SHEET[piece][look][paper]
   const isChosen = look === chosen.look

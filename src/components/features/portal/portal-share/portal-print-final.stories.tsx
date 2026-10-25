@@ -257,6 +257,7 @@ export const DownloadSendsTheChoice: Story = {
           printer: 'my_printer',
           quantity: 10,
           fillSpares: true,
+          cropMarks: false,
           backPage: false,
           languages: ['en', 'es'],
           callToAction: 'rate',
@@ -321,6 +322,7 @@ export const PrintShopCardBackPage: Story = {
     await userEvent.click(await canvas.findByRole('radio', { name: 'A print shop' }))
     await userEvent.click(canvas.getByText('More options'))
     await expect(canvas.queryByRole('combobox', { name: /per sheet/ })).toBeNull()
+    await expect(canvas.getByRole('checkbox', { name: 'Add crop marks' })).toBeVisible()
     await userEvent.click(canvas.getByRole('checkbox', { name: 'Print a back page' }))
     await expect(
       canvas.getByText(/one card per page · upright · 4 × 6 in · both sides/),
@@ -328,6 +330,128 @@ export const PrintShopCardBackPage: Story = {
     await expect(
       canvas.getByText(/the front on page 1 and the back on page 2\./),
     ).toBeVisible()
+  },
+}
+
+/** The board print-shop: a print shop is told what to order and gets one page with its print margin, and no talk of bleed. */
+export const PrintShopOrderAndPage: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'A print shop' }))
+    await expect(
+      canvas.getByText(
+        /^Order 4 × 6 in postcards, 14–16 pt, matte, one side\. Upload this PDF as it is\./,
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText(/One card per page, with a 1\/8 in print margin round it\./),
+    ).toBeVisible()
+    await expect(
+      await canvas.findByRole('img', { name: 'Print-shop file, page 1 of 1' }),
+    ).toBeVisible()
+    await expect(canvas.queryByRole('img', { name: /^Your sheet/ })).toBeNull()
+    await expect(canvas.queryByText(/bleed/iu)).toBeNull()
+  },
+}
+
+/** Crop marks are under More options, off until asked for: on, the page grows, the summary says so and the download asks for them. */
+export const PrintShopCropMarks: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'A print shop' }))
+    await userEvent.click(canvas.getByText('More options'))
+    const marks = canvas.getByRole('checkbox', { name: 'Add crop marks' })
+    await expect(marks).not.toBeChecked()
+    await expect(canvas.getByText(/^4\.25 × 6\.25 in\. One card per page/)).toBeVisible()
+    await userEvent.click(marks)
+    await expect(
+      canvas.getByText(/one card per page · upright · 4 × 6 in · crop marks · one side/),
+    ).toBeVisible()
+    await expect(canvas.getByText(/^4\.75 × 6\.75 in\. One card per page/)).toBeVisible()
+    await expect(canvas.getByText(/Crop marks stand just outside it/)).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: /download pdf/i }))
+    await waitFor(() =>
+      expect(args.printKit?.downloadFinalMutation).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          piece: 'counter',
+          printer: 'print_shop',
+          cropMarks: true,
+        }),
+      }),
+    )
+  },
+}
+
+/** Where a story stubs the clipboard, and puts the browser's own back after. */
+async function withClipboard(
+  writeText: (text: string) => Promise<void>,
+  copyCommand: boolean,
+  run: () => Promise<void>,
+) {
+  const execCommand = document.execCommand.bind(document)
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText },
+    configurable: true,
+  })
+  document.execCommand = () => copyCommand
+  try {
+    await run()
+  } finally {
+    Reflect.deleteProperty(navigator, 'clipboard')
+    document.execCommand = execCommand
+  }
+}
+
+/** The note for the print shop is one press away, and says it is copied. */
+export const PrintShopNoteIsCopied: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const writeText = fn(async () => undefined)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'A print shop' }))
+    await withClipboard(writeText, false, async () => {
+      await userEvent.click(
+        canvas.getByRole('button', { name: 'Copy a note for the print shop' }),
+      )
+      await waitFor(() =>
+        expect(writeText).toHaveBeenCalledWith(
+          expect.stringContaining('Trim 4 × 6 in (TrimBox). Bleed 1/8 in on every side'),
+        ),
+      )
+      await expect(await canvas.findByRole('button', { name: 'Copied' })).toBeVisible()
+    })
+  },
+}
+
+/** A browser that blocks the clipboard shows the note, selected, to copy by hand. */
+export const PrintShopNoteCopyBlocked: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'A print shop' }))
+    await withClipboard(
+      async () => {
+        throw new Error('blocked')
+      },
+      false,
+      async () => {
+        await userEvent.click(
+          canvas.getByRole('button', { name: 'Copy a note for the print shop' }),
+        )
+        await expect(await canvas.findByRole('alert')).toHaveTextContent(
+          'Copy failed: this browser blocked clipboard access.',
+        )
+        await expect(
+          canvas.getByText(/Print-ready PDF\. One card per page\./),
+        ).toBeVisible()
+      },
+    )
   },
 }
 

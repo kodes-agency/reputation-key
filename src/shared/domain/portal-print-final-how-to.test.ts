@@ -137,6 +137,32 @@ describe('printFinalSummary', () => {
   })
 })
 
+describe('printFinalSummary of a print shop’s file with crop marks', () => {
+  it('names the marks, so the manager sees them on the summary', () => {
+    expect(
+      printFinalSummary(
+        { ...tents, piece: 'counter', printer: 'print_shop', cropMarks: true },
+        { sheets: 1, pieces: 1 },
+      ),
+    ).toEqual({
+      lead: '1 page',
+      rest: 'one card per page · wide · 6 × 4 in · crop marks · one side · English + Español',
+    })
+  })
+
+  it('leaves them out where they are off, and from the manager’s own printer', () => {
+    expect(
+      printFinalSummary(
+        { ...tents, piece: 'counter', printer: 'print_shop' },
+        { sheets: 1, pieces: 1 },
+      ).rest,
+    ).not.toContain('crop marks')
+    expect(
+      printFinalSummary({ ...tents, cropMarks: true }, { sheets: 3, pieces: 10 }).rest,
+    ).not.toContain('crop marks')
+  })
+})
+
 describe('printFinalFaceCaption', () => {
   it('reads as the board’s caption for a wide tent', () => {
     expect(printFinalFaceCaption(tents, null)).toEqual({

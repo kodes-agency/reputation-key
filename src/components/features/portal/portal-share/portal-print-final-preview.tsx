@@ -2,7 +2,7 @@
 // share-desktop-light and share-desktop-dark), drawn in the browser from the
 // geometry the PDF draws: the face in the chosen orientation, "shown smaller",
 // the soft-photo notice for its photo box, and the first office sheet with its
-// marks. Changing the orientation redraws both. A card with a back page has a
+// marks, or for a print shop its file's page. Changing the orientation redraws both. A card with a back page has a
 // Front and Back control: Back draws the back face, and the sheet's reverse with
 // the cells mirrored. On a desktop it is the sticky column beside the section; on
 // a phone it opens as a sheet over the page (`PortalPrintFinalPhoneBar`), which
@@ -33,6 +33,7 @@ import { PrintFinalDrawnBackArt } from './print-final-back-art'
 import { PrintFinalDrawnFaceArt } from './print-final-face-art'
 import { PrintFinalPhotoNotice } from './print-final-photo-notice'
 import { PrintFinalSheetArt } from './print-final-sheet-art'
+import { PrintFinalShopPreview } from './print-final-shop-preview'
 import { PrintFinalSideControl } from './print-final-side-control'
 import { ptToContainerWidth } from './print-kit-paper-art-layout'
 import {
@@ -209,8 +210,16 @@ function Ready({ final, view, placement, propertyId, controls, tile }: ReadyProp
         />
       )}
       {controls}
-      {print.printer === 'my_printer' && (
+      {print.printer === 'my_printer' ? (
         <SheetPreview final={final} view={view} tile={tile} back={showBack} />
+      ) : (
+        <PrintFinalShopPreview
+          final={final}
+          view={view}
+          tile={tile}
+          back={showBack}
+          maxHeightPx={FACE_MAX_HEIGHT_PX[placement]}
+        />
       )}
     </>
   )
