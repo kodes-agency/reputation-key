@@ -51,6 +51,10 @@ export type PrintFinalRegion = 'us' | 'eu'
 export const printFinalRegionOf = (paper: PrintKitPaper): PrintFinalRegion =>
   paper === 'letter' ? 'us' : 'eu'
 
+/** The region's paper: the US pieces print on Letter, the European ones on A4. */
+export const printFinalPaperOf = (region: PrintFinalRegion): PrintKitPaper =>
+  region === 'us' ? 'letter' : 'a4'
+
 /** One face as it is drawn: which piece, which way up, which look, which measure set. */
 export type PrintFinalFace = Readonly<{
   piece: PrintFinalPiece
