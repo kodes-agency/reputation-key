@@ -1,14 +1,9 @@
-import type { Job } from 'bullmq'
 import { describe, expect, it } from 'vitest'
-import { isTerminalFailedEvent } from '#/shared/jobs/failure-quarantine'
 import { errorFactTags } from '#/shared/observability/error-facts'
 import { scrubErrorEvent } from '#/shared/observability/sentry-event-scrub'
 import { SYNC_FAILURE_CODES } from '#/shared/observability/sync-failure-codes'
 import type { ReviewProviderSnapshotFailureCode } from '../../application/ports/review-provider-snapshot.repository'
-import {
-  ReviewProviderSnapshotFailure,
-  ReviewProviderSnapshotRunFailure,
-} from './review-provider-snapshot-failure'
+import { ReviewProviderSnapshotFailure } from './review-provider-snapshot-failure'
 
 /**
  * Every code a snapshot run can fail with. The `satisfies` makes a code added
@@ -86,50 +81,6 @@ describe('ReviewProviderSnapshotFailure', () => {
     })
     expect(scrubbed.message).toBe('[REDACTED]')
     expect(JSON.stringify(scrubbed.exception)).not.toContain('malformed_page')
-  })
-})
-
-/** The job as the worker's `failed` event sees it after one attempt of three. */
-const afterFirstOfThreeAttempts = { attemptsMade: 1, opts: { attempts: 3 } } as Job
-
-describe('ReviewProviderSnapshotRunFailure', () => {
-  it('carries the code as its message and as a field of its own', () => {
-    const failure = new ReviewProviderSnapshotRunFailure('observation_failed')
-
-    expect(failure).toBeInstanceOf(Error)
-    expect(failure.message).toBe('observation_failed')
-    expect(failure.failureCode).toBe('observation_failed')
-  })
-
-  // BullMQ stops retrying a job whose error is named UnrecoverableError, and
-  // the worker's terminal check reads the same name. That check is what
-  // captures the failure in error monitoring, dead-letters the job and latches
-  // the family's repair state, so a failure named anything else would wait for
-  // the retries it can never win.
-  it('is named so that the worker treats its first attempt as terminal', () => {
-    const failure = new ReviewProviderSnapshotRunFailure('observation_failed')
-
-    expect(failure.name).toBe('UnrecoverableError')
-    expect(isTerminalFailedEvent(afterFirstOfThreeAttempts, failure)).toBe(true)
-  })
-
-  it('differs from the failure of a first step, which waits for its retries', () => {
-    const failure = new ReviewProviderSnapshotFailure('observation_failed')
-
-    expect(isTerminalFailedEvent(afterFirstOfThreeAttempts, failure)).toBe(false)
-  })
-
-  it('starts its stack at the code that raised it', () => {
-    const failure = new ReviewProviderSnapshotRunFailure('provider_failure')
-
-    const [, firstFrame = ''] = (failure.stack ?? '').split('\n')
-    expect(firstFrame).not.toContain('review-provider-snapshot-failure.ts')
-  })
-
-  it.each(ALL_CODES)('is tagged with %s', (code) => {
-    expect(errorFactTags(new ReviewProviderSnapshotRunFailure(code))).toEqual({
-      failure_code: code,
-    })
   })
 })
 

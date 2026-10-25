@@ -28,17 +28,18 @@ import type {
 } from '../../application/use-cases/run-review-head-check'
 import type { ReviewHeadChecksMode } from '../../domain/head-check'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import {
   recordsFailureOfRun,
   snapshotFailureRetryMs,
   type PreviousSnapshotFailure,
 } from '../../domain/snapshot-failure-backoff'
-import {
-  ReviewProviderSnapshotFailure,
-  ReviewProviderSnapshotRunFailure,
-} from './review-provider-snapshot-failure'
+import { ReviewProviderSnapshotFailure } from './review-provider-snapshot-failure'
 
 export const JOB_NAME = 'sync-property-reviews' as const
+
+/** The queue the job runs on (the governed job catalogue's row for it). */
+const JOB_QUEUE = 'default' as const
 
 type SyncHandlerDeps = Readonly<{
   runSnapshot: RunReviewProviderSnapshot
@@ -170,9 +171,10 @@ const SKIPPED_RUN_ALREADY_FAILED = Object.freeze({
 
 /**
  * Ends a step quietly because the run it was asked to continue had already
- * failed. The step that failed it threw, dated the Property's backoff and
- * logged; this one is that step's BullMQ retry or a redrive of its dead letter,
- * and re-reading a failed run can only fail again. So it returns instead of
+ * failed. The step that failed it dated the Property's backoff, logged, reported
+ * the failure to error monitoring and threw; this one is that step's BullMQ
+ * retry or a redrive of its dead letter, and re-reading a failed run can only
+ * fail again. So it returns instead of
  * throwing: no retry is spent, nothing is dead-lettered, Sentry sees nothing for
  * it, the family's repair state is not latched, and the failing step's
  * `error_class` and retry date stand. On the beta on 2026-10-24 a VACUUM FULL
@@ -430,14 +432,20 @@ async function recordSnapshotFailure(
 
 /**
  * A step that failed its run: records the failure with its backoff, then fails
- * the job. A step that continues a run fails it for good: the store ended the
- * run before this threw, so a retry could only find it failed (and end quietly,
- * see `skipFailedRunReplay`). The error is terminal on its first attempt, which
- * is what reaches error monitoring, the dead-letter queue and the family's
- * repair state, and a redrive of that dead letter ends quietly. The first step
- * of a run has no run id: its retry starts a new run, which can succeed, so it
- * keeps its attempts. A location over the cap is parked and the job ends
- * normally.
+ * the job with the ordinary `ReviewProviderSnapshotFailure`. A location over the
+ * cap is parked and the job ends normally.
+ *
+ * A step that continues a run (it carries a `runId`) also reports the failure to
+ * error monitoring itself, once, before it throws. The store ended the run
+ * before this threw, so BullMQ's retry of the step can only find the run failed
+ * and ends quietly (`skipFailedRunReplay`); the job then completes, and the
+ * worker, which reports a failure only when it is terminal, would never see it.
+ * The report carries the very error that is thrown, so it groups into the
+ * existing `ReviewProviderSnapshotFailure` issue with its `failure_code` tag.
+ *
+ * The first step of a run has no run id: its retry starts a new run, which can
+ * succeed, so it keeps its attempts, and the worker reports the failure when
+ * they are spent. Reporting it here as well would count it twice.
  */
 async function failSnapshotStep(
   deps: SyncHandlerDeps,
@@ -446,9 +454,15 @@ async function failSnapshotStep(
 ) {
   const previous = await deps.discoveryRepo.findFailureState(data.propertyId)
   if (await recordSnapshotFailure(deps, data, result.code, previous)) return result
-  throw data.runId == null
-    ? new ReviewProviderSnapshotFailure(result.code)
-    : new ReviewProviderSnapshotRunFailure(result.code)
+  const failure = new ReviewProviderSnapshotFailure(result.code)
+  if (data.runId != null) {
+    captureObservabilityException(failure, {
+      source: 'bullmq-job',
+      queue: JOB_QUEUE,
+      jobName: JOB_NAME,
+    })
+  }
+  throw failure
 }
 
 /** One bounded page, confirmation, or deletion batch of a provider snapshot

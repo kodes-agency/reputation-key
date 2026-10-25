@@ -628,9 +628,9 @@ day. The wait now grows with consecutive failures:
   and a job has three attempts. A failure that lands before the previous
   failure's retry date is that same attempt retried by the queue: it keeps the
   previous wait instead of climbing a rung per attempt. Only a failure after the
-  retry came due counts as the next consecutive one. (A step that continues a
-  run is no longer retried after it fails the run, and a replay of it ends
-  quietly, note 2026-10-25.)
+  retry came due counts as the next consecutive one. (A retry of a step that
+  continues a run finds the run failed and ends quietly instead of failing
+  again, note 2026-10-25.)
 - **A push does not shorten a backoff.** A Pub/Sub notice pulls a parked poll
   forward to the hot interval, but never ahead of `error_retry_at`
   (`recordPushObserved`), so a busy Property cannot bypass its wait with every
@@ -952,19 +952,22 @@ and it does so loudly, once.
   repair latch is not set. A completed job counts as a success for the family,
   and a successful quarantine redrive of it answers `repair_required`, so a dead
   letter of a failed step is cleared by redriving it, not by discarding it.
-- **The step that fails the run stays loud, and a continuation step fails for
-  good.** It records the failure with its backoff, logs
-  `review_snapshot_failure_deferred` and throws. The store ended the run before
-  the throw, so a retry of a step that carries a run id could only find it
-  failed; that step therefore throws `ReviewProviderSnapshotRunFailure`, named
-  `UnrecoverableError`, which BullMQ and the worker both read as terminal on the
-  first attempt. Sentry, the dead-letter queue and the family's repair latch
-  fire once, at the first attempt instead of after three, and
-  `sync.failed-nonzero` follows the recorded failure as before; a redrive of the
-  dead letter ends quietly. The first step of a
-  run has no run id: its retry starts a new run, which can succeed, so it
-  throws `ReviewProviderSnapshotFailure` as before and keeps its three attempts.
-  A location over the cap is still parked and the job ends normally.
+- **The step that fails the run stays loud, once.** It records the failure with
+  its backoff, logs `review_snapshot_failure_deferred` and throws the ordinary
+  `ReviewProviderSnapshotFailure`, as before. A step that continues a run (it
+  carries a run id) first reports that same error to error monitoring itself
+  (`captureObservabilityException`, source `bullmq-job`, queue `default`, job
+  `sync-property-reviews`). The store ended the run before the throw, so
+  BullMQ's retry of the step can only find it failed and ends quietly; the job
+  then completes, and the worker, which captures a failure only when it is
+  terminal (attempts spent, or an `UnrecoverableError`), would never see it. The
+  report carries the thrown error, so it groups into the existing
+  `ReviewProviderSnapshotFailure` Sentry issue with its `failure_code` tag. The
+  first step of a run has no run id: its retry starts a new run, which can
+  succeed, so it throws as before without reporting, keeps its three attempts
+  and is captured by the worker when they are spent (reporting it here too would
+  count one failure twice). A location over the cap is still parked and the job
+  ends normally, with no report.
 - **A failure nobody recorded is recorded by its replay.** The store fails the
   run and the failing step dates the Property's failure in two writes; a worker
   that dies between them (the cursor store is down while the cursors are
@@ -985,21 +988,31 @@ and it does so loudly, once.
   code of a run or of `review_sync_state`, so it is not in
   `SYNC_FAILURE_CODES` and never counts in `sync.failed-nonzero`.
 
-**What it costs.** The failure of a continuation step reaches Sentry under the
-type `UnrecoverableError` (the `failure_code` tag still names the code), not
-`ReviewProviderSnapshotFailure`, so the first such failure opens a new issue,
-and its dead letter reads `UnrecoverableError: <code>`. It is terminal after one
-attempt instead of three, with no retries between, which is what the failed run
-allowed anyway. The first step of a run is unchanged.
+**What it costs.** One transient failure no longer turns into four alerts and a
+manual discard. The failing attempt reaches Sentry once, under the existing
+`ReviewProviderSnapshotFailure` issue and its `failure_code` tag, and records
+the Property's backoff. Its retries and any redrive end quietly as
+`run_already_failed`: no dead letter, no quarantine entry (so no
+`queue.quarantine-nonempty`), no job-runtime repair latch (so no
+`worker.job-runtime-unready`). `sync.failed-nonzero` still fires from
+`review_sync_state` when the failure persists past its retry date, which is the
+signal that matters. A dead letter left by a release before this one redrives
+quietly; discarding it and acknowledging the repair is only for a release
+without this fix. Two edges are accepted. A failure whose worker died before
+reporting is not reported (its replay records the backoff and ends quietly;
+`sync.failed-nonzero` is the signal). A continuation step that fails the run on
+the last attempt of a job whose earlier attempts failed for another reason is
+reported by the step and again by the worker, as a terminal failure; that needs
+two unrelated failures in one job and costs a duplicate event.
 
 Enforced by `run-review-provider-snapshot.test.ts` (the mark and the time of the
 failure, the cursors discarded again, no work done, the failing step unmarked),
 `sync-property-reviews.job.test.ts` (the quiet end for each code, the incident
-sequence with one deferral, a continuation failure terminal on its first attempt
-and a first-step failure still retryable, the unrecorded failure recorded once,
-a capped location left parked, the restart and reconnect replays),
-`snapshot-failure-backoff.test.ts` (`recordsFailureOfRun`),
-`review-provider-snapshot-failure.test.ts` (the terminal name), and the
+sequence with one deferral and one report, the failing continuation step
+reporting the error it throws exactly once, a first-step failure left to the
+worker, a replay that neither reports nor throws, the unrecorded failure
+recorded once, a capped location left parked, the restart and reconnect
+replays), `snapshot-failure-backoff.test.ts` (`recordsFailureOfRun`), and the
 `import-history-cutoff` and `review-sync-listing-change` integration suites
 against PostgreSQL.
 

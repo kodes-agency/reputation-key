@@ -1,6 +1,6 @@
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import type { Job } from 'bullmq'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isTerminalFailedEvent } from '#/shared/jobs/failure-quarantine'
 import {
   DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
@@ -13,11 +13,21 @@ import {
   createFakeReviewDiscoveryRepository,
   fakeDiscoveryProperty,
 } from '#/shared/testing/fake-review-discovery-repository'
+import { ReviewProviderSnapshotFailure } from './review-provider-snapshot-failure'
 import { createSyncPropertyReviewsHandler } from './sync-property-reviews.job'
 
+const mocks = vi.hoisted(() => ({ capture: vi.fn() }))
+
+vi.mock('#/shared/observability/telemetry', () => ({
+  captureObservabilityException: mocks.capture,
+}))
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),
 }))
+
+beforeEach(() => {
+  mocks.capture.mockClear()
+})
 
 const NOW = new Date('2026-08-21T12:00:00.000Z')
 const HOT_INTERVAL_MS = 15 * 60 * 1000
@@ -1065,9 +1075,11 @@ describe('sync-property-reviews snapshot handler', () => {
   // A step is queued with the id of its run. A run that already failed cannot
   // be continued, so a step that finds it so (the queue retrying the step that
   // failed it, a redrive of its dead letter) has nothing left to fail. The
-  // attempt that failed the run was loud; a replay that fails again only
-  // pushes the Property's backoff out, dead-letters the job and latches the
-  // family's repair state, and no redrive can ever succeed.
+  // attempt that failed the run was loud: it reported the failure to error
+  // monitoring itself, because the retry that follows ends quietly and the
+  // worker only reports a failure that is terminal. A replay that fails again
+  // only pushes the Property's backoff out, dead-letters the job and latches
+  // the family's repair state, and no redrive can ever succeed.
   describe('when the run a step continues has already failed', () => {
     const RUN_ID = '44444444-4444-4444-8444-444444444444'
     const SKIPPED = { status: 'skipped', code: 'run_already_failed' } as const
@@ -1145,6 +1157,7 @@ describe('sync-property-reviews snapshot handler', () => {
         expect(markSucceeded).not.toHaveBeenCalled()
         expect(enqueueContinuation).not.toHaveBeenCalled()
         expect(row).toEqual(before)
+        expect(mocks.capture).not.toHaveBeenCalled()
       },
     )
 
@@ -1190,7 +1203,7 @@ describe('sync-property-reviews snapshot handler', () => {
       await expect(
         handler({ id: 'job-incident', data: STEP } as never),
       ).rejects.toMatchObject({
-        name: 'UnrecoverableError',
+        name: 'ReviewProviderSnapshotFailure',
         message: 'observation_failed',
         failureCode: 'observation_failed',
       })
@@ -1220,6 +1233,8 @@ describe('sync-property-reviews snapshot handler', () => {
           ([fields]) => fields.event === 'review_snapshot_failure_deferred',
         ),
       ).toHaveLength(1)
+      // One failure, one report: the replays added none.
+      expect(mocks.capture).toHaveBeenCalledTimes(1)
     })
 
     it('records the failure and throws when the run fails in this very step', async () => {
@@ -1232,7 +1247,7 @@ describe('sync-property-reviews snapshot handler', () => {
       await expect(
         handler({ id: 'job-fresh', data: STEP } as never),
       ).rejects.toMatchObject({
-        name: 'UnrecoverableError',
+        name: 'ReviewProviderSnapshotFailure',
         failureCode: 'provider_failure',
       })
 
@@ -1253,22 +1268,62 @@ describe('sync-property-reviews snapshot handler', () => {
       )
     })
 
-    // BullMQ stops retrying an UnrecoverableError, and the worker's terminal
-    // check is what captures the failure in error monitoring, dead-letters the
-    // job and latches the family's repair state. The run is failed in the store
-    // before the step throws, so no retry could continue it: the failure is
-    // terminal at once, and a redrive of the dead letter ends quietly.
-    it('makes the failure of a step that continues a run terminal on its first attempt', async () => {
+    // The worker reports a failure only when it is terminal, and the retry of a
+    // step that continues a run ends quietly, so the failure of the attempt that
+    // failed the run would never be reported at all unless that attempt does it.
+    // It reports the very error it throws, so it keeps grouping into the
+    // existing ReviewProviderSnapshotFailure issue with its failure_code tag.
+    it.each(['observation_failed', 'provider_failure', 'cursor_failure'] as const)(
+      'reports a step that fails its run as %s once, before it throws',
+      async (code) => {
+        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const { handler, markDeferred } = replayHandler([fresh(code)], row)
+
+        const thrown = await handler({ id: 'job-reported', data: STEP } as never).catch(
+          (err: unknown) => err,
+        )
+
+        expect(thrown).toBeInstanceOf(ReviewProviderSnapshotFailure)
+        expect(thrown).toMatchObject({ failureCode: code, message: code })
+        expect(mocks.capture).toHaveBeenCalledTimes(1)
+        expect(mocks.capture.mock.calls[0]?.[0]).toBe(thrown)
+        expect(mocks.capture.mock.calls[0]?.[1]).toEqual({
+          source: 'bullmq-job',
+          queue: 'default',
+          jobName: 'sync-property-reviews',
+        })
+        expect(markDeferred).toHaveBeenCalledTimes(1)
+        expect(row.errorClass).toBe(code)
+      },
+    )
+
+    // The failure is an ordinary one: BullMQ retries the step, and the retry
+    // finds the run failed and ends quietly (see the incident above). Nothing
+    // is terminal, so the worker neither reports it again nor dead-letters it.
+    it('keeps the failure of a step that continues a run retryable', async () => {
       const { handler } = replayHandler(
         [fresh('observation_failed')],
         fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId }),
       )
 
-      const failure = await handler({ id: 'job-terminal', data: STEP } as never).catch(
+      const failure = await handler({ id: 'job-retryable', data: STEP } as never).catch(
         (err: unknown) => err,
       )
 
-      expect(isTerminalFailedEvent(afterAttempt(1), failure)).toBe(true)
+      expect(isTerminalFailedEvent(afterAttempt(1), failure)).toBe(false)
+    })
+
+    // A location over the cap is parked and the job ends normally: nothing
+    // throws, so nothing is reported, as before the run id mattered.
+    it('does not report a location parked for being over the cap', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler } = replayHandler([fresh('review_cap_exceeded')], row)
+
+      await expect(handler({ id: 'job-cap', data: STEP } as never)).resolves.toEqual(
+        fresh('review_cap_exceeded'),
+      )
+
+      expect(mocks.capture).not.toHaveBeenCalled()
     })
 
     // The first step of a run has no run id: its retry starts a new run, which
@@ -1290,6 +1345,22 @@ describe('sync-property-reviews snapshot handler', () => {
       })
       expect(isTerminalFailedEvent(afterAttempt(1), failure)).toBe(false)
       expect(isTerminalFailedEvent(afterAttempt(3), failure)).toBe(true)
+    })
+
+    // Its retry starts a new run, so the step itself does not report: the
+    // worker does, once, when the attempts are spent. Reporting here as well
+    // would count one failure twice.
+    it('leaves the report of the failure of the first step of a run to the worker', async () => {
+      const { handler } = replayHandler(
+        [fresh('observation_failed')],
+        fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId }),
+      )
+
+      await expect(
+        handler({ id: 'job-first-step', data: JOB_DATA } as never),
+      ).rejects.toBeInstanceOf(ReviewProviderSnapshotFailure)
+
+      expect(mocks.capture).not.toHaveBeenCalled()
     })
 
     // The failing step fails the run first and records the failure second, in
@@ -1327,6 +1398,7 @@ describe('sync-property-reviews snapshot handler', () => {
             ([fields]) => fields.event === 'review_snapshot_failure_deferred',
           ),
         ).toHaveLength(1)
+        expect(mocks.capture).not.toHaveBeenCalled()
       })
 
       it('records it when the Property holds only an older failure, climbing the ladder', async () => {
