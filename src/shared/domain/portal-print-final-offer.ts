@@ -66,6 +66,9 @@ export type PrintFinalRefusal =
         | 'quantity_out_of_range'
         | 'per_sheet_out_of_range'
         | 'languages_out_of_range'
+        | 'wording_not_available'
+        | 'shorten_to_fit'
+        | 'remove_offer'
     }>
 
 /**

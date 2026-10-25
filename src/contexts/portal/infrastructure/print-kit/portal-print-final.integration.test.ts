@@ -160,7 +160,7 @@ const request = (
   printer: 'my_printer',
   quantity: 10,
   languages: ['en', 'bg'],
-  callToAction: 'rate',
+  callToAction: 'how_did_we_do',
   ...over,
 })
 
@@ -330,7 +330,7 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
           orientation: 'upright',
           look: 'immersive',
           languages: ['bg', 'en'],
-          callToAction: 'tell',
+          callToAction: 'how_was_visit',
         }),
         ctx,
       ),

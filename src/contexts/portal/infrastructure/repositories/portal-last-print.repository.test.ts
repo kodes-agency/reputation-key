@@ -40,7 +40,7 @@ const settings = (
   cropMarks: false,
   backPage: false,
   languages: ['en', 'es'],
-  callToAction: 'rate',
+  callToAction: 'how_did_we_do',
   ...patch,
 })
 
@@ -100,7 +100,7 @@ describe('portalLastPrintRepository (integration)', () => {
         perSheet: 2,
         backPage: true,
         languages: ['bg'],
-        callToAction: 'tell',
+        callToAction: 'how_was_visit',
       }),
       photo: { assetId: PHOTO, focalX: 0.25, focalY: 0.6 },
     })

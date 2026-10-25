@@ -17,9 +17,9 @@ import {
 } from '#/shared/domain/portal-print-final-back-copy'
 import { printFinalHasBack } from '#/shared/domain/portal-print-final-back'
 import {
-  PRINT_KIT_CALLS_TO_ACTION,
-  type PrintKitCallToAction,
-} from '#/shared/domain/portal-print-kit'
+  PRINT_FINAL_CALLS_TO_ACTION,
+  type PrintFinalCallToAction,
+} from '#/shared/domain/portal-print-final-copy'
 import {
   PRINT_FINAL_SHOP_CROP_MARKS_HELP,
   PRINT_FINAL_SHOP_CROP_MARKS_LABEL,
@@ -233,9 +233,9 @@ export function PrintFinalWordsStep(props: StepProps) {
         label="Call to action"
         value={print.callToAction}
         onValueChange={(callToAction) =>
-          final.change({ callToAction: callToAction as PrintKitCallToAction })
+          final.change({ callToAction: callToAction as PrintFinalCallToAction })
         }
-        options={PRINT_KIT_CALLS_TO_ACTION.map((callToAction) => ({
+        options={PRINT_FINAL_CALLS_TO_ACTION.map((callToAction) => ({
           value: callToAction,
           label: PRINT_FINAL_CALL_TO_ACTION_LABELS[callToAction],
         }))}

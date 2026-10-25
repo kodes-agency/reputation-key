@@ -17,7 +17,7 @@ const SETTINGS: PrintFinalLastSettings = {
   cropMarks: false,
   backPage: false,
   languages: ['en', 'es'],
-  callToAction: 'rate',
+  callToAction: 'how_did_we_do',
 }
 
 const last = (

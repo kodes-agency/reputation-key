@@ -6,9 +6,10 @@
 //
 //   1. authorise, and load the Portal and what is live on it;
 //   2. refuse, before anything is read or revealed: the final kit where the
-//      server has it off, languages the live version does not offer, and a
-//      choice the kit does not make (a quantity or a count a sheet out of range,
-//      a tent for a print shop);
+//      server has it off, languages the live version does not offer, a choice
+//      the kit does not make (a quantity or a count a sheet out of range, a tent
+//      for a print shop), and words it does not print (a wording rule F holds
+//      back in one of the languages);
 //   3. read the pictures from Portal media, checked against their stored hash;
 //   4. fetch the address through `revealPortalAddress`, which records the
 //      disclosure (as a download) before it decrypts;
@@ -37,6 +38,10 @@ import {
   printFinalFileName,
 } from '#/shared/domain/portal-print-final-how-to'
 import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
+import {
+  printFinalWordsHeldLanguage,
+  type PrintFinalWordsChoice,
+} from '#/shared/domain/portal-print-final-custom'
 import {
   printFinalChoiceProblem,
   type PrintFinalChoice,
@@ -165,6 +170,13 @@ export const createPortalPrintFinal =
     const choice = await choiceOf(deps, input, scope)
     const problem = printFinalChoiceProblem(choice)
     if (problem !== null) throw refusalError(problem)
+    const words: PrintFinalWordsChoice = {
+      preset: input.callToAction,
+      custom: input.customWords ?? null,
+    }
+    if (printFinalWordsHeldLanguage(words, input.languages) !== null) {
+      throw refusalError({ code: 'wording_not_available' })
+    }
 
     const pictures = await readPicturesThenReveal(deps, context.look, scope, ctx, input)
 
@@ -180,7 +192,7 @@ export const createPortalPrintFinal =
       },
       blocks: printFinalBlocks(
         input.languages,
-        input.callToAction,
+        words,
         context.titles,
         context.portalName,
       ),

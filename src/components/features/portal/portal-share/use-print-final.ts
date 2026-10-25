@@ -168,7 +168,12 @@ export function usePrintFinal(input: Input) {
     () =>
       view === null || languages === undefined
         ? []
-        : printFinalBlocks(languages, callToAction, view.titles, view.portalName),
+        : printFinalBlocks(
+            languages,
+            { preset: callToAction },
+            view.titles,
+            view.portalName,
+          ),
     [view, languages, callToAction],
   )
   const sheet = useMemo(

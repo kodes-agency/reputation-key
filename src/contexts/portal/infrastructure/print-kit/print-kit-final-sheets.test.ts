@@ -51,7 +51,7 @@ function inputFor(
 ): PrintFinalRenderInput {
   const blocks = printFinalBlocks(
     ['en'],
-    'rate',
+    { preset: 'how_did_we_do' },
     { en: 'Review us on Google' },
     'Reception',
   )
@@ -226,7 +226,7 @@ describe('the final Paper office sheets', () => {
     it('leaves a single piece’s PDF at the viewer’s default', async () => {
       const blocks = printFinalBlocks(
         ['en'],
-        'rate',
+        { preset: 'how_did_we_do' },
         { en: 'Review us on Google' },
         'Reception',
       )

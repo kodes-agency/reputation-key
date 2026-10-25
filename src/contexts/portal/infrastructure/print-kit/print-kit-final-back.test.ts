@@ -108,7 +108,7 @@ async function inputFor(
 ): Promise<PrintFinalRenderInput> {
   const blocks = printFinalBlocks(
     ['en'],
-    'rate',
+    { preset: 'how_did_we_do' },
     { en: 'Review us on Google' },
     'Reception',
   )

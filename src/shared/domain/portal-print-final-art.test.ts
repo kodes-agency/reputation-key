@@ -53,7 +53,7 @@ function planOf(
 ): PrintFinalPlan {
   const blocks = printFinalBlocks(
     languages,
-    'rate',
+    { preset: 'how_did_we_do' },
     { en: 'Reception', es: 'Recepción' },
     'Reception',
   )

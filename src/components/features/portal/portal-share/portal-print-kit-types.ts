@@ -18,6 +18,8 @@ import type {
   PrintFinalPiece,
   PrintFinalPrinter,
 } from '#/shared/domain/portal-print-final'
+import type { PrintFinalCallToAction } from '#/shared/domain/portal-print-final-copy'
+import type { PrintFinalCustomWords } from '#/shared/domain/portal-print-final-custom'
 
 /** The read, as the route hands it in (a server function takes its input as `data`). */
 export type PortalPrintKitReader = (args: {
@@ -57,7 +59,9 @@ export type DownloadPrintFinalInput = {
     backPage: boolean
     perSheet?: number
     languages: GuestLocale[]
-    callToAction: PrintKitCallToAction
+    callToAction: PrintFinalCallToAction
+    /** The manager's own words per language, normalised; absent or null with none. */
+    customWords?: PrintFinalCustomWords | null
   }
 }
 

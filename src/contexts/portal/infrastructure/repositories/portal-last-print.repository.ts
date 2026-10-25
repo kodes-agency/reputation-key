@@ -9,10 +9,8 @@ import {
   PRINT_FINAL_PIECES,
   PRINT_FINAL_PRINTERS,
 } from '#/shared/domain/portal-print-final'
-import {
-  PRINT_KIT_CALLS_TO_ACTION,
-  PRINT_KIT_PAPERS,
-} from '#/shared/domain/portal-print-kit'
+import { PRINT_KIT_PAPERS } from '#/shared/domain/portal-print-kit'
+import { PRINT_FINAL_CALLS_TO_ACTION } from '#/shared/domain/portal-print-final-copy'
 import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
 import { trace } from '#/shared/observability/trace'
 import type {
@@ -34,7 +32,7 @@ const rowSchema = z.object({
   cropMarks: z.boolean(),
   backPage: z.boolean(),
   languages: z.array(guestLocaleSchema).min(1),
-  callToAction: z.enum(PRINT_KIT_CALLS_TO_ACTION),
+  callToAction: z.enum(PRINT_FINAL_CALLS_TO_ACTION),
   photoAssetId: z.string().nullable(),
   photoFocalX: z.number().nullable(),
   photoFocalY: z.number().nullable(),

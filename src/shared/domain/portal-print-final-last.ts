@@ -12,7 +12,8 @@ import type {
   PrintFinalPiece,
   PrintFinalPrinter,
 } from './portal-print-final'
-import type { PrintKitCallToAction, PrintKitPaper } from './portal-print-kit'
+import type { PrintKitPaper } from './portal-print-kit'
+import type { PrintFinalCallToAction } from './portal-print-final-copy'
 
 /**
  * The choices of a print, as the download took them: what "Use the same
@@ -34,7 +35,8 @@ export type PrintFinalLastSettings = Readonly<{
   cropMarks: boolean
   backPage: boolean
   languages: readonly GuestLocale[]
-  callToAction: PrintKitCallToAction
+  /** The wording the print said, or started from when the manager wrote their own words. */
+  callToAction: PrintFinalCallToAction
 }>
 
 /** The photo an Immersive print was made from: which image, and how it was framed. */

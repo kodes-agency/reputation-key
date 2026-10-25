@@ -147,7 +147,7 @@ function blockSets(
 ): readonly (readonly PrintTextBlock[])[] {
   return [
     ...LANGUAGES.map((languages) =>
-      printFinalBlocks(languages, 'rate', titles, 'Reception'),
+      printFinalBlocks(languages, { preset: 'how_did_we_do' }, titles, 'Reception'),
     ),
     LONG_COPY,
   ]

@@ -11,9 +11,12 @@ import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-
 import {
   defaultPrintKitPaper,
   isPrintKitLanguageChoice,
-  type PrintKitCallToAction,
   type PrintKitPaper,
 } from '#/shared/domain/portal-print-kit'
+import {
+  PRINT_FINAL_DEFAULT_CALL_TO_ACTION,
+  type PrintFinalCallToAction,
+} from '#/shared/domain/portal-print-final-copy'
 import {
   PRINT_FINAL_DEFAULT_ORIENTATION,
   printFinalRegionOf,
@@ -62,7 +65,7 @@ export type PrintFinalShareChoice = Readonly<{
   cropMarks: boolean
   /** Null until the manager picks: the portal's first choice (its primary and the next language). */
   languages: readonly GuestLocale[] | null
-  callToAction: PrintKitCallToAction
+  callToAction: PrintFinalCallToAction
 }>
 
 /** The board's starting point: a wide table tent, Paper, from the manager's printer, ten of them. */
@@ -78,7 +81,7 @@ export const INITIAL_PRINT_FINAL_CHOICE: PrintFinalShareChoice = Object.freeze({
   backPage: false,
   cropMarks: false,
   languages: null,
-  callToAction: 'rate',
+  callToAction: PRINT_FINAL_DEFAULT_CALL_TO_ACTION,
 })
 
 /** The print a choice makes, as the preview draws it and the download asks for it. */
@@ -102,7 +105,7 @@ export type PrintFinalSharePrint = Readonly<{
   /** The file's page has crop marks: asked for, and a print shop's (the manager's own printer has none). */
   cropMarks: boolean
   languages: readonly GuestLocale[]
-  callToAction: PrintKitCallToAction
+  callToAction: PrintFinalCallToAction
 }>
 
 /** A whole number from 1 to 1000, or null. */

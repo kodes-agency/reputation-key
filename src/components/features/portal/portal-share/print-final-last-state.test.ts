@@ -41,7 +41,7 @@ const LAST: PrintFinalLastSettings = {
   cropMarks: false,
   backPage: true,
   languages: ['es', 'en'],
-  callToAction: 'tell',
+  callToAction: 'how_was_visit',
 }
 
 describe('the look a print opens on', () => {
@@ -70,7 +70,7 @@ describe('choiceOfLastPrint', () => {
       backPage: true,
       cropMarks: false,
       languages: ['es', 'en'],
-      callToAction: 'tell',
+      callToAction: 'how_was_visit',
     })
     expect(chosen.orientations.counter).toBe('wide')
   })
@@ -133,7 +133,7 @@ describe('printFinalMatchesLast', () => {
     ['the look', { look: 'paper' }],
     ['the paper', { paper: 'letter' }],
     ['the languages', { languages: ['en', 'es'] }],
-    ['the call to action', { callToAction: 'rate' }],
+    ['the call to action', { callToAction: 'how_did_we_do' }],
     ['the spares', { fillSpares: false }],
     ['the count a sheet', { perSheet: null }],
     ['the back page', { backPage: false }],

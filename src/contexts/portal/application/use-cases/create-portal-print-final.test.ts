@@ -126,7 +126,7 @@ const tents = (
   printer: 'my_printer',
   quantity: 10,
   languages: ['en', 'bg'],
-  callToAction: 'rate',
+  callToAction: 'how_did_we_do',
   ...over,
 })
 
@@ -334,7 +334,7 @@ describe('createPortalPrintFinal', () => {
             cropMarks: false,
             backPage: false,
             languages: ['en', 'bg'],
-            callToAction: 'rate',
+            callToAction: 'how_did_we_do',
           },
           photo: null,
         },
@@ -457,5 +457,24 @@ describe('createPortalPrintFinal', () => {
       context: { cause: 'words_do_not_fit' },
     })
     expect(lastPrintRepo.recorded()).toEqual([])
+  })
+
+  it('prints the manager’s own words where they wrote them and the wording in the other language', async () => {
+    const { portal, make, rendered } = await setup()
+
+    await make(
+      tents(portal.id, {
+        callToAction: 'rate_visit',
+        customWords: { en: { headline: 'How was today?', subline: '' } },
+      }),
+      buildTestAuthContext(),
+    )
+
+    expect(
+      rendered[0]?.blocks.map(({ headline, subline }) => [headline, subline]),
+    ).toEqual([
+      ['How was today?', ''],
+      ['Оценете посещението си', 'Около 30 секунди'],
+    ])
   })
 })

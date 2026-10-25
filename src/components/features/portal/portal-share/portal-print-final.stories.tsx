@@ -262,7 +262,7 @@ export const DownloadSendsTheChoice: Story = {
           cropMarks: false,
           backPage: false,
           languages: ['en', 'es'],
-          callToAction: 'rate',
+          callToAction: 'how_did_we_do',
         },
       }),
     )
@@ -509,7 +509,7 @@ const lastPrint = (
     cropMarks: false,
     backPage: false,
     languages: ['en', 'es'],
-    callToAction: 'rate',
+    callToAction: 'how_did_we_do',
     ...settings,
   },
   photo,
