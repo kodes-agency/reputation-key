@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
+import { createInMemoryPortalLastPrintRepo } from '#/shared/testing/in-memory-portal-last-print-repo'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { immersiveConfiguration } from './domain/__fixtures__/immersive-configuration'
@@ -15,6 +16,8 @@ import type { RevealPortalAddress } from './application/use-cases/reveal-portal-
 
 const ADDRESS =
   'https://app.example.test/p/pt_AAAAAAAAAAAAAAAA_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb?accessArtifact=11111111-1111-4111-8111-111111111111'
+
+const SHORT_ADDRESS = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
 
 const base = immersiveConfiguration()
 
@@ -52,6 +55,7 @@ function wire(
         }) as PortalPublicationSnapshot,
     },
     mediaRepo: createInMemoryPortalMediaAssetRepo(),
+    lastPrintRepo: createInMemoryPortalLastPrintRepo(),
     objectStore: createInMemoryObjectStore(),
     revealAddress: reveal,
     propertyCountry: async () => country,
@@ -80,6 +84,41 @@ describe('buildPortalPrintKit', () => {
       buildTestAuthContext(),
     )
     expect(view.kit).toBe('final')
+  })
+
+  it('remembers a final print as the last, and tells the Share tab of it', async () => {
+    const { portal, useCases } = wire('US', true, SHORT_ADDRESS)
+    const ctx = buildTestAuthContext()
+    expect(
+      (await useCases.getPortalPrintKit({ portalId: portal.id }, ctx)).lastPrint,
+    ).toBe(null)
+
+    await useCases.createPortalPrintFinal(
+      {
+        portalId: portal.id,
+        piece: 'counter',
+        orientation: 'upright',
+        look: 'paper',
+        printer: 'my_printer',
+        quantity: 6,
+        languages: ['en'],
+        callToAction: 'rate',
+      },
+      ctx,
+    )
+
+    const { lastPrint } = await useCases.getPortalPrintKit({ portalId: portal.id }, ctx)
+    expect(lastPrint).toMatchObject({
+      printedAt: '2026-10-01T10:00:00.000Z',
+      settings: {
+        piece: 'counter',
+        orientation: 'upright',
+        paper: 'letter',
+        quantity: 6,
+      },
+      photo: { kind: 'same' },
+    })
+    expect(JSON.stringify(lastPrint)).not.toContain(SHORT_ADDRESS)
   })
 
   it('draws a real PDF for the address of the live code', async () => {

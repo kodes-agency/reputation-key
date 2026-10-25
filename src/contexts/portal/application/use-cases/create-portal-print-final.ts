@@ -47,6 +47,10 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalError } from '../../domain/errors'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { loadPortalPrintKitContext } from '../load-portal-print-kit-context'
+import {
+  rememberLastPrint,
+  type RememberLastPrintDeps,
+} from '../remember-portal-last-print'
 import type { DownloadPortalPrintFinalInput } from '../dto/portal-print-final.dto'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import {
@@ -63,26 +67,27 @@ import {
 } from './create-portal-print-kit'
 import type { RevealPortalAddress } from './reveal-portal-address'
 
-export type CreatePortalPrintFinalDeps = Readonly<{
-  portalRepo: PortalRepository
-  staffPublicApi: StaffPublicApi
-  publicationRepo: Pick<
-    PortalPublicationRepository,
-    'loadWorkingCopy' | 'findActiveForPortal'
-  >
-  mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
-  objectStore: Pick<StoragePort, 'getObject'>
-  sha256Hex: (bytes: Uint8Array) => string
-  revealAddress: RevealPortalAddress
-  renderer: PortalPrintFinalRenderer
-  /** The Property's country (ISO 3166-1 alpha-2), or null: it sets the default paper. */
-  propertyCountry: (
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-  ) => Promise<string | null>
-  /** PRINT_KIT_FINAL_ENABLED: off, every final download is refused. */
-  finalKitEnabled: boolean
-}>
+export type CreatePortalPrintFinalDeps = RememberLastPrintDeps &
+  Readonly<{
+    portalRepo: PortalRepository
+    staffPublicApi: StaffPublicApi
+    publicationRepo: Pick<
+      PortalPublicationRepository,
+      'loadWorkingCopy' | 'findActiveForPortal'
+    >
+    mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
+    objectStore: Pick<StoragePort, 'getObject'>
+    sha256Hex: (bytes: Uint8Array) => string
+    revealAddress: RevealPortalAddress
+    renderer: PortalPrintFinalRenderer
+    /** The Property's country (ISO 3166-1 alpha-2), or null: it sets the default paper. */
+    propertyCountry: (
+      organizationId: OrganizationId,
+      propertyId: PropertyId,
+    ) => Promise<string | null>
+    /** PRINT_KIT_FINAL_ENABLED: off, every final download is refused. */
+    finalKitEnabled: boolean
+  }>
 
 type Scope = Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>
 
@@ -198,6 +203,14 @@ export const createPortalPrintFinal =
             },
           }
         : { shop: { cropMarks } }),
+    })
+    await rememberLastPrint(deps, {
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      choice,
+      input,
+      look: context.look,
     })
     return {
       fileName: printFinalFileName(context.portalName, print),

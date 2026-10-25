@@ -57,7 +57,7 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
   const blocked =
     notLive?.body ??
     printKitAvailability({ canDownloadAgain: view.canDownloadAgain }).reason
-  const final = usePortalPrintFinal(props, show ? printKit.view : null)
+  const final = usePortalPrintFinal(props, show ? printKit.view : null, printKit.refresh)
   return {
     show,
     notLive,
@@ -74,7 +74,11 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
  * The final Print cards section's state, live only where the read says the
  * server shows the final kit (PRINT_KIT_FINAL_ENABLED); today's kit otherwise.
  */
-function usePortalPrintFinal(props: PortalShareProps, read: PortalPrintKitView | null) {
+function usePortalPrintFinal(
+  props: PortalShareProps,
+  read: PortalPrintKitView | null,
+  refreshRead: () => void,
+) {
   const isFinal = read?.kit === 'final'
   const state = usePrintFinal({
     portalId: props.portalId,
@@ -83,6 +87,7 @@ function usePortalPrintFinal(props: PortalShareProps, read: PortalPrintKitView |
     countryCode: props.countryCode ?? null,
     qrAddress: props.issuedLink?.publicUrl ?? null,
     downloadMutation: isFinal ? props.printKit?.downloadFinalMutation : undefined,
+    onDownloaded: refreshRead,
   })
   return { isFinal, state }
 }

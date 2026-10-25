@@ -7,6 +7,7 @@
 // property's country, and what the download sends.
 
 import type { GuestLocale } from '#/shared/domain/guest-locale'
+import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
 import {
   PRINT_KIT_SCAN_CUE,
   defaultPrintKitPaper,
@@ -44,7 +45,8 @@ export type PrintFinalShareChoice = Readonly<{
   piece: PrintFinalPiece
   /** Each piece's own orientation, remembered while the manager looks at another. */
   orientations: Readonly<Record<PrintFinalPiece, PrintFinalOrientation>>
-  look: PrintFinalLook
+  /** Null until the manager picks: Paper the first time, after that the look of the Portal's last print (§11.2). */
+  look: PrintFinalLook | null
   printer: PrintFinalPrinter
   /** Null until the manager picks one: the paper the property's country prints on. */
   paper: PrintKitPaper | null
@@ -66,7 +68,7 @@ export type PrintFinalShareChoice = Readonly<{
 export const INITIAL_PRINT_FINAL_CHOICE: PrintFinalShareChoice = Object.freeze({
   piece: 'tent',
   orientations: PRINT_FINAL_DEFAULT_ORIENTATION,
-  look: 'paper',
+  look: null,
   printer: 'my_printer',
   paper: null,
   quantityText: '10',
@@ -113,13 +115,16 @@ export function resolvePrintFinalChoice(
   choice: PrintFinalShareChoice,
   locales: readonly GuestLocale[],
   countryCode: string | null,
+  /** The look of the Portal's last print, which the print opens on until a look is picked; null when never printed. */
+  lastLook: PrintFinalLook | null = null,
 ): PrintFinalSharePrint {
   const countryPaper = defaultPrintKitPaper(countryCode)
   const paper = choice.paper ?? countryPaper
+  const look = choice.look ?? lastLook ?? 'paper'
   // A print shop takes no tents (Round 4, O1): Share offers Counter cards instead.
   const piece =
     choice.printer === 'print_shop' && choice.piece === 'tent' ? 'counter' : choice.piece
-  const fits = PRINT_FINAL_PER_SHEET[piece][choice.look][paper]
+  const fits = PRINT_FINAL_PER_SHEET[piece][look][paper]
   const chosenPerSheet =
     choice.perSheet !== null && choice.perSheet < fits ? choice.perSheet : undefined
   const languages =
@@ -129,7 +134,7 @@ export function resolvePrintFinalChoice(
   return {
     piece,
     orientation: choice.orientations[piece],
-    look: choice.look,
+    look,
     printer: choice.printer,
     paper,
     countryPaper,
@@ -142,6 +147,69 @@ export function resolvePrintFinalChoice(
     languages,
     callToAction: choice.callToAction,
   }
+}
+
+/** The choice that sets a Portal's last print again: every choice it took, each piece keeping the orientation it was not printed in. */
+export function choiceOfLastPrint(
+  choice: PrintFinalShareChoice,
+  last: PrintFinalLastSettings,
+): PrintFinalShareChoice {
+  return {
+    ...choice,
+    piece: last.piece,
+    orientations: { ...choice.orientations, [last.piece]: last.orientation },
+    look: last.look,
+    printer: last.printer,
+    paper: last.paper,
+    quantityText: String(last.quantity),
+    fillSpares: last.fillSpares,
+    perSheet: last.perSheet,
+    backPage: last.backPage,
+    cropMarks: last.cropMarks,
+    languages: last.languages,
+    callToAction: last.callToAction,
+  }
+}
+
+/** The look the print opens on until the manager picks one: the last print's, when there was one. */
+export function printFinalLastLook(
+  lastPrint: Readonly<{ settings: Pick<PrintFinalLastSettings, 'look'> }> | null,
+): PrintFinalLook | null {
+  return lastPrint?.settings.look ?? null
+}
+
+/** Whether a print is the Portal's last print: every choice it took, as it took it. */
+export function printFinalMatchesLast(
+  print: PrintFinalSharePrint,
+  last: PrintFinalLastSettings,
+): boolean {
+  return (
+    print.piece === last.piece &&
+    print.orientation === last.orientation &&
+    print.look === last.look &&
+    print.printer === last.printer &&
+    print.paper === last.paper &&
+    print.quantity === last.quantity &&
+    print.fillSpares === last.fillSpares &&
+    (print.chosenPerSheet ?? null) === last.perSheet &&
+    print.backPage === last.backPage &&
+    print.cropMarks === last.cropMarks &&
+    print.callToAction === last.callToAction &&
+    print.languages.length === last.languages.length &&
+    print.languages.every((locale, index) => locale === last.languages[index])
+  )
+}
+
+/** Whether the choices on show are already the last print's: false before the read, and for a Portal never printed. */
+export function printFinalIsLastSet(
+  print: PrintFinalSharePrint | null,
+  lastPrint: Readonly<{ settings: PrintFinalLastSettings }> | null,
+): boolean {
+  return (
+    print !== null &&
+    lastPrint !== null &&
+    printFinalMatchesLast(print, lastPrint.settings)
+  )
 }
 
 /** The sheets and pieces a print makes; a print shop's file is one page. */

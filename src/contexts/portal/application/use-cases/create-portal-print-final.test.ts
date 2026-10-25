@@ -7,9 +7,11 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
+import { createInMemoryPortalLastPrintRepo } from '#/shared/testing/in-memory-portal-last-print-repo'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import { portalMediaAssetId } from '#/shared/domain/ids'
 import type { PortalPublicationSnapshot } from '../../domain/portal-publication-snapshot'
 import { immersiveConfiguration } from '../../domain/__fixtures__/immersive-configuration'
@@ -32,6 +34,7 @@ const PDF = new Uint8Array([37, 80, 68, 70])
 const sha256Hex = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
 const HERO_BYTES = Buffer.from('hero image bytes')
 const LOGO_BYTES = Buffer.from('logo image bytes')
+const PRINTED_AT = new Date('2026-10-25T09:30:00.000Z')
 
 type Options = Readonly<{
   enabled?: boolean
@@ -66,6 +69,14 @@ async function setup(options: Options = {}) {
     version: 1,
     issuedAt: new Date('2026-10-01T10:00:00Z'),
   }))
+  const lastPrintRepo = createInMemoryPortalLastPrintRepo()
+  const warnings: object[] = []
+  const logger = {
+    ...createMockLogger(),
+    warn: (context: unknown) => {
+      if (typeof context === 'object' && context !== null) warnings.push(context)
+    },
+  }
   const rendered: PrintFinalRenderInput[] = []
   const renderer: PortalPrintFinalRenderer = {
     render: vi.fn(async (input) => {
@@ -96,8 +107,11 @@ async function setup(options: Options = {}) {
     renderer,
     propertyCountry: async () => options.country ?? 'US',
     finalKitEnabled: options.enabled ?? true,
+    lastPrintRepo,
+    clock: () => PRINTED_AT,
+    logger,
   })
-  return { portal, make, reveal, rendered }
+  return { portal, make, reveal, rendered, lastPrintRepo, warnings }
 }
 
 const tents = (
@@ -288,6 +302,122 @@ describe('createPortalPrintFinal', () => {
       make(tents(portal.id, { languages: ['en', 'fr'] }), buildTestAuthContext()),
     ).rejects.toMatchObject({ code: 'locale_not_offered' })
     expect(reveal).not.toHaveBeenCalled()
+  })
+
+  describe('remembering the print as the Portal’s last', () => {
+    const ctx = buildTestAuthContext()
+
+    it('keeps the choices as the manager made them, on the paper the file was made for', async () => {
+      const { portal, make, lastPrintRepo } = await setup({ country: 'BG' })
+
+      await make(
+        tents(portal.id, { fillSpares: true, perSheet: 3, backPage: false }),
+        ctx,
+      )
+
+      expect(lastPrintRepo.recorded()).toEqual([
+        {
+          organizationId: ctx.organizationId,
+          propertyId: portal.propertyId,
+          portalId: portal.id,
+          printedAt: PRINTED_AT,
+          settings: {
+            piece: 'tent',
+            orientation: 'wide',
+            look: 'paper',
+            paper: 'a4',
+            printer: 'my_printer',
+            quantity: 10,
+            fillSpares: true,
+            perSheet: 3,
+            cropMarks: false,
+            backPage: false,
+            languages: ['en', 'bg'],
+            callToAction: 'rate',
+          },
+          photo: null,
+        },
+      ])
+    })
+
+    it('keeps the photo an Immersive print used, by image and framing, and none for Paper', async () => {
+      const { portal, make, lastPrintRepo } = await setup()
+
+      await make(tents(portal.id, { look: 'immersive' }), ctx)
+      await make(tents(portal.id, { look: 'paper' }), ctx)
+
+      const [immersive, paper] = lastPrintRepo.recorded()
+      expect(immersive?.photo).toEqual({
+        assetId: SOURCE_HERO_ASSET_ID,
+        focalX: 0.4,
+        focalY: 0.6,
+      })
+      expect(paper?.photo).toBeNull()
+    })
+
+    it('keeps a print shop’s choices too, the form coming back as it was', async () => {
+      const { portal, make, lastPrintRepo } = await setup()
+
+      await make(
+        tents(portal.id, {
+          piece: 'counter',
+          orientation: 'upright',
+          printer: 'print_shop',
+          cropMarks: true,
+          backPage: true,
+          quantity: 40,
+        }),
+        ctx,
+      )
+
+      expect(lastPrintRepo.recorded()[0]?.settings).toMatchObject({
+        piece: 'counter',
+        printer: 'print_shop',
+        cropMarks: true,
+        backPage: true,
+        quantity: 40,
+      })
+    })
+
+    it('never keeps the address or a code', async () => {
+      const { portal, make, lastPrintRepo } = await setup()
+
+      await make(tents(portal.id), ctx)
+
+      expect(JSON.stringify(lastPrintRepo.recorded())).not.toMatch(
+        /railway|\/p\/|7K3QZ0VD9MWX4HT2BN6R/iu,
+      )
+    })
+
+    it('keeps nothing of a print that was refused', async () => {
+      const refused = await setup({ enabled: false })
+      await expect(refused.make(tents(refused.portal.id), ctx)).rejects.toMatchObject({
+        code: 'print_format_not_offered',
+      })
+      const drawn = await setup({
+        refuse: new PrintFinalRenderRefusal({ code: 'needs_short_code', moduleMm: null }),
+      })
+      await expect(drawn.make(tents(drawn.portal.id), ctx)).rejects.toMatchObject({
+        code: 'print_code_too_small',
+      })
+
+      expect(refused.lastPrintRepo.recorded()).toEqual([])
+      expect(drawn.lastPrintRepo.recorded()).toEqual([])
+    })
+
+    it('still hands over the file when the print cannot be remembered, and says so without the address', async () => {
+      const { portal, make, lastPrintRepo, warnings } = await setup()
+      lastPrintRepo.failNextRecord(new Error('connection reset'))
+
+      const file = await make(tents(portal.id), ctx)
+
+      expect(file.pdf).toEqual(PDF)
+      expect(warnings).toEqual([
+        expect.objectContaining({ errorCode: 'portal_last_print_not_remembered' }),
+      ])
+      expect(JSON.stringify(warnings)).not.toContain(portal.id)
+      expect(JSON.stringify(warnings)).not.toContain(SHORT_ADDRESS)
+    })
   })
 
   it('refuses a viewer who may not make prints', async () => {

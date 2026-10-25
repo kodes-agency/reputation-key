@@ -5,19 +5,25 @@
 // preview draws a placeholder code), so reading it discloses nothing and needs
 // only `portal.read`, like the editor's other reads. The PDF itself is
 // `createPortalPrintKit`, which does disclose. It also says which kit the Share
-// tab shows: today's, or the final kit where the server has it turned on.
+// tab shows: today's, or the final kit where the server has it turned on, and
+// for the final kit what the Portal's last print was (choices and a day, and
+// whether the photo has changed since: never an address or a code).
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PortalLastPrintRepository } from '../ports/portal-last-print.repository'
+import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { PortalRepository } from '../ports/portal.repository'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { loadPortalPrintKitContext } from '../load-portal-print-kit-context'
 import {
   presentPortalPrintKit,
+  type PortalPrintKitLastPrint,
   type PortalPrintKitView,
 } from '../portal-print-kit-context'
+import { presentLastPrint } from '../portal-print-kit-last-print'
 
 export type GetPortalPrintKitDeps = Readonly<{
   portalRepo: PortalRepository
@@ -26,6 +32,9 @@ export type GetPortalPrintKitDeps = Readonly<{
     PortalPublicationRepository,
     'loadWorkingCopy' | 'findActiveForPortal'
   >
+  /** The Portal's last final print, and the photo it names, for the final kit's Last printed. */
+  lastPrintRepo: Pick<PortalLastPrintRepository, 'find'>
+  mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
   /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final kit instead of today's. */
   finalKitEnabled: boolean
 }>
@@ -44,11 +53,13 @@ export const getPortalPrintKit =
       organizationId: ctx.organizationId,
       portal,
     })
-    return presentPortalPrintKit(
-      portal.id,
-      context,
-      deps.finalKitEnabled ? 'final' : 'current',
-    )
+    if (!deps.finalKitEnabled) return presentPortalPrintKit(portal.id, context, 'current')
+    const last = await deps.lastPrintRepo.find(ctx.organizationId, portal.id)
+    const lastPrint: PortalPrintKitLastPrint | null =
+      last === null
+        ? null
+        : await presentLastPrint(deps, ctx.organizationId, context, last)
+    return presentPortalPrintKit(portal.id, context, 'final', lastPrint)
   }
 
 export type GetPortalPrintKit = ReturnType<typeof getPortalPrintKit>

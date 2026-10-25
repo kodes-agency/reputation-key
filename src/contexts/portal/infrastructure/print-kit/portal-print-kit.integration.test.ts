@@ -26,6 +26,7 @@ import { getPortalPrintKit } from '../../application/use-cases/get-portal-print-
 import { revealPortalAddress } from '../../application/use-cases/reveal-portal-address'
 import { testPortalTokenCodec } from '../testing/portal-token-codec-fixture'
 import { createPortalAddressRepository } from '../repositories/portal-address.repository'
+import { createPortalLastPrintRepository } from '../repositories/portal-last-print.repository'
 import { createPortalMediaAssetRepository } from '../repositories/portal-media-asset.repository'
 import { createPortalPublicationRepository } from '../repositories/portal-publication.repository'
 import { createPortalRepository } from '../repositories/portal.repository'
@@ -117,7 +118,12 @@ async function harness(options: HarnessOptions = {}) {
     },
   }
   return {
-    read: getPortalPrintKit({ ...common, finalKitEnabled: false }),
+    read: getPortalPrintKit({
+      ...common,
+      mediaRepo: createPortalMediaAssetRepository(db),
+      lastPrintRepo: createPortalLastPrintRepository(db),
+      finalKitEnabled: false,
+    }),
     make: createPortalPrintKit({
       ...common,
       mediaRepo: createPortalMediaAssetRepository(db),

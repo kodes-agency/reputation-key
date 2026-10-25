@@ -7,15 +7,18 @@
 import { describe, expect, it } from 'vitest'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { getDb } from '#/shared/db'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { DownloadPortalPrintFinalInput } from '../../application/dto/portal-print-final.dto'
 import type { PortalPrintFinalRenderer } from '../../application/ports/portal-print-final-renderer.port'
 import { createPortalPrintFinal } from '../../application/use-cases/create-portal-print-final'
+import { getPortalPrintKit } from '../../application/use-cases/get-portal-print-kit'
 import { revealPortalAddress } from '../../application/use-cases/reveal-portal-address'
 import { testPortalTokenCodec } from '../testing/portal-token-codec-fixture'
 import { createPortalAddressRepository } from '../repositories/portal-address.repository'
+import { createPortalLastPrintRepository } from '../repositories/portal-last-print.repository'
 import { createPortalMediaAssetRepository } from '../repositories/portal-media-asset.repository'
 import { createPortalPublicationRepository } from '../repositories/portal-publication.repository'
 import { createPortalRepository } from '../repositories/portal.repository'
@@ -115,6 +118,9 @@ async function harness(options: HarnessOptions = {}) {
       renderer,
       propertyCountry: createPropertyCountryReader(db),
       finalKitEnabled: options.enabled ?? true,
+      lastPrintRepo: createPortalLastPrintRepository(db),
+      clock: () => new Date('2026-10-25T10:00:00Z'),
+      logger: createMockLogger(),
     }),
     rendered,
     ctx: buildTestAuthContext({ organizationId: WORKING_COPY_ORG }),
@@ -321,6 +327,62 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
       code: 'print_code_too_small',
       context: { cause: 'needs_short_code' },
     })
+  })
+
+  it('remembers the print as the Portal’s last, and says so in the print kit read, once the photo changes', async () => {
+    const { make, ctx } = await harness()
+    await setCountry('US')
+    await make(
+      request({
+        piece: 'counter',
+        orientation: 'upright',
+        look: 'immersive',
+        quantity: 5,
+        languages: ['bg'],
+      }),
+      ctx,
+    )
+    const db = getDb()
+    const read = getPortalPrintKit({
+      portalRepo: createPortalRepository(db),
+      staffPublicApi,
+      publicationRepo: createPortalPublicationRepository(db),
+      mediaRepo: createPortalMediaAssetRepository(db),
+      lastPrintRepo: createPortalLastPrintRepository(db),
+      finalKitEnabled: true,
+    })
+
+    const { lastPrint } = await read({ portalId: COMPLETE_SCENARIO.portalId }, ctx)
+
+    expect(lastPrint).toMatchObject({
+      printedAt: '2026-10-25T10:00:00.000Z',
+      settings: {
+        piece: 'counter',
+        orientation: 'upright',
+        look: 'immersive',
+        paper: 'letter',
+        quantity: 5,
+        languages: ['bg'],
+      },
+      photo: { kind: 'same' },
+    })
+    const stored = await getPool().query(
+      `SELECT photo_asset_id::text AS photo, organization_id FROM portal_last_prints
+       WHERE portal_id = $1::uuid`,
+      [COMPLETE_SCENARIO.portalId],
+    )
+    expect(stored.rows).toEqual([
+      { photo: SCENARIO_HERO_ASSET, organization_id: WORKING_COPY_ORG },
+    ])
+    // Another Organization's manager is told nothing of it.
+    expect(
+      (
+        await read(
+          { portalId: COMPLETE_SCENARIO.portalId },
+          buildTestAuthContext({ organizationId: WORKING_COPY_OTHER_ORG }),
+        ).catch(() => null)
+      )?.lastPrint ?? null,
+    ).toBeNull()
   })
 
   it('refuses every download while the server has the final kit off, and discloses nothing', async () => {

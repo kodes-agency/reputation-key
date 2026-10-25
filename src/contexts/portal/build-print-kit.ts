@@ -7,6 +7,7 @@
 
 import { createHash } from 'node:crypto'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PortalLastPrintRepository } from './application/ports/portal-last-print.repository'
 import type { PortalMediaAssetRepository } from './application/ports/portal-media-asset.repository'
 import type { PortalPublicationRepository } from './application/ports/portal-publication.repository'
 import type { PortalRepository } from './application/ports/portal.repository'
@@ -28,6 +29,8 @@ export type PortalPrintKitDeps = Readonly<{
     'loadWorkingCopy' | 'findActiveForPortal'
   >
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
+  /** The final kit's memory of each Portal's last print. */
+  lastPrintRepo: PortalLastPrintRepository
   objectStore: Pick<StoragePort, 'getObject'>
   revealAddress: RevealPortalAddress
   /** The Property's country, which sets the paper a print defaults to. */
@@ -79,6 +82,8 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       portalRepo: deps.portalRepo,
       staffPublicApi: deps.staffPublicApi,
       publicationRepo: deps.publicationRepo,
+      lastPrintRepo: deps.lastPrintRepo,
+      mediaRepo: deps.mediaRepo,
       finalKitEnabled: deps.finalKitEnabled,
     }),
     createPortalPrintKit: createPortalPrintKit({
@@ -103,6 +108,9 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       renderer: lazyFinalRenderer(deps.clock),
       propertyCountry: deps.propertyCountry,
       finalKitEnabled: deps.finalKitEnabled,
+      lastPrintRepo: deps.lastPrintRepo,
+      clock: deps.clock,
+      logger: deps.logger,
     }),
   }
 }

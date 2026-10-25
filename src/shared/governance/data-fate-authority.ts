@@ -543,6 +543,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
+    schemaFile: 'portal-last-print.schema.ts',
+    exportNames: ['portalLastPrints'],
+    owner: 'portal',
+    disposition: 'active_authority',
+    authority: 'POR-01',
+    exitCriteria:
+      "A remembered choice and a day, never an address or a file. The Portal lifecycle contributor deletes the Organization's rows at purge, and the Portal foreign key removes a row with its Portal.",
+  }),
+  ...rows({
     schemaFile: 'portal-publication.schema.ts',
     exportNames: [
       'portalPageEdits',

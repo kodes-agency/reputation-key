@@ -18,6 +18,7 @@ const DIGEST = 'a'.repeat(64)
 // Deleted innermost-first; every Portal foreign key is ON DELETE RESTRICT.
 const CHILD_TABLES = [
   'portal_address_downloads',
+  'portal_last_prints',
   'portal_access_artifacts',
   'portal_tokens',
   'portal_pending_content_changes',
@@ -281,6 +282,15 @@ async function seedFixture(): Promise<Fixture> {
                now(), now())`,
     [randomUUID(), organizationId, fixture.propertyId, fixture.portalId],
   )
+  await q(
+    `INSERT INTO portal_last_prints (
+       portal_id, organization_id, property_id, piece, orientation, look, paper,
+       printer, quantity, fill_spares, crop_marks, back_page, languages,
+       call_to_action, photo_asset_id, photo_focal_x, photo_focal_y, printed_at
+     ) VALUES ($1, $2, $3, 'counter', 'upright', 'immersive', 'letter', 'my_printer',
+               10, false, false, true, '["en","es"]'::jsonb, 'rate', $4, 0.5, 0.4, now())`,
+    [fixture.portalId, organizationId, fixture.propertyId, fixture.mediaAssetId],
+  )
 
   // Secret and dark-capability rows the export must never touch.
   await q(
@@ -395,9 +405,24 @@ describe.sequential('Portal Organization Export contributor', () => {
       'accessArtifacts',
       'addressDownloads',
       'healthIntervals',
+      'lastPrints',
     ]) {
       expect(payload[collection], collection).toHaveLength(1)
     }
+    // The choices of the last print and the image it used, by id, and nothing else.
+    expect(payload.lastPrints?.[0]).toMatchObject({
+      portal_id: fixture.portalId,
+      piece: 'counter',
+      orientation: 'upright',
+      look: 'immersive',
+      paper: 'letter',
+      printer: 'my_printer',
+      quantity: 10,
+      back_page: true,
+      languages: '["en", "es"]',
+      call_to_action: 'rate',
+      photo_asset_id: fixture.mediaAssetId,
+    })
     // The compatibility mirror (a row is seeded above) has no reader left: the
     // canonical group membership is exported with the Staff records.
     expect(payload).not.toHaveProperty('portalGroupMembers')
@@ -569,6 +594,7 @@ describe.sequential('Portal Organization Export contributor', () => {
       'publication_snapshot',
       'access_artifact',
       'health_interval',
+      'last_print',
     ]) {
       expect(portalIdOf(recordType), recordType).toBe(fixture.portalId)
     }
