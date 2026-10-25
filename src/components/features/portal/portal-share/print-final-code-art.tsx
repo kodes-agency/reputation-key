@@ -2,26 +2,24 @@
 // the PDF draws it: the cream tile with the code and its quiet zone, the accent
 // bar joined under it with the cue in each language and no icon, corners
 // rounded at 5 % of the tile, and on Paper the accent-ink outline outside the
-// cream square and the bar. A browser snaps the 0.35 mm border to device
+// cream square and the bar (Immersive has none). A browser snaps the 0.35 mm border to device
 // pixels; the file draws it at 0.35 mm.
 
 import type { PrintFinalFaceLayout } from '#/shared/domain/portal-print-final-face'
 import { PRINT_FINAL_MEASURES, mmPt } from '#/shared/domain/portal-print-final-measures'
 import { PRINT_FINAL_TYPE_SETTINGS } from '#/shared/domain/portal-print-final-type'
-import {
-  PRINT_KIT_TILE,
-  type PaperPrintKitPalette,
-} from '#/shared/domain/portal-print-kit-palette'
+import type { PrintFinalColours } from '#/shared/domain/portal-print-final-colours'
+import { PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
 import type { PointsToLength } from './print-kit-code-block-layout'
 
 type Props = Readonly<{
   layout: PrintFinalFaceLayout
-  palette: PaperPrintKitPalette
+  colours: PrintFinalColours
   codeUrl: string | null
   pt: PointsToLength
 }>
 
-export function PrintFinalCodeArt({ layout, palette, codeUrl, pt }: Props) {
+export function PrintFinalCodeArt({ layout, colours, codeUrl, pt }: Props) {
   const { code, cues, plan } = layout
   const box = plan.code
   const cuePt = PRINT_FINAL_MEASURES[plan.face.region][plan.face.piece].cuePt
@@ -37,7 +35,10 @@ export function PrintFinalCodeArt({ layout, palette, codeUrl, pt }: Props) {
         width: pt(code.widthPt),
         height: pt(code.heightPt),
         boxSizing: 'border-box',
-        border: `${pt(code.outlinePt)} solid ${palette.accentInk}`,
+        border:
+          colours.outline === null
+            ? 'none'
+            : `${pt(code.outlinePt)} solid ${colours.outline}`,
         borderRadius: pt(code.radiusPt),
         overflow: 'hidden',
         background: PRINT_KIT_TILE,
@@ -60,8 +61,8 @@ export function PrintFinalCodeArt({ layout, palette, codeUrl, pt }: Props) {
           alignItems: 'center',
           justifyContent: 'center',
           gap: pt(mmPt(lineGapMm)),
-          background: palette.barFill,
-          color: palette.barText,
+          background: colours.barFill,
+          color: colours.barText,
         }}
       >
         {cues.map((cue) => (

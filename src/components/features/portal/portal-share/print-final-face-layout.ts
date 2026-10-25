@@ -26,10 +26,20 @@ import type {
   PrintFinalTextStyle,
 } from '#/shared/domain/portal-print-final-text'
 import {
+  layoutPrintFinalImmersiveFace,
+  type PrintFinalImmersiveBrand,
+  type PrintFinalImmersiveFace,
+} from '#/shared/domain/portal-print-final-immersive-face'
+import {
+  PRINT_FINAL_DEFAULT_FRAMING,
+  type PrintFinalFraming,
+} from '#/shared/domain/portal-print-final-framing'
+import {
   estimatedLineWidthPt,
   type EstimatedFace,
 } from '#/shared/domain/portal-print-kit-text-widths'
 import { estimatedLineReachEm } from './print-final-ink-estimates'
+import type { PreviewFinalLogo, PreviewFinalPhoto } from './use-print-final-pictures'
 
 /**
  * Each family's line box, in ems, from the files the PDF embeds: its ascender
@@ -108,4 +118,53 @@ export function previewFinalFaceLayout(
 export function previewLineTopPt(style: PrintFinalTextStyle, baselinePt: number): number {
   const { ascender, descender } = PRINT_FINAL_LINE_BOX[style.family]
   return baselinePt - style.sizePt * (style.leading / 2 + (ascender + descender) / 2)
+}
+
+export type PreviewFinalImmersiveInput = Readonly<{
+  face: PrintFinalFace
+  blocks: readonly PrintTextBlock[]
+  look: PortalPrintKitView['look']
+  tile: PrintFinalTile
+  /** The logo once decoded; null until then, or with no logo. */
+  logo: PreviewFinalLogo | null
+  /** The photo once decoded; null with no photo (or one the browser could not read). */
+  photo: PreviewFinalPhoto | null
+  framing?: PrintFinalFraming
+}>
+
+/** The brand the preview plans an Immersive face with: the logo as its whole picture, read for its ink; or the wordmark. */
+function previewImmersiveBrand(
+  input: PreviewFinalImmersiveInput,
+): PrintFinalImmersiveBrand {
+  if (input.look.logoUrl === null) return { kind: 'wordmark', text: input.look.wordmark }
+  return {
+    kind: 'logo',
+    inkWidth: input.logo?.aspect ?? PREVIEW_LOGO_ASPECT,
+    inkHeight: 1,
+    medianInkLuminance: input.logo?.medianInkLuminance ?? null,
+  }
+}
+
+/** An Immersive face as the file lays it out and paints it, from the preview's measures and its decode of the photo. */
+export function previewFinalImmersiveFace(
+  input: PreviewFinalImmersiveInput,
+): PrintFinalImmersiveFace {
+  const { look, photo } = input
+  return layoutPrintFinalImmersiveFace({
+    face: input.face,
+    blocks: input.blocks,
+    brand: previewImmersiveBrand(input),
+    tile: input.tile,
+    measurer: previewFinalMeasurer,
+    accentColour: look.accentColour,
+    fieldColour: look.fieldColour,
+    photo:
+      photo === null
+        ? null
+        : {
+            ...photo,
+            focal: look.heroFocal ?? { x: 0.5, y: 0.5 },
+            framing: input.framing ?? PRINT_FINAL_DEFAULT_FRAMING,
+          },
+  })
 }
