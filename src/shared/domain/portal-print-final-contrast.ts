@@ -115,7 +115,7 @@ export function printFinalScene(
   }
 }
 
-/** Points every half millimetre over a box, its edges included. */
+/** Points every quarter millimetre over a box, its edges included. */
 function pointsOver(box: PrintFinalBox): readonly (readonly [number, number])[] {
   const across = Math.max(1, Math.ceil((box.rightPt - box.leftPt) / READ_STEP_PT))
   const down = Math.max(1, Math.ceil((box.bottomPt - box.topPt) / READ_STEP_PT))
