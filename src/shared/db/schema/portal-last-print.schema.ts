@@ -28,7 +28,8 @@ export const PORTAL_LAST_PRINT_ORIENTATION_SQL_LIST = "'upright', 'wide'"
 export const PORTAL_LAST_PRINT_LOOK_SQL_LIST = "'paper', 'immersive'"
 export const PORTAL_LAST_PRINT_PAPER_SQL_LIST = "'letter', 'a4'"
 export const PORTAL_LAST_PRINT_PRINTER_SQL_LIST = "'my_printer', 'print_shop'"
-export const PORTAL_LAST_PRINT_CTA_SQL_LIST = "'rate', 'tell'"
+export const PORTAL_LAST_PRINT_CTA_SQL_LIST =
+  "'how_did_we_do', 'how_was_visit', 'rate_visit', 'got_30_seconds'"
 
 /** The most pieces a print may ask for: the download's own bound. */
 export const PORTAL_LAST_PRINT_MAX_QUANTITY = 1000
@@ -58,7 +59,13 @@ export const portalLastPrints = pgTable(
     // the guest locale schema, not constrained here: a catalogue that changes
     // must not make an old row unwritable.
     languages: jsonb('languages').notNull(),
-    callToAction: varchar('call_to_action', { length: 16 }).notNull(),
+    // The wording the print said, or the one the manager's own words started from.
+    callToAction: varchar('call_to_action', { length: 32 }).notNull(),
+    // The manager's own words, per language of the print: { "<locale>":
+    // { "headline": …, "subline": … } }. Null when the print said the wording.
+    // The shape of each field is the domain's to check (the download refuses
+    // anything else), so the table holds only that it is an object.
+    callToActionCustom: jsonb('call_to_action_custom'),
     // The photo an Immersive print used, by image and framing, with no foreign
     // key: a photo that is taken down must not hold a remembered print. All
     // three are null for a print with no photo.
@@ -96,6 +103,10 @@ export const portalLastPrints = pgTable(
     check(
       'portal_last_prints_call_to_action_valid',
       sql`${t.callToAction} IN (${sql.raw(PORTAL_LAST_PRINT_CTA_SQL_LIST)})`,
+    ),
+    check(
+      'portal_last_prints_call_to_action_custom_valid',
+      sql`${t.callToActionCustom} IS NULL OR jsonb_typeof(${t.callToActionCustom}) = 'object'`,
     ),
     check(
       'portal_last_prints_quantity_valid',
