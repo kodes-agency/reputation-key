@@ -41,6 +41,8 @@ type Options = Readonly<{
   enabled?: boolean
   country?: string | null
   refuse?: PrintFinalRenderRefusal
+  /** The languages the live version offers; English and Bulgarian by default. */
+  localeSet?: NonNullable<Parameters<typeof immersiveConfiguration>[0]>['localeSet']
 }>
 
 async function setup(options: Options = {}) {
@@ -98,7 +100,9 @@ async function setup(options: Options = {}) {
         ({
           id: 'snapshot-1',
           version: 1,
-          configuration: immersiveConfiguration(),
+          configuration: immersiveConfiguration(
+            options.localeSet === undefined ? {} : { localeSet: options.localeSet },
+          ),
         }) as PortalPublicationSnapshot,
     },
     mediaRepo,
@@ -501,6 +505,54 @@ describe('createPortalPrintFinal', () => {
       message: PRINT_FINAL_REFUSAL_COPY.shorten_to_fit,
       context: { cause: 'shorten_to_fit' },
     })
+  })
+
+  it('refuses a wording that rule F holds back in a language of the print, before the address is read', async () => {
+    const { portal, make, reveal, lastPrintRepo } = await setup({
+      localeSet: ['en', 'de'],
+    })
+
+    await expect(
+      make(
+        tents(portal.id, { languages: ['en', 'de'], callToAction: 'got_30_seconds' }),
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      message: PRINT_FINAL_REFUSAL_COPY.wording_not_available,
+      context: { cause: 'wording_not_available' },
+    })
+    // Own words in English alone do not lift the hold on the German copy.
+    await expect(
+      make(
+        tents(portal.id, {
+          languages: ['en', 'de'],
+          callToAction: 'got_30_seconds',
+          customWords: { en: { headline: 'How was today?', subline: '' } },
+        }),
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({ context: { cause: 'wording_not_available' } })
+    expect(reveal).not.toHaveBeenCalled()
+    expect(lastPrintRepo.recorded()).toEqual([])
+  })
+
+  it('prints a held wording’s language once the manager has written their own words in it', async () => {
+    const { portal, make, rendered } = await setup({ localeSet: ['en', 'de'] })
+
+    await make(
+      tents(portal.id, {
+        languages: ['en', 'de'],
+        callToAction: 'got_30_seconds',
+        customWords: { de: { headline: 'Wie war es heute?', subline: '' } },
+      }),
+      buildTestAuthContext(),
+    )
+
+    expect(rendered[0]?.blocks.map(({ headline }) => headline)).toEqual([
+      'Got 30 seconds?',
+      'Wie war es heute?',
+    ])
   })
 
   it('refuses own words that offer something for the review, before the address is read', async () => {
