@@ -79,13 +79,26 @@ export type ReopenedAnalysisRow = Scope &
     analysisSequence: number
   }>
 
+export type FailedPropertyRow = Scope & Readonly<{ reason: string }>
+
 export type SpentAnalysisStore = Readonly<{
+  /**
+   * Whether the global, provider and Review Analysis execution controls all
+   * accept work. Under a stop a reopened review could only wait in the backlog,
+   * so the sweep reopens nothing then, and neither does this command.
+   */
+  accepting: () => Promise<boolean>
   list: (
     input: Readonly<{ propertyId: string | null; limit: number }>,
   ) => Promise<ReadonlyArray<SpentAnalysisRow>>
   reopen: (
     input: Readonly<{ propertyId: string | null; limit: number; occurredAt: Date }>,
-  ) => Promise<ReadonlyArray<ReopenedAnalysisRow>>
+  ) => Promise<
+    Readonly<{
+      reopened: ReadonlyArray<ReopenedAnalysisRow>
+      failed: ReadonlyArray<FailedPropertyRow>
+    }>
+  >
 }>
 
 function countByProperty(rows: ReadonlyArray<Scope>): Record<string, number> {
@@ -110,11 +123,19 @@ type RunInput = Readonly<{
   now?: () => Date
 }>
 
-/** Report, or with `--apply` reopen. Returns the exit code. */
+const STOPPED =
+  'AI execution is stopped (the global, provider or Review Analysis control does not ' +
+  'accept work), so a reopened review could only wait in the backlog. Restore execution first'
+
+/**
+ * Report, or with `--apply` reopen. Returns the exit code: 1 when refused or
+ * when a Property failed (the others stay reopened and are printed).
+ */
 export async function runAiReopenAnalyses(input: RunInput): Promise<number> {
   const { ctx, propertyId, store, io } = input
   const limit = ctx.batchSize ?? aiReopenAnalysesCommandSpec.batchSize?.default ?? 200
   const target = propertyId ?? ALL
+  const accepting = await store.accepting()
 
   if (ctx.dryRun) {
     const spent = await store.list({ propertyId, limit })
@@ -124,6 +145,7 @@ export async function runAiReopenAnalyses(input: RunInput): Promise<number> {
           outcome: 'would_reopen',
           target,
           limit,
+          executionAccepting: accepting,
           candidates: spent.length,
           byProperty: countByProperty(spent),
           reviews: spent.map((row) => ({
@@ -141,10 +163,16 @@ export async function runAiReopenAnalyses(input: RunInput): Promise<number> {
         : `report only — ${String(spent.length)} review(s) (${WHY_SPENT}). ` +
             'Fix the cause first, then re-run with --reason <text> --apply.',
     )
+    if (!accepting) io.err(`note: ${STOPPED}; --apply is refused until then`)
     return 0
   }
 
-  const reopened = await store.reopen({
+  if (!accepting) {
+    io.out(JSON.stringify({ outcome: 'execution_stopped', target }, null, 2))
+    io.err(`refused: ${STOPPED}`)
+    return 1
+  }
+  const { reopened, failed } = await store.reopen({
     propertyId,
     limit,
     occurredAt: (input.now ?? (() => new Date()))(),
@@ -160,10 +188,16 @@ export async function runAiReopenAnalyses(input: RunInput): Promise<number> {
         reopened: reopened.length,
         byProperty: countByProperty(reopened),
         reviews: reopened,
+        failedProperties: failed,
       },
       null,
       2,
     ),
   )
-  return 0
+  if (failed.length === 0) return 0
+  io.err(
+    `${String(failed.length)} Property(ies) failed; the reviews above were reopened. ` +
+      'Re-run to retry the rest: a second run selects only what is still spent.',
+  )
+  return 1
 }

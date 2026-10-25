@@ -54,8 +54,9 @@ function harness(overrides: Partial<SpentAnalysisStore> = {}) {
   const lines: string[] = []
   const errors: string[] = []
   const store: SpentAnalysisStore = {
+    accepting: vi.fn(async () => true),
     list: vi.fn(async () => SPENT),
-    reopen: vi.fn(async () => REOPENED),
+    reopen: vi.fn(async () => ({ reopened: REOPENED, failed: [] })),
     ...overrides,
   }
   return {
@@ -140,6 +141,7 @@ describe('ops ai-reopen-analyses run', () => {
       outcome: 'would_reopen',
       target: 'all',
       limit: 50,
+      executionAccepting: true,
       candidates: 2,
       byProperty: { [PROPERTY]: 1, [OTHER_PROPERTY]: 1 },
       reviews: SPENT.map((row) => ({ ...row, failedAt: row.failedAt.toISOString() })),
@@ -186,11 +188,66 @@ describe('ops ai-reopen-analyses run', () => {
       reopened: 2,
       byProperty: { [PROPERTY]: 1, [OTHER_PROPERTY]: 1 },
       reviews: REOPENED,
+      failedProperties: [],
     })
   })
 
+  it('refuses to apply while AI execution is stopped, and says so in a dry run', async () => {
+    const stopped = harness({ accepting: vi.fn(async () => false) })
+    await expect(
+      runAiReopenAnalyses({
+        ctx: ctx(false),
+        propertyId: null,
+        store: stopped.store,
+        io: stopped.io,
+        now: () => NOW,
+      }),
+    ).resolves.toBe(1)
+    expect(stopped.store.reopen).not.toHaveBeenCalled()
+    expect(stopped.errors[0]).toContain('refused: AI execution is stopped')
+
+    const report = harness({ accepting: vi.fn(async () => false) })
+    await expect(
+      runAiReopenAnalyses({
+        ctx: ctx(true),
+        propertyId: null,
+        store: report.store,
+        io: report.io,
+      }),
+    ).resolves.toBe(0)
+    expect(JSON.parse(report.lines[0] ?? '')).toMatchObject({ executionAccepting: false })
+    expect(report.errors[0]).toContain('--apply is refused until then')
+  })
+
+  it('prints what it reopened and exits 1 when a Property failed', async () => {
+    const value = harness({
+      reopen: vi.fn(async () => ({
+        reopened: REOPENED.slice(0, 1),
+        failed: [
+          { organizationId: 'org-2', propertyId: OTHER_PROPERTY, reason: 'lock timeout' },
+        ],
+      })),
+    })
+    await expect(
+      runAiReopenAnalyses({
+        ctx: ctx(false),
+        propertyId: null,
+        store: value.store,
+        io: value.io,
+        now: () => NOW,
+      }),
+    ).resolves.toBe(1)
+    expect(JSON.parse(value.lines[0] ?? '')).toMatchObject({
+      outcome: 'reopened',
+      reopened: 1,
+      reviews: REOPENED.slice(0, 1),
+      failedProperties: [{ propertyId: OTHER_PROPERTY, reason: 'lock timeout' }],
+    })
+    expect(value.errors[0]).toContain('1 Property(ies) failed')
+  })
+
   it('reports a second apply that finds nothing', async () => {
-    const value = harness({ reopen: vi.fn(async () => []) })
+    const value = harness({ reopen: vi.fn(async () => ({ reopened: [], failed: [] })) })
     await runAiReopenAnalyses({
       ctx: ctx(false),
       propertyId: null,

@@ -865,7 +865,7 @@ const grantSchema = grantBaseSchema
 export type AiExecutionGrantUnsignedV1 = z.infer<typeof unsignedGrantSchema>
 export type AiExecutionGrantV1 = z.infer<typeof grantSchema>
 
-export const AI_PROVIDER_DISPOSITIONS = [
+export const AI_GATEWAY_REPORTED_DISPOSITIONS = [
   'success',
   'no_dispatch',
   'provider_refused',
@@ -877,30 +877,19 @@ export const AI_PROVIDER_DISPOSITIONS = [
   // reasoning and returned an empty body, while the operator saw four words.
   'output_truncated',
   'rate_limited',
-  // The provider's own 429 that says the account has no credit left. Retrying
-  // in seconds cannot help, so it is not `rate_limited`. On the closed beta the
-  // balance ran out on 2026-10-24 and, read as a rate limit, went unnamed for
-  // 40 hours.
+  // The provider's 429 for an account out of credit, which no retry in seconds
+  // can help; read as `rate_limited`, it went unnamed for 40 hours (2026-10-24).
   'quota_exhausted',
   'provider_unavailable',
   'caller_aborted',
   'deadline_exceeded',
   'transport_ambiguous',
+] as const
+/** What the gateway reports, plus the two outcomes only admission decides. */
+export const AI_PROVIDER_DISPOSITIONS = [
+  ...AI_GATEWAY_REPORTED_DISPOSITIONS,
   'source_stale',
   'policy_denied',
-] as const
-export const AI_GATEWAY_REPORTED_DISPOSITIONS = [
-  'success',
-  'no_dispatch',
-  'provider_refused',
-  'output_invalid',
-  'output_truncated',
-  'rate_limited',
-  'quota_exhausted',
-  'provider_unavailable',
-  'caller_aborted',
-  'deadline_exceeded',
-  'transport_ambiguous',
 ] as const
 function validateReceiptUsage(
   value: {

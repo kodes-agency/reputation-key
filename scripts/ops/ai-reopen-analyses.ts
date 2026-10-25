@@ -10,6 +10,9 @@
 // Requires DATABASE_URL.
 
 import { getDb } from '../../src/shared/db'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
+import { resolveAiExecutionStopFence } from '../../src/contexts/ai/application/ai-workflow-support'
+import { createAiControlAdapter } from '../../src/contexts/ai/infrastructure/adapters/ai-control.adapter'
 import {
   listSpentReviewAnalyses,
   reopenSpentReviewAnalyses,
@@ -36,6 +39,12 @@ async function main(): Promise<void> {
         ctx,
         propertyId: plan.propertyId,
         store: {
+          accepting: async () =>
+            (await resolveAiExecutionStopFence(createAiControlAdapter(db), {
+              providerDeploymentProfileVersion:
+                AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+              capability: 'review_analysis',
+            })) !== null,
           list: (input) => listSpentReviewAnalyses(db, input),
           reopen: (input) => reopenSpentReviewAnalyses(db, input),
         },

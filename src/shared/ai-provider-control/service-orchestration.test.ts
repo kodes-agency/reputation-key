@@ -401,7 +401,6 @@ describe('AI gateway execution orchestration', () => {
     ['rate_limited', true, 20, 'provider_rate_limited'],
     ['quota_exhausted', false, null, 'quota_exhausted'],
     ['provider_unavailable', true, null, 'provider_unavailable'],
-    ['provider_refused', false, null, 'provider_refused'],
   ] as const)(
     'names a provider refusal by status (%s) after its zero-cost settlement binds',
     async (disposition, providerRetryable, retryAfterSeconds, code) => {

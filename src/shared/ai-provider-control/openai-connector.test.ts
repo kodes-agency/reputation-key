@@ -1016,16 +1016,17 @@ describe('official OpenAI SDK connector integration', () => {
   })
 
   it.each([
-    [429, 'rate_limited', 17],
-    [500, 'provider_unavailable', null],
-    [502, 'provider_unavailable', null],
-    [503, 'provider_unavailable', null],
-    [504, 'provider_unavailable', null],
-    [418, 'provider_refused', null],
-    [307, 'provider_unavailable', null],
+    [429, 'rate_limited', 17, true],
+    [500, 'provider_unavailable', null, true],
+    [502, 'provider_unavailable', null, true],
+    [503, 'provider_unavailable', null, true],
+    [504, 'provider_unavailable', null, true],
+    [418, 'provider_refused', null, false],
+    [401, 'provider_unavailable', null, false],
+    [307, 'provider_unavailable', null, false],
   ])(
     'maps complete status %i without an SDK retry',
-    async (status, disposition, retryAfter) => {
+    async (status, disposition, retryAfter, usageKnown) => {
       const outbound = vi.fn(
         async () =>
           new Response('poison', {
@@ -1044,9 +1045,10 @@ describe('official OpenAI SDK connector integration', () => {
         disposition,
         result: null,
         retryAfterSeconds: retryAfter,
-        // A refusal by status bills nothing, and says so: the admission
-        // authority charges it zero, and the gateway must expect zero.
-        usageKnown: true,
+        // A 429 or 5xx bills nothing, and says so: the admission authority
+        // charges it zero, and the gateway must expect zero. Any other status
+        // keeps unknown usage and stays ambiguous, as before.
+        usageKnown,
         usage: {
           inputTokens: 0,
           cachedTokens: 0,

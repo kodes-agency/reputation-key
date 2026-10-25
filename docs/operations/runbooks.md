@@ -1105,16 +1105,20 @@ repeated stops means some have none left.
 lasts longer than three reopens leaves them settled without an analysis for
 good. On 2026-10-24 the OpenAI account ran out of credit for about 40 hours and
 ten text reviews ended this way. Look in the worker log first: since this
-release a provider refusal is named. `quota_exhausted` with no budget refusal
-means the provider account is out of credit (top it up in the provider's
-billing settings). `provider_rate_limited` is a rate limit, and
-`provider_unavailable` an outage. Once the cause is fixed,
+release a provider 429 or 5xx is named. `quota_exhausted` with no budget
+refusal means the provider account is out of credit (top it up in the
+provider's billing settings). `provider_rate_limited` is a rate limit, and
+`provider_unavailable` an outage. Every other provider status (a 400 or a 401
+after a key or parameter change) still reads `operation_ambiguous`. Once the cause is fixed,
 `pnpm ops ai-reopen-analyses <propertyId|all> --operator <id>` lists the
 reviews, with the code and time of each one's last failure.
 `--reason <text> --apply` gives each a fresh analysis sequence and a backfill
 event, through the same path the sweep takes. It works one Property at a time
-under its fence, at most `--batch-size` reviews (default 200, maximum 1,000) per
-run. A second apply finds nothing. Copy the printed record (operator, reason,
+under its fence, 50 reviews per transaction, at most `--batch-size` reviews
+(default 200, maximum 1,000) per run. It refuses while an AI execution stop is
+in force, because a reopened review could only wait in the backlog. A Property
+that fails is printed, the rest go on, and the command exits 1: run it again. A
+second apply finds nothing. Copy the printed record (operator, reason,
 correlation id, reviews) into the incident record. The reopened reviews are
 analysed within a few minutes, and `analysesLeftUnanalysed` drops by as many.
 

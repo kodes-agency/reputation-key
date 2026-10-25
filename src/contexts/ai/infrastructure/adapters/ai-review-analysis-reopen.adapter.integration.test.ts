@@ -502,16 +502,19 @@ describe('reopening Review Analysis abandoned by a transient failure (real Postg
         limit: 50,
         occurredAt: LATER,
       }),
-    ).resolves.toEqual([
-      {
-        organizationId: scope.organizationId,
-        propertyId: scope.propertyId,
-        reviewId: review(4),
-        operationId: operation(100 + spentSequence),
-        previousSequence: spentSequence,
-        analysisSequence: 22,
-      },
-    ])
+    ).resolves.toEqual({
+      reopened: [
+        {
+          organizationId: scope.organizationId,
+          propertyId: scope.propertyId,
+          reviewId: review(4),
+          operationId: operation(100 + spentSequence),
+          previousSequence: spentSequence,
+          analysisSequence: 22,
+        },
+      ],
+      failed: [],
+    })
 
     expect(await fixture.analysisSequenceOf(review(4))).toBe(22)
     expect(await fixture.analysisSequenceOf(review(2))).toBe(2)
@@ -530,7 +533,7 @@ describe('reopening Review Analysis abandoned by a transient failure (real Postg
         limit: 50,
         occurredAt: LATER,
       }),
-    ).resolves.toEqual([])
+    ).resolves.toEqual({ reopened: [], failed: [] })
     await expect(
       reopen.reopenAbandoned({ limit: 50, occurredAt: LATER }),
     ).resolves.toEqual({ reopened: 0, leftUnanalysed: 0 })
