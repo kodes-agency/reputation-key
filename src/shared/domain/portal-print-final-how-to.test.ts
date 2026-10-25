@@ -85,14 +85,14 @@ describe('printFinalHowToSteps', () => {
     ).toBe('38 mm')
   })
 
-  it('hands a print shop the file and the same check', () => {
+  it('hands a print shop the file and a check on its proof', () => {
     const steps = printFinalHowToSteps(
       { ...tents, piece: 'counter', printer: 'print_shop' },
       inPt(1.5),
     )
     expect(steps.map((step) => step.text)).toEqual([
       'Send the PDF to a print shop and ask for it at Actual size (100%), one card per page.',
-      'Check one code: its cream square should measure 1.5 in (3.8 cm). Smaller means scaling was on; print again.',
+      'Check the proof: one code’s cream square should measure 1.5 in (3.8 cm). Smaller means scaling was on; ask the shop to print again.',
     ])
   })
 })

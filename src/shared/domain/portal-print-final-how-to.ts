@@ -73,19 +73,31 @@ export function printFinalCutStep(key: SheetKey): string {
 
 const ACTUAL_SIZE = 'Actual size (100%)'
 
-/** The cream square to measure: "1.4 in (3.6 cm)" on Letter, "36 mm" on A4. */
-const tileStep = (tilePt: number, paper: PrintKitPaper): PrintFinalHowToStep => {
+/**
+ * The cream square to measure: "1.4 in (3.6 cm)" on Letter, "36 mm" on A4. A
+ * print shop's check is on its proof, and a small square asks the shop to print again.
+ */
+const tileStep = (
+  tilePt: number,
+  paper: PrintKitPaper,
+  shop: boolean,
+): PrintFinalHowToStep => {
   const tile = printFinalTileLabel(tilePt, printFinalRegionOf(paper))
-  return {
-    text: `Check one code: its cream square should measure ${tile}. Smaller means scaling was on; print again.`,
-    strong: tile,
-  }
+  return shop
+    ? {
+        text: `Check the proof: one code’s cream square should measure ${tile}. Smaller means scaling was on; ask the shop to print again.`,
+        strong: tile,
+      }
+    : {
+        text: `Check one code: its cream square should measure ${tile}. Smaller means scaling was on; print again.`,
+        strong: tile,
+      }
 }
 
 /**
  * The numbered steps. From the manager's own printer: print at Actual size, check
  * one code, then the cutting step; on a phone the first step says why to use a
- * computer. A print shop gets the file and the same check.
+ * computer. A print shop gets the file and a check on its proof.
  */
 export function printFinalHowToSteps(
   print: PrintFinalDescribed,
@@ -100,7 +112,7 @@ export function printFinalHowToSteps(
         text: `Send the PDF to a print shop and ask for it at ${ACTUAL_SIZE}, one ${PRINT_FINAL_PIECE_FACTS[print.piece].one} per page${pages}.`,
         strong: ACTUAL_SIZE,
       },
-      tileStep(tilePt, print.paper),
+      tileStep(tilePt, print.paper, true),
     ]
   }
   const phoneNote = phone ? ' Phone print screens often cannot turn scaling off.' : ''
@@ -110,7 +122,7 @@ export function printFinalHowToSteps(
       strong: ACTUAL_SIZE,
     },
     ...(back ? [{ text: PRINT_FINAL_BACK_SHEET_STEP }] : []),
-    tileStep(tilePt, print.paper),
+    tileStep(tilePt, print.paper, false),
     { text: printFinalCutStep(print) },
   ]
 }
