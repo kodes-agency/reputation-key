@@ -606,7 +606,11 @@ describe('a listing that changes between the two scans of a run (real PostgreSQL
       id: 'step-stale',
       data: { ...SYNC, runId: changedRunId },
     } as never)
-    expect(stale).toMatchObject({ status: 'failed', code: 'listing_changed' })
+    expect(stale).toMatchObject({
+      status: 'failed',
+      code: 'listing_changed',
+      alreadyFailed: { failedAt: expect.any(Date) },
+    })
     expect(queued).toEqual([{ ...SYNC, sourceEpoch: 0 }])
     expect(await runCodes()).toEqual(['completed', 'listing_changed', 'completed'])
   })

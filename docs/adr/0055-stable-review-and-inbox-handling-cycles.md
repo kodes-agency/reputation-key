@@ -628,7 +628,9 @@ day. The wait now grows with consecutive failures:
   and a job has three attempts. A failure that lands before the previous
   failure's retry date is that same attempt retried by the queue: it keeps the
   previous wait instead of climbing a rung per attempt. Only a failure after the
-  retry came due counts as the next consecutive one.
+  retry came due counts as the next consecutive one. (A retry of a step that
+  continues a run finds the run failed and ends quietly instead of failing
+  again, note 2026-10-25.)
 - **A push does not shorten a backoff.** A Pub/Sub notice pulls a parked poll
   forward to the hot interval, but never ahead of `error_retry_at`
   (`recordPushObserved`), so a busy Property cannot bypass its wait with every
@@ -914,6 +916,108 @@ copies past their clock, digests kept, the newest row untouched even when its
 clock has passed, and the sweep cap. Also enforced by `retention-sweep.job.test.ts`
 (evidence and failure isolation), `review-observations-command.test.ts`, the
 tenant-predicate canary and the retention registry tests.
+
+## Note 2026-10-25 — a step that finds its run already failed ends quietly
+
+A snapshot step is queued with the id of the run it continues. When that step
+fails the run, the job throws, and BullMQ retries it with the same run id. The
+retry reads the run, finds it `failed`, and used to return the stored failure,
+which the sync job treated as a new one: it threw again and dated a longer
+backoff each time (15 minutes, then 1 hour), and after the last attempt the job
+was a dead letter. On the beta on 2026-10-24 a VACUUM FULL of
+`review_source_observations` held an ACCESS EXCLUSIVE lock, one step's
+observation read hit its 10 s `lock_timeout`, and the run failed as
+`observation_failed` (a correct, loud failure). Its three retries then
+re-read the same failed run, and the job dead-lettered: Sentry
+JAVASCRIPT-TANSTACKSTART-REACT-4 again, `queue.quarantine-nonempty`,
+`worker.job-runtime-unready` (the repair latch) and `sync.failed-nonzero`. No
+redrive could ever succeed, because the run stays failed, so runbooks §30 had
+the operator discard the dead letter and acknowledge the repair. It was the
+third time this pattern needed manual cleanup.
+
+**Decision (owner, 2026-10-25).** Only the step that fails a run fails its job,
+and it does so loudly, once.
+
+- **The use case marks a replay.** Reading a run that is already `failed`
+  returns the stored failure with `alreadyFailed: { failedAt }` (the time the
+  store ended the run) and discards the run's cursors again, as before.
+  `startOrResume` never returns a terminal run, so only a step queued with a
+  run id can see this. A step that fails the run returns the plain `failed`
+  result, without the mark.
+- **The job ends a marked step quietly.** It returns
+  `{ status: 'skipped', code: 'run_already_failed' }` and writes one
+  `review_sync_skipped_run_already_failed` warning with the run's failure code
+  and nothing else (no identifier, BQC-7.3). It throws nothing, so BullMQ spends
+  no retry, nothing is dead-lettered, Sentry gets no event for the replay and the
+  repair latch is not set. A completed job counts as a success for the family,
+  and a successful quarantine redrive of it answers `repair_required`, so a dead
+  letter of a failed step is cleared by redriving it, not by discarding it.
+- **The step that fails the run stays loud, once.** It records the failure with
+  its backoff, logs `review_snapshot_failure_deferred` and throws the ordinary
+  `ReviewProviderSnapshotFailure`, as before. A step that continues a run (it
+  carries a run id) first reports that same error to error monitoring itself
+  (`captureObservabilityException`, source `bullmq-job`, queue `default`, job
+  `sync-property-reviews`). The store ended the run before the throw, so
+  BullMQ's retry of the step can only find it failed and ends quietly; the job
+  then completes, and the worker, which captures a failure only when it is
+  terminal (attempts spent, or an `UnrecoverableError`), would never see it. The
+  report carries the thrown error, so it groups into the existing
+  `ReviewProviderSnapshotFailure` Sentry issue with its `failure_code` tag.
+  Grouping is by stack (the scrub deletes any fingerprint), and that issue is
+  grouped under `runSnapshotStep`, so the error is built and thrown in that
+  function, not in a helper, and a test pins the throw site. The
+  first step of a run has no run id: its retry starts a new run, which can
+  succeed, so it throws as before without reporting, keeps its three attempts
+  and is captured by the worker when they are spent (reporting it here too would
+  count one failure twice). A location over the cap is still parked and the job
+  ends normally, with no report.
+- **A failure nobody recorded is recorded by its replay.** The store fails the
+  run and the failing step dates the Property's failure in two writes; a worker
+  that dies between them (the cursor store is down while the cursors are
+  discarded, a restart) leaves a failed run and no `error_class`. The replay
+  compares the Property's `last_terminal_error_at` with the run's `failedAt`
+  (`recordsFailureOfRun`). When the Property holds no failure at or after the
+  run's, it records the failure once with the backoff the failing step would have
+  dated, logs `review_snapshot_failure_deferred`, and still ends quietly. A
+  failure the failing step recorded, or one a later success has cleared, is left
+  alone, so a dead letter redriven days later records nothing and a repeated
+  replay never climbs the ladder.
+- **Order of the job's checks.** A replay of a run lost as `cursor_lost` or
+  `listing_changed` still queues the fresh run (the step that lost the run may
+  have died before it queued one, and starting a run joins the active one), and
+  a replay of `connection_unusable` is still the reconnect skip. Only the other
+  codes end as `run_already_failed`.
+- **Not stored.** `run_already_failed` is a returned job outcome, not a failure
+  code of a run or of `review_sync_state`, so it is not in
+  `SYNC_FAILURE_CODES` and never counts in `sync.failed-nonzero`.
+
+**What it costs.** One transient failure no longer turns into four alerts and a
+manual discard. The failing attempt reaches Sentry once, under the existing
+`ReviewProviderSnapshotFailure` issue and its `failure_code` tag, and records
+the Property's backoff. Its retries and any redrive end quietly as
+`run_already_failed`: no dead letter, no quarantine entry (so no
+`queue.quarantine-nonempty`), no job-runtime repair latch (so no
+`worker.job-runtime-unready`). `sync.failed-nonzero` still fires from
+`review_sync_state` when the failure persists past its retry date, which is the
+signal that matters. A dead letter left by a release before this one redrives
+quietly; discarding it and acknowledging the repair is only for a release
+without this fix. Two edges are accepted. A failure whose worker died before
+reporting is not reported (its replay records the backoff and ends quietly;
+`sync.failed-nonzero` is the signal). A continuation step that fails the run on
+the last attempt of a job whose earlier attempts failed for another reason is
+reported by the step and again by the worker, as a terminal failure; that needs
+two unrelated failures in one job and costs a duplicate event.
+
+Enforced by `run-review-provider-snapshot.test.ts` (the mark and the time of the
+failure, the cursors discarded again, no work done, the failing step unmarked),
+`sync-property-reviews.job.test.ts` (the quiet end for each code, the incident
+sequence with one deferral and one report, the failing continuation step
+reporting the error it throws exactly once, a first-step failure left to the
+worker, a replay that neither reports nor throws, the unrecorded failure
+recorded once, a capped location left parked, the restart and reconnect
+replays), `snapshot-failure-backoff.test.ts` (`recordsFailureOfRun`), and the
+`import-history-cutoff` and `review-sync-listing-change` integration suites
+against PostgreSQL.
 
 ## Merged from ADR 0003
 

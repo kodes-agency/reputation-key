@@ -64,6 +64,19 @@ export type RunReviewProviderSnapshotResult =
       status: 'failed'
       runId: string
       code: ReviewProviderSnapshotFailureCode
+      /**
+       * Set only when this step did not fail the run: it found the run already
+       * failed (the queue retrying the step that failed it, a redrive of that
+       * step's dead letter, a continuation queued before the run ended) and
+       * `code` is the failure the store holds. Unmarked, this step failed the
+       * run. A caller that fails its job for the failure must do so only
+       * unmarked: a replay can never succeed, and failing it again only pushes
+       * the Property's backoff out and dead-letters the job. `failedAt` is when
+       * the store ended the run (null if it holds no date), which lets the
+       * caller tell whether the step that failed it recorded the failure before
+       * it died.
+       */
+      alreadyFailed?: Readonly<{ failedAt: Date | null }>
     }>
 
 /**
@@ -235,6 +248,32 @@ const failAndDiscard = async (
     code,
   })
   return failedOutcome(deps, run, code)
+}
+
+/**
+ * A step that reads its run already failed. Only a step queued with a `runId`
+ * can: `startOrResume` never returns a terminal run. The cursors are discarded
+ * again (idempotent; it covers a step that died after failing the run and
+ * before discarding them), nothing else is done, and the result says so
+ * (`alreadyFailed`), so the sync job ends quietly instead of failing again.
+ */
+const replayFailedRun = async (
+  deps: RunReviewProviderSnapshotDeps,
+  input: RunReviewProviderSnapshotInput,
+  run: ReviewProviderSnapshotRun,
+): Promise<RunReviewProviderSnapshotResult> => {
+  await deps.googleReviewApi.discardReviewCursors({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: input.sourceEpoch,
+    runId: run.id,
+  })
+  return {
+    status: 'failed',
+    runId: run.id,
+    code: run.failureCode ?? 'provider_failure',
+    alreadyFailed: { failedAt: run.terminalAt },
+  }
 }
 
 const failForProviderError = async (
@@ -796,19 +835,7 @@ export const runReviewProviderSnapshot =
       return { status: 'failed', runId: input.runId ?? '', code: 'source_changed' }
     }
 
-    if (run.state === 'failed') {
-      await deps.googleReviewApi.discardReviewCursors({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        sourceEpoch: input.sourceEpoch,
-        runId: run.id,
-      })
-      return {
-        status: 'failed',
-        runId: run.id,
-        code: run.failureCode ?? 'provider_failure',
-      }
-    }
+    if (run.state === 'failed') return replayFailedRun(deps, input, run)
     if (run.state === 'completed') return { status: 'completed', runId: run.id }
     if (run.state === 'deleting') {
       const batch = await deps.repository.applyDeletionBatch({

@@ -1049,7 +1049,12 @@ describe('runReviewProviderSnapshot', () => {
 
       await expect(
         runReviewProviderSnapshot(deps)({ ...request, runId }),
-      ).resolves.toEqual({ status: 'failed', runId, code: 'listing_changed' })
+      ).resolves.toEqual({
+        status: 'failed',
+        runId,
+        code: 'listing_changed',
+        alreadyFailed: { failedAt: null },
+      })
 
       expect(deps.repository.applyDeletionBatch).not.toHaveBeenCalled()
       expect(deps.googleReviewApi.listReviewsPage).not.toHaveBeenCalled()
@@ -1152,7 +1157,12 @@ describe('runReviewProviderSnapshot', () => {
 
       await expect(
         runReviewProviderSnapshot(deps)({ ...request, runId }),
-      ).resolves.toEqual({ status: 'failed', runId, code: 'listing_changed' })
+      ).resolves.toEqual({
+        status: 'failed',
+        runId,
+        code: 'listing_changed',
+        alreadyFailed: { failedAt: null },
+      })
 
       expect(deps.googleReviewApi.listReviewsPage).not.toHaveBeenCalled()
       expect(deps.repository.commitPage).not.toHaveBeenCalled()
@@ -1292,6 +1302,101 @@ describe('runReviewProviderSnapshot', () => {
       })
       expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledTimes(1)
       expect(deps.logger.warn).not.toHaveBeenCalled()
+    })
+  })
+
+  // A step is queued with the id of its run. When that run has already failed
+  // (the queue retrying the step that failed it, a redrive of its dead letter,
+  // a continuation queued before the run ended) the step does no work. It must
+  // say so: otherwise the caller cannot tell this replay from the attempt that
+  // failed the run, and fails the job again, with a longer backoff, every time.
+  describe('when the step finds its run already failed', () => {
+    const failedRun = (failureCode: ReviewProviderSnapshotRun['failureCode']) =>
+      run({ state: 'failed', phase: 'terminal', failureCode })
+
+    it('answers with the stored failure, marked as already failed, and discards the cursors again', async () => {
+      const deps = makeDeps({ currentRun: failedRun('observation_failed') })
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({
+        status: 'failed',
+        runId,
+        code: 'observation_failed',
+        alreadyFailed: { failedAt: null },
+      })
+      expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledTimes(1)
+      expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledWith({
+        organizationId,
+        propertyId,
+        sourceEpoch: 1,
+        runId,
+      })
+    })
+
+    it('does no work: it reads no page, writes no observation and fails nothing again', async () => {
+      const deps = makeDeps({ currentRun: failedRun('observation_failed') })
+
+      await runReviewProviderSnapshot(deps)({ ...request, runId })
+
+      expect(deps.googleReviewApi.listReviewsPage).not.toHaveBeenCalled()
+      expect(deps.observationWriter.persist).not.toHaveBeenCalled()
+      expect(deps.repository.failRun).not.toHaveBeenCalled()
+      expect(deps.logger.warn).not.toHaveBeenCalled()
+      expect(deps.logger.error).not.toHaveBeenCalled()
+    })
+
+    it('names provider_failure when the stored failure carries no code', async () => {
+      const deps = makeDeps({ currentRun: failedRun(null) })
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({
+        status: 'failed',
+        runId,
+        code: 'provider_failure',
+        alreadyFailed: { failedAt: null },
+      })
+    })
+
+    // The caller needs the time to tell a failure the failing step recorded from
+    // one it died before recording.
+    it('carries the time the run failed, so the caller can tell whether the failure was recorded', async () => {
+      const terminalAt = new Date('2026-08-16T00:07:30.000Z')
+      const deps = makeDeps({
+        currentRun: run({
+          state: 'failed',
+          phase: 'terminal',
+          failureCode: 'observation_failed',
+          terminalAt,
+        }),
+      })
+
+      const result = await runReviewProviderSnapshot(deps)({ ...request, runId })
+
+      expect(result).toMatchObject({
+        status: 'failed',
+        alreadyFailed: { failedAt: terminalAt },
+      })
+    })
+
+    // The control: the attempt that fails the run now is a fresh failure and
+    // carries no mark, so the caller keeps failing the job for it.
+    it('does not mark the step that fails the run itself', async () => {
+      const deps = makeDeps()
+      vi.mocked(deps.observationWriter.persist).mockRejectedValue(
+        new Error('canceling statement due to lock timeout'),
+      )
+
+      const result = await runReviewProviderSnapshot(deps)({ ...request, runId })
+
+      expect(result).toEqual({ status: 'failed', runId, code: 'observation_failed' })
+      expect(result).not.toHaveProperty('alreadyFailed')
+      expect(deps.repository.failRun).toHaveBeenCalledWith({
+        runId,
+        organizationId,
+        code: 'observation_failed',
+      })
     })
   })
 })
