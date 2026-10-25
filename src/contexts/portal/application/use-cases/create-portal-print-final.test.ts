@@ -178,6 +178,46 @@ describe('createPortalPrintFinal', () => {
     )
   })
 
+  it('hands the renderer the property’s name for a card’s back page, and none otherwise', async () => {
+    const { portal, make, rendered } = await setup()
+
+    const file = await make(
+      tents(portal.id, { piece: 'counter', orientation: 'upright', backPage: true }),
+      buildTestAuthContext(),
+    )
+    await make(tents(portal.id, { piece: 'counter' }), buildTestAuthContext())
+
+    expect(rendered[0]?.back).toEqual({ propertyName: 'The Harbor Hotel' })
+    expect(file.fileName).toBe('reception-counter-cards-upright-en-bg-back-letter.pdf')
+    expect(rendered[1]?.back).toBeUndefined()
+  })
+
+  it('gives a print shop’s card a back page too: the front on page 1, the back on page 2', async () => {
+    const { portal, make, rendered } = await setup()
+
+    await make(
+      tents(portal.id, { piece: 'small', printer: 'print_shop', backPage: true }),
+      buildTestAuthContext(),
+    )
+
+    expect(rendered[0]?.sheets).toBeUndefined()
+    expect(rendered[0]?.back).toEqual({ propertyName: 'The Harbor Hotel' })
+  })
+
+  it('refuses a back page on a tent before revealing: a tent prints its front on both faces', async () => {
+    const { portal, make, reveal } = await setup()
+
+    await expect(
+      make(tents(portal.id, { backPage: true }), buildTestAuthContext()),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      message:
+        'Tents print the front on both faces, so they have no back page. Choose a card for one.',
+      context: { cause: 'no_back_for_tents' },
+    })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
   it('prints on the paper the property’s country uses unless the request names one', async () => {
     const european = await setup({ country: 'BG' })
     await european.make(tents(european.portal.id), buildTestAuthContext())
