@@ -350,11 +350,11 @@ Only on-demand work lands here. A schedule firing is never dead-lettered: every 
 
 **Alerts:** `notification.in-app-delivery-lag` (P1), `notification.immediate-email-acceptance-lag` (P2), `notification.missing-for-inbox-item` (P1), `notification.email-stalled` (P2), and the email-outcome alerts `notification.email-permanent-failures`, `notification.email-bounce-rate`, `notification.email-complaints`, `notification.email-retry-exhausted`, and `notification.email-provider-feedback-missing` (all P2).
 
-**What `notification.in-app-delivery-lag` means:** an active beta Notification source fact has remained incomplete for more than 60 seconds from its durable source clock. Route facts whose consumer announces nothing (an import's historical arrivals, a cycle opening Feed does not announce, a bulk reopen's per-item facts) are not counted; `silent-route-fact.ts` restates those consumers' rules in SQL, so a change to either belongs in both. `notification.delivery.source_receipt_pending` is source work the durable consumer has not acknowledged; `notification.delivery.materialization_pending` is Redis-accepted work without its atomic PostgreSQL notification/materialization receipt. The alert uses the oldest outstanding source age as a breach signal. It does not by itself prove the deployed p99 latency distribution.
+**What `notification.in-app-delivery-lag` means:** an active beta Notification source fact has remained incomplete for more than 60 seconds from its durable source clock. Route facts whose consumer announces nothing (an import's historical arrivals, a cycle opening Feed does not announce, the provider's close of a history item's first cycle, a bulk reopen's per-item facts) are not counted; `silent-route-fact.ts` restates those consumers' rules in SQL, so a change to either belongs in both. `notification.delivery.source_receipt_pending` is source work the durable consumer has not acknowledged; `notification.delivery.materialization_pending` is Redis-accepted work without its atomic PostgreSQL notification/materialization receipt. The alert uses the oldest outstanding source age as a breach signal. It does not by itself prove the deployed p99 latency distribution.
 
 **First three things to check:**
 
-1. Read both pending counts and their saturation gauges. A saturated count is a lower bound, shown with `+` in the alert detail; do not treat it as an exact backlog size.
+1. Read both pending counts and their saturation gauges. A saturated count is a lower bound, shown with `+` in the alert detail; do not treat it as an exact backlog size. The alert's tags name what is pending: `alert_codes` counts the pending source facts by route event type (`inbox.handling_cycle.closed:5`), `alert_count` is both stages together, and `alert_reasons` says when a stage hit its scan cap (`source_scan_saturated`, `materialization_scan_saturated`) or the materialization stage is pending too (`materialization_pending`). A capped breakdown covers only the oldest facts the scan held. Event type names are a closed set; the tags carry no row content.
 2. Compare `notification.delivery.oldest_materialization_source_age_ms` with `notification.delivery.oldest_materialization_enqueue_age_ms`. A large source age with a small enqueue age points to outbox/dispatch delay; both growing points to the insert-notification worker, PostgreSQL settlement, or Queue Redis.
 3. For missing source receipts, inspect outbox dispatcher/`domain-events` health. For missing materializations, inspect the insert-notification job state and quarantine before changing any receipt.
 
@@ -541,7 +541,8 @@ or a count: `alert_jobs` (the governed job families: unready for
 alerts), `alert_reasons` (their readiness reasons, such as `repair_required` and
 `dead_letter_present`, or `report_unavailable`), `alert_codes` (failure codes
 with a count each, `provider_failure:2,source_changed:1`, for
-`sync.failed-nonzero`) and `alert_count`. A list too long for a tag ends in
+`sync.failed-nonzero`; the pending route event types for
+`notification.in-app-delivery-lag`, §15) and `alert_count`. A list too long for a tag ends in
 `,+N`; the detail text is in the log line.
 Production has no `ALERT_WEBHOOK_URL`, so Sentry is the only push channel:
 configure a Sentry alert rule on new issues, or on

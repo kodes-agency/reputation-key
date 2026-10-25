@@ -108,6 +108,8 @@ export type IsEmailDeliveryAllowed = (scope: EmailDeliveryScope) => boolean
 
 export type NotificationDeliveryLagRead = Readonly<{
   sourceReceiptPending: number
+  /** Route event type names (a closed set) with how many of each are pending. */
+  sourceReceiptPendingByEventType: Readonly<Record<string, number>>
   materializationPending: number
   oldestSourceRecordedAt: Date | null
   oldestMaterializationSourceRecordedAt: Date | null
@@ -127,6 +129,8 @@ export type NotificationDeliveryLagRead = Readonly<{
 
 export type NotificationDeliveryLagMetrics = Readonly<{
   sourceReceiptPending: number
+  /** Route event type names (a closed set) with how many of each are pending. */
+  sourceReceiptPendingByEventType: Readonly<Record<string, number>>
   materializationPending: number
   oldestSourceRecordedAt: string | null
   oldestSourceAgeMs: number | null
@@ -811,6 +815,7 @@ function roundedAge(value: number | null | undefined): number | null {
 
 const EMPTY_NOTIFICATION_DELIVERY_LAG: NotificationDeliveryLagRead = {
   sourceReceiptPending: 0,
+  sourceReceiptPendingByEventType: {},
   materializationPending: 0,
   oldestSourceRecordedAt: null,
   oldestMaterializationSourceRecordedAt: null,
@@ -859,6 +864,7 @@ const readNotificationDeliveryLagMetrics = async (
   )
   return {
     sourceReceiptPending: report.sourceReceiptPending,
+    sourceReceiptPendingByEventType: { ...report.sourceReceiptPendingByEventType },
     materializationPending: report.materializationPending,
     oldestSourceRecordedAt: source.at,
     oldestSourceAgeMs: source.ageMs,

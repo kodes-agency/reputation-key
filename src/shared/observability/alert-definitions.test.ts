@@ -28,6 +28,7 @@ import {
   SYNC_SWEEP_LAG_ALERT_MS,
   type AlertAuxReads,
 } from './alert-definitions'
+import { alertFactTags } from './alert-facts'
 import { ZERO_SYNC_PUSH_HEALTH } from '#/shared/db/sync-push-health'
 import { RECONCILIATION_OVERDUE_AFTER_MS } from '#/shared/domain/push-health'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
@@ -127,6 +128,7 @@ function healthy(): MutableSnapshot {
       missingForInboxItemCount: 0,
       deliveryLag: {
         sourceReceiptPending: 0,
+        sourceReceiptPendingByEventType: {},
         materializationPending: 0,
         oldestSourceRecordedAt: null,
         oldestSourceAgeMs: null,
@@ -975,6 +977,73 @@ describe('notification.in-app-delivery-lag', () => {
       evaluateOne('notification.in-app-delivery-lag', materialization),
     ).toMatchObject({
       value: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+    })
+  })
+
+  it('names what is pending by route event type, and carries nothing else', () => {
+    const s = healthy()
+    s.notifications.deliveryLag = {
+      ...s.notifications.deliveryLag,
+      sourceReceiptPending: 5,
+      sourceReceiptPendingByEventType: {
+        'inbox.handling_cycle.closed': 3,
+        'inbox.inbox_item.created': 2,
+      },
+      oldestSourceRecordedAt: '2026-08-20T23:58:59.999Z',
+      oldestSourceAgeMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+    }
+
+    const event = evaluateOne('notification.in-app-delivery-lag', s)
+
+    expect(event!.facts).toEqual({
+      count: 5,
+      codes: { 'inbox.handling_cycle.closed': 3, 'inbox.inbox_item.created': 2 },
+    })
+    expect(alertFactTags(event!.facts)).toEqual({
+      alert_count: '5',
+      alert_codes: 'inbox.handling_cycle.closed:3,inbox.inbox_item.created:2',
+    })
+  })
+
+  it('says when the breakdown comes from a capped scan or a second stage is pending', () => {
+    const s = healthy()
+    s.notifications.deliveryLag = {
+      ...s.notifications.deliveryLag,
+      sourceReceiptPending: 1000,
+      sourceReceiptPendingByEventType: { 'inbox.inbox_item.created': 1000 },
+      sourceSaturated: true,
+      oldestSourceRecordedAt: '2026-08-20T23:58:59.999Z',
+      oldestSourceAgeMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+      materializationPending: 2,
+      materializationSaturated: true,
+    }
+
+    const event = evaluateOne('notification.in-app-delivery-lag', s)
+
+    expect(event!.facts).toEqual({
+      count: 1002,
+      codes: { 'inbox.inbox_item.created': 1000 },
+      reasons: [
+        'source_scan_saturated',
+        'materialization_pending',
+        'materialization_scan_saturated',
+      ],
+    })
+  })
+
+  it('names the breakdown when the durable-source clock is missing too', () => {
+    const s = healthy()
+    s.notifications.deliveryLag = {
+      ...s.notifications.deliveryLag,
+      sourceReceiptPending: 2,
+      sourceReceiptPendingByEventType: { 'inbox.inbox_item.created': 2 },
+    }
+
+    const event = evaluateOne('notification.in-app-delivery-lag', s)
+
+    expect(event!.facts).toEqual({
+      count: 2,
+      codes: { 'inbox.inbox_item.created': 2 },
     })
   })
 

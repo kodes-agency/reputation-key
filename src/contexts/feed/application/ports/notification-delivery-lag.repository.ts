@@ -57,6 +57,13 @@ export type ImmediateEmailAcceptanceReport = Readonly<{
 export type NotificationDeliveryLagReport = Readonly<{
   /** Durable source facts whose base consumer receipt is still absent. */
   sourceReceiptPending: number
+  /**
+   * The same facts by route event type. Event types are a closed set the
+   * notification routes name, so the keys carry no content. Taken from the
+   * same bounded scan: its counts sum to `sourceReceiptPending`, and are the
+   * oldest facts in the window when `sourceSaturated`.
+   */
+  sourceReceiptPendingByEventType: Readonly<Record<string, number>>
   /** Redis-accepted deliveries without their atomic Postgres materialization receipt. */
   materializationPending: number
   oldestSourceRecordedAt: Date | null

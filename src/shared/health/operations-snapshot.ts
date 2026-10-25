@@ -260,6 +260,7 @@ function zeroHealthSignals(): HealthSignalValues {
     notificationGap: 0,
     notificationDeliveryLag: {
       sourceReceiptPending: 0,
+      sourceReceiptPendingByEventType: {},
       materializationPending: 0,
       oldestSourceRecordedAt: null,
       oldestSourceAgeMs: null,

@@ -79,6 +79,7 @@ function snapshotWithWaiting(waiting: number): OperationsSnapshot {
       missingForInboxItemCount: 0,
       deliveryLag: {
         sourceReceiptPending: 0,
+        sourceReceiptPendingByEventType: {},
         materializationPending: 0,
         oldestSourceRecordedAt: null,
         oldestSourceAgeMs: null,

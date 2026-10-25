@@ -217,6 +217,7 @@ describe('createOperationsSnapshot', () => {
       }),
       readNotificationDeliveryLag: async () => ({
         sourceReceiptPending: 1,
+        sourceReceiptPendingByEventType: { 'inbox.inbox_item.created': 1 },
         materializationPending: 2,
         oldestSourceRecordedAt: new Date('2026-01-15T11:58:00.000Z'),
         oldestMaterializationSourceRecordedAt: new Date('2026-01-15T11:57:00.000Z'),
@@ -269,6 +270,7 @@ describe('createOperationsSnapshot', () => {
     })
     expect(snapshot.notifications.deliveryLag).toMatchObject({
       sourceReceiptPending: 1,
+      sourceReceiptPendingByEventType: { 'inbox.inbox_item.created': 1 },
       materializationPending: 2,
       oldestSourceRecordedAt: '2026-01-15T11:58:00.000Z',
       oldestMaterializationSourceRecordedAt: '2026-01-15T11:57:00.000Z',
