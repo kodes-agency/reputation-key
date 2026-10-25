@@ -1,9 +1,10 @@
-// The final print kit as a PDF (final design spec, slices 3 and 4): single
-// pieces, one face per page at its trim, drawn with PDFKit. Paper is vectors
-// (the code is rectangles, the type is the guest fonts embedded as subsets;
-// only a logo is raster). Immersive adds its art under them: the ground and
-// washes as vectors, the photo with its fade as a soft mask, the scrims, the
-// grain (`print-kit-final-immersive.ts`). Office sheets come in later slices.
+// The final print kit as a PDF (final design spec, slices 3 to 5): single
+// pieces, one face per page at its trim, and Paper office sheets, drawn with
+// PDFKit. Paper is vectors (the code is rectangles, the type is the guest fonts
+// embedded as subsets; only a logo is raster). Immersive adds its art under
+// them: the ground and washes as vectors, the photo with its fade as a soft
+// mask, the scrims, the grain (`print-kit-final-immersive.ts`). Immersive
+// office sheets come in a later slice.
 //
 // The tile follows the symbol the address makes (`choosePrintFinalTile`): a
 // piece whose module would print under 0.85 mm is refused before any page is
@@ -14,13 +15,20 @@ import {
   PrintFinalRenderRefusal,
   type PortalPrintFinalRenderer,
   type PrintFinalRenderInput,
+  type PrintFinalSheetsInput,
 } from '../../application/ports/portal-print-final-renderer.port'
 import {
   choosePrintFinalTile,
   printFinalCuesFit,
   type PrintFinalTile,
 } from '#/shared/domain/portal-print-final-code'
+import { printFinalPaperOf } from '#/shared/domain/portal-print-final'
 import { PRINT_FINAL_MEASURES } from '#/shared/domain/portal-print-final-measures'
+import {
+  PRINT_FINAL_MAX_QUANTITY,
+  printFinalPieceCount,
+} from '#/shared/domain/portal-print-final-offer'
+import { printFinalPaperSheet } from '#/shared/domain/portal-print-final-sheets'
 import { printFinalPaperColours } from '#/shared/domain/portal-print-final-colours'
 import { paperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import {
@@ -33,6 +41,7 @@ import {
   prepareFinalImmersiveFace,
   type FinalPreparedFace,
 } from './print-kit-final-immersive'
+import { drawFinalPaperSheets } from './print-kit-final-sheets'
 import { logoArt } from './print-kit-image'
 import { openImage } from './print-kit-pdf-image'
 import { PrintKitFonts } from './print-kit-pdf-text'
@@ -71,10 +80,17 @@ function preparePaperFace(
   return { layout, draw: () => drawFinalFace(doc, fonts, layout, art) }
 }
 
-async function drawPiece(
+type PreparedPrint = Readonly<{
+  prepared: FinalPreparedFace
+  tile: PrintFinalTile
+  fonts: PrintKitFonts
+}>
+
+/** Reads the code and the logo and lays the face out; every refusal comes here, before any page is added. */
+async function prepareFace(
   doc: PDFKit.PDFDocument,
   input: PrintFinalRenderInput,
-): Promise<void> {
+): Promise<PreparedPrint> {
   const { face } = input
   const qr = qrMatrix(input.qrAddress)
   const tile = choosePrintFinalTile({
@@ -96,9 +112,56 @@ async function drawPiece(
   if (!printFinalCuesFit(cueLines, tile.value.tilePt, cuePt)) {
     throw new PrintFinalRenderRefusal({ code: 'cue_does_not_fit', moduleMm: null })
   }
+  return { prepared, tile: tile.value, fonts }
+}
+
+async function drawPiece(
+  doc: PDFKit.PDFDocument,
+  input: PrintFinalRenderInput,
+): Promise<void> {
+  const { prepared } = await prepareFace(doc, input)
   const { plan } = prepared.layout
   doc.addPage({ size: [plan.widthPt, plan.heightPt], margin: 0 })
   prepared.draw()
+}
+
+/** How many pieces a sheets request prints: the quantity, or every cell of the last sheet when it is filled with spares. */
+function pieceCountOf(sheets: PrintFinalSheetsInput, perSheet: number): number {
+  const { quantity, fillSpares } = sheets
+  if (
+    !Number.isInteger(quantity) ||
+    quantity < 1 ||
+    quantity > PRINT_FINAL_MAX_QUANTITY
+  ) {
+    throw new RangeError(
+      `A print makes 1 to ${PRINT_FINAL_MAX_QUANTITY} pieces, not ${quantity}`,
+    )
+  }
+  return printFinalPieceCount(quantity, perSheet, fillSpares)
+}
+
+async function drawSheets(
+  doc: PDFKit.PDFDocument,
+  input: PrintFinalRenderInput,
+  sheets: PrintFinalSheetsInput,
+): Promise<void> {
+  const { face } = input
+  if (face.look !== 'paper') {
+    throw new Error('The final Immersive office sheets are not drawn yet')
+  }
+  const sheet = printFinalPaperSheet({
+    piece: face.piece,
+    orientation: face.orientation,
+    paper: printFinalPaperOf(face.region),
+  })
+  const pieceCount = pieceCountOf(sheets, sheet.cells.length)
+  const { prepared, tile, fonts } = await prepareFace(doc, input)
+  drawFinalPaperSheets(doc, fonts, {
+    sheet,
+    face: prepared,
+    tilePt: tile.tilePt,
+    pieceCount,
+  })
 }
 
 export function createPdfKitPrintFinalRenderer(
@@ -127,7 +190,9 @@ export function createPdfKitPrintFinalRenderer(
         doc.on('end', resolve)
         doc.on('error', reject)
       })
-      await drawPiece(doc, input)
+      await (input.sheets === undefined
+        ? drawPiece(doc, input)
+        : drawSheets(doc, input, input.sheets))
       doc.end()
       await finished
       return new Uint8Array(Buffer.concat(chunks))
