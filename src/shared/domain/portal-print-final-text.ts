@@ -10,7 +10,7 @@
 // face, or set from the column's left edge on a wide one. The part's ink box is
 // what the planner places; each line keeps its offset inside it.
 
-import { balanceWords } from './portal-print-kit-text'
+import { balanceWords, type LineBreaks } from './portal-print-kit-text'
 import type { PrintFinalFamily } from './portal-print-final-type'
 
 /** How one part's words are set. */
@@ -86,7 +86,9 @@ type Placed = Readonly<{
 /**
  * Sets `text` in a column `columnPt` wide: balanced lines, each centred by its
  * advance (`centre`) or from the column's left edge (`left`), one line pitch
- * apart, measured by their ink. Empty text sets nothing (null).
+ * apart, measured by their ink. Lines break at spaces, and also after a hyphen
+ * between two letters where `breaks` says so, as a browser breaks a name like
+ * "Houston-Near". Empty text sets nothing (null).
  */
 export function setPrintFinalText(
   text: string,
@@ -94,10 +96,11 @@ export function setPrintFinalText(
   columnPt: number,
   align: PrintFinalAlign,
   measurer: PrintFinalTextMeasurer,
+  breaks: LineBreaks = 'spaces',
 ): PrintFinalSetText | null {
   const shown = printFinalDisplayText(text.trim(), style)
   if (shown === '') return null
-  const lines = balanceWords(shown, columnPt, breakWidth(measurer, style))
+  const lines = balanceWords(shown, columnPt, breakWidth(measurer, style), breaks)
   const pitch = style.sizePt * style.leading
   const placed: Placed[] = lines.map((line, index) => {
     const advance = measurer.advancePt(line, style)

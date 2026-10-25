@@ -37,6 +37,27 @@ describe('setPrintFinalText', () => {
     expect(set?.heightPt).toBeCloseTo(9)
   })
 
+  it('breaks only at spaces unless it is told a hyphen between two letters may end a line, as a browser does', () => {
+    const name = 'Inn Millbrook-Near Arboretum'
+    const spaces = setPrintFinalText(name, style(), 110, 'left', measurer)
+    expect(spaces?.lines.map((line) => line.text)).toEqual([
+      'Inn Millbrook-Near',
+      'Arboretum',
+    ])
+    const hyphens = setPrintFinalText(
+      name,
+      style(),
+      110,
+      'left',
+      measurer,
+      'spaces-and-hyphens',
+    )
+    expect(hyphens?.lines.map((line) => line.text)).toEqual([
+      'Inn Millbrook-',
+      'Near Arboretum',
+    ])
+  })
+
   it('breaks into balanced lines one pitch apart, each centred by its advance', () => {
     // "Rate your" is 45 pt, "visit" 25 pt: the column takes 2 lines.
     const set = setPrintFinalText('Rate your visit', style(), 60, 'centre', measurer)

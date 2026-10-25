@@ -1,6 +1,7 @@
-// The final print kit as a PDF (final design spec, slices 3 to 6): single
+// The final print kit as a PDF (final design spec, slices 3 to 6 and 11): single
 // pieces, one face per page at its trim, and office sheets in both looks, drawn
-// with PDFKit. Paper is vectors (the code is rectangles, the type is the guest
+// with PDFKit; a card's optional back page follows its front, and a sheet's
+// reverse follows the sheet. Paper is vectors (the code is rectangles, the type is the guest
 // fonts embedded as subsets; only a logo is raster). Immersive adds its art
 // under them: the ground and washes as vectors, the photo with its fade as a
 // soft mask, the scrims, the grain (`print-kit-final-immersive.ts`); on an
@@ -23,6 +24,7 @@ import {
   type PrintFinalTile,
 } from '#/shared/domain/portal-print-final-code'
 import { printFinalPaperOf } from '#/shared/domain/portal-print-final'
+import { printFinalHasBack } from '#/shared/domain/portal-print-final-back'
 import {
   printFinalSheet,
   printFinalSheetFaceBleed,
@@ -38,6 +40,7 @@ import {
 } from '#/shared/domain/portal-print-final-offer'
 import { printFinalPaperColours } from '#/shared/domain/portal-print-final-colours'
 import { paperPrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
+import { prepareFinalBack, type FinalPreparedBack } from './print-kit-final-back'
 import {
   drawFinalFace,
   layoutFinalFace,
@@ -86,6 +89,7 @@ function preparePaperFace(
   })
   return {
     layout,
+    look: { colours: art.colours, palette: null, logoOnPlate: false },
     bleed: PRINT_FINAL_NO_BLEED,
     draw: () => drawFinalFace(doc, fonts, layout, art),
   }
@@ -93,6 +97,8 @@ function preparePaperFace(
 
 type PreparedPrint = Readonly<{
   prepared: FinalPreparedFace
+  /** The card's back, where one was asked for. */
+  back: FinalPreparedBack | null
   tile: PrintFinalTile
   fonts: PrintKitFonts
 }>
@@ -108,6 +114,9 @@ async function prepareFace(
   bleed: PrintFinalBleed = PRINT_FINAL_NO_BLEED,
 ): Promise<PreparedPrint> {
   const { face } = input
+  if (input.back !== undefined && !printFinalHasBack(face.piece)) {
+    throw new RangeError('A tent has no back page: it prints its front on both faces')
+  }
   const qr = qrMatrix(input.qrAddress)
   const tile = choosePrintFinalTile({
     ...face,
@@ -128,17 +137,29 @@ async function prepareFace(
   if (!printFinalCuesFit(cueLines, tile.value.tilePt, cuePt)) {
     throw new PrintFinalRenderRefusal({ code: 'cue_does_not_fit', moduleMm: null })
   }
-  return { prepared, tile: tile.value, fonts }
+  const back =
+    input.back === undefined
+      ? null
+      : prepareFinalBack(doc, fonts, {
+          input,
+          propertyName: input.back.propertyName,
+          front: prepared,
+          logo,
+        })
+  return { prepared, back, tile: tile.value, fonts }
 }
 
 async function drawPiece(
   doc: PDFKit.PDFDocument,
   input: PrintFinalRenderInput,
 ): Promise<void> {
-  const { prepared } = await prepareFace(doc, input)
+  const { prepared, back } = await prepareFace(doc, input)
   const { plan } = prepared.layout
   doc.addPage({ size: [plan.widthPt, plan.heightPt], margin: 0 })
   prepared.draw()
+  if (back === null) return
+  doc.addPage({ size: [plan.widthPt, plan.heightPt], margin: 0 })
+  back.draw()
 }
 
 /** How many pieces a sheets request prints: the quantity, or every cell of the last sheet when it is filled with spares. */
@@ -175,7 +196,7 @@ async function drawSheets(
     )
   }
   const pieceCount = pieceCountOf(sheets, perSheet)
-  const { prepared, tile, fonts } = await prepareFace(
+  const { prepared, back, tile, fonts } = await prepareFace(
     doc,
     input,
     printFinalSheetFaceBleed(sheet),
@@ -183,6 +204,7 @@ async function drawSheets(
   drawFinalSheets(doc, fonts, {
     sheet,
     face: prepared,
+    ...(back === null ? {} : { back }),
     tilePt: tile.tilePt,
     pieceCount,
     perSheet,

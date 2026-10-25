@@ -110,7 +110,14 @@ function buildBack(
   const name =
     text === null
       ? null
-      : setPrintFinalText(text, printFinalNameStyle(face), column, 'centre', measurer)
+      : setPrintFinalText(
+          text,
+          printFinalNameStyle(face),
+          column,
+          'centre',
+          measurer,
+          'spaces-and-hyphens',
+        )
   return {
     parts: [
       ...logoOrWordmark.parts,
