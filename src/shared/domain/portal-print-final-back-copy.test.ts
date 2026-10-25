@@ -27,7 +27,7 @@ const cards: PrintFinalDescribed = {
 }
 
 describe('the back page’s words', () => {
-  it('names the switch and what it prints, in the app’s words', () => {
+  it('names the option and what it prints, in the app’s words', () => {
     expect(PRINT_FINAL_BACK_LABEL).toBe('Print a back page')
     expect(PRINT_FINAL_BACK_HELP).toBe(
       'The logo and the property name on the back, for a holder guests see from both sides. No code on it.',

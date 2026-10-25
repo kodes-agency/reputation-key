@@ -1,5 +1,5 @@
 // What the Share tab says about the optional back page (final design spec §10.4
-// and §11.5): the switch under More options, the sides a print has, the step of
+// and §11.5): the option under More options, the sides a print has, the step of
 // "How to print" that turns a sheet over, and the preview's words for the back.
 // Copy only, in one place, so each line is tested as written; the rest of the
 // final print's copy is `portal-print-final-share.ts` and `-how-to.ts`.
@@ -12,7 +12,7 @@ import {
 } from './portal-print-final'
 import { PRINT_FINAL_PIECE_FACTS, printFinalTrimLabel } from './portal-print-final-share'
 
-/** The switch under More options. */
+/** The option's label under More options: a checkbox like the spares, a choice for this print and not a saved setting. */
 export const PRINT_FINAL_BACK_LABEL = 'Print a back page'
 
 export const PRINT_FINAL_BACK_HELP =
