@@ -89,15 +89,6 @@ export type ContinuableSnapshotResult = Extract<
   { status: 'checkpointed' | 'deleting' }
 >
 
-/**
- * A run that ended failed. The sync job fails its own job for one only when the
- * step failed the run itself, which `alreadyFailed` tells apart.
- */
-export type FailedSnapshotResult = Extract<
-  RunReviewProviderSnapshotResult,
-  { status: 'failed' }
->
-
 export type RunReviewProviderSnapshotDeps = Readonly<{
   repository: ReviewProviderSnapshotRepository
   googleReviewApi: GoogleReviewApiPort

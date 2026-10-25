@@ -67,6 +67,19 @@ const ladderDeps = (
   hotIntervalMs: HOT_INTERVAL_MS,
 })
 
+/**
+ * The function that built an error: the first frame of its stack that is not the
+ * error class's own constructor.
+ */
+function throwSite(error: Error): string | undefined {
+  const names = (error.stack ?? '')
+    .split('\n')
+    .map((line) => /^\s*at (?:async )?(?:new )?([^\s(]+)/u.exec(line)?.[1])
+  return names.find(
+    (name) => name !== undefined && name !== 'ReviewProviderSnapshotFailure',
+  )
+}
+
 describe('sync-property-reviews snapshot handler', () => {
   it('executes one bounded step and enqueues its provider-token-free continuation', async () => {
     const runSnapshot = vi.fn(async () => ({
@@ -1294,6 +1307,31 @@ describe('sync-property-reviews snapshot handler', () => {
         })
         expect(markDeferred).toHaveBeenCalledTimes(1)
         expect(row.errorClass).toBe(code)
+      },
+    )
+
+    // Error monitoring has no fingerprint of its own here (the scrub deletes it),
+    // so it groups by stack, and the existing ReviewProviderSnapshotFailure issue
+    // (JAVASCRIPT-TANSTACKSTART-REACT-4) was grouped under runSnapshotStep, the
+    // function that built the error before the explicit report. A helper that
+    // builds it moves the frame and the report would open a new issue.
+    it.each([
+      ['a step that continues a run', STEP],
+      ['the first step of a run', JOB_DATA],
+    ])(
+      'builds the error of %s in runSnapshotStep, where its issue is grouped',
+      async (_name, data) => {
+        const { handler } = replayHandler(
+          [fresh('observation_failed')],
+          fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId }),
+        )
+
+        const thrown = await handler({ id: 'job-stack', data } as never).catch(
+          (err: unknown) => err,
+        )
+
+        expect(thrown).toBeInstanceOf(ReviewProviderSnapshotFailure)
+        expect(throwSite(thrown as Error)).toBe('runSnapshotStep')
       },
     )
 

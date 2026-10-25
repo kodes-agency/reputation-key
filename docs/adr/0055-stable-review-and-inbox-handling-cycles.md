@@ -962,7 +962,10 @@ and it does so loudly, once.
   then completes, and the worker, which captures a failure only when it is
   terminal (attempts spent, or an `UnrecoverableError`), would never see it. The
   report carries the thrown error, so it groups into the existing
-  `ReviewProviderSnapshotFailure` Sentry issue with its `failure_code` tag. The
+  `ReviewProviderSnapshotFailure` Sentry issue with its `failure_code` tag.
+  Grouping is by stack (the scrub deletes any fingerprint), and that issue is
+  grouped under `runSnapshotStep`, so the error is built and thrown in that
+  function, not in a helper, and a test pins the throw site. The
   first step of a run has no run id: its retry starts a new run, which can
   succeed, so it throws as before without reporting, keeps its three attempts
   and is captured by the worker when they are spent (reporting it here too would

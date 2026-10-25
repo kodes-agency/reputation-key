@@ -16,7 +16,6 @@ import type { ReviewDiscoveryRepository } from '../../application/ports/review-d
 import type { ReviewProviderSnapshotFailureCode } from '../../application/ports/review-provider-snapshot.repository'
 import type {
   ContinuableSnapshotResult,
-  FailedSnapshotResult,
   RunReviewProviderSnapshot,
 } from '../../application/use-cases/run-review-provider-snapshot'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
@@ -430,41 +429,6 @@ async function recordSnapshotFailure(
   return tooLarge
 }
 
-/**
- * A step that failed its run: records the failure with its backoff, then fails
- * the job with the ordinary `ReviewProviderSnapshotFailure`. A location over the
- * cap is parked and the job ends normally.
- *
- * A step that continues a run (it carries a `runId`) also reports the failure to
- * error monitoring itself, once, before it throws. The store ended the run
- * before this threw, so BullMQ's retry of the step can only find the run failed
- * and ends quietly (`skipFailedRunReplay`); the job then completes, and the
- * worker, which reports a failure only when it is terminal, would never see it.
- * The report carries the very error that is thrown, so it groups into the
- * existing `ReviewProviderSnapshotFailure` issue with its `failure_code` tag.
- *
- * The first step of a run has no run id: its retry starts a new run, which can
- * succeed, so it keeps its attempts, and the worker reports the failure when
- * they are spent. Reporting it here as well would count it twice.
- */
-async function failSnapshotStep(
-  deps: SyncHandlerDeps,
-  data: SyncPropertyReviewsJobData,
-  result: FailedSnapshotResult,
-) {
-  const previous = await deps.discoveryRepo.findFailureState(data.propertyId)
-  if (await recordSnapshotFailure(deps, data, result.code, previous)) return result
-  const failure = new ReviewProviderSnapshotFailure(result.code)
-  if (data.runId != null) {
-    captureObservabilityException(failure, {
-      source: 'bullmq-job',
-      queue: JOB_QUEUE,
-      jobName: JOB_NAME,
-    })
-  }
-  throw failure
-}
-
 /** One bounded page, confirmation, or deletion batch of a provider snapshot
  * run, plus the continuation that carries the run forward. */
 async function runSnapshotStep(
@@ -524,7 +488,34 @@ async function runSnapshotStep(
   if (result.status === 'failed' && result.alreadyFailed) {
     return skipFailedRunReplay(deps, data, result.code, result.alreadyFailed.failedAt)
   }
-  if (result.status === 'failed') return failSnapshotStep(deps, data, result)
+  if (result.status === 'failed') {
+    const previous = await deps.discoveryRepo.findFailureState(data.propertyId)
+    // A location over the cap is parked and the job ends normally.
+    if (await recordSnapshotFailure(deps, data, result.code, previous)) return result
+    // The step that failed the run fails the job with the ordinary
+    // `ReviewProviderSnapshotFailure`, built and thrown here, in
+    // `runSnapshotStep`: error monitoring groups by stack, and the existing
+    // issue is grouped under this function.
+    const failure = new ReviewProviderSnapshotFailure(result.code)
+    // A step that continues a run (it carries a `runId`) also reports the
+    // failure itself, once, before it throws. The store ended the run before
+    // this threw, so BullMQ's retry of the step can only find the run failed
+    // and ends quietly (`skipFailedRunReplay`); the job then completes, and the
+    // worker, which reports a failure only when it is terminal, would never see
+    // it. The report carries the very error that is thrown, so it groups into
+    // the existing issue with its `failure_code` tag. The first step of a run
+    // has no run id: its retry starts a new run, which can succeed, so it keeps
+    // its attempts and the worker reports the failure when they are spent;
+    // reporting it here as well would count it twice.
+    if (data.runId != null) {
+      captureObservabilityException(failure, {
+        source: 'bullmq-job',
+        queue: JOB_QUEUE,
+        jobName: JOB_NAME,
+      })
+    }
+    throw failure
+  }
   if (result.status === 'completed') {
     await deps.discoveryRepo.markSyncSucceeded(data.propertyId)
   }
