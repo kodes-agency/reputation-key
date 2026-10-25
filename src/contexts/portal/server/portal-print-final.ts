@@ -7,7 +7,8 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { downloadPortalPrintFinalInputSchema } from '../application/dto/portal-print-final.dto'
-import { downloadPortalPrintFile } from './portal-print-file.server'
+import { downloadPortalPrintFile, portalPrintScope } from './portal-print-file.server'
+import { requirePortalResourceScope } from './property-scope'
 
 /** The final kit's download (PRINT_KIT_FINAL_ENABLED): the same guards as today's. */
 export const downloadPortalPrintFinal = createServerFn({ method: 'POST' })
@@ -15,8 +16,16 @@ export const downloadPortalPrintFinal = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       ({ data }) =>
-        downloadPortalPrintFile(data.portalId, (ctx) =>
-          getContainer().portalPublicApi.management.createPortalPrintFinal(data, ctx),
+        downloadPortalPrintFile(
+          (ctx) =>
+            requirePortalResourceScope({
+              actor: ctx,
+              action: 'portal.update',
+              capability: 'portal.write',
+              ...portalPrintScope(data.portalId),
+            }),
+          (ctx) =>
+            getContainer().portalPublicApi.management.createPortalPrintFinal(data, ctx),
         ),
       'POST',
       'portal.downloadPortalPrintFinal',

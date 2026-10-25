@@ -4,7 +4,7 @@
 // kit's integration test and the final kit's, which each call
 // `setupIntegrationDb` with `PRINT_KIT_INTEGRATION_TABLES` and pass its pool.
 
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import type { Pool } from 'pg'
 import sharp from 'sharp'
 import type { StoragePort } from '../../../application/ports/storage.port'
@@ -66,9 +66,16 @@ export async function storePrintKitPicture(
   )
 }
 
+let sealed = 0
+
 export const printKitCipher = createPortalAddressCipher({
   keyring: KEYRING,
-  generateIv: () => randomBytes(12),
+  // A fresh IV per seal, as the cipher requires; deterministic, as test data may be.
+  generateIv: () =>
+    createHash('sha256')
+      .update(`print-kit-iv-${(sealed += 1)}`)
+      .digest()
+      .subarray(0, 12),
 })
 
 /** What the live version published: Bulgarian first, with the look the scenario's working copy has. */

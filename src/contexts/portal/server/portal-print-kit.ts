@@ -20,7 +20,8 @@ import {
 } from '../application/dto/portal-print-kit.dto'
 import { isPortalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
-import { authorizePortalPrint, downloadPortalPrintFile } from './portal-print-file.server'
+import { downloadPortalPrintFile, portalPrintScope } from './portal-print-file.server'
+import { requirePortalResourceScope } from './property-scope'
 
 export const getPortalPrintKit = createServerFn({ method: 'GET' })
   .validator(portalPrintKitInputSchema)
@@ -29,7 +30,12 @@ export const getPortalPrintKit = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const ctx = await resolveTenantContext(await headersFromContext())
         try {
-          await authorizePortalPrint(ctx, data.portalId, 'portal.read', 'portal.read')
+          await requirePortalResourceScope({
+            actor: ctx,
+            action: 'portal.read',
+            capability: 'portal.read',
+            ...portalPrintScope(data.portalId),
+          })
           return await getContainer().portalPublicApi.management.getPortalPrintKit(
             data,
             ctx,
@@ -51,8 +57,16 @@ export const downloadPortalPrintKit = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       ({ data }) =>
-        downloadPortalPrintFile(data.portalId, (ctx) =>
-          getContainer().portalPublicApi.management.createPortalPrintKit(data, ctx),
+        downloadPortalPrintFile(
+          (ctx) =>
+            requirePortalResourceScope({
+              actor: ctx,
+              action: 'portal.update',
+              capability: 'portal.write',
+              ...portalPrintScope(data.portalId),
+            }),
+          (ctx) =>
+            getContainer().portalPublicApi.management.createPortalPrintKit(data, ctx),
         ),
       'POST',
       'portal.downloadPortalPrintKit',
