@@ -57,8 +57,8 @@ function DownloadRow({
   unavailableReason,
 }: Readonly<{ final: PrintFinalState; unavailableReason: string | null }>) {
   return (
-    <div className="hidden flex-col gap-2 lg:flex">
-      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+    <div className="hidden gap-2 lg:grid">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Button
           type="button"
           disabled={final.print === null || unavailableReason !== null}
@@ -91,7 +91,7 @@ function Loading() {
       aria-busy="true"
       aria-label="Loading print cards"
     >
-      <Skeleton className="h-28 w-full" />
+      <Skeleton className="h-21 w-full" />
       <Skeleton className="h-5 w-2/3" />
       <Skeleton className="h-20 w-full" />
     </div>

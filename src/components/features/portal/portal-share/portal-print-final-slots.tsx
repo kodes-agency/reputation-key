@@ -26,7 +26,7 @@ export function PrintFinalPreviewColumn({ final, view, propertyId }: Props) {
   return (
     <div className="min-w-0 flex-1 bg-muted/40">
       <div className={cn(PAGE_GUTTER_X, 'py-5 lg:sticky lg:top-0')}>
-        <div className="rounded-lg border bg-card px-5 pt-4.5 pb-5">
+        <div className="rounded-lg border bg-card p-5">
           <PortalPrintFinalPreview
             final={final}
             view={view}

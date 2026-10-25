@@ -9,7 +9,6 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalCodeBlock } from './portal-code-block'
 import { PortalLinkIssueForm } from './portal-link-issue-form'
 import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
-import { PRINT_FINAL_PHONE_BAR_CLEARANCE } from './portal-print-final-phone-bar'
 import {
   PortalSharePrintFinalSection,
   PortalSharePrintKitAside,
@@ -67,7 +66,6 @@ export function PortalShare(props: PortalShareProps) {
         className={cn(
           'flex flex-col gap-8',
           kit.show ? 'lg:w-172 lg:shrink-0 lg:border-r' : 'mx-auto w-full max-w-5xl',
-          kit.isFinal && PRINT_FINAL_PHONE_BAR_CLEARANCE,
         )}
         aria-label="Share"
       >

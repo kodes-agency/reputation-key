@@ -13,10 +13,7 @@ import {
   savePropertyPortalBrandContent,
   updatePortal,
 } from '#/contexts/portal/server/portals'
-import {
-  downloadPortalPrintFinal,
-  downloadPortalPrintKit,
-} from '#/contexts/portal/server/portal-print-kit'
+import { downloadPortalPrintKit } from '#/contexts/portal/server/portal-print-kit'
 import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import type { Action } from '#/components/hooks/use-action'
@@ -28,6 +25,18 @@ import { openPageErrorMessage } from '#/components/features/portal/portal-worksp
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
+
+type DownloadPortalPrintFinal =
+  typeof import('#/contexts/portal/server/portal-print-final').downloadPortalPrintFinal
+
+/** The final print kit's download, its server function's module loaded when it is first asked for. */
+const downloadPortalPrintFinalLazily = async (
+  input: Parameters<DownloadPortalPrintFinal>[0],
+): Promise<Awaited<ReturnType<DownloadPortalPrintFinal>>> => {
+  const { downloadPortalPrintFinal } =
+    await import('#/contexts/portal/server/portal-print-final')
+  return downloadPortalPrintFinal(input)
+}
 
 /**
  * The portal patch, for every section that saves one. It is silent on success:
@@ -175,7 +184,9 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     errorMessage: actionErrorMessage,
   })
   // The final print kit's download (PRINT_KIT_FINAL_ENABLED), silent the same way.
-  const downloadPrintFinal = useActionMutation(downloadPortalPrintFinal, {
+  // Loaded on first use: the first paint has no room for another server
+  // function's stub, and only a manager who prints asks for it.
+  const downloadPrintFinal = useActionMutation(downloadPortalPrintFinalLazily, {
     errorMessage: actionErrorMessage,
   })
   const revokeToken = useActionMutation(revokePortalTokens, {

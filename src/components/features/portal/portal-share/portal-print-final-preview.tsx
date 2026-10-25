@@ -183,7 +183,7 @@ export function PortalPrintFinalPreview(props: Props) {
         </div>
       )}
       {view === null || final.print === null ? (
-        <Skeleton className="aspect-[4/3] w-full" />
+        <Skeleton className="w-full" style={{ aspectRatio: '4 / 3' }} />
       ) : tile === null ? (
         <p className="text-sm text-muted-foreground">{final.refusal}</p>
       ) : (

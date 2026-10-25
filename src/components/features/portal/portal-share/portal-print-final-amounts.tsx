@@ -82,7 +82,7 @@ export function PrintFinalHowManyStep(props: StepProps) {
           onChange={(event) => final.change({ quantityText: event.target.value })}
           aria-invalid={quantity === null}
           aria-describedby="print-final-sheets"
-          className="w-21"
+          className="w-20"
         />
         <span id="print-final-sheets" className="text-[13px] text-muted-foreground">
           {quantity === null ? (
@@ -113,13 +113,13 @@ function MoreOptions({ final, print }: StepProps) {
   )
   return (
     <details className="group">
-      <summary className="focus-ring flex min-h-9 w-fit cursor-pointer list-none items-center gap-1.5 text-[13px] text-muted-foreground">
+      <summary className="focus-ring flex min-h-9 w-fit cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground">
         <ChevronRight
           aria-hidden="true"
           className="size-3.5 transition-transform group-open:rotate-90"
         />
         More options
-        <span className="hidden opacity-75 sm:inline">· {noun} per sheet</span>
+        <span className="hidden sm:inline">· {noun} per sheet</span>
       </summary>
       <FormSelectField
         id="print-final-per-sheet"
@@ -127,7 +127,7 @@ function MoreOptions({ final, print }: StepProps) {
         value={String(print.perSheet)}
         onValueChange={(value) => final.change({ perSheet: Number(value) })}
         options={options}
-        className="mt-2 max-w-60"
+        className="mt-2 max-w-xs"
       />
     </details>
   )

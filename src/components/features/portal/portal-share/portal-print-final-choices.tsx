@@ -79,9 +79,11 @@ function PieceCard({
   return (
     <Label
       htmlFor={id}
-      className="relative flex cursor-pointer items-center gap-3 rounded-lg border p-3 pr-9 font-normal has-[[data-disabled]]:cursor-not-allowed has-[[data-disabled]]:opacity-60 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 has-[[data-state=checked]]:ring-1 has-[[data-state=checked]]:ring-primary sm:flex-col sm:items-start sm:gap-2 sm:pr-3"
+      className="relative flex cursor-pointer items-center gap-3 rounded-lg border p-3 pr-8 font-normal has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 sm:flex-col sm:items-start"
+      // A print shop takes no tents: the card stays, dimmed, so the choice reads as held.
+      style={held ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
     >
-      <span className="flex w-11 shrink-0 items-end justify-center sm:h-14 sm:w-auto">
+      <span className="flex h-12 w-11 shrink-0 items-end justify-center sm:w-auto">
         <PrintFinalPieceThumbnail
           piece={piece}
           orientation={orientation}
