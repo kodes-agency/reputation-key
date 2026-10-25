@@ -24,10 +24,13 @@ export type PrintFinalSide = 'front' | 'back'
 /**
  * The step that turns a sheet over, for the manager's own printer: every back
  * is the page after its front. Without a two-sided setting the manager feeds a
- * sheet back in by hand, so a plain-paper try comes first.
+ * sheet back in by hand, so a plain-paper try comes first. Printers name the
+ * flip by an edge of the paper, and the edge a landscape sheet needs can differ
+ * from a portrait one's, so a back that comes out upside down asks for the
+ * other edge.
  */
 export const PRINT_FINAL_BACK_SHEET_STEP =
-  'Print both sides, turning each sheet over like the page of a book; every back is the page after its front. Without a two-sided setting, print page 1, put the sheet back in turned over, then print page 2. Try plain paper first.'
+  'Print both sides, turning each sheet over like the page of a book; every back is the page after its front. Without a two-sided setting, print page 1, put the sheet back in turned over, then print page 2. Try plain paper first: if a back comes out upside down, flip on the other edge.'
 
 /** What a print shop is asked for: the front on page 1 and the back on page 2. */
 export const PRINT_FINAL_BACK_SHOP_PAGES = 'the front on page 1 and the back on page 2'

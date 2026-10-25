@@ -77,7 +77,7 @@ describe('the back page’s words', () => {
     const steps = printFinalHowToSteps(cards, inPt(1.5)).map((step) => step.text)
     expect(steps).toHaveLength(4)
     expect(steps[1]).toBe(
-      'Print both sides, turning each sheet over like the page of a book; every back is the page after its front. Without a two-sided setting, print page 1, put the sheet back in turned over, then print page 2. Try plain paper first.',
+      'Print both sides, turning each sheet over like the page of a book; every back is the page after its front. Without a two-sided setting, print page 1, put the sheet back in turned over, then print page 2. Try plain paper first: if a back comes out upside down, flip on the other edge.',
     )
     expect(steps[2]).toMatch(/^Check one code/u)
     expect(printFinalHowToSteps({ ...cards, backPage: false }, inPt(1.5))).toHaveLength(3)
