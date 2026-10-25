@@ -146,6 +146,9 @@ function denialCode(code: string): AiGatewayErrorCode {
     // No admission denial maps to `provider_rate_limited`: that code is the
     // provider's own 429 (see dispositionCode). Our capacity is admitted per
     // lane before the call is claimed and answers `admission_busy` there.
+    // `quota_exhausted` is shared: our budget refusing here, or the provider's
+    // account out of credit (dispositionCode). Either way no attempt can run
+    // until a person acts.
     case 'concurrency_exhausted':
     case 'quota_exhausted':
       return 'quota_exhausted'
@@ -171,6 +174,8 @@ function dispositionCode(
       return 'output_truncated'
     case 'rate_limited':
       return 'provider_rate_limited'
+    case 'quota_exhausted':
+      return 'quota_exhausted'
     case 'transport_ambiguous':
       return 'operation_ambiguous'
     case 'policy_denied':
@@ -187,6 +192,10 @@ function expectedSettlementCostMicros(
   grant: AiExecutionGrantV1,
 ): number | null {
   if (request.disposition === 'no_dispatch') return 0
+  // Unknown usage (a timeout, a lost connection) may have been billed in full.
+  // The admission authority charges such an attempt nothing, so its receipt
+  // does not bind and the caller sees `operation_ambiguous`, which is what the
+  // attempt is. A provider's refusal by status is known usage (none) and binds.
   if (!request.usageKnown) return grant.limits.costMicros
   const value = settledCostMicros(request)
   return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null

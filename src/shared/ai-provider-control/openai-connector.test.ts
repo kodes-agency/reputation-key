@@ -1044,10 +1044,80 @@ describe('official OpenAI SDK connector integration', () => {
         disposition,
         result: null,
         retryAfterSeconds: retryAfter,
+        // A refusal by status bills nothing, and says so: the admission
+        // authority charges it zero, and the gateway must expect zero.
+        usageKnown: true,
+        usage: {
+          inputTokens: 0,
+          cachedTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+          totalTokens: 0,
+        },
       })
       expect(outbound).toHaveBeenCalledTimes(1)
     },
   )
+
+  // Closed beta, 2026-10-24: the account's credit ran out and every call
+  // answered 429. Read as a rate limit, the analyses retried, gave up and
+  // stayed unanalysed, with nothing naming the cause.
+  it.each([
+    ['current', { type: 'insufficient_quota', code: 'credit_balance_exhausted' }],
+    ['older', { type: 'requests', code: 'insufficient_quota' }],
+  ])(
+    'maps a 429 whose %s body says the credit is gone to quota_exhausted',
+    async (_label, error) => {
+      const outbound = vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { message: 'no credits', ...error } }), {
+            status: 429,
+            headers: { 'content-type': 'application/json', 'retry-after': '20' },
+          }),
+      )
+      const harness = createConnectorHarness(outbound)
+      const outcome = await harness.connector.invoke(
+        harness.invocation,
+        harness.grant,
+        connectorOutputSchema,
+        new AbortController().signal,
+      )
+      expect(outcome).toMatchObject({
+        disposition: 'quota_exhausted',
+        reportedDisposition: 'quota_exhausted',
+        result: null,
+        usageKnown: true,
+        providerRetryable: false,
+        retryAfterSeconds: null,
+      })
+      expect(outbound).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('keeps a 429 that is a rate limit a retryable rate limit', async () => {
+    const outbound = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ error: { type: 'tokens', code: 'rate_limit_exceeded' } }),
+          {
+            status: 429,
+            headers: { 'content-type': 'application/json', 'retry-after': '7' },
+          },
+        ),
+    )
+    const harness = createConnectorHarness(outbound)
+    const outcome = await harness.connector.invoke(
+      harness.invocation,
+      harness.grant,
+      connectorOutputSchema,
+      new AbortController().signal,
+    )
+    expect(outcome).toMatchObject({
+      disposition: 'rate_limited',
+      providerRetryable: true,
+      retryAfterSeconds: 7,
+    })
+  })
 
   it.each([
     [

@@ -1101,6 +1101,23 @@ pass queues the review again within a minute: the worker's
 2026-10-13 item 7); `analysesLeftUnanalysed` above zero on that line after
 repeated stops means some have none left.
 
+**Reviews with no reopens left (2026-10-25).** A cause outside the reviews that
+lasts longer than three reopens leaves them settled without an analysis for
+good. On 2026-10-24 the OpenAI account ran out of credit for about 40 hours and
+ten text reviews ended this way. Look in the worker log first: since this
+release a provider refusal is named. `quota_exhausted` with no budget refusal
+means the provider account is out of credit (top it up in the provider's
+billing settings). `provider_rate_limited` is a rate limit, and
+`provider_unavailable` an outage. Once the cause is fixed,
+`pnpm ops ai-reopen-analyses <propertyId|all> --operator <id>` lists the
+reviews, with the code and time of each one's last failure.
+`--reason <text> --apply` gives each a fresh analysis sequence and a backfill
+event, through the same path the sweep takes. It works one Property at a time
+under its fence, at most `--batch-size` reviews (default 200, maximum 1,000) per
+run. A second apply finds nothing. Copy the printed record (operator, reason,
+correlation id, reviews) into the incident record. The reopened reviews are
+analysed within a few minutes, and `analysesLeftUnanalysed` drops by as many.
+
 **A number nobody holds (2026-10-22).** The other cause is not slow work at
 all. Until 2026-10-22 the Review writer took a Property's next analysis sequence
 before it knew whether the observation would be applied. A replayed observation

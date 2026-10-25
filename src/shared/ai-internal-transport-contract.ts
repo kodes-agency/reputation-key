@@ -877,6 +877,11 @@ export const AI_PROVIDER_DISPOSITIONS = [
   // reasoning and returned an empty body, while the operator saw four words.
   'output_truncated',
   'rate_limited',
+  // The provider's own 429 that says the account has no credit left. Retrying
+  // in seconds cannot help, so it is not `rate_limited`. On the closed beta the
+  // balance ran out on 2026-10-24 and, read as a rate limit, went unnamed for
+  // 40 hours.
+  'quota_exhausted',
   'provider_unavailable',
   'caller_aborted',
   'deadline_exceeded',
@@ -891,6 +896,7 @@ export const AI_GATEWAY_REPORTED_DISPOSITIONS = [
   'output_invalid',
   'output_truncated',
   'rate_limited',
+  'quota_exhausted',
   'provider_unavailable',
   'caller_aborted',
   'deadline_exceeded',

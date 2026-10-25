@@ -26,6 +26,7 @@ import {
 } from './contracts'
 import {
   classifyOpenAiStatus,
+  isOpenAiQuotaExhaustedBody,
   parseOpenAiJsonContentType,
   parseOpenAiRetryAfter,
 } from './dispositions'
@@ -1068,15 +1069,25 @@ export function createOpenAiConnector(
           boundary.state.completeStatus !== 200
         ) {
           const classified = classifyOpenAiStatus(boundary.state.completeStatus)
+          const quotaExhausted =
+            boundary.state.completeStatus === 429 &&
+            isOpenAiQuotaExhaustedBody(
+              boundary.state.decodedResponseBytes,
+              grant.limits.responseBytes,
+            )
+          const retryable = classified.retryable && !quotaExhausted
+          // A complete answer other than 200 is a refusal the provider does not
+          // bill, so its usage is known: none. Reported as unknown, the gateway
+          // expected the reserved maximum while the admission authority charged
+          // nothing, no such receipt bound, and every 429 and 5xx reached the
+          // caller as `operation_ambiguous` (closed beta, 2026-10-24).
           return connectorOutcome({
-            disposition: classified.disposition,
+            disposition: quotaExhausted ? 'quota_exhausted' : classified.disposition,
             result: null,
-            usageKnown: false,
-            providerRetryable: classified.retryable,
+            usageKnown: true,
+            providerRetryable: retryable,
             usage: ZERO_USAGE,
-            retryAfterSeconds: classified.retryable
-              ? boundary.state.retryAfterSeconds
-              : null,
+            retryAfterSeconds: retryable ? boundary.state.retryAfterSeconds : null,
             outboundFetchUsed: true,
           })
         }

@@ -302,3 +302,29 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   past leak left (no settlement, no Review holding it, no outbox fact naming
   it, not released; refused while the head moved in the last 15 minutes). The
   runbook is §22.
+- **2026-10-25** — A provider refusal is named, and an operator can reopen past
+  the budget. From 2026-10-24 01:18 UTC the OpenAI account had no credit left
+  and answered every call 429 for about 40 hours. Every analysis on the beta
+  failed as `operation_ambiguous`, and ten text reviews used their three reopens
+  and stayed unanalysed after the balance was topped up. Two causes:
+  1. The connector reported a complete non-200 answer as unknown usage. For
+     unknown usage the gateway expects the reserved maximum
+     (`expectedSettlementCostMicros`), while the admission authority charges
+     priced usage, which is zero here. No such receipt bound, so every 429 and
+     5xx reached the caller as `operation_ambiguous`, not
+     `provider_rate_limited` or `provider_unavailable`. A refusal by status
+     bills nothing, so the connector now reports its usage as known: zero. The
+     authority keeps charging it nothing. That matters: the ledger holds one
+     reservation per operation, and only an admission settled at zero lets the
+     next attempt in (item 1 of 2026-09-29). Unknown usage (a timeout, a lost
+     connection) still does not bind and stays `operation_ambiguous`.
+  2. A 429 whose body says `insufficient_quota` (in `error.type` or
+     `error.code`) is the provider disposition `quota_exhausted`, not
+     `rate_limited`. It is not retryable, and the gateway answers
+     `quota_exhausted`, the code the budget refusal already used. It is a
+     reopen code and spends provider attempts, so an empty balance still ends
+     in reviews that have used every reopen. Recovery is
+     `pnpm ops ai-reopen-analyses <propertyId|all>`: it lists the reviews whose
+     reopens are spent and, with `--reason --apply`, reopens them through the
+     same path as the sweep. The budget still counts their failures, so one
+     that fails again waits for the next operator run. Runbook §22.

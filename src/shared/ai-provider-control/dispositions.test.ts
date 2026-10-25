@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   classifyOpenAiStatus,
   enforceOutboundFetchDisposition,
+  isOpenAiQuotaExhaustedBody,
   parseOpenAiJsonContentType,
   parseOpenAiRetryAfter,
 } from './dispositions'
@@ -80,6 +81,43 @@ describe('OpenAI response disposition profiles', () => {
     ['999999999999999999999999', null],
   ])('normalizes Retry-After: %s', (value, expected) => {
     expect(parseOpenAiRetryAfter(value)).toBe(expected)
+  })
+
+  it.each([
+    [
+      'current credit answer',
+      { error: { type: 'insufficient_quota', code: 'credit_balance_exhausted' } },
+      true,
+    ],
+    [
+      'older quota answer',
+      { error: { type: 'requests', code: 'insufficient_quota' } },
+      true,
+    ],
+    ['rate limit', { error: { type: 'tokens', code: 'rate_limit_exceeded' } }, false],
+    ['null fields', { error: { type: null, code: null } }, false],
+    ['no error object', { message: 'insufficient_quota' }, false],
+  ])(
+    'reads a 429 body as out of credit only when it says so: %s',
+    (_label, body, expected) => {
+      expect(
+        isOpenAiQuotaExhaustedBody(new TextEncoder().encode(JSON.stringify(body)), 4_096),
+      ).toBe(expected)
+    },
+  )
+
+  it.each([
+    ['no body', null],
+    ['empty body', new Uint8Array()],
+    ['not JSON', new TextEncoder().encode('insufficient_quota')],
+    [
+      'over the limit',
+      new TextEncoder().encode(
+        JSON.stringify({ error: { type: 'insufficient_quota', pad: 'x'.repeat(64) } }),
+      ),
+    ],
+  ])('reads an unreadable 429 body as a rate limit: %s', (_label, bytes) => {
+    expect(isOpenAiQuotaExhaustedBody(bytes, 64)).toBe(false)
   })
 
   it('relies on Fetch Headers to trim permitted HTTP OWS before parsing', () => {

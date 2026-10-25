@@ -1,4 +1,8 @@
-import type { AiSettlementRequestV1 } from '#/shared/ai-internal-transport-contract'
+import { z } from 'zod/v4'
+import {
+  parseAiProviderJsonBytes,
+  type AiSettlementRequestV1,
+} from '#/shared/ai-internal-transport-contract'
 import type { OpenAiConnectorOutcome } from './contracts'
 
 export type OpenAiProviderDisposition = AiSettlementRequestV1['disposition']
@@ -63,6 +67,33 @@ export function classifyOpenAiStatus(status: number): OpenAiStatusDisposition {
     retryable: false,
     circuitFailure: true,
   })
+}
+
+const OPENAI_QUOTA_ERROR = 'insufficient_quota'
+
+const openAiErrorBodySchema = z.looseObject({
+  error: z.looseObject({ type: z.string().nullish(), code: z.string().nullish() }),
+})
+
+/**
+ * Whether a 429 body says the account is out of credit rather than over a rate.
+ * OpenAI answers both with 429; only the body's `error.type` (and, in older
+ * answers, `error.code`) tells them apart. Only those two fields are read, and
+ * nothing of the body is kept or logged. An unreadable body is a rate limit.
+ */
+export function isOpenAiQuotaExhaustedBody(
+  bytes: Uint8Array | null,
+  maxBytes: number,
+): boolean {
+  if (bytes === null || bytes.byteLength === 0) return false
+  try {
+    const body = parseAiProviderJsonBytes(bytes, maxBytes, openAiErrorBodySchema)
+    return (
+      body.error.type === OPENAI_QUOTA_ERROR || body.error.code === OPENAI_QUOTA_ERROR
+    )
+  } catch {
+    return false
+  }
 }
 
 // Normalize-then-compare rather than one regex. The regex this replaced nested

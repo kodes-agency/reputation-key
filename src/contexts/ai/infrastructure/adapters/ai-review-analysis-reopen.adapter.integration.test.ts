@@ -40,7 +40,11 @@ import { resolveAnalysisClaimConflict } from '../../application/analysis-claim-c
 import { AI_REVIEW_ANALYSIS_MAX_REOPENS } from '../../domain/review-analysis-reopen'
 import type { AiExecutionStopFence } from '../../domain/types'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
-import { createAiReviewAnalysisReopenAdapter } from './ai-review-analysis-reopen.adapter'
+import {
+  createAiReviewAnalysisReopenAdapter,
+  listSpentReviewAnalyses,
+  reopenSpentReviewAnalyses,
+} from './ai-review-analysis-reopen.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './ai-review-analysis-enrollment.adapter'
 
 const NOW = new Date('2026-09-29T17:37:00.000Z')
@@ -464,6 +468,72 @@ describe('reopening Review Analysis abandoned by a transient failure (real Postg
       reopen.reopenAbandoned({ limit: 50, occurredAt: LATER }),
     ).resolves.toEqual({ reopened: 0, leftUnanalysed: 1 })
     expect(await fixture.backfillEvents()).toHaveLength(1)
+  })
+
+  // Closed beta, 2026-10-24: the provider account ran out of credit for 40
+  // hours, longer than the automatic reopens last, and ten text reviews stayed
+  // settled without an analysis once it was topped up. The operator command
+  // lists them and queues them again.
+  it('lists the review that used every automatic reopen for an operator', async () => {
+    const spentSequence = 4 + AI_REVIEW_ANALYSIS_MAX_REOPENS
+    await expect(
+      listSpentReviewAnalyses(db, { propertyId: scope.propertyId, limit: 50 }),
+    ).resolves.toEqual([
+      {
+        organizationId: scope.organizationId,
+        propertyId: scope.propertyId,
+        reviewId: review(4),
+        operationId: operation(100 + spentSequence),
+        failureCode: 'provider_unavailable',
+        failedAt: NOW,
+        analysisSequence: spentSequence,
+      },
+    ])
+    await expect(
+      listSpentReviewAnalyses(db, { propertyId: uuid('75000009', 1), limit: 50 }),
+    ).resolves.toEqual([])
+  })
+
+  it('reopens it on an operator run, past the automatic budget, once', async () => {
+    const spentSequence = 4 + AI_REVIEW_ANALYSIS_MAX_REOPENS
+    await expect(
+      reopenSpentReviewAnalyses(db, {
+        propertyId: scope.propertyId,
+        limit: 50,
+        occurredAt: LATER,
+      }),
+    ).resolves.toEqual([
+      {
+        organizationId: scope.organizationId,
+        propertyId: scope.propertyId,
+        reviewId: review(4),
+        operationId: operation(100 + spentSequence),
+        previousSequence: spentSequence,
+        analysisSequence: 22,
+      },
+    ])
+
+    expect(await fixture.analysisSequenceOf(review(4))).toBe(22)
+    expect(await fixture.analysisSequenceOf(review(2))).toBe(2)
+    expect(await fixture.backfillEvents()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reviewId: review(4),
+          analysisSequence: 22,
+          correlationId: operation(100 + spentSequence),
+        }),
+      ]),
+    )
+    await expect(
+      reopenSpentReviewAnalyses(db, {
+        propertyId: scope.propertyId,
+        limit: 50,
+        occurredAt: LATER,
+      }),
+    ).resolves.toEqual([])
+    await expect(
+      reopen.reopenAbandoned({ limit: 50, occurredAt: LATER }),
+    ).resolves.toEqual({ reopened: 0, leftUnanalysed: 0 })
   })
 
   it('leaves a Property alone once Review Analysis is switched off', async () => {
