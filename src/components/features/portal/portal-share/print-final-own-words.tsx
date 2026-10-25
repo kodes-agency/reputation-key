@@ -28,6 +28,7 @@ import {
   type PrintFinalFieldStatus,
 } from '#/shared/domain/portal-print-final-words-copy'
 import type { PrintFinalSharePrint } from './print-final-state'
+import { PrintFinalWordsNote } from './print-final-words-note'
 import type { PrintFinalWordsState } from './use-print-final-words'
 
 type Props = Readonly<{ words: PrintFinalWordsState; print: PrintFinalSharePrint }>
@@ -213,6 +214,7 @@ function LanguageFields({
           counter={headlineCounter}
         />
         {missing !== null && <p className="mt-1 text-xs text-warn">{missing}</p>}
+        <PrintFinalWordsNote words={words} print={print} locale={locale} />
       </Field>
       <Field
         id={`${id}-subline`}

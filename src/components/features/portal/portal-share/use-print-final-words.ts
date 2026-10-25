@@ -21,6 +21,7 @@ import {
   type PrintFinalCustomCopy,
 } from '#/shared/domain/portal-print-final-custom'
 import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
+import { printFinalWordsOffer } from '#/shared/domain/portal-print-final-warnings'
 import type { PrintFinalCodeFacts } from '#/shared/domain/portal-print-final-offer'
 import {
   printFinalMenuRows,
@@ -186,6 +187,12 @@ function wordsBlockOf(
   })
   if (emptyHeadline) {
     return { label: 'Download PDF', note: 'Write a headline, or pick a wording.' }
+  }
+  if (words !== undefined && printFinalWordsOffer(words, languages ?? [])) {
+    return {
+      label: 'Remove the offer to print',
+      note: 'The PDF is made once the offer is gone.',
+    }
   }
   if (own?.fit.state === 'refused')
     return { label: 'Shorten to fit', note: EVERY_CARD_FITS }

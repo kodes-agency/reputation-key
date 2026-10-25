@@ -9,7 +9,8 @@
 //      server has it off, languages the live version does not offer, a choice
 //      the kit does not make (a quantity or a count a sheet out of range, a tent
 //      for a print shop), and words it does not print (a wording rule F holds
-//      back in one of the languages);
+//      back in one of the languages, or own words that offer something for the
+//      review);
 //   3. read the pictures from Portal media, checked against their stored hash;
 //   4. fetch the address through `revealPortalAddress`, which records the
 //      disclosure (as a download) before it decrypts;
@@ -49,6 +50,7 @@ import {
   type PrintFinalRefusal,
 } from '#/shared/domain/portal-print-final-offer'
 import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-refusals'
+import { printFinalWordsOffer } from '#/shared/domain/portal-print-final-warnings'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalError } from '../../domain/errors'
 import { loadPortalOrThrow } from '../load-accessible-portal'
@@ -187,6 +189,10 @@ export const createPortalPrintFinal =
     }
     if (printFinalWordsHeldLanguage(words, input.languages) !== null) {
       throw refusalError({ code: 'wording_not_available' })
+    }
+    // Only a clear offer for the review stops a print (§5.8); every other note only warns.
+    if (printFinalWordsOffer(words, input.languages)) {
+      throw refusalError({ code: 'remove_offer' })
     }
 
     const pictures = await readPicturesThenReveal(deps, context.look, scope, ctx, input)

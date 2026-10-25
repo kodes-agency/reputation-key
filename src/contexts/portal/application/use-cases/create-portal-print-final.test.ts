@@ -501,4 +501,22 @@ describe('createPortalPrintFinal', () => {
       context: { cause: 'shorten_to_fit' },
     })
   })
+
+  it('refuses own words that offer something for the review, before the address is read', async () => {
+    const { portal, make, reveal } = await setup()
+
+    await expect(
+      make(
+        tents(portal.id, {
+          customWords: { en: { headline: 'Get 10% off', subline: '' } },
+        }),
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      message: PRINT_FINAL_REFUSAL_COPY.remove_offer,
+      context: { cause: 'remove_offer' },
+    })
+    expect(reveal).not.toHaveBeenCalled()
+  })
 })
