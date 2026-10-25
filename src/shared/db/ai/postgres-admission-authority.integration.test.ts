@@ -415,6 +415,52 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
     ).resolves.toEqual({ status: 'denied', code: 'permit_mismatch' })
   })
 
+  // Closed beta, 2026-10-24: OpenAI answered 429 to every call. The connector
+  // reports a refusal by status as known usage of nothing, so the gateway's
+  // expected cost is the zero this authority charges, and the retry the
+  // analysis schedules is admitted afresh.
+  it.each([
+    ['rate_limited', true, 20],
+    ['quota_exhausted', false, null],
+    ['provider_unavailable', true, null],
+  ] as const)(
+    'charges a %s refusal nothing and admits the next attempt',
+    async (disposition, providerRetryable, retryAfterSeconds) => {
+      const first = await executingOperation()
+      const granted = await authority.authorizeProperty(descriptor(first), BINDING)
+      if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+      await expect(
+        authority.settle(
+          {
+            ...settlement(
+              { ...first, nonce: granted.nonce },
+              { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
+            ),
+            disposition,
+            reportedDisposition: disposition,
+            providerRetryable,
+            retryAfterSeconds,
+          },
+          SIGNING_KID,
+        ),
+      ).resolves.toMatchObject({
+        status: 'settled',
+        disposition,
+        usageKnown: true,
+        costMicros: 0,
+        settlementState: 'settled',
+      })
+
+      const second = await claimNextAttempt(first.operationId, 2)
+      await expect(
+        authority.authorizeProperty(descriptor(second), {
+          ...BINDING,
+          hmac: 'C'.repeat(43),
+        }),
+      ).resolves.toMatchObject({ status: 'admitted' })
+    },
+  )
+
   it('still refuses a later attempt once a charged attempt consumed the admission', async () => {
     const first = await executingOperation()
     const granted = await authority.authorizeProperty(descriptor(first), BINDING)

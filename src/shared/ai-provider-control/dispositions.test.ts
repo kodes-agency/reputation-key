@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  classifyOpenAiRefusal,
   classifyOpenAiStatus,
   enforceOutboundFetchDisposition,
+  isOpenAiQuotaExhaustedBody,
   parseOpenAiJsonContentType,
   parseOpenAiRetryAfter,
 } from './dispositions'
@@ -81,6 +83,87 @@ describe('OpenAI response disposition profiles', () => {
   ])('normalizes Retry-After: %s', (value, expected) => {
     expect(parseOpenAiRetryAfter(value)).toBe(expected)
   })
+
+  it.each([
+    [
+      'current credit answer',
+      { error: { type: 'insufficient_quota', code: 'credit_balance_exhausted' } },
+      true,
+    ],
+    [
+      'older quota answer',
+      { error: { type: 'requests', code: 'insufficient_quota' } },
+      true,
+    ],
+    ['rate limit', { error: { type: 'tokens', code: 'rate_limit_exceeded' } }, false],
+    ['null fields', { error: { type: null, code: null } }, false],
+    ['no error object', { message: 'insufficient_quota' }, false],
+  ])(
+    'reads a 429 body as out of credit only when it says so: %s',
+    (_label, body, expected) => {
+      expect(
+        isOpenAiQuotaExhaustedBody(new TextEncoder().encode(JSON.stringify(body)), 4_096),
+      ).toBe(expected)
+    },
+  )
+
+  it.each([
+    ['no body', null],
+    ['empty body', new Uint8Array()],
+    ['not JSON', new TextEncoder().encode('insufficient_quota')],
+    [
+      'over the limit',
+      new TextEncoder().encode(
+        JSON.stringify({ error: { type: 'insufficient_quota', pad: 'x'.repeat(64) } }),
+      ),
+    ],
+  ])('reads an unreadable 429 body as a rate limit: %s', (_label, bytes) => {
+    expect(isOpenAiQuotaExhaustedBody(bytes, 64)).toBe(false)
+  })
+
+  it.each([
+    [
+      429,
+      '{"error":{"type":"insufficient_quota"}}',
+      'quota_exhausted',
+      false,
+      true,
+      null,
+    ],
+    [429, '{"error":{"type":"tokens"}}', 'rate_limited', true, true, 9],
+    [503, '', 'provider_unavailable', true, true, 9],
+    [
+      400,
+      '{"error":{"type":"invalid_request_error"}}',
+      'provider_refused',
+      false,
+      false,
+      null,
+    ],
+    [
+      401,
+      '{"error":{"type":"insufficient_quota"}}',
+      'provider_unavailable',
+      false,
+      false,
+      null,
+    ],
+    [524, '', 'provider_unavailable', false, false, null],
+  ] as const)(
+    'classifies a %i refusal by its status and, for a 429, its body',
+    (status, body, disposition, providerRetryable, usageKnown, retryAfterSeconds) => {
+      expect(
+        classifyOpenAiRefusal(
+          {
+            completeStatus: status,
+            decodedResponseBytes: new TextEncoder().encode(body),
+            retryAfterSeconds: 9,
+          },
+          4_096,
+        ),
+      ).toEqual({ disposition, providerRetryable, usageKnown, retryAfterSeconds })
+    },
+  )
 
   it('relies on Fetch Headers to trim permitted HTTP OWS before parsing', () => {
     expect(

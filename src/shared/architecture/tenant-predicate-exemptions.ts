@@ -418,6 +418,20 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    symbol: 'listSpentReviewAnalyses',
+    reason:
+      'The operator command ops:ai-reopen-analyses lists, for one Property or with `all` across tenants, the reviews whose automatic reopens are spent; it returns ids and codes only, each row carrying its Organization and Property.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter.ts',
+    symbol: 'reopenSpentReviewAnalyses',
+    reason:
+      'The operator command ops:ai-reopen-analyses finds Properties with spent review analysis, for one Property or with `all` across tenants, and reopens each one inside transactions scoped to its Organization and Property, as reopenAbandoned does.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/feed/infrastructure/operational-action-history-store.ts',
     symbol: 'placeLegalHold',
     reason:

@@ -8,6 +8,7 @@ export const COMMANDS: Readonly<
   ai: ['scripts/ops/ai-release-orphan-sequences.ts'],
   'ai-approve-enrollment': ['scripts/ops/ai-approve-enrollment.ts'],
   'ai-control': ['scripts/ops/ai-execution-control.ts'],
+  'ai-reopen-analyses': ['scripts/ops/ai-reopen-analyses.ts'],
   'bootstrap-owner': ['scripts/ops/bootstrap-owner.ts'],
   'check-google-oauth': ['scripts/ops/check-google-oauth.ts'],
   'deploy-ci-images': ['scripts/ops/deploy-ci-images.ts'],

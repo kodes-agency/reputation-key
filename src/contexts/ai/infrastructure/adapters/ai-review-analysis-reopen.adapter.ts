@@ -208,6 +208,14 @@ function safeInteger(value: unknown, field: string, minimum = 0): number {
   return parsed
 }
 
+function instant(value: unknown, field: string): Date {
+  const parsed = value instanceof Date ? value : new Date(String(value))
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Review Analysis reopen read an invalid ${field}`)
+  }
+  return parsed
+}
+
 type Scope = Readonly<{ organizationId: string; propertyId: string }>
 
 /**
@@ -216,27 +224,44 @@ type Scope = Readonly<{ organizationId: string; propertyId: string }>
  * take, and the candidates are re-selected under those locks: a review that
  * moved on since the scan is not reopened, and no sequence is allocated for it.
  */
+/** A review given a fresh analysis sequence and a backfill event. */
+export type ReopenedReviewAnalysis = Scope &
+  Readonly<{
+    reviewId: string
+    /** The abandoned operation the new attempt is correlated with. */
+    operationId: string
+    previousSequence: number
+    analysisSequence: number
+  }>
+
 async function reopenProperty(
   tx: Tx,
   scope: Scope,
   limit: number,
   occurredAt: Date,
-): Promise<number> {
+  reopens: 'left' | 'spent' = 'left',
+): Promise<ReadonlyArray<ReopenedReviewAnalysis>> {
   await lockReviewAnalysisPropertyFence(tx, scope)
   const candidates = await tx.execute(sql`
     SELECT review.id, review.source_epoch, review.source_revision,
            review.analysis_sequence, operation.id AS operation_id
-    ${abandonedInCurrentLineageSql('left')}
+    ${abandonedInCurrentLineageSql(reopens)}
       AND review.organization_id = ${scope.organizationId}
       AND review.property_id = ${scope.propertyId}::uuid
     ORDER BY operation.updated_at, operation.id
     LIMIT ${limit}
     FOR UPDATE OF review
   `)
+  const reopened: ReopenedReviewAnalysis[] = []
   for (const raw of candidates.rows) {
     const candidate = raw as Row
     const sourceEpoch = safeInteger(candidate.source_epoch, 'source epoch')
     const sourceRevision = safeInteger(candidate.source_revision, 'source revision', 1)
+    const previousSequence = safeInteger(
+      candidate.analysis_sequence,
+      'analysis sequence',
+      1,
+    )
     const allocated = await tx.execute(sql`
       SELECT lock_review_ai_analysis_head_v1(
         ${scope.organizationId}, ${scope.propertyId}::uuid, ${sourceEpoch}
@@ -255,7 +280,7 @@ async function reopenProperty(
         AND id = ${String(candidate.id)}::uuid
         AND source_epoch = ${sourceEpoch}
         AND source_revision = ${sourceRevision}
-        AND analysis_sequence = ${safeInteger(candidate.analysis_sequence, 'analysis sequence', 1)}
+        AND analysis_sequence = ${previousSequence}
     `)
     if (updated.rowCount !== 1) {
       // Locked above, so this cannot move; roll the allocation back if it did.
@@ -276,8 +301,136 @@ async function reopenProperty(
       }),
       { recordedAt: occurredAt },
     )
+    reopened.push({
+      ...scope,
+      reviewId: String(candidate.id),
+      operationId: String(candidate.operation_id),
+      previousSequence,
+      analysisSequence: sequence,
+    })
   }
-  return candidates.rows.length
+  return reopened
+}
+
+/** A review that used every automatic reopen and stays settled without an analysis. */
+export type SpentReviewAnalysis = Scope &
+  Readonly<{
+    reviewId: string
+    operationId: string
+    failureCode: string
+    failedAt: Date
+    analysisSequence: number
+  }>
+
+function propertyFilterSql(propertyIdValue: string | null): SQL {
+  return propertyIdValue === null
+    ? sql``
+    : sql`AND review.property_id = ${propertyIdValue}::uuid`
+}
+
+function requireLimit(limit: number): void {
+  if (!Number.isSafeInteger(limit) || limit < 1) {
+    throw new Error('Review Analysis reopen limit is invalid')
+  }
+}
+
+/**
+ * The reviews the automatic reopen gave up on (ADR 0058): text that can still
+ * be analysed, whose operations kept failing for reasons that say nothing about
+ * the review until the reopen budget ran out. An operator lists them after the
+ * cause outside the review is fixed (on 2026-10-24, an empty provider balance).
+ */
+export async function listSpentReviewAnalyses(
+  db: Database,
+  input: Readonly<{ propertyId: string | null; limit: number }>,
+): Promise<ReadonlyArray<SpentReviewAnalysis>> {
+  requireLimit(input.limit)
+  const rows = await db.execute(sql`
+    SELECT review.organization_id, review.property_id, review.id AS review_id,
+           review.analysis_sequence, operation.id AS operation_id,
+           operation.failure_code, operation.updated_at AS failed_at
+    ${abandonedInCurrentLineageSql('spent')}
+      ${propertyFilterSql(input.propertyId)}
+    ORDER BY review.property_id, operation.updated_at, operation.id
+    LIMIT ${input.limit}
+  `)
+  return rows.rows.map((raw) => {
+    const row = raw as Row
+    return {
+      organizationId: String(row.organization_id),
+      propertyId: String(row.property_id),
+      reviewId: String(row.review_id),
+      operationId: String(row.operation_id),
+      failureCode: String(row.failure_code),
+      failedAt: instant(row.failed_at, 'failure time'),
+      analysisSequence: safeInteger(row.analysis_sequence, 'analysis sequence', 1),
+    }
+  })
+}
+
+/** A Property whose operator reopen failed; the ones before it stay reopened. */
+export type SpentReopenFailure = Scope & Readonly<{ reason: string }>
+
+export type SpentReopenResult = Readonly<{
+  reopened: ReadonlyArray<ReopenedReviewAnalysis>
+  failed: ReadonlyArray<SpentReopenFailure>
+}>
+
+/** The sweep's batch: one transaction holds a Property's fence for this many reviews. */
+const OPERATOR_REOPEN_TRANSACTION_SIZE = 50
+
+/**
+ * Reopen the reviews `listSpentReviewAnalyses` returns, in the same order, past
+ * the automatic budget, through the same path the sweep takes: per Property,
+ * under its fence, candidates re-selected under lock, a fresh sequence and a
+ * backfill event each, at most 50 reviews per transaction. A Property that
+ * fails is reported and the run goes on, so every committed reopen is in the
+ * result. The budget still counts their failures, so one that fails again is
+ * not reopened automatically; it waits for the next operator run.
+ */
+export async function reopenSpentReviewAnalyses(
+  db: Database,
+  input: Readonly<{ propertyId: string | null; limit: number; occurredAt: Date }>,
+): Promise<SpentReopenResult> {
+  requireLimit(input.limit)
+  const properties = await db.execute(sql`
+    SELECT review.organization_id, review.property_id
+    ${abandonedInCurrentLineageSql('spent')}
+      ${propertyFilterSql(input.propertyId)}
+    GROUP BY review.organization_id, review.property_id
+    ORDER BY review.property_id
+    LIMIT ${input.limit}
+  `)
+  const reopened: ReopenedReviewAnalysis[] = []
+  const failed: SpentReopenFailure[] = []
+  for (const raw of properties.rows) {
+    if (reopened.length >= input.limit) break
+    const row = raw as Row
+    const scope = {
+      organizationId: String(row.organization_id),
+      propertyId: String(row.property_id),
+    }
+    try {
+      for (;;) {
+        const size = Math.min(
+          OPERATOR_REOPEN_TRANSACTION_SIZE,
+          input.limit - reopened.length,
+        )
+        if (size < 1) break
+        const done = await db.transaction((tx) =>
+          reopenProperty(tx, scope, size, input.occurredAt, 'spent'),
+        )
+        reopened.push(...done)
+        if (done.length < size) break
+      }
+    } catch (error) {
+      failed.push({
+        ...scope,
+        reason: error instanceof Error ? error.message.slice(0, 200) : 'unknown error',
+      })
+    }
+  }
+  return { reopened, failed }
 }
 
 export const createAiReviewAnalysisReopenAdapter = (
@@ -285,9 +438,7 @@ export const createAiReviewAnalysisReopenAdapter = (
 ): AiReviewAnalysisReopenPort =>
   Object.freeze({
     async reopenAbandoned(input) {
-      if (!Number.isSafeInteger(input.limit) || input.limit < 1) {
-        throw new Error('Review Analysis reopen limit is invalid')
-      }
+      requireLimit(input.limit)
       const properties = await db.execute(sql`
         SELECT review.organization_id, review.property_id
         ${abandonedInCurrentLineageSql('left')}
@@ -303,9 +454,10 @@ export const createAiReviewAnalysisReopenAdapter = (
           organizationId: String(row.organization_id),
           propertyId: String(row.property_id),
         }
-        reopened += await db.transaction((tx) =>
+        const done = await db.transaction((tx) =>
           reopenProperty(tx, scope, input.limit - reopened, input.occurredAt),
         )
+        reopened += done.length
       }
       const spent = await db.execute(sql`
         SELECT count(*) AS left_unanalysed

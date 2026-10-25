@@ -392,6 +392,76 @@ describe('AI gateway execution orchestration', () => {
     expect(value.settle).toHaveBeenCalledTimes(1)
   })
 
+  // Closed beta, 2026-10-24: OpenAI answered every call 429 for 40 hours. The
+  // connector reported its usage as unknown, the gateway then expected the
+  // reserved maximum, the admission authority charged nothing, and the receipt
+  // never bound: each 429 reached the analysis as `operation_ambiguous`. The
+  // fake authority here prices as the real one does (settledCostMicros).
+  it.each([
+    ['rate_limited', true, 20, 'provider_rate_limited'],
+    ['quota_exhausted', false, null, 'quota_exhausted'],
+    ['provider_unavailable', true, null, 'provider_unavailable'],
+  ] as const)(
+    'names a provider refusal by status (%s) after its zero-cost settlement binds',
+    async (disposition, providerRetryable, retryAfterSeconds, code) => {
+      const value = harness()
+      value.invoke.mockResolvedValue({
+        disposition,
+        reportedDisposition: disposition,
+        result: null,
+        usageKnown: true,
+        providerRetryable,
+        usage: {
+          inputTokens: 0,
+          cachedTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+          totalTokens: 0,
+        },
+        retryAfterSeconds,
+        outboundFetchUsed: true,
+      })
+
+      const response = await value.service.execute(
+        sourceLease(value.request),
+        new AbortController().signal,
+      )
+
+      expect(response).toMatchObject({ status: 'error', code })
+      expect(value.settle).toHaveBeenCalledWith(
+        expect.objectContaining({ disposition, usageKnown: true }),
+        expect.anything(),
+      )
+    },
+  )
+
+  it('still reports an attempt whose usage is unknown as ambiguous', async () => {
+    const value = harness()
+    value.invoke.mockResolvedValue({
+      disposition: 'deadline_exceeded',
+      reportedDisposition: 'deadline_exceeded',
+      result: null,
+      usageKnown: false,
+      providerRetryable: false,
+      usage: {
+        inputTokens: 0,
+        cachedTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 0,
+      },
+      retryAfterSeconds: null,
+      outboundFetchUsed: true,
+    })
+
+    const response = await value.service.execute(
+      sourceLease(value.request),
+      new AbortController().signal,
+    )
+
+    expect(response).toMatchObject({ status: 'error', code: 'operation_ambiguous' })
+  })
+
   // Closed beta, 2026-09-29: during an import burst the admission authority's
   // database waited past its lock timeout. Nothing had been granted or
   // dispatched, but the gateway answered `operation_ambiguous`, which the

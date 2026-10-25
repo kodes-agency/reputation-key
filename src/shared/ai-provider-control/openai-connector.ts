@@ -25,7 +25,7 @@ import {
   type PreparedAiInvocation,
 } from './contracts'
 import {
-  classifyOpenAiStatus,
+  classifyOpenAiRefusal,
   parseOpenAiJsonContentType,
   parseOpenAiRetryAfter,
 } from './dispositions'
@@ -1067,16 +1067,10 @@ export function createOpenAiConnector(
           boundary.state.completeStatus !== null &&
           boundary.state.completeStatus !== 200
         ) {
-          const classified = classifyOpenAiStatus(boundary.state.completeStatus)
           return connectorOutcome({
-            disposition: classified.disposition,
+            ...classifyOpenAiRefusal(boundary.state, grant.limits.responseBytes),
             result: null,
-            usageKnown: false,
-            providerRetryable: classified.retryable,
             usage: ZERO_USAGE,
-            retryAfterSeconds: classified.retryable
-              ? boundary.state.retryAfterSeconds
-              : null,
             outboundFetchUsed: true,
           })
         }

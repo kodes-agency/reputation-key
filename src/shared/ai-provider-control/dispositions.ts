@@ -1,4 +1,8 @@
-import type { AiSettlementRequestV1 } from '#/shared/ai-internal-transport-contract'
+import { z } from 'zod/v4'
+import {
+  parseAiProviderJsonBytes,
+  type AiSettlementRequestV1,
+} from '#/shared/ai-internal-transport-contract'
 import type { OpenAiConnectorOutcome } from './contracts'
 
 export type OpenAiProviderDisposition = AiSettlementRequestV1['disposition']
@@ -62,6 +66,85 @@ export function classifyOpenAiStatus(status: number): OpenAiStatusDisposition {
     disposition: 'provider_unavailable',
     retryable: false,
     circuitFailure: true,
+  })
+}
+
+const OPENAI_QUOTA_ERROR = 'insufficient_quota'
+
+const openAiErrorBodySchema = z.looseObject({
+  error: z.looseObject({ type: z.string().nullish(), code: z.string().nullish() }),
+})
+
+/**
+ * Whether a 429 body says the account is out of credit rather than over a rate.
+ * OpenAI answers both with 429; only the body's `error.type` (and, in older
+ * answers, `error.code`) tells them apart. Only those two fields are read, and
+ * nothing of the body is kept or logged. An unreadable body is a rate limit.
+ */
+export function isOpenAiQuotaExhaustedBody(
+  bytes: Uint8Array | null,
+  maxBytes: number,
+): boolean {
+  if (bytes === null || bytes.byteLength === 0) return false
+  try {
+    const body = parseAiProviderJsonBytes(bytes, maxBytes, openAiErrorBodySchema)
+    return (
+      body.error.type === OPENAI_QUOTA_ERROR || body.error.code === OPENAI_QUOTA_ERROR
+    )
+  } catch {
+    return false
+  }
+}
+
+export type OpenAiRefusal = Readonly<{
+  disposition: Extract<
+    OpenAiProviderDisposition,
+    'rate_limited' | 'quota_exhausted' | 'provider_unavailable' | 'provider_refused'
+  >
+  providerRetryable: boolean
+  usageKnown: boolean
+  retryAfterSeconds: number | null
+}>
+
+/**
+ * A complete answer other than 200, as the connector's one-shot fetch recorded
+ * it: the outcome fields the connector reports for it. A 429 or a 500, 502, 503 or 504 is a
+ * refusal the provider does not bill, so its usage is known: none. Reported as
+ * unknown, the gateway expected the reserved maximum while the admission
+ * authority charged nothing, the receipt never bound, and every such answer
+ * reached the caller as `operation_ambiguous` (closed beta, 2026-10-24). Every
+ * other status (a refused request, an authentication or routing fault) keeps
+ * unknown usage and so stays `operation_ambiguous`: such a fault is not the
+ * review's, so it must stay reopenable and spend the attempt budget.
+ */
+export function classifyOpenAiRefusal(
+  response: Readonly<{
+    completeStatus: number | null
+    decodedResponseBytes: Uint8Array | null
+    retryAfterSeconds: number | null
+  }>,
+  maxBytes: number,
+): OpenAiRefusal {
+  const status = response.completeStatus
+  if (status === null) throw new TypeError('An incomplete answer is no refusal')
+  const classified = classifyOpenAiStatus(status)
+  if (classified.disposition === 'success') throw new TypeError('A 200 is no refusal')
+  if (
+    status === 429 &&
+    isOpenAiQuotaExhaustedBody(response.decodedResponseBytes, maxBytes)
+  ) {
+    return Object.freeze({
+      disposition: 'quota_exhausted',
+      providerRetryable: false,
+      usageKnown: true,
+      retryAfterSeconds: null,
+    })
+  }
+  return Object.freeze({
+    disposition: classified.disposition,
+    providerRetryable: classified.retryable,
+    usageKnown: classified.retryable,
+    retryAfterSeconds: classified.retryable ? response.retryAfterSeconds : null,
   })
 }
 

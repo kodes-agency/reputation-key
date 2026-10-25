@@ -298,7 +298,10 @@ report (`releasedAwaitingSequenceCountSql` in
 ledger. Its own allocations (the reopen pass and the enrollment replay) stamp
 the number on a review and announce it in the same transaction, or roll back.
 `pnpm ops ai release-orphan-sequences` records the numbers a past leak left
-(ADR 0058, 2026-10-22).
+(ADR 0058, 2026-10-22). `pnpm ops ai-reopen-analyses` reopens, past the
+three-reopen budget, the reviews a lasting outside cause left settled without
+an analysis (`listSpentReviewAnalyses` and `reopenSpentReviewAnalyses` in the
+reopen adapter, the sweep's own path; ADR 0058, 2026-10-25).
 
 The recurring recovery passes treat each row on its own. The operation reaper
 recovers every ownerless operation it lists independently, and the enrollment
