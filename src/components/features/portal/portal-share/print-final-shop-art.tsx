@@ -21,18 +21,19 @@ import {
 import { ptToContainerWidth } from './print-kit-paper-art-layout'
 import { PrintFinalDrawnBackArt } from './print-final-back-art'
 import { PrintFinalDrawnFaceArt } from './print-final-face-art'
-import { usePrintFinalDrawnBack } from './use-print-final-drawn-back'
-import {
-  usePrintFinalDrawnFace,
-  type PrintFinalFaceInput,
-} from './use-print-final-drawn-face'
+import { usePrintFinalDrawnPiece } from './use-print-final-drawn-piece'
+import type { PrintFinalFaceInput } from './use-print-final-drawn-face'
 
 /**
  * Where the card is cut, drawn as a guide the file does not print: a dashed line
  * that inverts what is under it, so it reads on the white page, the cream paper
  * and a dark photo alike.
  */
-const TRIM_GUIDE = { border: '1px dashed white', mixBlendMode: 'difference' } as const
+const TRIM_GUIDE = {
+  border: '1px dashed',
+  borderColor: 'white',
+  mixBlendMode: 'difference',
+} as const
 
 type Props = Readonly<{
   page: PrintFinalShopPage
@@ -86,14 +87,7 @@ export function PrintFinalShopArt({
     () => (immersive ? printFinalShopFaceBleed(page) : undefined),
     [immersive, page],
   )
-  const drawn = usePrintFinalDrawnFace({ ...face, bleed })
-  const drawnBack = usePrintFinalDrawnBack({
-    face: face.face,
-    look: face.look,
-    front: drawn,
-    enabled: back,
-    bleed,
-  })
+  const { drawn, drawnBack } = usePrintFinalDrawnPiece({ face, bleed, back })
   const u = (points: number) => ptToContainerWidth(points, page.widthPt)
   const { trim } = page
   return (

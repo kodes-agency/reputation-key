@@ -35,11 +35,8 @@ import { PRINT_KIT_PAPER } from '#/shared/domain/portal-print-kit-palette'
 import { ptToContainerWidth } from './print-kit-paper-art-layout'
 import { PrintFinalDrawnBackArt } from './print-final-back-art'
 import { PrintFinalDrawnFaceArt } from './print-final-face-art'
-import { usePrintFinalDrawnBack } from './use-print-final-drawn-back'
-import {
-  usePrintFinalDrawnFace,
-  type PrintFinalFaceInput,
-} from './use-print-final-drawn-face'
+import { usePrintFinalDrawnPiece } from './use-print-final-drawn-piece'
+import type { PrintFinalFaceInput } from './use-print-final-drawn-face'
 
 type Props = Readonly<{
   sheet: PrintFinalSheet
@@ -138,14 +135,7 @@ export function PrintFinalSheetArt({
     () => (immersive ? printFinalSheetFaceBleed({ piece, bleedPt }) : undefined),
     [immersive, piece, bleedPt],
   )
-  const drawn = usePrintFinalDrawnFace({ ...face, bleed })
-  const drawnBack = usePrintFinalDrawnBack({
-    face: face.face,
-    look: face.look,
-    front: drawn,
-    enabled: back,
-    bleed,
-  })
+  const { drawn, drawnBack } = usePrintFinalDrawnPiece({ face, bleed, back })
   const u = (points: number) => ptToContainerWidth(points, sheet.widthPt)
   const cells = sheet.cells.slice(0, filled)
   const { widthPt, heightPt } = printFinalLiveArea(face.face)
