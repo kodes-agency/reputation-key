@@ -16,6 +16,10 @@ import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import type { PrintFinalFace } from '#/shared/domain/portal-print-final'
 import type { PrintFinalTile } from '#/shared/domain/portal-print-final-code'
 import {
+  layoutPrintFinalBack,
+  type PrintFinalBackLayout,
+} from '#/shared/domain/portal-print-final-back'
+import {
   layoutPrintFinalFace,
   type PrintFinalBrandInput,
   type PrintFinalFaceLayout,
@@ -170,5 +174,35 @@ export function previewFinalImmersiveFace(
             focal: look.heroFocal ?? { x: 0.5, y: 0.5 },
             framing: input.framing ?? PRINT_FINAL_DEFAULT_FRAMING,
           },
+  })
+}
+
+export type PreviewFinalBackInput = Readonly<{
+  face: PrintFinalFace
+  look: PortalPrintKitView['look']
+  /** The logo picture's width over its height, once it has loaded. */
+  logoAspect: number | null
+  /** The front put the logo on its cream plate: the back follows it. */
+  onPlate: boolean
+}>
+
+/** A card's back page as the file lays it out, from the preview's measures: the logo or the wordmark, and the property's name. */
+export function previewFinalBackLayout(
+  input: PreviewFinalBackInput,
+): PrintFinalBackLayout {
+  const { face, look } = input
+  return layoutPrintFinalBack({
+    face,
+    brand:
+      look.logoUrl === null
+        ? { kind: 'wordmark', text: look.wordmark }
+        : {
+            kind: 'logo',
+            inkWidth: input.logoAspect ?? PREVIEW_LOGO_ASPECT,
+            inkHeight: 1,
+            onPlate: input.onPlate,
+          },
+    propertyName: look.propertyName,
+    measurer: previewFinalMeasurer,
   })
 }

@@ -46,7 +46,7 @@ function fontOf(set: PrintFinalSetText, pt: PointsToLength): CSSProperties {
 }
 
 /** A set part's lines, each on its baseline from its pen origin. */
-function Lines({
+export function Lines({
   set,
   part,
   colour,
@@ -86,7 +86,7 @@ const boxOf = (pt: PointsToLength, part: PrintFinalPlacedPart): CSSProperties =>
   height: pt(part.heightPt),
 })
 
-type PartProps = Readonly<{
+export type PartProps = Readonly<{
   content: PrintFinalContent
   part: PrintFinalPlacedPart
   colours: PrintFinalColours
@@ -123,7 +123,7 @@ function Stars({ content, part, colours, pt }: PartProps) {
 }
 
 /** The logo filling its planned box, or the box inside its plate's padding on the cream plate. */
-function Logo({ content, part, look, onLogoAspect, pt }: PartProps) {
+export function Logo({ content, part, look, onLogoAspect, pt }: PartProps) {
   if (content.kind !== 'logo' || look.logoUrl === null) return null
   const { paddingPt } = content.box
   const image = (

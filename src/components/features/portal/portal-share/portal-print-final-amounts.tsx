@@ -11,6 +11,11 @@ import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import {
+  PRINT_FINAL_BACK_HELP,
+  PRINT_FINAL_BACK_LABEL,
+} from '#/shared/domain/portal-print-final-back-copy'
+import { printFinalHasBack } from '#/shared/domain/portal-print-final-back'
+import {
   PRINT_KIT_CALLS_TO_ACTION,
   type PrintKitCallToAction,
 } from '#/shared/domain/portal-print-kit'
@@ -102,7 +107,7 @@ export function PrintFinalHowManyStep(props: StepProps) {
   )
 }
 
-function MoreOptions({ final, print }: StepProps) {
+function PerSheetSelect({ final, print }: StepProps) {
   const fits = PRINT_FINAL_PER_SHEET[print.piece][print.look][print.paper]
   const { noun } = PRINT_FINAL_PIECE_FACTS[print.piece]
   const options = Array.from({ length: fits }, (_, index) => fits - index).map(
@@ -112,6 +117,50 @@ function MoreOptions({ final, print }: StepProps) {
     }),
   )
   return (
+    <FormSelectField
+      id="print-final-per-sheet"
+      label={`${capitalised(noun)} per sheet`}
+      value={String(print.perSheet)}
+      onValueChange={(value) => final.change({ perSheet: Number(value) })}
+      options={options}
+      className="max-w-xs"
+    />
+  )
+}
+
+/** The optional back page of a card: logo and property name on the back, for a holder seen from both sides. */
+function BackPageOption({ final, print }: StepProps) {
+  return (
+    <div className="flex items-start gap-2">
+      <Checkbox
+        id="print-final-back"
+        checked={print.backPage}
+        onCheckedChange={(checked) => final.change({ backPage: checked === true })}
+        aria-describedby="print-final-back-help"
+        className="mt-0.5"
+      />
+      <div className="flex flex-col gap-0.5">
+        <Label htmlFor="print-final-back" className="font-normal">
+          {PRINT_FINAL_BACK_LABEL}
+        </Label>
+        <p id="print-final-back-help" className="text-xs text-muted-foreground">
+          {PRINT_FINAL_BACK_HELP}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function MoreOptions(props: StepProps) {
+  const { print } = props
+  const { noun } = PRINT_FINAL_PIECE_FACTS[print.piece]
+  const perSheet = print.printer === 'my_printer'
+  const back = printFinalHasBack(print.piece)
+  if (!perSheet && !back) return null
+  const hint = [perSheet ? `${noun} per sheet` : null, back ? 'a back page' : null]
+    .filter((part) => part !== null)
+    .join(', ')
+  return (
     <details className="group">
       <summary className="focus-ring flex min-h-9 w-fit cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground">
         <ChevronRight
@@ -119,16 +168,12 @@ function MoreOptions({ final, print }: StepProps) {
           className="size-3.5 transition-transform group-open:rotate-90"
         />
         More options
-        <span className="hidden sm:inline">· {noun} per sheet</span>
+        <span className="hidden sm:inline">· {hint}</span>
       </summary>
-      <FormSelectField
-        id="print-final-per-sheet"
-        label={`${capitalised(noun)} per sheet`}
-        value={String(print.perSheet)}
-        onValueChange={(value) => final.change({ perSheet: Number(value) })}
-        options={options}
-        className="mt-2 max-w-xs"
-      />
+      <div className="mt-2 flex flex-col gap-3">
+        {perSheet && <PerSheetSelect {...props} />}
+        {back && <BackPageOption {...props} />}
+      </div>
     </details>
   )
 }
@@ -168,7 +213,7 @@ export function PrintFinalWordsStep(props: StepProps) {
         }))}
         className="mt-2"
       />
-      {print.printer === 'my_printer' && <MoreOptions {...props} />}
+      <MoreOptions {...props} />
     </Step>
   )
 }
