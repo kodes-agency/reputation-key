@@ -7,6 +7,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
 import { printAddressShape } from '#/shared/domain/portal-print-address'
 import {
   printFinalRegionOf,
@@ -26,6 +27,9 @@ import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-ref
 import type { PortalPrintKitResources } from './portal-print-kit-types'
 import {
   INITIAL_PRINT_FINAL_CHOICE,
+  choiceOfLastPrint,
+  printFinalIsLastSet,
+  printFinalLastLook,
   printFinalShareCheck,
   printFinalShareCount,
   resolvePrintFinalChoice,
@@ -43,7 +47,7 @@ const VERSION_3_MODULES = 29
 const INITIAL_PRINT_FINAL_PRINT_KEY = {
   piece: INITIAL_PRINT_FINAL_CHOICE.piece,
   orientation: INITIAL_PRINT_FINAL_CHOICE.orientations[INITIAL_PRINT_FINAL_CHOICE.piece],
-  look: INITIAL_PRINT_FINAL_CHOICE.look,
+  look: INITIAL_PRINT_FINAL_CHOICE.look ?? 'paper',
   paper: 'letter',
 } as const
 
@@ -57,6 +61,8 @@ type Input = Readonly<{
   /** The live code's QR address, when it is in memory; the preview draws a sample otherwise. */
   qrAddress: string | null
   downloadMutation: PortalPrintKitResources['downloadFinalMutation']
+  /** Called once the server made a file: the print is now the Portal's last, which the read says. */
+  onDownloaded: () => void
 }>
 
 /** What the download sends for a print. */
@@ -96,6 +102,11 @@ function useChoice() {
         })),
       [],
     ),
+    /** Sets every choice of the Portal's last print again. */
+    repeatLastPrint: useCallback(
+      (last: PrintFinalLastSettings) => setChoice((now) => choiceOfLastPrint(now, last)),
+      [],
+    ),
     /** A print shop takes no tents: choosing it moves a tent choice to Counter cards. */
     choosePrinter: useCallback(
       (printer: PrintFinalPrinter) =>
@@ -110,13 +121,22 @@ function useChoice() {
 }
 
 export function usePrintFinal(input: Input) {
-  const { view, portalId, downloadMutation } = input
-  const { choice, change, chooseOrientation, choosePrinter } = useChoice()
+  const { view, portalId, downloadMutation, onDownloaded } = input
+  const { choice, change, chooseOrientation, choosePrinter, repeatLastPrint } =
+    useChoice()
   const { countryCode } = input
+  const lastPrint = view?.lastPrint ?? null
   // Held while the choice and the read stand, so the face is laid out once per change.
   const print = useMemo(
     () =>
-      view === null ? null : resolvePrintFinalChoice(choice, view.locales, countryCode),
+      view === null
+        ? null
+        : resolvePrintFinalChoice(
+            choice,
+            view.locales,
+            countryCode,
+            printFinalLastLook(view.lastPrint),
+          ),
     [choice, view, countryCode],
   )
   const code = usePrintKitCode(input.qrAddress, input.enabled)
@@ -166,6 +186,8 @@ export function usePrintFinal(input: Input) {
     if (print === null || view === null || downloadMutation === undefined) return
     try {
       const file = await downloadMutation({ data: requestOf(portalId, print) })
+      // The server made the file, so it now holds this print as the Portal's last.
+      onDownloaded()
       saveBlob(
         new Blob([decodeBase64(file.pdfBase64)], { type: file.contentType }),
         file.fileName,
@@ -173,12 +195,17 @@ export function usePrintFinal(input: Input) {
     } catch {
       // The mutation has already toasted the refusal.
     }
-  }, [print, view, portalId, downloadMutation])
+  }, [print, view, portalId, downloadMutation, onDownloaded])
   return {
     choice,
     change,
     chooseOrientation,
     choosePrinter,
+    repeatLastPrint,
+    /** The Portal's last print, as the read gave it; null when it was never printed. */
+    lastPrint,
+    /** Whether the choices on show are already the last print's, so setting them again would change nothing. */
+    isLastPrintSet: printFinalIsLastSet(print, lastPrint),
     print,
     count: print === null ? null : printFinalShareCount(print),
     code,

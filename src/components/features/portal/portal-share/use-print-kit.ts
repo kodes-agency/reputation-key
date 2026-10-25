@@ -128,5 +128,7 @@ export function usePrintKit({
     error: query.error,
     isRetrying: isRetrying(query),
     retry: () => void query.refetch(),
+    /** Reads the print kit again: a final download has just changed what it says, the Portal's last print. */
+    refresh: () => void query.refetch(),
   } as const
 }

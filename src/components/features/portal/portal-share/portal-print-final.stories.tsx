@@ -11,6 +11,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import type {
   PortalPrintKitDownload,
+  PortalPrintKitLastPrint,
   PortalPrintKitView,
   PortalTokenStatus,
 } from '#/contexts/portal/application/public-api'
@@ -47,10 +48,11 @@ const liveToken: PortalTokenStatus = {
 /** Oakmere's stand-in: a dark tree logo, a navy field, a pale blue accent and its photo's size. */
 const view = (
   overrides: Partial<PortalPrintKitView['look']> = {},
+  lastPrint: PortalPrintKitLastPrint | null = null,
 ): PortalPrintKitView => ({
   portalId: 'portal-1',
   kit: 'final',
-  lastPrint: null,
+  lastPrint,
   portalName: 'Reception',
   primaryLocale: 'en',
   locales: ['en', 'es', 'bg'],
@@ -488,5 +490,159 @@ export const PhoneUprightTents: Story = {
     await expect(
       await sheet.findByRole('img', { name: 'Your sheet, Letter · sheet 1 of 3' }),
     ).toBeVisible()
+  },
+}
+
+/** What the Portal's last print was, as the read gives it; noon UTC keeps the day the same in every zone a manager is in. */
+const lastPrint = (
+  settings: Partial<PortalPrintKitLastPrint['settings']>,
+  photo: PortalPrintKitLastPrint['photo'] = { kind: 'same' },
+): PortalPrintKitLastPrint => ({
+  printedAt: '2026-10-12T12:00:00.000Z',
+  settings: {
+    piece: 'tent',
+    orientation: 'wide',
+    look: 'paper',
+    paper: 'letter',
+    printer: 'my_printer',
+    quantity: 10,
+    fillSpares: false,
+    perSheet: null,
+    cropMarks: false,
+    backPage: false,
+    languages: ['en', 'es'],
+    callToAction: 'rate',
+    ...settings,
+  },
+  photo,
+})
+
+/** The board share-desktop-dark: Immersive Counter cards last printed, the photo changed since; "Use the same settings" sets them again. */
+export const LastPrintedImmersiveCardsPhotoChanged: Story = {
+  args: {
+    ...baseArgs,
+    printKit: printKit(
+      view(
+        {},
+        lastPrint(
+          {
+            piece: 'counter',
+            orientation: 'upright',
+            look: 'immersive',
+            quantity: 25,
+            languages: ['en'],
+          },
+          { kind: 'changed', on: '2026-10-20T12:00:00.000Z' },
+        ),
+      ),
+    ),
+  },
+  parameters: { theme: 'dark' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText(
+        /^Last printed Oct 12(, 2026)? · 25 Immersive Counter cards, upright, on Letter$/,
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText('Your photo changed on Oct 20. Printing again uses the new one.'),
+    ).toBeVisible()
+    // The look the last print used is the one the section opens on; the rest is the board's start.
+    await expect(radio(canvas, /^Table tents/)).toBeChecked()
+    await expect(radio(canvas, /^Immersive/)).toBeChecked()
+    await userEvent.click(canvas.getByRole('button', { name: 'Use the same settings' }))
+    await expect(radio(canvas, /^Counter cards/)).toBeChecked()
+    await expect(radio(canvas, 'Upright')).toBeChecked()
+    await expect(canvas.getByRole('textbox', { name: /cards you need/i })).toHaveValue(
+      '25',
+    )
+    await expect(canvas.getByRole('combobox', { name: 'Languages' })).toHaveTextContent(
+      'English',
+    )
+    // Nothing is left to set again, so the button goes; the notice stays.
+    await expect(
+      canvas.queryByRole('button', { name: 'Use the same settings' }),
+    ).toBeNull()
+    await expect(canvas.getByText(/^Last printed Oct 12/)).toBeVisible()
+  },
+}
+
+/** The board share-desktop-light: Paper tents last printed in two languages, no photo line for a print with no photo. */
+export const LastPrintedPaperTentsSetAgain: Story = {
+  args: {
+    ...baseArgs,
+    printKit: printKit(
+      view({}, lastPrint({ piece: 'small', quantity: 6, languages: ['en'] })),
+    ),
+  },
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText(
+        /^Last printed Oct 12(, 2026)? · 6 Paper Small cards, wide, on Letter$/,
+      ),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/Your photo (changed|was removed)/)).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: 'Use the same settings' }))
+    await expect(radio(canvas, /^Small cards/)).toBeChecked()
+    await expect(canvas.getByRole('textbox', { name: /cards you need/i })).toHaveValue(
+      '6',
+    )
+    // Changing a choice brings the button back: it would put the last print's choice back.
+    await userEvent.click(radio(canvas, 'Upright'))
+    await expect(
+      canvas.getByRole('button', { name: 'Use the same settings' }),
+    ).toBeVisible()
+  },
+}
+
+/** A print that is already what the page shows has nothing to set again: the notice says when, and the button is not offered. */
+export const LastPrintedWhatTheSectionOpensOn: Story = {
+  args: { ...baseArgs, printKit: printKit(view({}, lastPrint({}))) },
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText(
+        /^Last printed Oct 12(, 2026)? · 10 Paper table tents, wide, on Letter, English \+ Español$/,
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.queryByRole('button', { name: 'Use the same settings' }),
+    ).toBeNull()
+  },
+}
+
+/** A photo that was only chosen since, or reframed, has no day to name; one that was taken off says so. */
+export const LastPrintedPhotoChangedWithNoDay: Story = {
+  args: {
+    ...baseArgs,
+    printKit: printKit(
+      view({}, lastPrint({ look: 'immersive' }, { kind: 'changed', on: null })),
+    ),
+  },
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText(
+        'Your photo changed since. Printing again uses the new one.',
+      ),
+    ).toBeVisible()
+  },
+}
+
+/** A Portal that was never printed has no notice at all. */
+export const NeverPrinted: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByRole('heading', { name: 'Print cards' })
+    await expect(canvas.queryByText(/^Last printed/)).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: 'Use the same settings' }),
+    ).toBeNull()
   },
 }

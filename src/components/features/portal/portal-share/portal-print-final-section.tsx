@@ -1,9 +1,9 @@
 // The final Print cards section of the Share tab (final design spec §11, the
 // boards share-desktop-light, share-desktop-dark and share-phone), shown where
 // the server says PRINT_KIT_FINAL_ENABLED; today's section is untouched
-// otherwise. Top to bottom: what is printed and which way up, the look, who
-// prints it, how many, the words, then the download with its summary and How to
-// print for the chosen layout. The preview sits beside it from `lg`; below
+// otherwise. Top to bottom: when the Portal was last printed, what is printed
+// and which way up, the look, who prints it, how many, the words, then the
+// download with its summary and How to print for the chosen layout. The preview sits beside it from `lg`; below
 // that, the phone's pinned bar holds the summary, Preview and the download.
 
 import { Download } from 'lucide-react'
@@ -23,6 +23,7 @@ import {
   PrintFinalWhoStep,
 } from './portal-print-final-choices'
 import { PrintFinalHowManyStep, PrintFinalWordsStep } from './portal-print-final-amounts'
+import { PrintFinalLastPrintNotice } from './print-final-last-print-notice'
 import type { PrintFinalState } from './use-print-final'
 
 type Props = Readonly<{
@@ -130,6 +131,7 @@ export function PortalPrintFinalSection({
       )}
       {view !== null && print !== null ? (
         <>
+          <PrintFinalLastPrintNotice final={final} />
           <PrintFinalWhatStep final={final} print={print} view={view} />
           <PrintFinalLookStep final={final} print={print} view={view} />
           <PrintFinalWhoStep
