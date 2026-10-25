@@ -103,7 +103,7 @@ export function printFinalHowToSteps(
 }
 
 /** "English + Español": the languages in their own words, in print order. */
-export const printFinalLanguageNames = (languages: readonly GuestLocale[]): string =>
+const printFinalLanguageNames = (languages: readonly GuestLocale[]): string =>
   languages.map((locale) => GUEST_LOCALE_METADATA[locale].nativeName).join(' + ')
 
 /** The quantity the summary counts: "10 tents". */

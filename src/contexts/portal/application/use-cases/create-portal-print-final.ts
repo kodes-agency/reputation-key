@@ -54,7 +54,10 @@ import {
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
-import { readStoredImage, type PortalPrintKitFile } from './create-portal-print-kit'
+import {
+  readPicturesThenReveal,
+  type PortalPrintKitFile,
+} from './create-portal-print-kit'
 import type { RevealPortalAddress } from './reveal-portal-address'
 
 export type CreatePortalPrintFinalDeps = Readonly<{
@@ -154,13 +157,7 @@ export const createPortalPrintFinal =
     const problem = printFinalChoiceProblem(choice)
     if (problem !== null) throw refusalError(problem)
 
-    const { hero, logo } = context.look
-    const photoBytes = hero ? await readStoredImage(deps, scope, hero.assetId) : null
-    const logoBytes = logo ? await readStoredImage(deps, scope, logo.assetId) : null
-    const revealed = await deps.revealAddress(
-      { portalId: input.portalId, purpose: 'download' },
-      ctx,
-    )
+    const pictures = await readPicturesThenReveal(deps, context.look, scope, ctx, input)
 
     const print = { ...choice, languages: input.languages }
     const pdf = await renderOrRefuse(deps.renderer, {
@@ -178,15 +175,12 @@ export const createPortalPrintFinal =
         context.portalName,
       ),
       wordmark: context.look.wordmark,
-      logo: logoBytes,
+      logo: pictures.logo,
       accentColour: context.look.accentColour,
       fieldColour: context.look.fieldColour,
-      photo:
-        hero && photoBytes
-          ? { bytes: photoBytes, focalX: hero.focalX, focalY: hero.focalY }
-          : null,
-      qrAddress: revealed.publicUrl,
-      address: printAddressShape(revealed.publicUrl),
+      photo: pictures.photo,
+      qrAddress: pictures.qrAddress,
+      address: printAddressShape(pictures.qrAddress),
       ...(choice.printer === 'my_printer'
         ? {
             sheets: {

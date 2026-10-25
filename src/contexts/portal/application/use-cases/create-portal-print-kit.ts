@@ -49,6 +49,7 @@ import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.rep
 import {
   PrintKitRenderRefusal,
   type PortalPrintKitRenderer,
+  type PrintKitPhoto,
   type PrintKitRefusal,
 } from '../ports/portal-print-kit-renderer.port'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
@@ -108,7 +109,7 @@ const photoUnreadable = () =>
  * not the bytes that were stored, is an error: printing without it would hand
  * the manager a card that is not the one they previewed.
  */
-export async function readStoredImage(
+async function readStoredImage(
   deps: Pick<CreatePortalPrintKitDeps, 'mediaRepo' | 'objectStore' | 'sha256Hex'>,
   scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
   assetId: string,
@@ -134,6 +135,42 @@ export async function readStoredImage(
     throw photoUnreadable()
   }
   return object.body
+}
+
+type PrintKitLook = Awaited<ReturnType<typeof loadPortalPrintKitContext>>['look']
+
+/**
+ * The print's pictures, read from Portal media, then the code's address through
+ * the audited reveal: in that order, so a picture that cannot be read costs no
+ * disclosure. Shared by today's print kit and the final one.
+ */
+export async function readPicturesThenReveal(
+  deps: Pick<
+    CreatePortalPrintKitDeps,
+    'mediaRepo' | 'objectStore' | 'sha256Hex' | 'revealAddress'
+  >,
+  look: Pick<PrintKitLook, 'hero' | 'logo'>,
+  scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
+  ctx: AuthContext,
+  input: Readonly<{ portalId: string }>,
+): Promise<
+  Readonly<{ photo: PrintKitPhoto | null; logo: Uint8Array | null; qrAddress: string }>
+> {
+  const { hero, logo } = look
+  const photoBytes = hero ? await readStoredImage(deps, scope, hero.assetId) : null
+  const logoBytes = logo ? await readStoredImage(deps, scope, logo.assetId) : null
+  const revealed = await deps.revealAddress(
+    { portalId: input.portalId, purpose: 'download' },
+    ctx,
+  )
+  return {
+    photo:
+      hero && photoBytes
+        ? { bytes: photoBytes, focalX: hero.focalX, focalY: hero.focalY }
+        : null,
+    logo: logoBytes,
+    qrAddress: revealed.publicUrl,
+  }
 }
 
 type FullFormat = Required<PrintKitFormat>
@@ -234,14 +271,7 @@ export const createPortalPrintKit =
 
     const scope = { organizationId: ctx.organizationId, propertyId: portal.propertyId }
     const format = await formatOf(deps, input, scope)
-    const { hero, logo } = context.look
-    const photoBytes = hero ? await readStoredImage(deps, scope, hero.assetId) : null
-    const logoBytes = logo ? await readStoredImage(deps, scope, logo.assetId) : null
-
-    const revealed = await deps.revealAddress(
-      { portalId: input.portalId, purpose: 'download' },
-      ctx,
-    )
+    const pictures = await readPicturesThenReveal(deps, context.look, scope, ctx, input)
 
     const faces = printKitFaces(
       {
@@ -259,14 +289,11 @@ export const createPortalPrintKit =
       faces,
       wordmark: context.look.wordmark,
       propertyName: input.showPropertyName === false ? null : context.look.propertyName,
-      logo: logoBytes,
-      photo:
-        hero && photoBytes
-          ? { bytes: photoBytes, focalX: hero.focalX, focalY: hero.focalY }
-          : null,
+      logo: pictures.logo,
+      photo: pictures.photo,
       accentColour: context.look.accentColour,
       fieldColour: context.look.fieldColour,
-      qrAddress: revealed.publicUrl,
+      qrAddress: pictures.qrAddress,
     })
     return {
       fileName: printKitFileName(
