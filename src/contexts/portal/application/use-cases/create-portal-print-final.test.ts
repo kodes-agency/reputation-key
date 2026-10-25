@@ -173,9 +173,39 @@ describe('createPortalPrintFinal', () => {
     )
 
     expect(rendered[0]?.sheets).toBeUndefined()
+    expect(rendered[0]?.shop).toEqual({ cropMarks: false })
     expect(file.fileName).toBe(
       'reception-counter-cards-upright-en-bg-print-shop-letter.pdf',
     )
+  })
+
+  it('asks for a print shop’s crop marks when the manager does, and names the file for them', async () => {
+    const { portal, make, rendered } = await setup()
+
+    const file = await make(
+      tents(portal.id, {
+        piece: 'counter',
+        orientation: 'upright',
+        printer: 'print_shop',
+        cropMarks: true,
+      }),
+      buildTestAuthContext(),
+    )
+
+    expect(rendered[0]?.shop).toEqual({ cropMarks: true })
+    expect(file.fileName).toBe(
+      'reception-counter-cards-upright-en-bg-print-shop-crop-marks-letter.pdf',
+    )
+  })
+
+  it('leaves crop marks to the print shop: office sheets ignore them', async () => {
+    const { portal, make, rendered } = await setup()
+
+    const file = await make(tents(portal.id, { cropMarks: true }), buildTestAuthContext())
+
+    expect(rendered[0]?.shop).toBeUndefined()
+    expect(rendered[0]?.sheets).toBeDefined()
+    expect(file.fileName).toBe('reception-table-tents-wide-en-bg-letter.pdf')
   })
 
   it('hands the renderer the property’s name for a card’s back page, and none otherwise', async () => {
@@ -201,6 +231,7 @@ describe('createPortalPrintFinal', () => {
     )
 
     expect(rendered[0]?.sheets).toBeUndefined()
+    expect(rendered[0]?.shop).toEqual({ cropMarks: false })
     expect(rendered[0]?.back).toEqual({ propertyName: 'The Harbor Hotel' })
   })
 

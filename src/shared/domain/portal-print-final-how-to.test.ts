@@ -231,6 +231,22 @@ describe('printFinalFileName', () => {
     ).toBe('pool-terrace-counter-cards-wide-bg-immersive-print-shop-a4.pdf')
   })
 
+  it('names a print shop’s crop marks, so a file with them and one without differ', () => {
+    const shop = { ...tents, piece: 'counter', printer: 'print_shop' } as const
+    expect(printFinalFileName('Reception', { ...shop, cropMarks: true })).toBe(
+      'reception-counter-cards-wide-en-es-print-shop-crop-marks-letter.pdf',
+    )
+    expect(printFinalFileName('Reception', { ...shop, cropMarks: false })).toBe(
+      printFinalFileName('Reception', shop),
+    )
+  })
+
+  it('does not name crop marks the manager’s own printer ignores', () => {
+    expect(printFinalFileName('Reception', { ...tents, cropMarks: true })).toBe(
+      printFinalFileName('Reception', tents),
+    )
+  })
+
   it('titles the document by the portal and the piece', () => {
     expect(printFinalDocumentTitle('Reception', 'small')).toBe('Reception small cards')
   })

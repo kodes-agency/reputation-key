@@ -43,6 +43,8 @@ export type PrintFinalDescribed = Readonly<{
   languages: readonly GuestLocale[]
   /** The optional back page (cards only); off when absent. */
   backPage?: boolean
+  /** A print shop's crop marks (More options); off when absent, and ignored from the manager's own printer. */
+  cropMarks?: boolean
 }>
 
 type SheetKey = Pick<PrintFinalDescribed, 'piece' | 'orientation' | 'look' | 'paper'>
@@ -254,9 +256,9 @@ const FILE_PIECES: Readonly<Record<PrintFinalPiece, string>> = {
 
 /**
  * `reception-table-tents-wide-en-es-letter.pdf`: the portal, the piece and its
- * orientation, the languages in print order, then Immersive, a print shop and
- * a back page when chosen, and the paper. Two downloads that differ in any choice do not
- * share a name.
+ * orientation, the languages in print order, then Immersive, a print shop (and
+ * its crop marks) and a back page when chosen, and the paper. Two downloads that
+ * differ in any choice do not share a name.
  */
 export function printFinalFileName(
   portalName: string,
@@ -269,7 +271,9 @@ export function printFinalFileName(
       print.orientation,
       ...print.languages,
       ...(print.look === 'immersive' ? ['immersive'] : []),
-      ...(print.printer === 'print_shop' ? ['print-shop'] : []),
+      ...(print.printer === 'print_shop'
+        ? ['print-shop', ...(print.cropMarks === true ? ['crop-marks'] : [])]
+        : []),
       ...(print.backPage === true ? ['back'] : []),
       print.paper,
     ].join('-') + '.pdf'
