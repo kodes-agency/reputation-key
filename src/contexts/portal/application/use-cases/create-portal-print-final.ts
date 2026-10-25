@@ -39,6 +39,7 @@ import {
 } from '#/shared/domain/portal-print-final-how-to'
 import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import {
+  printFinalOwnWordsToSend,
   printFinalWordsHeldLanguage,
   type PrintFinalWordsChoice,
 } from '#/shared/domain/portal-print-final-custom'
@@ -133,16 +134,26 @@ async function choiceOf(
   }
 }
 
-/** Draws the print, turning a refusal into a Portal error. */
+/**
+ * Draws the print, turning a refusal into a Portal error. Words the face cannot
+ * hold are the manager's to shorten when they wrote them (`shorten_to_fit`), and
+ * the wording's to change when they picked it (`words_do_not_fit`), as Share says.
+ */
 async function renderOrRefuse(
   renderer: PortalPrintFinalRenderer,
   input: PrintFinalRenderInput,
+  ownWords: boolean,
 ): Promise<Uint8Array> {
   try {
     return await renderer.render(input)
   } catch (error) {
-    if (error instanceof PrintFinalRenderRefusal) throw refusalError(error.refusal)
-    throw error
+    if (!(error instanceof PrintFinalRenderRefusal)) throw error
+    const { refusal } = error
+    throw refusalError(
+      ownWords && refusal.code === 'words_do_not_fit'
+        ? { code: 'shorten_to_fit' }
+        : refusal,
+    )
   }
 }
 
@@ -182,40 +193,44 @@ export const createPortalPrintFinal =
 
     const cropMarks = input.cropMarks ?? false
     const print = { ...choice, languages: input.languages, cropMarks }
-    const pdf = await renderOrRefuse(deps.renderer, {
-      title: printFinalDocumentTitle(context.portalName, choice.piece),
-      face: {
-        piece: choice.piece,
-        orientation: choice.orientation,
-        look: choice.look,
-        region: printFinalRegionOf(choice.paper),
+    const pdf = await renderOrRefuse(
+      deps.renderer,
+      {
+        title: printFinalDocumentTitle(context.portalName, choice.piece),
+        face: {
+          piece: choice.piece,
+          orientation: choice.orientation,
+          look: choice.look,
+          region: printFinalRegionOf(choice.paper),
+        },
+        blocks: printFinalBlocks(
+          input.languages,
+          words,
+          context.titles,
+          context.portalName,
+        ),
+        wordmark: context.look.wordmark,
+        logo: pictures.logo,
+        accentColour: context.look.accentColour,
+        fieldColour: context.look.fieldColour,
+        photo: pictures.photo,
+        qrAddress: pictures.qrAddress,
+        address: printAddressShape(pictures.qrAddress),
+        ...(choice.backPage === true
+          ? { back: { propertyName: context.look.propertyName } }
+          : {}),
+        ...(choice.printer === 'my_printer'
+          ? {
+              sheets: {
+                quantity: choice.quantity,
+                fillSpares: input.fillSpares ?? false,
+                perSheet: choice.perSheet,
+              },
+            }
+          : { shop: { cropMarks } }),
       },
-      blocks: printFinalBlocks(
-        input.languages,
-        words,
-        context.titles,
-        context.portalName,
-      ),
-      wordmark: context.look.wordmark,
-      logo: pictures.logo,
-      accentColour: context.look.accentColour,
-      fieldColour: context.look.fieldColour,
-      photo: pictures.photo,
-      qrAddress: pictures.qrAddress,
-      address: printAddressShape(pictures.qrAddress),
-      ...(choice.backPage === true
-        ? { back: { propertyName: context.look.propertyName } }
-        : {}),
-      ...(choice.printer === 'my_printer'
-        ? {
-            sheets: {
-              quantity: choice.quantity,
-              fillSpares: input.fillSpares ?? false,
-              perSheet: choice.perSheet,
-            },
-          }
-        : { shop: { cropMarks } }),
-    })
+      printFinalOwnWordsToSend(words, input.languages) !== null,
+    )
     await rememberLastPrint(deps, {
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,

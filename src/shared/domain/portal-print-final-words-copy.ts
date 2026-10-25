@@ -76,12 +76,12 @@ const otherOf = (orientation: PrintFinalOrientation): PrintFinalOrientation =>
 const capitalised = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
 /** 16.5, 19: a size as the boards print it. */
-export const printFinalPtLabel = (pt: number): string => String(Number(pt.toFixed(1)))
+const printFinalPtLabel = (pt: number): string => String(Number(pt.toFixed(1)))
 
 const languageName = (locale: GuestLocale) => GUEST_LOCALE_METADATA[locale].nativeName
 
 /** "upright Paper tents": the print a wording is checked against. */
-export const printFinalPrintWords = (
+const printFinalPrintWords = (
   face: Pick<PrintFinalFace, 'piece' | 'orientation' | 'look'>,
 ): string =>
   `${face.orientation} ${LOOK_WORDS[face.look]} ${PIECE_WORDS[face.piece].many}`

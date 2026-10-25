@@ -102,6 +102,14 @@ export function usePrintFinalWords(input: Input) {
     return printFinalMenuRows(face, languages, blocksOf, layoutFor)
   }, [face, languages, view, layoutFor])
   const words = print?.words
+  // What the face says, as the preview draws it: the words as typed, not as settled.
+  const blocks = useMemo(
+    () =>
+      view === null || languages === undefined || words === undefined
+        ? []
+        : printFinalBlocks(languages, words, view.titles, view.portalName),
+    [view, languages, words],
+  )
   const isOwn = words?.custom != null
   const settledWords = useSettled(words, FIT_DEBOUNCE_MS)
   const own: PrintFinalOwnFit | null = usePrintFinalOwnFit({
@@ -121,6 +129,7 @@ export function usePrintFinalWords(input: Input) {
         )
       : null
   return {
+    blocks,
     menu,
     /** No wording fits the print: the menu says so once, and "Write your own…" stays open. */
     noWordingFits: menu.length > 0 && menu.every((row) => row.state !== 'fits'),

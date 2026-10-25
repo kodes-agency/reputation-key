@@ -34,6 +34,7 @@ import {
 } from '#/shared/domain/portal-print-final-share'
 import { Step } from './portal-print-final-choices'
 import { PrintFinalCtaSelect } from './print-final-cta-select'
+import { PrintFinalOwnWords } from './print-final-own-words'
 import type { PrintFinalSharePrint } from './print-final-state'
 import type { PrintFinalState } from './use-print-final'
 
@@ -225,6 +226,7 @@ export function PrintFinalWordsStep(props: StepProps) {
         description={`Up to two, the first larger.${print.piece === 'tent' ? ' Both faces of a tent show both.' : ''}`}
       />
       <PrintFinalCtaSelect words={final.words} print={print} />
+      {final.words.isOwn && <PrintFinalOwnWords words={final.words} print={print} />}
       <MoreOptions {...props} />
     </Step>
   )

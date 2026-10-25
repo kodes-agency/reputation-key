@@ -66,9 +66,7 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     unavailableReason: blocked ?? printKit.refusal,
     isFinal: final.isFinal,
     final: final.state,
-    // The words come last: a print the kit cannot make says so before its words do.
-    finalUnavailableReason:
-      blocked ?? final.state.refusal ?? final.state.words.block?.note ?? null,
+    finalUnavailableReason: blocked ?? final.state.refusal,
   }
 }
 

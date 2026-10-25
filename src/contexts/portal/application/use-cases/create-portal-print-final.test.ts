@@ -477,4 +477,28 @@ describe('createPortalPrintFinal', () => {
       ['Оценете посещението си', 'Около 30 секунди'],
     ])
   })
+
+  it('asks the manager to shorten their own words when the face cannot hold them', async () => {
+    const { portal, make } = await setup({
+      refuse: new PrintFinalRenderRefusal({ code: 'words_do_not_fit', moduleMm: null }),
+    })
+
+    await expect(
+      make(
+        tents(portal.id, {
+          customWords: {
+            en: {
+              headline: 'Tell us how your visit went today, in a few taps',
+              subline: '',
+            },
+          },
+        }),
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      message: PRINT_FINAL_REFUSAL_COPY.shorten_to_fit,
+      context: { cause: 'shorten_to_fit' },
+    })
+  })
 })
