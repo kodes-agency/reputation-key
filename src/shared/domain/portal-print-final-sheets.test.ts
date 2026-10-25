@@ -19,7 +19,7 @@ import {
   printFinalPaperSheet,
   printFinalSheetCuts,
   printFinalSheetFills,
-  type PrintFinalPaperSheet,
+  type PrintFinalSheet,
   type PrintFinalSheetPlacement,
 } from './portal-print-final-sheets'
 import type { PrintKitPaper } from './portal-print-kit'
@@ -47,8 +47,8 @@ const near = (actual: number, expected: number, tolerance = TOLERANCE_IN) =>
 
 const sheetOf = (layout: Layout) =>
   printFinalPaperSheet({
-    piece: layout.piece as PrintFinalPaperSheet['piece'],
-    orientation: layout.orientation as PrintFinalPaperSheet['orientation'],
+    piece: layout.piece as PrintFinalSheet['piece'],
+    orientation: layout.orientation as PrintFinalSheet['orientation'],
     paper: layout.paper as PrintKitPaper,
   })
 
@@ -202,7 +202,7 @@ const turnedPoint = (
 
 /** How far a box, in the face's own frame, lies from the paper's short and long edges once the face is placed. */
 function edgeDistancesIn(
-  sheet: PrintFinalPaperSheet,
+  sheet: PrintFinalSheet,
   placement: PrintFinalSheetPlacement,
   box: Readonly<{ left: number; top: number; right: number; bottom: number }>,
 ) {
@@ -220,7 +220,7 @@ function edgeDistancesIn(
   }
 }
 
-const faceOf = (sheet: PrintFinalPaperSheet): PrintFinalFace => ({
+const faceOf = (sheet: PrintFinalSheet): PrintFinalFace => ({
   piece: sheet.piece,
   orientation: sheet.orientation,
   look: 'paper',
@@ -229,7 +229,7 @@ const faceOf = (sheet: PrintFinalPaperSheet): PrintFinalFace => ({
 
 /** The closest any placed face's box comes to the paper's short edge and long edge. */
 function closest(
-  sheet: PrintFinalPaperSheet,
+  sheet: PrintFinalSheet,
   boxOf: (
     area: ReturnType<typeof printFinalLiveArea>,
   ) => Readonly<{ left: number; top: number; right: number; bottom: number }>,

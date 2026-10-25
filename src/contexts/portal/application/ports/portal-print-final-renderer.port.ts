@@ -1,13 +1,13 @@
 // Portal context — makes the final print kit's PDF (final design spec, slices 3
-// to 5).
+// to 6).
 //
 // The final kit lives beside today's (`portal-print-kit-renderer.port.ts`) and
 // replaces none of it: only where PRINT_KIT_FINAL_ENABLED is on does the Share
 // tab ask for it. It prints single pieces, one face per page, in Paper or
-// Immersive, and Paper office sheets (several pieces to a sheet) when `sheets`
-// is given; Immersive office sheets and the print-shop page come later. As with
-// today's kit, nothing in the input is a URL: the logo and the photo are bytes
-// already read from Portal media.
+// Immersive, and office sheets (several pieces to a sheet, each Immersive piece
+// with its own bleed and crop marks) when `sheets` is given; the print-shop page
+// comes later. As with today's kit, nothing in the input is a URL: the logo and
+// the photo are bytes already read from Portal media.
 
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import type {

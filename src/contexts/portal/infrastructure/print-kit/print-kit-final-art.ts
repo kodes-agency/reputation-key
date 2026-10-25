@@ -101,7 +101,19 @@ export type FinalArtImages = Readonly<{
   /** The photo cropped to the art's cover box, its fade already its soft mask; null with no photo. */
   photo: PdfRasterImage | null
   grain: PdfRasterImage
+  /** One per scrim of the art, in order: the scrim ink under its ramps. */
+  scrims: readonly PdfRasterImage[]
 }>
+
+/** The scrims' images, made once however many times the art is drawn. */
+export function scrimImages(
+  doc: PDFKit.PDFDocument,
+  art: PrintFinalArt,
+): readonly PdfRasterImage[] {
+  return art.scrims.map((scrim) =>
+    maskedColour(doc, PRINT_FINAL_SCRIM_INK, rampMask(doc, scrim.ramps, scrim.box)),
+  )
+}
 
 function drawGrain(doc: PDFKit.PDFDocument, art: PrintFinalArt, grain: PdfRasterImage) {
   const area = art.groundBox
@@ -137,13 +149,10 @@ export function drawFinalArt(
     drawRaster(doc, images.photo, art.photo.cover)
     doc.restore()
   }
-  for (const scrim of art.scrims) {
-    drawRaster(
-      doc,
-      maskedColour(doc, PRINT_FINAL_SCRIM_INK, rampMask(doc, scrim.ramps, scrim.box)),
-      scrim.box,
-    )
-  }
+  art.scrims.forEach((scrim, index) => {
+    const image = images.scrims[index]
+    if (image !== undefined) drawRaster(doc, image, scrim.box)
+  })
   if (art.arch !== null) drawArch(doc, art.arch)
   drawGrain(doc, art, images.grain)
   if (art.foldStrip !== null) rect(doc, art.foldStrip.box).fill(art.foldStrip.colour)

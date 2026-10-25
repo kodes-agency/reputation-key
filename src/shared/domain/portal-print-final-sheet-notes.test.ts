@@ -7,10 +7,7 @@ import {
 } from './portal-print-final-sheet-notes'
 import { printFinalSheetMarks } from './portal-print-final-sheet-marks'
 import { inPt, mmPt, PRINT_FINAL_MEASURES } from './portal-print-final-measures'
-import {
-  printFinalPaperSheet,
-  type PrintFinalPaperSheet,
-} from './portal-print-final-sheets'
+import { printFinalPaperSheet, type PrintFinalSheet } from './portal-print-final-sheets'
 
 // The printed note of the Paper sheets (§10.1): its boxes against the generator's,
 // and where it may sit: clear of every piece, tick and fold mark, 0.27 in from
@@ -18,17 +15,17 @@ import {
 
 type Layout = (typeof sheets.layouts)[number]
 
-const sheetOf = (layout: Layout): PrintFinalPaperSheet =>
+const sheetOf = (layout: Layout): PrintFinalSheet =>
   printFinalPaperSheet({
-    piece: layout.piece as PrintFinalPaperSheet['piece'],
-    orientation: layout.orientation as PrintFinalPaperSheet['orientation'],
-    paper: layout.paper as PrintFinalPaperSheet['paper'],
+    piece: layout.piece as PrintFinalSheet['piece'],
+    orientation: layout.orientation as PrintFinalSheet['orientation'],
+    paper: layout.paper as PrintFinalSheet['paper'],
   })
 
-const nameOf = (sheet: PrintFinalPaperSheet) =>
+const nameOf = (sheet: PrintFinalSheet) =>
   `${sheet.piece} ${sheet.orientation} on ${sheet.paper}`
 
-const tileOf = (sheet: PrintFinalPaperSheet) =>
+const tileOf = (sheet: PrintFinalSheet) =>
   PRINT_FINAL_MEASURES[sheet.paper === 'letter' ? 'us' : 'eu'][sheet.piece].tilePt
 
 const inches = (pt: number) => pt / 72
@@ -139,9 +136,9 @@ describe('the Paper sheets’ notes', () => {
 
 describe('the notes’ copy', () => {
   const textsOf = (
-    piece: PrintFinalPaperSheet['piece'],
-    orientation: PrintFinalPaperSheet['orientation'],
-    paper: PrintFinalPaperSheet['paper'],
+    piece: PrintFinalSheet['piece'],
+    orientation: PrintFinalSheet['orientation'],
+    paper: PrintFinalSheet['paper'],
     tilePt?: number,
   ) => {
     const sheet = printFinalPaperSheet({ piece, orientation, paper })
@@ -184,8 +181,8 @@ describe('the notes’ copy', () => {
 
   describe('on a last sheet with fewer pieces', () => {
     const notesFor = (
-      piece: PrintFinalPaperSheet['piece'],
-      orientation: PrintFinalPaperSheet['orientation'],
+      piece: PrintFinalSheet['piece'],
+      orientation: PrintFinalSheet['orientation'],
       pieces: number,
     ) => {
       const sheet = printFinalPaperSheet({ piece, orientation, paper: 'letter' })

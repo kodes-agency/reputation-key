@@ -1,21 +1,24 @@
-// The final Paper office sheets in the PDF (final design spec §10.1 and §10.2):
-// each page is the paper, turned to landscape where the piece turns it, with the
+// The final office sheets in the PDF (final design spec §10.1 and §10.2): each
+// page is the paper, turned to landscape where the piece turns it, with the
 // pieces drawn in their cells from the geometry the Share tab's preview reads
-// (`portal-print-final-sheets.ts`): a card upright in its cell, or a quarter
-// turn across it; a tent flat with the back face upside down above the fold.
-// Then the sheet's own marks, grey ticks and dashed fold marks, and the printed
-// note where there is free paper for one.
+// (`portal-print-final-sheets.ts`, `portal-print-final-immersive-sheets.ts`): a
+// card upright in its cell, or a quarter turn across it; a tent flat with the
+// back face upside down above the fold. Then the sheet's own marks (Paper's grey
+// ticks, Immersive's black crop marks, and the dashed fold marks), and the
+// printed note where there is free paper for one.
 //
 // Every face is the same face, laid out once and drawn wherever the sheet puts
-// it, clipped to its trim so nothing of one card prints on its neighbour. Only
-// the pieces asked for are drawn (exact N); the cells past them stay blank,
-// unless the last sheet is filled with spares, and their marks are left out.
+// it, clipped to its trim (an Immersive piece's to its trim and bleed) so
+// nothing of one card prints on its neighbour. Only the pieces asked for are
+// drawn (exact N); the cells past them stay blank, unless the last sheet is
+// filled with spares, and their marks are left out.
 //
 // A sheet with no note has no free paper to say "print at Actual size", so its
 // PDF asks the print dialog for it instead: `PrintScaling /None`.
 
 import {
   PRINT_FINAL_SHEET_MARKS,
+  printFinalMarkColour,
   printFinalSheetMarks,
   printFinalTickRect,
   type PrintFinalSheetMark,
@@ -28,7 +31,7 @@ import {
 import {
   printFinalCellPlacements,
   printFinalSheetFills,
-  type PrintFinalPaperSheet,
+  type PrintFinalSheet,
   type PrintFinalSheetPlacement,
 } from '#/shared/domain/portal-print-final-sheets'
 import { fillWords } from '#/shared/domain/portal-print-kit-text'
@@ -40,8 +43,8 @@ import {
   type PrintKitFonts,
 } from './print-kit-pdf-text'
 
-export type FinalPaperSheetsInput = Readonly<{
-  sheet: PrintFinalPaperSheet
+export type FinalSheetsInput = Readonly<{
+  sheet: PrintFinalSheet
   /** The face every cell holds, laid out once. */
   face: FinalPreparedFace
   /** The code's cream square as printed: the note names its size. */
@@ -50,13 +53,14 @@ export type FinalPaperSheetsInput = Readonly<{
   pieceCount: number
 }>
 
-/** A face drawn in its place: turned as the placement says, and clipped to its trim. */
+/** A face drawn in its place: turned as the placement says, and clipped to its trim and bleed. */
 function drawPlaced(
   doc: PDFKit.PDFDocument,
   face: FinalPreparedFace,
   placement: PrintFinalSheetPlacement,
 ): void {
   const { leftPt, topPt, widthPt, heightPt, turnDeg } = placement
+  const { bleed } = face
   const { widthPt: trimWidth, heightPt: trimHeight } = face.layout.plan
   doc.save()
   if (turnDeg === -90) {
@@ -67,14 +71,25 @@ function drawPlaced(
   } else {
     doc.translate(leftPt, topPt)
   }
-  doc.rect(0, 0, trimWidth, trimHeight).clip()
+  doc
+    .rect(
+      0 - bleed.leftPt,
+      0 - bleed.topPt,
+      trimWidth + bleed.leftPt + bleed.rightPt,
+      trimHeight + bleed.topPt + bleed.bottomPt,
+    )
+    .clip()
   face.draw()
   doc.restore()
 }
 
 /** The ticks as filled rectangles, so their weight is exact at any zoom; the fold marks dashed. */
-function drawMarks(doc: PDFKit.PDFDocument, marks: readonly PrintFinalSheetMark[]): void {
-  const { colour, foldWeightPt, foldDashPt } = PRINT_FINAL_SHEET_MARKS
+function drawMarks(
+  doc: PDFKit.PDFDocument,
+  colour: string,
+  marks: readonly PrintFinalSheetMark[],
+): void {
+  const { foldWeightPt, foldDashPt } = PRINT_FINAL_SHEET_MARKS
   const ticks = marks.filter((mark) => mark.kind !== 'fold')
   const folds = marks.filter((mark) => mark.kind === 'fold')
   if (ticks.length > 0) {
@@ -159,12 +174,13 @@ function askForActualSize(doc: PDFKit.PDFDocument): void {
 }
 
 /** Adds the sheets a count takes to the document, one page each. */
-export function drawFinalPaperSheets(
+export function drawFinalSheets(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
-  input: FinalPaperSheetsInput,
+  input: FinalSheetsInput,
 ): void {
   const { sheet, face, tilePt, pieceCount } = input
+  const colour = printFinalMarkColour(sheet.look)
   const hasNote = printFinalSheetNotes(sheet, tilePt).length > 0
   for (const filled of printFinalSheetFills(sheet.cells.length, pieceCount)) {
     const cells = sheet.cells.slice(0, filled)
@@ -174,7 +190,7 @@ export function drawFinalPaperSheets(
         drawPlaced(doc, face, placement)
       }
     }
-    drawMarks(doc, printFinalSheetMarks(sheet, cells))
+    drawMarks(doc, colour, printFinalSheetMarks(sheet, cells))
     for (const note of printFinalSheetNotes(sheet, tilePt, cells)) {
       drawNote(doc, fonts, note)
     }

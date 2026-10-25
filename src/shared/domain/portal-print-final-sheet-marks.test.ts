@@ -8,7 +8,7 @@ import {
 } from './portal-print-final-sheet-marks'
 import {
   printFinalPaperSheet,
-  type PrintFinalPaperSheet,
+  type PrintFinalSheet,
   type PrintFinalSheetCell,
 } from './portal-print-final-sheets'
 import { inPt, mmPt } from './portal-print-final-measures'
@@ -24,15 +24,15 @@ const inches = (pt: number) => pt / 72
 const near = (actual: number, expected: number) =>
   expect(Math.abs(actual - expected)).toBeLessThanOrEqual(0.001)
 
-const sheetOf = (layout: Layout): PrintFinalPaperSheet =>
+const sheetOf = (layout: Layout): PrintFinalSheet =>
   printFinalPaperSheet({
-    piece: layout.piece as PrintFinalPaperSheet['piece'],
-    orientation: layout.orientation as PrintFinalPaperSheet['orientation'],
-    paper: layout.paper as PrintFinalPaperSheet['paper'],
+    piece: layout.piece as PrintFinalSheet['piece'],
+    orientation: layout.orientation as PrintFinalSheet['orientation'],
+    paper: layout.paper as PrintFinalSheet['paper'],
   })
 
 const SHEETS = sheets.layouts.map(sheetOf)
-const nameOf = (sheet: PrintFinalPaperSheet) =>
+const nameOf = (sheet: PrintFinalSheet) =>
   `${sheet.piece} ${sheet.orientation} on ${sheet.paper}`
 
 const sortedByPlace = (marks: readonly PrintFinalSheetMark[]) =>
@@ -82,7 +82,7 @@ describe('the Paper sheets’ marks against the generator', () => {
   )
 })
 
-const everyFill = (sheet: PrintFinalPaperSheet) =>
+const everyFill = (sheet: PrintFinalSheet) =>
   sheet.cells.map((_, index) => sheet.cells.slice(0, index + 1))
 
 const cellBox = (cell: PrintFinalSheetCell) => ({

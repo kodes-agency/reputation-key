@@ -9,11 +9,15 @@ import type { PrintFinalTile } from '#/shared/domain/portal-print-final-code'
 import type { PrintFinalFaceLayout } from '#/shared/domain/portal-print-final-face'
 import { printFinalFramingOf } from '#/shared/domain/portal-print-final-framing'
 import {
+  PRINT_FINAL_NO_BLEED,
+  type PrintFinalBleed,
+} from '#/shared/domain/portal-print-final-layers'
+import {
   layoutPrintFinalImmersiveFace,
   type PrintFinalImmersiveBrand,
   type PrintFinalImmersiveFace,
 } from '#/shared/domain/portal-print-final-immersive-face'
-import { drawFinalArt, grainTile } from './print-kit-final-art'
+import { drawFinalArt, grainTile, scrimImages } from './print-kit-final-art'
 import {
   drawFinalFace,
   finalLogoInkSize,
@@ -26,6 +30,8 @@ import type { QrMatrix } from './print-kit-qr'
 
 export type FinalPreparedFace = Readonly<{
   layout: PrintFinalFaceLayout
+  /** How far its art runs past each trim edge: none on a lone piece, the bleed on an Immersive sheet's. */
+  bleed: PrintFinalBleed
   /** Draws the face on the current page. */
   draw: () => void
 }>
@@ -35,6 +41,8 @@ type Common = Readonly<{
   tile: PrintFinalTile
   qr: QrMatrix
   logo: FinalFaceLogo | null
+  /** The bleed its art runs into; none by default. */
+  bleed?: PrintFinalBleed
 }>
 
 async function brandOf(common: Common): Promise<PrintFinalImmersiveBrand> {
@@ -55,6 +63,7 @@ export async function prepareFinalImmersiveFace(
   common: Common,
 ): Promise<FinalPreparedFace & Readonly<{ immersive: PrintFinalImmersiveFace }>> {
   const { input, tile, qr, logo } = common
+  const bleed = common.bleed ?? PRINT_FINAL_NO_BLEED
   const framing = printFinalFramingOf(input.framings, input.face)
   const scene = input.photo === null ? null : await finalScenePhoto(input.photo, framing)
   const immersive = layoutPrintFinalImmersiveFace({
@@ -66,17 +75,21 @@ export async function prepareFinalImmersiveFace(
     accentColour: input.accentColour,
     fieldColour: input.fieldColour,
     photo: scene,
+    bleed,
   })
   const { art } = immersive
   const photo =
     scene === null || art.photo === null || input.photo === null
       ? null
       : await finalPhotoImage(doc, input.photo.bytes, scene, art.photo)
+  // A sheet draws one face many times: its images are made once.
+  const images = { photo, grain: grainTile(doc), scrims: scrimImages(doc, art) }
   return {
     layout: immersive.layout,
+    bleed,
     immersive,
     draw: () => {
-      drawFinalArt(doc, art, { photo, grain: grainTile(doc) })
+      drawFinalArt(doc, art, images)
       drawFinalFace(doc, fonts, immersive.layout, {
         colours: immersive.colours,
         qr,
