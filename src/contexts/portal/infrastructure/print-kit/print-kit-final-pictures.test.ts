@@ -133,7 +133,7 @@ describe('finalScenePhoto', () => {
         { bytes: new Uint8Array([1, 2, 3]), focalX: 0.5, focalY: 0.5 },
         framing,
       ),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/unsupported image format/)
   })
 })
 
