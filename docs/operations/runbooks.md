@@ -290,7 +290,7 @@ SELECT listing_complete, count(*), max(evaluated_at)
 
 **Reading it.** The worker log line `Review snapshot failed; the next retry is backed off` (`event: review_snapshot_failure_deferred`) carries `failureCode` and `retryAfterMs`, with no Property id. A Property that failed three attempts of one job in a minute is one failure, not three: a failure that lands before the previous retry date keeps the previous wait.
 
-**A retried step (`run_already_failed`).** A snapshot step carries the id of its run. The step that fails the run throws once, dates the backoff above and logs `review_snapshot_failure_deferred`. BullMQ then retries that job, and the retry (like a redrive of a dead letter left from before this behaviour) finds the run `failed`. It does nothing and ends as a returned outcome `{ status: 'skipped', code: 'run_already_failed' }` with one worker warning, `review_sync_skipped_run_already_failed` (`failureCode` is the run's code; no Property or run id, because the log schema bans them). No further retry is spent, nothing is dead-lettered, `worker.job-runtime-unready` does not latch, and `review_sync_state` is untouched, so the retry neither moves `error_retry_at` nor climbs the ladder. A run lost as `cursor_lost` or `listing_changed` is the exception: its replay still queues the fresh run, because the step that lost it may have died before queueing one. A failure of a step that continues a run therefore ends with its retry instead of exhausting the job, so it produces no Sentry event and no quarantine entry; it shows as the `job failed` error line, the deferral warning and `sync.failed-nonzero` once its retry is due. The first step of a run has no run id: its retry starts a new run, which can fail on its own, and three failed attempts still end in a dead letter and a Sentry event. Before this behaviour (until the release that carries it) each retry of a continuation step threw the old failure again, which dead-lettered the job (§30, 2026-10-24).
+**A step that finds its run failed (`run_already_failed`).** A snapshot step carries the id of its run. The step that continues a run and fails it records the failure and dates the backoff above, logs `review_snapshot_failure_deferred`, and throws a terminal error: the store ended the run before the throw, so no retry could continue it. The error is named `UnrecoverableError` (its `failure_code` tag and message carry the code), so BullMQ spends no retry on it and the worker treats the first attempt as terminal. The failure is captured in Sentry, the job is dead-lettered and `worker.job-runtime-unready` latches at once, as three failed attempts used to do. Redrive that dead letter (§14): the step finds the run `failed`, does nothing and ends as a returned outcome `{ status: 'skipped', code: 'run_already_failed' }` with one worker warning, `review_sync_skipped_run_already_failed` (`failureCode` is the run's code; no Property or run id, because the log schema bans them). The same end awaits any other step that finds its run failed (a job the queue retries after its worker died, a continuation queued before the run ended). No retry is spent, nothing is dead-lettered, the latch is not set, and a successful redrive answers it (§17). `review_sync_state` is untouched, so the replay neither moves `error_retry_at` nor climbs the ladder, with one exception: when the step that failed the run died before it dated the failure (the cursor store was down while it discarded the cursors, the worker restarted), the Property holds no failure at or after the run's end, and the replay records it once with the backoff the failing step would have dated and the same deferral warning. A failure already recorded, or one a later success has cleared, is never recorded again. A run lost as `cursor_lost` or `listing_changed` is the other exception: its replay still queues the fresh run, because the step that lost it may have died before queueing one. The first step of a run has no run id: its retry starts a new run, which can fail on its own, and three failed attempts end in a dead letter and a Sentry event (`ReviewProviderSnapshotFailure`). Before this behaviour (until the release that carries it) each retry of a continuation step threw the old failure again, which pushed the backoff out and left a dead letter no redrive could clear (§30, 2026-10-24).
 
 **Retry sooner.** Fix the cause first. The sweep takes a failed Property at its retry date. To retry earlier, set `next_incremental_at` and `error_retry_at` of that `review_sync_state` row to now in an operator session; leave `error_class` in place, because a completed run clears it and the alert reads it. `ops:refresh reviews` does not do this: it reruns the hourly content refresh below, which moves only Properties with reviews about to expire and never one still inside its backoff.
 
@@ -480,7 +480,9 @@ or chat transcript.
      it is raised from. `ReviewProviderSnapshotFailure` reads
      `failure_code=authorization_denied`, `provider_failure`, `malformed_page`
      and so on (`ReviewProviderSnapshotFailureCode`), the same value as
-     `review_provider_snapshot_runs.failure_code`.
+     `review_provider_snapshot_runs.failure_code`. A sync step that continues a
+     run and fails it reports the same tag under the type `UnrecoverableError`
+     (§13).
    - `db_code`, `db_constraint`, `db_table`, `db_column`: a Postgres refusal's
      SQLSTATE and schema names, never its values.
    - `error_kind`: `chunk_load` (a code file the tab asked for is gone, often
@@ -2101,24 +2103,26 @@ Run it at a quiet hour.
    and every redrive re-read the failed run and failed the job at once, each
    attempt pushing the Property's backoff further (15 min, then 1 h), until the
    job was a dead letter no redrive could clear. Since that release (§13,
-   `run_already_failed`) only the step that fails a run fails its job. Its
-   retries, and a redrive of its dead letter, find the run `failed` and end as
+   `run_already_failed`) only the step that fails a run fails its job, and it
+   fails for good on its first attempt. Any later attempt, and a redrive of its
+   dead letter, find the run `failed` and end as
    `{ status: 'skipped', code: 'run_already_failed' }`: no throw, no new
    backoff. So:
-   - With the release live, the one failed step is the whole incident: its
-     retry ends quietly, so no dead letter and no repair latch follow. A dead
-     letter left from before the release is redriven
+   - With the release live, the failed step is one loud incident: Sentry,
+     `queue.quarantine-nonempty` and the repair latch (`worker.job-runtime-unready`)
+     fire once, and a dead letter is left. Redrive it
      (`pnpm ops quarantine redrive <id> ... --apply`, §14). It completes
-     quietly, and a successful redrive answers `worker.job-runtime-unready` (§17).
+     quietly, and a successful redrive answers `worker.job-runtime-unready`
+     (§17). A dead letter left from before the release is redriven the same way.
    - Without it, do not redrive it. Discard it and acknowledge the repair:
      `pnpm ops quarantine discard <id> ... --apply --yes ops:quarantine`, then
      `pnpm ops jobs acknowledge-repair sync-property-reviews ... --apply`.
 
    The next discovery starts a fresh run once the backoff passes. The
-   `queue.quarantine-nonempty` and `worker.job-runtime-unready` alerts, when a
-   dead letter exists, clear at the next health check after it is redriven or
-   discarded (and acknowledged); `sync.failed-nonzero` clears when that fresh
-   run completes. To really pause
+   `queue.quarantine-nonempty` and `worker.job-runtime-unready` alerts clear at
+   the next health check after the dead letter is redriven (or, without the
+   release, discarded and acknowledged); `sync.failed-nonzero` clears when that
+   fresh run completes. To really pause
    the worker, stop it from the Railway dashboard. Scaling back with
    `us-west2=1` adds the replica to the current deployment, without a new one.
 

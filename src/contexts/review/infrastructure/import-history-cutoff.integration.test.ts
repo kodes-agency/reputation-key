@@ -509,7 +509,7 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       status: 'failed',
       runId: first.runId,
       code: 'observation_failed',
-      alreadyFailed: true,
+      alreadyFailed: { failedAt: expect.any(Date) },
     })
 
     // The discovery sweep finishes the listing well after the import began.

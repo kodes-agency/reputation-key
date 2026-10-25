@@ -1053,7 +1053,7 @@ describe('runReviewProviderSnapshot', () => {
         status: 'failed',
         runId,
         code: 'listing_changed',
-        alreadyFailed: true,
+        alreadyFailed: { failedAt: null },
       })
 
       expect(deps.repository.applyDeletionBatch).not.toHaveBeenCalled()
@@ -1161,7 +1161,7 @@ describe('runReviewProviderSnapshot', () => {
         status: 'failed',
         runId,
         code: 'listing_changed',
-        alreadyFailed: true,
+        alreadyFailed: { failedAt: null },
       })
 
       expect(deps.googleReviewApi.listReviewsPage).not.toHaveBeenCalled()
@@ -1323,7 +1323,7 @@ describe('runReviewProviderSnapshot', () => {
         status: 'failed',
         runId,
         code: 'observation_failed',
-        alreadyFailed: true,
+        alreadyFailed: { failedAt: null },
       })
       expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledTimes(1)
       expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledWith({
@@ -1355,7 +1355,28 @@ describe('runReviewProviderSnapshot', () => {
         status: 'failed',
         runId,
         code: 'provider_failure',
-        alreadyFailed: true,
+        alreadyFailed: { failedAt: null },
+      })
+    })
+
+    // The caller needs the time to tell a failure the failing step recorded from
+    // one it died before recording.
+    it('carries the time the run failed, so the caller can tell whether the failure was recorded', async () => {
+      const terminalAt = new Date('2026-08-16T00:07:30.000Z')
+      const deps = makeDeps({
+        currentRun: run({
+          state: 'failed',
+          phase: 'terminal',
+          failureCode: 'observation_failed',
+          terminalAt,
+        }),
+      })
+
+      const result = await runReviewProviderSnapshot(deps)({ ...request, runId })
+
+      expect(result).toMatchObject({
+        status: 'failed',
+        alreadyFailed: { failedAt: terminalAt },
       })
     })
 

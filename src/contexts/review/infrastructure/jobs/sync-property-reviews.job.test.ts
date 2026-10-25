@@ -1,5 +1,7 @@
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import type { Job } from 'bullmq'
 import { describe, expect, it, vi } from 'vitest'
+import { isTerminalFailedEvent } from '#/shared/jobs/failure-quarantine'
 import {
   DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
   GBP_PUSH_SYNC_INITIATOR_ID,
@@ -1072,8 +1074,18 @@ describe('sync-property-reviews snapshot handler', () => {
     const STEP = { ...JOB_DATA, runId: RUN_ID }
     const MINUTE_MS = 60 * 1000
 
+    /** When the run failed, as the store dates it: the instant the failing step recorded it. */
+    const RUN_FAILED_AT = NOW
+
+    /** The job as the worker's `failed` event sees it after attempt `made` of three. */
+    const afterAttempt = (made: number) =>
+      ({ attemptsMade: made, opts: { attempts: 3 } }) as Job
+
     const fresh = (code: string) => ({ status: 'failed' as const, runId: RUN_ID, code })
-    const replay = (code: string) => ({ ...fresh(code), alreadyFailed: true as const })
+    const replay = (code: string, failedAt: Date | null = RUN_FAILED_AT) => ({
+      ...fresh(code),
+      alreadyFailed: { failedAt },
+    })
 
     function replayHandler(
       outcomes: readonly unknown[],
@@ -1178,7 +1190,7 @@ describe('sync-property-reviews snapshot handler', () => {
       await expect(
         handler({ id: 'job-incident', data: STEP } as never),
       ).rejects.toMatchObject({
-        name: 'ReviewProviderSnapshotFailure',
+        name: 'UnrecoverableError',
         message: 'observation_failed',
         failureCode: 'observation_failed',
       })
@@ -1220,7 +1232,7 @@ describe('sync-property-reviews snapshot handler', () => {
       await expect(
         handler({ id: 'job-fresh', data: STEP } as never),
       ).rejects.toMatchObject({
-        name: 'ReviewProviderSnapshotFailure',
+        name: 'UnrecoverableError',
         failureCode: 'provider_failure',
       })
 
@@ -1239,6 +1251,165 @@ describe('sync-property-reviews snapshot handler', () => {
         },
         'Review snapshot failed; the next retry is backed off',
       )
+    })
+
+    // BullMQ stops retrying an UnrecoverableError, and the worker's terminal
+    // check is what captures the failure in error monitoring, dead-letters the
+    // job and latches the family's repair state. The run is failed in the store
+    // before the step throws, so no retry could continue it: the failure is
+    // terminal at once, and a redrive of the dead letter ends quietly.
+    it('makes the failure of a step that continues a run terminal on its first attempt', async () => {
+      const { handler } = replayHandler(
+        [fresh('observation_failed')],
+        fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId }),
+      )
+
+      const failure = await handler({ id: 'job-terminal', data: STEP } as never).catch(
+        (err: unknown) => err,
+      )
+
+      expect(isTerminalFailedEvent(afterAttempt(1), failure)).toBe(true)
+    })
+
+    // The first step of a run has no run id: its retry starts a new run, which
+    // can succeed, so it keeps its attempts and is terminal when they are spent.
+    it('keeps the failure of the first step of a run retryable until its attempts are spent', async () => {
+      const { handler } = replayHandler(
+        [fresh('observation_failed')],
+        fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId }),
+      )
+
+      const failure = await handler({
+        id: 'job-first-step',
+        data: JOB_DATA,
+      } as never).catch((err: unknown) => err)
+
+      expect(failure).toMatchObject({
+        name: 'ReviewProviderSnapshotFailure',
+        failureCode: 'observation_failed',
+      })
+      expect(isTerminalFailedEvent(afterAttempt(1), failure)).toBe(false)
+      expect(isTerminalFailedEvent(afterAttempt(3), failure)).toBe(true)
+    })
+
+    // The failing step fails the run first and records the failure second, in
+    // two writes. A worker that dies between them leaves a failed run and no
+    // failure on the Property, and the queue's retry is the only step left that
+    // can record it.
+    describe('and the step that failed it never recorded the failure', () => {
+      it('records the failure once, dates the retry, and still ends quietly', async () => {
+        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const clock = { now: new Date(NOW.getTime() + 30 * 1000) }
+        const { handler, markDeferred, logger } = replayHandler(
+          [replay('observation_failed'), replay('observation_failed')],
+          row,
+          clock,
+        )
+
+        await expect(handler({ id: 'job-died', data: STEP } as never)).resolves.toEqual(
+          SKIPPED,
+        )
+        clock.now = new Date(NOW.getTime() + 60 * 1000)
+        await expect(handler({ id: 'job-died', data: STEP } as never)).resolves.toEqual(
+          SKIPPED,
+        )
+
+        expect(markDeferred).toHaveBeenCalledTimes(1)
+        expect(markDeferred).toHaveBeenCalledWith(
+          JOB_DATA.propertyId,
+          new Date(NOW.getTime() + 30 * 1000),
+          new Date(NOW.getTime() + 30 * 1000 + HOT_INTERVAL_MS),
+          'observation_failed',
+        )
+        expect(row.errorClass).toBe('observation_failed')
+        expect(
+          logger.warn.mock.calls.filter(
+            ([fields]) => fields.event === 'review_snapshot_failure_deferred',
+          ),
+        ).toHaveLength(1)
+      })
+
+      it('records it when the Property holds only an older failure, climbing the ladder', async () => {
+        const olderFailureAt = new Date(NOW.getTime() - 2 * 60 * MINUTE_MS)
+        const row = fakeDiscoveryProperty({
+          propertyId: JOB_DATA.propertyId,
+          errorClass: 'provider_failure',
+          lastFailureAt: olderFailureAt,
+          errorRetryAt: new Date(olderFailureAt.getTime() + HOT_INTERVAL_MS),
+          nextDueAt: new Date(olderFailureAt.getTime() + HOT_INTERVAL_MS),
+        })
+        const { handler, markDeferred } = replayHandler(
+          [replay('observation_failed', new Date(NOW.getTime() - MINUTE_MS))],
+          row,
+        )
+
+        await expect(handler({ id: 'job-older', data: STEP } as never)).resolves.toEqual(
+          SKIPPED,
+        )
+
+        expect(markDeferred).toHaveBeenCalledWith(
+          JOB_DATA.propertyId,
+          NOW,
+          new Date(NOW.getTime() + 4 * HOT_INTERVAL_MS),
+          'observation_failed',
+        )
+      })
+
+      it('parks a location over the cap for a day, as the failing step would have', async () => {
+        const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+        const { handler, markDeferred } = replayHandler(
+          [replay('review_cap_exceeded')],
+          row,
+        )
+
+        await expect(handler({ id: 'job-capped', data: STEP } as never)).resolves.toEqual(
+          SKIPPED,
+        )
+
+        expect(markDeferred).toHaveBeenCalledWith(
+          JOB_DATA.propertyId,
+          NOW,
+          new Date(NOW.getTime() + 24 * 60 * MINUTE_MS),
+          'review_cap_exceeded',
+        )
+      })
+
+      // A dead letter redriven days later, after a run has completed since.
+      it('records nothing for a failure a later success has cleared', async () => {
+        const row = fakeDiscoveryProperty({
+          propertyId: JOB_DATA.propertyId,
+          errorClass: null,
+          lastFailureAt: NOW,
+          errorRetryAt: null,
+        })
+        const { handler, markDeferred } = replayHandler(
+          [replay('observation_failed', new Date(NOW.getTime() - MINUTE_MS))],
+          row,
+        )
+
+        await expect(handler({ id: 'job-late', data: STEP } as never)).resolves.toEqual(
+          SKIPPED,
+        )
+
+        expect(markDeferred).not.toHaveBeenCalled()
+        expect(row.errorClass).toBeNull()
+      })
+
+      it('records nothing when the store has no date for the run and the Property holds a failure', async () => {
+        const row = failedRow()
+        const before = { ...row }
+        const { handler, markDeferred } = replayHandler(
+          [replay('observation_failed', null)],
+          row,
+        )
+
+        await expect(
+          handler({ id: 'job-undated', data: STEP } as never),
+        ).resolves.toEqual(SKIPPED)
+
+        expect(markDeferred).not.toHaveBeenCalled()
+        expect(row).toEqual(before)
+      })
     })
 
     it('leaves a location parked for being over the cap parked', async () => {

@@ -28,8 +28,15 @@ import type {
 } from '../../application/use-cases/run-review-head-check'
 import type { ReviewHeadChecksMode } from '../../domain/head-check'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { snapshotFailureRetryMs } from '../../domain/snapshot-failure-backoff'
-import { ReviewProviderSnapshotFailure } from './review-provider-snapshot-failure'
+import {
+  recordsFailureOfRun,
+  snapshotFailureRetryMs,
+  type PreviousSnapshotFailure,
+} from '../../domain/snapshot-failure-backoff'
+import {
+  ReviewProviderSnapshotFailure,
+  ReviewProviderSnapshotRunFailure,
+} from './review-provider-snapshot-failure'
 
 export const JOB_NAME = 'sync-property-reviews' as const
 
@@ -166,16 +173,33 @@ const SKIPPED_RUN_ALREADY_FAILED = Object.freeze({
  * failed. The step that failed it threw, dated the Property's backoff and
  * logged; this one is that step's BullMQ retry or a redrive of its dead letter,
  * and re-reading a failed run can only fail again. So it returns instead of
- * throwing and records nothing: no retry is spent, nothing is dead-lettered,
- * Sentry sees nothing, the family's repair state is not latched, and the
- * failing step's `error_class` and retry date stand. On the beta on 2026-10-24
- * a VACUUM FULL lock failed one run and every retry of its step failed the job
- * again, pushing the backoff out, until a dead letter no redrive could clear.
- * One warning of closed codes; the log schema (BQC-7.3) bans identifiers.
+ * throwing: no retry is spent, nothing is dead-lettered, Sentry sees nothing for
+ * it, the family's repair state is not latched, and the failing step's
+ * `error_class` and retry date stand. On the beta on 2026-10-24 a VACUUM FULL
+ * lock failed one run and every retry of its step failed the job again, pushing
+ * the backoff out, until a dead letter no redrive could clear. One warning of
+ * closed codes; the log schema (BQC-7.3) bans identifiers.
+ *
+ * One exception, for a failure nobody recorded. The store fails the run first
+ * and the failing step dates the Property's failure second; a worker that died
+ * between the two (a cursor-store fault while discarding the cursors, a restart)
+ * leaves a failed run the Property knows nothing about, and this replay is the
+ * only step left to record it. It does so once, with the same backoff the
+ * failing step would have dated, and still ends quietly
+ * (`recordsFailureOfRun` tells the two cases apart).
  */
-function skipFailedRunReplay(deps: SyncHandlerDeps, result: FailedSnapshotResult) {
+async function skipFailedRunReplay(
+  deps: SyncHandlerDeps,
+  data: SyncPropertyReviewsJobData,
+  code: ReviewProviderSnapshotFailureCode,
+  runFailedAt: Date | null,
+) {
+  const previous = await deps.discoveryRepo.findFailureState(data.propertyId)
+  if (!recordsFailureOfRun(previous, runFailedAt)) {
+    await recordSnapshotFailure(deps, data, code, previous)
+  }
   deps.logger?.warn(
-    { event: 'review_sync_skipped_run_already_failed', failureCode: result.code },
+    { event: 'review_sync_skipped_run_already_failed', failureCode: code },
     'Review sync skipped: the run had already failed',
   )
   return SKIPPED_RUN_ALREADY_FAILED
@@ -362,27 +386,27 @@ function freshRunStep(
 }
 
 /**
- * A step that failed its run: records the failure on the Property's discovery
- * state with a backoff, then fails the job so the queue retries it (a retry
- * ends quietly, see `skipFailedRunReplay`). A location over the cap is parked
- * and the job ends normally.
+ * Dates the failure of a snapshot run on the Property's discovery state, with a
+ * backoff, and logs it. Returns whether the location is over the review or page
+ * cap, which parks it instead of failing the job.
  */
-async function failSnapshotStep(
+async function recordSnapshotFailure(
   deps: SyncHandlerDeps,
   data: SyncPropertyReviewsJobData,
-  result: FailedSnapshotResult,
-) {
+  code: ReviewProviderSnapshotFailureCode,
+  previous: PreviousSnapshotFailure | null,
+): Promise<boolean> {
   const now = deps.clock()
   // A location over the review or page cap fails identically on every run
   // until the cap or the location changes, so it is parked, not retried:
   // the failure is recorded (`error_class`) and the job ends, instead of
   // three attempts and a quarantine entry every discovery interval. The
   // first-import notice tells the owner ("location_too_large").
-  const tooLarge = historyImportFailureReason(result.code) === 'location_too_large'
+  const tooLarge = historyImportFailureReason(code) === 'location_too_large'
   // Any other failure waits longer each time it repeats, so a failure that
   // recurs does not spend a full double listing every 15 minutes.
   const retryAfterMs = snapshotFailureRetryMs({
-    previous: await deps.discoveryRepo.findFailureState(data.propertyId),
+    previous,
     now,
     baseIntervalMs: deps.hotIntervalMs,
     locationTooLarge: tooLarge,
@@ -391,18 +415,40 @@ async function failSnapshotStep(
     data.propertyId,
     now,
     new Date(now.getTime() + retryAfterMs),
-    result.code,
+    code,
   )
   deps.logger?.warn(
     {
       event: 'review_snapshot_failure_deferred',
-      failureCode: result.code,
+      failureCode: code,
       retryAfterMs,
     },
     'Review snapshot failed; the next retry is backed off',
   )
-  if (tooLarge) return result
-  throw new ReviewProviderSnapshotFailure(result.code)
+  return tooLarge
+}
+
+/**
+ * A step that failed its run: records the failure with its backoff, then fails
+ * the job. A step that continues a run fails it for good: the store ended the
+ * run before this threw, so a retry could only find it failed (and end quietly,
+ * see `skipFailedRunReplay`). The error is terminal on its first attempt, which
+ * is what reaches error monitoring, the dead-letter queue and the family's
+ * repair state, and a redrive of that dead letter ends quietly. The first step
+ * of a run has no run id: its retry starts a new run, which can succeed, so it
+ * keeps its attempts. A location over the cap is parked and the job ends
+ * normally.
+ */
+async function failSnapshotStep(
+  deps: SyncHandlerDeps,
+  data: SyncPropertyReviewsJobData,
+  result: FailedSnapshotResult,
+) {
+  const previous = await deps.discoveryRepo.findFailureState(data.propertyId)
+  if (await recordSnapshotFailure(deps, data, result.code, previous)) return result
+  throw data.runId == null
+    ? new ReviewProviderSnapshotFailure(result.code)
+    : new ReviewProviderSnapshotRunFailure(result.code)
 }
 
 /** One bounded page, confirmation, or deletion batch of a provider snapshot
@@ -459,9 +505,10 @@ async function runSnapshotStep(
     return result
   }
   // This step found its run already failed: the step that failed it was loud
-  // and recorded the backoff, so this one ends without failing again.
+  // and recorded the backoff (or, if it died first, this one records it), so
+  // this one ends without failing again.
   if (result.status === 'failed' && result.alreadyFailed) {
-    return skipFailedRunReplay(deps, result)
+    return skipFailedRunReplay(deps, data, result.code, result.alreadyFailed.failedAt)
   }
   if (result.status === 'failed') return failSnapshotStep(deps, data, result)
   if (result.status === 'completed') {

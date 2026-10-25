@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   LOCATION_TOO_LARGE_RETRY_MS,
+  recordsFailureOfRun,
   SNAPSHOT_FAILURE_MAX_RETRY_MS,
   snapshotFailureRetryMs,
   type PreviousSnapshotFailure,
@@ -140,5 +141,68 @@ describe('snapshotFailureRetryMs', () => {
       retryAt: before(MINUTE_MS),
     }
     expect(retryMs(stale)).toBe(6 * HOUR_MS)
+  })
+})
+
+// A run that failed is dated by the database, the Property's failure by the
+// worker's clock a moment later, in a separate write. A step that finds the run
+// already failed asks whether that second write happened.
+describe('recordsFailureOfRun', () => {
+  const RUN_FAILED_AT = before(MINUTE_MS)
+  const recorded = (
+    failedAt: Date | null,
+    errorClass: string | null = 'observation_failed',
+  ): PreviousSnapshotFailure => ({
+    errorClass,
+    failedAt,
+    retryAt: failedAt === null ? null : after(BASE_MS, failedAt),
+  })
+
+  it('is false for a Property with no sync state', () => {
+    expect(recordsFailureOfRun(null, RUN_FAILED_AT)).toBe(false)
+  })
+
+  it('is false for a Property that has never failed', () => {
+    expect(recordsFailureOfRun(recorded(null, null), RUN_FAILED_AT)).toBe(false)
+  })
+
+  it('is true when the failure was dated just after the run failed', () => {
+    expect(recordsFailureOfRun(recorded(after(40, RUN_FAILED_AT)), RUN_FAILED_AT)).toBe(
+      true,
+    )
+  })
+
+  it('is true when the failure was dated at the very instant the run failed', () => {
+    expect(recordsFailureOfRun(recorded(RUN_FAILED_AT), RUN_FAILED_AT)).toBe(true)
+  })
+
+  it('is false when the recorded failure is older than the run: it belongs to an earlier run', () => {
+    expect(recordsFailureOfRun(recorded(before(HOUR_MS)), RUN_FAILED_AT)).toBe(false)
+  })
+
+  it('is false when an older failure was cleared by a success and this run failed unrecorded', () => {
+    expect(recordsFailureOfRun(recorded(before(HOUR_MS), null), RUN_FAILED_AT)).toBe(
+      false,
+    )
+  })
+
+  it('is true once a later run has succeeded, so a late replay of a superseded failure records nothing', () => {
+    // `markSyncSucceeded` clears the class and the retry date, not the date of
+    // the last failure.
+    expect(
+      recordsFailureOfRun(recorded(after(40, RUN_FAILED_AT), null), RUN_FAILED_AT),
+    ).toBe(true)
+  })
+
+  it('is true for an outstanding failure whose time was never stored', () => {
+    expect(recordsFailureOfRun(recorded(null), RUN_FAILED_AT)).toBe(true)
+  })
+
+  it('is true when the time the run failed is unknown but the Property holds a dated failure', () => {
+    expect(recordsFailureOfRun(recorded(before(HOUR_MS)), null)).toBe(true)
+  })
+
+  it('is false when neither the run nor the Property holds a date and no failure is outstanding', () => {
+    expect(recordsFailureOfRun(recorded(null, null), null)).toBe(false)
   })
 })

@@ -71,9 +71,12 @@ export type RunReviewProviderSnapshotResult =
        * `code` is the failure the store holds. Unmarked, this step failed the
        * run. A caller that fails its job for the failure must do so only
        * unmarked: a replay can never succeed, and failing it again only pushes
-       * the Property's backoff out and dead-letters the job.
+       * the Property's backoff out and dead-letters the job. `failedAt` is when
+       * the store ended the run (null if it holds no date), which lets the
+       * caller tell whether the step that failed it recorded the failure before
+       * it died.
        */
-      alreadyFailed?: true
+      alreadyFailed?: Readonly<{ failedAt: Date | null }>
     }>
 
 /**
@@ -278,7 +281,7 @@ const replayFailedRun = async (
     status: 'failed',
     runId: run.id,
     code: run.failureCode ?? 'provider_failure',
-    alreadyFailed: true,
+    alreadyFailed: { failedAt: run.terminalAt },
   }
 }
 

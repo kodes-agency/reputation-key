@@ -609,7 +609,7 @@ describe('a listing that changes between the two scans of a run (real PostgreSQL
     expect(stale).toMatchObject({
       status: 'failed',
       code: 'listing_changed',
-      alreadyFailed: true,
+      alreadyFailed: { failedAt: expect.any(Date) },
     })
     expect(queued).toEqual([{ ...SYNC, sourceEpoch: 0 }])
     expect(await runCodes()).toEqual(['completed', 'listing_changed', 'completed'])

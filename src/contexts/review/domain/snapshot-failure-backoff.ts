@@ -90,3 +90,34 @@ export const snapshotFailureRetryMs = (input: SnapshotFailureRetryInput): number
   // failure never waits less than the first one did.
   return Math.max(baseIntervalMs, Math.min(nextMs, SNAPSHOT_FAILURE_MAX_RETRY_MS))
 }
+
+/**
+ * Whether the Property's stored failure already accounts for a run that ended
+ * failed at `runFailedAt`.
+ *
+ * A step records a failure in two writes: the store fails the run, then the sync
+ * job dates the Property's failure. A worker that dies between them leaves a
+ * failed run and no failure to account for it, and the step that later finds the
+ * run failed has to tell the two cases apart:
+ *
+ * - no sync state, or no failure ever stored: not recorded;
+ * - a failure stored without its time (written before the time existed) and still
+ *   outstanding: recorded, as nothing else can date it;
+ * - a failure dated at or after the run's own: recorded. That includes one a
+ *   later success has since cleared (`markSyncSucceeded` clears the class and the
+ *   retry date, not `last_terminal_error_at`), so a dead letter redriven long
+ *   after the run records nothing about a failure that is over;
+ * - a failure dated before the run's: it belongs to an earlier run, so this
+ *   run's was not recorded;
+ * - the run's own time unknown: recorded whenever the Property holds a dated
+ *   failure, because an unrecorded one cannot be proven.
+ */
+export const recordsFailureOfRun = (
+  previous: PreviousSnapshotFailure | null,
+  runFailedAt: Date | null,
+): boolean => {
+  if (previous === null) return false
+  if (previous.failedAt === null) return previous.errorClass !== null
+  if (runFailedAt === null) return true
+  return previous.failedAt.getTime() >= runFailedAt.getTime()
+}
