@@ -1,9 +1,11 @@
-// Portal context — makes the final print kit's PDF (final design spec, slice 3).
+// Portal context — makes the final print kit's PDF (final design spec, slices 3
+// to 5).
 //
 // The final kit lives beside today's (`portal-print-kit-renderer.port.ts`) and
 // replaces none of it: only where PRINT_KIT_FINAL_ENABLED is on does the Share
-// tab ask for it. It prints single pieces so far, one face per page, in Paper
-// or Immersive; office sheets and the print-shop page come later. As with
+// tab ask for it. It prints single pieces, one face per page, in Paper or
+// Immersive, and Paper office sheets (several pieces to a sheet) when `sheets`
+// is given; Immersive office sheets and the print-shop page come later. As with
 // today's kit, nothing in the input is a URL: the logo and the photo are bytes
 // already read from Portal media.
 
@@ -15,6 +17,12 @@ import type {
 import type { PrintFinalCodeRefusal } from '#/shared/domain/portal-print-final-code'
 import type { PrintFinalFramings } from '#/shared/domain/portal-print-final-framing'
 import type { PrintKitPhoto } from './portal-print-kit-renderer.port'
+
+/** Office sheets: how many pieces the manager needs, and whether the last sheet's spare cells print too. */
+export type PrintFinalSheetsInput = Readonly<{
+  quantity: number
+  fillSpares: boolean
+}>
 
 export type PrintFinalRenderInput = Readonly<{
   /** The document's title, shown by a PDF viewer. */
@@ -36,6 +44,8 @@ export type PrintFinalRenderInput = Readonly<{
   /** What the code encodes, and its shape: the tile depends on the symbol it makes. */
   qrAddress: string
   address: PrintFinalAddress
+  /** Present: the pieces go on office sheets, exactly as many as asked for. Absent: one piece per page. */
+  sheets?: PrintFinalSheetsInput
 }>
 
 /** What the renderer throws when the symbol would print too small for the piece, or two cues would not fit the bar: thrown before any page is drawn. */
