@@ -73,6 +73,7 @@ function PortalWorkspaceEditor() {
       revealAddressMutation={actions.revealAddress}
       getPortalPrintKit={getPortalPrintKit}
       downloadPrintKitMutation={actions.downloadPrintKit}
+      downloadPrintFinalMutation={actions.downloadPrintFinal}
       getPortalAnalytics={getPortalAnalyticsFn}
       goalLine={goal.line}
       goalLinePending={goal.pending}

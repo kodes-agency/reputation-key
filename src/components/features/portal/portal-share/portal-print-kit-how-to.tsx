@@ -7,8 +7,8 @@ import { ChevronRight } from 'lucide-react'
 import type { PrintKitHowToStep } from '#/shared/domain/portal-print-kit-pieces'
 
 type Props = Readonly<{
-  /** What the steps are for: "Paper counter card". */
-  title: string
+  /** What the steps are for: "Paper counter card"; the final kit's section names none. */
+  title?: string
   steps: readonly PrintKitHowToStep[]
 }>
 
@@ -34,7 +34,7 @@ export function PortalPrintKitHowTo({ title, steps }: Props) {
           aria-hidden="true"
           className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
         />
-        How to print · {title}
+        How to print{title === undefined ? null : ` · ${title}`}
       </summary>
       {/* The numbers are drawn, so a list with no markers keeps its role for a screen reader. */}
       <ol role="list" className="flex flex-col gap-2 pb-3 text-[13px] leading-5">

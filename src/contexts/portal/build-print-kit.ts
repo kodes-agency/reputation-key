@@ -2,7 +2,8 @@
 //
 // Split out of build.ts so the context build stays under its file-length
 // ratchet: the print kit read and the PDF are wired here from the repositories
-// buildPortalContext already made, with the PDFKit renderer behind its port.
+// buildPortalContext already made, with the PDFKit renderer behind its port. The
+// final kit's PDF (behind PRINT_KIT_FINAL_ENABLED) is wired beside today's.
 
 import { createHash } from 'node:crypto'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -10,10 +11,12 @@ import type { PortalMediaAssetRepository } from './application/ports/portal-medi
 import type { PortalPublicationRepository } from './application/ports/portal-publication.repository'
 import type { PortalRepository } from './application/ports/portal.repository'
 import type { StoragePort } from './application/ports/storage.port'
+import { createPortalPrintFinal } from './application/use-cases/create-portal-print-final'
 import { createPortalPrintKit } from './application/use-cases/create-portal-print-kit'
 import { getPortalPrintKit } from './application/use-cases/get-portal-print-kit'
 import type { RevealPortalAddress } from './application/use-cases/reveal-portal-address'
 import type { PortalPrintKitRenderer } from './application/ports/portal-print-kit-renderer.port'
+import type { PortalPrintFinalRenderer } from './application/ports/portal-print-final-renderer.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { PropertyCountryReader } from './infrastructure/print-kit/print-kit-property-country'
 
@@ -59,7 +62,18 @@ const lazyRenderer = (
   },
 })
 
+/** The final kit's renderer, loaded on first use for the same reason. */
+const lazyFinalRenderer = (now: () => Date): PortalPrintFinalRenderer => ({
+  render: async (input) => {
+    const { createPdfKitPrintFinalRenderer } =
+      await import('./infrastructure/print-kit/pdfkit-print-final-renderer')
+    return createPdfKitPrintFinalRenderer({ now }).render(input)
+  },
+})
+
 export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
+  const sha256Hex = (bytes: Uint8Array) =>
+    createHash('sha256').update(bytes).digest('hex')
   return {
     getPortalPrintKit: getPortalPrintKit({
       portalRepo: deps.portalRepo,
@@ -73,10 +87,22 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       publicationRepo: deps.publicationRepo,
       mediaRepo: deps.mediaRepo,
       objectStore: deps.objectStore,
-      sha256Hex: (bytes) => createHash('sha256').update(bytes).digest('hex'),
+      sha256Hex,
       revealAddress: deps.revealAddress,
       renderer: lazyRenderer(deps.clock, deps.logger),
       propertyCountry: deps.propertyCountry,
+    }),
+    createPortalPrintFinal: createPortalPrintFinal({
+      portalRepo: deps.portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      publicationRepo: deps.publicationRepo,
+      mediaRepo: deps.mediaRepo,
+      objectStore: deps.objectStore,
+      sha256Hex,
+      revealAddress: deps.revealAddress,
+      renderer: lazyFinalRenderer(deps.clock),
+      propertyCountry: deps.propertyCountry,
+      finalKitEnabled: deps.finalKitEnabled,
     }),
   }
 }

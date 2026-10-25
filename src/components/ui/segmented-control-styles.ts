@@ -12,7 +12,7 @@
 const CHOSEN_EDGE =
   'data-[state=checked]:shadow-[0_0_0_1px_var(--border-control),0_1px_2px_rgb(0_0_0/0.1)]'
 export const SEGMENT_CLASS =
-  'inline-flex h-[26px] items-center justify-center rounded-sm px-2.5 text-[13px] leading-5 whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-card data-[state=checked]:font-medium data-[state=checked]:text-foreground dark:data-[state=checked]:bg-input/30 ' +
+  'inline-flex h-[26px] items-center justify-center gap-1.5 rounded-sm px-2.5 text-[13px] leading-5 whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-card data-[state=checked]:font-medium data-[state=checked]:text-foreground dark:data-[state=checked]:bg-input/30 ' +
   CHOSEN_EDGE
 
 /** The pill that holds the segments. */

@@ -26,6 +26,18 @@ import { portalKeys } from '#/shared/queries/query-keys'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
 
+type DownloadPortalPrintFinal =
+  typeof import('#/contexts/portal/server/portal-print-final').downloadPortalPrintFinal
+
+/** The final print kit's download, its server function's module loaded when it is first asked for. */
+const downloadPortalPrintFinalLazily = async (
+  input: Parameters<DownloadPortalPrintFinal>[0],
+): Promise<Awaited<ReturnType<DownloadPortalPrintFinal>>> => {
+  const { downloadPortalPrintFinal } =
+    await import('#/contexts/portal/server/portal-print-final')
+  return downloadPortalPrintFinal(input)
+}
+
 /**
  * The portal patch, for every section that saves one. It is silent on success:
  * a section's save, a language change among them, is acknowledged by the
@@ -171,6 +183,12 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   const downloadPrintKit = useActionMutation(downloadPortalPrintKit, {
     errorMessage: actionErrorMessage,
   })
+  // The final print kit's download (PRINT_KIT_FINAL_ENABLED), silent the same way.
+  // Loaded on first use: the first paint has no room for another server
+  // function's stub, and only a manager who prints asks for it.
+  const downloadPrintFinal = useActionMutation(downloadPortalPrintFinalLazily, {
+    errorMessage: actionErrorMessage,
+  })
   const revokeToken = useActionMutation(revokePortalTokens, {
     successMessage: 'All codes stopped',
     invalidateKeys: tokenInvalidations,
@@ -228,6 +246,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     revokeToken,
     revealAddress,
     downloadPrintKit,
+    downloadPrintFinal,
     completeReview,
     updateResponsibleManagers,
     makeVersionLive,

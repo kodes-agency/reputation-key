@@ -34,6 +34,7 @@ import {
   PRINT_FINAL_DEFAULT_FRAMING,
   type PrintFinalFraming,
 } from '#/shared/domain/portal-print-final-framing'
+import type { PrintFinalBleed } from '#/shared/domain/portal-print-final-layers'
 import {
   estimatedLineWidthPt,
   type EstimatedFace,
@@ -130,6 +131,8 @@ export type PreviewFinalImmersiveInput = Readonly<{
   /** The photo once decoded; null with no photo (or one the browser could not read). */
   photo: PreviewFinalPhoto | null
   framing?: PrintFinalFraming
+  /** How far the art runs past the trim: on a sheet, the sheet's bleed; none on its own. */
+  bleed?: PrintFinalBleed
 }>
 
 /** The brand the preview plans an Immersive face with: the logo as its whole picture, read for its ink; or the wordmark. */
@@ -158,6 +161,7 @@ export function previewFinalImmersiveFace(
     measurer: previewFinalMeasurer,
     accentColour: look.accentColour,
     fieldColour: look.fieldColour,
+    bleed: input.bleed,
     photo:
       photo === null
         ? null

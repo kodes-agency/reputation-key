@@ -14,6 +14,7 @@ import {
   type PrintFinalFraming,
 } from '#/shared/domain/portal-print-final-framing'
 import type {
+  PrintFinalBleed,
   PrintFinalRamp,
   PrintFinalWash,
 } from '#/shared/domain/portal-print-final-layers'
@@ -162,54 +163,80 @@ type Props = Readonly<{
   photo: Readonly<{ read: PreviewFinalPhoto; url: string }> | null
   look: PortalPrintKitView['look']
   framing: PrintFinalFraming
+  /** On a sheet, how far the art runs past the trim; it is clipped there. Absent: at the trim. */
+  bleed?: PrintFinalBleed
   pt: PointsToLength
 }>
 
-export function PrintFinalImmersiveArt({ art, photo, look, framing, pt }: Props) {
+/** The art's clip (the trim, or the trim and its bleed) and the trim inside it, where the face's origin stays. */
+function clipOf(bleed: PrintFinalBleed | undefined, pt: PointsToLength) {
+  if (bleed === undefined) {
+    return { outer: { inset: 0 }, origin: { inset: 0 } }
+  }
+  return {
+    outer: {
+      left: pt(-bleed.leftPt),
+      top: pt(-bleed.topPt),
+      right: pt(-bleed.rightPt),
+      bottom: pt(-bleed.bottomPt),
+    },
+    origin: {
+      left: pt(bleed.leftPt),
+      top: pt(bleed.topPt),
+      right: pt(bleed.rightPt),
+      bottom: pt(bleed.bottomPt),
+    },
+  }
+}
+
+export function PrintFinalImmersiveArt({ art, photo, look, framing, bleed, pt }: Props) {
   const washes = art.washes.map((wash) => washGradient(wash, pt))
+  const clip = clipOf(bleed, pt)
   return (
-    <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-      <div
-        style={{
-          ...placed(pt, art.groundBox),
-          background: [...washes, art.ground].join(', '),
-        }}
-      />
-      {art.photo !== null && photo !== null ? (
-        <Photo
-          photo={art.photo}
-          read={photo.read}
-          url={photo.url}
-          focal={look.heroFocal ?? { x: 0.5, y: 0.5 }}
-          framing={framing}
-          pt={pt}
-        />
-      ) : null}
-      {art.scrims.map((scrim) => {
-        const [down, across] = scrim.ramps
-        const mask =
-          across === undefined ? undefined : rampGradient(across, scrim.box, BLACK, pt)
-        return (
-          <div
-            key={`${scrim.box.topPt}:${scrim.box.bottomPt}`}
-            style={{
-              ...placed(pt, scrim.box),
-              background:
-                down === undefined
-                  ? 'none'
-                  : rampGradient(down, scrim.box, PRINT_FINAL_SCRIM_INK, pt),
-              ...(mask === undefined ? {} : { maskImage: mask, WebkitMaskImage: mask }),
-            }}
-          />
-        )
-      })}
-      {art.arch === null ? null : <Arch arch={art.arch} pt={pt} />}
-      <Grain opacity={art.grainOpacity} />
-      {art.foldStrip === null ? null : (
+    <div aria-hidden style={{ position: 'absolute', ...clip.outer, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', ...clip.origin }}>
         <div
-          style={{ ...placed(pt, art.foldStrip.box), background: art.foldStrip.colour }}
+          style={{
+            ...placed(pt, art.groundBox),
+            background: [...washes, art.ground].join(', '),
+          }}
         />
-      )}
+        {art.photo !== null && photo !== null ? (
+          <Photo
+            photo={art.photo}
+            read={photo.read}
+            url={photo.url}
+            focal={look.heroFocal ?? { x: 0.5, y: 0.5 }}
+            framing={framing}
+            pt={pt}
+          />
+        ) : null}
+        {art.scrims.map((scrim) => {
+          const [down, across] = scrim.ramps
+          const mask =
+            across === undefined ? undefined : rampGradient(across, scrim.box, BLACK, pt)
+          return (
+            <div
+              key={`${scrim.box.topPt}:${scrim.box.bottomPt}`}
+              style={{
+                ...placed(pt, scrim.box),
+                background:
+                  down === undefined
+                    ? 'none'
+                    : rampGradient(down, scrim.box, PRINT_FINAL_SCRIM_INK, pt),
+                ...(mask === undefined ? {} : { maskImage: mask, WebkitMaskImage: mask }),
+              }}
+            />
+          )
+        })}
+        {art.arch === null ? null : <Arch arch={art.arch} pt={pt} />}
+        <Grain opacity={art.grainOpacity} />
+        {art.foldStrip === null ? null : (
+          <div
+            style={{ ...placed(pt, art.foldStrip.box), background: art.foldStrip.colour }}
+          />
+        )}
+      </div>
     </div>
   )
 }

@@ -560,6 +560,15 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   `tile_does_not_fit` for the wide Small card on the step-up tile. The floor is the same
   0.85 mm as today's `chooseCodeTile`. A code that has no print code is a long address,
   so minting (above) is what lets the final kit print more than the Counter card.
+- **The final kit's download.** `createPortalPrintFinal` makes the final kit's PDF
+  where `PRINT_KIT_FINAL_ENABLED` is on (it refuses every request otherwise), beside
+  today's `createPortalPrintKit`, which it leaves alone. It takes the piece, its
+  orientation, the look, the paper (the country's unless named), who prints, the
+  quantity, the spares and a count a sheet, the languages and the call to action, and
+  refuses what `printFinalChoiceProblem` refuses before it reveals the address; the
+  renderer's refusals (the code, or two cues that do not fit the bar) come after, in
+  the words the Share tab uses (`PRINT_FINAL_REFUSAL_COPY`). From the manager's
+  printer the pieces go on office sheets; a print shop gets one piece per page.
 
 ## Runtime
 

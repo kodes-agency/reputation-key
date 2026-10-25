@@ -1,0 +1,174 @@
+// The last two steps of the final Print cards section (final design spec §11.4
+// and §11.5, the boards share-desktop-light and share-phone): how many, with the
+// exact sheets it takes and the spares checkbox, and the words: an ordered pair
+// of languages, the call to action, and More options with the count a sheet. A
+// print shop's file is one piece per page, so How many is not asked for it.
+
+import { ChevronRight } from 'lucide-react'
+import { FormSelectField } from '#/components/forms/form-select-field'
+import { Checkbox } from '#/components/ui/checkbox'
+import { Input } from '#/components/ui/input'
+import { Label } from '#/components/ui/label'
+import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import {
+  PRINT_KIT_CALLS_TO_ACTION,
+  type PrintKitCallToAction,
+} from '#/shared/domain/portal-print-kit'
+import {
+  PRINT_FINAL_CALL_TO_ACTION_LABELS,
+  printFinalLanguageChoiceLabel,
+  printFinalLanguageChoices,
+  printFinalLanguageValue,
+} from '#/shared/domain/portal-print-final-languages'
+import { PRINT_FINAL_PER_SHEET } from '#/shared/domain/portal-print-final-offer'
+import {
+  PRINT_FINAL_PAPER_NAMES,
+  PRINT_FINAL_PIECE_FACTS,
+  printFinalSheetsLabel,
+  printFinalSparesNote,
+} from '#/shared/domain/portal-print-final-share'
+import { Step } from './portal-print-final-choices'
+import type { PrintFinalSharePrint } from './print-final-state'
+import type { PrintFinalState } from './use-print-final'
+
+type StepProps = Readonly<{
+  final: PrintFinalState
+  print: PrintFinalSharePrint
+  view: PortalPrintKitView
+}>
+
+const capitalised = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
+
+function Spares({ final, print, quantity }: StepProps & Readonly<{ quantity: number }>) {
+  const { spares, note } = printFinalSparesNote(quantity, print.perSheet)
+  if (spares === 0) return <p className="text-xs text-muted-foreground">{note}</p>
+  return (
+    <div className="flex items-start gap-2">
+      <Checkbox
+        id="print-final-spares"
+        checked={print.fillSpares}
+        onCheckedChange={(checked) => final.change({ fillSpares: checked === true })}
+        aria-describedby="print-final-spares-note"
+        className="mt-0.5"
+      />
+      <div className="flex flex-col gap-0.5">
+        <Label htmlFor="print-final-spares" className="font-normal">
+          Fill the last sheet with spares
+        </Label>
+        <p id="print-final-spares-note" className="text-xs text-muted-foreground">
+          {note}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export function PrintFinalHowManyStep(props: StepProps) {
+  const { final, print } = props
+  if (print.printer === 'print_shop') return null
+  const { noun } = PRINT_FINAL_PIECE_FACTS[print.piece]
+  const { quantity } = print
+  return (
+    <Step title="How many?">
+      <div className="flex flex-wrap items-center gap-3">
+        <Label htmlFor="print-final-quantity" className="text-sm font-normal">
+          {capitalised(noun)} you need
+        </Label>
+        <Input
+          id="print-final-quantity"
+          inputMode="numeric"
+          autoComplete="off"
+          value={final.choice.quantityText}
+          onChange={(event) => final.change({ quantityText: event.target.value })}
+          aria-invalid={quantity === null}
+          aria-describedby="print-final-sheets"
+          className="w-20"
+        />
+        <span id="print-final-sheets" className="text-[13px] text-muted-foreground">
+          {quantity === null ? (
+            'Enter how many you need, from 1 to 1000.'
+          ) : (
+            <>
+              <strong className="font-semibold text-foreground">
+                {printFinalSheetsLabel(final.count?.sheets ?? 1)}
+              </strong>{' '}
+              of {print.perSheet} · {PRINT_FINAL_PAPER_NAMES[print.paper]}
+            </>
+          )}
+        </span>
+      </div>
+      {quantity !== null && <Spares {...props} quantity={quantity} />}
+    </Step>
+  )
+}
+
+function MoreOptions({ final, print }: StepProps) {
+  const fits = PRINT_FINAL_PER_SHEET[print.piece][print.look][print.paper]
+  const { noun } = PRINT_FINAL_PIECE_FACTS[print.piece]
+  const options = Array.from({ length: fits }, (_, index) => fits - index).map(
+    (count) => ({
+      value: String(count),
+      label: count === fits ? `${count}, as many as fit` : String(count),
+    }),
+  )
+  return (
+    <details className="group">
+      <summary className="focus-ring flex min-h-9 w-fit cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground">
+        <ChevronRight
+          aria-hidden="true"
+          className="size-3.5 transition-transform group-open:rotate-90"
+        />
+        More options
+        <span className="hidden sm:inline">· {noun} per sheet</span>
+      </summary>
+      <FormSelectField
+        id="print-final-per-sheet"
+        label={`${capitalised(noun)} per sheet`}
+        value={String(print.perSheet)}
+        onValueChange={(value) => final.change({ perSheet: Number(value) })}
+        options={options}
+        className="mt-2 max-w-xs"
+      />
+    </details>
+  )
+}
+
+export function PrintFinalWordsStep(props: StepProps) {
+  const { final, print, view } = props
+  const choices = printFinalLanguageChoices(view.locales)
+  return (
+    <Step title="Words">
+      <FormSelectField
+        id="print-final-languages"
+        label="Languages"
+        value={printFinalLanguageValue(print.languages)}
+        onValueChange={(value) =>
+          final.change({
+            languages:
+              choices.find((languages) => printFinalLanguageValue(languages) === value) ??
+              print.languages,
+          })
+        }
+        options={choices.map((languages) => ({
+          value: printFinalLanguageValue(languages),
+          label: printFinalLanguageChoiceLabel(languages),
+        }))}
+        description={`Up to two, the first larger.${print.piece === 'tent' ? ' Both faces of a tent show both.' : ''}`}
+      />
+      <FormSelectField
+        id="print-final-cta"
+        label="Call to action"
+        value={print.callToAction}
+        onValueChange={(callToAction) =>
+          final.change({ callToAction: callToAction as PrintKitCallToAction })
+        }
+        options={PRINT_KIT_CALLS_TO_ACTION.map((callToAction) => ({
+          value: callToAction,
+          label: PRINT_FINAL_CALL_TO_ACTION_LABELS[callToAction],
+        }))}
+        className="mt-2"
+      />
+      {print.printer === 'my_printer' && <MoreOptions {...props} />}
+    </Step>
+  )
+}

@@ -9,8 +9,11 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalCodeBlock } from './portal-code-block'
 import { PortalLinkIssueForm } from './portal-link-issue-form'
 import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
-import { PortalPrintKitPreviewSlot } from './portal-print-kit-preview-slot'
-import { PortalPrintKitSection } from './portal-print-kit-section'
+import {
+  PortalSharePrintFinalSection,
+  PortalSharePrintKitAside,
+  PortalSharePrintKitSection,
+} from './portal-share-print-kit'
 import { PortalLinkReveal } from './portal-link-reveal'
 import {
   PortalRevokedNotice,
@@ -55,20 +58,14 @@ export function PortalShare(props: PortalShareProps) {
   } = addresses.nfc
   const { error, isPending } = resolveMutationState(props)
   const view = derivePortalShareViewFromProps(props, access.canManage, publicUrl)
-  const {
-    show: showPrintKit,
-    notLive: printKitNotLive,
-    printKit,
-    download: printKitDownload,
-    unavailableReason,
-  } = usePortalPrintKit(props, view)
+  const kit = usePortalPrintKit(props, view)
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
       <FullBleedFrame
         as="section"
         className={cn(
           'flex flex-col gap-8',
-          showPrintKit ? 'lg:w-172 lg:shrink-0 lg:border-r' : 'mx-auto w-full max-w-5xl',
+          kit.show ? 'lg:w-172 lg:shrink-0 lg:border-r' : 'mx-auto w-full max-w-5xl',
         )}
         aria-label="Share"
       >
@@ -106,6 +103,8 @@ export function PortalShare(props: PortalShareProps) {
             disabled={isPending}
           />
         )}
+
+        <PortalSharePrintFinalSection kit={kit} countryCode={props.countryCode ?? null} />
 
         <section className="flex flex-col gap-4" aria-labelledby="code-heading">
           <h2 id="code-heading" className="text-lg font-semibold">
@@ -145,32 +144,15 @@ export function PortalShare(props: PortalShareProps) {
 
         <PortalScanGoalReadinessNotice show={showScanGoalReadiness(props, publicUrl)} />
 
-        <PortalPrintKitNotLive notice={printKitNotLive} />
+        <PortalPrintKitNotLive notice={kit.notLive} />
 
-        {showPrintKit && (
-          <PortalPrintKitSection
-            view={printKit.view}
-            choice={printKit.choice}
-            isError={printKit.isError}
-            onRetry={printKit.retry}
-            isRetrying={printKit.isRetrying}
-            onChoiceChange={printKit.setChoice}
-            sizes={printKit.sizes}
-            barMeasure={printKit.barMeasure}
-            unprintableNote={printKit.unprintableNote}
-            softPhotoNote={printKit.softPhotoNote}
-            unavailableReason={unavailableReason}
-            isWorking={printKitDownload.isWorking}
-            onDownload={() => void printKitDownload.download()}
-            preview={<PortalPrintKitPreviewSlot where="inline" printKit={printKit} />}
-          />
-        )}
+        <PortalSharePrintKitSection kit={kit} />
 
         <p className="sr-only" role="status" aria-live="polite">
           {liveStatusMessage(isPending, copied || nfcCopied)}
         </p>
       </FullBleedFrame>
-      {showPrintKit && <PortalPrintKitPreviewSlot where="column" printKit={printKit} />}
+      <PortalSharePrintKitAside kit={kit} propertyId={props.propertyId} />
     </div>
   )
 }

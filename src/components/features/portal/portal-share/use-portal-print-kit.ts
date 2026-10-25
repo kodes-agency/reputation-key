@@ -4,6 +4,7 @@
 // section and the preview, and no read. Kept out of PortalShare so the tab itself
 // stays a layout.
 
+import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import type { PortalShareProps } from './portal-share-types'
 import type { PortalPrintKitReader } from './portal-print-kit-types'
 import {
@@ -12,6 +13,7 @@ import {
   printKitAvailability,
   printKitHasLiveVersion,
 } from './print-kit-state'
+import { usePrintFinal } from './use-print-final'
 import { usePrintKit } from './use-print-kit'
 import { usePrintKitDownload } from './use-print-kit-download'
 
@@ -51,12 +53,36 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     choice: show ? printKit.choice : null,
     downloadMutation: props.printKit?.downloadMutation,
   })
-  const availability = printKitAvailability({ canDownloadAgain: view.canDownloadAgain })
+  // Why no print can be made at all: nothing live, or a code that cannot be fetched again.
+  const blocked =
+    notLive?.body ??
+    printKitAvailability({ canDownloadAgain: view.canDownloadAgain }).reason
+  const final = usePortalPrintFinal(props, show ? printKit.view : null)
   return {
     show,
     notLive,
     printKit,
     download,
-    unavailableReason: notLive?.body ?? availability.reason ?? printKit.refusal,
+    unavailableReason: blocked ?? printKit.refusal,
+    isFinal: final.isFinal,
+    final: final.state,
+    finalUnavailableReason: blocked ?? final.state.refusal,
   }
+}
+
+/**
+ * The final Print cards section's state, live only where the read says the
+ * server shows the final kit (PRINT_KIT_FINAL_ENABLED); today's kit otherwise.
+ */
+function usePortalPrintFinal(props: PortalShareProps, read: PortalPrintKitView | null) {
+  const isFinal = read?.kit === 'final'
+  const state = usePrintFinal({
+    portalId: props.portalId,
+    view: isFinal ? read : null,
+    enabled: isFinal,
+    countryCode: props.countryCode ?? null,
+    qrAddress: props.issuedLink?.publicUrl ?? null,
+    downloadMutation: isFinal ? props.printKit?.downloadFinalMutation : undefined,
+  })
+  return { isFinal, state }
 }
