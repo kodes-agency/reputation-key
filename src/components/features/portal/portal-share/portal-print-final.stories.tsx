@@ -262,7 +262,7 @@ export const DownloadSendsTheChoice: Story = {
           cropMarks: false,
           backPage: false,
           languages: ['en', 'es'],
-          callToAction: 'rate',
+          callToAction: 'how_did_we_do',
         },
       }),
     )
@@ -509,7 +509,8 @@ const lastPrint = (
     cropMarks: false,
     backPage: false,
     languages: ['en', 'es'],
-    callToAction: 'rate',
+    callToAction: 'how_did_we_do',
+    customWords: null,
     ...settings,
   },
   photo,
@@ -679,5 +680,84 @@ export const LastPrintedAppearsAfterADownload: Story = {
     await expect(
       canvas.queryByRole('button', { name: 'Use the same settings' }),
     ).toBeNull()
+  },
+}
+
+/** Opens "Write your own…" in the call-to-action menu and types a headline in the first language. */
+async function writeOwnHeadline(canvas: Canvas, headline: string) {
+  await userEvent.click(await canvas.findByRole('combobox', { name: 'Call to action' }))
+  await userEvent.click(
+    await within(document.body).findByRole('option', { name: /Write your own/ }),
+  )
+  const [field] = await canvas.findAllByRole('textbox', { name: 'Headline' })
+  if (field === undefined) throw new Error('The first language has a headline')
+  await userEvent.clear(field)
+  await userEvent.type(field, headline)
+}
+
+/** The board share-words-custom: the manager's own headline, one language, fits at full size on a wide tent. */
+export const WriteYourOwnWords: Story = {
+  args: { ...baseArgs, printKit: printKit(view({}, null)) },
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('combobox', { name: 'Languages' }))
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: 'English' }),
+    )
+    await writeOwnHeadline(canvas, 'Thanks for staying with us')
+    await expect(canvas.getByText('Your own words')).toBeVisible()
+    await expect(await canvas.findByText('Fits at full size (19 pt)')).toBeVisible()
+    await expect(canvas.getByText('26 characters · guide 30 on a tent')).toBeVisible()
+    await expect(canvas.getByText('These words on every card')).toBeVisible()
+    await expect(canvas.getByRole('button', { name: /download pdf/i })).toBeEnabled()
+  },
+}
+
+/** The board share-words-states panel 3: words an upright tent cannot hold turn Download into "Shorten to fit". */
+export const OwnWordsTooLongForUprightTents: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: 'Upright' }))
+    await writeOwnHeadline(canvas, 'Tell us how your visit went today, in a few taps')
+    await expect(
+      await canvas.findByText(/Too long for an upright tent, even at the smallest size/),
+    ).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Shorten to fit' })).toBeDisabled()
+  },
+}
+
+/** The board share-words-two-languages: own words in English and Español, the second never translated. */
+export const OwnWordsInTwoLanguages: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await writeOwnHeadline(canvas, 'How was today?')
+    const [, second] = canvas.getAllByRole('textbox', { name: 'Headline' })
+    if (second === undefined) throw new Error('The second language has its own headline')
+    await userEvent.clear(second)
+    await userEvent.type(second, '¿Qué tal hoy?')
+    await expect(
+      await canvas.findByText('14 characters · guide 15 with two languages'),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText(/never translate them\. Ask someone who speaks the language/),
+    ).toBeVisible()
+  },
+}
+
+/** The board share-words-states panel 6: a clear offer blocks the print. */
+export const OwnWordsWithAnOfferCannotPrint: Story = {
+  args: baseArgs,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await writeOwnHeadline(canvas, 'Review us, get 10% off')
+    await expect(
+      await canvas.findByRole('button', { name: 'Remove the offer to print' }),
+    ).toBeDisabled()
   },
 }

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { GUEST_LOCALES, type GuestLocale } from './guest-locale'
-import { PRINT_FINAL_COPY } from './portal-print-final-copy'
+import {
+  PRINT_FINAL_CALLS_TO_ACTION,
+  PRINT_FINAL_COPY,
+  PRINT_FINAL_DEFAULT_CALL_TO_ACTION,
+  printFinalCopyStatus,
+  printFinalHeldLanguage,
+  type PrintFinalCallToAction,
+} from './portal-print-final-copy'
 import {
   PRINT_FINAL_CALL_TO_ACTION_LABELS,
   printFinalBlocks,
@@ -38,44 +45,69 @@ describe('the language labels', () => {
 })
 
 describe('PRINT_FINAL_CALL_TO_ACTION_LABELS', () => {
-  it('reads each call to action as the print says it, with no word about privacy', () => {
-    expect(PRINT_FINAL_CALL_TO_ACTION_LABELS).toEqual({
-      rate: 'How did we do? · About 30 seconds',
-      tell: 'How was your visit? · About 30 seconds',
-    })
+  it('reads each wording as the print says it, in menu order, with no word about privacy', () => {
+    expect(Object.entries(PRINT_FINAL_CALL_TO_ACTION_LABELS)).toEqual([
+      ['how_did_we_do', 'How did we do? · About 30 seconds'],
+      ['how_was_visit', 'How was your visit? · About 30 seconds'],
+      ['rate_visit', 'Rate your visit · About 30 seconds'],
+      ['got_30_seconds', 'Got 30 seconds? · Tell us how it went'],
+    ])
   })
 })
 
 describe('PRINT_FINAL_COPY (spec 5.5)', () => {
+  const say = (locale: GuestLocale, callToAction: PrintFinalCallToAction) => {
+    const { headline, subline } = PRINT_FINAL_COPY[locale][callToAction]
+    return `${headline} / ${subline}`
+  }
+
   it('says "How did we do?" over "About 30 seconds" by default, in every language', () => {
-    const say = (locale: GuestLocale) => {
-      const { headline, subline } = PRINT_FINAL_COPY[locale].rate
-      return `${headline} / ${subline}`
-    }
-    expect(GUEST_LOCALES.map((locale) => [locale, say(locale)])).toEqual([
-      ['en', 'How did we do? / About 30 seconds'],
-      ['es', '¿Cómo lo hicimos? / Unos 30 segundos'],
-      ['it', 'Come siamo andati? / Circa 30 secondi'],
-      ['fr', 'Votre avis sur nous\u00a0? / Environ 30 secondes'],
-      ['de', 'Wie war es bei uns? / Etwa 30 Sekunden'],
-      ['bg', 'Как беше при нас? / Около 30 секунди'],
-    ])
+    expect(PRINT_FINAL_DEFAULT_CALL_TO_ACTION).toBe('how_did_we_do')
+    expect(GUEST_LOCALES.map((locale) => [locale, say(locale, 'how_did_we_do')])).toEqual(
+      [
+        ['en', 'How did we do? / About 30 seconds'],
+        ['es', '¿Cómo lo hicimos? / Unos 30 segundos'],
+        ['it', 'Come siamo andati? / Circa 30 secondi'],
+        ['fr', 'Votre avis sur nous\u00a0? / Environ 30 secondes'],
+        ['de', 'Wie war es bei uns? / Etwa 30 Sekunden'],
+        ['bg', 'Как беше при нас? / Около 30 секунди'],
+      ],
+    )
   })
 
-  it('keeps "How was your visit?" as the second wording, with the same sub-line', () => {
-    expect(
-      GUEST_LOCALES.map((locale) => [locale, PRINT_FINAL_COPY[locale].tell.headline]),
-    ).toEqual([
-      ['en', 'How was your visit?'],
-      ['es', '¿Qué tal su visita?'],
-      ['it', 'Com’è andata la sua visita?'],
-      ['fr', 'Comment était votre visite\u00a0?'],
-      ['de', 'Wie war Ihr Besuch?'],
-      ['bg', 'Как мина посещението ви?'],
+  it('says the other three wordings as the spec’s table does', () => {
+    const headlines = (callToAction: PrintFinalCallToAction) =>
+      GUEST_LOCALES.map((locale) => PRINT_FINAL_COPY[locale][callToAction].headline)
+    expect(headlines('how_was_visit')).toEqual([
+      'How was your visit?',
+      '¿Qué tal su visita?',
+      'Com’è andata la sua visita?',
+      'Comment était votre visite\u00a0?',
+      'Wie war Ihr Besuch?',
+      'Как мина посещението ви?',
+    ])
+    expect(headlines('rate_visit')).toEqual([
+      'Rate your visit',
+      'Valore su visita',
+      'Valuti la sua visita',
+      'Évaluez votre visite',
+      'Bewerten Sie Ihren Besuch',
+      'Оценете посещението си',
+    ])
+    expect(GUEST_LOCALES.map((locale) => say(locale, 'got_30_seconds'))).toEqual([
+      'Got 30 seconds? / Tell us how it went',
+      '¿Tiene 30 segundos? / Cuéntenos qué tal le fue',
+      'Ha 30 secondi? / Ci dica com’è andata',
+      'Vous avez 30 secondes\u00a0? / Dites-nous comment c’était',
+      'Haben Sie 30 Sekunden? / Sagen Sie uns, wie es war',
+      'Имате ли 30 секунди? / Кажете ни как мина',
     ])
     for (const locale of GUEST_LOCALES) {
-      expect(PRINT_FINAL_COPY[locale].tell.subline).toBe(
-        PRINT_FINAL_COPY[locale].rate.subline,
+      expect(PRINT_FINAL_COPY[locale].how_was_visit.subline).toBe(
+        PRINT_FINAL_COPY[locale].how_did_we_do.subline,
+      )
+      expect(PRINT_FINAL_COPY[locale].rate_visit.subline).toBe(
+        PRINT_FINAL_COPY[locale].how_did_we_do.subline,
       )
     }
   })
@@ -94,14 +126,15 @@ describe('PRINT_FINAL_COPY (spec 5.5)', () => {
 
   it('takes a no-break space before a French question mark, so no line starts with it', () => {
     for (const { headline } of Object.values(PRINT_FINAL_COPY.fr)) {
-      expect(headline).toMatch(/\u00a0\?$/u)
       expect(headline).not.toMatch(/ \?/u)
+      if (headline.endsWith('?')) expect(headline).toMatch(/\u00a0\?$/u)
     }
   })
 
-  it('has a headline and a sub-line for every language and preset', () => {
+  it('has a headline and a sub-line for every language and wording', () => {
     for (const locale of GUEST_LOCALES) {
-      for (const copy of Object.values(PRINT_FINAL_COPY[locale])) {
+      for (const callToAction of PRINT_FINAL_CALLS_TO_ACTION) {
+        const copy = PRINT_FINAL_COPY[locale][callToAction]
         expect(copy.headline.trim()).not.toBe('')
         expect(copy.subline.trim()).not.toBe('')
       }
@@ -109,10 +142,37 @@ describe('PRINT_FINAL_COPY (spec 5.5)', () => {
   })
 })
 
+describe('the copy rule F holds back (spec 5.5, the ‡ drafts)', () => {
+  it('holds French "How was your visit?" and "Got 30 seconds?" and German "Got 30 seconds?", and nothing else', () => {
+    const held = GUEST_LOCALES.flatMap((locale) =>
+      PRINT_FINAL_CALLS_TO_ACTION.filter(
+        (callToAction) => printFinalCopyStatus(locale, callToAction) === 'held',
+      ).map((callToAction) => `${locale} ${callToAction}`),
+    )
+    expect(held).toEqual(['fr how_was_visit', 'fr got_30_seconds', 'de got_30_seconds'])
+  })
+
+  it('marks English checked and every other language a draft', () => {
+    expect(printFinalCopyStatus('en', 'got_30_seconds')).toBe('checked')
+    expect(printFinalCopyStatus('es', 'how_did_we_do')).toBe('draft')
+  })
+
+  it('names the first language on the print that holds a wording back', () => {
+    expect(printFinalHeldLanguage('got_30_seconds', ['en', 'de'])).toBe('de')
+    expect(printFinalHeldLanguage('got_30_seconds', ['en', 'es'])).toBeNull()
+    expect(printFinalHeldLanguage('how_did_we_do', ['fr', 'de'])).toBeNull()
+  })
+})
+
 describe('printFinalBlocks', () => {
   it('says the page’s title and the call to action in each language, the first leading', () => {
     expect(
-      printFinalBlocks(['en', 'es'], 'rate', { en: 'Reception' }, 'Front desk'),
+      printFinalBlocks(
+        ['en', 'es'],
+        { preset: 'how_did_we_do' },
+        { en: 'Reception' },
+        'Front desk',
+      ),
     ).toEqual([
       {
         locale: 'en',
@@ -126,6 +186,22 @@ describe('printFinalBlocks', () => {
         headline: '¿Cómo lo hicimos?',
         subline: 'Unos 30 segundos',
       },
+    ])
+  })
+
+  it('prints the manager’s own words where they wrote them, normalised, and the wording elsewhere', () => {
+    const blocks = printFinalBlocks(
+      ['en', 'es'],
+      {
+        preset: 'rate_visit',
+        custom: { en: { headline: '  Thanks for   staying\nwith us ', subline: '' } },
+      },
+      {},
+      'Reception',
+    )
+    expect(blocks.map(({ headline, subline }) => [headline, subline])).toEqual([
+      ['Thanks for staying with us', ''],
+      ['Valore su visita', 'Unos 30 segundos'],
     ])
   })
 })

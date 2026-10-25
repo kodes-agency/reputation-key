@@ -6,9 +6,11 @@
 //
 //   1. authorise, and load the Portal and what is live on it;
 //   2. refuse, before anything is read or revealed: the final kit where the
-//      server has it off, languages the live version does not offer, and a
-//      choice the kit does not make (a quantity or a count a sheet out of range,
-//      a tent for a print shop);
+//      server has it off, languages the live version does not offer, a choice
+//      the kit does not make (a quantity or a count a sheet out of range, a tent
+//      for a print shop), and words it does not print (a wording rule F holds
+//      back in one of the languages, or own words that offer something for the
+//      review);
 //   3. read the pictures from Portal media, checked against their stored hash;
 //   4. fetch the address through `revealPortalAddress`, which records the
 //      disclosure (as a download) before it decrypts;
@@ -38,11 +40,17 @@ import {
 } from '#/shared/domain/portal-print-final-how-to'
 import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import {
+  printFinalOwnWordsToSend,
+  printFinalWordsHeldLanguage,
+  type PrintFinalWordsChoice,
+} from '#/shared/domain/portal-print-final-custom'
+import {
   printFinalChoiceProblem,
   type PrintFinalChoice,
   type PrintFinalRefusal,
 } from '#/shared/domain/portal-print-final-offer'
 import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-refusals'
+import { printFinalWordsOffer } from '#/shared/domain/portal-print-final-warnings'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalError } from '../../domain/errors'
 import { loadPortalOrThrow } from '../load-accessible-portal'
@@ -128,16 +136,26 @@ async function choiceOf(
   }
 }
 
-/** Draws the print, turning a refusal into a Portal error. */
+/**
+ * Draws the print, turning a refusal into a Portal error. Words the face cannot
+ * hold are the manager's to shorten when they wrote them (`shorten_to_fit`), and
+ * the wording's to change when they picked it (`words_do_not_fit`), as Share says.
+ */
 async function renderOrRefuse(
   renderer: PortalPrintFinalRenderer,
   input: PrintFinalRenderInput,
+  ownWords: boolean,
 ): Promise<Uint8Array> {
   try {
     return await renderer.render(input)
   } catch (error) {
-    if (error instanceof PrintFinalRenderRefusal) throw refusalError(error.refusal)
-    throw error
+    if (!(error instanceof PrintFinalRenderRefusal)) throw error
+    const { refusal } = error
+    throw refusalError(
+      ownWords && refusal.code === 'words_do_not_fit'
+        ? { code: 'shorten_to_fit' }
+        : refusal,
+    )
   }
 }
 
@@ -165,45 +183,60 @@ export const createPortalPrintFinal =
     const choice = await choiceOf(deps, input, scope)
     const problem = printFinalChoiceProblem(choice)
     if (problem !== null) throw refusalError(problem)
+    const words: PrintFinalWordsChoice = {
+      preset: input.callToAction,
+      custom: input.customWords ?? null,
+    }
+    if (printFinalWordsHeldLanguage(words, input.languages) !== null) {
+      throw refusalError({ code: 'wording_not_available' })
+    }
+    // Only a clear offer for the review stops a print (§5.8); every other note only warns.
+    if (printFinalWordsOffer(words, input.languages)) {
+      throw refusalError({ code: 'remove_offer' })
+    }
 
     const pictures = await readPicturesThenReveal(deps, context.look, scope, ctx, input)
 
     const cropMarks = input.cropMarks ?? false
     const print = { ...choice, languages: input.languages, cropMarks }
-    const pdf = await renderOrRefuse(deps.renderer, {
-      title: printFinalDocumentTitle(context.portalName, choice.piece),
-      face: {
-        piece: choice.piece,
-        orientation: choice.orientation,
-        look: choice.look,
-        region: printFinalRegionOf(choice.paper),
+    const pdf = await renderOrRefuse(
+      deps.renderer,
+      {
+        title: printFinalDocumentTitle(context.portalName, choice.piece),
+        face: {
+          piece: choice.piece,
+          orientation: choice.orientation,
+          look: choice.look,
+          region: printFinalRegionOf(choice.paper),
+        },
+        blocks: printFinalBlocks(
+          input.languages,
+          words,
+          context.titles,
+          context.portalName,
+        ),
+        wordmark: context.look.wordmark,
+        logo: pictures.logo,
+        accentColour: context.look.accentColour,
+        fieldColour: context.look.fieldColour,
+        photo: pictures.photo,
+        qrAddress: pictures.qrAddress,
+        address: printAddressShape(pictures.qrAddress),
+        ...(choice.backPage === true
+          ? { back: { propertyName: context.look.propertyName } }
+          : {}),
+        ...(choice.printer === 'my_printer'
+          ? {
+              sheets: {
+                quantity: choice.quantity,
+                fillSpares: input.fillSpares ?? false,
+                perSheet: choice.perSheet,
+              },
+            }
+          : { shop: { cropMarks } }),
       },
-      blocks: printFinalBlocks(
-        input.languages,
-        input.callToAction,
-        context.titles,
-        context.portalName,
-      ),
-      wordmark: context.look.wordmark,
-      logo: pictures.logo,
-      accentColour: context.look.accentColour,
-      fieldColour: context.look.fieldColour,
-      photo: pictures.photo,
-      qrAddress: pictures.qrAddress,
-      address: printAddressShape(pictures.qrAddress),
-      ...(choice.backPage === true
-        ? { back: { propertyName: context.look.propertyName } }
-        : {}),
-      ...(choice.printer === 'my_printer'
-        ? {
-            sheets: {
-              quantity: choice.quantity,
-              fillSpares: input.fillSpares ?? false,
-              perSheet: choice.perSheet,
-            },
-          }
-        : { shop: { cropMarks } }),
-    })
+      printFinalOwnWordsToSend(words, input.languages) !== null,
+    )
     await rememberLastPrint(deps, {
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,

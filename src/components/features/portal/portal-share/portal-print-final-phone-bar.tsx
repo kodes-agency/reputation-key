@@ -5,13 +5,15 @@
 // Wide without closing it. Below `lg`, where the preview has no column of its
 // own.
 
-import { Download } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '#/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '#/components/ui/sheet'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import { PortalPrintFinalPreview } from './portal-print-final-preview'
-import { PrintFinalSummaryLine } from './portal-print-final-section'
+import {
+  PrintFinalDownloadButton,
+  PrintFinalSummaryLine,
+} from './portal-print-final-section'
 import { PrintFinalOrientationControl } from './print-final-orientation-control'
 import type { PrintFinalState } from './use-print-final'
 
@@ -25,22 +27,18 @@ type Props = Readonly<{
   unavailableReason: string | null
 }>
 
+/** The pinned bar's Download, which carries the same refusal label as the desktop row (§11.5). */
 function DownloadButton({
   final,
   unavailableReason,
 }: Readonly<{ final: PrintFinalState; unavailableReason: string | null }>) {
   return (
-    <Button
-      type="button"
+    <PrintFinalDownloadButton
+      final={final}
+      unavailableReason={unavailableReason}
       size="lg"
       className="w-full"
-      disabled={final.print === null || unavailableReason !== null}
-      pending={final.isWorking}
-      pendingLabel="Making the PDF…"
-      onClick={() => void final.download()}
-    >
-      <Download /> Download PDF
-    </Button>
+    />
   )
 }
 

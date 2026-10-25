@@ -102,7 +102,7 @@ describe('buildPortalPrintKit', () => {
         printer: 'my_printer',
         quantity: 6,
         languages: ['en'],
-        callToAction: 'rate',
+        callToAction: 'how_did_we_do',
       },
       ctx,
     )

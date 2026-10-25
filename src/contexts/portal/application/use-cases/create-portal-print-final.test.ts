@@ -41,6 +41,8 @@ type Options = Readonly<{
   enabled?: boolean
   country?: string | null
   refuse?: PrintFinalRenderRefusal
+  /** The languages the live version offers; English and Bulgarian by default. */
+  localeSet?: NonNullable<Parameters<typeof immersiveConfiguration>[0]>['localeSet']
 }>
 
 async function setup(options: Options = {}) {
@@ -98,7 +100,9 @@ async function setup(options: Options = {}) {
         ({
           id: 'snapshot-1',
           version: 1,
-          configuration: immersiveConfiguration(),
+          configuration: immersiveConfiguration(
+            options.localeSet === undefined ? {} : { localeSet: options.localeSet },
+          ),
         }) as PortalPublicationSnapshot,
     },
     mediaRepo,
@@ -126,7 +130,7 @@ const tents = (
   printer: 'my_printer',
   quantity: 10,
   languages: ['en', 'bg'],
-  callToAction: 'rate',
+  callToAction: 'how_did_we_do',
   ...over,
 })
 
@@ -334,7 +338,8 @@ describe('createPortalPrintFinal', () => {
             cropMarks: false,
             backPage: false,
             languages: ['en', 'bg'],
-            callToAction: 'rate',
+            callToAction: 'how_did_we_do',
+            customWords: null,
           },
           photo: null,
         },
@@ -457,5 +462,134 @@ describe('createPortalPrintFinal', () => {
       context: { cause: 'words_do_not_fit' },
     })
     expect(lastPrintRepo.recorded()).toEqual([])
+  })
+
+  it('prints the manager’s own words where they wrote them and the wording in the other language', async () => {
+    const { portal, make, rendered } = await setup()
+
+    await make(
+      tents(portal.id, {
+        callToAction: 'rate_visit',
+        customWords: { en: { headline: 'How was today?', subline: '' } },
+      }),
+      buildTestAuthContext(),
+    )
+
+    expect(
+      rendered[0]?.blocks.map(({ headline, subline }) => [headline, subline]),
+    ).toEqual([
+      ['How was today?', ''],
+      ['Оценете посещението си', 'Около 30 секунди'],
+    ])
+  })
+
+  it('asks the manager to shorten their own words when the face cannot hold them', async () => {
+    const { portal, make } = await setup({
+      refuse: new PrintFinalRenderRefusal({ code: 'words_do_not_fit', moduleMm: null }),
+    })
+
+    await expect(
+      make(
+        tents(portal.id, {
+          customWords: {
+            en: {
+              headline: 'Tell us how your visit went today, in a few taps',
+              subline: '',
+            },
+          },
+        }),
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      message: PRINT_FINAL_REFUSAL_COPY.shorten_to_fit,
+      context: { cause: 'shorten_to_fit' },
+    })
+  })
+
+  it('refuses a wording that rule F holds back in a language of the print, before the address is read', async () => {
+    const { portal, make, reveal, lastPrintRepo } = await setup({
+      localeSet: ['en', 'de'],
+    })
+
+    await expect(
+      make(
+        tents(portal.id, { languages: ['en', 'de'], callToAction: 'got_30_seconds' }),
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      message: PRINT_FINAL_REFUSAL_COPY.wording_not_available,
+      context: { cause: 'wording_not_available' },
+    })
+    // Own words in English alone do not lift the hold on the German copy.
+    await expect(
+      make(
+        tents(portal.id, {
+          languages: ['en', 'de'],
+          callToAction: 'got_30_seconds',
+          customWords: { en: { headline: 'How was today?', subline: '' } },
+        }),
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({ context: { cause: 'wording_not_available' } })
+    expect(reveal).not.toHaveBeenCalled()
+    expect(lastPrintRepo.recorded()).toEqual([])
+  })
+
+  it('prints a held wording’s language once the manager has written their own words in it', async () => {
+    const { portal, make, rendered } = await setup({ localeSet: ['en', 'de'] })
+
+    await make(
+      tents(portal.id, {
+        languages: ['en', 'de'],
+        callToAction: 'got_30_seconds',
+        customWords: { de: { headline: 'Wie war es heute?', subline: '' } },
+      }),
+      buildTestAuthContext(),
+    )
+
+    expect(rendered[0]?.blocks.map(({ headline }) => headline)).toEqual([
+      'Got 30 seconds?',
+      'Wie war es heute?',
+    ])
+  })
+
+  it('refuses own words that offer something for the review, before the address is read', async () => {
+    const { portal, make, reveal } = await setup()
+
+    await expect(
+      make(
+        tents(portal.id, {
+          customWords: { en: { headline: 'Get 10% off', subline: '' } },
+        }),
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      message: PRINT_FINAL_REFUSAL_COPY.remove_offer,
+      context: { cause: 'remove_offer' },
+    })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('remembers the manager’s own words with the print, only the languages that changed', async () => {
+    const { portal, make, lastPrintRepo } = await setup()
+
+    await make(
+      tents(portal.id, {
+        callToAction: 'rate_visit',
+        customWords: {
+          en: { headline: 'How was today?', subline: '' },
+          bg: { headline: 'Оценете посещението си', subline: 'Около 30 секунди' },
+        },
+      }),
+      buildTestAuthContext(),
+    )
+
+    expect(lastPrintRepo.recorded()[0]?.settings).toMatchObject({
+      callToAction: 'rate_visit',
+      customWords: { en: { headline: 'How was today?', subline: '' } },
+    })
   })
 })

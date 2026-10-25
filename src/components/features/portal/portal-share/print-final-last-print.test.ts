@@ -17,7 +17,8 @@ const SETTINGS: PrintFinalLastSettings = {
   cropMarks: false,
   backPage: false,
   languages: ['en', 'es'],
-  callToAction: 'rate',
+  callToAction: 'how_did_we_do',
+  customWords: null,
 }
 
 const last = (
@@ -52,6 +53,15 @@ describe('printFinalLastNotice', () => {
         }),
       ).title,
     ).toBe('Last printed Oct 12 · 10 Immersive Counter cards, upright, on Letter')
+  })
+
+  it('says when the print had the manager’s own words', () => {
+    expect(
+      notice(last({ customWords: { en: { headline: 'How was today?', subline: '' } } }))
+        .title,
+    ).toBe(
+      'Last printed Oct 12 · 10 Paper table tents, wide, on Letter, English + Español · your own words',
+    )
   })
 
   it('counts one piece in the singular and names the paper it was made for', () => {

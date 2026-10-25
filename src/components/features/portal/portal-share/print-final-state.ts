@@ -11,9 +11,18 @@ import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-
 import {
   defaultPrintKitPaper,
   isPrintKitLanguageChoice,
-  type PrintKitCallToAction,
   type PrintKitPaper,
 } from '#/shared/domain/portal-print-kit'
+import {
+  PRINT_FINAL_COPY,
+  PRINT_FINAL_DEFAULT_CALL_TO_ACTION,
+  type PrintFinalCallToAction,
+} from '#/shared/domain/portal-print-final-copy'
+import {
+  printFinalOwnWordsToSend,
+  type PrintFinalCustomWords,
+  type PrintFinalWordsChoice,
+} from '#/shared/domain/portal-print-final-custom'
 import {
   PRINT_FINAL_DEFAULT_ORIENTATION,
   printFinalRegionOf,
@@ -62,7 +71,14 @@ export type PrintFinalShareChoice = Readonly<{
   cropMarks: boolean
   /** Null until the manager picks: the portal's first choice (its primary and the next language). */
   languages: readonly GuestLocale[] | null
-  callToAction: PrintKitCallToAction
+  /** The wording picked, or the one the manager's own words started from. */
+  callToAction: PrintFinalCallToAction
+  /**
+   * The manager's own words as typed, per language ("Write your own…"); null
+   * while a wording is picked. A language without its own entry yet starts from
+   * the wording's copy, so adding a language prefills its fields.
+   */
+  customWords: PrintFinalCustomWords | null
 }>
 
 /** The board's starting point: a wide table tent, Paper, from the manager's printer, ten of them. */
@@ -78,7 +94,8 @@ export const INITIAL_PRINT_FINAL_CHOICE: PrintFinalShareChoice = Object.freeze({
   backPage: false,
   cropMarks: false,
   languages: null,
-  callToAction: 'rate',
+  callToAction: PRINT_FINAL_DEFAULT_CALL_TO_ACTION,
+  customWords: null,
 })
 
 /** The print a choice makes, as the preview draws it and the download asks for it. */
@@ -102,8 +119,29 @@ export type PrintFinalSharePrint = Readonly<{
   /** The file's page has crop marks: asked for, and a print shop's (the manager's own printer has none). */
   cropMarks: boolean
   languages: readonly GuestLocale[]
-  callToAction: PrintKitCallToAction
+  callToAction: PrintFinalCallToAction
+  /** What the print says: the wording, and the own words of every language on it (prefilled) while "Write your own…" is on. */
+  words: PrintFinalWordsChoice
 }>
+
+/** The words a choice prints in `languages`: own words for each language, prefilled from the wording, or the wording alone. */
+function wordsOf(
+  choice: Pick<PrintFinalShareChoice, 'callToAction' | 'customWords'>,
+  languages: readonly GuestLocale[],
+): PrintFinalWordsChoice {
+  const preset = choice.callToAction
+  const own = choice.customWords
+  if (own === null) return { preset, custom: null }
+  return {
+    preset,
+    custom: Object.fromEntries(
+      languages.map((locale) => [
+        locale,
+        own[locale] ?? PRINT_FINAL_COPY[locale][preset],
+      ]),
+    ),
+  }
+}
 
 /** A whole number from 1 to 1000, or null. */
 export function parsePrintFinalQuantity(text: string): number | null {
@@ -147,6 +185,7 @@ export function resolvePrintFinalChoice(
     cropMarks: choice.cropMarks && choice.printer === 'print_shop',
     languages,
     callToAction: choice.callToAction,
+    words: wordsOf(choice, languages),
   }
 }
 
@@ -169,6 +208,8 @@ export function choiceOfLastPrint(
     cropMarks: last.cropMarks,
     languages: last.languages,
     callToAction: last.callToAction,
+    // The own words come back in "Write your own…"; a print that said the wording leaves it picked.
+    customWords: last.customWords,
   }
 }
 
@@ -177,6 +218,19 @@ export function printFinalLastLook(
   lastPrint: Readonly<{ settings: Pick<PrintFinalLastSettings, 'look'> }> | null,
 ): PrintFinalLook | null {
   return lastPrint?.settings.look ?? null
+}
+
+/** Two prints' own words are the same: the same languages, each with the same headline and sub-line. */
+function sameOwnWords(
+  left: PrintFinalCustomWords | null,
+  right: PrintFinalCustomWords | null,
+): boolean {
+  // Field by field: a stored object's key order is not the order a print made it in.
+  const entries = (words: PrintFinalCustomWords | null) =>
+    Object.entries(words ?? {})
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([locale, copy]) => [locale, copy?.headline, copy?.subline])
+  return JSON.stringify(entries(left)) === JSON.stringify(entries(right))
 }
 
 /** Whether a print is the Portal's last print: every choice it took, as it took it. */
@@ -196,6 +250,10 @@ export function printFinalMatchesLast(
     print.backPage === last.backPage &&
     print.cropMarks === last.cropMarks &&
     print.callToAction === last.callToAction &&
+    sameOwnWords(
+      printFinalOwnWordsToSend(print.words, print.languages),
+      last.customWords,
+    ) &&
     print.languages.length === last.languages.length &&
     print.languages.every((locale, index) => locale === last.languages[index])
   )

@@ -286,9 +286,12 @@ async function seedFixture(): Promise<Fixture> {
     `INSERT INTO portal_last_prints (
        portal_id, organization_id, property_id, piece, orientation, look, paper,
        printer, quantity, fill_spares, crop_marks, back_page, languages,
-       call_to_action, photo_asset_id, photo_focal_x, photo_focal_y, printed_at
+       call_to_action, call_to_action_custom, photo_asset_id, photo_focal_x,
+       photo_focal_y, printed_at
      ) VALUES ($1, $2, $3, 'counter', 'upright', 'immersive', 'letter', 'my_printer',
-               10, false, false, true, '["en","es"]'::jsonb, 'rate', $4, 0.5, 0.4, now())`,
+               10, false, false, true, '["en","es"]'::jsonb, 'how_did_we_do',
+               '{"en":{"headline":"How was today?","subline":""}}'::jsonb, $4, 0.5, 0.4,
+               now())`,
     [fixture.portalId, organizationId, fixture.propertyId, fixture.mediaAssetId],
   )
 
@@ -420,7 +423,9 @@ describe.sequential('Portal Organization Export contributor', () => {
       quantity: 10,
       back_page: true,
       languages: '["en", "es"]',
-      call_to_action: 'rate',
+      call_to_action: 'how_did_we_do',
+      // jsonb keeps its own key order: shorter keys first.
+      call_to_action_custom: '{"en": {"subline": "", "headline": "How was today?"}}',
       photo_asset_id: fixture.mediaAssetId,
     })
     // The compatibility mirror (a row is seeded above) has no reader left: the

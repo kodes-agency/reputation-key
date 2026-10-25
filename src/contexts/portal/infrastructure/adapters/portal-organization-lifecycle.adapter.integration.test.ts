@@ -269,7 +269,7 @@ async function seedFixture(): Promise<Fixture> {
        printer, quantity, fill_spares, crop_marks, back_page, languages,
        call_to_action, printed_at
      ) VALUES ($3, $1, $2, 'tent', 'wide', 'paper', 'letter', 'my_printer', 10,
-               false, false, false, '["en"]'::jsonb, 'rate', now())`,
+               false, false, false, '["en"]'::jsonb, 'how_did_we_do', now())`,
     scope,
   )
   return fixture

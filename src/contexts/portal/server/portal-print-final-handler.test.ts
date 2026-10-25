@@ -75,7 +75,7 @@ const INPUT = {
   quantity: 8,
   fillSpares: false,
   languages: ['en', 'bg'] as ('en' | 'bg')[],
-  callToAction: 'rate' as const,
+  callToAction: 'how_did_we_do' as const,
 }
 const ALLOWED = {
   allowed: true,

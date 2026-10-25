@@ -55,7 +55,7 @@ function inputFor(
 ): PrintFinalImmersiveFaceInput {
   const blocks = printFinalBlocks(
     languages,
-    'rate',
+    { preset: 'how_did_we_do' },
     { en: 'Review us on Google' },
     'Reception',
   )

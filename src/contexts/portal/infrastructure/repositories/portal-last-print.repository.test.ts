@@ -40,7 +40,8 @@ const settings = (
   cropMarks: false,
   backPage: false,
   languages: ['en', 'es'],
-  callToAction: 'rate',
+  callToAction: 'how_did_we_do',
+  customWords: null,
   ...patch,
 })
 
@@ -100,7 +101,7 @@ describe('portalLastPrintRepository (integration)', () => {
         perSheet: 2,
         backPage: true,
         languages: ['bg'],
-        callToAction: 'tell',
+        callToAction: 'how_was_visit',
       }),
       photo: { assetId: PHOTO, focalX: 0.25, focalY: 0.6 },
     })
@@ -111,6 +112,21 @@ describe('portalLastPrintRepository (integration)', () => {
       printedAt: stored.printedAt,
       settings: stored.settings,
       photo: stored.photo,
+    })
+  })
+
+  it('remembers the manager’s own words per language, and the wording they started from', async () => {
+    const customWords = {
+      en: { headline: 'How was today?', subline: '' },
+      es: { headline: '¿Qué tal hoy?', subline: 'Unos 30 segundos' },
+    }
+    await repo().record(
+      print({ settings: settings({ callToAction: 'rate_visit', customWords }) }),
+    )
+
+    expect((await repo().find(ORG, PORTAL))?.settings).toMatchObject({
+      callToAction: 'rate_visit',
+      customWords,
     })
   })
 
@@ -225,6 +241,8 @@ describe('portalLastPrintRepository (integration)', () => {
       ['paper', "'legal'"],
       ['printer', "'courier'"],
       ['call_to_action', "'shout'"],
+      ['call_to_action', "'rate'"],
+      ['call_to_action_custom', `'["How was today?"]'::jsonb`],
       ['quantity', '0'],
       ['quantity', '1001'],
       ['per_sheet', '0'],

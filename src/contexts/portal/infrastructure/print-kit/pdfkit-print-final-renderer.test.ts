@@ -34,7 +34,7 @@ function inputFor(
 ): PrintFinalRenderInput {
   const blocks = printFinalBlocks(
     languages,
-    'rate',
+    { preset: 'how_did_we_do' },
     { en: 'Review us on Google', es: 'Reseñe en Google' },
     'Reception',
   )
@@ -130,7 +130,7 @@ describe('createPdfKitPrintFinalRenderer', () => {
   })
 
   it('refuses words the piece cannot hold at the smallest headline, before any page, and prints the other way up', async () => {
-    const [block] = printFinalBlocks(['en'], 'rate', {}, 'Reception')
+    const [block] = printFinalBlocks(['en'], { preset: 'how_did_we_do' }, {}, 'Reception')
     if (block === undefined) throw new Error('one block')
     const long = [
       {
@@ -150,7 +150,12 @@ describe('createPdfKitPrintFinalRenderer', () => {
   })
 
   it('refuses "How was your visit?" in English and Spanish on an upright Paper tent, as the sweep says, and prints it wide', async () => {
-    const blocks = printFinalBlocks(['en', 'es'], 'tell', {}, 'Reception')
+    const blocks = printFinalBlocks(
+      ['en', 'es'],
+      { preset: 'how_was_visit' },
+      {},
+      'Reception',
+    )
     // A badge as wide as Harborline's, so the brand is as tall as the boards' (8.2 mm on a tent).
     const logo = new Uint8Array(
       await sharp({

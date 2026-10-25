@@ -9,7 +9,7 @@ const valid = {
   printer: 'my_printer',
   quantity: 8,
   languages: ['en', 'es'],
-  callToAction: 'rate',
+  callToAction: 'how_did_we_do',
 }
 
 const parse = (extra: object) =>
@@ -75,5 +75,36 @@ describe('downloadPortalPrintFinalInputSchema', () => {
   it('refuses an empty Portal id and an unknown call to action', () => {
     expect(parse({ portalId: '' }).success).toBe(false)
     expect(parse({ callToAction: 'buy' }).success).toBe(false)
+  })
+
+  it('takes every wording of the menu, and the old ids no more', () => {
+    for (const callToAction of [
+      'how_did_we_do',
+      'how_was_visit',
+      'rate_visit',
+      'got_30_seconds',
+    ]) {
+      expect(parse({ callToAction }).success).toBe(true)
+    }
+    expect(parse({ callToAction: 'rate' }).success).toBe(false)
+  })
+
+  it('takes the manager’s own words per language, normalised, an empty sub-line allowed', () => {
+    const parsed = parse({
+      customWords: { en: { headline: '  Thanks for\nstaying  with us ', subline: '' } },
+    })
+    expect(parsed.data?.customWords).toEqual({
+      en: { headline: 'Thanks for staying with us', subline: '' },
+    })
+  })
+
+  it('refuses own words with no headline, past 60 characters, with a control character or in a language not printed', () => {
+    const own = (headline: string, locale = 'en') => ({
+      customWords: { [locale]: { headline, subline: '' } },
+    })
+    expect(parse(own('   ')).success).toBe(false)
+    expect(parse(own('a'.repeat(61))).success).toBe(false)
+    expect(parse(own('How\u0000 was it')).success).toBe(false)
+    expect(parse(own('Wie war es?', 'de')).success).toBe(false)
   })
 })

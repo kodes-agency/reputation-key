@@ -564,19 +564,25 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   copy table, `PRINT_FINAL_COPY` (`portal-print-final-copy.ts`); today's `PRINT_KIT_COPY`
   stays with today's kit. The default says "How did we do?" over "About 30 seconds" in all
   six languages, and no word anywhere in the final kit says "private" or "privately"
-  (fixed rule NP; the guest page's own "Send privately" stays). The stored ids are still
-  `rate` and `tell`, so `rate` is the default slot (the spec's `how_did_we_do`) until the
-  preset model replaces the two ids; the non-English strings are drafts that need a native
-  check (the copy table lists the doubtful ones). No piece carries stars (fixed rule NS).
-  The kicker is left out when the headline repeats it once both are normalised
+  (fixed rule NP; the guest page's own "Send privately" stays). Share offers four wordings
+  (`PRINT_FINAL_CALLS_TO_ACTION`: `how_did_we_do`, `how_was_visit`, `rate_visit`,
+  `got_30_seconds`) and "Write your own…": a headline and a sub-line per language of the
+  print (`portal-print-final-custom.ts`), printed as typed and never translated; the print
+  keeps the wording id even with own words. The non-English strings are drafts that need a
+  native check; rule F (a golden test over the planner) holds back the copies that missed
+  it in the brainstorm (`printFinalCopyStatus` = `held`). No piece carries stars (fixed rule
+  NS). The kicker is left out when the headline repeats it once both are normalised
   (`printFinalKickerRepeated`), and the message group re-centres. The headline prints on at
   most 3 lines and the sub-line on 2 (`PRINT_FINAL_LINE_CAPS`, held by the planner as
   `headline_over_cap` and `subline_over_cap`): the long-copy step tries smaller sizes
   first, and words the chosen orientation cannot hold at the floor are refused with
-  `words_do_not_fit` (the other orientation missing is not a refusal). The Share tab does
-  not hold the print back for it yet: its estimates err wide, so it would refuse prints the
-  file makes, and the server's answer is the exact one. The scan cue is one short cue per
-  language (`PRINT_FINAL_SCAN_CUE`, `portal-print-final-cue.ts`) that fits one line on every
+  `words_do_not_fit` (the other orientation missing is not a refusal), or `shorten_to_fit`
+  when the words are the manager's own. Share runs the same planner on its estimates (they
+  err wide, so it may hold back a print the file would make, never the reverse): the menu
+  greys a wording the chosen print would refuse, own words get a live fit status, and
+  Download turns into "Choose words that fit" or "Shorten to fit". Only a clear offer in own
+  words blocks (`portal-print-final-warnings.ts`, `remove_offer`); every other note warns.
+  The scan cue is one short cue per language (`PRINT_FINAL_SCAN_CUE`, `portal-print-final-cue.ts`) that fits one line on every
   bar, measured with the font by the PDF and by the width tables in the preview, and is
   centred in the bar by its ink; the wrap into the two-line bar stays as the fallback.
 - **The final kit's download.** `createPortalPrintFinal` makes the final kit's PDF

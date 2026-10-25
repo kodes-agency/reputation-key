@@ -1,7 +1,7 @@
 // The last two steps of the final Print cards section (final design spec §11.4
 // and §11.5, the boards share-desktop-light and share-phone): how many, with the
 // exact sheets it takes and the spares checkbox, and the words: an ordered pair
-// of languages, the call to action, and More options: the count a sheet, or for a
+// of languages, the call to action (its menu and "Write your own…"), and More options: the count a sheet, or for a
 // print shop the crop marks, and a card's back page. A print shop's file is one
 // piece per page, so How many is not asked for it.
 
@@ -17,15 +17,10 @@ import {
 } from '#/shared/domain/portal-print-final-back-copy'
 import { printFinalHasBack } from '#/shared/domain/portal-print-final-back'
 import {
-  PRINT_KIT_CALLS_TO_ACTION,
-  type PrintKitCallToAction,
-} from '#/shared/domain/portal-print-kit'
-import {
   PRINT_FINAL_SHOP_CROP_MARKS_HELP,
   PRINT_FINAL_SHOP_CROP_MARKS_LABEL,
 } from '#/shared/domain/portal-print-final-shop-copy'
 import {
-  PRINT_FINAL_CALL_TO_ACTION_LABELS,
   printFinalLanguageChoiceLabel,
   printFinalLanguageChoices,
   printFinalLanguageValue,
@@ -38,6 +33,8 @@ import {
   printFinalSparesNote,
 } from '#/shared/domain/portal-print-final-share'
 import { Step } from './portal-print-final-choices'
+import { PrintFinalCtaSelect } from './print-final-cta-select'
+import { PrintFinalOwnWords } from './print-final-own-words'
 import type { PrintFinalSharePrint } from './print-final-state'
 import type { PrintFinalState } from './use-print-final'
 
@@ -228,19 +225,8 @@ export function PrintFinalWordsStep(props: StepProps) {
         }))}
         description={`Up to two, the first larger.${print.piece === 'tent' ? ' Both faces of a tent show both.' : ''}`}
       />
-      <FormSelectField
-        id="print-final-cta"
-        label="Call to action"
-        value={print.callToAction}
-        onValueChange={(callToAction) =>
-          final.change({ callToAction: callToAction as PrintKitCallToAction })
-        }
-        options={PRINT_KIT_CALLS_TO_ACTION.map((callToAction) => ({
-          value: callToAction,
-          label: PRINT_FINAL_CALL_TO_ACTION_LABELS[callToAction],
-        }))}
-        className="mt-2"
-      />
+      <PrintFinalCtaSelect words={final.words} print={print} />
+      {final.words.isOwn && <PrintFinalOwnWords words={final.words} print={print} />}
       <MoreOptions {...props} />
     </Step>
   )

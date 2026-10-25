@@ -44,6 +44,7 @@ import {
   usePrintFinalDrawnFace,
   type PrintFinalDrawnFace,
 } from './use-print-final-drawn-face'
+import { PrintFinalEveryCard } from './print-final-every-card'
 import type { PrintFinalState } from './use-print-final'
 
 /** The tallest the face is drawn, in CSS pixels: the board's 380 beside the section, smaller in the phone's sheet. */
@@ -210,6 +211,7 @@ function Ready({ final, view, placement, propertyId, controls, tile }: ReadyProp
         />
       )}
       {controls}
+      <PrintFinalEveryCard words={final.words} print={print} />
       {print.printer === 'my_printer' ? (
         <SheetPreview final={final} view={view} tile={tile} back={showBack} />
       ) : (
@@ -239,7 +241,9 @@ export function PortalPrintFinalPreview(props: Props) {
           <h2 id="print-final-preview-heading" className="text-sm font-semibold">
             Preview
           </h2>
-          <span className="text-xs text-muted-foreground">Your live photo and words</span>
+          <span className="text-xs text-muted-foreground">
+            {final.words.isOwn ? 'Updates as you type' : 'Your live photo and words'}
+          </span>
         </div>
       )}
       {view === null || final.print === null ? (

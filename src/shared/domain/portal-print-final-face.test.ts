@@ -42,7 +42,7 @@ const face = (over: Partial<PrintFinalFace> = {}): PrintFinalFace => ({
 const blocksOf = (languages: readonly GuestLocale[]): readonly PrintTextBlock[] =>
   printFinalBlocks(
     languages,
-    'rate',
+    { preset: 'how_did_we_do' },
     { en: 'Review us on Google', es: 'Reseñe en Google', de: 'Bewerten Sie uns' },
     'Reception',
   )

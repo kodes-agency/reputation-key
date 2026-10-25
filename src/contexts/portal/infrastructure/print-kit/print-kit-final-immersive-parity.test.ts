@@ -69,7 +69,7 @@ const FACES: readonly PrintFinalFace[] = (['us', 'eu'] as const).flatMap((region
 const blocksOf = (languages: readonly GuestLocale[]) =>
   printFinalBlocks(
     languages,
-    'rate',
+    { preset: 'how_did_we_do' },
     {
       en: 'Review us on Google',
       es: 'Reseñe en Google',

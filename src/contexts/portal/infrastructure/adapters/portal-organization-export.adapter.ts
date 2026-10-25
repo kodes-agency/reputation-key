@@ -460,14 +460,16 @@ async function readPayload(
                    ${utc('observed_at')} AS observed_at
             FROM portal_health_intervals WHERE organization_id = ${organizationId}`,
       )
-      // The choices of each Portal's last final print and the image it used, by id:
-      // choices and a day, never an address or a file. Its key is the Portal's own.
+      // The choices of each Portal's last final print (the manager's own words
+      // among them) and the image it used, by id: choices and a day, never an
+      // address or a file. Its key is the Portal's own.
       const lastPrints = await readRows(
         snapshot,
         sql`SELECT portal_id::text AS id, property_id::text AS property_id,
                    portal_id::text AS portal_id, piece, orientation, look, paper,
                    printer, quantity, fill_spares, per_sheet, crop_marks, back_page,
                    languages::text AS languages, call_to_action,
+                   call_to_action_custom::text AS call_to_action_custom,
                    photo_asset_id::text AS photo_asset_id, photo_focal_x, photo_focal_y,
                    ${utc('printed_at')} AS printed_at
             FROM portal_last_prints WHERE organization_id = ${organizationId}`,

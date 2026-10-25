@@ -54,32 +54,69 @@ export function PrintFinalSummaryLine({
   )
 }
 
+/**
+ * Download, or the words that hold it back (§11.5): "Shorten to fit", "Choose
+ * words that fit" or "Remove the offer to print", with why beside it. A warning
+ * never holds it back.
+ */
+export function PrintFinalDownloadButton({
+  final,
+  unavailableReason,
+  size,
+  className,
+}: Readonly<{
+  final: PrintFinalState
+  unavailableReason: string | null
+  size?: 'lg'
+  className?: string
+}>) {
+  const block = unavailableReason === null ? null : final.words.block
+  return (
+    <Button
+      type="button"
+      size={size}
+      className={className}
+      disabled={final.print === null || unavailableReason !== null}
+      pending={final.isWorking}
+      pendingLabel="Making the PDF…"
+      aria-describedby="print-final-summary"
+      onClick={() => void final.download()}
+    >
+      {block === null || block.label === 'Download PDF' ? (
+        <>
+          <Download /> Download PDF
+        </>
+      ) : (
+        block.label
+      )}
+    </Button>
+  )
+}
+
 function DownloadRow({
   final,
   unavailableReason,
 }: Readonly<{ final: PrintFinalState; unavailableReason: string | null }>) {
+  // The words' own reason sits beside the button; any other reason goes under the row.
+  const wordsNote = unavailableReason !== null ? (final.words.block?.note ?? null) : null
+  const besideIsReason = wordsNote !== null && wordsNote === unavailableReason
   return (
     <div className="hidden gap-2 lg:grid">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Button
-          type="button"
-          disabled={final.print === null || unavailableReason !== null}
-          pending={final.isWorking}
-          pendingLabel="Making the PDF…"
-          aria-describedby="print-final-summary"
-          onClick={() => void final.download()}
-        >
-          <Download /> Download PDF
-        </Button>
-        <PrintFinalSummaryLine
-          final={final}
-          className="text-[13px] text-muted-foreground"
-        />
+        <PrintFinalDownloadButton final={final} unavailableReason={unavailableReason} />
+        {besideIsReason ? (
+          <span className="text-[13px] text-muted-foreground">{wordsNote}</span>
+        ) : (
+          <PrintFinalSummaryLine
+            final={final}
+            className="text-[13px] text-muted-foreground"
+          />
+        )}
         <span id="print-final-summary" className="sr-only">
           {final.fileName}
         </span>
       </div>
-      {unavailableReason !== null && (
+      {unavailableReason !== null && !besideIsReason && (
         <p className="text-sm text-muted-foreground">{unavailableReason}</p>
       )}
     </div>

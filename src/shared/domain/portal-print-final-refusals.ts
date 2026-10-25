@@ -24,4 +24,10 @@ export const PRINT_FINAL_REFUSAL_COPY: Readonly<
   quantity_out_of_range: 'Enter how many you need, from 1 to 1000.',
   per_sheet_out_of_range: 'Choose how many go on a sheet, up to as many as fit.',
   languages_out_of_range: 'Choose one or two languages.',
+  wording_not_available:
+    'This wording is not available in every language of the print yet. Pick another wording, or write your own.',
+  shorten_to_fit:
+    'Your words are too long for this piece, even at the smallest size. Shorten them to fit.',
+  remove_offer:
+    'Remove the offer to print. Google removes reviews given for a discount or a gift, and can remove them all.',
 })

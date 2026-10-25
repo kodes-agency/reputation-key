@@ -43,7 +43,8 @@ const LAST_SETTINGS: PrintFinalLastSettings = {
   cropMarks: false,
   backPage: false,
   languages: ['en', 'bg'],
-  callToAction: 'rate',
+  callToAction: 'how_did_we_do',
+  customWords: null,
 }
 const PRINTED_AT = new Date('2026-10-12T09:00:00.000Z')
 const OTHER_PHOTO = '70000000-0000-4000-8000-0000000000aa'

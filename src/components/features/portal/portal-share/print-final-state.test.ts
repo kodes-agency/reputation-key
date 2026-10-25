@@ -34,7 +34,8 @@ describe('resolvePrintFinalChoice', () => {
       backPage: false,
       cropMarks: false,
       languages: ['en', 'es'],
-      callToAction: 'rate',
+      callToAction: 'how_did_we_do',
+      words: { preset: 'how_did_we_do', custom: null },
     })
   })
 

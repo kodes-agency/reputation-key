@@ -22,7 +22,7 @@ import {
   printFinalShopPage,
 } from '#/shared/domain/portal-print-final-shop'
 import { printFinalSheet } from '#/shared/domain/portal-print-final-immersive-sheets'
-import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
+import { printFinalOwnWordsToSend } from '#/shared/domain/portal-print-final-custom'
 import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-refusals'
 import type { PortalPrintKitResources } from './portal-print-kit-types'
 import {
@@ -33,10 +33,12 @@ import {
   printFinalShareCheck,
   printFinalShareCount,
   resolvePrintFinalChoice,
+  type PrintFinalShareCheck,
   type PrintFinalShareChoice,
   type PrintFinalSharePrint,
 } from './print-final-state'
 import { saveBlob } from './save-file'
+import { usePrintFinalWords, type PrintFinalWordsBlock } from './use-print-final-words'
 import { usePrintKitCode } from './use-print-kit-code'
 import { decodeBase64 } from './use-print-kit-download'
 
@@ -67,6 +69,8 @@ type Input = Readonly<{
 
 /** What the download sends for a print. */
 function requestOf(portalId: string, print: PrintFinalSharePrint) {
+  // Only the words the manager changed from the wording are their own; prefilled fields as they stand send nothing.
+  const customWords = printFinalOwnWordsToSend(print.words, print.languages)
   return {
     portalId,
     piece: print.piece,
@@ -81,7 +85,17 @@ function requestOf(portalId: string, print: PrintFinalSharePrint) {
     ...(print.chosenPerSheet === undefined ? {} : { perSheet: print.chosenPerSheet }),
     languages: [...print.languages],
     callToAction: print.callToAction,
+    ...(customWords === null ? {} : { customWords }),
   }
+}
+
+/** The kit's own refusal first: a print it cannot make says so before its words do. */
+function refusalOf(
+  check: PrintFinalShareCheck | null,
+  wordsBlock: PrintFinalWordsBlock | null,
+): string | null {
+  if (check?.refusal != null) return PRINT_FINAL_REFUSAL_COPY[check.refusal]
+  return wordsBlock?.note ?? null
 }
 
 function useChoice() {
@@ -107,6 +121,12 @@ function useChoice() {
       (last: PrintFinalLastSettings) => setChoice((now) => choiceOfLastPrint(now, last)),
       [],
     ),
+    /** Picks a wording, writes the manager's own words, or edits them: one change to the words. */
+    changeWords: useCallback(
+      (words: Pick<PrintFinalShareChoice, 'callToAction' | 'customWords'>) =>
+        setChoice((now) => ({ ...now, ...words })),
+      [],
+    ),
     /** A print shop takes no tents: choosing it moves a tent choice to Counter cards. */
     choosePrinter: useCallback(
       (printer: PrintFinalPrinter) =>
@@ -122,8 +142,14 @@ function useChoice() {
 
 export function usePrintFinal(input: Input) {
   const { view, portalId, downloadMutation, onDownloaded } = input
-  const { choice, change, chooseOrientation, choosePrinter, repeatLastPrint } =
-    useChoice()
+  const {
+    choice,
+    change,
+    chooseOrientation,
+    choosePrinter,
+    repeatLastPrint,
+    changeWords,
+  } = useChoice()
   const { countryCode } = input
   const lastPrint = view?.lastPrint ?? null
   // Held while the choice and the read stand, so the face is laid out once per change.
@@ -162,15 +188,13 @@ export function usePrintFinal(input: Input) {
     }),
     [piece, orientation, look, paper],
   )
-  const languages = print?.languages
-  const callToAction = choice.callToAction
-  const blocks = useMemo(
-    () =>
-      view === null || languages === undefined
-        ? []
-        : printFinalBlocks(languages, callToAction, view.titles, view.portalName),
-    [view, languages, callToAction],
-  )
+  const wordsState = usePrintFinalWords({
+    print,
+    face,
+    view,
+    code: { address: printAddressShape(code.address), symbolModules },
+    editWords: changeWords,
+  })
   const sheet = useMemo(
     () => printFinalSheet({ piece, orientation, look, paper }),
     [piece, orientation, look, paper],
@@ -213,10 +237,12 @@ export function usePrintFinal(input: Input) {
     /** Whether the code drawn is a sample, the live address not being in memory. */
     sample: input.qrAddress === null,
     tile: check?.tile ?? null,
-    /** Why the server would refuse this print, in its own words; null when it would make it. */
-    refusal: check?.refusal == null ? null : PRINT_FINAL_REFUSAL_COPY[check.refusal],
+    /** Why the server would refuse this print, in its own words (the words' own reason last); null when it would make it. */
+    refusal: refusalOf(check, wordsState.block),
     face,
-    blocks,
+    blocks: wordsState.blocks,
+    /** The call to action: the menu checked against the print, the manager's own words and their fit. */
+    words: wordsState,
     sheet,
     /** The page a print shop's file has; null from the manager's own printer. */
     shopPage,

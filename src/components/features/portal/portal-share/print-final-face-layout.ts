@@ -104,6 +104,8 @@ export type PreviewFinalFaceInput = Readonly<{
   tile: PrintFinalTile
   /** The logo picture's width over its height, once it has loaded. */
   logoAspect: number | null
+  /** Step the headline for this orientation alone (Share's fit check); the print steps both. */
+  ownStepOnly?: boolean
 }>
 
 /** Where everything on a final face goes, as the file places it. */
@@ -116,6 +118,7 @@ export function previewFinalFaceLayout(
     brand: previewFinalBrand(input.look, input.face, input.logoAspect),
     tile: input.tile,
     measurer: previewFinalMeasurer,
+    ownStepOnly: input.ownStepOnly,
   })
 }
 

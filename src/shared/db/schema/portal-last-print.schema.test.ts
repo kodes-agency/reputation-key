@@ -8,10 +8,10 @@ import {
 } from '#/shared/domain/portal-print-final'
 import { PRINT_FINAL_MAX_QUANTITY } from '#/shared/domain/portal-print-final-offer'
 import {
-  PRINT_KIT_CALLS_TO_ACTION,
   PRINT_KIT_MAX_LANGUAGES,
   PRINT_KIT_PAPERS,
 } from '#/shared/domain/portal-print-kit'
+import { PRINT_FINAL_CALLS_TO_ACTION } from '#/shared/domain/portal-print-final-copy'
 import {
   PORTAL_LAST_PRINT_CTA_SQL_LIST,
   PORTAL_LAST_PRINT_LOOK_SQL_LIST,
@@ -34,7 +34,7 @@ describe('portal_last_prints schema', () => {
     ['looks', PORTAL_LAST_PRINT_LOOK_SQL_LIST, PRINT_FINAL_LOOKS],
     ['papers', PORTAL_LAST_PRINT_PAPER_SQL_LIST, PRINT_KIT_PAPERS],
     ['printers', PORTAL_LAST_PRINT_PRINTER_SQL_LIST, PRINT_FINAL_PRINTERS],
-    ['calls to action', PORTAL_LAST_PRINT_CTA_SQL_LIST, PRINT_KIT_CALLS_TO_ACTION],
+    ['calls to action', PORTAL_LAST_PRINT_CTA_SQL_LIST, PRINT_FINAL_CALLS_TO_ACTION],
   ] as const)(
     'lists exactly the domain %s in its CHECK constraint',
     (_name, list, domain) => {

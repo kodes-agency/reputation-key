@@ -41,7 +41,8 @@ const LAST: PrintFinalLastSettings = {
   cropMarks: false,
   backPage: true,
   languages: ['es', 'en'],
-  callToAction: 'tell',
+  callToAction: 'how_was_visit',
+  customWords: null,
 }
 
 describe('the look a print opens on', () => {
@@ -70,7 +71,7 @@ describe('choiceOfLastPrint', () => {
       backPage: true,
       cropMarks: false,
       languages: ['es', 'en'],
-      callToAction: 'tell',
+      callToAction: 'how_was_visit',
     })
     expect(chosen.orientations.counter).toBe('wide')
   })
@@ -133,7 +134,11 @@ describe('printFinalMatchesLast', () => {
     ['the look', { look: 'paper' }],
     ['the paper', { paper: 'letter' }],
     ['the languages', { languages: ['en', 'es'] }],
-    ['the call to action', { callToAction: 'rate' }],
+    ['the call to action', { callToAction: 'how_did_we_do' }],
+    [
+      'the own words',
+      { customWords: { en: { headline: 'How was today?', subline: '' } } },
+    ],
     ['the spares', { fillSpares: false }],
     ['the count a sheet', { perSheet: null }],
     ['the back page', { backPage: false }],
@@ -188,5 +193,29 @@ describe('printFinalIsLastSet', () => {
 
     expect(printFinalIsLastSet(print, lastPrint)).toBe(true)
     expect(printFinalIsLastSet(resolve(), lastPrint)).toBe(false)
+  })
+})
+
+describe('the last print of the manager’s own words (spec 11.5, slice C8)', () => {
+  const own = { en: { headline: 'How was today?', subline: '' } }
+  const lastOwn = { ...LAST, languages: ['en', 'es'] as const, customWords: own }
+
+  it('brings the own words back in "Write your own…", started from the same wording', () => {
+    const chosen = choiceOfLastPrint(INITIAL_PRINT_FINAL_CHOICE, lastOwn)
+    expect(chosen).toMatchObject({ callToAction: 'how_was_visit', customWords: own })
+    const print = resolvePrintFinalChoice(chosen, ['en', 'es'], 'US', null)
+    expect(print.words.custom?.en).toEqual(own.en)
+    expect(printFinalMatchesLast(print, lastOwn)).toBe(true)
+  })
+
+  it('knows the print by its words, whatever order a stored object keeps its fields in', () => {
+    const chosen = choiceOfLastPrint(INITIAL_PRINT_FINAL_CHOICE, lastOwn)
+    const print = resolvePrintFinalChoice(chosen, ['en', 'es'], 'US', null)
+    const reordered = { en: { subline: '', headline: 'How was today?' } }
+    expect(printFinalMatchesLast(print, { ...lastOwn, customWords: reordered })).toBe(
+      true,
+    )
+    const other = { en: { headline: 'How was tonight?', subline: '' } }
+    expect(printFinalMatchesLast(print, { ...lastOwn, customWords: other })).toBe(false)
   })
 })
