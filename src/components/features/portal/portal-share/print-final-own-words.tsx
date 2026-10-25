@@ -235,7 +235,7 @@ export function PrintFinalOwnWords(props: Props) {
   const { words, print } = props
   return (
     <div className="mt-1 flex flex-col gap-5">
-      {print.languages.slice(0, 1).map((locale, index) => (
+      {print.languages.map((locale, index) => (
         <LanguageFields key={locale} {...props} locale={locale} index={index} />
       ))}
       <p className="text-xs text-pretty text-muted-foreground">
