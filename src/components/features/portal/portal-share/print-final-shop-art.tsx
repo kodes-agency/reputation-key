@@ -15,6 +15,7 @@ import {
   printFinalShopFaceBleed,
   PRINT_FINAL_SHOP_MARK_COLOUR,
   PRINT_FINAL_SHOP_MARK_WEIGHT_PT,
+  PRINT_FINAL_SHOP_PAGE_COLOUR,
   type PrintFinalShopPage,
 } from '#/shared/domain/portal-print-final-shop'
 import { ptToContainerWidth } from './print-kit-paper-art-layout'
@@ -26,10 +27,12 @@ import {
   type PrintFinalFaceInput,
 } from './use-print-final-drawn-face'
 
-/** The page is the shop's sheet: white, whatever the card on it is. */
-const PAGE_WHITE = '#FFFFFF'
-/** Where the card is cut, as the board draws its TrimBox: not printed, so it is a guide. */
-const TRIM_GUIDE = '1px dashed rgb(21 101 192 / 0.85)'
+/**
+ * Where the card is cut, drawn as a guide the file does not print: a dashed line
+ * that inverts what is under it, so it reads on the white page, the cream paper
+ * and a dark photo alike.
+ */
+const TRIM_GUIDE = { border: '1px dashed white', mixBlendMode: 'difference' } as const
 
 type Props = Readonly<{
   page: PrintFinalShopPage
@@ -103,7 +106,7 @@ export function PrintFinalShopArt({
         aspectRatio: `${page.widthPt} / ${page.heightPt}`,
         containerType: 'inline-size',
         overflow: 'hidden',
-        background: PAGE_WHITE,
+        background: PRINT_FINAL_SHOP_PAGE_COLOUR,
       }}
     >
       <div
@@ -142,7 +145,7 @@ export function PrintFinalShopArt({
           width: u(trim.widthPt),
           height: u(trim.heightPt),
           boxSizing: 'border-box',
-          border: TRIM_GUIDE,
+          ...TRIM_GUIDE,
         }}
       />
       {page.cropMarks && <CropMarks page={page} />}

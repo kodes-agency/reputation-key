@@ -211,6 +211,7 @@ export const PrintShopOffersCounterCards: Story = {
     await userEvent.click(await canvas.findByRole('radio', { name: 'A print shop' }))
     await expect(radio(canvas, /^Counter cards/)).toBeChecked()
     await expect(radio(canvas, /^Table tents/)).toBeDisabled()
+    await expect(canvas.getByText(/from your own printer only/)).toBeVisible()
     await expect(canvas.queryByRole('group', { name: 'How many?' })).toBeNull()
     await expect(canvas.getByText(/one card per page · upright · 4 × 6 in/)).toBeVisible()
   },

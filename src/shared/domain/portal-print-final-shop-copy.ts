@@ -42,7 +42,7 @@ export const PRINT_FINAL_SHOP_CROP_MARKS_HELP =
   'Most shops cut from the page edge, so leave this off. Turn it on if your shop asks for crop marks: the page gets wider to show them.'
 
 export const PRINT_FINAL_SHOP_NOTE_BUTTON = 'Copy a note for the print shop'
-export const PRINT_FINAL_SHOP_NOTE_HINT = 'Paste it into the comments of your order.'
+export const PRINT_FINAL_SHOP_NOTE_HINT = 'Paste it into your order’s comments.'
 export const PRINT_FINAL_SHOP_NOTE_COPIED = 'Copied'
 export const PRINT_FINAL_SHOP_NOTE_FAILED =
   'Copy failed: this browser blocked clipboard access. The note is selected; copy it by hand.'

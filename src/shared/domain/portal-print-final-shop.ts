@@ -51,6 +51,9 @@ const MARK_SPAN = Object.freeze({
 /** A shop's crop marks are plain black, at the weight of an office sheet's ticks. */
 export const PRINT_FINAL_SHOP_MARK_COLOUR = '#000000'
 
+/** The paper round the card, as the preview shows the page: the shop's sheet is white. */
+export const PRINT_FINAL_SHOP_PAGE_COLOUR = '#FFFFFF'
+
 type Rect = Readonly<{ leftPt: number; topPt: number; widthPt: number; heightPt: number }>
 
 export type PrintFinalShopPage = Readonly<{
