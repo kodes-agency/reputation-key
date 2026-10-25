@@ -33,6 +33,9 @@ export const PORTAL_LAST_PRINT_CTA_SQL_LIST = "'rate', 'tell'"
 /** The most pieces a print may ask for: the download's own bound. */
 export const PORTAL_LAST_PRINT_MAX_QUANTITY = 1000
 
+/** The most languages a print carries: the download's own bound. */
+export const PORTAL_LAST_PRINT_MAX_LANGUAGES = 2
+
 export const portalLastPrints = pgTable(
   'portal_last_prints',
   {
@@ -104,7 +107,7 @@ export const portalLastPrints = pgTable(
     ),
     check(
       'portal_last_prints_languages_valid',
-      sql`jsonb_typeof(${t.languages}) = 'array' AND jsonb_array_length(${t.languages}) BETWEEN 1 AND 2`,
+      sql`jsonb_typeof(${t.languages}) = 'array' AND jsonb_array_length(${t.languages}) BETWEEN 1 AND ${sql.raw(String(PORTAL_LAST_PRINT_MAX_LANGUAGES))}`,
     ),
     check(
       'portal_last_prints_photo_whole',

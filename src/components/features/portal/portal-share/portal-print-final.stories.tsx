@@ -568,8 +568,8 @@ export const LastPrintedImmersiveCardsPhotoChanged: Story = {
   },
 }
 
-/** The board share-desktop-light: Paper tents last printed in two languages, no photo line for a print with no photo. */
-export const LastPrintedPaperTentsSetAgain: Story = {
+/** A Paper print has no photo, so its notice has no photo line; "Use the same settings" sets the Small cards again, and comes back once a choice differs. */
+export const LastPrintedPaperSmallCardsSetAgain: Story = {
   args: {
     ...baseArgs,
     printKit: printKit(
@@ -641,6 +641,43 @@ export const NeverPrinted: Story = {
     const canvas = within(canvasElement)
     await canvas.findByRole('heading', { name: 'Print cards' })
     await expect(canvas.queryByText(/^Last printed/)).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: 'Use the same settings' }),
+    ).toBeNull()
+  },
+}
+
+/** A download makes the print the Portal's last: the read is asked again, and the notice appears with no button, the choices on show being the print's own. */
+const downloadFinal = action<DownloadPrintFinalInput, PortalPrintKitDownload>(
+  async () => TINY_PDF,
+)
+export const LastPrintedAppearsAfterADownload: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      ...printKit(),
+      read: async () =>
+        view(
+          {},
+          (downloadFinal as unknown as { mock: { calls: unknown[] } }).mock.calls
+            .length === 0
+            ? null
+            : lastPrint({}),
+        ),
+      downloadFinalMutation: downloadFinal,
+    },
+  },
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByRole('heading', { name: 'Print cards' })
+    await expect(canvas.queryByText(/^Last printed/)).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: /download pdf/i }))
+    await expect(
+      await canvas.findByText(
+        /^Last printed Oct 12(, 2026)? · 10 Paper table tents, wide, on Letter, English \+ Español$/,
+      ),
+    ).toBeVisible()
     await expect(
       canvas.queryByRole('button', { name: 'Use the same settings' }),
     ).toBeNull()

@@ -3,8 +3,9 @@
 // the server says PRINT_KIT_FINAL_ENABLED; today's section is untouched
 // otherwise. Top to bottom: when the Portal was last printed, what is printed
 // and which way up, the look, who prints it, how many, the words, then the
-// download with its summary and How to print for the chosen layout. The preview sits beside it from `lg`; below
-// that, the phone's pinned bar holds the summary, Preview and the download.
+// download with its summary and How to print for the chosen layout. The preview
+// sits beside it from `lg`; below that, the phone's pinned bar holds the summary,
+// Preview and the download.
 
 import { Download } from 'lucide-react'
 import { Button } from '#/components/ui/button'

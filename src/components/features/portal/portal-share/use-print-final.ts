@@ -186,12 +186,13 @@ export function usePrintFinal(input: Input) {
     if (print === null || view === null || downloadMutation === undefined) return
     try {
       const file = await downloadMutation({ data: requestOf(portalId, print) })
-      // The server made the file, so it now holds this print as the Portal's last.
-      onDownloaded()
       saveBlob(
         new Blob([decodeBase64(file.pdfBase64)], { type: file.contentType }),
         file.fileName,
       )
+      // The server made the file, so it now holds this print as the Portal's last.
+      // Saved first: the file is what the manager came for, the notice follows.
+      onDownloaded()
     } catch {
       // The mutation has already toasted the refusal.
     }

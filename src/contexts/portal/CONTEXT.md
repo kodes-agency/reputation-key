@@ -608,8 +608,9 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   never the address, a print code or a file. Writing it is best effort
   (`rememberLastPrint`): a manager who has the file is never refused it because the memory
   failed, and the failure is logged with its cause and a code
-  (`portal_last_print_not_remembered`; never a Portal id, a banned log key). The print kit read (`getPortalPrintKit`) carries it
-  for the final kit as `lastPrint`: when, the choices to set again, and what became of the
+  (`portal_last_print_not_remembered`; never a Portal id, a banned log key). The print
+  kit read (`getPortalPrintKit`) carries it for the final kit as `lastPrint`: when, the
+  choices to set again, and what became of the
   photo since (`printFinalPhotoChange`, pure): `same`; `changed` on the day the image that
   prints now was uploaded, when that was after the print, or with no day when the photo was
   chosen from the Property's earlier uploads or only reframed; `removed`. A Paper print

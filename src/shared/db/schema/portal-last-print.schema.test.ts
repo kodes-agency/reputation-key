@@ -9,11 +9,13 @@ import {
 import { PRINT_FINAL_MAX_QUANTITY } from '#/shared/domain/portal-print-final-offer'
 import {
   PRINT_KIT_CALLS_TO_ACTION,
+  PRINT_KIT_MAX_LANGUAGES,
   PRINT_KIT_PAPERS,
 } from '#/shared/domain/portal-print-kit'
 import {
   PORTAL_LAST_PRINT_CTA_SQL_LIST,
   PORTAL_LAST_PRINT_LOOK_SQL_LIST,
+  PORTAL_LAST_PRINT_MAX_LANGUAGES,
   PORTAL_LAST_PRINT_MAX_QUANTITY,
   PORTAL_LAST_PRINT_ORIENTATION_SQL_LIST,
   PORTAL_LAST_PRINT_PAPER_SQL_LIST,
@@ -40,8 +42,9 @@ describe('portal_last_prints schema', () => {
     },
   )
 
-  it('bounds the quantity as the download does', () => {
+  it('bounds the quantity and the languages as the download does', () => {
     expect(PORTAL_LAST_PRINT_MAX_QUANTITY).toBe(PRINT_FINAL_MAX_QUANTITY)
+    expect(PORTAL_LAST_PRINT_MAX_LANGUAGES).toBe(PRINT_KIT_MAX_LANGUAGES)
   })
 
   it('is one row per Portal, tied to its Portal by the tenant key and removed with it', () => {
