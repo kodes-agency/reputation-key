@@ -43,6 +43,8 @@ function inputFor(
     wordmark: 'Hotel Elegance',
     logo: null,
     accentColour: '#A8C6FE',
+    fieldColour: '#001E57',
+    photo: null,
     qrAddress: SHORT,
     address: 'short',
     ...over,
@@ -123,10 +125,5 @@ describe('createPdfKitPrintFinalRenderer', () => {
         refusal: { code: 'cue_does_not_fit' },
       })
     }
-  })
-
-  it('draws Paper faces only so far', async () => {
-    const immersive = { ...paper('counter', 'upright'), look: 'immersive' } as const
-    await expect(renderer.render(inputFor(immersive))).rejects.toThrow(/Paper faces/u)
   })
 })

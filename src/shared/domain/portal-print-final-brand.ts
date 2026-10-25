@@ -4,6 +4,7 @@
 // so its transparent padding never counts: `inkWidth` and `inkHeight` are the
 // bounds of the pixels that print.
 
+import { luminanceOfChannels } from './portal-field-colour'
 import type { PrintFinalLook, PrintFinalPiece } from './portal-print-final'
 import { mmPt } from './portal-print-final-measures'
 
@@ -119,4 +120,32 @@ export function printFinalBrandBox(
     widthPt: size.widthPt + 2 * paddingPt.h,
     heightPt: size.heightPt + 2 * paddingPt.v,
   }
+}
+
+/** A pixel this opaque or more is part of the logo's drawing when its tone is read. */
+const TONE_ALPHA = 128
+/** A logo is read at most this many pixels across and down for its tone. */
+export const PRINT_FINAL_LOGO_TONE_SIZE_PX = 200
+
+/**
+ * The median luminance of a logo's drawn pixels (those more than half opaque),
+ * read from its pixels decoded at most 200 px across and down: what the plate
+ * rule calls light at 0.4 or more. Null for an image with nothing drawn.
+ */
+export function printFinalMedianInkLuminance(
+  pixels: ArrayLike<number>,
+  size: Readonly<{ width: number; height: number; channels: number }>,
+): number | null {
+  const { width, height, channels } = size
+  const luminances: number[] = []
+  for (let at = 0; at < width * height * channels; at += channels) {
+    const alpha = channels === 4 ? (pixels[at + 3] ?? 0) : 255
+    if (alpha <= TONE_ALPHA) continue
+    luminances.push(
+      luminanceOfChannels([pixels[at] ?? 0, pixels[at + 1] ?? 0, pixels[at + 2] ?? 0]),
+    )
+  }
+  if (luminances.length === 0) return null
+  luminances.sort((a, b) => a - b)
+  return luminances[Math.floor(luminances.length / 2)] ?? null
 }

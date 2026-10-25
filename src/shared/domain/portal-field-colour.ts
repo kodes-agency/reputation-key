@@ -66,7 +66,8 @@ function linearChannel(channel: number): number {
   return ratio <= 0.040_45 ? ratio / 12.92 : ((ratio + 0.055) / 1.055) ** 2.4
 }
 
-function luminanceOf([red, green, blue]: Rgb): number {
+/** WCAG 2.x relative luminance of a colour's channels (0 to 255 each). */
+export function luminanceOfChannels([red, green, blue]: Rgb): number {
   return (
     0.2126 * linearChannel(red) +
     0.7152 * linearChannel(green) +
@@ -77,7 +78,7 @@ function luminanceOf([red, green, blue]: Rgb): number {
 /** WCAG 2.x relative luminance of a `#rrggbb` colour; null when it is not one. */
 export function relativeLuminance(colour: string): number | null {
   const channels = parseHexColour(colour)
-  return channels ? luminanceOf(channels) : null
+  return channels ? luminanceOfChannels(channels) : null
 }
 
 /** WCAG 2.x contrast ratio of two `#rrggbb` colours; null when either is not one. */
@@ -96,13 +97,17 @@ export function contrastRatio(foreground: string, background: string): number | 
 export function readableForegroundOn(background: string): string {
   const channels = parseHexColour(background, { lenient: true })
   if (!channels) return LIGHT_FOREGROUND
-  const luminance = luminanceOf(channels)
+  const luminance = luminanceOfChannels(channels)
   const againstDark = (luminance + 0.05) / 0.05
   const againstLight = 1.05 / (luminance + 0.05)
   return againstDark > againstLight ? DARK_FOREGROUND : LIGHT_FOREGROUND
 }
 
-function toHslParts([red, green, blue]: Rgb): { hue: number; saturation: number } {
+/** The hue (degrees) and HSL saturation (0..1) of a colour's channels. */
+export function hueSaturationOf([red, green, blue]: Rgb): {
+  hue: number
+  saturation: number
+} {
   const [r, g, b] = [red / 255, green / 255, blue / 255] as const
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
@@ -120,7 +125,7 @@ function toHslParts([red, green, blue]: Rgb): { hue: number; saturation: number 
 }
 
 /** The `#RRGGBB` colour of the given hue (degrees), saturation and lightness (0..1). */
-function fromHsl(hue: number, saturation: number, lightness: number): string {
+export function fromHsl(hue: number, saturation: number, lightness: number): string {
   const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation
   const offset = lightness - chroma / 2
   const sector = hue / 60
@@ -157,7 +162,7 @@ function fromHsl(hue: number, saturation: number, lightness: number): string {
 export function deriveFieldColour(accent: string): string | null {
   const channels = parseHexColour(accent)
   if (!channels) return null
-  const { hue, saturation } = toHslParts(channels)
+  const { hue, saturation } = hueSaturationOf(channels)
   return fromHsl(hue, Math.min(saturation, FIELD_MAX_SATURATION), FIELD_LIGHTNESS)
 }
 
@@ -181,7 +186,7 @@ export function nudgeLightness(
 ): string {
   const channels = parseHexColour(colour)
   if (!channels) return colour
-  const { hue, saturation } = toHslParts(channels)
+  const { hue, saturation } = hueSaturationOf(channels)
   let nudged = colour.toUpperCase()
   let level = (Math.max(...channels) + Math.min(...channels)) / 2 / 255
   for (let step = 0; step < NUDGE_MAX_STEPS; step += 1) {
@@ -263,8 +268,8 @@ function washKeepsTextReadable(wash: Rgb, field: Rgb, alpha: number): boolean {
   const painted = wash.map(
     (channel, index) => alpha * channel + (1 - alpha) * (field[index] as number),
   ) as unknown as Rgb
-  const text = luminanceOf(parseHexColour(IMMERSIVE_TEXT_COLOUR) as Rgb)
-  const ratio = (text + 0.05) / (luminanceOf(painted) + 0.05)
+  const text = luminanceOfChannels(parseHexColour(IMMERSIVE_TEXT_COLOUR) as Rgb)
+  const ratio = (text + 0.05) / (luminanceOfChannels(painted) + 0.05)
   return ratio >= MIN_TEXT_CONTRAST + WASH_CONTRAST_HEADROOM
 }
 
@@ -302,7 +307,7 @@ export function deriveBackdropTones(
   const channels = parseHexColour(accent)
   const fieldChannels = parseHexColour(field ?? deriveFieldColour(accent) ?? '')
   if (!channels || !fieldChannels) return null
-  const { hue, saturation } = toHslParts(channels)
+  const { hue, saturation } = hueSaturationOf(channels)
   const isGrey = saturation < GREYSCALE_SATURATION
   const scaled = (scale: number) =>
     isGrey ? 0 : Math.min(saturation * scale, MAX_WASH_SATURATION)
