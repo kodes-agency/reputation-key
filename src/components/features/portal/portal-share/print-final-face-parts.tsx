@@ -23,26 +23,10 @@ import type {
 import type { PrintFinalPlacedPart } from '#/shared/domain/portal-print-final-parts'
 import type { PrintFinalSetText } from '#/shared/domain/portal-print-final-text'
 import { PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
-import { LINING_FIGURES } from './print-kit-art-layout'
 import type { PointsToLength } from './print-kit-code-block-layout'
 import { PrintFinalCodeArt } from './print-final-code-art'
 import { previewLineTopPt } from './print-final-face-layout'
-
-function fontOf(set: PrintFinalSetText, pt: PointsToLength): CSSProperties {
-  const { style } = set
-  return {
-    fontFamily:
-      style.family === 'serif' ? 'var(--font-guest-display)' : 'var(--font-guest-body)',
-    fontWeight: style.weight,
-    fontStyle: style.italic ? 'italic' : 'normal',
-    fontSize: pt(style.sizePt),
-    lineHeight: pt(style.sizePt * style.leading),
-    letterSpacing: `${style.trackingEm}em`,
-    // The file sets a tracked line letter by letter: no ligature joins a TT.
-    fontVariantLigatures: style.trackingEm > 0 ? 'none' : 'normal',
-    ...(style.family === 'serif' ? LINING_FIGURES : {}),
-  }
-}
+import { previewFinalFont } from './print-final-part-font'
 
 /** A set part's lines, each on its baseline from its pen origin. */
 export function Lines({
@@ -58,7 +42,7 @@ export function Lines({
   lang: string | null
   pt: PointsToLength
 }>) {
-  const font = fontOf(set, pt)
+  const font = previewFinalFont(set.style, pt)
   return set.lines.map((line) => (
     <span
       key={`${line.baselinePt}:${line.text}`}

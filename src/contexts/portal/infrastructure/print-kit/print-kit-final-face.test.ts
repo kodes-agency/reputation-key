@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import golden from '#/shared/domain/__fixtures__/portal-print-final-golden.json'
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
@@ -10,7 +10,7 @@ import {
 } from '#/shared/domain/portal-print-final-face'
 import { mmPt, ptMm } from '#/shared/domain/portal-print-final-measures'
 import { newDocument } from './__fixtures__/print-kit-face-fixtures'
-import { pdfFinalMeasurer } from './print-kit-final-face'
+import { drawText, pdfFinalMeasurer } from './print-kit-final-face'
 
 // The final faces as the PDF lays them out, measured with the embedded fonts'
 // own glyph outlines, against the design boards (final-design-2026-10-25):
@@ -191,5 +191,59 @@ describe('a manager’s own headline in the embedded font (spec 5.7, measured US
     expect(linesOf(counter)).toBe(3)
     const small = layoutWords('small', 'wide', headline)
     expect([small.headlinePt, linesOf(small), small.overflows]).toEqual([15, 3, false])
+  })
+})
+
+describe('lining figures in a headline (spec 3)', () => {
+  it('sets "30" in Cormorant with its lining glyphs, not the old-style ones', () => {
+    const face: PrintFinalFace = {
+      piece: 'tent',
+      orientation: 'wide',
+      look: 'paper',
+      region: 'us',
+    }
+    const tile = choosePrintFinalTile({ ...face, address: 'short', symbolModules: 29 })
+    const laid = layoutPrintFinalFace({
+      face,
+      blocks: [
+        {
+          locale: 'en',
+          kicker: 'Review us on Google',
+          headline: 'Got 30 seconds?',
+          subline: 'Tell us how it went',
+        },
+      ],
+      brand: { kind: 'wordmark', text: 'Hotel Elegance' },
+      tile: tile._unsafeUnwrap(),
+      measurer: pdfFinalMeasurer(doc, fonts),
+    })
+    const index = laid.plan.parts.findIndex((part) => part.key === 'headline')
+    const part = laid.plan.parts[index]
+    const content = laid.contents[index]
+    if (part === undefined || content?.kind !== 'words') throw new Error('a headline')
+
+    const asked: (Record<string, boolean> | undefined)[] = []
+    const original = doc.text.bind(doc) as (...args: unknown[]) => PDFKit.PDFDocument
+    const spy = vi.spyOn(doc, 'text').mockImplementation(((...args: unknown[]) => {
+      const options = args[3] as { features?: Record<string, boolean> }
+      asked.push(options.features === undefined ? undefined : { ...options.features })
+      return original(...args)
+    }) as never)
+    drawText(doc, fonts, content.set, part, '#121614')
+    spy.mockRestore()
+
+    expect(asked).toEqual([{ lnum: true }])
+    const { _font: font } = doc as unknown as {
+      _font: {
+        layout: (
+          text: string,
+          features?: Record<string, boolean>,
+        ) => { glyphs: readonly { name: string }[] }
+      }
+    }
+    const names = (features?: Record<string, boolean>) =>
+      font.layout('Got 30 seconds?', features).glyphs.map((glyph) => glyph.name)
+    expect(names({ lnum: true })).toEqual(expect.arrayContaining(['three.lf', 'zero.lf']))
+    expect(names()).not.toContain('three.lf')
   })
 })
