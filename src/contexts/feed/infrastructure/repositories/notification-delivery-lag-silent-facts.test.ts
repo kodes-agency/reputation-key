@@ -32,6 +32,8 @@ const MEASURED_REVIEW = 'f3b20000-0000-4000-8000-000000000051'
 
 const WINDOW_START = new Date('2018-05-11T05:00:00.000Z')
 const RECORDED = new Date('2018-05-11T05:10:00.000Z')
+const RECORDED_EARLIER = new Date('2018-05-11T05:05:00.000Z')
+const RECORDED_LATER = new Date('2018-05-11T05:20:00.000Z')
 const PUBLISHED = new Date('2012-07-07T10:00:00.000Z')
 
 const { getPool } = setupIntegrationDb({
@@ -161,13 +163,14 @@ async function seedPendingFact(
   eventType: string,
   aggregateId: string,
   payload: Record<string, unknown>,
+  recordedAt: Date = RECORDED,
 ): Promise<void> {
   await getPool().query(
     `INSERT INTO outbox_events
        (id, event_type, event_version, payload, organization_id, property_id,
         source_context, source_aggregate_id, created_at, published_at)
      VALUES ($1, $2, 1, $3, $4, $5, 'inbox', $6, $7, $7)`,
-    [randomUUID(), eventType, payload, ORG, PROPERTY, aggregateId, RECORDED],
+    [randomUUID(), eventType, payload, ORG, PROPERTY, aggregateId, recordedAt],
   )
 }
 
@@ -336,6 +339,29 @@ describe('route facts the delivery-lag report waits on', () => {
         'inbox.handling_cycle.closed': 1,
       })
       expect(report.sourceReceiptPending).toBe(4)
+    })
+
+    it('times the oldest pending fact across every event type, not one group', async () => {
+      // Three event types in name order: reopened, assigned, created. The oldest
+      // fact sits in the middle one, so reading the first or the last group's
+      // clock instead of the earliest of all would give a later time.
+      await seedPendingFact(
+        'inbox.handling_cycle.reopened',
+        LIVE_ITEM,
+        { reopenReason: 'manual_reopen' },
+        RECORDED,
+      )
+      await seedPendingFact('inbox.inbox_item.assigned', LIVE_ITEM, {}, RECORDED_EARLIER)
+      await seedPendingFact('inbox.inbox_item.created', LIVE_ITEM, {}, RECORDED_LATER)
+
+      const report = await read()
+
+      expect(report.sourceReceiptPendingByEventType).toEqual({
+        'inbox.handling_cycle.reopened': 1,
+        'inbox.inbox_item.assigned': 1,
+        'inbox.inbox_item.created': 1,
+      })
+      expect(report.oldestSourceRecordedAt).toEqual(RECORDED_EARLIER)
     })
 
     it('is empty when nothing is waiting', async () => {
