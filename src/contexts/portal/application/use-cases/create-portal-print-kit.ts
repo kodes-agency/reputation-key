@@ -108,7 +108,7 @@ const photoUnreadable = () =>
  * not the bytes that were stored, is an error: printing without it would hand
  * the manager a card that is not the one they previewed.
  */
-async function readStoredImage(
+export async function readStoredImage(
   deps: Pick<CreatePortalPrintKitDeps, 'mediaRepo' | 'objectStore' | 'sha256Hex'>,
   scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
   assetId: string,

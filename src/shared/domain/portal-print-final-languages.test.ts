@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   PRINT_FINAL_CALL_TO_ACTION_LABELS,
+  printFinalBlocks,
   printFinalLanguageChoiceLabel,
   printFinalLanguageChoices,
   printFinalLanguageValue,
@@ -40,5 +41,26 @@ describe('PRINT_FINAL_CALL_TO_ACTION_LABELS', () => {
       rate: 'Rate your visit · Private, about 30 seconds',
       tell: 'How was your visit? · About 30 seconds',
     })
+  })
+})
+
+describe('printFinalBlocks', () => {
+  it('says the page’s title and the call to action in each language, the first leading', () => {
+    expect(
+      printFinalBlocks(['en', 'es'], 'rate', { en: 'Reception' }, 'Front desk'),
+    ).toEqual([
+      {
+        locale: 'en',
+        kicker: 'Reception',
+        headline: 'Rate your visit',
+        subline: 'Private, about 30 seconds',
+      },
+      {
+        locale: 'es',
+        kicker: 'Front desk',
+        headline: 'Valore su visita',
+        subline: 'En privado, unos 30 segundos',
+      },
+    ])
   })
 })

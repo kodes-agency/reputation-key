@@ -13,7 +13,10 @@ import {
   savePropertyPortalBrandContent,
   updatePortal,
 } from '#/contexts/portal/server/portals'
-import { downloadPortalPrintKit } from '#/contexts/portal/server/portal-print-kit'
+import {
+  downloadPortalPrintFinal,
+  downloadPortalPrintKit,
+} from '#/contexts/portal/server/portal-print-kit'
 import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import type { Action } from '#/components/hooks/use-action'
@@ -171,6 +174,10 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   const downloadPrintKit = useActionMutation(downloadPortalPrintKit, {
     errorMessage: actionErrorMessage,
   })
+  // The final print kit's download (PRINT_KIT_FINAL_ENABLED), silent the same way.
+  const downloadPrintFinal = useActionMutation(downloadPortalPrintFinal, {
+    errorMessage: actionErrorMessage,
+  })
   const revokeToken = useActionMutation(revokePortalTokens, {
     successMessage: 'All codes stopped',
     invalidateKeys: tokenInvalidations,
@@ -228,6 +235,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     revokeToken,
     revealAddress,
     downloadPrintKit,
+    downloadPrintFinal,
     completeReview,
     updateResponsibleManagers,
     makeVersionLive,

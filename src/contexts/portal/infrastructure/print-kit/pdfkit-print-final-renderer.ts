@@ -168,7 +168,13 @@ async function drawSheets(
     look: face.look,
     paper: printFinalPaperOf(face.region),
   })
-  const pieceCount = pieceCountOf(sheets, sheet.cells.length)
+  const perSheet = sheets.perSheet ?? sheet.cells.length
+  if (!Number.isInteger(perSheet) || perSheet < 1 || perSheet > sheet.cells.length) {
+    throw new RangeError(
+      `A sheet carries 1 to ${sheet.cells.length} pieces, not ${perSheet}`,
+    )
+  }
+  const pieceCount = pieceCountOf(sheets, perSheet)
   const { prepared, tile, fonts } = await prepareFace(
     doc,
     input,
@@ -179,6 +185,7 @@ async function drawSheets(
     face: prepared,
     tilePt: tile.tilePt,
     pieceCount,
+    perSheet,
   })
 }
 

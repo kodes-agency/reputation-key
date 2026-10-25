@@ -51,6 +51,8 @@ export type FinalSheetsInput = Readonly<{
   tilePt: number
   /** How many pieces to print: the quantity, or every cell of the last sheet when it is filled with spares. */
   pieceCount: number
+  /** How many pieces each sheet carries, from its first cell: the manager may ask for fewer than fit. Absent: every cell. */
+  perSheet?: number
 }>
 
 /** A face drawn in its place: turned as the placement says, and clipped to its trim and bleed. */
@@ -182,7 +184,8 @@ export function drawFinalSheets(
   const { sheet, face, tilePt, pieceCount } = input
   const colour = printFinalMarkColour(sheet.look)
   const hasNote = printFinalSheetNotes(sheet, tilePt).length > 0
-  for (const filled of printFinalSheetFills(sheet.cells.length, pieceCount)) {
+  const perSheet = Math.min(input.perSheet ?? sheet.cells.length, sheet.cells.length)
+  for (const filled of printFinalSheetFills(perSheet, pieceCount)) {
     const cells = sheet.cells.slice(0, filled)
     doc.addPage({ size: [sheet.widthPt, sheet.heightPt], margin: 0 })
     for (const cell of cells) {

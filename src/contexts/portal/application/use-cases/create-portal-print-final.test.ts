@@ -1,0 +1,246 @@
+// Portal context — the final print kit's PDF (final design spec §11, slice 7):
+// behind PRINT_KIT_FINAL_ENABLED, it refuses what the kit does not make before
+// it discloses, discloses through the audited reveal, and hands the renderer
+// the piece, its orientation and its sheets.
+
+import { createHash } from 'node:crypto'
+import { describe, expect, it, vi } from 'vitest'
+import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
+import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
+import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
+import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
+import { portalMediaAssetId } from '#/shared/domain/ids'
+import type { PortalPublicationSnapshot } from '../../domain/portal-publication-snapshot'
+import { immersiveConfiguration } from '../../domain/__fixtures__/immersive-configuration'
+import {
+  publicationSource,
+  SOURCE_HERO_ASSET_ID,
+  SOURCE_LOGO_ASSET_ID,
+} from '../../domain/__fixtures__/publication-source'
+import type { DownloadPortalPrintFinalInput } from '../dto/portal-print-final.dto'
+import {
+  PrintFinalRenderRefusal,
+  type PortalPrintFinalRenderer,
+  type PrintFinalRenderInput,
+} from '../ports/portal-print-final-renderer.port'
+import { createPortalPrintFinal } from './create-portal-print-final'
+import type { RevealPortalAddress } from './reveal-portal-address'
+
+const SHORT_ADDRESS = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
+const PDF = new Uint8Array([37, 80, 68, 70])
+const sha256Hex = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
+const HERO_BYTES = Buffer.from('hero image bytes')
+const LOGO_BYTES = Buffer.from('logo image bytes')
+
+type Options = Readonly<{
+  enabled?: boolean
+  country?: string | null
+  refuse?: PrintFinalRenderRefusal
+}>
+
+async function setup(options: Options = {}) {
+  const portal = buildTestPortal({ name: 'Reception' })
+  const portalRepo = createInMemoryPortalRepo()
+  portalRepo.seed([portal])
+  const mediaRepo = createInMemoryPortalMediaAssetRepo()
+  const objectStore = createInMemoryObjectStore()
+  const hero = buildTestPortalMediaAsset({
+    id: portalMediaAssetId(SOURCE_HERO_ASSET_ID),
+    purpose: 'hero',
+    byteSize: HERO_BYTES.length,
+    contentSha256: sha256Hex(HERO_BYTES),
+  })
+  const logo = buildTestPortalMediaAsset({
+    id: portalMediaAssetId(SOURCE_LOGO_ASSET_ID),
+    purpose: 'logo',
+    byteSize: LOGO_BYTES.length,
+    contentSha256: sha256Hex(LOGO_BYTES),
+  })
+  mediaRepo.seed([hero, logo])
+  await objectStore.putObject(hero.objectKey, HERO_BYTES, 'image/webp')
+  await objectStore.putObject(logo.objectKey, LOGO_BYTES, 'image/webp')
+  const reveal = vi.fn<RevealPortalAddress>(async () => ({
+    publicUrl: SHORT_ADDRESS,
+    publicUrls: { qr: SHORT_ADDRESS, nfc: SHORT_ADDRESS, direct: SHORT_ADDRESS },
+    version: 1,
+    issuedAt: new Date('2026-10-01T10:00:00Z'),
+  }))
+  const rendered: PrintFinalRenderInput[] = []
+  const renderer: PortalPrintFinalRenderer = {
+    render: vi.fn(async (input) => {
+      rendered.push(input)
+      if (options.refuse) throw options.refuse
+      return PDF
+    }),
+  }
+  const make = createPortalPrintFinal({
+    portalRepo,
+    staffPublicApi: {
+      getAccessiblePropertyIds: async () => null,
+      getAssignedPortals: async () => [],
+    },
+    publicationRepo: {
+      loadWorkingCopy: async () => publicationSource(),
+      findActiveForPortal: async () =>
+        ({
+          id: 'snapshot-1',
+          version: 1,
+          configuration: immersiveConfiguration(),
+        }) as PortalPublicationSnapshot,
+    },
+    mediaRepo,
+    objectStore,
+    sha256Hex,
+    revealAddress: reveal,
+    renderer,
+    propertyCountry: async () => options.country ?? 'US',
+    finalKitEnabled: options.enabled ?? true,
+  })
+  return { portal, make, reveal, rendered }
+}
+
+const tents = (
+  portalId: string,
+  over: Partial<DownloadPortalPrintFinalInput> = {},
+): DownloadPortalPrintFinalInput => ({
+  portalId,
+  piece: 'tent',
+  orientation: 'wide',
+  look: 'paper',
+  printer: 'my_printer',
+  quantity: 10,
+  languages: ['en', 'bg'],
+  callToAction: 'rate',
+  ...over,
+})
+
+describe('createPortalPrintFinal', () => {
+  it('prints the chosen piece, way up and look on office sheets, for the live code', async () => {
+    const { portal, make, rendered } = await setup()
+
+    const file = await make(tents(portal.id), buildTestAuthContext())
+
+    expect(file).toEqual({
+      fileName: 'reception-table-tents-wide-en-bg-letter.pdf',
+      contentType: 'application/pdf',
+      pdf: PDF,
+    })
+    const [input] = rendered
+    expect(input?.face).toEqual({
+      piece: 'tent',
+      orientation: 'wide',
+      look: 'paper',
+      region: 'us',
+    })
+    expect(input?.sheets).toEqual({
+      quantity: 10,
+      fillSpares: false,
+      perSheet: undefined,
+    })
+    expect(input?.qrAddress).toBe(SHORT_ADDRESS)
+    expect(input?.address).toBe('short')
+    expect(input?.blocks.map((block) => block.headline)).toEqual([
+      'Rate your visit',
+      'Оценете посещението си',
+    ])
+    expect(input?.title).toBe('Reception table tents')
+    expect(input?.photo).not.toBeNull()
+    expect(input?.logo).not.toBeNull()
+  })
+
+  it('passes the spares and a count a sheet the manager asked for', async () => {
+    const { portal, make, rendered } = await setup()
+
+    await make(
+      tents(portal.id, { fillSpares: true, perSheet: 3 }),
+      buildTestAuthContext(),
+    )
+
+    expect(rendered[0]?.sheets).toEqual({ quantity: 10, fillSpares: true, perSheet: 3 })
+  })
+
+  it('gives a print shop one piece per page', async () => {
+    const { portal, make, rendered } = await setup()
+
+    const file = await make(
+      tents(portal.id, {
+        piece: 'counter',
+        orientation: 'upright',
+        printer: 'print_shop',
+      }),
+      buildTestAuthContext(),
+    )
+
+    expect(rendered[0]?.sheets).toBeUndefined()
+    expect(file.fileName).toBe(
+      'reception-counter-cards-upright-en-bg-print-shop-letter.pdf',
+    )
+  })
+
+  it('prints on the paper the property’s country uses unless the request names one', async () => {
+    const european = await setup({ country: 'BG' })
+    await european.make(tents(european.portal.id), buildTestAuthContext())
+    expect(european.rendered[0]?.face.region).toBe('eu')
+
+    const named = await setup({ country: 'BG' })
+    await named.make(tents(named.portal.id, { paper: 'letter' }), buildTestAuthContext())
+    expect(named.rendered[0]?.face.region).toBe('us')
+  })
+
+  it('refuses every download while the server has the final kit off, before revealing', async () => {
+    const { portal, make, reveal } = await setup({ enabled: false })
+
+    await expect(make(tents(portal.id), buildTestAuthContext())).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+    })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a tent for a print shop', { printer: 'print_shop' }, 'tents_office_only'],
+    ['more tents a sheet than fit', { perSheet: 5 }, 'per_sheet_out_of_range'],
+    ['no tents', { quantity: 0 }, 'quantity_out_of_range'],
+  ] as const)('refuses %s before revealing', async (_label, over, cause) => {
+    const { portal, make, reveal } = await setup()
+
+    await expect(
+      make(tents(portal.id, over), buildTestAuthContext()),
+    ).rejects.toMatchObject({ code: 'print_format_not_offered', context: { cause } })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('refuses languages the live version does not offer, before revealing', async () => {
+    const { portal, make, reveal } = await setup()
+
+    await expect(
+      make(tents(portal.id, { languages: ['en', 'fr'] }), buildTestAuthContext()),
+    ).rejects.toMatchObject({ code: 'locale_not_offered' })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('refuses a viewer who may not make prints', async () => {
+    const { portal, make, reveal } = await setup()
+
+    await expect(
+      make(
+        tents(portal.id),
+        buildTestAuthContext({ effectivePermissions: new Set(['portal.read']) }),
+      ),
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('says why the code cannot print on the piece, in the Share tab’s words', async () => {
+    const { portal, make } = await setup({
+      refuse: new PrintFinalRenderRefusal({ code: 'needs_short_code', moduleMm: null }),
+    })
+
+    await expect(make(tents(portal.id), buildTestAuthContext())).rejects.toMatchObject({
+      code: 'print_code_too_small',
+      message:
+        'Replace the code to print tents and Small cards. Counter cards print with the code you have.',
+      context: { cause: 'needs_short_code' },
+    })
+  })
+})

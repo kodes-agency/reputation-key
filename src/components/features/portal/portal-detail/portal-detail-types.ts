@@ -96,6 +96,8 @@ export type PortalDetailResources = Readonly<{
   getPortalPrintKit?: PortalPrintKitReader
   /** The Share tab's print kit download: makes the PDF on the server. */
   downloadPrintKitMutation?: PortalPrintKitResources['downloadMutation']
+  /** The final print kit's download, which the tab uses where the server shows the final kit. */
+  downloadPrintFinalMutation?: PortalPrintKitResources['downloadFinalMutation']
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
   getPortalAnalytics: typeof getPortalAnalyticsFn

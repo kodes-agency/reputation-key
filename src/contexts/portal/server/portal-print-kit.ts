@@ -21,7 +21,12 @@ import {
   downloadPortalPrintKitInputSchema,
   portalPrintKitInputSchema,
 } from '../application/dto/portal-print-kit.dto'
-import { printKitDownloadOf } from '../application/use-cases/create-portal-print-kit'
+import { downloadPortalPrintFinalInputSchema } from '../application/dto/portal-print-final.dto'
+import {
+  printKitDownloadOf,
+  type PortalPrintKitDownload,
+  type PortalPrintKitFile,
+} from '../application/use-cases/create-portal-print-kit'
 import { isPortalError, portalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
 import { checkPortalAddressRateLimit } from './portal-address-rate-limit.server'
@@ -76,35 +81,56 @@ export const getPortalPrintKit = createServerFn({ method: 'GET' })
     ),
   )
 
+/**
+ * Makes a print file for a manager: no copy kept anywhere, the Portal's scope
+ * and the manager's rights checked, the address rate limit spent, then `make`.
+ */
+async function downloadFile(
+  rawPortalId: string,
+  make: (ctx: AuthContext) => Promise<PortalPrintKitFile>,
+): Promise<PortalPrintKitDownload> {
+  disableFileCaching()
+  const ctx = await resolveTenantContext(await headersFromContext())
+  try {
+    await authorize(ctx, rawPortalId, 'portal.update', 'portal.write')
+    const limited = await checkPortalAddressRateLimit({
+      rateLimiter: getContainer().rateLimiter,
+      actorId: ctx.userId,
+      organizationId: ctx.organizationId,
+    })
+    if (limited) throw limited
+    return printKitDownloadOf(await make(ctx))
+  } catch (error) {
+    if (isPortalError(error)) {
+      throwContextError('PortalError', error, portalErrorStatus(error.code))
+    }
+    throw catchUntagged(error)
+  }
+}
+
 export const downloadPortalPrintKit = createServerFn({ method: 'POST' })
   .validator(downloadPortalPrintKitInputSchema)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        disableFileCaching()
-        const ctx = await resolveTenantContext(await headersFromContext())
-        try {
-          await authorize(ctx, data.portalId, 'portal.update', 'portal.write')
-          const container = getContainer()
-          const limited = await checkPortalAddressRateLimit({
-            rateLimiter: container.rateLimiter,
-            actorId: ctx.userId,
-            organizationId: ctx.organizationId,
-          })
-          if (limited) throw limited
-          const file = await container.portalPublicApi.management.createPortalPrintKit(
-            data,
-            ctx,
-          )
-          return printKitDownloadOf(file)
-        } catch (error) {
-          if (isPortalError(error)) {
-            throwContextError('PortalError', error, portalErrorStatus(error.code))
-          }
-          throw catchUntagged(error)
-        }
-      },
+      ({ data }) =>
+        downloadFile(data.portalId, (ctx) =>
+          getContainer().portalPublicApi.management.createPortalPrintKit(data, ctx),
+        ),
       'POST',
       'portal.downloadPortalPrintKit',
+    ),
+  )
+
+/** The final kit's download (PRINT_KIT_FINAL_ENABLED): the same guards as today's. */
+export const downloadPortalPrintFinal = createServerFn({ method: 'POST' })
+  .validator(downloadPortalPrintFinalInputSchema)
+  .handler(
+    tracedHandler(
+      ({ data }) =>
+        downloadFile(data.portalId, (ctx) =>
+          getContainer().portalPublicApi.management.createPortalPrintFinal(data, ctx),
+        ),
+      'POST',
+      'portal.downloadPortalPrintFinal',
     ),
   )

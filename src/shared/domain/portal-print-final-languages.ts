@@ -8,6 +8,7 @@ import {
   PRINT_KIT_CALLS_TO_ACTION,
   PRINT_KIT_COPY,
   type PrintKitCallToAction,
+  type PrintTextBlock,
 } from './portal-print-kit'
 
 /**
@@ -49,3 +50,21 @@ export const PRINT_FINAL_CALL_TO_ACTION_LABELS: Readonly<
     }),
   ) as Record<PrintKitCallToAction, string>,
 )
+
+/**
+ * What a final face says, language by language, the first leading: the page's
+ * title in that language as the kicker (the portal's name where it has none),
+ * then the call to action. A tent prints these on both faces.
+ */
+export function printFinalBlocks(
+  languages: readonly GuestLocale[],
+  callToAction: PrintKitCallToAction,
+  titles: Readonly<Partial<Record<GuestLocale, string>>>,
+  fallbackTitle: string,
+): readonly PrintTextBlock[] {
+  return languages.map((locale) => ({
+    locale,
+    kicker: titles[locale] ?? fallbackTitle,
+    ...PRINT_KIT_COPY[locale][callToAction],
+  }))
+}

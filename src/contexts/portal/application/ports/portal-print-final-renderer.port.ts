@@ -18,10 +18,15 @@ import type { PrintFinalCodeRefusal } from '#/shared/domain/portal-print-final-c
 import type { PrintFinalFramings } from '#/shared/domain/portal-print-final-framing'
 import type { PrintKitPhoto } from './portal-print-kit-renderer.port'
 
-/** Office sheets: how many pieces the manager needs, and whether the last sheet's spare cells print too. */
+/**
+ * Office sheets: how many pieces the manager needs, whether the last sheet's
+ * spare cells print too, and how many go on a sheet when the manager asks for
+ * fewer than fit (absent: every cell).
+ */
 export type PrintFinalSheetsInput = Readonly<{
   quantity: number
   fillSpares: boolean
+  perSheet?: number
 }>
 
 export type PrintFinalRenderInput = Readonly<{

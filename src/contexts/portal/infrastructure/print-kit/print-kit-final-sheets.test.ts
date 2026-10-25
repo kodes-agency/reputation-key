@@ -167,6 +167,36 @@ describe('the final Paper office sheets', () => {
         ).rejects.toBeInstanceOf(RangeError)
       }
     })
+
+    it('puts fewer tents on a sheet when the manager asks: ten at 3 a sheet is 3, 3, 3 and 1', async () => {
+      const pdf = text(
+        await renderer.render(
+          inputFor(wideTent, { quantity: 10, fillSpares: false, perSheet: 3 }),
+        ),
+      )
+      expect(pagesOf(pdf)).toBe(4)
+      expect(facesIn(pdf, wideTent)).toBe(20)
+    })
+
+    it('fills spares up to the manager’s count a sheet, not every cell', async () => {
+      const pdf = text(
+        await renderer.render(
+          inputFor(wideTent, { quantity: 10, fillSpares: true, perSheet: 3 }),
+        ),
+      )
+      expect(pagesOf(pdf)).toBe(4)
+      expect(facesIn(pdf, wideTent)).toBe(24)
+    })
+
+    it('refuses more a sheet than fit, or none', async () => {
+      for (const perSheet of [0, 5, 2.5]) {
+        await expect(
+          renderer.render(
+            inputFor(wideTent, { quantity: 10, fillSpares: false, perSheet }),
+          ),
+        ).rejects.toBeInstanceOf(RangeError)
+      }
+    })
   })
 
   describe('Actual size', () => {
