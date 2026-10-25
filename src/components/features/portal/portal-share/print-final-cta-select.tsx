@@ -7,7 +7,7 @@
 // wording that a later change made too long stays picked, the select turns red
 // and says why. On a phone the menu is a bottom sheet.
 
-import { CircleX, Info, Pencil } from 'lucide-react'
+import { Ban, Info, Pencil } from 'lucide-react'
 import { useId, useState } from 'react'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -53,7 +53,9 @@ function WordingLines({
   const { headline, subline } = PRINT_FINAL_COPY.en[preset]
   return (
     <span className="flex min-w-0 flex-col items-start gap-px text-left">
-      <span className="font-medium group-data-[disabled]/cta:text-muted-foreground">
+      <span
+        className={reason === null ? 'font-medium' : 'font-medium text-muted-foreground'}
+      >
         {headline}
       </span>
       <span className="text-xs text-muted-foreground">{subline}</span>
@@ -81,7 +83,7 @@ function OwnLines() {
 /** The note at the top of a menu no wording fits. */
 function NoWordingNote({ print }: Readonly<{ print: PrintFinalSharePrint }>) {
   return (
-    <Alert variant="warning" className="mx-1.5 mb-1.5 w-auto py-2">
+    <Alert variant="warning" className="mx-2 mb-2 w-auto py-2">
       <AlertDescription className="text-xs text-foreground">
         {printFinalNoWordingNote(print, print.paper, print.languages)}
       </AlertDescription>
@@ -119,7 +121,7 @@ function DesktopMenu(
           )}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent position="popper" className="max-w-(--radix-select-trigger-width)">
+      <SelectContent position="popper">
         <SelectGroup>
           <SelectLabel className="text-[11px] font-semibold tracking-wide uppercase">
             Call to action ·{' '}
@@ -131,7 +133,9 @@ function DesktopMenu(
               key={row.preset}
               value={row.preset}
               disabled={row.state !== 'fits'}
-              className="group/cta items-start data-[disabled]:opacity-100"
+              className="items-start"
+              // A greyed wording keeps its reason legible: its headline is muted, not the whole row.
+              style={{ opacity: 1 }}
             >
               <WordingLines
                 preset={row.preset}
@@ -204,7 +208,7 @@ function PhoneMenu(props: Props & Readonly<{ triggerId: string; describedBy?: st
             {words.menu.map((row) => (
               <Label
                 key={row.preset}
-                className="flex min-h-11 items-start gap-3 rounded-md px-2 py-2 font-normal has-[[data-state=checked]]:bg-accent"
+                className="flex min-h-11 items-start gap-3 rounded-md px-2 py-2 font-normal has-[[data-state=checked]]:bg-primary/5"
               >
                 <RadioGroupItem
                   value={row.preset}
@@ -275,7 +279,7 @@ export function PrintFinalCtaSelect(props: Props) {
           role="alert"
           className="flex items-start gap-1.5 text-xs text-negative"
         >
-          <CircleX aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+          <Ban aria-hidden="true" className="mt-px size-3.5 shrink-0" />
           <span>
             {tooLong.reason}
             <span className="block text-muted-foreground">{tooLong.help}</span>

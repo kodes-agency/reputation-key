@@ -6,7 +6,7 @@
 // appears only with two languages and is never translated. Every status is an
 // icon and words, tied to its field, and read out only when it changes.
 
-import { CircleCheck, CircleX, Info } from 'lucide-react'
+import { Ban, CircleCheck, Info } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -39,7 +39,7 @@ const TONE_CLASS: Readonly<Record<PrintFinalFieldStatus['tone'], string>> = {
   negative: 'text-negative',
 }
 
-const TONE_ICON = { positive: CircleCheck, neutral: Info, negative: CircleX } as const
+const TONE_ICON = { positive: CircleCheck, neutral: Info, negative: Ban } as const
 
 const EMOJI = /\p{Extended_Pictographic}/u
 
@@ -60,7 +60,7 @@ function StatusRow({
 }: Readonly<{ id: string; status: PrintFinalFieldStatus | null; counter: string }>) {
   const Icon = status === null ? null : TONE_ICON[status.tone]
   return (
-    <div id={id} className="mt-1.5 grid grid-cols-[1fr_auto] items-start gap-x-4 text-xs">
+    <div id={id} className="mt-1.5 flex items-start justify-between gap-x-4 text-xs">
       {status === null || Icon === null ? (
         <span />
       ) : (

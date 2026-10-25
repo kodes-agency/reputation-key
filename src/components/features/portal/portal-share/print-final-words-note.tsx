@@ -48,7 +48,7 @@ export function PrintFinalWordsNote({ words, print, locale }: Props) {
   return (
     <Alert
       variant={warning.kind === 'block' ? 'destructive' : 'warning'}
-      className="mt-2.5"
+      className="mt-2"
     >
       <AlertTitle className="line-clamp-none">{note.title}</AlertTitle>
       <AlertDescription>
