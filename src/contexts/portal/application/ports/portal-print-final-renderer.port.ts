@@ -4,11 +4,12 @@
 // The final kit lives beside today's (`portal-print-kit-renderer.port.ts`) and
 // replaces none of it: only where PRINT_KIT_FINAL_ENABLED is on does the Share
 // tab ask for it. It prints single pieces, one face per page, in Paper or
-// Immersive, and office sheets (several pieces to a sheet, each Immersive piece
-// with its own bleed and crop marks) when `sheets` is given, and a card's
-// optional back page after its front; the print-shop page comes later. As with
-// today's kit, nothing in the input is a URL: the logo and the photo are bytes
-// already read from Portal media.
+// Immersive, office sheets (several pieces to a sheet, each Immersive piece
+// with its own bleed and crop marks) when `sheets` is given, a print shop's file
+// (one card per page with its bleed, its trim and bleed boxes and optional crop
+// marks) when `shop` is given, and a card's optional back page after its front.
+// As with today's kit, nothing in the input is a URL: the logo and the photo are
+// bytes already read from Portal media.
 
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import type {
@@ -28,6 +29,14 @@ export type PrintFinalSheetsInput = Readonly<{
   quantity: number
   fillSpares: boolean
   perSheet?: number
+}>
+
+/**
+ * A print shop's file: one piece per page, the trim plus the bleed all round.
+ * Crop marks are off unless asked for; on, the page grows to hold them.
+ */
+export type PrintFinalShopInput = Readonly<{
+  cropMarks: boolean
 }>
 
 export type PrintFinalRenderInput = Readonly<{
@@ -52,6 +61,8 @@ export type PrintFinalRenderInput = Readonly<{
   address: PrintFinalAddress
   /** Present: the pieces go on office sheets, exactly as many as asked for. Absent: one piece per page. */
   sheets?: PrintFinalSheetsInput
+  /** Present: a print shop's file, one card per page with its bleed (cards only; a tent is refused). Not with `sheets`. */
+  shop?: PrintFinalShopInput
   /**
    * Present: the optional back page prints too (cards only), the property's name
    * under the logo. After a lone piece's page comes its back; after each sheet
