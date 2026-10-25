@@ -64,6 +64,7 @@ const PHOTO =
 const view = (withLogo = true): PortalPrintKitView => ({
   portalId: 'portal-1',
   kit: 'current',
+  lastPrint: null,
   portalName: 'Oakmere Reception',
   primaryLocale: 'en',
   locales: ['en', 'es'],

@@ -13,6 +13,10 @@
 
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalMediaPublicPath } from '#/shared/domain/portal-media'
+import type {
+  PrintFinalLastSettings,
+  PrintFinalPhotoChange,
+} from '#/shared/domain/portal-print-final-last'
 import {
   IMMERSIVE_HUB_SCHEMA_VERSION,
   isLocalizedConfiguration,
@@ -153,10 +157,23 @@ export function liveLocalesOf(
  */
 export type PortalPrintKitGeneration = 'current' | 'final'
 
+/**
+ * The Portal's last final print as the Share tab says it: when it was made, the
+ * choices to set again, and what became of the photo since. Never the address, a
+ * code or a file.
+ */
+export type PortalPrintKitLastPrint = Readonly<{
+  printedAt: string
+  settings: PrintFinalLastSettings
+  photo: PrintFinalPhotoChange
+}>
+
 /** What the browser is given: the same facts, with each image as a same-origin path. */
 export type PortalPrintKitView = Readonly<{
   portalId: string
   kit: PortalPrintKitGeneration
+  /** The final kit's memory of the last print; null for today's kit and for a Portal never printed. */
+  lastPrint: PortalPrintKitLastPrint | null
   portalName: string
   primaryLocale: GuestLocale
   locales: readonly GuestLocale[]
@@ -179,11 +196,13 @@ export function presentPortalPrintKit(
   portalId: string,
   context: PortalPrintKitContext,
   kit: PortalPrintKitGeneration,
+  lastPrint: PortalPrintKitLastPrint | null = null,
 ): PortalPrintKitView {
   const { look } = context
   return {
     portalId,
     kit,
+    lastPrint,
     portalName: context.portalName,
     primaryLocale: context.primaryLocale,
     locales: context.locales,

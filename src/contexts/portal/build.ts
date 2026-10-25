@@ -57,6 +57,7 @@ import { takeDownPortalMedia } from './application/use-cases/take-down-portal-me
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
 import { createPortalAddressCipher } from './infrastructure/adapters/portal-address-cipher'
 import { createPortalAddressRepository } from './infrastructure/repositories/portal-address.repository'
+import { createPortalLastPrintRepository } from './infrastructure/repositories/portal-last-print.repository'
 import { createPortal } from './application/use-cases/create-portal'
 import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
 import { updatePortal } from './application/use-cases/update-portal'
@@ -609,6 +610,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       publicationRepo: portalPublicationRepo,
       mediaRepo: portalMediaAssetRepo,
+      lastPrintRepo: createPortalLastPrintRepository(deps.db),
       objectStore: storage,
       revealAddress,
       propertyCountry: createPropertyCountryReader(deps.db),

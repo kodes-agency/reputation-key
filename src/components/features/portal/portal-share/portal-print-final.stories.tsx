@@ -50,6 +50,7 @@ const view = (
 ): PortalPrintKitView => ({
   portalId: 'portal-1',
   kit: 'final',
+  lastPrint: null,
   portalName: 'Reception',
   primaryLocale: 'en',
   locales: ['en', 'es', 'bg'],
