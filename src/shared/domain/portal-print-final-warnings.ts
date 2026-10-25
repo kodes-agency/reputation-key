@@ -6,7 +6,7 @@
 // field still holding the wording's copy raises nothing. Pure and shared, so
 // Share and the server read the words the same way.
 
-import type { GuestLocale } from './guest-locale'
+import { GUEST_LOCALES, type GuestLocale } from './guest-locale'
 import type { PrintKitCopy } from './portal-print-kit'
 import { PRINT_FINAL_COPY, type PrintFinalCallToAction } from './portal-print-final-copy'
 import {
@@ -148,14 +148,9 @@ const foldedWords = (words: PrintFinalWarningWords): PrintFinalWarningWords => (
   time: words.time.map(fold),
 })
 
-const FOLDED_WORDS: Readonly<Record<GuestLocale, PrintFinalWarningWords>> = {
-  en: foldedWords(PRINT_FINAL_WARNING_WORDS.en),
-  es: foldedWords(PRINT_FINAL_WARNING_WORDS.es),
-  it: foldedWords(PRINT_FINAL_WARNING_WORDS.it),
-  fr: foldedWords(PRINT_FINAL_WARNING_WORDS.fr),
-  de: foldedWords(PRINT_FINAL_WARNING_WORDS.de),
-  bg: foldedWords(PRINT_FINAL_WARNING_WORDS.bg),
-}
+const FOLDED_WORDS = Object.fromEntries(
+  GUEST_LOCALES.map((locale) => [locale, foldedWords(PRINT_FINAL_WARNING_WORDS[locale])]),
+) as Readonly<Record<GuestLocale, PrintFinalWarningWords>>
 
 /** The lists a language's field is read with: its own, and English, which managers type everywhere. */
 const listsFor = (locale: GuestLocale): readonly PrintFinalWarningWords[] =>
