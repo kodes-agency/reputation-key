@@ -28,7 +28,11 @@
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import type { SnapshotSection } from '#/shared/observability/metrics-schema'
 import type { AlertFacts } from './alert-facts'
-import { quarantineFacts, unreadyJobFacts } from './alert-snapshot-facts'
+import {
+  inAppDeliveryLagFacts,
+  quarantineFacts,
+  unreadyJobFacts,
+} from './alert-snapshot-facts'
 import { readPushMissed, readPushSilent, readReconciliationAge } from './alert-sync-push'
 import {
   PUSH_ALERT_WINDOW_MS,
@@ -782,10 +786,12 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
         relevantAges.length === 0 ? null : Math.max(...relevantAges)
       const sourceCount = `${lag.sourceReceiptPending}${lag.sourceSaturated ? '+' : ''}`
       const materializationCount = `${lag.materializationPending}${lag.materializationSaturated ? '+' : ''}`
+      const facts = inAppDeliveryLagFacts(lag, pending)
       if (oldestSourceAgeMs === null) {
         return {
           value: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
           detail: `notification delivery pending without a valid durable-source clock (source receipts=${sourceCount}, materializations=${materializationCount})`,
+          facts,
         }
       }
       if (oldestSourceAgeMs <= NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS) {
@@ -794,6 +800,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: oldestSourceAgeMs,
         detail: `notification delivery from durable source is ${oldestSourceAgeMs}ms old (> ${NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS}ms; source receipts=${sourceCount}, materializations=${materializationCount})`,
+        facts,
       }
     },
   }),

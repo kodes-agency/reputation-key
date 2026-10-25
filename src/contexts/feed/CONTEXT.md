@@ -535,8 +535,11 @@ rows are never attempted, so they are not late mail. Its bounded scan reads
 only those scopes' rows, so a dark backlog cannot saturate it. The in-app
 delivery-lag count leaves out route facts whose consumer announces nothing
 (`silent-route-fact.ts` restates those consumers' rules in SQL: a change to
-either belongs in both), so an import's silent facts do not page. A
-quiet-hours hold on an immediate email schedules its own release job for the
+either belongs in both), so an import's silent facts do not page: its
+historical arrivals, the cycle opened with an item, and the provider's close of
+a history item's first cycle. The report also counts the pending source facts
+per route event type (a closed set of names), and the alert carries that
+breakdown as its facts. A quiet-hours hold on an immediate email schedules its own release job for the
 minute the window ends (`quiet-release-<emailId>-<ms>`); the hourly sweep is
 the fallback. Each email's
 source is one outbox primary-key lookup (a uuid event id, never `id::text`),

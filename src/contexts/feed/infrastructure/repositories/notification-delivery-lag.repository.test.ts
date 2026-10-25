@@ -464,6 +464,7 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
 
     expect(report).toEqual({
       sourceReceiptPending: 1,
+      sourceReceiptPendingByEventType: { 'inbox.inbox_item.assigned': 1 },
       materializationPending: 1,
       oldestSourceRecordedAt: RECORDED,
       oldestMaterializationSourceRecordedAt: RECORDED,
@@ -561,6 +562,7 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
       }),
     ).resolves.toEqual({
       sourceReceiptPending: 0,
+      sourceReceiptPendingByEventType: {},
       materializationPending: 0,
       oldestSourceRecordedAt: null,
       oldestMaterializationSourceRecordedAt: null,
