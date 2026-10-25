@@ -10,7 +10,7 @@
 // laid out once (`usePrintFinalDrawnFace`) and drawn in each cell. Inline styles,
 // as the rest of the preview.
 
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { PrintFinalFraming } from '#/shared/domain/portal-print-final-framing'
 import {
   PRINT_FINAL_SHEET_MARKS,
@@ -124,11 +124,14 @@ export function PrintFinalSheetArt({
   tilePt,
   label,
 }: Props) {
-  const bleed = printFinalSheetFaceBleed(sheet)
-  const drawn = usePrintFinalDrawnFace({
-    ...face,
-    bleed: sheet.look === 'immersive' ? bleed : undefined,
-  })
+  // Held per sheet: a new bleed would lay the Immersive face out again on every render.
+  const { piece, bleedPt } = sheet
+  const immersive = sheet.look === 'immersive'
+  const bleed = useMemo(
+    () => (immersive ? printFinalSheetFaceBleed({ piece, bleedPt }) : undefined),
+    [immersive, piece, bleedPt],
+  )
+  const drawn = usePrintFinalDrawnFace({ ...face, bleed })
   const u = (points: number) => ptToContainerWidth(points, sheet.widthPt)
   const cells = sheet.cells.slice(0, filled)
   const { widthPt, heightPt } = printFinalLiveArea(face.face)
@@ -159,7 +162,7 @@ export function PrintFinalSheetArt({
               look={face.look}
               codeUrl={codeUrl}
               framing={framing}
-              bleed={sheet.look === 'immersive' ? bleed : undefined}
+              bleed={bleed}
               pt={u}
             />
           </Placed>
