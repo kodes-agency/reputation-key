@@ -1,13 +1,15 @@
 // What a final face says, and in which type (final design spec §3 and §8): the
 // kicker (the page title, in the first language), the headline and its
 // sub-line, and the second language, either in full under a short rule or as
-// one small italic line. The Small card has no kicker. Each part carries the
+// one small italic line. The Small card has no kicker, and a kicker the
+// headline repeats is left out (§5.9). Each part carries the
 // style it is set in and the tone it is painted in; the look turns a tone into
 // a colour (Paper: ink, soft text and the accent ink).
 
 import type { GuestLocale } from './guest-locale'
 import type { PrintTextBlock } from './portal-print-kit'
 import { printFinalLanguageMode, type PrintFinalFace } from './portal-print-final'
+import { printFinalKickerRepeated } from './portal-print-final-kicker'
 import type { PrintFinalPartKey } from './portal-print-final-parts'
 import type { PrintFinalTextStyle } from './portal-print-final-text'
 import {
@@ -148,7 +150,10 @@ export function printFinalWords(
   if (first === undefined)
     throw new Error('A face says something in one language at least')
   const { locale } = first
-  const kicker = printFinalKickerStyle(face)
+  const kickerStyle = printFinalKickerStyle(face)
+  const kicker = printFinalKickerRepeated(first.kicker, first.headline)
+    ? null
+    : kickerStyle
   const words: PrintFinalWordsPart[] = [
     ...(kicker === null
       ? []

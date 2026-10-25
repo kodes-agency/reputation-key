@@ -80,6 +80,38 @@ describe('layoutPrintFinalFace', () => {
     ])
   })
 
+  it('leaves the kicker out when the headline repeats it, and keeps every other part', () => {
+    const [block] = blocksOf(['en'])
+    if (block === undefined) throw new Error('one block')
+    const repeated = [{ ...block, kicker: 'How did we do', headline: 'How did we do?' }]
+    expect(keysOf(layout(face(), ['en'], { blocks: repeated }))).toEqual([
+      'brand',
+      'headline',
+      'subline',
+    ])
+    expect(keysOf(layout(face({ piece: 'tent' }), ['en'], { blocks: repeated }))).toEqual(
+      ['brand', 'headline', 'subline'],
+    )
+  })
+
+  it('re-centres the message when the kicker is left out, with the gaps still 4u to 8u', () => {
+    const [block] = blocksOf(['en'])
+    if (block === undefined) throw new Error('one block')
+    const kept = layout(face())
+    const hidden = layout(face(), ['en'], {
+      blocks: [{ ...block, kicker: block.headline }],
+    })
+    expect(hidden.plan.fits).toBe(true)
+    const gap = (laid: PrintFinalFaceLayout) => laid.plan.gapsPt.brandToMessage ?? NaN
+    const unit = kept.plan.unitPt
+    expect(gap(hidden)).toBeGreaterThanOrEqual(4 * unit)
+    expect(gap(hidden)).toBeLessThanOrEqual(8 * unit + 1e-6)
+    // The message group is shorter by the kicker and its 1u, so the gaps grow.
+    expect(hidden.plan.groups.message?.bottomPt).toBeLessThan(
+      kept.plan.groups.message?.bottomPt ?? NaN,
+    )
+  })
+
   it('prints two languages in full under a rule on the Counter card and the wide pieces', () => {
     for (const f of [face(), face({ piece: 'tent', orientation: 'wide' })]) {
       const laid = layout(f, ['en', 'es'])
