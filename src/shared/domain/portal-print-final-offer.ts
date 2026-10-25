@@ -41,6 +41,8 @@ export type PrintFinalChoice = Readonly<{
   printer: PrintFinalPrinter
   /** How many pieces the manager needs. */
   quantity: number
+  /** How many pieces go on each office sheet, when the manager asks for fewer than fit (More options); absent: all that fit. */
+  perSheet?: number
   languageCount: number
 }>
 
@@ -54,7 +56,11 @@ export type PrintFinalCodeFacts = Readonly<{
 export type PrintFinalRefusal =
   | PrintFinalCodeRefusal
   | Readonly<{
-      code: 'tents_office_only' | 'quantity_out_of_range' | 'languages_out_of_range'
+      code:
+        | 'tents_office_only'
+        | 'quantity_out_of_range'
+        | 'per_sheet_out_of_range'
+        | 'languages_out_of_range'
     }>
 
 /**
@@ -87,20 +93,32 @@ export function printFinalPieceCount(
   return fillSpares ? printFinalSheetCount(quantity, perSheet) * perSheet : quantity
 }
 
-function choiceProblem(choice: PrintFinalChoice): PrintFinalRefusal | null {
+const isCountIn = (value: number, max: number): boolean =>
+  Number.isInteger(value) && value >= 1 && value <= max
+
+/** The pieces one office sheet carries: the manager's own count (More options), or every cell. */
+export const printFinalPerSheetOf = (
+  choice: Pick<PrintFinalChoice, 'piece' | 'look' | 'paper' | 'perSheet'>,
+): number =>
+  choice.perSheet ?? PRINT_FINAL_PER_SHEET[choice.piece][choice.look][choice.paper]
+
+/**
+ * What is wrong with a choice before its code is known: a quantity or a count
+ * per sheet out of range, a number of languages a print cannot carry, or a tent
+ * for a print shop. The server asks this before it reveals an address.
+ */
+export function printFinalChoiceProblem(
+  choice: PrintFinalChoice,
+): PrintFinalRefusal | null {
   const { quantity, languageCount } = choice
-  if (
-    !Number.isInteger(quantity) ||
-    quantity < 1 ||
-    quantity > PRINT_FINAL_MAX_QUANTITY
-  ) {
+  if (!isCountIn(quantity, PRINT_FINAL_MAX_QUANTITY)) {
     return { code: 'quantity_out_of_range' }
   }
-  if (
-    !Number.isInteger(languageCount) ||
-    languageCount < 1 ||
-    languageCount > PRINT_KIT_MAX_LANGUAGES
-  ) {
+  const fits = PRINT_FINAL_PER_SHEET[choice.piece][choice.look][choice.paper]
+  if (choice.perSheet !== undefined && !isCountIn(choice.perSheet, fits)) {
+    return { code: 'per_sheet_out_of_range' }
+  }
+  if (!isCountIn(languageCount, PRINT_KIT_MAX_LANGUAGES)) {
     return { code: 'languages_out_of_range' }
   }
   if (choice.piece === 'tent' && choice.printer === 'print_shop') {
@@ -118,7 +136,7 @@ export function printFinalChoiceTile(
   choice: PrintFinalChoice,
   code: PrintFinalCodeFacts,
 ): Result<PrintFinalTile, PrintFinalRefusal> {
-  const problem = choiceProblem(choice)
+  const problem = printFinalChoiceProblem(choice)
   if (problem !== null) return err(problem)
   const tile = choosePrintFinalTile({
     piece: choice.piece,

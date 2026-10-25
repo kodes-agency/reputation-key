@@ -11,7 +11,9 @@ import { inPt, mmPt, ptMm } from './portal-print-final-measures'
 import {
   PRINT_FINAL_MAX_QUANTITY,
   PRINT_FINAL_PER_SHEET,
+  printFinalChoiceProblem,
   printFinalChoiceTile,
+  printFinalPerSheetOf,
   printFinalPieceCount,
   printFinalPieceOffers,
   printFinalSheetCount,
@@ -192,6 +194,23 @@ describe('choices and refusals (spec 12)', () => {
     expect(PRINT_FINAL_MAX_QUANTITY).toBe(1000)
     expect(refusalOf({ languageCount: 3 })).toBe('languages_out_of_range')
     expect(refusalOf({ languageCount: 0 })).toBe('languages_out_of_range')
+  })
+
+  it('takes fewer pieces a sheet than fit, never more', () => {
+    expect(refusalOf({ perSheet: 1 })).toBeNull()
+    expect(refusalOf({ perSheet: 3 })).toBeNull()
+    expect(refusalOf({ perSheet: 4 })).toBe('per_sheet_out_of_range')
+    expect(refusalOf({ perSheet: 0 })).toBe('per_sheet_out_of_range')
+    expect(refusalOf({ perSheet: 1.5 })).toBe('per_sheet_out_of_range')
+    expect(printFinalPerSheetOf(choice())).toBe(3)
+    expect(printFinalPerSheetOf(choice({ perSheet: 2 }))).toBe(2)
+  })
+
+  it('says what is wrong with a choice before its code is known', () => {
+    expect(printFinalChoiceProblem(choice())).toBeNull()
+    expect(
+      printFinalChoiceProblem(choice({ piece: 'tent', printer: 'print_shop' })),
+    ).toEqual({ code: 'tents_office_only' })
   })
 
   it('offers all three pieces on the short address and holds tents and Small cards on the long one', () => {
