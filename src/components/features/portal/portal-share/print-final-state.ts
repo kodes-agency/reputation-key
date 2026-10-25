@@ -225,8 +225,11 @@ function sameOwnWords(
   left: PrintFinalCustomWords | null,
   right: PrintFinalCustomWords | null,
 ): boolean {
+  // Field by field: a stored object's key order is not the order a print made it in.
   const entries = (words: PrintFinalCustomWords | null) =>
-    Object.entries(words ?? {}).sort(([a], [b]) => a.localeCompare(b))
+    Object.entries(words ?? {})
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([locale, copy]) => [locale, copy?.headline, copy?.subline])
   return JSON.stringify(entries(left)) === JSON.stringify(entries(right))
 }
 

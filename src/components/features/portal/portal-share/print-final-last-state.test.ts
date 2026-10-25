@@ -207,4 +207,15 @@ describe('the last print of the manager’s own words (spec 11.5, slice C8)', ()
     expect(print.words.custom?.en).toEqual(own.en)
     expect(printFinalMatchesLast(print, lastOwn)).toBe(true)
   })
+
+  it('knows the print by its words, whatever order a stored object keeps its fields in', () => {
+    const chosen = choiceOfLastPrint(INITIAL_PRINT_FINAL_CHOICE, lastOwn)
+    const print = resolvePrintFinalChoice(chosen, ['en', 'es'], 'US', null)
+    const reordered = { en: { subline: '', headline: 'How was today?' } }
+    expect(printFinalMatchesLast(print, { ...lastOwn, customWords: reordered })).toBe(
+      true,
+    )
+    const other = { en: { headline: 'How was tonight?', subline: '' } }
+    expect(printFinalMatchesLast(print, { ...lastOwn, customWords: other })).toBe(false)
+  })
 })
