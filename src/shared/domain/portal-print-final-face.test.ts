@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GuestLocale } from './guest-locale'
-import { printKitFaces, type PrintTextBlock } from './portal-print-kit'
+import type { PrintTextBlock } from './portal-print-kit'
+import { printFinalBlocks } from './portal-print-final-languages'
 import type { PrintFinalFace } from './portal-print-final'
 import { choosePrintFinalTile } from './portal-print-final-code'
 import {
@@ -39,11 +40,12 @@ const face = (over: Partial<PrintFinalFace> = {}): PrintFinalFace => ({
 })
 
 const blocksOf = (languages: readonly GuestLocale[]): readonly PrintTextBlock[] =>
-  printKitFaces(
-    { piece: 'counter_card', languages, callToAction: 'rate' },
+  printFinalBlocks(
+    languages,
+    'rate',
     { en: 'Review us on Google', es: 'Reseñe en Google', de: 'Bewerten Sie uns' },
     'Reception',
-  )[0]?.blocks ?? []
+  )
 
 function layout(
   f: PrintFinalFace,

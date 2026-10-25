@@ -4,7 +4,7 @@ import {
   type PrintFinalRenderInput,
 } from '../../application/ports/portal-print-final-renderer.port'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { printKitFaces } from '#/shared/domain/portal-print-kit'
+import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import {
   PRINT_FINAL_ORIENTATIONS,
   PRINT_FINAL_PIECES,
@@ -31,15 +31,16 @@ function inputFor(
   languages: readonly GuestLocale[] = ['en'],
   over: Partial<PrintFinalRenderInput> = {},
 ): PrintFinalRenderInput {
-  const [front] = printKitFaces(
-    { piece: 'counter_card', languages, callToAction: 'rate' },
+  const blocks = printFinalBlocks(
+    languages,
+    'rate',
     { en: 'Review us on Google', es: 'Reseñe en Google' },
     'Reception',
   )
   return {
     title: 'Hotel Elegance counter card',
     face,
-    blocks: front?.blocks ?? [],
+    blocks: blocks,
     wordmark: 'Hotel Elegance',
     logo: null,
     accentColour: '#A8C6FE',

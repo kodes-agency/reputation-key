@@ -155,8 +155,8 @@ describe('createPortalPrintFinal', () => {
     expect(input?.qrAddress).toBe(SHORT_ADDRESS)
     expect(input?.address).toBe('short')
     expect(input?.blocks.map((block) => block.headline)).toEqual([
-      'Rate your visit',
-      'Оценете посещението си',
+      'How did we do?',
+      'Как беше при нас?',
     ])
     expect(input?.title).toBe('Reception table tents')
     expect(input?.photo).not.toBeNull()

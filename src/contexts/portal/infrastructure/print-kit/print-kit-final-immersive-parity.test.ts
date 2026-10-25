@@ -3,7 +3,7 @@ import { previewFinalImmersiveFace } from '#/components/features/portal/portal-s
 import type { PreviewFinalPhoto } from '#/components/features/portal/portal-share/use-print-final-pictures'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { printKitFaces } from '#/shared/domain/portal-print-kit'
+import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import {
   PRINT_FINAL_ORIENTATIONS,
   PRINT_FINAL_PIECES,
@@ -67,15 +67,16 @@ const FACES: readonly PrintFinalFace[] = (['us', 'eu'] as const).flatMap((region
 )
 
 const blocksOf = (languages: readonly GuestLocale[]) =>
-  printKitFaces(
-    { piece: 'counter_card', languages, callToAction: 'rate' },
+  printFinalBlocks(
+    languages,
+    'rate',
     {
       en: 'Review us on Google',
       es: 'Reseñe en Google',
       de: 'Bewerten Sie uns auf Google',
     },
     'Reception',
-  )[0]?.blocks ?? []
+  )
 
 describe('the preview’s final Immersive faces', () => {
   it.each(FACES.map((f) => [`${f.piece} ${f.orientation} (${f.region})`, f] as const))(

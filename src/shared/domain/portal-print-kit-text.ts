@@ -68,9 +68,15 @@ export function balanceWords(
  */
 export type LineBreaks = 'spaces' | 'spaces-and-hyphens'
 
+/**
+ * Whitespace a line may break at: every kind but the no-break spaces (U+00A0 and
+ * U+202F), which keep "nous ?" together as a browser does.
+ */
+const BREAKING_SPACE = /[^\S\u00a0\u202f]+/u
+
 /** The pieces a line is built from, each with whether a space joins it to the one before. */
 function piecesOf(text: string, breaks: LineBreaks) {
-  const words = text.split(/\s+/u).filter((part) => part !== '')
+  const words = text.split(BREAKING_SPACE).filter((part) => part !== '')
   return words.flatMap((word) => {
     const parts = breaks === 'spaces' ? [word] : word.split(/(?<=[^\s-]-)(?=[^\s-])/u)
     return parts.map((part, index) => ({ part, spaced: index === 0 }))

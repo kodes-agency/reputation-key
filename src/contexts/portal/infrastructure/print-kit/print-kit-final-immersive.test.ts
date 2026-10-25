@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import type { PrintFinalRenderInput } from '../../application/ports/portal-print-final-renderer.port'
 import golden from '#/shared/domain/__fixtures__/portal-print-final-golden.json'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { printKitFaces, type PrintTextBlock } from '#/shared/domain/portal-print-kit'
+import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
+import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import {
   PRINT_FINAL_ORIENTATIONS,
   PRINT_FINAL_PIECES,
@@ -151,15 +152,16 @@ async function inputFor(
   face: PrintFinalFace,
   over: Partial<PrintFinalRenderInput> = {},
 ): Promise<PrintFinalRenderInput> {
-  const [front] = printKitFaces(
-    { piece: 'counter_card', languages: ['en'], callToAction: 'rate' },
+  const blocks = printFinalBlocks(
+    ['en'],
+    'rate',
     { en: 'Review us on Google' },
     'Reception',
   )
   return {
     title: 'Hotel Elegance',
     face,
-    blocks: front?.blocks ?? [],
+    blocks: blocks,
     wordmark: 'Hotel Elegance',
     logo: null,
     accentColour: '#E3B873',

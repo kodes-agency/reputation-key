@@ -24,7 +24,7 @@ const DISPLAY_WIDTHS: WidthTable = {
   210: '.:',
   220: '`',
   230: ',;',
-  240: ' ',
+  240: ' \u00a0',
   260: '!',
   270: 'ijl',
   280: '[]',
@@ -81,7 +81,7 @@ const DISPLAY_WIDTHS: WidthTable = {
 
 /** Ysabeau Office, the wider of 400 and 600. */
 const TEXT_WIDTHS: WidthTable = {
-  250: ' ',
+  250: ' \u00a0',
   260: '.:l·',
   270: "'ij’‘",
   280: ',`',

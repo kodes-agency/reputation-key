@@ -139,6 +139,13 @@ describe('balanceWords', () => {
     expect(balanceWords('  ', 10, byLength)).toEqual([])
   })
 
+  it('never breaks at a no-break space, so a French question mark stays with its word', () => {
+    // Narrower than "Votre avis sur nous ?": the break falls before "nous ?", never before "?".
+    const lines = balanceWords('Votre avis sur nous\u00a0?', 14, byLength)
+    expect(lines).toEqual(['Votre avis', 'sur nous\u00a0?'])
+    expect(balanceWords('Merci\u202f!', 3, byLength)).toEqual(['Merci\u202f!'])
+  })
+
   it('breaks after a hyphen between letters only when asked, keeping the hyphen on the first line', () => {
     const text = 'Harborline Inn Houston-Near The Galleria'
     expect(balanceWords(text, 30, byLength, 'spaces-and-hyphens')).toEqual([

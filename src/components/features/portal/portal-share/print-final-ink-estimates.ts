@@ -16,7 +16,7 @@ import type { PrintFinalFamily } from '#/shared/domain/portal-print-final-type'
 type ReachTable = Readonly<Record<number, string>>
 
 const SERIF_UP: ReachTable = {
-  0: '_ ',
+  0: '\u00a0_ ',
   100: ',.…',
   220: '–—',
   250: '~',
@@ -42,7 +42,7 @@ const SERIF_UP: ReachTable = {
 }
 
 const SERIF_DOWN: ReachTable = {
-  0: ' "\'*+-1247<=>AEFHILMPRTXY^`fhiklmnrxz~’‘“”–—·',
+  0: '\u00a0 "\'*+-1247<=>AEFHILMPRTXY^`fhiklmnrxz~’‘“”–—·',
   10: '%BDKVWZavw',
   20: '!&.035689:?CGNOSUbcdeostu…',
   80: '_',
@@ -58,7 +58,7 @@ const SERIF_DOWN: ReachTable = {
 }
 
 const SANS_UP: ReachTable = {
-  0: '_ ',
+  0: '\u00a0_ ',
   130: ',.…',
   270: '-–—',
   300: '·',
@@ -86,7 +86,7 @@ const SANS_UP: ReachTable = {
 }
 
 const SANS_DOWN: ReachTable = {
-  0: ' "\'*+-1247<=>ABDEFHIKLMNPTVWXYZ^`r~’‘“”–—·',
+  0: '\u00a0 "\'*+-1247<=>ABDEFHIKLMNPTVWXYZ^`r~’‘“”–—·',
   10: '!%&.035689:?Rabdhiklmntuvwx…',
   20: 'CGOSUceosz',
   70: '#',
