@@ -71,7 +71,7 @@ export type PrintFinalRenderInput = Readonly<{
   back?: Readonly<{ propertyName: string }>
 }>
 
-/** What the renderer throws when the symbol would print too small for the piece, or two cues would not fit the bar: thrown before any page is drawn. */
+/** What the renderer throws when the symbol would print too small for the piece, two cues would not fit the bar, or the words do not fit the face at the smallest headline: thrown before any page is drawn. */
 export class PrintFinalRenderRefusal extends Error {
   readonly refusal: PrintFinalCodeRefusal
 

@@ -115,3 +115,81 @@ describe('the final Paper faces in the PDF against the boards', () => {
     expect(code.widthPt - code.tilePt).toBeCloseTo(mmPt(0.7))
   })
 })
+
+describe('a manager’s own headline in the embedded font (spec 5.7, measured US Paper)', () => {
+  const HARBORLINE = {
+    kind: 'logo',
+    inkWidth: 22.8,
+    inkHeight: 12.68,
+    onPlate: false,
+  } as const
+
+  function layoutWords(
+    piece: PrintFinalPiece,
+    orientation: PrintFinalFace['orientation'],
+    headline: string,
+  ) {
+    const face: PrintFinalFace = { piece, orientation, look: 'paper', region: 'us' }
+    const tile = choosePrintFinalTile({ ...face, address: 'short', symbolModules: 29 })
+    return layoutPrintFinalFace({
+      face,
+      blocks: [
+        {
+          locale: 'en',
+          kicker: 'Review us on Google',
+          headline,
+          subline: 'About 30 seconds',
+        },
+      ],
+      brand: HARBORLINE,
+      tile: tile._unsafeUnwrap(),
+      measurer: pdfFinalMeasurer(doc, fonts),
+    })
+  }
+
+  const linesOf = (laid: ReturnType<typeof layoutWords>) =>
+    laid.plan.parts.find((part) => part.key === 'headline')?.lines
+
+  it('prints "Thanks for staying with us" at full size on two lines', () => {
+    const headline = 'Thanks for staying with us'
+    expect(layoutWords('counter', 'upright', headline)).toMatchObject({
+      headlinePt: 28,
+      overflows: false,
+    })
+    for (const orientation of ['upright', 'wide'] as const) {
+      const tent = layoutWords('tent', orientation, headline)
+      expect([tent.headlinePt, linesOf(tent), tent.overflows]).toEqual([19, 2, false])
+    }
+    expect(layoutWords('small', 'wide', headline)).toMatchObject({
+      headlinePt: 15,
+      overflows: false,
+    })
+  })
+
+  it('steps "How was your stay with us tonight?" to 17 pt on both tents, the size the pair needs', () => {
+    const headline = 'How was your stay with us tonight?'
+    for (const orientation of ['upright', 'wide'] as const) {
+      const tent = layoutWords('tent', orientation, headline)
+      expect([tent.headlinePt, linesOf(tent), tent.overflows]).toEqual([17, 2, false])
+    }
+    expect(layoutWords('counter', 'upright', headline).headlinePt).toBe(28)
+    expect(layoutWords('small', 'wide', headline).headlinePt).toBe(15)
+  })
+
+  it('refuses the 48-character headline on the upright tent, and prints it at the floor on the wide one', () => {
+    const headline = 'Tell us how your visit went today, in a few taps'
+    const upright = layoutWords('tent', 'upright', headline)
+    expect(upright.overflows).toBe(true)
+    expect(upright.plan.problems).toContain('gap_under_4u')
+    const wide = layoutWords('tent', 'wide', headline)
+    expect([wide.headlinePt, linesOf(wide), wide.overflows]).toEqual([16.5, 3, false])
+    expect(layoutWords('counter', 'upright', headline)).toMatchObject({
+      headlinePt: 28,
+      overflows: false,
+    })
+    const counter = layoutWords('counter', 'upright', headline)
+    expect(linesOf(counter)).toBe(3)
+    const small = layoutWords('small', 'wide', headline)
+    expect([small.headlinePt, linesOf(small), small.overflows]).toEqual([15, 3, false])
+  })
+})

@@ -15,6 +15,8 @@ export const PRINT_FINAL_REFUSAL_COPY: Readonly<
   tile_does_not_fit: 'A wide Small card has no room for this code. Print it upright.',
   cue_does_not_fit:
     'The scan line in these two languages does not fit this piece. Choose one language.',
+  words_do_not_fit:
+    'These words are too long for this piece. Choose other words, print wide or in one language, or shorten the page title.',
   tents_office_only:
     'Print shops sell tents from 4 × 6 in, so for a shop choose Counter cards.',
   no_back_for_tents:

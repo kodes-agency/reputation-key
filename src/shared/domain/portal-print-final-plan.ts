@@ -16,9 +16,10 @@
 //     taller of the two is placed 44 : 56 in the live height. On a tent, a
 //     headline whose cap-top would fall below 54 % of the face lifts the block,
 //     never above the top margin.
-// Type never grows to fill space. A face whose gaps fall under 4u says so
-// (`fits`), and the long-copy step (`choosePrintFinalHeadline`) tries a smaller
-// headline.
+// Type never grows to fill space. A face whose gaps fall under 4u, whose ink
+// runs past the live area, or whose headline takes more than 3 lines or sub-line
+// more than 2 says so (`fits`), and the long-copy step (`choosePrintFinalHeadline`)
+// tries a smaller headline.
 
 import type { PrintFinalFace } from './portal-print-final'
 import type {
@@ -30,13 +31,15 @@ import {
   printFinalLiveArea,
   type PrintFinalBox,
 } from './portal-print-final-measures'
+import { PRINT_FINAL_LINE_CAPS } from './portal-print-final-type'
 import {
   placeUprightStack,
   placeWideBlock,
   type PlannedGroups,
 } from './portal-print-final-planners'
 
-export type PrintFinalProblem = 'gap_under_4u' | 'taller_than_live'
+export type PrintFinalProblem =
+  'gap_under_4u' | 'taller_than_live' | 'headline_over_cap' | 'subline_over_cap'
 
 export type PrintFinalPlan = Readonly<{
   face: PrintFinalFace
@@ -122,6 +125,20 @@ function gapsOf(
   }
 }
 
+/** A part of words over its line cap: the headline over 3 lines, the sub-line over 2. */
+function lineCapProblems(
+  parts: readonly PrintFinalPlacedPart[],
+): readonly PrintFinalProblem[] {
+  const over = (key: 'headline' | 'subline') =>
+    parts.some(
+      (part) => part.key === key && (part.lines ?? 0) > PRINT_FINAL_LINE_CAPS[key],
+    )
+  return [
+    ...(over('headline') ? (['headline_over_cap'] as const) : []),
+    ...(over('subline') ? (['subline_over_cap'] as const) : []),
+  ]
+}
+
 function problemsOf(
   planned: PlannedGroups,
   gaps: PrintFinalPlan['gapsPt'],
@@ -134,7 +151,7 @@ function problemsOf(
   )
   if (short || planned.groupGapPt < least) problems.push('gap_under_4u')
   if (planned.overflowPt > PRINT_FINAL_GAP_TOLERANCE_PT) problems.push('taller_than_live')
-  return problems
+  return [...problems, ...lineCapProblems(planned.parts)]
 }
 
 /** Lay out one face: the upright stack or the wide block, by the face's orientation. */

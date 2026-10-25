@@ -5,9 +5,10 @@
 // what this returns.
 //
 // Long copy (§5.3): the headline steps down 1 pt at a time until both
-// orientations of the piece keep their group gaps at 4u or more, never under
-// 1.8 × the sub-line. Both orientations take the same step, so turning a piece
-// never changes its headline's size.
+// orientations of the piece keep their group gaps at 4u or more and their words
+// within 3 lines for the headline and 2 for the sub-line, never under 1.8 × the
+// sub-line. Both orientations take the same step, so turning a piece never
+// changes its headline's size. What the floor cannot hold is refused.
 
 import type { GuestLocale } from './guest-locale'
 import type { PrintTextBlock } from './portal-print-kit'
@@ -85,7 +86,13 @@ export type PrintFinalFaceLayout = Readonly<{
   code: PrintFinalCodeBlock
   cues: readonly PrintFinalCue[]
   headlinePt: number
-  /** The headline is at its floor and the words still crowd the face. */
+  /**
+   * The face does not hold its words at the size it prints: a group gap under 4u,
+   * ink past the live area, or a headline over 3 lines or a sub-line over 2, with
+   * the headline at the floor. The print is refused (`words_do_not_fit`). When
+   * only the other orientation misses, this one prints at the shared size and is
+   * not refused.
+   */
   overflows: boolean
 }>
 
@@ -172,7 +179,15 @@ function wordsOf(
     if (set === null) return []
     const content = { kind: 'words', set, locale: word.locale, tone: word.tone } as const
     return [
-      { part: { key: word.key, widthPt: set.widthPt, heightPt: set.heightPt }, content },
+      {
+        part: {
+          key: word.key,
+          widthPt: set.widthPt,
+          heightPt: set.heightPt,
+          lines: set.lines.length,
+        },
+        content,
+      },
     ]
   })
   return { parts: built.map((b) => b.part), contents: built.map((b) => b.content) }
@@ -244,6 +259,6 @@ export function layoutPrintFinalFace(input: PrintFinalFaceInput): PrintFinalFace
     code: laid.code,
     cues: cuesIn(input, cueLines, laid.code.barPt),
     headlinePt: choice.headlinePt,
-    overflows: choice.overflows,
+    overflows: !laid.plan.fits,
   }
 }

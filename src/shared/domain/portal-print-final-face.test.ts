@@ -176,6 +176,62 @@ describe('layoutPrintFinalFace', () => {
     expect(upright.headlinePt).toBeGreaterThanOrEqual(16.5)
   })
 
+  it('steps a headline that would take 4 lines down until it takes 3', () => {
+    const [block] = blocksOf(['en'])
+    if (block === undefined) throw new Error('one block')
+    const long = [
+      { ...block, headline: 'Tell us how your stay with us went today in a few taps' },
+    ]
+    const laid = layout(face(), ['en'], { blocks: long })
+    const headline = laid.plan.parts.find((part) => part.key === 'headline')
+    expect(headline?.lines).toBeLessThanOrEqual(3)
+    expect(laid.headlinePt).toBeLessThan(28)
+    expect(laid.headlinePt).toBeGreaterThanOrEqual(20)
+    expect(laid.overflows).toBe(false)
+  })
+
+  it('refuses words the floor cannot hold: the headline stays at the floor and overflows', () => {
+    const [block] = blocksOf(['en'])
+    if (block === undefined) throw new Error('one block')
+    const absurd = [{ ...block, headline: 'Tell us how your stay went today '.repeat(5) }]
+    const laid = layout(face(), ['en'], { blocks: absurd })
+    expect(laid.headlinePt).toBe(20)
+    expect(laid.overflows).toBe(true)
+    expect(laid.plan.problems.length).toBeGreaterThan(0)
+  })
+
+  it('refuses a sub-line on 3 lines, even where the gaps hold', () => {
+    const [block] = blocksOf(['en'])
+    if (block === undefined) throw new Error('one block')
+    const wordy = [{ ...block, subline: 'About thirty seconds of your time '.repeat(3) }]
+    const laid = layout(face(), ['en'], { blocks: wordy })
+    expect(laid.plan.problems).toContain('subline_over_cap')
+    expect(laid.overflows).toBe(true)
+  })
+
+  it('refuses only the orientation that misses at the floor: the other one still prints at the shared size', () => {
+    const [block] = blocksOf(['en'])
+    if (block === undefined) throw new Error('one block')
+    const words = (n: number) => [
+      { ...block, headline: Array.from({ length: n }, () => 'word').join(' ') },
+    ]
+    const only = Array.from({ length: 40 }, (_, i) => i + 3).find((n) => {
+      const upright = layout(face({ piece: 'tent' }), ['en'], { blocks: words(n) })
+      const wide = layout(face({ piece: 'tent', orientation: 'wide' }), ['en'], {
+        blocks: words(n),
+      })
+      return upright.overflows && !wide.overflows
+    })
+    expect(only).toBeDefined()
+    const upright = layout(face({ piece: 'tent' }), ['en'], { blocks: words(only ?? 0) })
+    const wide = layout(face({ piece: 'tent', orientation: 'wide' }), ['en'], {
+      blocks: words(only ?? 0),
+    })
+    // Both print at the floor, the size the tighter orientation needs.
+    expect(wide.headlinePt).toBe(upright.headlinePt)
+    expect(wide.headlinePt).toBe(16.5)
+  })
+
   it('wraps a cue the measurer finds too wide into the two-line bar', () => {
     // This measurer sets every character half an em wide, wider than the font: English no longer fits the Small card.
     const laid = layout(face({ piece: 'small', orientation: 'wide' }), ['en'])

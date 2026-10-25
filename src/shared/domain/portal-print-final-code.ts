@@ -42,6 +42,7 @@ export type PrintFinalCodeRefusal = Readonly<{
     | 'address_host_too_long'
     | 'tile_does_not_fit'
     | 'cue_does_not_fit'
+    | 'words_do_not_fit'
   /** What the module would have measured, in millimetres; null when the module is not the reason. */
   moduleMm: number | null
 }>
