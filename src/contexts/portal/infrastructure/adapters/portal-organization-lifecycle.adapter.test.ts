@@ -50,6 +50,13 @@ describe('Portal Organization lifecycle contributor', () => {
     )
   })
 
+  it('deletes the remembered last prints before the Portals they hang from', () => {
+    expect(PORTAL_PURGE_PLAN).toContain('portal_last_prints')
+    expect(PORTAL_PURGE_PLAN.indexOf('portal_last_prints')).toBeLessThan(
+      PORTAL_PURGE_PLAN.indexOf('portals'),
+    )
+  })
+
   it('deletes the page-edit ledger before the Portals it hangs from', () => {
     expect(PORTAL_PURGE_PLAN).toContain('portal_page_edits')
     expect(PORTAL_PURGE_PLAN.indexOf('portal_page_edits')).toBeLessThan(

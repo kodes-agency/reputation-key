@@ -40,6 +40,7 @@ type PortalOrganizationExportPayload = Readonly<{
   accessArtifacts: readonly ExportRecord[]
   addressDownloads: readonly ExportRecord[]
   healthIntervals: readonly ExportRecord[]
+  lastPrints: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
     recordClass: string
     reasonCode: string
@@ -183,6 +184,7 @@ function collectionsOf(
     ['access_artifact', payload.accessArtifacts],
     ['address_download', payload.addressDownloads],
     ['health_interval', payload.healthIntervals],
+    ['last_print', payload.lastPrints],
   ]
 }
 
@@ -458,6 +460,18 @@ async function readPayload(
                    ${utc('observed_at')} AS observed_at
             FROM portal_health_intervals WHERE organization_id = ${organizationId}`,
       )
+      // The choices of each Portal's last final print and the image it used, by id:
+      // choices and a day, never an address or a file. Its key is the Portal's own.
+      const lastPrints = await readRows(
+        snapshot,
+        sql`SELECT portal_id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, piece, orientation, look, paper,
+                   printer, quantity, fill_spares, per_sheet, crop_marks, back_page,
+                   languages::text AS languages, call_to_action,
+                   photo_asset_id::text AS photo_asset_id, photo_focal_x, photo_focal_y,
+                   ${utc('printed_at')} AS printed_at
+            FROM portal_last_prints WHERE organization_id = ${organizationId}`,
+      )
 
       return {
         version: 'portal-organization-export/v1' as const,
@@ -494,6 +508,7 @@ async function readPayload(
           'id',
         ]),
         healthIntervals: sortRecords(healthIntervals, ['portal_id', 'id']),
+        lastPrints: sortRecords(lastPrints, ['portal_id']),
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
       }
     },

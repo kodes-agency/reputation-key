@@ -28,6 +28,7 @@ const READ_ORDER = [
   'accessArtifacts',
   'addressDownloads',
   'healthIntervals',
+  'lastPrints',
 ] as const
 
 type Collection = (typeof READ_ORDER)[number]
