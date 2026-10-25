@@ -12,6 +12,7 @@ import {
   printKitAvailability,
   printKitHasLiveVersion,
 } from './print-kit-state'
+import { usePrintFinal } from './use-print-final'
 import { usePrintKit } from './use-print-kit'
 import { usePrintKitDownload } from './use-print-kit-download'
 
@@ -52,11 +53,25 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     downloadMutation: props.printKit?.downloadMutation,
   })
   const availability = printKitAvailability({ canDownloadAgain: view.canDownloadAgain })
+  // The read says which kit the server shows: the final one where
+  // PRINT_KIT_FINAL_ENABLED is on, today's otherwise.
+  const isFinal = show && printKit.view?.kit === 'final'
+  const final = usePrintFinal({
+    portalId: props.portalId,
+    view: isFinal ? printKit.view : null,
+    enabled: isFinal,
+    countryCode: props.countryCode ?? null,
+    qrAddress: props.issuedLink?.publicUrl ?? null,
+    downloadMutation: isFinal ? props.printKit?.downloadFinalMutation : undefined,
+  })
   return {
     show,
     notLive,
     printKit,
     download,
     unavailableReason: notLive?.body ?? availability.reason ?? printKit.refusal,
+    isFinal,
+    final,
+    finalUnavailableReason: notLive?.body ?? availability.reason ?? final.refusal,
   }
 }

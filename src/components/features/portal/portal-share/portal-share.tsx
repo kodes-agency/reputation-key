@@ -11,6 +11,9 @@ import { PortalLinkIssueForm } from './portal-link-issue-form'
 import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
 import { PortalPrintKitPreviewSlot } from './portal-print-kit-preview-slot'
 import { PortalPrintKitSection } from './portal-print-kit-section'
+import { PRINT_FINAL_PHONE_BAR_CLEARANCE } from './portal-print-final-phone-bar'
+import { PortalPrintFinalSection } from './portal-print-final-section'
+import { PrintFinalPhoneSlot, PrintFinalPreviewColumn } from './portal-print-final-slots'
 import { PortalLinkReveal } from './portal-link-reveal'
 import {
   PortalRevokedNotice,
@@ -61,7 +64,28 @@ export function PortalShare(props: PortalShareProps) {
     printKit,
     download: printKitDownload,
     unavailableReason,
+    isFinal,
+    final,
+    finalUnavailableReason,
   } = usePortalPrintKit(props, view)
+  // The final kit (PRINT_KIT_FINAL_ENABLED) leads the tab, as its boards draw it.
+  const finalSection = isFinal && (
+    <PortalPrintFinalSection
+      final={final}
+      view={printKit.view}
+      countryCode={props.countryCode ?? null}
+      isError={printKit.isError}
+      onRetry={printKit.retry}
+      isRetrying={printKit.isRetrying}
+      unavailableReason={finalUnavailableReason}
+    />
+  )
+  const finalPreview = {
+    final,
+    view: printKit.view,
+    propertyId: props.propertyId,
+    unavailableReason: finalUnavailableReason,
+  }
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
       <FullBleedFrame
@@ -69,6 +93,7 @@ export function PortalShare(props: PortalShareProps) {
         className={cn(
           'flex flex-col gap-8',
           showPrintKit ? 'lg:w-172 lg:shrink-0 lg:border-r' : 'mx-auto w-full max-w-5xl',
+          isFinal && PRINT_FINAL_PHONE_BAR_CLEARANCE,
         )}
         aria-label="Share"
       >
@@ -106,6 +131,8 @@ export function PortalShare(props: PortalShareProps) {
             disabled={isPending}
           />
         )}
+
+        {finalSection}
 
         <section className="flex flex-col gap-4" aria-labelledby="code-heading">
           <h2 id="code-heading" className="text-lg font-semibold">
@@ -147,7 +174,7 @@ export function PortalShare(props: PortalShareProps) {
 
         <PortalPrintKitNotLive notice={printKitNotLive} />
 
-        {showPrintKit && (
+        {showPrintKit && !isFinal && (
           <PortalPrintKitSection
             view={printKit.view}
             choice={printKit.choice}
@@ -170,7 +197,11 @@ export function PortalShare(props: PortalShareProps) {
           {liveStatusMessage(isPending, copied || nfcCopied)}
         </p>
       </FullBleedFrame>
-      {showPrintKit && <PortalPrintKitPreviewSlot where="column" printKit={printKit} />}
+      {showPrintKit && !isFinal && (
+        <PortalPrintKitPreviewSlot where="column" printKit={printKit} />
+      )}
+      {isFinal && <PrintFinalPreviewColumn {...finalPreview} />}
+      {isFinal && <PrintFinalPhoneSlot {...finalPreview} />}
     </div>
   )
 }
