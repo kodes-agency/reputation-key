@@ -18,9 +18,10 @@ import {
   PRINT_FINAL_DEFAULT_CALL_TO_ACTION,
   type PrintFinalCallToAction,
 } from '#/shared/domain/portal-print-final-copy'
-import type {
-  PrintFinalCustomWords,
-  PrintFinalWordsChoice,
+import {
+  printFinalOwnWordsToSend,
+  type PrintFinalCustomWords,
+  type PrintFinalWordsChoice,
 } from '#/shared/domain/portal-print-final-custom'
 import {
   PRINT_FINAL_DEFAULT_ORIENTATION,
@@ -207,7 +208,8 @@ export function choiceOfLastPrint(
     cropMarks: last.cropMarks,
     languages: last.languages,
     callToAction: last.callToAction,
-    customWords: null,
+    // The own words come back in "Write your own…"; a print that said the wording leaves it picked.
+    customWords: last.customWords,
   }
 }
 
@@ -216,6 +218,16 @@ export function printFinalLastLook(
   lastPrint: Readonly<{ settings: Pick<PrintFinalLastSettings, 'look'> }> | null,
 ): PrintFinalLook | null {
   return lastPrint?.settings.look ?? null
+}
+
+/** Two prints' own words are the same: the same languages, each with the same headline and sub-line. */
+function sameOwnWords(
+  left: PrintFinalCustomWords | null,
+  right: PrintFinalCustomWords | null,
+): boolean {
+  const entries = (words: PrintFinalCustomWords | null) =>
+    Object.entries(words ?? {}).sort(([a], [b]) => a.localeCompare(b))
+  return JSON.stringify(entries(left)) === JSON.stringify(entries(right))
 }
 
 /** Whether a print is the Portal's last print: every choice it took, as it took it. */
@@ -235,6 +247,10 @@ export function printFinalMatchesLast(
     print.backPage === last.backPage &&
     print.cropMarks === last.cropMarks &&
     print.callToAction === last.callToAction &&
+    sameOwnWords(
+      printFinalOwnWordsToSend(print.words, print.languages),
+      last.customWords,
+    ) &&
     print.languages.length === last.languages.length &&
     print.languages.every((locale, index) => locale === last.languages[index])
   )

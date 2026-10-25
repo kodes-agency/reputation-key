@@ -33,6 +33,13 @@ const rowSchema = z.object({
   backPage: z.boolean(),
   languages: z.array(guestLocaleSchema).min(1),
   callToAction: z.enum(PRINT_FINAL_CALLS_TO_ACTION),
+  // Words a later rule would refuse are still the words that printed: only their shape is read.
+  callToActionCustom: z
+    .partialRecord(
+      guestLocaleSchema,
+      z.object({ headline: z.string().min(1), subline: z.string() }),
+    )
+    .nullable(),
   photoAssetId: z.string().nullable(),
   photoFocalX: z.number().nullable(),
   photoFocalY: z.number().nullable(),
@@ -55,6 +62,7 @@ function valuesOf(input: RecordPortalLastPrintInput) {
     backPage: settings.backPage,
     languages: [...settings.languages],
     callToAction: settings.callToAction,
+    callToActionCustom: settings.customWords,
     photoAssetId: photo?.assetId ?? null,
     photoFocalX: photo?.focalX ?? null,
     photoFocalY: photo?.focalY ?? null,
@@ -63,10 +71,17 @@ function valuesOf(input: RecordPortalLastPrintInput) {
 }
 
 function lastPrintOf(row: z.infer<typeof rowSchema>): PortalLastPrint {
-  const { photoAssetId, photoFocalX, photoFocalY, printedAt, ...choices } = row
+  const {
+    photoAssetId,
+    photoFocalX,
+    photoFocalY,
+    printedAt,
+    callToActionCustom,
+    ...choices
+  } = row
   return {
     printedAt,
-    settings: choices,
+    settings: { ...choices, customWords: callToActionCustom },
     photo:
       photoAssetId === null || photoFocalX === null || photoFocalY === null
         ? null

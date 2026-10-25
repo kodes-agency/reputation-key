@@ -424,7 +424,8 @@ describe.sequential('Portal Organization Export contributor', () => {
       back_page: true,
       languages: '["en", "es"]',
       call_to_action: 'how_did_we_do',
-      call_to_action_custom: '{"en": {"headline": "How was today?", "subline": ""}}',
+      // jsonb keeps its own key order: shorter keys first.
+      call_to_action_custom: '{"en": {"subline": "", "headline": "How was today?"}}',
       photo_asset_id: fixture.mediaAssetId,
     })
     // The compatibility mirror (a row is seeded above) has no reader left: the

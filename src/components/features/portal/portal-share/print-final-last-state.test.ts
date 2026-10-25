@@ -42,6 +42,7 @@ const LAST: PrintFinalLastSettings = {
   backPage: true,
   languages: ['es', 'en'],
   callToAction: 'how_was_visit',
+  customWords: null,
 }
 
 describe('the look a print opens on', () => {
@@ -134,6 +135,10 @@ describe('printFinalMatchesLast', () => {
     ['the paper', { paper: 'letter' }],
     ['the languages', { languages: ['en', 'es'] }],
     ['the call to action', { callToAction: 'how_did_we_do' }],
+    [
+      'the own words',
+      { customWords: { en: { headline: 'How was today?', subline: '' } } },
+    ],
     ['the spares', { fillSpares: false }],
     ['the count a sheet', { perSheet: null }],
     ['the back page', { backPage: false }],
@@ -188,5 +193,18 @@ describe('printFinalIsLastSet', () => {
 
     expect(printFinalIsLastSet(print, lastPrint)).toBe(true)
     expect(printFinalIsLastSet(resolve(), lastPrint)).toBe(false)
+  })
+})
+
+describe('the last print of the manager’s own words (spec 11.5, slice C8)', () => {
+  const own = { en: { headline: 'How was today?', subline: '' } }
+  const lastOwn = { ...LAST, languages: ['en', 'es'] as const, customWords: own }
+
+  it('brings the own words back in "Write your own…", started from the same wording', () => {
+    const chosen = choiceOfLastPrint(INITIAL_PRINT_FINAL_CHOICE, lastOwn)
+    expect(chosen).toMatchObject({ callToAction: 'how_was_visit', customWords: own })
+    const print = resolvePrintFinalChoice(chosen, ['en', 'es'], 'US', null)
+    expect(print.words.custom?.en).toEqual(own.en)
+    expect(printFinalMatchesLast(print, lastOwn)).toBe(true)
   })
 })

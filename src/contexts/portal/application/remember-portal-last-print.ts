@@ -5,6 +5,7 @@
 
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { printFinalOwnWordsToSend } from '#/shared/domain/portal-print-final-custom'
 import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
 import type { PrintFinalChoice } from '#/shared/domain/portal-print-final-offer'
 import type { DownloadPortalPrintFinalInput } from './dto/portal-print-final.dto'
@@ -39,6 +40,10 @@ function settingsOf(
     backPage: choice.backPage ?? false,
     languages: input.languages,
     callToAction: input.callToAction,
+    customWords: printFinalOwnWordsToSend(
+      { preset: input.callToAction, custom: input.customWords ?? null },
+      input.languages,
+    ),
   }
 }
 

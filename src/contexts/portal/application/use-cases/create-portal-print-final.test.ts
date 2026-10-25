@@ -335,6 +335,7 @@ describe('createPortalPrintFinal', () => {
             backPage: false,
             languages: ['en', 'bg'],
             callToAction: 'how_did_we_do',
+            customWords: null,
           },
           photo: null,
         },
@@ -518,5 +519,25 @@ describe('createPortalPrintFinal', () => {
       context: { cause: 'remove_offer' },
     })
     expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('remembers the manager’s own words with the print, only the languages that changed', async () => {
+    const { portal, make, lastPrintRepo } = await setup()
+
+    await make(
+      tents(portal.id, {
+        callToAction: 'rate_visit',
+        customWords: {
+          en: { headline: 'How was today?', subline: '' },
+          bg: { headline: 'Оценете посещението си', subline: 'Около 30 секунди' },
+        },
+      }),
+      buildTestAuthContext(),
+    )
+
+    expect(lastPrintRepo.recorded()[0]?.settings).toMatchObject({
+      callToAction: 'rate_visit',
+      customWords: { en: { headline: 'How was today?', subline: '' } },
+    })
   })
 })

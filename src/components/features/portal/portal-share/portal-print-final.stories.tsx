@@ -510,6 +510,7 @@ const lastPrint = (
     backPage: false,
     languages: ['en', 'es'],
     callToAction: 'how_did_we_do',
+    customWords: null,
     ...settings,
   },
   photo,

@@ -31,7 +31,8 @@ const LOOK_NAMES: Readonly<Record<PrintFinalLook, string>> = Object.freeze({
 
 /**
  * "10 Paper table tents, wide, on Letter, English + Español". A second language is
- * named, a lone one is not. A print shop's file is one piece a page, so it names
+ * named, a lone one is not; a print of the manager's own words ends
+ * " · your own words" (§11.5). A print shop's file is one piece a page, so it names
  * no count.
  */
 function summaryOf(settings: PrintFinalLastSettings): string {
@@ -43,12 +44,8 @@ function summaryOf(settings: PrintFinalLastSettings): string {
       : `${settings.quantity} ${look} ${settings.quantity === 1 ? one : many}`
   const languages =
     settings.languages.length > 1 ? [printFinalLanguageNames(settings.languages)] : []
-  return [
-    what,
-    settings.orientation,
-    `on ${PRINT_FINAL_PAPER_NAMES[settings.paper]}`,
-    ...languages,
-  ].join(', ')
+  const words = settings.customWords === null ? '' : ' · your own words'
+  return `${[what, settings.orientation, `on ${PRINT_FINAL_PAPER_NAMES[settings.paper]}`, ...languages].join(', ')}${words}`
 }
 
 /** What the photo's change says; null for a photo that did not change. */
