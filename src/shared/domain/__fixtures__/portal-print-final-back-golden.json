@@ -1,0 +1,93 @@
+{
+  "source": "final-design-2026-10-25 board back-side (stand-in set): the brand boxes are the family cards' brand parts, the name box is derived from the measured ink margins (width = trim width - L - R; height = ink height - brand - 2u); measurements.json for margins and the split",
+  "backs": [
+    {
+      "piece": "counter",
+      "orientation": "upright",
+      "look": "paper",
+      "region": "us",
+      "brand": {
+        "w": 22.8,
+        "h": 12.68
+      },
+      "name": {
+        "w": 53.09,
+        "h": 7.18
+      },
+      "margins": {
+        "L": 24.23,
+        "R": 24.28,
+        "T": 55.98,
+        "B": 71.8
+      },
+      "spareSplitTop": 0.44,
+      "label": "Counter card back, Paper: Harborline Inn Millbrook-Near The Arboretum"
+    },
+    {
+      "piece": "counter",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "us",
+      "brand": {
+        "w": 19.24,
+        "h": 16.99
+      },
+      "name": {
+        "w": 53.99,
+        "h": 7.18
+      },
+      "margins": {
+        "L": 23.73,
+        "R": 23.88,
+        "T": 54.09,
+        "B": 69.38
+      },
+      "spareSplitTop": 0.44,
+      "label": "Counter card back, Immersive: Oakmere by Larkspur Hotel Millbrook Field Airport"
+    },
+    {
+      "piece": "small",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "us",
+      "brand": {
+        "w": 12.07,
+        "h": 6.71
+      },
+      "name": {
+        "w": 47.15,
+        "h": 6.2
+      },
+      "margins": {
+        "L": 20.85,
+        "R": 20.9,
+        "T": 15.3,
+        "B": 20.21
+      },
+      "spareSplitTop": 0.43,
+      "label": "Small card back, Paper: Harborline Inn Millbrook-Near The Arboretum"
+    },
+    {
+      "piece": "small",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "us",
+      "brand": {
+        "w": 10.33,
+        "h": 8.99
+      },
+      "name": {
+        "w": 47.96,
+        "h": 6.21
+      },
+      "margins": {
+        "L": 20.4,
+        "R": 20.54,
+        "T": 14.29,
+        "B": 18.93
+      },
+      "spareSplitTop": 0.43,
+      "label": "Small card back, Immersive: Oakmere by Larkspur Hotel Millbrook Field Airport"
+    }
+  ]
+}

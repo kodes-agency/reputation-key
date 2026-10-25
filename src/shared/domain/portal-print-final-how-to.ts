@@ -16,12 +16,18 @@ import {
   type PrintFinalPiece,
   type PrintFinalPrinter,
 } from './portal-print-final'
+import {
+  PRINT_FINAL_BACK_SHEET_CAPTION,
+  PRINT_FINAL_BACK_SHEET_STEP,
+  PRINT_FINAL_BACK_SHOP_PAGES,
+} from './portal-print-final-back-copy'
 import type { PrintFinalPhotoPixels } from './portal-print-final-photo'
 import {
   PRINT_FINAL_PAPER_NAMES,
   PRINT_FINAL_PIECE_FACTS,
   printFinalSheetCutCount,
   printFinalSheetsLabel,
+  printFinalSides,
   printFinalTrimLabel,
 } from './portal-print-final-share'
 import { printFinalSheet } from './portal-print-final-immersive-sheets'
@@ -35,6 +41,8 @@ export type PrintFinalDescribed = Readonly<{
   paper: PrintKitPaper
   printer: PrintFinalPrinter
   languages: readonly GuestLocale[]
+  /** The optional back page (cards only); off when absent. */
+  backPage?: boolean
 }>
 
 type SheetKey = Pick<PrintFinalDescribed, 'piece' | 'orientation' | 'look' | 'paper'>
@@ -82,10 +90,12 @@ export function printFinalHowToSteps(
   tilePt: number,
   phone = false,
 ): readonly PrintFinalHowToStep[] {
+  const back = print.backPage === true
   if (print.printer === 'print_shop') {
+    const pages = back ? `, ${PRINT_FINAL_BACK_SHOP_PAGES}` : ''
     return [
       {
-        text: `Send the PDF to a print shop and ask for it at ${ACTUAL_SIZE}, one ${PRINT_FINAL_PIECE_FACTS[print.piece].one} per page.`,
+        text: `Send the PDF to a print shop and ask for it at ${ACTUAL_SIZE}, one ${PRINT_FINAL_PIECE_FACTS[print.piece].one} per page${pages}.`,
         strong: ACTUAL_SIZE,
       },
       tileStep(tilePt, print.paper),
@@ -97,6 +107,7 @@ export function printFinalHowToSteps(
       text: `Print from a computer at ${ACTUAL_SIZE}, on card stock through the manual slot.${phoneNote}`,
       strong: ACTUAL_SIZE,
     },
+    ...(back ? [{ text: PRINT_FINAL_BACK_SHEET_STEP }] : []),
     tileStep(tilePt, print.paper),
     { text: printFinalCutStep(print) },
   ]
@@ -111,8 +122,9 @@ export type PrintFinalCount = Readonly<{ sheets: number; pieces: number }>
 
 /**
  * The summary beside the download: "3 sheets · 10 tents · wide · Letter · one
- * side · English + Español"; the first part is set in bold. A print shop's file
- * is one page. `phone` gives the pinned bar's shorter line.
+ * side · English + Español"; the first part is set in bold. A card with a back
+ * page says "both sides". A print shop's file is one page (two with a back).
+ * `phone` gives the pinned bar's shorter line.
  */
 export function printFinalSummary(
   print: PrintFinalDescribed,
@@ -125,10 +137,12 @@ export function printFinalSummary(
     const size = printFinalTrimLabel(print.piece, print.orientation, region)
     const parts = [`one ${one} per page`, print.orientation, size]
     return {
-      lead: '1 page',
+      lead: print.backPage === true ? '2 pages' : '1 page',
       rest: [
         ...parts,
-        ...(phone ? [] : ['one side', printFinalLanguageNames(print.languages)]),
+        ...(phone
+          ? []
+          : [printFinalSides(print.backPage), printFinalLanguageNames(print.languages)]),
       ].join(' · '),
     }
   }
@@ -141,7 +155,9 @@ export function printFinalSummary(
     lead: printFinalSheetsLabel(count.sheets),
     rest: [
       ...parts,
-      ...(phone ? [] : ['one side', printFinalLanguageNames(print.languages)]),
+      ...(phone
+        ? []
+        : [printFinalSides(print.backPage), printFinalLanguageNames(print.languages)]),
     ].join(' · '),
   }
 }
@@ -177,17 +193,31 @@ export function printFinalFaceCaption(
   }
 }
 
-/** Above the sheet: "Letter landscape · sheet 1 of 3". */
-export function printFinalSheetHeading(key: SheetKey, sheets: number): string {
+/** Above the sheet: "Letter landscape · sheet 1 of 3", or "… · back of sheet 1 of 3". */
+export function printFinalSheetHeading(
+  key: SheetKey,
+  sheets: number,
+  back = false,
+): string {
   const sheet = printFinalSheet(key)
   const paper = `${PRINT_FINAL_PAPER_NAMES[key.paper]}${sheet.landscape ? ' landscape' : ''}`
-  return `${paper} · sheet 1 of ${sheets}`
+  return `${paper} · ${back ? 'back of ' : ''}sheet 1 of ${sheets}`
 }
 
-/** Under the sheet: "4 tents per sheet. Cut the sheet in half each way, …". */
-export function printFinalSheetCaption(key: SheetKey, perSheet: number): string {
+/**
+ * Under the sheet: "4 tents per sheet. Cut the sheet in half each way, …". Under
+ * the back of a sheet: where the backs sit, and that the cuts are made from the front.
+ */
+export function printFinalSheetCaption(
+  key: SheetKey,
+  perSheet: number,
+  back = false,
+): string {
   const { noun, one } = PRINT_FINAL_PIECE_FACTS[key.piece]
-  return `${perSheet} ${perSheet === 1 ? one : noun} per sheet. ${printFinalCutStep(key)}`
+  const count = `${perSheet} ${perSheet === 1 ? one : noun} per sheet.`
+  return back
+    ? `${count} ${PRINT_FINAL_BACK_SHEET_CAPTION}`
+    : `${count} ${printFinalCutStep(key)}`
 }
 
 /** The soft-photo notice (§11.7): its title and body; none from 200 dpi up. */
@@ -224,8 +254,8 @@ const FILE_PIECES: Readonly<Record<PrintFinalPiece, string>> = {
 
 /**
  * `reception-table-tents-wide-en-es-letter.pdf`: the portal, the piece and its
- * orientation, the languages in print order, then Immersive and a print shop
- * when chosen, and the paper. Two downloads that differ in any choice do not
+ * orientation, the languages in print order, then Immersive, a print shop and
+ * a back page when chosen, and the paper. Two downloads that differ in any choice do not
  * share a name.
  */
 export function printFinalFileName(
@@ -240,6 +270,7 @@ export function printFinalFileName(
       ...print.languages,
       ...(print.look === 'immersive' ? ['immersive'] : []),
       ...(print.printer === 'print_shop' ? ['print-shop'] : []),
+      ...(print.backPage === true ? ['back'] : []),
       print.paper,
     ].join('-') + '.pdf'
   )

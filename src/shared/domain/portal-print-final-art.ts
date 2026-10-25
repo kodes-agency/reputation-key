@@ -240,3 +240,25 @@ export function printFinalArt(input: PrintFinalArtInput): PrintFinalArt {
         : null,
   }
 }
+
+/**
+ * The art under a back page (§10.4): the front's ground with the guest page's
+ * two washes and the same film grain, and no photo, no scrims and no arch.
+ * `palette` is the front's, so both sides stand on the same ground.
+ */
+export function printFinalBackArt(
+  size: Readonly<{ widthPt: number; heightPt: number }>,
+  palette: PrintFinalImmersivePalette,
+  bleed: PrintFinalBleed = PRINT_FINAL_NO_BLEED,
+): PrintFinalArt {
+  return {
+    ground: palette.ground,
+    groundBox: intoBleed(box(0, 0, size.widthPt, size.heightPt), size, bleed),
+    washes: printFinalWashes(size, palette, true),
+    photo: null,
+    scrims: [],
+    arch: null,
+    grainOpacity: ART.grain.photo,
+    foldStrip: null,
+  }
+}

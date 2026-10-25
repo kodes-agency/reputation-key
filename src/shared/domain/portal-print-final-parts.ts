@@ -16,6 +16,7 @@ export type PrintFinalPartKey =
   | 'headline2'
   | 'subline2'
   | 'secondLine'
+  | 'name'
 
 /** One part's ink box, as measured: width and height in points. */
 export type PrintFinalPart = Readonly<{
@@ -40,15 +41,15 @@ export const isBrandPart = (part: Pick<PrintFinalPart, 'key'>): boolean =>
 
 /**
  * The space before a part inside its group, in units: 1u, except 2u on each
- * side of the short rule before the second language. The first part of a group
- * has none.
+ * side of the short rule before the second language, and 2u before the back
+ * page's property name (§10.4). The first part of a group has none.
  */
 export function printFinalGapUnitsBefore(
   previous: PrintFinalPartKey | null,
   key: PrintFinalPartKey,
 ): number {
   if (previous === null) return 0
-  return key === 'rule' || previous === 'rule' ? 2 : 1
+  return key === 'rule' || previous === 'rule' || key === 'name' ? 2 : 1
 }
 
 export type PrintFinalStackedPart = PrintFinalPart & Readonly<{ offsetPt: number }>
