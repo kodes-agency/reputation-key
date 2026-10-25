@@ -89,6 +89,8 @@ const RED_PARAGRAPH_ALLOWED: Readonly<Record<string, string>> = {
     'the copy fallback: it sits beside the address the person can select instead',
   'src/components/features/portal/portal-share/portal-link-reveal.tsx':
     'the copy fallback: it sits beside the address the person can select instead',
+  'src/components/features/portal/portal-share/print-final-shop-note.tsx':
+    'the copy fallback: it sits beside the note the person can select instead',
   'src/components/features/portal/portal-new/portal-new-start-from-field.tsx':
     'a field-level error, not an action failure',
   'src/components/features/portal/property-look/property-look-batch-dialog.tsx':

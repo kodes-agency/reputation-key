@@ -581,6 +581,24 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   the sheet is turned like the page of a book, the card that lies across its cell on
   the Letter Paper Counter sheet turned the other way, and with no marks and no note
   on it (`portal-print-final-back-sheets.ts`).
+- **The final kit's print-shop file.** Choosing a print shop (`printer: 'print_shop'`)
+  makes one piece per page instead of office sheets, for Counter cards and Small
+  cards only: tents stay office-only (`tents_office_only`; Share offers Counter
+  cards). The page is the bleed box (the trim plus 1/8 in, or 3 mm), or with
+  `cropMarks` on the trim plus 0.375 in (9 mm in Europe) with eight black marks
+  along the trim lines, starting 1/16 in beyond the bleed and 3/16 in long
+  (`printFinalShopPage`, `portal-print-final-shop.ts`, pure; the PDF in
+  `print-kit-final-shop.ts` and the Share preview draw the same page). Every page
+  declares a TrimBox and a BleedBox, Paper's too: an Immersive card's photo and
+  ground run into the bleed on every edge, a Paper card's bleed is white. A
+  card's back is page 2, with the same boxes and marks. The file is RGB; CMYK
+  with an output intent is a later slice. Crop marks are the print shop's option
+  only (the manager's own printer ignores them) and are named in the file name.
+  What Share says to the manager is `portal-print-final-shop-copy.ts`: the order
+  line ("Order 4 × 6 in postcards, 14–16 pt, matte, one side. Upload this PDF as
+  it is.", with no product names; the weights are the recommendations', still to
+  be checked against a catalogue) and the note the "Copy a note for the print
+  shop" button carries, the one place the trade's words (bleed, TrimBox) appear.
 
 ## Runtime
 

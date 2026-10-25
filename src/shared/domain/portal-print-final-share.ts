@@ -75,6 +75,16 @@ export const PRINT_FINAL_PAPER_NAMES: Readonly<Record<PrintKitPaper, string>> =
 
 const trimmed = (value: number): number => Number(value.toFixed(2))
 
+/** A size in the region's unit: "4 × 6 in", "105 × 148 mm". */
+export function printFinalSizeLabel(
+  widthPt: number,
+  heightPt: number,
+  region: PrintFinalRegion,
+): string {
+  if (region === 'us') return `${trimmed(widthPt / 72)} × ${trimmed(heightPt / 72)} in`
+  return `${trimmed((widthPt / 72) * 25.4)} × ${trimmed((heightPt / 72) * 25.4)} mm`
+}
+
 /** A face's size in its orientation: "4 × 6 in", "6 × 4 in", "105 × 74.25 mm". */
 export function printFinalTrimLabel(
   piece: PrintFinalPiece,
@@ -82,10 +92,9 @@ export function printFinalTrimLabel(
   region: PrintFinalRegion,
 ): string {
   const { shortPt, longPt } = PRINT_FINAL_MEASURES[region][piece]
-  const [width, height] =
-    orientation === 'upright' ? [shortPt, longPt] : [longPt, shortPt]
-  if (region === 'us') return `${trimmed(width / 72)} × ${trimmed(height / 72)} in`
-  return `${trimmed((width / 72) * 25.4)} × ${trimmed((height / 72) * 25.4)} mm`
+  return orientation === 'upright'
+    ? printFinalSizeLabel(shortPt, longPt, region)
+    : printFinalSizeLabel(longPt, shortPt, region)
 }
 
 /** A radio card's line: where it goes, its size in its current orientation, how many fit a sheet. */
@@ -173,7 +182,9 @@ export function printFinalSheetCutCount(
 /**
  * What each look says under its name. The chosen look gives the whole sheet
  * (how many, and how a Paper tent sheet is cut, or how many cuts an Immersive
- * sheet takes); the other look says only how many it fits and what it costs.
+ * sheet takes); the other look says only how many it fits and what it costs. A
+ * print shop's file is one card a page, cut by the shop, so its looks say only
+ * what they print.
  */
 export function printFinalLookFacts(
   look: PrintFinalLook,
@@ -182,9 +193,15 @@ export function printFinalLookFacts(
     orientation: PrintFinalOrientation
     look: PrintFinalLook
     paper: PrintKitPaper
+    printer?: PrintFinalPrinter
   }>,
 ): string {
   const { piece, orientation, paper } = chosen
+  if (chosen.printer === 'print_shop') {
+    return look === 'paper'
+      ? 'White, little ink.'
+      : 'Your photo, like your guest page, to the edge of the card.'
+  }
   const { noun } = PRINT_FINAL_PIECE_FACTS[piece]
   const perSheet = PRINT_FINAL_PER_SHEET[piece][look][paper]
   const isChosen = look === chosen.look
@@ -232,6 +249,25 @@ const SHOP_TENTS: Readonly<Record<PrintFinalRegion, string>> = {
 }
 
 /**
+ * Why the paper is this one, as a sentence with its leading space: "Letter
+ * because your property is in the United States." Empty for a paper the manager
+ * chose against the country's, or for a country English has no name for.
+ */
+export function printFinalPaperReason(
+  input: Readonly<{
+    paper: PrintKitPaper
+    countryPaper: PrintKitPaper
+    countryCode: string | null
+  }>,
+): string {
+  const country =
+    input.countryCode === null ? null : printFinalCountryName(input.countryCode)
+  return country !== null && input.paper === input.countryPaper
+    ? ` ${PRINT_FINAL_PAPER_NAMES[input.paper]} because your property is in ${country}.`
+    : ''
+}
+
+/**
  * The one stock line under "Who prints it?": the card to use (matte for
  * Immersive), why the paper is this one, and what a print shop gets. A paper the
  * manager chose against the country's is not explained.
@@ -252,12 +288,7 @@ export function printFinalStockLine(
   const region = printFinalRegionOf(paper)
   const sides = printFinalSides(input.backPage)
   const stock = `${STOCK[region]}${look === 'immersive' ? ', matte' : ''}, ${sides}, through the manual slot.`
-  const country =
-    input.countryCode === null ? null : printFinalCountryName(input.countryCode)
-  const because =
-    country !== null && paper === input.countryPaper
-      ? ` ${PRINT_FINAL_PAPER_NAMES[paper]} because your property is in ${country}.`
-      : ''
+  const because = printFinalPaperReason(input)
   const shop =
     piece === 'tent'
       ? SHOP_TENTS[region]

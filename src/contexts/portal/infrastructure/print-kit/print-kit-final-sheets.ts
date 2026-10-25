@@ -62,16 +62,16 @@ export type FinalSheetsInput = Readonly<{
 }>
 
 /** What a cell holds, front or back: its trim, how far its art runs past it, and how to draw it. */
-type Drawable = Readonly<{
+export type FinalDrawable = Readonly<{
   layout: Readonly<{ plan: Readonly<{ widthPt: number; heightPt: number }> }>
   bleed: PrintFinalBleed
   draw: () => void
 }>
 
 /** A face drawn in its place: turned as the placement says, and clipped to its trim and bleed. */
-function drawPlaced(
+export function drawFinalPlaced(
   doc: PDFKit.PDFDocument,
-  face: Drawable,
+  face: FinalDrawable,
   placement: PrintFinalSheetPlacement,
 ): void {
   const { leftPt, topPt, widthPt, heightPt, turnDeg } = placement
@@ -102,7 +102,7 @@ function drawPlaced(
 }
 
 /** The ticks as filled rectangles, so their weight is exact at any zoom; the fold marks dashed. */
-function drawMarks(
+export function drawFinalMarks(
   doc: PDFKit.PDFDocument,
   colour: string,
   marks: readonly PrintFinalSheetMark[],
@@ -203,7 +203,7 @@ function drawBackSheet(
 ): void {
   doc.addPage({ size: [sheet.widthPt, sheet.heightPt], margin: 0 })
   for (const cell of cells) {
-    drawPlaced(doc, back, printFinalBackPlacement(sheet, cell))
+    drawFinalPlaced(doc, back, printFinalBackPlacement(sheet, cell))
   }
 }
 
@@ -222,10 +222,10 @@ export function drawFinalSheets(
     doc.addPage({ size: [sheet.widthPt, sheet.heightPt], margin: 0 })
     for (const cell of cells) {
       for (const placement of printFinalCellPlacements(sheet, cell)) {
-        drawPlaced(doc, face, placement)
+        drawFinalPlaced(doc, face, placement)
       }
     }
-    drawMarks(doc, colour, printFinalSheetMarks(sheet, cells))
+    drawFinalMarks(doc, colour, printFinalSheetMarks(sheet, cells))
     for (const note of printFinalSheetNotes(sheet, tilePt, cells)) {
       drawNote(doc, fonts, note)
     }

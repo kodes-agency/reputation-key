@@ -153,6 +153,32 @@ describe('printFinalCountryName', () => {
   })
 })
 
+describe('printFinalLookFacts for a print shop', () => {
+  const shop = {
+    piece: 'counter',
+    orientation: 'upright',
+    look: 'immersive',
+    paper: 'letter',
+    printer: 'print_shop',
+  } as const
+
+  it('says what each look prints, and nothing about sheets, cuts or toner', () => {
+    expect(printFinalLookFacts('paper', shop)).toBe('White, little ink.')
+    expect(printFinalLookFacts('immersive', shop)).toBe(
+      'Your photo, like your guest page, to the edge of the card.',
+    )
+    for (const look of ['paper', 'immersive'] as const) {
+      expect(printFinalLookFacts(look, shop)).not.toMatch(/sheet|cuts|toner/u)
+    }
+  })
+
+  it('keeps the sheet facts from the manager’s own printer', () => {
+    expect(printFinalLookFacts('paper', { ...shop, printer: 'my_printer' })).toBe(
+      'White, little ink. 3 cards a sheet.',
+    )
+  })
+})
+
 describe('printFinalStockLine', () => {
   const us = { paper: 'letter', countryPaper: 'letter', countryCode: 'US' } as const
 

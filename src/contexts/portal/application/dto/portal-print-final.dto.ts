@@ -23,9 +23,11 @@ import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
  * names one. `quantity` is how many pieces the manager needs; `fillSpares`
  * prints the last sheet's spare cells too, and `perSheet` asks for fewer pieces
  * a sheet than fit. A print shop's file is one piece per page, so it ignores the
- * three, though they are still checked. `backPage` adds the optional back page of
- * a card (More options, off by default): its logo and the property's name; a tent
- * has none, since it prints its front on both faces.
+ * three, though they are still checked. `cropMarks` is the print shop's own
+ * option (More options, off by default): the page grows to carry crop marks along
+ * the trim; from the manager's printer it is ignored. `backPage` adds the optional
+ * back page of a card (More options, off by default): its logo and the property's
+ * name; a tent has none, since it prints its front on both faces.
  */
 export const downloadPortalPrintFinalInputSchema = z.object({
   portalId: z.string().min(1, 'Portal ID is required'),
@@ -40,6 +42,7 @@ export const downloadPortalPrintFinalInputSchema = z.object({
     .min(1, 'Print one piece at least')
     .max(PRINT_FINAL_MAX_QUANTITY, `Print at most ${PRINT_FINAL_MAX_QUANTITY} at a time`),
   fillSpares: z.boolean().default(false),
+  cropMarks: z.boolean().default(false),
   backPage: z.boolean().default(false),
   perSheet: z.number().int().min(1).optional(),
   languages: z
@@ -54,11 +57,12 @@ export const downloadPortalPrintFinalInputSchema = z.object({
 
 type ParsedInput = z.infer<typeof downloadPortalPrintFinalInputSchema>
 
-/** The parsed input, with the languages read-only; a caller that has not parsed it may leave the spares and the back page out. */
+/** The parsed input, with the languages read-only; a caller that has not parsed it may leave the spares, the crop marks and the back page out. */
 export type DownloadPortalPrintFinalInput = Readonly<
-  Omit<ParsedInput, 'languages' | 'fillSpares' | 'backPage'> & {
+  Omit<ParsedInput, 'languages' | 'fillSpares' | 'cropMarks' | 'backPage'> & {
     languages: readonly ParsedInput['languages'][number][]
     fillSpares?: boolean
+    cropMarks?: boolean
     backPage?: boolean
   }
 >

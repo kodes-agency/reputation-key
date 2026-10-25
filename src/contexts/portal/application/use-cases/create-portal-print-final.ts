@@ -17,9 +17,10 @@
 //      fit its bar, and the refusal is turned into words here.
 //
 // From the manager's own printer the pieces go on office sheets, exactly as many
-// as asked for; a print shop gets one piece per page. A card may ask for its back
-// page (the logo and the Property's name, no code), which follows each page or
-// sheet; a tent has none. Nothing is fetched by address: a picture is read from
+// as asked for; a print shop gets one piece per page with its bleed, and crop
+// marks when asked for (the page then grows to hold them). A card may ask for its
+// back page (the logo and the Property's name, no code), which follows each page
+// or sheet; a tent has none. Nothing is fetched by address: a picture is read from
 // the store by its asset id.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -162,7 +163,8 @@ export const createPortalPrintFinal =
 
     const pictures = await readPicturesThenReveal(deps, context.look, scope, ctx, input)
 
-    const print = { ...choice, languages: input.languages }
+    const cropMarks = input.cropMarks ?? false
+    const print = { ...choice, languages: input.languages, cropMarks }
     const pdf = await renderOrRefuse(deps.renderer, {
       title: printFinalDocumentTitle(context.portalName, choice.piece),
       face: {
@@ -195,7 +197,7 @@ export const createPortalPrintFinal =
               perSheet: choice.perSheet,
             },
           }
-        : {}),
+        : { shop: { cropMarks } }),
     })
     return {
       fileName: printFinalFileName(context.portalName, print),

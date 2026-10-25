@@ -31,9 +31,14 @@ import {
   PRINT_FINAL_SHARE_PIECES,
   printFinalLookFacts,
   printFinalPieceCardDetail,
-  printFinalStockLine,
 } from '#/shared/domain/portal-print-final-share'
+import {
+  printFinalWhoLine,
+  type PrintFinalShopPrint,
+} from '#/shared/domain/portal-print-final-shop-copy'
+import { printFinalHasShopFile } from '#/shared/domain/portal-print-final-shop'
 import { PrintKitChoiceCard } from './print-kit-choice-card'
+import { PrintFinalShopNote } from './print-final-shop-note'
 import { PrintFinalOrientationControl } from './print-final-orientation-control'
 import type { PrintFinalSharePrint } from './print-final-state'
 import {
@@ -174,11 +179,18 @@ const PRINTER_OPTIONS = [
   },
 ] as const
 
+/** What a print shop prints, where the manager chose one and the piece has a file (a tent has none). */
+function shopPrintOf(print: PrintFinalSharePrint): PrintFinalShopPrint | null {
+  if (print.printer !== 'print_shop' || !printFinalHasShopFile(print.piece)) return null
+  return { ...print, piece: print.piece }
+}
+
 export function PrintFinalWhoStep({
   final,
   print,
   countryCode,
 }: StepProps & Readonly<{ countryCode: string | null }>) {
+  const shopPrint = shopPrintOf(print)
   return (
     <Step title="Who prints it?">
       <div className="flex flex-wrap items-center gap-3">
@@ -215,8 +227,11 @@ export function PrintFinalWhoStep({
         </div>
       </div>
       <p id="print-final-stock" className="text-xs text-pretty text-muted-foreground">
-        {printFinalStockLine({ ...print, countryCode })}
+        {printFinalWhoLine({ ...print, countryCode })}
       </p>
+      {shopPrint !== null && final.tile !== null && (
+        <PrintFinalShopNote print={shopPrint} tilePt={final.tile.tilePt} />
+      )}
     </Step>
   )
 }

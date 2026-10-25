@@ -16,6 +16,10 @@ import {
   type PrintFinalPrinter,
 } from '#/shared/domain/portal-print-final'
 import { printFinalFileName } from '#/shared/domain/portal-print-final-how-to'
+import {
+  printFinalHasShopFile,
+  printFinalShopPage,
+} from '#/shared/domain/portal-print-final-shop'
 import { printFinalSheet } from '#/shared/domain/portal-print-final-immersive-sheets'
 import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-refusals'
@@ -66,6 +70,7 @@ function requestOf(portalId: string, print: PrintFinalSharePrint) {
     printer: print.printer,
     quantity: print.quantity ?? 1,
     fillSpares: print.fillSpares,
+    cropMarks: print.cropMarks,
     backPage: print.backPage,
     ...(print.chosenPerSheet === undefined ? {} : { perSheet: print.chosenPerSheet }),
     languages: [...print.languages],
@@ -150,6 +155,13 @@ export function usePrintFinal(input: Input) {
     () => printFinalSheet({ piece, orientation, look, paper }),
     [piece, orientation, look, paper],
   )
+  // A print shop's file: one page, with its margin and, where asked for, its crop marks (a tent has none).
+  const shop = print?.printer === 'print_shop' && printFinalHasShopFile(piece)
+  const cropMarks = print?.cropMarks ?? false
+  const shopPage = useMemo(
+    () => (shop ? printFinalShopPage({ face, cropMarks }) : null),
+    [shop, face, cropMarks],
+  )
   const download = useCallback(async () => {
     if (print === null || view === null || downloadMutation === undefined) return
     try {
@@ -178,6 +190,8 @@ export function usePrintFinal(input: Input) {
     face,
     blocks,
     sheet,
+    /** The page a print shop's file has; null from the manager's own printer. */
+    shopPage,
     fileName:
       print === null || view === null ? null : printFinalFileName(view.portalName, print),
     download,

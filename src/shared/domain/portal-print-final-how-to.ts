@@ -43,6 +43,8 @@ export type PrintFinalDescribed = Readonly<{
   languages: readonly GuestLocale[]
   /** The optional back page (cards only); off when absent. */
   backPage?: boolean
+  /** A print shop's crop marks (More options); off when absent, and ignored from the manager's own printer. */
+  cropMarks?: boolean
 }>
 
 type SheetKey = Pick<PrintFinalDescribed, 'piece' | 'orientation' | 'look' | 'paper'>
@@ -71,19 +73,31 @@ export function printFinalCutStep(key: SheetKey): string {
 
 const ACTUAL_SIZE = 'Actual size (100%)'
 
-/** The cream square to measure: "1.4 in (3.6 cm)" on Letter, "36 mm" on A4. */
-const tileStep = (tilePt: number, paper: PrintKitPaper): PrintFinalHowToStep => {
+/**
+ * The cream square to measure: "1.4 in (3.6 cm)" on Letter, "36 mm" on A4. A
+ * print shop's check is on its proof, and a small square asks the shop to print again.
+ */
+const tileStep = (
+  tilePt: number,
+  paper: PrintKitPaper,
+  shop: boolean,
+): PrintFinalHowToStep => {
   const tile = printFinalTileLabel(tilePt, printFinalRegionOf(paper))
-  return {
-    text: `Check one code: its cream square should measure ${tile}. Smaller means scaling was on; print again.`,
-    strong: tile,
-  }
+  return shop
+    ? {
+        text: `Check the proof: one code’s cream square should measure ${tile}. Smaller means scaling was on; ask the shop to print again.`,
+        strong: tile,
+      }
+    : {
+        text: `Check one code: its cream square should measure ${tile}. Smaller means scaling was on; print again.`,
+        strong: tile,
+      }
 }
 
 /**
  * The numbered steps. From the manager's own printer: print at Actual size, check
  * one code, then the cutting step; on a phone the first step says why to use a
- * computer. A print shop gets the file and the same check.
+ * computer. A print shop gets the file and a check on its proof.
  */
 export function printFinalHowToSteps(
   print: PrintFinalDescribed,
@@ -98,7 +112,7 @@ export function printFinalHowToSteps(
         text: `Send the PDF to a print shop and ask for it at ${ACTUAL_SIZE}, one ${PRINT_FINAL_PIECE_FACTS[print.piece].one} per page${pages}.`,
         strong: ACTUAL_SIZE,
       },
-      tileStep(tilePt, print.paper),
+      tileStep(tilePt, print.paper, true),
     ]
   }
   const phoneNote = phone ? ' Phone print screens often cannot turn scaling off.' : ''
@@ -108,7 +122,7 @@ export function printFinalHowToSteps(
       strong: ACTUAL_SIZE,
     },
     ...(back ? [{ text: PRINT_FINAL_BACK_SHEET_STEP }] : []),
-    tileStep(tilePt, print.paper),
+    tileStep(tilePt, print.paper, false),
     { text: printFinalCutStep(print) },
   ]
 }
@@ -135,7 +149,12 @@ export function printFinalSummary(
   const region = printFinalRegionOf(print.paper)
   if (print.printer === 'print_shop') {
     const size = printFinalTrimLabel(print.piece, print.orientation, region)
-    const parts = [`one ${one} per page`, print.orientation, size]
+    const parts = [
+      `one ${one} per page`,
+      print.orientation,
+      size,
+      ...(print.cropMarks === true ? ['crop marks'] : []),
+    ]
     return {
       lead: print.backPage === true ? '2 pages' : '1 page',
       rest: [
@@ -254,9 +273,9 @@ const FILE_PIECES: Readonly<Record<PrintFinalPiece, string>> = {
 
 /**
  * `reception-table-tents-wide-en-es-letter.pdf`: the portal, the piece and its
- * orientation, the languages in print order, then Immersive, a print shop and
- * a back page when chosen, and the paper. Two downloads that differ in any choice do not
- * share a name.
+ * orientation, the languages in print order, then Immersive, a print shop (and
+ * its crop marks) and a back page when chosen, and the paper. Two downloads that
+ * differ in any choice do not share a name.
  */
 export function printFinalFileName(
   portalName: string,
@@ -269,7 +288,9 @@ export function printFinalFileName(
       print.orientation,
       ...print.languages,
       ...(print.look === 'immersive' ? ['immersive'] : []),
-      ...(print.printer === 'print_shop' ? ['print-shop'] : []),
+      ...(print.printer === 'print_shop'
+        ? ['print-shop', ...(print.cropMarks === true ? ['crop-marks'] : [])]
+        : []),
       ...(print.backPage === true ? ['back'] : []),
       print.paper,
     ].join('-') + '.pdf'

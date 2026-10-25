@@ -85,14 +85,14 @@ describe('printFinalHowToSteps', () => {
     ).toBe('38 mm')
   })
 
-  it('hands a print shop the file and the same check', () => {
+  it('hands a print shop the file and a check on its proof', () => {
     const steps = printFinalHowToSteps(
       { ...tents, piece: 'counter', printer: 'print_shop' },
       inPt(1.5),
     )
     expect(steps.map((step) => step.text)).toEqual([
       'Send the PDF to a print shop and ask for it at Actual size (100%), one card per page.',
-      'Check one code: its cream square should measure 1.5 in (3.8 cm). Smaller means scaling was on; print again.',
+      'Check the proof: one code’s cream square should measure 1.5 in (3.8 cm). Smaller means scaling was on; ask the shop to print again.',
     ])
   })
 })
@@ -134,6 +134,32 @@ describe('printFinalSummary', () => {
       lead: '1 page',
       rest: 'one card per page · wide · 6 × 4 in · one side · English + Español',
     })
+  })
+})
+
+describe('printFinalSummary of a print shop’s file with crop marks', () => {
+  it('names the marks, so the manager sees them on the summary', () => {
+    expect(
+      printFinalSummary(
+        { ...tents, piece: 'counter', printer: 'print_shop', cropMarks: true },
+        { sheets: 1, pieces: 1 },
+      ),
+    ).toEqual({
+      lead: '1 page',
+      rest: 'one card per page · wide · 6 × 4 in · crop marks · one side · English + Español',
+    })
+  })
+
+  it('leaves them out where they are off, and from the manager’s own printer', () => {
+    expect(
+      printFinalSummary(
+        { ...tents, piece: 'counter', printer: 'print_shop' },
+        { sheets: 1, pieces: 1 },
+      ).rest,
+    ).not.toContain('crop marks')
+    expect(
+      printFinalSummary({ ...tents, cropMarks: true }, { sheets: 3, pieces: 10 }).rest,
+    ).not.toContain('crop marks')
   })
 })
 
@@ -229,6 +255,22 @@ describe('printFinalFileName', () => {
         languages: ['bg'],
       }),
     ).toBe('pool-terrace-counter-cards-wide-bg-immersive-print-shop-a4.pdf')
+  })
+
+  it('names a print shop’s crop marks, so a file with them and one without differ', () => {
+    const shop = { ...tents, piece: 'counter', printer: 'print_shop' } as const
+    expect(printFinalFileName('Reception', { ...shop, cropMarks: true })).toBe(
+      'reception-counter-cards-wide-en-es-print-shop-crop-marks-letter.pdf',
+    )
+    expect(printFinalFileName('Reception', { ...shop, cropMarks: false })).toBe(
+      printFinalFileName('Reception', shop),
+    )
+  })
+
+  it('does not name crop marks the manager’s own printer ignores', () => {
+    expect(printFinalFileName('Reception', { ...tents, cropMarks: true })).toBe(
+      printFinalFileName('Reception', tents),
+    )
   })
 
   it('titles the document by the portal and the piece', () => {

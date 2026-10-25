@@ -231,6 +231,68 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
     expect(await downloads()).toBe(1)
   })
 
+  it('gives a print shop one Counter card on a page the size of its bleed box, with the trim and bleed declared', async () => {
+    const { make, ctx, rendered } = await harness()
+    await setCountry('US')
+
+    const file = await make(
+      request({
+        piece: 'counter',
+        orientation: 'upright',
+        look: 'immersive',
+        printer: 'print_shop',
+        languages: ['en'],
+      }),
+      ctx,
+    )
+
+    expect(file.fileName).toBe(
+      'lobby-portal-counter-cards-upright-en-immersive-print-shop-letter.pdf',
+    )
+    // 4 × 6 in plus 1/8 in on each side, whatever the quantity.
+    expect(pageSizes(file.pdf)).toEqual([[306, 450]])
+    const text = Buffer.from(file.pdf).toString('latin1')
+    expect(text).toMatch(/\/TrimBox \[9 9 297 441\]/u)
+    expect(text).toMatch(/\/BleedBox \[0 0 306 450\]/u)
+    expect(rendered[0]?.shop).toEqual({ cropMarks: false })
+    expect(await downloads()).toBe(1)
+  })
+
+  it('grows a print shop’s page to hold its crop marks, and adds the back as page 2', async () => {
+    const { make, ctx } = await harness()
+    await setCountry('US')
+
+    const file = await make(
+      request({
+        piece: 'small',
+        orientation: 'wide',
+        printer: 'print_shop',
+        languages: ['en'],
+        cropMarks: true,
+        backPage: true,
+      }),
+      ctx,
+    )
+
+    // 3.5 × 2 in plus 0.375 in on each side, front and back.
+    expect(pageSizes(file.pdf)).toEqual([
+      [306, 198],
+      [306, 198],
+    ])
+  })
+
+  it('refuses a tent for a print shop without disclosing the code', async () => {
+    const { make, ctx } = await harness()
+
+    await expect(
+      make(request({ languages: ['bg'], printer: 'print_shop' }), ctx),
+    ).rejects.toMatchObject({
+      code: 'print_format_not_offered',
+      context: { cause: 'tents_office_only' },
+    })
+    expect(await downloads()).toBe(0)
+  })
+
   it('refuses a back page on a tent without disclosing the code', async () => {
     const { make, ctx } = await harness()
 

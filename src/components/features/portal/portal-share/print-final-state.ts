@@ -55,6 +55,8 @@ export type PrintFinalShareChoice = Readonly<{
   perSheet: number | null
   /** The optional back page (More options): off until asked for, and only a card has one. */
   backPage: boolean
+  /** A print shop's crop marks (More options): off until asked for; from the manager's own printer they mean nothing. */
+  cropMarks: boolean
   /** Null until the manager picks: the portal's first choice (its primary and the next language). */
   languages: readonly GuestLocale[] | null
   callToAction: PrintKitCallToAction
@@ -71,6 +73,7 @@ export const INITIAL_PRINT_FINAL_CHOICE: PrintFinalShareChoice = Object.freeze({
   fillSpares: false,
   perSheet: null,
   backPage: false,
+  cropMarks: false,
   languages: null,
   callToAction: 'rate',
 })
@@ -93,6 +96,8 @@ export type PrintFinalSharePrint = Readonly<{
   chosenPerSheet: number | undefined
   /** The back page is printed: asked for, on a card (a tent prints its front on both faces). */
   backPage: boolean
+  /** The file's page has crop marks: asked for, and a print shop's (the manager's own printer has none). */
+  cropMarks: boolean
   languages: readonly GuestLocale[]
   callToAction: PrintKitCallToAction
 }>
@@ -133,6 +138,7 @@ export function resolvePrintFinalChoice(
     perSheet: chosenPerSheet ?? fits,
     chosenPerSheet,
     backPage: choice.backPage && printFinalHasBack(piece),
+    cropMarks: choice.cropMarks && choice.printer === 'print_shop',
     languages,
     callToAction: choice.callToAction,
   }

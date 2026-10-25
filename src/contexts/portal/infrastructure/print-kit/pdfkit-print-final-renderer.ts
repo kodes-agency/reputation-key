@@ -1,11 +1,12 @@
-// The final print kit as a PDF (final design spec, slices 3 to 6 and 11): single
-// pieces, one face per page at its trim, and office sheets in both looks, drawn
-// with PDFKit; a card's optional back page follows its front, and a sheet's
-// reverse follows the sheet. Paper is vectors (the code is rectangles, the type
+// The final print kit as a PDF (final design spec, slices 3 to 6, 10 and 11):
+// single pieces, one face per page at its trim, office sheets in both looks, and
+// a print shop's file (one card per page with its bleed, boxes and optional crop
+// marks), drawn with PDFKit; a card's optional back page follows its front, and a
+// sheet's reverse follows the sheet. Paper is vectors (the code is rectangles, the type
 // is the guest fonts embedded as subsets; only a logo is raster). Immersive adds
 // its art under them: the ground and washes as vectors, the photo with its fade
 // as a soft mask, the scrims, the grain (`print-kit-final-immersive.ts`); on an
-// office sheet each piece's art runs into its bleed.
+// office sheet or a print shop's page each piece's art runs into its bleed.
 //
 // The tile follows the symbol the address makes (`choosePrintFinalTile`): a
 // piece whose module would print under 0.85 mm is refused before any page is
@@ -16,6 +17,7 @@ import {
   PrintFinalRenderRefusal,
   type PortalPrintFinalRenderer,
   type PrintFinalRenderInput,
+  type PrintFinalShopInput,
   type PrintFinalSheetsInput,
 } from '../../application/ports/portal-print-final-renderer.port'
 import {
@@ -35,6 +37,10 @@ import {
 } from '#/shared/domain/portal-print-final-layers'
 import { PRINT_FINAL_MEASURES } from '#/shared/domain/portal-print-final-measures'
 import {
+  printFinalShopFaceBleed,
+  printFinalShopPage,
+} from '#/shared/domain/portal-print-final-shop'
+import {
   PRINT_FINAL_MAX_QUANTITY,
   printFinalPieceCount,
 } from '#/shared/domain/portal-print-final-offer'
@@ -51,6 +57,7 @@ import {
   prepareFinalImmersiveFace,
   type FinalPreparedFace,
 } from './print-kit-final-immersive'
+import { drawFinalShopPages } from './print-kit-final-shop'
 import { drawFinalSheets } from './print-kit-final-sheets'
 import { logoArt } from './print-kit-image'
 import { openImage } from './print-kit-pdf-image'
@@ -211,6 +218,35 @@ async function drawSheets(
   })
 }
 
+/**
+ * A print shop's file: the page the crop marks decide (the bleed box without
+ * them), the face and its back drawn into it with their bleed. A tent is refused
+ * by the page: shops sell tents pre-scored from 4 x 6 in, so they stay office-only.
+ */
+async function drawShop(
+  doc: PDFKit.PDFDocument,
+  input: PrintFinalRenderInput,
+  shop: PrintFinalShopInput,
+): Promise<void> {
+  const page = printFinalShopPage({ face: input.face, cropMarks: shop.cropMarks })
+  const { prepared, back } = await prepareFace(doc, input, printFinalShopFaceBleed(page))
+  drawFinalShopPages(doc, { page, face: prepared, ...(back === null ? {} : { back }) })
+}
+
+/** The pages the request asks for: office sheets, a print shop's file, or the lone piece. */
+async function drawPages(
+  doc: PDFKit.PDFDocument,
+  input: PrintFinalRenderInput,
+): Promise<void> {
+  const { sheets, shop } = input
+  if (sheets !== undefined && shop !== undefined) {
+    throw new RangeError('A print is office sheets or a print shop’s file, not both')
+  }
+  if (sheets !== undefined) return drawSheets(doc, input, sheets)
+  if (shop !== undefined) return drawShop(doc, input, shop)
+  return drawPiece(doc, input)
+}
+
 export function createPdfKitPrintFinalRenderer(
   deps: PdfKitPrintFinalRendererDeps,
 ): PortalPrintFinalRenderer {
@@ -237,9 +273,7 @@ export function createPdfKitPrintFinalRenderer(
         doc.on('end', resolve)
         doc.on('error', reject)
       })
-      await (input.sheets === undefined
-        ? drawPiece(doc, input)
-        : drawSheets(doc, input, input.sheets))
+      await drawPages(doc, input)
       doc.end()
       await finished
       return new Uint8Array(Buffer.concat(chunks))
