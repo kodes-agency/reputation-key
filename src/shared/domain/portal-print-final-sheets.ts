@@ -36,9 +36,9 @@ export type PrintFinalSheetKey = Readonly<{
 }>
 
 /**
- * How a sheet is cut: `cards` are cut piece by piece on grey ticks; `quarters`
- * and `strips` carry no cut marks, because their cuts are the sheet's halves,
- * or the halves of halves.
+ * How a sheet is cut: `cards` are cut piece by piece, on grey ticks (Paper) or
+ * black crop marks (Immersive); `quarters` and `strips` carry no cut marks,
+ * because their cuts are the sheet's halves, or the halves of halves.
  */
 export type PrintFinalSheetKind = 'cards' | 'quarters' | 'strips'
 
