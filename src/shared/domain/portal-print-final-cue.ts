@@ -7,8 +7,8 @@
 //
 // Pure and shared. The PDF measures a cue with the guest fonts' own outlines;
 // the Share tab's preview estimates it from the width tables, which err wide, so
-// a cue the file keeps on one line is never wrapped by the file and left whole by
-// the preview.
+// the preview never leaves whole a cue the file would wrap. (The cues below fit
+// one line on every bar by either measure, which the tests pin.)
 
 import type { GuestLocale } from './guest-locale'
 import { mmPt } from './portal-print-final-measures'
