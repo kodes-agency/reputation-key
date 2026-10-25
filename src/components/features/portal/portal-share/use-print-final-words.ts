@@ -28,7 +28,10 @@ import {
   type PrintFinalLayoutFor,
   type PrintFinalMenuRow,
 } from '#/shared/domain/portal-print-final-words-fit'
-import { printFinalPickedTooLong } from '#/shared/domain/portal-print-final-words-copy'
+import {
+  printFinalPickedHeld,
+  printFinalPickedTooLong,
+} from '#/shared/domain/portal-print-final-words-copy'
 import { previewFinalFaceLayout } from './print-final-face-layout'
 import type { PrintFinalShareChoice, PrintFinalSharePrint } from './print-final-state'
 import { usePrintFinalOwnFit, type PrintFinalOwnFit } from './use-print-final-own-fit'
@@ -87,6 +90,19 @@ function previewLayoutFor(
   }
 }
 
+/** Why the picked wording cannot print on this print, in the words under the select; null where it can. */
+function pickedProblemOf(
+  picked: PrintFinalMenuRow | null,
+  face: PrintFinalFace,
+  languages: readonly GuestLocale[],
+): Readonly<{ reason: string; help: string }> | null {
+  if (picked === null || picked.state === 'fits') return null
+  const headline = PRINT_FINAL_COPY.en[picked.preset].headline
+  return picked.state === 'held' && picked.heldIn !== null
+    ? printFinalPickedHeld(headline, picked.heldIn)
+    : printFinalPickedTooLong(headline, face, languages)
+}
+
 export function usePrintFinalWords(input: Input) {
   const { print, face, view, code, editWords } = input
   const { address, symbolModules } = code
@@ -121,24 +137,18 @@ export function usePrintFinalWords(input: Input) {
     layoutFor,
   })
   const picked = menu.find((row) => row.preset === print?.callToAction) ?? null
-  const pickedTooLong =
-    !isOwn && picked !== null && picked.state !== 'fits' && languages !== undefined
-      ? printFinalPickedTooLong(
-          PRINT_FINAL_COPY.en[picked.preset].headline,
-          face,
-          languages,
-        )
-      : null
+  const pickedProblem =
+    !isOwn && languages !== undefined ? pickedProblemOf(picked, face, languages) : null
   return {
     blocks,
     menu,
     /** No wording fits the print: the menu says so once, and "Write your own…" stays open. */
     noWordingFits: menu.length > 0 && menu.every((row) => row.state !== 'fits'),
     isOwn,
-    /** The picked wording, which a later change made too long: it stays picked (§5.5, panel 14). */
-    pickedTooLong,
+    /** The picked wording, which a later change made too long or that a language of the print holds back: it stays picked (§5.5, panel 14). */
+    pickedProblem,
     own,
-    block: wordsBlockOf({ isOwn, pickedTooLong, own, words, languages }),
+    block: wordsBlockOf({ isOwn, pickedProblem, own, words, languages }),
     pick: useCallback(
       (preset: PrintFinalCallToAction) =>
         editWords({ callToAction: preset, customWords: null }),
@@ -169,7 +179,7 @@ export function usePrintFinalWords(input: Input) {
 function wordsBlockOf(
   state: Readonly<{
     isOwn: boolean
-    pickedTooLong: unknown
+    pickedProblem: unknown
     own: PrintFinalOwnFit | null
     words: PrintFinalSharePrint['words'] | undefined
     languages: readonly GuestLocale[] | undefined
@@ -177,7 +187,7 @@ function wordsBlockOf(
 ): PrintFinalWordsBlock | null {
   const { isOwn, own, words, languages } = state
   if (!isOwn) {
-    return state.pickedTooLong === null
+    return state.pickedProblem === null
       ? null
       : { label: 'Choose words that fit', note: EVERY_CARD_FITS }
   }

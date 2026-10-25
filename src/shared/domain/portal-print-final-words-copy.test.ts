@@ -8,6 +8,7 @@ import {
   printFinalLanguageHeading,
   printFinalMenuReason,
   printFinalNoWordingNote,
+  printFinalPickedHeld,
   printFinalPickedTooLong,
   printFinalSecondStatus,
   printFinalSublineStatus,
@@ -68,6 +69,15 @@ describe('the menu’s words (spec 5.5)', () => {
       reason:
         '“How was your visit?” is too long for upright Paper tents with two languages.',
       help: 'Pick another wording, choose Wide, or write your own.',
+    })
+  })
+})
+
+describe('a picked wording a language of the print holds back (spec 5.5)', () => {
+  it('stays picked and says it is not available, not that it is too long', () => {
+    expect(printFinalPickedHeld('How was your visit?', 'fr')).toEqual({
+      reason: '“How was your visit?” is not available in Français yet.',
+      help: 'Pick another wording, or write your own.',
     })
   })
 })

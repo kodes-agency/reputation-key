@@ -139,6 +139,17 @@ export function printFinalPickedTooLong(
   }
 }
 
+/** A picked wording that rule F holds back in a language the print gained (§5.5): it stays picked, and says why. */
+export function printFinalPickedHeld(
+  headline: string,
+  locale: GuestLocale,
+): Readonly<{ reason: string; help: string }> {
+  return {
+    reason: `“${headline}” is not available in ${languageName(locale)} yet.`,
+    help: 'Pick another wording, or write your own.',
+  }
+}
+
 /** A status under a field: its tone (an icon and words, never colour alone), its words and an extra line. */
 export type PrintFinalFieldStatus = Readonly<{
   tone: 'positive' | 'neutral' | 'negative'

@@ -4,8 +4,9 @@
 // headline over its sub-line, checked against the chosen print by the planner: a
 // wording the print would refuse is greyed and says why, a print no wording fits
 // says so once, and "Write your own…" stays open under a divider. A picked
-// wording that a later change made too long stays picked, the select turns red
-// and says why. On a phone the menu is a bottom sheet.
+// wording that a later change made too long, or that a language added to the
+// print holds back, stays picked: the select turns red and says why. On a phone
+// the menu is a bottom sheet.
 
 import { Ban, Info, Pencil } from 'lucide-react'
 import { useId, useState } from 'react'
@@ -108,7 +109,7 @@ function DesktopMenu(
       <SelectTrigger
         id={props.triggerId}
         className="w-full"
-        aria-invalid={words.pickedTooLong !== null}
+        aria-invalid={words.pickedProblem !== null}
         aria-describedby={props.describedBy}
       >
         <SelectValue>
@@ -171,7 +172,7 @@ function PhoneMenu(props: Props & Readonly<{ triggerId: string; describedBy?: st
         variant="outline"
         className="w-full justify-start font-normal"
         aria-haspopup="dialog"
-        aria-invalid={words.pickedTooLong !== null}
+        aria-invalid={words.pickedProblem !== null}
         aria-describedby={props.describedBy}
         onClick={() => setOpen(true)}
       >
@@ -260,7 +261,7 @@ export function PrintFinalCtaSelect(props: Props) {
   const id = useId()
   const triggerId = `${id}-cta`
   const whyId = `${id}-why`
-  const tooLong = words.pickedTooLong
+  const problem = words.pickedProblem
   const Menu = phone ? PhoneMenu : DesktopMenu
   return (
     <div className="mt-2 flex flex-col gap-1.5">
@@ -270,10 +271,10 @@ export function PrintFinalCtaSelect(props: Props) {
       <Menu
         {...props}
         triggerId={triggerId}
-        describedBy={tooLong === null ? undefined : whyId}
+        describedBy={problem === null ? undefined : whyId}
       />
       {words.isOwn && <StartedFrom {...props} />}
-      {tooLong !== null && (
+      {problem !== null && (
         <p
           id={whyId}
           role="alert"
@@ -281,8 +282,8 @@ export function PrintFinalCtaSelect(props: Props) {
         >
           <Ban aria-hidden="true" className="mt-px size-3.5 shrink-0" />
           <span>
-            {tooLong.reason}
-            <span className="block text-muted-foreground">{tooLong.help}</span>
+            {problem.reason}
+            <span className="block text-muted-foreground">{problem.help}</span>
           </span>
         </p>
       )}
