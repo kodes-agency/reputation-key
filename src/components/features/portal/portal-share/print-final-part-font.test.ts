@@ -16,17 +16,17 @@ const style = (over: Partial<PrintFinalTextStyle>): PrintFinalTextStyle => ({
 })
 
 describe('previewFinalFont (spec 3)', () => {
-  it('asks the headline face for lining figures, so "30" does not read as "3o"', () => {
+  it('asks the headline face for the lnum feature, so "30" does not read as "3o"', () => {
     const headline = previewFinalFont(
       style({ family: 'serif', weight: 600, sizePt: 28, trackingEm: -0.005 }),
       pt,
     )
-    expect(headline.fontVariantNumeric).toBe('lining-nums')
+    expect(headline.fontFeatureSettings).toBe('"lnum" 1')
     expect(headline.fontFamily).toBe('var(--font-guest-display)')
   })
 
   it('leaves the sans alone: Ysabeau Office sets lining figures already', () => {
-    expect(previewFinalFont(style({}), pt).fontVariantNumeric).toBeUndefined()
+    expect(previewFinalFont(style({}), pt).fontFeatureSettings).toBeUndefined()
   })
 
   it('keeps the ligatures off a tracked line, as the file does, and on an untracked one', () => {
