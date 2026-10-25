@@ -595,7 +595,7 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   with an output intent is a later slice. Crop marks are the print shop's option
   only (the manager's own printer ignores them) and are named in the file name.
   What Share says to the manager is `portal-print-final-shop-copy.ts`: the order
-  line ("Order 4 x 6 in postcards, 14-16 pt, matte, one side. Upload this PDF as
+  line ("Order 4 × 6 in postcards, 14–16 pt, matte, one side. Upload this PDF as
   it is.", with no product names; the weights are the recommendations', still to
   be checked against a catalogue) and the note the "Copy a note for the print
   shop" button carries, the one place the trade's words (bleed, TrimBox) appear.

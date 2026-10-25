@@ -135,7 +135,7 @@ describe('the crop-marks option', () => {
   it('is a checkbox that says most shops want it off, and that the page gets wider', () => {
     expect(PRINT_FINAL_SHOP_CROP_MARKS_LABEL).toBe('Add crop marks')
     expect(PRINT_FINAL_SHOP_CROP_MARKS_HELP).toBe(
-      'Most shops cut from the page edge, so leave this off. Turn it on if your shop asks for crop marks: the page gets wider to show them.',
+      'Most shops find the cut from the file itself, so leave this off. Turn it on if your shop asks for crop marks: the page gets wider to show them.',
     )
     expect(PRINT_FINAL_SHOP_CROP_MARKS_HELP).not.toMatch(/bleed/iu)
   })

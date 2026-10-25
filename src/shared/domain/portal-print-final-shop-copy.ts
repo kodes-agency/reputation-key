@@ -39,7 +39,7 @@ import {
 export const PRINT_FINAL_SHOP_CROP_MARKS_LABEL = 'Add crop marks'
 
 export const PRINT_FINAL_SHOP_CROP_MARKS_HELP =
-  'Most shops cut from the page edge, so leave this off. Turn it on if your shop asks for crop marks: the page gets wider to show them.'
+  'Most shops find the cut from the file itself, so leave this off. Turn it on if your shop asks for crop marks: the page gets wider to show them.'
 
 export const PRINT_FINAL_SHOP_NOTE_BUTTON = 'Copy a note for the print shop'
 export const PRINT_FINAL_SHOP_NOTE_HINT = 'Paste it into your order’s comments.'

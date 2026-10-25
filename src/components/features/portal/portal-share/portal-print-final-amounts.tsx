@@ -156,7 +156,7 @@ function BackPageOption({ final, print }: StepProps) {
   )
 }
 
-/** A print shop's crop marks: a checkbox like the back page, off unless asked for, because most shops cut from the page edge. */
+/** A print shop's crop marks: a checkbox like the back page, off unless asked for, because most shops find the cut from the file itself. */
 function CropMarksOption({ final, print }: StepProps) {
   return (
     <div className="flex items-start gap-2">
