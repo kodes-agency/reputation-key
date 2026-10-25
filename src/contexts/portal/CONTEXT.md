@@ -599,6 +599,29 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   it is.", with no product names; the weights are the recommendations', still to
   be checked against a catalogue) and the note the "Copy a note for the print
   shop" button carries, the one place the trade's words (bleed, TrimBox) appear.
+- **The final kit's last print.** Every final download that makes its file writes the
+  Portal's one `portal_last_prints` row (migration 0071, `createPortalLastPrintRepository`;
+  the next print replaces it, and one that finishes late does not replace a later one):
+  the choices as the download took them (the paper the file was made for, spares, count a
+  sheet, crop marks and back page as asked, the quantity even for a print shop) and, for an
+  Immersive print, the live photo by image and framing. It holds choices and a day only:
+  never the address, a print code or a file. Writing it is best effort
+  (`rememberLastPrint`): a manager who has the file is never refused it because the memory
+  failed, and the failure is logged with its cause and a code
+  (`portal_last_print_not_remembered`; never a Portal id, a banned log key). The print kit read (`getPortalPrintKit`) carries it
+  for the final kit as `lastPrint`: when, the choices to set again, and what became of the
+  photo since (`printFinalPhotoChange`, pure): `same`; `changed` on the day the image that
+  prints now was uploaded, when that was after the print, or with no day when the photo was
+  chosen from the Property's earlier uploads or only reframed; `removed`. A Paper print
+  carries no photo, so it never changes. Today's kit reads none of it. The row has a
+  composite tenant key into `portals` (removed with its Portal), no key into the image, and
+  its CHECKs are held to the domain's vocabularies by `portal-last-print.schema.test.ts`; a
+  row the vocabularies cannot read any more (a language the catalogue dropped) reads as no
+  print. It is in the purge plan, the export (`last_print`) and the data-fate authority.
+  Share shows it as a notice, "Last printed Oct 12 · 10 Paper table tents, wide, on Letter,
+  English + Español", with "Use the same settings" (`choiceOfLastPrint`) until the choices
+  on show already are the last print's, and opens on the last print's look until a look is
+  picked (§11.2: Paper the first time, after that the last choice).
 
 ## Runtime
 
