@@ -220,8 +220,8 @@ export const PrintShopOffersCounterCards: Story = {
   },
 }
 
-/** English and Bulgarian cannot share the bar: the download says why and stays off. */
-export const TwoCuesThatDoNotFit: Story = {
+/** English and Bulgarian share the bar, one short cue a line: nothing holds the download back. */
+export const TwoCuesShareTheBar: Story = {
   args: baseArgs,
   parameters: { theme: 'light' },
   play: async ({ canvasElement }) => {
@@ -233,11 +233,9 @@ export const TwoCuesThatDoNotFit: Story = {
       }),
     )
     await expect(
-      canvas.getByText(
-        'The scan line in these two languages does not fit this piece. Choose one language.',
-      ),
-    ).toBeVisible()
-    await expect(canvas.getByRole('button', { name: /download pdf/i })).toBeDisabled()
+      canvas.queryByText(/scan line in these two languages does not fit/i),
+    ).toBeNull()
+    await expect(canvas.getByRole('button', { name: /download pdf/i })).toBeEnabled()
   },
 }
 
