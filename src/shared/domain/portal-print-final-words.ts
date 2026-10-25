@@ -21,7 +21,7 @@ import {
 export type PrintFinalTone = 'ink' | 'soft' | 'accent'
 
 export type PrintFinalWordsPart = Readonly<{
-  key: Exclude<PrintFinalPartKey, 'brand' | 'stars' | 'rule' | 'name'>
+  key: Exclude<PrintFinalPartKey, 'brand' | 'rule' | 'name'>
   text: string
   locale: GuestLocale
   style: PrintFinalTextStyle

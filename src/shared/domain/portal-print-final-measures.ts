@@ -181,16 +181,6 @@ export const PRINT_FINAL_DISTANCES = Object.freeze({
 export const PRINT_FINAL_RULE_LENGTH_PT: Readonly<Record<PrintFinalPiece, number>> =
   Object.freeze({ counter: mmPt(8), tent: mmPt(6), small: mmPt(5) })
 
-/** Five outline stars above the kicker, on the Counter card only (§5.1). */
-export const PRINT_FINAL_STARS = Object.freeze({
-  pieces: Object.freeze(['counter'] as readonly PrintFinalPiece[]),
-  count: 5,
-  sizePt: inPt(0.13),
-  /** The space between two stars, as a share of a star's size. */
-  gapShare: 0.38,
-  strokePt: mmPt(0.3),
-})
-
 // ---------------------------------------------------------------------------
 // The live area
 

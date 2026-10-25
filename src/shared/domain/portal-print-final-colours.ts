@@ -15,7 +15,7 @@ export type PrintFinalColours = Readonly<{
   ink: string
   /** The sub-lines and the second-language line. */
   soft: string
-  /** The kicker, the stars and the rule between two languages. */
+  /** The kicker and the rule between two languages. */
   accent: string
   /** The tile's outline; null where there is none (Immersive). */
   outline: string | null

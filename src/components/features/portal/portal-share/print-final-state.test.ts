@@ -159,11 +159,13 @@ describe('printFinalShareCheck', () => {
     expect(check.refusal).toBe('quantity_out_of_range')
   })
 
-  it('refuses two cues that do not fit the bar, as the server does', () => {
-    const check = printFinalShareCheck(
-      resolve({ languages: ['en', 'bg'] }, ['en', 'bg']),
-      SHORT,
-    )
-    expect(check.refusal).toBe('cue_does_not_fit')
+  it('holds two cues to the bar, and the short cues fit every pair on every piece', () => {
+    for (const piece of ['counter', 'tent', 'small'] as const) {
+      const check = printFinalShareCheck(
+        resolve({ piece, languages: ['fr', 'bg'] }, ['fr', 'bg']),
+        SHORT,
+      )
+      expect(check.refusal).toBeNull()
+    }
   })
 })

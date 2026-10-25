@@ -3,11 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { PrintFinalRenderInput } from '../../application/ports/portal-print-final-renderer.port'
 import golden from '#/shared/domain/__fixtures__/portal-print-final-golden.json'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import {
-  PRINT_KIT_COPY,
-  printKitFaces,
-  type PrintTextBlock,
-} from '#/shared/domain/portal-print-kit'
+import { printKitFaces, type PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import {
   PRINT_FINAL_ORIENTATIONS,
   PRINT_FINAL_PIECES,
@@ -42,26 +38,9 @@ const immersiveCards = golden.cards.filter(
   (card) => card.look === 'immersive' && card.board !== 'tile-ladder',
 )
 
-const BOARD_COPY = {
-  en: { kicker: 'Reception', ...PRINT_KIT_COPY.en.rate },
-  es: { kicker: 'Reception', ...PRINT_KIT_COPY.es.rate },
-  de: {
-    kicker: 'Bewerten Sie uns auf Google',
-    headline: 'Bewerten Sie Ihren Aufenthalt',
-    subline: 'Vertraulich, etwa 30 Sekunden',
-  },
-} as const
-
-function blocksOf(card: GoldenCard): readonly PrintTextBlock[] {
-  const languages: readonly GuestLocale[] =
-    card.board === 'long-text' ? ['de'] : card.languages === 'one' ? ['en'] : ['en', 'es']
-  const kicker =
-    card.board === 'no-logo' || card.board === 'badge-logo' ? 'Review us on Google' : null
-  return languages.map((locale) => {
-    const copy = BOARD_COPY[locale as 'en' | 'es' | 'de']
-    return { locale, ...copy, kicker: kicker ?? copy.kicker }
-  })
-}
+/** The words the board printed: its kicker, headline and sub-line in each language. */
+const blocksOf = (card: GoldenCard): readonly PrintTextBlock[] =>
+  card.blocks.map((block) => ({ ...block, locale: block.locale as GuestLocale }))
 
 const { doc, fonts } = newDocument()
 
@@ -107,8 +86,9 @@ const near = (actual: number, expected: number, what: string) =>
   ).toBeLessThanOrEqual(TOLERANCE_MM)
 
 describe('the final Immersive faces in the PDF against the boards', () => {
-  it('covers the family, Europe, the long address, two languages, no logo, no photo, long copy and the badge', () => {
-    expect(new Set(immersiveCards.map((card) => card.board)).size).toBe(8)
+  it('covers the family, Europe, the long address, two languages, no logo, no photo, German, the scan cues and the badge', () => {
+    expect(new Set(immersiveCards.map((card) => card.board)).size).toBe(9)
+    expect(immersiveCards).toHaveLength(52)
   })
 
   it.each(

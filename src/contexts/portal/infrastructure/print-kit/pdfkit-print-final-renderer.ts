@@ -22,9 +22,9 @@ import {
 } from '../../application/ports/portal-print-final-renderer.port'
 import {
   choosePrintFinalTile,
-  printFinalCuesFit,
   type PrintFinalTile,
 } from '#/shared/domain/portal-print-final-code'
+import { printFinalCuesFit } from '#/shared/domain/portal-print-final-cue'
 import { printFinalPaperOf } from '#/shared/domain/portal-print-final'
 import { printFinalHasBack } from '#/shared/domain/portal-print-final-back'
 import {
@@ -50,6 +50,7 @@ import { prepareFinalBack, type FinalPreparedBack } from './print-kit-final-back
 import {
   drawFinalFace,
   layoutFinalFace,
+  pdfFinalMeasurer,
   type FinalFaceArt,
   type FinalFaceLogo,
 } from './print-kit-final-face'
@@ -141,7 +142,8 @@ async function prepareFace(
       : await prepareFinalImmersiveFace(doc, fonts, common)
   const { cuePt } = PRINT_FINAL_MEASURES[face.region][face.piece]
   const cueLines = prepared.layout.cues.map((cue) => cue.text)
-  if (!printFinalCuesFit(cueLines, tile.value.tilePt, cuePt)) {
+  const measurer = pdfFinalMeasurer(doc, fonts)
+  if (!printFinalCuesFit(cueLines, tile.value.tilePt, cuePt, measurer)) {
     throw new PrintFinalRenderRefusal({ code: 'cue_does_not_fit', moduleMm: null })
   }
   const back =

@@ -8,8 +8,7 @@ import {
   type PrintFinalBrandInput,
   type PrintFinalFaceLayout,
 } from './portal-print-final-face'
-import { printFinalStars } from './portal-print-final-marks'
-import { inPt, ptMm } from './portal-print-final-measures'
+import { inPt } from './portal-print-final-measures'
 import type { PrintFinalTextMeasurer } from './portal-print-final-text'
 
 // Every character advances half an em; ink rises 0.7 em and falls 0.2 em.
@@ -64,14 +63,8 @@ function layout(
 const keysOf = (laid: PrintFinalFaceLayout) => laid.plan.parts.map((part) => part.key)
 
 describe('layoutPrintFinalFace', () => {
-  it('puts the stars above the kicker on the Counter card, and neither stars nor kicker on the Small card', () => {
-    expect(keysOf(layout(face()))).toEqual([
-      'brand',
-      'stars',
-      'kicker',
-      'headline',
-      'subline',
-    ])
+  it('starts the message with the kicker (no stars on any piece), and has no kicker on the Small card', () => {
+    expect(keysOf(layout(face()))).toEqual(['brand', 'kicker', 'headline', 'subline'])
     expect(keysOf(layout(face({ piece: 'tent' })))).toEqual([
       'brand',
       'kicker',
@@ -85,21 +78,28 @@ describe('layoutPrintFinalFace', () => {
     ])
   })
 
-  it('measures the stars by their outlines: the board’s 21.1 × 2.7 mm row', () => {
-    const stars = printFinalStars()
-    expect(ptMm(stars.widthPt)).toBeCloseTo(21.1, 0)
-    expect(ptMm(stars.heightPt)).toBeCloseTo(2.7, 1)
-    expect(stars.origins).toHaveLength(5)
-  })
-
   it('prints two languages in full under a rule on the Counter card and the wide pieces', () => {
     for (const f of [face(), face({ piece: 'tent', orientation: 'wide' })]) {
       const laid = layout(f, ['en', 'es'])
       expect(keysOf(laid).slice(-4)).toEqual(['subline', 'rule', 'headline2', 'subline2'])
-      expect(laid.cues).toEqual([
+      expect(laid.cues.map(({ text, locale }) => ({ text, locale }))).toEqual([
         { text: 'Scan with your camera', locale: 'en' },
         { text: 'Escanee con la cámara', locale: 'es' },
       ])
+    }
+  })
+
+  it('centres the cue lines in the bar by their ink', () => {
+    for (const languages of [['en'], ['en', 'es']] as const) {
+      const laid = layout(face(), languages)
+      const [first, ...rest] = laid.cues
+      const last = rest.at(-1) ?? first
+      // The test measurer's ink rises 0.7 em and falls 0.2 em from the baseline.
+      const cuePt = 9
+      const above = (first?.baselinePt ?? NaN) - 0.7 * cuePt
+      const below = laid.code.barPt - ((last?.baselinePt ?? NaN) + 0.2 * cuePt)
+      expect(above).toBeCloseTo(below, 6)
+      expect(above).toBeGreaterThan(0)
     }
   })
 
@@ -142,12 +142,20 @@ describe('layoutPrintFinalFace', () => {
     expect(upright.headlinePt).toBeGreaterThanOrEqual(16.5)
   })
 
-  it('wraps a long cue into the two-line bar', () => {
-    const laid = layout(face({ piece: 'tent', orientation: 'wide' }), ['de'])
-    expect(laid.cues).toEqual([
-      { text: 'Mit der Kamera', locale: 'de' },
-      { text: 'scannen', locale: 'de' },
+  it('wraps a cue the measurer finds too wide into the two-line bar', () => {
+    // This measurer sets every character half an em wide, wider than the font: English no longer fits the Small card.
+    const laid = layout(face({ piece: 'small', orientation: 'wide' }), ['en'])
+    expect(laid.cues.map(({ text, locale }) => ({ text, locale }))).toEqual([
+      { text: 'Scan with', locale: 'en' },
+      { text: 'your camera', locale: 'en' },
     ])
-    expect(laid.code.barPt).toBeCloseTo(inPt(0.38))
+    expect(laid.code.barPt).toBeCloseTo(inPt(0.3))
+  })
+
+  it('keeps every language’s cue on one line on the tent, measured as the font sets it', () => {
+    const laid = layout(face({ piece: 'tent', orientation: 'wide' }), ['de'])
+    expect(laid.cues).toHaveLength(1)
+    expect(laid.cues[0]?.text).toBe('Mit Kamera scannen')
+    expect(laid.code.barPt).toBeCloseTo(inPt(0.3))
   })
 })

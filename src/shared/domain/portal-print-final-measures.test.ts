@@ -13,7 +13,6 @@ import {
   PRINT_FINAL_LONG_ADDRESS_COUNTER,
   PRINT_FINAL_MEASURES,
   PRINT_FINAL_RULE_LENGTH_PT,
-  PRINT_FINAL_STARS,
   PRINT_FINAL_TILE_STEP_UP_PT,
   inPt,
   mmPt,
@@ -139,16 +138,12 @@ describe('the measures table (spec 2.1)', () => {
     })
   })
 
-  it('draws the language rule 8 / 6 / 5 mm long, and stars on the Counter card only', () => {
+  it('draws the language rule 8 / 6 / 5 mm long', () => {
     expect(PRINT_FINAL_RULE_LENGTH_PT).toEqual({
       counter: mmPt(8),
       tent: mmPt(6),
       small: mmPt(5),
     })
-    expect(PRINT_FINAL_STARS.pieces).toEqual(['counter'])
-    expect(PRINT_FINAL_STARS.count).toBe(5)
-    expect(PRINT_FINAL_STARS.sizePt).toBe(inPt(0.13))
-    expect(mm(PRINT_FINAL_STARS.strokePt)).toBe(0.3)
   })
 
   it('puts the Paper outline outside the tile, and none on Immersive', () => {

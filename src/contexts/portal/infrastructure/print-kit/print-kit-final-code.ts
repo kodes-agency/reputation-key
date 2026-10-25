@@ -12,13 +12,11 @@ import type { PrintFinalCue } from '#/shared/domain/portal-print-final-face'
 import type { PrintFinalCodeBlock } from '#/shared/domain/portal-print-final-code'
 import {
   PRINT_FINAL_DISTANCES,
-  mmPt,
   type PrintFinalBox,
 } from '#/shared/domain/portal-print-final-measures'
-import { PRINT_FINAL_TYPE_SETTINGS } from '#/shared/domain/portal-print-final-type'
 import { PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
 import {
-  drawCentredLine,
+  drawCentredLineOnBaseline,
   type PdfTextStyle,
   type PrintKitFonts,
 } from './print-kit-pdf-text'
@@ -39,18 +37,13 @@ export type FinalCodeArt = Readonly<{
   colours: FinalCodeColours
 }>
 
-/** The cue lines, centred in the bar as one block: 1.12 line boxes, 0.3 mm apart. */
+/** The cue lines on their baselines, centred in the bar by their ink (`placePrintFinalCues`). */
 function drawCues(
   doc: PDFKit.PDFDocument,
   fonts: PrintKitFonts,
   art: FinalCodeArt,
-  bar: Readonly<{ centreX: number; top: number; heightPt: number }>,
+  bar: Readonly<{ centreX: number; top: number }>,
 ) {
-  const { leading, lineGapMm } = PRINT_FINAL_TYPE_SETTINGS.cue
-  const lineBox = art.cuePt * leading
-  const gap = mmPt(lineGapMm)
-  const block = art.cues.length * lineBox + (art.cues.length - 1) * gap
-  const top = bar.top + (bar.heightPt - block) / 2
   const style: PdfTextStyle = {
     face: 'bodyStrong',
     size: art.cuePt,
@@ -58,12 +51,12 @@ function drawCues(
     colour: art.colours.barText,
     opacity: 1,
   }
-  art.cues.forEach((cue, index) => {
-    drawCentredLine(doc, fonts, cue.text, style, {
+  for (const cue of art.cues) {
+    drawCentredLineOnBaseline(doc, fonts, cue.text, style, {
       centreX: bar.centreX,
-      middleY: top + index * (lineBox + gap) + lineBox / 2,
+      baselineY: bar.top + cue.baselinePt,
     })
-  })
+  }
 }
 
 /** Draws the block in its planned box: the outline first, then the tile and the bar clipped to their rounded corners. */
@@ -89,10 +82,6 @@ export function drawFinalCodeBlock(
   drawCode(doc, art.qr, tilePt, inner)
   doc.rect(inner.x, inner.y + tilePt, tilePt, barPt).fill(art.colours.barFill)
   doc.restore()
-  drawCues(doc, fonts, art, {
-    centreX: inner.x + tilePt / 2,
-    top: inner.y + tilePt,
-    heightPt: barPt,
-  })
+  drawCues(doc, fonts, art, { centreX: inner.x + tilePt / 2, top: inner.y + tilePt })
   doc.restore()
 }

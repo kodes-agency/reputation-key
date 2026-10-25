@@ -1,5 +1,5 @@
 {
-  "source": "final-design-2026-10-25 boards (stand-in set), ink boxes in mm from the trim top-left; measurements.json for margins, gaps and photo",
+  "source": "final-design-2026-10-25 boards (call-to-action set, stand-in photos), ink boxes in mm from the trim top-left; measurements.json for margins, gaps and photo",
   "cards": [
     {
       "board": "family",
@@ -9,18 +9,27 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 39.4, "t": 12.89 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 44.61 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 49.7 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 54.37 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 65.72 }
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 39.4, "t": 16.17 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 47.89 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 52.56 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 62.23 }
       ],
-      "tile": { "l": 31.49, "t": 88.26, "r": 70.11, "b": 136.03 },
-      "margins": { "L": 22.92, "R": 22.92, "T": 12.89, "B": 16.37 },
+      "tile": { "l": 31.49, "t": 84.09, "r": 70.11, "b": 131.86 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 16.17, "B": 20.54 },
       "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
       "spareSplitTop": 0.44,
       "photo": null
@@ -33,19 +42,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 24.27 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 46.47 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 51.56 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 56.22 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 67.58 }
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 28 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 50.2 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 54.86 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 64.54 }
       ],
       "tile": { "l": 104.25, "t": 23.7, "r": 142.87, "b": 71.47 },
       "margins": { "L": 9.52, "R": 9.53, "T": 23.7, "B": 30.13 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 38.96 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 33.23 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -57,18 +75,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 14.75, "h": 8.2, "l": 27.55, "t": 6.35 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 14.83, "t": 25.93 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 29.45 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 37.12 }
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 14.83, "t": 26.79 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 30.29 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 36.83 }
       ],
       "tile": { "l": 16.88, "t": 51.37, "r": 52.97, "b": 95.07 },
-      "margins": { "L": 14.83, "R": 14.83, "T": 6.35, "B": 12.88 },
-      "gaps": { "brandToMessage": 11.38, "messageToCode": 11.38 },
+      "margins": { "L": 14.06, "R": 14.07, "T": 6.35, "B": 12.88 },
+      "gaps": { "brandToMessage": 12.23, "messageToCode": 12.23 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -80,18 +108,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
-        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 17.03 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 31.59 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 8.63, "t": 35.09 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 8.64, "t": 42.77 }
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 17.88 },
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 32.44 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 8.63, "t": 35.94 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 8.64, "t": 42.48 }
       ],
       "tile": { "l": 63.23, "t": 9.39, "r": 99.31, "b": 53.1 },
       "margins": { "L": 8.63, "R": 8.64, "T": 9.39, "B": 16.75 },
-      "gaps": { "brandToMessage": 6.35, "messageToCode": 14.4 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 12.87 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -103,17 +141,27 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 12.07, "h": 6.71, "l": 19.36, "t": 6.68 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 22.92 },
-        { "key": "subline", "w": 29.52, "h": 2.54, "l": 10.64, "t": 29.12 }
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 19.36, "t": 7.4 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 23.64 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 15.11, "t": 28.7 }
       ],
-      "tile": { "l": 9.26, "t": 41.18, "r": 41.54, "b": 80.32 },
-      "margins": { "L": 9.26, "R": 9.26, "T": 6.68, "B": 8.58 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 9.52 },
+      "tile": { "l": 9.26, "t": 40.27, "r": 41.54, "b": 79.4 },
+      "margins": { "L": 8.35, "R": 8.35, "T": 7.4, "B": 9.5 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.52 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -125,17 +173,27 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 14.65 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 4.76, "t": 26.12 },
-        { "key": "subline", "w": 29.52, "h": 2.54, "l": 4.76, "t": 32.32 }
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 15.47 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 26.94 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 4.76, "t": 32 }
       ],
       "tile": { "l": 51.86, "t": 5.1, "r": 84.14, "b": 44.24 },
       "margins": { "L": 4.76, "R": 4.76, "T": 5.1, "B": 6.56 },
-      "gaps": { "brandToMessage": 4.76, "messageToCode": 15.97 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -147,21 +205,30 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 11.3 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 47.34 },
-        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 52.43 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 57.09 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 68.45 }
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 14.58 },
+        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 50.62 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 55.28 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 64.95 }
       ],
-      "tile": { "l": 31.75, "t": 90.99, "r": 69.85, "b": 138.23 },
-      "margins": { "L": 22.92, "R": 22.92, "T": 11.3, "B": 14.17 },
+      "tile": { "l": 31.75, "t": 86.82, "r": 69.85, "b": 134.06 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 14.58, "B": 18.34 },
       "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
       "spareSplitTop": 0.44,
-      "photo": { "px": [1195, 669], "w": 4.25, "h": 3.59, "dpi": 186 }
+      "photo": { "px": [1195, 669], "w": 4.25, "h": 3.42, "dpi": 195 }
     },
     {
       "board": "family",
@@ -171,19 +238,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 22.3 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 48.82 },
-        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 53.91 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 58.57 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 69.93 }
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 25.8 },
+        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 52.31 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 56.98 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 66.65 }
       ],
-      "tile": { "l": 104.78, "t": 24.24, "r": 142.87, "b": 71.48 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 22.3, "B": 28.18 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 39.49 },
+      "tile": { "l": 104.78, "t": 24.01, "r": 142.87, "b": 71.25 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 24.01, "B": 30.35 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 33.76 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1195, 669], "w": 4.25, "h": 4.25, "dpi": 157 }
     },
@@ -195,18 +271,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 12.65, "h": 11.1, "l": 28.6, "t": 8.89 },
-        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 23.94, "t": 30.91 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 34.42 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 42.1 }
+        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 23.94, "t": 31.76 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 35.27 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 41.8 }
       ],
       "tile": { "l": 17.14, "t": 55.88, "r": 52.7, "b": 99.05 },
-      "margins": { "L": 16, "R": 16.01, "T": 8.89, "B": 8.9 },
-      "gaps": { "brandToMessage": 10.92, "messageToCode": 10.92 },
+      "margins": { "L": 14.06, "R": 14.07, "T": 8.89, "B": 8.9 },
+      "gaps": { "brandToMessage": 11.77, "messageToCode": 11.77 },
       "spareSplitTop": null,
       "photo": { "px": [1195, 669], "w": 3, "h": 1.98, "dpi": 337 }
     },
@@ -218,18 +304,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.35, "t": 16.76 },
         { "key": "kicker", "w": 20.61, "h": 1.92, "l": 6.35, "t": 34.21 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 6.35, "t": 37.72 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 6.35, "t": 45.4 }
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 6.35, "t": 37.72 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 6.35, "t": 44.25 }
       ],
       "tile": { "l": 66.04, "t": 12.8, "r": 101.6, "b": 55.98 },
       "margins": { "L": 6.35, "R": 6.35, "T": 12.8, "B": 13.87 },
-      "gaps": { "brandToMessage": 6.35, "messageToCode": 21.86 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 17.97 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1195, 669], "w": 2.73, "h": 2.78, "dpi": 241 }
     },
@@ -241,19 +337,29 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 10.33, "h": 8.99, "l": 20.24, "t": 5.97 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 24.49 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 10.45, "t": 30.69 }
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 20.24, "t": 6.7 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 25.22 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 14.98, "t": 30.27 }
       ],
-      "tile": { "l": 9.52, "t": 42.79, "r": 41.28, "b": 81.4 },
-      "margins": { "L": 9.52, "R": 9.52, "T": 5.97, "B": 7.5 },
-      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.52 },
+      "tile": { "l": 9.52, "t": 41.87, "r": 41.28, "b": 80.47 },
+      "margins": { "L": 8.35, "R": 8.35, "T": 6.7, "B": 8.43 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.53 },
       "spareSplitTop": 0.44,
-      "photo": { "px": [1195, 669], "w": 2.25, "h": 1.69, "dpi": 395 }
+      "photo": { "px": [1195, 669], "w": 2.25, "h": 1.65, "dpi": 404 }
     },
     {
       "board": "family",
@@ -263,117 +369,31 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 10.33, "h": 8.99, "l": 4.76, "t": 13.45 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 4.76, "t": 27.21 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 4.76, "t": 33.4 }
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 4.76, "t": 14.28 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 28.03 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 4.76, "t": 33.09 }
       ],
       "tile": { "l": 52.39, "t": 5.41, "r": 84.14, "b": 44.02 },
       "margins": { "L": 4.76, "R": 4.76, "T": 5.41, "B": 6.78 },
-      "gaps": { "brandToMessage": 4.77, "messageToCode": 16.5 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13.53 },
       "spareSplitTop": null,
       "photo": { "px": [1195, 669], "w": 2.19, "h": 2.25, "dpi": 297 }
     },
     {
-      "board": "long-address",
-      "piece": "counter",
-      "orientation": "upright",
-      "look": "paper",
-      "region": "us",
-      "address": "long",
-      "tileIn": 2.1,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 28,
-      "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 39.4, "t": 9.52 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 36.94 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 42.03 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 46.69 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 58.05 }
-      ],
-      "tile": { "l": 23.86, "t": 76.29, "r": 77.73, "b": 140.32 },
-      "margins": { "L": 22.92, "R": 22.92, "T": 9.52, "B": 12.08 },
-      "gaps": { "brandToMessage": 14.74, "messageToCode": 14.74 },
-      "spareSplitTop": null,
-      "photo": null
-    },
-    {
-      "board": "long-address",
-      "piece": "counter",
-      "orientation": "wide",
-      "look": "paper",
-      "region": "us",
-      "address": "long",
-      "tileIn": 2.1,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 28,
-      "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 25.25 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 47.45 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 52.53 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 57.2 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 68.56 }
-      ],
-      "tile": { "l": 89, "t": 16.55, "r": 142.87, "b": 80.57 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 16.55, "B": 21.03 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 23.72 },
-      "spareSplitTop": 0.44,
-      "photo": null
-    },
-    {
-      "board": "long-address",
-      "piece": "counter",
-      "orientation": "upright",
-      "look": "immersive",
-      "region": "us",
-      "address": "long",
-      "tileIn": 2.1,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 28,
-      "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 9.52 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 39.45 },
-        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 44.54 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 49.2 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 60.56 }
-      ],
-      "tile": { "l": 24.13, "t": 76.99, "r": 77.47, "b": 140.49 },
-      "margins": { "L": 22.92, "R": 22.92, "T": 9.52, "B": 11.91 },
-      "gaps": { "brandToMessage": 12.94, "messageToCode": 12.94 },
-      "spareSplitTop": null,
-      "photo": { "px": [1195, 669], "w": 4.25, "h": 3.04, "dpi": 220 }
-    },
-    {
-      "board": "long-address",
-      "piece": "counter",
-      "orientation": "wide",
-      "look": "immersive",
-      "region": "us",
-      "address": "long",
-      "tileIn": 2.1,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 28,
-      "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 23.05 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 49.56 },
-        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 54.65 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 59.31 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 70.67 }
-      ],
-      "tile": { "l": 89.53, "t": 16.86, "r": 142.87, "b": 80.35 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 16.86, "B": 21.25 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 24.25 },
-      "spareSplitTop": 0.44,
-      "photo": { "px": [1195, 669], "w": 3.65, "h": 4.25, "dpi": 157 }
-    },
-    {
       "board": "europe",
       "piece": "counter",
       "orientation": "upright",
@@ -381,20 +401,29 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 41.1, "t": 12.7 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 41.95, "t": 44.12 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 28.63, "t": 49.2 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 24.62, "t": 53.86 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 32.2, "t": 65.21 }
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 41.1, "t": 15.75 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 28.63, "t": 47.43 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 21.75, "t": 52.09 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 38.34, "t": 61.75 }
       ],
-      "tile": { "l": 33.23, "t": 87.45, "r": 71.76, "b": 135.12 },
-      "margins": { "L": 24.62, "R": 24.62, "T": 12.7, "B": 12.88 },
-      "gaps": { "brandToMessage": 18.74, "messageToCode": 18.75 },
-      "spareSplitTop": null,
+      "tile": { "l": 33.23, "t": 83.58, "r": 71.76, "b": 131.24 },
+      "margins": { "L": 21.75, "R": 21.76, "T": 15.75, "B": 16.76 },
+      "gaps": { "brandToMessage": 19.01, "messageToCode": 19.01 },
+      "spareSplitTop": 0.44,
       "photo": null
     },
     {
@@ -405,19 +434,28 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 12.7, "t": 25.73 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 12.7, "t": 47.91 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 12.7, "t": 52.99 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 12.7, "t": 57.65 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 12.7, "t": 69 }
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 12.7, "t": 29.45 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 12.7, "t": 51.63 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 12.7, "t": 56.29 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 12.7, "t": 65.95 }
       ],
       "tile": { "l": 96.77, "t": 25.19, "r": 135.3, "b": 72.86 },
       "margins": { "L": 12.7, "R": 12.7, "T": 25.19, "B": 32.14 },
-      "gaps": { "brandToMessage": 9.5, "messageToCode": 28.31 },
+      "gaps": { "brandToMessage": 9.5, "messageToCode": 22.58 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -429,18 +467,28 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.42,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 14.75, "h": 8.2, "l": 29.75, "t": 6.5 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 17.03, "t": 24.28 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 18.2, "t": 27.83 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 20.5, "t": 35.54 }
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 17.03, "t": 25.13 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 16.26, "t": 28.68 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 25.54, "t": 35.25 }
       ],
       "tile": { "l": 18.86, "t": 47.98, "r": 55.39, "b": 92.12 },
-      "margins": { "L": 17.03, "R": 17.03, "T": 6.5, "B": 12.88 },
-      "gaps": { "brandToMessage": 9.58, "messageToCode": 9.58 },
+      "margins": { "L": 16.26, "R": 16.27, "T": 6.5, "B": 12.88 },
+      "gaps": { "brandToMessage": 10.43, "messageToCode": 10.43 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -452,18 +500,28 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.42,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
-        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 18.97 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 33.67 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 8.63, "t": 37.22 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 8.64, "t": 44.93 }
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 19.82 },
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 34.52 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 8.63, "t": 38.07 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 8.64, "t": 44.64 }
       ],
       "tile": { "l": 59.83, "t": 11.22, "r": 96.36, "b": 55.37 },
       "margins": { "L": 8.63, "R": 8.64, "T": 11.22, "B": 18.88 },
-      "gaps": { "brandToMessage": 6.5, "messageToCode": 11.01 },
+      "gaps": { "brandToMessage": 6.5, "messageToCode": 9.48 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -475,17 +533,27 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.26,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 12.07, "h": 6.71, "l": 20.96, "t": 5 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 11.44, "t": 21.17 },
-        { "key": "subline", "w": 29.52, "h": 2.54, "l": 12.24, "t": 27.43 }
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 20.96, "t": 5.26 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 9.95, "t": 21.96 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 16.71, "t": 27.07 }
       ],
-      "tile": { "l": 10.74, "t": 39.44, "r": 43.26, "b": 78.82 },
-      "margins": { "L": 10.74, "R": 10.74, "T": 5, "B": 6.18 },
-      "gaps": { "brandToMessage": 9.47, "messageToCode": 9.46 },
+      "tile": { "l": 10.74, "t": 39.11, "r": 43.26, "b": 78.49 },
+      "margins": { "L": 9.95, "R": 9.95, "T": 5.26, "B": 6.51 },
+      "gaps": { "brandToMessage": 9.99, "messageToCode": 9.99 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -497,17 +565,27 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.26,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 12.07, "h": 6.71, "l": 5, "t": 16.04 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 5, "t": 27.75 },
-        { "key": "subline", "w": 29.52, "h": 2.54, "l": 5, "t": 34 }
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 5, "t": 16.86 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 5, "t": 28.56 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 5, "t": 33.68 }
       ],
       "tile": { "l": 47.47, "t": 6.51, "r": 80, "b": 45.89 },
       "margins": { "L": 5, "R": 5, "T": 6.51, "B": 8.11 },
-      "gaps": { "brandToMessage": 5, "messageToCode": 11.35 },
+      "gaps": { "brandToMessage": 4.99, "messageToCode": 8.38 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -519,21 +597,30 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 42.88, "t": 9.5 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 41.95, "t": 45.38 },
-        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 39.46, "t": 50.46 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 24.62, "t": 55.12 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 32.2, "t": 66.47 }
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 42.88, "t": 12.67 },
+        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 39.45, "t": 48.67 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 21.75, "t": 53.33 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 38.34, "t": 62.99 }
       ],
-      "tile": { "l": 33.5, "t": 88.85, "r": 71.5, "b": 135.99 },
-      "margins": { "L": 24.62, "R": 24.62, "T": 9.5, "B": 12.01 },
-      "gaps": { "brandToMessage": 18.89, "messageToCode": 18.89 },
-      "spareSplitTop": null,
-      "photo": { "px": [1195, 669], "w": 4.37, "h": 3.5, "dpi": 191 }
+      "tile": { "l": 33.5, "t": 84.82, "r": 71.5, "b": 131.95 },
+      "margins": { "L": 21.75, "R": 21.76, "T": 12.67, "B": 16.05 },
+      "gaps": { "brandToMessage": 19.01, "messageToCode": 19.01 },
+      "spareSplitTop": 0.44,
+      "photo": { "px": [1195, 669], "w": 4.37, "h": 3.34, "dpi": 200 }
     },
     {
       "board": "europe",
@@ -543,19 +630,28 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.5, "t": 23.76 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.5, "t": 50.26 },
-        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.5, "t": 55.34 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.5, "t": 60 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.5, "t": 71.35 }
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.5, "t": 27.25 },
+        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.5, "t": 53.75 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.5, "t": 58.41 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.5, "t": 68.07 }
       ],
-      "tile": { "l": 100.5, "t": 25.73, "r": 138.5, "b": 72.87 },
-      "margins": { "L": 9.5, "R": 9.5, "T": 23.76, "B": 30.16 },
-      "gaps": { "brandToMessage": 9.5, "messageToCode": 35.23 },
+      "tile": { "l": 100.5, "t": 25.5, "r": 138.5, "b": 72.63 },
+      "margins": { "L": 9.5, "R": 9.5, "T": 25.5, "B": 32.37 },
+      "gaps": { "brandToMessage": 9.5, "messageToCode": 29.51 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1195, 669], "w": 4.07, "h": 4.37, "dpi": 153 }
     },
@@ -567,18 +663,28 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.42,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 12.65, "h": 11.1, "l": 30.8, "t": 9.04 },
-        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 26.14, "t": 29.25 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 18.2, "t": 32.8 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 20.5, "t": 40.51 }
+        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 26.14, "t": 30.1 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 16.26, "t": 33.65 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 25.54, "t": 40.22 }
       ],
       "tile": { "l": 19.12, "t": 52.49, "r": 55.12, "b": 96.11 },
-      "margins": { "L": 18.2, "R": 18.21, "T": 9.04, "B": 8.89 },
-      "gaps": { "brandToMessage": 9.12, "messageToCode": 9.11 },
+      "margins": { "L": 16.26, "R": 16.27, "T": 9.04, "B": 8.89 },
+      "gaps": { "brandToMessage": 9.97, "messageToCode": 9.96 },
       "spareSplitTop": null,
       "photo": { "px": [1195, 669], "w": 3.16, "h": 1.85, "dpi": 362 }
     },
@@ -590,18 +696,28 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.42,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.5, "t": 18.95 },
         { "key": "kicker", "w": 20.61, "h": 1.92, "l": 6.5, "t": 36.55 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 6.5, "t": 40.09 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 6.5, "t": 47.81 }
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 6.5, "t": 40.09 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 6.5, "t": 46.66 }
       ],
       "tile": { "l": 62.5, "t": 14.63, "r": 98.5, "b": 58.25 },
       "margins": { "L": 6.5, "R": 6.5, "T": 14.63, "B": 16 },
-      "gaps": { "brandToMessage": 6.5, "messageToCode": 18.16 },
+      "gaps": { "brandToMessage": 6.5, "messageToCode": 14.28 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1195, 669], "w": 2.58, "h": 2.94, "dpi": 227 }
     },
@@ -613,17 +729,27 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.26,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
         { "key": "brand", "w": 10.33, "h": 8.99, "l": 21.84, "t": 5 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 11.44, "t": 22.65 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 12.06, "t": 28.91 }
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 9.95, "t": 23.47 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 16.58, "t": 28.59 }
       ],
       "tile": { "l": 11, "t": 40.14, "r": 43, "b": 78.99 },
-      "margins": { "L": 11, "R": 11, "T": 5, "B": 6.01 },
-      "gaps": { "brandToMessage": 8.66, "messageToCode": 8.66 },
+      "margins": { "L": 9.95, "R": 9.95, "T": 5, "B": 6.01 },
+      "gaps": { "brandToMessage": 9.48, "messageToCode": 9.49 },
       "spareSplitTop": null,
       "photo": { "px": [1195, 669], "w": 2.36, "h": 1.58, "dpi": 423 }
     },
@@ -635,17 +761,27 @@
       "region": "eu",
       "address": "short",
       "tileIn": 1.26,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 10.33, "h": 8.99, "l": 5, "t": 14.84 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 5, "t": 28.83 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 5, "t": 35.09 }
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 5, "t": 15.67 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 5, "t": 29.65 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 5, "t": 34.77 }
       ],
       "tile": { "l": 48, "t": 6.82, "r": 80, "b": 45.67 },
       "margins": { "L": 5, "R": 5, "T": 6.82, "B": 8.33 },
-      "gaps": { "brandToMessage": 4.99, "messageToCode": 11.88 },
+      "gaps": { "brandToMessage": 4.99, "messageToCode": 8.91 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1195, 669], "w": 2.01, "h": 2.36, "dpi": 283 }
     },
@@ -657,22 +793,37 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "Review us on Google",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": "Unos 30 segundos"
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "stack",
       "headlinePt": 28,
       "parts": [
         { "key": "brand", "w": 22.8, "h": 12.68, "l": 39.4, "t": 9.52 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 33.77 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 38.86 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 43.52 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 54.88 },
-        { "key": "rule", "w": 8, "h": 0.35, "l": 46.8, "t": 63.14 },
-        { "key": "headline2", "w": 30.83, "h": 3.91, "l": 35.38, "t": 68.25 },
-        { "key": "subline2", "w": 46.95, "h": 3.9, "l": 27.32, "t": 74.53 }
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 36.79 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 41.45 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 51.13 },
+        { "key": "rule", "w": 8, "h": 0.35, "l": 46.8, "t": 58.7 },
+        { "key": "headline2", "w": 38.32, "h": 5.32, "l": 31.64, "t": 63.81 },
+        { "key": "subline2", "w": 28.46, "h": 3.9, "l": 36.57, "t": 71.51 }
       ],
       "tile": { "l": 31.49, "t": 90.01, "r": 70.11, "b": 140.32 },
-      "margins": { "L": 22.92, "R": 22.92, "T": 9.52, "B": 12.08 },
-      "gaps": { "brandToMessage": 11.57, "messageToCode": 11.57 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 9.52, "B": 12.08 },
+      "gaps": { "brandToMessage": 14.59, "messageToCode": 14.59 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -684,22 +835,37 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "Review us on Google",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": "Unos 30 segundos"
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "stack",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 15.38 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 37.58 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 42.67 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 47.33 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 58.69 },
-        { "key": "rule", "w": 8, "h": 0.35, "l": 9.52, "t": 66.94 },
-        { "key": "headline2", "w": 30.83, "h": 3.91, "l": 9.52, "t": 72.05 },
-        { "key": "subline2", "w": 46.95, "h": 3.9, "l": 9.52, "t": 78.34 }
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 18.03 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 40.23 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 44.9 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 54.57 },
+        { "key": "rule", "w": 8, "h": 0.35, "l": 9.52, "t": 62.14 },
+        { "key": "headline2", "w": 38.32, "h": 5.32, "l": 9.52, "t": 67.26 },
+        { "key": "subline2", "w": 28.46, "h": 3.9, "l": 9.52, "t": 74.96 }
       ],
-      "tile": { "l": 104.25, "t": 23.56, "r": 142.87, "b": 73.88 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 15.38, "B": 19.36 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 38.96 },
+      "tile": { "l": 104.25, "t": 23.2, "r": 142.87, "b": 73.52 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 18.03, "B": 22.74 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 33.23 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -711,19 +877,35 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "Review us on Google",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": ""
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "line",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 14.75, "h": 8.2, "l": 27.55, "t": 6.35 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 14.83, "t": 22.99 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 26.5 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 34.17 },
-        { "key": "secondLine", "w": 18.61, "h": 2.28, "l": 25.62, "t": 38.62 }
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 14.83, "t": 23.53 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 27.04 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 33.58 },
+        { "key": "secondLine", "w": 23.09, "h": 2.89, "l": 23.38, "t": 37.47 }
       ],
       "tile": { "l": 16.88, "t": 49.34, "r": 52.97, "b": 95.07 },
-      "margins": { "L": 14.83, "R": 14.83, "T": 6.35, "B": 12.88 },
-      "gaps": { "brandToMessage": 8.43, "messageToCode": 8.43 },
+      "margins": { "L": 14.06, "R": 14.07, "T": 6.35, "B": 12.88 },
+      "gaps": { "brandToMessage": 8.98, "messageToCode": 8.98 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -735,21 +917,37 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "Review us on Google",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": "Unos 30 segundos"
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "stack",
       "headlinePt": 19,
       "parts": [
-        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 9.79 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 24.34 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 8.63, "t": 27.86 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 8.64, "t": 35.53 },
-        { "key": "rule", "w": 6, "h": 0.35, "l": 8.63, "t": 41.56 },
-        { "key": "headline2", "w": 25.68, "h": 3.25, "l": 8.63, "t": 45.09 },
-        { "key": "subline2", "w": 38.43, "h": 3.19, "l": 8.64, "t": 49.93 }
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 10.05 },
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 24.6 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 8.63, "t": 28.11 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 8.64, "t": 34.65 },
+        { "key": "rule", "w": 6, "h": 0.35, "l": 8.63, "t": 40.12 },
+        { "key": "headline2", "w": 31.92, "h": 4.43, "l": 8.63, "t": 43.65 },
+        { "key": "subline2", "w": 23.29, "h": 3.19, "l": 8.64, "t": 49.67 }
       ],
       "tile": { "l": 63.23, "t": 8.5, "r": 99.31, "b": 54.24 },
       "margins": { "L": 8.63, "R": 8.64, "T": 8.5, "B": 15.61 },
-      "gaps": { "brandToMessage": 6.35, "messageToCode": 14.4 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 12.87 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -761,18 +959,29 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        { "locale": "es", "kicker": "", "headline": "¿Cómo lo hicimos?", "subline": "" }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "line",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 12.07, "h": 6.71, "l": 19.36, "t": 4.94 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 21.17 },
-        { "key": "subline", "w": 29.52, "h": 2.54, "l": 10.64, "t": 27.37 },
-        { "key": "secondLine", "w": 16.54, "h": 2.03, "l": 17.13, "t": 31.1 }
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 19.36, "t": 5.42 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 21.66 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 15.11, "t": 26.71 },
+        { "key": "secondLine", "w": 20.51, "h": 2.56, "l": 15.14, "t": 29.95 }
       ],
-      "tile": { "l": 9.26, "t": 42.65, "r": 41.54, "b": 82.55 },
-      "margins": { "L": 9.26, "R": 9.26, "T": 4.94, "B": 6.35 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 9.52 },
+      "tile": { "l": 9.26, "t": 42.04, "r": 41.54, "b": 81.93 },
+      "margins": { "L": 8.35, "R": 8.35, "T": 5.42, "B": 6.97 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.53 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -784,20 +993,36 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": "Unos 30 segundos"
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "stack",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 8.84 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 4.76, "t": 20.31 },
-        { "key": "subline", "w": 29.52, "h": 2.54, "l": 4.76, "t": 26.51 },
-        { "key": "rule", "w": 5, "h": 0.35, "l": 4.76, "t": 31.43 },
-        { "key": "headline2", "w": 21.59, "h": 2.58, "l": 4.76, "t": 34.16 },
-        { "key": "subline2", "w": 34.14, "h": 2.84, "l": 4.76, "t": 37.93 }
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 9.33 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 20.8 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 4.76, "t": 25.86 },
+        { "key": "rule", "w": 5, "h": 0.35, "l": 4.76, "t": 30.28 },
+        { "key": "headline2", "w": 26.46, "h": 3.24, "l": 4.76, "t": 33.01 },
+        { "key": "subline2", "w": 20.69, "h": 2.84, "l": 4.76, "t": 37.44 }
       ],
       "tile": { "l": 51.86, "t": 4.77, "r": 84.14, "b": 44.66 },
       "margins": { "L": 4.76, "R": 4.76, "T": 4.77, "B": 6.14 },
-      "gaps": { "brandToMessage": 4.76, "messageToCode": 12.96 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -809,22 +1034,37 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "Reception",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": "Unos 30 segundos"
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "stack",
       "headlinePt": 28,
       "parts": [
         { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 9.52 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 36.28 },
-        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 41.37 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 46.03 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 57.39 },
-        { "key": "rule", "w": 8, "h": 0.35, "l": 46.8, "t": 65.65 },
-        { "key": "headline2", "w": 30.83, "h": 3.91, "l": 35.38, "t": 70.76 },
-        { "key": "subline2", "w": 46.95, "h": 3.9, "l": 27.32, "t": 77.04 }
+        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 39.3 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 43.96 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 53.63 },
+        { "key": "rule", "w": 8, "h": 0.35, "l": 46.8, "t": 61.21 },
+        { "key": "headline2", "w": 38.32, "h": 5.32, "l": 31.64, "t": 66.32 },
+        { "key": "subline2", "w": 28.46, "h": 3.9, "l": 36.57, "t": 74.02 }
       ],
       "tile": { "l": 31.75, "t": 90.71, "r": 69.85, "b": 140.49 },
-      "margins": { "L": 22.92, "R": 22.92, "T": 9.52, "B": 11.91 },
-      "gaps": { "brandToMessage": 9.76, "messageToCode": 9.77 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 9.52, "B": 11.91 },
+      "gaps": { "brandToMessage": 12.78, "messageToCode": 12.78 },
       "spareSplitTop": null,
       "photo": { "px": [1195, 669], "w": 4.25, "h": 3.58, "dpi": 187 }
     },
@@ -836,22 +1076,37 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "Reception",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": "Unos 30 segundos"
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "stack",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 13.48 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 40 },
-        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 45.08 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 49.75 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 61.1 },
-        { "key": "rule", "w": 8, "h": 0.35, "l": 9.52, "t": 69.36 },
-        { "key": "headline2", "w": 30.83, "h": 3.91, "l": 9.52, "t": 74.47 },
-        { "key": "subline2", "w": 46.95, "h": 3.9, "l": 9.52, "t": 80.75 }
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 16.14 },
+        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 42.65 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 47.31 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 56.98 },
+        { "key": "rule", "w": 8, "h": 0.35, "l": 9.52, "t": 64.56 },
+        { "key": "headline2", "w": 38.32, "h": 5.32, "l": 9.52, "t": 69.67 },
+        { "key": "subline2", "w": 28.46, "h": 3.9, "l": 9.52, "t": 77.38 }
       ],
-      "tile": { "l": 104.78, "t": 24.18, "r": 142.87, "b": 73.96 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 13.48, "B": 16.95 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 39.49 },
+      "tile": { "l": 104.78, "t": 23.81, "r": 142.87, "b": 73.6 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 16.14, "B": 20.32 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 33.76 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1195, 669], "w": 4.25, "h": 4.25, "dpi": 157 }
     },
@@ -863,19 +1118,35 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "Reception",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": ""
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "line",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 12.65, "h": 11.1, "l": 28.6, "t": 8.89 },
-        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 23.94, "t": 27.96 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 31.47 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 39.14 },
-        { "key": "secondLine", "w": 18.61, "h": 2.28, "l": 25.62, "t": 43.59 }
+        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 23.94, "t": 28.51 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 32.01 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 38.55 },
+        { "key": "secondLine", "w": 23.09, "h": 2.89, "l": 23.38, "t": 42.44 }
       ],
       "tile": { "l": 17.14, "t": 53.85, "r": 52.7, "b": 99.05 },
-      "margins": { "L": 16, "R": 16.01, "T": 8.89, "B": 8.9 },
-      "gaps": { "brandToMessage": 7.97, "messageToCode": 7.97 },
+      "margins": { "L": 14.06, "R": 14.07, "T": 8.89, "B": 8.9 },
+      "gaps": { "brandToMessage": 8.52, "messageToCode": 8.52 },
       "spareSplitTop": null,
       "photo": { "px": [1195, 669], "w": 3, "h": 1.9, "dpi": 352 }
     },
@@ -887,21 +1158,37 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "Reception",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": "Unos 30 segundos"
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "stack",
       "headlinePt": 19,
       "parts": [
-        { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.35, "t": 11.46 },
-        { "key": "kicker", "w": 20.61, "h": 1.92, "l": 6.35, "t": 28.91 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 6.35, "t": 32.42 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 6.35, "t": 40.1 },
-        { "key": "rule", "w": 6, "h": 0.35, "l": 6.35, "t": 46.13 },
-        { "key": "headline2", "w": 25.68, "h": 3.25, "l": 6.35, "t": 49.65 },
-        { "key": "subline2", "w": 38.43, "h": 3.19, "l": 6.35, "t": 54.49 }
+        { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.35, "t": 11.69 },
+        { "key": "kicker", "w": 20.61, "h": 1.92, "l": 6.35, "t": 29.13 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 6.35, "t": 32.65 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 6.35, "t": 39.18 },
+        { "key": "rule", "w": 6, "h": 0.35, "l": 6.35, "t": 44.66 },
+        { "key": "headline2", "w": 31.92, "h": 4.43, "l": 6.35, "t": 48.18 },
+        { "key": "subline2", "w": 23.29, "h": 3.19, "l": 6.35, "t": 54.2 }
       ],
-      "tile": { "l": 66.04, "t": 11.96, "r": 101.6, "b": 57.17 },
-      "margins": { "L": 6.35, "R": 6.35, "T": 11.46, "B": 12.17 },
-      "gaps": { "brandToMessage": 6.35, "messageToCode": 21.26 },
+      "tile": { "l": 66.04, "t": 11.94, "r": 101.6, "b": 57.14 },
+      "margins": { "L": 6.35, "R": 6.35, "T": 11.69, "B": 12.46 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 17.97 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1195, 669], "w": 2.73, "h": 2.78, "dpi": 241 }
     },
@@ -913,18 +1200,29 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        { "locale": "es", "kicker": "", "headline": "¿Cómo lo hicimos?", "subline": "" }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "line",
       "headlinePt": 15,
       "parts": [
         { "key": "brand", "w": 10.33, "h": 8.99, "l": 20.24, "t": 4.76 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 22.66 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 10.45, "t": 28.87 },
-        { "key": "secondLine", "w": 16.83, "h": 2.04, "l": 16.98, "t": 32.63 }
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 23.22 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 14.98, "t": 28.28 },
+        { "key": "secondLine", "w": 20.78, "h": 2.57, "l": 15.01, "t": 31.53 }
       ],
       "tile": { "l": 9.52, "t": 43.57, "r": 41.28, "b": 82.94 },
-      "margins": { "L": 9.52, "R": 9.52, "T": 4.76, "B": 5.96 },
-      "gaps": { "brandToMessage": 8.91, "messageToCode": 8.91 },
+      "margins": { "L": 8.35, "R": 8.35, "T": 4.76, "B": 5.96 },
+      "gaps": { "brandToMessage": 9.47, "messageToCode": 9.47 },
       "spareSplitTop": null,
       "photo": { "px": [1195, 669], "w": 2.25, "h": 1.72, "dpi": 388 }
     },
@@ -936,20 +1234,36 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en", "es"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "es",
+          "kicker": "",
+          "headline": "¿Cómo lo hicimos?",
+          "subline": "Unos 30 segundos"
+        }
+      ],
       "cueLines": 2,
+      "cues": ["Scan with your camera", "Escanee con la cámara"],
       "languages": "stack",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 10.33, "h": 8.99, "l": 4.76, "t": 7.64 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 4.76, "t": 21.39 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 4.76, "t": 27.59 },
-        { "key": "rule", "w": 5, "h": 0.35, "l": 4.76, "t": 32.54 },
-        { "key": "headline2", "w": 21.59, "h": 2.58, "l": 4.76, "t": 35.27 },
-        { "key": "subline2", "w": 34.52, "h": 2.84, "l": 4.76, "t": 39.04 }
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 4.76, "t": 8.13 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 21.88 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 4.76, "t": 26.94 },
+        { "key": "rule", "w": 5, "h": 0.35, "l": 4.76, "t": 31.39 },
+        { "key": "headline2", "w": 26.46, "h": 3.24, "l": 4.76, "t": 34.12 },
+        { "key": "subline2", "w": 20.93, "h": 2.84, "l": 4.76, "t": 38.55 }
       ],
       "tile": { "l": 52.39, "t": 5.08, "r": 84.14, "b": 44.45 },
       "margins": { "L": 4.76, "R": 4.76, "T": 5.08, "B": 6.35 },
-      "gaps": { "brandToMessage": 4.76, "messageToCode": 13.11 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13.53 },
       "spareSplitTop": null,
       "photo": { "px": [1195, 669], "w": 2.19, "h": 2.25, "dpi": 297 }
     },
@@ -961,18 +1275,27 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 60.84, "h": 3.32, "l": 20.38, "t": 17 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 39.37 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 44.46 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 49.12 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 60.48 }
+        { "key": "brand", "w": 60.84, "h": 3.32, "l": 20.38, "t": 20.29 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 42.65 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 47.31 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 56.99 }
       ],
-      "tile": { "l": 31.49, "t": 83.03, "r": 70.11, "b": 130.8 },
-      "margins": { "L": 20.38, "R": 20.38, "T": 17, "B": 21.6 },
+      "tile": { "l": 31.49, "t": 78.85, "r": 70.11, "b": 126.62 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 20.29, "B": 25.78 },
       "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
       "spareSplitTop": 0.44,
       "photo": null
@@ -985,19 +1308,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 60.84, "h": 3.32, "l": 9.52, "t": 28.95 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 41.8 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 46.88 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 51.55 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 62.9 }
+        { "key": "brand", "w": 60.84, "h": 3.32, "l": 9.52, "t": 32.68 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 45.52 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 50.18 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 59.86 }
       ],
       "tile": { "l": 104.25, "t": 23.7, "r": 142.87, "b": 71.47 },
       "margins": { "L": 9.52, "R": 9.53, "T": 23.7, "B": 30.13 },
-      "gaps": { "brandToMessage": 9.53, "messageToCode": 38.96 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 33.23 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -1009,18 +1341,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
-        { "key": "brand", "w": 27.34, "h": 7.07, "l": 21.25, "t": 6.35 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 14.83, "t": 25.37 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 28.88 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 36.56 }
+        { "key": "brand", "w": 27.34, "h": 7.07, "l": 21.25, "t": 6.44 },
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 14.83, "t": 26.21 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 29.71 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 36.25 }
       ],
-      "tile": { "l": 16.88, "t": 51.37, "r": 52.97, "b": 95.07 },
-      "margins": { "L": 14.83, "R": 14.83, "T": 6.35, "B": 12.88 },
-      "gaps": { "brandToMessage": 11.95, "messageToCode": 11.95 },
+      "tile": { "l": 16.88, "t": 51.25, "r": 52.97, "b": 94.96 },
+      "margins": { "L": 14.06, "R": 14.07, "T": 6.44, "B": 12.99 },
+      "gaps": { "brandToMessage": 12.7, "messageToCode": 12.7 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -1032,18 +1374,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
-        { "key": "brand", "w": 27.38, "h": 7.07, "l": 8.63, "t": 17.6 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 31.02 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 8.63, "t": 34.53 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 8.64, "t": 42.21 }
+        { "key": "brand", "w": 27.38, "h": 7.07, "l": 8.63, "t": 18.45 },
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 31.87 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 8.63, "t": 35.38 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 8.64, "t": 41.91 }
       ],
       "tile": { "l": 63.23, "t": 9.39, "r": 99.31, "b": 53.1 },
       "margins": { "L": 8.63, "R": 8.64, "T": 9.39, "B": 16.75 },
-      "gaps": { "brandToMessage": 6.35, "messageToCode": 14.4 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 12.87 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -1055,17 +1407,27 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 36.94, "h": 2.01, "l": 6.93, "t": 8.75 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 20.29 },
-        { "key": "subline", "w": 29.52, "h": 2.54, "l": 10.64, "t": 26.49 }
+        { "key": "brand", "w": 36.94, "h": 2.01, "l": 6.93, "t": 9.47 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 21.01 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 15.11, "t": 26.07 }
       ],
-      "tile": { "l": 9.26, "t": 38.55, "r": 41.54, "b": 77.69 },
-      "margins": { "L": 6.93, "R": 6.94, "T": 8.75, "B": 11.21 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 9.52 },
+      "tile": { "l": 9.26, "t": 37.64, "r": 41.54, "b": 76.77 },
+      "margins": { "L": 6.93, "R": 6.94, "T": 9.47, "B": 12.13 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.52 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -1077,17 +1439,27 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 36.94, "h": 2.01, "l": 4.76, "t": 17 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 4.76, "t": 23.77 },
-        { "key": "subline", "w": 29.52, "h": 2.54, "l": 4.76, "t": 29.97 }
+        { "key": "brand", "w": 36.94, "h": 2.01, "l": 4.76, "t": 17.82 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 24.59 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 4.76, "t": 29.65 }
       ],
       "tile": { "l": 51.86, "t": 5.1, "r": 84.14, "b": 44.24 },
       "margins": { "L": 4.76, "R": 4.76, "T": 5.1, "B": 6.56 },
-      "gaps": { "brandToMessage": 4.76, "messageToCode": 15.97 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -1099,21 +1471,30 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 60.84, "h": 3.32, "l": 20.38, "t": 17.31 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 39.68 },
-        { "key": "kicker", "w": 56.18, "h": 2.28, "l": 22.71, "t": 44.77 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 49.43 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 60.79 }
+        { "key": "brand", "w": 60.84, "h": 3.32, "l": 20.38, "t": 20.59 },
+        { "key": "kicker", "w": 56.18, "h": 2.28, "l": 22.71, "t": 42.96 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 47.62 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 57.29 }
       ],
-      "tile": { "l": 31.75, "t": 83.33, "r": 69.85, "b": 130.57 },
-      "margins": { "L": 20.38, "R": 20.38, "T": 17.31, "B": 21.83 },
+      "tile": { "l": 31.75, "t": 79.16, "r": 69.85, "b": 126.4 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 20.59, "B": 26 },
       "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
       "spareSplitTop": 0.44,
-      "photo": { "px": [1620, 1080], "w": 4.25, "h": 3.29, "dpi": 328 }
+      "photo": { "px": [1620, 1080], "w": 4.25, "h": 3.12, "dpi": 345 }
     },
     {
       "board": "no-logo",
@@ -1123,19 +1504,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 60.84, "h": 3.32, "l": 9.52, "t": 28.91 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 41.75 },
-        { "key": "kicker", "w": 52.56, "h": 2.28, "l": 9.52, "t": 46.84 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 51.51 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 62.86 }
+        { "key": "brand", "w": 60.84, "h": 3.32, "l": 9.52, "t": 32.63 },
+        { "key": "kicker", "w": 52.56, "h": 2.28, "l": 9.52, "t": 45.48 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 50.14 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 59.81 }
       ],
       "tile": { "l": 104.78, "t": 24.01, "r": 142.87, "b": 71.25 },
       "margins": { "L": 9.52, "R": 9.53, "T": 24.01, "B": 30.35 },
-      "gaps": { "brandToMessage": 9.53, "messageToCode": 39.49 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 33.76 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1620, 1080], "w": 4.25, "h": 4.25, "dpi": 254 }
     },
@@ -1147,20 +1537,30 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
-        { "key": "brand", "w": 47.79, "h": 2.61, "l": 11.03, "t": 11.06 },
-        { "key": "kicker", "w": 47.31, "h": 1.92, "l": 11.27, "t": 26.37 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 29.88 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 37.55 }
+        { "key": "brand", "w": 47.79, "h": 2.61, "l": 11.03, "t": 11.81 },
+        { "key": "kicker", "w": 47.31, "h": 1.92, "l": 11.27, "t": 27.12 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 30.62 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 37.16 }
       ],
-      "tile": { "l": 17.14, "t": 53.12, "r": 52.7, "b": 96.29 },
-      "margins": { "L": 11.03, "R": 11.03, "T": 11.06, "B": 11.66 },
+      "tile": { "l": 17.14, "t": 52.16, "r": 52.7, "b": 95.34 },
+      "margins": { "L": 11.03, "R": 11.03, "T": 11.81, "B": 12.61 },
       "gaps": { "brandToMessage": 12.7, "messageToCode": 12.7 },
       "spareSplitTop": 0.44,
-      "photo": { "px": [1620, 1080], "w": 3, "h": 1.87, "dpi": 540 }
+      "photo": { "px": [1620, 1080], "w": 3, "h": 1.83, "dpi": 540 }
     },
     {
       "board": "no-logo",
@@ -1170,14 +1570,24 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
-        { "key": "brand", "w": 47.79, "h": 2.61, "l": 6.35, "t": 22.89 },
-        { "key": "kicker", "w": 44.26, "h": 1.92, "l": 6.35, "t": 31.85 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 6.35, "t": 35.35 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 6.35, "t": 43.03 }
+        { "key": "brand", "w": 47.79, "h": 2.61, "l": 6.35, "t": 23.74 },
+        { "key": "kicker", "w": 44.26, "h": 1.92, "l": 6.35, "t": 32.69 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 6.35, "t": 36.21 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 6.35, "t": 42.74 }
       ],
       "tile": { "l": 66.04, "t": 12.8, "r": 101.6, "b": 55.98 },
       "margins": { "L": 6.35, "R": 6.35, "T": 12.8, "B": 13.87 },
@@ -1193,19 +1603,29 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 36.94, "h": 2.01, "l": 6.93, "t": 9.04 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 20.58 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 10.45, "t": 26.79 }
+        { "key": "brand", "w": 36.94, "h": 2.01, "l": 6.93, "t": 9.77 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 21.31 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 14.98, "t": 26.37 }
       ],
-      "tile": { "l": 9.52, "t": 38.89, "r": 41.28, "b": 77.49 },
-      "margins": { "L": 6.93, "R": 6.94, "T": 9.04, "B": 11.41 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 9.52 },
+      "tile": { "l": 9.52, "t": 37.96, "r": 41.28, "b": 76.56 },
+      "margins": { "L": 6.93, "R": 6.94, "T": 9.77, "B": 12.34 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.53 },
       "spareSplitTop": 0.44,
-      "photo": { "px": [1620, 1080], "w": 2.25, "h": 1.54, "dpi": 703 }
+      "photo": { "px": [1620, 1080], "w": 2.25, "h": 1.5, "dpi": 720 }
     },
     {
       "board": "no-logo",
@@ -1215,226 +1635,126 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 36.94, "h": 2.01, "l": 4.76, "t": 16.94 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 4.76, "t": 23.72 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 4.76, "t": 29.92 }
+        { "key": "brand", "w": 36.94, "h": 2.01, "l": 4.76, "t": 17.76 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 24.54 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 4.76, "t": 29.6 }
       ],
       "tile": { "l": 52.39, "t": 5.41, "r": 84.14, "b": 44.02 },
       "margins": { "L": 4.76, "R": 4.76, "T": 5.41, "B": 6.78 },
-      "gaps": { "brandToMessage": 4.77, "messageToCode": 16.5 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13.53 },
       "spareSplitTop": null,
       "photo": { "px": [1620, 1080], "w": 2.19, "h": 2.25, "dpi": 480 }
     },
     {
-      "board": "no-photo",
+      "board": "long-text",
       "piece": "counter",
       "orientation": "upright",
-      "look": "immersive",
+      "look": "paper",
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 11.3 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 47.34 },
-        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 52.43 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 57.09 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 68.45 }
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 39.4, "t": 16.16 },
+        { "key": "kicker", "w": 66.5, "h": 2.28, "l": 17.55, "t": 47.89 },
+        { "key": "headline", "w": 74.01, "h": 7.29, "l": 13.8, "t": 52.55 },
+        { "key": "subline", "w": 28.99, "h": 2.82, "l": 36.3, "t": 62.23 }
       ],
-      "tile": { "l": 31.75, "t": 90.99, "r": 69.85, "b": 138.23 },
-      "margins": { "L": 22.92, "R": 22.92, "T": 11.3, "B": 14.17 },
+      "tile": { "l": 31.49, "t": 84.09, "r": 70.11, "b": 131.86 },
+      "margins": { "L": 13.8, "R": 13.8, "T": 16.16, "B": 20.54 },
       "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
       "spareSplitTop": 0.44,
       "photo": null
     },
     {
-      "board": "no-photo",
+      "board": "long-text",
       "piece": "counter",
       "orientation": "wide",
-      "look": "immersive",
+      "look": "paper",
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 22.3 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 48.82 },
-        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 53.91 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 58.57 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 69.93 }
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 28 },
+        { "key": "kicker", "w": 66.5, "h": 2.28, "l": 9.52, "t": 50.2 },
+        { "key": "headline", "w": 74.01, "h": 7.29, "l": 9.52, "t": 54.86 },
+        { "key": "subline", "w": 28.99, "h": 2.82, "l": 9.52, "t": 64.53 }
       ],
-      "tile": { "l": 104.78, "t": 24.24, "r": 142.87, "b": 71.48 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 22.3, "B": 28.18 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 39.49 },
+      "tile": { "l": 104.25, "t": 23.7, "r": 142.87, "b": 71.47 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 23.7, "B": 30.13 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 20.71 },
       "spareSplitTop": 0.44,
       "photo": null
     },
     {
-      "board": "no-photo",
+      "board": "long-text",
       "piece": "tent",
       "orientation": "upright",
-      "look": "immersive",
+      "look": "paper",
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
       "headlinePt": 19,
-      "parts": [
-        { "key": "brand", "w": 12.65, "h": 11.1, "l": 28.6, "t": 8.89 },
-        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 23.94, "t": 30.91 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 34.42 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 42.1 }
-      ],
-      "tile": { "l": 17.14, "t": 55.88, "r": 52.7, "b": 99.05 },
-      "margins": { "L": 16, "R": 16.01, "T": 8.89, "B": 8.9 },
-      "gaps": { "brandToMessage": 10.92, "messageToCode": 10.92 },
-      "spareSplitTop": null,
-      "photo": null
-    },
-    {
-      "board": "no-photo",
-      "piece": "tent",
-      "orientation": "wide",
-      "look": "immersive",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.4,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 19,
-      "parts": [
-        { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.35, "t": 16.76 },
-        { "key": "kicker", "w": 20.61, "h": 1.92, "l": 6.35, "t": 34.21 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 6.35, "t": 37.72 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 6.35, "t": 45.4 }
-      ],
-      "tile": { "l": 66.04, "t": 12.8, "r": 101.6, "b": 55.98 },
-      "margins": { "L": 6.35, "R": 6.35, "T": 12.8, "B": 13.87 },
-      "gaps": { "brandToMessage": 6.35, "messageToCode": 21.86 },
-      "spareSplitTop": 0.44,
-      "photo": null
-    },
-    {
-      "board": "no-photo",
-      "piece": "small",
-      "orientation": "upright",
-      "look": "immersive",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.25,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 15,
-      "parts": [
-        { "key": "brand", "w": 10.33, "h": 8.99, "l": 20.24, "t": 5.97 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 24.49 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 10.45, "t": 30.69 }
-      ],
-      "tile": { "l": 9.52, "t": 42.79, "r": 41.28, "b": 81.4 },
-      "margins": { "L": 9.52, "R": 9.52, "T": 5.97, "B": 7.5 },
-      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.52 },
-      "spareSplitTop": 0.44,
-      "photo": null
-    },
-    {
-      "board": "no-photo",
-      "piece": "small",
-      "orientation": "wide",
-      "look": "immersive",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.25,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 15,
-      "parts": [
-        { "key": "brand", "w": 10.33, "h": 8.99, "l": 4.76, "t": 13.45 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 4.76, "t": 27.21 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 4.76, "t": 33.4 }
-      ],
-      "tile": { "l": 52.39, "t": 5.41, "r": 84.14, "b": 44.02 },
-      "margins": { "L": 4.76, "R": 4.76, "T": 5.41, "B": 6.78 },
-      "gaps": { "brandToMessage": 4.77, "messageToCode": 16.5 },
-      "spareSplitTop": null,
-      "photo": null
-    },
-    {
-      "board": "long-text",
-      "piece": "counter",
-      "orientation": "upright",
-      "look": "paper",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.5,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 28,
-      "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 39.4, "t": 9.59 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 41.31 },
-        { "key": "kicker", "w": 66.5, "h": 2.28, "l": 17.55, "t": 46.4 },
-        { "key": "headline", "w": 64.9, "h": 16.48, "l": 18.35, "t": 51.06 },
-        { "key": "subline", "w": 48.82, "h": 3.49, "l": 26.39, "t": 69.92 }
-      ],
-      "tile": { "l": 31.49, "t": 92.47, "r": 70.11, "b": 140.24 },
-      "margins": { "L": 17.55, "R": 17.55, "T": 9.59, "B": 12.16 },
-      "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
-      "spareSplitTop": null,
-      "photo": null
-    },
-    {
-      "board": "long-text",
-      "piece": "counter",
-      "orientation": "wide",
-      "look": "paper",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.5,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 28,
-      "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 20.9 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 43.1 },
-        { "key": "kicker", "w": 66.5, "h": 2.28, "l": 9.52, "t": 48.19 },
-        { "key": "headline", "w": 64.92, "h": 16.48, "l": 9.52, "t": 52.86 },
-        { "key": "subline", "w": 48.82, "h": 3.49, "l": 9.52, "t": 71.71 }
-      ],
-      "tile": { "l": 104.25, "t": 24.08, "r": 142.87, "b": 71.85 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 20.9, "B": 26.39 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 28.22 },
-      "spareSplitTop": 0.44,
-      "photo": null
-    },
-    {
-      "board": "long-text",
-      "piece": "tent",
-      "orientation": "upright",
-      "look": "paper",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.4,
-      "cueLines": 2,
-      "languages": "one",
-      "headlinePt": 18,
       "parts": [
         { "key": "brand", "w": 14.75, "h": 8.2, "l": 27.55, "t": 6.35 },
-        { "key": "kicker", "w": 29.74, "h": 5.17, "l": 20.05, "t": 21.04 },
-        { "key": "headline", "w": 41.72, "h": 10.6, "l": 14.06, "t": 27.8 },
-        { "key": "subline", "w": 39.96, "h": 2.86, "l": 14.94, "t": 39.98 }
+        { "key": "kicker", "w": 29.74, "h": 5.17, "l": 20.05, "t": 22.08 },
+        { "key": "headline", "w": 26.83, "h": 11.11, "l": 21.51, "t": 28.83 },
+        { "key": "subline", "w": 23.73, "h": 2.31, "l": 23.06, "t": 41.53 }
       ],
-      "tile": { "l": 16.88, "t": 49.34, "r": 52.97, "b": 95.07 },
-      "margins": { "L": 14.06, "R": 14.07, "T": 6.35, "B": 12.88 },
-      "gaps": { "brandToMessage": 6.49, "messageToCode": 6.5 },
+      "tile": { "l": 16.88, "t": 51.37, "r": 52.97, "b": 95.07 },
+      "margins": { "L": 16.88, "R": 16.88, "T": 6.35, "B": 12.88 },
+      "gaps": { "brandToMessage": 7.52, "messageToCode": 7.53 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -1446,18 +1766,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
-      "cueLines": 2,
-      "languages": "one",
-      "headlinePt": 18,
-      "parts": [
-        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 13.28 },
-        { "key": "kicker", "w": 29.74, "h": 5.17, "l": 8.63, "t": 27.84 },
-        { "key": "headline", "w": 41.74, "h": 10.6, "l": 8.64, "t": 34.59 },
-        { "key": "subline", "w": 39.96, "h": 2.86, "l": 8.63, "t": 46.77 }
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
       ],
-      "tile": { "l": 63.23, "t": 8.5, "r": 99.31, "b": 54.24 },
-      "margins": { "L": 8.63, "R": 8.64, "T": 8.5, "B": 15.61 },
-      "gaps": { "brandToMessage": 6.36, "messageToCode": 12.86 },
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 13.18 },
+        { "key": "kicker", "w": 29.74, "h": 5.17, "l": 8.63, "t": 27.73 },
+        { "key": "headline", "w": 27.05, "h": 11.11, "l": 8.63, "t": 34.49 },
+        { "key": "subline", "w": 23.73, "h": 2.31, "l": 8.64, "t": 47.18 }
+      ],
+      "tile": { "l": 63.23, "t": 9.39, "r": 99.31, "b": 53.1 },
+      "margins": { "L": 8.63, "R": 8.64, "T": 9.39, "B": 16.75 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 24.85 },
       "spareSplitTop": 0.44,
       "photo": null
     },
@@ -1469,17 +1799,27 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
-      "cueLines": 2,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 12.07, "h": 6.71, "l": 19.36, "t": 4.76 },
-        { "key": "headline", "w": 35.79, "h": 9.32, "l": 7.5, "t": 20.65 },
-        { "key": "subline", "w": 35.5, "h": 2.54, "l": 7.65, "t": 31.16 }
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 19.36, "t": 5.03 },
+        { "key": "headline", "w": 22.49, "h": 9.26, "l": 14.15, "t": 21.26 },
+        { "key": "subline", "w": 21.08, "h": 2.05, "l": 14.86, "t": 31.72 }
       ],
-      "tile": { "l": 9.26, "t": 42.87, "r": 41.54, "b": 82.77 },
-      "margins": { "L": 7.5, "R": 7.51, "T": 4.76, "B": 6.13 },
-      "gaps": { "brandToMessage": 9.18, "messageToCode": 9.18 },
+      "tile": { "l": 9.26, "t": 43.29, "r": 41.54, "b": 82.43 },
+      "margins": { "L": 9.26, "R": 9.26, "T": 5.03, "B": 6.47 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 9.53 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -1491,17 +1831,27 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
-      "cueLines": 2,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 12.54 },
-        { "key": "headline", "w": 35.82, "h": 9.32, "l": 4.76, "t": 24.02 },
-        { "key": "subline", "w": 35.5, "h": 2.54, "l": 4.76, "t": 34.52 }
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 15.47 },
+        { "key": "headline", "w": 41.99, "h": 3.87, "l": 4.76, "t": 26.94 },
+        { "key": "subline", "w": 21.08, "h": 2.05, "l": 4.76, "t": 32 }
       ],
-      "tile": { "l": 51.86, "t": 4.77, "r": 84.14, "b": 44.66 },
-      "margins": { "L": 4.76, "R": 4.76, "T": 4.77, "B": 6.14 },
-      "gaps": { "brandToMessage": 4.77, "messageToCode": 11.28 },
+      "tile": { "l": 51.86, "t": 5.1, "r": 84.14, "b": 44.24 },
+      "margins": { "L": 4.76, "R": 4.76, "T": 5.1, "B": 6.56 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 5.11 },
       "spareSplitTop": null,
       "photo": null
     },
@@ -1513,21 +1863,30 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 9.52 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 43.83 },
-        { "key": "kicker", "w": 78.7, "h": 2.28, "l": 11.44, "t": 48.92 },
-        { "key": "headline", "w": 64.9, "h": 16.48, "l": 18.35, "t": 53.58 },
-        { "key": "subline", "w": 48.82, "h": 3.49, "l": 26.39, "t": 72.44 }
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 14.57 },
+        { "key": "kicker", "w": 78.7, "h": 2.28, "l": 11.45, "t": 50.62 },
+        { "key": "headline", "w": 74.01, "h": 7.29, "l": 13.8, "t": 55.28 },
+        { "key": "subline", "w": 28.99, "h": 2.82, "l": 36.3, "t": 64.95 }
       ],
-      "tile": { "l": 31.75, "t": 93.25, "r": 69.85, "b": 140.49 },
-      "margins": { "L": 11.44, "R": 11.45, "T": 9.52, "B": 11.91 },
-      "gaps": { "brandToMessage": 17.31, "messageToCode": 17.32 },
-      "spareSplitTop": null,
-      "photo": { "px": [1195, 669], "w": 4.25, "h": 3.68, "dpi": 181 }
+      "tile": { "l": 31.75, "t": 86.82, "r": 69.85, "b": 134.06 },
+      "margins": { "L": 11.45, "R": 11.45, "T": 14.57, "B": 18.34 },
+      "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
+      "spareSplitTop": 0.44,
+      "photo": { "px": [1195, 669], "w": 4.25, "h": 3.42, "dpi": 195 }
     },
     {
       "board": "long-text",
@@ -1537,19 +1896,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 19 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 45.52 },
-        { "key": "kicker", "w": 73.47, "h": 2.28, "l": 9.52, "t": 50.61 },
-        { "key": "headline", "w": 64.92, "h": 16.48, "l": 9.52, "t": 55.27 },
-        { "key": "subline", "w": 48.82, "h": 3.49, "l": 9.52, "t": 74.13 }
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 25.8 },
+        { "key": "kicker", "w": 73.47, "h": 2.28, "l": 9.52, "t": 52.31 },
+        { "key": "headline", "w": 74.01, "h": 7.29, "l": 9.52, "t": 56.98 },
+        { "key": "subline", "w": 28.99, "h": 2.82, "l": 9.52, "t": 66.65 }
       ],
-      "tile": { "l": 104.78, "t": 24.69, "r": 142.87, "b": 71.93 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 19, "B": 23.98 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 21.78 },
+      "tile": { "l": 104.78, "t": 24.01, "r": 142.87, "b": 71.25 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 24.01, "B": 30.35 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 21.24 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1195, 669], "w": 4.25, "h": 4.25, "dpi": 157 }
     },
@@ -1561,20 +1929,30 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
-      "cueLines": 2,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
-      "headlinePt": 16.5,
+      "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 12.65, "h": 11.1, "l": 28.6, "t": 8.89 },
-        { "key": "kicker", "w": 34.88, "h": 5.17, "l": 17.48, "t": 26.46 },
-        { "key": "headline", "w": 38.25, "h": 9.71, "l": 15.8, "t": 33.21 },
-        { "key": "subline", "w": 39.96, "h": 2.86, "l": 14.94, "t": 44.51 }
+        { "key": "kicker", "w": 34.88, "h": 5.17, "l": 17.49, "t": 30.13 },
+        { "key": "headline", "w": 50.22, "h": 4.95, "l": 9.81, "t": 36.89 },
+        { "key": "subline", "w": 23.73, "h": 2.31, "l": 23.06, "t": 43.42 }
       ],
-      "tile": { "l": 17.14, "t": 53.85, "r": 52.7, "b": 99.05 },
-      "margins": { "L": 14.94, "R": 14.95, "T": 8.89, "B": 8.9 },
-      "gaps": { "brandToMessage": 6.47, "messageToCode": 6.47 },
+      "tile": { "l": 17.14, "t": 55.88, "r": 52.7, "b": 99.05 },
+      "margins": { "L": 9.81, "R": 9.82, "T": 8.89, "B": 8.9 },
+      "gaps": { "brandToMessage": 10.15, "messageToCode": 10.15 },
       "spareSplitTop": null,
-      "photo": { "px": [1195, 669], "w": 3, "h": 1.9, "dpi": 352 }
+      "photo": { "px": [1195, 669], "w": 3, "h": 1.98, "dpi": 337 }
     },
     {
       "board": "long-text",
@@ -1584,18 +1962,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
-      "cueLines": 2,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
-      "headlinePt": 16.5,
+      "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.35, "t": 13.51 },
-        { "key": "kicker", "w": 32.67, "h": 5.17, "l": 6.34, "t": 30.96 },
-        { "key": "headline", "w": 38.26, "h": 9.71, "l": 6.35, "t": 37.72 },
-        { "key": "subline", "w": 39.96, "h": 2.86, "l": 6.35, "t": 49.02 }
+        { "key": "kicker", "w": 32.67, "h": 5.17, "l": 6.35, "t": 30.96 },
+        { "key": "headline", "w": 50.22, "h": 4.95, "l": 6.35, "t": 37.72 },
+        { "key": "subline", "w": 23.73, "h": 2.31, "l": 6.35, "t": 44.25 }
       ],
-      "tile": { "l": 66.04, "t": 11.91, "r": 101.6, "b": 57.11 },
-      "margins": { "L": 6.34, "R": 6.35, "T": 11.91, "B": 12.74 },
-      "gaps": { "brandToMessage": 6.35, "messageToCode": 19.73 },
+      "tile": { "l": 66.04, "t": 12.8, "r": 101.6, "b": 55.98 },
+      "margins": { "L": 6.35, "R": 6.35, "T": 12.8, "B": 13.87 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 9.47 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1195, 669], "w": 2.73, "h": 2.78, "dpi": 241 }
     },
@@ -1607,19 +1995,29 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
-      "cueLines": 2,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
         { "key": "brand", "w": 10.33, "h": 8.99, "l": 20.24, "t": 4.76 },
-        { "key": "headline", "w": 35.79, "h": 9.32, "l": 7.5, "t": 22.13 },
-        { "key": "subline", "w": 35.91, "h": 2.57, "l": 7.44, "t": 32.63 }
+        { "key": "headline", "w": 22.49, "h": 9.26, "l": 14.15, "t": 22.79 },
+        { "key": "subline", "w": 21.32, "h": 2.06, "l": 14.74, "t": 33.24 }
       ],
-      "tile": { "l": 9.52, "t": 43.57, "r": 41.28, "b": 82.94 },
-      "margins": { "L": 7.44, "R": 7.45, "T": 4.76, "B": 5.96 },
-      "gaps": { "brandToMessage": 8.37, "messageToCode": 8.37 },
+      "tile": { "l": 9.52, "t": 44.34, "r": 41.28, "b": 82.94 },
+      "margins": { "L": 9.52, "R": 9.52, "T": 4.76, "B": 5.96 },
+      "gaps": { "brandToMessage": 9.03, "messageToCode": 9.04 },
       "spareSplitTop": null,
-      "photo": { "px": [1195, 669], "w": 2.25, "h": 1.72, "dpi": 388 }
+      "photo": { "px": [1195, 669], "w": 2.25, "h": 1.75, "dpi": 382 }
     },
     {
       "board": "long-text",
@@ -1629,19 +2027,1237 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
-      "cueLines": 2,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 10.33, "h": 8.99, "l": 4.76, "t": 11.34 },
-        { "key": "headline", "w": 35.82, "h": 9.32, "l": 4.76, "t": 25.1 },
-        { "key": "subline", "w": 35.91, "h": 2.57, "l": 4.76, "t": 35.6 }
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 4.76, "t": 14.28 },
+        { "key": "headline", "w": 41.99, "h": 3.87, "l": 4.76, "t": 28.03 },
+        { "key": "subline", "w": 21.32, "h": 2.06, "l": 4.76, "t": 33.09 }
       ],
-      "tile": { "l": 52.39, "t": 5.08, "r": 84.14, "b": 44.45 },
-      "margins": { "L": 4.76, "R": 4.76, "T": 5.08, "B": 6.35 },
-      "gaps": { "brandToMessage": 4.76, "messageToCode": 11.72 },
+      "tile": { "l": 52.39, "t": 5.41, "r": 84.14, "b": 44.02 },
+      "margins": { "L": 4.76, "R": 4.76, "T": 5.41, "B": 6.78 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 5.64 },
       "spareSplitTop": null,
       "photo": { "px": [1195, 669], "w": 2.19, "h": 2.25, "dpi": 297 }
+    },
+    {
+      "board": "scan-cue",
+      "piece": "tent",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.42,
+      "langs": ["fr"],
+      "blocks": [
+        {
+          "locale": "fr",
+          "kicker": "Votre avis sur Google",
+          "headline": "Votre avis sur nous ?",
+          "subline": "Environ 30 secondes"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scannez avec la caméra"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 16.74 },
+        { "key": "kicker", "w": 43.4, "h": 1.92, "l": 8.63, "t": 31.44 },
+        { "key": "headline", "w": 25.42, "h": 11.11, "l": 8.63, "t": 34.99 },
+        { "key": "subline", "w": 26.33, "h": 2.3, "l": 8.64, "t": 47.72 }
+      ],
+      "tile": { "l": 59.83, "t": 11.22, "r": 96.36, "b": 55.37 },
+      "margins": { "L": 8.63, "R": 8.64, "T": 11.22, "B": 18.88 },
+      "gaps": { "brandToMessage": 6.5, "messageToCode": 7.8 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "tent",
+      "orientation": "upright",
+      "look": "paper",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.42,
+      "langs": ["fr"],
+      "blocks": [
+        {
+          "locale": "fr",
+          "kicker": "Votre avis sur Google",
+          "headline": "Votre avis sur nous ?",
+          "subline": "Environ 30 secondes"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scannez avec la caméra"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 29.75, "t": 6.5 },
+        { "key": "kicker", "w": 43.4, "h": 1.92, "l": 15.42, "t": 22.05 },
+        { "key": "headline", "w": 25.45, "h": 11.11, "l": 24.4, "t": 25.59 },
+        { "key": "subline", "w": 26.33, "h": 2.3, "l": 23.96, "t": 38.33 }
+      ],
+      "tile": { "l": 18.86, "t": 47.98, "r": 55.39, "b": 92.12 },
+      "margins": { "L": 15.42, "R": 15.42, "T": 6.5, "B": 12.88 },
+      "gaps": { "brandToMessage": 7.35, "messageToCode": 7.35 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.26,
+      "langs": ["fr"],
+      "blocks": [
+        {
+          "locale": "fr",
+          "kicker": "",
+          "headline": "Votre avis sur nous ?",
+          "subline": "Environ 30 secondes"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scannez avec la caméra"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 5, "t": 14.16 },
+        { "key": "headline", "w": 21.18, "h": 9.26, "l": 5, "t": 25.87 },
+        { "key": "subline", "w": 23.39, "h": 2.05, "l": 5, "t": 36.38 }
+      ],
+      "tile": { "l": 47.47, "t": 6.51, "r": 80, "b": 45.89 },
+      "margins": { "L": 5, "R": 5, "T": 6.51, "B": 8.11 },
+      "gaps": { "brandToMessage": 4.99, "messageToCode": 19.08 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "upright",
+      "look": "paper",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.26,
+      "langs": ["fr"],
+      "blocks": [
+        {
+          "locale": "fr",
+          "kicker": "",
+          "headline": "Votre avis sur nous ?",
+          "subline": "Environ 30 secondes"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scannez avec la caméra"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 20.96, "t": 5 },
+        { "key": "headline", "w": 21.16, "h": 9.26, "l": 16.42, "t": 19.3 },
+        { "key": "subline", "w": 23.39, "h": 2.05, "l": 15.31, "t": 29.8 }
+      ],
+      "tile": { "l": 10.74, "t": 39.44, "r": 43.26, "b": 78.82 },
+      "margins": { "L": 10.74, "R": 10.74, "T": 5, "B": 6.18 },
+      "gaps": { "brandToMessage": 7.59, "messageToCode": 7.59 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "tent",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.42,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
+      "languages": "one",
+      "headlinePt": 18,
+      "parts": [
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 15.4 },
+        { "key": "kicker", "w": 29.74, "h": 5.17, "l": 8.63, "t": 30.11 },
+        { "key": "headline", "w": 25.63, "h": 10.53, "l": 8.63, "t": 36.9 },
+        { "key": "subline", "w": 23.73, "h": 2.31, "l": 8.64, "t": 49.05 }
+      ],
+      "tile": { "l": 59.83, "t": 11.22, "r": 96.36, "b": 55.37 },
+      "margins": { "L": 8.63, "R": 8.64, "T": 11.22, "B": 18.88 },
+      "gaps": { "brandToMessage": 6.5, "messageToCode": 21.46 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "tent",
+      "orientation": "upright",
+      "look": "paper",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.42,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "Bewerten Sie uns auf Google",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
+      "languages": "one",
+      "headlinePt": 18,
+      "parts": [
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 29.75, "t": 6.5 },
+        { "key": "kicker", "w": 29.74, "h": 5.17, "l": 22.25, "t": 23.64 },
+        { "key": "headline", "w": 47.58, "h": 4.69, "l": 13.33, "t": 30.42 },
+        { "key": "subline", "w": 23.73, "h": 2.31, "l": 25.26, "t": 36.74 }
+      ],
+      "tile": { "l": 18.86, "t": 47.98, "r": 55.39, "b": 92.12 },
+      "margins": { "L": 13.33, "R": 13.34, "T": 6.5, "B": 12.88 },
+      "gaps": { "brandToMessage": 8.93, "messageToCode": 8.93 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.26,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 5, "t": 14.16 },
+        { "key": "headline", "w": 22.49, "h": 9.26, "l": 5, "t": 25.87 },
+        { "key": "subline", "w": 21.08, "h": 2.05, "l": 5, "t": 36.37 }
+      ],
+      "tile": { "l": 47.47, "t": 6.51, "r": 80, "b": 45.89 },
+      "margins": { "L": 5, "R": 5, "T": 6.51, "B": 8.11 },
+      "gaps": { "brandToMessage": 5, "messageToCode": 19.98 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "upright",
+      "look": "paper",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.26,
+      "langs": ["de"],
+      "blocks": [
+        {
+          "locale": "de",
+          "kicker": "",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Mit Kamera scannen"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 20.96, "t": 5.25 },
+        { "key": "headline", "w": 41.99, "h": 3.87, "l": 6, "t": 21.95 },
+        { "key": "subline", "w": 21.08, "h": 2.05, "l": 16.46, "t": 27.07 }
+      ],
+      "tile": { "l": 10.74, "t": 39.11, "r": 43.26, "b": 78.49 },
+      "margins": { "L": 6, "R": 6.01, "T": 5.25, "B": 6.51 },
+      "gaps": { "brandToMessage": 9.99, "messageToCode": 9.99 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "tent",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.42,
+      "langs": ["bg"],
+      "blocks": [
+        {
+          "locale": "bg",
+          "kicker": "Рецепция",
+          "headline": "Как беше при нас?",
+          "subline": "Около 30 секунди"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Сканирайте с камера"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.5, "t": 16.53 },
+        { "key": "kicker", "w": 19.62, "h": 2.37, "l": 6.5, "t": 34.12 },
+        { "key": "headline", "w": 25.28, "h": 13.56, "l": 6.5, "t": 38.12 },
+        { "key": "subline", "w": 23.79, "h": 3.04, "l": 6.5, "t": 53.31 }
+      ],
+      "tile": { "l": 62.5, "t": 14.63, "r": 98.5, "b": 58.25 },
+      "margins": { "L": 6.5, "R": 6.5, "T": 14.63, "B": 16 },
+      "gaps": { "brandToMessage": 6.5, "messageToCode": 30.72 },
+      "spareSplitTop": 0.44,
+      "photo": { "px": [1195, 669], "w": 2.58, "h": 2.94, "dpi": 227 }
+    },
+    {
+      "board": "scan-cue",
+      "piece": "tent",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.42,
+      "langs": ["bg"],
+      "blocks": [
+        {
+          "locale": "bg",
+          "kicker": "Рецепция",
+          "headline": "Как беше при нас?",
+          "subline": "Около 30 секунди"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Сканирайте с камера"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 12.65, "h": 11.1, "l": 30.8, "t": 9.04 },
+        { "key": "kicker", "w": 20.8, "h": 2.37, "l": 26.72, "t": 28.62 },
+        { "key": "headline", "w": 49.83, "h": 6.73, "l": 12.21, "t": 32.61 },
+        { "key": "subline", "w": 23.79, "h": 3.04, "l": 25.23, "t": 40.97 }
+      ],
+      "tile": { "l": 19.12, "t": 52.49, "r": 55.12, "b": 96.11 },
+      "margins": { "L": 12.21, "R": 12.21, "T": 9.04, "B": 8.89 },
+      "gaps": { "brandToMessage": 8.48, "messageToCode": 8.48 },
+      "spareSplitTop": null,
+      "photo": { "px": [1195, 669], "w": 3.16, "h": 1.85, "dpi": 362 }
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.26,
+      "langs": ["bg"],
+      "blocks": [
+        {
+          "locale": "bg",
+          "kicker": "",
+          "headline": "Как беше при нас?",
+          "subline": "Около 30 секунди"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Сканирайте с камера"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 5, "t": 11.78 },
+        { "key": "headline", "w": 20.47, "h": 11.01, "l": 5, "t": 25.76 },
+        { "key": "subline", "w": 21.42, "h": 2.7, "l": 5, "t": 38.02 }
+      ],
+      "tile": { "l": 48, "t": 6.82, "r": 80, "b": 45.67 },
+      "margins": { "L": 5, "R": 5, "T": 6.82, "B": 8.33 },
+      "gaps": { "brandToMessage": 4.99, "messageToCode": 21.59 },
+      "spareSplitTop": 0.44,
+      "photo": { "px": [1195, 669], "w": 2.01, "h": 2.36, "dpi": 283 }
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.26,
+      "langs": ["bg"],
+      "blocks": [
+        {
+          "locale": "bg",
+          "kicker": "",
+          "headline": "Как беше при нас?",
+          "subline": "Около 30 секунди"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Сканирайте с камера"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 21.84, "t": 5 },
+        { "key": "headline", "w": 40.4, "h": 5.29, "l": 6.8, "t": 22.44 },
+        { "key": "subline", "w": 21.42, "h": 2.7, "l": 16.29, "t": 28.98 }
+      ],
+      "tile": { "l": 11, "t": 40.14, "r": 43, "b": 78.99 },
+      "margins": { "L": 6.8, "R": 6.8, "T": 5, "B": 6.01 },
+      "gaps": { "brandToMessage": 8.45, "messageToCode": 8.45 },
+      "spareSplitTop": null,
+      "photo": { "px": [1195, 669], "w": 2.36, "h": 1.58, "dpi": 423 }
+    },
+    {
+      "board": "scan-cue",
+      "piece": "tent",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.42,
+      "langs": ["it"],
+      "blocks": [
+        {
+          "locale": "it",
+          "kicker": "Reception",
+          "headline": "Come siamo andati?",
+          "subline": "Circa 30 secondi"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Apra la fotocamera"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.5, "t": 18.31 },
+        { "key": "kicker", "w": 20.61, "h": 1.92, "l": 6.5, "t": 35.91 },
+        { "key": "headline", "w": 31.8, "h": 11.18, "l": 6.5, "t": 39.45 },
+        { "key": "subline", "w": 21.16, "h": 2.31, "l": 6.5, "t": 52.26 }
+      ],
+      "tile": { "l": 62.5, "t": 14.63, "r": 98.5, "b": 58.25 },
+      "margins": { "L": 6.5, "R": 6.5, "T": 14.63, "B": 16 },
+      "gaps": { "brandToMessage": 6.5, "messageToCode": 24.2 },
+      "spareSplitTop": 0.44,
+      "photo": { "px": [1195, 669], "w": 2.58, "h": 2.94, "dpi": 227 }
+    },
+    {
+      "board": "scan-cue",
+      "piece": "tent",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.42,
+      "langs": ["it"],
+      "blocks": [
+        {
+          "locale": "it",
+          "kicker": "Reception",
+          "headline": "Come siamo andati?",
+          "subline": "Circa 30 secondi"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Apra la fotocamera"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 12.65, "h": 11.1, "l": 30.8, "t": 9.04 },
+        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 26.14, "t": 30.1 },
+        { "key": "headline", "w": 52, "h": 4.95, "l": 11.13, "t": 33.65 },
+        { "key": "subline", "w": 21.16, "h": 2.31, "l": 26.54, "t": 40.22 }
+      ],
+      "tile": { "l": 19.12, "t": 52.49, "r": 55.12, "b": 96.11 },
+      "margins": { "L": 11.13, "R": 11.13, "T": 9.04, "B": 8.89 },
+      "gaps": { "brandToMessage": 9.97, "messageToCode": 9.96 },
+      "spareSplitTop": null,
+      "photo": { "px": [1195, 669], "w": 3.16, "h": 1.85, "dpi": 362 }
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.26,
+      "langs": ["it"],
+      "blocks": [
+        {
+          "locale": "it",
+          "kicker": "",
+          "headline": "Come siamo andati?",
+          "subline": "Circa 30 secondi"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Apra la fotocamera"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 5, "t": 12.95 },
+        { "key": "headline", "w": 26.1, "h": 9.31, "l": 5, "t": 26.93 },
+        { "key": "subline", "w": 19.03, "h": 2.06, "l": 5, "t": 37.49 }
+      ],
+      "tile": { "l": 48, "t": 6.82, "r": 80, "b": 45.67 },
+      "margins": { "L": 5, "R": 5, "T": 6.82, "B": 8.33 },
+      "gaps": { "brandToMessage": 4.99, "messageToCode": 16.9 },
+      "spareSplitTop": 0.44,
+      "photo": { "px": [1195, 669], "w": 2.01, "h": 2.36, "dpi": 283 }
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "eu",
+      "address": "short",
+      "tileIn": 1.26,
+      "langs": ["it"],
+      "blocks": [
+        {
+          "locale": "it",
+          "kicker": "",
+          "headline": "Come siamo andati?",
+          "subline": "Circa 30 secondi"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Apra la fotocamera"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 21.84, "t": 5 },
+        { "key": "headline", "w": 42.84, "h": 3.87, "l": 5.58, "t": 23.47 },
+        { "key": "subline", "w": 19.03, "h": 2.06, "l": 17.48, "t": 28.59 }
+      ],
+      "tile": { "l": 11, "t": 40.14, "r": 43, "b": 78.99 },
+      "margins": { "L": 5.58, "R": 5.58, "T": 5, "B": 6.01 },
+      "gaps": { "brandToMessage": 9.48, "messageToCode": 9.49 },
+      "spareSplitTop": null,
+      "photo": { "px": [1195, 669], "w": 2.36, "h": 1.58, "dpi": 423 }
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.25,
+      "langs": ["en", "fr"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "fr",
+          "kicker": "",
+          "headline": "Votre avis sur nous ?",
+          "subline": "Environ 30 secondes"
+        }
+      ],
+      "cueLines": 2,
+      "cues": ["Scan with your camera", "Scannez avec la caméra"],
+      "languages": "stack",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 10.15 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 21.62 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 4.76, "t": 26.68 },
+        { "key": "rule", "w": 5, "h": 0.35, "l": 4.76, "t": 31.11 },
+        { "key": "headline2", "w": 29.16, "h": 2.38, "l": 4.76, "t": 33.84 },
+        { "key": "subline2", "w": 23.39, "h": 2.05, "l": 4.76, "t": 37.41 }
+      ],
+      "tile": { "l": 51.86, "t": 4.77, "r": 84.14, "b": 44.66 },
+      "margins": { "L": 4.76, "R": 4.76, "T": 4.77, "B": 6.14 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.25,
+      "langs": ["en", "de"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "de",
+          "kicker": "",
+          "headline": "Wie war es bei uns?",
+          "subline": "Etwa 30 Sekunden"
+        }
+      ],
+      "cueLines": 2,
+      "cues": ["Scan with your camera", "Mit Kamera scannen"],
+      "languages": "stack",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 10.05 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 21.52 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 4.76, "t": 26.58 },
+        { "key": "rule", "w": 5, "h": 0.35, "l": 4.76, "t": 31.01 },
+        { "key": "headline2", "w": 27.98, "h": 2.58, "l": 4.76, "t": 33.74 },
+        { "key": "subline2", "w": 21.08, "h": 2.05, "l": 4.76, "t": 37.51 }
+      ],
+      "tile": { "l": 51.86, "t": 4.77, "r": 84.14, "b": 44.66 },
+      "margins": { "L": 4.76, "R": 4.76, "T": 4.77, "B": 6.14 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.25,
+      "langs": ["en", "bg"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "bg",
+          "kicker": "",
+          "headline": "Как беше при нас?",
+          "subline": "Около 30 секунди"
+        }
+      ],
+      "cueLines": 2,
+      "cues": ["Scan with your camera", "Сканирайте с камера"],
+      "languages": "stack",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 9.25 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 20.72 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 4.76, "t": 25.78 },
+        { "key": "rule", "w": 5, "h": 0.35, "l": 4.76, "t": 30.21 },
+        { "key": "headline2", "w": 26.92, "h": 3.53, "l": 4.76, "t": 32.94 },
+        { "key": "subline2", "w": 21.13, "h": 2.7, "l": 4.76, "t": 37.66 }
+      ],
+      "tile": { "l": 51.86, "t": 4.77, "r": 84.14, "b": 44.66 },
+      "margins": { "L": 4.76, "R": 4.76, "T": 4.77, "B": 6.14 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "scan-cue",
+      "piece": "small",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.25,
+      "langs": ["en", "it"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        },
+        {
+          "locale": "it",
+          "kicker": "",
+          "headline": "Come siamo andati?",
+          "subline": "Circa 30 secondi"
+        }
+      ],
+      "cueLines": 2,
+      "cues": ["Scan with your camera", "Apra la fotocamera"],
+      "languages": "stack",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 4.76, "t": 10.05 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 21.52 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 4.76, "t": 26.58 },
+        { "key": "rule", "w": 5, "h": 0.35, "l": 4.76, "t": 31.01 },
+        { "key": "headline2", "w": 28.55, "h": 2.58, "l": 4.76, "t": 33.74 },
+        { "key": "subline2", "w": 18.8, "h": 2.05, "l": 4.76, "t": 37.51 }
+      ],
+      "tile": { "l": 51.86, "t": 4.77, "r": 84.14, "b": 44.66 },
+      "margins": { "L": 4.76, "R": 4.76, "T": 4.77, "B": 6.14 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "counter",
+      "orientation": "upright",
+      "look": "paper",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.75,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 28,
+      "parts": [
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 39.4, "t": 13.37 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 45.1 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 49.76 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 59.43 }
+      ],
+      "tile": { "l": 28.31, "t": 81.3, "r": 73.29, "b": 135.42 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 13.37, "B": 16.98 },
+      "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "counter",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.75,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 28,
+      "parts": [
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 28.38 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 50.58 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 55.24 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 64.92 }
+      ],
+      "tile": { "l": 97.9, "t": 20.91, "r": 142.87, "b": 75.03 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 20.91, "B": 26.57 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 26.88 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "tent",
+      "orientation": "upright",
+      "look": "paper",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 27.55, "t": 6.35 },
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 14.83, "t": 25.52 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 29.02 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 35.56 }
+      ],
+      "tile": { "l": 15.61, "t": 48.83, "r": 54.24, "b": 95.08 },
+      "margins": { "L": 14.06, "R": 14.07, "T": 6.35, "B": 12.87 },
+      "gaps": { "brandToMessage": 10.96, "messageToCode": 10.96 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "tent",
+      "orientation": "wide",
+      "look": "paper",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 18.04 },
+        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 32.59 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 8.63, "t": 36.1 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 8.64, "t": 42.63 }
+      ],
+      "tile": { "l": 60.68, "t": 8.28, "r": 99.31, "b": 54.52 },
+      "margins": { "L": 8.63, "R": 8.64, "T": 8.28, "B": 15.33 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 10.33 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "small",
+      "orientation": "upright",
+      "look": "paper",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 12.07, "h": 6.71, "l": 19.36, "t": 5.73 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 21.97 },
+        { "key": "subline", "w": 20.59, "h": 2.05, "l": 15.11, "t": 27.02 }
+      ],
+      "tile": { "l": 7.35, "t": 38.59, "r": 43.44, "b": 81.53 },
+      "margins": { "L": 7.35, "R": 7.36, "T": 5.73, "B": 7.37 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.52 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "counter",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.75,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 28,
+      "parts": [
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 11.78 },
+        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 47.83 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 52.49 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 62.16 }
+      ],
+      "tile": { "l": 28.57, "t": 84.02, "r": 73.02, "b": 137.61 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 11.78, "B": 14.79 },
+      "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
+      "spareSplitTop": 0.44,
+      "photo": { "px": [1195, 669], "w": 4.25, "h": 3.31, "dpi": 201 }
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "counter",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.75,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 28,
+      "parts": [
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 26.18 },
+        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 52.7 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 57.36 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 67.03 }
+      ],
+      "tile": { "l": 98.42, "t": 21.22, "r": 142.87, "b": 74.81 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 21.22, "B": 26.79 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 27.41 },
+      "spareSplitTop": 0.44,
+      "photo": { "px": [1195, 669], "w": 4, "h": 4.25, "dpi": 157 }
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "tent",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 12.65, "h": 11.1, "l": 28.6, "t": 8.89 },
+        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 23.94, "t": 30.49 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 34 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 40.53 }
+      ],
+      "tile": { "l": 15.87, "t": 53.34, "r": 53.97, "b": 99.06 },
+      "margins": { "L": 14.06, "R": 14.07, "T": 8.89, "B": 8.89 },
+      "gaps": { "brandToMessage": 10.51, "messageToCode": 10.51 },
+      "spareSplitTop": null,
+      "photo": { "px": [1195, 669], "w": 3, "h": 1.88, "dpi": 355 }
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "tent",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.35, "t": 16.76 },
+        { "key": "kicker", "w": 20.61, "h": 1.92, "l": 6.35, "t": 34.21 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 6.35, "t": 37.72 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 6.35, "t": 44.25 }
+      ],
+      "tile": { "l": 63.5, "t": 11.68, "r": 101.6, "b": 57.4 },
+      "margins": { "L": 6.35, "R": 6.35, "T": 11.68, "B": 12.45 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 15.43 },
+      "spareSplitTop": 0.44,
+      "photo": { "px": [1195, 669], "w": 2.63, "h": 2.78, "dpi": 241 }
+    },
+    {
+      "board": "tile-ladder",
+      "piece": "small",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 20.24, "t": 5.03 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 23.54 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 14.98, "t": 28.6 }
+      ],
+      "tile": { "l": 7.62, "t": 40.19, "r": 43.18, "b": 82.6 },
+      "margins": { "L": 7.62, "R": 7.62, "T": 5.03, "B": 6.3 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.52 },
+      "spareSplitTop": null,
+      "photo": { "px": [1195, 669], "w": 2.25, "h": 1.59, "dpi": 421 }
+    },
+    {
+      "board": "no-photo",
+      "piece": "counter",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 28,
+      "parts": [
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 14.58 },
+        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 50.62 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 55.28 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 64.95 }
+      ],
+      "tile": { "l": 31.75, "t": 86.82, "r": 69.85, "b": 134.06 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 14.58, "B": 18.34 },
+      "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "no-photo",
+      "piece": "counter",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 28,
+      "parts": [
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 25.8 },
+        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 52.31 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 56.98 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 66.65 }
+      ],
+      "tile": { "l": 104.78, "t": 24.01, "r": 142.87, "b": 71.25 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 24.01, "B": 30.35 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 33.76 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "no-photo",
+      "piece": "tent",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 12.65, "h": 11.1, "l": 28.6, "t": 8.89 },
+        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 23.94, "t": 31.76 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 35.27 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 41.8 }
+      ],
+      "tile": { "l": 17.14, "t": 55.88, "r": 52.7, "b": 99.05 },
+      "margins": { "L": 14.06, "R": 14.07, "T": 8.89, "B": 8.9 },
+      "gaps": { "brandToMessage": 11.77, "messageToCode": 11.77 },
+      "spareSplitTop": null,
+      "photo": null
+    },
+    {
+      "board": "no-photo",
+      "piece": "tent",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 19,
+      "parts": [
+        { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.35, "t": 16.76 },
+        { "key": "kicker", "w": 20.61, "h": 1.92, "l": 6.35, "t": 34.21 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 6.35, "t": 37.72 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 6.35, "t": 44.25 }
+      ],
+      "tile": { "l": 66.04, "t": 12.8, "r": 101.6, "b": 55.98 },
+      "margins": { "L": 6.35, "R": 6.35, "T": 12.8, "B": 13.87 },
+      "gaps": { "brandToMessage": 6.35, "messageToCode": 17.97 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "no-photo",
+      "piece": "small",
+      "orientation": "upright",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 20.24, "t": 6.7 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 25.22 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 14.98, "t": 30.27 }
+      ],
+      "tile": { "l": 9.52, "t": 41.87, "r": 41.28, "b": 80.47 },
+      "margins": { "L": 8.35, "R": 8.35, "T": 6.7, "B": 8.43 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 9.53 },
+      "spareSplitTop": 0.44,
+      "photo": null
+    },
+    {
+      "board": "no-photo",
+      "piece": "small",
+      "orientation": "wide",
+      "look": "immersive",
+      "region": "us",
+      "address": "short",
+      "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
+      "cueLines": 1,
+      "cues": ["Scan with your camera"],
+      "languages": "one",
+      "headlinePt": 15,
+      "parts": [
+        { "key": "brand", "w": 10.33, "h": 8.99, "l": 4.76, "t": 14.28 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 28.03 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 4.76, "t": 33.09 }
+      ],
+      "tile": { "l": 52.39, "t": 5.41, "r": 84.14, "b": 44.02 },
+      "margins": { "L": 4.76, "R": 4.76, "T": 5.41, "B": 6.78 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13.53 },
+      "spareSplitTop": null,
+      "photo": null
     },
     {
       "board": "badge-logo",
@@ -1651,21 +3267,30 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 26.11, "h": 15.18, "l": 37.74, "t": 12.1 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 46.32 },
-        { "key": "kicker", "w": 56.18, "h": 2.28, "l": 22.71, "t": 51.41 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 56.07 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 67.43 }
+        { "key": "brand", "w": 26.11, "h": 15.18, "l": 37.74, "t": 15.37 },
+        { "key": "kicker", "w": 56.18, "h": 2.28, "l": 22.71, "t": 49.6 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 54.26 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 63.94 }
       ],
-      "tile": { "l": 31.75, "t": 89.97, "r": 69.85, "b": 137.22 },
-      "margins": { "L": 22.71, "R": 22.71, "T": 12.1, "B": 15.18 },
+      "tile": { "l": 31.75, "t": 85.8, "r": 69.85, "b": 133.04 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 15.37, "B": 19.36 },
       "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
       "spareSplitTop": 0.44,
-      "photo": { "px": [1043, 584], "w": 4.25, "h": 3.55, "dpi": 164 }
+      "photo": { "px": [1043, 584], "w": 4.25, "h": 3.38, "dpi": 172 }
     },
     {
       "board": "badge-logo",
@@ -1675,19 +3300,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.5,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 26.11, "h": 15.18, "l": 9.52, "t": 23.11 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 47.81 },
-        { "key": "kicker", "w": 52.56, "h": 2.28, "l": 9.52, "t": 52.89 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 57.56 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 68.91 }
+        { "key": "brand", "w": 26.11, "h": 15.18, "l": 9.52, "t": 26.71 },
+        { "key": "kicker", "w": 52.56, "h": 2.28, "l": 9.52, "t": 51.41 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 56.07 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 65.74 }
       ],
-      "tile": { "l": 104.78, "t": 24.13, "r": 142.87, "b": 71.38 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 23.11, "B": 29.19 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 39.49 },
+      "tile": { "l": 104.78, "t": 24.01, "r": 142.87, "b": 71.25 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 24.01, "B": 30.35 },
+      "gaps": { "brandToMessage": 9.53, "messageToCode": 33.76 },
       "spareSplitTop": 0.44,
       "photo": { "px": [1043, 584], "w": 4.25, "h": 4.25, "dpi": 137 }
     },
@@ -1699,18 +3333,28 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 17.4, "h": 10.05, "l": 26.22, "t": 8.89 },
-        { "key": "kicker", "w": 47.31, "h": 1.92, "l": 11.27, "t": 30.39 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 33.9 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 41.58 }
+        { "key": "kicker", "w": 47.31, "h": 1.92, "l": 11.27, "t": 31.24 },
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 14.06, "t": 34.75 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 23.34, "t": 41.28 }
       ],
       "tile": { "l": 17.14, "t": 55.88, "r": 52.7, "b": 99.05 },
       "margins": { "L": 11.27, "R": 11.27, "T": 8.89, "B": 8.9 },
-      "gaps": { "brandToMessage": 11.44, "messageToCode": 11.44 },
+      "gaps": { "brandToMessage": 12.3, "messageToCode": 12.29 },
       "spareSplitTop": null,
       "photo": { "px": [1043, 584], "w": 3, "h": 1.98, "dpi": 294 }
     },
@@ -1722,14 +3366,24 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.4,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 19,
       "parts": [
         { "key": "brand", "w": 17.4, "h": 10.05, "l": 6.35, "t": 17.8 },
         { "key": "kicker", "w": 44.26, "h": 1.92, "l": 6.35, "t": 34.21 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 6.35, "t": 37.72 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 6.35, "t": 45.4 }
+        { "key": "headline", "w": 41.72, "h": 4.95, "l": 6.35, "t": 37.72 },
+        { "key": "subline", "w": 23.17, "h": 2.3, "l": 6.35, "t": 44.25 }
       ],
       "tile": { "l": 66.04, "t": 12.8, "r": 101.6, "b": 55.98 },
       "margins": { "L": 6.35, "R": 6.35, "T": 12.8, "B": 13.87 },
@@ -1745,19 +3399,29 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 13.92, "h": 7.96, "l": 18.44, "t": 6.43 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 23.91 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 10.45, "t": 30.11 }
+        { "key": "brand", "w": 13.92, "h": 7.96, "l": 18.44, "t": 7.16 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 8.35, "t": 24.64 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 14.98, "t": 29.7 }
       ],
-      "tile": { "l": 9.52, "t": 42.21, "r": 41.28, "b": 80.82 },
-      "margins": { "L": 9.52, "R": 9.52, "T": 6.43, "B": 8.08 },
+      "tile": { "l": 9.52, "t": 41.29, "r": 41.28, "b": 79.89 },
+      "margins": { "L": 8.35, "R": 8.35, "T": 7.16, "B": 9.01 },
       "gaps": { "brandToMessage": 9.53, "messageToCode": 9.52 },
       "spareSplitTop": 0.44,
-      "photo": { "px": [1043, 584], "w": 2.25, "h": 1.67, "dpi": 350 }
+      "photo": { "px": [1043, 584], "w": 2.25, "h": 1.63, "dpi": 358 }
     },
     {
       "board": "badge-logo",
@@ -1767,251 +3431,161 @@
       "region": "us",
       "address": "short",
       "tileIn": 1.25,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 15,
       "parts": [
-        { "key": "brand", "w": 13.92, "h": 7.96, "l": 4.76, "t": 13.97 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 4.76, "t": 26.69 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 4.76, "t": 32.89 }
+        { "key": "brand", "w": 13.92, "h": 7.96, "l": 4.76, "t": 14.79 },
+        { "key": "headline", "w": 34.1, "h": 3.87, "l": 4.76, "t": 27.51 },
+        { "key": "subline", "w": 20.83, "h": 2.06, "l": 4.76, "t": 32.57 }
       ],
       "tile": { "l": 52.39, "t": 5.41, "r": 84.14, "b": 44.02 },
       "margins": { "L": 4.76, "R": 4.76, "T": 5.41, "B": 6.78 },
-      "gaps": { "brandToMessage": 4.77, "messageToCode": 16.5 },
+      "gaps": { "brandToMessage": 4.76, "messageToCode": 13.53 },
       "spareSplitTop": null,
       "photo": { "px": [1043, 584], "w": 2.19, "h": 2.25, "dpi": 259 }
     },
     {
-      "board": "tile-ladder",
+      "board": "long-address",
       "piece": "counter",
       "orientation": "upright",
       "look": "paper",
       "region": "us",
-      "address": "short",
-      "tileIn": 1.75,
+      "address": "long",
+      "tileIn": 2.1,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 39.4, "t": 10.1 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 41.82 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 46.91 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 51.57 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 62.93 }
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 39.4, "t": 9.52 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 26.93, "t": 40.67 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 45.33 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 55 }
       ],
-      "tile": { "l": 28.31, "t": 85.47, "r": 73.29, "b": 139.59 },
-      "margins": { "L": 22.92, "R": 22.92, "T": 10.1, "B": 12.81 },
-      "gaps": { "brandToMessage": 19.05, "messageToCode": 19.05 },
+      "tile": { "l": 23.86, "t": 76.29, "r": 77.73, "b": 140.32 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 9.52, "B": 12.08 },
+      "gaps": { "brandToMessage": 18.47, "messageToCode": 18.47 },
       "spareSplitTop": null,
       "photo": null
     },
     {
-      "board": "tile-ladder",
+      "board": "long-address",
       "piece": "counter",
       "orientation": "wide",
       "look": "paper",
       "region": "us",
-      "address": "short",
-      "tileIn": 1.75,
+      "address": "long",
+      "tileIn": 2.1,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Review us on Google",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 24.66 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 46.86 },
-        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 51.94 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 56.61 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 67.96 }
+        { "key": "brand", "w": 22.8, "h": 12.68, "l": 9.52, "t": 28.98 },
+        { "key": "kicker", "w": 47.73, "h": 2.28, "l": 9.52, "t": 51.17 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 55.84 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 65.51 }
       ],
-      "tile": { "l": 97.9, "t": 20.91, "r": 142.87, "b": 75.03 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 20.91, "B": 26.57 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 32.61 },
+      "tile": { "l": 89, "t": 16.55, "r": 142.87, "b": 80.57 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 16.55, "B": 21.03 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 17.99 },
       "spareSplitTop": 0.44,
       "photo": null
     },
     {
-      "board": "tile-ladder",
-      "piece": "tent",
-      "orientation": "upright",
-      "look": "paper",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.5,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 19,
-      "parts": [
-        { "key": "brand", "w": 14.75, "h": 8.2, "l": 27.55, "t": 6.35 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 14.83, "t": 24.66 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 28.17 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 35.85 }
-      ],
-      "tile": { "l": 15.61, "t": 48.83, "r": 54.24, "b": 95.08 },
-      "margins": { "L": 14.83, "R": 14.83, "T": 6.35, "B": 12.87 },
-      "gaps": { "brandToMessage": 10.11, "messageToCode": 10.11 },
-      "spareSplitTop": null,
-      "photo": null
-    },
-    {
-      "board": "tile-ladder",
-      "piece": "tent",
-      "orientation": "wide",
-      "look": "paper",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.5,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 19,
-      "parts": [
-        { "key": "brand", "w": 14.75, "h": 8.2, "l": 8.63, "t": 17.19 },
-        { "key": "kicker", "w": 40.19, "h": 1.92, "l": 8.63, "t": 31.74 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 8.63, "t": 35.25 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 8.64, "t": 42.93 }
-      ],
-      "tile": { "l": 60.68, "t": 8.28, "r": 99.31, "b": 54.52 },
-      "margins": { "L": 8.63, "R": 8.64, "T": 8.28, "B": 15.33 },
-      "gaps": { "brandToMessage": 6.35, "messageToCode": 11.86 },
-      "spareSplitTop": 0.44,
-      "photo": null
-    },
-    {
-      "board": "tile-ladder",
-      "piece": "small",
-      "orientation": "upright",
-      "look": "paper",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.4,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 15,
-      "parts": [
-        { "key": "brand", "w": 12.07, "h": 6.71, "l": 19.36, "t": 5.01 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 21.24 },
-        { "key": "subline", "w": 29.52, "h": 2.54, "l": 10.64, "t": 27.44 }
-      ],
-      "tile": { "l": 7.35, "t": 39.51, "r": 43.44, "b": 82.45 },
-      "margins": { "L": 7.35, "R": 7.36, "T": 5.01, "B": 6.45 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 9.53 },
-      "spareSplitTop": null,
-      "photo": null
-    },
-    {
-      "board": "tile-ladder",
+      "board": "long-address",
       "piece": "counter",
       "orientation": "upright",
       "look": "immersive",
       "region": "us",
-      "address": "short",
-      "tileIn": 1.75,
+      "address": "long",
+      "tileIn": 2.1,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
         { "key": "brand", "w": 19.24, "h": 16.99, "l": 41.18, "t": 9.52 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 40.25, "t": 44.4 },
-        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 49.49 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 22.92, "t": 54.16 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 30.5, "t": 65.51 }
+        { "key": "kicker", "w": 26.09, "h": 2.28, "l": 37.75, "t": 43.18 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 20.05, "t": 47.84 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 36.64, "t": 57.51 }
       ],
-      "tile": { "l": 28.57, "t": 86.9, "r": 73.02, "b": 140.49 },
-      "margins": { "L": 22.92, "R": 22.92, "T": 9.52, "B": 11.91 },
-      "gaps": { "brandToMessage": 17.89, "messageToCode": 17.89 },
+      "tile": { "l": 24.13, "t": 76.99, "r": 77.47, "b": 140.49 },
+      "margins": { "L": 20.05, "R": 20.06, "T": 9.52, "B": 11.91 },
+      "gaps": { "brandToMessage": 16.66, "messageToCode": 16.67 },
       "spareSplitTop": null,
-      "photo": { "px": [1195, 669], "w": 4.25, "h": 3.43, "dpi": 195 }
+      "photo": { "px": [1195, 669], "w": 4.25, "h": 3.04, "dpi": 220 }
     },
     {
-      "board": "tile-ladder",
+      "board": "long-address",
       "piece": "counter",
       "orientation": "wide",
       "look": "immersive",
       "region": "us",
-      "address": "short",
-      "tileIn": 1.75,
+      "address": "long",
+      "tileIn": 2.1,
+      "langs": ["en"],
+      "blocks": [
+        {
+          "locale": "en",
+          "kicker": "Reception",
+          "headline": "How did we do?",
+          "subline": "About 30 seconds"
+        }
+      ],
       "cueLines": 1,
+      "cues": ["Scan with your camera"],
       "languages": "one",
       "headlinePt": 28,
       "parts": [
-        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 22.45 },
-        { "key": "stars", "w": 21.1, "h": 2.7, "l": 9.52, "t": 48.97 },
-        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 54.06 },
-        { "key": "headline", "w": 55.76, "h": 8.98, "l": 9.52, "t": 58.72 },
-        { "key": "subline", "w": 40.6, "h": 3.49, "l": 9.52, "t": 70.08 }
+        { "key": "brand", "w": 19.24, "h": 16.99, "l": 9.52, "t": 26.78 },
+        { "key": "kicker", "w": 24.48, "h": 2.28, "l": 9.52, "t": 53.29 },
+        { "key": "headline", "w": 61.49, "h": 7.29, "l": 9.52, "t": 57.96 },
+        { "key": "subline", "w": 28.31, "h": 2.81, "l": 9.52, "t": 67.62 }
       ],
-      "tile": { "l": 98.42, "t": 21.22, "r": 142.87, "b": 74.81 },
-      "margins": { "L": 9.52, "R": 9.53, "T": 21.22, "B": 26.79 },
-      "gaps": { "brandToMessage": 9.52, "messageToCode": 33.14 },
+      "tile": { "l": 89.53, "t": 16.86, "r": 142.87, "b": 80.35 },
+      "margins": { "L": 9.52, "R": 9.53, "T": 16.86, "B": 21.25 },
+      "gaps": { "brandToMessage": 9.52, "messageToCode": 18.52 },
       "spareSplitTop": 0.44,
-      "photo": { "px": [1195, 669], "w": 4, "h": 4.25, "dpi": 157 }
-    },
-    {
-      "board": "tile-ladder",
-      "piece": "tent",
-      "orientation": "upright",
-      "look": "immersive",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.5,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 19,
-      "parts": [
-        { "key": "brand", "w": 12.65, "h": 11.1, "l": 28.6, "t": 8.89 },
-        { "key": "kicker", "w": 21.97, "h": 1.92, "l": 23.94, "t": 29.64 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 16, "t": 33.15 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 18.3, "t": 40.83 }
-      ],
-      "tile": { "l": 15.87, "t": 53.34, "r": 53.97, "b": 99.06 },
-      "margins": { "L": 15.87, "R": 15.88, "T": 8.89, "B": 8.89 },
-      "gaps": { "brandToMessage": 9.65, "messageToCode": 9.65 },
-      "spareSplitTop": null,
-      "photo": { "px": [1195, 669], "w": 3, "h": 1.88, "dpi": 355 }
-    },
-    {
-      "board": "tile-ladder",
-      "piece": "tent",
-      "orientation": "wide",
-      "look": "immersive",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.5,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 19,
-      "parts": [
-        { "key": "brand", "w": 12.65, "h": 11.1, "l": 6.35, "t": 16.76 },
-        { "key": "kicker", "w": 20.61, "h": 1.92, "l": 6.35, "t": 34.21 },
-        { "key": "headline", "w": 37.84, "h": 6.09, "l": 6.35, "t": 37.72 },
-        { "key": "subline", "w": 33.23, "h": 2.86, "l": 6.35, "t": 45.4 }
-      ],
-      "tile": { "l": 63.5, "t": 11.68, "r": 101.6, "b": 57.4 },
-      "margins": { "L": 6.35, "R": 6.35, "T": 11.68, "B": 12.45 },
-      "gaps": { "brandToMessage": 6.35, "messageToCode": 19.32 },
-      "spareSplitTop": 0.44,
-      "photo": { "px": [1195, 669], "w": 2.63, "h": 2.78, "dpi": 241 }
-    },
-    {
-      "board": "tile-ladder",
-      "piece": "small",
-      "orientation": "upright",
-      "look": "immersive",
-      "region": "us",
-      "address": "short",
-      "tileIn": 1.4,
-      "cueLines": 1,
-      "languages": "one",
-      "headlinePt": 15,
-      "parts": [
-        { "key": "brand", "w": 10.33, "h": 8.99, "l": 20.24, "t": 4.76 },
-        { "key": "headline", "w": 31.13, "h": 5.01, "l": 9.84, "t": 22.75 },
-        { "key": "subline", "w": 29.89, "h": 2.57, "l": 10.45, "t": 28.95 }
-      ],
-      "tile": { "l": 7.62, "t": 40.53, "r": 43.18, "b": 82.94 },
-      "margins": { "L": 7.62, "R": 7.62, "T": 4.76, "B": 5.96 },
-      "gaps": { "brandToMessage": 9, "messageToCode": 9 },
-      "spareSplitTop": null,
-      "photo": { "px": [1195, 669], "w": 2.25, "h": 1.6, "dpi": 417 }
+      "photo": { "px": [1195, 669], "w": 3.65, "h": 4.25, "dpi": 157 }
     }
   ]
 }

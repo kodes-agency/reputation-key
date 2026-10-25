@@ -1,5 +1,6 @@
-// The planners against the final design boards (final-design-2026-10-25): every
-// card of the stand-in set's family, Europe, long-address, ladder and hard-case
+// The planners against the final design boards (final-design-2026-10-25, the
+// call-to-action set: no stars, "How did we do?", the short scan cue): every card
+// of the stand-in set's family, Europe, long-address, ladder and hard-case
 // boards, fed its parts' ink boxes as the boards measured them, must land where
 // the boards put it, within 0.25 mm: each part, the code block, the ink margins
 // and the group gaps. The fixture holds the boards' own measurements (mm from
@@ -8,26 +9,36 @@
 
 import { describe, expect, it } from 'vitest'
 import golden from './__fixtures__/portal-print-final-golden.json'
+import type { GuestLocale } from './guest-locale'
 import type { PrintFinalFace, PrintFinalPiece } from './portal-print-final'
-import {
-  choosePrintFinalTile,
-  printFinalCodeBlock,
-  printFinalCueLines,
-} from './portal-print-final-code'
+import { choosePrintFinalTile, printFinalCodeBlock } from './portal-print-final-code'
+import { PRINT_FINAL_SCAN_CUE, printFinalCueLines } from './portal-print-final-cue'
 import { PRINT_FINAL_MEASURES, mmPt, ptMm } from './portal-print-final-measures'
 import type { PrintFinalPart, PrintFinalPartKey } from './portal-print-final-parts'
 import { planPrintFinalFace, type PrintFinalPlan } from './portal-print-final-plan'
 import { printFinalPhotoBox, printFinalPhotoDpi } from './portal-print-final-photo'
+import type { PrintFinalTextMeasurer } from './portal-print-final-text'
+import { estimatedLineWidthPt } from './portal-print-kit-text-widths'
 
 type GoldenCard = (typeof golden.cards)[number]
 
 const TOLERANCE_MM = 0.25
 /** Version 3 (the short address) and version 9 (today's long address), quiet zone not included. */
 const SYMBOL_MODULES = { short: 29, long: 53 } as const
-const CUES: Readonly<Record<string, readonly string[]>> = {
-  'long-text': ['Mit der Kamera scannen'],
-  'two-languages': ['Scan with your camera', 'Escanee con la cámara'],
+
+/** The width tables the preview measures a cue by: they err wide, and every board's cue still keeps one line. */
+const measurer: PrintFinalTextMeasurer = {
+  advancePt: (text, style) => estimatedLineWidthPt(text, 'text', style.sizePt),
+  ink: () => ({ leftPt: 0, rightPt: 0, ascentPt: 0, descentPt: 0 }),
 }
+
+const cueLinesOf = (card: GoldenCard, tilePt: number) =>
+  printFinalCueLines(
+    card.cues,
+    tilePt,
+    PRINT_FINAL_MEASURES[card.region as 'us' | 'eu'][card.piece as PrintFinalPiece].cuePt,
+    measurer,
+  )
 
 const faceOf = (card: GoldenCard): PrintFinalFace => ({
   piece: card.piece as PrintFinalPiece,
@@ -55,11 +66,7 @@ function tileOf(card: GoldenCard) {
 function planOf(card: GoldenCard): PrintFinalPlan {
   const face = faceOf(card)
   const tile = tileOf(card)
-  const cues = printFinalCueLines(
-    CUES[card.board] ?? ['Scan with your camera'],
-    tile.tilePt,
-    PRINT_FINAL_MEASURES[face.region][face.piece].cuePt,
-  )
+  const cues = cueLinesOf(card, tile.tilePt)
   const parts: PrintFinalPart[] = card.parts.map((part) => ({
     key: part.key as PrintFinalPartKey,
     widthPt: mmPt(part.w),
@@ -109,11 +116,22 @@ describe('the final planners against the boards', () => {
       'long-text',
       'no-logo',
       'no-photo',
+      'scan-cue',
       'tile-ladder',
       'two-languages',
     ])
     expect(golden.cards.filter((card) => card.board === 'family')).toHaveLength(12)
+    expect(golden.cards.filter((card) => card.board === 'scan-cue')).toHaveLength(20)
   })
+
+  it.each(golden.cards.map((card) => [nameOf(card), card] as const))(
+    '%s: the cue lines are each language’s cue, whole',
+    (_, card) => {
+      expect(card.cues).toEqual(
+        card.langs.map((locale) => PRINT_FINAL_SCAN_CUE[locale as GuestLocale]),
+      )
+    },
+  )
 
   it.each(golden.cards.map((card) => [nameOf(card), card] as const))(
     '%s: the tile and the cue lines are the board’s',
@@ -123,13 +141,8 @@ describe('the final planners against the boards', () => {
       expect(planOf(card).code.bottomPt - planOf(card).code.topPt).toBeGreaterThan(
         tile.tilePt,
       )
-      const face = faceOf(card)
-      const cues = printFinalCueLines(
-        CUES[card.board] ?? ['Scan with your camera'],
-        tile.tilePt,
-        PRINT_FINAL_MEASURES[face.region][face.piece].cuePt,
-      )
-      expect(cues).toHaveLength(card.cueLines)
+      expect(cueLinesOf(card, tile.tilePt)).toEqual(card.cues)
+      expect(card.cues).toHaveLength(card.cueLines)
     },
   )
 

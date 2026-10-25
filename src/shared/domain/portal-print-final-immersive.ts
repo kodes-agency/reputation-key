@@ -90,7 +90,7 @@ export type PrintFinalImmersivePalette = Readonly<{
   cool: string
   /** The accent at 3:1 on the ground: the no-photo glow and arch. */
   accentLine: string
-  /** The kicker, the stars and the rule between two languages. */
+  /** The kicker and the rule between two languages. */
   kicker: string
   /** What the kicker was held against: the brighter of the ground and the photo's middle under the scrim. */
   kickerGround: string

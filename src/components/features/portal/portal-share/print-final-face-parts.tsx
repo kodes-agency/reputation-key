@@ -1,9 +1,9 @@
 // The words, marks and code of a final face in the Share tab's preview (final
 // design spec §2 to §5, §8), drawn from the layout the PDF draws from, in
 // either look's colours: the logo (on its cream plate when it has one) or the
-// wordmark, the stars, the words, the rule between two languages and the code
-// block, each part where the file puts its ink. Every part is placed absolutely
-// in the face's container units, so the face scales with its column.
+// wordmark, the words, the rule between two languages and the code block, each
+// part where the file puts its ink. Every part is placed absolutely in the
+// face's container units, so the face scales with its column.
 //
 // Inline styles on purpose, as the rest of the print preview's: the first-paint
 // stylesheet is built by scanning `src/` for class names, and a measure this
@@ -20,7 +20,6 @@ import type {
   PrintFinalContent,
   PrintFinalFaceLayout,
 } from '#/shared/domain/portal-print-final-face'
-import { PRINT_FINAL_STAR } from '#/shared/domain/portal-print-final-marks'
 import type { PrintFinalPlacedPart } from '#/shared/domain/portal-print-final-parts'
 import type { PrintFinalSetText } from '#/shared/domain/portal-print-final-text'
 import { PRINT_KIT_TILE } from '#/shared/domain/portal-print-kit-palette'
@@ -95,33 +94,6 @@ export type PartProps = Readonly<{
   pt: PointsToLength
 }>
 
-function Stars({ content, part, colours, pt }: PartProps) {
-  if (content.kind !== 'stars') return null
-  const { stars } = content
-  const { grid, path } = PRINT_FINAL_STAR
-  return stars.origins.map((origin) => (
-    <svg
-      key={origin.xPt}
-      aria-hidden
-      viewBox={`0 0 ${grid} ${grid}`}
-      fill="none"
-      stroke={colours.accent}
-      strokeWidth={(stars.strokePt / stars.sizePt) * grid}
-      strokeLinejoin="round"
-      style={{
-        position: 'absolute',
-        left: pt(part.xPt + origin.xPt),
-        top: pt(part.yPt + origin.yPt),
-        width: pt(stars.sizePt),
-        height: pt(stars.sizePt),
-        overflow: 'visible',
-      }}
-    >
-      <path d={path} />
-    </svg>
-  ))
-}
-
 /** The logo filling its planned box, or the box inside its plate's padding on the cream plate. */
 export function Logo({ content, part, look, onLogoAspect, pt }: PartProps) {
   if (content.kind !== 'logo' || look.logoUrl === null) return null
@@ -178,8 +150,6 @@ function Part(props: PartProps) {
           pt={pt}
         />
       )
-    case 'stars':
-      return <Stars {...props} />
     case 'rule':
       return (
         <span aria-hidden style={{ ...boxOf(pt, part), background: colours.accent }} />

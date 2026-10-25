@@ -6,8 +6,8 @@
 // The renderer turns an ink position into a drawing position with the offsets
 // it measured; the planner never sees a font.
 //
-// Three groups: brand (the logo, its plate or the wordmark), message (stars,
-// kicker, headline, sub-line, second language) and code (tile and bar). Inside a
+// Three groups: brand (the logo, its plate or the wordmark), message (kicker,
+// headline, sub-line, second language) and code (tile and bar). Inside a
 // group, 1u; round the rule before the second language, 2u.
 //   - Upright: the groups down one centreline. Group gaps grow equally from 4u
 //     to 8u; whatever is left splits 44 : 56 into the top and bottom margins.

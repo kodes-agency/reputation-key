@@ -8,7 +8,6 @@ import type { PrintFinalCodeBlock } from './portal-print-final-code'
 
 export type PrintFinalPartKey =
   | 'brand'
-  | 'stars'
   | 'kicker'
   | 'headline'
   | 'subline'

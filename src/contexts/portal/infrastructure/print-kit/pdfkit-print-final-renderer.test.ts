@@ -116,14 +116,14 @@ describe('createPdfKitPrintFinalRenderer', () => {
     },
   )
 
-  it('wraps a French cue into the two-line bar when it stands alone, and refuses it beside another language', async () => {
-    const alone = await renderer.render(inputFor(paper('tent', 'wide'), ['fr']))
-    expect(text(alone)).toContain('/MediaBox')
-    for (const piece of ['tent', 'small'] as const) {
-      const pair = renderer.render(inputFor(paper(piece, 'wide'), ['en', 'fr']))
-      await expect(pair).rejects.toMatchObject({
-        refusal: { code: 'cue_does_not_fit' },
-      })
+  it('keeps every short cue on one line, alone and beside English, on the pieces whose bars are narrowest', async () => {
+    for (const locale of ['fr', 'de', 'bg', 'it'] as const) {
+      const alone = await renderer.render(inputFor(paper('tent', 'wide'), [locale]))
+      expect(text(alone)).toContain('/MediaBox')
+      for (const piece of ['tent', 'small'] as const) {
+        const pair = await renderer.render(inputFor(paper(piece, 'wide'), ['en', locale]))
+        expect(text(pair)).toContain('/MediaBox')
+      }
     }
   })
 })

@@ -275,3 +275,18 @@ export function drawCentredLine(
   const width = measureLine(doc, fonts, text, style)
   drawLine(doc, fonts, text, style, { x: at.centreX - width / 2, middleY: at.middleY })
 }
+
+/** A line centred on `centreX`, sitting on `baselineY`: the final kit's cue is centred in its bar by its ink. */
+export function drawCentredLineOnBaseline(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  text: string,
+  style: PdfTextStyle,
+  at: Readonly<{ centreX: number; baselineY: number }>,
+): void {
+  const width = measureLine(doc, fonts, text, style)
+  drawLineOnBaseline(doc, fonts, text, style, {
+    x: at.centreX - width / 2,
+    baselineY: at.baselineY,
+  })
+}
