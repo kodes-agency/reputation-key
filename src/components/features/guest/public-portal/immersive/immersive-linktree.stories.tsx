@@ -7,11 +7,12 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { trackedLinkHref } from '../portal-link-href'
 import {
+  LINKTREE_LINKS_CONTACT,
   LINKTREE_LINKS_DE,
   LINKTREE_LINKS_EN,
   LINKTREE_LINKS_LONG_WORDS,
 } from './__fixtures__/linktree-links'
-import { ImmersiveLinktree } from './immersive-linktree'
+import { ImmersiveLinktree, type ImmersiveLinktreeLink } from './immersive-linktree'
 import { ImmersiveShell } from './immersive-shell'
 
 const PHONE_HEIGHT = 844
@@ -137,19 +138,58 @@ export const TapBeforeARatingIsPlainNavigation: Story = {
  * destination the action resolves here is not an https URL, so the page falls
  * back to the click route (the tile's href) instead of going to it.
  */
-export const AfterARating: Story = {
-  args: { selectLink, hrefFor: hashHref },
+/** A tap on the tile named `name` after a rating: the action first, then the tile's href. */
+const tapAfterARating = (
+  name: RegExp,
+  linkId: string,
+  links: readonly ImmersiveLinktreeLink[] = LINKTREE_LINKS_EN,
+): Story => ({
+  args: { links, selectLink, hrefFor: hashHref },
   beforeEach: () => {
     selectLink.mockClear()
     window.location.hash = ''
   },
   play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole('link', { name: /Spa/u }))
+    await userEvent.click(within(canvasElement).getByRole('link', { name }))
     expect(selectLink).toHaveBeenCalledTimes(1)
-    expect(selectLink).toHaveBeenCalledWith('link-spa')
-    await waitFor(() => expect(window.location.hash).toBe('#tile-link-spa'))
+    expect(selectLink).toHaveBeenCalledWith(linkId)
+    await waitFor(() => expect(window.location.hash).toBe(`#tile-${linkId}`))
+  },
+})
+
+export const AfterARating: Story = tapAfterARating(/Spa/u, 'link-spa')
+
+/**
+ * A phone tile and an email tile are tiles like any other: before a rating each
+ * is a plain link to the click route, in this tab (no `target`), so the click
+ * route hands the guest's phone or mail app the number or address. After a
+ * rating a tap records the qualified action first, as a website's does; where
+ * it then goes (`tel:`/`mailto:` in this tab) is held by linktree-follow.test.ts,
+ * because a story cannot follow one.
+ */
+export const PhoneAndEmailTiles: Story = {
+  args: { links: LINKTREE_LINKS_CONTACT },
+  play: async ({ canvasElement }) => {
+    const links = tiles(canvasElement)
+    expect(links).toHaveLength(3)
+    for (const link of links) {
+      expect(link.getAttribute('target')).toBeNull()
+      // The phone and the letter are drawn like any icon from the closed set.
+      expect(link.querySelector('.ih-tile__icon svg')).not.toBeNull()
+    }
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(
+      LINKTREE_LINKS_CONTACT.map((link) => trackedLinkHref(TOKEN, link.id)),
+    )
+    const call = within(canvasElement).getByRole('link', { name: /Call reception/u })
+    expect(tap(call).takenOver).toBe(false)
   },
 }
+
+export const PhoneTileAfterARating: Story = tapAfterARating(
+  /Call reception/u,
+  'link-call',
+  LINKTREE_LINKS_CONTACT,
+)
 
 /** A modified click is the browser's own (a new tab): the page must not take it over or record it. */
 export const ModifiedClickLeavesTheTapToTheBrowser: Story = {

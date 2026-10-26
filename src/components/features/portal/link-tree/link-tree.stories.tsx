@@ -320,7 +320,9 @@ export const OpenTileShowsTheApproval: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^Olive Terrace menu/ }))
-    await expect(canvas.getByLabelText('Opens')).toHaveValue('https://avela.bg/menu')
+    await expect(canvas.getByLabelText('Website, phone or email')).toHaveValue(
+      'https://avela.bg/menu',
+    )
     await expect(canvas.getByText('Approved · Elena Petrova')).toBeVisible()
     // Bulgarian has no text yet: the tab says so, and so does the field.
     await userEvent.click(canvas.getByRole('radio', { name: 'BG missing Bulgarian' }))
@@ -398,7 +400,10 @@ export const AddsALink: Story = {
     await expect(canvas.getByText('2 of 4 tiles in use')).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Add link' }))
     await userEvent.type(canvas.getByLabelText('Label'), 'Kids club')
-    await userEvent.type(canvas.getByLabelText('Opens'), 'https://avela.bg/kids')
+    await userEvent.type(
+      canvas.getByLabelText('Website, phone or email'),
+      'https://avela.bg/kids',
+    )
     await userEvent.click(canvas.getByRole('button', { name: 'Add link' }))
     await waitFor(() =>
       expect(args.mutations.createLink).toHaveBeenCalledWith({
@@ -568,7 +573,7 @@ export const CheckingAnAddressIsShown: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^Olive Terrace menu/ }))
     await expect(canvas.getByText('Approved · Elena Petrova')).toBeVisible()
-    const address = canvas.getByLabelText('Opens')
+    const address = canvas.getByLabelText('Website, phone or email')
     await userEvent.clear(address)
     await userEvent.type(address, 'https://avela.bg/menu-new')
     await userEvent.tab()
@@ -799,7 +804,10 @@ export const AddWaitsForTypedTextAndEarlierWrites: Story = {
     await userEvent.type(title, 'Around the bay')
     await userEvent.click(canvas.getByRole('button', { name: 'Add link' }))
     await userEvent.type(canvas.getByLabelText('Label'), 'Kids club')
-    await userEvent.type(canvas.getByLabelText('Opens'), 'https://avela.bg/kids')
+    await userEvent.type(
+      canvas.getByLabelText('Website, phone or email'),
+      'https://avela.bg/kids',
+    )
     await userEvent.click(canvas.getByRole('button', { name: 'Add link' }))
     await waitFor(() => expect(args.mutations.createLink).toHaveBeenCalled())
     const [titleWrite] = mocked(args.mutations.saveSettings).mock.invocationCallOrder
@@ -836,15 +844,17 @@ export const AddressShowsTheSavedFormAndIsNotWrittenTwice: Story = {
     normalisingUpdate.mockClear()
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^Olive Terrace menu/ }))
-    const address = canvas.getByLabelText('Opens')
+    const address = canvas.getByLabelText('Website, phone or email')
     await userEvent.clear(address)
     await userEvent.type(address, 'https://AVELA.bg/menu')
     await userEvent.tab()
     await waitFor(() =>
-      expect(canvas.getByLabelText('Opens')).toHaveValue('https://avela.bg/menu/'),
+      expect(canvas.getByLabelText('Website, phone or email')).toHaveValue(
+        'https://avela.bg/menu/',
+      ),
     )
     // Leaving the field again without a change writes nothing more.
-    await userEvent.click(canvas.getByLabelText('Opens'))
+    await userEvent.click(canvas.getByLabelText('Website, phone or email'))
     await userEvent.tab()
     await expect(normalisingUpdate).toHaveBeenCalledTimes(1)
   },

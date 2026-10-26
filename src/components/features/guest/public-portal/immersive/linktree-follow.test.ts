@@ -81,6 +81,17 @@ describe('followLinktreeLink', () => {
     expect(navigate).toHaveBeenCalledExactlyOnceWith(HREF)
   })
 
+  it.each(['tel:+15551234567', 'mailto:front@hotel.com'])(
+    'records the tap, then opens %s in this tab for the phone or mail app',
+    async (url) => {
+      const navigate = vi.fn()
+      const select = vi.fn().mockResolvedValue({ url })
+      await followLinktreeLink({ linkId: 'link-1', href: HREF, select, navigate })
+      expect(select).toHaveBeenCalledExactlyOnceWith('link-1')
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(url)
+    },
+  )
+
   it.each([
     'javascript:alert(1)',
     'data:text/html,<script>alert(1)</script>',
@@ -89,8 +100,13 @@ describe('followLinktreeLink', () => {
     '/relative/path',
     'not a url',
     '',
+    'tel:+1 555 123 4567',
+    'tel:+15551234567;ext=2',
+    'mailto:front@hotel.com?bcc=spy@evil.com',
+    'mailto:front@hotel.com,spy@evil.com',
+    'sms:+15551234567',
   ])(
-    'goes to the click route, not to %j, when the action resolves a non-https URL',
+    'goes to the click route, not to %j, when the action resolves anything else',
     async (url) => {
       const navigate = vi.fn()
       const select = vi.fn().mockResolvedValue({ url })

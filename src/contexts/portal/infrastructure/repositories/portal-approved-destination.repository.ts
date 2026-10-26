@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, like, lte, ne, or, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalApprovedDestinations, portalLinks } from '#/shared/db/schema/portal.schema'
 import {
@@ -10,8 +10,10 @@ import {
 } from '#/shared/domain/ids'
 import type { PortalApprovedDestinationRepository } from '../../application/ports/portal-approved-destination.repository'
 import {
+  isConsistentDestinationKind,
   PORTAL_DESTINATION_VALIDATION_VERSION,
   type PortalApprovedDestination,
+  type PortalApprovedDestinationSource,
 } from '../../domain/approved-destination'
 import { trace } from '#/shared/observability/trace'
 import { lockPortalPublicationProperty } from '../portal-publication-serialization'
@@ -20,6 +22,77 @@ import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { portalApprovedDestinationUpdated } from '../../domain/events'
 
 type DestinationRow = typeof portalApprovedDestinations.$inferSelect
+type RequestInput = Parameters<PortalApprovedDestinationRepository['request']>[0]
+
+/** `disabled_reason` of a row the network check quarantined: the prefix, then its reason. */
+const NETWORK_QUARANTINE_REASON = 'network_validation:'
+
+/**
+ * A recognized site, a phone number and an email address are approved as they
+ * are requested; a custom site only by an AccountAdmin.
+ */
+function isApprovedOnRequest(
+  sourceType: PortalApprovedDestinationSource,
+  approveCustom: boolean,
+): boolean {
+  return sourceType === 'recognized' || sourceType === 'contact' || approveCustom
+}
+
+/**
+ * Which existing row of the same address a request approves in place, keeping
+ * its id, or null for none.
+ *
+ * A manager may have created a Pending row first: a later AccountAdmin request
+ * is the explicit approval. A phone number or an email address is approved as
+ * it is entered, and a contact row a network check quarantined is approved
+ * again, because a contact has nothing to check: only a server from before
+ * contacts would have checked one, and it refuses every `tel:`/`mailto:`. Any
+ * other disabled or quarantined row stays terminal and is never revived.
+ */
+function promotableOnRequest(input: RequestInput): SQL | null {
+  const state = portalApprovedDestinations.approvalState
+  if (input.destination.sourceType === 'contact') {
+    return (
+      or(
+        eq(state, 'pending'),
+        and(
+          eq(state, 'quarantined'),
+          like(
+            portalApprovedDestinations.disabledReason,
+            `${NETWORK_QUARANTINE_REASON}%`,
+          ),
+        ),
+      ) ?? null
+    )
+  }
+  return input.approveCustom ? eq(state, 'pending') : null
+}
+
+async function promoteOnRequest(tx: Tx, input: RequestInput): Promise<boolean> {
+  const promotable = promotableOnRequest(input)
+  if (promotable === null) return false
+  const promoted = await tx
+    .update(portalApprovedDestinations)
+    .set({
+      approvalState: 'approved',
+      approvedBy: unbrand(input.requestedBy),
+      approvedAt: input.at,
+      disabledAt: null,
+      disabledReason: null,
+      lastValidatedAt: input.at,
+      updatedAt: input.at,
+    })
+    .where(
+      and(
+        eq(portalApprovedDestinations.organizationId, unbrand(input.organizationId)),
+        eq(portalApprovedDestinations.propertyId, unbrand(input.propertyId)),
+        eq(portalApprovedDestinations.normalizedUri, input.destination.normalizedUri),
+        promotable,
+      ),
+    )
+    .returning({ id: portalApprovedDestinations.id })
+  return promoted.length > 0
+}
 
 /** Who changed a destination; null when the system did (a failed network check). */
 async function recordDestinationChange(
@@ -79,14 +152,23 @@ export const createPortalApprovedDestinationRepository = (
 ): PortalApprovedDestinationRepository => ({
   request: (input) =>
     trace('portalApprovedDestination.request', async () => {
+      // The contact source exempts a row from the network check and the guest
+      // edge's freshness cut-off: it is never written for anything else.
+      if (!isConsistentDestinationKind(input.destination)) {
+        throw new Error(
+          'A Portal destination is a contact exactly when it is a stored tel: or mailto: address',
+        )
+      }
       const committed = await db.transaction(async (tx) => {
         await lockPortalPublicationProperty(
           tx,
           unbrand(input.organizationId),
           unbrand(input.propertyId),
         )
-        const automaticallyApproved =
-          input.destination.sourceType === 'recognized' || input.approveCustom
+        const automaticallyApproved = isApprovedOnRequest(
+          input.destination.sourceType,
+          input.approveCustom,
+        )
         const inserted = await tx
           .insert(portalApprovedDestinations)
           .values({
@@ -115,38 +197,8 @@ export const createPortalApprovedDestinationRepository = (
             ],
           })
           .returning({ id: portalApprovedDestinations.id })
-        let changed = inserted.length > 0
-        if (input.approveCustom) {
-          // A manager may have created the Pending row first. The later
-          // AccountAdmin request is the explicit approval and must be able to
-          // promote that same governed destination without changing its ID.
-          // Disabled/quarantined rows remain terminal and are never revived.
-          const promoted = await tx
-            .update(portalApprovedDestinations)
-            .set({
-              approvalState: 'approved',
-              approvedBy: unbrand(input.requestedBy),
-              approvedAt: input.at,
-              lastValidatedAt: input.at,
-              updatedAt: input.at,
-            })
-            .where(
-              and(
-                eq(
-                  portalApprovedDestinations.organizationId,
-                  unbrand(input.organizationId),
-                ),
-                eq(portalApprovedDestinations.propertyId, unbrand(input.propertyId)),
-                eq(
-                  portalApprovedDestinations.normalizedUri,
-                  input.destination.normalizedUri,
-                ),
-                eq(portalApprovedDestinations.approvalState, 'pending'),
-              ),
-            )
-            .returning({ id: portalApprovedDestinations.id })
-          changed = changed || promoted.length > 0
-        }
+        const promoted = await promoteOnRequest(tx, input)
+        const changed = inserted.length > 0 || promoted
         const [row] = await tx
           .select()
           .from(portalApprovedDestinations)
@@ -228,7 +280,12 @@ export const createPortalApprovedDestinationRepository = (
             eq(portalApprovedDestinations.organizationId, unbrand(orgId)),
             eq(portalApprovedDestinations.propertyId, unbrand(propertyIdValue)),
             eq(portalApprovedDestinations.approvalState, 'approved'),
-            gte(portalApprovedDestinations.lastValidatedAt, validatedAfter),
+            // A phone number or an email address is never checked over the
+            // network, so its age says nothing; a website's must be recent.
+            or(
+              eq(portalApprovedDestinations.sourceType, 'contact'),
+              gte(portalApprovedDestinations.lastValidatedAt, validatedAfter),
+            ),
             inArray(portalApprovedDestinations.normalizedUri, uniqueUris),
           ),
         )
@@ -244,6 +301,9 @@ export const createPortalApprovedDestinationRepository = (
         .where(
           and(
             inArray(portalApprovedDestinations.approvalState, ['pending', 'approved']),
+            // Only websites are checked over the network; a phone number or an
+            // email address has nothing to resolve and takes no place in a page.
+            ne(portalApprovedDestinations.sourceType, 'contact'),
             lte(portalApprovedDestinations.lastValidatedAt, before),
           ),
         )
@@ -275,7 +335,7 @@ export const createPortalApprovedDestinationRepository = (
                   approvedBy: null,
                   approvedAt: null,
                   disabledAt: at,
-                  disabledReason: `network_validation:${input.result.reason}`,
+                  disabledReason: `${NETWORK_QUARANTINE_REASON}${input.result.reason}`,
                   updatedAt: at,
                 },
           )
@@ -292,6 +352,9 @@ export const createPortalApprovedDestinationRepository = (
                 input.expectedLastValidatedAt,
               ),
               inArray(portalApprovedDestinations.approvalState, ['pending', 'approved']),
+              // A run that started before a row was due could still reach a
+              // contact; it is never checked, so it is never quarantined.
+              ne(portalApprovedDestinations.sourceType, 'contact'),
             ),
           )
           .returning()

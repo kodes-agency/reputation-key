@@ -1,3 +1,4 @@
+import { isPortalContactUri } from '#/shared/domain/portal-contact-address'
 import type { GuestResponseAction } from '../guest-response-form-types'
 
 /** Resolves a link to its destination and records the qualified link action. */
@@ -31,7 +32,7 @@ export function bindLinkSelector(
   return (linkId) => selectSecondaryLink({ data: { token, csrfNonce, linkId } })
 }
 
-/** Whether `value` is an absolute https URL: the only kind a guest is ever sent to. */
+/** Whether `value` is an absolute https URL: the only kind of website a guest is sent to. */
 export function isHttpsUrl(value: string): boolean {
   try {
     return new URL(value).protocol === 'https:'
@@ -41,11 +42,13 @@ export function isHttpsUrl(value: string): boolean {
 }
 
 /**
- * Records the qualified action, then goes to the destination it resolved. When
- * the action fails the guest still arrives, through the click route. A resolved
- * destination that is not an https URL is never navigated to (ADR 0044 abuse
- * rule 4, no arbitrary redirects): the click route, which checks it again, takes
- * the guest instead.
+ * Records the qualified action, then goes to the destination it resolved, in
+ * this tab: a website, or the guest's phone or mail app for a phone number or
+ * an email address. When the action fails the guest still arrives, through the
+ * click route. A resolved destination that is neither an https URL nor a
+ * phone number or email address in its stored form is never navigated to (ADR
+ * 0044 abuse rule 4, no arbitrary redirects): the click route, which checks it
+ * again, takes the guest instead.
  */
 export async function followLinktreeLink(
   input: Readonly<{
@@ -59,7 +62,7 @@ export async function followLinktreeLink(
   let url = href
   try {
     const resolved = (await select(linkId)).url
-    if (isHttpsUrl(resolved)) url = resolved
+    if (isHttpsUrl(resolved) || isPortalContactUri(resolved)) url = resolved
   } catch {
     // The navigation has been approved already: losing the record must not lose the guest.
   }

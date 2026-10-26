@@ -40,6 +40,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const commandStoreCalls: CreatePortalLinkCommand[] = []
   let refuseLinkWrite = false
   const destinationRequests: string[] = []
+  const networkChecks: string[] = []
   const deps = {
     portalRepo,
     portalLinkRepo,
@@ -80,12 +81,15 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       },
     },
     destinationNetworkValidator: {
-      validate: async (uri: string) => ({
-        outcome: 'safe' as const,
-        validatedAt: FIXED_TIME,
-        finalUri: uri,
-        redirectCount: 0,
-      }),
+      validate: async (uri: string) => {
+        networkChecks.push(uri)
+        return {
+          outcome: 'safe' as const,
+          validatedAt: FIXED_TIME,
+          finalUri: uri,
+          redirectCount: 0,
+        }
+      },
     },
     idGen: () => '10000000-0000-0000-0000-000000000001',
     clock: () => FIXED_TIME,
@@ -97,6 +101,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     portalLinkRepo,
     outbox,
     destinationRequests,
+    networkChecks,
     commandStoreCalls,
     refuseLinkWrites: () => {
       refuseLinkWrite = true
@@ -477,6 +482,55 @@ describe('createLink', () => {
         (error: unknown) => isPortalError(error) && error.code === 'link_limit_reached',
       )
       expect(portalLinkRepo.allCategories()).toHaveLength(1)
+    })
+  })
+
+  describe('a phone number or an email address', () => {
+    const add = async (url: string, iconKey?: string) => {
+      const fixture = setup()
+      fixture.portalRepo.seed([buildTestPortal({})])
+      fixture.portalLinkRepo.seedCategories([buildTestPortalLinkCategory({})])
+      const link = await fixture.useCase(
+        {
+          categoryId: 'c0000000-0000-0000-0000-000000000001',
+          portalId: 'd0000000-0000-0000-0000-000000000001',
+          label: 'Call reception',
+          url,
+          ...(iconKey === undefined ? {} : { iconKey }),
+        },
+        buildTestAuthContext({ role: 'PropertyManager' }),
+      )
+      return { ...fixture, link }
+    }
+
+    it('stores a typed phone number in its one form, with a phone icon, and checks no network', async () => {
+      const { link, destinationRequests, networkChecks } = await add('+1 (555) 123-4567')
+
+      expect(link.url).toBe('tel:+15551234567')
+      expect(link.iconKey).toBe('phone')
+      expect(destinationRequests).toEqual(['tel:+15551234567'])
+      expect(networkChecks).toEqual([])
+    })
+
+    it('gives an email address a letter for its icon', async () => {
+      const { link, networkChecks } = await add('Front@Hotel.com')
+
+      expect(link.url).toBe('mailto:Front@hotel.com')
+      expect(link.iconKey).toBe('mail')
+      expect(networkChecks).toEqual([])
+    })
+
+    it('keeps the icon the manager chose', async () => {
+      const { link } = await add('front@hotel.com', 'concierge-bell')
+
+      expect(link.iconKey).toBe('concierge-bell')
+    })
+
+    it('gives a website no icon of its own, as before', async () => {
+      const { link, networkChecks } = await add('https://example.com/spa')
+
+      expect(link.iconKey).toBeNull()
+      expect(networkChecks).toEqual(['https://example.com/spa'])
     })
   })
 })

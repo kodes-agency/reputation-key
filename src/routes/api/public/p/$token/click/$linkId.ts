@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ZodError } from 'zod/v4'
 import { resolvePublicPortalLink } from '#/contexts/guest/server/guest-scans'
-import { isValidExternalUrl } from '#/contexts/portal/application/public-api'
+import { isValidLinkDestination } from '#/contexts/portal/application/public-api'
 import { getLogger } from '#/shared/observability/logger'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
@@ -51,7 +51,9 @@ export async function handlePublicPortalClick(
     const result = await resolvePublicPortalLink({
       data: { token: params.token, linkId: params.linkId },
     })
-    if (!result || !isValidExternalUrl(result.url)) {
+    // A website, or a phone number or email address in its stored form: the
+    // browser hands `tel:` and `mailto:` to the guest's phone or mail app.
+    if (!result || !isValidLinkDestination(result.url)) {
       if (result) {
         logger.warn({ linkId: params.linkId }, 'Invalid public Portal redirect blocked')
       }

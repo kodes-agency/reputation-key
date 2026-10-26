@@ -1,6 +1,7 @@
-// Adding a tile: its label and where it opens. Both are needed to make one; the
-// texts for other languages, the line under the label and the icon come once
-// the tile exists and is open for editing.
+// Adding a tile: its label and where it opens (a website, a phone number or an
+// email address). Both are needed to make one; the texts for other languages,
+// the line under the label and the icon come once the tile exists and is open
+// for editing.
 
 import { useForm } from '@tanstack/react-form'
 import { FormActions } from '#/components/forms/form-actions'
@@ -11,6 +12,7 @@ import { Button } from '#/components/ui/button'
 import { FieldGroup } from '#/components/ui/field'
 import { createLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
 import { LINK_TEXT_LABEL_MAX_LENGTH } from '#/contexts/portal/application/dto/portal-linktree.dto'
+import { LINK_ADDRESS_FIELD } from './link-address-field'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
 const addLinkFormSchema = createLinkInputSchema
@@ -63,11 +65,10 @@ export function LinkAddForm({ portalId, create, enqueue, onAdded, onCancel }: Pr
           {(field: BaseFieldApi) => (
             <FormTextField
               field={field}
-              label="Opens"
+              label={LINK_ADDRESS_FIELD.label}
+              description={LINK_ADDRESS_FIELD.description}
               id="linktree-add-url"
-              type="url"
               autoComplete="off"
-              placeholder="https://"
               maxLength={500}
             />
           )}

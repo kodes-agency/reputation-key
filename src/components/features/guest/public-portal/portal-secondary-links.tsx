@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react'
 import type { GuestResponseAction } from './guest-response-form'
+import { followLinktreeLink } from './immersive/linktree-follow'
 import { trackedLinkHref } from './portal-link-href'
 import {
   getGuestPortalCopy,
@@ -59,10 +60,14 @@ export function PortalSecondaryLinks({
   ) => {
     if (!token || !csrfNonce || !selectSecondaryLink) return
     event.preventDefault()
-    const fallback = destinationHref(link)
-    void selectSecondaryLink({ data: { token, csrfNonce, linkId: link.id } })
-      .then((result) => window.location.assign(result.url))
-      .catch(() => window.location.assign(fallback))
+    // The Linktree's own rule: go only to a website or a stored phone number
+    // or email address the action resolved, else take the click route.
+    void followLinktreeLink({
+      linkId: link.id,
+      href: destinationHref(link),
+      select: (linkId) => selectSecondaryLink({ data: { token, csrfNonce, linkId } }),
+      navigate: (url) => window.location.assign(url),
+    })
   }
   const renderLink = (link: PortalLinkItem) => (
     <a
