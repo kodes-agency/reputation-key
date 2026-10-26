@@ -20,7 +20,8 @@
 // 2026-10-25).
 // `provider_rejected` is Google's 400 or 404 on the read of one location: the
 // sync job parks the Property on the retry ladder and keeps the code stored, so
-// `sync.failed-nonzero` names it while the location stays unreachable (ADR 0055,
+// `sync.failed-nonzero` names it each time a retry date passes before the next
+// look re-dates the row: an edge per rung, not a standing signal (ADR 0055,
 // note 2026-10-26).
 
 export const SYNC_FAILURE_CODES = [

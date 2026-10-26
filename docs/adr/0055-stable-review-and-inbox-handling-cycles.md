@@ -1063,20 +1063,24 @@ the location like one over the cap.
   step and a continuation step alike. Nothing is retried, dead-lettered,
   reported to Sentry or latched, and `markSyncSucceeded` is not called. The
   failure, its time and its retry date stay recorded, so `sync.failed-nonzero`
-  keeps firing with `alert_codes` `provider_rejected` while the location stays
-  unreachable. That alert is the signal.
+  raises with `alert_codes` `provider_rejected` each time a retry date passes
+  before the next look re-dates the row, then clears. That is an edge per rung
+  of the ladder (about one 15-minute sweep, once per 6 hours at the cap), not a
+  standing signal. The durable view of what is rejected now is
+  `review_sync_state` where `error_class = 'provider_rejected'`. A standing
+  signal that ignores `error_retry_at` would be a separate change.
 - **The wait is the ordinary ladder, not a day.** 15 minutes, 1 hour, 4 hours, 6
   hours (`snapshotFailureRetryMs`, unchanged; only the cap codes pass
   `locationTooLarge`), because what ends a rejection is a person fixing the
   location on Google, and the poll should find it within hours. Each look is one
   `reviews.list` call that Google answers at once, so the price of the ladder is
   small.
-- **Still loud.** 429 and 5xx (recoverable: checkpoint, then retry), 401 and 403
-  (`authorization_changed`), `authorization_denied`, `connection_unusable` (the
-  quiet reconnect skip), the codes the job restarts at once (`cursor_lost`,
-  `listing_changed`), an uncoded failure (`provider_failure`), and the replay and
-  capture behaviour of note 2026-10-25. A replay of a rejected run ends as
-  `run_already_failed` like any other.
+- **Unchanged.** Loud: 429 and 5xx (recoverable: checkpoint, then retry), 401
+  and 403 (`authorization_changed`), `authorization_denied`, an uncoded failure
+  (`provider_failure`), and the one Sentry report of a failing continuation step
+  (note 2026-10-25). Quiet: `connection_unusable` (the reconnect skip), the codes
+  the job restarts at once (`cursor_lost`, `listing_changed`) and the replay of
+  a failed run (`run_already_failed`), which a replay of a rejected run is too.
 
 **What it costs.** A rejected location no longer produces a Sentry event, a
 dead letter or a latch per round: it produces the deferral warning and the

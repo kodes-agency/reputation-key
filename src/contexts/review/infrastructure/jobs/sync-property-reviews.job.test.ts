@@ -1146,7 +1146,7 @@ describe('sync-property-reviews snapshot handler', () => {
       expect(mocks.capture).not.toHaveBeenCalled()
     })
 
-    it('keeps the failure recorded so sync.failed-nonzero names it while the location is unreachable', async () => {
+    it('keeps the failure and its retry date recorded so sync.failed-nonzero can name it once the date passes', async () => {
       const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
       const { handler } = rejectedHandler(row)
 

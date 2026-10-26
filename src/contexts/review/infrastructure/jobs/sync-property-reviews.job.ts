@@ -410,8 +410,9 @@ async function recordSnapshotFailure(
   //   while the connection and its other locations are healthy) waits on the
   //   ordinary ladder below, so a location the owner fixes in Google Business
   //   Profile is read again within hours. The use case logged Google's status.
-  // `sync.failed-nonzero` keeps firing from the recorded `error_class` while
-  // either persists.
+  // The recorded `error_class` and retry date feed `sync.failed-nonzero`, which
+  // raises when a retry date passes before the next look re-dates the row and
+  // clears then: an edge per rung, not a standing signal.
   const tooLarge = historyImportFailureReason(code) === 'location_too_large'
   // Any other failure waits longer each time it repeats, so a failure that
   // recurs does not spend a full double listing every 15 minutes.
