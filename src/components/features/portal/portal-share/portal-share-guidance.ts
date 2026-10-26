@@ -1,5 +1,5 @@
-// What the Share tab says beyond the code itself: why someone can only look
-// (their role, or portal changes being switched off) and whom to ask, whether
+// What the Share tab says beyond the code itself: whom someone who can only
+// look asks for the code (the workspace says why they can only look), whether
 // guests can open the page the code leads to yet, and when the code before
 // this one stops working. Pure, so each sentence is tested once.
 
@@ -8,32 +8,6 @@ import { formatTimestamp, toInstant } from '#/lib/format'
 import { describeTimezone } from '#/shared/timezone-display'
 import { printAddressShape } from '#/shared/domain/portal-print-address'
 import { joinPeopleNames } from '../portal-review/portal-review-checks'
-
-/**
- * Who may make, replace and stop the code here: the role's `portal.update`
- * permission and the `portal.write` capability, the two the server asks. A
- * person missing either is told which, in one line, instead of being offered
- * actions the server refuses.
- */
-export function describeShareAccess(
-  access: Readonly<{ canUpdate: boolean; writeEnabled: boolean }>,
-): Readonly<{ canManage: boolean; viewOnlyReason: string | null }> {
-  if (!access.canUpdate) {
-    return {
-      canManage: false,
-      viewOnlyReason:
-        'You do not have permission to make, replace or stop the portal’s code.',
-    }
-  }
-  if (!access.writeEnabled) {
-    return {
-      canManage: false,
-      viewOnlyReason:
-        'Changes to portals are switched off right now, so the code can’t be made, replaced or stopped.',
-    }
-  }
-  return { canManage: true, viewOnlyReason: null }
-}
 
 /**
  * Whom someone who can only look asks for the code or the print kit: the
@@ -95,7 +69,7 @@ export function describeUnpublishedCode(
       return {
         title: 'The portal is archived',
         body: canManage
-          ? `${UNAVAILABLE}. Restore it from the Portals list before you share it.`
+          ? `${UNAVAILABLE}. Restore it before you share it.`
           : `${UNAVAILABLE}.`,
         offersReview: false,
       }

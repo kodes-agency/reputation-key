@@ -123,11 +123,12 @@ export function describePortalStatus(
 
 /**
  * Whether the header offers "Review & publish". An archived portal is restored
- * from the Portals list first, so there is nothing to publish here. The review
- * route needs both the role's `portal.update` permission and the organisation's
- * `portal.write` capability (a separate controlled-beta switch from reading), and
- * the server refuses the write without either — this only keeps a button off the
- * page that would lead to a denial.
+ * first (the workspace notice and the Portals list offer Restore), so there is
+ * nothing to publish here. The review route needs both the role's
+ * `portal.update` permission and the organisation's `portal.write` capability (a
+ * separate controlled-beta switch from reading), and the server refuses the
+ * write without either — this only keeps a button off the page that would lead
+ * to a denial.
  */
 export function canReviewAndPublish(
   access: Readonly<{ canUpdate: boolean; portalWriteEnabled: boolean }>,
@@ -156,4 +157,17 @@ export function describePendingChanges(history: PortalPublicationHistory): strin
 export function countPendingChanges(history: PortalPublicationHistory): number {
   if (!history.hasPendingChanges) return 0
   return Math.max(1, history.pendingChanges?.length ?? 0)
+}
+
+/**
+ * The browser tab's title for one portal's workspace, before the product name
+ * (`documentTitle`): the portal's own name, so two open portals, and the
+ * history, can be told apart. The review step is a child of the workspace route
+ * and keeps this title. Here rather than beside the workspace's route checks
+ * because the route's `head` reads it, and these rules are already in first
+ * paint (`normalizePortalWorkspaceSearch`).
+ */
+export function portalWorkspaceTitle(portalName: string): string {
+  const name = portalName.trim()
+  return `${name === '' ? 'Untitled portal' : name} · Portal`
 }

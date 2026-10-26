@@ -3,6 +3,11 @@
 // twice at every pause in typing, which would be two announcements per pause. A
 // visually hidden alert, always mounted, speaks only when a save did not go
 // through.
+//
+// "Draft saved" says "· not live until you publish". The section list's own note
+// on drafts shows only where the list is a column, which is decided by the
+// editor's container width, not the viewport, so this line keeps the words
+// at every width rather than guess where the note is hidden.
 
 import { TriangleAlert, Check, Loader2 } from 'lucide-react'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
@@ -46,6 +51,7 @@ export function PortalDraftSaveStatus() {
               <TriangleAlert className="size-3" aria-hidden />
             )}
             <span>{view.label}</span>
+            {view.tone === 'ok' ? <span>· not live until you publish</span> : null}
             {problem === null ? null : <span>· {problem}</span>}
             {view.canRetry ? (
               <RetryButton size="xs" onRetry={() => void autosave.retry()} />

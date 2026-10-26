@@ -196,12 +196,15 @@ export const MutationError: Story = {
   },
 }
 
+// Why they can only look is said once, under the workspace header
+// (PortalReadOnlyNotice); Share says only whom to ask.
 export const PermissionDenied: Story = {
   args: baseArgs,
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()
+    await expect(canvas.getByText(/for the QR code or print kit\./)).toBeInTheDocument()
+    await expect(canvas.queryByText(/view-only access/i)).toBeNull()
     await expect(canvas.queryByRole('button', { name: /make code/i })).toBeNull()
   },
 }
@@ -290,7 +293,7 @@ export const ViewerOfADraftPortal: Story = {
   },
 }
 
-// An archived portal is restored from the Portals list, not published here.
+// An archived portal is restored first (the workspace notice offers Restore), not published here.
 export const ArchivedPortal: Story = {
   args: {
     ...baseArgs,

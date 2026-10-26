@@ -4,8 +4,8 @@
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FullBleedFrame } from '#/components/layout/page-shell'
 import { cn } from '#/lib/utils'
-import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { usePortalAccess } from '../portal-overview/use-portal-access'
 import { PortalCodeBlock } from './portal-code-block'
 import { PortalLinkIssueForm } from './portal-link-issue-form'
 import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
@@ -16,16 +16,12 @@ import {
 } from './portal-share-print-kit'
 import { PortalLinkReveal } from './portal-link-reveal'
 import {
+  PortalAskForCodeLine,
   PortalRevokedNotice,
   PortalScanGoalReadinessNotice,
   PortalUnpublishedNotice,
-  PortalViewOnlyNotice,
 } from './portal-share-notices'
-import {
-  describeShareAccess,
-  describeUnpublishedCode,
-  describeWhoToAsk,
-} from './portal-share-guidance'
+import { describeUnpublishedCode, describeWhoToAsk } from './portal-share-guidance'
 import {
   derivePortalShareViewFromProps,
   liveStatusMessage,
@@ -40,14 +36,11 @@ export type { IssuedPortalLink } from './portal-share-types'
 
 export function PortalShare(props: PortalShareProps) {
   const { can } = usePermissions()
-  const { has } = useCapabilities()
   // The same two questions the server asks before it makes, replaces or stops
-  // a code: the role's permission and the portal.write capability.
+  // a code: the role's permission and the portal.write capability (the
+  // Portals pages' one rule). An archived portal's code can still be stopped.
   const canUpdate = can('portal.update')
-  const access = describeShareAccess({
-    canUpdate,
-    writeEnabled: has('portal.write'),
-  })
+  const canManage = usePortalAccess().canEdit
   const addresses = usePortalShareAddresses(props)
   const { publicUrl, directUrl, nfcPublicUrl } = addresses
   const { linkRef, copied, copyFailed, copyLink } = addresses.direct
@@ -57,7 +50,7 @@ export function PortalShare(props: PortalShareProps) {
     copyFailed: nfcCopyFailed,
   } = addresses.nfc
   const { error, isPending } = resolveMutationState(props)
-  const view = derivePortalShareViewFromProps(props, access.canManage, publicUrl)
+  const view = derivePortalShareViewFromProps(props, canManage, publicUrl)
   const kit = usePortalPrintKit(props, view)
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
@@ -69,8 +62,7 @@ export function PortalShare(props: PortalShareProps) {
         )}
         aria-label="Share"
       >
-        <PortalViewOnlyNotice
-          reason={access.viewOnlyReason}
+        <PortalAskForCodeLine
           ask={describeWhoToAsk(canUpdate, props.managerNames ?? [])}
         />
 
@@ -78,10 +70,10 @@ export function PortalShare(props: PortalShareProps) {
           notice={
             props.publicationState === undefined
               ? null
-              : describeUnpublishedCode(props.publicationState, access.canManage)
+              : describeUnpublishedCode(props.publicationState, canManage)
           }
           review={
-            access.canManage && props.propertyId !== undefined
+            canManage && props.propertyId !== undefined
               ? { propertyId: props.propertyId, portalId: props.portalId }
               : null
           }

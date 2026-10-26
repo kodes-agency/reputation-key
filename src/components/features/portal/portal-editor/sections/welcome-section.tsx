@@ -21,12 +21,16 @@ export function WelcomeSection({ resources, canEdit }: PortalEditorSectionProps)
   return (
     <PortalEditorSectionFrame
       section="welcome"
-      description="The first words guests read. Changes save as you type."
+      description={
+        canEdit
+          ? 'The first words guests read. Changes save as you type.'
+          : 'The first words guests read.'
+      }
     >
       <PortalWelcomeForm
         portal={portal}
         mutation={resources.autosaveUpdateMutation}
-        disabled={!canEdit}
+        readOnly={!canEdit}
         propertyHasName={Boolean(portalExperience?.profile?.displayName.trim())}
       />
       {portalExperience && portalExperienceActions ? (

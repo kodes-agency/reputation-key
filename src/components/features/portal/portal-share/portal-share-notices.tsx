@@ -9,21 +9,14 @@ import type { UnpublishedCodeNotice } from './portal-share-guidance'
 
 type NoticeProps = Readonly<{ show: boolean }>
 
-/** Why this person can only look (their role, or portal changes switched off), and whom to ask. */
-export function PortalViewOnlyNotice({
-  reason,
-  ask,
-}: Readonly<{ reason: string | null; ask: string | null }>) {
-  if (reason === null) return null
-  return (
-    <Alert variant="info">
-      <AlertTitle>View-only access</AlertTitle>
-      <AlertDescription>
-        <p>{reason}</p>
-        {ask === null ? null : <p>{ask}</p>}
-      </AlertDescription>
-    </Alert>
-  )
+/**
+ * Whom someone who can only look asks for the code or the print kit. Why they
+ * can only look is said once for every tab, under the workspace header
+ * (`PortalReadOnlyNotice`), so it is not repeated here.
+ */
+export function PortalAskForCodeLine({ ask }: Readonly<{ ask: string | null }>) {
+  if (ask === null) return null
+  return <p className="text-sm text-muted-foreground">{ask}</p>
 }
 
 /**

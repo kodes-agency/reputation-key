@@ -180,7 +180,7 @@ describe('describePrintKitNotLive', () => {
 
   it('sends an archived portal to the Portals list, where it is restored, not to the review', () => {
     expect(describePrintKitNotLive('archived', where)).toEqual({
-      body: 'Restore this portal from the Portals list and publish it to make a print kit. A print carries the code of the live page.',
+      body: 'Restore this portal and publish it to make a print kit. A print carries the code of the live page.',
       review: null,
     })
   })

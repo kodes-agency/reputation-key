@@ -1,5 +1,5 @@
-// The published-portal branch of the content review card: the human
-// attestation checkbox plus the submit button that produces the governed
+// The published-portal branch of the link check card: the human attestation
+// checkbox plus the submit button that produces the governed
 // `portal.content_review.completed` fact. Split out of content-review-card.tsx
 // so each publication state maps to one flat branch.
 
@@ -17,6 +17,8 @@ type Props = Readonly<{
   disabled: boolean
   attested: boolean
   onAttestedChange: (attested: boolean) => void
+  /** The page checked, by name ("live version 5"). */
+  live: string
 }>
 
 export function ContentReviewAttestation({
@@ -25,6 +27,7 @@ export function ContentReviewAttestation({
   disabled,
   attested,
   onAttestedChange,
+  live,
 }: Props) {
   const busy = disabled || mutation.isPending
 
@@ -48,8 +51,8 @@ export function ContentReviewAttestation({
         disabled={busy}
         onCheckedChange={onAttestedChange}
       >
-        I opened every destination on this portal and confirm each one points at the
-        intended review page.
+        I opened the Google link and every Linktree link on {live}, and each one opens the
+        page it should.
       </ConsentCheckbox>
       <FormErrorBanner error={mutation.error} />
       <Button
@@ -59,7 +62,7 @@ export function ContentReviewAttestation({
         pendingLabel="Recording…"
         onClick={record}
       >
-        Record content review
+        Record the link check
       </Button>
     </>
   )

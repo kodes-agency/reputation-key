@@ -84,6 +84,14 @@ function Row({
           </span>
         ) : null}
       </span>
+      {item.marker ? (
+        <span
+          data-slot="section-nav-marker"
+          className={sectionNavClasses(frame, 'marker', presentation)}
+        >
+          {item.marker}
+        </span>
+      ) : null}
       {item.count ? <NavCount>{item.count}</NavCount> : null}
     </NavLink>
   )

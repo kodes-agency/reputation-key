@@ -855,14 +855,12 @@ export const TurnedOffPortalAsksToPublishAgain: Story = {
   },
 }
 
-/** An archived portal is restored from the Portals list first, so there is no review to go to. */
+/** An archived portal is restored first (the workspace notice offers Restore), so there is no review to go to. */
 export const ArchivedPortalAsksToRestore: Story = {
   args: { ...NotLiveYetGetsOneNotice.args, publicationState: 'archived' },
   play: async ({ canvasElement }) => {
     const section = within(await printKitSection(canvasElement))
-    await expect(
-      section.getByText(/restore this portal from the portals list and publish it/i),
-    ).toBeVisible()
+    await expect(section.getByText(/restore this portal and publish it/i)).toBeVisible()
     await expect(section.queryByRole('link', { name: 'Review & publish' })).toBeNull()
   },
 }
@@ -899,7 +897,6 @@ export const ViewerGetsNoPrintKit: Story = {
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()
     await expect(canvas.queryByRole('heading', { name: 'Print kit' })).toBeNull()
     // The print kit is not silently gone: the viewer is told whom to ask.
     await expect(canvas.getByText(/for the QR code or print kit\./)).toBeInTheDocument()

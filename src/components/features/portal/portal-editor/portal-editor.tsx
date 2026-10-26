@@ -6,14 +6,12 @@
 // `?section=`, and every save goes through the portal's autosave coordinator.
 
 import { useNavigate } from '@tanstack/react-router'
+import { useRef } from 'react'
 import { SectionNavLayout } from '#/components/ui/section-nav-layout'
-import { countHiddenLinks } from '../link-tree/linktree-approval-rules'
+import { usePortalEditAccess } from '../portal-detail/use-portal-edit-access'
 import { PortalPreviewPane } from '../portal-preview/portal-preview-pane'
 import type { PreviewPartSection } from '../portal-preview/preview-parts'
-import { usePortalAccess } from '../portal-overview/use-portal-access'
 import { PortalEditorNav } from './portal-editor-nav'
-import { describeEditorReadOnly } from './portal-editor-read-only'
-import { PortalEditorReadOnlyNote } from './portal-editor-read-only-note'
 import { PortalEditorSectionPanel } from './portal-editor-section-panel'
 import {
   availablePortalEditorSections,
@@ -22,10 +20,11 @@ import {
 } from './portal-editor-sections'
 import {
   findPortalGroup,
-  responsibleManagerNames,
+  portalEditorSummaryInput,
   summarizePortalEditorSections,
 } from './portal-editor-summary'
 import type { PortalEditorResources } from './portal-editor-types'
+import { revealEditorSection } from './reveal-editor-section'
 
 type Props = Readonly<{
   resources: PortalEditorResources
@@ -34,9 +33,9 @@ type Props = Readonly<{
 }>
 
 export function PortalEditor({ resources, requestedSection }: Props) {
-  const access = usePortalAccess()
   const navigate = useNavigate()
-  const { portal, propertyId, portalGroups, links } = resources
+  const panel = useRef<HTMLDivElement>(null)
+  const { portal, propertyId, portalGroups } = resources
   const group = portalGroups ? findPortalGroup(portalGroups, portal.id) : null
   const hasResponsible =
     resources.responsibleManagers !== undefined &&
@@ -47,32 +46,23 @@ export function PortalEditor({ resources, requestedSection }: Props) {
     responsible: hasResponsible,
   })
   const section = resolvePortalEditorSection(requestedSection, available)
-  const summaries = summarizePortalEditorSections({
-    portalName: portal.name,
-    privateFeedbackThreshold: portal.privateFeedbackThreshold,
-    linkCount: links.length,
-    hiddenLinkCount: countHiddenLinks(resources.linktree.links),
-    languageCount: 1 + (portal.additionalGuestLocales?.length ?? 0),
-    missingTextCount: resources.languageCoverage?.missingTotal,
-    groupName: group?.name ?? null,
-    responsibleNames: responsibleManagerNames(
-      resources.responsibleManagers?.assignments ?? [],
-      resources.responsibleManagerMembers ?? [],
-    ),
-  })
-  // The role's `portal.update` and the organisation's `portal.write`: the server
-  // refuses every save without both, so the fields are not offered without them.
-  // An archived portal is read-only even for a holder of both: its configuration
-  // and history are retained exactly as they were.
-  const archived = portal.publicationState === 'archived'
-  const canEdit = access.canEdit && !archived
-  // A click on a part of the preview opens its section, as its link in the list does.
+  const summaries = summarizePortalEditorSections(
+    portalEditorSummaryInput(resources, group?.name ?? null),
+  )
+  // One answer for every section: the role, the organisation's `portal.write`
+  // capability (the server refuses every write without it) and an archived
+  // portal, which is retained exactly as it was. The workspace says why under
+  // its header (`PortalReadOnlyNotice`).
+  const { canEdit } = usePortalEditAccess(portal.publicationState)
+  // A click on a part of the preview opens its section, as its link in the list
+  // does, and brings that section into view: below lg the preview sits under
+  // the form, far from where the section opens.
   const openSection = (next: PreviewPartSection) =>
     void navigate({
       to: '/properties/$propertyId/portals/$portalId',
       params: { propertyId, portalId: portal.id },
       search: { tab: 'page', section: next },
-    })
+    }).then(() => revealEditorSection(panel.current))
 
   return (
     // The form and its preview sit side by side from lg (iPad landscape, a
@@ -85,17 +75,11 @@ export function PortalEditor({ resources, requestedSection }: Props) {
         active={section}
         available={available}
         summaries={summaries}
+        canEdit={canEdit}
       />
       <div className="flex min-w-0 flex-1 flex-col lg:flex-row">
         <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-8">
-          <div className="mx-auto max-w-2xl space-y-6">
-            <PortalEditorReadOnlyNote
-              line={describeEditorReadOnly({
-                canEdit: access.canEdit,
-                changesOff: access.changesOff,
-                archived,
-              })}
-            />
+          <div ref={panel} className="mx-auto max-w-2xl space-y-6">
             <PortalEditorSectionPanel
               section={section}
               group={group}

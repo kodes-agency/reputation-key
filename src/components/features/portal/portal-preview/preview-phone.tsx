@@ -113,7 +113,13 @@ export function PreviewPhone({
     width: 'fit-content',
   }
   return (
-    <div style={bezel}>
+    // The language sheet's scrim blurs what is behind it on the guest's phone.
+    // Inside this scaled page the blur sampled past the page's edge and drew a
+    // mirrored copy of it, so here the scrim is a plain dim.
+    <div
+      style={bezel}
+      className="[&_.ih-sheet-scene>div:first-child]:backdrop-filter-none!"
+    >
       <ScaledPage scale={scale} scrollable label={label} isScrollLocked={isScrollLocked}>
         {children}
       </ScaledPage>

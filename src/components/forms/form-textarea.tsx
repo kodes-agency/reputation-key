@@ -28,6 +28,8 @@ type Props = Readonly<{
   placeholder?: string
   rows?: number
   disabled?: boolean
+  /** Shown at full contrast, never edited (a viewer's copy of a value). */
+  readOnly?: boolean
   maxLength?: number
   /**
    * Merged onto the label and the textarea (`cn` in each primitive). Optional,
@@ -50,6 +52,7 @@ export function FormTextarea({
   placeholder,
   rows = 3,
   disabled,
+  readOnly,
   maxLength,
   labelClassName,
   textareaClassName,
@@ -80,6 +83,7 @@ export function FormTextarea({
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}
+        readOnly={readOnly}
         maxLength={maxLength}
       />
     </FormFieldFrame>

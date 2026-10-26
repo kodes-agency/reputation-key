@@ -32,7 +32,11 @@ export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps
   return (
     <PortalEditorSectionFrame
       section="linktree"
-      description="Up to four tiles under the rating card. Changes save as you make them."
+      description={
+        canEdit
+          ? 'Up to four tiles under the rating card. Changes save as you make them.'
+          : 'Up to four tiles under the rating card.'
+      }
       actions={
         <LinktreeSwitch
           portalId={portal.id}
