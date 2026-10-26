@@ -110,7 +110,7 @@ describe('a guest who has rated', () => {
 
     expect(order.every((position) => position > -1)).toBe(true)
     expect(order).toEqual([...order].sort((a, b) => a - b))
-    expect(text(html)).toContain('Fair · sent privately')
+    expect(text(html)).toContain('Fair · sent')
   })
 
   it('keeps the Linktree where it was, and takes the rating card away', () => {

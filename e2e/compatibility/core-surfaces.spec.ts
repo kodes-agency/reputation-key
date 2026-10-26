@@ -97,7 +97,7 @@ test.describe('Compatibility: core surfaces', () => {
       question: 'Wie hat es Ihnen gefallen?',
       first: /^1 Stern, Schlecht/,
       last: /^5 Sterne, Ausgezeichnet/,
-      send: 'Privat senden',
+      send: 'Senden',
     },
     {
       locale: 'fr',
@@ -105,7 +105,7 @@ test.describe('Compatibility: core surfaces', () => {
       question: /^Comment s’est passée votre expérience/,
       first: /^1 étoile, Mauvaise/,
       last: /^5 étoiles, Excellente/,
-      send: 'Envoyer en privé',
+      send: 'Envoyer',
     },
   ] as const) {
     test(`public gateway renders its complete ${guest.locale} language contract at 320 px`, async ({

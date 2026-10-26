@@ -39,7 +39,7 @@ export type YourResponseActions = Readonly<{
 export type ImmersiveResponseViewProps = Readonly<{
   /** The one v2 pack of the page's language. */
   pack: GuestPortalCopyV2
-  /** The property's display name: "Shared privately with Avela Resort." */
+  /** The property's display name: "Only Avela Resort sees your rating." */
   displayName: string
   availability?: 'available' | 'loading' | 'unavailable'
   /** The guest's response, or null before they rate. */

@@ -244,6 +244,7 @@ export async function bootstrap(
       authorizeScope: createScheduledScopeAuthorizer(
         'system:portal.destination_revalidate',
       ),
+      clock: container.clock,
       logger: container.logger,
     }),
   )

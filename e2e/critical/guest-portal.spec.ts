@@ -43,9 +43,9 @@ const selectRating = async (page: Page, stars: number): Promise<void> => {
 const seededTile = (page: Page) =>
   page.getByRole('link', { name: 'Visit example review destination' })
 
-/** The receipt that opens the after-rating page: "Fair · sent privately". */
+/** The receipt that opens the after-rating page: "Fair · sent". */
 const receipt = (page: Page, stars: number) =>
-  page.getByText(`${RATING_WORDS[stars - 1]} · sent privately`)
+  page.getByText(`${RATING_WORDS[stars - 1]} · sent`)
 
 /** Open "Your response", the guest's own controls, which the page keeps collapsed. */
 const openYourResponse = async (page: Page): Promise<void> => {
@@ -109,7 +109,7 @@ test.describe('Critical: public Portal basics', () => {
 
     await settleGuestConsent(page, 'immersive')
     await selectRating(page, 5)
-    await page.getByRole('button', { name: 'Send privately' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
 
     await expect(receipt(page, 5)).toBeVisible()
     await expect(
@@ -136,7 +136,7 @@ test.describe('Critical: public Portal basics', () => {
     const expectedDestination = `/api/public/p/${encodeURIComponent(seed.portalToken)}/click/${seed.portalLinkId}`
 
     await selectRating(page, 2)
-    await page.getByRole('button', { name: 'Send privately' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(receipt(page, 2)).toBeVisible()
     // The tile was a plain link before the rating and stays one: a tap on it
     // goes through the click route, which attributes it and keeps the guest's
@@ -148,9 +148,9 @@ test.describe('Critical: public Portal basics', () => {
     await page
       .getByRole('textbox', { name: 'Your note (optional)' })
       .fill('Initial private guest note.')
-    await page.getByRole('button', { name: 'Send note privately' }).click()
+    await page.getByRole('button', { name: 'Send note' }).click()
     await expect(
-      page.getByText('Your note was sent privately to E2E Guest Portal P1.'),
+      page.getByText('Your note was sent to E2E Guest Portal P1.'),
     ).toBeVisible()
 
     // The rating survives a full document load; the note text deliberately
@@ -178,7 +178,7 @@ test.describe('Critical: public Portal basics', () => {
     await expect(page.getByText('Your response was removed')).toBeVisible()
     await page.reload()
     await expect(page.getByText('Your response was removed')).toBeVisible()
-    await expect(page.getByText('· sent privately')).toHaveCount(0)
+    await expect(page.getByText('· sent')).toHaveCount(0)
 
     // A removed response is not a dead end: its session cannot rate again, so
     // the notice offers "Start over", which issues a fresh session. The fresh
@@ -215,13 +215,13 @@ test.describe('Critical: public Portal basics', () => {
     await page.goto(`/p/${seed.portalToken}`)
     await settleGuestConsent(page, 'immersive')
     await selectRating(page, 2)
-    await page.getByRole('button', { name: 'Send privately' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(receipt(page, 2)).toBeVisible()
     await page.getByRole('button', { name: 'Write a private note' }).click()
     await page.getByRole('textbox', { name: 'Your note (optional)' }).fill(feedbackBody)
-    await page.getByRole('button', { name: 'Send note privately' }).click()
+    await page.getByRole('button', { name: 'Send note' }).click()
     await expect(
-      page.getByText('Your note was sent privately to E2E Guest Portal P1.'),
+      page.getByText('Your note was sent to E2E Guest Portal P1.'),
     ).toBeVisible()
 
     const responseId = await waitFor(

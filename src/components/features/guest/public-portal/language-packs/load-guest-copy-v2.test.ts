@@ -34,7 +34,7 @@ describe('loadGuestPortalCopyV2', () => {
 
   it('loads the pinned version when the snapshot names one', async () => {
     const pack = await loadGuestPortalCopyV2('bg', 'guest-ui-bg-v2')
-    expect(pack.copy.ratingSend).toBe('Изпрати поверително')
+    expect(pack.copy.ratingSend).toBe('Изпрати')
   })
 
   it('throws when the pinned pack belongs to another locale', async () => {

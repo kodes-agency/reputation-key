@@ -111,7 +111,7 @@ export const AfterALowRating: Story = {
       await canvas.findByRole('button', { name: 'After a 2 star rating' }, WAIT),
     )
     const page = within(await phone(canvas, 'Draft · After 2★ · English'))
-    await expect(page.getByText('Fair · sent privately')).toBeVisible()
+    await expect(page.getByText('Fair · sent')).toBeVisible()
     await expect(page.getByText('Share your experience on Google')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Write a private note' })).toBeVisible()
   },
@@ -138,9 +138,7 @@ export const NoteSent: Story = {
       await canvas.findByRole('button', { name: 'After the private note is sent' }, WAIT),
     )
     const page = within(await phone(canvas, 'Draft · Done · English'))
-    await expect(
-      page.getByText(/Your note was sent privately to Avela Resort/),
-    ).toBeVisible()
+    await expect(page.getByText(/Your note was sent to Avela Resort/)).toBeVisible()
   },
 }
 
@@ -177,20 +175,18 @@ export const TryAsGuest: Story = {
       await canvas.findByRole('region', { name: 'Guest page you can try' }, WAIT),
     )
     // Nothing is chosen yet: sending asks for a star, as the guest page does.
-    await userEvent.click(page.getByRole('button', { name: 'Send privately' }))
+    await userEvent.click(page.getByRole('button', { name: 'Send' }))
     await expect(page.getByText('Choose a rating from 1 to 5 stars.')).toBeVisible()
     await userEvent.click(page.getByRole('radio', { name: '2 stars, Fair' }))
     await expect(page.getByRole('radio', { name: '2 stars, Fair' })).toBeChecked()
-    await userEvent.click(page.getByRole('button', { name: 'Send privately' }))
-    await expect(page.getByText('Fair · sent privately')).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: 'Send' }))
+    await expect(page.getByText('Fair · sent')).toBeVisible()
     // Focus follows the rating into the receipt, as on the guest page.
     await expect(page.getByRole('heading', { name: 'Thank you.' })).toHaveFocus()
     await userEvent.click(page.getByRole('button', { name: 'Write a private note' }))
     await userEvent.type(page.getByRole('textbox'), 'The terrace was lovely')
-    await userEvent.click(page.getByRole('button', { name: 'Send note privately' }))
-    await expect(
-      page.getByText(/Your note was sent privately to Avela Resort/),
-    ).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: 'Send note' }))
+    await expect(page.getByText(/Your note was sent to Avela Resort/)).toBeVisible()
     // The whole visit was local.
     await expect(asked).toHaveLength(before)
     await userEvent.click(canvas.getByRole('button', { name: 'Stop trying' }))
