@@ -67,7 +67,8 @@ const noDialog = () => expect(within(document.body).queryByRole('dialog')).toBeN
 /** Opens the photograph dialog from the Photo section's own button. */
 async function openPhotoDialog(canvasElement: HTMLElement, name = 'Replace photo') {
   await userEvent.click(within(canvasElement).getByRole('button', { name }))
-  return within(await within(document.body).findByRole('dialog', { name }))
+  // The dialog is a chunk fetched when it is first opened, which a cold dev server takes a moment over.
+  return within(await within(document.body).findByRole('dialog', { name }, WAIT))
 }
 
 /** Chooses a good photograph, ticks the permission and describes it. */
@@ -517,7 +518,7 @@ export const UploadingALogo: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Upload logo' }))
     const logo = within(
-      await within(document.body).findByRole('dialog', { name: 'Upload logo' }),
+      await within(document.body).findByRole('dialog', { name: 'Upload logo' }, WAIT),
     )
     const use = logo.getByRole('button', { name: 'Use logo' })
     await expect(use).toBeDisabled()
@@ -564,7 +565,7 @@ export const SmallLogoFailsTheCheck: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Upload logo' }))
     const logo = within(
-      await within(document.body).findByRole('dialog', { name: 'Upload logo' }),
+      await within(document.body).findByRole('dialog', { name: 'Upload logo' }, WAIT),
     )
     await userEvent.upload(
       logo.getByLabelText('Logo file'),

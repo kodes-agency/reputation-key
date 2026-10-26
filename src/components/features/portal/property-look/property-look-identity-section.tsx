@@ -2,16 +2,14 @@
 // display name belongs to property settings (AI reply drafts read it), so it is
 // shown here and changed there; the wordmark is the look's own. The logo is
 // uploaded here and replaces the wordmark on guest pages once one exists.
-import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
 import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { FieldOptional } from '#/components/ui/field'
-import { Input } from '#/components/ui/input'
 import {
   PropertyLookLogoField,
   type PropertyLookLogoControls,
 } from './property-look-logo-field'
 import { PropertyLookSection } from './property-look-section'
-import { WORDMARK_MAX } from './property-look-rules'
+import { PropertyLookWordmarkField } from './property-look-wordmark-field'
 import { InlineLink } from '#/components/ui/inline-link'
 
 type Props = Readonly<{
@@ -33,9 +31,6 @@ export function PropertyLookIdentitySection({
   disabled,
   logo,
 }: Props) {
-  const tooLong = wordmark.trim().length > WORDMARK_MAX
-  // The reason takes the hint's place, and the control names whichever is showing.
-  const hint = tooLong ? undefined : WORDMARK_HINT
   return (
     <PropertyLookSection
       title="Name and logo"
@@ -60,27 +55,13 @@ export function PropertyLookIdentitySection({
             {displayName}
           </DescriptionItem>
         </DescriptionList>
-        <FormFieldFrame
+        <PropertyLookWordmarkField
           id="property-look-wordmark"
-          label="Wordmark"
-          description={hint}
-          invalid={tooLong}
-          errors={
-            tooLong ? [{ message: `At most ${WORDMARK_MAX} characters` }] : undefined
-          }
-          className="gap-1.5"
-        >
-          <Input
-            id="property-look-wordmark"
-            value={wordmark}
-            disabled={disabled}
-            autoComplete="off"
-            aria-invalid={tooLong}
-            aria-describedby={describedByOf('property-look-wordmark', hint, tooLong)}
-            className="uppercase tracking-[0.2em]"
-            onChange={(event) => onWordmarkChange(event.target.value)}
-          />
-        </FormFieldFrame>
+          value={wordmark}
+          onChange={onWordmarkChange}
+          disabled={disabled}
+          hint={WORDMARK_HINT}
+        />
       </div>
       <div className="space-y-1.5">
         <p className="text-sm font-medium">

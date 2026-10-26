@@ -15,6 +15,20 @@ import {
   type LookDraft,
 } from './property-look-rules'
 
+/** The part of a look the colour controls edit; a portal's own colours are exactly this. */
+export type ColoursDraft = Pick<LookDraft, 'accent' | 'backgroundMode' | 'field'>
+
+type FieldsProps = Readonly<{
+  draft: ColoursDraft
+  onChange: (patch: Partial<ColoursDraft>) => void
+  disabled: boolean
+  /**
+   * Starts the DOM ids of the readout and the background label, so two looks
+   * on one page (the Property's and a portal's) never share one.
+   */
+  idPrefix?: string
+}>
+
 type Props = Readonly<{
   draft: LookDraft
   onChange: (patch: Partial<LookDraft>) => void
@@ -26,14 +40,24 @@ const MODE_OPTIONS = [
   { value: 'manual', label: 'Custom' },
 ] as const
 
-const READOUT_ID = 'property-look-readout'
+const PROPERTY_ID_PREFIX = 'property-look'
 
-export function PropertyLookColoursSection({ draft, onChange, disabled }: Props) {
-  const readout = readoutOf(draft)
+/** The accent, the background tint and what a guest can read: the controls, without the section around them. */
+export function PropertyLookColoursFields({
+  draft,
+  onChange,
+  disabled,
+  idPrefix = PROPERTY_ID_PREFIX,
+}: FieldsProps) {
+  // The rules read a whole look; the wordmark is not theirs to look at here.
+  const look: LookDraft = { ...draft, wordmark: '' }
+  const readout = readoutOf(look)
   const rows = readout === null ? [] : readoutRows(readout)
   const isManual = draft.backgroundMode === 'manual'
+  const readoutId = `${idPrefix}-readout`
+  const labelId = `${idPrefix}-background-label`
   return (
-    <PropertyLookSection title="Colours" hint="Checked for readability on every page.">
+    <>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <PropertyLookColourField
@@ -41,21 +65,21 @@ export function PropertyLookColoursSection({ draft, onChange, disabled }: Props)
             value={draft.accent}
             onCommit={(accent) => onChange({ accent })}
             disabled={disabled}
-            describedBy={READOUT_ID}
+            describedBy={readoutId}
           />
           <p className="text-sm text-muted-foreground">Button, stars and highlights</p>
         </div>
         <div className="space-y-1.5">
-          <span id="property-look-background-label" className="text-sm font-medium">
+          <span id={labelId} className="text-sm font-medium">
             Background tint
           </span>
           <SegmentedControl
-            aria-labelledby="property-look-background-label"
+            aria-labelledby={labelId}
             value={draft.backgroundMode}
             onValueChange={(mode) =>
               onChange(
                 mode === 'manual'
-                  ? { backgroundMode: 'manual', field: customFieldOf(draft) }
+                  ? { backgroundMode: 'manual', field: customFieldOf(look) }
                   : { backgroundMode: 'auto' },
               )
             }
@@ -69,14 +93,14 @@ export function PropertyLookColoursSection({ draft, onChange, disabled }: Props)
               onCommit={(field) => onChange({ field })}
               disabled={disabled}
               invalid={readout !== null && !readout.smallText.isReadable}
-              describedBy={READOUT_ID}
+              describedBy={readoutId}
             />
           ) : (
             <p className="text-sm text-muted-foreground">Taken from the accent</p>
           )}
         </div>
       </div>
-      <ul id={READOUT_ID} aria-label="Readability" className="space-y-1 text-sm">
+      <ul id={readoutId} aria-label="Readability" className="space-y-1 text-sm">
         {rows.length === 0 ? (
           <li className="text-muted-foreground">Enter a colour to check it.</li>
         ) : (
@@ -99,6 +123,14 @@ export function PropertyLookColoursSection({ draft, onChange, disabled }: Props)
           ))
         )}
       </ul>
+    </>
+  )
+}
+
+export function PropertyLookColoursSection({ draft, onChange, disabled }: Props) {
+  return (
+    <PropertyLookSection title="Colours" hint="Checked for readability on every page.">
+      <PropertyLookColoursFields draft={draft} onChange={onChange} disabled={disabled} />
     </PropertyLookSection>
   )
 }
