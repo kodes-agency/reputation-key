@@ -34,6 +34,7 @@ const WINDOW_START = new Date('2018-05-11T05:00:00.000Z')
 const RECORDED = new Date('2018-05-11T05:10:00.000Z')
 const RECORDED_EARLIER = new Date('2018-05-11T05:05:00.000Z')
 const RECORDED_LATER = new Date('2018-05-11T05:20:00.000Z')
+const RECORDED_LATEST = new Date('2018-05-11T05:30:00.000Z')
 const PUBLISHED = new Date('2012-07-07T10:00:00.000Z')
 
 const { getPool } = setupIntegrationDb({
@@ -158,19 +159,30 @@ async function seedHistoricalItem(): Promise<void> {
   await seedItem(HISTORY)
 }
 
-/** A route fact whose notification consumer has not run yet. */
+/** A route fact whose notification consumer has not run yet. Returns its id. */
 async function seedPendingFact(
   eventType: string,
   aggregateId: string,
   payload: Record<string, unknown>,
   recordedAt: Date = RECORDED,
-): Promise<void> {
+): Promise<string> {
+  const eventId = randomUUID()
   await getPool().query(
     `INSERT INTO outbox_events
        (id, event_type, event_version, payload, organization_id, property_id,
         source_context, source_aggregate_id, created_at, published_at)
      VALUES ($1, $2, 1, $3, $4, $5, 'inbox', $6, $7, $7)`,
-    [randomUUID(), eventType, payload, ORG, PROPERTY, aggregateId, recordedAt],
+    [eventId, eventType, payload, ORG, PROPERTY, aggregateId, recordedAt],
+  )
+  return eventId
+}
+
+/** The receipt a route's consumer writes once it has handled a fact. */
+async function seedReceipt(eventId: string, consumerName: string): Promise<void> {
+  await getPool().query(
+    `INSERT INTO event_consumer_receipts (event_id, consumer_name, status, created_at)
+     VALUES ($1, $2, 'applied', $3)`,
+    [eventId, consumerName, RECORDED_LATER],
   )
 }
 
@@ -303,6 +315,83 @@ describe('route facts the delivery-lag report waits on', () => {
       const report = await read()
 
       expect(report.sourceReceiptPending).toBe(1)
+    })
+  })
+
+  describe('the silent filter and the scan limit', () => {
+    const SILENT_ARRIVALS = 5
+
+    /** History's arrivals: owed nothing, and older than every fact seeded after them. */
+    async function seedSilentArrivals(count: number): Promise<void> {
+      for (let arrival = 0; arrival < count; arrival += 1) {
+        await seedPendingFact(
+          'inbox.inbox_item.created',
+          HISTORY_ITEM,
+          {},
+          RECORDED_EARLIER,
+        )
+      }
+    }
+
+    it('lets silent facts beyond the scan limit leave room for a fact owed a notice', async () => {
+      await seedHistoricalItem()
+      await seedSilentArrivals(SILENT_ARRIVALS)
+      await seedPendingFact('inbox.inbox_item.assigned', LIVE_ITEM, {}, RECORDED_LATER)
+
+      const report = await readWithScanLimit(2)
+
+      expect(report.sourceReceiptPending).toBe(1)
+      expect(report.sourceReceiptPendingByEventType).toEqual({
+        'inbox.inbox_item.assigned': 1,
+      })
+      expect(report.oldestSourceRecordedAt).toEqual(RECORDED_LATER)
+      expect(report.sourceSaturated).toBe(false)
+    })
+
+    it('still bounds the facts it counts by the scan limit, oldest first', async () => {
+      await seedHistoricalItem()
+      await seedSilentArrivals(SILENT_ARRIVALS)
+      await seedPendingFact('inbox.inbox_item.assigned', LIVE_ITEM, {}, RECORDED)
+      await seedPendingFact('inbox.inbox_item.assigned', LIVE_ITEM, {}, RECORDED_LATER)
+      await seedPendingFact('inbox.inbox_item.escalated', LIVE_ITEM, {}, RECORDED_LATEST)
+
+      const report = await readWithScanLimit(2)
+
+      expect(report.sourceReceiptPending).toBe(2)
+      expect(report.sourceSaturated).toBe(true)
+      expect(report.sourceReceiptPendingByEventType).toEqual({
+        'inbox.inbox_item.assigned': 2,
+      })
+      expect(report.oldestSourceRecordedAt).toEqual(RECORDED)
+    })
+
+    it('leaves out facts its consumer has received, silent or not', async () => {
+      await seedHistoricalItem()
+      // Received: history's arrival (silent) and a live arrival (counted).
+      const receivedSilent = await seedPendingFact(
+        'inbox.inbox_item.created',
+        HISTORY_ITEM,
+        {},
+        RECORDED_EARLIER,
+      )
+      const receivedCounted = await seedPendingFact(
+        'inbox.inbox_item.created',
+        LIVE_ITEM,
+        {},
+        RECORDED_EARLIER,
+      )
+      await seedReceipt(receivedSilent, 'notification.on-inbox-item-created')
+      await seedReceipt(receivedCounted, 'notification.on-inbox-item-created')
+      // Not received: the one fact the report is waiting on.
+      await seedPendingFact('inbox.inbox_item.created', randomUUID(), {}, RECORDED)
+
+      const report = await read()
+
+      expect(report.sourceReceiptPending).toBe(1)
+      expect(report.sourceReceiptPendingByEventType).toEqual({
+        'inbox.inbox_item.created': 1,
+      })
+      expect(report.oldestSourceRecordedAt).toEqual(RECORDED)
     })
   })
 

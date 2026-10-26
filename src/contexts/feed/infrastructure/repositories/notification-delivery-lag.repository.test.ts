@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
@@ -1294,3 +1294,102 @@ describe.sequential('immediate-email source linkage at volume (real PostgreSQL)'
     ])
   }, 60_000)
 })
+
+// A fact two consumers handle (the notice, and the settle of an earlier one) is
+// owed a receipt from each. The report counts it once per route still missing
+// its receipt, so a half-handled fact is counted once and an unhandled one
+// twice. Written inside one held transaction and rolled back, in a window no
+// other suite writes into.
+const ROUTES_ORG = organizationId('notification-delivery-lag-routes-org')
+const ROUTES_WINDOW_START = new Date('2018-05-12T05:00:00.000Z')
+const ROUTES_WINDOW_END = new Date('2018-05-12T06:00:00.000Z')
+const ROUTES_RECORDED = new Date('2018-05-12T05:10:00.000Z')
+const TWO_CONSUMER_EVENT_TYPE = 'review.reply.approved'
+const NOTICE_CONSUMER = 'notification.on-review-reply-approved'
+const SETTLE_CONSUMER = 'notification.settle-on-review-reply-approved'
+
+describe.sequential(
+  'delivery lag source facts handled by two consumers (real PostgreSQL)',
+  () => {
+    let fixture: HeldTransaction | undefined
+
+    beforeAll(async () => {
+      fixture = await holdTransaction()
+    })
+
+    afterEach(async () => {
+      // Receipts go with their fact (ON DELETE CASCADE).
+      await fixture?.client.query(
+        'DELETE FROM outbox_events WHERE organization_id = $1',
+        [ROUTES_ORG],
+      )
+    })
+
+    afterAll(async () => {
+      await fixture?.rollBack()
+    })
+
+    /** A review reply approval fact, whose route has two consumers. */
+    async function seedApproval(): Promise<string> {
+      const inserted = await fixture!.client.query<{ id: string }>(
+        `INSERT INTO outbox_events (
+         event_type, event_version, payload, organization_id, property_id,
+         source_context, source_aggregate_id, created_at, published_at
+       ) VALUES ($1, 1, '{}'::jsonb, $2, NULL, 'review', 'routes-approval', $3, $3)
+       RETURNING id::text AS id`,
+        [TWO_CONSUMER_EVENT_TYPE, ROUTES_ORG, ROUTES_RECORDED],
+      )
+      return inserted.rows[0]!.id
+    }
+
+    const readSourceFacts = () =>
+      createNotificationDeliveryLagRepository(fixture!.db, () => true).read({
+        recordedAtOrAfter: ROUTES_WINDOW_START,
+        recordedBefore: ROUTES_WINDOW_END,
+        scanLimit: 10,
+        statementTimeoutMs: STATEMENT_TIMEOUT_MS,
+      })
+
+    it('counts a fact once for each of its routes that has no receipt', async () => {
+      await seedApproval()
+
+      const report = await readSourceFacts()
+
+      expect(report.sourceReceiptPending).toBe(2)
+      expect(report.sourceReceiptPendingByEventType).toEqual({
+        [TWO_CONSUMER_EVENT_TYPE]: 2,
+      })
+      expect(report.oldestSourceRecordedAt).toEqual(ROUTES_RECORDED)
+    })
+
+    it('counts a fact once while one of its two routes has no receipt', async () => {
+      const eventId = await seedApproval()
+      await fixture!.client.query(
+        `INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
+       VALUES ($1, $2, 'applied')`,
+        [eventId, NOTICE_CONSUMER],
+      )
+
+      const report = await readSourceFacts()
+
+      expect(report.sourceReceiptPending).toBe(1)
+      expect(report.sourceReceiptPendingByEventType).toEqual({
+        [TWO_CONSUMER_EVENT_TYPE]: 1,
+      })
+    })
+
+    it('leaves out a fact once both of its routes have their receipts', async () => {
+      const eventId = await seedApproval()
+      await fixture!.client.query(
+        `INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
+       VALUES ($1, $2, 'applied'), ($1, $3, 'applied')`,
+        [eventId, NOTICE_CONSUMER, SETTLE_CONSUMER],
+      )
+
+      const report = await readSourceFacts()
+
+      expect(report.sourceReceiptPending).toBe(0)
+      expect(report.sourceReceiptPendingByEventType).toEqual({})
+    })
+  },
+)

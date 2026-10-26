@@ -27,9 +27,13 @@ const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 /**
  * True for an `outbox_events` row, aliased `event`, whose route announces
- * nothing. An arrival fact's aggregate is its Inbox item, and a Handling Cycle
- * fact names it in its payload; the casts are guarded so a malformed id links
- * to nothing instead of failing the read. A close is silent only for the first
+ * nothing. Any relation aliased `event` that carries the row's `event_type`,
+ * `organization_id`, `source_aggregate_id` and `payload` will do: the
+ * delivery-lag read tests the facts still missing a receipt, not the table.
+ *
+ * An arrival fact's aggregate is its Inbox item, and a Handling Cycle fact
+ * names it in its payload; the casts are guarded so a malformed id links to
+ * nothing instead of failing the read. A close is silent only for the first
  * cycle of a history item and only when no user wrote it: a missing actor
  * reads as a user, so the doubtful case stays counted.
  */
