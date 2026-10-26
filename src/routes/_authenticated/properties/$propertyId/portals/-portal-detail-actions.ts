@@ -22,6 +22,7 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import { openPageErrorMessage } from '#/components/features/portal/portal-workspace/portal-open-page'
+import type { PortalLookActions } from '#/components/features/portal/portal-look/portal-look-types'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
@@ -36,6 +37,32 @@ const downloadPortalPrintFinalLazily = async (
   const { downloadPortalPrintFinal } =
     await import('#/contexts/portal/server/portal-print-final')
   return downloadPortalPrintFinal(input)
+}
+
+type PortalLookServer = typeof import('#/contexts/portal/server/portal-look')
+
+/**
+ * The three writes of a portal's own look, their server functions' module loaded
+ * when one is first used: only an Account Admin on a property with a second
+ * portal ever asks, and the first paint has no room for three more stubs.
+ */
+const savePortalLookColoursLazily = async (
+  input: Parameters<PortalLookServer['savePortalLookColours']>[0],
+): Promise<Awaited<ReturnType<PortalLookServer['savePortalLookColours']>>> => {
+  const { savePortalLookColours } = await import('#/contexts/portal/server/portal-look')
+  return savePortalLookColours(input)
+}
+const savePortalLookIdentityLazily = async (
+  input: Parameters<PortalLookServer['savePortalLookIdentity']>[0],
+): Promise<Awaited<ReturnType<PortalLookServer['savePortalLookIdentity']>>> => {
+  const { savePortalLookIdentity } = await import('#/contexts/portal/server/portal-look')
+  return savePortalLookIdentity(input)
+}
+const savePortalLookPhotoLazily = async (
+  input: Parameters<PortalLookServer['savePortalLookPhoto']>[0],
+): Promise<Awaited<ReturnType<PortalLookServer['savePortalLookPhoto']>>> => {
+  const { savePortalLookPhoto } = await import('#/contexts/portal/server/portal-look')
+  return savePortalLookPhoto(input)
 }
 
 /**
@@ -147,6 +174,34 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
 }
 
 /**
+ * A portal's own look (the Look section): colours, name and logo, and photo. Each
+ * write changes the draft guests will see, so everything that draws or reviews
+ * it is read again: the Portal's settings (the editor), the draft preview and the
+ * review and print kit under the publication history (with the header's "N
+ * changes not live"), the Portals overview (its waiting changes) and the
+ * property's settings (the Property look page's rail and its batch review).
+ * Silent on success: the header's "Draft saved" is the acknowledgement for an
+ * autosave, and a button on the section answers a refusal itself.
+ */
+function usePortalLookActions(propertyId: string, portalId: string): PortalLookActions {
+  const invalidateKeys = [
+    portalKeys.experience(propertyId, portalId),
+    portalKeys.preview(portalId, 'draft'),
+    portalKeys.publicationHistory(portalId),
+    portalKeys.review(portalId),
+    portalKeys.printKit(portalId),
+    portalKeys.overview(propertyId),
+    portalKeys.propertyExperience(propertyId),
+    portalKeys.lookReview(propertyId),
+  ]
+  return {
+    saveColours: useActionMutation(savePortalLookColoursLazily, { invalidateKeys }),
+    saveIdentity: useActionMutation(savePortalLookIdentityLazily, { invalidateKeys }),
+    savePhoto: useActionMutation(savePortalLookPhotoLazily, { invalidateKeys }),
+  }
+}
+
+/**
  * The workspace header's "Open live page": the same reveal as "Download again", for
  * the purpose "show". It says why it failed itself (a rate limit, a retired
  * key) in Open live page's words, because the header has no banner to carry the error.
@@ -238,6 +293,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     ],
   })
   const experience = usePortalExperienceActions(propertyId, portalId)
+  const look = usePortalLookActions(propertyId, portalId)
 
   return {
     autosaveUpdate,
@@ -252,5 +308,6 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     makeVersionLive,
     publishChanges,
     experience,
+    look,
   }
 }

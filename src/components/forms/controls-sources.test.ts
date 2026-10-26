@@ -94,7 +94,7 @@ describe('a boolean setting is a SettingSwitchRow', () => {
 })
 
 describe('"follow the parent or set my own" is an InheritedSetting', () => {
-  it('is used by the Property target, the quiet hours and the notification defaults', () => {
+  it('is used by the Property target, the quiet hours, the notification defaults and a portal’s own look', () => {
     const users = usedIn(/<InheritedSetting\b/u).map((file) => file.path)
 
     expect(users).toEqual(
@@ -102,6 +102,8 @@ describe('"follow the parent or set my own" is an InheritedSetting', () => {
         'src/components/features/property/private-feedback-target-card.tsx',
         'src/components/features/settings/notification-quiet-hours-card.tsx',
         'src/components/features/settings/notification-default-controls.tsx',
+        'src/components/features/portal/portal-look/portal-look-photo-block.tsx',
+        'src/components/features/portal/portal-look/portal-look-group-setting.tsx',
       ]),
     )
   })

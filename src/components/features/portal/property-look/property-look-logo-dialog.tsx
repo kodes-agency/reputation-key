@@ -22,6 +22,10 @@ type Props = Readonly<
     onOpenChange: (open: boolean) => void
     propertyName: string
     hasLogo: boolean
+    /** Which pages the logo replaces the wordmark on; every guest page unless said. */
+    description?: string
+    /** The foot's line on when live pages change; the Property look's unless said. */
+    footerNote?: string
   }
 >
 
@@ -30,6 +34,8 @@ export function PropertyLookLogoDialog({
   onOpenChange,
   propertyName,
   hasLogo,
+  description,
+  footerNote,
   ...input
 }: Props) {
   return (
@@ -40,6 +46,8 @@ export function PropertyLookLogoDialog({
           {...guard}
           propertyName={propertyName}
           hasLogo={hasLogo}
+          description={description}
+          footerNote={footerNote}
         />
       )}
     </UploadDialogShell>
@@ -49,8 +57,16 @@ export function PropertyLookLogoDialog({
 function LogoDialogBody({
   propertyName,
   hasLogo,
+  description,
+  footerNote,
   ...input
-}: LogoDialogInput & Readonly<{ propertyName: string; hasLogo: boolean }>) {
+}: LogoDialogInput &
+  Readonly<{
+    propertyName: string
+    hasLogo: boolean
+    description: string | undefined
+    footerNote: string | undefined
+  }>) {
   const dialog = useLogoDialog(input)
   const { picker } = dialog
   return (
@@ -58,7 +74,7 @@ function LogoDialogBody({
       <DialogHeader>
         <DialogTitle>{hasLogo ? 'Replace logo' : 'Upload logo'}</DialogTitle>
         <DialogDescription>
-          Replaces the wordmark at the top of every guest page.
+          {description ?? 'Replaces the wordmark at the top of every guest page.'}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
@@ -116,6 +132,7 @@ function LogoDialogBody({
       <FormErrorBanner error={dialog.message} />
       <UploadDialogFooter
         primaryLabel="Use logo"
+        {...(footerNote === undefined ? {} : { note: footerNote })}
         canSubmit={dialog.canSubmit}
         isBusy={dialog.isBusy}
         onSubmit={() => void dialog.submit()}

@@ -7,7 +7,7 @@ import { ImagePlus } from 'lucide-react'
 import type { PropertyLookLogo } from '#/contexts/portal/application/public-api'
 import { Button } from '#/components/ui/button'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
-import { PropertyLookLogoDialog } from './property-look-logo-dialog'
+import { LazyPropertyLookLogoDialog } from './property-look-lazy-dialogs'
 import { PropertyLookMediaActions } from './property-look-media-actions'
 
 export type PropertyLookLogoControls = Readonly<{
@@ -19,7 +19,21 @@ export type PropertyLookLogoControls = Readonly<{
   /** Puts an uploaded logo on the look, or takes it off with null. A refusal is thrown. */
   onSave: (assetId: string | null) => Promise<void>
   upload?: PortalImageUploader
+  /**
+   * Words that name whose pages the logo changes. The Property's pages unless a
+   * caller (a portal's own name and logo) says otherwise.
+   */
+  copy?: Readonly<{
+    /** Under the empty field: what the logo replaces. */
+    replaces?: string
+    /** The dialog's description. */
+    dialogDescription?: string
+    /** The dialog foot's line on when live pages change. */
+    footerNote?: string
+  }>
 }>
+
+const REPLACES_EVERY_PAGE = 'It replaces the wordmark on every guest page.'
 
 const LOGO_REMOVAL = {
   title: 'Remove the logo?',
@@ -65,7 +79,7 @@ export function PropertyLookLogoField({
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
             A light logo, best as a PNG or WebP with a transparent background (a JPEG
-            keeps its own background). It replaces the wordmark on every guest page.
+            keeps its own background). {controls.copy?.replaces ?? REPLACES_EVERY_PAGE}
           </p>
           {canEdit ? (
             <Button type="button" variant="outline" onClick={() => setIsOpen(true)}>
@@ -75,13 +89,15 @@ export function PropertyLookLogoField({
         </div>
       )}
       {canEdit ? (
-        <PropertyLookLogoDialog
+        <LazyPropertyLookLogoDialog
           open={isOpen}
           onOpenChange={setIsOpen}
           propertyId={controls.propertyId}
           propertyName={controls.propertyName}
           hasLogo={logo !== null}
           onSave={async (assetId) => controls.onSave(assetId)}
+          description={controls.copy?.dialogDescription}
+          footerNote={controls.copy?.footerNote}
           {...(controls.upload ? { upload: controls.upload } : {})}
         />
       ) : null}

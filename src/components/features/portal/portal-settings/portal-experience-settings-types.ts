@@ -1,4 +1,8 @@
 import type { Action } from '#/components/hooks/use-action'
+import type {
+  PortalLookSettings,
+  PropertyLookMedia,
+} from '#/contexts/portal/application/public-api'
 import type { GuestLocale, OfferedGuestLocale } from '#/shared/domain/guest-locale'
 
 export type PortalExperienceSettings = Readonly<{
@@ -7,7 +11,13 @@ export type PortalExperienceSettings = Readonly<{
     primaryColor: string
     backgroundColor: string
     textColor: string
+    /** How the background is chosen: from the accent ("auto") or typed ("manual"). */
+    backgroundMode?: 'auto' | 'manual'
+    /** The short name at the top of a page until a logo replaces it. */
+    wordmark?: string | null
   }> | null
+  /** The Property's photograph and logo, as a page draws them. */
+  media?: PropertyLookMedia
   content: readonly Readonly<{
     locale: GuestLocale
     title: string
@@ -21,6 +31,14 @@ export type PortalExperienceSettings = Readonly<{
     version: number
   }>[]
   canManagePropertyBrand: boolean
+  /**
+   * A Portal's own look (ADR 0070): the three fields below are the settings
+   * read's. Left out, as in a story that predates them, the portal follows the
+   * property look and the own-look controls are not offered.
+   */
+  portalLook?: PortalLookSettings['portalLook']
+  siblingPortalCount?: PortalLookSettings['siblingPortalCount']
+  portalLookEnabled?: PortalLookSettings['portalLookEnabled']
 }>
 
 type Destination = Readonly<{

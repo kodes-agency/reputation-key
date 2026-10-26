@@ -3,6 +3,8 @@
 // The coverage key descends from the Portal's experience key, so one experience
 // invalidation refreshes it; these tests pin that for each such write.
 
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ActionMutationOptions } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
@@ -148,5 +150,66 @@ describe('portal detail actions and the language coverage read', () => {
     expect(
       portalKeys.version(PORTAL_ID, 4).slice(0, portalKeys.versions(PORTAL_ID).length),
     ).toEqual(portalKeys.versions(PORTAL_ID))
+  })
+
+  // A portal's own look is the draft guests will see: the editor's settings, the
+  // draft preview and everything under the publication history (the review, the
+  // print kit, the header's pending count), the overview and the Property look
+  // page's rail and batch review all read it, so one write refreshes them all.
+  describe('a portal’s own look', () => {
+    const lookWrites = () =>
+      [...captured.values()].filter((options) =>
+        options?.invalidateKeys?.some(
+          (key) => key.join('/') === portalKeys.lookReview(PROPERTY_ID).join('/'),
+        ),
+      )
+
+    it('has one write for colours, one for name and logo and one for the photo', () => {
+      expect(lookWrites()).toHaveLength(3)
+      expect(Object.keys(actions.look).sort()).toEqual([
+        'saveColours',
+        'saveIdentity',
+        'savePhoto',
+      ])
+    })
+
+    it.each([
+      ['experience', portalKeys.experience(PROPERTY_ID, PORTAL_ID)],
+      ['draft preview', portalKeys.preview(PORTAL_ID, 'draft')],
+      ['publication history', portalKeys.publicationHistory(PORTAL_ID)],
+      ['review', portalKeys.review(PORTAL_ID)],
+      ['print kit', portalKeys.printKit(PORTAL_ID)],
+      ['overview', portalKeys.overview(PROPERTY_ID)],
+      ['property experience', portalKeys.propertyExperience(PROPERTY_ID)],
+      ['look review', portalKeys.lookReview(PROPERTY_ID)],
+    ])('refreshes the %s after every write', (_name, key) => {
+      for (const options of lookWrites()) {
+        expect(options?.invalidateKeys).toContainEqual(key)
+      }
+    })
+
+    it('reports nothing itself: the header and the section’s buttons do', () => {
+      for (const options of lookWrites()) {
+        expect(options?.successMessage).toBeUndefined()
+        expect(options?.errorMessage).toBeUndefined()
+      }
+    })
+
+    // The first paint has no room for three more server-function stubs, and only
+    // an Account Admin on a property with a second portal ever writes a look.
+    it('imports the server functions only when a write is made', () => {
+      const source = readFileSync(
+        fileURLToPath(new URL('./-portal-detail-actions.ts', import.meta.url)),
+        'utf8',
+      )
+      const importsOfTheModule = source
+        .split('\n')
+        .filter((line) => line.includes('server/portal-look'))
+
+      expect(importsOfTheModule.length).toBeGreaterThan(0)
+      for (const line of importsOfTheModule) {
+        expect(line).toMatch(/await import\(|typeof import\(/u)
+      }
+    })
   })
 })
