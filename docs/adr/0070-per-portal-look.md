@@ -219,6 +219,8 @@ Five things bind the answer:
    portal" copies the source's own look row in the same commit as the new Portal (the
    same Property's asset references, descriptions filtered to the new Portal's languages,
    look version one above the Property's, no fence because a new Portal has no snapshot).
+   The copy does not depend on the flag: a row that exists is read and published whatever
+   the flag says, so a copy shows what its source shows.
 10. **Media.** The new references join the Brand Profile's and a link's as reference
     sites of ADR 0063 decision 5: `portal_look_overrides.hero_asset_id` and
     `logo_asset_id`, written only after `findReferencableMediaAsset` against the

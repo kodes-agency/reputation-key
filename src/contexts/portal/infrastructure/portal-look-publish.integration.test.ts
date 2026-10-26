@@ -207,6 +207,23 @@ describe.sequential('a Portal’s own look and its publish (real PostgreSQL)', (
     await republish()
 
     await expect(openPendingKeys()).resolves.toEqual([])
+    // What went live is the Portal's own look at the Portal's own version, not the
+    // Property's.
+    const { rows } = await getPool().query(
+      `SELECT s.configuration->'brandProfile' AS brand, s.brand_profile_version AS version,
+              o.look_version AS own_version
+         FROM portal_publication_snapshots s
+         JOIN portal_look_overrides o
+           ON o.organization_id = s.organization_id AND o.portal_id = s.portal_id
+        WHERE s.organization_id = $1 AND s.portal_id = $2 AND s.version = 2`,
+      [WORKING_COPY_ORG, SCENARIO.portalId],
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0].brand).toMatchObject({
+      accentColour: '#2F855A',
+      lookVersion: rows[0].own_version,
+    })
+    expect(rows[0].version).toBe(rows[0].own_version)
   })
 
   it('waits for a publish of the same Portal to commit, then saves', async () => {

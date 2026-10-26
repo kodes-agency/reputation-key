@@ -179,6 +179,9 @@ beforeAll(() => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 4 })
 })
 afterAll(async () => {
+  // Leave nothing behind: another suite that updates the look table without a
+  // WHERE would otherwise meet this one's last row.
+  await clean()
   await pool.end()
 })
 beforeEach(async () => {

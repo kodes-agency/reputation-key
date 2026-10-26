@@ -280,7 +280,9 @@ override row is inserted in the same commit as the new Portal (also when a Prope
 Manager creates the Portal, and also when the source has no links), with the same
 Property asset references, descriptions kept only for the new Portal's languages and
 `look_version` one above the Property's. No fence is needed, because a new Portal has no
-snapshot. A source asset swept or taken down between the read and the commit makes the
+snapshot. The copy does not depend on `PORTAL_OWN_LOOK_ENABLED`: the reader and publish
+keep serving rows that exist while it is off, so a copy shows what its source shows. A
+source asset swept or taken down between the read and the commit makes the
 create a normal refusal. The dialog's one fact line reads "Look: same as {source}" or
 "Look: the property look". An archived Portal cannot be a starting point
 (`portal_inactive`, HTTP 410). A name whose derived address is taken at the
@@ -1097,7 +1099,10 @@ names and so cannot show it (`facetReachesPortal` over the working copy's
 `lookSources`; a legacy `look:images` row only when the Portal owns both its photo and
 its name and logo). The filter runs after the "may be incomplete" flag is computed and
 never touches a pending change, so `nothingToPublish` stays exactly the question
-publish answers; History keeps those rows, worded "on the property look". A Portal's
+publish answers; History keeps those rows, worded "on the property look". A saved photo
+description is listed as a change of the photo (its key maps to the `look` area, which
+the put-back rule does not treat as wording that can be cleared), where a description
+saved before `photo_alt:<locale>` existed was dropped as put back. A Portal's
 own look edit is listed as "Look · changed this portal's photo", "…accent colour" and
 so on.
 `canPublish` also needs `portal.update` and the `portal.write` capability, so a reader

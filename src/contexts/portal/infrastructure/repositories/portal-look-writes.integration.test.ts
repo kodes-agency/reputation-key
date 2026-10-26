@@ -431,7 +431,9 @@ describe.sequential('savePortalLookPart (real PostgreSQL)', () => {
   it('holds an image of another Property off at the database, rolling the save back', async () => {
     await expect(
       save({ group: 'photo', mode: 'own', heroAssetId: OTHER_PROPERTY_HERO }),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({
+      cause: { constraint: 'portal_look_overrides_hero_asset_fk' },
+    })
     await expect(overrideRow()).resolves.toBeUndefined()
     await expect(pageEditRows()).resolves.toEqual([])
     await expect(pendingRows()).resolves.toEqual([])
