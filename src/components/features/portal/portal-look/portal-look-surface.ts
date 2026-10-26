@@ -4,6 +4,7 @@
 // which is fetched only when the editor is shown.
 
 import type { PortalLookSources } from '#/contexts/portal/application/public-api'
+import type { PortalReadOnlyReason } from '../portal-detail/portal-edit-access'
 
 export type PortalLookSurface = 'editor' | 'facts' | 'summary'
 
@@ -52,15 +53,19 @@ export const SUMMARY_DESCRIPTION =
 export const FACTS_NOTE = 'An account admin changes this portal’s look.'
 
 /**
- * Who can change the look, under the facts. An archived portal keeps the look
- * it had, and while the switch is off nobody can change it, so neither points
- * to an Account Admin who could not act on it.
+ * Who can change the look, under the facts. It points to an Account Admin only
+ * when one could act: not while the portal is archived, while the organisation's
+ * portal changes are off, or while the switch is off.
  */
 export function lookFactsNoteOf(
-  input: Readonly<{ enabled: boolean; archived: boolean }>,
+  input: Readonly<{ enabled: boolean; readOnlyReason: PortalReadOnlyReason | null }>,
 ): string {
-  if (input.archived) return 'An archived portal keeps the look it had.'
-  if (!input.enabled) return 'A portal’s own look cannot be changed at the moment.'
+  if (input.readOnlyReason === 'archived') {
+    return 'An archived portal’s look can be changed once it is restored.'
+  }
+  if (input.readOnlyReason === 'capability' || !input.enabled) {
+    return 'A portal’s own look cannot be changed at the moment.'
+  }
   return FACTS_NOTE
 }
 

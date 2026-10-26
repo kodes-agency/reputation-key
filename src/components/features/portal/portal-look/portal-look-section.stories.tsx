@@ -325,7 +325,7 @@ export const ArchivedPortalShowsFacts: Story = {
     const section = lookSection(canvasElement)
     await expect(section.getByText('This portal’s own')).toBeVisible()
     await expect(
-      section.getByText('An archived portal keeps the look it had.'),
+      section.getByText('An archived portal’s look can be changed once it is restored.'),
     ).toBeVisible()
     await expect(section.queryByRole('button')).toBeNull()
     await expect(section.queryByRole('textbox')).toBeNull()

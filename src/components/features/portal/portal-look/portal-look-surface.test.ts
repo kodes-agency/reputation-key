@@ -104,16 +104,18 @@ describe('the words', () => {
   })
 
   it('names an Account Admin only while one could change the look', () => {
-    expect(lookFactsNoteOf({ enabled: true, archived: false })).toBe(FACTS_NOTE)
-    expect(lookFactsNoteOf({ enabled: false, archived: false })).toBe(
-      'A portal’s own look cannot be changed at the moment.',
-    )
-    expect(lookFactsNoteOf({ enabled: true, archived: true })).toBe(
-      'An archived portal keeps the look it had.',
-    )
-    expect(lookFactsNoteOf({ enabled: false, archived: true })).toBe(
-      'An archived portal keeps the look it had.',
-    )
+    const NOT_NOW = 'A portal’s own look cannot be changed at the moment.'
+    const RESTORE = 'An archived portal’s look can be changed once it is restored.'
+    // A viewer whose role does not change portals, or an admin who could: ask an admin.
+    expect(lookFactsNoteOf({ enabled: true, readOnlyReason: null })).toBe(FACTS_NOTE)
+    expect(lookFactsNoteOf({ enabled: true, readOnlyReason: 'role' })).toBe(FACTS_NOTE)
+    // Nobody can: the switch is off, or the organisation's portal changes are.
+    expect(lookFactsNoteOf({ enabled: false, readOnlyReason: null })).toBe(NOT_NOW)
+    expect(lookFactsNoteOf({ enabled: true, readOnlyReason: 'capability' })).toBe(NOT_NOW)
+    expect(lookFactsNoteOf({ enabled: false, readOnlyReason: 'role' })).toBe(NOT_NOW)
+    // An archived portal is restored first, whatever the switch says.
+    expect(lookFactsNoteOf({ enabled: true, readOnlyReason: 'archived' })).toBe(RESTORE)
+    expect(lookFactsNoteOf({ enabled: false, readOnlyReason: 'archived' })).toBe(RESTORE)
   })
 
   it('introduces a portal that follows everything as one that can be given a look', () => {

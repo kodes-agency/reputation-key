@@ -8,6 +8,7 @@
 import { lazy, Suspense } from 'react'
 import { Skeleton } from '#/components/ui/skeleton'
 import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/public-api'
+import { usePortalEditAccess } from '../../portal-detail/use-portal-edit-access'
 import { PortalLookFacts } from '../../portal-look/portal-look-facts'
 import { PropertyLookLink } from '../../portal-look/portal-look-property-link'
 import {
@@ -31,6 +32,7 @@ const PortalLookEditor = lazy(() =>
 
 export function LookSection({ resources, canEdit }: PortalEditorSectionProps) {
   const { portal, propertyId, portalExperience, portalLookActions } = resources
+  const { readOnlyReason } = usePortalEditAccess(portal.publicationState)
   const profile = portalExperience?.profile ?? null
   const sources = portalExperience?.portalLook?.sources ?? PROPERTY_LOOK_SOURCES
   const canManage = canEdit && portalExperience?.canManagePropertyBrand === true
@@ -77,10 +79,7 @@ export function LookSection({ resources, canEdit }: PortalEditorSectionProps) {
         <PortalLookFacts
           propertyId={propertyId}
           sources={sources}
-          note={lookFactsNoteOf({
-            enabled,
-            archived: portal.publicationState === 'archived',
-          })}
+          note={lookFactsNoteOf({ enabled, readOnlyReason })}
         />
       ) : (
         <PortalLookSummary
