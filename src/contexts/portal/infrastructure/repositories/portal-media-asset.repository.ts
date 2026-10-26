@@ -4,6 +4,7 @@
 import { and, asc, count, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalMediaAssets } from '#/shared/db/schema/portal-assets.schema'
+import { portalLookOverrides } from '#/shared/db/schema/portal-look.schema'
 import {
   portalLinks,
   propertyPortalBrandProfiles,
@@ -28,12 +29,15 @@ const isForeignKeyViolation = (error: unknown): boolean => {
 }
 
 /**
- * True when nothing refers to the asset: no Brand Profile or link of its
- * Property, and no publication snapshot of its Property that names it. A snapshot
- * is immutable and must keep rendering and verifying, so what one names is kept
- * for as long as it exists. The snapshot's media sit at brandProfile.logo,
- * brandProfile.hero and links[].imageAssetId (schema version 3); older versions
- * have none of those paths and name nothing.
+ * True when nothing refers to the asset: no Brand Profile, Portal look or link of
+ * its Property, and no publication snapshot of its Property that names it. A
+ * Portal's own photo or logo (`portal_look_overrides`) is kept referenced from the
+ * day it is chosen, long before any publication names it; a group that follows
+ * the Property holds no asset, so a replaced or reverted one is released here.
+ * A snapshot is immutable and must keep rendering and verifying, so what one
+ * names is kept for as long as it exists. The snapshot's media sit at
+ * brandProfile.logo, brandProfile.hero and links[].imageAssetId (schema version
+ * 3); older versions have none of those paths and name nothing.
  */
 const hasNoReference = sql`
   NOT EXISTS (
@@ -42,6 +46,13 @@ const hasNoReference = sql`
       AND ${propertyPortalBrandProfiles.propertyId} = ${portalMediaAssets.propertyId}
       AND (${propertyPortalBrandProfiles.logoAssetId} = ${portalMediaAssets.id}
         OR ${propertyPortalBrandProfiles.heroAssetId} = ${portalMediaAssets.id})
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM ${portalLookOverrides}
+    WHERE ${portalLookOverrides.organizationId} = ${portalMediaAssets.organizationId}
+      AND ${portalLookOverrides.propertyId} = ${portalMediaAssets.propertyId}
+      AND (${portalLookOverrides.logoAssetId} = ${portalMediaAssets.id}
+        OR ${portalLookOverrides.heroAssetId} = ${portalMediaAssets.id})
   )
   AND NOT EXISTS (
     SELECT 1 FROM ${portalLinks}

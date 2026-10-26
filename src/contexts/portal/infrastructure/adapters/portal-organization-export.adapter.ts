@@ -1,5 +1,6 @@
 // LIF-01 bullet 6: the Portal context's own Organization Export slice —
-// Portals, locales, brand, snapshots, links, groups, artifacts and health.
+// Portals, locales, brand, each Portal's own look, snapshots, links, groups,
+// artifacts and health.
 //
 // This is a cross-context adapter implementation, so it may import the
 // contributor port it implements and nothing else from Identity (see
@@ -32,6 +33,7 @@ type PortalOrganizationExportPayload = Readonly<{
   localizedOverrides: readonly ExportRecord[]
   brandProfiles: readonly ExportRecord[]
   brandContents: readonly ExportRecord[]
+  portalLookOverrides: readonly ExportRecord[]
   publicationSnapshots: readonly ExportRecord[]
   publicationActivations: readonly ExportRecord[]
   pendingContentChanges: readonly ExportRecord[]
@@ -176,6 +178,7 @@ function collectionsOf(
     ['portal_localized_override', payload.localizedOverrides],
     ['property_brand_profile', payload.brandProfiles],
     ['property_brand_content', payload.brandContents],
+    ['portal_look_override', payload.portalLookOverrides],
     ['publication_snapshot', payload.publicationSnapshots],
     ['publication_activation', payload.publicationActivations],
     ['pending_content_change', payload.pendingContentChanges],
@@ -359,6 +362,23 @@ async function readPayload(
             FROM property_portal_brand_contents
             WHERE organization_id = ${organizationId}`,
       )
+      // A Portal's own photo, colours and name and logo (ADR 0070): the customer's
+      // own choices, so every column is exported, the photo's descriptions as the
+      // text Postgres renders them in. The images are named by id; the rows that
+      // hold them are the media assets above.
+      const portalLookOverrides = await readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, photo_mode,
+                   hero_asset_id::text AS hero_asset_id, hero_focal_x, hero_focal_y,
+                   hero_alt_texts::text AS hero_alt_texts, colours_mode,
+                   primary_color, background_mode, background_color, identity_mode,
+                   wordmark, logo_asset_id::text AS logo_asset_id, look_version,
+                   updated_by,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_look_overrides WHERE organization_id = ${organizationId}`,
+      )
       const publicationSnapshots = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id,
@@ -498,6 +518,7 @@ async function readPayload(
         ]),
         brandProfiles: sortRecords(brandProfiles, ['property_id', 'id']),
         brandContents: sortRecords(brandContents, ['property_id', 'locale', 'id']),
+        portalLookOverrides: sortRecords(portalLookOverrides, ['portal_id', 'id']),
         publicationSnapshots: sortRecords(publicationSnapshots, ['portal_id', 'id']),
         publicationActivations: sortRecords(publicationActivations, ['portal_id', 'id']),
         pendingContentChanges: sortRecords(pendingContentChanges, ['portal_id', 'id']),

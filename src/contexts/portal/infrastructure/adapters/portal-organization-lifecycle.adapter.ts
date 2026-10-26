@@ -23,6 +23,7 @@ import {
 } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
 import { portalGroupHistory, portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalLastPrints } from '#/shared/db/schema/portal-last-print.schema'
+import { portalLookOverrides } from '#/shared/db/schema/portal-look.schema'
 import {
   portalAccessArtifacts,
   portalAddressDownloads,
@@ -70,6 +71,11 @@ const CLOSING_DEACTIVATION_REASON = 'disabled'
  * more: the rows are tenant content and must go, the table must not. Nothing in this plan is ever a DROP or a
  * TRUNCATE — physical contraction is a separate expand/backfill/contract
  * decision, never a lifecycle phase.
+ *
+ * `portal_look_overrides` (a Portal's own photo, colours and name and logo, ADR
+ * 0070) refers to a Portal and to the Property's images, both ON DELETE
+ * RESTRICT: it sits before `portal_media_assets` and `portals`, and needs no
+ * presence root of its own, as it cannot exist without a Portal.
  */
 export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_address_downloads',
@@ -88,6 +94,7 @@ export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_tokens',
   'portal_group_members',
   'portal_localized_overrides',
+  'portal_look_overrides',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
   'portal_media_assets',
@@ -262,14 +269,20 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     await tx
       .delete(portalLocalizedOverrides)
       .where(eq(portalLocalizedOverrides.organizationId, organizationId))
+    // A Portal's own look names a Portal and the Property's images, both RESTRICT:
+    // it goes before either. No presence root: it cannot exist without a Portal.
+    await tx
+      .delete(portalLookOverrides)
+      .where(eq(portalLookOverrides.organizationId, organizationId))
     await tx
       .delete(propertyPortalBrandContents)
       .where(eq(propertyPortalBrandContents.organizationId, organizationId))
     await tx
       .delete(propertyPortalBrandProfiles)
       .where(eq(propertyPortalBrandProfiles.organizationId, organizationId))
-    // After every row that points at an asset (links, Brand Profiles). The
-    // objects are already gone: `purge` removes them before it calls this.
+    // After every row that points at an asset (links, Brand Profiles, a Portal's
+    // own look). The objects are already gone: `purge` removes them before it
+    // calls this.
     await tx
       .delete(portalMediaAssets)
       .where(eq(portalMediaAssets.organizationId, organizationId))
