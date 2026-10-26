@@ -1,8 +1,9 @@
 // The art under a final Immersive face in the Share tab's preview (final design
 // spec §6), drawn in CSS from the plan the PDF draws (`printFinalArt`): the
 // ground and its washes as radial gradients, the photo cropped as the file
-// crops it and faded by a mask, the scrims as gradients of the scrim ink, the
-// no-photo arch, the grain blended as overlay and a tent's fold strip. Each
+// crops it with the scrims as gradients of the scrim ink over it, all faded by
+// one mask (the fade times any clearing) so a scrim never darkens the bare
+// ground, the no-photo arch, the grain blended as overlay and a tent's fold strip. Each
 // ramp's stops become a gradient's stops at the same points.
 
 import { useId, type CSSProperties } from 'react'
@@ -29,13 +30,29 @@ const rgba = (channels: readonly number[], alpha: number) =>
 const rgbaOf = (hex: string, alpha: number) =>
   rgba(parseHexColour(hex) ?? [0, 0, 0], alpha)
 
-const placed = (pt: PointsToLength, box: PrintFinalBox): CSSProperties => ({
+/** `box` placed in its parent, whose origin is at `origin` in the face's points. */
+const placed = (
+  pt: PointsToLength,
+  box: PrintFinalBox,
+  origin: Readonly<{ leftPt: number; topPt: number }> = { leftPt: 0, topPt: 0 },
+): CSSProperties => ({
   position: 'absolute',
-  left: pt(box.leftPt),
-  top: pt(box.topPt),
+  left: pt(box.leftPt - origin.leftPt),
+  top: pt(box.topPt - origin.topPt),
   width: pt(box.rightPt - box.leftPt),
   height: pt(box.bottomPt - box.topPt),
 })
+
+/** CSS masks over one element that multiply, as the PDF's soft masks do. */
+const masks = (images: readonly string[]): CSSProperties =>
+  images.length === 0
+    ? {}
+    : {
+        maskImage: images.join(', '),
+        WebkitMaskImage: images.join(', '),
+        maskComposite: 'intersect',
+        WebkitMaskComposite: 'source-in',
+      }
 
 /** A ramp as a CSS gradient over `box`, each stop at its point, painted in `colour` at the stop's alpha. */
 function rampGradient(
@@ -59,6 +76,7 @@ function washGradient(wash: PrintFinalWash, pt: PointsToLength): string {
 
 type PhotoProps = Readonly<{
   photo: NonNullable<PrintFinalArt['photo']>
+  scrims: PrintFinalArt['scrims']
   read: PreviewFinalPhoto
   url: string
   focal: Readonly<{ x: number; y: number }>
@@ -66,8 +84,33 @@ type PhotoProps = Readonly<{
   pt: PointsToLength
 }>
 
-/** The photo: the part of it the file crops, scaled to cover the cover box, shown in its box under its fade. */
-function Photo({ photo, read, url, focal, framing, pt }: PhotoProps) {
+/** The scrims over the photo, inside its mask: each one's first ramp its gradient, the rest its masks. */
+function Scrims({
+  scrims,
+  origin,
+  pt,
+}: Readonly<{
+  scrims: PrintFinalArt['scrims']
+  origin: PrintFinalBox
+  pt: PointsToLength
+}>) {
+  return scrims.map(({ box, ramps: [down, ...rest] }) => (
+    <div
+      key={`${box.topPt}:${box.bottomPt}`}
+      style={{
+        ...placed(pt, box, origin),
+        background:
+          down === undefined
+            ? 'none'
+            : rampGradient(down, box, PRINT_FINAL_SCRIM_INK, pt),
+        ...masks(rest.map((ramp) => rampGradient(ramp, box, BLACK, pt))),
+      }}
+    />
+  ))
+}
+
+/** The photo: the part of it the file crops, scaled to cover the cover box, under its scrims, shown in its box under its fade. */
+function Photo({ photo, scrims, read, url, focal, framing, pt }: PhotoProps) {
   const { box, cover } = photo
   const coverWidth = cover.rightPt - cover.leftPt
   const crop = printFinalPhotoCrop(
@@ -77,14 +120,13 @@ function Photo({ photo, read, url, focal, framing, pt }: PhotoProps) {
     framing,
   )
   const scale = coverWidth / crop.widthPx
-  const mask = rampGradient(photo.fade, box, BLACK, pt)
+  const fades = photo.clear === null ? [photo.fade] : [photo.fade, photo.clear]
   return (
     <div
       style={{
         ...placed(pt, box),
         overflow: 'hidden',
-        maskImage: mask,
-        WebkitMaskImage: mask,
+        ...masks(fades.map((ramp) => rampGradient(ramp, box, BLACK, pt))),
       }}
     >
       <img
@@ -100,6 +142,7 @@ function Photo({ photo, read, url, focal, framing, pt }: PhotoProps) {
           display: 'block',
         }}
       />
+      <Scrims scrims={scrims} origin={box} pt={pt} />
     </div>
   )
 }
@@ -204,6 +247,7 @@ export function PrintFinalImmersiveArt({ art, photo, look, framing, bleed, pt }:
         {art.photo !== null && photo !== null ? (
           <Photo
             photo={art.photo}
+            scrims={art.scrims}
             read={photo.read}
             url={photo.url}
             focal={look.heroFocal ?? { x: 0.5, y: 0.5 }}
@@ -211,24 +255,6 @@ export function PrintFinalImmersiveArt({ art, photo, look, framing, bleed, pt }:
             pt={pt}
           />
         ) : null}
-        {art.scrims.map((scrim) => {
-          const [down, across] = scrim.ramps
-          const mask =
-            across === undefined ? undefined : rampGradient(across, scrim.box, BLACK, pt)
-          return (
-            <div
-              key={`${scrim.box.topPt}:${scrim.box.bottomPt}`}
-              style={{
-                ...placed(pt, scrim.box),
-                background:
-                  down === undefined
-                    ? 'none'
-                    : rampGradient(down, scrim.box, PRINT_FINAL_SCRIM_INK, pt),
-                ...(mask === undefined ? {} : { maskImage: mask, WebkitMaskImage: mask }),
-              }}
-            />
-          )
-        })}
         {art.arch === null ? null : <Arch arch={art.arch} pt={pt} />}
         <Grain opacity={art.grainOpacity} />
         {art.foldStrip === null ? null : (

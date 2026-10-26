@@ -86,7 +86,7 @@ export function prepareFinalBack(
     bleed: front.bleed,
     draw: () => {
       if (art !== null && grain !== null) {
-        drawFinalArt(doc, art, { photo: null, grain, scrims: [] })
+        drawFinalArt(doc, art, { photo: null, grain })
       }
       layout.plan.parts.forEach(drawPart)
     },

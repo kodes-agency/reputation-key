@@ -1,6 +1,7 @@
 // The art under an Immersive final face in the PDF (final design spec §6),
 // drawn from the shared plan (`printFinalArt`) in its order: the ground and its
-// washes, the photo with its fade as a soft mask, the scrims, the no-photo arch,
+// washes, the photo with its scrims baked in and its fade as a soft mask (a
+// scrim darkens the photo only, never the bare ground), the no-photo arch,
 // the grain blended as overlay, and a tent's fold strip over everything. The
 // ground, the washes and the arch are vectors; the photo, the masks and the
 // grain are rasters.
@@ -11,12 +12,9 @@
 import type { PrintFinalArt } from '#/shared/domain/portal-print-final-art'
 import type { PrintFinalWash } from '#/shared/domain/portal-print-final-layers'
 import type { PrintFinalBox } from '#/shared/domain/portal-print-final-measures'
-import { PRINT_FINAL_SCRIM_INK } from '#/shared/domain/portal-print-final-photo-sample'
 import {
   drawRaster,
   greyImage,
-  maskedColour,
-  rampMask,
   withOverlay,
   type PdfRasterImage,
 } from './print-kit-final-raster'
@@ -98,22 +96,10 @@ function drawArch(doc: PDFKit.PDFDocument, arch: NonNullable<PrintFinalArt['arch
 }
 
 export type FinalArtImages = Readonly<{
-  /** The photo cropped to the art's cover box, its fade already its soft mask; null with no photo. */
+  /** The photo cropped to the art's cover box, its scrims baked in and its fade already its soft mask; null with no photo. */
   photo: PdfRasterImage | null
   grain: PdfRasterImage
-  /** One per scrim of the art, in order: the scrim ink under its ramps. */
-  scrims: readonly PdfRasterImage[]
 }>
-
-/** The scrims' images, made once however many times the art is drawn. */
-export function scrimImages(
-  doc: PDFKit.PDFDocument,
-  art: PrintFinalArt,
-): readonly PdfRasterImage[] {
-  return art.scrims.map((scrim) =>
-    maskedColour(doc, PRINT_FINAL_SCRIM_INK, rampMask(doc, scrim.ramps, scrim.box)),
-  )
-}
 
 function drawGrain(doc: PDFKit.PDFDocument, art: PrintFinalArt, grain: PdfRasterImage) {
   const area = art.groundBox
@@ -149,10 +135,6 @@ export function drawFinalArt(
     drawRaster(doc, images.photo, art.photo.cover)
     doc.restore()
   }
-  art.scrims.forEach((scrim, index) => {
-    const image = images.scrims[index]
-    if (image !== undefined) drawRaster(doc, image, scrim.box)
-  })
   if (art.arch !== null) drawArch(doc, art.arch)
   drawGrain(doc, art, images.grain)
   if (art.foldStrip !== null) rect(doc, art.foldStrip.box).fill(art.foldStrip.colour)

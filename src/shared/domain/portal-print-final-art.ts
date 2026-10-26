@@ -7,10 +7,16 @@
 //      upright its lower 48 % fades downward; wide its right 48 % fades toward
 //      the tile.
 //   3. The scrims, ink rgba(6, 9, 8, a): one from the top trim to 0.5 in below
-//      the brand, one round the message. Both deepen by `boost` (§6.3).
-//   4. With no photo: brighter washes, and on an upright face the arch outline
+//      the brand, one round the message. They darken the photo only, so they
+//      fade with it and never print over the bare ground (a scrim over the
+//      ground is darker than the ground and ends in a visible band).
+//   4. When a word still misses 4.5:1 (§6.3): the top scrim deepens for the
+//      brand; behind the message the photo melts further into the ground (its
+//      alpha lowered from 0.45 in above the message down), never toward black;
+//      only once it is melted as far as it goes does the message scrim deepen.
+//   5. With no photo: brighter washes, and on an upright face the arch outline
 //      round the brand and the words.
-//   5. Film grain, and on a tent the pale strip at the fold, over everything.
+//   6. Film grain, and on a tent the pale strip at the fold, over everything.
 //
 // Every alpha is a ramp along one axis, in the face's points: the PDF draws a
 // ramp as a soft mask and the Share tab's preview as a CSS gradient, from the
@@ -33,6 +39,7 @@ import {
   type PrintFinalRamp,
   type PrintFinalWash,
 } from './portal-print-final-layers'
+import { printFinalClear, type PrintFinalBoost } from './portal-print-final-photo-clear'
 
 export type PrintFinalScrim = Readonly<{
   box: PrintFinalBox
@@ -45,6 +52,8 @@ export type PrintFinalPhotoArt = Readonly<{
   /** The box the photo is cropped to cover: its box with the bleed on every trim edge it touches, drawn or not. */
   cover: PrintFinalBox
   fade: PrintFinalRamp
+  /** Behind the words, how much more of the photo melts into the ground for contrast; null when none does. */
+  clear: PrintFinalRamp | null
   /** The photo box's cover size and the dpi rule's measures. */
   measure: PrintFinalPhotoBox
 }>
@@ -55,7 +64,7 @@ export type PrintFinalArt = Readonly<{
   groundBox: PrintFinalBox
   washes: readonly PrintFinalWash[]
   photo: PrintFinalPhotoArt | null
-  /** The top scrim, then the message scrim; none without a photo. */
+  /** The top scrim, then the message scrim, both over the photo only; none without a photo. */
   scrims: readonly PrintFinalScrim[]
   arch: Readonly<{
     box: PrintFinalBox
@@ -111,7 +120,11 @@ function regionBleed(plan: PrintFinalPlan): PrintFinalBleed {
  * box with the full bleed on each trim edge it touches (a tent's top is its
  * fold strip, not a trim edge it touches), fading over 48 % of its reach.
  */
-function photoOf(plan: PrintFinalPlan, bleed: PrintFinalBleed): PrintFinalPhotoArt {
+function photoOf(
+  plan: PrintFinalPlan,
+  bleed: PrintFinalBleed,
+  boost: PrintFinalBoost,
+): PrintFinalPhotoArt {
   const measure = printFinalPhotoBox(plan)
   const shown = measure.box
   const upright = plan.face.orientation === 'upright'
@@ -128,6 +141,7 @@ function photoOf(plan: PrintFinalPlan, bleed: PrintFinalBleed): PrintFinalPhotoA
         { atPt: end, alpha: 0 },
       ],
     },
+    clear: printFinalClear(plan, boost),
     measure,
   }
 }
@@ -135,9 +149,11 @@ function photoOf(plan: PrintFinalPlan, bleed: PrintFinalBleed): PrintFinalPhotoA
 function scrimsOf(
   plan: PrintFinalPlan,
   bleed: PrintFinalBleed,
-  boost: number,
+  boost: PrintFinalBoost,
   languageCount: number,
 ): PrintFinalScrim[] {
+  // The top scrim deepens for the brand; the message scrim only as a last resort
+  // (`boost.message`), after `printFinalClear` has melted the photo as far as it goes.
   const two = languageCount > 1
   const { brand, message } = plan.groups
   const topEnd = (brand?.bottomPt ?? plan.live.topPt) + ART.topScrim.belowBrandPt
@@ -148,8 +164,8 @@ function scrimsOf(
       {
         axis: 'y',
         stops: [
-          { atPt: 0, alpha: first + boost },
-          { atPt: ART.topScrim.middle * topEnd, alpha: second + boost },
+          { atPt: 0, alpha: first + boost.top },
+          { atPt: ART.topScrim.middle * topEnd, alpha: second + boost.top },
           { atPt: topEnd, alpha: 0 },
         ],
       },
@@ -158,7 +174,10 @@ function scrimsOf(
   if (message === null) return [top]
   const wide = plan.face.orientation === 'wide'
   const shape = wide ? ART.wideScrim : ART.uprightScrim
-  const alpha = Math.min(ART.maxScrim, (two ? shape.alphaTwo : shape.alpha) + boost)
+  const alpha = Math.min(
+    ART.maxScrim,
+    (two ? shape.alphaTwo : shape.alpha) + boost.message,
+  )
   const start = message.topPt - shape.abovePt
   const end = message.bottomPt + shape.belowPt
   const down: PrintFinalRamp = {
@@ -213,8 +232,8 @@ export type PrintFinalArtInput = Readonly<{
   palette: PrintFinalImmersivePalette
   hasPhoto: boolean
   languageCount: number
-  /** How much the scrims were deepened to keep every word at 4.5:1 (§6.3): 0 to 0.30. */
-  boost: number
+  /** How much the art was deepened to keep every word at 4.5:1 (§6.3). */
+  boost: PrintFinalBoost
   bleed?: PrintFinalBleed
 }>
 
@@ -227,7 +246,7 @@ export function printFinalArt(input: PrintFinalArtInput): PrintFinalArt {
     ground: palette.ground,
     groundBox: intoBleed(box(0, 0, plan.widthPt, plan.heightPt), plan, bleed),
     washes: printFinalWashes(plan, palette, hasPhoto),
-    photo: hasPhoto ? photoOf(plan, bleed) : null,
+    photo: hasPhoto ? photoOf(plan, bleed, input.boost) : null,
     scrims: hasPhoto ? scrimsOf(plan, bleed, input.boost, input.languageCount) : [],
     arch: hasPhoto ? null : archOf(plan, palette),
     grainOpacity: hasPhoto ? ART.grain.photo : ART.grain.none,

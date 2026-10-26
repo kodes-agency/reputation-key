@@ -1,7 +1,6 @@
 // The PDF pieces an Immersive final face is painted with that PDFKit has no
 // call for (final design spec §6.1 to §6.3): an image with a soft mask (the
-// photo's fade, and each scrim as the scrim ink under its ramps), and film
-// grain blended as overlay.
+// photo's fade and any clearing), and film grain blended as overlay.
 //
 // A soft mask is a small grey image whose dimensions need not match the image
 // it masks: both are mapped onto the drawn box. A ramp along one axis is one
@@ -120,25 +119,6 @@ export const jpegImage = (
   mask: PDFKit.PDFKitReference | null,
 ): PdfRasterImage =>
   rasterImage(doc, { ...jpeg, colourSpace: 'DeviceRGB', filter: 'DCTDecode', mask }, 'Rp')
-
-/** One pixel of `rgb`, under `mask`: a flat colour whose alpha the mask paints. */
-export const maskedColour = (
-  doc: PDFKit.PDFDocument,
-  rgb: readonly [number, number, number],
-  mask: PDFKit.PDFKitReference,
-): PdfRasterImage =>
-  rasterImage(
-    doc,
-    {
-      width: 1,
-      height: 1,
-      colourSpace: 'DeviceRGB',
-      bytes: Buffer.from(rgb),
-      filter: null,
-      mask,
-    },
-    'Rs',
-  )
 
 /** A grey image of raw samples. */
 export const greyImage = (
