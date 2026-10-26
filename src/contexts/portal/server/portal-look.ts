@@ -20,15 +20,16 @@ import {
 import { isPortalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
 
-type Management = ReturnType<typeof getContainer>['portalPublicApi']['management']
-
 /**
  * The Property's policy for a Portals write, then the use case as the resolved
- * actor, with a Portal error carried out tagged and with its status.
+ * actor, with a Portal error carried out tagged and with its status. The use case
+ * is reached through a callback the handler writes, so the container is only ever
+ * named inside a handler: the client build drops handler bodies, and a module-level
+ * reference to the composition root would be refused there.
  */
 async function runPortalLookCommand<T>(
   propertyId: string,
-  command: (management: Management, ctx: AuthContext) => Promise<T>,
+  command: (ctx: AuthContext) => Promise<T>,
 ): Promise<T> {
   const ctx = await resolveTenantContext(await headersFromContext())
   await requireExecutionAllowed({
@@ -38,7 +39,7 @@ async function runPortalLookCommand<T>(
     propertyId,
   })
   try {
-    return await command(getContainer().portalPublicApi.management, ctx)
+    return await command(ctx)
   } catch (error) {
     if (isPortalError(error)) {
       throwContextError('PortalError', error, portalErrorStatus(error.code))
@@ -53,8 +54,8 @@ export const savePortalLookColours = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        runPortalLookCommand(data.propertyId, (management, ctx) =>
-          management.savePortalLookColours(data, ctx),
+        runPortalLookCommand(data.propertyId, (ctx) =>
+          getContainer().portalPublicApi.management.savePortalLookColours(data, ctx),
         ),
       'POST',
       'portal.savePortalLookColours',
@@ -67,8 +68,8 @@ export const savePortalLookIdentity = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        runPortalLookCommand(data.propertyId, (management, ctx) =>
-          management.savePortalLookIdentity(data, ctx),
+        runPortalLookCommand(data.propertyId, (ctx) =>
+          getContainer().portalPublicApi.management.savePortalLookIdentity(data, ctx),
         ),
       'POST',
       'portal.savePortalLookIdentity',
@@ -86,8 +87,8 @@ export const savePortalLookPhoto = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        runPortalLookCommand(data.propertyId, (management, ctx) =>
-          management.savePortalLookPhoto(data, ctx),
+        runPortalLookCommand(data.propertyId, (ctx) =>
+          getContainer().portalPublicApi.management.savePortalLookPhoto(data, ctx),
         ),
       'POST',
       'portal.savePortalLookPhoto',
