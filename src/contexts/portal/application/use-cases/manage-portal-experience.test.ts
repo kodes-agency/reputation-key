@@ -175,15 +175,17 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const experienceRepo = createExperienceRepo()
   const portalRepo = createInMemoryPortalRepo()
   const mediaRepo = createInMemoryPortalMediaAssetRepo()
+  const portalLookRepo = createInMemoryPortalLookRepo()
   return {
     experienceRepo,
     portalRepo,
     mediaRepo,
+    portalLookRepo,
     deps: {
       experienceRepo,
       mediaRepo,
       portalRepo,
-      portalLookRepo: createInMemoryPortalLookRepo(),
+      portalLookRepo,
       staffPublicApi: staffApiMock(accessible),
       idGen: () => GENERATED_ID,
       clock: () => NOW,
@@ -380,6 +382,193 @@ describe('getPropertyPortalExperience', () => {
       focalY: 0.42,
     })
     expect(result.media.logo).toBeNull()
+  })
+
+  describe("a Portal's own look (ADR 0070)", () => {
+    const OWN_HERO = '30000000-0000-4000-8000-000000000011'
+    const OWN_LOGO = '30000000-0000-4000-8000-000000000012'
+    const own = (portalId: string) => ({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId,
+    })
+    const ownLook = {
+      photo: {
+        mode: 'own' as const,
+        heroAssetId: OWN_HERO,
+        focalX: 0.2,
+        focalY: 0.4,
+        altTexts: { en: 'The spa pool' },
+      },
+      colours: {
+        mode: 'own' as const,
+        accent: '#B8860B',
+        backgroundMode: 'auto' as const,
+        backgroundColour: '#201810',
+      },
+      identity: { mode: 'own' as const, wordmark: 'SPA', logoAssetId: OWN_LOGO },
+      lookVersion: 5,
+    }
+
+    it('reads no look of its own for a Portal that follows the Property, and the flag as it is set', async () => {
+      const { deps, portalRepo } = setup()
+      const portal = buildTestPortal({ propertyId: PROPERTY })
+      portalRepo.seed([portal])
+      const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+      const off = await getPropertyPortalExperience(deps)(
+        { propertyId: PROPERTY, portalId: portal.id },
+        ctx,
+      )
+      const on = await getPropertyPortalExperience({
+        ...deps,
+        portalOwnLookEnabled: true,
+      })({ propertyId: PROPERTY, portalId: portal.id }, ctx)
+
+      expect(off).toMatchObject({ portalLook: null, portalLookEnabled: false })
+      expect(on).toMatchObject({ portalLook: null, portalLookEnabled: true })
+    })
+
+    it('counts the Property’s Portals that are not archived, this one included', async () => {
+      const { deps, portalRepo, portalLookRepo } = setup()
+      const portal = buildTestPortal({ propertyId: PROPERTY })
+      portalRepo.seed([portal])
+      for (const [portalId, archived] of [
+        [portal.id, false],
+        ['d0000000-0000-0000-0000-000000000002', false],
+        ['d0000000-0000-0000-0000-000000000003', true],
+      ] as const) {
+        portalLookRepo.seedPortal({ ...own(portalId), archived })
+      }
+      const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+      const named = await getPropertyPortalExperience(deps)(
+        { propertyId: PROPERTY, portalId: portal.id },
+        ctx,
+      )
+      const propertyOnly = await getPropertyPortalExperience(deps)(
+        { propertyId: PROPERTY },
+        ctx,
+      )
+
+      expect(named.siblingPortalCount).toBe(2)
+      expect(propertyOnly.siblingPortalCount).toBe(2)
+    })
+
+    it('reads the Portal’s own look with the images it names resolved like the Property’s', async () => {
+      const { deps, portalRepo, portalLookRepo, mediaRepo } = setup()
+      const portal = buildTestPortal({ propertyId: PROPERTY })
+      portalRepo.seed([portal])
+      portalLookRepo.seed({ ...own(portal.id), override: ownLook })
+      mediaRepo.seed([
+        buildTestPortalMediaAsset({
+          id: OWN_HERO as never,
+          purpose: 'hero',
+          propertyId: PROPERTY,
+          width: 1200,
+          height: 800,
+        }),
+        buildTestPortalMediaAsset({
+          id: OWN_LOGO as never,
+          purpose: 'logo',
+          propertyId: PROPERTY,
+          width: 300,
+          height: 300,
+        }),
+      ])
+      const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+      const result = await getPropertyPortalExperience(deps)(
+        { propertyId: PROPERTY, portalId: portal.id },
+        ctx,
+      )
+
+      expect(result.portalLook).toMatchObject({
+        sources: { photo: 'portal', colours: 'portal', identity: 'portal' },
+        lookVersion: 5,
+        photo: {
+          mode: 'own',
+          heroAssetId: OWN_HERO,
+          altTexts: { en: 'The spa pool' },
+          hero: { assetId: OWN_HERO, width: 1200, height: 800, focalX: 0.2, focalY: 0.4 },
+        },
+        colours: { mode: 'own', accentColour: '#B8860B', backgroundMode: 'auto' },
+        identity: {
+          mode: 'own',
+          wordmark: 'SPA',
+          logo: { assetId: OWN_LOGO, width: 300, height: 300 },
+        },
+      })
+      // The Property’s own media are not the Portal’s.
+      expect(result.media).toEqual({ hero: null, logo: null })
+    })
+
+    it('reads an own photo that was taken down as no photo, and says which one it is', async () => {
+      const { deps, portalRepo, portalLookRepo, mediaRepo } = setup()
+      const portal = buildTestPortal({ propertyId: PROPERTY })
+      portalRepo.seed([portal])
+      portalLookRepo.seed({ ...own(portal.id), override: ownLook })
+      mediaRepo.seed([
+        buildTestPortalMediaAsset({
+          id: OWN_HERO as never,
+          purpose: 'hero',
+          propertyId: PROPERTY,
+          status: 'taken_down',
+          takenDownAt: NOW,
+        }),
+      ])
+      const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+      const result = await getPropertyPortalExperience(deps)(
+        { propertyId: PROPERTY, portalId: portal.id },
+        ctx,
+      )
+
+      expect(result.portalLook?.photo).toMatchObject({
+        mode: 'own',
+        heroAssetId: OWN_HERO,
+        hero: null,
+      })
+    })
+
+    it('lets a Property Manager read the Portal’s look, though not change it', async () => {
+      const { deps, portalRepo, portalLookRepo } = setup()
+      const portal = buildTestPortal({ propertyId: PROPERTY })
+      portalRepo.seed([portal])
+      portalLookRepo.seed({
+        ...own(portal.id),
+        override: { ...ownLook, photo: { mode: 'none' as const } },
+      })
+      const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+      const result = await getPropertyPortalExperience(deps)(
+        { propertyId: PROPERTY, portalId: portal.id },
+        ctx,
+      )
+
+      expect(result.portalLook?.sources.photo).toBe('none')
+      expect(result.canManagePropertyBrand).toBe(false)
+    })
+
+    it('does not read another Property’s override under this Portal', async () => {
+      const { deps, portalRepo, portalLookRepo } = setup()
+      const portal = buildTestPortal({ propertyId: PROPERTY })
+      portalRepo.seed([portal])
+      portalLookRepo.seed({
+        organizationId: ORG,
+        propertyId: OTHER_PROPERTY,
+        portalId: portal.id,
+        override: ownLook,
+      })
+      const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+      const result = await getPropertyPortalExperience(deps)(
+        { propertyId: PROPERTY, portalId: portal.id },
+        ctx,
+      )
+
+      expect(result.portalLook).toBeNull()
+    })
   })
 
   it('refuses a Portal that belongs to a different Property', async () => {

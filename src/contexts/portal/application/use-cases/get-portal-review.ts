@@ -17,6 +17,13 @@
 // person it records. A live version of the earlier design, or one pinned to a
 // Google address the Property has since left, is listed as such: publishing
 // fixes both.
+//
+// A Portal's own look (ADR 0070). The Property's look rows are Property-wide, so
+// the ledger holds one for every Portal; a Portal that owns every group such a
+// row belongs to does not show that change, and Review leaves the row out of the
+// list. That is done to the ledger only, after `changesMayBeIncomplete` is
+// settled on the page as it was read: the open pending changes are never
+// masked, so `nothingToPublish` is still exactly the question publish asks.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId as toPortalId } from '#/shared/domain/ids'
@@ -57,6 +64,7 @@ import {
 import { readPortalLanguageCoverage } from './get-portal-language-coverage'
 import { portalError } from '../../domain/errors'
 import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
+import type { PortalLookSources } from '../../domain/portal-look'
 import { resolvePortalPublication } from '../../domain/portal-publication-source'
 import type { PortalPublicationSource } from '../../domain/portal-publication-source'
 import type {
@@ -65,6 +73,7 @@ import type {
 } from '../../domain/portal-page-edit'
 import {
   buildReviewChanges,
+  editReachesPortal,
   evaluateReviewChecks,
   reviewLanguageRows,
   type ReviewChange,
@@ -148,7 +157,7 @@ export type GetPortalReviewDeps = Readonly<{
   >
   publicationRepo: Pick<
     PortalPublicationRepository,
-    | 'loadWorkingCopy'
+    | 'loadWorkingCopyWithLook'
     | 'getCursor'
     | 'listActivationHistoryPage'
     | 'listOpenPendingContentChanges'
@@ -218,6 +227,8 @@ function viewOf(
 type ReviewAgainstLiveInput = Readonly<{
   liveSnapshot: Parameters<typeof destinationMatchesSnapshot>[1] | null
   workingCopy: Parameters<typeof workingCopyMatchesSnapshot>[0]
+  /** Where the Portal's look groups come from; the Property's look rows that cannot reach it are left out. */
+  lookSources: PortalLookSources
   destination: Parameters<typeof destinationMatchesSnapshot>[0] | null
   openChanges: Parameters<typeof buildReviewChanges>[0]['pending']
   ledger: Parameters<typeof buildReviewChanges>[0]['edits']
@@ -225,7 +236,8 @@ type ReviewAgainstLiveInput = Readonly<{
 
 /** How the draft stands against what is live: the change list and whether there is anything to publish. */
 function reviewAgainstLive(input: ReviewAgainstLiveInput) {
-  const { liveSnapshot, workingCopy, destination, openChanges, ledger } = input
+  const { liveSnapshot, workingCopy, lookSources, destination, openChanges, ledger } =
+    input
   // A Portal that is not live has no live version to differ from, so it has no change list.
   const destinationMoved =
     liveSnapshot !== null &&
@@ -253,7 +265,7 @@ function reviewAgainstLive(input: ReviewAgainstLiveInput) {
     liveSnapshot === null
       ? []
       : buildReviewChanges({
-          edits: unpublished,
+          edits: unpublished.filter((edit) => editReachesPortal(edit, lookSources)),
           pending: openChanges,
           liveIsEarlierDesign:
             liveSnapshot.configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION,
@@ -290,7 +302,7 @@ export const getPortalReview =
     const at = deps.clock()
 
     const [
-      workingCopy,
+      workingCopyWithLook,
       cursor,
       openChanges,
       activations,
@@ -300,7 +312,7 @@ export const getPortalReview =
       coverage,
       ledger,
     ] = await Promise.all([
-      deps.publicationRepo.loadWorkingCopy(organizationId, pid),
+      deps.publicationRepo.loadWorkingCopyWithLook(organizationId, pid),
       deps.publicationRepo.getCursor(organizationId, pid),
       deps.publicationRepo.listOpenPendingContentChanges?.(
         organizationId,
@@ -325,12 +337,13 @@ export const getPortalReview =
           )
         : Promise.resolve([]),
     ])
-    if (!workingCopy) {
+    if (!workingCopyWithLook) {
       throw portalError(
         'publication_snapshot_unavailable',
         'Portal publication content is unavailable',
       )
     }
+    const { source: workingCopy, lookSources } = workingCopyWithLook
     const liveRecord = activations.current
     if (isLive && !liveRecord) {
       throw portalError(
@@ -352,6 +365,7 @@ export const getPortalReview =
     const { changes, changesMayBeIncomplete, nothingToPublish } = reviewAgainstLive({
       liveSnapshot: isLive && liveRecord ? liveRecord.snapshot : null,
       workingCopy,
+      lookSources,
       destination,
       openChanges,
       ledger,

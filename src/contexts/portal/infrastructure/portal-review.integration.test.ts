@@ -20,7 +20,10 @@ import { createPortalLinkRepository } from './repositories/portal-link.repositor
 import { createPortalExperienceRepository } from './repositories/portal-experience.repository'
 import { createPortalHistoryRepository } from './repositories/portal-history.repository'
 import { createPortalPublicationRepository } from './repositories/portal-publication.repository'
-import { seedPortalWorkingCopy } from './testing/portal-working-copy-seed'
+import {
+  seedPortalLookOverride,
+  seedPortalWorkingCopy,
+} from './testing/portal-working-copy-seed'
 import {
   COMPLETE_SCENARIO,
   WORKING_COPY_ORG,
@@ -52,6 +55,7 @@ const { getPool } = setupIntegrationDb({
     'portal_publication_activations',
     'portal_publication_snapshots',
     'portal_localized_overrides',
+    'portal_look_overrides',
     'property_portal_brand_contents',
     'property_portal_brand_profiles',
     'portal_link_texts',
@@ -177,6 +181,44 @@ async function rewordWelcome(title: string, at: Date): Promise<void> {
     }),
   )
 }
+
+/**
+ * The Property moves its accent the way a real save records it: the look version
+ * moves, a Property-wide ledger row is written, and the fence opens on the
+ * Portals the change `reaches` (all of them before Portals could own a group).
+ */
+async function moveAccent(
+  to: string,
+  at: Date,
+  reaches: readonly string[],
+): Promise<void> {
+  await getPool().query(
+    `UPDATE property_portal_brand_profiles
+        SET primary_color = $2, look_version = look_version + 1
+      WHERE property_id = $1`,
+    [SCENARIO.propertyId, to],
+  )
+  await getDb().transaction((tx) =>
+    recordPortalContentChange(tx, {
+      organizationId: SCENARIO.organizationId,
+      propertyId: SCENARIO.propertyId,
+      portalIds: reaches,
+      kind: 'property_brand_profile',
+      key: 'look:accent',
+      ledger: [{ key: 'look:accent' }],
+      sourceVersion: `look-${at.toISOString()}`,
+      changedAt: at,
+      actorUserId: EDITOR,
+    }),
+  )
+}
+
+/** The Portal takes its own colours, set to what the Property's are at this moment. */
+const takeColours = (accent: string, lookVersion: number) =>
+  seedPortalLookOverride(getPool(), scope, {
+    colours: { accent, backgroundMode: 'manual', backgroundColour: '#101820' },
+    lookVersion,
+  })
 
 const review = () =>
   getPortalReview({
@@ -316,6 +358,84 @@ describe.sequential('getPortalReview (real PostgreSQL)', () => {
       publishesAsVersion: 3,
       nothingToPublish: true,
       changes: [],
+    })
+  })
+  describe("the Property's look and a Portal's own look (ADR 0070)", () => {
+    it('lists a Property colour edit for a Portal that follows the Property’s colours', async () => {
+      await moveAccent('#0F766E', EDITED_AT, [SCENARIO.portalId])
+
+      const result = await review()
+
+      expect(result.nothingToPublish).toBe(false)
+      expect(result.changes).toMatchObject([
+        {
+          type: 'edit',
+          kind: 'property_brand_profile',
+          subject: { area: 'look', facet: 'accent' },
+          propertyWide: true,
+          actor: { userId: EDITOR },
+        },
+      ])
+    })
+
+    it('shows a Portal that owns its colours nothing of a Property colour edit', async () => {
+      // The Portal took the colours as they were: nothing a guest sees moved.
+      await takeColours('#1D4ED8', 4)
+      await expect(review()).resolves.toMatchObject({ nothingToPublish: true })
+
+      // The Property edits its accent; the change does not reach this Portal,
+      // so the fence stays closed for it and the ledger row is not its change.
+      await moveAccent('#0F766E', EDITED_AT, [])
+      const result = await review()
+
+      expect(result).toMatchObject({ nothingToPublish: true, changes: [] })
+    })
+
+    it('still offers to publish, and names the change, when the fence opened before the Portal took the colours', async () => {
+      await moveAccent('#0F766E', EDITED_AT, [SCENARIO.portalId])
+      // The Portal then owns the colours the Property now has: the working copy
+      // still differs from what is live, and the open fence row still counts.
+      await takeColours('#0F766E', 5)
+
+      const result = await review()
+
+      expect(result.nothingToPublish).toBe(false)
+      expect(result.canPublish).toBe(true)
+      expect(result.changes).toMatchObject([
+        { type: 'unrecorded', kind: 'property_brand_profile' },
+      ])
+    })
+
+    it('lists the Portal’s own look edit as its own change', async () => {
+      await takeColours('#1D4ED8', 4)
+      await getPool().query(
+        `UPDATE portal_look_overrides SET primary_color = '#B8860B', look_version = 5`,
+      )
+      await getDb().transaction((tx) =>
+        recordPortalContentChange(tx, {
+          organizationId: SCENARIO.organizationId,
+          propertyId: SCENARIO.propertyId,
+          portalId: SCENARIO.portalId,
+          kind: 'portal_configuration',
+          key: 'look:accent',
+          ledger: [{ key: 'look:accent' }],
+          sourceVersion: 'look:v5',
+          changedAt: EDITED_AT,
+          actorUserId: EDITOR,
+        }),
+      )
+
+      const result = await review()
+
+      expect(result.nothingToPublish).toBe(false)
+      expect(result.changes).toMatchObject([
+        {
+          type: 'edit',
+          kind: 'portal_configuration',
+          subject: { area: 'portal_look', facet: 'accent' },
+          propertyWide: false,
+        },
+      ])
     })
   })
 })

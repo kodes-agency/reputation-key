@@ -4,20 +4,13 @@
 // another organisation reads nothing.
 
 import { describe, expect, it } from 'vitest'
-import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { organizationId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../domain/approved-destination'
-import { getPortalPreview } from '../application/use-cases/get-portal-preview'
-import { createPortalRepository } from './repositories/portal.repository'
-import { createPortalLinkRepository } from './repositories/portal-link.repository'
-import { createPortalExperienceRepository } from './repositories/portal-experience.repository'
-import { createPortalApprovedDestinationRepository } from './repositories/portal-approved-destination.repository'
-import { createPortalMediaAssetRepository } from './repositories/portal-media-asset.repository'
-import { createPortalPublicationRepository } from './repositories/portal-publication.repository'
-import { seedPortalWorkingCopy } from './testing/portal-working-copy-seed'
+import {
+  createPreviewUseCase,
+  seedScenarioForPreview,
+} from './testing/portal-preview-use-case'
 import {
   COMPLETE_SCENARIO,
   WORKING_COPY_ORG,
@@ -32,6 +25,7 @@ const { getPool } = setupIntegrationDb({
     'portal_publication_snapshots',
     'portal_link_texts',
     'portal_localized_overrides',
+    'portal_look_overrides',
     'property_portal_brand_contents',
     'property_portal_brand_profiles',
     'portal_links',
@@ -44,35 +38,7 @@ const { getPool } = setupIntegrationDb({
   ],
 })
 
-const NOW = new Date('2026-10-01T12:00:00.000Z')
-const staffPublicApi: StaffPublicApi = {
-  getAccessiblePropertyIds: async () => null,
-  getAssignedPortals: async () => [],
-}
-
-function previewUseCase() {
-  const db = getDb()
-  return getPortalPreview({
-    portalRepo: createPortalRepository(db),
-    portalLinkRepo: createPortalLinkRepository(db, () => NOW),
-    experienceRepo: createPortalExperienceRepository(db),
-    destinationRepo: createPortalApprovedDestinationRepository(db),
-    publicationRepo: createPortalPublicationRepository(db),
-    mediaRepo: createPortalMediaAssetRepository(db),
-    propertyFacts: { getPropertyTimezone: async () => 'Europe/Sofia' },
-    staffPublicApi,
-    clock: () => NOW,
-  })
-}
-
-/** The shared seed writes a validation version the repository (rightly) refuses to read. */
-async function seedScenario(): Promise<void> {
-  await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
-  await getPool().query(
-    `UPDATE portal_approved_destinations SET validation_version = $1 WHERE organization_id = $2`,
-    [PORTAL_DESTINATION_VALIDATION_VERSION, WORKING_COPY_ORG],
-  )
-}
+const seedScenario = () => seedScenarioForPreview(getPool(), COMPLETE_SCENARIO)
 
 const asManager = (orgId = WORKING_COPY_ORG) =>
   buildTestAuthContext({ organizationId: orgId, role: 'AccountAdmin' })
@@ -81,7 +47,7 @@ describe.sequential('getPortalPreview (real PostgreSQL)', () => {
   it('builds the draft from the saved rows, with unapproved tiles as placeholders', async () => {
     await seedScenario()
 
-    const outcome = await previewUseCase()(
+    const outcome = await createPreviewUseCase()(
       { portalId: COMPLETE_SCENARIO.portalId, source: 'draft' },
       asManager(),
     )
@@ -112,7 +78,7 @@ describe.sequential('getPortalPreview (real PostgreSQL)', () => {
   it('never sends an address to the browser: approved, pending or legacy', async () => {
     await seedScenario()
 
-    const outcome = await previewUseCase()(
+    const outcome = await createPreviewUseCase()(
       { portalId: COMPLETE_SCENARIO.portalId, source: 'draft' },
       asManager(),
     )
@@ -132,7 +98,7 @@ describe.sequential('getPortalPreview (real PostgreSQL)', () => {
     await seedScenario()
 
     await expect(
-      previewUseCase()(
+      createPreviewUseCase()(
         { portalId: COMPLETE_SCENARIO.portalId, source: 'live' },
         asManager(),
       ),
@@ -143,7 +109,7 @@ describe.sequential('getPortalPreview (real PostgreSQL)', () => {
     await seedScenario()
 
     await expect(
-      previewUseCase()(
+      createPreviewUseCase()(
         { portalId: COMPLETE_SCENARIO.portalId, source: 'draft' },
         asManager(organizationId(WORKING_COPY_OTHER_ORG)),
       ),

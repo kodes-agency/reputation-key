@@ -5,6 +5,7 @@ import {
   portalId,
   propertyId,
   type OrganizationId,
+  type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -14,6 +15,7 @@ import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.rep
 import type { PortalLookRepository } from '../ports/portal-look.repository'
 import type { PortalLookSettings } from '../dto/portal-look.dto'
 import { resolvePropertyLookMedia } from '../property-look-media'
+import { portalLookMediaProfileOf, portalLookViewOf } from '../portal-look-view'
 import { assertPropertyAccess } from '../assert-property-access'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { isPublicDisplayNameConfirmed } from '../../domain/portal-experience'
@@ -45,14 +47,46 @@ type PortalLookReadDeps = Readonly<{
 }>
 
 /**
- * The read's facts about a Portal's own look. No look of its own is read yet:
- * every Portal reads as following the Property look.
+ * The read's facts about a Portal's own look (ADR 0070): its override with the
+ * images that override names resolved the way the Property's are (so an own
+ * photo that was taken down reads as no photo), how many live Portals the
+ * Property has (the controls appear once there are two), and whether the
+ * feature is switched on. A Portal with no row, and a read with no Portal, have
+ * no override: every group follows the Property look.
  */
-const portalLookSettingsOf = (deps: PortalLookReadDeps): PortalLookSettings => ({
-  portalLook: null,
-  siblingPortalCount: 0,
-  portalLookEnabled: deps.portalOwnLookEnabled,
-})
+async function portalLookSettingsOf(
+  deps: Deps & PortalLookReadDeps,
+  scope: Readonly<{
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    portalId: PortalId | null
+  }>,
+): Promise<PortalLookSettings> {
+  const { organizationId, propertyId: pid, portalId: portalIdValue } = scope
+  const [override, siblingPortalCount] = await Promise.all([
+    portalIdValue === null
+      ? Promise.resolve(null)
+      : deps.portalLookRepo.findForPortal(organizationId, pid, portalIdValue),
+    deps.portalLookRepo.countLivePortals(organizationId, pid),
+  ])
+  const portalLook =
+    override === null
+      ? null
+      : portalLookViewOf(
+          override,
+          await resolvePropertyLookMedia(
+            deps,
+            organizationId,
+            pid,
+            portalLookMediaProfileOf(override),
+          ),
+        )
+  return {
+    portalLook,
+    siblingPortalCount,
+    portalLookEnabled: deps.portalOwnLookEnabled,
+  }
+}
 
 function assertPortalAdmin(ctx: AuthContext): void {
   if (!canForContext(ctx, 'portal.admin')) {
@@ -102,7 +136,11 @@ export const getPropertyPortalExperience =
         media,
         canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
         publicDisplayNameConfirmed,
-        ...portalLookSettingsOf(deps),
+        ...(await portalLookSettingsOf(deps, {
+          organizationId: ctx.organizationId,
+          propertyId: pid,
+          portalId: null,
+        })),
       }
     }
     const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
@@ -122,7 +160,11 @@ export const getPropertyPortalExperience =
       media,
       canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
       publicDisplayNameConfirmed,
-      ...portalLookSettingsOf(deps),
+      ...(await portalLookSettingsOf(deps, {
+        organizationId: ctx.organizationId,
+        propertyId: pid,
+        portalId: portal.id,
+      })),
     }
   }
 

@@ -191,6 +191,66 @@ describe('public Portal loader projection', () => {
     expect(projected.localization.selectedLocale).toBe('bg')
   })
 
+  it("carries each Portal's own look of one Property: colours, name, photo, its description and the og:image source", () => {
+    const { immersive } = immersivePortal
+    if (!immersive) throw new Error('fixture must be immersive')
+    // A second Portal of the Harbor Property with a look of its own.
+    const spa: PublicPortalData = {
+      ...immersivePortal,
+      portal: {
+        ...immersivePortal.portal,
+        heroImageUrl: '/media/spa-hero.webp',
+        logoUrl: null,
+      },
+      immersive: {
+        ...immersive,
+        brand: {
+          ...immersive.brand,
+          wordmark: 'SPA',
+          logo: null,
+          hero: {
+            url: '/media/spa-hero.webp',
+            width: 1200,
+            height: 800,
+            focalX: 0.2,
+            focalY: 0.4,
+          },
+          accentColour: '#B8860B',
+          fieldColour: '#201810',
+        },
+        content: {
+          ...immersive.content,
+          heroAlt: { value: 'The spa pool', fallbackFrom: null },
+        },
+      },
+    }
+    const withHero = {
+      ...immersivePortal,
+      portal: { ...immersivePortal.portal, heroImageUrl: '/media/hero.webp' },
+    }
+
+    const harbor = toPublicPortalLoaderData(withHero, state())
+    const own = toPublicPortalLoaderData(spa, state())
+
+    expect(harbor.immersive?.brand).toMatchObject({
+      wordmark: 'HARBOR',
+      accentColour: '#C8A45A',
+      fieldColour: '#14110F',
+    })
+    expect(own.immersive?.brand).toMatchObject({
+      displayName: 'Harbor',
+      wordmark: 'SPA',
+      logo: null,
+      accentColour: '#B8860B',
+      fieldColour: '#201810',
+      hero: { url: '/media/spa-hero.webp', width: 1200, focalX: 0.2 },
+    })
+    expect(own.immersive?.content.heroAlt.value).toBe('The spa pool')
+    // The page head's og:image is the photo the page draws, so each Portal shares its own.
+    expect(harbor.portal.heroImageUrl).toBe('/media/hero.webp')
+    expect(own.portal.heroImageUrl).toBe('/media/spa-hero.webp')
+  })
+
   it('drops anything the server result carries beyond the reviewed fields', () => {
     const { immersive } = immersivePortal
     if (!immersive) throw new Error('fixture must be immersive')

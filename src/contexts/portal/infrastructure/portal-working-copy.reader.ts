@@ -14,6 +14,16 @@
 // Brand Profile has no look. Filling those gaps is the resolver's job, so the
 // same rule applies whether Publish, the comparison or a preview asks.
 //
+// The one thing it does lay over the Property's rows is a Portal's own look
+// (ADR 0070): the Portal's `portal_look_overrides` row is merged into the Brand
+// Profile and the photo descriptions BEFORE the images are looked up, so the
+// Portal's own photo and logo go through the same check as the Property's (an
+// active image of this Property, uploaded for that slot) and a taken-down own
+// photo reads as no photo, never as the Property's. A Portal with no row is read
+// exactly as it was before Portals could have a look of their own. The Portal's
+// effective look version rides in the merged profile, so a change of the row
+// makes a publish in flight fail its in-transaction verification.
+//
 // The reader takes no lock of its own. A publish reads through it after it has
 // locked the Portal row, and that row is what holds the working copy still:
 // every command that writes a link, a category or a link text updates the
@@ -39,6 +49,7 @@ import {
   propertyPortalBrandProfiles,
 } from '#/shared/db/schema/portal.schema'
 import { portalLinkTexts } from '#/shared/db/schema/portal-localization.schema'
+import { portalLookOverrides } from '#/shared/db/schema/portal-look.schema'
 import { portalMediaAssets } from '#/shared/db/schema/portal-assets.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { parseGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
@@ -55,7 +66,16 @@ import type {
   PublicationMedia,
   PublicationWording,
 } from '../domain/portal-publication-source'
-import { PROPERTY_LOOK_SOURCES } from '../domain/portal-look'
+import {
+  applyPortalLook,
+  lookSourcesOf,
+  portalLookOverrideOf,
+  withPortalHeroAlt,
+} from '../domain/portal-look'
+import {
+  PORTAL_MEDIA_REFERENCE_SLOTS,
+  type PortalMediaReferenceSlot,
+} from '../domain/portal-media-asset'
 import type { PortalWorkingCopyWithLook } from '../application/ports/portal-publication.repository'
 import { hasPropertyWording } from '../domain/property-wording'
 
@@ -178,7 +198,22 @@ async function readExperienceRows(
         eq(portalLocalizedOverrides.portalId, portalId),
       ),
     )
-  return { brand, contents, overrides }
+  const [lookRow] = await executor
+    .select()
+    .from(portalLookOverrides)
+    .where(
+      and(
+        eq(portalLookOverrides.organizationId, organizationId),
+        eq(portalLookOverrides.propertyId, propertyId),
+        eq(portalLookOverrides.portalId, portalId),
+      ),
+    )
+    .limit(1)
+  // A Property with no Brand Profile has no look to lay a Portal's over (the
+  // writers refuse to make a row then), so a row found anyway is ignored.
+  const lookOverride =
+    brand === undefined || lookRow === undefined ? null : portalLookOverrideOf(lookRow)
+  return { brand, contents, overrides, lookOverride }
 }
 
 /** The Property's time zone, which the page reads deadlines in. */
@@ -199,16 +234,20 @@ async function readTimeZone(
   return property?.timezone ?? null
 }
 
-/** The stored size of every image the working copy names that may still be served. */
+/** An image that may be served and what it was uploaded for, which the slot it fills must match. */
+type ServableMedia = PublicationMedia & Readonly<{ purpose: string }>
+
+/** The stored size and purpose of every image the working copy names that may still be served. */
 async function readServableMedia(
   executor: PortalWorkingCopyExecutor,
   portal: PortalRow,
   assetIds: readonly string[],
-): Promise<ReadonlyMap<string, PublicationMedia>> {
+): Promise<ReadonlyMap<string, ServableMedia>> {
   if (assetIds.length === 0) return new Map()
   const rows = await executor
     .select({
       id: portalMediaAssets.id,
+      purpose: portalMediaAssets.purpose,
       width: portalMediaAssets.width,
       height: portalMediaAssets.height,
     })
@@ -224,9 +263,24 @@ async function readServableMedia(
   return new Map(
     rows.map((row) => [
       row.id,
-      { assetId: row.id, width: row.width, height: row.height },
+      { assetId: row.id, purpose: row.purpose, width: row.width, height: row.height },
     ]),
   )
+}
+
+/**
+ * The image a slot of the look may show: servable, and uploaded for that slot
+ * (the draft preview asks `canReferencePortalMediaAsset` the same). The writers
+ * check the slot too; the reader does not trust them with what guests see.
+ */
+function mediaForSlot(
+  media: ReadonlyMap<string, ServableMedia>,
+  slot: PortalMediaReferenceSlot,
+  assetId: string | null,
+): PublicationMedia | undefined {
+  const asset = assetId === null ? undefined : media.get(assetId)
+  if (asset?.purpose !== PORTAL_MEDIA_REFERENCE_SLOTS[slot]) return undefined
+  return { assetId: asset.assetId, width: asset.width, height: asset.height }
 }
 
 // Sequential on purpose: the executor may be a single transaction client,
@@ -235,14 +289,29 @@ async function readWorkingRows(executor: PortalWorkingCopyExecutor, portal: Port
   const timeZone = await readTimeZone(executor, portal)
   const links = await readLinkRows(executor, portal)
   const linkTexts = await readLinkTextRows(executor, portal)
-  const experience = await readExperienceRows(executor, portal)
+  const rows = await readExperienceRows(executor, portal)
+  // The Portal's own look is laid over the Property's rows before any image id
+  // is collected, so its own photo and logo are looked up like the Property's.
+  const { lookOverride } = rows
+  const brand =
+    rows.brand === undefined ? undefined : applyPortalLook(rows.brand, lookOverride)
+  const contents = withPortalHeroAlt(rows.contents, lookOverride)
   const assetIds = [
-    experience.brand?.logoAssetId,
-    experience.brand?.heroAssetId,
+    brand?.logoAssetId,
+    brand?.heroAssetId,
     ...links.map(({ link }) => link.imageAssetId),
   ].filter((id): id is string => typeof id === 'string')
   const media = await readServableMedia(executor, portal, [...new Set(assetIds)])
-  return { timeZone, links, linkTexts, media, ...experience }
+  return {
+    timeZone,
+    links,
+    linkTexts,
+    media,
+    brand,
+    contents,
+    overrides: rows.overrides,
+    lookOverride,
+  }
 }
 
 type WorkingRows = Awaited<ReturnType<typeof readWorkingRows>>
@@ -287,8 +356,8 @@ function readLook(
   media: WorkingRows['media'],
 ): PublicationLook | null {
   if (!brand) return null
-  const hero = brand.heroAssetId ? media.get(brand.heroAssetId) : undefined
-  const logo = brand.logoAssetId ? media.get(brand.logoAssetId) : undefined
+  const hero = mediaForSlot(media, 'brand_hero', brand.heroAssetId)
+  const logo = mediaForSlot(media, 'brand_logo', brand.logoAssetId)
   return {
     displayName: brand.displayName,
     wordmark: brand.wordmark,
@@ -364,16 +433,17 @@ function readLinks(
 }
 
 /**
- * The working copy of one Portal, or null when it does not resolve: the Portal
- * is missing, deleted or in another organisation or Property, or its stored
- * locales are corrupt. Everything else, including a Property with no Brand
- * Profile or a language with no wording, is a fact the source reports and the
- * resolver judges.
+ * The working copy of one Portal and where its look groups come from (ADR
+ * 0070), or null when it does not resolve: the Portal is missing, deleted or in
+ * another organisation or Property, or its stored locales are corrupt.
+ * Everything else, including a Property with no Brand Profile or a language
+ * with no wording, is a fact the source reports and the resolver judges. A
+ * Portal with no override row follows the whole Property look.
  */
-export async function readPortalWorkingCopy(
+export async function readPortalWorkingCopyWithLook(
   executor: PortalWorkingCopyExecutor,
   scope: PortalWorkingCopyScope,
-): Promise<PortalPublicationSource | null> {
+): Promise<PortalWorkingCopyWithLook | null> {
   const portal = await readPortalRow(executor, scope)
   if (!portal) return null
   // The working copy's locales are read as stored: an unknown one is a corrupt
@@ -390,29 +460,28 @@ export async function readPortalWorkingCopy(
     ...additionalGuestLocales.data,
   ].filter((locale, index, all) => all.indexOf(locale) === index)
   return {
-    organizationId: scope.organizationId,
-    propertyId: portal.propertyId,
-    portal: { id: portal.id, name: portal.name, slug: portal.slug },
-    privateFeedbackThreshold: portal.privateFeedbackThreshold,
-    primaryGuestLocale,
-    localeSet,
-    linktreeEnabled: portal.linktreeEnabled,
-    timeZone: rows.timeZone,
-    look: readLook(rows.brand, rows.media),
-    wording: resolveWording(localeSet, rows),
-    links: readLinks(rows, primaryGuestLocale),
+    source: {
+      organizationId: scope.organizationId,
+      propertyId: portal.propertyId,
+      portal: { id: portal.id, name: portal.name, slug: portal.slug },
+      privateFeedbackThreshold: portal.privateFeedbackThreshold,
+      primaryGuestLocale,
+      localeSet,
+      linktreeEnabled: portal.linktreeEnabled,
+      timeZone: rows.timeZone,
+      look: readLook(rows.brand, rows.media),
+      wording: resolveWording(localeSet, rows),
+      links: readLinks(rows, primaryGuestLocale),
+    },
+    lookSources: lookSourcesOf(rows.lookOverride),
   }
 }
 
-/**
- * The working copy of one Portal and where its look groups come from (ADR
- * 0070), or null exactly when `readPortalWorkingCopy` is. A Portal with no
- * override row follows the whole Property look.
- */
-export async function readPortalWorkingCopyWithLook(
+/** The working copy of one Portal, or null exactly when `readPortalWorkingCopyWithLook` is. */
+export async function readPortalWorkingCopy(
   executor: PortalWorkingCopyExecutor,
   scope: PortalWorkingCopyScope,
-): Promise<PortalWorkingCopyWithLook | null> {
-  const source = await readPortalWorkingCopy(executor, scope)
-  return source === null ? null : { source, lookSources: PROPERTY_LOOK_SOURCES }
+): Promise<PortalPublicationSource | null> {
+  const workingCopy = await readPortalWorkingCopyWithLook(executor, scope)
+  return workingCopy === null ? null : workingCopy.source
 }

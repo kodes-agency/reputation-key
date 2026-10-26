@@ -10,7 +10,11 @@ import {
   type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { PortalWorkingCopySeed } from './portal-working-copy-seed'
+import type {
+  PortalWorkingCopySeed,
+  SeededLookOverride,
+  SeededMediaAsset,
+} from './portal-working-copy-seed'
 
 export const WORKING_COPY_ORG = organizationId('org-workingcopy-0000-0000-00000001')
 export const WORKING_COPY_OTHER_ORG = organizationId('org-workingcopy-0000-0000-00000002')
@@ -153,4 +157,68 @@ export const INCOMPLETE_SCENARIO: WorkingCopyScenario = {
   contents: [{ locale: 'en', title: 'Hotel Pirin', shortDescription: 'Welcome' }],
   overrides: [],
   links: [],
+}
+
+// ── A Portal's own look (ADR 0070) ───────────────────────────────────────────
+//
+// The complete Portal with a look of its own laid over its Property's. The
+// Property's look version is 4, so a Portal's own look starts at 5.
+
+/** The Property's other stored photograph and logo, which a Portal can take as its own. */
+export const SCENARIO_OWN_HERO_ASSET = 'c5000000-0000-4000-8000-000000000004'
+export const SCENARIO_OWN_LOGO_ASSET = 'c5000000-0000-4000-8000-000000000005'
+const OWN_ASSETS: readonly SeededMediaAsset[] = [
+  { id: SCENARIO_OWN_HERO_ASSET, purpose: 'hero', width: 1200, height: 800 },
+  { id: SCENARIO_OWN_LOGO_ASSET, purpose: 'logo', width: 300, height: 300 },
+]
+
+/** `COMPLETE_SCENARIO` with the Portal's own look row and the images it can name. */
+export const withOwnLook = (lookOverride: SeededLookOverride): WorkingCopyScenario => ({
+  ...COMPLETE_SCENARIO,
+  mediaAssets: [...(COMPLETE_SCENARIO.mediaAssets ?? []), ...OWN_ASSETS],
+  lookOverride,
+})
+
+export const OWN_PHOTO_LOOK: SeededLookOverride = {
+  photo: {
+    mode: 'own',
+    assetId: SCENARIO_OWN_HERO_ASSET,
+    focalX: 0.2,
+    focalY: 0.4,
+    altTexts: { bg: 'Басейнът', en: 'The pool' },
+  },
+  lookVersion: 5,
+}
+
+/** An own photo nobody described: decorative, though the Property describes its own. */
+export const OWN_PHOTO_WITHOUT_ALT_LOOK: SeededLookOverride = {
+  photo: {
+    mode: 'own',
+    assetId: SCENARIO_OWN_HERO_ASSET,
+    focalX: 0.5,
+    focalY: 0.5,
+  },
+  lookVersion: 5,
+}
+
+export const NO_PHOTO_LOOK: SeededLookOverride = {
+  photo: { mode: 'none' },
+  lookVersion: 5,
+}
+
+export const OWN_COLOURS_LOOK: SeededLookOverride = {
+  colours: { accent: '#B8860B', backgroundMode: 'auto', backgroundColour: '#201810' },
+  lookVersion: 5,
+}
+
+export const OWN_IDENTITY_LOOK: SeededLookOverride = {
+  identity: { wordmark: 'SPA', logoAssetId: SCENARIO_OWN_LOGO_ASSET },
+  lookVersion: 5,
+}
+
+export const OWN_EVERYTHING_LOOK: SeededLookOverride = {
+  photo: OWN_PHOTO_LOOK.photo,
+  colours: OWN_COLOURS_LOOK.colours,
+  identity: OWN_IDENTITY_LOOK.identity,
+  lookVersion: 6,
 }

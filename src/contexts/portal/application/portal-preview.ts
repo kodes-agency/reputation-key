@@ -19,7 +19,6 @@
 //    is one title per language with a "Use default" reset, so a language with
 //    none reads its language pack's default, never another language's title.
 
-import { deriveFieldColour } from '#/shared/domain/portal-field-colour'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
   IMMERSIVE_HUB_SCHEMA_VERSION,
@@ -27,10 +26,7 @@ import {
 } from '../domain/portal-publication-snapshot'
 import { linktreeDefaultTitle } from '../domain/portal-linktree'
 import { hasPropertyWording } from '../domain/property-wording'
-import {
-  DEFAULT_PORTAL_ACCENT,
-  DEFAULT_PORTAL_FIELD,
-} from '../domain/portal-publication-source'
+import { DEFAULT_PORTAL_ACCENT, fieldColourOf } from '../domain/portal-publication-source'
 import type {
   PortalLinktreeDestinationState,
   PortalLinktreeView,
@@ -144,13 +140,18 @@ export type DraftPortalPreviewInput = Readonly<{
     | 'privateFeedbackThreshold'
   >
   linktree: PortalLinktreeView
+  /**
+   * The Property's look with the Portal's own groups laid over it
+   * (`applyPortalLook`); null while the Property has no Brand Profile.
+   */
   profile: PreviewProfile | null
   /**
-   * The Property's photograph and logo, from uploaded assets that may still be
+   * The photograph and logo of that look, from uploaded assets that may still be
    * served. A page only ever draws these: an address left on the profile (or
    * typed into an override) is not published, so it is not previewed either.
    */
   media: PropertyLookMedia
+  /** The Property's wording, with the photo descriptions the Portal shows (`withPortalHeroAlt`). */
   content: readonly PreviewContent[]
   overrides: readonly PreviewOverride[]
   /** The Property's IANA time zone. */
@@ -190,16 +191,18 @@ function textIn(
 }
 
 /**
- * The look as the page draws it. The field follows the accent unless the
- * Property chose it by hand; the page's own resolver still guards legibility.
+ * The look as the page draws it. The field follows the accent unless the look
+ * chose it by hand (the same rule publishing applies, `fieldColourOf`); the
+ * page's own resolver still guards legibility.
  */
 function brandOf(input: DraftPortalPreviewInput): PublicImmersiveExperience['brand'] {
   const { profile, portal, media } = input
   const accentColour = profile?.primaryColor ?? DEFAULT_PORTAL_ACCENT
-  const fieldColour =
-    profile?.backgroundMode === 'manual'
-      ? profile.backgroundColor
-      : (deriveFieldColour(accentColour) ?? DEFAULT_PORTAL_FIELD)
+  const fieldColour = fieldColourOf(
+    profile?.backgroundMode ?? 'auto',
+    profile?.backgroundColor ?? '',
+    accentColour,
+  )
   const { hero, logo } = media
   return {
     displayName: firstWritten(profile?.displayName) ?? portal.name,
@@ -235,7 +238,10 @@ function contentOf(
     return firstWritten(overrideIn(code)?.[key], row[key])
   }
   const heroAltIn = (code: GuestLocale) => firstWritten(contentIn(code)?.heroAltText)
-  const hasHeroAlt = heroAltIn(primary) !== undefined
+  // A description belongs to a photo: with none shown (the Property has none, a
+  // Portal chose none, or an image was taken down) the page is described by
+  // nothing, as publishing leaves it.
+  const hasHeroAlt = input.media.hero !== null && heroAltIn(primary) !== undefined
   // The Linktree view already carries the titles a manager wrote.
   const customTitle = firstWritten(input.linktree.titles[locale])
   return {
