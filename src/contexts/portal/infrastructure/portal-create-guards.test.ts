@@ -112,6 +112,7 @@ const copied = (
       provenance: null,
     },
   ],
+  look: null,
   ...patch,
 })
 
@@ -364,6 +365,38 @@ describe('assertCreateCommand', () => {
           ],
         }),
       ).toBe('forbidden')
+    })
+
+    describe('the copied own look', () => {
+      const look = {
+        photoMode: 'own' as const,
+        heroAssetId: '30000000-0000-4000-8000-000000000001',
+        heroFocalX: 0.5,
+        heroFocalY: 0.5,
+        heroAltTexts: { en: 'Pool', bg: 'Басейн' },
+        coloursMode: 'inherit' as const,
+        primaryColor: null,
+        backgroundMode: null,
+        backgroundColor: null,
+        identityMode: 'inherit' as const,
+        wordmark: null,
+        logoAssetId: null,
+        lookVersion: 4,
+      }
+
+      it('accepts a look described in the new Portal’s languages', () => {
+        expect(run({ look })).toBeUndefined()
+      })
+
+      it('refuses a description in a language the Portal does not offer', () => {
+        expect(run({ look: { ...look, heroAltTexts: { de: 'Becken' } } })).toBe(
+          'forbidden',
+        )
+      })
+
+      it('refuses a look with no version', () => {
+        expect(run({ look: { ...look, lookVersion: 0 } })).toBe('forbidden')
+      })
     })
   })
 })

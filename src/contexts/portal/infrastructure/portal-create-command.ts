@@ -4,8 +4,8 @@
 // createAtomicPortalCommandStore.
 //
 // One transaction writes the Portal, who is responsible, its first Health, its
-// group membership, everything copied from another Portal and every fact. A
-// failure in any part leaves no trace of the others.
+// group membership, everything copied from another Portal (its own look too)
+// and every fact. A failure in any part leaves no trace of the others.
 
 import type { Database } from '#/shared/db'
 import {
@@ -13,6 +13,7 @@ import {
   portalLinkCategories,
   portalLinks,
   portalLocalizedOverrides,
+  portalLookOverrides,
   portalResponsibleManagers,
   portals,
 } from '#/shared/db/schema'
@@ -32,6 +33,7 @@ import { assertCreateCommand } from './portal-create-guards'
 import { joinPortalGroupInTransaction } from './portal-group-commands'
 import { upsertLinkTexts } from './portal-link-texts-store'
 import {
+  isForeignKeyViolation,
   PORTAL_SLUG_UNIQUE,
   refusingWhenTaken,
   slugTaken,
@@ -69,6 +71,30 @@ async function insertResponsibleManagers(
   )
 }
 
+/** The images a copied look points at; one gone since the source was read refuses the copy. */
+const COPIED_LOOK_IMAGE_KEYS = [
+  'portal_look_overrides_hero_asset_fk',
+  'portal_look_overrides_logo_asset_fk',
+] as const
+
+/** The source's own look as the new Portal's row. No fence: the new Portal has no snapshot. */
+async function insertCopiedLook(
+  tx: Tx,
+  command: CreatePortalCommand,
+  look: NonNullable<CreatePortalCopiedContent['look']>,
+): Promise<void> {
+  const { portal } = command
+  await tx.insert(portalLookOverrides).values({
+    organizationId: unbrand(command.organizationId),
+    propertyId: unbrand(portal.propertyId),
+    portalId: unbrand(portal.id),
+    ...look,
+    updatedBy: unbrand(creatorOf(command)),
+    createdAt: portal.createdAt,
+    updatedAt: portal.createdAt,
+  })
+}
+
 async function insertCopiedContent(
   tx: Tx,
   command: CreatePortalCommand,
@@ -78,6 +104,8 @@ async function insertCopiedContent(
   const organizationId = unbrand(command.organizationId)
   const propertyId = unbrand(portal.propertyId)
   const writer = { actorUserId: unbrand(creatorOf(command)), at: portal.createdAt }
+  // Before the links: a source with no link to copy still carries its look.
+  if (copy.look) await insertCopiedLook(tx, command, copy.look)
   if (copy.overrides.length > 0) {
     await tx.insert(portalLocalizedOverrides).values(
       copy.overrides.map((override) => ({
@@ -151,12 +179,33 @@ async function insertInitialHealth(tx: Tx, command: CreatePortalCommand): Promis
   })
 }
 
+/**
+ * The commit, with an image the copied look names that was removed between the
+ * read of the source and this commit answered as a refusal, not a fault.
+ */
+async function commitRefusingGoneLookImage(
+  db: Database,
+  command: CreatePortalCommand,
+): Promise<void> {
+  try {
+    await commitCreate(db, command)
+  } catch (error) {
+    if (COPIED_LOOK_IMAGE_KEYS.some((key) => isForeignKeyViolation(error, key))) {
+      throw portalError(
+        'revision_conflict',
+        'The look of the portal you started from changed. Try again.',
+      )
+    }
+    throw error
+  }
+}
+
 export const createPortalCreateCommand = (db: Database): PortalCreateCommandStore => ({
   createPortal: async (command) =>
     trace('portal.commandStore.createPortal', async () => {
       assertCreateCommand(command)
       await refusingWhenTaken(
-        () => commitCreate(db, command),
+        () => commitRefusingGoneLookImage(db, command),
         PORTAL_SLUG_UNIQUE,
         slugTaken,
       )

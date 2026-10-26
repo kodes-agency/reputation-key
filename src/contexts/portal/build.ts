@@ -43,6 +43,7 @@ import {
 } from './infrastructure/repositories/portal-access-artifact.repository'
 import { createPortalApprovedDestinationRepository } from './infrastructure/repositories/portal-approved-destination.repository'
 import { createPortalExperienceRepository } from './infrastructure/repositories/portal-experience.repository'
+import { createPortalLookRepository } from './infrastructure/repositories/portal-look.repository'
 import { createPortalHealthRepository } from './infrastructure/repositories/portal-health.repository'
 import { createPortalDestinationApprovalFactsReader } from './infrastructure/repositories/portal-destination-approval-facts.reader'
 import { createPortalHistoryRepository } from './infrastructure/repositories/portal-history.repository'
@@ -179,6 +180,8 @@ type PortalContextDeps = Readonly<{
   imageProcessor?: ImageProcessorPort
   /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final print kit. Absent = today's kit. */
   printKitFinalEnabled?: boolean
+  /** PORTAL_OWN_LOOK_ENABLED: a Portal's own look may be changed (ADR 0070). Absent = off. */
+  portalOwnLookEnabled?: boolean
 }>
 
 type ResolvePublishedAccessArtifactRequest = Omit<
@@ -209,6 +212,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   )
   const portalApprovedDestinationRepo = createPortalApprovedDestinationRepository(deps.db)
   const portalExperienceRepo = createPortalExperienceRepository(deps.db)
+  const portalLookRepo = createPortalLookRepository(deps.db)
   const aiReplyBrandProfileAuthority = createPortalAiReplyBrandProfileAuthority(deps.db)
   const portalHealthRepo = createPortalHealthRepository(deps.db)
   const portalHealthReconciliationStore = createPortalHealthReconciliationStore(deps.db, {
@@ -319,9 +323,11 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       experienceRepo: portalExperienceRepo,
       mediaRepo: portalMediaAssetRepo,
       portalRepo,
+      portalLookRepo,
       staffPublicApi: deps.staffPublicApi,
       idGen: deps.idGen,
       clock: deps.clock,
+      portalOwnLookEnabled: deps.portalOwnLookEnabled ?? false,
     }),
     resolvePortalManagementScope: portalScopeRepo.resolvePortal,
     resolvePortalGroupManagementScope: portalScopeRepo.resolveGroup,
@@ -356,6 +362,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalLinkRepo,
       destinationRepo: portalApprovedDestinationRepo,
       experienceRepo: portalExperienceRepo,
+      portalLookRepo,
       commandStore: portalCommandStore,
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
@@ -422,6 +429,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalGroupRepo,
       managerRepo: portalResponsibleManagerRepo,
       portalTokenRepo,
+      portalLookRepo,
       staffPublicApi: deps.staffPublicApi,
       addressCipher: portalAddressCipher,
       clock: deps.clock,
@@ -523,6 +531,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalLinkRepo,
       experienceRepo: portalExperienceRepo,
+      portalLookRepo,
       destinationRepo: portalApprovedDestinationRepo,
       publicationRepo: portalPublicationRepo,
       mediaRepo: portalMediaAssetRepo,

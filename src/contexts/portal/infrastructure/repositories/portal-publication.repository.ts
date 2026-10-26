@@ -44,7 +44,10 @@ import { trace } from '#/shared/observability/trace'
 import { isLocalizedConfiguration } from '../../domain/portal-publication-snapshot'
 import { immersiveConfigurationFields } from '../mappers/portal-immersive-configuration.schema'
 import { snapshotMirrorColumns } from '../mappers/portal-publication-snapshot.mapper'
-import { readPortalWorkingCopy } from '../portal-working-copy.reader'
+import {
+  readPortalWorkingCopy,
+  readPortalWorkingCopyWithLook,
+} from '../portal-working-copy.reader'
 
 const jsonScalarSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
 const publicationConfigurationBaseSchema = z.object({
@@ -270,6 +273,11 @@ const resolvableTokenAsOf = (asOf: Date) =>
  * either channel's column: the page needs the row only, so the channel does not
  * matter here.
  */
+const workingCopyScope = (organizationId: string, portalId: string) => ({
+  organizationId: unbrand(organizationId),
+  portalId: unbrand(portalId),
+})
+
 const addressMatch = (digest: PresentedAddressDigest) =>
   digest.kind === 'short'
     ? [
@@ -289,10 +297,12 @@ export const createPortalPublicationRepository = (
 ): PortalPublicationRepository => ({
   loadWorkingCopy: (organizationId, portalId) =>
     trace('portalPublication.loadWorkingCopy', () =>
-      readPortalWorkingCopy(db, {
-        organizationId: unbrand(organizationId),
-        portalId: unbrand(portalId),
-      }),
+      readPortalWorkingCopy(db, workingCopyScope(organizationId, portalId)),
+    ),
+
+  loadWorkingCopyWithLook: (organizationId, portalId) =>
+    trace('portalPublication.loadWorkingCopyWithLook', () =>
+      readPortalWorkingCopyWithLook(db, workingCopyScope(organizationId, portalId)),
     ),
 
   getCursor: async (organizationId, portalId) =>

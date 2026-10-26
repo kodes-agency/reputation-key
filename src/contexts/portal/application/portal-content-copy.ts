@@ -5,12 +5,19 @@
 // fresh rows that belong to the new Portal (new identifiers, the new language
 // set), and the command store writes them with the Portal in one commit.
 //
+// The source's own look comes too (ADR 0070), whoever creates the Portal: the
+// same photo, colours and name and logo, pointing at the same images of the
+// Property, with its photo described only in the new Portal's languages. A
+// source that follows the whole Property look gives the new Portal no look of
+// its own either.
+//
 // What is never taken over: codes and their artifacts, publication snapshots
-// and activations, responsible managers, health, history. Photos are left too:
-// a Portal's hero image is a server-owned upload derivative, not wording.
-// Links that are not an approved destination now (legacy, unclassified URLs,
-// disabled or quarantined destinations) stay behind, because a new Portal must
-// not start with a link nobody approved, and they take no slot of the link limit.
+// and activations, responsible managers, health, history. The legacy photo of
+// the wording rows is left: a Portal's hero image there is a server-owned
+// upload derivative, not wording. Links that are not an approved destination
+// now (legacy, unclassified URLs, disabled or quarantined destinations) stay
+// behind, because a new Portal must not start with a link nobody approved, and
+// they take no slot of the link limit.
 
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
@@ -21,8 +28,14 @@ import {
 } from '#/shared/domain/ids'
 import type { Portal, PortalLink, PortalLinkCategory } from '../domain/types'
 import { MAX_PORTAL_LINKS, type ResolvedPortalLinkText } from '../domain/portal-linktree'
+import {
+  lookSourcesOf,
+  portalLookColumnsOf,
+  type PortalLookOverride,
+} from '../domain/portal-look'
 import type { NewPortalLocales } from '../domain/portal-new-locales'
 import type {
+  CopiedPortalLook,
   CopiedPortalOverride,
   CreatePortalCopiedContent,
 } from './ports/portal-command-store.port'
@@ -37,6 +50,8 @@ export type PortalCopySource = Readonly<{
   linkTexts: readonly ResolvedPortalLinkText[]
   /** The Property's destinations that are approved now; a link elsewhere stays behind. */
   approvedDestinationIds: ReadonlySet<string>
+  /** The source's own look and the Property look's version; null when it follows the Property look. */
+  look: Readonly<{ override: PortalLookOverride; propertyLookVersion: number }> | null
 }>
 
 /** The Portal fields a copy carries into `buildPortal`. */
@@ -75,6 +90,32 @@ function copyOverrides(
     if (title === null && shortDescription === null && linktreeTitle === null) return []
     return [{ id: idGen(), locale, title, shortDescription, linktreeTitle }]
   })
+}
+
+/**
+ * The source's own look as the new Portal's row: nothing when every group
+ * follows the Property. The new Portal has no snapshot, so its version only has
+ * to be its own; it starts one above the Property look's.
+ */
+function copyLook(
+  source: PortalCopySource,
+  offered: readonly GuestLocale[],
+): CopiedPortalLook | null {
+  if (source.look === null) return null
+  const { override, propertyLookVersion } = source.look
+  const sources = lookSourcesOf(override)
+  if (Object.values(sources).every((from) => from === 'property')) return null
+  const columns = portalLookColumnsOf(override)
+  return {
+    ...columns,
+    heroAltTexts: Object.fromEntries(
+      offered.flatMap((locale) => {
+        const text = columns.heroAltTexts[locale]
+        return text === undefined ? [] : [[locale, text] as const]
+      }),
+    ),
+    lookVersion: propertyLookVersion + 1,
+  }
 }
 
 /** Approved links in the order a guest sees them, at most as many as a Portal may carry. */
@@ -175,12 +216,14 @@ function copyLinksAndTexts(
 export function planPortalContentCopy(input: PlanInput): PortalContentCopyPlan {
   const { source, target, idGen } = input
   const { description, privateFeedbackThreshold, linktreeEnabled, theme } = source.portal
+  const offered = targetLocaleList(target.locales)
   return {
     settings: { description, privateFeedbackThreshold, linktreeEnabled, theme },
     content: {
       sourcePortalId: source.portal.id,
-      overrides: copyOverrides(source, targetLocaleList(target.locales), idGen),
+      overrides: copyOverrides(source, offered, idGen),
       ...copyLinksAndTexts(input),
+      look: copyLook(source, offered),
     },
   }
 }

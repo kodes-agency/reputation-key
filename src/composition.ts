@@ -337,6 +337,7 @@ function buildContainer(
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
     },
     printKitFinalEnabled: env.PRINT_KIT_FINAL_ENABLED,
+    portalOwnLookEnabled: env.PORTAL_OWN_LOOK_ENABLED,
   })
 
   const guest = buildGuestContext({

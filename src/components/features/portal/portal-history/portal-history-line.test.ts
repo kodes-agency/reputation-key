@@ -189,13 +189,80 @@ describe('describeHistoryEntry: page edits', () => {
     })
   })
 
-  it('names a look facet and says a property-wide change reaches every portal', () => {
+  it('names a look facet and says a property-wide change was made on the property look', () => {
     expect(
       line(edited({ area: 'look', facet: 'accent' }, { propertyWide: true })),
     ).toMatchObject({
       action: 'changed the accent colour',
+      detail: 'on the property look',
+    })
+  })
+
+  it('says the property look’s photo description was changed on the property look too', () => {
+    expect(
+      line(edited({ area: 'look', facet: 'photo' }, { propertyWide: true })),
+    ).toMatchObject({ action: 'changed the photo', detail: 'on the property look' })
+  })
+
+  it('keeps saying "for every portal" for the property’s other changes, which really are every portal’s', () => {
+    expect(
+      line(
+        edited(
+          { area: 'welcome_text', locale: 'en' },
+          { propertyWide: true, previousText: 'a', newText: 'b' },
+        ),
+      ),
+    ).toMatchObject({ detail: '‘a’ → ‘b’ · for every portal of this property' })
+    expect(line(edited({ area: 'display_name' }, { propertyWide: true }))).toMatchObject({
+      action: 'renamed the property’s public name',
       detail: 'for every portal of this property',
     })
+    expect(line(edited({ area: 'profile' }, { propertyWide: true }))).toMatchObject({
+      detail: 'for every portal of this property',
+    })
+  })
+
+  it('names the photo and the logo apart, and still reads the older images facet', () => {
+    expect(line(edited({ area: 'look', facet: 'photo' }))).toMatchObject({
+      action: 'changed the photo',
+    })
+    expect(line(edited({ area: 'look', facet: 'logo' }))).toMatchObject({
+      action: 'changed the logo',
+    })
+    expect(line(edited({ area: 'look', facet: 'images' }))).toMatchObject({
+      action: 'changed the logo or photo',
+    })
+  })
+
+  it('says a portal’s own look edit was made to this portal, with no wording', () => {
+    expect(
+      line(
+        edited(
+          { area: 'portal_look', facet: 'accent' },
+          { previousText: 'ignored', newText: 'ignored' },
+        ),
+      ),
+    ).toMatchObject({ action: 'changed this portal’s accent colour', detail: null })
+    expect(line(edited({ area: 'portal_look', facet: null }))).toMatchObject({
+      action: 'changed this portal’s look',
+    })
+  })
+
+  it('words each part of a portal’s own look as the editor names it', () => {
+    const action = (facet: 'accent' | 'field' | 'wordmark' | 'logo' | 'photo') =>
+      line(edited({ area: 'portal_look', facet })).action
+
+    expect(action('photo')).toBe('changed this portal’s photo')
+    expect(action('accent')).toBe('changed this portal’s accent colour')
+    expect(action('field')).toBe('changed this portal’s background colour')
+    expect(action('logo')).toBe('changed this portal’s logo')
+    expect(action('wordmark')).toBe('changed this portal’s name')
+  })
+
+  it('does not add the property-wide suffix to a portal’s own look, which belongs to the portal alone', () => {
+    expect(
+      line(edited({ area: 'portal_look', facet: 'photo' }, { editCount: 3 })),
+    ).toMatchObject({ action: 'changed this portal’s photo', detail: '3 saves' })
   })
 
   it('counts saves that were folded into one entry', () => {

@@ -1,6 +1,6 @@
 // The Property look (docs/design/portal-experience/round-4-admin, board 9): the
-// photo, colours, name and logo, and default languages shared by every portal of
-// a Property, beside a preview of the page with and without a photo.
+// photo, colours, name and logo, and default languages every portal of a
+// Property starts with, beside a preview of the page with and without a photo.
 //
 // Presentational: the route owns the reads and the two writes. Edits autosave to
 // the draft through the portal editor's coordinator, with its leave guard
@@ -12,6 +12,9 @@
 // off (the dialogs), and the photograph's focal point autosaves as it is moved.
 // The batch "Review & publish" sits in the status bar: it reads each live
 // portal's review and publishes the ones that are ready, in turn.
+// It is the look every portal starts with (ADR 0070): a portal can have its own
+// photo, colours, or name and logo, so the rail, the status line and the preview
+// follow only the parts a portal still takes from here.
 import { useState } from 'react'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
@@ -33,7 +36,15 @@ import { PropertyLookPortals } from './property-look-portals'
 import { PropertyLookPreview } from './property-look-preview'
 import type { PhotoDescriptions } from './property-photo-rules'
 import {
+  describeLookHeader,
+  offersLookEdit,
+  offersOwnLook,
+  portalCountOf,
+  sourcesOf,
+} from './property-look-reach'
+import {
   affectedPortals,
+  defaultPreviewPortal,
   describeLookStatus,
   type AffectedPortalRow,
 } from './property-look-rules'
@@ -75,9 +86,20 @@ export type PropertyLookPageProps = PropertyLookSaves &
     publishPortals: PublishPortalsAction
     /** The viewer holds `portal.update` and Portals writes are switched on. */
     canPublish: boolean
+    /** A portal may have its own photo, colours, or name and logo (`PORTAL_OWN_LOOK_ENABLED`). */
+    ownLookEnabled?: boolean
   }>
 
 const SIDE_COLUMN = 'min-w-0 min-[90rem]:sticky min-[90rem]:top-6 min-[90rem]:self-start'
+
+/**
+ * The portal list grows with the portals, and a portal with a look of its own is
+ * a taller row (its chips and its link). A sticky column taller than the screen
+ * hides its own bottom, so from 90rem the list scrolls inside the column instead.
+ * The small padding and the matching negative margin keep a row's focus ring from
+ * being clipped at the column's edge.
+ */
+const PORTALS_COLUMN = `${SIDE_COLUMN} min-[90rem]:-mx-1 min-[90rem]:max-h-[calc(100dvh-3rem)] min-[90rem]:overflow-y-auto min-[90rem]:px-1`
 
 /** While an edit is waiting, being saved or refused, what a review would read is not settled. */
 const SETTLING: ReadonlySet<string> = new Set(['pending', 'saving', 'invalid', 'error'])
@@ -87,11 +109,12 @@ const LEAVE_COPY =
 
 export function PropertyLookPage(props: PropertyLookPageProps) {
   const { propertyId, propertyName, profile, canEdit, saveDisplayName } = props
+  const ownLook = offersOwnLook(props.rows, props.ownLookEnabled ?? false)
   return (
     <PageShell tier="dashboard">
       <PageHeader
         title="Property look"
-        description={`How every portal at ${propertyName} looks. Portal wording and links stay per portal.`}
+        description={describeLookHeader(propertyName, ownLook)}
         breadcrumbs={trailCrumbs(
           'portals',
           { propertyId, propertyName },
@@ -113,11 +136,15 @@ export function PropertyLookPage(props: PropertyLookPageProps) {
   )
 }
 
+/** The portal the preview draws: the one chosen, else the first the look still reaches. */
 function useSelectedPortal(affected: ReturnType<typeof affectedPortals>) {
   const [chosenId, setChosenId] = useState<string | null>(null)
   const selected =
-    affected.listed.find((row) => row.portalId === chosenId) ?? affected.listed[0] ?? null
-  const previewPortal = selected ? { id: selected.portalId, name: selected.name } : null
+    affected.listed.find((row) => row.portalId === chosenId) ??
+    defaultPreviewPortal(affected)
+  const previewPortal = selected
+    ? { id: selected.portalId, name: selected.name, sources: sourcesOf(selected) }
+    : null
   return { selectedId: selected?.portalId ?? null, previewPortal, setChosenId }
 }
 
@@ -131,6 +158,7 @@ function PropertyLookEditor({
   getPortalReview,
   publishPortals,
   canPublish,
+  ownLookEnabled = false,
   saveLook,
   saveLocales,
   saveHero,
@@ -142,6 +170,11 @@ function PropertyLookEditor({
   const { draft, setDraft, locales, setLocales, problem, state, retry } =
     usePropertyLookDraft(propertyId, profile, { saveLook, saveLocales })
   const affected = affectedPortals(rows)
+  const lookEditViewer = {
+    canEdit,
+    ownLookEnabled,
+    portalCount: portalCountOf(rows),
+  }
   const [showPhoto, setShowPhoto] = useState(true)
   const { selectedId, previewPortal, setChosenId } = useSelectedPortal(affected)
   const previewData = usePropertyLookPreview(previewPortal, getPortalPreview)
@@ -174,7 +207,8 @@ function PropertyLookEditor({
           {canEdit ? null : (
             <Alert variant="info">
               <AlertDescription>
-                An account admin manages the look shared by every portal of this property.
+                An account admin manages the look every portal of this property starts
+                with.
               </AlertDescription>
             </Alert>
           )}
@@ -209,7 +243,7 @@ function PropertyLookEditor({
               <PropertyLookBatchPublish
                 propertyId={propertyId}
                 live={affected.live}
-                waiting={affected.waiting}
+                waiting={affected.following.waiting}
                 canPublish={canPublish}
                 isSettling={SETTLING.has(state.status)}
                 getPortalReview={getPortalReview}
@@ -228,11 +262,13 @@ function PropertyLookEditor({
             onShowPhotoChange={setShowPhoto}
           />
         </aside>
-        <aside className={SIDE_COLUMN}>
+        <aside className={PORTALS_COLUMN}>
           <PropertyLookPortals
+            propertyId={propertyId}
             affected={affected}
             selectedId={selectedId}
             onSelect={setChosenId}
+            offersLookEdit={(row) => offersLookEdit(lookEditViewer, row)}
           />
         </aside>
       </div>

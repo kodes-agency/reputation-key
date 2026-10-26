@@ -18,8 +18,10 @@ import type { PortalPublicationRepository } from '../ports/portal-publication.re
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalResponsibleManagerRepository } from '../ports/portal-responsible-manager.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
+import type { PortalLookRepository } from '../ports/portal-look.repository'
 import type { PortalHealth } from '../../domain/portal-health'
 import type { PortalPublicationState } from '../../domain/portal-publication'
+import type { PortalLookSources } from '../../domain/portal-look'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalGroupId, PortalId, PropertyId } from '#/shared/domain/ids'
@@ -52,6 +54,8 @@ export type ListPortalOverviewDeps = Readonly<{
   portalGroupRepo: Pick<PortalGroupRepository, 'listGroupsForPortals'>
   managerRepo: Pick<PortalResponsibleManagerRepository, 'listActiveForPortals'>
   portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummariesForPortals'>
+  /** Where each Portal's look groups come from, for the Portals that have a look of their own. */
+  portalLookRepo: Pick<PortalLookRepository, 'listSourcesForPortals'>
   staffPublicApi: StaffPublicApi
   /** Says whether a code can be downloaded again; null when no keyring is configured. */
   addressCipher: Pick<PortalAddressCipher, 'canOpen'> | null
@@ -75,6 +79,12 @@ export type PortalOverviewRow = Readonly<{
   /** Sorted; empty means nobody is responsible for the Portal yet. */
   responsibleManagerUserIds: readonly string[]
   token: PortalTokenStatus
+  /**
+   * Where the Portal's look groups come from (ADR 0070). Present only for a
+   * Portal that has a look of its own; absent reads as following the whole
+   * Property look (`PROPERTY_LOOK_SOURCES`).
+   */
+  lookSources?: PortalLookSources
 }>
 
 const groupByPortal = <T extends Readonly<{ portalId: string }>>(
@@ -124,7 +134,7 @@ export const listPortalOverview =
 
     const portalIds = portals.map((portal) => portal.id)
     const asOf = deps.clock()
-    const [healths, pending, groups, managers, tokens] = await Promise.all([
+    const [healths, pending, groups, managers, tokens, lookSources] = await Promise.all([
       deps.portalHealthRepo.listCurrentForPortals(ctx.organizationId, portalIds),
       deps.publicationRepo.countOpenPendingContentChanges(ctx.organizationId, portalIds),
       deps.portalGroupRepo.listGroupsForPortals(ctx.organizationId, portalIds, asOf),
@@ -134,16 +144,22 @@ export const listPortalOverview =
         portalIds,
         asOf,
       ),
+      deps.portalLookRepo.listSourcesForPortals(
+        ctx.organizationId,
+        portals.map((portal) => ({ propertyId: portal.propertyId, portalId: portal.id })),
+      ),
     ])
     const healthByPortal = indexByPortal(healths)
     const pendingByPortal = indexByPortal(pending)
     const groupByPortalId = indexByPortal(groups)
     const managersByPortal = groupByPortal(managers)
     const tokenByPortal = indexByPortal(tokens)
+    const lookSourcesByPortal = indexByPortal(lookSources)
 
     return portals.map((portal) => {
       const health = healthByPortal.get(portal.id)
       const group = groupByPortalId.get(portal.id)?.group
+      const look = lookSourcesByPortal.get(portal.id)
       return {
         portalId: portal.id,
         propertyId: portal.propertyId,
@@ -162,6 +178,7 @@ export const listPortalOverview =
           tokenByPortal.get(portal.id),
           (version) => deps.addressCipher?.canOpen(version) ?? false,
         ),
+        ...(look ? { lookSources: look.sources } : {}),
       }
     })
   }

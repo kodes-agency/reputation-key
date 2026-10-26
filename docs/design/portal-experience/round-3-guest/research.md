@@ -577,7 +577,7 @@ What an admin cannot set today:
 
 - No fonts, layout or template choice, no radius/style options.
 - No logo or photo: upload is safety-blocked and URLs are forced null. The organization logo upload in Identity is not wired to portals.
-- No per-portal colours on v2.
+- No per-portal colours on v2. _(True of v2 when this was written. On v3 a portal may have its own colours, photo, and name and logo since 2026-10-26, [ADR 0070](../../../adr/0070-per-portal-look.md).)_
 - No custom guest UI copy: the question, button labels and receipts come from an immutable language pack (guest-ui-en-v1 / guest-ui-bg-v1) that the snapshot pins.
 - No placement/channel label, no social icons, no address/phone.
 

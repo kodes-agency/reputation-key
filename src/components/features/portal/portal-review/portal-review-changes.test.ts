@@ -65,7 +65,7 @@ describe('describeReviewChange: edits', () => {
     expect(line.detail?.some((piece) => piece.lang === 'es')).toBe(true)
   })
 
-  it('says a change belongs to every portal of the property when it does', () => {
+  it('says a change to the look every portal starts with was made on the property look', () => {
     const line = describeReviewChange(
       edit({
         kind: 'property_brand_profile',
@@ -77,8 +77,38 @@ describe('describeReviewChange: edits', () => {
 
     expect(text(line)).toEqual({
       headline: 'Look · changed the accent colour',
-      detail: 'for every portal of this property',
+      detail: 'on the property look',
     })
+    expect(line).toMatchObject({ glyph: 'look', part: 'top' })
+  })
+
+  it('puts a portal’s own look edit under Look, for this portal only', () => {
+    const line = describeReviewChange(
+      edit({
+        kind: 'portal_configuration',
+        subject: { area: 'portal_look', facet: 'photo' },
+      }),
+      3,
+    )
+
+    expect(text(line)).toEqual({
+      headline: 'Look · changed this portal’s photo',
+      detail: null,
+    })
+    expect(line).toMatchObject({ glyph: 'look', part: 'top', locale: null })
+  })
+
+  it('says a property photo description is part of the look', () => {
+    const line = describeReviewChange(
+      edit({
+        kind: 'property_brand_content',
+        propertyWide: true,
+        subject: { area: 'look', facet: 'photo' },
+      }),
+      4,
+    )
+
+    expect(text(line).headline).toBe('Look · changed the photo')
     expect(line).toMatchObject({ glyph: 'look', part: 'top' })
   })
 

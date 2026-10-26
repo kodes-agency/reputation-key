@@ -61,7 +61,8 @@ export function PortalSharePrintKitSection({ kit }: Readonly<{ kit: Kit }>) {
 export function PortalSharePrintKitAside({
   kit,
   propertyId,
-}: Readonly<{ kit: Kit; propertyId?: string }>) {
+  portalId,
+}: Readonly<{ kit: Kit; propertyId?: string; portalId?: string }>) {
   if (!kit.show) return null
   if (!kit.isFinal)
     return <PortalPrintKitPreviewSlot where="column" printKit={kit.printKit} />
@@ -69,6 +70,7 @@ export function PortalSharePrintKitAside({
     final: kit.final,
     view: kit.printKit.view,
     propertyId,
+    portalId,
     unavailableReason: kit.finalUnavailableReason,
   }
   return (

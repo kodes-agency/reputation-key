@@ -12,7 +12,7 @@ import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { FocalPointPicker } from './focal-point-picker'
 import type { FocalPoint } from './focal-point'
-import { PropertyLookPhotoDialog } from './property-look-photo-dialog'
+import { LazyPropertyLookPhotoDialog } from './property-look-lazy-dialogs'
 import type { PreviewMedia } from './property-look-preview-brand'
 import { PropertyLookMediaActions } from './property-look-media-actions'
 import { PropertyLookSection } from './property-look-section'
@@ -114,7 +114,7 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
         ) : null}
       </p>
       {canEdit ? (
-        <PropertyLookPhotoDialog
+        <LazyPropertyLookPhotoDialog
           open={isOpen}
           onOpenChange={setIsOpen}
           propertyId={photo.propertyId}

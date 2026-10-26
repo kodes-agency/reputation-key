@@ -2,6 +2,7 @@
 // implementation; this fake keeps application tests at the command-store seam.
 
 import type {
+  CopiedPortalLook,
   CopiedPortalOverride,
   PortalCommandStore,
 } from '#/contexts/portal/application/ports/portal-command-store.port'
@@ -37,6 +38,8 @@ export function createInMemoryPortalCommandStore(deps: {
     portalId: string,
     overrides: ReadonlyArray<CopiedPortalOverride>,
   ) => void
+  /** Where the own look copied into a new Portal lands; the fake has no look table. */
+  onCopiedLook?: (portalId: string, look: CopiedPortalLook) => void
   /** Every manager the new Portal starts with; the Portal repository keeps at most one. */
   onInitialManagers?: (portalId: string, userIds: readonly string[]) => void
   /** Receives the Portal Group history entries the real store writes in its transactions. */
@@ -197,6 +200,9 @@ export function createInMemoryPortalCommandStore(deps: {
       )
     }
     deps.onCopiedOverrides?.(String(command.portal.id), overrides)
+    if (command.copiedContent.look) {
+      deps.onCopiedLook?.(String(command.portal.id), command.copiedContent.look)
+    }
   }
   return {
     createPortal: async (command) => {

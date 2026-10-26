@@ -161,7 +161,7 @@ async function contentRow(locale: string) {
 }
 
 describe.sequential('saving the Property look media (real PostgreSQL)', () => {
-  it('writes the photograph and its focal point, moves the look version only, and tells the live portal about the images', async () => {
+  it('writes the photograph and its focal point, moves the look version only, and tells the live portal about the photo', async () => {
     const asset = await insertAsset('hero')
 
     const saved = await setHero({
@@ -189,7 +189,7 @@ describe.sequential('saving the Property look media (real PostgreSQL)', () => {
       look_version: 4,
     })
     await expect(pendingKeys()).resolves.toEqual([
-      { portal_id: LIVE_PORTAL, change_key: 'look:images' },
+      { portal_id: LIVE_PORTAL, change_key: 'look:photo' },
     ])
   })
 
@@ -299,7 +299,7 @@ describe.sequential('saving the Property look media (real PostgreSQL)', () => {
     })
     await expect(pendingKeys()).resolves.toEqual([
       { portal_id: LIVE_PORTAL, change_key: 'en' },
-      { portal_id: LIVE_PORTAL, change_key: 'look:images' },
+      { portal_id: LIVE_PORTAL, change_key: 'look:photo' },
     ])
   })
 
@@ -367,7 +367,7 @@ describe.sequential('saving the Property look media (real PostgreSQL)', () => {
       updated_by: ADMIN,
     })
     await expect(pendingKeys()).resolves.toEqual([
-      { portal_id: LIVE_PORTAL, change_key: 'look:images' },
+      { portal_id: LIVE_PORTAL, change_key: 'look:logo' },
     ])
 
     await setLogo({ propertyId: PROPERTY, assetId: null })

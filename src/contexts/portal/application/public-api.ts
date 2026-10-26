@@ -110,6 +110,24 @@ export type {
   PortalPageEditKind,
   PortalPageEditSubject,
 } from '../domain/portal-page-edit'
+/** A Portal's own look (ADR 0070): where each group comes from, and whether a Property change reaches it. */
+export { PROPERTY_LOOK_SOURCES, facetReachesPortal } from '../domain/portal-look'
+export type {
+  PortalLookFacet,
+  PortalLookGroup,
+  PortalLookSources,
+} from '../domain/portal-look'
+export type {
+  PortalLookColoursInput,
+  PortalLookColoursView,
+  PortalLookIdentityInput,
+  PortalLookIdentityView,
+  PortalLookPhotoInput,
+  PortalLookPhotoView,
+  PortalLookSaved,
+  PortalLookSettings,
+  PortalLookView,
+} from './dto/portal-look.dto'
 
 import type {
   OrganizationId,

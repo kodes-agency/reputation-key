@@ -44,6 +44,8 @@ export type PortalErrorCode =
   | 'print_code_collision'
   | 'responsible_manager_ineligible'
   | 'revision_conflict'
+  /** A capability that is switched off on this deployment (e.g. PORTAL_OWN_LOOK_ENABLED). */
+  | 'feature_unavailable'
 
 export type PortalError = Readonly<{
   _tag: 'PortalError'

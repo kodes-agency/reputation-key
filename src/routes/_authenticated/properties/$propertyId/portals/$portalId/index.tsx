@@ -85,6 +85,7 @@ function PortalWorkspaceEditor() {
       portalExperience={data.portalExperience}
       approvedDestinations={data.approvedDestinations}
       portalExperienceActions={actions.experience}
+      portalLookActions={actions.look}
     />
   )
 }

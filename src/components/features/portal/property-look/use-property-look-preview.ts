@@ -3,12 +3,18 @@
 // the portal editor's preview, so the two phones and the editor share one read.
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import type { PortalLookSources } from '#/contexts/portal/application/public-api'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { usePreviewCopy } from '../portal-preview/use-preview-copy'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
-export type PreviewPortal = Readonly<{ id: string; name: string }>
+export type PreviewPortal = Readonly<{
+  id: string
+  name: string
+  /** Which parts of its look are the portal's own; the draft look is laid over the rest. Absent: none. */
+  sources?: PortalLookSources
+}>
 
 export function usePropertyLookPreview(
   portal: PreviewPortal | null,

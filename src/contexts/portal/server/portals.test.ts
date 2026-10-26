@@ -97,6 +97,7 @@ describe('portalErrorStatus (imported from server module)', () => {
       'portal_inactive',
       'token_unavailable',
       'upload_failed',
+      'feature_unavailable',
     ]
     for (const code of codes) {
       const status = portalErrorStatus(code)
@@ -148,6 +149,7 @@ describe('throwContextError with PortalError', () => {
       ['invalid_publication_transition', 409],
       ['google_review_destination_unavailable', 409],
       ['revision_conflict', 409],
+      ['feature_unavailable', 409],
       ['upload_failed', 422],
       ['token_unavailable', 422],
       ['responsible_manager_ineligible', 422],

@@ -5,13 +5,17 @@ import {
   portalId,
   propertyId,
   type OrganizationId,
+  type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
+import type { PortalLookRepository } from '../ports/portal-look.repository'
+import type { PortalLookSettings } from '../dto/portal-look.dto'
 import { resolvePropertyLookMedia } from '../property-look-media'
+import { portalLookMediaProfileOf, portalLookViewOf } from '../portal-look-view'
 import { assertPropertyAccess } from '../assert-property-access'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { isPublicDisplayNameConfirmed } from '../../domain/portal-experience'
@@ -35,6 +39,55 @@ type Deps = Readonly<{
   clock: () => Date
 }>
 
+/** What the settings read also needs for a Portal's own look (ADR 0070). */
+type PortalLookReadDeps = Readonly<{
+  portalLookRepo: Pick<PortalLookRepository, 'findForPortal' | 'countLivePortals'>
+  /** PORTAL_OWN_LOOK_ENABLED. */
+  portalOwnLookEnabled: boolean
+}>
+
+/**
+ * The read's facts about a Portal's own look (ADR 0070): its override with the
+ * images that override names resolved the way the Property's are (so an own
+ * photo that was taken down reads as no photo), how many live Portals the
+ * Property has (the controls appear once there are two), and whether the
+ * feature is switched on. A Portal with no row, and a read with no Portal, have
+ * no override: every group follows the Property look.
+ */
+async function portalLookSettingsOf(
+  deps: Deps & PortalLookReadDeps,
+  scope: Readonly<{
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    portalId: PortalId | null
+  }>,
+): Promise<PortalLookSettings> {
+  const { organizationId, propertyId: pid, portalId: portalIdValue } = scope
+  const [override, siblingPortalCount] = await Promise.all([
+    portalIdValue === null
+      ? Promise.resolve(null)
+      : deps.portalLookRepo.findForPortal(organizationId, pid, portalIdValue),
+    deps.portalLookRepo.countLivePortals(organizationId, pid),
+  ])
+  const portalLook =
+    override === null
+      ? null
+      : portalLookViewOf(
+          override,
+          await resolvePropertyLookMedia(
+            deps,
+            organizationId,
+            pid,
+            portalLookMediaProfileOf(override),
+          ),
+        )
+  return {
+    portalLook,
+    siblingPortalCount,
+    portalLookEnabled: deps.portalOwnLookEnabled,
+  }
+}
+
 function assertPortalAdmin(ctx: AuthContext): void {
   if (!canForContext(ctx, 'portal.admin')) {
     throw portalError(
@@ -53,7 +106,7 @@ function normalizedRequired(value: string, field: string, max: number): string {
 }
 
 export const getPropertyPortalExperience =
-  (deps: Deps) =>
+  (deps: Deps & PortalLookReadDeps) =>
   async (
     input: Readonly<{ propertyId: string; portalId?: string }>,
     ctx: AuthContext,
@@ -83,6 +136,11 @@ export const getPropertyPortalExperience =
         media,
         canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
         publicDisplayNameConfirmed,
+        ...(await portalLookSettingsOf(deps, {
+          organizationId: ctx.organizationId,
+          propertyId: pid,
+          portalId: null,
+        })),
       }
     }
     const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
@@ -102,6 +160,11 @@ export const getPropertyPortalExperience =
       media,
       canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
       publicDisplayNameConfirmed,
+      ...(await portalLookSettingsOf(deps, {
+        organizationId: ctx.organizationId,
+        propertyId: pid,
+        portalId: portal.id,
+      })),
     }
   }
 

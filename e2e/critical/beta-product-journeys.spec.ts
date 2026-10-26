@@ -32,6 +32,12 @@ import {
   seedPortalHistory,
   tearDownPortalGoalProperties,
 } from '../helpers/portal-goal-fixtures'
+import {
+  guestLookOf,
+  lookOverviewOf,
+  saveSeededPropertyAccent,
+  seedPortalLookProperty,
+} from '../helpers/portal-look-fixtures'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../src/contexts/reporting/domain/goal-start'
 import { formatMonthName } from '../../src/lib/format'
 import {
@@ -443,6 +449,160 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('heading', { name: guestTitle })).toBeVisible()
     await page.goto(`/p/${rotated.rawToken}`)
     await expect(page.getByRole('heading', { name: guestTitle })).toBeVisible()
+  })
+
+  test('a portal with its own colours and name keeps them when the property look moves on', async ({
+    page,
+  }, testInfo) => {
+    // ADR 0070. Two Portals of one Property follow its look; Spa is then given
+    // colours and a wordmark of its own, which are drafts until Spa is published.
+    // A Property accent edit reaches Reception and not Spa, whose guest page keeps
+    // the amber it owns, and "Use the property's ..." puts Spa back.
+    const propertyAccent = '#38bdf8'
+    const editedAccent = '#f472b6'
+    const ownAccent = '#f59e0b'
+    const ownWordmark = 'Atelier Spa'
+
+    await resetGuestRateLimits()
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    const { propertyId, reception, spa } = await seedPortalLookProperty(
+      page,
+      'look',
+      testInfo.retry,
+      propertyAccent,
+    )
+
+    // Both follow the Property look: the same accent and field, and no wordmark.
+    const receptionBefore = await guestLookOf(page, reception.rawToken)
+    const spaBefore = await guestLookOf(page, spa.rawToken)
+    expect(receptionBefore.accent).toBe(propertyAccent)
+    expect(spaBefore).toEqual(receptionBefore)
+    expect(receptionBefore.wordmark).toBeNull()
+
+    // Spa takes its own colours and name. Each save is a draft: the live page is
+    // the published snapshot, which is immutable, so it does not move.
+    await callServerFn(page, {
+      file: 'src/contexts/portal/server/portal-look.ts',
+      exportName: 'savePortalLookColours',
+      data: {
+        propertyId,
+        portalId: spa.id,
+        colours: { mode: 'own', accentColour: ownAccent },
+      },
+    })
+    await callServerFn(page, {
+      file: 'src/contexts/portal/server/portal-look.ts',
+      exportName: 'savePortalLookIdentity',
+      data: {
+        propertyId,
+        portalId: spa.id,
+        identity: { mode: 'own', wordmark: ownWordmark },
+      },
+    })
+    expect(await guestLookOf(page, spa.rawToken)).toEqual(spaBefore)
+    const drafted = await lookOverviewOf(page, propertyId)
+    expect(drafted.get(spa.id)?.pendingChangeCount).toBeGreaterThan(0)
+    expect(drafted.get(spa.id)?.lookSources).toEqual({
+      photo: 'property',
+      colours: 'portal',
+      identity: 'portal',
+    })
+    expect(drafted.get(reception.id)?.pendingChangeCount).toBe(0)
+    expect(drafted.get(reception.id)?.lookSources).toBeUndefined()
+
+    // The editor offers the way back where the portal has its own, and the way in
+    // where it follows (the Property has a second portal, and the owner is an
+    // Account Admin).
+    await page.goto(`/properties/${propertyId}/portals/${spa.id}?tab=page&section=look`)
+    await waitForHydration(page)
+    await expect(
+      page.getByRole('button', { name: /use the property.s colours/i }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: /use the property.s name and logo/i }),
+    ).toBeVisible()
+    await page.goto(
+      `/properties/${propertyId}/portals/${reception.id}?tab=page&section=look`,
+    )
+    await waitForHydration(page)
+    await expect(
+      page.getByRole('button', { name: /set colours for this portal/i }),
+    ).toBeVisible()
+
+    // Publishing Spa puts its own look live; Reception's page is untouched.
+    const spaPublished = await callServerFn<{ outcome: string }>(page, {
+      file: 'src/contexts/portal/server/portal-publish-changes.ts',
+      exportName: 'publishPortalChanges',
+      data: { portalId: spa.id },
+    })
+    expect(spaPublished.outcome).toBe('published')
+    const spaLive = await guestLookOf(page, spa.rawToken)
+    expect(spaLive.accent).toBe(ownAccent)
+    expect(spaLive.field).not.toBe(receptionBefore.field)
+    expect(spaLive.wordmark).toBe(ownWordmark)
+    expect(await guestLookOf(page, reception.rawToken)).toEqual(receptionBefore)
+    expect((await lookOverviewOf(page, propertyId)).get(spa.id)?.pendingChangeCount).toBe(
+      0,
+    )
+
+    // The Property accent moves. Reception follows it and shows a change to
+    // publish; Spa owns its colours and shows none, and has nothing to publish.
+    await saveSeededPropertyAccent(page, propertyId, editedAccent)
+    const afterEdit = await lookOverviewOf(page, propertyId)
+    expect(afterEdit.get(reception.id)?.pendingChangeCount).toBeGreaterThan(0)
+    expect(afterEdit.get(spa.id)?.pendingChangeCount).toBe(0)
+    const spaNothing = await callServerFn<{ outcome: string }>(page, {
+      file: 'src/contexts/portal/server/portal-publish-changes.ts',
+      exportName: 'publishPortalChanges',
+      data: { portalId: spa.id },
+    })
+    expect(spaNothing.outcome).toBe('unchanged')
+
+    // The Property look page tells which portal has a look of its own.
+    await page.goto(`/properties/${propertyId}/portals/look`)
+    await waitForHydration(page)
+    await expect(
+      page.getByRole('heading', { name: 'Portals using this look' }),
+    ).toBeVisible()
+    await expect(page.getByText('Own colours', { exact: true }).first()).toBeVisible()
+    await expect(
+      page.getByText('Own name and logo', { exact: true }).first(),
+    ).toBeVisible()
+
+    // Publishing Reception brings the new accent to Reception only.
+    const receptionPublished = await callServerFn<{ outcome: string }>(page, {
+      file: 'src/contexts/portal/server/portal-publish-changes.ts',
+      exportName: 'publishPortalChanges',
+      data: { portalId: reception.id },
+    })
+    expect(receptionPublished.outcome).toBe('published')
+    const receptionAfter = await guestLookOf(page, reception.rawToken)
+    expect(receptionAfter.accent).toBe(editedAccent)
+    expect(receptionAfter.field).not.toBe(receptionBefore.field)
+    expect(await guestLookOf(page, spa.rawToken)).toEqual(spaLive)
+
+    // "Use the property's colours" and "... name and logo": Spa follows again, and
+    // once published it wears Reception's look.
+    await callServerFn(page, {
+      file: 'src/contexts/portal/server/portal-look.ts',
+      exportName: 'savePortalLookColours',
+      data: { propertyId, portalId: spa.id, colours: { mode: 'inherit' } },
+    })
+    await callServerFn(page, {
+      file: 'src/contexts/portal/server/portal-look.ts',
+      exportName: 'savePortalLookIdentity',
+      data: { propertyId, portalId: spa.id, identity: { mode: 'inherit' } },
+    })
+    expect(
+      (await lookOverviewOf(page, propertyId)).get(spa.id)?.pendingChangeCount,
+    ).toBeGreaterThan(0)
+    const spaBack = await callServerFn<{ outcome: string }>(page, {
+      file: 'src/contexts/portal/server/portal-publish-changes.ts',
+      exportName: 'publishPortalChanges',
+      data: { portalId: spa.id },
+    })
+    expect(spaBack.outcome).toBe('published')
+    expect(await guestLookOf(page, spa.rawToken)).toEqual(receptionAfter)
   })
 
   test('cross-tenant P3 denies promoted routes; unpublished public tokens stay dark', async ({

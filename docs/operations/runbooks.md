@@ -1727,7 +1727,8 @@ a link tile picture) must not be shown: a rights complaint, an upload that shoul
 never have been public, or content that breaches policy.
 
 **Impact:** Until it is taken down the image is served to every guest of every
-published Portal that names it.
+published Portal that names it. That includes a Portal that has it as its own
+photo or logo (ADR 0070), not only the Property's.
 
 **Prerequisites:** The asset id (a UUID; it is in the image URL
 `/api/public/portal-media/<id>`). Never put the image, a signed URL or a person's
@@ -1752,6 +1753,28 @@ already holds the image keeps it for at most five minutes.
 published snapshots name assets by id and must keep verifying; they show their
 no-photo look. The manager uploads a replacement.
 
+An image can be a Portal's own photo or logo (`portal_look_overrides.hero_asset_id`
+or `logo_asset_id`, ADR 0070). Such a Portal shows its no-photo look, not the
+Property's photo (the Portal chose its own), or no logo (its header shows its
+wordmark or the display name), and its Look section says so: "This portal's photo
+was taken down. Choose another or use the property's photo." An image that is the
+Property's photo or logo changes only the Portals that follow it. To list the Portals
+an image is the own photo or logo of (ids and modes only):
+
+```sql
+SELECT o.portal_id, o.property_id,
+       (o.hero_asset_id = a.id) AS own_photo, (o.logo_asset_id = a.id) AS own_logo
+FROM portal_media_assets a
+JOIN portal_look_overrides o
+  ON o.organization_id = a.organization_id AND o.property_id = a.property_id
+ AND (o.hero_asset_id = a.id OR o.logo_asset_id = a.id)
+WHERE a.id = '<asset id>';
+```
+
+The row stays and keeps the reference (a RESTRICT foreign key, and the sweep counts
+it). An Account Admin chooses another photo for that Portal in its Look section, or
+goes back to the Property's, and publishes that Portal; nothing else is to be done.
+
 **Verification:** `GET /api/public/portal-media/<id>` returns 404;
 `SELECT object_deleted_at FROM portal_media_assets WHERE id = '<asset id>'` is set
 within the hour (the `portal-media-sweep` job); if it stays empty, read the
@@ -1775,9 +1798,9 @@ or recovery step, and once a migration has been applied since an image was built
 that image is refused on purpose: web's predeploy runner
 (`scripts/migrate-deploy.ts`) and the readiness probe (`/api/health/ready`) both
 require the applied migration count to equal the journal the image carries.
-Older code is not tested against a newer schema; §26 and ADR 0061, 0064 and 0066
-each record a release below which an older image would refuse or corrupt real
-work. Where no migration landed in between, the gate has nothing to compare and
+Older code is not tested against a newer schema; §26, §31 and ADR 0061, 0064, 0066
+and 0070 each record a release below which an older image would refuse or corrupt
+real work. Where no migration landed in between, the gate has nothing to compare and
 does not fire; the rule is the same.
 
 The gate is web's alone. Nothing checks a worker or provider Redis image against
@@ -2178,3 +2201,88 @@ Do not apply; look at one such Review's rows (ids, comparisons and times only).
 reason, correlation id, counts), the size queries before and after, and the
 `retention_runs` row for `review_source_observations.repeats`. Do not keep review
 text.
+
+---
+
+## 31. Per-Portal Looks (`PORTAL_OWN_LOOK_ENABLED`)
+
+**Trigger/Symptoms:** Releasing a Portal's own look (ADR 0070, migration 0074); or
+turning it off again; or a Portal's page shows the Property look when its own was
+expected, or Review lists a look change nobody made.
+
+**Impact:** The release itself changes nothing a guest or a manager sees. Switched
+on, an Account Admin can give one Portal its own photo, colours, or name and logo,
+and a Property look edit asks only the Portals that follow the changed group to
+republish. Switched off again, no new own look can be saved; every own look already
+saved keeps being read, previewed and published.
+
+**Prerequisites:** The green `main` SHA, fetched first (`git fetch`, or the SHA is
+not found). Name both operating roles. No tenant content in the record.
+
+- **`PORTAL_OWN_LOOK_ENABLED`.** `true` or `false`, default `false`, any other
+  spelling stops the process at boot with the field named. Off, the three portal-look
+  saves answer `feature_unavailable` (HTTP 409) and a Portal's Look section shows the
+  read-only view it always had. On, the controls show to Account Admins of a Property
+  with two or more Portals (or a Portal that already has an own look). **Web reads
+  it; the worker makes no portal-look save and needs no switch**, but it reads the
+  working copy (the completeness fact, the legacy republish), so it must run the
+  release before any row can exist. A restart applies a change. Set it on web with
+  `--skip-deploys`, then redeploy web.
+- **The reader always runs.** From the release on, the working-copy reader and the
+  draft preview apply override rows whatever the flag says. The table is empty until
+  the flag is on, so nothing changes when the reader ships.
+
+**Order (the flag is switched on only after the reader is everywhere).**
+
+1. Merge on green required checks. Migration 0074 is purely additive and runs in
+   web's predeploy, before the new web serves. Re-check on `origin/main` that 0074 is
+   still the next free number before merging.
+2. `pnpm ops deploy-ci-images --sha <green main sha> --apply`. It rolls web, then the
+   worker; rerun it if the Railway API flakes (it is idempotent).
+3. Confirm web **and** worker both run the new SHA, and that nothing turned pending:
+
+   ```sql
+   SELECT count(*) FROM portal_look_overrides;   -- 0 before the flag is on
+   ```
+
+   Spot-check Review on two beta Portals ("Nothing to publish" where it was) and
+   confirm the overview's pending counts did not move.
+
+4. Set `PORTAL_OWN_LOOK_ENABLED=true` on web and redeploy web. From then on no server
+   that ignores overrides can meet an override row.
+5. Smoke on a two-Portal test Property: give the second Portal its own photo and
+   colours and publish only that Portal. The first Portal's page, `og:image` and print
+   kit are unchanged. Change the Property accent: the first Portal shows a pending
+   look change and the second none, and the batch on the Property look page shows the
+   second as "Already up to date". Undo with "Use the property's colours" and
+   republish.
+
+**Kill switch.** Set the flag to `false` and redeploy web. Saves stop; own looks that
+exist stay in force on the next publish of their Portal. Use it first if an own look
+behaves badly.
+
+**Rollback rule: never put back a release without the reader while own looks exist.**
+An older reader publishes the Property look for those Portals on their next publish,
+silently replacing their own photo, colours or name and logo. Recovery is forward-only
+anyway (§28), so a fault is fixed by a fix deployed forward. If a code rollback were
+ever unavoidable, switch the flag off **first** and accept that Portals with an own
+look lose it from their next publish; live snapshots are immutable and are not
+affected, and the table is inert for old code. To see whether any own look exists
+(ids and modes only):
+
+```sql
+SELECT organization_id, property_id, portal_id, photo_mode, colours_mode,
+       identity_mode, look_version, updated_at
+FROM portal_look_overrides
+WHERE photo_mode <> 'inherit' OR colours_mode <> 'inherit'
+   OR identity_mode <> 'inherit'
+ORDER BY updated_at DESC;
+```
+
+**Verification:** `GET /api/health/ready` is healthy after each step; with the flag on,
+a save from a test Portal's Look section is accepted, and with it off the same save
+answers 409 `feature_unavailable`. A taken-down own photo is §27.
+
+**Escalation/Evidence:** Bozhidar Denev. Record the SHA, the step reached, the count
+of own looks at each step and the time the flag changed. No look values, photo
+descriptions or image bytes.

@@ -35,8 +35,16 @@ type Props = Readonly<
     open: boolean
     onOpenChange: (open: boolean) => void
     propertyName: string
-    /** The phone beside the photograph, drawn with the photograph as it is now. */
-    renderPhone: (hero: NonNullable<PreviewMedia['hero']> | null) => ReactNode
+    /**
+     * The phone beside the photograph, drawn with the photograph as it is now;
+     * left out, the photograph has the dialog to itself (a portal's editor has
+     * its own phone beside it).
+     */
+    renderPhone?: (hero: NonNullable<PreviewMedia['hero']> | null) => ReactNode
+    /** Who sees the photograph; the Property's pages unless the caller says otherwise. */
+    description?: string
+    /** The foot's line on when live pages change; the Property look's unless said. */
+    footerNote?: string
   }
 >
 
@@ -45,6 +53,8 @@ export function PropertyLookPhotoDialog({
   onOpenChange,
   propertyName,
   renderPhone,
+  description,
+  footerNote,
   ...input
 }: Props) {
   return (
@@ -55,6 +65,8 @@ export function PropertyLookPhotoDialog({
           {...guard}
           propertyName={propertyName}
           renderPhone={renderPhone}
+          description={description}
+          footerNote={footerNote}
         />
       )}
     </UploadDialogShell>
@@ -65,10 +77,18 @@ type BodyProps = Readonly<
   PhotoDialogInput & {
     propertyName: string
     renderPhone: Props['renderPhone']
+    description: Props['description']
+    footerNote: Props['footerNote']
   }
 >
 
-function PhotoDialogBody({ propertyName, renderPhone, ...input }: BodyProps) {
+function PhotoDialogBody({
+  propertyName,
+  renderPhone,
+  description,
+  footerNote,
+  ...input
+}: BodyProps) {
   const dialog = usePhotoDialog(input)
   const { picker, photo, focal } = dialog
   const hasPhoto = input.hero !== null
@@ -78,10 +98,10 @@ function PhotoDialogBody({ propertyName, renderPhone, ...input }: BodyProps) {
       <DialogHeader>
         <DialogTitle>{photoDialogTitle(hasPhoto)}</DialogTitle>
         <DialogDescription>
-          Shown at the top of every portal at {propertyName}.
+          {description ?? `Shown at the top of every portal at ${propertyName}.`}
         </DialogDescription>
       </DialogHeader>
-      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_16rem]">
+      <div className={renderPhone ? 'grid gap-6 md:grid-cols-[minmax(0,1fr)_16rem]' : ''}>
         <div className="min-w-0 space-y-4">
           {photo ? (
             <div className="space-y-1.5">
@@ -135,19 +155,21 @@ function PhotoDialogBody({ propertyName, renderPhone, ...input }: BodyProps) {
             </p>
           )}
         </div>
-        <div className="hidden justify-center md:flex">
-          {renderPhone(
-            photo
-              ? {
-                  url: photo.url,
-                  width: photo.width,
-                  height: photo.height,
-                  focalX: focal.x,
-                  focalY: focal.y,
-                }
-              : null,
-          )}
-        </div>
+        {renderPhone ? (
+          <div className="hidden justify-center md:flex">
+            {renderPhone(
+              photo
+                ? {
+                    url: photo.url,
+                    width: photo.width,
+                    height: photo.height,
+                    focalX: focal.x,
+                    focalY: focal.y,
+                  }
+                : null,
+            )}
+          </div>
+        ) : null}
       </div>
       {photo ? (
         <div className="space-y-3">
@@ -207,6 +229,7 @@ function PhotoDialogBody({ propertyName, renderPhone, ...input }: BodyProps) {
       <UploadDialogFooter
         primaryLabel={photoButtonLabel(picker.chosen !== null, false)}
         pendingLabel={photoButtonLabel(picker.chosen !== null, true)}
+        {...(footerNote === undefined ? {} : { note: footerNote })}
         canSubmit={dialog.canSubmit}
         isBusy={dialog.isBusy}
         onSubmit={() => void dialog.submit()}

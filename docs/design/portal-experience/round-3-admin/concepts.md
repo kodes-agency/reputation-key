@@ -438,7 +438,7 @@ Editing follows what guests actually see, one journey state at a time. The 1★ 
 The admin itself stays neutral and purple and follows the inbox: hairlines not cards, facts versus controls, one primary action per area, one ledger per portal, and silence when things are healthy. It is optimised for an Account Admin running several properties, and for a three-minute sales demo against Ratestar:
 
 1. Paste the prospect's three colours and see three finished, readable pages.
-2. Pick one; every portal inherits it.
+2. Pick one; every portal inherits it. _(Superseded in part 2026-10-26 by [ADR 0070](../../../adr/0070-per-portal-look.md): a portal may now have its own photo, colours, or name and logo.)_
 3. Open After rating and show 1★ and 5★ with the same Google card. Ratestar's shipped code redirects 4 and 5★ ratings after 200 ms.
 4. Switch to Bulgarian and show real Cyrillic type, where Ratestar's flag pill leaves mixed-language pages.
 5. Download a true-size table tent.

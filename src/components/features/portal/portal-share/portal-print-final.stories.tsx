@@ -182,7 +182,11 @@ export const ImmersiveCountersMayLookSoft: Story = {
     await expect(
       await canvas.findByText('Your photo may look soft at this size'),
     ).toBeVisible()
-    await expect(canvas.getByRole('link', { name: 'Change photo' })).toBeVisible()
+    // The photo is the portal's: its Look section says whose it is and where to change it.
+    await expect(canvas.getByRole('link', { name: 'Change photo' })).toHaveAttribute(
+      'href',
+      '/properties/property-1/portals/portal-1?tab=page&section=look',
+    )
     await expect(canvas.getByText('Fills 5 sheets exactly.')).toBeVisible()
   },
 }

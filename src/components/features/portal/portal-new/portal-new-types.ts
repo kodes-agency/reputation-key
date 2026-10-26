@@ -1,6 +1,7 @@
 // New portal dialog — the shapes its parts share.
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { Action } from '#/components/hooks/use-action'
+import type { PortalLookSources } from '#/contexts/portal/application/public-api'
 import type { CreatePortalInput } from '#/contexts/portal/application/dto/create-portal.dto'
 import type { PortalManagerName } from '../portal-overview/portal-overview-view'
 import type { PortalNewOptions } from './portal-new-rules'
@@ -26,6 +27,11 @@ export type PortalNewSource = Readonly<{
   name: string
   primaryGuestLocale: GuestLocale
   additionalGuestLocales: readonly GuestLocale[]
+  /**
+   * Where the portal's photo, colours, and name and logo come from: a copy
+   * carries the ones that are the portal's own. Absent: it follows the property look.
+   */
+  lookSources?: PortalLookSources
 }>
 
 /** A group the new portal can join. */

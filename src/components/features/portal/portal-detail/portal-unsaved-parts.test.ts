@@ -16,6 +16,16 @@ describe('unsavedPartName', () => {
     expect(unsavedPartName('content-en')).toBe('the property wording in English')
   })
 
+  // A portal's own look has keys of its own, so the prompt never says "the
+  // property look" for an edit that was only about one portal.
+  it('names a portal’s own look apart from the property’s', () => {
+    expect(unsavedPartName('portal-look-colours')).toBe('this portal’s colours')
+    expect(unsavedPartName('portal-look-wordmark')).toBe('this portal’s wordmark')
+    expect(unsavedPartName('portal-photo-focal')).toBe('this portal’s photo focus point')
+    expect(unsavedPartName('look')).toBe('the property look')
+    expect(unsavedPartName('photo-focal')).toBe('the photo’s focus point')
+  })
+
   it('names a link without its id', () => {
     expect(unsavedPartName('link-texts:7f3c')).toBe('a Linktree link’s words')
   })

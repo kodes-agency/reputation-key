@@ -12,6 +12,7 @@ import {
   portalLinkId,
 } from '#/shared/domain/ids'
 import type { ResolvedPortalLinkText } from '../domain/portal-linktree'
+import type { PortalLookOverride } from '../domain/portal-look'
 import type { PortalLocalizedOverride } from './ports/portal-experience.repository'
 import type { NewPortalLocales } from '../domain/portal-new-locales'
 import { planPortalContentCopy, type PortalCopySource } from './portal-content-copy'
@@ -97,6 +98,7 @@ function source(patch: Partial<PortalCopySource> = {}): PortalCopySource {
     links: [],
     linkTexts: [],
     approvedDestinationIds: new Set([DESTINATION]),
+    look: null,
     ...patch,
   }
 }
@@ -320,6 +322,7 @@ describe('planPortalContentCopy', () => {
       'categories',
       'linkTexts',
       'links',
+      'look',
       'overrides',
       'sourcePortalId',
     ])
@@ -330,5 +333,92 @@ describe('planPortalContentCopy', () => {
       'theme',
     ])
     expect(content.sourcePortalId).toBe(SOURCE)
+  })
+})
+
+describe('planPortalContentCopy — the source’s own look', () => {
+  const HERO = '30000000-0000-4000-8000-000000000001'
+  const LOGO = '30000000-0000-4000-8000-000000000002'
+  const ownLook: PortalLookOverride = {
+    photo: {
+      mode: 'own',
+      heroAssetId: HERO,
+      focalX: 0.4,
+      focalY: 0.6,
+      altTexts: { en: 'Treatment room', bg: 'Стая', de: 'Behandlungsraum' },
+    },
+    colours: {
+      mode: 'own',
+      accent: '#2F855A',
+      backgroundMode: 'manual',
+      backgroundColour: '#0B1F14',
+    },
+    identity: { mode: 'own', wordmark: 'SPA', logoAssetId: LOGO },
+    lookVersion: 12,
+  }
+
+  it('carries every own group, the same images, one above the Property look’s version', () => {
+    const { content } = plan(
+      source({ look: { override: ownLook, propertyLookVersion: 7 } }),
+      { primary: 'en', additional: ['de'] },
+    )
+
+    expect(content.look).toEqual({
+      photoMode: 'own',
+      heroAssetId: HERO,
+      heroFocalX: 0.4,
+      heroFocalY: 0.6,
+      // Described only in the new Portal's languages.
+      heroAltTexts: { en: 'Treatment room', de: 'Behandlungsraum' },
+      coloursMode: 'own',
+      primaryColor: '#2F855A',
+      backgroundMode: 'manual',
+      backgroundColor: '#0B1F14',
+      identityMode: 'own',
+      wordmark: 'SPA',
+      logoAssetId: LOGO,
+      lookVersion: 8,
+    })
+  })
+
+  it('carries a portal with no photo, and the groups it follows as following', () => {
+    const { content } = plan(
+      source({
+        look: {
+          override: {
+            photo: { mode: 'none' },
+            colours: { mode: 'inherit' },
+            identity: { mode: 'inherit' },
+            lookVersion: 3,
+          },
+          propertyLookVersion: 3,
+        },
+      }),
+    )
+
+    expect(content.look).toMatchObject({
+      photoMode: 'none',
+      heroAssetId: null,
+      heroAltTexts: {},
+      coloursMode: 'inherit',
+      primaryColor: null,
+      identityMode: 'inherit',
+      lookVersion: 4,
+    })
+  })
+
+  it('gives the new portal no look of its own when the source follows the whole property look', () => {
+    const followsEverything: PortalLookOverride = {
+      photo: { mode: 'inherit' },
+      colours: { mode: 'inherit' },
+      identity: { mode: 'inherit' },
+      lookVersion: 9,
+    }
+
+    expect(plan(source()).content.look).toBeNull()
+    expect(
+      plan(source({ look: { override: followsEverything, propertyLookVersion: 9 } }))
+        .content.look,
+    ).toBeNull()
   })
 })

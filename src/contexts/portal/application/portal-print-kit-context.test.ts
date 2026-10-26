@@ -170,6 +170,54 @@ describe('printKitContextOfLive', () => {
     expect(context.look.wordmark).toBe('The Harbor Hotel')
   })
 
+  it('prints the look each Portal published: two Portals of one Property print their own palette, photo and logo', () => {
+    const base = immersiveConfiguration()
+    const ownLook = printKitContextOfLive(
+      'Spa',
+      immersiveConfiguration({
+        brandProfile: {
+          ...base.brandProfile,
+          // A Portal's own look is published as the effective values; the public name stays the Property's.
+          wordmark: 'SPA',
+          logo: {
+            assetId: '70000000-0000-4000-8000-0000000000b2',
+            width: 300,
+            height: 300,
+          },
+          hero: {
+            assetId: '70000000-0000-4000-8000-0000000000b1',
+            width: 1200,
+            height: 800,
+            focalX: 0.2,
+            focalY: 0.4,
+          },
+          accentColour: '#B8860B',
+          fieldColour: '#201810',
+          lookVersion: 4,
+        },
+      }),
+    )
+    const followsProperty = printKitContextOfLive('Reception', base)
+
+    expect(ownLook.look).toEqual({
+      wordmark: 'SPA',
+      propertyName: 'The Harbor Hotel',
+      accentColour: '#B8860B',
+      fieldColour: '#201810',
+      hero: {
+        assetId: '70000000-0000-4000-8000-0000000000b1',
+        width: 1200,
+        height: 800,
+        focalX: 0.2,
+        focalY: 0.4,
+      },
+      logo: { assetId: '70000000-0000-4000-8000-0000000000b2' },
+    })
+    expect(followsProperty.look.accentColour).toBe('#C8A45A')
+    expect(followsProperty.look.hero?.assetId).toBe(IMMERSIVE_HERO_ASSET_ID)
+    expect(ownLook.look).not.toEqual(followsProperty.look)
+  })
+
   it('has no photo and no logo when the published look has none', () => {
     const base = immersiveConfiguration()
     const context = printKitContextOfLive(

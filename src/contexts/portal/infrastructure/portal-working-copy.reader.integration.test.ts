@@ -10,16 +10,12 @@ import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { userId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { getPortalPublicationHistory } from '../application/use-cases/get-portal-publication-history'
-import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
-import type { PortalPublicationSource } from '../domain/portal-publication-source'
-import { portalPublicationPublished, portalUpdated } from '../domain/events'
-import { createAtomicPortalCommandStore } from './portal-command-store'
 import { readPortalWorkingCopy } from './portal-working-copy.reader'
 import { createPortalPublicationRepository } from './repositories/portal-publication.repository'
 import { seedPortalWorkingCopy } from './testing/portal-working-copy-seed'
+import { publishFromSource } from './testing/portal-working-copy-publish'
 import {
   COMPLETE_SCENARIO,
   INCOMPLETE_SCENARIO,
@@ -36,17 +32,7 @@ import {
   NO_BRAND_GOLDEN,
 } from './__fixtures__/portal-working-copy.golden'
 
-const MANAGER = userId('manager-workingcopy-0000000000001')
-const SEEDED_AT = new Date('2026-08-26T10:00:00.000Z')
-const PUBLISHED_AT = new Date('2026-08-26T11:00:00.000Z')
 const EDITED_AT = new Date('2026-08-26T12:00:00.000Z')
-const DESTINATION = {
-  state: 'verified',
-  uri: 'https://search.google.com/local/writereview?placeid=working-copy',
-  retrievedAt: SEEDED_AT,
-  sourceEpoch: 1,
-  profileVersion: 1,
-} as const
 
 const { getPool } = setupIntegrationDb({
   orgA: WORKING_COPY_ORG,
@@ -79,70 +65,6 @@ const publishRead = (scenario: WorkingCopyScenario) =>
     scenario.organizationId,
     scenario.portalId,
   )
-
-async function publishFrom(
-  scenario: WorkingCopyScenario,
-  source: PortalPublicationSource,
-): Promise<void> {
-  const snapshot = buildPortalPublicationSnapshot({
-    id: '6d000000-0000-4000-8000-000000000001',
-    portalId: scenario.portalId,
-    organizationId: scenario.organizationId,
-    propertyId: scenario.propertyId,
-    version: 1,
-    source,
-    destination: DESTINATION,
-    createdBy: MANAGER,
-    createdAt: PUBLISHED_AT,
-  })
-  await createAtomicPortalCommandStore(getDb()).updatePortal({
-    organizationId: scenario.organizationId,
-    propertyId: scenario.propertyId,
-    portalId: scenario.portalId,
-    actorUserId: MANAGER,
-    expectedUpdatedAt: SEEDED_AT,
-    revision: PUBLISHED_AT,
-    occurredAt: PUBLISHED_AT,
-    patch: { publicationState: 'published' },
-    publication: {
-      kind: 'publish',
-      snapshot,
-      activation: {
-        id: '6e000000-0000-4000-8000-000000000001',
-        organizationId: scenario.organizationId,
-        propertyId: scenario.propertyId,
-        portalId: scenario.portalId,
-        snapshotId: snapshot.id,
-        activationSequence: 1,
-        kind: 'publish',
-        activatedBy: MANAGER,
-        activatedAt: PUBLISHED_AT,
-        deactivatedAt: null,
-        deactivationReason: null,
-      },
-    },
-    lifecycleEvent: portalPublicationPublished({
-      organizationId: scenario.organizationId,
-      propertyId: scenario.propertyId,
-      portalId: scenario.portalId,
-      publicationSnapshotId: snapshot.id,
-      publicationVersion: snapshot.version,
-      publicationDigest: snapshot.configurationDigest,
-      userId: MANAGER,
-      sourceAggregateVersion: PUBLISHED_AT.toISOString(),
-      occurredAt: PUBLISHED_AT,
-    }),
-    event: portalUpdated({
-      portalId: scenario.portalId,
-      organizationId: scenario.organizationId,
-      propertyId: scenario.propertyId,
-      previousPublicationState: 'draft',
-      publicationState: 'published',
-      sourceAggregateVersion: PUBLISHED_AT.toISOString(),
-      occurredAt: PUBLISHED_AT,
-    }),
-  })
-}
 
 async function snapshotCount(): Promise<number> {
   const { rows } = await getPool().query(
@@ -237,7 +159,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
     const source = await publishRead(COMPLETE_SCENARIO)
 
-    await publishFrom(COMPLETE_SCENARIO, source!)
+    await publishFromSource(COMPLETE_SCENARIO, source!)
 
     await expect(snapshotCount()).resolves.toBe(1)
     await expect(historyHasPendingChanges(COMPLETE_SCENARIO)).resolves.toBe(false)
@@ -246,7 +168,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
   it('reads back, through the repository, exactly the v3 snapshot it committed', async () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
     const source = await publishRead(COMPLETE_SCENARIO)
-    await publishFrom(COMPLETE_SCENARIO, source!)
+    await publishFromSource(COMPLETE_SCENARIO, source!)
 
     const active = await createPortalPublicationRepository(getDb()).findActiveForPortal(
       COMPLETE_SCENARIO.organizationId,
@@ -280,7 +202,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await seedPortalWorkingCopy(getPool(), NO_BRAND_SCENARIO)
     const source = await publishRead(NO_BRAND_SCENARIO)
 
-    await publishFrom(NO_BRAND_SCENARIO, source!)
+    await publishFromSource(NO_BRAND_SCENARIO, source!)
 
     await expect(snapshotCount()).resolves.toBe(1)
     await expect(historyHasPendingChanges(NO_BRAND_SCENARIO)).resolves.toBe(false)
@@ -290,7 +212,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await seedPortalWorkingCopy(getPool(), INCOMPLETE_SCENARIO)
     const source = await publishRead(INCOMPLETE_SCENARIO)
 
-    await publishFrom(INCOMPLETE_SCENARIO, source!)
+    await publishFromSource(INCOMPLETE_SCENARIO, source!)
 
     const { rows } = await getPool().query(
       `SELECT configuration->'localizedContent'->'bg'->'title' AS title
@@ -465,7 +387,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
 
     await getPool().query(mutation)
 
-    await expect(publishFrom(COMPLETE_SCENARIO, source!)).rejects.toMatchObject({
+    await expect(publishFromSource(COMPLETE_SCENARIO, source!)).rejects.toMatchObject({
       code: 'revision_conflict',
     })
     await expect(snapshotCount()).resolves.toBe(0)
@@ -474,7 +396,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
   it('reports a pending change once the working copy moves past the published one', async () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
     const source = await publishRead(COMPLETE_SCENARIO)
-    await publishFrom(COMPLETE_SCENARIO, source!)
+    await publishFromSource(COMPLETE_SCENARIO, source!)
 
     await getPool().query(
       `UPDATE portal_link_texts SET label = 'Renamed', updated_at = $1 WHERE label = 'Меню'`,

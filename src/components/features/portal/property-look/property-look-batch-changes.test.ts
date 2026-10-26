@@ -23,6 +23,21 @@ const edit = (area: 'look' | 'links' | 'welcome_text' | 'display_name'): Change 
   editCount: 1,
 })
 
+/** An edit to one portal's own look, recorded on the portal and not on the property. */
+const portalLookEdit = (
+  facet: 'accent' | 'field' | 'wordmark' | 'logo' | 'photo' | null,
+): Change => ({
+  type: 'edit',
+  kind: 'portal_configuration',
+  subject: { area: 'portal_look', facet },
+  propertyWide: false,
+  actor: null,
+  occurredAt: '2026-10-01T09:00:00.000Z',
+  previousText: null,
+  newText: null,
+  editCount: 1,
+})
+
 const unrecorded = (kind: 'property_brand_profile' | 'portal_links'): Change => ({
   type: 'unrecorded',
   kind,
@@ -41,6 +56,29 @@ describe('changeMixOf', () => {
         edit('display_name'),
       ]),
     ).toEqual({ look: 2, other: 3, hasUnlisted: false })
+  })
+
+  it('counts a portal’s own look edit as another draft edit: it is not what this page changed', () => {
+    for (const facet of ['accent', 'field', 'wordmark', 'logo', 'photo', null] as const) {
+      expect(changeMixOf([portalLookEdit(facet)])).toEqual({
+        look: 0,
+        other: 1,
+        hasUnlisted: false,
+      })
+    }
+    // Beside the property look's own edit it is the other edit that is named.
+    expect(changeMixOf([edit('look'), portalLookEdit('photo')])).toEqual({
+      look: 1,
+      other: 1,
+      hasUnlisted: false,
+    })
+  })
+
+  it('leaves a portal with its own look edit unticked, and says what ticking it publishes', () => {
+    const mix = changeMixOf([portalLookEdit('accent')])
+
+    expect(hasOtherEdits(mix)).toBe(true)
+    expect(describeMix(mix, false)).toBe('also publishes 1 other draft edit')
   })
 
   it('reads an unrecorded move of the brand profile as the look, any other as another edit', () => {

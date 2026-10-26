@@ -16,11 +16,12 @@ type Props = Readonly<{
   final: PrintFinalState
   view: PortalPrintKitView | null
   propertyId?: string
+  portalId?: string
   unavailableReason: string | null
 }>
 
 /** The preview column beside the section, from `lg`. */
-export function PrintFinalPreviewColumn({ final, view, propertyId }: Props) {
+export function PrintFinalPreviewColumn({ final, view, propertyId, portalId }: Props) {
   const stacked = useIsBelowLarge()
   if (stacked) return null
   return (
@@ -32,6 +33,7 @@ export function PrintFinalPreviewColumn({ final, view, propertyId }: Props) {
             view={view}
             placement="column"
             propertyId={propertyId}
+            portalId={portalId}
           />
         </div>
       </div>

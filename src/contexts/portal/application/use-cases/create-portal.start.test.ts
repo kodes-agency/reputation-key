@@ -532,9 +532,58 @@ describe('createPortal start from', () => {
       'categories',
       'linkTexts',
       'links',
+      'look',
       'overrides',
       'sourcePortalId',
     ])
+  })
+
+  it('carries the source’s own look, also when a property manager creates the portal', async () => {
+    const setup = setupCreatePortal({ propertyLookVersion: 6 })
+    const { source } = seedSource(setup)
+    setup.portalLookRepo.seed({
+      organizationId: source.organizationId,
+      propertyId: PROPERTY,
+      portalId: source.id,
+      override: {
+        photo: { mode: 'none' },
+        colours: {
+          mode: 'own',
+          accent: '#2F855A',
+          backgroundMode: 'auto',
+          backgroundColour: '#0B1F14',
+        },
+        identity: { mode: 'inherit' },
+        lookVersion: 9,
+      },
+    })
+
+    const portal = await setup.useCase(
+      { ...base, name: 'Copy', startFrom: { kind: 'portal', portalId: String(SOURCE) } },
+      ctx,
+    )
+
+    expect(setup.copiedLooks.get(String(portal.id))).toMatchObject({
+      photoMode: 'none',
+      coloursMode: 'own',
+      primaryColor: '#2F855A',
+      identityMode: 'inherit',
+      lookVersion: 7,
+    })
+  })
+
+  it('gives the new portal no look of its own when the source follows the property look', async () => {
+    const setup = setupCreatePortal({ propertyLookVersion: 6 })
+    seedSource(setup)
+    const spy = vi.spyOn(setup.commandStore, 'createPortal')
+
+    await setup.useCase(
+      { ...base, name: 'Copy', startFrom: { kind: 'portal', portalId: String(SOURCE) } },
+      ctx,
+    )
+
+    expect(spy.mock.calls[0]?.[0].copiedContent?.look).toBeNull()
+    expect(setup.copiedLooks.size).toBe(0)
   })
 
   it('carries nothing when it starts from the Property wording', async () => {

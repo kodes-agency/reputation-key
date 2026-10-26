@@ -17,6 +17,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalGroup } from '../../domain/types'
 import type { PortalHealthInterval } from '../../domain/portal-health'
 import type { PortalResponsibleManager } from '../../domain/portal-responsible-manager'
+import type { PortalLookSources } from '../../domain/portal-look'
 
 const NOW = new Date('2026-09-10T12:00:00.000Z')
 const ISSUED_AT = new Date('2026-09-01T09:30:00.000Z')
@@ -68,6 +69,8 @@ type Sources = Readonly<{
     addressKeyVersion: number | null
     issuedBy: string | null
   }[]
+  /** The Portals that have a look of their own and where its groups come from. */
+  looks?: readonly { portalId: PortalId; sources: PortalLookSources }[]
 }>
 
 const setup = (
@@ -90,6 +93,9 @@ const setup = (
   const findResolvableSummariesForPortals = vi.fn<
     ListPortalOverviewDeps['portalTokenRepo']['findResolvableSummariesForPortals']
   >(async () => sources.tokens ?? [])
+  const listSourcesForPortals = vi.fn<
+    ListPortalOverviewDeps['portalLookRepo']['listSourcesForPortals']
+  >(async () => sources.looks ?? [])
   const useCase = listPortalOverview({
     portalRepo,
     portalHealthRepo: { listCurrentForPortals },
@@ -97,6 +103,7 @@ const setup = (
     portalGroupRepo: { listGroupsForPortals },
     managerRepo: { listActiveForPortals },
     portalTokenRepo: { findResolvableSummariesForPortals },
+    portalLookRepo: { listSourcesForPortals },
     staffPublicApi: staffApiMock(accessible),
     addressCipher: null,
     clock: () => NOW,
@@ -110,6 +117,7 @@ const setup = (
       listGroupsForPortals,
       listActiveForPortals,
       findResolvableSummariesForPortals,
+      listSourcesForPortals,
     },
   }
 }
@@ -196,6 +204,27 @@ describe('listPortalOverview', () => {
     })
   })
 
+  it('says where the look of a portal with a look of its own comes from, and says nothing for the others', async () => {
+    const spa = buildTestPortal({ id: 'p-spa', name: 'Spa', slug: 'spa' })
+    const lobby = buildTestPortal({ id: 'p-lobby', name: 'Lobby', slug: 'lobby' })
+    const sources: PortalLookSources = {
+      photo: 'none',
+      colours: 'property',
+      identity: 'portal',
+    }
+    const { useCase, portalRepo } = setup(null, {
+      looks: [{ portalId: spa.id, sources }],
+    })
+    portalRepo.seed([spa, lobby])
+
+    const rows = await useCase(ORGANIZATION, buildTestAuthContext())
+
+    const byName = Object.fromEntries(rows.map((row) => [row.name, row]))
+    expect(byName['Spa']?.lookSources).toEqual(sources)
+    // A portal with no row follows the whole Property look: it carries no sources.
+    expect(byName['Lobby']).not.toHaveProperty('lookSources')
+  })
+
   it('reads each source once for all the portals, however many there are', async () => {
     const { useCase, portalRepo, reads } = setup()
     const portals = Array.from({ length: 40 }, (_, index) =>
@@ -223,6 +252,13 @@ describe('listPortalOverview', () => {
       ctx.organizationId,
       expect.any(Array),
       NOW,
+    )
+    // The look read names each Portal with its Property, so a row is held to both.
+    expect(reads.listSourcesForPortals).toHaveBeenCalledWith(
+      ctx.organizationId,
+      expect.arrayContaining(
+        portals.map((portal) => ({ propertyId: portal.propertyId, portalId: portal.id })),
+      ),
     )
   })
 
@@ -304,6 +340,12 @@ describe('listPortalOverview', () => {
       health: [health(stranger, 'healthy', 'operational')],
       pending: [{ portalId: stranger, count: 9 }],
       managers: [manager(stranger, 'user-x')],
+      looks: [
+        {
+          portalId: stranger,
+          sources: { photo: 'portal', colours: 'portal', identity: 'portal' },
+        },
+      ],
     })
     portalRepo.seed([buildTestPortal({ id: 'p-own' })])
 
@@ -315,6 +357,7 @@ describe('listPortalOverview', () => {
       pendingChangeCount: 0,
       responsibleManagerUserIds: [],
     })
+    expect(rows[0]).not.toHaveProperty('lookSources')
   })
 
   it('lists portals by name, then by id, so the answer does not depend on storage order', async () => {

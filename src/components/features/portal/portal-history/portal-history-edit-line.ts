@@ -51,7 +51,32 @@ const LOOK_ACTION: Readonly<Record<string, string>> = {
   field: 'changed the background colour',
   text: 'changed the text colour',
   wordmark: 'changed the wordmark',
+  logo: 'changed the logo',
+  photo: 'changed the photo',
   images: 'changed the logo or photo',
+}
+
+/**
+ * One Portal's own look (`portal_look`), as opposed to the look every portal
+ * starts with. The wordmark is the "name" of the editor's Name and logo group.
+ */
+const PORTAL_LOOK_ACTION: Readonly<Record<string, string>> = {
+  accent: 'changed this portal’s accent colour',
+  field: 'changed this portal’s background colour',
+  wordmark: 'changed this portal’s name',
+  logo: 'changed this portal’s logo',
+  photo: 'changed this portal’s photo',
+}
+
+type LookSubject = Extract<PortalPageEditSubject, { area: 'look' | 'portal_look' }>
+
+/** What was done to the look every portal starts with, or to this portal's own. */
+function lookAction(subject: LookSubject): string {
+  const [actions, general] =
+    subject.area === 'look'
+      ? [LOOK_ACTION, 'changed the look']
+      : [PORTAL_LOOK_ACTION, 'changed this portal’s look']
+  return (subject.facet === null ? undefined : actions[subject.facet]) ?? general
 }
 
 type EditSentence = Readonly<{
@@ -171,22 +196,24 @@ function describeEditSubject(
     case 'display_name':
       return out([plain('renamed '), strong('the property’s public name')])
     case 'look':
-      return out(
-        [
-          plain(
-            subject.facet === null
-              ? 'changed the look'
-              : (LOOK_ACTION[subject.facet] ?? 'changed the look'),
-          ),
-        ],
-        null,
-        false,
-      )
+    case 'portal_look':
+      return out([plain(lookAction(subject))], null, false)
     case 'profile':
       return out([plain('changed the property’s look')], null, false)
     case 'destination':
       return out([plain('changed an approved destination')], null, false)
   }
+}
+
+/**
+ * Where a Property-wide change was made. A change to the look every portal starts
+ * with says so, since a portal with its own photo, colours, or name and logo
+ * does not take it; the Property's wording and name really are every portal's.
+ */
+function propertyWideNote(subject: PortalPageEditSubject): string {
+  return subject.area === 'look'
+    ? 'on the property look'
+    : 'for every portal of this property'
 }
 
 export function describePageEditLine(
@@ -197,7 +224,7 @@ export function describePageEditLine(
   const pieces: Phrase[] = []
   const wording = showWording ? wordingChange(detail, locale) : null
   if (wording) pieces.push(wording)
-  if (detail.propertyWide) pieces.push([plain('for every portal of this property')])
+  if (detail.propertyWide) pieces.push([plain(propertyWideNote(detail.subject))])
   if (detail.editCount > 1) pieces.push([plain(`${detail.editCount} saves`)])
   return {
     glyph: 'edit',

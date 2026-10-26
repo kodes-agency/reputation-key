@@ -66,6 +66,7 @@ function placeOfSubject(subject: PortalPageEditSubject): Place {
     case 'portal_text':
       return WORDING
     case 'look':
+    case 'portal_look':
     case 'profile':
       return LOOK
     case 'display_name':

@@ -60,7 +60,7 @@ describe('softPhotoNotice', () => {
 
   it('reads in the words the owner wrote, naming the width the upload asks for', () => {
     expect(SOFT_PHOTO_NOTICE).toBe(
-      'Your photo is small for print and may look soft. For a sharp print, upload a photo at least 1000 px wide in Photo and colours.',
+      'Your photo is small for print and may look soft. For a sharp print, upload a photo at least 1000 px wide.',
     )
   })
 

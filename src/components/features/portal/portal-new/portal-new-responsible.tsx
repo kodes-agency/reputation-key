@@ -1,5 +1,5 @@
-// New portal — the two facts closing the form: whose look the page borrows, and
-// who will be responsible. "Change" opens a short list of the managers eligible
+// New portal — the two facts closing the form: whose look the page starts with,
+// and who will be responsible. "Change" opens a short list of the managers eligible
 // for the Property; the creator is the default when eligible. Names come from
 // the member directory when the role may read it; an id is never shown.
 import { Palette, UserRound } from 'lucide-react'
@@ -11,7 +11,8 @@ import type { PortalManagerName } from '../portal-overview/portal-overview-view'
 import { responsibleSummary, type PortalNewOptions } from './portal-new-rules'
 
 type Props = Readonly<{
-  propertyName: string
+  /** "Look: the property look", or "Look: same as Spa" for a copy of a portal with a look of its own. */
+  lookLine: string
   options: PortalNewOptions
   creatorId: string
   members: readonly PortalManagerName[]
@@ -33,7 +34,7 @@ function managerLabel(
 }
 
 export function PortalNewResponsible({
-  propertyName,
+  lookLine,
   options,
   creatorId,
   members,
@@ -48,9 +49,7 @@ export function PortalNewResponsible({
     <div className="flex flex-col gap-2 text-sm text-muted-foreground">
       <p className="flex items-center gap-2">
         <Palette aria-hidden="true" className="size-4 shrink-0" />
-        <span>
-          Look: the photo and colours set for all of {propertyName || 'this property'}
-        </span>
+        <span>{lookLine}</span>
       </p>
       <p className="flex flex-wrap items-center gap-x-2">
         <UserRound aria-hidden="true" className="size-4 shrink-0" />

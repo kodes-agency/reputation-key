@@ -33,6 +33,8 @@ export const PRINT_KIT_INTEGRATION_TABLES = [
   'portal_publication_activations',
   'portal_publication_snapshots',
   'portal_localized_overrides',
+  // Before the Portals and images it points at: both keys are RESTRICT.
+  'portal_look_overrides',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
   'portal_link_texts',
@@ -48,15 +50,20 @@ export const PRINT_KIT_INTEGRATION_TABLES = [
 export const sha256Hex = (bytes: Uint8Array) =>
   createHash('sha256').update(bytes).digest('hex')
 
-/** Stores a real picture under an asset the seed made, and makes its row say so. */
+/**
+ * Stores a real picture under an asset the seed made, and makes its row say so.
+ * A suite that prints two Portals with pictures of their own gives each its own
+ * `background`, so the files differ.
+ */
 export async function storePrintKitPicture(
   pool: Pool,
   store: Pick<StoragePort, 'putObject'>,
   assetId: string,
   size: Readonly<{ width: number; height: number }>,
+  background = '#557766',
 ): Promise<void> {
   const body = await sharp({
-    create: { ...size, channels: 3, background: '#557766' },
+    create: { ...size, channels: 3, background },
   })
     .webp()
     .toBuffer()
@@ -127,19 +134,41 @@ export const printKitLiveConfiguration = (
   })
 }
 
-/** A live code: the token row sealed by the real cipher, and its two markers. */
-export async function seedPrintKitCode(pool: Pool, sealed: boolean): Promise<void> {
-  const {
-    organizationId: org,
-    propertyId: property,
-    portalId: portal,
-  } = COMPLETE_SCENARIO
+/** A live code: the Portal it belongs to, its token and the two markers of its artifacts. */
+export type PrintKitCodeSeed = Readonly<{
+  portalId: string
+  tokenId: string
+  rawToken: string
+  qrMarker: string
+  nfcMarker: string
+}>
+
+/** The scenario Portal's own code, which every print kit suite uses. */
+const SCENARIO_PRINT_KIT_CODE: PrintKitCodeSeed = {
+  portalId: COMPLETE_SCENARIO.portalId,
+  tokenId: TOKEN_ID,
+  rawToken: RAW_TOKEN,
+  qrMarker: QR_MARKER,
+  nfcMarker: NFC_MARKER,
+}
+
+/**
+ * A live code: the token row sealed by the real cipher, and its two markers.
+ * The scenario Portal's unless `code` names another Portal of the same Property.
+ */
+export async function seedPrintKitCode(
+  pool: Pool,
+  sealed: boolean,
+  code: PrintKitCodeSeed = SCENARIO_PRINT_KIT_CODE,
+): Promise<void> {
+  const { organizationId: org, propertyId: property } = COMPLETE_SCENARIO
+  const portal = code.portalId
   const address = sealed
-    ? printKitCipher.seal(RAW_TOKEN, {
+    ? printKitCipher.seal(code.rawToken, {
         organizationId: org,
         propertyId: property,
         portalId: portal,
-        tokenId: TOKEN_ID,
+        tokenId: code.tokenId,
         version: 1,
       })
     : null
@@ -150,26 +179,26 @@ export async function seedPrintKitCode(pool: Pool, sealed: boolean): Promise<voi
        issued_at, created_at
      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 'active', now(), now())`,
     [
-      TOKEN_ID,
+      code.tokenId,
       org,
       property,
       portal,
-      RAW_TOKEN.slice(0, 19),
-      sha256Hex(Buffer.from(RAW_TOKEN)),
+      code.rawToken.slice(0, 19),
+      sha256Hex(Buffer.from(code.rawToken)),
       address?.ciphertext ?? null,
       address?.keyVersion ?? null,
     ],
   )
   for (const [channel, id] of [
-    ['qr', QR_MARKER],
-    ['nfc', NFC_MARKER],
+    ['qr', code.qrMarker],
+    ['nfc', code.nfcMarker],
   ] as const) {
     await pool.query(
       `INSERT INTO portal_access_artifacts (
          id, organization_id, property_id, portal_id, portal_token_id, channel, status,
          published_at
        ) VALUES ($1, $2, $3, $4, $5, $6, 'published', now())`,
-      [id, org, property, portal, TOKEN_ID, channel],
+      [id, org, property, portal, code.tokenId, channel],
     )
   }
 }

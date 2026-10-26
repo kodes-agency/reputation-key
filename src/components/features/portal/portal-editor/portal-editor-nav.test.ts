@@ -131,7 +131,7 @@ describe('PortalEditorNav', () => {
   it('shows each summary, with its lock and its attention mark', () => {
     const html = render('welcome')
 
-    expect(html).toContain('Photo and colours · property-wide')
+    expect(html).toContain('The property look')
     expect(html).toContain('Always included')
     expect(html).toContain('3 missing')
     // The two fixed sections wear a lock, the languages row an attention icon.

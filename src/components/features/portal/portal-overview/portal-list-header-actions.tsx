@@ -35,7 +35,11 @@ export function PortalListHeaderActions({
           <span className="hidden sm:contents">
             {showPropertyLook ? (
               <Button variant="outline" asChild>
-                <Link to="/properties/$propertyId/portals/look" params={{ propertyId }}>
+                <Link
+                  to="/properties/$propertyId/portals/look"
+                  params={{ propertyId }}
+                  title="The look every portal starts with"
+                >
                   <Palette aria-hidden="true" />
                   Property look
                 </Link>

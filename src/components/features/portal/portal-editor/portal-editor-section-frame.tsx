@@ -10,7 +10,8 @@ import {
 
 type Props = Readonly<{
   section: PortalEditorSection
-  description?: string
+  /** One line on what the section is; a node where part of it is a link. */
+  description?: ReactNode
   /** A control that belongs to the section as a whole, drawn beside its heading. */
   actions?: ReactNode
   children: ReactNode

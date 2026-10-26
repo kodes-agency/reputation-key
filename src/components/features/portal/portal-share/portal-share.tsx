@@ -144,7 +144,11 @@ export function PortalShare(props: PortalShareProps) {
           {liveStatusMessage(isPending, copied || nfcCopied)}
         </p>
       </FullBleedFrame>
-      <PortalSharePrintKitAside kit={kit} propertyId={props.propertyId} />
+      <PortalSharePrintKitAside
+        kit={kit}
+        propertyId={props.propertyId}
+        portalId={props.portalId}
+      />
     </div>
   )
 }

@@ -69,6 +69,7 @@ describe('portalError exhaustive codes', () => {
     'upload_failed',
     'responsible_manager_ineligible',
     'revision_conflict',
+    'feature_unavailable',
   ]
 
   it('creates error with every code in the union', () => {
@@ -80,6 +81,6 @@ describe('portalError exhaustive codes', () => {
   })
 
   it('covers all codes (fails if a new code is added but not listed here)', () => {
-    expect(codes).toHaveLength(25)
+    expect(codes).toHaveLength(26)
   })
 })

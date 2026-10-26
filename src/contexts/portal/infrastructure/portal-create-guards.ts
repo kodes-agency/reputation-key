@@ -115,10 +115,20 @@ function assertGroupMembership(command: CreatePortalCommand): void {
   )
 }
 
+/** A copied own look describes its photo only in the new Portal's languages, at a real version. */
+const isCopiedLookOwned = (
+  look: NonNullable<CreatePortalCommand['copiedContent']>['look'],
+  offered: readonly string[],
+): boolean =>
+  look === null ||
+  (look.lookVersion >= 1 &&
+    Object.keys(look.heroAltTexts).every((locale) => offered.includes(locale)))
+
 /**
  * Every copied row must belong to the new Portal, in its languages, and every
  * copied link must name a destination. That the destination is approved is read
- * and checked by the application, not guarded here.
+ * and checked by the application, not guarded here; the copied look's images
+ * are held to the new Portal's Property by the database.
  */
 function assertCopiedContent(command: CreatePortalCommand): void {
   const copy = command.copiedContent
@@ -154,7 +164,8 @@ function assertCopiedContent(command: CreatePortalCommand): void {
         (text) => text.linkId === link.id && text.locale === portal.primaryGuestLocale,
       ),
     ) &&
-    copy.overrides.every((override) => offered.includes(override.locale))
+    copy.overrides.every((override) => offered.includes(override.locale)) &&
+    isCopiedLookOwned(copy.look, offered)
   if (!ok) {
     throw portalError(
       'forbidden',

@@ -73,6 +73,7 @@ function setup(
   const publicationRepo: PortalPublicationRepository = {
     countOpenPendingContentChanges: async () => [],
     loadWorkingCopy: async () => null,
+    loadWorkingCopyWithLook: async () => null,
     getCursor: async () => ({
       nextSnapshotVersion: 3,
       nextActivationSequence: 3,

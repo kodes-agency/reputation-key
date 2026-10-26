@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { PortalLookSources } from '#/contexts/portal/application/public-api'
 import { deriveFieldColour } from '#/shared/domain/portal-field-colour'
 import { previewBrandOf } from './property-look-preview-brand'
 import type { LookDraft } from './property-look-rules'
@@ -78,5 +79,101 @@ describe('previewBrandOf', () => {
 
     expect(brand.accentColour).toBe('#2563EB')
     expect(brand.fieldColour).toBe('#0B0F1A')
+  })
+})
+
+describe('previewBrandOf for a portal with parts of its own', () => {
+  const OWN_PHOTO = { url: 'spa.jpg', width: 1200, height: 900, focalX: 0.3, focalY: 0.6 }
+  const OWN_LOGO = { url: 'spa-logo.png', width: 300, height: 100 }
+  const spaBrand = {
+    ...BRAND,
+    wordmark: 'SPA',
+    logo: OWN_LOGO,
+    hero: OWN_PHOTO,
+    accentColour: '#7FB069',
+    fieldColour: '#0E1A0B',
+  }
+  const follows: PortalLookSources = {
+    photo: 'property',
+    colours: 'property',
+    identity: 'property',
+  }
+  const sources = (own: Partial<PortalLookSources>): PortalLookSources => ({
+    ...follows,
+    ...own,
+  })
+
+  it('lays the draft over every part when the portal follows them all', () => {
+    expect(previewBrandOf(BRAND, DRAFT, true, undefined, follows)).toEqual(
+      previewBrandOf(BRAND, DRAFT, true),
+    )
+  })
+
+  it('leaves a portal’s own colours as the page read them, and still draws the rest', () => {
+    const brand = previewBrandOf(
+      spaBrand,
+      { ...DRAFT, wordmark: 'ATLAS' },
+      true,
+      undefined,
+      sources({ colours: 'portal' }),
+    )
+
+    expect(brand.accentColour).toBe('#7FB069')
+    expect(brand.fieldColour).toBe('#0E1A0B')
+    expect(brand.wordmark).toBe('ATLAS')
+  })
+
+  it('leaves a portal’s own name and logo, and the draft wordmark does not reach it', () => {
+    const brand = previewBrandOf(
+      spaBrand,
+      { ...DRAFT, wordmark: 'ATLAS' },
+      true,
+      { hero: null, logo: { url: 'property-logo.png', width: 480, height: 120 } },
+      sources({ identity: 'portal' }),
+    )
+
+    expect(brand.wordmark).toBe('SPA')
+    expect(brand.logo).toEqual(OWN_LOGO)
+    expect(brand.accentColour).toBe(DRAFT.accent)
+  })
+
+  it('keeps a portal’s own photo whatever the preview asks and whatever photo the person is choosing', () => {
+    const property = {
+      url: 'new.jpg',
+      width: 2400,
+      height: 1600,
+      focalX: 0.2,
+      focalY: 0.7,
+    }
+
+    for (const showPhoto of [true, false]) {
+      expect(
+        previewBrandOf(
+          spaBrand,
+          DRAFT,
+          showPhoto,
+          { hero: property, logo: null },
+          sources({ photo: 'portal' }),
+        ).hero,
+      ).toEqual(OWN_PHOTO)
+    }
+  })
+
+  it('keeps no photo for a portal that shows none', () => {
+    expect(
+      previewBrandOf(
+        { ...spaBrand, hero: null },
+        DRAFT,
+        true,
+        undefined,
+        sources({ photo: 'none' }),
+      ).hero,
+    ).toBeNull()
+  })
+
+  it('changes nothing for a portal that owns every part, which the look no longer reaches', () => {
+    const all = sources({ photo: 'portal', colours: 'portal', identity: 'portal' })
+
+    expect(previewBrandOf(spaBrand, DRAFT, false, undefined, all)).toEqual(spaBrand)
   })
 })

@@ -82,6 +82,19 @@ const PROFILE = {
   lookVersion: 4,
 }
 
+/** A Property photograph that may be shown: a photograph's description is drawn only beside one. */
+const WITH_HERO = {
+  hero: {
+    assetId: 'a1',
+    url: '/api/public/portal-media/a1',
+    width: 2400,
+    height: 1600,
+    focalX: 0.3,
+    focalY: 0.6,
+  },
+  logo: null,
+} satisfies Parameters<typeof buildDraftPortalPreview>[0]['media']
+
 type DraftOptions = Partial<Parameters<typeof buildDraftPortalPreview>[0]>
 
 function draft(options: DraftOptions = {}): PortalPreview {
@@ -225,7 +238,7 @@ function draftWithTilePhoto(imageAssetId: string | null, isServable = true) {
 
 describe('buildDraftPortalPreview', () => {
   it('describes the working copy for every language the portal offers', () => {
-    const preview = draft()
+    const preview = draft({ media: WITH_HERO })
 
     expect(preview).toMatchObject({
       source: 'draft',
@@ -344,6 +357,29 @@ describe('buildDraftPortalPreview', () => {
     expect(experienceOf(preview, 'en').brand.fieldColour).toBe('#14110F')
   })
 
+  it('draws the stored background exactly as stored, as publishing does', () => {
+    const preview = draft({
+      profile: { ...PROFILE, backgroundMode: 'manual', backgroundColor: '#abcdef' },
+    })
+
+    expect(experienceOf(preview, 'en').brand.fieldColour).toBe('#abcdef')
+  })
+
+  it('describes no photograph when none is shown: the description is the page’s decorative empty', () => {
+    // The Property wrote a description but its photograph is absent (a Portal
+    // with no photo, or an image taken down): publishing writes no description.
+    const preview = draft({ media: NO_PROPERTY_LOOK_MEDIA })
+
+    expect(experienceOf(preview, 'en').content.heroAlt).toEqual({
+      value: '',
+      fallbackFrom: null,
+    })
+    expect(experienceOf(preview, 'bg').content.heroAlt).toEqual({
+      value: '',
+      fallbackFrom: null,
+    })
+  })
+
   it('starts from champagne on a dark field when the Property has no Brand Profile yet', () => {
     const preview = draft({ profile: null })
     const { brand } = experienceOf(preview, 'en')
@@ -372,6 +408,7 @@ describe('buildDraftPortalPreview', () => {
 
   it('copies the primary language into a gap and says where it came from', () => {
     const preview = draft({
+      media: WITH_HERO,
       content: [
         {
           locale: 'en',

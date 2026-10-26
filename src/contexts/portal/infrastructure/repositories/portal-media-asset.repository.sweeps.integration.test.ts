@@ -1,7 +1,8 @@
 // Portal context — the media asset repository's public read, takedown and sweep
 // queries, against real Postgres. The unreferenced check is the one that decides
 // whether an image may be deleted, so each place that can hold a reference
-// (Brand Profile, link, publication snapshot) is exercised on its own.
+// (Brand Profile, a Portal's own look, link, publication snapshot) is exercised
+// on its own.
 
 import { randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
@@ -12,6 +13,10 @@ import { organizationId, portalMediaAssetId, propertyId } from '#/shared/domain/
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import { GOLDEN_V3_BG_PRIMARY_ROW } from '../../application/__fixtures__/publication-snapshot-v3.golden'
 import { immersiveAssetIds } from '../../application/public-portal-immersive'
+import {
+  sweepPortalMedia,
+  UNREFERENCED_GRACE_MS,
+} from '../../application/use-cases/sweep-portal-media'
 import type { PortalMediaAsset } from '../../domain/portal-media-asset'
 import { snapshotFromRow } from './portal-publication.repository'
 import { createPortalMediaAssetRepository } from './portal-media-asset.repository'
@@ -35,6 +40,8 @@ const clean = async () => {
     'portal_publication_snapshots',
     'portal_links',
     'portal_link_categories',
+    // Before the Portals and images it points at: both keys are RESTRICT.
+    'portal_look_overrides',
     'portals',
     'property_portal_brand_profiles',
     'portal_media_assets',
@@ -96,6 +103,42 @@ const insertPortal = async (property: string = PROPERTY_A) => {
   return portalId
 }
 
+/** A Portal's own look: made by the first save of one of its groups, one row per Portal. */
+const insertLookOverride = async (
+  columns: Readonly<Record<string, unknown>>,
+  portalId?: string,
+) => {
+  const values = {
+    id: randomUUID(),
+    organization_id: ORG_A,
+    property_id: PROPERTY_A,
+    portal_id: portalId ?? (await insertPortal()),
+    look_version: 2,
+    updated_by: 'user-x',
+    ...columns,
+  }
+  const names = Object.keys(values)
+  await pool.query(
+    `INSERT INTO portal_look_overrides (${names.join(', ')})
+     VALUES (${names.map((_, index) => `$${index + 1}`).join(', ')})`,
+    Object.values(values),
+  )
+  return values.portal_id
+}
+
+const ownPhoto = (assetId: string) => ({
+  photo_mode: 'own',
+  hero_asset_id: assetId,
+  hero_focal_x: 0.4,
+  hero_focal_y: 0.6,
+})
+
+const ownLogo = (assetId: string) => ({
+  identity_mode: 'own',
+  wordmark: 'SPA',
+  logo_asset_id: assetId,
+})
+
 const insertLinkWithImage = async (assetId: string) => {
   const portalId = await insertPortal()
   const categoryId = randomUUID()
@@ -136,6 +179,9 @@ beforeAll(() => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 4 })
 })
 afterAll(async () => {
+  // Leave nothing behind: another suite that updates the look table without a
+  // WHERE would otherwise meet this one's last row.
+  await clean()
   await pool.end()
 })
 beforeEach(async () => {
@@ -281,6 +327,49 @@ describe('portalMediaAssetRepository sweeps (integration)', () => {
       expect(await candidates()).toEqual([])
     })
 
+    // A Portal's own photo or logo is a Property image only the Portal's override
+    // row names: no Brand Profile, link or snapshot does until it is published.
+    it.each([
+      ['photo', 'hero', ownPhoto],
+      ['logo', 'logo', ownLogo],
+    ] as const)(
+      'keeps an asset only a Portal’s own %s uses, however old it is',
+      async (_name, purpose, columns) => {
+        const used = await store({ purpose })
+        const lonely = await store({ purpose })
+        await insertLookOverride(columns(used.id))
+        expect(await candidates()).toEqual([lonely.id])
+      },
+    )
+
+    it('lets go of an asset again once the Portal follows the Property for that group', async () => {
+      const used = await store({ purpose: 'hero' })
+      const portalId = await insertLookOverride(ownPhoto(used.id))
+      expect(await candidates()).toEqual([])
+
+      // Back to following: the writer nulls the group, so nothing stays referenced.
+      await pool.query(
+        `UPDATE portal_look_overrides
+         SET photo_mode = 'inherit', hero_asset_id = NULL, hero_focal_x = NULL,
+             hero_focal_y = NULL, look_version = look_version + 1
+         WHERE portal_id = $1`,
+        [portalId],
+      )
+      expect(await candidates()).toEqual([used.id])
+    })
+
+    it('does not count an override that only follows or drops the photo as a reference', async () => {
+      const lonely = await store({ purpose: 'hero' })
+      await insertLookOverride({ photo_mode: 'none' })
+      await insertLookOverride({
+        colours_mode: 'own',
+        primary_color: '#B8860B',
+        background_mode: 'auto',
+        background_color: '#101820',
+      })
+      expect(await candidates()).toEqual([lonely.id])
+    })
+
     it.each([
       ['hero', (id: string) => ({ brandProfile: { hero: { assetId: id } } })],
       ['logo', (id: string) => ({ brandProfile: { logo: { assetId: id } } })],
@@ -370,6 +459,23 @@ describe('portalMediaAssetRepository sweeps (integration)', () => {
       expect(await repo().findById(ORG_A, used.id)).not.toBeNull()
     })
 
+    it.each([
+      ['photo', 'hero', ownPhoto],
+      ['logo', 'logo', ownLogo],
+    ] as const)(
+      'leaves an asset only a Portal’s own %s uses, though it is long past the cutoff',
+      async (_name, purpose, columns) => {
+        const used = await store({ purpose })
+        await insertLookOverride(columns(used.id))
+        const removeObject = vi.fn()
+
+        expect(await repo().discardIfUnreferenced(used, CUTOFF, removeObject)).toBe(false)
+
+        expect(removeObject).not.toHaveBeenCalled()
+        expect(await repo().findById(ORG_A, used.id)).not.toBeNull()
+      },
+    )
+
     it('leaves an asset a snapshot names, a fresh one, and a taken-down one', async () => {
       const named = await store()
       await insertSnapshot({ brandProfile: { hero: { assetId: named.id } } })
@@ -407,6 +513,77 @@ describe('portalMediaAssetRepository sweeps (integration)', () => {
       expect(await attach).toMatchObject({
         constraint: 'property_portal_brand_profiles_logo_asset_fk',
       })
+    })
+
+    it('makes a Portal’s own look attaching the asset at that moment fail, not point at a deleted image', async () => {
+      const lonely = await store({ purpose: 'hero' })
+      const portalId = await insertPortal()
+      let attach: Promise<unknown> = Promise.resolve()
+      const discarded = await repo().discardIfUnreferenced(lonely, CUTOFF, async () => {
+        attach = insertLookOverride(ownPhoto(lonely.id), portalId).catch(
+          (error: unknown) => error,
+        )
+        await new Promise((resolve) => setTimeout(resolve, 150))
+      })
+
+      expect(discarded).toBe(true)
+      expect(await attach).toMatchObject({
+        constraint: 'portal_look_overrides_hero_asset_fk',
+      })
+    })
+  })
+  // The scheduled job as it runs: every image is a day and an hour old, the
+  // cutoff is the grace period back from now, and only what nothing refers to goes.
+  describe('the media sweep, end to end', () => {
+    const dayAndAnHourOld = new Date(NOW.getTime() - UNREFERENCED_GRACE_MS - 3_600_000)
+
+    it('collects the image nothing refers to and keeps a Portal’s own photo and logo', async () => {
+      const lonely = await store({ createdAt: dayAndAnHourOld })
+      const photo = await store({ createdAt: dayAndAnHourOld, purpose: 'hero' })
+      const logo = await store({ createdAt: dayAndAnHourOld, purpose: 'logo' })
+      await insertLookOverride({ ...ownPhoto(photo.id), ...ownLogo(logo.id) })
+      const deleteObject = vi.fn(async () => {})
+
+      const outcome = await sweepPortalMedia({
+        mediaRepo: repo(),
+        objectStore: { deleteObject },
+        clock: () => NOW,
+        logger: { error: vi.fn() },
+      })()
+
+      expect(outcome).toEqual({ takenDownObjectsRemoved: 0, discarded: 1, failed: 0 })
+      expect(deleteObject).toHaveBeenCalledExactlyOnceWith(lonely.objectKey)
+      expect(await repo().findById(ORG_A, lonely.id)).toBeNull()
+      expect(await repo().findById(ORG_A, photo.id)).not.toBeNull()
+      expect(await repo().findById(ORG_A, logo.id)).not.toBeNull()
+    })
+
+    it('keeps them run after run, and collects the photo once the Portal follows the Property again', async () => {
+      const photo = await store({ createdAt: dayAndAnHourOld, purpose: 'hero' })
+      const portalId = await insertLookOverride(ownPhoto(photo.id))
+      const deleteObject = vi.fn(async () => {})
+      const run = () =>
+        sweepPortalMedia({
+          mediaRepo: repo(),
+          objectStore: { deleteObject },
+          clock: () => NOW,
+          logger: { error: vi.fn() },
+        })()
+
+      expect(await run()).toMatchObject({ discarded: 0, failed: 0 })
+      expect(await run()).toMatchObject({ discarded: 0, failed: 0 })
+      expect(deleteObject).not.toHaveBeenCalled()
+
+      await pool.query(
+        `UPDATE portal_look_overrides
+         SET photo_mode = 'inherit', hero_asset_id = NULL, hero_focal_x = NULL,
+             hero_focal_y = NULL, look_version = look_version + 1
+         WHERE portal_id = $1`,
+        [portalId],
+      )
+      expect(await run()).toMatchObject({ discarded: 1, failed: 0 })
+      expect(deleteObject).toHaveBeenCalledExactlyOnceWith(photo.objectKey)
+      expect(await repo().findById(ORG_A, photo.id)).toBeNull()
     })
   })
 })

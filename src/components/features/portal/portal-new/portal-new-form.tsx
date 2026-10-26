@@ -16,7 +16,11 @@ import { PortalNewLanguagesField } from './portal-new-languages-field'
 import { PortalNewNameField } from './portal-new-name-field'
 import { PortalNewResponsible } from './portal-new-responsible'
 import { PortalNewStartFromField } from './portal-new-start-from-field'
-import { copiedLanguagesNote, languagesAfterChange } from './portal-new-follow-source'
+import {
+  copiedLanguagesNote,
+  copiedLookLine,
+  languagesAfterChange,
+} from './portal-new-follow-source'
 import { newPortalDefaults, toCreatePortalInput } from './portal-new-rules'
 
 export function PortalNewForm({ data }: Readonly<{ data: PortalNewData }>) {
@@ -99,19 +103,31 @@ export function PortalNewForm({ data }: Readonly<{ data: PortalNewData }>) {
           </form.Field>
         )}
       </form.Subscribe>
-      <form.Field name="responsibleManagerUserIds">
-        {(field) => (
-          <PortalNewResponsible
-            propertyName={propertyName}
-            options={options}
-            creatorId={data.creatorId}
-            members={data.members}
-            choice={field.state.value}
-            disabled={pending}
-            onChoiceChange={field.handleChange}
-          />
+      <form.Subscribe
+        selector={(state) =>
+          copiedLookLine(
+            data.sources,
+            state.values.startFrom,
+            state.values.sourcePortalId,
+          )
+        }
+      >
+        {(lookLine) => (
+          <form.Field name="responsibleManagerUserIds">
+            {(field) => (
+              <PortalNewResponsible
+                lookLine={lookLine}
+                options={options}
+                creatorId={data.creatorId}
+                members={data.members}
+                choice={field.state.value}
+                disabled={pending}
+                onChoiceChange={field.handleChange}
+              />
+            )}
+          </form.Field>
         )}
-      </form.Field>
+      </form.Subscribe>
       <DialogErrorBanner error={mutation.error} />
       <DialogFooter
         className="border-t pt-4"

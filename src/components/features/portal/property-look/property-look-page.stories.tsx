@@ -23,6 +23,10 @@ import {
   savingLogo,
   savingLook,
 } from './property-look-page-fixtures'
+import {
+  AVELA_MIXED_PORTALS,
+  TWO_PORTALS_ONE_OWN_PHOTO,
+} from './property-look-mixed-fixtures'
 import { PropertyLookPage } from './property-look-page'
 
 const WAIT = { timeout: 5000 }
@@ -72,6 +76,13 @@ export const Default: Story = {
     await expect(canvas.getByLabelText('Wordmark')).toHaveValue('AVELA')
     await expect(canvas.getByText('5 live · 1 draft')).toBeVisible()
     await expect(canvas.getByText('5 live portals use this look')).toBeVisible()
+    // Nothing about portals having a look of their own while the switch is off.
+    await expect(
+      canvas.getByText(
+        'How every portal at Avela Resort looks. Portal wording and links stay per portal.',
+      ),
+    ).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /Edit its look/ })).toBeNull()
     // The archived portal is not reached by the look.
     await expect(canvas.queryByText('Old kiosk')).toBeNull()
     // The page, drawn from the first live portal's draft, in the draft colours.
@@ -360,6 +371,158 @@ export const AddingALanguage: Story = {
         }),
       WAIT,
     )
+  },
+}
+
+// ── Portals with a look of their own (ADR 0070) ──────────────────────────────
+
+/**
+ * A mixed property: five live portals and a draft still take something from the
+ * look, a spa has its own photo and colours, and two portals have all of it. The
+ * title counts the portals the look reaches, the rail names what each has of its
+ * own, and the preview starts from a portal the look reaches.
+ */
+export const PortalsWithTheirOwnLook: Story = {
+  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(
+        'The look every portal at Avela Resort starts with. A portal can use its own photo, colours, or name and logo.',
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', { level: 2, name: 'Portals using this look' }),
+    ).toBeVisible()
+    await expect(canvas.getByText('5 live · 1 draft')).toBeVisible()
+    await expect(
+      canvas.getByText(
+        '5 live portals use this look · 5 portals have their own photo, colours or name and logo',
+      ),
+    ).toBeVisible()
+
+    // Text chips name the parts a portal has of its own; there are no thumbnails.
+    const spa = within(canvas.getByRole('button', { name: /Spa & thermal pools/ }))
+    await expect(spa.getByText('Own photo')).toBeVisible()
+    await expect(spa.getByText('Own colours')).toBeVisible()
+    expect(spa.queryByText('Own name and logo')).toBeNull()
+    const reception = within(canvas.getByRole('button', { name: /Reception/ }))
+    expect(reception.queryByText(/^Own /)).toBeNull()
+
+    // The portals with all three parts of their own are set apart.
+    const heading = canvas.getByRole('heading', { level: 3, name: 'With their own look' })
+    const apart = within(heading.parentElement as HTMLElement)
+    await expect(apart.getByRole('button', { name: /Wellness annex/ })).toBeVisible()
+    const kiosk = apart.getByRole('button', { name: /Beach kiosk/ })
+    await expect(within(kiosk).getByText('No photo')).toBeVisible()
+    await expect(within(kiosk).getByText('Own name and logo')).toBeVisible()
+    expect(apart.queryByRole('button', { name: /Reception/ })).toBeNull()
+
+    // An account admin can open any portal's Look section from here.
+    await expect(canvas.getAllByRole('link', { name: /^Edit its look/ })).toHaveLength(8)
+    await expect(
+      canvas.getByRole('link', { name: 'Edit its look (Spa & thermal pools)' }),
+    ).toHaveAttribute('href', '/properties/prop-1/portals/p-spa?tab=page&section=look')
+
+    // The preview starts from a portal the look reaches.
+    await expect(
+      await canvas.findByRole(
+        'region',
+        { name: 'Preview of the guest page: Reception, arrival' },
+        WAIT,
+      ),
+    ).toBeVisible()
+  },
+}
+
+/** A portal with a photo of its own keeps it: the photo switch is the look's, so it steps aside. */
+export const APortalsOwnPhotoIsNotThePropertys: Story = {
+  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('radio', { name: 'With photo' })).toBeChecked()
+
+    await userEvent.click(canvas.getByRole('button', { name: /Spa & thermal pools/ }))
+    await expect(
+      await canvas.findByRole(
+        'region',
+        { name: 'Preview of the guest page: Spa & thermal pools, arrival' },
+        WAIT,
+      ),
+    ).toBeVisible()
+    await expect(canvas.getByText('Spa & thermal pools has its own photo')).toBeVisible()
+    expect(canvas.queryByRole('radio', { name: 'With photo' })).toBeNull()
+
+    await userEvent.click(canvas.getByRole('button', { name: /Beach kiosk/ }))
+    await expect(canvas.getByText('Beach kiosk shows no photo')).toBeVisible()
+
+    // A portal that follows the photo gets the switch back.
+    await userEvent.click(canvas.getByRole('button', { name: /Guest rooms/ }))
+    await expect(canvas.getByRole('radio', { name: 'With photo' })).toBeVisible()
+  },
+}
+
+/** Someone who cannot edit still sees what each portal has of its own, but is offered no way to change it. */
+export const AManagerSeesWhatIsOwnButCannotEditIt: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: true, canEdit: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      within(canvas.getByRole('button', { name: /Spa & thermal pools/ })).getByText(
+        'Own photo',
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', { level: 3, name: 'With their own look' }),
+    ).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /Edit its look/ })).toBeNull()
+  },
+}
+
+/** Switched off, what portals already have is still told as it is; nothing invites more. */
+export const OwnLookSwitchedOffStillTellsTheTruth: Story = {
+  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      within(canvas.getByRole('button', { name: /Olive Terrace restaurant/ })).getByText(
+        'Own colours',
+      ),
+    ).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /Edit its look/ })).toBeNull()
+  },
+}
+
+/** One portal sees nothing new, switch on or not: no sentence about own looks, no link, no group. */
+export const OnePortalSeesNothingNew: Story = {
+  args: { rows: AVELA_PORTALS.slice(0, 1), ownLookEnabled: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(
+        'How every portal at Avela Resort looks. Portal wording and links stay per portal.',
+      ),
+    ).toBeVisible()
+    await expect(canvas.getByText('1 live portal uses this look')).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /Edit its look/ })).toBeNull()
+    expect(canvas.queryByRole('heading', { name: 'With their own look' })).toBeNull()
+  },
+}
+
+/** A second portal with a photo of its own: the line names it, and the other portal is still reached. */
+export const OnePortalWithItsOwnPhoto: Story = {
+  args: { rows: TWO_PORTALS_ONE_OWN_PHOTO, ownLookEnabled: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(
+        '2 live portals use this look · Spa & thermal pools has its own photo',
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('link', { name: 'Edit its look (Reception)' }),
+    ).toBeVisible()
   },
 }
 

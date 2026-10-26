@@ -28,7 +28,7 @@ assignment, and governed access artifacts.
 - `PortalRepository` is a read-only production port. Authoritative mutations are available only through Portal command stores; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
 - Lifecycle export and purge contributors stay outside `publicApi`; irreversible
   phases are composed only through the reviewed Identity lifecycle coordinator.
-- Not exported, and not queried: `portal_tokens` (the address-token hash, the sealed raw address and the print code hashes) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id. An exported artifact's `status` is the state of its code at the export snapshot (`published` while the code resolves, `retiring` through a rotation's grace window, `retired` after it, `revoked` when it was stopped), read from `portal_tokens` without exposing the join key. The stored column stays `published`: the scan path reads it, and moving it with the code would end scan counting inside a grace window. In the CSV summary `portal_id` names the Portal a record belongs to (its own id on a Portal row) and is empty for a group, an approved destination, a media asset and the Property's look and wording.
+- Not exported, and not queried: `portal_tokens` (the address-token hash, the sealed raw address and the print code hashes) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id. An exported artifact's `status` is the state of its code at the export snapshot (`published` while the code resolves, `retiring` through a rotation's grace window, `retired` after it, `revoked` when it was stopped), read from `portal_tokens` without exposing the join key. The stored column stays `published`: the scan path reads it, and moving it with the code would end scan counting inside a grace window. In the CSV summary `portal_id` names the Portal a record belongs to (its own id on a Portal row) and is empty for a group, an approved destination, a media asset and the Property's look and wording. A Portal's own look row (`portalLookOverrides`, ADR 0070) names its Portal in `portal_id`; its columns are listed one by one and the photo's descriptions are written as text.
 - Not touched by any phase: `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
 
 ## Model
@@ -135,54 +135,156 @@ contacts would do. A contact tile with no icon of its own gets `phone` or `mail`
 and swaps it when its address moves to another kind. The click route, the guest page and the v3 snapshot verifier
 take a `tel:` or `mailto:` address only in exactly that stored form.
 
-The **Property look** is the part of the Property Brand Profile a guest sees:
-accent colour, background (`background_mode` `auto` derives the dark page field
-from the accent with `src/shared/domain/portal-field-colour.ts`, `manual` uses
-`background_color`), wordmark, logo and photo (uploaded assets, see Media), plus
-the per-language hero alt text on the brand content. The profile keeps two versions
-on purpose. `version` moves only with the public display name, because AI reply
-drafts fence on it (`ai-reply-brand-profile-authority.ts`); `look_version` moves
-with the look. A look edit writes one `property_brand_profile` pending change
-per look facet (`look:accent`, `look:field`, `look:text`, `look:wordmark`,
-`look:images`) for each Portal that has a snapshot, sourced at `look_version`;
-a name edit writes the `all` row sourced at `version`. A save that changes
-nothing only records who saved. `default_guest_locales` (ordered, one to six,
-first is the primary) only seeds new Portals, so editing it bumps no version,
-records no pending change, emits no fact and leaves `updated_by` alone (that
+**Property look and a Portal's own look.** The **Property look** is the part of the
+Property Brand Profile a guest sees: accent colour, background (`background_mode`
+`auto` derives the dark page field from the accent with
+`src/shared/domain/portal-field-colour.ts`, `manual` uses `background_color`),
+wordmark, logo and photo (uploaded assets, see Media), plus the per-language hero alt
+text on the brand content. It is the look every Portal starts with: a Portal follows
+it until an Account Admin gives that Portal its own version of one of three groups
+(below, ADR 0070). The profile keeps two versions on purpose. `version` moves only
+with the public display name, because AI reply drafts fence on it
+(`ai-reply-brand-profile-authority.ts`); `look_version` moves with the look. A look
+edit writes one `property_brand_profile` pending change per look facet (`look:accent`,
+`look:field`, `look:text`, `look:wordmark`, `look:logo`, `look:photo`; a row written
+before the photo and logo were split reads `look:images` as both) for each Portal that
+has a snapshot and follows a group the facet belongs to, sourced at `look_version`; a
+name edit writes the `all` row sourced at `version`, for every Portal with a snapshot.
+A save that changes nothing only records who saved. `default_guest_locales` (ordered,
+one to six, first is the primary) only seeds new Portals, so editing it bumps no
+version, records no pending change, emits no fact and leaves `updated_by` alone (that
 column decides whether the public display name counts as confirmed).
 
-The look is edited on one page, `/properties/:propertyId/portals/look` (board 9
-of the round-4 admin), by an Account Admin; everyone who may read portals can
-open it. `savePropertyLook` writes the accent, the background mode (and the
-colour when it is manual) and the wordmark through the repository's own look
-writer, which reads and writes the profile inside the Property's publication
-lock and touches only those columns and the look version: the display name, the
-images, the text colour and `updated_by` stay as they are, so a look save never
-confirms an automatic public display name, and a name or image write beside it
-is never put back (the actor is recorded in the page-edit ledger only). It
-refuses a colour that is not `#rrggbb` and a manual background light text cannot
-be read on (AAA on the field). It does not refuse an accent that is hard to see
-on its field, because the default palette every Property starts with is one and
-the guest resolver draws the text colour in its place; the page's readout says
-so (`src/shared/domain/portal-look-readout.ts`, built on the same arithmetic the
-guest resolver uses). A Property with no Brand Profile is asked to set its
-public display name first. The page autosaves, so an edit is a draft until each
-live Portal is published again; the portal
-editor's Look section only shows the look and links there.
+The Property look is edited on one page, `/properties/:propertyId/portals/look` (board
+9 of the round-4 admin), by an Account Admin; everyone who may read portals can open
+it. `savePropertyLook` writes the accent, the background mode (and the colour when it
+is manual) and the wordmark through the repository's own look writer, which reads and
+writes the profile inside the Property's publication lock and touches only those
+columns and the look version: the display name, the images, the text colour and
+`updated_by` stay as they are, so a look save never confirms an automatic public
+display name, and a name or image write beside it is never put back (the actor is
+recorded in the page-edit ledger only). It refuses a colour that is not `#rrggbb` and
+a manual background light text cannot be read on (AAA on the field). It does not
+refuse an accent that is hard to see on its field, because the default palette every
+Property starts with is one and the guest resolver draws the text colour in its place;
+the page's readout says so (`src/shared/domain/portal-look-readout.ts`, built on the
+same arithmetic the guest resolver uses). A Property with no Brand Profile is asked to
+set its public display name first. The page autosaves, so an edit is a draft until each
+live Portal that follows it is published again. The page describes itself as the look
+every Portal at the Property starts with. Its "Portals using this look" rail shows, for
+each Portal, text chips for the groups it owns ("Own photo", "Own colours", "Own name
+and logo"), groups the Portals that own all three under "With their own look", links
+each to its Look section, and counts only followers in its status line; the phone
+preview defaults to a Portal that follows the look and lays the draft only over the
+groups that Portal follows. In the batch review a Portal that owns the edited group is
+"Already up to date", and a Portal with its own look draft starts unticked as "also
+publishes N other draft edits".
+
+A **Portal's own look** (ADR 0070) is a sparse override of three groups, and each group
+follows the Property or is the Portal's own independently of the others: the **photo** (the hero, its
+focal point and a description per language; `inherit`, `own` or `none`, "No photo on
+this portal"), the **colours** (the accent and the background together, because contrast
+is judged on the pair; `inherit` or `own`) and the **name and logo** (the wordmark and
+the logo; `inherit` or `own`). So a Portal with its own photo keeps following the
+Property's colours and logo, and a later Property edit to those still reaches it. The
+public display name, the default languages, the Property's wording and the text colour
+are never a Portal's: AI reply drafts keep fencing on `display_name` and `version`
+only, and a light page or other fonts would need a v4 snapshot. The override is one
+row of `portal_look_overrides` (migration 0074) per Portal, made by the first save of
+an own group and removed by nothing but an Organization purge; no row means the Portal
+follows everything and resolves to exactly the content, digest and look version it had
+before, and nothing was backfilled. Switching a group to `own` copies the Property's
+current values, so nothing visible moves; switching it back to `inherit` nulls the
+group's columns, so no dormant image reference remains. The own photo's descriptions
+are jsonb on the same row, so a description always travels with its photo, and the
+Property's description of a different photo is never used; the keys are filtered with
+`isGuestLocale` on read and a blank value is refused on write. Composite RESTRICT
+foreign keys tie the row to its Portal and to its two assets within one Property.
+
+The override is resolved only where a working copy is read, never when a guest opens a
+page (`domain/portal-look.ts`). `applyPortalLook` lays a Portal's own groups over the
+Brand Profile and `withPortalHeroAlt` over the Property's content rows, and both run
+before the asset ids are collected, so the Portal's own hero and logo pass the same
+check as the Property's (active, of this Property, and of the slot's purpose,
+`brand_hero` or `brand_logo`): a taken-down own photo resolves to **no photo**, never to
+the Property's. With no Brand Profile the default look is used and any row is ignored
+(writers refuse with `brand_profile_missing`, so a row cannot exist without a profile).
+The working-copy reader (publish, the in-transaction re-check, Review, History's
+pending test, the completeness fact and the print kit's legacy path) and the draft
+preview both use it, and the preview's `brandOf` shares `fieldColourOf`, which is
+`brandProfileOf`'s expression extracted unchanged; a parity test holds the two on
+content (brand and `heroAlt`) with an explicit allow-list of the differences that
+already existed. The result is written into the unchanged v3 snapshot
+(`configuration.brandProfile`, `localizedContent[].heroAlt`; no v4), so the guest page,
+`og:image`, the print kit and the verifier read only the snapshot and need no change.
+Which groups a Portal owns (`lookSources`) comes back beside the working copy
+(`loadWorkingCopyWithLook`) and is not a field of the publication source, so it never
+reaches a snapshot or a digest. A Portal's effective `lookVersion` is its override's
+`look_version` when it has a row and the Property's otherwise. A first row starts at the
+Property's version when the save moved nothing visible (a prefilled "Set colours for
+this portal") and one above it when it did; after that the row moves by one on every
+Portal save that changes what the Portal shows, and by one on every Property save that
+changes a group the row follows (once per save, under the Property lock). It is only
+ever compared for equality.
+
+A Portal's look is saved by `savePortalLookColours`, `savePortalLookIdentity` and
+`savePortalLookPhoto`. Each use case loads the Portal under `portal.update`, refuses an
+archived one (`portal_inactive`), requires `PORTAL_LOOK_EDIT_PERMISSION` (`portal.admin`,
+one constant, so letting a Property Manager edit it later is a local change), checks
+Property access and that the Portal belongs to the Property in the request, and refuses
+while `PORTAL_OWN_LOOK_ENABLED` is off (`feature_unavailable`, HTTP 409). Each server
+function also asks for the `portal.write` capability. The writer takes the Property's
+publication lock, then the Portal row `FOR UPDATE` (publish's order), diffs the
+**effective** look before and after, and only when something guests see moved raises
+the version and writes, per changed facet, one `portal_configuration` ledger row and
+fence (`look:accent`, `look:field`, `look:wordmark`, `look:logo`, `look:photo`, source
+version `look:v<n>`); a save that moves nothing stores the modes and values and
+records nothing. It checks colours on the merged pair (`#rrggbb`, a readable pair, AAA
+text on a manual field), the photo and the logo against `findReferencableMediaAsset`
+for this Property, the wordmark (24 characters) and each description (160 characters,
+for a language the Portal offers; blank means decorative). No outbox event is emitted.
+The Property's writers narrow with it: `recordPropertyProfileChange` (in
+`infrastructure/property-look-fanout.ts`) opens the fence only on Portals that follow a
+changed group and, under the lock it already holds, raises the version of the override
+rows that follow it, once per save; `saveHeroAltText` fences only photo followers and
+writes its ledger key as `photo_alt:<locale>`. With no override rows the fence set is
+what it always was.
+
+The portal editor's Look section (`?section=look`) shows the Property look read-only
+and links to the Property look page. Its own-look controls show only when the flag is
+on, the viewer is an Account Admin with `portal.write`, the Portal is not archived and
+the Property has two or more non-archived Portals (or the Portal already has an
+override, so it can still be undone). Then it shows three blocks (Photo, Colours, Name
+and logo), each "Follows the property look" or the Portal's own, with "Use the
+property's …" to go back, and the photo block also offers "No photo on this portal". It
+autosaves with the workspace's draft saving, and the phone preview refreshes when a
+save lands. A Property Manager sees the same facts and who can change them, never a
+disabled control. The Property look page (above) and this section are the only places a
+look is edited. The name and logo block states the business name as a fact (set in Settings).
 
 A new Portal (`createPortal`, the New portal dialog) commits in one transaction
 with its group membership (the group is fenced like a membership change and the
 `portal_group.portal_added` fact is recorded), its responsible managers and, when
 it starts from another Portal, a copy of that Portal's settings, wording per
-language, Linktree title, approved links with their categories and link texts.
+language, Linktree title, approved links with their categories and link texts, and its own look.
 It starts from the Property's own wording by default. Languages default to the
 Property's, or to those of the Portal being copied; only languages with a reviewed
 pack may be chosen. A copy never takes codes and their artifacts, publication
 snapshots or activations, responsible managers, health or history, and leaves
-behind photos (a hero image is a server-owned upload derivative) and every link
+behind the legacy hero image columns (a hero image is a server-owned upload
+derivative that v3 ignores) and every link
 whose destination is not approved now (disabled, quarantined or pending
 approval, or a legacy URL with no destination), which take no slot of the
-four-link limit. An archived Portal cannot be a starting point
+four-link limit. A copy takes the source's own look (owner decision D5, ADR 0070): its
+override row is inserted in the same commit as the new Portal (also when a Property
+Manager creates the Portal, and also when the source has no links), with the same
+Property asset references, descriptions kept only for the new Portal's languages and
+`look_version` one above the Property's. No fence is needed, because a new Portal has no
+snapshot. The copy does not depend on `PORTAL_OWN_LOOK_ENABLED`: the reader and publish
+keep serving rows that exist while it is off, so a copy shows what its source shows. A
+source asset swept or taken down between the read and the commit makes the
+create a normal refusal. The dialog's one fact line reads "Look: same as {source}" or
+"Look: the property look". An archived Portal cannot be a starting point
 (`portal_inactive`, HTTP 410). A name whose derived address is taken at the
 Property gets the next free numbered address; a name that gives no address (no
 Latin letters or digits, as in Cyrillic) is addressed from the start of the new
@@ -257,9 +359,10 @@ hidden in a segment do not survive, and the original is never stored.
   loaders are enabled in libvips; the decoder holds at most 40 million pixels
   and fails on any decode error; at most two decodes run at once.
 - **Ingest** (`ingestPortalImage`): checks who (an Account Admin for a Property's
-  photograph and logo, a Property Manager for a link tile's picture), the
+  photograph and logo, which is also how a Portal's own photograph and logo get
+  uploaded, a Property Manager for a link tile's picture), the
   Property, the rights confirmation, the bytes, and a cap of 200 stored images per
-  Property, then decodes and re-encodes, writes the object, then the row. A failed
+  Property (a Portal's own photos and logos count toward it), then decodes and re-encodes, writes the object, then the row. A failed
   row removes the object again. The endpoint is gated on `portal.upload`.
 - **Serving**: a guest's browser gets an image from
   `GET /api/public/portal-media/:assetId` on the app's own origin (`servePortalMedia`).
@@ -274,19 +377,25 @@ hidden in a segment do not survive, and the original is never stored.
   with no foreign key. A failed removal is retried by the sweep.
 - **Sweep** (`sweepPortalMedia`, hourly, not capability-gated): finishes takedown
   removals, and deletes `active` assets older than a day that no Brand Profile,
-  link or publication snapshot refers to (object, then row, in one transaction with
-  the row locked). A snapshot's reference keeps an asset for as long as the
-  snapshot exists.
+  Portal look override, link or publication snapshot refers to (object, then row, in
+  one transaction with the row locked). A snapshot's reference keeps an asset for as
+  long as the snapshot exists.
 - **Purge**: the Organization lifecycle contributor removes the objects of the
-  Organization's assets before it deletes their rows.
+  Organization's assets before it deletes their rows. `portal_look_overrides` is
+  scrubbed ahead of the rows it points at (after `portal_localized_overrides`, before
+  the brand contents, profiles, media assets and Portals), because its RESTRICT foreign
+  keys name a Portal and an asset.
 - **References**: the Brand Profile's `logo_asset_id`, `hero_asset_id` (with
-  `hero_focal_x/y`, present exactly when there is a hero) and a link's
+  `hero_focal_x/y`, present exactly when there is a hero), a Portal look override's
+  `hero_asset_id` and `logo_asset_id` (ADR 0070) and a link's
   `image_asset_id` are composite foreign keys to an asset of the same
   Organization and Property. `updateLink` takes an `imageAssetId` (or null) and
   checks it with `canReferencePortalMediaAsset('link_image', asset)` against the
   Portal's own Property; `savePropertyHero` and `savePropertyLogo` do the same
   for `brand_hero` and `brand_logo` (an Account Admin, `portal.write`, the
-  Property's own asset; any other id is `media_not_found`). The database does
+  Property's own asset; any other id is `media_not_found`), and so do
+  `savePortalLookPhoto` and `savePortalLookIdentity` for a Portal's own photograph
+  and logo, against the Portal's own Property (`findReferencableMediaAsset`). The database does
   not tie a reference to the asset's **purpose**: whatever writes one of these
   columns must call `canReferencePortalMediaAsset(slot, asset)`, so a link
   picture cannot stand in as the hero and skip the hero's size and byte budget.
@@ -306,10 +415,11 @@ hidden in a segment do not survive, and the original is never stored.
   fallback placeholder rather than an empty one. A page reads the primary
   language's description for every language that has none of its own. The write
   runs inside the Property's publication lock and moves what every look edit
-  moves: `look_version`, a `look:images` pending change for each live Portal
-  and the profile fact (a description is a `property_brand_content` change for
-  its language); the display name and `updated_by` are not touched.
-  `savePropertyLogo` is the same for `logo_asset_id`. Both answer with the media as
+  moves: `look_version`, a `look:photo` pending change for each live Portal that
+  follows the photo and the profile fact (a description is a
+  `property_brand_content` change for its language, ledger key `photo_alt:<locale>`,
+  fenced on the Portals that follow the photo); the display name and `updated_by` are
+  not touched. `savePropertyLogo` is the same for `logo_asset_id`, with `look:logo`. Both answer with the media as
   a page draws it (`resolvePropertyLookMedia`: size, focal point and the media
   route's address, for an asset of this Property that may still be served; a
   taken-down image reads as none), which the experience read carries as `media`.
@@ -323,6 +433,20 @@ hidden in a segment do not survive, and the original is never stored.
   (1000 px) wide, the width at which every Large card band prints at 200 dpi or
   better (the size rule alone lets a 500 x 1000 portrait in, which prints at
   about 118 dpi). Only raster logos are accepted: no SVG.
+- **A Portal's own photograph and logo** (ADR 0070, the portal editor's Look section).
+  The upload is the same one (`POST /api/portal-media`, purpose `hero` or `logo`, an
+  Account Admin); `savePortalLookPhoto` then puts the asset on the Portal's override
+  with its focal point (autosaved) and one description per language the _Portal_
+  offers, shown as "Shown at the top of {portal} only". A new photo starts centred with
+  no descriptions; the same photo keeps its focal point and descriptions. "Remove"
+  leaves the Portal with no photo (`none`); "Use the property's photo" puts the group
+  back to `inherit` and drops the own asset reference. A description is optional and an
+  empty one means decorative. An own photo that is taken down reads as no photo on
+  that Portal (it never falls back to the Property's), and the editor says "This
+  portal's photo was taken down. Choose another or use the property's photo." The
+  draft preview draws it through the same `resolvePropertyLookMedia`, given the
+  Portal's own ids. Takedown itself is unchanged: Property-level, an Account Admin
+  (runbooks §27 lists the Portals an image is the own photo or logo of).
 - **A tile's photo** is chosen in the Linktree editor's "Icon or photo" picker: the
   dashed tile uploads to `POST /api/portal-media` (`purpose=link_image`, with the
   Portal and the rights confirmation) and then puts the returned asset id on the
@@ -375,7 +499,9 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   guests can open now, never from a draft: a language added in the editor and not
   published is refused (`locale_not_offered`), and a portal with nothing live has
   no print kit (`publication_snapshot_unavailable`; the tab shows one notice, not
-  a retry). The address on the code comes through the audited reveal of the
+  a retry). A Portal prints its own palette, photo and logo once they are published,
+  an unpublished override never prints, and a colour or logo change raises no print
+  warning (ADR 0070). The address on the code comes through the audited reveal of the
   sealed code (ADR 0064), so a code that kept no address cannot be printed.
   The address is never printed as words: the code and its cue carry the action.
   Print codes (ADR 0069): the schema, the codec, the field policy, resolution
@@ -472,7 +598,9 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   ("Your photo is small for print and may look soft"), measured with the PDF's
   own function (`photoPrintDpi`, `portal-print-kit-photo.ts`) from the photo's
   stored width and height, which the view carries as `look.heroSize`
-  (`print-kit-photo-notice.ts`). One more thing to settle before Table or Mini
+  (`print-kit-photo-notice.ts`). Its "Change photo" link opens the Portal's own Look
+  section (`?section=look`), whether the photo is the Property's or the Portal's own
+  (ADR 0070). One more thing to settle before Table or Mini
   is selectable: their tiles (and the small tent's, which is Table's) have no
   pictogram to move, so the Italian and French scan cues do not fit one line:
   102.6 and 112 pt in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in Mini's
@@ -900,11 +1028,21 @@ what was done to it, so the History can read "renamed the Dinner menu":
 `category:<id>:created|renamed|deleted`, `categories:reordered`,
 `link:<id>:created|updated|deleted`, `links:<categoryId>:reordered`,
 `link:<id>:text:<locale>`, `linktree:title:<locale>`, `linktree:enabled`,
-`settings:<field>` (one row per page setting that actually changed), `look:<facet>`,
-`all` for the display name, a locale for welcome text and a Portal's own text, and
-a destination id. `portalPageEditKey` writes these keys and `describePageEdit`
+`settings:<field>` (one row per page setting that actually changed), `look:<facet>`
+(under `portal_configuration` a Portal's own look, `look:accent|field|wordmark|logo|photo`,
+which is also its fence key and has the source version `look:v<n>`; under
+`property_brand_profile` the Property's, with `look:text` and a legacy `look:images`),
+`all` for the display name, a locale for welcome text and a Portal's own text,
+`photo_alt:<locale>` (under `property_brand_content`) for the Property photo's
+description in one language, and a destination id. `portalPageEditKey` writes these keys and `describePageEdit`
 reads them back, falling back to the kind's general area for a key it does not
-know and never to a wrong claim. A change of wording also keeps the text before and
+know and never to a wrong claim. A `portal_configuration` `look:<facet>` key reads
+as the subject `portal_look` (an unknown facet as a look edit with no facet), so an
+older server shows it as "Page settings" and loses nothing; `photo_alt:<locale>` reads
+as the look's photo, while a row keyed by a bare locale still reads as welcome text.
+The Property writers record `look:photo` and `look:logo` where they used to record the
+single `look:images`, and the old key keeps reading as both. The fence key of a
+description is still the bare locale, shared with welcome text. A change of wording also keeps the text before and
 after in `previous_text` and `new_text` (clipped to 200 characters; the category
 title, link label, link text per language, Linktree title, Portal name and
 description, display name, welcome title and a Portal's own title). Only those keys
@@ -955,6 +1093,18 @@ wording), plus any open fence kind the ledger has
 no row for, a live version of the earlier design, and a Google address the Property
 has since left; "unlisted" stands in when the draft differs and nothing nameable is
 left, and "no_visible_change" when changes were recorded but the draft says what is live.
+A Property-wide look row (`property_brand_profile` `look:<facet>`) or photo-description
+row (`photo_alt:<locale>`) is left out of the list when the Portal owns every group it
+names and so cannot show it (`facetReachesPortal` over the working copy's
+`lookSources`; a legacy `look:images` row only when the Portal owns both its photo and
+its name and logo). The filter runs after the "may be incomplete" flag is computed and
+never touches a pending change, so `nothingToPublish` stays exactly the question
+publish answers; History keeps those rows, worded "on the property look". A saved photo
+description is listed as a change of the photo (its key maps to the `look` area, which
+the put-back rule does not treat as wording that can be cleared), where a description
+saved before `photo_alt:<locale>` existed was dropped as put back. A Portal's
+own look edit is listed as "Look · changed this portal's photo", "…accent colour" and
+so on.
 `canPublish` also needs `portal.update` and the `portal.write` capability, so a reader
 (Member) or a dark capability never gets a button the server would refuse. `nothingToPublish` is the question the publish use case answers `unchanged` to.
 A Portal that is not live has no change list: it has no live version to differ from.
@@ -965,7 +1115,8 @@ once. Its `reviewId` is the browser's idempotency key and becomes the facts'
 supersedes, to a UUID, so a fact never carries text of a caller's choosing. The configuration completeness counts five fields on the working copy Publish reads,
 under the Portal lock (`portal-configuration-completeness.ts`): the Portal name; the
 primary language's welcome line, link preview and link labels (what the `primary_text`
-check asks); the Property look (a Brand Profile with a display name and an accent); a
+check asks); the Property look (a Brand Profile with a display name and an accent; a Portal's own
+look does not change this field); a
 Linktree link guests can open (the Linktree on and an approved link); and the Property's
 verified Google review destination, which the use case looks up. The fact names the fields
 it counted (`fieldSet: 'immersive_hub'`, event version 3). Every version 1 and 2 fact
@@ -1008,8 +1159,8 @@ goes quiet (`s3-storage.adapter.endpoints.test.ts`).
 8. Soft-deleting a Portal revokes its live tokens; a deleted Portal never has a live
    token. Token issue, rotation, and revocation share the Portal revision fence.
 9. The raw address and the print codes are request-local and never enter state, facts, logs, exports or Metric, with one exception: the sealed copy of an active code (ADR 0064). Print codes are derived from it and stored only as keyed hashes (ADR 0069). Replacing, stopping or deleting clears the sealed copy in the same statement, and a CHECK refuses a sealed address on any other code.
-10. Portal lifecycle facts never copy Portal name, slug, description, theme, responsible-manager assignments, destination, or link content.
-11. An image enters the Portal only through the server-side ingest, which stores a re-encoded WebP and never the upload; no Portal request issues a presigned upload or writes `portals.hero_image_url`, and a published Portal with a null value remains valid.
+10. Portal lifecycle facts never copy Portal name, slug, description, theme, responsible-manager assignments, destination, or link content. Nor do they carry a Portal's own look: saving it emits no event (ADR 0070).
+11. An image enters the Portal only through the server-side ingest, which stores a re-encoded WebP and never the upload; no Portal request issues a presigned upload or writes `portals.hero_image_url`, and a published Portal with a null value remains valid. A Portal's own photo and logo are such images: `portal_look_overrides` only references an ingested asset of the Portal's Property (ADR 0070).
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.
 13. Closing is a **stop, not a delete**, and it is reversible: the immutable publication snapshot survives and `portals.publication_state` keeps the tenant's own published/draft intent, so explicit reactivation re-points a new activation at the same snapshot rather than guessing what each Portal used to be. Ordinary closure cancellation does not itself reactivate Portals — see `docs/operations/organization-lifecycle.md`.
 14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror that nothing reads or writes any more (membership is `portal_group_memberships`, and the Organization Export no longer carries the mirror): the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE; dropping the table is a separate expand/backfill/contract decision. The Organization Export dropped the `portalGroupMembers` collection while keeping the format id `portal-organization-export/v1`: nothing parses the id (the export is a file for people), and a mirror row is expected to have its `portal_group_memberships` row (the Staff export carries those). `portal-group-members-without-membership` in `docs/operations/operator-commands.md` is the one query that confirms it; run it in each environment before the deploy.

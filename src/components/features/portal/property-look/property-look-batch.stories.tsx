@@ -26,6 +26,7 @@ import {
   savingLogo,
   savingLook,
 } from './property-look-page-fixtures'
+import { AVELA_MIXED_PORTALS, ownLookReview } from './property-look-mixed-fixtures'
 import { PropertyLookPage } from './property-look-page'
 
 const WAIT = { timeout: 5000 }
@@ -198,6 +199,54 @@ export const RowsSayWhatThePublishCarries: Story = {
     await expect(
       list.getByText('Publishes as version 4 · also publishes 2 other draft edits'),
     ).toBeVisible()
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Publish 3 portals' }),
+    )
+    await waitFor(() =>
+      expect(args.publishPortals).toHaveBeenCalledWith({
+        data: { portalIds: ['p-reception', 'p-pool', 'p-rooms'] },
+      }),
+    )
+  },
+}
+
+/**
+ * A mixed property: the portals that have the edited part of their own have
+ * nothing new from the look, and a portal whose own photo was edited carries that
+ * edit as another draft edit, so it waits for a tick like any portal with more
+ * than the look in its draft.
+ */
+export const OwnersAndFollowersInOneReview: Story = {
+  args: {
+    rows: AVELA_MIXED_PORTALS,
+    ownLookEnabled: true,
+    getPortalReview: reviewingPortals({
+      'p-spa': ownLookReview('p-spa'),
+      'p-olive': nothingNewReview('p-olive'),
+      'p-annex': nothingNewReview('p-annex'),
+    }),
+  },
+  play: async ({ canvasElement, args }) => {
+    // The button counts every live portal, owners too: the review says what each has to publish.
+    const dialog = await openReview(canvasElement, 6)
+    const list = within(within(dialog).getByRole('list', { name: 'Live portals' }))
+    await expect(list.getAllByText('Nothing new to publish')).toHaveLength(2)
+    await expect(
+      list.getAllByText('Publishes as version 4 · the look only'),
+    ).toHaveLength(3)
+    const spa = list.getByRole('checkbox', { name: /Spa & thermal pools/ })
+    await expect(spa).not.toBeChecked()
+    await expect(
+      list.getByText(
+        'Left out · also has 1 other draft edit · ticking it publishes them too',
+      ),
+    ).toBeVisible()
+    await expect(
+      within(dialog).getByText(
+        '3 to publish · 1 with other draft edits, unticked · 2 with nothing new',
+      ),
+    ).toBeVisible()
+
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Publish 3 portals' }),
     )

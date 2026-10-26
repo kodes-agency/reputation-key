@@ -13,6 +13,7 @@ import type { PortalPublicationRepository } from '../ports/portal-publication.re
 import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
 import { publicationSource } from '../../domain/__fixtures__/publication-source'
 import type { PortalPublicationSource } from '../../domain/portal-publication-source'
+import { PROPERTY_LOOK_SOURCES } from '../../domain/portal-look'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const NEXT_TIME = new Date(FIXED_TIME.getTime() + 1)
@@ -35,20 +36,28 @@ const setup = (
   let lastUpdateCommand: UpdatePortalCommand | null = null
   let generatedId = 0
   const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, outbox })
+  const loadWorkingCopy: PortalPublicationRepository['loadWorkingCopy'] = async (
+    organizationId,
+    portalId,
+  ) => {
+    const portal = await portalRepo.findById(organizationId, portalId)
+    return portal
+      ? publicationSource({
+          organizationId: portal.organizationId,
+          propertyId: portal.propertyId,
+          portal: { id: portal.id, name: portal.name, slug: portal.slug },
+          privateFeedbackThreshold: portal.privateFeedbackThreshold,
+          links: [],
+          ...workingCopy,
+        })
+      : null
+  }
   const publicationRepo: PortalPublicationRepository = {
     countOpenPendingContentChanges: async () => [],
-    loadWorkingCopy: async (organizationId, portalId) => {
-      const portal = await portalRepo.findById(organizationId, portalId)
-      return portal
-        ? publicationSource({
-            organizationId: portal.organizationId,
-            propertyId: portal.propertyId,
-            portal: { id: portal.id, name: portal.name, slug: portal.slug },
-            privateFeedbackThreshold: portal.privateFeedbackThreshold,
-            links: [],
-            ...workingCopy,
-          })
-        : null
+    loadWorkingCopy,
+    loadWorkingCopyWithLook: async (organizationId, portalId) => {
+      const source = await loadWorkingCopy(organizationId, portalId)
+      return source ? { source, lookSources: PROPERTY_LOOK_SOURCES } : null
     },
     getCursor: async () => ({
       nextSnapshotVersion: 1,
