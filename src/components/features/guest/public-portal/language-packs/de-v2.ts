@@ -44,8 +44,9 @@ export const deV2 = defineGuestCopyV2({
     ratingGroupLabel: 'Bewertung',
     ratingOption: '{stars}, {word}',
     ratingChoose: 'Wählen Sie eine Bewertung von 1 bis 5 Sternen.',
-    ratingSend: 'Privat senden',
-    ratingPrivacyLine: 'Wird vertraulich an {name} gesendet.',
+    ratingSend: 'Senden',
+    ratingPrivacyLine:
+      'Nur {name} sieht Ihre Bewertung. Sie wird nirgends veröffentlicht.',
     ratingSaveFailed:
       'Ihre Bewertung konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.',
     sending: 'Wird gesendet…',
@@ -53,8 +54,8 @@ export const deV2 = defineGuestCopyV2({
     errorGeneric: 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.',
 
     ratingThanks: 'Vielen Dank.',
-    ratingSentTitle: 'Bewertung privat gesendet',
-    ratingSentSummary: '{word} · privat gesendet',
+    ratingSentTitle: 'Bewertung gesendet',
+    ratingSentSummary: '{word} · gesendet',
     ratingChange: 'Ändern',
     ratingUpdated: 'Ihre Bewertung wurde geändert.',
 
@@ -65,20 +66,19 @@ export const deV2 = defineGuestCopyV2({
     googleOpensLabel: '(öffnet Google)',
     googleHint: 'Öffnet Google · eventuell müssen Sie sich anmelden',
     googleUnavailableTitle: 'Google kann von hier aus gerade nicht geöffnet werden',
-    googleUnavailableBody:
-      'Ihre Bewertung ist privat bei {name} angekommen. Vielen Dank.',
+    googleUnavailableBody: 'Ihre Bewertung ist bei {name} angekommen. Vielen Dank.',
     googleOpenFailed:
       'Google konnte nicht geöffnet werden. Bitte versuchen Sie es erneut.',
 
     noteOfferTitle: 'Private Nachricht an das Team',
-    noteOfferBody: 'Optional. Wird vertraulich mit {name} geteilt.',
+    noteOfferBody: 'Optional. Wird mit {name} geteilt.',
     noteOfferAction: 'Private Nachricht schreiben',
     noteLabel: 'Ihre Nachricht (optional)',
     noteHint: 'Sie müssen Ihren Namen nicht angeben.',
-    noteSend: 'Nachricht privat senden',
+    noteSend: 'Nachricht senden',
     noteDismiss: 'Jetzt nicht',
     noteRequired: 'Schreiben Sie Ihre Nachricht, bevor Sie sie senden.',
-    noteSent: 'Ihre Nachricht wurde privat an {name} gesendet.',
+    noteSent: 'Ihre Nachricht wurde an {name} gesendet.',
     noteSendFailed:
       'Ihre Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
 

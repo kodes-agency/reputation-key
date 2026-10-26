@@ -35,7 +35,7 @@ const body = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gu, '')
 describe.each(PACKS)('the rating card [$locale]', (pack) => {
   const html = body(renderResponse(pack, { kind: 'arrival' }))
 
-  it('asks the question, shows the scale ends and offers "Send privately"', () => {
+  it('asks the question, shows the scale ends and offers "Send"', () => {
     expect(html).toContain(`>${pack.copy.ratingTitle}</h2>`)
     expect(text(html)).toContain(pack.copy.ratingScaleLow)
     expect(text(html)).toContain(pack.copy.ratingScaleHigh)
