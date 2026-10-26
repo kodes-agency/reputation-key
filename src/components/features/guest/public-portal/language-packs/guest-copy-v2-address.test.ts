@@ -81,8 +81,9 @@ describe('the form of address', () => {
       ratingWord3: 'Gut',
       ratingWord4: 'Sehr gut',
       ratingWord5: 'Ausgezeichnet',
-      ratingSend: 'Privat senden',
-      ratingPrivacyLine: 'Wird vertraulich an {name} gesendet.',
+      ratingSend: 'Senden',
+      ratingPrivacyLine:
+        'Nur {name} sieht Ihre Bewertung. Sie wird nirgends veröffentlicht.',
       privacyNoticeLink: 'Datenschutzhinweis',
       visitNoticeAcknowledge: 'Verstanden',
       languageChipLabel: 'Sprache',

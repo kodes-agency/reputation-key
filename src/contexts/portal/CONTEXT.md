@@ -564,7 +564,10 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   copy table, `PRINT_FINAL_COPY` (`portal-print-final-copy.ts`); today's `PRINT_KIT_COPY`
   stays with today's kit. The default says "How did we do?" over "About 30 seconds" in all
   six languages, and no word anywhere in the final kit says "private" or "privately"
-  (fixed rule NP; the guest page's own "Send privately" stays). Share offers four wordings
+  (fixed rule NP). The guest page dropped the adverb too on 2026-10-26: its button reads
+  "Send", its receipt "Rating sent", and the line under the stars "Only {name} sees your
+  rating. It isn’t posted anywhere."; it still says "private note" where it names that
+  feature. Share offers four wordings
   (`PRINT_FINAL_CALLS_TO_ACTION`: `how_did_we_do`, `how_was_visit`, `rate_visit`,
   `got_30_seconds`) and "Write your own…": a headline and a sub-line per language of the
   print (`portal-print-final-custom.ts`), printed as typed and never translated; the print
@@ -706,13 +709,16 @@ exceptions to that section's rules:
   destination validated 10 minutes ago or earlier; the public edge serves an approval up
   to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
   (`approved-destination-age.ts`, `approved-destination-age.test.ts`). That holds only
-  while a run can take everything that is due, and a run takes a page of 100
-  destinations, pending and approved together, oldest first, from all tenants. With at
-  most 100 on the platform each run refreshes all of them. Between 100 and 200 a
-  destination waits for the run after next, so the gap is back at the 30 minute cutoff
-  with no room for a late run; above 200 it is longer than the cutoff, as it was before.
-  The page is the subject of review finding S09-02 (deferred: a row that never validates
-  keeps its place in it, and the fix is a per-row retry clock, which needs a migration).
+  while a run can take everything that is due. A run takes pages of 50 destinations,
+  pending and approved together, oldest first, from all tenants, and keeps taking them
+  until a page comes back short, a page validated and quarantined nothing, or 150
+  seconds have passed (half the job's 5 minute timeout, which fails a run that passes it;
+  `revalidate-approved-destinations.job.test.ts`). Capacity is a time budget, not a page:
+  checks run one after another, so a run takes a few hundred destinations at about a
+  second each. A row that never validates keeps its place at the head of every page and
+  is tried again on each page of the run, so 50 of them end the run before the rest. That
+  is review finding S09-02 (deferred: the fix is a per-row retry clock, which needs a
+  migration).
 - One other context calls the surface: Reporting's Portal results adapter
   (`reporting/server/portal-results-overview.ts`) reads the roster through
   `listPortalOverview`, which authorizes the caller itself, and

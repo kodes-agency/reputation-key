@@ -139,7 +139,7 @@ export const ContainerLeavesTheDocument: Story = {
 export const DarkAccentIsReplaced: Story = {
   args: { brand: { accentColour: '#1F2A44', fieldColour: '#10131A', hero: null } },
   play: async ({ canvasElement }) => {
-    const send = within(canvasElement).getByRole('button', { name: 'Send privately' })
+    const send = within(canvasElement).getByRole('button', { name: 'Send' })
     expect(getComputedStyle(send).backgroundColor).toBe('rgb(246, 241, 232)')
     expect(getComputedStyle(send).color).toBe('rgb(0, 0, 0)')
   },

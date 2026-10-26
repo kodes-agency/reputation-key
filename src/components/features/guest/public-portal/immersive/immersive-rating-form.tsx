@@ -10,7 +10,7 @@ export type RatingSubmission = Readonly<{ rating: number; honeypot: string }>
 
 /**
  * The form of the rating card: five stars as one radio group, the scale ends
- * and the word for the chosen star, an error banner and "Send privately".
+ * and the word for the chosen star, an error banner and "Send".
  *
  * The choice is the form's own state, validated on submit by the same DTO the
  * server function checks (`guestRatingFormDto`), so the page cannot offer a
@@ -33,7 +33,7 @@ export function ImmersiveRatingForm({
   saveFailed: boolean
   /** The star the form starts on: the guest's current rating when they change it. */
   initialRating?: number
-  /** The button's words; "Send privately" unless the guest is changing a rating. */
+  /** The button's words; "Send" unless the guest is changing a rating. */
   submitLabel?: string
   onSubmit: (value: RatingSubmission) => Promise<void>
 }>) {

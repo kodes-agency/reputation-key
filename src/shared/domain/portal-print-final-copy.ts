@@ -9,7 +9,8 @@
 // asks only for good reviews, or that discourages bad ones), no stars, and no
 // "private" or "privately" in any language (fixed rule NP: on a review card a
 // privacy word can read as steering unhappy guests away from Google; the guest
-// page itself still says "Send privately").
+// page dropped the adverb too on 2026-10-26: it says "Send", and "private note"
+// only where it names that feature).
 //
 // The ids are the menu's, in menu order. A print keeps its wording's id even
 // when the manager writes their own words: it records where the words started.

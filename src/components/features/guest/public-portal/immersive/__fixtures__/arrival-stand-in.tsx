@@ -85,7 +85,7 @@ export function ArrivalStandIn({
           ))}
         </div>
         <button type="button" style={styles.send}>
-          Send privately
+          Send
         </button>
       </GlassSurface>
       <ImmersiveLinktree

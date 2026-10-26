@@ -10,7 +10,7 @@ import { ImmersiveHoneypot } from './immersive-honeypot'
 export type NoteSubmission = Readonly<{ text: string; honeypot: string }>
 
 /**
- * The open note: a labelled field, its hint, "Send note privately" and "Not
+ * The open note: a labelled field, its hint, "Send note" and "Not
  * now". The words are the form's own state, validated on submit by the DTO the
  * server function checks (`guestPrivateFeedbackFormDto`); an empty or blank note
  * asks for words and sends nothing. The server call is the caller's.
