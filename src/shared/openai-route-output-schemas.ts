@@ -82,7 +82,6 @@ function refineAiAnalysisV2Answer(
   value: z.infer<typeof aiAnalysisV2ShapeSchema>,
   context: z.RefinementCtx,
 ): void {
-  addUniqueIssue(value.urgencySignals, context)
   const valid =
     value.sentiment === 'mixed' ||
     (value.sentiment === 'positive' && value.sentimentValence >= 20) ||
@@ -97,34 +96,37 @@ function refineAiAnalysisV2Answer(
 
 export const AI_ANALYSIS_V2_OUTPUT_SCHEMA = aiAnalysisV2ShapeSchema.superRefine(
   (value, context) => {
-    refineAiAnalysisV2Answer(value, context)
+    addUniqueIssue(value.urgencySignals, context)
     addUniqueIssue(
       value.aspects.map(({ aspect }) => aspect),
       context,
     )
+    refineAiAnalysisV2Answer(value, context)
   },
 )
 
 /**
  * What the provider may answer for `review-analysis-v2`: the stored contract
- * without its one-record-per-aspect rule. JSON Schema cannot say "unique by
+ * without its two uniqueness rules. JSON Schema cannot say "unique by
  * `aspect`", so Structured Outputs never enforces it, and the model sometimes
  * lists one aspect twice (food and drinks are both `food_and_drink`). The
  * answer was billed and then refused as `output_invalid`: it left 24
  * closed-beta reviews unanalysed after 121 billed answers, and a replay of
- * them refused one answer in four. Its JSON Schema is the stored contract's,
- * byte for byte, so the request and the profile digest do not change. Merge
- * with `mergeAiAnalysisV2Aspects` before checking the stored contract.
+ * them refused one answer in four. A repeated urgency signal is the same gap.
+ * Its JSON Schema is the stored contract's, byte for byte, so the request and
+ * the profile digest do not change. Merge with `mergeAiAnalysisV2Duplicates`
+ * before checking the stored contract.
  */
 export const AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA = aiAnalysisV2ShapeSchema.superRefine(
   refineAiAnalysisV2Answer,
 )
 
 /**
- * One record per aspect, at the place it first appears: the strongest, and a
- * negative one on an equal-magnitude tie, the rule the primary category uses.
+ * Each urgency signal once, and one record per aspect, each where it first
+ * appears. The aspect record kept is the strongest, and a negative one on an
+ * equal-magnitude tie, the rule the primary category uses.
  */
-export function mergeAiAnalysisV2Aspects(
+export function mergeAiAnalysisV2Duplicates(
   answer: AiAnalysisV2ProviderAnswer,
 ): AiAnalysisV2ProviderAnswer {
   const strongest = new Map<string, AiAnalysisV2ProviderAnswer['aspects'][number]>()
@@ -140,7 +142,11 @@ export function mergeAiAnalysisV2Aspects(
       strongest.set(candidate.aspect, candidate)
     }
   }
-  return { ...answer, aspects: [...strongest.values()] }
+  return {
+    ...answer,
+    urgencySignals: [...new Set(answer.urgencySignals)],
+    aspects: [...strongest.values()],
+  }
 }
 
 export const AI_REPLY_SELECTION_OUTPUT_SCHEMA = z

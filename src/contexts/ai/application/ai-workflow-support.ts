@@ -130,8 +130,9 @@ export function isSameAiRequestUnderOtherControls<
  * Provider answers that describe the provider's capacity, not this request:
  * retrying the same review later is expected to succeed. They never spend the
  * request's attempt budget; the operation horizon bounds them instead. Every
- * other failure (refused, invalid output, timeout) may be the review's own and
- * stays budgeted.
+ * other failure may be the review's own: one the provider was charged for ends
+ * the operation (`AI_PROVIDER_CHARGED_CODES`), the rest (a timeout, an
+ * ambiguous outcome) stay budgeted.
  */
 export const AI_PROVIDER_CAPACITY_CODES: ReadonlySet<string> = new Set([
   'provider_rate_limited',

@@ -46,7 +46,7 @@ import {
   AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA,
   AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
-  mergeAiAnalysisV2Aspects,
+  mergeAiAnalysisV2Duplicates,
 } from '#/shared/openai-route-output-schemas'
 import {
   AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
@@ -510,7 +510,7 @@ export function createAiGatewayRoutePreparer(
             const answer = analysisAnswerSchema.safeParse(rawResult)
             if (!answer.success) return null
             const result = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(
-              mergeAiAnalysisV2Aspects(answer.data),
+              mergeAiAnalysisV2Duplicates(answer.data),
             )
             if (!result.success) return null
             const accepted = Object.freeze({ ...result.data })
