@@ -16,12 +16,19 @@ type ApprovalViewer = Readonly<{
   canApprove?: boolean
 }>
 
+const CONTACT_APPROVAL_TEXT = 'No approval needed · guests tap it to call or write'
+
 /** The one line under a tile's address: who vouched for it, or why guests cannot see it yet. */
 export function describeLinkApproval(
   destination: PortalLinktreeDestination,
   names: ReadonlyMap<string, string>,
   viewer: ApprovalViewer = {},
 ): LinkApprovalFact {
+  // A phone number or an email address is approved as it is entered: there is
+  // no one to name and nothing to approve or turn off from the tile.
+  if (destination.sourceType === 'contact' && destination.state === 'approved') {
+    return { tone: 'ok', text: CONTACT_APPROVAL_TEXT }
+  }
   const name = LINK_APPROVAL_NAMES[destination.state]
   switch (destination.state) {
     case 'approved': {

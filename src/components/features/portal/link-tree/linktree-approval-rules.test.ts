@@ -51,6 +51,21 @@ describe('describeLinkApproval', () => {
     ).toEqual({ tone: 'ok', text: 'Approved · recognised service' })
   })
 
+  it('says a phone number or an email address needs no approval, and names no one', () => {
+    for (const viewer of [{}, { canApprove: true }]) {
+      expect(
+        describeLinkApproval(
+          destination('approved', { sourceType: 'contact', approvedByUserId: 'admin-1' }),
+          names,
+          viewer,
+        ),
+      ).toEqual({
+        tone: 'ok',
+        text: 'No approval needed · guests tap it to call or write',
+      })
+    }
+  })
+
   it.each([
     ['pending', 'Waiting for approval · '],
     ['disabled', 'Turned off · '],

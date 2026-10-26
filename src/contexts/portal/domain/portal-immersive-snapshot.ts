@@ -7,6 +7,7 @@
 // (readiness blockers), not the reader's.
 
 import { isGuestLocale, isSupportedGuestLanguagePack } from '#/shared/domain/guest-locale'
+import { isPortalContactUri } from '#/shared/domain/portal-contact-address'
 import {
   languagePackGenerationOf,
   type ImmersiveBrandProfile,
@@ -76,6 +77,11 @@ function isHttpsUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+/** A website, or a phone number or email address in its stored form. */
+function isLinkUrl(value: string): boolean {
+  return isHttpsUrl(value) || isPortalContactUri(value)
 }
 
 function sameMembers(
@@ -183,7 +189,7 @@ function isCompleteLink(link: ImmersiveLink, localeSet: readonly PortalGuestLoca
   const limits = IMMERSIVE_SNAPSHOT_LIMITS
   return (
     isBoundedId(link.id) &&
-    isHttpsUrl(link.url) &&
+    isLinkUrl(link.url) &&
     (link.iconKey === null || ICON_KEY_PATTERN.test(link.iconKey)) &&
     (link.imageAssetId === null || isBoundedId(link.imageAssetId)) &&
     sameMembers(Object.keys(link.texts), localeSet) &&

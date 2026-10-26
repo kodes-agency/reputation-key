@@ -42,20 +42,38 @@ describe('the schema version 3 configuration fields', () => {
     expect(result.success).toBe(false)
   })
 
-  it.each(['http://harbor.example.com/menu', 'javascript:alert(1)', 'not a url'])(
-    'rejects the link destination %j',
+  it.each(['tel:+15551234567', 'mailto:front@hotel.com'])(
+    'keeps the phone number or email address %j as it was stored',
     (url) => {
       const configuration = immersiveConfiguration()
       const [first, ...rest] = configuration.links
 
-      const result = schema.safeParse({
+      const parsed = schema.parse({
         ...configuration,
         links: [{ ...first, url }, ...rest],
       })
 
-      expect(result.success).toBe(false)
+      expect(parsed.links[0]?.url).toBe(url)
     },
   )
+
+  it.each([
+    'http://harbor.example.com/menu',
+    'javascript:alert(1)',
+    'data:text/html,hi',
+    'sms:+15551234567',
+    'not a url',
+  ])('rejects the link destination %j', (url) => {
+    const configuration = immersiveConfiguration()
+    const [first, ...rest] = configuration.links
+
+    const result = schema.safeParse({
+      ...configuration,
+      links: [{ ...first, url }, ...rest],
+    })
+
+    expect(result.success).toBe(false)
+  })
 
   it('rejects a schema version other than 3', () => {
     expect(

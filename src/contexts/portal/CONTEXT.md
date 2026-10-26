@@ -119,6 +119,22 @@ from a closed catalogue (`src/shared/domain/portal-link-icon.ts`, 27 keys, every
 icon the round-4 editor offers), enforced by a CHECK and refused in the link
 constructor.
 
+A tile opens a website, a phone number or an email address (ADR 0044, amendment
+2026-10-26). A phone number or an email address is a Property destination with
+`source_type` `contact` (migration 0073), stored as `tel:+15551234567` or
+`mailto:front@hotel.com` and named in `hostname` by the number or address without
+its scheme (`validatePortalLinkDestination`, `src/shared/domain/portal-contact-address.ts`).
+It is approved as a manager enters it, is never checked over the network (the
+re-check query leaves it out, `recordNetworkValidation` never quarantines one, and
+`listApprovedUris` serves it whatever its `last_validated_at`), is not one of the
+"Sites allowed for links" (`listPortalApprovedDestinations` leaves it out) and
+cannot be turned off (`disablePortalApprovedDestination` refuses). `request` holds
+the `contact` source to a stored `tel:`/`mailto:` address both ways, and approves
+again a contact row a network check quarantined, which only a server from before
+contacts would do. A contact tile with no icon of its own gets `phone` or `mail`,
+and swaps it when its address moves to another kind. The click route, the guest page and the v3 snapshot verifier
+take a `tel:` or `mailto:` address only in exactly that stored form.
+
 The **Property look** is the part of the Property Brand Profile a guest sees:
 accent colour, background (`background_mode` `auto` derives the dark page field
 from the accent with `src/shared/domain/portal-field-colour.ts`, `manual` uses
@@ -706,7 +722,8 @@ exceptions to that section's rules:
 - `revalidatePortalApprovedDestinations` is the worker's control, the same function as
   `worker.revalidateApprovedDestinations`. It takes its scope decision from its caller,
   and no server function calls it. It runs every 15 minutes and is due for every
-  destination validated 10 minutes ago or earlier; the public edge serves an approval up
+  website destination validated 10 minutes ago or earlier (never a phone number or email
+  address, which has nothing to check); the public edge serves an approval up
   to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
   (`approved-destination-age.ts`, `approved-destination-age.test.ts`). That holds only
   while a run can take everything that is due. A run takes pages of 50 destinations,

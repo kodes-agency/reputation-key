@@ -173,3 +173,30 @@ refused. Nothing bounds how many it can store: each one is a response row, retai
 where the 6th used to be refused before anything was written. Whether to add a hard ceiling far above
 any venue's volume, bound session issuance, or key the network layer by more than the address remains
 an owner tuning decision.
+
+## Amendment 2026-10-26 — phone and email links
+
+Owner decision 2026-10-26: a Linktree tile may open a phone number or an email address as well as
+a website. They need no account admin's approval, because they are not websites, and a tap on one
+is counted exactly as a tap on any other link. Abuse rule 4 ("no arbitrary redirects; only
+allowlisted HTTPS provider URLs") gains one exception, and only this one:
+
+- **One stored form, nothing inside it.** A manager types the number or address as people write it
+  ("+1 (555) 123-4567", "front@hotel.com") or as a `tel:`/`mailto:` address. It is stored as
+  `tel:+<digits>` or `tel:<digits>` (7 to 15 digits) or `mailto:<local>@<domain>` (domain in lower
+  case) and refused otherwise: no query, header, second recipient, extension, percent-encoding or
+  other scheme (`src/shared/domain/portal-contact-address.ts`). The click route, the guest page and
+  the snapshot verifier follow a `tel:` or `mailto:` address only when reading it again gives exactly
+  that stored form.
+- **A Property destination like a website.** The tile points at a `portal_approved_destinations` row
+  with `source_type` `contact` (migration 0073), approved as it is entered, so a link still has one
+  authority for where it goes. A contact is never checked over the network: the 15-minute re-check
+  never takes one, a re-check never quarantines one, and the guest edge serves an approved one
+  whatever its `last_validated_at`. It is not one of the "Sites allowed for links" and cannot be
+  turned off; a tile that should not call or write is changed or deleted. A contact row that a server
+  from before contacts quarantined (its re-check refuses every `tel:`/`mailto:`) is approved again
+  when the number or address is entered on the tile again.
+- **Followed in the same tab.** After a rating the tap records the Qualified Link Action, then the
+  page goes to the `tel:` or `mailto:` address in its own tab, which hands it to the guest's phone or
+  mail app. Before a rating the tile stays a plain link to the navigation-only click route, which
+  redirects to the stored address without recording anything, as for a website.

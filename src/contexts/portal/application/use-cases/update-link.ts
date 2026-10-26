@@ -20,6 +20,10 @@ import { nextPortalCommandAt } from '../portal-command-version'
 import { portalLinkUpdated } from '../../domain/events'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import { resolveApprovedPortalDestination } from '../resolve-approved-portal-destination'
+import {
+  defaultLinkIconKey,
+  type PortalApprovedDestination,
+} from '../../domain/approved-destination'
 import type { PortalDestinationNetworkValidator } from '../ports/portal-destination-network-validator.port'
 
 export type UpdateLinkInput = Readonly<{
@@ -63,6 +67,26 @@ async function resolveTileImage(
   )
   if (!asset) throw portalError('media_not_found', 'image not found for this link')
   return asset.id
+}
+
+/**
+ * The icon the link wears after this update: the one asked for; else, when the
+ * address moves on a tile without a photo whose icon is the automatic one for
+ * its old address (none, or the phone or letter a contact got), the automatic
+ * one for the new address; else the one it has. An automatic icon cannot be
+ * told from a chosen one, so a phone chosen for a phone number goes with it.
+ */
+function nextIconKey(
+  input: UpdateLinkInput,
+  existing: PortalLink,
+  destination: PortalApprovedDestination | null,
+  imageAssetId: PortalLink['imageAssetId'],
+): string | null {
+  if (input.iconKey !== undefined) return input.iconKey
+  if (destination === null || imageAssetId !== null) return existing.iconKey
+  const isAutomatic =
+    existing.iconKey === null || existing.iconKey === defaultLinkIconKey(existing.url)
+  return isAutomatic ? defaultLinkIconKey(destination.normalizedUri) : existing.iconKey
 }
 
 /**
@@ -123,7 +147,7 @@ export const updateLink =
     const expectedPortalUpdatedAt = target.portalUpdatedAt ?? portal.updatedAt
     const newUrl = destination?.normalizedUri ?? existing.url
     const destinationId = destination?.id ?? existing.destinationId
-    const newIconKey = input.iconKey !== undefined ? input.iconKey : existing.iconKey
+    const newIconKey = nextIconKey(input, existing, destination, imageAssetId)
 
     const occurredAt = deps.clock()
     const revision = nextPortalCommandAt(occurredAt, expectedPortalUpdatedAt)

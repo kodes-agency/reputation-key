@@ -106,6 +106,39 @@ describe('createLink input validation', () => {
     expect(result.success).toBe(false)
   })
 
+  it.each([
+    '+1 (555) 123-4567',
+    'tel:+15551234567',
+    'front@hotel.com',
+    'mailto:front@hotel.com',
+  ])('accepts the phone number or email address %s as typed', (url) => {
+    const result = createLinkInputSchema.safeParse({
+      portalId: 'portal-123',
+      label: 'Reception',
+      url,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it.each([
+    ['tel:+1555123456;ext=2', /^Enter a phone number of 7 to 15 digits/u],
+    ['555 12', /^Enter a phone number of 7 to 15 digits/u],
+    ['mailto:front@hotel.com?bcc=spy@evil.com', /^Enter one email address/u],
+    ['front@hotel.com, spy@evil.com', /^Enter one email address/u],
+    ['javascript:alert(1)', /^Enter a website starting with https:\/\//u],
+    ['http://example.com', /^Enter a website starting with https:\/\//u],
+  ])('refuses %j and says what to enter', (url, message) => {
+    const result = createLinkInputSchema.safeParse({
+      portalId: 'portal-123',
+      label: 'Reception',
+      url,
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((issue) => issue.message)).toEqual([
+      expect.stringMatching(message),
+    ])
+  })
+
   it('rejects url over 500 characters', () => {
     const result = createLinkInputSchema.safeParse({
       categoryId: 'cat-123',

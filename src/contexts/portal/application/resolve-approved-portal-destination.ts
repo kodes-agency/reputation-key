@@ -2,24 +2,24 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalApprovedDestinationId, type PropertyId } from '#/shared/domain/ids'
 import type { PortalApprovedDestinationRepository } from './ports/portal-approved-destination.repository'
-import { validatePortalDestinationUri } from '../domain/approved-destination'
+import {
+  validatePortalLinkDestination,
+  type ValidatedPortalDestination,
+} from '../domain/approved-destination'
 import { portalError } from '../domain/errors'
 import type { PortalDestinationNetworkValidator } from './ports/portal-destination-network-validator.port'
 
-export async function resolveApprovedPortalDestination(
-  deps: Readonly<{
-    destinationRepo: Pick<PortalApprovedDestinationRepository, 'request'>
-    destinationNetworkValidator: PortalDestinationNetworkValidator
-    idGen: () => string
-    clock: () => Date
-  }>,
-  input: Readonly<{ uri: string; propertyId: PropertyId }>,
-  ctx: AuthContext,
-) {
-  const validated = validatePortalDestinationUri(input.uri)
-  const networkValidation = await deps.destinationNetworkValidator.validate(
-    validated.normalizedUri,
-  )
+/**
+ * A website must be safe to reach before it is stored. A phone number or an
+ * email address is not a website: nothing is fetched for it, here or by the
+ * job that checks websites again.
+ */
+async function assertReachableWebsite(
+  validator: PortalDestinationNetworkValidator,
+  validated: ValidatedPortalDestination,
+): Promise<void> {
+  if (validated.sourceType === 'contact') return
+  const networkValidation = await validator.validate(validated.normalizedUri)
   if (networkValidation.outcome === 'unsafe') {
     throw portalError(
       'invalid_url',
@@ -38,6 +38,20 @@ export async function resolveApprovedPortalDestination(
       'Destination validation is temporarily unavailable. Please try again.',
     )
   }
+}
+
+export async function resolveApprovedPortalDestination(
+  deps: Readonly<{
+    destinationRepo: Pick<PortalApprovedDestinationRepository, 'request'>
+    destinationNetworkValidator: PortalDestinationNetworkValidator
+    idGen: () => string
+    clock: () => Date
+  }>,
+  input: Readonly<{ uri: string; propertyId: PropertyId }>,
+  ctx: AuthContext,
+) {
+  const validated = validatePortalLinkDestination(input.uri)
+  await assertReachableWebsite(deps.destinationNetworkValidator, validated)
   const destination = await deps.destinationRepo.request({
     id: portalApprovedDestinationId(deps.idGen()),
     organizationId: ctx.organizationId,
@@ -46,18 +60,30 @@ export async function resolveApprovedPortalDestination(
     requestedBy: ctx.userId,
     // A custom destination always needs explicit AccountAdmin authority. When
     // the requester is already an AccountAdmin, this request is that approval;
-    // all other roles leave a reusable Pending record for later review.
+    // all other roles leave a reusable Pending record for later review. A
+    // recognized site, a phone number and an email address need no approval.
     approveCustom: canForContext(ctx, 'portal.admin'),
     at: deps.clock(),
   })
-  if (destination.approvalState !== 'approved') {
-    throw portalError(
+  if (destination.approvalState !== 'approved') throw notApproved(validated)
+  return destination
+}
+
+function notApproved(validated: ValidatedPortalDestination) {
+  if (validated.sourceType === 'contact') {
+    // A contact is approved as it is entered and nobody approves one, so one
+    // that is not approved was turned off (by a server from before contacts):
+    // there is no list to send the manager to.
+    return portalError(
       'destination_not_approved',
-      // Read by whoever entered the address on a tile, who is not an account
-      // admin (an account admin's own address is approved as it is entered), and
-      // who does not see the list of sites the account admin answers it in.
-      'An account admin needs to approve this address first. It is waiting for them under “Sites allowed for links”; once it is approved, enter it here again.',
+      'This phone number or email address cannot be used on this property.',
     )
   }
-  return destination
+  return portalError(
+    'destination_not_approved',
+    // Read by whoever entered the address on a tile, who is not an account
+    // admin (an account admin's own address is approved as it is entered), and
+    // who does not see the list of sites the account admin answers it in.
+    'An account admin needs to approve this address first. It is waiting for them under “Sites allowed for links”; once it is approved, enter it here again.',
+  )
 }

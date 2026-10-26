@@ -47,6 +47,45 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
     expect(response.headers.get('referrer-policy')).toBe('no-referrer')
   })
 
+  it.each(['tel:+15551234567', 'mailto:front@hotel.com'])(
+    'redirects to the stored phone number or email address %s',
+    async (url) => {
+      mocks.resolvePublicPortalLink.mockResolvedValue({ url })
+
+      const response = await handlePublicPortalClick({
+        token: 'token-p1',
+        linkId: 'link-p1',
+      })
+
+      expect(response.status).toBe(302)
+      expect(response.headers.get('location')).toBe(url)
+      expect(response.headers.get('cache-control')).toBe('private, no-store')
+    },
+  )
+
+  it.each([
+    'javascript:alert(1)',
+    'tel:+1 555 123 4567',
+    'tel:+15551234567;ext=2',
+    'mailto:front@hotel.com?bcc=spy@evil.com',
+    'mailto:front@hotel.com,spy@evil.com',
+    'sms:+15551234567',
+  ])('blocks the stored address %j instead of redirecting to it', async (url) => {
+    mocks.resolvePublicPortalLink.mockResolvedValue({ url })
+
+    const response = await handlePublicPortalClick({
+      token: 'token-p1',
+      linkId: 'link-p1',
+    })
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('location')).toBeNull()
+    expect(mocks.warn).toHaveBeenCalledWith(
+      { linkId: 'link-p1' },
+      'Invalid public Portal redirect blocked',
+    )
+  })
+
   it('returns an inert non-enumerating response for a forged cross-property link', async () => {
     mocks.resolvePublicPortalLink.mockResolvedValue(null)
 

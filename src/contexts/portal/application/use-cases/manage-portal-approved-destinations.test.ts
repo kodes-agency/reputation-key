@@ -6,9 +6,14 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
+import {
+  PORTAL_DESTINATION_VALIDATION_VERSION,
+  type PortalApprovedDestination,
+} from '../../domain/approved-destination'
 import type { PortalDestinationNetworkValidation } from '../ports/portal-destination-network-validator.port'
 import {
+  disablePortalApprovedDestination,
+  listPortalApprovedDestinations,
   requestPortalApprovedDestination,
   revalidatePortalApprovedDestinations,
 } from './manage-portal-approved-destinations'
@@ -86,6 +91,85 @@ describe('requestPortalApprovedDestination', () => {
     await expect(refusal()).rejects.toThrow(
       'Destination validation is temporarily unavailable. Please try again.',
     )
+  })
+})
+
+describe('listPortalApprovedDestinations', () => {
+  it('lists the sites allowed for links, and no phone number or email address', async () => {
+    const portal = buildTestPortal({})
+    const phone = {
+      ...candidate,
+      id: portalApprovedDestinationId('10000000-0000-4000-8000-000000000002'),
+      normalizedUri: 'tel:+15551234567',
+      hostname: '+15551234567',
+      sourceType: 'contact' as const,
+    }
+    const email = {
+      ...phone,
+      id: portalApprovedDestinationId('10000000-0000-4000-8000-000000000003'),
+      normalizedUri: 'mailto:front@hotel.com',
+      hostname: 'front@hotel.com',
+    }
+    const useCase = listPortalApprovedDestinations({
+      portalRepo: { findById: async () => portal } as never,
+      destinationRepo: { list: async () => [phone, candidate, email] } as never,
+      destinationNetworkValidator: { validate: vi.fn() },
+      staffPublicApi: { accessiblePropertyIds: async () => null } as never,
+      idGen: () => '30000000-0000-4000-8000-000000000001',
+      clock: () => NOW,
+    })
+
+    const listed = await useCase(
+      { portalId: portal.id },
+      buildTestAuthContext({ role: 'AccountAdmin' }),
+    )
+
+    expect(listed.destinations).toEqual([candidate])
+    expect(listed.canApprove).toBe(true)
+  })
+})
+
+describe('disablePortalApprovedDestination', () => {
+  const setupDisable = (current: PortalApprovedDestination | null) => {
+    const portal = buildTestPortal({})
+    const disable = vi.fn(async () => current)
+    const useCase = disablePortalApprovedDestination({
+      portalRepo: { findById: async () => portal } as never,
+      destinationRepo: { findById: async () => current, disable } as never,
+      destinationNetworkValidator: { validate: vi.fn() },
+      staffPublicApi: { accessiblePropertyIds: async () => null } as never,
+      idGen: () => '30000000-0000-4000-8000-000000000001',
+      clock: () => NOW,
+    })
+    const turnOff = () =>
+      useCase(
+        { portalId: portal.id, destinationId: candidate.id, reason: 'Turned off' },
+        buildTestAuthContext({ role: 'AccountAdmin' }),
+      )
+    return { disable, turnOff }
+  }
+
+  it('refuses to turn off a phone number or an email address, and writes nothing', async () => {
+    const { disable, turnOff } = setupDisable({
+      ...candidate,
+      normalizedUri: 'tel:+15551234567',
+      hostname: '+15551234567',
+      sourceType: 'contact',
+    })
+
+    await expect(turnOff()).rejects.toMatchObject({
+      code: 'destination_not_approved',
+      message:
+        'A phone number or an email address cannot be turned off. Change or delete its tile instead.',
+    })
+    expect(disable).not.toHaveBeenCalled()
+  })
+
+  it('still turns off a site', async () => {
+    const { disable, turnOff } = setupDisable(candidate)
+
+    await expect(turnOff()).resolves.toEqual(candidate)
+    expect(disable).toHaveBeenCalledTimes(1)
   })
 })
 

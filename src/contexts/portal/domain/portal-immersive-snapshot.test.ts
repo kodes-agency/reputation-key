@@ -258,6 +258,28 @@ describe('isCompleteImmersiveConfiguration', () => {
       expect(withLinks([{ ...firstLink, url: 'not a url' }])).toBe(false)
     })
 
+    it('accepts a phone number or an email address only in its stored form', () => {
+      for (const url of [
+        'tel:+15551234567',
+        'tel:5551234567',
+        'mailto:front@hotel.com',
+      ]) {
+        expect(withLinks([{ ...firstLink, url }]), url).toBe(true)
+      }
+      for (const url of [
+        'tel:+1 555 123 4567',
+        'tel:+15551234567;ext=2',
+        'TEL:+15551234567',
+        'mailto:front@hotel.com?bcc=spy@evil.com',
+        'mailto:front@hotel.com,spy@evil.com',
+        'mailto:front@HOTEL.com',
+        'javascript:alert(1)',
+        'sms:+15551234567',
+      ]) {
+        expect(withLinks([{ ...firstLink, url }]), url).toBe(false)
+      }
+    })
+
     it('rejects duplicate link ids and more links than the cap', () => {
       expect(withLinks([firstLink, { ...secondLink, id: firstLink.id }])).toBe(false)
       const many = Array.from({ length: 51 }, (_, index) => ({

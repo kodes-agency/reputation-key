@@ -99,6 +99,8 @@ export const MEASURED_GUEST_STORIES: ReadonlyArray<string> = [
   'features-guest-immersivelinktree--before-a-rating',
   'features-guest-immersivelinktree--tap-before-a-rating-is-plain-navigation',
   'features-guest-immersivelinktree--after-a-rating',
+  'features-guest-immersivelinktree--phone-and-email-tiles',
+  'features-guest-immersivelinktree--phone-tile-after-a-rating',
   'features-guest-immersivelinktree--modified-click-leaves-the-tap-to-the-browser',
   'features-guest-immersivelinktree--german-with-fallback',
   'features-guest-immersivelinktree--long-words-at-three-twenty',

@@ -6,7 +6,10 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import { APPROVED_DESTINATION_REVALIDATION_DUE_AFTER_MS } from '../approved-destination-age'
 import { loadPortalOrThrow } from '../load-accessible-portal'
-import { validatePortalDestinationUri } from '../../domain/approved-destination'
+import {
+  isSiteDestination,
+  validatePortalDestinationUri,
+} from '../../domain/approved-destination'
 import { portalError } from '../../domain/errors'
 import type { PortalDestinationNetworkValidator } from '../ports/portal-destination-network-validator.port'
 
@@ -70,11 +73,14 @@ function assertPortalAdmin(ctx: AuthContext): void {
 export const listPortalApprovedDestinations =
   (deps: Deps) => async (input: Readonly<{ portalId: string }>, ctx: AuthContext) => {
     const portal = await loadDestinationPortal(deps, ctx, input.portalId, 'portal.read')
+    const destinations = await deps.destinationRepo.list(
+      ctx.organizationId,
+      portal.propertyId,
+    )
     return {
-      destinations: await deps.destinationRepo.list(
-        ctx.organizationId,
-        portal.propertyId,
-      ),
+      // "Sites allowed for links": a phone number or an email address is not a
+      // site, needs no approval and is shown on its tile only.
+      destinations: destinations.filter(isSiteDestination),
       canApprove: canForContext(ctx, 'portal.admin'),
     }
   }
@@ -166,10 +172,24 @@ export const disablePortalApprovedDestination =
     if (reason.length === 0 || reason.length > 240) {
       throw portalError('invalid_description', 'A short disable reason is required')
     }
+    const id = portalApprovedDestinationId(input.destinationId)
+    const current = await deps.destinationRepo.findById(
+      ctx.organizationId,
+      portal.propertyId,
+      id,
+    )
+    // A phone number or an email address is not a site: no screen turns one
+    // off, and a turned-off contact could not be approved again.
+    if (current?.sourceType === 'contact') {
+      throw portalError(
+        'destination_not_approved',
+        'A phone number or an email address cannot be turned off. Change or delete its tile instead.',
+      )
+    }
     const destination = await deps.destinationRepo.disable({
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
-      id: portalApprovedDestinationId(input.destinationId),
+      id,
       reason,
       disabledBy: ctx.userId,
       at: deps.clock(),
