@@ -31,6 +31,19 @@ export type ReviewProviderSnapshotFailureCode =
   | 'runtime_unavailable'
   | 'stale_source'
   | 'provider_failure'
+  /**
+   * Google answered 400 or 404 on the read: the Location or the request is not
+   * valid on Google's side, and asking again gets the same answer. The
+   * connection is healthy and its other locations sync, so this is the
+   * location's own fault (removed, suspended, or no longer readable through
+   * the connection). The run ends and discards its cursors, and the sync job
+   * parks the Property on the retry ladder: it records this code, dates the
+   * next look, and ends normally, with no BullMQ retry, dead letter, error
+   * report or repair latch. Contrast `authorization_changed` (401, 403), the
+   * rate-limit and 5xx answers (checkpointed, then retried) and
+   * `provider_failure` (a failure with no coded cause, which fails loudly).
+   */
+  | 'provider_rejected'
   | 'cursor_failure'
   /**
    * The run's page cursor went with a cursor store restart: the store keeps

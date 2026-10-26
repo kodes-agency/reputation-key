@@ -18,6 +18,11 @@
 // listed: it is the sync job's returned outcome for a step that finds its run
 // already failed, never a code of a run or of `error_class` (ADR 0055, note
 // 2026-10-25).
+// `provider_rejected` is Google's 400 or 404 on the read of one location: the
+// sync job parks the Property on the retry ladder and keeps the code stored, so
+// `sync.failed-nonzero` names it each time a retry date passes before the next
+// look re-dates the row: an edge per rung, not a standing signal (ADR 0055,
+// note 2026-10-26).
 
 export const SYNC_FAILURE_CODES = [
   'source_changed',
@@ -27,6 +32,7 @@ export const SYNC_FAILURE_CODES = [
   'runtime_unavailable',
   'stale_source',
   'provider_failure',
+  'provider_rejected',
   'cursor_failure',
   'cursor_lost',
   'malformed_page',

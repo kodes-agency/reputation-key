@@ -18,6 +18,7 @@ const FAILURE_CODES = {
   runtime_unavailable: true,
   stale_source: true,
   provider_failure: true,
+  provider_rejected: true,
   cursor_failure: true,
   cursor_lost: true,
   malformed_page: true,

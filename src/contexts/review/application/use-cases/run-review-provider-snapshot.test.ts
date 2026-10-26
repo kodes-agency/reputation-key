@@ -744,27 +744,36 @@ describe('runReviewProviderSnapshot', () => {
   )
 
   // Google answered that the Location or the request is not valid (404, 400):
-  // every retry gets the same answer, so the run ends and the next poll starts
-  // a fresh one instead of the continuation looping until the run expires.
-  it('ends the run when Google rejected the page request', async () => {
-    const deps = makeDeps()
-    const error = Object.assign(new Error('404 from provider'), {
+  // every retry gets the same answer, so the run ends under its own code
+  // (`provider_rejected`, with the status logged) and the next poll starts a
+  // fresh one instead of the continuation looping until the run expires.
+  const rejectedByGoogle = (providerStatus: number | null = 404) =>
+    Object.assign(new Error('Google answered; status synthetic'), {
       _tag: 'GoogleReviewApiError' as const,
       code: 'provider_rejected' as const,
       recoverable: false,
+      failure: { executionCode: null, dispatch: 'answered' as const, providerStatus },
     })
-    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(error)
+
+  it('ends the run as provider_rejected when Google rejected the page request', async () => {
+    const deps = makeDeps()
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(rejectedByGoogle())
 
     await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
-      { status: 'failed', runId, code: 'provider_failure' },
+      { status: 'failed', runId, code: 'provider_rejected' },
     )
     expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledWith(
       expect.objectContaining({ runId }),
     )
+    expect(deps.repository.failRun).toHaveBeenCalledWith({
+      runId,
+      organizationId,
+      code: 'provider_rejected',
+    })
     expect(deps.repository.commitPage).not.toHaveBeenCalled()
   })
 
-  it('ends the confirmation when Google rejected the review request', async () => {
+  it('ends the confirmation as provider_rejected when Google rejected the review request', async () => {
     const deps = makeDeps({
       currentRun: run({
         state: 'confirming',
@@ -780,18 +789,62 @@ describe('runReviewProviderSnapshot', () => {
       status: 'pending',
       reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
     })
-    vi.mocked(deps.googleReviewApi.getReview).mockRejectedValue(
-      Object.assign(new Error('400 from provider'), {
-        _tag: 'GoogleReviewApiError' as const,
-        code: 'provider_rejected' as const,
-        recoverable: false,
-      }),
-    )
+    vi.mocked(deps.googleReviewApi.getReview).mockRejectedValue(rejectedByGoogle(400))
 
     await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
-      { status: 'failed', runId, code: 'provider_failure' },
+      { status: 'failed', runId, code: 'provider_rejected' },
     )
     expect(deps.repository.confirmLinkedCandidateMissing).not.toHaveBeenCalled()
+  })
+
+  // The status is the one fact that tells a deleted location (404) from a
+  // refused request (400), and it was recorded nowhere. One warning: the run
+  // row names the Property, so the line carries no identifier but the run id.
+  it.each([404, 400])(
+    'logs one warning with the Google status %s and no uncoded-cause error',
+    async (providerStatus) => {
+      const deps = makeDeps()
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+        rejectedByGoogle(providerStatus),
+      )
+
+      await runReviewProviderSnapshot(deps)({ ...request, runId })
+
+      expect(deps.logger.error).not.toHaveBeenCalled()
+      expect(deps.logger.warn).toHaveBeenCalledTimes(1)
+      expect(deps.logger.warn).toHaveBeenCalledWith(
+        {
+          event: 'review_snapshot_provider_rejected',
+          providerStatus,
+          dispatch: 'answered',
+          runId,
+        },
+        'Review snapshot rejected by Google: the location or request is not valid',
+      )
+    },
+  )
+
+  it('logs a null status when the rejection carries no dispatch evidence', async () => {
+    const deps = makeDeps()
+    const bare = Object.assign(new Error('rejected'), {
+      _tag: 'GoogleReviewApiError' as const,
+      code: 'provider_rejected' as const,
+      recoverable: false,
+    })
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(bare)
+
+    await runReviewProviderSnapshot(deps)({ ...request, runId })
+
+    expect(deps.logger.error).not.toHaveBeenCalled()
+    expect(deps.logger.warn).toHaveBeenCalledWith(
+      {
+        event: 'review_snapshot_provider_rejected',
+        providerStatus: null,
+        dispatch: 'unknown',
+        runId,
+      },
+      expect.any(String),
+    )
   })
 
   it.each([
