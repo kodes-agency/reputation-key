@@ -586,6 +586,16 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: ERASE_WITH_OWNER,
   }),
   ...rows({
+    // A Portal's own photo, colours and name and logo (ADR 0070): source content
+    // of the Portal like its wording overrides, erased with the Organization.
+    schemaFile: 'portal-look.schema.ts',
+    exportNames: ['portalLookOverrides'],
+    owner: 'portal',
+    disposition: 'erasable_source_content',
+    authority: 'POR-01/LIF-01',
+    exitCriteria: ERASE_WITH_OWNER,
+  }),
+  ...rows({
     schemaFile: 'portal-localization.schema.ts',
     exportNames: ['portalLinkTexts'],
     owner: 'portal',
