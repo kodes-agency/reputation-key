@@ -113,6 +113,8 @@ function createHarness(
       | 'provider_refused'
       | 'output_invalid'
       | 'output_truncated'
+      | 'completed_without_delivery'
+      | 'operation_ambiguous'
     /** The notice the Property's consent was recorded under. Defaults to the served one. */
     consentNotice?: Readonly<{ noticeVersion: string; noticeDigest: string }>
     /**
@@ -739,6 +741,8 @@ describe('generate reply suggestion', () => {
     'provider_refused',
     'output_invalid',
     'output_truncated',
+    'completed_without_delivery',
+    'operation_ambiguous',
   ] as const)(
     'reports %s as unavailable instead of substituting a template',
     async (gatewayErrorCode) => {
@@ -756,6 +760,60 @@ describe('generate reply suggestion', () => {
       expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
       expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
       expect(harness.mocks.release).toHaveBeenCalledWith({ admissionId: 'admission-1' })
+    },
+  )
+
+  // A charged attempt blocks every later attempt of the same operation at
+  // admission, and the composer asks again under a new key. A scheduled retry
+  // was never claimed: the reaper ended it as `operation_abandoned`, or a
+  // replayed key was refused `already_consumed` and came back
+  // `operation_ambiguous`, either way replacing the real code.
+  it.each([
+    'output_invalid',
+    'output_truncated',
+    'provider_refused',
+    'completed_without_delivery',
+  ] as const)(
+    'ends the operation under its own code after a charged %s',
+    async (gatewayErrorCode) => {
+      const harness = createHarness({ gatewayErrorCode })
+
+      await expect(harness.generate(INPUT)).resolves.toEqual({
+        status: 'unavailable',
+        code: 'provider_unavailable',
+        retryAfterEpochMillis: null,
+      })
+      expect(harness.mocks.recordFailure).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          expectedAttempt: 1,
+          failureCode: gatewayErrorCode,
+          retryAtEpochMillis: null,
+          failedAtEpochMillis: NOW,
+        }),
+      )
+    },
+  )
+
+  it.each([
+    'provider_unavailable',
+    'provider_rate_limited',
+    'operation_ambiguous',
+  ] as const)(
+    'still schedules a retry of the operation after an uncharged %s',
+    async (gatewayErrorCode) => {
+      const harness = createHarness({ gatewayErrorCode })
+
+      await expect(harness.generate(INPUT)).resolves.toEqual({
+        status: 'unavailable',
+        code: 'provider_unavailable',
+        retryAfterEpochMillis: NOW + 1_000,
+      })
+      expect(harness.mocks.recordFailure).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          failureCode: gatewayErrorCode,
+          retryAtEpochMillis: NOW + 1_000,
+        }),
+      )
     },
   )
 
