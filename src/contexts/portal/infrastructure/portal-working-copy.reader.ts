@@ -55,6 +55,8 @@ import type {
   PublicationMedia,
   PublicationWording,
 } from '../domain/portal-publication-source'
+import { PROPERTY_LOOK_SOURCES } from '../domain/portal-look'
+import type { PortalWorkingCopyWithLook } from '../application/ports/portal-publication.repository'
 import { hasPropertyWording } from '../domain/property-wording'
 
 /** A Database or a transaction: the reader only selects. */
@@ -400,4 +402,17 @@ export async function readPortalWorkingCopy(
     wording: resolveWording(localeSet, rows),
     links: readLinks(rows, primaryGuestLocale),
   }
+}
+
+/**
+ * The working copy of one Portal and where its look groups come from (ADR
+ * 0070), or null exactly when `readPortalWorkingCopy` is. A Portal with no
+ * override row follows the whole Property look.
+ */
+export async function readPortalWorkingCopyWithLook(
+  executor: PortalWorkingCopyExecutor,
+  scope: PortalWorkingCopyScope,
+): Promise<PortalWorkingCopyWithLook | null> {
+  const source = await readPortalWorkingCopy(executor, scope)
+  return source === null ? null : { source, lookSources: PROPERTY_LOOK_SOURCES }
 }

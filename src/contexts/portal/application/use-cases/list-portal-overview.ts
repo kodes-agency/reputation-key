@@ -20,6 +20,7 @@ import type { PortalResponsibleManagerRepository } from '../ports/portal-respons
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PortalHealth } from '../../domain/portal-health'
 import type { PortalPublicationState } from '../../domain/portal-publication'
+import type { PortalLookSources } from '../../domain/portal-look'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalGroupId, PortalId, PropertyId } from '#/shared/domain/ids'
@@ -75,6 +76,11 @@ export type PortalOverviewRow = Readonly<{
   /** Sorted; empty means nobody is responsible for the Portal yet. */
   responsibleManagerUserIds: readonly string[]
   token: PortalTokenStatus
+  /**
+   * Where the Portal's look groups come from (ADR 0070). Absent reads as
+   * following the whole Property look (`PROPERTY_LOOK_SOURCES`).
+   */
+  lookSources?: PortalLookSources
 }>
 
 const groupByPortal = <T extends Readonly<{ portalId: string }>>(

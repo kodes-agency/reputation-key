@@ -3,8 +3,19 @@ import type {
   PortalPublicationSnapshot,
 } from '../../domain/portal-publication-snapshot'
 import type { PortalPublicationSource } from '../../domain/portal-publication-source'
+import type { PortalLookSources } from '../../domain/portal-look'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { PresentedAddressDigest } from './portal-token-codec.port'
+
+/**
+ * A Portal's working copy and, beside it, where its look groups come from (ADR
+ * 0070). The sources are not part of the source: publishing never reads them,
+ * so they reach no snapshot and no digest.
+ */
+export type PortalWorkingCopyWithLook = Readonly<{
+  source: PortalPublicationSource
+  lookSources: PortalLookSources
+}>
 
 export type PortalPublicationCursor = Readonly<{
   nextSnapshotVersion: number
@@ -56,6 +67,11 @@ export type PortalPublicationRepository = Readonly<{
     organizationId: OrganizationId,
     portalId: PortalId,
   ) => Promise<PortalPublicationSource | null>
+  /** `loadWorkingCopy`, with where the Portal's look groups come from read alongside. */
+  loadWorkingCopyWithLook: (
+    organizationId: OrganizationId,
+    portalId: PortalId,
+  ) => Promise<PortalWorkingCopyWithLook | null>
   getCursor: (
     organizationId: OrganizationId,
     portalId: PortalId,

@@ -21,6 +21,7 @@ import type {
 } from '../ports/portal-command-store.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Portal } from '../../domain/types'
+import { PROPERTY_LOOK_SOURCES } from '../../domain/portal-look'
 
 const NOW = new Date('2026-09-30T12:00:00.000Z')
 const DESTINATION = {
@@ -96,15 +97,20 @@ function setup(options: Options = {}) {
   const updates: UpdatePortalCommand[] = []
   const liveSource = workingCopyOf(portal)
   const live = options.live === 'none' ? null : liveSnapshotOf(portal, liveSource)
+  const draftWorkingCopy = () =>
+    workingCopyOf(portal, {
+      ...(options.draftSlug
+        ? { portal: { id: portal.id, name: portal.name, slug: options.draftSlug } }
+        : {}),
+      ...options.workingCopy,
+    })
   const publicationRepo: PortalPublicationRepository = {
     countOpenPendingContentChanges: async () => [],
-    loadWorkingCopy: async () =>
-      workingCopyOf(portal, {
-        ...(options.draftSlug
-          ? { portal: { id: portal.id, name: portal.name, slug: options.draftSlug } }
-          : {}),
-        ...options.workingCopy,
-      }),
+    loadWorkingCopy: async () => draftWorkingCopy(),
+    loadWorkingCopyWithLook: async () => ({
+      source: draftWorkingCopy(),
+      lookSources: PROPERTY_LOOK_SOURCES,
+    }),
     getCursor: async () => ({ nextSnapshotVersion: 3, nextActivationSequence: 4 }),
     findSnapshotByVersion: async () => null,
     findActiveForPortal: async () => live,

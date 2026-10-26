@@ -7,6 +7,7 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import type { PortalExperienceRepository } from './application/ports/portal-experience.repository'
 import type { PortalMediaAssetRepository } from './application/ports/portal-media-asset.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { createInMemoryPortalLookRepo } from '#/shared/testing/in-memory-portal-look-repo'
 
 describe('buildExperienceUseCases', () => {
   it('composes the look save with the other experience use cases', () => {
@@ -14,15 +15,20 @@ describe('buildExperienceUseCases', () => {
       experienceRepo: {} as PortalExperienceRepository,
       mediaRepo: {} as PortalMediaAssetRepository,
       portalRepo: createInMemoryPortalRepo(),
+      portalLookRepo: createInMemoryPortalLookRepo(),
       staffPublicApi: {} as StaffPublicApi,
       idGen: () => 'id',
       clock: () => new Date(0),
+      portalOwnLookEnabled: false,
     })
 
     expect(Object.keys(useCases).sort()).toEqual(
       [
         'getPropertyPortalExperience',
         'savePortalLocalizedOverride',
+        'savePortalLookColours',
+        'savePortalLookIdentity',
+        'savePortalLookPhoto',
         'savePropertyDefaultGuestLocales',
         'savePropertyHero',
         'savePropertyLogo',

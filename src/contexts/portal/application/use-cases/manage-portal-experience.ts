@@ -11,6 +11,8 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
+import type { PortalLookRepository } from '../ports/portal-look.repository'
+import type { PortalLookSettings } from '../dto/portal-look.dto'
 import { resolvePropertyLookMedia } from '../property-look-media'
 import { assertPropertyAccess } from '../assert-property-access'
 import { loadPortalOrThrow } from '../load-accessible-portal'
@@ -35,6 +37,23 @@ type Deps = Readonly<{
   clock: () => Date
 }>
 
+/** What the settings read also needs for a Portal's own look (ADR 0070). */
+type PortalLookReadDeps = Readonly<{
+  portalLookRepo: Pick<PortalLookRepository, 'findForPortal' | 'countLivePortals'>
+  /** PORTAL_OWN_LOOK_ENABLED. */
+  portalOwnLookEnabled: boolean
+}>
+
+/**
+ * The read's facts about a Portal's own look. No look of its own is read yet:
+ * every Portal reads as following the Property look.
+ */
+const portalLookSettingsOf = (deps: PortalLookReadDeps): PortalLookSettings => ({
+  portalLook: null,
+  siblingPortalCount: 0,
+  portalLookEnabled: deps.portalOwnLookEnabled,
+})
+
 function assertPortalAdmin(ctx: AuthContext): void {
   if (!canForContext(ctx, 'portal.admin')) {
     throw portalError(
@@ -53,7 +72,7 @@ function normalizedRequired(value: string, field: string, max: number): string {
 }
 
 export const getPropertyPortalExperience =
-  (deps: Deps) =>
+  (deps: Deps & PortalLookReadDeps) =>
   async (
     input: Readonly<{ propertyId: string; portalId?: string }>,
     ctx: AuthContext,
@@ -83,6 +102,7 @@ export const getPropertyPortalExperience =
         media,
         canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
         publicDisplayNameConfirmed,
+        ...portalLookSettingsOf(deps),
       }
     }
     const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
@@ -102,6 +122,7 @@ export const getPropertyPortalExperience =
       media,
       canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
       publicDisplayNameConfirmed,
+      ...portalLookSettingsOf(deps),
     }
   }
 

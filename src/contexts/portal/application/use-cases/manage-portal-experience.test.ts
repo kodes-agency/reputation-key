@@ -17,6 +17,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
+import { createInMemoryPortalLookRepo } from '#/shared/testing/in-memory-portal-look-repo'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import { isPortalError } from '../../domain/errors'
 import { AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR } from '../../domain/portal-experience'
@@ -182,9 +183,11 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       experienceRepo,
       mediaRepo,
       portalRepo,
+      portalLookRepo: createInMemoryPortalLookRepo(),
       staffPublicApi: staffApiMock(accessible),
       idGen: () => GENERATED_ID,
       clock: () => NOW,
+      portalOwnLookEnabled: false,
     },
   }
 }
@@ -233,6 +236,9 @@ describe('getPropertyPortalExperience', () => {
       media: { hero: null, logo: null },
       canManagePropertyBrand: false,
       publicDisplayNameConfirmed: false,
+      portalLook: null,
+      siblingPortalCount: 0,
+      portalLookEnabled: false,
     })
     expect(experienceRepo.getPropertyExperience).toHaveBeenCalledWith(ORG, PROPERTY)
     // No portal was named, so the per-Portal override read must not happen.
