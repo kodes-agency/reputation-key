@@ -8,6 +8,7 @@ import { createNotificationConsumerDeps } from './notification-consumer-test-fix
 import { registerNotificationConsumers } from './notification-outbox-consumers'
 import { registerWorkflowNotificationConsumers } from './workflow-outbox-consumers'
 import { registerPortalNotificationConsumers } from './portal-outbox-consumers'
+import { registerPortalDestinationNotificationConsumer } from './portal-destination-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './property-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from './integration-outbox-consumers'
 import { registerReviewImportNotificationConsumers } from './review-import-outbox-consumers'
@@ -122,6 +123,14 @@ describe('registered durable notification matrix', () => {
     registerPortalNotificationConsumers(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,
+      displayNames: fakes.displayNames,
+      logger: fakes.logger,
+      receipts,
+    })
+    registerPortalDestinationNotificationConsumer(consumerRegistry, {
+      queue: fakes.queue,
+      userLookup: fakes.userLookup,
+      destinations: { findDestinationApprovalNotificationFacts: vi.fn(async () => null) },
       displayNames: fakes.displayNames,
       logger: fakes.logger,
       receipts,

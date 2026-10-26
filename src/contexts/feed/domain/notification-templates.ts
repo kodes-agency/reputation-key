@@ -634,6 +634,28 @@ const renderPortalHealthAttention = (p: NotificationPayload): RendererCopy => {
   }
 }
 
+/**
+ * A site a Linktree link opens is waiting for an account admin, so guests
+ * cannot see the link. The sentence names the site by its host and the Portal
+ * whose Linktree the admin approves it in, and how many more open it.
+ */
+const renderPortalLinkApprovalNeeded = (p: NotificationPayload): RendererCopy => {
+  const more = p.otherPortalCount ? ` and ${p.otherPortalCount} more` : ''
+  const body = sentence(
+    `Guests will not see links to ${p.siteHost ?? 'this site'} until an account admin approves it.`,
+    p.portalName === undefined
+      ? ''
+      : `Approve it in the Linktree of the ${p.portalName} portal${more}.`,
+  )
+  return {
+    title: `A Linktree link${atProperty(p)} is waiting for approval`,
+    body,
+    detail: body,
+    actionLabel: 'Review link',
+    summary: factsAt(p, 'Linktree link waiting for approval'),
+  }
+}
+
 const renderPropertyResponsibilityNeeded = (p: NotificationPayload): RendererCopy => ({
   title: `${p.propertyName ?? 'A property'} needs a responsible manager`,
   body: 'Choose an eligible manager so property-wide updates reach the right people.',
@@ -809,6 +831,7 @@ const RENDERERS: Record<
   'inbox_note.added': renderNoteAdded,
   'portal.responsibility_needed': renderPortalResponsibilityNeeded,
   'portal.health_attention': renderPortalHealthAttention,
+  'portal.link_approval': renderPortalLinkApprovalNeeded,
   'property.responsibility_needed': renderPropertyResponsibilityNeeded,
   'property.review_import_finished': renderReviewImportFinished,
   'integration.reauthorization_required': renderIntegrationReauthorizationRequired,
@@ -928,6 +951,9 @@ const ORGANIZATION_NOTICE_PATHS: Partial<Record<NotificationType, string>> = {
  * requires the typed form — passing `'/inbox?itemId=x'` as `to` silently fails
  * to apply the query.
  *
+ * The payload is read only for a site waiting for approval, whose row points at
+ * the site and carries the Portal to open.
+ *
  * `propertyId` comes from the notification ROW, not from `resourceId`: a
  * `goal` notification stamps its monthly result as its resource, and the
  * previous builder used that id as a propertyId, producing a dead
@@ -938,6 +964,7 @@ export const notificationLink = (
   resourceId: string,
   propertyId: string | null,
   type?: NotificationType,
+  payload?: NotificationPayload,
 ): NotificationLink => {
   switch (resourceType) {
     case 'organization':
@@ -969,6 +996,15 @@ export const notificationLink = (
       return propertyLink(propertyId, '')
     case 'portal':
       return propertyLink(propertyId, `/portals/${resourceId}`, { tab: 'page' })
+    case 'portal_destination':
+      // A site belongs to its Property; an account admin decides it in the
+      // Linktree of the Portal the notice names (`resourceId` is the site).
+      return payload?.portalId === undefined
+        ? propertyLink(propertyId, '/portals')
+        : propertyLink(propertyId, `/portals/${payload.portalId}`, {
+            tab: 'page',
+            section: 'linktree',
+          })
     case 'property':
       // An imported history is a queue of reviews to answer, so its notice
       // opens the Property's open Inbox queue rather than the Property page.

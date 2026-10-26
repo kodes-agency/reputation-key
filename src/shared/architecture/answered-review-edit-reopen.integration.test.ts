@@ -206,6 +206,9 @@ async function writeNotices(jobs: ReadonlyArray<InsertNotificationJobData>) {
       escalationResolutions: { findEscalationResolutionFacts: notAskedForAnArrival },
       replyStates: { findReplyStatus: notAskedForAnArrival },
       portalHealthLookup: { findPortalHealthNotificationFacts: notAskedForAnArrival },
+      destinationLookup: {
+        findDestinationApprovalNotificationFacts: notAskedForAnArrival,
+      },
       organizationState: notAskedForAnArrival,
       responsibleManagers: {
         findForProperty: notAskedForAnArrival,

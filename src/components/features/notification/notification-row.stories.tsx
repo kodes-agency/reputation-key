@@ -212,6 +212,32 @@ export const PortalOffline: Story = rowSays({
 })
 
 /**
+ * A site a Linktree link opens is waiting for an account admin. The row names
+ * the site by its host and the Portal to approve it in, and the Property stays
+ * with the facts; the address itself never reaches a notice.
+ */
+export const LinktreeLinkWaiting: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000090',
+    type: 'portal.link_approval',
+    resourceType: 'portal_destination',
+    payload: {
+      propertyName: 'Harbour Lodge',
+      siteHost: 'menu.example.com',
+      portalName: 'Lobby',
+      portalId: '61ed98fc-9cf8-44e9-b49d-cd25e744fd6c',
+      otherPortalCount: 1,
+    },
+  },
+  title: 'A Linktree link is waiting for approval',
+  facts: ['Harbour Lodge'],
+  detail:
+    'Guests will not see links to menu.example.com until an account admin approves it. Approve it in the Linktree of the Lobby portal and 1 more.',
+  name: /^A Linktree link at Harbour Lodge is waiting for approval, \d+ minutes? ago, unread$/,
+  neverSays: /please|https:/i,
+})
+
+/**
  * A portal goal met (deck N-1, approved under P-8). The visible title leaves
  * the Property to the facts line and keeps the month; the line under it states
  * the month's count against its target, and a screen reader hears the full

@@ -74,6 +74,7 @@ export function NotificationRow({
     notification.resourceId,
     notification.propertyId,
     notification.type,
+    notification.payload,
   )
   const detailId = `notification-detail-${notification.id}`
   const icon = view.tone === 'done' ? CircleCheck : getNotificationIcon(notification.type)

@@ -1,4 +1,4 @@
-import { UserCog, UserPlus } from 'lucide-react'
+import { Bell, UserCog, UserPlus } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_NOTIFICATION_FORMAT,
@@ -56,5 +56,9 @@ describe('getNotificationIcon', () => {
       UserCog,
     )
     expect(getNotificationIcon('account.invitation_accepted')).toBe(UserPlus)
+  })
+
+  it('leaves a site waiting for approval on the bell, which costs first paint nothing', () => {
+    expect(getNotificationIcon('portal.link_approval')).toBe(Bell)
   })
 })

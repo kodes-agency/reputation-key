@@ -49,6 +49,10 @@ export type {
   PropertyLookMedia,
 } from './property-look-media'
 export type {
+  FindDestinationApprovalFacts,
+  PortalDestinationApprovalFacts,
+} from './portal-destination-approval-facts'
+export type {
   PortalPreview,
   PortalPreviewExperience,
   PortalPreviewLink,
@@ -121,6 +125,7 @@ import type { PortalContactRequestManagerAuthorityFacts } from './use-cases/port
 import type { GoalReadinessFacts } from './goal-readiness-facts'
 import type { AiReplyBrandProfile } from '#/shared/ai-reply-brand-profile'
 import type { Tx } from '#/shared/outbox/commit'
+import type { FindDestinationApprovalFacts } from './portal-destination-approval-facts'
 
 /** Result of resolving a portal's context (org + property) by portal ID. */
 type PortalContextResult = Readonly<{
@@ -423,6 +428,11 @@ export type PortalPublicApi = Readonly<{
     reason: PortalHealthReason
     effectiveFrom: Date
   }> | null>
+  /**
+   * A site waiting for an account admin's approval, as its notice needs it:
+   * whether it still waits, its host, and the Portal to decide it on.
+   */
+  findDestinationApprovalNotificationFacts: FindDestinationApprovalFacts
 }>
 
 /** Minimal portal group info for cross-context consumers. */

@@ -228,6 +228,10 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
         findPortalHealthNotificationFacts:
           input.portal.publicApi.portal.findPortalHealthNotificationFacts,
       },
+      destinationLookup: {
+        findDestinationApprovalNotificationFacts:
+          input.portal.publicApi.portal.findDestinationApprovalNotificationFacts,
+      },
       isEmailDeliveryAllowed,
       propertyAccess: input.identity.publicApi.people.getAccessiblePropertyIds,
       emailAddressKey: input.notificationEmailAddressKey,

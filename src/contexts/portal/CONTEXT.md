@@ -719,6 +719,14 @@ exceptions to that section's rules:
   `listPortalManagementPropertyIds`, whose answer it filters by the caller's Properties
   and the policy.
 
+`findDestinationApprovalNotificationFacts` (the Portal public API, read by Feed) is
+what the notice that a site is waiting for an account admin needs: the site's state
+and host, who first asked for it, the earliest live Portal (not deleted, not archived)
+whose links open it and how many others do; when no link opens it yet, which is the
+usual case because a refused tile saves no link, the Property's earliest live Portal;
+`null` for the Portal when the Property has none, and `null` for a site that is not
+there or belongs to another Organization. It returns no address, only the host.
+
 `listPortalOverview` is the batched read behind the Portals overview. For a Property
 or for the Organization it returns one row per Portal (languages, Health and its
 reason, pending-change count, current group, responsible-manager user ids, token

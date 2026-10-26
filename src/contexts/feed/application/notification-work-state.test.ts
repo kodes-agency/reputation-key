@@ -9,6 +9,7 @@ const ITEM = inboxItemId('item-work')
 const REVIEW = '95000000-0000-4000-8000-000000000003'
 const PORTAL = '95000000-0000-4000-8000-000000000006'
 const PROPERTY = '95000000-0000-4000-8000-000000000001'
+const SITE = '95000000-0000-4000-8000-000000000007'
 
 const cycle = (
   overrides: Partial<HandlingCycleNotificationFacts> = {},
@@ -36,6 +37,8 @@ function build(
     reply: ReplyWorkStatus | null
     managers: ReadonlyArray<string>
     health: Readonly<{ status: string; reason: string }> | null
+    /** The state of the site; null when it is gone. */
+    site: 'pending' | 'approved' | 'disabled' | 'quarantined' | null
     lifecycle: string | null
   }> = {},
 ) {
@@ -76,6 +79,20 @@ function build(
                 status: 'degraded',
                 reason: 'google_destination_unavailable',
               }),
+            },
+      ),
+    },
+    destinationLookup: {
+      findDestinationApprovalNotificationFacts: vi.fn(async () =>
+        overrides.site === null
+          ? null
+          : {
+              propertyId: PROPERTY,
+              hostname: 'menu.example.com',
+              approvalState: overrides.site ?? 'pending',
+              requestedBy: 'manager-1',
+              portal: { id: PORTAL, name: 'Lobby' },
+              otherPortalCount: 0,
             },
       ),
     },
@@ -248,6 +265,18 @@ describe('whether the work a notice asks for still waits', () => {
     ).resolves.toBe(false)
   })
 
+  it('keeps a notice about a site waiting only until the site is decided or gone', async () => {
+    await expect(ask(build(), 'portal.link_approval', SITE)).resolves.toBe(true)
+    for (const decided of ['approved', 'disabled', 'quarantined'] as const) {
+      await expect(
+        ask(build({ site: decided }), 'portal.link_approval', SITE),
+      ).resolves.toBe(false)
+    }
+    await expect(ask(build({ site: null }), 'portal.link_approval', SITE)).resolves.toBe(
+      false,
+    )
+  })
+
   it('stops mailing the final deletion notice once the purge is cancelled', async () => {
     await expect(ask(build(), 'account.organization_purge_pending', ORG)).resolves.toBe(
       true,
@@ -282,6 +311,21 @@ describe('which of a settling fact’s types are finished', () => {
         types: ['reply.pending_approval', 'reply.publish_failed'],
       }),
     ).resolves.toEqual(['reply.publish_failed'])
+  })
+
+  it('settles a site’s notice once it is decided, and keeps it while it waits', async () => {
+    const input = {
+      organizationId: ORG,
+      resourceId: SITE,
+      types: ['portal.link_approval'] as const,
+    }
+
+    await expect(
+      build({ site: 'approved' }).finished({ ...input, types: [...input.types] }),
+    ).resolves.toEqual(['portal.link_approval'])
+    await expect(
+      build({ site: 'pending' }).finished({ ...input, types: [...input.types] }),
+    ).resolves.toEqual([])
   })
 
   it('asks the Inbox once for every item notice a closed cycle settles', async () => {

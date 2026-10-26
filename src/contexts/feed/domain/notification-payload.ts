@@ -30,7 +30,10 @@
 //             target, the goal's mode and pace, and the recent pace of new
 //             reviews; the only rating figures are the tenths Google itself
 //             shows and the target, none RepKey works out from review
-//             ratings; ADR 0046, amended 2026-10-14).
+//             ratings; ADR 0046, amended 2026-10-14), and, for a site waiting for
+//             an account admin, the site's HOST (never its address), the name
+//             and id of the Portal to decide it on, and how many others open
+//             it (ADR 0046, amended 2026-10-26).
 //   FORBIDDEN a Google/provider review's rating and any review content, reply
 //             text, guest/reviewer name, media URLs, sentiment or any other
 //             derived score (including an average RepKey works out from
@@ -225,6 +228,16 @@ export type NotificationPayload = Readonly<{
   /** New Google reviews a week in the pace window, in tenths, rounded down. */
   ratingRecentPaceTenths?: number
   ratingPaceWindow?: NotificationRatingPaceWindow
+  /**
+   * A site waiting for an account admin (`portal.link_approval`): its
+   * host, never the address, and the Portal whose Linktree it is decided on
+   * (name for the sentence, id only for the deep link), with how many other
+   * Portals' links open it.
+   */
+  siteHost?: string
+  portalName?: string
+  portalId?: string
+  otherPortalCount?: number
 }>
 
 export type NotificationRatingGoalMode = 'climb' | 'keep'
@@ -565,6 +578,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   }
 
   setRatingGoalFigures(raw, set)
+  setWaitingSiteFacts(raw, set)
 
   return parsed as NotificationPayload
 }
@@ -584,6 +598,26 @@ function setPortalGoalFigures(
     set('goalTargetCount', takeIntegerIn(raw.goalTargetCount, 0, MAX_GOAL_COUNT))
   }
   set('goalSubjectName', takeText(raw.goalSubjectName, MAX_NAME_LENGTH))
+}
+
+/** The longest host name there is (RFC 1035). */
+const MAX_HOST_LENGTH = 253
+
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** A uuid exactly as written, never a longer string cut down to one. */
+const takeUuid = (value: unknown): string | undefined =>
+  typeof value === 'string' && UUID_SHAPE.test(value) ? value : undefined
+
+/** A site waiting for approval: its host, and the Portal it is decided on. */
+function setWaitingSiteFacts(
+  raw: RawPayload,
+  set: (key: keyof NotificationPayload, value: unknown) => void,
+): void {
+  set('siteHost', takeText(raw.siteHost, MAX_HOST_LENGTH))
+  set('portalName', takeText(raw.portalName, MAX_NAME_LENGTH))
+  set('portalId', takeUuid(raw.portalId))
+  set('otherPortalCount', takeIntegerIn(raw.otherPortalCount, 0, 1_000))
 }
 
 /** The Google rating goal notices' figures, each in its own range. */

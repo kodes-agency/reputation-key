@@ -69,6 +69,9 @@ export const NOTIFICATION_TYPES = [
   // Portal operations
   'portal.responsibility_needed',
   'portal.health_attention',
+  // A site a Linktree link opens is waiting for an account admin (ADR 0046,
+  // amended 2026-10-26). One notice per site, not per link.
+  'portal.link_approval',
   'property.responsibility_needed',
   // One summary when a Property's Google review history has been imported,
   // in place of the per-review flood #597 suppressed (ADR 0046, 2026-09-24).
@@ -152,6 +155,8 @@ export const NOTIFICATION_RESOURCE_TYPES = [
   'goal',
   'badge',
   'portal',
+  /** A site allowed for links, by its id; its notice opens a Portal's Linktree. */
+  'portal_destination',
   'property',
   'integration',
   /** The recipient's own beta report, by its opaque triage reference (ADR 0059). */

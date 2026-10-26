@@ -44,6 +44,7 @@ import {
 import { createPortalApprovedDestinationRepository } from './infrastructure/repositories/portal-approved-destination.repository'
 import { createPortalExperienceRepository } from './infrastructure/repositories/portal-experience.repository'
 import { createPortalHealthRepository } from './infrastructure/repositories/portal-health.repository'
+import { createPortalDestinationApprovalFactsReader } from './infrastructure/repositories/portal-destination-approval-facts.reader'
 import { createPortalHistoryRepository } from './infrastructure/repositories/portal-history.repository'
 import { createPortalActorDirectoryAdapter } from './infrastructure/adapters/portal-actor-directory.adapter'
 import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-reply-brand-profile-authority'
@@ -737,6 +738,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       const facts = await contactRequestManagerAuthorityFacts(orgId, pid)
       return facts?.responsibleManagerUserIds ?? []
     },
+    findDestinationApprovalNotificationFacts: createPortalDestinationApprovalFactsReader(
+      deps.db,
+    ),
     findPortalHealthNotificationFacts: async (orgId: OrganizationId, pid: PortalId) => {
       const portal = await portalRepo.findById(orgId, pid)
       if (!portal) return null

@@ -189,6 +189,7 @@ describe.sequential('missing-notification repair through the Feed build', () => 
           findMonthlyResultRevisionNotificationFacts: async () => null,
         },
         portalHealthLookup: { findPortalHealthNotificationFacts: async () => null },
+        destinationLookup: { findDestinationApprovalNotificationFacts: async () => null },
       },
     })
   }

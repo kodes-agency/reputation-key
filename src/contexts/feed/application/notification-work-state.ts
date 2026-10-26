@@ -13,12 +13,14 @@
 // before a notice is written, before its email leaves, and before a settling
 // fact retires it. The answer comes from the context that owns the work — the
 // Inbox for escalations and Handling Cycles, Review for replies, Portal for
-// Health, Property and Portal for responsibility, Identity for the
-// Organization lifecycle — never from Feed's own rows. It is freshness, not standing: whether the recipient may still be
+// Health and for a site waiting for approval, Property and Portal for
+// responsibility, Identity for the Organization lifecycle — never from Feed's
+// own rows. It is freshness, not standing: whether the recipient may still be
 // told is `notification-recipient-standing.ts`'s question.
 
 import {
   inboxItemId,
+  portalApprovedDestinationId,
   portalId,
   propertyId,
   reviewId,
@@ -88,6 +90,8 @@ export type NotificationWorkStateDeps = Readonly<{
   inboxItemLookup: Pick<InboxItemLookupPort, 'findHandlingCycleNotificationFacts'>
   replyStates: ReplyWorkStateLookupPort
   portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
+  /** Portal-owned: whether a site is still waiting for an account admin. */
+  destinationLookup: Pick<PortalPublicApi, 'findDestinationApprovalNotificationFacts'>
   /** The Organization's lifecycle state; null when it has no lifecycle record. */
   organizationState: (organizationId: OrganizationId) => Promise<string | null>
   responsibleManagers: Pick<
@@ -213,6 +217,21 @@ const healthStillNeedsAttention: WorkCheck = async (
   return facts.status !== 'healthy' && isActionablePortalHealthReason(facts.reason)
 }
 
+/**
+ * A site's notice stands while the site is still waiting for a decision. A site
+ * that is gone (its Property was removed) has nobody left to decide it.
+ */
+const destinationStillPending: WorkCheck = async (
+  deps,
+  { organizationId, resourceId },
+) => {
+  const facts = await deps.destinationLookup.findDestinationApprovalNotificationFacts(
+    organizationId,
+    portalApprovedDestinationId(resourceId),
+  )
+  return facts !== null && facts.approvalState === 'pending'
+}
+
 /** The final deletion warning is true only while the purge is still pending. */
 const purgeStillPending: WorkCheck = async (deps, { organizationId }) => {
   const state = await deps.organizationState(organizationId)
@@ -245,6 +264,7 @@ const WORK_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
   'inbox.assigned': itemStillOpen,
   'inbox.bulk_assigned': assignedItemsStillOpen,
   'portal.health_attention': healthStillNeedsAttention,
+  'portal.link_approval': destinationStillPending,
   'account.organization_purge_pending': purgeStillPending,
   'property.responsibility_needed': propertyStillUnstaffed,
   'portal.responsibility_needed': portalStillUnstaffed,

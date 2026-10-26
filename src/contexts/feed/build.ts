@@ -63,6 +63,7 @@ import { registerNotificationConsumers } from './infrastructure/notification-out
 import { registerWorkflowNotificationConsumers } from './infrastructure/workflow-outbox-consumers'
 import { createRetireMovedAssignment } from './application/retire-moved-assignment'
 import { registerPortalNotificationConsumers } from './infrastructure/portal-outbox-consumers'
+import { registerPortalDestinationNotificationConsumer } from './infrastructure/portal-destination-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './infrastructure/property-outbox-consumers'
 import {
   registerReviewImportNotificationConsumers,
@@ -311,6 +312,8 @@ type NotificationBuildInput = Readonly<{
   monthlyResultFacts: MonthlyResultNotificationFactsLookup
   /** Portal-owned exact current Health state fence for delayed delivery. */
   portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
+  /** Portal-owned state of a site waiting for approval, and the Portal to open. */
+  destinationLookup: Pick<PortalPublicApi, 'findDestinationApprovalNotificationFacts'>
   /**
    * Current `notification.send_email` decision per scope, so delivery-lag
    * evidence judges only mail that may be sent (composition-owned policy).
@@ -386,6 +389,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     inboxItemLookup,
     replyStates: input.replyStates,
     portalHealthLookup: input.portalHealthLookup,
+    destinationLookup: input.destinationLookup,
     organizationState: createNotificationOrganizationLifecycleStateReader(input.db),
     responsibleManagers: input.responsibleManagers,
   })
@@ -807,6 +811,14 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     registerPortalNotificationConsumers(consumerRegistry, {
       queue,
       userLookup,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerPortalDestinationNotificationConsumer(consumerRegistry, {
+      queue,
+      userLookup,
+      destinations: input.destinationLookup,
       displayNames,
       logger: input.logger,
       receipts: input.outboxRepo,

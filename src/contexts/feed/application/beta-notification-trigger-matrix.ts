@@ -257,6 +257,17 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
   ),
   {
     ...route(
+      'portal.approved_destination.updated',
+      'notification.on-portal-destination-pending',
+      ['portal.link_approval'],
+      // Every AccountAdmin of the Organization: only they can approve a site.
+      ['account_admin'],
+    ),
+    // A site first asked for waits for a decision; later states settle it.
+    eventCondition: 'approvalState === pending',
+  },
+  {
+    ...route(
       'portal.health.changed',
       'notification.on-portal-health-changed',
       ['portal.health_attention'],
@@ -394,6 +405,15 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     eventCondition:
       'status === healthy || reason not in actionable automatic Health reasons',
   },
+  {
+    ...settles(
+      'portal.approved_destination.updated',
+      'notification.settle-on-portal-destination-decided',
+      ['portal.link_approval'],
+    ),
+    // Approved, turned off or held back: the complement of the raising route.
+    eventCondition: 'approvalState !== pending',
+  },
   // An archived Property is outside the workspace: every notice asking for
   // work on it is finished, whatever resource it points at.
   settles('property.archived', 'notification.settle-on-property-archived', [
@@ -409,6 +429,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'inbox.response_target_passed',
     'property.responsibility_needed',
     'portal.responsibility_needed',
+    'portal.link_approval',
     'portal.health_attention',
     'inbox.assigned',
     'inbox.bulk_assigned',

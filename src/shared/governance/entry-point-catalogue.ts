@@ -522,6 +522,12 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
   ),
   consumer(
+    'notification.portal-destination-outbox-consumers',
+    'system:notification.insert_portal',
+    'portal.write',
+    'property',
+  ),
+  consumer(
     'notification.portal-health-outbox-consumers',
     'system:notification.insert_portal',
     'portal.write',
