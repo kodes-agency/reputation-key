@@ -7,6 +7,10 @@ import { Agent } from 'undici'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import {
+  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
+  AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA,
+} from '#/shared/openai-route-output-schemas'
+import {
   signAiExecutionGrant,
   type AiAdmissionDescriptorV1,
   type AiExecutionGrantV1,
@@ -673,14 +677,17 @@ function connectorDescriptor(
   }
 }
 
-function createConnectorHarness(outboundFetch: typeof fetch) {
+function createConnectorHarness(
+  outboundFetch: typeof fetch,
+  format: ClosedJsonSchemaFormat = connectorFormat,
+) {
   const sdkRequest = buildClosedOpenAiRequest({
     route: 'synthetic-canary',
     promptVersion: 'synthetic-canary-prompt-v1',
     promptCacheShard: 0,
     developerMessage: 'Return the fixed canary marker.',
     untrustedData: '{"canary":true}',
-    format: connectorFormat,
+    format,
     maxOutputTokens: 4_096,
     reasoningEffort: 'low',
     safetyIdentifier: `rk1_${'A'.repeat(43)}`,
@@ -731,7 +738,7 @@ function createConnectorHarness(outboundFetch: typeof fetch) {
 
 function providerResponse(
   input: Readonly<{
-    parsed?: Readonly<{ ok: boolean }> | null
+    parsed?: unknown
     refusal?: string
     usage?: Readonly<{
       inputTokens: number
@@ -895,6 +902,47 @@ describe('official OpenAI SDK connector integration', () => {
         reasoningTokens: 1,
         totalTokens: 15,
       },
+    })
+  })
+
+  // Closed beta, 2026-10-16 to 2026-10-25: an analysis answer that listed one
+  // aspect twice was billed and then refused, on every attempt, for 24 reviews.
+  // Structured Outputs cannot enforce "unique by aspect", so the connector
+  // parses with the answer schema and the gateway merges the duplicate.
+  it('passes on an analysis answer that lists one aspect twice', async () => {
+    const answer = {
+      sentiment: 'positive',
+      sentimentValence: 80,
+      urgencySignals: [],
+      aspects: [
+        { aspect: 'food_and_drink', polarity: 'positive', intensity: 70 },
+        { aspect: 'staff', polarity: 'positive', intensity: 60 },
+        { aspect: 'food_and_drink', polarity: 'positive', intensity: 85 },
+      ],
+      issueLabel: null,
+    }
+    const invoke = async (schema: z.ZodType) => {
+      const harness = createConnectorHarness(
+        async () => providerResponse({ parsed: answer }),
+        JSON.parse(
+          JSON.stringify(zodTextFormat(schema, 'review_analysis_v2')),
+        ) as ClosedJsonSchemaFormat,
+      )
+      return harness.connector.invoke(
+        harness.invocation,
+        harness.grant,
+        schema,
+        new AbortController().signal,
+      )
+    }
+
+    await expect(invoke(AI_ANALYSIS_V2_OUTPUT_SCHEMA)).resolves.toMatchObject({
+      disposition: 'output_invalid',
+      usageKnown: true,
+    })
+    await expect(invoke(AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA)).resolves.toMatchObject({
+      disposition: 'success',
+      result: answer,
     })
   })
 
