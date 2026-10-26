@@ -40,6 +40,8 @@ const HEX_COLOUR = "'^#[0-9A-Fa-f]{6}$'"
 
 export const portalLookOverrides = pgTable(
   'portal_look_overrides',
+  // The tenant key every Portal-scoped table starts with.
+  // fallow-ignore-next-line code-duplication
   {
     id: uuid('id').primaryKey().defaultRandom(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),

@@ -65,6 +65,17 @@ const PORTAL_LOOK_ACTION: Readonly<Record<string, string>> = {
   photo: 'changed this portal’s photo',
 }
 
+type LookSubject = Extract<PortalPageEditSubject, { area: 'look' | 'portal_look' }>
+
+/** What was done to the look every portal starts with, or to this portal's own. */
+function lookAction(subject: LookSubject): string {
+  const [actions, general] =
+    subject.area === 'look'
+      ? [LOOK_ACTION, 'changed the look']
+      : [PORTAL_LOOK_ACTION, 'changed this portal’s look']
+  return (subject.facet === null ? undefined : actions[subject.facet]) ?? general
+}
+
 type EditSentence = Readonly<{
   action: Phrase
   locale: GuestLocale | null
@@ -182,29 +193,8 @@ function describeEditSubject(
     case 'display_name':
       return out([plain('renamed '), strong('the property’s public name')])
     case 'look':
-      return out(
-        [
-          plain(
-            subject.facet === null
-              ? 'changed the look'
-              : (LOOK_ACTION[subject.facet] ?? 'changed the look'),
-          ),
-        ],
-        null,
-        false,
-      )
     case 'portal_look':
-      return out(
-        [
-          plain(
-            subject.facet === null
-              ? 'changed this portal’s look'
-              : (PORTAL_LOOK_ACTION[subject.facet] ?? 'changed this portal’s look'),
-          ),
-        ],
-        null,
-        false,
-      )
+      return out([plain(lookAction(subject))], null, false)
     case 'profile':
       return out([plain('changed the property’s look')], null, false)
     case 'destination':

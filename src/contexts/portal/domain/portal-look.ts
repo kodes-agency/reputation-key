@@ -46,7 +46,7 @@ import {
  */
 export const PORTAL_LOOK_EDIT_PERMISSION = 'portal.admin' satisfies Permission
 
-export const PORTAL_LOOK_GROUPS = Object.freeze(['photo', 'colours', 'identity'] as const)
+const PORTAL_LOOK_GROUPS = Object.freeze(['photo', 'colours', 'identity'] as const)
 export type PortalLookGroup = (typeof PORTAL_LOOK_GROUPS)[number]
 
 export const PORTAL_LOOK_PHOTO_MODES = Object.freeze(['inherit', 'own', 'none'] as const)
