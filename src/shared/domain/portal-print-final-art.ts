@@ -12,7 +12,8 @@
 //      ground is darker than the ground and ends in a visible band).
 //   4. When a word still misses 4.5:1 (§6.3): the top scrim deepens for the
 //      brand; behind the message the photo melts further into the ground (its
-//      alpha lowered from 0.45 in above the message down), never toward black.
+//      alpha lowered from 0.45 in above the message down), never toward black;
+//      only once it is melted as far as it goes does the message scrim deepen.
 //   5. With no photo: brighter washes, and on an upright face the arch outline
 //      round the brand and the words.
 //   6. Film grain, and on a tent the pale strip at the fold, over everything.
@@ -148,10 +149,11 @@ function photoOf(
 function scrimsOf(
   plan: PrintFinalPlan,
   bleed: PrintFinalBleed,
-  boost: number,
+  boost: PrintFinalBoost,
   languageCount: number,
 ): PrintFinalScrim[] {
-  // `boost` deepens the top scrim only: the message is helped by `printFinalClear`.
+  // The top scrim deepens for the brand; the message scrim only as a last resort
+  // (`boost.message`), after `printFinalClear` has melted the photo as far as it goes.
   const two = languageCount > 1
   const { brand, message } = plan.groups
   const topEnd = (brand?.bottomPt ?? plan.live.topPt) + ART.topScrim.belowBrandPt
@@ -162,8 +164,8 @@ function scrimsOf(
       {
         axis: 'y',
         stops: [
-          { atPt: 0, alpha: first + boost },
-          { atPt: ART.topScrim.middle * topEnd, alpha: second + boost },
+          { atPt: 0, alpha: first + boost.top },
+          { atPt: ART.topScrim.middle * topEnd, alpha: second + boost.top },
           { atPt: topEnd, alpha: 0 },
         ],
       },
@@ -172,7 +174,10 @@ function scrimsOf(
   if (message === null) return [top]
   const wide = plan.face.orientation === 'wide'
   const shape = wide ? ART.wideScrim : ART.uprightScrim
-  const alpha = Math.min(ART.maxScrim, two ? shape.alphaTwo : shape.alpha)
+  const alpha = Math.min(
+    ART.maxScrim,
+    (two ? shape.alphaTwo : shape.alpha) + boost.message,
+  )
   const start = message.topPt - shape.abovePt
   const end = message.bottomPt + shape.belowPt
   const down: PrintFinalRamp = {
@@ -242,7 +247,7 @@ export function printFinalArt(input: PrintFinalArtInput): PrintFinalArt {
     groundBox: intoBleed(box(0, 0, plan.widthPt, plan.heightPt), plan, bleed),
     washes: printFinalWashes(plan, palette, hasPhoto),
     photo: hasPhoto ? photoOf(plan, bleed, input.boost) : null,
-    scrims: hasPhoto ? scrimsOf(plan, bleed, input.boost.top, input.languageCount) : [],
+    scrims: hasPhoto ? scrimsOf(plan, bleed, input.boost, input.languageCount) : [],
     arch: hasPhoto ? null : archOf(plan, palette),
     grainOpacity: hasPhoto ? ART.grain.photo : ART.grain.none,
     foldStrip:

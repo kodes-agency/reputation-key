@@ -212,17 +212,29 @@ describe('printFinalArt: the scrims', () => {
 
   it('deepens the top scrim by its boost and leaves the message scrim as it is', () => {
     const plan = planOf(immersive('counter', 'wide'), ['en', 'es'])
-    const boost = { top: 0.3, clear: 0.3, clearFrom: 'message' } as const
+    const boost = { top: 0.3, message: 0, clear: 0.3, clearFrom: 'message' } as const
     const [top, message] = artOf(plan, { languageCount: 2, boost }).scrims
     expect(rampAlpha(top!.ramps[0]!, 0)).toBeCloseTo(0.8)
     const middle = (plan.groups.message!.topPt + plan.groups.message!.bottomPt) / 2
     expect(rampAlpha(message!.ramps[0]!, middle)).toBeCloseTo(0.7)
   })
 
+  it('deepens the message scrim by its own last-resort boost, never past 0.9', () => {
+    const plan = planOf(immersive('counter', 'wide'), ['en', 'es'])
+    const middle = (plan.groups.message!.topPt + plan.groups.message!.bottomPt) / 2
+    const boost = { top: 0, message: 0.18, clear: 0.6, clearFrom: 'message' } as const
+    const [top, message] = artOf(plan, { languageCount: 2, boost }).scrims
+    expect(rampAlpha(top!.ramps[0]!, 0)).toBeCloseTo(0.5)
+    expect(rampAlpha(message!.ramps[0]!, middle)).toBeCloseTo(0.88)
+    const most = { ...boost, message: 0.3 } as const
+    const [, deepest] = artOf(plan, { languageCount: 2, boost: most }).scrims
+    expect(rampAlpha(deepest!.ramps[0]!, middle)).toBeCloseTo(0.9)
+  })
+
   it('clears the photo toward the ground behind the message, held to the fade upright', () => {
     const plan = planOf(immersive('tent', 'upright'))
     const message = plan.groups.message!
-    const boost = { top: 0, clear: 0.3, clearFrom: 'message' } as const
+    const boost = { top: 0, message: 0, clear: 0.3, clearFrom: 'message' } as const
     const photo = artOf(plan, { boost }).photo!
     expect(artOf(plan).photo?.clear).toBeNull()
     const top = message.topPt - inPt(0.45)
@@ -235,7 +247,7 @@ describe('printFinalArt: the scrims', () => {
 
   it('clears from above the brand when the brand needs it, and out again below the words wide', () => {
     const plan = planOf(immersive('counter', 'wide'))
-    const boost = { top: 0.3, clear: 0.24, clearFrom: 'brand' } as const
+    const boost = { top: 0.3, message: 0, clear: 0.24, clearFrom: 'brand' } as const
     const clear = artOf(plan, { boost }).photo!.clear!
     const brand = plan.groups.brand!
     const message = plan.groups.message!

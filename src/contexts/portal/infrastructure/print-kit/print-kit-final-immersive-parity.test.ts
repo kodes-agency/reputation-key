@@ -128,6 +128,10 @@ describe('the preview’s final Immersive faces', () => {
             Math.abs(preview.boost.clear - file.boost.clear),
             what,
           ).toBeLessThanOrEqual(0.06 + 1e-9)
+          expect(
+            Math.abs(preview.boost.message - file.boost.message),
+            what,
+          ).toBeLessThanOrEqual(0.06 + 1e-9)
           for (const word of preview.contrasts) {
             if (preview.boost.clear < 0.6)
               expect(word.ratio, `${what} ${word.key}`).toBeGreaterThanOrEqual(4.6)

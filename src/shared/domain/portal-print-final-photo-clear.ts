@@ -17,18 +17,23 @@ import type { PrintFinalBox } from './portal-print-final-measures'
 
 /**
  * How much an Immersive face was deepened for contrast: the top scrim for the
- * brand (0 to 0.30, §6.3), and how far the photo melts into the ground (0 to
- * 0.60) from above the message, or from above the brand once the top scrim is
- * at its most and the brand still misses.
+ * brand (0 to 0.30, §6.3), how far the photo melts into the ground (0 to 0.60)
+ * from above the message, or from above the brand once the top scrim is at its
+ * most and the brand still misses, and, last of all, the message scrim (0 to
+ * 0.30) once the photo is melted as far as it goes and a word of the message
+ * still misses (a bright window behind the kicker). The message scrim darkens
+ * the photo only, so it fades with it and never prints over the bare ground.
  */
 export type PrintFinalBoost = Readonly<{
   top: number
+  message: number
   clear: number
   clearFrom: 'message' | 'brand'
 }>
 
 export const PRINT_FINAL_NO_BOOST: PrintFinalBoost = Object.freeze({
   top: 0,
+  message: 0,
   clear: 0,
   clearFrom: 'message',
 })

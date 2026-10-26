@@ -11,8 +11,10 @@
 //     deepens while the brand misses (up to 0.30) and the photo melts further
 //     into the ground behind the message while one of its words misses (up to
 //     0.60), from above the brand when the top scrim is at its most and the
-//     brand still misses. Each deepens only for its own words: one shared
-//     boost blackened the message band for a pale sky behind the brand.
+//     brand still misses, and only when the photo is melted as far as it goes
+//     does the message scrim deepen too (up to 0.30, on the photo alone). Each
+//     deepens only for its own words: one shared boost blackened the message
+//     band for a pale sky behind the brand.
 //
 // Pure and shared: the PDF and the Share tab's preview call this with their own
 // measures and their own decode of the same photo.
@@ -90,7 +92,12 @@ export type PrintFinalImmersiveFace = Readonly<{
 }>
 
 /** The art deepens this much at a time, up to the most for each (§6.3). */
-const PRINT_FINAL_BOOST = Object.freeze({ step: 0.06, top: 0.3, clear: 0.6 })
+const PRINT_FINAL_BOOST = Object.freeze({
+  step: 0.06,
+  top: 0.3,
+  clear: 0.6,
+  message: 0.3,
+})
 /** Every word reaches this before the scrims stop deepening. */
 const WORD_CONTRAST_TARGET = 4.6
 
@@ -187,7 +194,8 @@ const stepUp = (value: number, most: number) =>
 /**
  * The next deepening: the top scrim for a brand that misses, then the clearing
  * from above the brand once the top is at its most; the clearing for a message
- * word that misses. Null when nothing more helps.
+ * word that misses, and the message scrim itself only once the clearing is at
+ * its most. Null when nothing more helps.
  */
 function nextBoost(
   boost: PrintFinalBoost,
@@ -196,16 +204,24 @@ function nextBoost(
   const misses = (brand: boolean) =>
     contrasts.some((c) => (c.key === 'brand') === brand && c.ratio < WORD_CONTRAST_TARGET)
   const brandMisses = misses(true)
+  const messageMisses = misses(false)
   const top = brandMisses ? stepUp(boost.top, PRINT_FINAL_BOOST.top) : boost.top
   const brandClears = brandMisses && top === boost.top
   const clearFrom = brandClears ? 'brand' : boost.clearFrom
   const clear =
-    brandClears || misses(false)
+    brandClears || messageMisses
       ? stepUp(boost.clear, PRINT_FINAL_BOOST.clear)
       : boost.clear
-  return top === boost.top && clear === boost.clear && clearFrom === boost.clearFrom
+  const message =
+    messageMisses && boost.clear >= PRINT_FINAL_BOOST.clear
+      ? stepUp(boost.message, PRINT_FINAL_BOOST.message)
+      : boost.message
+  return top === boost.top &&
+    message === boost.message &&
+    clear === boost.clear &&
+    clearFrom === boost.clearFrom
     ? null
-    : { top, clear, clearFrom }
+    : { top, message, clear, clearFrom }
 }
 
 /** Lays out and paints one Immersive face. */

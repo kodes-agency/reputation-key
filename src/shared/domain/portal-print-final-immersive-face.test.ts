@@ -43,6 +43,21 @@ function flat(rgb: readonly [number, number, number]): PrintFinalScenePhoto {
   }
 }
 
+/** A dark photo with a bright band (a window, a pale sky) across rows `from` to `to` of its height. */
+function bandedPhoto(from: number, to: number): PrintFinalScenePhoto {
+  const widthPx = 240
+  const heightPx = 160
+  const data = new Uint8ClampedArray(widthPx * heightPx * 3)
+  for (let row = 0; row < heightPx; row++) {
+    const level = row / heightPx >= from && row / heightPx < to ? 255 : 30
+    for (let column = 0; column < widthPx; column++) {
+      data.set([level, level * 0.95, level * 0.9], (row * widthPx + column) * 3)
+    }
+  }
+  const sample: PrintFinalPhotoSample = { widthPx, heightPx, rgb: data }
+  return { ...flat([0, 0, 0]), sample, detail: sample }
+}
+
 const immersive = (
   piece: PrintFinalFace['piece'],
   orientation: PrintFinalFace['orientation'],
@@ -79,7 +94,7 @@ const lowest = (ratios: readonly { ratio: number }[]) =>
 describe('layoutPrintFinalImmersiveFace: the scrims', () => {
   it('leaves them as they are over a dark photo', () => {
     const laid = layoutPrintFinalImmersiveFace(inputFor(immersive('counter', 'upright')))
-    expect(laid.boost).toEqual({ top: 0, clear: 0, clearFrom: 'message' })
+    expect(laid.boost).toEqual({ top: 0, message: 0, clear: 0, clearFrom: 'message' })
     expect(lowest(laid.contrasts)).toBeGreaterThan(4.6)
     expect(laid.contrasts.map((c) => c.key)).toEqual([
       'brand',
@@ -118,11 +133,39 @@ describe('layoutPrintFinalImmersiveFace: the scrims', () => {
     expect(lowest(message)).toBeGreaterThanOrEqual(4.6)
   })
 
+  it('deepens the message scrim, on the photo, only once the photo is melted as far as it goes', () => {
+    // A bright band behind the kicker of a wide tent in two languages: the
+    // photo melting into the ground is not enough for a blue kicker, so the
+    // message scrim helps last (it read 3.9:1 before it could).
+    const laid = layoutPrintFinalImmersiveFace(
+      inputFor(
+        immersive('tent', 'wide'),
+        {
+          photo: bandedPhoto(0.1, 0.35),
+          accentColour: '#2563EB',
+          fieldColour: '#0E1016',
+        },
+        ['en', 'es'],
+      ),
+    )
+    expect(laid.boost.clear).toBe(0.6)
+    expect(laid.boost.message).toBeGreaterThan(0)
+    expect(laid.boost.message).toBeLessThanOrEqual(0.3)
+    expect(lowest(laid.contrasts)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('leaves the message scrim alone while the clearing is enough', () => {
+    const laid = layoutPrintFinalImmersiveFace(
+      inputFor(immersive('tent', 'upright'), { photo: flat([200, 190, 185]) }),
+    )
+    expect(laid.boost.message).toBe(0)
+  })
+
   it('paints no scrims and no boost without a photo', () => {
     const laid = layoutPrintFinalImmersiveFace(
       inputFor(immersive('tent', 'wide'), { photo: null, fieldColour: '#232323' }),
     )
-    expect(laid.boost).toEqual({ top: 0, clear: 0, clearFrom: 'message' })
+    expect(laid.boost).toEqual({ top: 0, message: 0, clear: 0, clearFrom: 'message' })
     expect(laid.art.scrims).toEqual([])
     expect(laid.palette.ground).toBe('#232323')
     expect(lowest(laid.contrasts)).toBeGreaterThan(4.5)
