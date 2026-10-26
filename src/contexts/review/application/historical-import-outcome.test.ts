@@ -10,6 +10,7 @@ const ALL_CODES: ReadonlyArray<ReviewProviderSnapshotFailureCode> = [
   'runtime_unavailable',
   'stale_source',
   'provider_failure',
+  'provider_rejected',
   'cursor_failure',
   'malformed_page',
   'total_changed',
@@ -52,6 +53,7 @@ describe('history import failure reason', () => {
 
   it('treats every other snapshot failure as one RepKey retries itself', () => {
     expect(historyImportFailureReason('provider_failure')).toBe('temporary')
+    expect(historyImportFailureReason('provider_rejected')).toBe('temporary')
     expect(historyImportFailureReason('cursor_failure')).toBe('temporary')
     expect(historyImportFailureReason('confirmation_deadline_elapsed')).toBe('temporary')
     expect(historyImportFailureReason('listing_changed')).toBe('temporary')

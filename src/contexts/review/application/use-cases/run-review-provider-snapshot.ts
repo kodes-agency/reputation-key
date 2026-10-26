@@ -117,6 +117,7 @@ const failureCodeForProviderError = (
   }
   const code = error.code
   if (code === 'authorization_changed') return 'authorization_changed'
+  if (code === 'provider_rejected') return 'provider_rejected'
   if (
     code === 'authorization_denied' ||
     code === GOOGLE_CONNECTION_UNUSABLE_CODE ||
@@ -276,6 +277,37 @@ const replayFailedRun = async (
   }
 }
 
+/**
+ * What a Google rejection says about the answer, as closed values: Google's
+ * HTTP status (a number, the one fact that tells a removed location, 404, from
+ * a refused request, 400) and whether the request was dispatched. Read off the
+ * review API error's dispatch evidence; an error without it gives
+ * `providerStatus: null` and `dispatch: 'unknown'`. The logger's `safeError`
+ * keeps only an error's name and code, so the status reaches no log unless it
+ * is copied out like this.
+ */
+const providerRejectionEvidence = (
+  error: unknown,
+): Readonly<{
+  providerStatus: number | null
+  dispatch: 'not_sent' | 'answered' | 'unknown'
+}> => {
+  const failure =
+    typeof error === 'object' && error != null && 'failure' in error
+      ? error.failure
+      : null
+  if (typeof failure !== 'object' || failure == null) {
+    return { providerStatus: null, dispatch: 'unknown' }
+  }
+  const status = 'providerStatus' in failure ? failure.providerStatus : null
+  const dispatch = 'dispatch' in failure ? failure.dispatch : null
+  return {
+    providerStatus:
+      typeof status === 'number' && Number.isSafeInteger(status) ? status : null,
+    dispatch: dispatch === 'not_sent' || dispatch === 'answered' ? dispatch : 'unknown',
+  }
+}
+
 const failForProviderError = async (
   deps: RunReviewProviderSnapshotDeps,
   input: RunReviewProviderSnapshotInput,
@@ -283,12 +315,24 @@ const failForProviderError = async (
   error: unknown,
 ): Promise<RunReviewProviderSnapshotResult> => {
   const code = failureCodeForProviderError(error)
+  // BQC-7.3 bans tenant identifiers in logs; runId is the approved execution
+  // identity and resolves the property through the run row.
   if (code === 'provider_failure') {
     deps.logger.error(
-      // BQC-7.3 bans tenant identifiers in logs; runId is the approved
-      // execution identity and resolves the property through the run row.
       { err: error, runId },
       'review snapshot failed without a coded cause',
+    )
+  }
+  // A rejection has a cause and a name: one warning with Google's status
+  // instead of an error that says nothing was known.
+  if (code === 'provider_rejected') {
+    deps.logger.warn(
+      {
+        event: 'review_snapshot_provider_rejected',
+        ...providerRejectionEvidence(error),
+        runId,
+      },
+      'Review snapshot rejected by Google: the location or request is not valid',
     )
   }
   return failAndDiscard(deps, input, runId, code)

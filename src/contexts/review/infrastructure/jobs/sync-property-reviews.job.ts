@@ -10,6 +10,7 @@ import {
 } from '../../application/ports/review-queue.port'
 import type { PropertySourceEpochPort } from '../../application/ports/property-source-epoch.port'
 import { historyImportFailureReason } from '../../application/historical-import-outcome'
+import { isParkedSnapshotFailure } from '../../application/parked-snapshot-failure'
 import { GOOGLE_CONNECTION_UNUSABLE_CODE } from '../../application/ports/google-review-api.port'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
 import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
@@ -388,8 +389,9 @@ function freshRunStep(
 
 /**
  * Dates the failure of a snapshot run on the Property's discovery state, with a
- * backoff, and logs it. Returns whether the location is over the review or page
- * cap, which parks it instead of failing the job.
+ * backoff, and logs it. Returns whether the failure parks the Property
+ * (`isParkedSnapshotFailure`): a parked failure is recorded and the job ends
+ * normally instead of failing.
  */
 async function recordSnapshotFailure(
   deps: SyncHandlerDeps,
@@ -398,11 +400,18 @@ async function recordSnapshotFailure(
   previous: PreviousSnapshotFailure | null,
 ): Promise<boolean> {
   const now = deps.clock()
-  // A location over the review or page cap fails identically on every run
-  // until the cap or the location changes, so it is parked, not retried:
-  // the failure is recorded (`error_class`) and the job ends, instead of
-  // three attempts and a quarantine entry every discovery interval. The
-  // first-import notice tells the owner ("location_too_large").
+  // Two failures fail identically on every run until something outside RepKey
+  // changes, so they are parked, not retried: the failure is recorded
+  // (`error_class`) and the job ends, instead of three attempts, a quarantine
+  // entry and a repair latch every discovery interval.
+  // - A location over the review or page cap waits a day; the first-import
+  //   notice tells the owner ("location_too_large").
+  // - A location Google rejects (`provider_rejected`: 400 or 404 on the read,
+  //   while the connection and its other locations are healthy) waits on the
+  //   ordinary ladder below, so a location the owner fixes in Google Business
+  //   Profile is read again within hours. The use case logged Google's status.
+  // `sync.failed-nonzero` keeps firing from the recorded `error_class` while
+  // either persists.
   const tooLarge = historyImportFailureReason(code) === 'location_too_large'
   // Any other failure waits longer each time it repeats, so a failure that
   // recurs does not spend a full double listing every 15 minutes.
@@ -426,7 +435,7 @@ async function recordSnapshotFailure(
     },
     'Review snapshot failed; the next retry is backed off',
   )
-  return tooLarge
+  return isParkedSnapshotFailure(code)
 }
 
 /** One bounded page, confirmation, or deletion batch of a provider snapshot
@@ -490,7 +499,9 @@ async function runSnapshotStep(
   }
   if (result.status === 'failed') {
     const previous = await deps.discoveryRepo.findFailureState(data.propertyId)
-    // A location over the cap is parked and the job ends normally.
+    // A parked failure (a location over the cap, or one Google rejects) is
+    // recorded and the job ends normally, whichever step it is: nothing is
+    // thrown, retried, dead-lettered, reported or latched.
     if (await recordSnapshotFailure(deps, data, result.code, previous)) return result
     // The step that failed the run fails the job with the ordinary
     // `ReviewProviderSnapshotFailure`, built and thrown here, in
