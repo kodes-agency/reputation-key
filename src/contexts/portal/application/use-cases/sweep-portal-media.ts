@@ -7,10 +7,11 @@
 //     removes its object; if that removal failed, the row still says the object
 //     may be there, and this removes it.
 //  2. Collect what nothing refers to. An image that was uploaded and then
-//     replaced or never used, and that no Brand Profile, link or publication
-//     snapshot names, is deleted: object and row. Snapshots are immutable and
-//     must keep rendering, so an image one of them names is kept for as long as
-//     the snapshot exists; that is the repository's definition of "refers to".
+//     replaced or never used, and that no Brand Profile, Portal look, link or
+//     publication snapshot names, is deleted: object and row. Snapshots are
+//     immutable and must keep rendering, so an image one of them names is kept
+//     for as long as the snapshot exists; that is the repository's definition of
+//     "refers to".
 //
 // An image younger than the grace period is never collected: an upload is
 // attached to its Brand Profile or link moments after it arrives, and the sweep

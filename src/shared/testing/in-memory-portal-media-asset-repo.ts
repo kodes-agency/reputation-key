@@ -9,7 +9,10 @@ export type InMemoryPortalMediaAssetRepo = PortalMediaAssetRepository &
     all: () => ReadonlyArray<PortalMediaAsset>
     /** Makes the next insert fail, to prove what a caller cleans up. */
     failNextInsert: (error: Error) => void
-    /** Marks assets as referred to by a Brand Profile, link or snapshot. */
+    /**
+     * Marks assets as referred to by a Brand Profile, a Portal's own look (its
+     * photo or logo), a link or a snapshot.
+     */
     markReferenced: (...assetIds: ReadonlyArray<string>) => void
   }>
 

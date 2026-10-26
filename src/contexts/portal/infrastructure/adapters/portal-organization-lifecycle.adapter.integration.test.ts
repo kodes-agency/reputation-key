@@ -150,6 +150,17 @@ async function seedFixture(): Promise<Fixture> {
      ) VALUES ($1, $2, $3, $4, 'en', 'Front Desk', $5, now(), now())`,
     [randomUUID(), ...scope, actor],
   )
+  // The Portal's own look (ADR 0070): its own photo, which is the Property's
+  // image, and its own colours. Both keys are RESTRICT, so the purge order is tested.
+  await q(
+    `INSERT INTO portal_look_overrides (
+       id, organization_id, property_id, portal_id, photo_mode, hero_asset_id,
+       hero_focal_x, hero_focal_y, hero_alt_texts, colours_mode, primary_color,
+       background_mode, background_color, look_version, updated_by
+     ) VALUES ($1, $2, $3, $4, 'own', $6, 0.5, 0.5, '{"en": "The harbour"}'::jsonb,
+               'own', '#B8860B', 'auto', '#101820', 2, $5)`,
+    [randomUUID(), ...scope, actor, mediaAssetId],
+  )
   await q(
     `INSERT INTO portal_health_intervals (
        id, organization_id, property_id, portal_id, status, reason, source_version,
@@ -470,6 +481,7 @@ const CLEANUP_ORDER = [
   'portal_tokens',
   'portal_group_members',
   'portal_localized_overrides',
+  'portal_look_overrides',
   'portal_approved_destinations',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
@@ -784,6 +796,81 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
       [fixture.organizationId],
     )
     expect(Number(receipts.rows[0]?.count)).toBe(1)
+  })
+
+  // A Portal's own logo is an image only the Portal's own look names: it has no
+  // Brand Profile, link or snapshot above it, and the foreign key is RESTRICT.
+  describe('an Organization whose Portal has its own photo and logo', () => {
+    const ownLogoFor = async (fixture: Fixture) => {
+      const logoAssetId = randomUUID()
+      await lease.pool.query(
+        `INSERT INTO portal_media_assets (
+           id, organization_id, property_id, purpose, object_key, content_type, width,
+           height, byte_size, content_sha256, source_format, source_bytes,
+           rights_confirmed_at, created_by
+         ) VALUES ($1::uuid, $2, $3, 'logo', 'portal-media/' || $1::text || '.webp',
+                   'image/webp', 480, 120, 9000, repeat('b', 64), 'png', 12000, now(),
+                   'own-look-actor')`,
+        [logoAssetId, fixture.organizationId, fixture.propertyId],
+      )
+      await storeObject(logoAssetId)
+      await lease.pool.query(
+        `UPDATE portal_look_overrides
+         SET identity_mode = 'own', wordmark = 'HARBOUR', logo_asset_id = $2::uuid
+         WHERE organization_id = $1`,
+        [fixture.organizationId, logoAssetId],
+      )
+      return logoAssetId
+    }
+
+    it('keeps the look on Closing, which deletes nothing', async () => {
+      const fixture = await seedFixture()
+      await ownLogoFor(fixture)
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'closure_requested')
+      const before = await counts(fixture.organizationId)
+      expect(before.portal_look_overrides).toBe(1)
+
+      await createPortalOrganizationLifecycleContributor(db, objectStore).prepareClosing(
+        input(fixture, lineage, revision),
+      )
+
+      expect(await counts(fixture.organizationId)).toEqual(before)
+    })
+
+    it('purges the look before the images and the Portal it points at, objects included', async () => {
+      const fixture = await seedFixture()
+      const logoAssetId = await ownLogoFor(fixture)
+      const bystander = await seedFixture()
+      const bystanderBefore = await counts(bystander.organizationId)
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'purging')
+      expect(storedKeys()).toContain(portalMediaObjectKey(logoAssetId))
+
+      const purged = await createPortalOrganizationLifecycleContributor(
+        db,
+        objectStore,
+      ).purge(input(fixture, lineage, revision))
+
+      expect(purged.outcome).toBe('complete')
+      const after = await counts(fixture.organizationId)
+      expect(after.portal_look_overrides).toBe(0)
+      expect(after.portal_media_assets).toBe(0)
+      expect(after.portals).toBe(0)
+      // Only the other Organization's two objects are left, with its own look.
+      expect(storedKeys().sort()).toEqual(
+        (
+          await lease.pool.query(
+            `SELECT object_key FROM portal_media_assets WHERE organization_id = $1`,
+            [bystander.organizationId],
+          )
+        ).rows
+          .map((row) => String(row.object_key))
+          .sort(),
+      )
+      expect(await counts(bystander.organizationId)).toEqual(bystanderBefore)
+      expect(bystanderBefore.portal_look_overrides).toBe(1)
+    })
   })
 
   describe('the stored images', () => {

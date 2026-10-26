@@ -28,6 +28,7 @@ const CHILD_TABLES = [
   'portal_health_intervals',
   'portal_responsible_managers',
   'portal_localized_overrides',
+  'portal_look_overrides',
   'portal_link_texts',
   'portal_links',
   'portal_link_categories',
@@ -213,6 +214,25 @@ async function seedFixture(): Promise<Fixture> {
      ) VALUES ($1, $2, $3, 'en', 'Harbour House', 'By the water', 'Boats in the harbour', 1,
                $4, now(), now())`,
     [randomUUID(), organizationId, fixture.propertyId, fixture.userId],
+  )
+  // The Portal's own look (ADR 0070): its own photo, with descriptions in two
+  // languages, and its own colours; the name and logo follow the Property.
+  await q(
+    `INSERT INTO portal_look_overrides (
+       id, organization_id, property_id, portal_id, photo_mode, hero_asset_id,
+       hero_focal_x, hero_focal_y, hero_alt_texts, colours_mode, primary_color,
+       background_mode, background_color, look_version, updated_by
+     ) VALUES ($1, $2, $3, $4, 'own', $5, 0.2, 0.8,
+               '{"en": "The lobby", "bg": "Лобито"}'::jsonb, 'own', '#B8860B',
+               'manual', '#101820', 5, $6)`,
+    [
+      randomUUID(),
+      organizationId,
+      fixture.propertyId,
+      fixture.portalId,
+      fixture.mediaAssetId,
+      fixture.userId,
+    ],
   )
   await q(
     `INSERT INTO portal_publication_snapshots (
@@ -401,6 +421,7 @@ describe.sequential('Portal Organization Export contributor', () => {
       'localizedOverrides',
       'brandProfiles',
       'brandContents',
+      'portalLookOverrides',
       'publicationSnapshots',
       'publicationActivations',
       'pendingContentChanges',
@@ -522,6 +543,26 @@ describe.sequential('Portal Organization Export contributor', () => {
       locale: 'en',
       hero_alt_text: 'Boats in the harbour',
     })
+    // A Portal's own look is the customer's own data too: every column, the
+    // photo's descriptions as Postgres renders the jsonb, the images by id.
+    expect(payload.portalLookOverrides?.[0]).toMatchObject({
+      portal_id: fixture.portalId,
+      property_id: fixture.propertyId,
+      photo_mode: 'own',
+      hero_asset_id: fixture.mediaAssetId,
+      hero_focal_x: 0.2,
+      hero_focal_y: 0.8,
+      hero_alt_texts: '{"bg": "Лобито", "en": "The lobby"}',
+      colours_mode: 'own',
+      primary_color: '#B8860B',
+      background_mode: 'manual',
+      background_color: '#101820',
+      identity_mode: 'inherit',
+      wordmark: null,
+      logo_asset_id: null,
+      look_version: 5,
+      updated_by: fixture.userId,
+    })
     expect(payload.publicationSnapshots?.[0]).toMatchObject({
       id: fixture.snapshotId,
       configuration_digest: DIGEST,
@@ -596,6 +637,7 @@ describe.sequential('Portal Organization Export contributor', () => {
     expect(portalIdOf('portal')).toBe(fixture.portalId)
     for (const recordType of [
       'portal_link',
+      'portal_look_override',
       'publication_snapshot',
       'access_artifact',
       'health_interval',
