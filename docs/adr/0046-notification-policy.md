@@ -1498,6 +1498,53 @@ target", while Reporting's reply time already used Google's own time.
 
 See `docs/operations/inbox-response-targets.md`.
 
+## Amended 2026-10-26 — a Linktree site waiting for approval tells the account admins
+
+A custom site a Linktree link opens needs an account admin before guests can
+see the link. A manager's request sat under "Sites allowed for links" and
+nobody was told (`portal.approved_destination.updated` fed only the operational
+action history).
+
+1. **One new type, `portal.link_approval`**, raised when the site's
+   first state, `pending`, is recorded, for every AccountAdmin of the
+   Organization (the owner's call: not the manager who asked, who cannot
+   approve). One notice per site, never per link: it is filed under the site
+   (`resourceType: portal_destination`, the site's id), so the unread key is
+   (admin, site). An admin who asked for the site from the list is left out.
+2. **Category `workflow_collaboration`**: in the app by default, mail opt-in,
+   respects quiet hours. Nothing is broken while a site waits and only an
+   account admin can clear it, which is the class the Portal admin design
+   record gave "Ask an Account admin".
+3. **Actionable, settled by the site's decision.** Approved, turned off or held
+   back for safety (`portal.approved_destination.updated` in any state but
+   `pending`) retires every admin's notice and cancels its mail; a Property
+   archive retires it like every other notice asking for work there. Portal
+   answers whether the site still waits (`findDestinationApprovalNotificationFacts`)
+   before the notice is written, before its mail leaves, and before a decision
+   retires it. A site that is gone is not waiting.
+4. **r.8, widened.** ALLOWED gains a site's host (`siteHost`, never the
+   address or its path), the name of the Portal whose Linktree the admin is
+   sent to (`portalName`), that Portal's id for the deep link only
+   (`portalId`, never rendered) and a count of the other Portals whose links
+   open the site (`otherPortalCount`).
+5. **The Portal named** is the earliest live Portal (not deleted or archived)
+   whose links open the site; if none does, the Property's earliest live
+   Portal. A refused tile saves no link, so a site is usually waiting before any
+   link opens it, and the list of sites is the same in every Portal of the
+   Property. A site with no live Portal to point at is not announced, and a
+   notice whose Portals are all gone stops waiting at delivery (the work state
+   and the raising route share that rule). The body says "and N other portals".
+6. **Not done: retiring on "no link uses it anymore".** A site no link opens is
+   the usual case (above), so that condition would retire every notice at once.
+   A notice stays until the site is approved, turned off or held back.
+
+7. **Not replayed.** Sites already pending when this shipped are never
+   announced: the notice is raised by the event that records a site's first
+   state, and no backfill reads the sites waiting before it.
+
+No migration: the Property-scoped shape and the content-free check already
+admit the type, the resource and the payload.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

@@ -141,7 +141,14 @@ export function formatAbsoluteTime(
 
 // ── Icon by notification type ───────────────────────────────────────
 
-const typeIconMap: Record<NotificationType, LucideIcon> = {
+/**
+ * A type that wears the generic bell, with no entry of its own: an entry costs
+ * first-paint bytes, which have almost no headroom, and a site waiting for
+ * approval is one row type.
+ */
+type BellType = 'portal.link_approval'
+
+const typeIconMap: Record<Exclude<NotificationType, BellType>, LucideIcon> = {
   'account.organization_access_granted': ShieldCheck,
   'account.organization_role_changed': UserCog,
   'account.organization_access_removed': UserMinus,
@@ -197,5 +204,6 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
 }
 
 export function getNotificationIcon(type: NotificationType): LucideIcon {
-  return typeIconMap[type] ?? Bell
+  const iconOf: Partial<Record<NotificationType, LucideIcon>> = typeIconMap
+  return iconOf[type] ?? Bell
 }

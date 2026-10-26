@@ -77,6 +77,7 @@ function feedPublicApi() {
       propertyImportInitiators: {} as never,
       monthlyResultFacts: {} as never,
       portalHealthLookup: {} as never,
+      destinationLookup: {} as never,
       isEmailDeliveryAllowed: () => true,
       propertyAccess: async () => null,
       emailAddressKey: 'feed-test-email-address-key',

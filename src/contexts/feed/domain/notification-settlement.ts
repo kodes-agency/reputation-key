@@ -41,6 +41,9 @@ export const ACTIONABLE_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new 
   'inbox.response_target_passed',
   'property.responsibility_needed',
   'portal.responsibility_needed',
+  // A site waits for an account admin until it is approved, turned off or held
+  // back, or its Property is archived.
+  'portal.link_approval',
   // "Reconnect Google" and "Guest portal needs attention" ask for a fix that
   // somebody else can make, and whose absence is then news no longer.
   'integration.reauthorization_required',
@@ -81,6 +84,7 @@ export type SettlingFact =
   | 'handling_cycle.closed'
   | 'property.responsibility_restored'
   | 'portal.responsibility_restored'
+  | 'portal.destination_decided'
   | 'google_connection.reconnected'
   | 'google_connection.disconnected'
   | 'portal_health.recovered'
@@ -127,6 +131,9 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   ],
   'property.responsibility_restored': ['property.responsibility_needed'],
   'portal.responsibility_restored': ['portal.responsibility_needed'],
+  // Approved, turned off or held back: whichever it was, the site no longer
+  // waits for anybody to decide it.
+  'portal.destination_decided': ['portal.link_approval'],
   // A reconnect is the fix asked for. A deliberate disconnect answers it the
   // other way: the connection is gone on purpose, and asking every admin to
   // reconnect it would contradict the admin who removed it.
@@ -154,6 +161,7 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
     'inbox.response_target_passed',
     'property.responsibility_needed',
     'portal.responsibility_needed',
+    'portal.link_approval',
     'portal.health_attention',
     'inbox.assigned',
     'inbox.bulk_assigned',

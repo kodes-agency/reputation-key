@@ -449,6 +449,33 @@ failed publication goes to its author while they can still act on the
 Property, otherwise to the Property's responsible managers (AccountAdmins when
 none is eligible), so it always reaches someone who can retry it.
 
+A custom site a Linktree link opens waits for an account admin before guests
+can see the link (Portal CONTEXT). When it is first asked for
+(`portal.approved_destination.updated` in state `pending`) every AccountAdmin of
+the Organization is told, once per site rather than per link, in
+`workflow_collaboration` (in the app by default, email off until the reader opts
+in; not urgent):
+"A Linktree link is waiting for approval". It is filed under the site
+(`resourceType: portal_destination`, the site's id) and decided by the role
+alone (`account_admin` audience), not by Property responsibility. An admin who
+asked for the site from the list is left out; so is the manager who asked,
+because they are not an admin. The payload names the site's host, never its
+address (`siteHost`), the Portal whose Linktree the admin is sent to
+(`portalName`, and `portalId` for the deep link only) and how many other
+Portals open it (`otherPortalCount`). That Portal is the earliest live one whose
+links open the site, else the Property's earliest live one: a refused tile saves
+no link, so a site is usually asked for before any link opens it, and the list
+of sites it is approved in is shared by the Property's Portals. The link opens
+`/properties/$propertyId/portals/$portalId?tab=page&section=linktree`. The
+decision (the same event in any other state) retires every admin's notice and
+cancels its mail, a Property archive retires it, and Portal answers whether the
+site still waits before the notice is written, before its mail leaves and
+before a decision retires it (`findDestinationApprovalNotificationFacts`). A
+site no link opens does not retire its notice: it stays until it is decided. A
+site with no live Portal to point at is not announced, and a notice whose Portals
+are all gone is retired at delivery the same way. Sites already pending when
+this shipped are not announced (no replay).
+
 A publication cancelled after approval reaches the reply's author and the
 people who can approve it again — the Property's responsible managers who may
 approve (`reply_approver`), AccountAdmins only when none can, the author

@@ -42,6 +42,7 @@ import {
   inboxNoteId,
   invitationId,
   organizationId,
+  portalApprovedDestinationId,
   portalId,
   propertyId,
   replyId,
@@ -83,6 +84,7 @@ import {
   reviewReplySubmitted,
 } from '#/contexts/review/domain/events'
 import {
+  portalApprovedDestinationUpdated,
   portalHealthChanged,
   portalResponsibilityNeeded,
   portalResponsibleManagersUpdated,
@@ -109,7 +111,9 @@ import type { NotificationType } from '../domain/notification-types'
 import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
 import { registerNotificationConsumers } from './notification-outbox-consumers'
 import { registerWorkflowNotificationConsumers } from './workflow-outbox-consumers'
+import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import { registerPortalNotificationConsumers } from './portal-outbox-consumers'
+import { registerPortalDestinationNotificationConsumer } from './portal-destination-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './property-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from './integration-outbox-consumers'
 import {
@@ -153,6 +157,7 @@ import { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } from './jobs/urgent-e
 const ORG = organizationId('org-route-contract')
 const PROPERTY = propertyId('4d1f0c1e-2b7a-4c55-9a51-000000000001')
 const PORTAL = portalId('4d1f0c1e-2b7a-4c55-9a51-000000000002')
+const DESTINATION = portalApprovedDestinationId('4d1f0c1e-2b7a-4c55-9a51-000000000020')
 const ITEM = inboxItemId('4d1f0c1e-2b7a-4c55-9a51-000000000003')
 const REVIEW = reviewId('4d1f0c1e-2b7a-4c55-9a51-000000000004')
 const REPLY = replyId('4d1f0c1e-2b7a-4c55-9a51-000000000005')
@@ -202,6 +207,17 @@ const replyFact = {
  * One fact per matrix row, built by its producing context's own constructor.
  * Each satisfies the row's event condition, so the route has work to do.
  */
+/** A site's state changed: the first state, or the decision after it. */
+const destinationUpdated = (approvalState: 'pending' | 'approved') =>
+  portalApprovedDestinationUpdated({
+    approvedDestinationId: DESTINATION,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    approvalState,
+    sourceAggregateVersion: OCCURRED_AT.toISOString(),
+    occurredAt: OCCURRED_AT,
+  })
+
 const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
   'identity.invitation.accepted': () =>
     identityInvitationAccepted({
@@ -402,6 +418,7 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       sourceAggregateVersion: OCCURRED_AT.toISOString(),
       occurredAt: OCCURRED_AT,
     }),
+  'portal.approved_destination.updated': () => destinationUpdated('pending'),
   'portal.health.changed': () =>
     portalHealthChanged({
       portalId: PORTAL,
@@ -573,6 +590,7 @@ type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
       >
     }
     importInitiators: PropertyImportInitiatorLookup
+    destinations: Pick<PortalPublicApi, 'findDestinationApprovalNotificationFacts'>
     workState: ReturnType<typeof waitingWorkState>
     groupedReopens: ReturnType<typeof noGroupedReopens>
   }>
@@ -599,6 +617,7 @@ function inertRouteDeps(): RouteDeps {
     },
     emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
     importInitiators: { findPropertyImportInitiator: vi.fn(async () => null) },
+    destinations: { findDestinationApprovalNotificationFacts: vi.fn(async () => null) },
     workState: waitingWorkState(),
     groupedReopens: noGroupedReopens(),
   }
@@ -622,6 +641,7 @@ function registerNotificationRoutes(
   registerGoalNotificationConsumer(registry, deps)
   registerRatingGoalNoticeConsumer(registry, deps)
   registerPortalNotificationConsumers(registry, deps)
+  registerPortalDestinationNotificationConsumer(registry, deps)
   registerPortalHealthNotificationConsumer(registry, deps)
   registerPropertyNotificationConsumers(registry, deps)
   registerIntegrationNotificationConsumers(registry, deps)
@@ -809,6 +829,7 @@ const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
   'property.responsible_managers.updated': PROPERTY,
   'portal.responsible_managers.updated': PORTAL,
   'portal.health.changed': PORTAL,
+  'portal.approved_destination.updated': DESTINATION,
   'integration.google_account.connected': CONNECTION,
   'integration.google_account.disconnected': CONNECTION,
   'identity.organization_lifecycle.changed': ORG,
@@ -819,6 +840,8 @@ const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
  * announcing shape, so the settling shape is built here, by the same producer.
  */
 const SETTLING_FACTS: Readonly<Record<string, () => DomainEvent>> = {
+  'notification.settle-on-portal-destination-decided': () =>
+    destinationUpdated('approved'),
   'notification.settle-on-organization-purge-cancelled': () =>
     identityOrganizationLifecycleChanged({
       organizationId: ORG,
@@ -927,6 +950,16 @@ function currentRouteDeps(): RouteDeps {
     emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
     importInitiators: {
       findPropertyImportInitiator: vi.fn(async () => RECIPIENT as string),
+    },
+    destinations: {
+      findDestinationApprovalNotificationFacts: vi.fn(async () => ({
+        propertyId: PROPERTY,
+        hostname: 'menu.example.com',
+        approvalState: 'pending' as const,
+        requestedBy: MANAGER,
+        portal: { id: PORTAL, name: 'Lobby' },
+        otherPortalCount: 0,
+      })),
     },
   }
 }
@@ -1071,6 +1104,11 @@ const NO_NOTICE: Readonly<
         failureReason: 'temporary',
         occurredAt: OCCURRED_AT,
       }),
+    status: 'obsolete',
+  },
+  // A decision is the settlement route's, not news.
+  'portal.approved_destination.updated': {
+    fact: () => destinationUpdated('approved'),
     status: 'obsolete',
   },
   'portal.health.changed': {

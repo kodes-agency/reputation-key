@@ -121,6 +121,8 @@ const NOTIFICATION_WORKFLOW_OUTBOX =
   'src/contexts/feed/infrastructure/workflow-outbox-consumers.ts'
 const NOTIFICATION_PORTAL_OUTBOX =
   'src/contexts/feed/infrastructure/portal-outbox-consumers.ts'
+const NOTIFICATION_PORTAL_DESTINATION_OUTBOX =
+  'src/contexts/feed/infrastructure/portal-destination-outbox-consumers.ts'
 const NOTIFICATION_PORTAL_HEALTH_OUTBOX =
   'src/contexts/feed/infrastructure/portal-health-outbox-consumers.ts'
 const NOTIFICATION_PROPERTY_OUTBOX =
@@ -302,6 +304,13 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('portal.locale_set.updated', []),
   ev('portal.approved_destination.updated', [
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+    // The first state of a site (pending) tells the account admins; any decision
+    // after it settles that notice.
+    durable(
+      'notification.on-portal-destination-pending',
+      NOTIFICATION_PORTAL_DESTINATION_OUTBOX,
+    ),
+    settles('notification.settle-on-portal-destination-decided'),
   ]),
   ev('portal.content_review.completed', [
     durable('metric.portal-workflow', METRIC_OUTBOX),

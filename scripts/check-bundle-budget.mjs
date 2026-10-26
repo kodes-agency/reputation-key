@@ -1094,6 +1094,22 @@
 // Built on main 7eb932bac with the portal follow-up tidy (PR D) on top: the
 // initial closure is 309,275 B on main and 309,235 B on the head (-40 B), the
 // entry 50,714 -> 50,711 B. The line stays at 309,500: 265 B spare.
+// 2026-10-26 (Linktree approval notice, #990): a site a Linktree link opens that
+// waits for an account admin now has a notice type, `portal.link_approval`.
+// Fresh production builds (rm -rf node_modules/.nitro .output) of main e80e9f8e4
+// and of this change merged onto it: 309,488 B on main (75 js + 1 css; entry
+// 50,819 B, 12 B under the line) and 309,512 B on the head (entry 50,810 B),
+// +24 B. Main with #989 and this change together measured 309,507 B (+19 B), so
+// main alone failed this gate by chance on almost any change. What grew is the
+// notice type's entries in the tables first paint carries:
+// `notification-delivery-policy` +7 B (its category), `notification-filters` +5 B
+// (the actionable set; the type has no icon of its own and wears the bell, which
+// saved 7 B) and `notifications-type-rows` +16 B (the Workflow category's
+// description now names sites waiting for approval). The rest, -9 to +3 B per
+// chunk, is chunk-hash jitter: the entry chunk's text is identical once the
+// hashed file names in it are normalised. The notice's template, payload
+// allowlist, consumers and Portal read stay on the server or in lazy chunks. The
+// budget moves to 309,800 B: the measurement plus about 300 B, to the nearest 100.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -1105,7 +1121,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 309_500, // raised to 309,500 on 2026-10-18 for the stale-tab reload (a tab older than the server loads afresh), measured 309,235 on main 1c1458c59 plus the change (main 308,043), with ~150 B left for #881; owner delegated (2026-10-18); raised to 308,200 on 2026-10-18 for the Portal goal results page's route (PG-18), measured 308,136 on PG-13's head 840adcde3 after review (base 307,997), under the build's ceiling of 308,300 (owner, P-9); raised to 308,050 on 2026-10-18 for the Monthly portal goal page's route (PG-13), measured 308,012 on main 6760d5ebb after its rebase (main 307,813), under the build's ceiling of 308,300 (owner, P-9); raised to 307,850 on 2026-10-18 for the Monthly portal goal card (PG-08), measured 307,799 on main b31e4640a (main 307,671), under the build's ceiling of 308,300 (owner, P-9); lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 309_800, // raised to 309,800 on 2026-10-26 for the Linktree approval notice's type entries, measured 309,512 on this head (main e80e9f8e4 309,488; main with #989 and this change 309,507), the rest chunk-hash jitter; owner delegated measured raises, decided by the coordinator (2026-10-26); raised to 309,500 on 2026-10-18 for the stale-tab reload (a tab older than the server loads afresh), measured 309,235 on main 1c1458c59 plus the change (main 308,043), with ~150 B left for #881; owner delegated (2026-10-18); raised to 308,200 on 2026-10-18 for the Portal goal results page's route (PG-18), measured 308,136 on PG-13's head 840adcde3 after review (base 307,997), under the build's ceiling of 308,300 (owner, P-9); raised to 308,050 on 2026-10-18 for the Monthly portal goal page's route (PG-13), measured 308,012 on main 6760d5ebb after its rebase (main 307,813), under the build's ceiling of 308,300 (owner, P-9); raised to 307,850 on 2026-10-18 for the Monthly portal goal card (PG-08), measured 307,799 on main b31e4640a (main 307,671), under the build's ceiling of 308,300 (owner, P-9); lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

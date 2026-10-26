@@ -39,6 +39,7 @@ function buildWith(db: Database) {
       propertyImportInitiators: {} as never,
       monthlyResultFacts: {} as never,
       portalHealthLookup: {} as never,
+      destinationLookup: {} as never,
       isEmailDeliveryAllowed: () => false,
       propertyAccess: async () => null,
       emailAddressKey: 'feed-build-test-email-address-key',

@@ -682,7 +682,12 @@ describe('waiting age', () => {
   it.each(NOTIFICATION_TYPES)('%s never renders the frozen age of an old row', (type) => {
     const r = renderNotification(type, { waitingHours: 48 })
 
-    expect([r.title, r.body, r.summary].join(' ')).not.toMatch(/waiting|waited|2d/i)
+    // A notice may still say what it is about ("waiting for approval"): that is
+    // no age, so only that phrase is let through the guard.
+    const copy = [r.title, r.body, r.summary]
+      .join(' ')
+      .replace(/waiting for approval/gi, '')
+    expect(copy).not.toMatch(/waiting|waited|2d/i)
   })
 })
 
@@ -1020,6 +1025,85 @@ describe('notificationLink', () => {
     })
   })
 
+  // A site a Linktree link opens is waiting for an account admin (ADR 0046,
+  // amended 2026-10-26). It names the site by its host, never its address.
+  describe('a site waiting for approval', () => {
+    const SITE_PORTAL = '61ed98fc-9cf8-44e9-b49d-cd25e744fd6c'
+    const waiting = {
+      propertyName: 'Riverside Hotel',
+      siteHost: 'menu.example.com',
+      portalName: 'Lobby',
+      portalId: SITE_PORTAL,
+    } as const
+
+    it('names the site, the Portal to approve it in and the Property', () => {
+      expect(renderNotification('portal.link_approval', waiting)).toEqual({
+        title: 'A Linktree link at Riverside Hotel is waiting for approval',
+        body: 'Guests will not see links to menu.example.com until an account admin approves it. Approve it in the Linktree of the Lobby portal.',
+        detail:
+          'Guests will not see links to menu.example.com until an account admin approves it. Approve it in the Linktree of the Lobby portal.',
+        actionLabel: 'Review link',
+        summary: 'Riverside Hotel · Linktree link waiting for approval',
+      })
+    })
+
+    it('says how many other Portals open the same site', () => {
+      const bodyFor = (otherPortalCount: number) =>
+        renderNotification('portal.link_approval', { ...waiting, otherPortalCount }).body
+
+      expect(bodyFor(2)).toContain('of the Lobby portal and 2 other portals.')
+      expect(bodyFor(1)).toContain('of the Lobby portal and 1 other portal.')
+      expect(bodyFor(0)).not.toContain('other')
+    })
+
+    it('shortens rather than guessing when the facts are missing', () => {
+      expect(renderNotification('portal.link_approval', {})).toMatchObject({
+        title: 'A Linktree link is waiting for approval',
+        body: 'Guests will not see links to this site until an account admin approves it.',
+      })
+      expect(
+        renderNotification('portal.link_approval', {
+          siteHost: 'menu.example.com',
+        }).body,
+      ).toBe(
+        'Guests will not see links to menu.example.com until an account admin approves it.',
+      )
+    })
+
+    it('never says please, and speaks of an account admin in lower case', () => {
+      const { title, body } = renderNotification('portal.link_approval', waiting)
+
+      expect(`${title} ${body}`).not.toMatch(/please/i)
+      expect(body).toContain('an account admin')
+      expect(body).not.toMatch(/Account Admin|AccountAdmin/)
+    })
+
+    it('opens the Linktree of the Portal it names', () => {
+      expect(
+        notificationLink(
+          'portal_destination',
+          'site-1',
+          'prop-1',
+          'portal.link_approval',
+          waiting,
+        ),
+      ).toEqual({
+        path: `/properties/prop-1/portals/${SITE_PORTAL}`,
+        search: { tab: 'page', section: 'linktree' },
+      })
+    })
+
+    it('opens the Property’s Portals when the row names none', () => {
+      expect(
+        notificationLink('portal_destination', 'site-1', 'prop-1', undefined, {}),
+      ).toEqual({ path: '/properties/prop-1/portals', search: {} })
+      expect(notificationLink('portal_destination', 'site-1', null)).toEqual({
+        path: '/properties',
+        search: {},
+      })
+    })
+  })
+
   it('renders a gentle Property responsibility recovery prompt that names it', () => {
     expect(
       renderNotification('property.responsibility_needed', {
@@ -1156,6 +1240,7 @@ describe('notificationLink', () => {
       'goal',
       'badge',
       'portal',
+      'portal_destination',
       'property',
     ]
     for (const t of types) {

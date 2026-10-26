@@ -4,13 +4,14 @@ import {
   classifyNotification,
   deliveryTiming,
   isDailyDigestWindow,
+  notificationScopeForType,
   rejectionProvesNonAcceptance,
   requiredCapabilityForPreferenceChannel,
   GOVERNING_NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_SETTINGS_CATEGORIES,
 } from './notification-delivery-policy'
-import { NOTIFICATION_TYPES } from './notification-types'
+import { isUrgent, NOTIFICATION_TYPES } from './notification-types'
 import { getDefaultEnabled } from './notification-policy'
 
 /** Instants in 2026 at which `timezone` changes its UTC offset, to the hour. */
@@ -468,5 +469,25 @@ describe('notification delivery policy', () => {
     expect(
       NOTIFICATION_TYPES.filter((type) => classifyNotification(type) === 'portal_goals'),
     ).toEqual(['goal.completed', 'goal.result_revised'])
+  })
+})
+
+// A site waiting for an account admin (ADR 0046, amended 2026-10-26): a blocker
+// only they can clear, with nothing broken while it waits.
+describe('a site waiting for approval', () => {
+  it('is collaboration: in the bell by default, mail by choice', () => {
+    const category = classifyNotification('portal.link_approval')
+
+    expect(category).toBe('workflow_collaboration')
+    expect(getDefaultEnabled(category, 'in_app')).toBe(true)
+    expect(getDefaultEnabled(category, 'email')).toBe(false)
+  })
+
+  it('is not urgent, so it respects quiet hours', () => {
+    expect(isUrgent('portal.link_approval')).toBe(false)
+  })
+
+  it('is held at the Property it was asked for, not at the Organization', () => {
+    expect(notificationScopeForType('portal.link_approval')).toBe('property')
   })
 })

@@ -34,7 +34,7 @@ export const CATEGORY_COPY: Readonly<
   },
   workflow_collaboration: {
     label: 'Workflow and collaboration',
-    description: 'Assignments, notes, and reply updates.',
+    description: 'Assignments, notes, reply updates and sites waiting for approval.',
   },
   // One row per goal (ADR 0046, amended 2026-10-17). `recognition` keeps its
   // stored name and carries only the Google rating goal's changes.

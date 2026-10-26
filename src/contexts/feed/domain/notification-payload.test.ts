@@ -115,6 +115,10 @@ describe('parseNotificationPayload', () => {
       importedCount: 260,
       unansweredCount: 254,
       importFailureReason: 'google_authorization',
+      siteHost: 'menu.example.com',
+      portalName: 'Lobby',
+      portalId: '61ed98fc-9cf8-44e9-b49d-cd25e744fd6c',
+      otherPortalCount: 2,
       ratingShownTenths: 44,
       ratingPreviousTenths: 43,
       ratingTargetTenths: 45,
@@ -475,6 +479,50 @@ describe('parseNotificationPayload', () => {
         parseNotificationPayload({ propertyName: "<b>Ben & Jerry's</b>" }).propertyName,
       ).toBe("<b>Ben & Jerry's</b>")
     })
+  })
+})
+
+// A site waiting for an account admin (ADR 0046, amended 2026-10-26): its host
+// and the Portal it is decided in. The id only builds the deep link.
+describe('a site waiting for approval', () => {
+  const PORTAL = '61ed98fc-9cf8-44e9-b49d-cd25e744fd6c'
+
+  it('keeps the host, the Portal and how many others open the site', () => {
+    expect(
+      parseNotificationPayload({
+        siteHost: 'menu.example.com',
+        portalName: '  Lobby ',
+        portalId: PORTAL,
+        otherPortalCount: 2,
+      }),
+    ).toEqual({
+      siteHost: 'menu.example.com',
+      portalName: 'Lobby',
+      portalId: PORTAL,
+      otherPortalCount: 2,
+    })
+  })
+
+  it.each([
+    ['an id that is not a uuid', { portalId: 'portal-1' }],
+    ['an id with a path in it', { portalId: `${PORTAL}/../../settings` }],
+    ['a count that is not a whole number', { otherPortalCount: 1.5 }],
+    ['a negative count', { otherPortalCount: -1 }],
+    ['a count past a thousand', { otherPortalCount: 1_001 }],
+    ['a host that is not text', { siteHost: 42 }],
+    ['an empty name', { portalName: '   ' }],
+  ])('drops %s', (_case, input) => {
+    expect(parseNotificationPayload(input)).toEqual({})
+  })
+
+  it('cuts a name and a host to their longest', () => {
+    const parsed = parseNotificationPayload({
+      portalName: 'P'.repeat(121),
+      siteHost: 'h'.repeat(300),
+    })
+
+    expect(parsed.portalName).toHaveLength(120)
+    expect(parsed.siteHost).toHaveLength(253)
   })
 })
 

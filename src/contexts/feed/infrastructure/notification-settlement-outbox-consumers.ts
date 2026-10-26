@@ -47,15 +47,17 @@ import {
  * What the settled notices point at. Reply and Inbox notices are filed against
  * their Inbox item (ADR 0046, merged ADR 0022); a "choose a responsible
  * manager" request against the Property or Portal that has the gap; a Health
- * notice against its Portal; a reconnect request against the Google
- * connection; the final deletion warning against its Organization. An
- * archive finishes every notice on the Property, whatever it points at.
+ * notice against its Portal; a site waiting for approval against the site; a
+ * reconnect request against the Google connection; the final deletion warning
+ * against its Organization. An archive finishes every notice on the Property,
+ * whatever it points at.
  */
 type SettledResourceKind =
   | 'inbox_item_by_review'
   | 'inbox_item'
   | 'property'
   | 'portal'
+  | 'portal_destination'
   | 'google_connection'
   | 'organization'
   | 'property_wide'
@@ -66,9 +68,11 @@ type SettledResourceKind =
  * responsible closes a gap. A Health change finishes the notice only when the
  * new interval needs nobody: recovered, or a state such as a draft that no
  * manager has to fix. A lifecycle change takes the deletion warning back only
- * when the Organization is active again: the purge was called off.
+ * when the Organization is active again: the purge was called off. A change of
+ * a site's approval finishes the request unless the site is waiting again.
  */
-type SettlingCondition = 'staffed' | 'health_needs_nobody' | 'lifecycle_active'
+type SettlingCondition =
+  'staffed' | 'health_needs_nobody' | 'lifecycle_active' | 'destination_decided'
 
 /** Which settling fact each subscribed event carries, and under what name. */
 export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
@@ -125,6 +129,15 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     fact: 'portal.responsibility_restored',
     resource: 'portal',
     onlyWhen: 'staffed',
+  },
+  // The same event announces a site first asked for (state `pending`); any
+  // other state is the decision an account admin was asked to make.
+  {
+    eventType: 'portal.approved_destination.updated',
+    consumerName: 'notification.settle-on-portal-destination-decided',
+    fact: 'portal.destination_decided',
+    resource: 'portal_destination',
+    onlyWhen: 'destination_decided',
   },
   {
     eventType: 'portal.health.changed',
@@ -243,6 +256,8 @@ const finishesWork = (
       )
     case 'lifecycle_active':
       return payload.state === 'active'
+    case 'destination_decided':
+      return payload.approvalState !== 'pending'
   }
 }
 
@@ -269,6 +284,8 @@ async function resolveResource(
       return propertyId(field(payload, 'propertyId'))
     case 'portal':
       return portalId(field(payload, 'portalId'))
+    case 'portal_destination':
+      return field(payload, 'approvedDestinationId')
     case 'google_connection':
       return googleConnectionId(field(payload, 'connectionId'))
     case 'organization':
@@ -427,6 +444,12 @@ export function registerNotificationSettlementConsumers(
   registerConsumer({
     eventType: 'portal.responsible_managers.updated',
     consumerName: 'notification.settle-on-portal-responsibility-restored',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'portal.approved_destination.updated',
+    consumerName: 'notification.settle-on-portal-destination-decided',
     module: 'notification.settlement-outbox-consumers',
     handler,
   })

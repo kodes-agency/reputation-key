@@ -14,6 +14,7 @@ function createPortalApiStub(
     listGoalReadinessFacts: async () => ({ portals: [], truncated: false }),
     getResponsibleManagerUserIds: async () => [],
     findPortalHealthNotificationFacts: async () => null,
+    findDestinationApprovalNotificationFacts: async () => null,
     findPublicPortalByToken,
     isPrintCode: () => false,
     resolvePublishedAccessArtifact: async () => null,

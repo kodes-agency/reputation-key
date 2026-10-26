@@ -49,6 +49,7 @@ const buildFeed = (db: Database) => {
       propertyImportInitiators: {} as never,
       monthlyResultFacts: {} as never,
       portalHealthLookup: {} as never,
+      destinationLookup: {} as never,
     },
   })
 }

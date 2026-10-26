@@ -100,6 +100,18 @@ describe('which notices a settling fact retires', () => {
     ])
   })
 
+  it('retires only the site request when a site is approved, turned off or held back', () => {
+    expect(settledNotificationTypes('portal.destination_decided')).toEqual([
+      'portal.link_approval',
+    ])
+  })
+
+  it('retires a site request when its Property is archived', () => {
+    expect(settledNotificationTypes('property.archived')).toContain(
+      'portal.link_approval',
+    )
+  })
+
   it('only ever retires a type that asks its reader for work', () => {
     const facts: ReadonlyArray<SettlingFact> = [
       'reply.decided',
@@ -109,6 +121,7 @@ describe('which notices a settling fact retires', () => {
       'handling_cycle.closed',
       'property.responsibility_restored',
       'portal.responsibility_restored',
+      'portal.destination_decided',
       'google_connection.reconnected',
       'google_connection.disconnected',
       'portal_health.recovered',

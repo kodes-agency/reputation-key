@@ -90,6 +90,10 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'inbox_note.added': 'workflow_collaboration',
   'portal.responsibility_needed': 'urgent_operational',
   'portal.health_attention': 'urgent_operational',
+  // A blocker only an account admin can clear (the design record's "Ask an
+  // Account admin" class): guests miss one link until it is decided, nothing
+  // is broken, so it is collaboration, in-app by default and mail opt-in.
+  'portal.link_approval': 'workflow_collaboration',
   'property.responsibility_needed': 'urgent_operational',
   // An import that finished is work to pick up, not an emergency: it respects
   // quiet hours and never bypasses them, even when it failed.
