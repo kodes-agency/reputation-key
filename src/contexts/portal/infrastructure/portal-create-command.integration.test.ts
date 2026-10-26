@@ -1,7 +1,7 @@
 // Create-Portal command against real PostgreSQL (round 4, slice 26): the Portal,
 // its managers, its group membership and everything copied from another Portal
-// commit together or not at all, and a copy never reaches codes, publications
-// or managers of its source.
+// (its own look too, ADR 0070) commit together or not at all, and a copy never
+// reaches codes, publications or managers of its source.
 
 import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -15,14 +15,17 @@ import {
   portalApprovedDestinationId,
   portalGroupId,
   portalId,
+  portalMediaAssetId,
   propertyId,
   userId,
 } from '#/shared/domain/ids'
+import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import {
   portalAddedToGroup,
   portalCreated,
   portalResponsibilityNeeded,
 } from '../domain/events'
+import type { PortalLookOverride } from '../domain/portal-look'
 import type { Portal } from '../domain/types'
 import { createAtomicPortalCommandStore } from './portal-command-store'
 import { planPortalContentCopy } from '../application/portal-content-copy'
@@ -30,6 +33,7 @@ import type { CreatePortalCommand } from '../application/ports/portal-command-st
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
 import { createPortalRepository } from './repositories/portal.repository'
 import { createPortalApprovedDestinationRepository } from './repositories/portal-approved-destination.repository'
+import { createPortalMediaAssetRepository } from './repositories/portal-media-asset.repository'
 
 const ORG_A = organizationId('org-portalcreate-0000-0000-000000000001')
 const ORG_B = organizationId('org-portalcreate-0000-0000-000000000002')
@@ -48,6 +52,7 @@ const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
   tables: [
+    'portal_look_overrides',
     'portal_link_texts',
     'portal_localized_overrides',
     'portal_links',
@@ -58,6 +63,7 @@ const { getPool } = setupIntegrationDb({
     'portal_group_memberships',
     'portal_groups',
     'portal_responsible_managers',
+    'portal_media_assets',
     'outbox_events',
     'portals',
     'properties',
@@ -349,7 +355,13 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
     return { source, linkId }
   }
 
-  async function copyCommand(alreadySeeded = false): Promise<CreatePortalCommand> {
+  async function copyCommand(
+    alreadySeeded = false,
+    look: Readonly<{
+      override: PortalLookOverride
+      propertyLookVersion: number
+    }> | null = null,
+  ): Promise<CreatePortalCommand> {
     const seeded = alreadySeeded ? null : await seedSource()
     const db = getDb()
     const portalRepo = createPortalRepository(db)
@@ -391,6 +403,7 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
             .filter((destination) => destination.approvalState === 'approved')
             .map((destination) => destination.id),
         ),
+        look,
       },
       target: { portalId: TARGET, locales: { primary: 'en', additional: ['bg'] } },
       idGen: () => randomUUID().replace(/^.{8}/, String((n += 1)).padStart(8, '0')),
@@ -589,6 +602,120 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
         },
       }),
     ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  describe('the source’s own look', () => {
+    const HERO = portalMediaAssetId('9e000000-0000-4000-8000-000000000001')
+    const LOGO = portalMediaAssetId('9e000000-0000-4000-8000-000000000002')
+    const ownLook: PortalLookOverride = {
+      photo: {
+        mode: 'own',
+        heroAssetId: HERO,
+        focalX: 0.25,
+        focalY: 0.75,
+        altTexts: { en: 'The pool', bg: 'Басейнът', de: 'Das Becken' },
+      },
+      colours: {
+        mode: 'own',
+        accent: '#2F855A',
+        backgroundMode: 'manual',
+        backgroundColour: '#0B1F14',
+      },
+      identity: { mode: 'own', wordmark: 'POOL', logoAssetId: LOGO },
+      lookVersion: 9,
+    }
+    const lookRow = async () =>
+      (
+        await getPool().query(
+          `SELECT photo_mode, hero_asset_id::text AS hero_asset_id, hero_focal_x,
+                  hero_focal_y, hero_alt_texts, colours_mode, primary_color, background_mode,
+                  background_color, identity_mode, wordmark,
+                  logo_asset_id::text AS logo_asset_id, look_version, updated_by
+             FROM portal_look_overrides WHERE organization_id = $1 AND portal_id = $2`,
+          [ORG_A, TARGET],
+        )
+      ).rows[0]
+
+    beforeEach(async () => {
+      const media = createPortalMediaAssetRepository(getDb())
+      await media.insert(
+        buildTestPortalMediaAsset({
+          id: HERO,
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+        }),
+      )
+      await media.insert(
+        buildTestPortalMediaAsset({
+          id: LOGO,
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          purpose: 'logo',
+        }),
+      )
+    })
+
+    it('carries it in the same commit, described only in the new Portal’s languages', async () => {
+      const command = await copyCommand(false, {
+        override: ownLook,
+        propertyLookVersion: 4,
+      })
+
+      await store().createPortal(command)
+
+      await expect(lookRow()).resolves.toEqual({
+        photo_mode: 'own',
+        hero_asset_id: HERO,
+        hero_focal_x: 0.25,
+        hero_focal_y: 0.75,
+        hero_alt_texts: { en: 'The pool', bg: 'Басейнът' },
+        colours_mode: 'own',
+        primary_color: '#2F855A',
+        background_mode: 'manual',
+        background_color: '#0B1F14',
+        identity_mode: 'own',
+        wordmark: 'POOL',
+        logo_asset_id: LOGO,
+        look_version: 5,
+        updated_by: CREATOR,
+      })
+    })
+
+    it('carries the look of a source that has no link to copy', async () => {
+      const command = await copyCommand(false, {
+        override: ownLook,
+        propertyLookVersion: 4,
+      })
+      const copied = command.copiedContent
+      if (!copied) throw new Error('expected copied content')
+
+      await store().createPortal({
+        ...command,
+        copiedContent: { ...copied, categories: [], links: [], linkTexts: [] },
+      })
+
+      await expect(lookRow()).resolves.toMatchObject({
+        photo_mode: 'own',
+        wordmark: 'POOL',
+      })
+    })
+
+    it('refuses as a conflict, and creates nothing, when a copied image is gone', async () => {
+      const gone = portalMediaAssetId('9e000000-0000-4000-8000-0000000000ff')
+      const command = await copyCommand(false, {
+        override: {
+          ...ownLook,
+          identity: { mode: 'own', wordmark: null, logoAssetId: gone },
+        },
+        propertyLookVersion: 4,
+      })
+
+      await expect(store().createPortal(command)).rejects.toMatchObject({
+        code: 'revision_conflict',
+      })
+      expect(await count('portals', 'id', TARGET)).toBe(0)
+      expect(await count('portal_look_overrides', 'portal_id', TARGET)).toBe(0)
+    })
   })
 
   it('refuses a copy whose link has no text in the primary language', async () => {

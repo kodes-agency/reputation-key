@@ -53,6 +53,7 @@ import type { PortalToken } from '../../domain/portal-token'
 import type { SealedPortalAddress } from './portal-address-cipher.port'
 import type { PortalAccessArtifact } from '../../domain/portal-access-artifact'
 import type { PortalHealth } from '../../domain/portal-health'
+import type { PortalLookOverrideColumns } from '../../domain/portal-look'
 
 /** The wording of one language of a Portal being started from another. */
 export type CopiedPortalOverride = Readonly<{
@@ -64,9 +65,17 @@ export type CopiedPortalOverride = Readonly<{
 }>
 
 /**
+ * The source's own look as the new Portal takes it over (ADR 0070): the same
+ * modes and the same images of the Property, its photo's descriptions only in
+ * the new Portal's languages, at a version of its own.
+ */
+export type CopiedPortalLook = PortalLookOverrideColumns
+
+/**
  * What a new Portal takes over from the Portal it is started from: wording,
  * links and their texts, all with fresh identifiers that belong to the new
- * Portal. Never codes, publication snapshots or responsible managers.
+ * Portal, and its own look. Never codes, publication snapshots or responsible
+ * managers.
  */
 export type CreatePortalCopiedContent = Readonly<{
   sourcePortalId: PortalId
@@ -74,6 +83,8 @@ export type CreatePortalCopiedContent = Readonly<{
   categories: ReadonlyArray<PortalLinkCategory>
   links: ReadonlyArray<PortalLink>
   linkTexts: ReadonlyArray<Readonly<{ linkId: PortalLinkId }> & PortalLinkTextWrite>
+  /** Null when the source follows the whole Property look. */
+  look: CopiedPortalLook | null
 }>
 
 /** The Portal joins a group in the same commit, fencing the group like a membership change. */

@@ -18,6 +18,7 @@ import type { PortalApprovedDestinationRepository } from '../ports/portal-approv
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
+import type { PortalLookRepository } from '../ports/portal-look.repository'
 import { resolveNewPortalLocales } from '../../domain/portal-new-locales'
 import { buildCreatePortalCommand, type NewPortalPlan } from '../create-portal-commit'
 import {
@@ -43,6 +44,8 @@ export type CreatePortalDeps = Readonly<{
     PortalExperienceRepository,
     'getPropertyExperience' | 'listPortalOverrides'
   >
+  /** The own look of the Portal a new one starts from (ADR 0070). */
+  portalLookRepo: Pick<PortalLookRepository, 'findForPortal'>
   propertyApi: PropertyPublicApi
   staffPublicApi: StaffPublicApi
   identityPublicApi: IdentityManagerFactsPublicApi

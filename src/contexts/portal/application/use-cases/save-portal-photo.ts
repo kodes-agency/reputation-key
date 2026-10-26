@@ -11,11 +11,17 @@
 // publish. The photo must be an uploaded photo of the Portal's Property.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { GuestLocale, OfferedGuestLocale } from '#/shared/domain/guest-locale'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalError } from '../../domain/errors'
 import type { PortalLookChange } from '../../domain/portal-look'
 import type { Portal } from '../../domain/types'
 import type { PortalLookSaved } from '../dto/portal-look.dto'
+import {
+  checkedAsset,
+  givenFocalPoint,
+  normalisedAltTexts,
+  type HeroAltTextInput,
+} from '../look-media-rules'
 import {
   loadPortalForOwnLook,
   savePortalLookChange,
@@ -43,15 +49,13 @@ export type SavePortalLookPhotoInput = PortalLookTarget &
           focalX?: number
           focalY?: number
           /** Per language of the Portal; null (or only spaces) clears one, a language left out keeps its own. */
-          altTexts?: ReadonlyArray<
-            Readonly<{ locale: OfferedGuestLocale; text: string | null }>
-          >
+          altTexts?: ReadonlyArray<HeroAltTextInput>
         }>
   }>
 
 type OwnPhotoInput = Extract<SavePortalLookPhotoInput['photo'], { mode: 'own' }>
 
-/** The descriptions by language, each in a language the Portal is in. */
+/** The descriptions by language, each in a language the Portal is in, as the Property's are kept. */
 function altTextsOf(
   portal: Portal,
   altTexts: NonNullable<OwnPhotoInput['altTexts']>,
@@ -67,23 +71,36 @@ function altTextsOf(
       'Describe the photo only in the languages of this portal',
     )
   }
-  return Object.fromEntries(altTexts.map(({ locale, text }) => [locale, text]))
+  return Object.fromEntries(normalisedAltTexts(altTexts))
 }
 
-function photoChangeOf(
+/** The photo must be an uploaded photo of the Portal's own Property. */
+async function photoChangeOf(
+  deps: Pick<Deps, 'mediaRepo'>,
+  ctx: AuthContext,
   portal: Portal,
   photo: SavePortalLookPhotoInput['photo'],
-): PortalLookChange {
+): Promise<PortalLookChange> {
   if (photo.mode !== 'own') return { group: 'photo', mode: photo.mode }
+  const altTexts =
+    photo.altTexts === undefined ? undefined : altTextsOf(portal, photo.altTexts)
+  const focal = givenFocalPoint(photo)
+  const heroAssetId =
+    photo.heroAssetId === undefined
+      ? undefined
+      : await checkedAsset(
+          deps.mediaRepo,
+          ctx.organizationId,
+          portal.propertyId,
+          'brand_hero',
+          photo.heroAssetId,
+        )
   return {
     group: 'photo',
     mode: 'own',
-    ...(photo.heroAssetId === undefined ? {} : { heroAssetId: photo.heroAssetId }),
-    ...(photo.focalX === undefined ? {} : { focalX: photo.focalX }),
-    ...(photo.focalY === undefined ? {} : { focalY: photo.focalY }),
-    ...(photo.altTexts === undefined
-      ? {}
-      : { altTexts: altTextsOf(portal, photo.altTexts) }),
+    ...(heroAssetId === undefined ? {} : { heroAssetId }),
+    ...focal,
+    ...(altTexts === undefined ? {} : { altTexts }),
   }
 }
 
@@ -91,5 +108,6 @@ export const savePortalLookPhoto =
   (deps: Deps) =>
   async (input: SavePortalLookPhotoInput, ctx: AuthContext): Promise<PortalLookSaved> => {
     const portal = await loadPortalForOwnLook(deps, ctx, input)
-    return savePortalLookChange(deps, ctx, portal, photoChangeOf(portal, input.photo))
+    const change = await photoChangeOf(deps, ctx, portal, input.photo)
+    return savePortalLookChange(deps, ctx, portal, change)
   }

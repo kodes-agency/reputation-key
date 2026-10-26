@@ -88,6 +88,7 @@ const copySource = (): PortalCopySource => {
     ],
     linkTexts: [],
     approvedDestinationIds: new Set([DESTINATION]),
+    look: null,
   }
 }
 

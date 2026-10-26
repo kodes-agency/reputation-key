@@ -3,10 +3,8 @@
 //
 // The bytes arrive through the upload endpoint (ADR 0063), which answers with an
 // asset id. This is the second step: pointing the Property's Brand Profile at
-// that asset. The database ties the reference to an asset of the same
-// Organization and Property but not to its purpose, so the purpose and the
-// asset's state are checked here, and anything else is the same refusal as a
-// missing image: a probe learns nothing about other tenants' images. Like the
+// that asset. The purpose and the asset's state are checked by the rules a
+// Portal's own photo and logo share (look-media-rules.ts). Like the
 // other look writers the profile write runs inside the Property's publication
 // lock, so a name or colour write beside it is never put back.
 //
@@ -16,15 +14,17 @@
 // are switched off.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
-import { propertyId, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
+import { propertyId, type PropertyId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalError } from '../../domain/errors'
-import type { PortalMediaReferenceSlot } from '../../domain/portal-media-asset'
-import { normaliseFocalPoint, normaliseHeroAltText } from '../../domain/property-look'
 import { assertPropertyAccess } from '../assert-property-access'
-import { findReferencableMediaAsset } from '../referencable-media-asset'
+import {
+  checkedAsset,
+  givenFocalPoint,
+  normalisedAltTexts,
+  type HeroAltTextInput,
+} from '../look-media-rules'
 import { resolvePropertyLookMedia } from '../property-look-media'
 import type {
   PortalExperienceRepository,
@@ -51,7 +51,7 @@ export type SavePropertyHeroInput = Readonly<{
   focalX?: number
   focalY?: number
   /** The photograph's description per language; null (or only spaces) clears it, a language left out keeps its own. */
-  altTexts?: ReadonlyArray<Readonly<{ locale: OfferedGuestLocale; text: string | null }>>
+  altTexts?: ReadonlyArray<HeroAltTextInput>
 }>
 
 export type SavePropertyLogoInput = Readonly<{
@@ -59,8 +59,6 @@ export type SavePropertyLogoInput = Readonly<{
   /** An uploaded logo, or null to take the logo off. */
   assetId: string | null
 }>
-
-const CENTRE = 0.5
 
 function assertAdmin(ctx: AuthContext): void {
   if (!canForContext(ctx, 'portal.admin')) {
@@ -71,40 +69,14 @@ function assertAdmin(ctx: AuthContext): void {
   }
 }
 
-/** The asset a slot may point at, or the refusal a missing image gets. */
-async function checkedAsset(
-  deps: Pick<Deps, 'mediaRepo'>,
-  organizationId: OrganizationId,
-  pid: PropertyId,
-  slot: PortalMediaReferenceSlot,
-  assetId: string,
-): Promise<string> {
-  const asset = await findReferencableMediaAsset(
-    deps.mediaRepo,
-    organizationId,
-    pid,
-    slot,
-    assetId,
-  )
-  if (!asset) throw portalError('media_not_found', 'image not found for this Property')
-  return asset.id
-}
-
-/** Each language once (the last word stands), trimmed, bounded, an empty one meaning none. */
-function normalisedAltTexts(input: SavePropertyHeroInput, idGen: () => string) {
+/** Each language's description with its own row id: they are inserted side by side. */
+function altTextRows(input: SavePropertyHeroInput, idGen: () => string) {
   if (input.altTexts === undefined) return undefined
-  const byLocale = new Map(
-    input.altTexts.map(({ locale, text }) => [locale, normaliseHeroAltText(text)]),
-  )
-  // Each language gets its own row id: they are inserted side by side.
-  return [...byLocale].map(([locale, text]) => ({ id: idGen(), locale, text }))
-}
-
-/** A focal point only when one was given (a missing half is the middle); otherwise the writer decides. */
-function givenFocalPoint(input: SavePropertyHeroInput) {
-  if (input.focalX === undefined && input.focalY === undefined) return {}
-  const { x, y } = normaliseFocalPoint(input.focalX ?? CENTRE, input.focalY ?? CENTRE)
-  return { focalX: x, focalY: y }
+  return [...normalisedAltTexts(input.altTexts)].map(([locale, text]) => ({
+    id: idGen(),
+    locale,
+    text,
+  }))
 }
 
 /** The writer's answer: the profile and the media a page draws from it. A Property with no profile is asked to set its name first. */
@@ -129,12 +101,18 @@ export const savePropertyHero =
     assertAdmin(ctx)
     const pid = propertyId(input.propertyId)
     await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
-    const altTexts = normalisedAltTexts(input, deps.idGen)
+    const altTexts = altTextRows(input, deps.idGen)
     const focal = givenFocalPoint(input)
     const assetId =
       input.assetId === null
         ? null
-        : await checkedAsset(deps, ctx.organizationId, pid, 'brand_hero', input.assetId)
+        : await checkedAsset(
+            deps.mediaRepo,
+            ctx.organizationId,
+            pid,
+            'brand_hero',
+            input.assetId,
+          )
     const profile = await deps.experienceRepo.savePropertyHero({
       organizationId: ctx.organizationId,
       propertyId: pid,
@@ -154,7 +132,13 @@ export const savePropertyLogo =
     const logoAssetId =
       input.assetId === null
         ? null
-        : await checkedAsset(deps, ctx.organizationId, pid, 'brand_logo', input.assetId)
+        : await checkedAsset(
+            deps.mediaRepo,
+            ctx.organizationId,
+            pid,
+            'brand_logo',
+            input.assetId,
+          )
     const profile = await deps.experienceRepo.savePropertyLogo({
       organizationId: ctx.organizationId,
       propertyId: pid,

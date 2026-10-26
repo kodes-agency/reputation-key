@@ -51,7 +51,6 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/portal/infrastructure/portal-command-store.ts#applyPortalHealthMutation': 2,
   'src/contexts/portal/infrastructure/portal-health-reconciliation-store.ts#reconcile': 2,
   'src/contexts/portal/infrastructure/portal-page-edits.ts#foldIntoOpenRow': 1,
-  'src/contexts/portal/infrastructure/repositories/portal-experience.repository.ts#saveHeroAltText': 1,
   'src/contexts/portal/infrastructure/repositories/portal-health.repository.ts#transition': 2,
   'src/contexts/property/infrastructure/property-erase-command-store.ts#transition': 1,
   'src/contexts/reporting/infrastructure/repositories/current-google-reputation-snapshot.repository.ts#applyVerifiedSnapshot': 1,

@@ -8,20 +8,31 @@
 // what guests would see differently and records only that, as a page edit of
 // this Portal alone: the change waits for this Portal's own publish.
 //
-// What is refused besides who may: a colour pair whose page text could not be
-// read (judged on the pair as it will be drawn), and a wordmark over 24
-// characters. The logo must be an uploaded logo of the Portal's Property.
+// What is refused besides who may: a colour that is not `#rrggbb` and a pair
+// whose page text could not be read (the Property look's own rules, judged on
+// the pair as it will be drawn), a wordmark over 24 characters, and a logo that
+// is not an uploaded logo of the Portal's Property.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalLookChange } from '../../domain/portal-look'
-import type { BackgroundMode } from '../../domain/property-look'
+import { normaliseWordmark, type BackgroundMode } from '../../domain/property-look'
+import type { Portal } from '../../domain/types'
 import type { PortalLookSaved } from '../dto/portal-look.dto'
+import { checkedBackgroundMode, checkedLookColour } from '../look-colour-rules'
+import { checkedAsset } from '../look-media-rules'
 import {
   loadPortalForOwnLook,
   savePortalLookChange,
   type PortalLookCommandDeps,
   type PortalLookTarget,
 } from '../portal-look-command'
+import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
+
+type IdentityDeps = PortalLookCommandDeps &
+  Readonly<{
+    /** Where the logo's purpose, Property and state are read from. */
+    mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
+  }>
 
 export type SavePortalLookColoursInput = PortalLookTarget &
   Readonly<{
@@ -49,34 +60,51 @@ export type SavePortalLookIdentityInput = PortalLookTarget &
         }>
   }>
 
+/** The values given, each checked as the Property look checks it; the pair is judged once merged. */
 function coloursChangeOf(
   colours: SavePortalLookColoursInput['colours'],
 ): PortalLookChange {
   if (colours.mode === 'inherit') return { group: 'colours', mode: 'inherit' }
+  const { accentColour, backgroundMode, backgroundColour } = colours
   return {
     group: 'colours',
     mode: 'own',
-    ...(colours.accentColour === undefined
+    ...(accentColour === undefined
       ? {}
-      : { accent: colours.accentColour.toUpperCase() }),
-    ...(colours.backgroundMode === undefined
+      : { accent: checkedLookColour(accentColour, 'accent') }),
+    ...(backgroundMode === undefined
       ? {}
-      : { backgroundMode: colours.backgroundMode }),
-    ...(colours.backgroundColour === undefined
+      : { backgroundMode: checkedBackgroundMode(backgroundMode) }),
+    ...(backgroundColour === undefined
       ? {}
-      : { backgroundColour: colours.backgroundColour.toUpperCase() }),
+      : { backgroundColour: checkedLookColour(backgroundColour, 'background') }),
   }
 }
 
-function identityChangeOf(
+/** The logo must be an uploaded logo of the Portal's own Property. */
+async function identityChangeOf(
+  deps: Pick<IdentityDeps, 'mediaRepo'>,
+  ctx: AuthContext,
+  portal: Portal,
   identity: SavePortalLookIdentityInput['identity'],
-): PortalLookChange {
+): Promise<PortalLookChange> {
   if (identity.mode === 'inherit') return { group: 'identity', mode: 'inherit' }
+  const { wordmark, logoAssetId } = identity
+  const logo =
+    logoAssetId === undefined || logoAssetId === null
+      ? logoAssetId
+      : await checkedAsset(
+          deps.mediaRepo,
+          ctx.organizationId,
+          portal.propertyId,
+          'brand_logo',
+          logoAssetId,
+        )
   return {
     group: 'identity',
     mode: 'own',
-    ...(identity.wordmark === undefined ? {} : { wordmark: identity.wordmark }),
-    ...(identity.logoAssetId === undefined ? {} : { logoAssetId: identity.logoAssetId }),
+    ...(wordmark === undefined ? {} : { wordmark: normaliseWordmark(wordmark) }),
+    ...(logo === undefined ? {} : { logoAssetId: logo }),
   }
 }
 
@@ -91,11 +119,12 @@ export const savePortalLookColours =
   }
 
 export const savePortalLookIdentity =
-  (deps: PortalLookCommandDeps) =>
+  (deps: IdentityDeps) =>
   async (
     input: SavePortalLookIdentityInput,
     ctx: AuthContext,
   ): Promise<PortalLookSaved> => {
     const portal = await loadPortalForOwnLook(deps, ctx, input)
-    return savePortalLookChange(deps, ctx, portal, identityChangeOf(input.identity))
+    const change = await identityChangeOf(deps, ctx, portal, input.identity)
+    return savePortalLookChange(deps, ctx, portal, change)
   }
