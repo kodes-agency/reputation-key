@@ -56,11 +56,14 @@ const LOOK_ACTION: Readonly<Record<string, string>> = {
   images: 'changed the logo or photo',
 }
 
-/** One Portal's own look (`portal_look`), as opposed to the look every portal starts with. */
+/**
+ * One Portal's own look (`portal_look`), as opposed to the look every portal
+ * starts with. The wordmark is the "name" of the editor's Name and logo group.
+ */
 const PORTAL_LOOK_ACTION: Readonly<Record<string, string>> = {
   accent: 'changed this portal’s accent colour',
   field: 'changed this portal’s background colour',
-  wordmark: 'changed this portal’s wordmark',
+  wordmark: 'changed this portal’s name',
   logo: 'changed this portal’s logo',
   photo: 'changed this portal’s photo',
 }
@@ -202,6 +205,17 @@ function describeEditSubject(
   }
 }
 
+/**
+ * Where a Property-wide change was made. A change to the look every portal starts
+ * with says so, since a portal with its own photo, colours, or name and logo
+ * does not take it; the Property's wording and name really are every portal's.
+ */
+function propertyWideNote(subject: PortalPageEditSubject): string {
+  return subject.area === 'look'
+    ? 'on the property look'
+    : 'for every portal of this property'
+}
+
 export function describePageEditLine(
   actor: string | null,
   detail: PageEditDetail,
@@ -210,7 +224,7 @@ export function describePageEditLine(
   const pieces: Phrase[] = []
   const wording = showWording ? wordingChange(detail, locale) : null
   if (wording) pieces.push(wording)
-  if (detail.propertyWide) pieces.push([plain('for every portal of this property')])
+  if (detail.propertyWide) pieces.push([plain(propertyWideNote(detail.subject))])
   if (detail.editCount > 1) pieces.push([plain(`${detail.editCount} saves`)])
   return {
     glyph: 'edit',

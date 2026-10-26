@@ -24,6 +24,7 @@ type Props = Readonly<{
   final: PrintFinalState
   view: PortalPrintKitView | null
   propertyId?: string
+  portalId?: string
   unavailableReason: string | null
 }>
 
@@ -46,6 +47,7 @@ export function PortalPrintFinalPhoneBar({
   final,
   view,
   propertyId,
+  portalId,
   unavailableReason,
 }: Props) {
   const [open, setOpen] = useState(false)
@@ -89,6 +91,7 @@ export function PortalPrintFinalPhoneBar({
             view={view}
             placement="sheet"
             propertyId={propertyId}
+            portalId={portalId}
             controls={
               print === null ? null : (
                 <PrintFinalOrientationControl

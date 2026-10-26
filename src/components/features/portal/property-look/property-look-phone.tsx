@@ -72,7 +72,13 @@ export function PropertyLookPhone({
           <PreviewGuestPage
             experience={{
               ...experience,
-              brand: previewBrandOf(experience.brand, draft, showPhoto, media),
+              brand: previewBrandOf(
+                experience.brand,
+                draft,
+                showPhoto,
+                media,
+                portal.sources,
+              ),
             }}
             copy={copy.data}
             locale={locale}

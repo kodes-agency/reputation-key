@@ -8,6 +8,7 @@ import { SegmentedControl } from '#/components/ui/segmented-control'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { PropertyLookPhone } from './property-look-phone'
 import type { PreviewMedia } from './property-look-preview-brand'
+import { describeOwnPhoto } from './property-look-reach'
 import type { LookDraft } from './property-look-rules'
 import type { PreviewPortal, PropertyLookPreviewData } from './use-property-look-preview'
 
@@ -35,6 +36,8 @@ export function PropertyLookPreview({
   onShowPhotoChange,
 }: Props) {
   const hasPhoto = media.hero !== null
+  // The Property's photo is not the portal's to show or hide when the portal has its own.
+  const ownPhoto = portal === null ? null : describeOwnPhoto(portal)
   return (
     <section aria-labelledby="property-look-preview-heading" className="space-y-3">
       <link rel="stylesheet" href={GUEST_FONT_STYLESHEET} precedence="default" />
@@ -42,15 +45,19 @@ export function PropertyLookPreview({
         Preview
       </h2>
       <div className="flex justify-center">
-        <SegmentedControl
-          aria-label="Preview with or without a photo"
-          value={showPhoto && hasPhoto ? 'with' : 'without'}
-          onValueChange={(value) => onShowPhotoChange(value === 'with')}
-          options={PHOTO_OPTIONS.map((option) => ({
-            ...option,
-            disabled: option.value === 'with' && !hasPhoto,
-          }))}
-        />
+        {ownPhoto === null ? (
+          <SegmentedControl
+            aria-label="Preview with or without a photo"
+            value={showPhoto && hasPhoto ? 'with' : 'without'}
+            onValueChange={(value) => onShowPhotoChange(value === 'with')}
+            options={PHOTO_OPTIONS.map((option) => ({
+              ...option,
+              disabled: option.value === 'with' && !hasPhoto,
+            }))}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">{ownPhoto}</p>
+        )}
       </div>
       <PropertyLookPhone
         portal={portal}

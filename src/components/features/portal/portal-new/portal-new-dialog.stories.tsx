@@ -47,6 +47,13 @@ const data: PortalNewData = {
       primaryGuestLocale: 'en',
       additionalGuestLocales: [],
     },
+    {
+      portalId: 'portal-3',
+      name: 'Spa & thermal pools',
+      primaryGuestLocale: 'en',
+      additionalGuestLocales: [],
+      lookSources: { photo: 'portal', colours: 'property', identity: 'property' },
+    },
   ],
   members: [
     { userId: 'me', name: 'Gina Iliev' },
@@ -67,6 +74,12 @@ async function submitted(ui: ReturnType<typeof within>) {
 async function nameAndCopy(ui: ReturnType<typeof within>) {
   await userEvent.type(ui.getByLabelText('Name'), 'Rooftop pool')
   await userEvent.click(ui.getByRole('radio', { name: /A copy of another portal/ }))
+}
+
+/** Opens the list of portals to copy and picks one. */
+async function choosePortalToCopy(ui: ReturnType<typeof within>, name: string) {
+  await userEvent.click(ui.getByRole('combobox', { name: 'Portal to copy' }))
+  await userEvent.click(await screen.findByRole('option', { name }))
 }
 
 const meta: Meta<typeof PortalNewDialog> = {
@@ -103,6 +116,8 @@ export const Default: Story = {
       ui.getByText("You'll be responsible for this portal"),
     ).toBeInTheDocument()
     await expect(ui.getByText('Nothing is public until you publish.')).toBeInTheDocument()
+    // A new portal follows the property look.
+    await expect(ui.getByText('Look: the property look')).toBeInTheDocument()
     // No place types: the dialog never asks where guests will find the portal.
     await expect(ui.queryByText(/where will guests find it/i)).toBeNull()
   },
@@ -127,8 +142,7 @@ export const StartsFromACopy: Story = {
     const ui = dialog()
     await nameAndCopy(ui)
     // The copy brings the languages of the portal it copies.
-    await userEvent.click(ui.getByRole('combobox', { name: 'Portal to copy' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Pool & Terrace' }))
+    await choosePortalToCopy(ui, 'Pool & Terrace')
     await waitFor(() =>
       expect(ui.getByRole('button', { name: 'Български' })).toHaveAttribute(
         'aria-pressed',
@@ -157,11 +171,26 @@ export const StartFromComesBeforeLanguagesAndSaysWhatACopyDid: Story = {
     // Nothing to say until a portal is chosen.
     await expect(ui.queryByText(/^Copied from/)).toBeNull()
     await nameAndCopy(ui)
-    await userEvent.click(ui.getByRole('combobox', { name: 'Portal to copy' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Pool & Terrace' }))
+    await choosePortalToCopy(ui, 'Pool & Terrace')
     await expect(
       await ui.findByText('Copied from Pool & Terrace: Български, English.'),
     ).toBeInTheDocument()
+  },
+}
+
+// A copy carries the photo, colours, or name and logo the portal it copies has of
+// its own, and the one fact about the look says so; a portal that follows the
+// property look hands on nothing of its own.
+export const ACopyCarriesTheLookOfThePortalItCopies: Story = {
+  play: async () => {
+    const ui = dialog()
+    await nameAndCopy(ui)
+    await choosePortalToCopy(ui, 'Spa & thermal pools')
+    await expect(
+      await ui.findByText('Look: same as Spa & thermal pools'),
+    ).toBeInTheDocument()
+    await choosePortalToCopy(ui, 'Reception')
+    await expect(await ui.findByText('Look: the property look')).toBeInTheDocument()
   },
 }
 
@@ -174,8 +203,7 @@ export const OwnLanguagesStayWhenACopyIsChosenAfterwards: Story = {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Deutsch' }))
     await userEvent.type(ui.getByLabelText('Name'), 'Rooftop pool')
     await userEvent.click(ui.getByRole('radio', { name: /A copy of another portal/ }))
-    await userEvent.click(ui.getByRole('combobox', { name: 'Portal to copy' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Pool & Terrace' }))
+    await choosePortalToCopy(ui, 'Pool & Terrace')
     await expect(
       await ui.findByText('Keeps the languages you chose, not Pool & Terrace’s.'),
     ).toBeInTheDocument()

@@ -19,6 +19,16 @@ import type { PreviewPortal, PropertyLookPreviewData } from './use-property-look
 /** The scale of the phone beside the photograph dialog's photograph. */
 const DIALOG_PHONE_SCALE = 0.5
 
+/**
+ * The dialog chooses the Property's photograph, so its phone draws that photograph
+ * on the portal even when the portal has a photo of its own: the other parts of
+ * the portal's look stay its own.
+ */
+function forPropertyPhoto(portal: PreviewPortal | null): PreviewPortal | null {
+  if (portal?.sources === undefined) return portal
+  return { ...portal, sources: { ...portal.sources, photo: 'property' } }
+}
+
 type Input = Readonly<{
   propertyId: string
   propertyName: string
@@ -68,7 +78,7 @@ export function usePropertyLookMediaControls({
     onRemove: () => saveHero({ assetId: null }),
     renderPhone: (hero) => (
       <PropertyLookPhone
-        portal={preview.portal}
+        portal={forPropertyPhoto(preview.portal)}
         data={preview.data}
         draft={preview.draft}
         showPhoto

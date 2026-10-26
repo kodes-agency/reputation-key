@@ -2,8 +2,16 @@
 // edits as they make them, without waiting for the autosave and a re-read. The
 // guest page still resolves the colours itself (and falls back where it must),
 // so what is drawn is what a guest would get once the draft is published.
-import type { PortalPreviewExperience } from '#/contexts/portal/application/public-api'
+//
+// A portal can have its own photo, colours, or name and logo (ADR 0070). The
+// page the server read already has them, and the Property's draft reaches only
+// the parts the portal follows, so the draft is laid over those alone.
+import type {
+  PortalLookSources,
+  PortalPreviewExperience,
+} from '#/contexts/portal/application/public-api'
 import { lookFieldOf } from '#/shared/domain/portal-look-readout'
+import { followsPart, type LookPart } from './property-look-reach'
 import type { LookDraft } from './property-look-rules'
 
 type Brand = PortalPreviewExperience['brand']
@@ -31,7 +39,9 @@ export function previewBrandOf(
   draft: LookDraft,
   showPhoto: boolean,
   media?: PreviewMedia,
+  sources?: PortalLookSources,
 ): Brand {
+  const reaches = (part: LookPart) => sources === undefined || followsPart(sources, part)
   const hero = media ? media.hero : brand.hero
   const logo = media ? media.logo : brand.logo
   const field = lookFieldOf({
@@ -42,9 +52,15 @@ export function previewBrandOf(
   const wordmark = draft.wordmark.trim()
   return {
     ...brand,
-    ...(field === null ? {} : { accentColour: draft.accent, fieldColour: field }),
-    wordmark: wordmark === '' ? null : wordmark,
-    logo: logo ? { url: logo.url, width: logo.width, height: logo.height } : null,
-    hero: showPhoto && hero ? heroOf(hero) : null,
+    ...(field === null || !reaches('colours')
+      ? {}
+      : { accentColour: draft.accent, fieldColour: field }),
+    ...(reaches('identity')
+      ? {
+          wordmark: wordmark === '' ? null : wordmark,
+          logo: logo ? { url: logo.url, width: logo.width, height: logo.height } : null,
+        }
+      : {}),
+    ...(reaches('photo') ? { hero: showPhoto && hero ? heroOf(hero) : null } : {}),
   }
 }

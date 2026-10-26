@@ -29,6 +29,7 @@ import {
   savingLook,
   uploadingTo,
 } from './property-look-page-fixtures'
+import { AVELA_MIXED_PORTALS } from './property-look-mixed-fixtures'
 import { PropertyLookPage } from './property-look-page'
 
 const WAIT = { timeout: 5000 }
@@ -205,6 +206,29 @@ export const ReplacePhotoShowsAPhone: Story = {
       await photo.findByRole(
         'region',
         { name: 'Preview of the guest page: Reception, arrival' },
+        WAIT,
+      ),
+    ).toBeInTheDocument()
+  },
+}
+
+/**
+ * The dialog chooses the Property's photograph. Chosen from a portal that has a
+ * photo of its own, its phone still draws that portal's page, and the portal keeps
+ * its own photo in the preview behind the dialog.
+ */
+export const ReplacePhotoOnAPortalWithItsOwnPhoto: Story = {
+  parameters: { viewport: { defaultViewport: 'desktop' } },
+  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /Spa & thermal pools/ }))
+    await expect(canvas.getByText('Spa & thermal pools has its own photo')).toBeVisible()
+    const photo = await openPhotoDialog(canvasElement)
+    await expect(
+      await photo.findByRole(
+        'region',
+        { name: 'Preview of the guest page: Spa & thermal pools, arrival' },
         WAIT,
       ),
     ).toBeInTheDocument()

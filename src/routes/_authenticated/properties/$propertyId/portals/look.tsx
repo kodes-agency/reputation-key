@@ -1,6 +1,7 @@
 // The Property look: the photo, colours, name and logo, and default languages
-// shared by every portal of a Property (round-4 admin board 9). The route owns
-// the reads and the two autosaved writes; the page draws them.
+// every portal of a Property starts with (round-4 admin board 9; a portal can
+// have its own photo, colours, or name and logo, ADR 0070). The route owns the
+// reads and the two autosaved writes; the page draws them.
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
@@ -120,6 +121,7 @@ function PropertyLookRoute() {
       getPortalReview={getPortalReview}
       publishPortals={publishPortals}
       canPublish={canDo('portal.update') && has('portal.write')}
+      ownLookEnabled={experience.portalLookEnabled}
       saveDisplayName={saveDisplayName}
       saveLook={saveLook}
       saveLocales={saveLocales}

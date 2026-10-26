@@ -28,7 +28,7 @@ import { previewCardPlan } from './print-kit-card-art-layout'
 import { previewSheetPages } from './print-kit-sheet-pages'
 import { previewTentPlan } from './print-kit-tent-art-layout'
 
-export const SOFT_PHOTO_NOTICE = `Your photo is small for print and may look soft. For a sharp print, upload a photo at least ${PRINT_PHOTO_MIN_WIDTH_PX} px wide in Photo and colours.`
+export const SOFT_PHOTO_NOTICE = `Your photo is small for print and may look soft. For a sharp print, upload a photo at least ${PRINT_PHOTO_MIN_WIDTH_PX} px wide.`
 
 type Input = Readonly<{
   choice: PrintKitChoice
