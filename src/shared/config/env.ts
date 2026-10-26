@@ -235,6 +235,22 @@ const baseEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // A Portal's own look (ADR 0070): an Account Admin may give one Portal its own
+  // photo, colours, or name and logo. 'true' lets the three portal-look saves
+  // through and shows their controls in the portal editor's Look section; unset
+  // or 'false' refuses every such save (feature_unavailable) and keeps today's
+  // read-only Look section. Whatever it says, the working-copy reader applies the
+  // rows that exist, so turning it off again is a kill switch that leaves every
+  // own look published and previewed correctly. Exactly 'true' or 'false': a
+  // near-miss refuses at boot rather than quietly showing or hiding the controls.
+  // Non-secret and optional, default off. Web-read; a restart applies it. Turn it
+  // on only once web and worker both run a release whose reader applies the rows
+  // (the worker needs no switch), and never put back a release without it while
+  // rows exist.
+  PORTAL_OWN_LOOK_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),

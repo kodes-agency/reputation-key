@@ -279,6 +279,30 @@ describe('PRINT_KIT_FINAL_ENABLED', () => {
   )
 })
 
+describe('PORTAL_OWN_LOOK_ENABLED', () => {
+  const parse = (value?: string) =>
+    parseEnvironment({
+      ...testEnvironment({}),
+      ...(value === undefined ? {} : { PORTAL_OWN_LOOK_ENABLED: value }),
+    }).PORTAL_OWN_LOOK_ENABLED
+
+  it('is off when unset, so no portal can be given its own look', () => {
+    expect(parse()).toBe(false)
+  })
+
+  it('is on for true and off for false', () => {
+    expect(parse('true')).toBe(true)
+    expect(parse('false')).toBe(false)
+  })
+
+  it.each(['True', '1', 'yes', 'on', ' true', ''])(
+    'refuses the near-miss %j at boot instead of guessing whether portals may have their own look',
+    (value) => {
+      expect(() => parse(value)).toThrow('PORTAL_OWN_LOOK_ENABLED')
+    },
+  )
+})
+
 describe('REVIEW_HEAD_CHECKS', () => {
   const parse = (value?: string) =>
     parseEnvironment({
