@@ -39,6 +39,8 @@ function build(
     health: Readonly<{ status: string; reason: string }> | null
     /** The state of the site; null when it is gone. */
     site: 'pending' | 'approved' | 'disabled' | 'quarantined' | null
+    /** Whether a live Portal is left to decide the site in; true unless said. */
+    sitePortal: boolean
     lifecycle: string | null
   }> = {},
 ) {
@@ -91,7 +93,8 @@ function build(
               hostname: 'menu.example.com',
               approvalState: overrides.site ?? 'pending',
               requestedBy: 'manager-1',
-              portal: { id: PORTAL, name: 'Lobby' },
+              portal:
+                overrides.sitePortal === false ? null : { id: PORTAL, name: 'Lobby' },
               otherPortalCount: 0,
             },
       ),
@@ -275,6 +278,12 @@ describe('whether the work a notice asks for still waits', () => {
     await expect(ask(build({ site: null }), 'portal.link_approval', SITE)).resolves.toBe(
       false,
     )
+  })
+
+  it('retires a site’s notice when no live Portal is left to decide it in', async () => {
+    await expect(
+      ask(build({ sitePortal: false }), 'portal.link_approval', SITE),
+    ).resolves.toBe(false)
   })
 
   it('stops mailing the final deletion notice once the purge is cancelled', async () => {

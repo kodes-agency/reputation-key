@@ -218,8 +218,11 @@ const healthStillNeedsAttention: WorkCheck = async (
 }
 
 /**
- * A site's notice stands while the site is still waiting for a decision. A site
- * that is gone (its Property was removed) has nobody left to decide it.
+ * A site's notice stands while the site is still waiting for a decision and a
+ * live Portal is left to decide it in: the route that raises the notice
+ * announces no site without one, so a notice whose Portals are all gone is
+ * retired the same way. A site that is gone (its Property was removed) has
+ * nobody left to decide it.
  */
 const destinationStillPending: WorkCheck = async (
   deps,
@@ -229,7 +232,7 @@ const destinationStillPending: WorkCheck = async (
     organizationId,
     portalApprovedDestinationId(resourceId),
   )
-  return facts !== null && facts.approvalState === 'pending'
+  return facts !== null && facts.approvalState === 'pending' && facts.portal !== null
 }
 
 /** The final deletion warning is true only while the purge is still pending. */

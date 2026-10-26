@@ -232,7 +232,7 @@ export const LinktreeLinkWaiting: Story = rowSays({
   title: 'A Linktree link is waiting for approval',
   facts: ['Harbour Lodge'],
   detail:
-    'Guests will not see links to menu.example.com until an account admin approves it. Approve it in the Linktree of the Lobby portal and 1 more.',
+    'Guests will not see links to menu.example.com until an account admin approves it. Approve it in the Linktree of the Lobby portal and 1 other portal.',
   name: /^A Linktree link at Harbour Lodge is waiting for approval, \d+ minutes? ago, unread$/,
   neverSays: /please|https:/i,
 })

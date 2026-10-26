@@ -7,7 +7,7 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { portalId, unbrand, userId } from '#/shared/domain/ids'
+import { portalId, propertyId, unbrand, userId } from '#/shared/domain/ids'
 import type { PortalDestinationApprovalFacts } from '#/contexts/portal/application/public-api'
 import {
   createNotificationConsumerDeps,
@@ -230,6 +230,10 @@ describe('a site waiting for approval tells the account admins', () => {
     ['is gone', null],
     ['was decided while the event waited', waitingSite({ approvalState: 'approved' })],
     ['has no live Portal to be decided on', waitingSite({ portal: null })],
+    [
+      'belongs to another Property than the event says',
+      waitingSite({ propertyId: propertyId('another-property') }),
+    ],
   ] as const)('queues nothing for a site that %s', async (_case, site) => {
     const deps = makeDeps(site)
     deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])

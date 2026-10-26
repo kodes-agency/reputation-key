@@ -1531,10 +1531,16 @@ action history).
    whose links open the site; if none does, the Property's earliest live
    Portal. A refused tile saves no link, so a site is usually waiting before any
    link opens it, and the list of sites is the same in every Portal of the
-   Property. A Property with no live Portal raises nothing.
+   Property. A site with no live Portal to point at is not announced, and a
+   notice whose Portals are all gone stops waiting at delivery (the work state
+   and the raising route share that rule). The body says "and N other portals".
 6. **Not done: retiring on "no link uses it anymore".** A site no link opens is
    the usual case (above), so that condition would retire every notice at once.
    A notice stays until the site is approved, turned off or held back.
+
+7. **Not replayed.** Sites already pending when this shipped are never
+   announced: the notice is raised by the event that records a site's first
+   state, and no backfill reads the sites waiting before it.
 
 No migration: the Property-scoped shape and the content-free check already
 admit the type, the resource and the payload.

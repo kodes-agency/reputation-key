@@ -682,11 +682,12 @@ describe('waiting age', () => {
   it.each(NOTIFICATION_TYPES)('%s never renders the frozen age of an old row', (type) => {
     const r = renderNotification(type, { waitingHours: 48 })
 
-    // The frozen 48 hours, said any way: "waited 2d", "48 hours". A notice may
-    // still say its work is waiting ("waiting for approval"): that is no age.
-    expect([r.title, r.body, r.summary].join(' ')).not.toMatch(
-      /waited|\b2d\b|\b48\b|2 days/i,
-    )
+    // A notice may still say what it is about ("waiting for approval"): that is
+    // no age, so only that phrase is let through the guard.
+    const copy = [r.title, r.body, r.summary]
+      .join(' ')
+      .replace(/waiting for approval/gi, '')
+    expect(copy).not.toMatch(/waiting|waited|2d/i)
   })
 })
 
@@ -1046,19 +1047,13 @@ describe('notificationLink', () => {
       })
     })
 
-    it('says how many more Portals open the same site', () => {
-      const rendered = renderNotification('portal.link_approval', {
-        ...waiting,
-        otherPortalCount: 2,
-      })
+    it('says how many other Portals open the same site', () => {
+      const bodyFor = (otherPortalCount: number) =>
+        renderNotification('portal.link_approval', { ...waiting, otherPortalCount }).body
 
-      expect(rendered.body).toContain('of the Lobby portal and 2 more.')
-      expect(
-        renderNotification('portal.link_approval', {
-          ...waiting,
-          otherPortalCount: 0,
-        }).body,
-      ).not.toContain('more')
+      expect(bodyFor(2)).toContain('of the Lobby portal and 2 other portals.')
+      expect(bodyFor(1)).toContain('of the Lobby portal and 1 other portal.')
+      expect(bodyFor(0)).not.toContain('other')
     })
 
     it('shortens rather than guessing when the facts are missing', () => {

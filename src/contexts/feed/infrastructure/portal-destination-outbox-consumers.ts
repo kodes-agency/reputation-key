@@ -85,7 +85,12 @@ export async function handleNotificationPortalDestinationPending(
           portalApprovedDestinationId(payload.approvedDestinationId),
         )
       : null
-  if (site === null || site.approvalState !== 'pending' || site.portal === null) {
+  if (
+    site === null ||
+    site.propertyId !== property ||
+    site.approvalState !== 'pending' ||
+    site.portal === null
+  ) {
     await deps.receipts.insertReceipt(
       event.eventId,
       ON_PORTAL_DESTINATION_PENDING_CONSUMER,

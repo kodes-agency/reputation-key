@@ -637,10 +637,11 @@ const renderPortalHealthAttention = (p: NotificationPayload): RendererCopy => {
 /**
  * A site a Linktree link opens is waiting for an account admin, so guests
  * cannot see the link. The sentence names the site by its host and the Portal
- * whose Linktree the admin approves it in, and how many more open it.
+ * whose Linktree the admin approves it in, and how many other Portals open it.
  */
 const renderPortalLinkApprovalNeeded = (p: NotificationPayload): RendererCopy => {
-  const more = p.otherPortalCount ? ` and ${p.otherPortalCount} more` : ''
+  const others = p.otherPortalCount ?? 0
+  const more = others === 0 ? '' : ` and ${others} other portal${others === 1 ? '' : 's'}`
   const body = sentence(
     `Guests will not see links to ${p.siteHost ?? 'this site'} until an account admin approves it.`,
     p.portalName === undefined
