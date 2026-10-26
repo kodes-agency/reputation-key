@@ -72,8 +72,9 @@ function withoutScheme(value: string, scheme: string): string | null {
 function kindOf(value: string): PortalContactKind | null {
   if (withoutScheme(value, PHONE_SCHEME) !== null) return 'phone'
   if (withoutScheme(value, EMAIL_SCHEME) !== null) return 'email'
-  // A website always carries a scheme, so an @ with no colon is an email address.
-  if (value.includes('@') && !value.includes(':')) return 'email'
+  // An @ with no scheme is an email address, unless a path says it is a
+  // website typed without its scheme ("instagram.com/@hotel").
+  if (value.includes('@') && !value.includes(':') && !value.includes('/')) return 'email'
   if (PHONE_SHAPED.test(value) && HAS_DIGIT.test(value)) return 'phone'
   return null
 }

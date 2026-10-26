@@ -172,10 +172,24 @@ export const disablePortalApprovedDestination =
     if (reason.length === 0 || reason.length > 240) {
       throw portalError('invalid_description', 'A short disable reason is required')
     }
+    const id = portalApprovedDestinationId(input.destinationId)
+    const current = await deps.destinationRepo.findById(
+      ctx.organizationId,
+      portal.propertyId,
+      id,
+    )
+    // A phone number or an email address is not a site: no screen turns one
+    // off, and a turned-off contact could not be approved again.
+    if (current?.sourceType === 'contact') {
+      throw portalError(
+        'destination_not_approved',
+        'A phone number or an email address cannot be turned off. Change or delete its tile instead.',
+      )
+    }
     const destination = await deps.destinationRepo.disable({
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
-      id: portalApprovedDestinationId(input.destinationId),
+      id,
       reason,
       disabledBy: ctx.userId,
       at: deps.clock(),

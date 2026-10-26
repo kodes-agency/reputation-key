@@ -181,7 +181,7 @@ export const createLink =
       url: destination.normalizedUri,
       // A phone number or an email address shows a phone or a letter until
       // the manager picks another icon.
-      iconKey: input.iconKey ?? defaultLinkIconKey(destination),
+      iconKey: input.iconKey ?? defaultLinkIconKey(destination.normalizedUri),
       sortKey,
       now: occurredAt,
     })

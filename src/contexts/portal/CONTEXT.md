@@ -125,10 +125,14 @@ A tile opens a website, a phone number or an email address (ADR 0044, amendment
 `mailto:front@hotel.com` and named in `hostname` by the number or address without
 its scheme (`validatePortalLinkDestination`, `src/shared/domain/portal-contact-address.ts`).
 It is approved as a manager enters it, is never checked over the network (the
-re-check query leaves it out, and `listApprovedUris` serves it whatever its
-`last_validated_at`), and is not one of the "Sites allowed for links"
-(`listPortalApprovedDestinations` leaves it out). A new contact tile with no icon
-gets `phone` or `mail`. The click route, the guest page and the v3 snapshot verifier
+re-check query leaves it out, `recordNetworkValidation` never quarantines one, and
+`listApprovedUris` serves it whatever its `last_validated_at`), is not one of the
+"Sites allowed for links" (`listPortalApprovedDestinations` leaves it out) and
+cannot be turned off (`disablePortalApprovedDestination` refuses). `request` holds
+the `contact` source to a stored `tel:`/`mailto:` address both ways, and approves
+again a contact row a network check quarantined, which only a server from before
+contacts would do. A contact tile with no icon of its own gets `phone` or `mail`,
+and swaps it when its address moves to another kind. The click route, the guest page and the v3 snapshot verifier
 take a `tel:` or `mailto:` address only in exactly that stored form.
 
 The **Property look** is the part of the Property Brand Profile a guest sees:

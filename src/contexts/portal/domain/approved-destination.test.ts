@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   defaultLinkIconKey,
+  isConsistentDestinationKind,
   isSiteDestination,
   PORTAL_LINK_ADDRESS_REFUSALS,
   validatePortalDestinationUri,
@@ -101,10 +102,29 @@ describe('contact destinations elsewhere', () => {
   ) => ({ sourceType, normalizedUri })
 
   it('gives a contact tile a phone or a letter, and a site no icon', () => {
-    expect(defaultLinkIconKey(destination('contact', 'tel:+15551234567'))).toBe('phone')
-    expect(defaultLinkIconKey(destination('contact', 'mailto:a@hotel.com'))).toBe('mail')
-    expect(defaultLinkIconKey(destination('custom', 'https://hotel.com'))).toBeNull()
-    expect(defaultLinkIconKey(destination('recognized', 'https://x.com/h'))).toBeNull()
+    expect(defaultLinkIconKey('tel:+15551234567')).toBe('phone')
+    expect(defaultLinkIconKey('mailto:a@hotel.com')).toBe('mail')
+    expect(defaultLinkIconKey('https://hotel.com')).toBeNull()
+    expect(defaultLinkIconKey('tel:+1 555 123 4567')).toBeNull()
+  })
+
+  it('ties the contact source to a stored phone number or email address, both ways', () => {
+    expect(isConsistentDestinationKind(destination('contact', 'tel:+15551234567'))).toBe(
+      true,
+    )
+    expect(isConsistentDestinationKind(destination('custom', 'https://hotel.com'))).toBe(
+      true,
+    )
+    for (const [sourceType, uri] of [
+      ['contact', 'https://hotel.com'],
+      ['contact', 'tel:+1 555 123 4567'],
+      ['contact', 'mailto:a@hotel.com?bcc=b@evil.com'],
+      ['custom', 'tel:+15551234567'],
+      ['recognized', 'mailto:a@hotel.com'],
+      ['provider', 'tel:+15551234567'],
+    ] as const) {
+      expect(isConsistentDestinationKind(destination(sourceType, uri)), uri).toBe(false)
+    }
   })
 
   it('counts every kind but a contact as a site', () => {

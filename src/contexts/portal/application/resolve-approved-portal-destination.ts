@@ -65,14 +65,25 @@ export async function resolveApprovedPortalDestination(
     approveCustom: canForContext(ctx, 'portal.admin'),
     at: deps.clock(),
   })
-  if (destination.approvalState !== 'approved') {
-    throw portalError(
+  if (destination.approvalState !== 'approved') throw notApproved(validated)
+  return destination
+}
+
+function notApproved(validated: ValidatedPortalDestination) {
+  if (validated.sourceType === 'contact') {
+    // A contact is approved as it is entered and nobody approves one, so one
+    // that is not approved was turned off (by a server from before contacts):
+    // there is no list to send the manager to.
+    return portalError(
       'destination_not_approved',
-      // Read by whoever entered the address on a tile, who is not an account
-      // admin (an account admin's own address is approved as it is entered), and
-      // who does not see the list of sites the account admin answers it in.
-      'An account admin needs to approve this address first. It is waiting for them under “Sites allowed for links”; once it is approved, enter it here again.',
+      'This phone number or email address cannot be used on this property.',
     )
   }
-  return destination
+  return portalError(
+    'destination_not_approved',
+    // Read by whoever entered the address on a tile, who is not an account
+    // admin (an account admin's own address is approved as it is entered), and
+    // who does not see the list of sites the account admin answers it in.
+    'An account admin needs to approve this address first. It is waiting for them under “Sites allowed for links”; once it is approved, enter it here again.',
+  )
 }

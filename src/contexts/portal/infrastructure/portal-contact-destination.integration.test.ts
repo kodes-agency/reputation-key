@@ -181,20 +181,100 @@ describe('contact destinations (real PostgreSQL)', () => {
     ).resolves.toEqual([])
   })
 
-  it('stops serving a contact an account admin turned off', async () => {
-    const phone = await request('5551234567')
-    await repo().disable({
-      organizationId: ORG_A,
-      propertyId: PROPERTY_A,
-      id: phone.id,
-      reason: 'Turned off by an account admin',
-      disabledBy: MANAGER,
-      at: A_DAY_LATER,
-    })
+  // What a server from before contacts does to a contact row: its re-check
+  // takes the row and refuses `tel:`/`mailto:` as an invalid redirect target.
+  const quarantineAsAnOlderServer = (id: string) =>
+    getPool().query(
+      `UPDATE portal_approved_destinations
+          SET approval_state = 'quarantined', approved_by = NULL, approved_at = NULL,
+              disabled_at = $2, disabled_reason = 'network_validation:redirect_target_invalid',
+              updated_at = $2
+        WHERE id = $1`,
+      [id, A_DAY_LATER],
+    )
 
+  it('approves again a contact an older server quarantined, once it is entered again', async () => {
+    const phone = await request('5551234567')
+    await quarantineAsAnOlderServer(phone.id)
     await expect(
       repo().listApprovedUris(ORG_A, PROPERTY_A, [phone.normalizedUri], new Date(0)),
     ).resolves.toEqual([])
+
+    const again = await request('555 123 4567', new Date(A_DAY_LATER.getTime() + 1000))
+
+    expect(again).toMatchObject({
+      id: phone.id,
+      approvalState: 'approved',
+      approvedBy: MANAGER,
+      disabledAt: null,
+      disabledReason: null,
+    })
+    await expect(
+      repo().listApprovedUris(ORG_A, PROPERTY_A, [phone.normalizedUri], new Date(0)),
+    ).resolves.toEqual([phone.normalizedUri])
+  })
+
+  it('does not revive a contact turned off for any other reason', async () => {
+    const phone = await request('5551234567')
+    await getPool().query(
+      `UPDATE portal_approved_destinations
+          SET approval_state = 'disabled', approved_by = NULL, approved_at = NULL,
+              disabled_at = $2, disabled_reason = 'Turned off by an account admin'
+        WHERE id = $1`,
+      [phone.id, A_DAY_LATER],
+    )
+
+    await expect(request('5551234567')).resolves.toMatchObject({
+      id: phone.id,
+      approvalState: 'disabled',
+    })
+  })
+
+  it('never quarantines a contact, even when a stale re-check reaches one', async () => {
+    const email = await request('front@hotel.com')
+
+    const recorded = await repo().recordNetworkValidation({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      id: email.id,
+      expectedLastValidatedAt: email.lastValidatedAt,
+      result: {
+        outcome: 'unsafe',
+        reason: 'redirect_target_invalid',
+        observedAt: A_DAY_LATER,
+      },
+    })
+
+    expect(recorded).toBeNull()
+    await expect(repo().findById(ORG_A, PROPERTY_A, email.id)).resolves.toMatchObject({
+      approvalState: 'approved',
+      disabledReason: null,
+    })
+  })
+
+  it('refuses a contact source on anything but a stored phone number or email address', async () => {
+    const write = (normalizedUri: string, sourceType: 'contact' | 'custom') =>
+      repo().request({
+        id: portalApprovedDestinationId(nextId()),
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        destination: { normalizedUri, hostname: 'hotel.example.com', sourceType },
+        requestedBy: MANAGER,
+        approveCustom: false,
+        at: STORED_AT,
+      })
+
+    await expect(write('https://hotel.example.com/', 'contact')).rejects.toThrow(
+      'A Portal destination is a contact exactly when it is a stored tel: or mailto: address',
+    )
+    await expect(write('tel:+15551234567', 'custom')).rejects.toThrow(
+      'A Portal destination is a contact exactly when it is a stored tel: or mailto: address',
+    )
+    const { rows } = await getPool().query(
+      `SELECT count(*)::int AS n FROM portal_approved_destinations WHERE organization_id = $1`,
+      [ORG_A],
+    )
+    expect(rows[0].n).toBe(0)
   })
 
   it('creates a manager’s phone tile, approved, with a phone icon and no network check', async () => {

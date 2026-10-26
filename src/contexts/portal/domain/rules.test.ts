@@ -474,7 +474,12 @@ describe('linkAddressRefusal', () => {
     expect(linkAddressRefusal('front@hotel.com?bcc=x@y.com')).toMatch(
       /^Enter one email address/u,
     )
-    for (const value of ['http://example.com', 'javascript:alert(1)', 'www.hotel.com']) {
+    for (const value of [
+      'http://example.com',
+      'javascript:alert(1)',
+      'www.hotel.com',
+      'instagram.com/@hotel',
+    ]) {
       expect(linkAddressRefusal(value), value).toBe(
         'Enter a website starting with https://, a phone number or an email address.',
       )

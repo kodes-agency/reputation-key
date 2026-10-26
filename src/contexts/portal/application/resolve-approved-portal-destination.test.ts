@@ -190,4 +190,30 @@ describe('resolveApprovedPortalDestination', () => {
     expect(requests).toEqual([])
     expect(validated).toEqual([])
   })
+
+  it('tells a manager a contact that is not approved cannot be used, and sends them to no list', async () => {
+    const { deps } = setup()
+    const turnedOff = {
+      ...deps,
+      destinationRepo: {
+        request: async (input: RequestInput) => ({
+          ...(await deps.destinationRepo.request(input)),
+          approvalState: 'disabled' as const,
+          approvedBy: null,
+          approvedAt: null,
+        }),
+      },
+    }
+
+    await expect(
+      resolveApprovedPortalDestination(
+        turnedOff,
+        { uri: '+1 555 123 4567', propertyId: PROPERTY },
+        buildTestAuthContext({ role: 'PropertyManager' }),
+      ),
+    ).rejects.toMatchObject({
+      code: 'destination_not_approved',
+      message: 'This phone number or email address cannot be used on this property.',
+    })
+  })
 })

@@ -451,6 +451,43 @@ describe('updateLink to a phone number or an email address', () => {
     ).toBeNull()
   })
 
+  it.each([
+    ['tel:+15551234567', 'phone', 'front@hotel.com', 'mail'],
+    ['mailto:front@hotel.com', 'mail', '+15551234567', 'phone'],
+    ['tel:+15551234567', 'phone', 'https://hotel.example.com/spa', null],
+  ] as const)(
+    'swaps the automatic icon of %s (%s) for that of %s',
+    async (url, iconKey, nextUrl, nextIcon) => {
+      const { useCase, link, ctx } = arrange({ url, iconKey })
+
+      const updated = await useCase({ linkId: link.id, url: nextUrl }, ctx)
+
+      expect(updated.iconKey).toBe(nextIcon)
+    },
+  )
+
+  it('keeps an icon that is not the automatic one for the old address', async () => {
+    // A phone on a website tile was chosen, and so was a letter on a phone tile.
+    const onSite = arrange({ url: 'https://hotel.example.com', iconKey: 'phone' })
+    expect(
+      (
+        await onSite.useCase(
+          { linkId: onSite.link.id, url: 'front@hotel.com' },
+          onSite.ctx,
+        )
+      ).iconKey,
+    ).toBe('phone')
+    const onPhone = arrange({ url: 'tel:+15551234567', iconKey: 'mail' })
+    expect(
+      (
+        await onPhone.useCase(
+          { linkId: onPhone.link.id, url: 'https://hotel.example.com' },
+          onPhone.ctx,
+        )
+      ).iconKey,
+    ).toBe('mail')
+  })
+
   it('takes the icon asked for in the same write', async () => {
     const { useCase, link, ctx } = arrange()
 

@@ -5,6 +5,7 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import {
+  isPortalContactUri,
   parsePortalContactInput,
   portalContactOf,
   PORTAL_CONTACT_ICON_KEYS,
@@ -101,6 +102,27 @@ export type ValidatedPortalDestination = Readonly<{
   sourceType: Exclude<PortalApprovedDestinationSource, 'provider'>
 }>
 
+/** A website a manager entered: never a contact, which only `validatePortalLinkDestination` admits. */
+export type ValidatedPortalWebsite = ValidatedPortalDestination &
+  Readonly<{ sourceType: 'recognized' | 'custom' }>
+
+/**
+ * The `contact` source exempts a row from the network check and from the
+ * guest edge's freshness cut-off, so it must name exactly a stored phone number
+ * or email address, and such an address may be nothing but a contact.
+ */
+export function isConsistentDestinationKind(
+  destination: Readonly<{
+    normalizedUri: string
+    sourceType: PortalApprovedDestinationSource
+  }>,
+): boolean {
+  return (
+    (destination.sourceType === 'contact') ===
+    isPortalContactUri(destination.normalizedUri)
+  )
+}
+
 /** A destination that is a website, the only kind the list of sites shows. */
 export type PortalSiteDestination = PortalApprovedDestination &
   Readonly<{ sourceType: Exclude<PortalApprovedDestinationSource, 'contact'> }>
@@ -141,17 +163,11 @@ export function validatePortalLinkDestination(input: string): ValidatedPortalDes
 }
 
 /**
- * The icon a tile that opens `destination` wears when the manager chose none:
- * a phone for a phone number, a letter for an email address, nothing for a site.
+ * The icon a tile that opens `uri` wears when the manager chose none: a phone
+ * for a phone number, a letter for an email address, nothing for a site.
  */
-export function defaultLinkIconKey(
-  destination: Readonly<{
-    normalizedUri: string
-    sourceType: PortalApprovedDestinationSource
-  }>,
-): PortalLinkIconKey | null {
-  if (destination.sourceType !== 'contact') return null
-  const contact = portalContactOf(destination.normalizedUri)
+export function defaultLinkIconKey(uri: string): PortalLinkIconKey | null {
+  const contact = portalContactOf(uri)
   return contact ? PORTAL_CONTACT_ICON_KEYS[contact.kind] : null
 }
 
@@ -161,7 +177,7 @@ export function defaultLinkIconKey(
  * credentials, non-HTTPS schemes, literal network addresses, fragments, and
  * deceptive host spellings out of durable Portal state.
  */
-export function validatePortalDestinationUri(uri: string): ValidatedPortalDestination {
+export function validatePortalDestinationUri(uri: string): ValidatedPortalWebsite {
   const trimmed = uri.trim()
   let parsed: URL
   try {

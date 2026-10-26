@@ -14,7 +14,11 @@ import { submitForm, submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { updateLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
-import { LINK_ADDRESS_FIELD, linkAddressForField } from './link-address-field'
+import {
+  isSavedLinkAddress,
+  LINK_ADDRESS_FIELD,
+  linkAddressForField,
+} from './link-address-field'
 import { LinktreeCheckingLine } from './linktree-checking-line'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
@@ -39,13 +43,12 @@ export function LinkAddressForm({
   disabled,
   status,
 }: Props) {
-  const shown = linkAddressForField(link.url)
   const form = useForm({
-    defaultValues: { url: shown },
+    defaultValues: { url: linkAddressForField(link.url) },
     listeners: {
       onChange: onEdit,
       onBlur: ({ formApi }) => {
-        if (formApi.state.values.url.trim() === shown) return
+        if (isSavedLinkAddress(formApi.state.values.url, link.url)) return
         void submitForm(formApi)
       },
     },

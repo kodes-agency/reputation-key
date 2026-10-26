@@ -71,8 +71,10 @@ async function resolveTileImage(
 
 /**
  * The icon the link wears after this update: the one asked for; else, when the
- * address moves to a phone number or an email address on a tile with neither
- * an icon nor a photo, a phone or a letter; else the one it has.
+ * address moves on a tile without a photo whose icon is the automatic one for
+ * its old address (none, or the phone or letter a contact got), the automatic
+ * one for the new address; else the one it has. An automatic icon cannot be
+ * told from a chosen one, so a phone chosen for a phone number goes with it.
  */
 function nextIconKey(
   input: UpdateLinkInput,
@@ -81,10 +83,10 @@ function nextIconKey(
   imageAssetId: PortalLink['imageAssetId'],
 ): string | null {
   if (input.iconKey !== undefined) return input.iconKey
-  if (destination === null || existing.iconKey !== null || imageAssetId !== null) {
-    return existing.iconKey
-  }
-  return defaultLinkIconKey(destination)
+  if (destination === null || imageAssetId !== null) return existing.iconKey
+  const isAutomatic =
+    existing.iconKey === null || existing.iconKey === defaultLinkIconKey(existing.url)
+  return isAutomatic ? defaultLinkIconKey(destination.normalizedUri) : existing.iconKey
 }
 
 /**

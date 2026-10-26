@@ -121,6 +121,9 @@ describe('parsePortalContactInput: anything else', () => {
     'whatsapp://send?phone=15551234567',
     'vbscript:msgbox(1)',
     'www.hotel.com',
+    // A website typed without its scheme, with an @ in its path.
+    'instagram.com/@hotel',
+    'tiktok.com/@hotel/video/1',
     '',
     '   ',
   ])('reads %j as no phone number or email address', (input) => {

@@ -191,8 +191,11 @@ allowlisted HTTPS provider URLs") gains one exception, and only this one:
 - **A Property destination like a website.** The tile points at a `portal_approved_destinations` row
   with `source_type` `contact` (migration 0073), approved as it is entered, so a link still has one
   authority for where it goes. A contact is never checked over the network: the 15-minute re-check
-  never takes one, and the guest edge serves an approved one whatever its `last_validated_at`. It is
-  not one of the "Sites allowed for links"; an account admin can still turn one off.
+  never takes one, a re-check never quarantines one, and the guest edge serves an approved one
+  whatever its `last_validated_at`. It is not one of the "Sites allowed for links" and cannot be
+  turned off; a tile that should not call or write is changed or deleted. A contact row that a server
+  from before contacts quarantined (its re-check refuses every `tel:`/`mailto:`) is approved again
+  when the number or address is entered on the tile again.
 - **Followed in the same tab.** After a rating the tap records the Qualified Link Action, then the
   page goes to the `tel:` or `mailto:` address in its own tab, which hands it to the guest's phone or
   mail app. Before a rating the tile stays a plain link to the navigation-only click route, which
