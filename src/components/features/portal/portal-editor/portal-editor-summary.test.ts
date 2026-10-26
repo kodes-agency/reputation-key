@@ -3,9 +3,11 @@
 // are pinned here rather than left to whatever the JSX happens to interpolate.
 
 import { describe, expect, it } from 'vitest'
+import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/public-api'
 import {
   countLanguagesWithoutWording,
   findPortalGroup,
+  lookSummaryOf,
   responsibleManagerNames,
   summarizePortalEditorSections,
   type PortalEditorSummaryInput,
@@ -23,7 +25,7 @@ const base: PortalEditorSummaryInput = {
 describe('summarizePortalEditorSections', () => {
   it('describes every section the way board 02 does', () => {
     expect(summarizePortalEditorSections(base)).toEqual({
-      look: { text: 'Photo and colours · property-wide', locked: false },
+      look: { text: 'The property look', locked: false },
       welcome: { text: 'Pool & Terrace', locked: false },
       rating: { text: 'Always included', locked: true },
       'private-note': { text: '3★ or below', locked: false },
@@ -126,6 +128,64 @@ describe('summarizePortalEditorSections', () => {
     expect(
       summarizePortalEditorSections({ ...base, portalName: '  ' }).welcome.text,
     ).toBe('Untitled portal')
+  })
+})
+
+describe('the Look line', () => {
+  const sources = (own: Partial<typeof PROPERTY_LOOK_SOURCES>) => ({
+    ...PROPERTY_LOOK_SOURCES,
+    ...own,
+  })
+
+  it('says a portal that owns nothing has the property look', () => {
+    expect(lookSummaryOf(PROPERTY_LOOK_SOURCES)).toBe('The property look')
+    expect(summarizePortalEditorSections(base).look).toEqual({
+      text: 'The property look',
+      locked: false,
+    })
+  })
+
+  it('names what a portal owns, one group or two', () => {
+    expect(lookSummaryOf(sources({ photo: 'portal' }))).toBe('Own photo')
+    expect(lookSummaryOf(sources({ colours: 'portal' }))).toBe('Own colours')
+    expect(lookSummaryOf(sources({ identity: 'portal' }))).toBe('Own name and logo')
+    expect(lookSummaryOf(sources({ photo: 'portal', colours: 'portal' }))).toBe(
+      'Own photo and colours',
+    )
+    expect(lookSummaryOf(sources({ photo: 'portal', identity: 'portal' }))).toBe(
+      'Own photo, name and logo',
+    )
+    expect(lookSummaryOf(sources({ colours: 'portal', identity: 'portal' }))).toBe(
+      'Own colours, name and logo',
+    )
+  })
+
+  it('says "Own look" once all three groups are the portal’s', () => {
+    expect(
+      lookSummaryOf({ photo: 'portal', colours: 'portal', identity: 'portal' }),
+    ).toBe('Own look')
+    // Going without a photo is the portal’s own choice too.
+    expect(lookSummaryOf({ photo: 'none', colours: 'portal', identity: 'portal' })).toBe(
+      'Own look',
+    )
+  })
+
+  it('says a portal told to go without a photo has none, and what else it owns', () => {
+    expect(lookSummaryOf(sources({ photo: 'none' }))).toBe('No photo')
+    expect(lookSummaryOf(sources({ photo: 'none', colours: 'portal' }))).toBe(
+      'No photo, own colours',
+    )
+    expect(lookSummaryOf(sources({ photo: 'none', identity: 'portal' }))).toBe(
+      'No photo, own name and logo',
+    )
+  })
+
+  it('follows the sources the settings read gives the editor', () => {
+    const line = summarizePortalEditorSections({
+      ...base,
+      lookSources: sources({ photo: 'portal', colours: 'portal' }),
+    }).look.text
+    expect(line).toBe('Own photo and colours')
   })
 })
 

@@ -2,7 +2,11 @@
 // manager needs to know about a section without opening it. Pure and separate
 // from the navigation so the words are pinned by a test, not by JSX.
 
-import { hasPropertyWording } from '#/contexts/portal/application/public-api'
+import {
+  hasPropertyWording,
+  PROPERTY_LOOK_SOURCES,
+  type PortalLookSources,
+} from '#/contexts/portal/application/public-api'
 import { countHiddenLinks } from '../link-tree/linktree-approval-rules'
 import type { PortalGroupView } from '../portal-group/portal-group-types'
 import type { PortalEditorResources } from './portal-editor-types'
@@ -23,6 +27,8 @@ export type PortalEditorSummaryInput = Readonly<{
    * portal cannot be published). Absent while the wording is not known.
    */
   languagesWithoutWording?: number
+  /** Which of the three look groups the portal owns; absent: it follows the property look. */
+  lookSources?: PortalLookSources
   /** The group's name, or null for a portal outside any group. */
   groupName: string | null
   /** Full names of the responsible managers. */
@@ -48,6 +54,32 @@ function linktreeLine(linkCount: number, hiddenLinkCount: number): string {
   return hiddenLinkCount > 0 ? `${line} · ${hiddenLinkCount} hidden from guests` : line
 }
 
+/**
+ * What the Look line says: the property's look, or what the portal owns of it. A
+ * photo the portal owns is "photo"; one it was told to go without is "no photo".
+ * All three groups of its own is "Own look".
+ */
+export function lookSummaryOf(sources: PortalLookSources): string {
+  const owned = [
+    sources.photo === 'portal' ? 'photo' : null,
+    sources.colours === 'portal' ? 'colours' : null,
+    sources.identity === 'portal' ? 'name and logo' : null,
+  ].filter((part): part is string => part !== null)
+  if (sources.photo === 'none') return noPhotoLine(owned)
+  if (owned.length === 0) return 'The property look'
+  if (owned.length === 3) return 'Own look'
+  // "photo, name and logo" reads as a list, "photo and colours" as a pair.
+  const joined = owned.includes('name and logo') ? owned.join(', ') : owned.join(' and ')
+  return `Own ${joined}`
+}
+
+/** A portal with no photo: alone it says so, beside other groups it lists them after it. */
+function noPhotoLine(owned: readonly string[]): string {
+  if (owned.length === 0) return 'No photo'
+  if (owned.length === 2) return 'Own look'
+  return `No photo, own ${owned.join(' and ')}`
+}
+
 function firstNames(names: ReadonlyArray<string>): string {
   const firsts = names
     .map((name) => name.trim().split(/\s+/u)[0] ?? '')
@@ -61,7 +93,7 @@ export function summarizePortalEditorSections(
   const open = (text: string): PortalEditorSectionSummary => ({ text, locked: false })
   const fixed = (text: string): PortalEditorSectionSummary => ({ text, locked: true })
   return {
-    look: open('Photo and colours · property-wide'),
+    look: open(lookSummaryOf(input.lookSources ?? PROPERTY_LOOK_SOURCES)),
     welcome: {
       ...open(input.portalName.trim() === '' ? 'Untitled portal' : input.portalName),
       ...((input.languagesWithoutWording ?? 0) > 0
@@ -130,6 +162,7 @@ export function portalEditorSummaryInput(
     languagesWithoutWording: portalExperience
       ? countLanguagesWithoutWording(locales, portalExperience.content)
       : undefined,
+    lookSources: portalExperience?.portalLook?.sources,
     groupName,
     responsibleNames: responsibleManagerNames(
       resources.responsibleManagers?.assignments ?? [],

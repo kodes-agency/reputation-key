@@ -15,6 +15,7 @@ import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
+import { patchedBrand, type BrandPatches } from '../portal-look/portal-look-preview-patch'
 import type { GuestPortalCopyV2 } from '#/components/features/guest'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import type {
@@ -48,9 +49,19 @@ type Props = Readonly<{
    * Review page, the phone is a picture.
    */
   selection?: PreviewSelection
+  /**
+   * Look edits the draft has not been read with yet (a colour still being
+   * picked), laid over the draft's brand so the phone follows them at once.
+   */
+  brandPatches?: BrandPatches
 }>
 
-export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Props) {
+export function PortalPreviewPane({
+  portalId,
+  getPortalPreview,
+  selection,
+  brandPatches,
+}: Props) {
   const [source, setSource] = useState<PortalPreviewSource>('draft')
   const [chosenLocale, setChosenLocale] = useState<GuestLocale | null>(null)
   // Before the preview has loaded its threshold is not known: every valid one
@@ -91,7 +102,12 @@ export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Pro
     chosenLocale !== null && preview?.locales.includes(chosenLocale)
       ? chosenLocale
       : (preview?.primaryLocale ?? 'en')
-  const experience = preview?.experiences[locale]
+  const read = preview?.experiences[locale]
+  // An edit is of the draft: the live version is shown as guests have it.
+  const experience =
+    read && brandPatches && source === 'draft'
+      ? { ...read, brand: patchedBrand(read.brand, brandPatches) }
+      : read
   const copy = usePreviewCopy(locale)
 
   return (

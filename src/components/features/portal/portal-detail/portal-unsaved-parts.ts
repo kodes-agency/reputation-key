@@ -15,6 +15,9 @@ const FIXED: Readonly<Record<string, string>> = {
   look: 'the property look',
   locales: 'the property’s languages',
   'photo-focal': 'the photo’s focus point',
+  'portal-look-colours': 'this portal’s colours',
+  'portal-look-wordmark': 'this portal’s wordmark',
+  'portal-photo-focal': 'this portal’s photo focus point',
 }
 
 const IN_A_LANGUAGE: ReadonlyArray<readonly [prefix: string, name: string]> = [

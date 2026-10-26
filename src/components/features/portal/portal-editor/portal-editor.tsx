@@ -6,9 +6,17 @@
 // `?section=`, and every save goes through the portal's autosave coordinator.
 
 import { useNavigate } from '@tanstack/react-router'
-import { useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { SectionNavLayout } from '#/components/ui/section-nav-layout'
 import { usePortalEditAccess } from '../portal-detail/use-portal-edit-access'
+import {
+  PortalLookPreviewProvider,
+  type SetBrandPatch,
+} from '../portal-look/portal-look-preview-context'
+import {
+  withBrandPatch,
+  type BrandPatches,
+} from '../portal-look/portal-look-preview-patch'
 import { PortalPreviewPane } from '../portal-preview/portal-preview-pane'
 import type { PreviewPartSection } from '../portal-preview/preview-parts'
 import { PortalEditorNav } from './portal-editor-nav'
@@ -54,6 +62,12 @@ export function PortalEditor({ resources, requestedSection }: Props) {
   // portal, which is retained exactly as it was. The workspace says why under
   // its header (`PortalReadOnlyNotice`).
   const { canEdit } = usePortalEditAccess(portal.publicationState)
+  // Look edits the phone shows before the draft is read again (the Look section sets them).
+  const [brandPatches, setBrandPatches] = useState<BrandPatches>({})
+  const setBrandPatch = useCallback<SetBrandPatch>(
+    (key, patch) => setBrandPatches((current) => withBrandPatch(current, key, patch)),
+    [],
+  )
   // A click on a part of the preview opens its section, as its link in the list
   // does, and brings that section into view: below lg the preview sits under
   // the form, far from where the section opens.
@@ -80,12 +94,14 @@ export function PortalEditor({ resources, requestedSection }: Props) {
       <div className="flex min-w-0 flex-1 flex-col lg:flex-row">
         <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-8">
           <div ref={panel} className="mx-auto max-w-2xl space-y-6">
-            <PortalEditorSectionPanel
-              section={section}
-              group={group}
-              resources={resources}
-              canEdit={canEdit}
-            />
+            <PortalLookPreviewProvider setBrandPatch={setBrandPatch}>
+              <PortalEditorSectionPanel
+                section={section}
+                group={group}
+                resources={resources}
+                canEdit={canEdit}
+              />
+            </PortalLookPreviewProvider>
           </div>
         </div>
         <aside
@@ -96,6 +112,7 @@ export function PortalEditor({ resources, requestedSection }: Props) {
             portalId={portal.id}
             getPortalPreview={resources.getPortalPreview}
             selection={{ active: section, onSelect: openSection, canEdit }}
+            brandPatches={brandPatches}
           />
         </aside>
       </div>

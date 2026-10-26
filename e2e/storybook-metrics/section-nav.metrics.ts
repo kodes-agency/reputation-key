@@ -181,7 +181,7 @@ test.describe('the Portal editor list', () => {
     expect(await scroller(page).evaluate((el) => getComputedStyle(el).position)).toBe(
       'sticky',
     )
-    await expect(page.getByText('Photo and colours · property-wide')).toBeVisible()
+    await expect(page.getByText('The property look', { exact: true })).toBeVisible()
   })
 
   test('is a band above the section until the container has room for three columns', async ({
@@ -193,7 +193,7 @@ test.describe('the Portal editor list', () => {
 
     expect((await layoutOf(page)).direction).toBe('row')
     expect(await nav.evaluate((el) => getComputedStyle(el).borderBottomWidth)).toBe('1px')
-    await expect(page.getByText('Photo and colours · property-wide')).toBeHidden()
+    await expect(page.getByText('The property look', { exact: true })).toBeHidden()
     const heights = await nav
       .getByRole('link')
       .evaluateAll((links) => links.map((link) => link.getBoundingClientRect().height))
