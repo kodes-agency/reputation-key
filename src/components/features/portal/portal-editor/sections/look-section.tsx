@@ -11,6 +11,7 @@ import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/public-api'
 import { PortalLookFacts } from '../../portal-look/portal-look-facts'
 import { PropertyLookLink } from '../../portal-look/portal-look-property-link'
 import {
+  lookFactsNoteOf,
   lookIntroOf,
   portalLookSurfaceOf,
   SUMMARY_DESCRIPTION,
@@ -33,13 +34,13 @@ export function LookSection({ resources, canEdit }: PortalEditorSectionProps) {
   const profile = portalExperience?.profile ?? null
   const sources = portalExperience?.portalLook?.sources ?? PROPERTY_LOOK_SOURCES
   const canManage = canEdit && portalExperience?.canManagePropertyBrand === true
+  const enabled =
+    portalExperience?.portalLookEnabled === true && portalLookActions !== undefined
   const surface =
     profile === null
       ? 'summary'
       : portalLookSurfaceOf({
-          enabled:
-            portalExperience?.portalLookEnabled === true &&
-            portalLookActions !== undefined,
+          enabled,
           canChange: canManage,
           siblingPortalCount: portalExperience?.siblingPortalCount ?? 0,
           sources,
@@ -73,7 +74,14 @@ export function LookSection({ resources, canEdit }: PortalEditorSectionProps) {
   return (
     <PortalEditorSectionFrame section="look" description={SUMMARY_DESCRIPTION}>
       {surface === 'facts' ? (
-        <PortalLookFacts propertyId={propertyId} sources={sources} />
+        <PortalLookFacts
+          propertyId={propertyId}
+          sources={sources}
+          note={lookFactsNoteOf({
+            enabled,
+            archived: portal.publicationState === 'archived',
+          })}
+        />
       ) : (
         <PortalLookSummary
           propertyId={propertyId}

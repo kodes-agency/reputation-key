@@ -52,10 +52,10 @@ export const createInMemoryPortalLookRepo = (): InMemoryPortalLookRepo => {
       const stored = overrides.get(portalKey({ organizationId, portalId }))
       return stored?.propertyId === propertyId ? stored.override : null
     },
-    listSourcesForPortals: async (organizationId, portalIds) =>
-      portalIds.flatMap((portalId) => {
+    listSourcesForPortals: async (organizationId, named) =>
+      named.flatMap(({ propertyId, portalId }) => {
         const stored = overrides.get(portalKey({ organizationId, portalId }))
-        return stored
+        return stored?.propertyId === propertyId
           ? [{ portalId: toPortalId(portalId), sources: lookSourcesOf(stored.override) }]
           : []
       }),
@@ -75,6 +75,7 @@ export const createInMemoryPortalLookRepo = (): InMemoryPortalLookRepo => {
       calls.push(input)
       const portal = portals.get(portalKey(input))
       if (portal?.propertyId !== input.propertyId) return { status: 'portal_not_found' }
+      if (portal.archived) return { status: 'portal_archived' }
       const base = bases.get(propertyKey(input))
       if (!base) return { status: 'brand_profile_missing' }
       const current = overrides.get(portalKey(input))?.override ?? null

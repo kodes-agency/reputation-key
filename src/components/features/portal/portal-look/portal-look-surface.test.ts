@@ -5,7 +5,9 @@ import {
   type PortalLookSources,
 } from '#/contexts/portal/application/public-api'
 import {
+  FACTS_NOTE,
   hasOwnLook,
+  lookFactsNoteOf,
   lookFactsOf,
   lookIntroOf,
   portalLookSurfaceOf,
@@ -99,6 +101,19 @@ describe('the words', () => {
       { term: 'Colours', value: 'The property’s' },
       { term: 'Name and logo', value: 'This portal’s own' },
     ])
+  })
+
+  it('names an Account Admin only while one could change the look', () => {
+    expect(lookFactsNoteOf({ enabled: true, archived: false })).toBe(FACTS_NOTE)
+    expect(lookFactsNoteOf({ enabled: false, archived: false })).toBe(
+      'A portal’s own look cannot be changed at the moment.',
+    )
+    expect(lookFactsNoteOf({ enabled: true, archived: true })).toBe(
+      'An archived portal keeps the look it had.',
+    )
+    expect(lookFactsNoteOf({ enabled: false, archived: true })).toBe(
+      'An archived portal keeps the look it had.',
+    )
   })
 
   it('introduces a portal that follows everything as one that can be given a look', () => {

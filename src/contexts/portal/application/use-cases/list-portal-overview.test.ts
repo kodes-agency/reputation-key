@@ -253,6 +253,13 @@ describe('listPortalOverview', () => {
       expect.any(Array),
       NOW,
     )
+    // The look read names each Portal with its Property, so a row is held to both.
+    expect(reads.listSourcesForPortals).toHaveBeenCalledWith(
+      ctx.organizationId,
+      expect.arrayContaining(
+        portals.map((portal) => ({ propertyId: portal.propertyId, portalId: portal.id })),
+      ),
+    )
   })
 
   it('reads one property when asked for one', async () => {

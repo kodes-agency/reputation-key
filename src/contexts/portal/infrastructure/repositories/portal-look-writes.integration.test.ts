@@ -411,6 +411,14 @@ describe.sequential('savePortalLookPart (real PostgreSQL)', () => {
     await expect(pageEditRows()).resolves.toEqual([])
   })
 
+  it('answers portal_archived for a Portal archived after the caller checked, and writes nothing', async () => {
+    await expect(
+      save({ group: 'colours', mode: 'own', accent: ACCENT }, { portalId: OLD_BAR }),
+    ).resolves.toEqual({ status: 'portal_archived' })
+    await expect(overrideRow(OLD_BAR)).resolves.toBeUndefined()
+    await expect(pageEditRows()).resolves.toEqual([])
+  })
+
   it('leaves another tenant’s row alone', async () => {
     await query(
       `INSERT INTO portal_look_overrides (organization_id, property_id, portal_id,

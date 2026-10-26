@@ -57,6 +57,8 @@ const setup = (
   options: Readonly<{
     enabled?: boolean
     archived?: boolean
+    /** Archived only as the save sees it, after the caller's check (a race). */
+    archivedAtSave?: boolean
     profile?: boolean
     accessible?: ReadonlyArray<PropertyId> | null
   }> = {},
@@ -83,6 +85,7 @@ const setup = (
     organizationId: PORTAL.organizationId,
     propertyId: PROPERTY,
     portalId: PORTAL.id,
+    archived: options.archivedAtSave ?? false,
   })
   if (options.profile ?? true) {
     portalLookRepo.seedProperty({
@@ -192,6 +195,14 @@ describe('savePortalLookColours', () => {
 
   it('refuses an archived portal', async () => {
     const { deps } = setup({ archived: true })
+
+    await expect(
+      savePortalLookColours(deps)({ ...target, colours: { mode: 'own' } }, ADMIN),
+    ).rejects.toSatisfy(failsWith('portal_inactive'))
+  })
+
+  it('refuses a portal archived while the save was on its way', async () => {
+    const { deps } = setup({ archivedAtSave: true })
 
     await expect(
       savePortalLookColours(deps)({ ...target, colours: { mode: 'own' } }, ADMIN),

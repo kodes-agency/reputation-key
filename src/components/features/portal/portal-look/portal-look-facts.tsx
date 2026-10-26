@@ -6,11 +6,16 @@ import { Palette } from 'lucide-react'
 import type { PortalLookSources } from '#/contexts/portal/application/public-api'
 import { Button } from '#/components/ui/button'
 import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
-import { FACTS_NOTE, lookFactsOf } from './portal-look-surface'
+import { lookFactsOf } from './portal-look-surface'
 
-type Props = Readonly<{ propertyId: string; sources: PortalLookSources }>
+type Props = Readonly<{
+  propertyId: string
+  sources: PortalLookSources
+  /** Who can change it, from `lookFactsNoteOf`. */
+  note: string
+}>
 
-export function PortalLookFacts({ propertyId, sources }: Props) {
+export function PortalLookFacts({ propertyId, sources, note }: Props) {
   return (
     <div className="space-y-4">
       <DescriptionList aria-label="This portal’s look" termWidth="wide">
@@ -20,7 +25,7 @@ export function PortalLookFacts({ propertyId, sources }: Props) {
           </DescriptionItem>
         ))}
       </DescriptionList>
-      <p className="text-sm text-muted-foreground">{FACTS_NOTE}</p>
+      <p className="text-sm text-muted-foreground">{note}</p>
       <Button variant="outline" asChild>
         <Link to="/properties/$propertyId/portals/look" params={{ propertyId }}>
           <Palette />

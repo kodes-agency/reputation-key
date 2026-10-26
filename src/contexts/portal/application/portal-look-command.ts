@@ -45,6 +45,7 @@ export async function loadPortalForOwnLook(
     permission: 'portal.update',
     forbiddenMessage: 'This role cannot change this portal',
   })
+  // Checked again under the Portal's row lock when the save is made.
   if (portal.publicationState === 'archived') {
     throw portalError('portal_inactive', 'Restore this portal before changing its look')
   }
@@ -85,6 +86,8 @@ export async function savePortalLookChange(
       )
     case 'portal_not_found':
       throw portalError('portal_not_found', 'Portal not found for this Property')
+    case 'portal_archived':
+      throw portalError('portal_inactive', 'Restore this portal before changing its look')
     case 'saved':
       return portalLookSavedOf(portal.id, result.override, result.changedFacets)
   }

@@ -51,6 +51,19 @@ export const SUMMARY_DESCRIPTION =
 
 export const FACTS_NOTE = 'An account admin changes this portal’s look.'
 
+/**
+ * Who can change the look, under the facts. An archived portal keeps the look
+ * it had, and while the switch is off nobody can change it, so neither points
+ * to an Account Admin who could not act on it.
+ */
+export function lookFactsNoteOf(
+  input: Readonly<{ enabled: boolean; archived: boolean }>,
+): string {
+  if (input.archived) return 'An archived portal keeps the look it had.'
+  if (!input.enabled) return 'A portal’s own look cannot be changed at the moment.'
+  return FACTS_NOTE
+}
+
 const OWN = 'This portal’s own'
 const PROPERTY = 'The property’s'
 

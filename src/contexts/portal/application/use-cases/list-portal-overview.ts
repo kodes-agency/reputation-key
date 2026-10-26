@@ -144,7 +144,10 @@ export const listPortalOverview =
         portalIds,
         asOf,
       ),
-      deps.portalLookRepo.listSourcesForPortals(ctx.organizationId, portalIds),
+      deps.portalLookRepo.listSourcesForPortals(
+        ctx.organizationId,
+        portals.map((portal) => ({ propertyId: portal.propertyId, portalId: portal.id })),
+      ),
     ])
     const healthByPortal = indexByPortal(healths)
     const pendingByPortal = indexByPortal(pending)

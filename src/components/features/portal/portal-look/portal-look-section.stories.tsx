@@ -325,10 +325,23 @@ export const ArchivedPortalShowsFacts: Story = {
     const section = lookSection(canvasElement)
     await expect(section.getByText('This portal’s own')).toBeVisible()
     await expect(
-      section.getByText('An account admin changes this portal’s look.'),
+      section.getByText('An archived portal keeps the look it had.'),
     ).toBeVisible()
     await expect(section.queryByRole('button')).toBeNull()
     await expect(section.queryByRole('textbox')).toBeNull()
+  },
+}
+
+/** With the switch off, a portal that has its own look is told, and nobody is named to change it. */
+export const SwitchedOffOwnLookShowsFacts: Story = {
+  args: { look: OWN_COLOURS, enabled: false },
+  play: async ({ canvasElement }) => {
+    const section = lookSection(canvasElement)
+    await expect(section.getByText('This portal’s own')).toBeVisible()
+    await expect(
+      section.getByText('A portal’s own look cannot be changed at the moment.'),
+    ).toBeVisible()
+    await expect(section.queryByRole('button')).toBeNull()
   },
 }
 

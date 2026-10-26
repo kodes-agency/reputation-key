@@ -12,6 +12,9 @@ import type {
   PortalLookSources,
 } from '../../domain/portal-look'
 
+/** A Portal named with the Property it belongs to, so a read is held to both. */
+export type PortalOfProperty = Readonly<{ propertyId: PropertyId; portalId: PortalId }>
+
 /** Where one Portal's look groups come from, for a Portal that has a row. */
 export type PortalLookSourcesRow = Readonly<{
   portalId: PortalId
@@ -41,6 +44,8 @@ export type SavePortalLookPartResult =
   | Readonly<{ status: 'brand_profile_missing' }>
   /** The Portal is gone, deleted, or not of this Property. */
   | Readonly<{ status: 'portal_not_found' }>
+  /** The Portal was archived after the caller checked it; seen under its row lock. */
+  | Readonly<{ status: 'portal_archived' }>
 
 export type PortalLookRepository = Readonly<{
   /** The Portal's override, or null when it follows the whole Property look. */
@@ -52,11 +57,12 @@ export type PortalLookRepository = Readonly<{
   /**
    * Where each named Portal's groups come from, for the Portals that have a row;
    * a Portal left out follows the whole Property look (`PROPERTY_LOOK_SOURCES`).
-   * One read for the whole set.
+   * One read for the whole set, which may span Properties (the Organization
+   * overview); a row is returned only for the Property its Portal was named with.
    */
   listSourcesForPortals: (
     organizationId: OrganizationId,
-    portalIds: readonly PortalId[],
+    portals: readonly PortalOfProperty[],
   ) => Promise<readonly PortalLookSourcesRow[]>
   /**
    * The Property's Portals that are neither archived nor deleted, this one

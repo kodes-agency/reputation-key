@@ -192,7 +192,7 @@ describe('portal look repository reads', () => {
     await expect(repository().findForPortal(ORG_B, PROPERTY, SPA)).resolves.toBeNull()
   })
 
-  it('lists the sources of the named Portals that have a row, in one read', async () => {
+  it('lists the sources of the named Portals that have a row, each held to its Property', async () => {
     await insertOverride({ photo_mode: 'none' })
     await insertOverride({
       portal_id: RECEPTION,
@@ -209,10 +209,10 @@ describe('portal look repository reads', () => {
     })
 
     const rows = await repository().listSourcesForPortals(ORG_A, [
-      SPA,
-      RECEPTION,
-      QUAY,
-      PORTAL_B,
+      { propertyId: PROPERTY, portalId: SPA },
+      { propertyId: PROPERTY, portalId: RECEPTION },
+      { propertyId: OTHER_PROPERTY, portalId: QUAY },
+      { propertyId: PROPERTY_B, portalId: PORTAL_B },
     ])
 
     expect([...rows].sort((a, b) => a.portalId.localeCompare(b.portalId))).toEqual([
@@ -226,6 +226,13 @@ describe('portal look repository reads', () => {
       },
     ])
     await expect(repository().listSourcesForPortals(ORG_A, [])).resolves.toEqual([])
+    // Spa named with a Property it is not of reads as following the Property look.
+    await expect(
+      repository().listSourcesForPortals(ORG_A, [
+        { propertyId: OTHER_PROPERTY, portalId: SPA },
+        { propertyId: PROPERTY, portalId: QUAY },
+      ]),
+    ).resolves.toEqual([])
   })
 
   it('counts the Property’s live Portals: neither archived nor deleted', async () => {

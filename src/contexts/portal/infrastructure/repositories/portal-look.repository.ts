@@ -60,10 +60,18 @@ const scopeOf = (input: SavePortalLookPartInput): PortalScope => ({
   portalId: unbrand(input.portalId),
 })
 
-/** The Portal's languages, read under its row lock: a description is kept only in these. */
-async function portalLanguages(tx: Tx, scope: PortalScope): Promise<readonly string[]> {
+type LockedPortal = Readonly<{ archived: boolean; languages: readonly string[] }>
+
+/**
+ * The Portal as it stands under its row lock: whether it is archived, and its
+ * languages (a description is kept only in these). The caller checked archived
+ * before the transaction; an archive that committed in between is seen here,
+ * so a save never lands on an archived Portal.
+ */
+async function lockedPortalOf(tx: Tx, scope: PortalScope): Promise<LockedPortal> {
   const [row] = await tx
     .select({
+      state: portals.publicationState,
       primary: portals.primaryGuestLocale,
       additional: portals.additionalGuestLocales,
     })
@@ -76,16 +84,23 @@ async function portalLanguages(tx: Tx, scope: PortalScope): Promise<readonly str
       ),
     )
     .limit(1)
-  if (!row) return []
+  if (!row) return { archived: false, languages: [] }
   const additional = Array.isArray(row.additional) ? row.additional : []
-  return [row.primary, ...additional].filter(isGuestLocale)
+  return {
+    archived: row.state === 'archived',
+    languages: [row.primary, ...additional].filter(isGuestLocale),
+  }
 }
 
 /**
  * What the Portal sees of the Property look: the Brand Profile, and its photo's
  * description in each of the Portal's languages. Null without a profile.
  */
-async function lookBaseOf(tx: Tx, scope: PortalScope): Promise<PortalLookBase | null> {
+async function lookBaseOf(
+  tx: Tx,
+  scope: PortalScope,
+  languages: readonly string[],
+): Promise<PortalLookBase | null> {
   const [profile] = await tx
     .select({
       primaryColor: propertyPortalBrandProfiles.primaryColor,
@@ -107,7 +122,6 @@ async function lookBaseOf(tx: Tx, scope: PortalScope): Promise<PortalLookBase | 
     )
     .limit(1)
   if (!profile) return null
-  const languages = await portalLanguages(tx, scope)
   const contents =
     languages.length === 0
       ? []
@@ -194,7 +208,7 @@ async function recordLookEdits(
   }
 }
 
-/** One save, inside its transaction: Property lock, Portal row, Brand Profile, current row, then the write. */
+/** One save, inside its transaction: Property lock, Portal row (not archived), Brand Profile, current row, then the write. */
 async function savePart(
   tx: Tx,
   input: SavePortalLookPartInput,
@@ -208,7 +222,9 @@ async function savePart(
     scope.portalId,
   )
   if (!isPortal) return { status: 'portal_not_found' }
-  const base = await lookBaseOf(tx, scope)
+  const portal = await lockedPortalOf(tx, scope)
+  if (portal.archived) return { status: 'portal_archived' }
+  const base = await lookBaseOf(tx, scope, portal.languages)
   if (!base) return { status: 'brand_profile_missing' }
   const current = await currentOverride(tx, scope)
   const next = nextPortalLook(current, base, input.change)
@@ -237,25 +253,30 @@ export const createPortalLookRepository = (db: Database): PortalLookRepository =
       return row === undefined ? null : portalLookOverrideOf(row)
     }),
 
-  listSourcesForPortals: (organizationIdValue, portalIdValues) =>
+  listSourcesForPortals: (organizationIdValue, named) =>
     trace('portalLook.listSourcesForPortals', async () => {
-      if (portalIdValues.length === 0) return []
+      if (named.length === 0) return []
+      const propertyOf = new Map(
+        named.map((portal) => [unbrand(portal.portalId), unbrand(portal.propertyId)]),
+      )
       const rows = await db
         .select()
         .from(portalLookOverrides)
         .where(
           and(
             eq(portalLookOverrides.organizationId, unbrand(organizationIdValue)),
-            inArray(
-              portalLookOverrides.portalId,
-              portalIdValues.map((id) => unbrand(id)),
-            ),
+            inArray(portalLookOverrides.propertyId, [...new Set(propertyOf.values())]),
+            inArray(portalLookOverrides.portalId, [...propertyOf.keys()]),
           ),
         )
-      return rows.map((row) => ({
-        portalId: toPortalId(row.portalId),
-        sources: lookSourcesOf(portalLookOverrideOf(row)),
-      }))
+      // The two lists above can pair a Portal with another named Property; the
+      // row must be of the Property its Portal was named with.
+      return rows
+        .filter((row) => propertyOf.get(row.portalId) === row.propertyId)
+        .map((row) => ({
+          portalId: toPortalId(row.portalId),
+          sources: lookSourcesOf(portalLookOverrideOf(row)),
+        }))
     }),
 
   countLivePortals: (organizationIdValue, propertyIdValue) =>
