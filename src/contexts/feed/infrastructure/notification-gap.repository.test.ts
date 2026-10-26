@@ -121,7 +121,7 @@ describe('notification gap repository — gauge count', () => {
       new PgDialect().sqlToQuery(query),
     )
     expect(timeout).toMatchObject({
-      sql: "SELECT set_config('statement_timeout', $1, true)",
+      sql: "SELECT set_config('statement_timeout', $1, true), set_config('jit', 'off', true)",
       params: [String(STATEMENT_TIMEOUT_MS)],
     })
     expect(count?.sql).toContain('count(*)::int')

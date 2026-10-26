@@ -207,31 +207,53 @@ const readSendableImmediateEmailRows = async (
  * counted per route event type. A fact its route consumes only to announce
  * nothing is not a notice waiting (silent-route-fact.ts): an import writes up
  * to three per past review.
+ *
+ * The receipt anti-join runs first, in a materialized CTE, and the silent test
+ * runs on its rows alone. An import leaves thousands of silent facts in the
+ * window while only a few lack a receipt; tested inside the outbox scan, every
+ * window row paid the silent test's two inbox-table subplans (about 40 ms
+ * each, built per branch) to count a few dozen. The CTE is not bounded by the
+ * scan limit: it holds only the facts still missing a receipt, and the limit
+ * applies after the silent test, so silent facts never fill the scan and the
+ * limit still bounds the facts counted. A fact missing the receipts of two
+ * routes appears once per route, as it always did. `silentRouteFact` reads the
+ * CTE through the `event` alias, so the rule is stated once.
  */
 const readSourceReceiptPending = async (
   db: Pick<Database, 'execute'>,
   window: NotificationDeliveryLagWindow,
 ): Promise<ReadonlyArray<PendingRow>> => {
   const result = await db.execute<PendingRow>(sql`
-    WITH routes(event_type, consumer_name) AS (VALUES ${routeValues})
+    WITH
+      routes(event_type, consumer_name) AS (VALUES ${routeValues}),
+      unreceipted AS MATERIALIZED (
+        SELECT
+          event.id,
+          event.event_type,
+          event.created_at,
+          event.organization_id,
+          event.source_aggregate_id,
+          event.payload
+        FROM ${outboxEvents} AS event
+        JOIN routes ON routes.event_type = event.event_type
+        WHERE event.created_at >= ${window.recordedAtOrAfter}::timestamptz
+          AND event.created_at < ${window.recordedBefore}::timestamptz
+          AND event.recovery_fenced_at IS NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ${eventConsumerReceipts} AS receipt
+            WHERE receipt.event_id = event.id
+              AND receipt.consumer_name = routes.consumer_name
+          )
+      )
     SELECT
       candidate.event_type AS "eventType",
       count(*)::int AS pending,
       min(candidate.created_at) AS oldest
     FROM (
       SELECT event.event_type, event.created_at
-      FROM ${outboxEvents} AS event
-      JOIN routes ON routes.event_type = event.event_type
-      WHERE event.created_at >= ${window.recordedAtOrAfter}::timestamptz
-        AND event.created_at < ${window.recordedBefore}::timestamptz
-        AND event.recovery_fenced_at IS NULL
-        AND NOT EXISTS (
-          SELECT 1
-          FROM ${eventConsumerReceipts} AS receipt
-          WHERE receipt.event_id = event.id
-            AND receipt.consumer_name = routes.consumer_name
-        )
-        AND NOT ${silentRouteFact}
+      FROM unreceipted AS event
+      WHERE NOT ${silentRouteFact}
       ORDER BY event.created_at, event.id
       LIMIT ${window.scanLimit}
     ) AS candidate
@@ -285,10 +307,11 @@ const readMaterializationPending = async (
 
 /**
  * Reads only identifiers, receipt names, route event type names (a closed set
- * the notification routes name), and timestamps. Event payload is
- * intentionally absent from every SELECT list (the silent-fact filter reads
- * identifier-only payload fields in WHERE), so content cannot leak into a
- * health response or log through this repository. The email scopes'
+ * the notification routes name), and timestamps. Event payload never reaches
+ * a result: the source read carries it inside its `unreceipted` CTE for the
+ * silent-fact filter, which reads identifier-only payload fields in WHERE, and
+ * selects only the event type and clock out of it, so content cannot leak into
+ * a health response or log through this repository. The email scopes'
  * identifiers are read only to ask `isEmailDeliveryAllowed`; the report
  * carries counts and clocks.
  */

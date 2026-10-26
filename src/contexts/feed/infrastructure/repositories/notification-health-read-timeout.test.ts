@@ -17,7 +17,10 @@ import { Client } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { NotificationHealthReadTimeoutError } from './health-read-timeout'
+import {
+  NotificationHealthReadTimeoutError,
+  withHealthReadTimeout,
+} from './health-read-timeout'
 import { createNotificationDeliveryLagRepository } from './notification-delivery-lag.repository'
 import { createNotificationGapRepository } from './notification-gap.repository'
 
@@ -123,6 +126,30 @@ describe.sequential(
       )
 
       expect(shown.rows[0]?.statement_timeout).toBe('0')
+    })
+
+    // JIT compile cost (0.7-0.9 s) dominated the delivery-lag source read once
+    // a bulk import pushed its cost estimate over the JIT threshold. The read
+    // is a short OLTP statement, so JIT is off inside it and only inside it.
+    it('turns JIT off inside the read and restores it afterwards', async () => {
+      await db.execute(sql`SET jit = on`)
+
+      const inside = await withHealthReadTimeout(
+        db,
+        STATEMENT_TIMEOUT_MS,
+        async (transaction) =>
+          (
+            await transaction.execute<{ jit: string }>(
+              sql`SELECT current_setting('jit') AS jit`,
+            )
+          ).rows[0]?.jit,
+      )
+      const after = await db.execute<{ jit: string }>(
+        sql`SELECT current_setting('jit') AS jit`,
+      )
+
+      expect(inside).toBe('off')
+      expect(after.rows[0]?.jit).toBe('on')
     })
   },
 )
