@@ -5,7 +5,7 @@ import { ReceiptStars, ratingWord } from './immersive-stars'
 
 /**
  * The strip that opens the after-rating page (boards G04, G05): "Thank you.",
- * the stars the guest gave, the word for them and that it was sent privately,
+ * the stars the guest gave, the word for them and that it was sent,
  * and Change. It reads the same at every rating, and what it says is about the
  * private rating alone; Google is the card below it.
  */

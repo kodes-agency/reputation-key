@@ -239,7 +239,7 @@ export const G03RatingChosen: Story = {
       canvasElement.querySelectorAll('.ih-star__glyph[data-filled="true"]'),
     ).toHaveLength(4)
     expect(canvasElement.querySelector('.ih-scale__word')?.textContent).toBe('Very good')
-    expect(canvas.getByRole('button', { name: 'Send privately' })).toBeEnabled()
+    expect(canvas.getByRole('button', { name: 'Send' })).toBeEnabled()
     expect(canvas.queryByRole('alert')).toBeNull()
   },
 }
@@ -262,7 +262,7 @@ export const AsksForARating: Story = {
   args: { state: { kind: 'arrival' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Send privately' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Send' }))
     expect(await canvas.findByRole('alert')).toHaveTextContent(enV2.copy.ratingChoose)
     await userEvent.click(canvas.getByRole('radio', { name: '5 stars, Excellent' }))
     expect(canvas.queryByRole('alert')).toBeNull()
@@ -279,7 +279,7 @@ export const SendsTheChosenRating: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('radio', { name: '2 stars, Fair' }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Send privately' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Send' }))
     expect(args.overrides?.onSubmitRating).toHaveBeenCalledTimes(1)
     expect(args.overrides?.onSubmitRating).toHaveBeenCalledWith({
       rating: 2,
@@ -308,7 +308,7 @@ export const G04AfterLow: Story = {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('heading', { name: 'Thank you.' })).toBeVisible()
     expect(canvas.getByRole('img', { name: '2 stars' })).toBeVisible()
-    expect(canvas.getByText('Fair · sent privately')).toBeVisible()
+    expect(canvas.getByText('Fair · sent')).toBeVisible()
     expect(canvas.getByRole('button', { name: /Continue to Google/ })).toBeEnabled()
     expect(canvas.getByRole('button', { name: enV2.copy.ratingChange })).toBeVisible()
     // The hint is read with the button.
@@ -328,7 +328,7 @@ export const G05AfterHigh: Story = {
   args: { state: { kind: 'rated', rating: 5 } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Excellent · sent privately')).toBeVisible()
+    expect(canvas.getByText('Excellent · sent')).toBeVisible()
     expect(canvas.getByRole('button', { name: /Continue to Google/ })).toBeEnabled()
     expect(canvas.queryByText(enV2.copy.noteOfferTitle)).toBeNull()
     // The card follows the receipt directly, as it does after a low rating.
@@ -380,7 +380,7 @@ export const NoteIsSent: Story = {
       honeypot: '',
     })
     // The form is gone; focus goes to the confirmation, which is read out.
-    const sent = await canvas.findByText('Your note was sent privately to Avela Resort.')
+    const sent = await canvas.findByText('Your note was sent to Avela Resort.')
     expect(sent).toHaveFocus()
     expect(canvas.queryByRole('textbox')).toBeNull()
   },
@@ -413,7 +413,7 @@ export const G07NoteSent: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('status')).toHaveTextContent(
-      'Your note was sent privately to Avela Resort.',
+      'Your note was sent to Avela Resort.',
     )
     expect(canvas.queryByRole('textbox')).toBeNull()
     expect(canvas.getByRole('button', { name: /Continue to Google/ })).toBeEnabled()
@@ -428,9 +428,7 @@ export const G08GoogleUnavailable: Story = {
     const title = canvas.getByRole('heading', { name: enV2.copy.googleUnavailableTitle })
     expect(title.closest('section')?.getAttribute('role')).toBe('status')
     expect(canvas.queryByRole('button', { name: /Continue to Google/ })).toBeNull()
-    expect(
-      canvas.getByText('Your rating reached Avela Resort privately. Thank you.'),
-    ).toBeVisible()
+    expect(canvas.getByText('Your rating reached Avela Resort. Thank you.')).toBeVisible()
     // The private note still works.
     expect(canvas.getByRole('button', { name: enV2.copy.noteOfferAction })).toBeEnabled()
   },
@@ -577,7 +575,7 @@ export const ChangesTheRating: Story = {
       honeypot: '',
     })
     // The form is put away, and the receipt shows the new rating.
-    expect(await canvas.findByText('Very good · sent privately')).toBeVisible()
+    expect(await canvas.findByText('Very good · sent')).toBeVisible()
     expect(
       canvas.queryByRole('button', { name: enV2.copy.responseChangeSave }),
     ).toBeNull()

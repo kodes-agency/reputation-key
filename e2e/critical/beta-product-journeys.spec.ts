@@ -243,8 +243,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       .getByRole('button', { name: 'Got it' })
       .click()
     await page.locator('label:has(input[aria-label="5 stars, Excellent"])').click()
-    await page.getByRole('button', { name: 'Send privately' }).click()
-    await expect(page.getByText('Excellent · sent privately')).toBeVisible()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect(page.getByText('Excellent · sent')).toBeVisible()
     await expect(destination).toHaveAttribute(
       'href',
       `/api/public/p/${encodeURIComponent(seed.portalToken)}/click/${seed.portalLinkId}`,
