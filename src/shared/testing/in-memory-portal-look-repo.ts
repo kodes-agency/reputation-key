@@ -79,12 +79,18 @@ export const createInMemoryPortalLookRepo = (): InMemoryPortalLookRepo => {
       if (!base) return { status: 'brand_profile_missing' }
       const current = overrides.get(portalKey(input))?.override ?? null
       const next = nextPortalLook(current, base, input.change)
-      overrides.set(portalKey(input), {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        portalId: input.portalId,
-        override: next.override,
-      })
+      const sources = lookSourcesOf(next.override)
+      // As the database repository: a Portal with no row told to follow everything needs none.
+      const needsRow =
+        current !== null || Object.values(sources).some((from) => from !== 'property')
+      if (needsRow) {
+        overrides.set(portalKey(input), {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          portalId: input.portalId,
+          override: next.override,
+        })
+      }
       return { status: 'saved', ...next }
     },
     seedProperty: (input) => {

@@ -1,5 +1,6 @@
 // A Portal's own look (ADR 0070) against PostgreSQL: what migration 0074's
-// table holds and refuses, and what the repository reads back. A Portal with no
+// table holds and refuses, and what the repository reads back (its saves are
+// pinned in portal-look-writes.integration.test.ts). A Portal with no
 // row reads as null and follows the whole Property look; a row is read only for
 // the Organization, Property and Portal it was written for.
 
@@ -231,19 +232,6 @@ describe('portal look repository reads', () => {
     await expect(repository().countLivePortals(ORG_A, PROPERTY)).resolves.toBe(2)
     await expect(repository().countLivePortals(ORG_A, OTHER_PROPERTY)).resolves.toBe(1)
     await expect(repository().countLivePortals(ORG_B, PROPERTY)).resolves.toBe(0)
-  })
-
-  it('does not save a part yet', async () => {
-    await expect(
-      repository().savePortalLookPart({
-        organizationId: ORG_A,
-        propertyId: PROPERTY,
-        portalId: SPA,
-        change: { group: 'photo', mode: 'none' },
-        actorUserId: ADMIN as never,
-        at: NOW,
-      }),
-    ).rejects.toThrow('not built yet')
   })
 })
 

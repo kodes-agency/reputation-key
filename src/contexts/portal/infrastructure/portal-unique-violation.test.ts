@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isPortalError } from '../domain/errors'
 import {
   groupNameTaken,
+  isForeignKeyViolation,
   isUniqueViolation,
   PORTAL_GROUP_NAME_UNIQUE,
   PORTAL_SLUG_UNIQUE,
@@ -35,6 +36,27 @@ describe('isUniqueViolation', () => {
     ).toBe(false)
     expect(isUniqueViolation(null, PORTAL_SLUG_UNIQUE)).toBe(false)
     expect(isUniqueViolation('23505', PORTAL_SLUG_UNIQUE)).toBe(false)
+  })
+})
+
+describe('isForeignKeyViolation', () => {
+  const HERO_KEY = 'portal_look_overrides_hero_asset_fk'
+
+  it('recognises the named foreign key, bare or under the ORM wrapper', () => {
+    expect(isForeignKeyViolation(violation(HERO_KEY, '23503'), HERO_KEY)).toBe(true)
+    expect(isForeignKeyViolation(wrapped(violation(HERO_KEY, '23503')), HERO_KEY)).toBe(
+      true,
+    )
+  })
+
+  it('does not take another key or a unique violation for it', () => {
+    expect(
+      isForeignKeyViolation(
+        violation('portal_look_overrides_logo_asset_fk', '23503'),
+        HERO_KEY,
+      ),
+    ).toBe(false)
+    expect(isForeignKeyViolation(violation(HERO_KEY), HERO_KEY)).toBe(false)
   })
 })
 

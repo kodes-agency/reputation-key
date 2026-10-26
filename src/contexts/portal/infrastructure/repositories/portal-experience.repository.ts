@@ -30,23 +30,25 @@ import {
 } from '../portal-publication-serialization'
 import { recordPortalContentChange } from '../portal-page-edits'
 import {
+  lookFenceScope,
+  recordPropertyProfileChange,
+  type PropertyScope,
+} from '../property-look-fanout'
+import {
   portalLocalizedOverrideUpdated,
   portalPropertyBrandContentUpdated,
-  portalPropertyBrandProfileUpdated,
 } from '../../domain/events'
+import { photoAltPageEditKey } from '../../domain/portal-page-edit'
 import {
   AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR,
   DEFAULT_PROPERTY_BRAND_PALETTE,
 } from '../../domain/portal-experience'
 import {
   changedLookFacets,
-  lookPendingKey,
   type BackgroundMode,
   type LookFacet,
   type PropertyLook,
 } from '../../domain/property-look'
-
-type PropertyScope = Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>
 type BrandProfileFields = Omit<PortalBrandProfileSnapshot, 'version'> &
   Readonly<{
     /** Left out, a first profile has none and an existing one keeps its own. */
@@ -98,67 +100,6 @@ function displayNameOnlyProfile(displayName: string): BrandProfileFields {
     defaultHeroImageUrl: null,
     ...DEFAULT_PROPERTY_BRAND_PALETTE,
   }
-}
-
-/** What a Brand Profile write moved, and so what it has to fence and announce. */
-type ProfileChange = Readonly<{
-  /** The public display name changed, or the profile was just created. */
-  nameChanged: boolean
-  /** The display name before and after, kept in the page-edit ledger when it changed. */
-  previousName: string | null
-  displayName: string
-  /** The facets of the look that changed. */
-  facets: readonly LookFacet[]
-  version: number
-  lookVersion: number
-  /** Who made the change; null when the system did (the automatic name). */
-  actorUserId: string | null
-}>
-
-/**
- * Every Brand Profile write that moved something fences Portal publication:
- * a name change with one row under `all` (sourced at `version`), each look
- * facet with its own `look:<facet>` row (sourced at `lookVersion`). The fact
- * announces the profile version, which look edits leave where it was.
- */
-async function recordPropertyProfileChange(
-  tx: Tx,
-  input: PropertyScope & Readonly<{ at: Date }>,
-  change: ProfileChange,
-): Promise<void> {
-  const fence = {
-    organizationId: unbrand(input.organizationId),
-    propertyId: unbrand(input.propertyId),
-    kind: 'property_brand_profile' as const,
-    changedAt: input.at,
-    actorUserId: change.actorUserId,
-  }
-  if (change.nameChanged) {
-    await recordPortalContentChange(tx, {
-      ...fence,
-      ledger: [
-        { key: 'all', previousText: change.previousName, newText: change.displayName },
-      ],
-      sourceVersion: `v${change.version}`,
-    })
-  }
-  for (const facet of change.facets) {
-    await recordPortalContentChange(tx, {
-      ...fence,
-      key: lookPendingKey(facet),
-      ledger: [{ key: lookPendingKey(facet) }],
-      sourceVersion: `v${change.lookVersion}`,
-    })
-  }
-  if (!change.nameChanged && change.facets.length === 0) return
-  const event = portalPropertyBrandProfileUpdated({
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
-    profileVersion: change.version,
-    sourceAggregateVersion: input.at.toISOString(),
-    occurredAt: input.at,
-  })
-  await insertOutboxRow(tx, event, { recordedAt: input.at })
 }
 
 /** The look-bearing fields of a stored profile, for comparing with a save. */
@@ -298,7 +239,10 @@ function heroFocalAxis(
  * Keep one language's description of the photograph. A language with wording
  * keeps its title and text; one without gets a row holding the description
  * alone (its title and text read as unwritten, so nothing is claimed as
- * wording). Unchanged, or clearing what is not there, writes nothing.
+ * wording). Unchanged, or clearing what is not there, writes nothing. Only the
+ * Portals that show the Property's photo show its description, so only they
+ * are fenced (ADR 0070); the ledger names the photo's description, the fence
+ * keeps the language it shares with the welcome text.
  */
 async function saveHeroAltText(
   tx: Tx,
@@ -326,7 +270,13 @@ async function saveHeroAltText(
           updatedBy: unbrand(input.actorUserId),
           updatedAt: input.at,
         })
-        .where(eq(propertyPortalBrandContents.id, current.id))
+        .where(
+          and(
+            eq(propertyPortalBrandContents.organizationId, unbrand(input.organizationId)),
+            eq(propertyPortalBrandContents.propertyId, unbrand(input.propertyId)),
+            eq(propertyPortalBrandContents.id, current.id),
+          ),
+        )
         .returning()
     : await tx
         .insert(propertyPortalBrandContents)
@@ -348,10 +298,11 @@ async function saveHeroAltText(
   await recordPortalContentChange(tx, {
     organizationId: unbrand(input.organizationId),
     propertyId: unbrand(input.propertyId),
+    ...(await lookFenceScope(tx, input, 'photo')),
     kind: 'property_brand_content',
     key: altText.locale,
-    // No wording moved: the ledger says which language changed, not what it said.
-    ledger: [{ key: altText.locale }],
+    // No wording moved: the ledger says which description changed, not what it said.
+    ledger: [{ key: photoAltPageEditKey(altText.locale) }],
     sourceVersion: `v${row.version}`,
     changedAt: input.at,
     actorUserId: unbrand(input.actorUserId),

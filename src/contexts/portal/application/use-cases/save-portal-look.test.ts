@@ -3,15 +3,19 @@
 // the Portal's Property, never on an archived Portal, never for a Portal of
 // another Property, and only while PORTAL_OWN_LOOK_ENABLED is on; and that a
 // value left out is copied from the Property, so switching a group to the
-// Portal's own moves nothing guests see.
+// Portal's own moves nothing guests see. Colours are held to the Property
+// look's own rules and the logo must be an uploaded logo of the Property.
 
 import { describe, expect, it } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
+import { portalMediaAssetId } from '#/shared/domain/ids'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createInMemoryPortalLookRepo } from '#/shared/testing/in-memory-portal-look-repo'
+import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { PortalLookBase } from '../../domain/portal-look'
 import { savePortalLookColours, savePortalLookIdentity } from './save-portal-look'
@@ -21,6 +25,8 @@ const PORTAL = buildTestPortal({ id: 'd0000000-0000-0000-0000-000000000001' })
 const PROPERTY = PORTAL.propertyId
 const OTHER_PROPERTY = propertyId('a0000000-0000-0000-0000-000000000002')
 const LOGO = '30000000-0000-4000-8000-000000000004'
+const HERO = '30000000-0000-4000-8000-000000000005'
+const OTHER_PROPERTY_LOGO = '30000000-0000-4000-8000-000000000006'
 const ADMIN = buildTestAuthContext({ role: 'AccountAdmin' })
 const MANAGER = buildTestAuthContext({ role: 'PropertyManager' })
 
@@ -59,6 +65,19 @@ const setup = (
   portalRepo.seed([
     options.archived ? { ...PORTAL, publicationState: 'archived' } : PORTAL,
   ])
+  const mediaRepo = createInMemoryPortalMediaAssetRepo()
+  const asset = (id: string, purpose: 'hero' | 'logo', property = PROPERTY) =>
+    buildTestPortalMediaAsset({
+      id: portalMediaAssetId(id),
+      organizationId: PORTAL.organizationId,
+      propertyId: property,
+      purpose,
+    })
+  mediaRepo.seed([
+    asset(LOGO, 'logo'),
+    asset(HERO, 'hero'),
+    asset(OTHER_PROPERTY_LOGO, 'logo', OTHER_PROPERTY),
+  ])
   const portalLookRepo = createInMemoryPortalLookRepo()
   portalLookRepo.seedPortal({
     organizationId: PORTAL.organizationId,
@@ -77,6 +96,7 @@ const setup = (
     deps: {
       portalRepo,
       portalLookRepo,
+      mediaRepo,
       staffPublicApi: staffApi(options.accessible ?? null),
       clock: () => NOW,
       portalOwnLookEnabled: options.enabled ?? true,
@@ -205,6 +225,22 @@ describe('savePortalLookColours', () => {
     ).rejects.toSatisfy(failsWith('brand_profile_missing'))
   })
 
+  it.each([
+    { accentColour: 'gold' },
+    { backgroundColour: '#12345' },
+    { backgroundMode: 'gradient' as never },
+  ])('refuses %o before anything is saved', async (colours) => {
+    const { deps, portalLookRepo } = setup()
+
+    await expect(
+      savePortalLookColours(deps)(
+        { ...target, colours: { mode: 'own', ...colours } },
+        ADMIN,
+      ),
+    ).rejects.toSatisfy(failsWith('invalid_theme'))
+    expect(portalLookRepo.saved()).toEqual([])
+  })
+
   it('carries an unreadable pair out as the look’s refusal', async () => {
     const { deps } = setup()
 
@@ -238,9 +274,53 @@ describe('savePortalLookIdentity', () => {
     expect(portalLookRepo.saved()[0]?.change).toEqual({
       group: 'identity',
       mode: 'own',
-      wordmark: ' SPA ',
+      wordmark: 'SPA',
       logoAssetId: LOGO,
     })
+  })
+
+  it('takes the logo off, and shows the display name for a blank wordmark', async () => {
+    const { deps, portalLookRepo } = setup()
+
+    await savePortalLookIdentity(deps)(
+      { ...target, identity: { mode: 'own', wordmark: '   ', logoAssetId: null } },
+      ADMIN,
+    )
+
+    expect(portalLookRepo.saved()[0]?.change).toEqual({
+      group: 'identity',
+      mode: 'own',
+      wordmark: null,
+      logoAssetId: null,
+    })
+  })
+
+  it.each([
+    ['a photo', HERO],
+    ['a logo of another property', OTHER_PROPERTY_LOGO],
+    ['an image that does not exist', '30000000-0000-4000-8000-0000000000ff'],
+    ['something that is not an image id', 'logo.png'],
+  ])('refuses %s as the logo, as an image not found', async (_, logoAssetId) => {
+    const { deps, portalLookRepo } = setup()
+
+    await expect(
+      savePortalLookIdentity(deps)(
+        { ...target, identity: { mode: 'own', logoAssetId } },
+        ADMIN,
+      ),
+    ).rejects.toSatisfy(failsWith('media_not_found'))
+    expect(portalLookRepo.saved()).toEqual([])
+  })
+
+  it('refuses a wordmark longer than a header holds', async () => {
+    const { deps } = setup()
+
+    await expect(
+      savePortalLookIdentity(deps)(
+        { ...target, identity: { mode: 'own', wordmark: 'A'.repeat(25) } },
+        ADMIN,
+      ),
+    ).rejects.toSatisfy(failsWith('invalid_description'))
   })
 
   it('leaves out what the save does not name', async () => {

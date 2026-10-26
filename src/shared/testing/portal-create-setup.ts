@@ -7,6 +7,7 @@ import { createInMemoryPortalRepo } from './in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from './in-memory-portal-link-repo'
 import { createRecordedOutbox } from './recorded-outbox'
 import { createInMemoryPortalCommandStore } from './in-memory-portal-command-store'
+import { createInMemoryPortalLookRepo } from './in-memory-portal-look-repo'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
@@ -19,7 +20,10 @@ import {
 } from '#/shared/domain/ids'
 import type { PortalGroup } from '#/contexts/portal/domain/types'
 import type { PortalGroupRepository } from '#/contexts/portal/application/ports/portal-group.repository'
-import type { CopiedPortalOverride } from '#/contexts/portal/application/ports/portal-command-store.port'
+import type {
+  CopiedPortalLook,
+  CopiedPortalOverride,
+} from '#/contexts/portal/application/ports/portal-command-store.port'
 import type { PortalLocalizedOverride } from '#/contexts/portal/application/ports/portal-experience.repository'
 import type { PortalApprovedDestination } from '#/contexts/portal/domain/approved-destination'
 import type { PortalGroupHistoryDraft } from '#/contexts/portal/domain/portal-group-history'
@@ -39,6 +43,8 @@ export type CreatePortalSetupOptions = Readonly<{
   accessible?: ReadonlyArray<PropertyId> | null
   managers?: ReadonlyArray<Manager>
   propertyDefaults?: readonly GuestLocale[]
+  /** The Property look's version; set, the Property has a Brand Profile even with no default languages. */
+  propertyLookVersion?: number
 }>
 
 /** A minimal group repository: what the creation path reads and what a membership writes. */
@@ -73,7 +79,9 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
   const portalLinkRepo = createInMemoryPortalLinkRepo()
   const portalGroupRepo = createGroupRepo()
   const outbox = createRecordedOutbox()
+  const portalLookRepo = createInMemoryPortalLookRepo()
   const copiedOverrides = new Map<string, ReadonlyArray<CopiedPortalOverride>>()
+  const copiedLooks = new Map<string, CopiedPortalLook>()
   const destinations = new Map<string, PortalApprovedDestination>()
   const initialManagers = new Map<string, readonly string[]>()
   const sourceOverrides = new Map<string, readonly PortalLocalizedOverride[]>()
@@ -85,6 +93,7 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
     portalLinkRepo,
     outbox,
     onCopiedOverrides: (id, overrides) => void copiedOverrides.set(id, overrides),
+    onCopiedLook: (id, look) => void copiedLooks.set(id, look),
     onInitialManagers: (id, ids) => void initialManagers.set(id, ids),
   })
   const managers = options.managers ?? [{ userId: CREATOR, role: 'PropertyManager' }]
@@ -109,9 +118,13 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
     },
     experienceRepo: {
       getPropertyExperience: async () => ({
-        profile: options.propertyDefaults
-          ? ({ defaultGuestLocales: options.propertyDefaults } as never)
-          : null,
+        profile:
+          options.propertyDefaults || options.propertyLookVersion !== undefined
+            ? ({
+                defaultGuestLocales: options.propertyDefaults ?? [],
+                lookVersion: options.propertyLookVersion ?? 1,
+              } as never)
+            : null,
         content: [],
       }),
       listPortalOverrides: async (_org, _property, id) =>
@@ -128,6 +141,7 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
       findIdsByGoogleConnection: async () => [],
       findGoogleNotificationAnchor: async () => null,
     },
+    portalLookRepo,
     staffPublicApi,
     identityPublicApi: {
       listActiveManagers: async () =>
@@ -156,6 +170,8 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
     commandStore,
     groupHistory,
     copiedOverrides,
+    copiedLooks,
+    portalLookRepo,
     initialManagers,
     seedDestinations: (rows: readonly PortalApprovedDestination[]) => {
       for (const row of rows) destinations.set(String(row.id), row)

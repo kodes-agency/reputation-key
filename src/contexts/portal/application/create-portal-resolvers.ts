@@ -36,6 +36,7 @@ import type { PortalApprovedDestinationRepository } from './ports/portal-approve
 import type { PortalExperienceRepository } from './ports/portal-experience.repository'
 import type { PortalGroupRepository } from './ports/portal-group.repository'
 import type { PortalLinkRepository } from './ports/portal-link.repository'
+import type { PortalLookRepository } from './ports/portal-look.repository'
 import type { PortalRepository } from './ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
@@ -133,13 +134,39 @@ type SourceDeps = Readonly<{
     PortalLinkRepository,
     'listCategories' | 'listAllLinks' | 'listLinkTexts'
   >
-  experienceRepo: Pick<PortalExperienceRepository, 'listPortalOverrides'>
+  experienceRepo: Pick<
+    PortalExperienceRepository,
+    'listPortalOverrides' | 'getPropertyExperience'
+  >
   destinationRepo: Pick<PortalApprovedDestinationRepository, 'list'>
+  portalLookRepo: Pick<PortalLookRepository, 'findForPortal'>
 }>
 
+/** The source's own look and the version of the Property look it sits on; null when it has none. */
+async function loadCopyLook(
+  deps: Pick<SourceDeps, 'experienceRepo' | 'portalLookRepo'>,
+  ctx: AuthContext,
+  propertyId: PropertyId,
+  portal: Portal,
+): Promise<PortalCopySource['look']> {
+  const override = await deps.portalLookRepo.findForPortal(
+    ctx.organizationId,
+    propertyId,
+    portal.id,
+  )
+  if (override === null) return null
+  const { profile } = await deps.experienceRepo.getPropertyExperience(
+    ctx.organizationId,
+    propertyId,
+  )
+  // A Portal's own look sits on the Property's; without one there is nothing to carry.
+  return profile ? { override, propertyLookVersion: profile.lookVersion } : null
+}
+
 /**
- * Everything read from the Portal being copied, which must sit in the same
- * Property and must not be archived: a retired portal is not a starting point.
+ * Everything read from the Portal being copied, its own look included, which
+ * must sit in the same Property and must not be archived: a retired portal is
+ * not a starting point.
  */
 export async function loadCopySource(
   deps: SourceDeps,
@@ -157,23 +184,34 @@ export async function loadCopySource(
   if (portal.publicationState === 'archived') {
     throw portalError('portal_inactive', 'an archived portal cannot be copied')
   }
-  const [overrides, categories, links, linkTexts, destinations] = await Promise.all([
-    deps.experienceRepo.listPortalOverrides(ctx.organizationId, propertyId, portal.id),
-    deps.portalLinkRepo.listCategories(ctx.organizationId, portal.id),
-    deps.portalLinkRepo.listAllLinks(ctx.organizationId, portal.id),
-    deps.portalLinkRepo.listLinkTexts(
-      ctx.organizationId,
-      portal.id,
-      portal.primaryGuestLocale,
-    ),
-    deps.destinationRepo.list(ctx.organizationId, propertyId),
-  ])
+  const [overrides, categories, links, linkTexts, destinations, look] = await Promise.all(
+    [
+      deps.experienceRepo.listPortalOverrides(ctx.organizationId, propertyId, portal.id),
+      deps.portalLinkRepo.listCategories(ctx.organizationId, portal.id),
+      deps.portalLinkRepo.listAllLinks(ctx.organizationId, portal.id),
+      deps.portalLinkRepo.listLinkTexts(
+        ctx.organizationId,
+        portal.id,
+        portal.primaryGuestLocale,
+      ),
+      deps.destinationRepo.list(ctx.organizationId, propertyId),
+      loadCopyLook(deps, ctx, propertyId, portal),
+    ],
+  )
   const approvedDestinationIds = new Set<string>(
     destinations
       .filter((destination) => destination.approvalState === 'approved')
       .map((destination) => destination.id),
   )
-  return { portal, overrides, categories, links, linkTexts, approvedDestinationIds }
+  return {
+    portal,
+    overrides,
+    categories,
+    links,
+    linkTexts,
+    approvedDestinationIds,
+    look,
+  }
 }
 
 /**
