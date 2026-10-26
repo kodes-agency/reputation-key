@@ -65,7 +65,7 @@ const aiAnalysisAspectSchema = z
     }
   })
 
-export const AI_ANALYSIS_V2_OUTPUT_SCHEMA = z
+const aiAnalysisV2ShapeSchema = z
   .object({
     sentiment: z.enum(AI_SENTIMENTS),
     sentimentValence: z.number().int().min(-100).max(100),
@@ -77,23 +77,77 @@ export const AI_ANALYSIS_V2_OUTPUT_SCHEMA = z
     ]),
   })
   .strict()
-  .superRefine((value, context) => {
+
+function refineAiAnalysisV2Answer(
+  value: z.infer<typeof aiAnalysisV2ShapeSchema>,
+  context: z.RefinementCtx,
+): void {
+  const valid =
+    value.sentiment === 'mixed' ||
+    (value.sentiment === 'positive' && value.sentimentValence >= 20) ||
+    (value.sentiment === 'neutral' &&
+      value.sentimentValence >= -19 &&
+      value.sentimentValence <= 19) ||
+    (value.sentiment === 'negative' && value.sentimentValence <= -20)
+  if (!valid) {
+    context.addIssue({ code: 'custom', message: 'sentiment valence is inconsistent' })
+  }
+}
+
+export const AI_ANALYSIS_V2_OUTPUT_SCHEMA = aiAnalysisV2ShapeSchema.superRefine(
+  (value, context) => {
     addUniqueIssue(value.urgencySignals, context)
     addUniqueIssue(
       value.aspects.map(({ aspect }) => aspect),
       context,
     )
-    const valid =
-      value.sentiment === 'mixed' ||
-      (value.sentiment === 'positive' && value.sentimentValence >= 20) ||
-      (value.sentiment === 'neutral' &&
-        value.sentimentValence >= -19 &&
-        value.sentimentValence <= 19) ||
-      (value.sentiment === 'negative' && value.sentimentValence <= -20)
-    if (!valid) {
-      context.addIssue({ code: 'custom', message: 'sentiment valence is inconsistent' })
+    refineAiAnalysisV2Answer(value, context)
+  },
+)
+
+/**
+ * What the provider may answer for `review-analysis-v2`: the stored contract
+ * without its two uniqueness rules. JSON Schema cannot say "unique by
+ * `aspect`", so Structured Outputs never enforces it, and the model sometimes
+ * lists one aspect twice (food and drinks are both `food_and_drink`). The
+ * answer was billed and then refused as `output_invalid`: it left 24
+ * closed-beta reviews unanalysed after 121 billed answers, and a replay of
+ * them refused one answer in four. A repeated urgency signal is the same gap.
+ * Its JSON Schema is the stored contract's, byte for byte, so the request and
+ * the profile digest do not change. Merge with `mergeAiAnalysisV2Duplicates`
+ * before checking the stored contract.
+ */
+export const AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA = aiAnalysisV2ShapeSchema.superRefine(
+  refineAiAnalysisV2Answer,
+)
+
+/**
+ * Each urgency signal once, and one record per aspect, each where it first
+ * appears. The aspect record kept is the strongest, and a negative one on an
+ * equal-magnitude tie, the rule the primary category uses.
+ */
+export function mergeAiAnalysisV2Duplicates(
+  answer: AiAnalysisV2ProviderAnswer,
+): AiAnalysisV2ProviderAnswer {
+  const strongest = new Map<string, AiAnalysisV2ProviderAnswer['aspects'][number]>()
+  for (const candidate of answer.aspects) {
+    const kept = strongest.get(candidate.aspect)
+    if (
+      kept === undefined ||
+      Math.abs(candidate.intensity) > Math.abs(kept.intensity) ||
+      (Math.abs(candidate.intensity) === Math.abs(kept.intensity) &&
+        candidate.polarity === 'negative' &&
+        kept.polarity !== 'negative')
+    ) {
+      strongest.set(candidate.aspect, candidate)
     }
-  })
+  }
+  return {
+    ...answer,
+    urgencySignals: [...new Set(answer.urgencySignals)],
+    aspects: [...strongest.values()],
+  }
+}
 
 export const AI_REPLY_SELECTION_OUTPUT_SCHEMA = z
   .object({
@@ -154,6 +208,9 @@ export const AI_ROUTE_OUTPUT_JSON_SCHEMAS = Object.freeze({
 })
 
 export type AiAnalysisV2Output = z.infer<typeof AI_ANALYSIS_V2_OUTPUT_SCHEMA>
+export type AiAnalysisV2ProviderAnswer = z.infer<
+  typeof AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA
+>
 export type AiReplySelectionOutput = z.infer<typeof AI_REPLY_SELECTION_OUTPUT_SCHEMA>
 export type AiPersonalizedReplyOutput = z.infer<
   typeof AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA

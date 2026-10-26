@@ -43,8 +43,10 @@ import {
 } from '#/shared/ai-property-trend-contract'
 import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
+  AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA,
   AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
+  mergeAiAnalysisV2Duplicates,
 } from '#/shared/openai-route-output-schemas'
 import {
   AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
@@ -82,7 +84,7 @@ import {
 import { derivePropertySafetyIdentifier } from './safety-identifier'
 import { digestRenderedReply, signAiReplyProvenance } from '#/shared/ai-reply-provenance'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
-const analysisOutputSchema = AI_ANALYSIS_V2_OUTPUT_SCHEMA
+const analysisAnswerSchema = AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA
 const personalizedReplySchema = AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA
 const trendSelectionSchema = AI_TREND_SELECTION_OUTPUT_SCHEMA
 const closedJsonSchemaFormatSchema = z
@@ -352,7 +354,7 @@ export function createAiGatewayRoutePreparer(
             rating: request.source.rating,
             languageCode: evaluated.tag,
           }
-          outputSchema = analysisOutputSchema
+          outputSchema = analysisAnswerSchema
           responseContext = Object.freeze({ route: 'review-analysis' })
         } else {
           if (
@@ -505,7 +507,11 @@ export function createAiGatewayRoutePreparer(
         outputSchema,
         acceptProviderResult: (rawResult: unknown) => {
           if (responseContext.route === 'review-analysis') {
-            const result = analysisOutputSchema.safeParse(rawResult)
+            const answer = analysisAnswerSchema.safeParse(rawResult)
+            if (!answer.success) return null
+            const result = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(
+              mergeAiAnalysisV2Duplicates(answer.data),
+            )
             if (!result.success) return null
             const accepted = Object.freeze({ ...result.data })
             return Object.freeze({

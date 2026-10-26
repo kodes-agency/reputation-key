@@ -33,6 +33,7 @@ import {
 import {
   AI_PROVIDER_ATTEMPT_BUDGET,
   AI_PROVIDER_CAPACITY_CODES,
+  AI_PROVIDER_CHARGED_CODES,
   aiRequestFingerprint,
   aiRetryAt,
   aiReviewSourceProvenance,
@@ -765,12 +766,14 @@ export function createAnalyzeReviewEvent(
           // so the retry write itself threw and the whole request 500'd. aiRetryAt
           // adds at least 1s, so any call slower than that inverted them.
           const failedAtEpochMillis = dependencies.nowEpochMillis()
-          const retryAtEpochMillis = aiRetryAt(
-            expectedAttempt,
-            failedAtEpochMillis,
-            response.retryAfterEpochMillis,
-            !AI_PROVIDER_CAPACITY_CODES.has(response.code),
-          )
+          const retryAtEpochMillis = AI_PROVIDER_CHARGED_CODES.has(response.code)
+            ? null
+            : aiRetryAt(
+                expectedAttempt,
+                failedAtEpochMillis,
+                response.retryAfterEpochMillis,
+                !AI_PROVIDER_CAPACITY_CODES.has(response.code),
+              )
           await dependencies.operations.recordFailure({
             operationId: execution.id,
             organizationId: input.organizationId,
@@ -791,23 +794,16 @@ export function createAnalyzeReviewEvent(
         }
         const parsedAnalysis = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(response.result)
         if (!parsedAnalysis.success) {
-          const failedAtEpochMillis = dependencies.nowEpochMillis()
-          const retryAtEpochMillis = aiRetryAt(expectedAttempt, failedAtEpochMillis, null)
+          // The gateway settled this answer as a success, so it is charged and
+          // no retry of this operation can reach the provider.
           await dependencies.operations.recordFailure({
             operationId: execution.id,
             organizationId: input.organizationId,
             expectedAttempt,
             failureCode: 'output_invalid',
-            retryAtEpochMillis,
-            failedAtEpochMillis,
+            retryAtEpochMillis: null,
+            failedAtEpochMillis: dependencies.nowEpochMillis(),
           })
-          if (retryAtEpochMillis !== null) {
-            return {
-              status: 'retry',
-              retryAtEpochMillis,
-              code: 'output_invalid',
-            }
-          }
           return settleWithoutResult(
             input,
             reviewAnalysisEpoch,

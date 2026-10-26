@@ -654,7 +654,7 @@ describe('analyze review event', () => {
       ['41 characters', 'a'.repeat(41)],
       ['review excerpt with a proper noun', 'dirty sheets at Hilton'],
     ])(
-      'rejects %s issue labels as output_invalid without storage',
+      'rejects %s issue labels as output_invalid without storage or a retry',
       async (_case, issueLabel) => {
         const harness = createHarness({
           analysisResult: {
@@ -663,13 +663,12 @@ describe('analyze review event', () => {
           },
         })
 
-        await expect(harness.analyze(input)).resolves.toEqual({
-          status: 'retry',
-          retryAtEpochMillis: NOW + 1_000,
-          code: 'output_invalid',
-        })
-        expect(harness.mocks.recordFailure).toHaveBeenCalledWith(
-          expect.objectContaining({ failureCode: 'output_invalid' }),
+        await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+        expect(harness.mocks.recordFailure).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            failureCode: 'output_invalid',
+            retryAtEpochMillis: null,
+          }),
         )
         expect(harness.mocks.storeAnalysis).not.toHaveBeenCalled()
         expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
@@ -854,6 +853,45 @@ describe('analyze review event', () => {
         await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
         expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
         expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
+      })
+
+      // A charged attempt blocks every later attempt of the same operation at
+      // admission. Retried, it came back `operation_ambiguous` three times in
+      // seconds, which replaced the real code and made the review reopenable.
+      it.each([
+        'output_invalid',
+        'output_truncated',
+        'provider_refused',
+        'completed_without_delivery',
+      ] as const)(
+        'ends the operation under its own code after a charged %s on the first attempt',
+        async (code) => {
+          const harness = createHarness({
+            providerError: { code, retryAfterEpochMillis: null },
+          })
+
+          await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+          expect(harness.mocks.recordFailure).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({
+              expectedAttempt: 1,
+              failureCode: code,
+              retryAtEpochMillis: null,
+            }),
+          )
+          expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
+        },
+      )
+
+      it('still retries an uncharged ambiguous outcome on the first attempt', async () => {
+        const harness = createHarness({
+          providerError: { code: 'operation_ambiguous', retryAfterEpochMillis: null },
+        })
+
+        await expect(harness.analyze(input)).resolves.toEqual({
+          status: 'retry',
+          retryAtEpochMillis: NOW + 1_000,
+          code: 'operation_ambiguous',
+        })
       })
 
       it('terminal-settles a refusal on the last budgeted attempt', async () => {
