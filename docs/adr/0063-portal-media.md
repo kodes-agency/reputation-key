@@ -5,6 +5,22 @@ date: 2026-10-01
 
 # 0063 — Portal media: re-encoded uploads, served same-origin
 
+> **Amended 2026-10-26 by [ADR 0070](0070-per-portal-look.md).** A Portal may have its
+> own photo and logo. Decision 5: `portal_look_overrides.hero_asset_id` and
+> `logo_asset_id` are two more reference sites (composite foreign keys, RESTRICT, to an
+> asset of the same Organization and Property), and the portal-look writers
+> (`savePortalLookPhoto`, `savePortalLookIdentity`) are callers of
+> `findReferencableMediaAsset` for `brand_hero` and `brand_logo` against the Portal's
+> own Property. Decision 7: a Portal's own photo and logo stay Account Admin and
+> Property-scoped assets, uploaded through the unchanged path, and choosing one for a
+> Portal is an Account Admin act too. Decision 8 and "Garbage collection": the table is
+> in data fate, the export, the purge order (after `portal_localized_overrides`, before
+> the brand contents, profiles, media assets and Portals) and the sweep's unreferenced
+> check, so an image only an override names is never swept. An archived Portal keeps its
+> references (ADR 0070 D12). The 200-image cap is now shared by the Property look and
+> its Portals' own photos and logos. A taken-down image used as a Portal's own photo
+> reads as no photo on that Portal, not as the Property's photo.
+
 ## Context
 
 Round 4 of the Portal redesign gives a Property a photograph, a logo and a
@@ -56,8 +72,9 @@ design rather than a checklist.
    key does not carry the purpose, so every writer of these columns must check
    it with `canReferencePortalMediaAsset` (a link picture is encoded at up to 1200 px, a
    hero at up to 2400 px with a larger minimum; the purpose chose the policy the
-   image passed). The writers are `updateLink`, `savePropertyHero` and
-   `savePropertyLogo`; the size rules the policy applies are one shared constant
+   image passed). The writers are `updateLink`, `savePropertyHero`,
+   `savePropertyLogo` and, for a Portal's own photo and logo, `savePortalLookPhoto` and
+   `savePortalLookIdentity` (ADR 0070); the size rules the policy applies are one shared constant
    (`PORTAL_MEDIA_SIZE_RULES`), which the browser also reads to tell a manager
    that a picture is too small before it is sent.
 6. **Snapshots name assets by id, with no foreign key.** A guest-facing URL is
@@ -65,11 +82,12 @@ design rather than a checklist.
    rewriting an immutable snapshot.
 7. **Who may upload.** An Account Admin for a Property's photograph and logo
    (Property-wide branding, as for the Brand Profile); a Property Manager for the
-   picture on a link tile of a Portal they manage. A Property holds at most 200
-   stored images.
+   picture on a link tile of a Portal they manage. A Portal's own photo and logo
+   (ADR 0070) are the same Account Admin uploads, Property-scoped assets. A Property
+   holds at most 200 stored images, its Portals' own photos and logos included.
 8. **Tenancy and lifecycle.** The table has a data-fate row, an export
    collection (the row, not the image) and a purge step ordered after every row
-   that points at it.
+   that points at it. `portal_look_overrides` is in all three (ADR 0070).
 
 ## Consequences
 
@@ -106,8 +124,8 @@ design rather than a checklist.
   0049). The row stays, because snapshots name assets by id.
 - **Garbage collection.** A scheduled sweep (hourly, not capability-gated, so
   it runs when uploads are off) finishes takedown removals and deletes images
-  that no Brand Profile, link or publication snapshot refers to once they are a
-  day old. An image a snapshot names is kept for as long as the snapshot exists:
+  that no Brand Profile, link, Portal look override (ADR 0070) or publication
+  snapshot refers to once they are a day old. An image a snapshot names is kept for as long as the snapshot exists:
   snapshots are immutable and must keep verifying and rendering. The row is
   deleted and the object removed in one transaction with the row locked, object
   first, so a failed removal keeps the row for the next run and a writer
