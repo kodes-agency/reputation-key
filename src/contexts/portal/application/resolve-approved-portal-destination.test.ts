@@ -26,10 +26,13 @@ function setup(
   },
 ) {
   const requests: RequestInput[] = []
+  const validated: string[] = []
   const deps = {
     destinationRepo: {
       request: async (input: RequestInput) => {
         requests.push(input)
+        // The repository's rule: only a custom site waits for an account admin.
+        const approved = input.approveCustom || input.destination.sourceType !== 'custom'
         return {
           id: input.id,
           organizationId: input.organizationId,
@@ -37,13 +40,11 @@ function setup(
           normalizedUri: input.destination.normalizedUri,
           hostname: input.destination.hostname,
           sourceType: input.destination.sourceType,
-          approvalState: input.approveCustom
-            ? ('approved' as const)
-            : ('pending' as const),
+          approvalState: approved ? ('approved' as const) : ('pending' as const),
           validationVersion: PORTAL_DESTINATION_VALIDATION_VERSION,
           requestedBy: input.requestedBy,
-          approvedBy: input.approveCustom ? input.requestedBy : null,
-          approvedAt: input.approveCustom ? input.at : null,
+          approvedBy: approved ? input.requestedBy : null,
+          approvedAt: approved ? input.at : null,
           disabledAt: null,
           disabledReason: null,
           lastValidatedAt: input.at,
@@ -53,13 +54,17 @@ function setup(
       },
     },
     destinationNetworkValidator: {
-      validate: async (uri: string): Promise<Validation> =>
-        validation.outcome === 'safe' ? { ...validation, finalUri: uri } : validation,
+      validate: async (uri: string): Promise<Validation> => {
+        validated.push(uri)
+        return validation.outcome === 'safe'
+          ? { ...validation, finalUri: uri }
+          : validation
+      },
     },
     idGen: () => '20000000-0000-4000-8000-000000000001',
     clock: () => AT,
   }
-  return { deps, requests }
+  return { deps, requests, validated }
 }
 
 const input = { uri: 'https://partner.example.com/offer', propertyId: PROPERTY }
@@ -130,5 +135,59 @@ describe('resolveApprovedPortalDestination', () => {
     ).rejects.toThrow(
       'Destination validation is temporarily unavailable. Please try again.',
     )
+  })
+
+  it.each([
+    ['+1 (555) 123-4567', 'tel:+15551234567', '+15551234567'],
+    ['front@hotel.com', 'mailto:front@hotel.com', 'front@hotel.com'],
+  ])(
+    'approves a manager’s phone number or email address %s at once, with no network check',
+    async (uri, normalizedUri, hostname) => {
+      // A failing network check would refuse a website: a contact never reaches it.
+      const { deps, requests, validated } = setup({
+        outcome: 'unavailable',
+        reason: 'request_unavailable',
+        observedAt: AT,
+      })
+
+      const destination = await resolveApprovedPortalDestination(
+        deps,
+        { uri, propertyId: PROPERTY },
+        buildTestAuthContext({ role: 'PropertyManager' }),
+      )
+
+      expect(destination).toMatchObject({
+        normalizedUri,
+        hostname,
+        sourceType: 'contact',
+        approvalState: 'approved',
+      })
+      expect(requests[0]?.destination).toEqual({
+        normalizedUri,
+        hostname,
+        sourceType: 'contact',
+      })
+      expect(validated).toEqual([])
+    },
+  )
+
+  it('refuses a phone number or email address that cannot be stored, before any write', async () => {
+    const { deps, requests, validated } = setup()
+
+    for (const uri of [
+      'tel:+1555123456;ext=9',
+      'mailto:front@hotel.com?bcc=spy@evil.com',
+      'javascript:alert(1)',
+    ]) {
+      await expect(
+        resolveApprovedPortalDestination(
+          deps,
+          { uri, propertyId: PROPERTY },
+          buildTestAuthContext({ role: 'AccountAdmin', userId: userId('admin-1') }),
+        ),
+      ).rejects.toMatchObject({ code: 'invalid_url' })
+    }
+    expect(requests).toEqual([])
+    expect(validated).toEqual([])
   })
 })

@@ -4,12 +4,30 @@ import type {
   PropertyId,
   UserId,
 } from '#/shared/domain/ids'
+import {
+  parsePortalContactInput,
+  portalContactOf,
+  PORTAL_CONTACT_ICON_KEYS,
+} from '#/shared/domain/portal-contact-address'
+import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { portalError } from './errors'
 
+/**
+ * Stored on every destination row, a phone number or email address included.
+ * A contact row is told apart by its `sourceType`, not by a version of its own:
+ * an older server reads every row of a Property's list and refuses any other
+ * version, so a second one would break the list on a rollback.
+ */
 export const PORTAL_DESTINATION_VALIDATION_VERSION =
   'portal-destination-https-v1' as const
 
-export type PortalApprovedDestinationSource = 'recognized' | 'custom' | 'provider'
+/**
+ * `contact` is a phone number or an email address (`tel:`/`mailto:`). It is
+ * approved as it is entered, never checked over the network, and is not one
+ * of the "Sites allowed for links".
+ */
+export type PortalApprovedDestinationSource =
+  'recognized' | 'custom' | 'provider' | 'contact'
 export type PortalApprovedDestinationState =
   'pending' | 'approved' | 'disabled' | 'quarantined'
 
@@ -82,6 +100,60 @@ export type ValidatedPortalDestination = Readonly<{
   hostname: string
   sourceType: Exclude<PortalApprovedDestinationSource, 'provider'>
 }>
+
+/** A destination that is a website, the only kind the list of sites shows. */
+export type PortalSiteDestination = PortalApprovedDestination &
+  Readonly<{ sourceType: Exclude<PortalApprovedDestinationSource, 'contact'> }>
+
+export function isSiteDestination(
+  destination: PortalApprovedDestination,
+): destination is PortalSiteDestination {
+  return destination.sourceType !== 'contact'
+}
+
+/** What a manager is told when the address of a tile cannot be read. */
+export const PORTAL_LINK_ADDRESS_REFUSALS = {
+  website: 'Enter a website starting with https://, a phone number or an email address.',
+  phone:
+    'Enter a phone number of 7 to 15 digits. It may start with + and use spaces, dashes, dots or brackets.',
+  email: 'Enter one email address, such as front@hotel.com, with nothing after it.',
+} as const
+
+/**
+ * Admission for a Linktree tile's address: a phone number or an email address
+ * in its stored form (see `portal-contact-address.ts`), or else a website, which
+ * `validatePortalDestinationUri` admits. A contact's `hostname` is its number or
+ * address without the scheme: it has no host, the column is what lists and the
+ * export name a destination by, and a value with an @ or a leading + or digit is
+ * never read as a host (the network check never takes a contact row).
+ */
+export function validatePortalLinkDestination(input: string): ValidatedPortalDestination {
+  const contact = parsePortalContactInput(input)
+  if (contact === null) return validatePortalDestinationUri(input)
+  if (!contact.ok) {
+    throw portalError('invalid_url', PORTAL_LINK_ADDRESS_REFUSALS[contact.kind])
+  }
+  return {
+    normalizedUri: contact.contact.uri,
+    hostname: contact.contact.address,
+    sourceType: 'contact',
+  }
+}
+
+/**
+ * The icon a tile that opens `destination` wears when the manager chose none:
+ * a phone for a phone number, a letter for an email address, nothing for a site.
+ */
+export function defaultLinkIconKey(
+  destination: Readonly<{
+    normalizedUri: string
+    sourceType: PortalApprovedDestinationSource
+  }>,
+): PortalLinkIconKey | null {
+  if (destination.sourceType !== 'contact') return null
+  const contact = portalContactOf(destination.normalizedUri)
+  return contact ? PORTAL_CONTACT_ICON_KEYS[contact.kind] : null
+}
 
 /**
  * Synchronous admission for manager-supplied secondary destinations. DNS and

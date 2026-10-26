@@ -35,7 +35,9 @@ const linkTextSchema = z
 const linkSchema = z
   .object({
     id: z.string().min(1),
-    url: z.url({ protocol: /^https$/u }),
+    // A website, a phone number or an email address; the verifier holds a
+    // `tel:` or `mailto:` address to its stored form.
+    url: z.url({ protocol: /^(?:https|tel|mailto)$/u }),
     iconKey: z.string().nullable(),
     imageAssetId: z.string().nullable(),
     texts: z.partialRecord(guestLocaleSchema, linkTextSchema).readonly(),

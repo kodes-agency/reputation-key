@@ -32,7 +32,9 @@ export type PortalApprovedDestinationRepository = Readonly<{
   ) => Promise<readonly PortalApprovedDestination[]>
   /**
    * Exact current redirect authority for a published snapshot. Only approved
-   * destinations with a recent successful network validation are returned.
+   * destinations with a recent successful network validation are returned,
+   * and approved phone numbers and email addresses, which are never validated
+   * over the network, whatever their age.
    */
   listApprovedUris: (
     organizationId: OrganizationId,
@@ -40,6 +42,7 @@ export type PortalApprovedDestinationRepository = Readonly<{
     uris: readonly string[],
     validatedAfter: Date,
   ) => Promise<readonly string[]>
+  /** Websites due a network check again; never a phone number or an email address. */
   listDueForNetworkRevalidation: (
     before: Date,
     limit: number,

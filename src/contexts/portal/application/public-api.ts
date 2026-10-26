@@ -22,7 +22,7 @@ export type {
   PortalGroupDeleted,
 } from '../domain/events'
 
-export { isValidExternalUrl } from '../domain/rules'
+export { isValidLinkDestination } from '../domain/rules'
 /** Whether the Property wrote wording for a language: the base a Portal's own lines need. */
 export { hasPropertyWording } from '../domain/property-wording'
 export type { Portal } from '../domain/types'

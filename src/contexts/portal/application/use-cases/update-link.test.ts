@@ -399,3 +399,76 @@ describe('updateLink tile photo', () => {
     expect(lookup).not.toHaveBeenCalled()
   })
 })
+
+describe('updateLink to a phone number or an email address', () => {
+  const arrange = (overrides: Parameters<typeof buildTestPortalLink>[0] = {}) => {
+    const fixture = setup()
+    fixture.portalRepo.seed([buildTestPortal({})])
+    const link = buildTestPortalLink(overrides)
+    fixture.portalLinkRepo.seedLinks([link])
+    return { ...fixture, link, ctx: buildTestAuthContext({ role: 'PropertyManager' }) }
+  }
+
+  it('stores the number in its one form and gives a tile with no icon a phone', async () => {
+    const { useCase, link, ctx } = arrange()
+
+    const updated = await useCase({ linkId: link.id, url: '+44 20 7946 0958' }, ctx)
+
+    expect(updated.url).toBe('tel:+442079460958')
+    expect(updated.iconKey).toBe('phone')
+  })
+
+  it('gives a tile with no icon a letter for an email address', async () => {
+    const { useCase, link, ctx } = arrange()
+
+    const updated = await useCase({ linkId: link.id, url: 'mailto:front@hotel.com' }, ctx)
+
+    expect(updated.url).toBe('mailto:front@hotel.com')
+    expect(updated.iconKey).toBe('mail')
+  })
+
+  it('keeps an icon or a photo the tile already wears', async () => {
+    const withIcon = arrange({ iconKey: 'concierge-bell' })
+    expect(
+      (
+        await withIcon.useCase(
+          { linkId: withIcon.link.id, url: 'front@hotel.com' },
+          withIcon.ctx,
+        )
+      ).iconKey,
+    ).toBe('concierge-bell')
+
+    const withPhoto = arrange({
+      imageAssetId: portalMediaAssetId('30000000-0000-4000-8000-000000000001'),
+    })
+    expect(
+      (
+        await withPhoto.useCase(
+          { linkId: withPhoto.link.id, url: '5551234567' },
+          withPhoto.ctx,
+        )
+      ).iconKey,
+    ).toBeNull()
+  })
+
+  it('takes the icon asked for in the same write', async () => {
+    const { useCase, link, ctx } = arrange()
+
+    const updated = await useCase(
+      { linkId: link.id, url: '5551234567', iconKey: 'info' },
+      ctx,
+    )
+
+    expect(updated.iconKey).toBe('info')
+  })
+
+  it('refuses a number with an extension or an address with a second recipient', async () => {
+    const { useCase, link, ctx } = arrange()
+
+    for (const url of ['tel:+1555123456;ext=2', 'front@hotel.com,spy@evil.com']) {
+      await expect(useCase({ linkId: link.id, url }, ctx)).rejects.toMatchObject({
+        code: 'invalid_url',
+      })
+    }
+  })
+})

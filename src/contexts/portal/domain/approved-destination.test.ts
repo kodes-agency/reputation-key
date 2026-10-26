@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { validatePortalDestinationUri } from './approved-destination'
+import {
+  defaultLinkIconKey,
+  isSiteDestination,
+  PORTAL_LINK_ADDRESS_REFUSALS,
+  validatePortalDestinationUri,
+  validatePortalLinkDestination,
+  type PortalApprovedDestination,
+  type PortalApprovedDestinationSource,
+} from './approved-destination'
 
 describe('approved Portal destination admission', () => {
   it('normalizes recognized public HTTPS destinations', () => {
@@ -36,5 +44,75 @@ describe('approved Portal destination admission', () => {
     expect(() => validatePortalDestinationUri(uri)).toThrow(
       expect.objectContaining({ code: 'invalid_url' }),
     )
+  })
+})
+
+describe('Linktree tile address admission', () => {
+  it('stores a phone number as a contact, named by the number itself', () => {
+    expect(validatePortalLinkDestination('+1 (555) 123-4567')).toEqual({
+      normalizedUri: 'tel:+15551234567',
+      hostname: '+15551234567',
+      sourceType: 'contact',
+    })
+  })
+
+  it('stores an email address as a contact, with its domain in lower case', () => {
+    expect(validatePortalLinkDestination('mailto:Front@Hotel.com')).toEqual({
+      normalizedUri: 'mailto:Front@hotel.com',
+      hostname: 'Front@hotel.com',
+      sourceType: 'contact',
+    })
+  })
+
+  it('leaves a website to the HTTPS admission', () => {
+    expect(validatePortalLinkDestination('https://hotel.example.com/offers')).toEqual(
+      validatePortalDestinationUri('https://hotel.example.com/offers'),
+    )
+  })
+
+  it.each([
+    ['tel:+1555123456;ext=1', PORTAL_LINK_ADDRESS_REFUSALS.phone],
+    ['555 12', PORTAL_LINK_ADDRESS_REFUSALS.phone],
+    ['mailto:front@hotel.com?bcc=spy@evil.com', PORTAL_LINK_ADDRESS_REFUSALS.email],
+    ['front@hotel.com,spy@evil.com', PORTAL_LINK_ADDRESS_REFUSALS.email],
+  ])('refuses %s and says what a good one looks like', (input, message) => {
+    expect(() => validatePortalLinkDestination(input)).toThrow(
+      expect.objectContaining({ code: 'invalid_url', message }),
+    )
+  })
+
+  it.each([
+    'javascript:alert(1)',
+    "javascript:alert('front@hotel.com')",
+    'data:text/html,<script>alert(1)</script>',
+    'sms:+15551234567',
+    'http://hotel.example.com',
+  ])('never stores %s', (input) => {
+    expect(() => validatePortalLinkDestination(input)).toThrow(
+      expect.objectContaining({ code: 'invalid_url' }),
+    )
+  })
+})
+
+describe('contact destinations elsewhere', () => {
+  const destination = (
+    sourceType: PortalApprovedDestinationSource,
+    normalizedUri: string,
+  ) => ({ sourceType, normalizedUri })
+
+  it('gives a contact tile a phone or a letter, and a site no icon', () => {
+    expect(defaultLinkIconKey(destination('contact', 'tel:+15551234567'))).toBe('phone')
+    expect(defaultLinkIconKey(destination('contact', 'mailto:a@hotel.com'))).toBe('mail')
+    expect(defaultLinkIconKey(destination('custom', 'https://hotel.com'))).toBeNull()
+    expect(defaultLinkIconKey(destination('recognized', 'https://x.com/h'))).toBeNull()
+  })
+
+  it('counts every kind but a contact as a site', () => {
+    const row = (sourceType: PortalApprovedDestinationSource) =>
+      ({ sourceType }) as PortalApprovedDestination
+    expect(isSiteDestination(row('contact'))).toBe(false)
+    for (const sourceType of ['recognized', 'custom', 'provider'] as const) {
+      expect(isSiteDestination(row(sourceType))).toBe(true)
+    }
   })
 })

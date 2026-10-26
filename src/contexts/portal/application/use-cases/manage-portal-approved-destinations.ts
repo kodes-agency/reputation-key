@@ -6,7 +6,10 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import { APPROVED_DESTINATION_REVALIDATION_DUE_AFTER_MS } from '../approved-destination-age'
 import { loadPortalOrThrow } from '../load-accessible-portal'
-import { validatePortalDestinationUri } from '../../domain/approved-destination'
+import {
+  isSiteDestination,
+  validatePortalDestinationUri,
+} from '../../domain/approved-destination'
 import { portalError } from '../../domain/errors'
 import type { PortalDestinationNetworkValidator } from '../ports/portal-destination-network-validator.port'
 
@@ -70,11 +73,14 @@ function assertPortalAdmin(ctx: AuthContext): void {
 export const listPortalApprovedDestinations =
   (deps: Deps) => async (input: Readonly<{ portalId: string }>, ctx: AuthContext) => {
     const portal = await loadDestinationPortal(deps, ctx, input.portalId, 'portal.read')
+    const destinations = await deps.destinationRepo.list(
+      ctx.organizationId,
+      portal.propertyId,
+    )
     return {
-      destinations: await deps.destinationRepo.list(
-        ctx.organizationId,
-        portal.propertyId,
-      ),
+      // "Sites allowed for links": a phone number or an email address is not a
+      // site, needs no approval and is shown on its tile only.
+      destinations: destinations.filter(isSiteDestination),
       canApprove: canForContext(ctx, 'portal.admin'),
     }
   }

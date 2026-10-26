@@ -9,6 +9,7 @@ import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
 import type { PortalDestinationNetworkValidation } from '../ports/portal-destination-network-validator.port'
 import {
+  listPortalApprovedDestinations,
   requestPortalApprovedDestination,
   revalidatePortalApprovedDestinations,
 } from './manage-portal-approved-destinations'
@@ -86,6 +87,41 @@ describe('requestPortalApprovedDestination', () => {
     await expect(refusal()).rejects.toThrow(
       'Destination validation is temporarily unavailable. Please try again.',
     )
+  })
+})
+
+describe('listPortalApprovedDestinations', () => {
+  it('lists the sites allowed for links, and no phone number or email address', async () => {
+    const portal = buildTestPortal({})
+    const phone = {
+      ...candidate,
+      id: portalApprovedDestinationId('10000000-0000-4000-8000-000000000002'),
+      normalizedUri: 'tel:+15551234567',
+      hostname: '+15551234567',
+      sourceType: 'contact' as const,
+    }
+    const email = {
+      ...phone,
+      id: portalApprovedDestinationId('10000000-0000-4000-8000-000000000003'),
+      normalizedUri: 'mailto:front@hotel.com',
+      hostname: 'front@hotel.com',
+    }
+    const useCase = listPortalApprovedDestinations({
+      portalRepo: { findById: async () => portal } as never,
+      destinationRepo: { list: async () => [phone, candidate, email] } as never,
+      destinationNetworkValidator: { validate: vi.fn() },
+      staffPublicApi: { accessiblePropertyIds: async () => null } as never,
+      idGen: () => '30000000-0000-4000-8000-000000000001',
+      clock: () => NOW,
+    })
+
+    const listed = await useCase(
+      { portalId: portal.id },
+      buildTestAuthContext({ role: 'AccountAdmin' }),
+    )
+
+    expect(listed.destinations).toEqual([candidate])
+    expect(listed.canApprove).toBe(true)
   })
 })
 

@@ -80,3 +80,28 @@ export const LINKTREE_LINKS_LONG_WORDS: readonly ImmersiveLinktreeLink[] = [
     line: 'Abendessenreservierungsmöglichkeiten',
   },
 ]
+
+/**
+ * A phone tile and an email tile beside a website, as a Portal with contact links
+ * serves them: the page still receives no destination, only the phone and mail
+ * icons the editor gives such a tile.
+ */
+export const LINKTREE_LINKS_CONTACT: readonly ImmersiveLinktreeLink[] = [
+  {
+    id: 'link-call',
+    iconKey: 'phone',
+    imageUrl: null,
+    label: 'Call reception',
+    line: 'Day and night',
+    fallbackFrom: null,
+  },
+  {
+    id: 'link-write',
+    iconKey: 'mail',
+    imageUrl: null,
+    label: 'Write to us',
+    line: 'We answer within a day',
+    fallbackFrom: null,
+  },
+  LINKTREE_LINKS_EN[1]!,
+]

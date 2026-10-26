@@ -1,9 +1,11 @@
-// Where a tile opens. The address is checked on the server (it must be https,
-// reachable and approved), so it is saved when the field is left or Enter is
-// pressed, not while it is typed, and a refusal is shown right under it. The
-// check can take seconds: while it runs, the line below the field (`status`, the
-// approval of the address) gives way to "Checking address…", because the
-// approval it would show still belongs to the previous address.
+// Where a tile opens: a website, a phone number or an email address. The
+// address is checked on the server (a website must be https, reachable and
+// approved; a phone number or an email address only well formed), so it is
+// saved when the field is left or Enter is pressed, not while it is typed, and a
+// refusal is shown right under it. The check can take seconds: while it runs,
+// the line below the field (`status`, the approval of the address) gives way to
+// "Checking address…", because the approval it would show still belongs to the
+// previous address.
 
 import type { ReactNode } from 'react'
 import { useForm } from '@tanstack/react-form'
@@ -12,6 +14,7 @@ import { submitForm, submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { updateLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import { LINK_ADDRESS_FIELD, linkAddressForField } from './link-address-field'
 import { LinktreeCheckingLine } from './linktree-checking-line'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
@@ -36,12 +39,13 @@ export function LinkAddressForm({
   disabled,
   status,
 }: Props) {
+  const shown = linkAddressForField(link.url)
   const form = useForm({
-    defaultValues: { url: link.url },
+    defaultValues: { url: shown },
     listeners: {
       onChange: onEdit,
       onBlur: ({ formApi }) => {
-        if (formApi.state.values.url.trim() === link.url) return
+        if (formApi.state.values.url.trim() === shown) return
         void submitForm(formApi)
       },
     },
@@ -58,11 +62,10 @@ export function LinkAddressForm({
           {(field: BaseFieldApi) => (
             <FormTextField
               field={field}
-              label="Opens"
+              label={LINK_ADDRESS_FIELD.label}
+              description={LINK_ADDRESS_FIELD.description}
               id={`link-${link.id}-url`}
-              type="url"
               autoComplete="off"
-              placeholder="https://"
               maxLength={500}
               disabled={disabled}
             />

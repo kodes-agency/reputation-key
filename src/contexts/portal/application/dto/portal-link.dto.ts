@@ -2,16 +2,21 @@
 
 import { z } from 'zod/v4'
 import { portalLinkIconKeySchema } from '#/shared/portal-link-icon-schemas'
-import { isValidExternalUrl } from '../../domain/rules'
+import { linkAddressRefusal } from '../../domain/rules'
 
 const portalLinkLabelSchema = z.string().trim().min(1, 'Label is required').max(100)
 
+// A website, a phone number or an email address, as the manager typed it; the
+// server stores a phone number or email address in one form.
 const portalLinkUrlSchema = z
   .string()
   .trim()
-  .min(1, 'URL is required')
+  .min(1, 'Enter a website, a phone number or an email address')
   .max(500)
-  .refine(isValidExternalUrl, 'Links must start with https://')
+  .superRefine((value, ctx) => {
+    const refusal = linkAddressRefusal(value)
+    if (refusal !== null) ctx.addIssue({ code: 'custom', message: refusal })
+  })
 
 export const createLinkInputSchema = z.object({
   // Left out by the Linktree editor, which does not show categories: the link

@@ -12,6 +12,11 @@ import {
   isPortalLinkIconKey,
   type PortalLinkIconKey,
 } from '#/shared/domain/portal-link-icon'
+import {
+  isPortalContactUri,
+  parsePortalContactInput,
+} from '#/shared/domain/portal-contact-address'
+import { PORTAL_LINK_ADDRESS_REFUSALS } from './approved-destination'
 
 // ── Slug validation ────────────────────────────────────────────────
 
@@ -104,16 +109,42 @@ export const isValidExternalUrl = (url: string): boolean => {
 }
 
 /**
+ * Whether a link tile may send a guest to `url`: a public HTTPS address, or a
+ * phone number or email address in its stored form (`tel:+15551234567`,
+ * `mailto:front@hotel.com`), never any other scheme.
+ */
+export const isValidLinkDestination = (url: string): boolean =>
+  isPublicHttpsDestination(url) || isPortalContactUri(url)
+
+/**
+ * Why a typed tile address cannot be used, or null when it can: a website
+ * (checked again, and for approval, on the server), a phone number or an email
+ * address, in any spelling the server stores in one form.
+ */
+export const linkAddressRefusal = (value: string): string | null => {
+  const contact = parsePortalContactInput(value)
+  if (contact !== null) {
+    return contact.ok ? null : PORTAL_LINK_ADDRESS_REFUSALS[contact.kind]
+  }
+  return isValidExternalUrl(value.trim()) ? null : PORTAL_LINK_ADDRESS_REFUSALS.website
+}
+
+/**
  * Validate a URL for portal links.
  *
- * Delegates to isValidExternalUrl rather than merely parsing: `new URL()` happily
+ * Delegates to isValidLinkDestination rather than merely parsing: `new URL()` happily
  * accepts `javascript:` and `data:` payloads, and this is the constructor-time gate
  * for link destinations that the public portal later renders as anchors.
  */
 export const validateUrl = (url: string): Result<string, PortalError> =>
-  isValidExternalUrl(url)
+  isValidLinkDestination(url)
     ? ok(url)
-    : err(portalError('invalid_url', 'Must be a valid https:// URL'))
+    : err(
+        portalError(
+          'invalid_url',
+          'Must be a valid https:// URL, phone number or email address',
+        ),
+      )
 
 // ── Link label validation ──────────────────────────────────────────
 

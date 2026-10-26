@@ -512,6 +512,13 @@
       "when": 1795300000000,
       "tag": "0072_portal_last_print_words",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1795400000000,
+      "tag": "0073_portal_contact_destinations",
+      "breakpoints": true
     }
   ]
 }

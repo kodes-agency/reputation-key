@@ -25,6 +25,7 @@ import { nextPortalCommandAt } from '../portal-command-version'
 import { canForContext } from '#/shared/domain/permissions'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import { resolveApprovedPortalDestination } from '../resolve-approved-portal-destination'
+import { defaultLinkIconKey } from '../../domain/approved-destination'
 import type { PortalDestinationNetworkValidator } from '../ports/portal-destination-network-validator.port'
 
 export type CreateLinkInput = Readonly<{
@@ -178,7 +179,9 @@ export const createLink =
       legacyDestinationState: 'migrated',
       label: input.label,
       url: destination.normalizedUri,
-      iconKey: input.iconKey,
+      // A phone number or an email address shows a phone or a letter until
+      // the manager picks another icon.
+      iconKey: input.iconKey ?? defaultLinkIconKey(destination),
       sortKey,
       now: occurredAt,
     })

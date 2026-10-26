@@ -11,6 +11,8 @@ import {
   validatePrivateFeedbackThreshold,
   validateUrl,
   isValidExternalUrl,
+  isValidLinkDestination,
+  linkAddressRefusal,
   validateLinkLabel,
   validateLinkIconKey,
   validateCategoryTitle,
@@ -254,16 +256,24 @@ describe('validateUrl', () => {
     expect(validateUrl('https://example.com/path?q=1#hash').isOk()).toBe(true)
   })
 
+  it('accepts a phone number or an email address in its stored form', () => {
+    expect(validateUrl('tel:+15551234567').isOk()).toBe(true)
+    expect(validateUrl('mailto:admin@example.com').isOk()).toBe(true)
+  })
+
   it('rejects non-https schemes', () => {
     // validateUrl is the constructor-time gate for stored link destinations, so it
-    // must reject everything isValidExternalUrl rejects — including http and the
-    // script-bearing schemes `new URL()` parses happily.
+    // must reject everything isValidLinkDestination rejects — including http, the
+    // script-bearing schemes `new URL()` parses happily, and a `tel:` or `mailto:`
+    // address that is not in its stored form.
     for (const url of [
       'http://localhost:3000/path',
       'http://example.com',
       'javascript:alert(1)',
       'data:text/html,<script>alert(1)</script>',
-      'mailto:admin@example.com',
+      'mailto:admin@example.com?bcc=spy@evil.com',
+      'tel:+1 555 123 4567',
+      'sms:+15551234567',
       '//evil.com',
     ]) {
       const result = validateUrl(url)
@@ -406,5 +416,68 @@ describe('isValidExternalUrl', () => {
 
   it('rejects mailto: scheme', () => {
     expect(isValidExternalUrl('mailto:admin@example.com')).toBe(false)
+  })
+})
+
+// ── isValidLinkDestination and linkAddressRefusal ──────────────────
+
+describe('isValidLinkDestination', () => {
+  it('accepts a public website and a stored phone number or email address', () => {
+    for (const url of [
+      'https://example.com/spa',
+      'tel:+15551234567',
+      'tel:5551234567',
+      'mailto:front@hotel.com',
+    ]) {
+      expect(isValidLinkDestination(url), url).toBe(true)
+    }
+  })
+
+  it('refuses every other scheme and every unstored contact spelling', () => {
+    for (const url of [
+      'http://example.com',
+      'https://127.0.0.1/admin',
+      'javascript:alert(1)',
+      'data:text/html,<script>alert(1)</script>',
+      'TEL:+15551234567',
+      'tel:+1-555-123-4567',
+      'tel:+15551234567;ext=2',
+      'mailto:front@hotel.com?subject=hi',
+      'mailto:front@hotel.com,spy@evil.com',
+      'mailto:front@HOTEL.com',
+      'front@hotel.com',
+      '+15551234567',
+    ]) {
+      expect(isValidLinkDestination(url), url).toBe(false)
+    }
+  })
+})
+
+describe('linkAddressRefusal', () => {
+  it('takes a website, a phone number or an email address as typed', () => {
+    for (const value of [
+      'https://example.com/spa',
+      ' https://example.com ',
+      '+1 (555) 123-4567',
+      'tel:+15551234567',
+      'front@hotel.com',
+      'mailto:front@hotel.com',
+    ]) {
+      expect(linkAddressRefusal(value), value).toBeNull()
+    }
+  })
+
+  it('names what was wrong with a phone number, an email address or anything else', () => {
+    expect(linkAddressRefusal('555 12')).toMatch(
+      /^Enter a phone number of 7 to 15 digits/u,
+    )
+    expect(linkAddressRefusal('front@hotel.com?bcc=x@y.com')).toMatch(
+      /^Enter one email address/u,
+    )
+    for (const value of ['http://example.com', 'javascript:alert(1)', 'www.hotel.com']) {
+      expect(linkAddressRefusal(value), value).toBe(
+        'Enter a website starting with https://, a phone number or an email address.',
+      )
+    }
   })
 })

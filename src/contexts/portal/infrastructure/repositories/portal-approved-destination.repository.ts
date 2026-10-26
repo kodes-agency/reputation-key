@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, lte, ne, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalApprovedDestinations, portalLinks } from '#/shared/db/schema/portal.schema'
 import {
@@ -85,8 +85,12 @@ export const createPortalApprovedDestinationRepository = (
           unbrand(input.organizationId),
           unbrand(input.propertyId),
         )
+        // A recognized site, a phone number and an email address are approved
+        // as they are requested; a custom site only by an AccountAdmin.
         const automaticallyApproved =
-          input.destination.sourceType === 'recognized' || input.approveCustom
+          input.destination.sourceType === 'recognized' ||
+          input.destination.sourceType === 'contact' ||
+          input.approveCustom
         const inserted = await tx
           .insert(portalApprovedDestinations)
           .values({
@@ -228,7 +232,12 @@ export const createPortalApprovedDestinationRepository = (
             eq(portalApprovedDestinations.organizationId, unbrand(orgId)),
             eq(portalApprovedDestinations.propertyId, unbrand(propertyIdValue)),
             eq(portalApprovedDestinations.approvalState, 'approved'),
-            gte(portalApprovedDestinations.lastValidatedAt, validatedAfter),
+            // A phone number or an email address is never checked over the
+            // network, so its age says nothing; a website's must be recent.
+            or(
+              eq(portalApprovedDestinations.sourceType, 'contact'),
+              gte(portalApprovedDestinations.lastValidatedAt, validatedAfter),
+            ),
             inArray(portalApprovedDestinations.normalizedUri, uniqueUris),
           ),
         )
@@ -244,6 +253,9 @@ export const createPortalApprovedDestinationRepository = (
         .where(
           and(
             inArray(portalApprovedDestinations.approvalState, ['pending', 'approved']),
+            // Only websites are checked over the network; a phone number or an
+            // email address has nothing to resolve and takes no place in a page.
+            ne(portalApprovedDestinations.sourceType, 'contact'),
             lte(portalApprovedDestinations.lastValidatedAt, before),
           ),
         )

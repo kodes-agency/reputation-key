@@ -2,24 +2,24 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalApprovedDestinationId, type PropertyId } from '#/shared/domain/ids'
 import type { PortalApprovedDestinationRepository } from './ports/portal-approved-destination.repository'
-import { validatePortalDestinationUri } from '../domain/approved-destination'
+import {
+  validatePortalLinkDestination,
+  type ValidatedPortalDestination,
+} from '../domain/approved-destination'
 import { portalError } from '../domain/errors'
 import type { PortalDestinationNetworkValidator } from './ports/portal-destination-network-validator.port'
 
-export async function resolveApprovedPortalDestination(
-  deps: Readonly<{
-    destinationRepo: Pick<PortalApprovedDestinationRepository, 'request'>
-    destinationNetworkValidator: PortalDestinationNetworkValidator
-    idGen: () => string
-    clock: () => Date
-  }>,
-  input: Readonly<{ uri: string; propertyId: PropertyId }>,
-  ctx: AuthContext,
-) {
-  const validated = validatePortalDestinationUri(input.uri)
-  const networkValidation = await deps.destinationNetworkValidator.validate(
-    validated.normalizedUri,
-  )
+/**
+ * A website must be safe to reach before it is stored. A phone number or an
+ * email address is not a website: nothing is fetched for it, here or by the
+ * job that checks websites again.
+ */
+async function assertReachableWebsite(
+  validator: PortalDestinationNetworkValidator,
+  validated: ValidatedPortalDestination,
+): Promise<void> {
+  if (validated.sourceType === 'contact') return
+  const networkValidation = await validator.validate(validated.normalizedUri)
   if (networkValidation.outcome === 'unsafe') {
     throw portalError(
       'invalid_url',
@@ -38,6 +38,20 @@ export async function resolveApprovedPortalDestination(
       'Destination validation is temporarily unavailable. Please try again.',
     )
   }
+}
+
+export async function resolveApprovedPortalDestination(
+  deps: Readonly<{
+    destinationRepo: Pick<PortalApprovedDestinationRepository, 'request'>
+    destinationNetworkValidator: PortalDestinationNetworkValidator
+    idGen: () => string
+    clock: () => Date
+  }>,
+  input: Readonly<{ uri: string; propertyId: PropertyId }>,
+  ctx: AuthContext,
+) {
+  const validated = validatePortalLinkDestination(input.uri)
+  await assertReachableWebsite(deps.destinationNetworkValidator, validated)
   const destination = await deps.destinationRepo.request({
     id: portalApprovedDestinationId(deps.idGen()),
     organizationId: ctx.organizationId,
@@ -46,7 +60,8 @@ export async function resolveApprovedPortalDestination(
     requestedBy: ctx.userId,
     // A custom destination always needs explicit AccountAdmin authority. When
     // the requester is already an AccountAdmin, this request is that approval;
-    // all other roles leave a reusable Pending record for later review.
+    // all other roles leave a reusable Pending record for later review. A
+    // recognized site, a phone number and an email address need no approval.
     approveCustom: canForContext(ctx, 'portal.admin'),
     at: deps.clock(),
   })

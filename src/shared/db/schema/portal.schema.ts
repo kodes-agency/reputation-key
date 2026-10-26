@@ -367,9 +367,11 @@ export const portalApprovedDestinations = pgTable(
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('restrict'),
+    // `contact` (migration 0073): a phone number or an email address on a
+    // Linktree tile, approved as it is entered and never checked over the network.
     check(
       'portal_approved_destinations_source_valid',
-      sql`${t.sourceType} IN ('recognized', 'custom', 'provider')`,
+      sql`${t.sourceType} IN ('recognized', 'custom', 'provider', 'contact')`,
     ),
     check(
       'portal_approved_destinations_state_valid',
