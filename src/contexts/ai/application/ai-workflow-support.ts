@@ -138,6 +138,23 @@ export const AI_PROVIDER_CAPACITY_CODES: ReadonlySet<string> = new Set([
   'provider_unavailable',
 ])
 
+/**
+ * Answers the gateway gives only after the provider answered and the attempt
+ * was charged. The admission authority keeps one reservation per operation and
+ * admits a later attempt only after one that cost nothing, so a retry of the
+ * same operation is refused before it reaches the provider. Retried, such a
+ * failure spent the rest of the attempt budget in seconds and ended as
+ * `operation_ambiguous`, which hid a billed answer and made a review the
+ * provider had judged reopenable, billed again on every reopen (closed beta,
+ * 2026-10-16 to 2026-10-25). It ends the operation at once, under its own code.
+ */
+export const AI_PROVIDER_CHARGED_CODES: ReadonlySet<string> = new Set([
+  'output_invalid',
+  'output_truncated',
+  'provider_refused',
+  'completed_without_delivery',
+])
+
 export const AI_PROVIDER_ATTEMPT_BUDGET = 4
 
 export function aiRetryAt(

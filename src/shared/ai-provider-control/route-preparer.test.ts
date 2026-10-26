@@ -246,6 +246,29 @@ describe('gateway route-preparer source lifetime', () => {
     expect(JSON.stringify(response)).not.toContain('mutated')
   })
 
+  it('merges an aspect the provider listed twice instead of refusing the billed answer', () => {
+    const request = analysisRequest()
+    const lease = createSensitiveSourceLease<typeof request>()
+    lease.attachSource(request, (root) => root.source)
+    const prepared = lease.read((leased) => preparer().prepare(leased))
+    const accepted = prepared.acceptProviderResult({
+      ...acceptedAnalysis,
+      aspects: [
+        { aspect: 'service', polarity: 'positive', intensity: 40 },
+        { aspect: 'staff', polarity: 'positive', intensity: 60 },
+        { aspect: 'service', polarity: 'positive', intensity: 80 },
+      ],
+    })
+    const response = accepted?.buildResponse(fakeReceipt(), fakeGrant())
+    expect(response?.status === 'success' && response.result).toEqual({
+      ...acceptedAnalysis,
+      aspects: [
+        { aspect: 'service', polarity: 'positive', intensity: 80 },
+        { aspect: 'staff', polarity: 'positive', intensity: 60 },
+      ],
+    })
+  })
+
   it('derives preparation limits from the pinned operation catalogue', () => {
     const request = analysisRequest()
     const lease = createSensitiveSourceLease<typeof request>()

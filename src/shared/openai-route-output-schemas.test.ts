@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { zodTextFormat } from 'openai/helpers/zod'
 import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
+  AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA,
   AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
   AI_REPLY_SELECTION_OUTPUT_SCHEMA,
   AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA,
@@ -9,6 +10,7 @@ import {
   AI_ROUTE_OUTPUT_JSON_SCHEMAS,
   CONCRETE_REPLY_LANGUAGE_PATTERN,
   TREND_SIGNAL_PATTERN,
+  mergeAiAnalysisV2Aspects,
 } from './openai-route-output-schemas'
 import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
 import { REPLY_TEMPLATE_LANGUAGE_GROUPS } from './ai-review-language-catalogue'
@@ -123,6 +125,73 @@ describe('AI route output schema authority', () => {
         issueLabel,
       }).success,
     ).toBe(false)
+  })
+
+  describe('a review-analysis answer that lists one aspect twice', () => {
+    const answer = (aspects: ReadonlyArray<Readonly<Record<string, unknown>>>) => ({
+      sentiment: 'mixed',
+      sentimentValence: 10,
+      urgencySignals: [],
+      aspects,
+      issueLabel: null,
+    })
+
+    it('asks the provider for exactly the stored contract', () => {
+      expect(
+        zodTextFormat(AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA, 'review_analysis_v2').schema,
+      ).toEqual(AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v2'])
+    })
+
+    it('is a valid answer, and every other rule still holds', () => {
+      const repeated = answer([
+        { aspect: 'food_and_drink', polarity: 'positive', intensity: 70 },
+        { aspect: 'food_and_drink', polarity: 'negative', intensity: -40 },
+      ])
+      expect(AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(repeated).success).toBe(false)
+      expect(AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA.safeParse(repeated).success).toBe(true)
+      for (const broken of [
+        { ...repeated, urgencySignals: ['safety', 'safety'] },
+        { ...repeated, sentiment: 'positive' },
+        answer([{ aspect: 'room', polarity: 'negative', intensity: -10 }]),
+        { ...repeated, issueLabel: 'Bed bugs' },
+      ]) {
+        expect(AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA.safeParse(broken).success).toBe(
+          false,
+        )
+      }
+    })
+
+    it('keeps the strongest record of each aspect where the aspect first appears', () => {
+      const merged = mergeAiAnalysisV2Aspects(
+        AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA.parse(
+          answer([
+            { aspect: 'food_and_drink', polarity: 'positive', intensity: 40 },
+            { aspect: 'staff', polarity: 'positive', intensity: 60 },
+            { aspect: 'food_and_drink', polarity: 'negative', intensity: -70 },
+            { aspect: 'staff', polarity: 'positive', intensity: 30 },
+          ]),
+        ),
+      )
+      expect(merged.aspects).toEqual([
+        { aspect: 'food_and_drink', polarity: 'negative', intensity: -70 },
+        { aspect: 'staff', polarity: 'positive', intensity: 60 },
+      ])
+      expect(AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(merged).success).toBe(true)
+    })
+
+    it('keeps the negative record on an equal-magnitude tie, as the primary category does', () => {
+      const merged = mergeAiAnalysisV2Aspects(
+        AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA.parse(
+          answer([
+            { aspect: 'room', polarity: 'positive', intensity: 50 },
+            { aspect: 'room', polarity: 'negative', intensity: -50 },
+          ]),
+        ),
+      )
+      expect(merged.aspects).toEqual([
+        { aspect: 'room', polarity: 'negative', intensity: -50 },
+      ])
+    })
   })
 
   it('accepts null and a bounded generic issue label', () => {
