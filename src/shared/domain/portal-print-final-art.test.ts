@@ -12,6 +12,10 @@ import {
 import type { PrintFinalImmersivePalette } from './portal-print-final-immersive'
 import { rampAlpha, washAlpha } from './portal-print-final-layers'
 import { inPt, mmPt } from './portal-print-final-measures'
+import {
+  PRINT_FINAL_NO_BOOST,
+  printFinalPhotoAlpha,
+} from './portal-print-final-photo-clear'
 import type { PrintFinalPlan } from './portal-print-final-plan'
 import type { PrintFinalTextMeasurer } from './portal-print-final-text'
 
@@ -76,7 +80,7 @@ const artOf = (
     palette: PALETTE,
     hasPhoto: true,
     languageCount: 1,
-    boost: 0,
+    boost: PRINT_FINAL_NO_BOOST,
     ...over,
   })
 
@@ -206,12 +210,37 @@ describe('printFinalArt: the scrims', () => {
     expect(rampAlpha(scrim.ramps[1]!, wide.column.rightPt + inPt(0.35))).toBeCloseTo(0.5)
   })
 
-  it('deepens both by the boost, the message scrim never past 0.9', () => {
+  it('deepens the top scrim by its boost and leaves the message scrim as it is', () => {
     const plan = planOf(immersive('counter', 'wide'), ['en', 'es'])
-    const [top, message] = artOf(plan, { languageCount: 2, boost: 0.3 }).scrims
+    const boost = { top: 0.3, clear: 0.3, clearFrom: 'message' } as const
+    const [top, message] = artOf(plan, { languageCount: 2, boost }).scrims
     expect(rampAlpha(top!.ramps[0]!, 0)).toBeCloseTo(0.8)
     const middle = (plan.groups.message!.topPt + plan.groups.message!.bottomPt) / 2
-    expect(rampAlpha(message!.ramps[0]!, middle)).toBeCloseTo(0.9)
+    expect(rampAlpha(message!.ramps[0]!, middle)).toBeCloseTo(0.7)
+  })
+
+  it('clears the photo toward the ground behind the message, held to the fade upright', () => {
+    const plan = planOf(immersive('tent', 'upright'))
+    const message = plan.groups.message!
+    const boost = { top: 0, clear: 0.3, clearFrom: 'message' } as const
+    const photo = artOf(plan, { boost }).photo!
+    expect(artOf(plan).photo?.clear).toBeNull()
+    const top = message.topPt - inPt(0.45)
+    expect(printFinalPhotoAlpha(photo, 10, top)).toBeCloseTo(rampAlpha(photo.fade, top))
+    expect(printFinalPhotoAlpha(photo, 10, message.topPt)).toBeCloseTo(
+      0.7 * rampAlpha(photo.fade, message.topPt),
+    )
+    expect(rampAlpha(photo.clear!, photo.box.bottomPt)).toBeCloseTo(0.7)
+  })
+
+  it('clears from above the brand when the brand needs it, and out again below the words wide', () => {
+    const plan = planOf(immersive('counter', 'wide'))
+    const boost = { top: 0.3, clear: 0.24, clearFrom: 'brand' } as const
+    const clear = artOf(plan, { boost }).photo!.clear!
+    const brand = plan.groups.brand!
+    const message = plan.groups.message!
+    expect(rampAlpha(clear, Math.min(brand.topPt, message.topPt))).toBeCloseTo(0.76)
+    expect(rampAlpha(clear, message.bottomPt + inPt(0.55))).toBeCloseTo(1)
   })
 })
 

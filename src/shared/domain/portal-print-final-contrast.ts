@@ -1,7 +1,8 @@
 // What an Immersive final face's words read against (final design spec §6.3
 // and §4): the colour the face prints under each word, from the ground, the
 // washes, the photo's own pixels as the face crops and fades them, and the
-// scrims, with the words left out. Every word must reach 4.5:1 against the
+// scrims, with the words left out. The scrims darken the photo's own pixels and
+// the scrimmed photo then melts into the ground by its fade (and any clearing). Every word must reach 4.5:1 against the
 // 95th-percentile brightness under it; a light logo straight on the photo must
 // reach 4.5:1 against a 1.5 mm ring round it.
 //
@@ -17,9 +18,13 @@ import {
   type PrintFinalFocal,
   type PrintFinalFraming,
 } from './portal-print-final-framing'
-import { layerAlpha, rampAlpha, washAlpha } from './portal-print-final-layers'
+import { washAlpha } from './portal-print-final-layers'
 import { mmPt, type PrintFinalBox } from './portal-print-final-measures'
 import type { PrintFinalPhotoPixels } from './portal-print-final-photo'
+import {
+  printFinalPhotoAlpha,
+  printFinalScrimAlpha,
+} from './portal-print-final-photo-clear'
 import {
   PRINT_FINAL_SCRIM_INK,
   samplePixel,
@@ -83,8 +88,12 @@ function photoReader(art: PrintFinalArt, photo: PrintFinalScenePhoto | null) {
     const sourceX = crop.leftPx + ((x - cover.leftPt) / coverWidth) * crop.widthPx
     const sourceY = crop.topPx + ((y - cover.topPt) / coverHeight) * crop.heightPx
     return {
-      rgb: samplePixel(detail, sourceX * across, sourceY * down),
-      alpha: rampAlpha(shown.fade, shown.fade.axis === 'x' ? x : y),
+      rgb: over(
+        samplePixel(detail, sourceX * across, sourceY * down),
+        PRINT_FINAL_SCRIM_INK,
+        printFinalScrimAlpha(art.scrims, x, y),
+      ),
+      alpha: printFinalPhotoAlpha(shown, x, y),
     }
   }
 }
@@ -99,18 +108,12 @@ export function printFinalScene(
   const readPhoto = photoReader(art, photo)
   return {
     colourAt: (x, y) => {
-      let colour = washes.reduce(
+      const colour = washes.reduce(
         (under, { wash, rgb }) => over(under, rgb, washAlpha(wash, x, y)),
         ground,
       )
       const pixel = readPhoto?.(x, y) ?? null
-      if (pixel !== null) colour = over(colour, pixel.rgb, pixel.alpha)
-      for (const scrim of art.scrims) {
-        if (inside(scrim.box, x, y)) {
-          colour = over(colour, PRINT_FINAL_SCRIM_INK, layerAlpha(scrim.ramps, x, y))
-        }
-      }
-      return colour
+      return pixel === null ? colour : over(colour, pixel.rgb, pixel.alpha)
     },
   }
 }

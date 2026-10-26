@@ -1,8 +1,10 @@
 // The pictures of an Immersive final print, made ready for the page (final
 // design spec §4, §6.1 and §6.2): the photo decoded small to be read (the
 // ground, the kicker, every word's contrast), the photo cropped to cover its
-// box with bleed under the manager's framing, with its fade as a soft mask, and
-// the logo read for how light its ink is. `sharp` decodes, imported when a
+// box with bleed under the manager's framing, its scrims baked into its pixels
+// and its fade (and any clearing) as a soft mask, and the logo read for how
+// light its ink is. Baked, a scrim darkens the photo only and fades with it: it
+// never prints over the bare ground. `sharp` decodes, imported when a
 // print is made, as for today's kit.
 
 import type { PrintFinalArt } from '#/shared/domain/portal-print-final-art'
@@ -15,9 +17,11 @@ import {
   printFinalPhotoCrop,
   type PrintFinalFraming,
 } from '#/shared/domain/portal-print-final-framing'
+import { printFinalScrimAlpha } from '#/shared/domain/portal-print-final-photo-clear'
 import {
   PRINT_FINAL_DETAIL_WIDTH_PX,
   PRINT_FINAL_SAMPLE_WIDTH_PX,
+  PRINT_FINAL_SCRIM_INK,
   type PrintFinalPhotoSample,
 } from '#/shared/domain/portal-print-final-photo-sample'
 import type { PrintKitPhoto } from '../../application/ports/portal-print-kit-renderer.port'
@@ -66,17 +70,51 @@ export async function finalScenePhoto(
 const clampInt = (value: number, low: number, high: number) =>
   Math.min(high, Math.max(low, Math.round(value)))
 
+/** `rgb` (width × height pixels covering `cover`) under the scrims' ink, as a copy. */
+function bakeScrims(
+  rgb: Buffer,
+  size: Readonly<{ width: number; height: number }>,
+  cover: PrintFinalArt['groundBox'],
+  scrims: PrintFinalArt['scrims'],
+): Buffer {
+  const out = Buffer.from(rgb)
+  const ptPerPx = (cover.rightPt - cover.leftPt) / size.width
+  const ptPerRow = (cover.bottomPt - cover.topPt) / size.height
+  for (let row = 0; row < size.height; row++) {
+    const y = cover.topPt + (row + 0.5) * ptPerRow
+    for (let column = 0; column < size.width; column++) {
+      const alpha = printFinalScrimAlpha(
+        scrims,
+        cover.leftPt + (column + 0.5) * ptPerPx,
+        y,
+      )
+      if (alpha <= 0) continue
+      const at = (row * size.width + column) * 3
+      for (let channel = 0; channel < 3; channel++) {
+        const value = out[at + channel] ?? 0
+        out[at + channel] = Math.round(
+          value + ((PRINT_FINAL_SCRIM_INK[channel] ?? 0) - value) * alpha,
+        )
+      }
+    }
+  }
+  return out
+}
+
 /**
  * The photo as the face draws it: the part that covers the art's cover box
  * under the framing, at up to 300 dpi (never more pixels than the crop has),
- * as a JPEG whose soft mask is the fade.
+ * darkened by the art's scrims, as a JPEG whose soft mask is the fade times any
+ * clearing.
  */
 export async function finalPhotoImage(
   doc: PDFKit.PDFDocument,
   bytes: Uint8Array,
   scene: PrintFinalScenePhoto,
-  photo: NonNullable<PrintFinalArt['photo']>,
-): Promise<PdfRasterImage> {
+  art: PrintFinalArt,
+): Promise<PdfRasterImage | null> {
+  const { photo } = art
+  if (photo === null) return null
   const { cover } = photo
   const coverWidth = cover.rightPt - cover.leftPt
   const coverHeight = cover.bottomPt - cover.topPt
@@ -101,18 +139,21 @@ export async function finalPhotoImage(
   )
   const height = Math.max(1, Math.round((width * coverHeight) / coverWidth))
   const sharp = await sharpFactory()
-  const jpeg = await sharp(bytes)
+  const rgb = await sharp(bytes)
     .rotate()
     .extract(region)
     .resize(width, height, { fit: 'fill' })
     .flatten({ background: '#000000' })
+    .removeAlpha()
+    .raw()
+    .toBuffer()
+  const jpeg = await sharp(bakeScrims(rgb, { width, height }, cover, art.scrims), {
+    raw: { width, height, channels: 3 },
+  })
     .jpeg({ quality: JPEG_QUALITY })
     .toBuffer()
-  return jpegImage(
-    doc,
-    { bytes: jpeg, width, height },
-    rampMask(doc, [photo.fade], cover),
-  )
+  const ramps = photo.clear === null ? [photo.fade] : [photo.fade, photo.clear]
+  return jpegImage(doc, { bytes: jpeg, width, height }, rampMask(doc, ramps, cover))
 }
 
 /** The median luminance of a logo's drawn pixels, read at most 200 px across; null when nothing is drawn. */

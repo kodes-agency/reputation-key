@@ -79,7 +79,7 @@ const lowest = (ratios: readonly { ratio: number }[]) =>
 describe('layoutPrintFinalImmersiveFace: the scrims', () => {
   it('leaves them as they are over a dark photo', () => {
     const laid = layoutPrintFinalImmersiveFace(inputFor(immersive('counter', 'upright')))
-    expect(laid.boost).toBe(0)
+    expect(laid.boost).toEqual({ top: 0, clear: 0, clearFrom: 'message' })
     expect(lowest(laid.contrasts)).toBeGreaterThan(4.6)
     expect(laid.contrasts.map((c) => c.key)).toEqual([
       'brand',
@@ -89,29 +89,40 @@ describe('layoutPrintFinalImmersiveFace: the scrims', () => {
     ])
   })
 
-  it('deepens them 0.06 at a time over a light photo until every word reads', () => {
+  it('deepens 0.06 at a time over a light photo until every word reads', () => {
     const laid = layoutPrintFinalImmersiveFace(
       inputFor(immersive('counter', 'upright'), { photo: flat([200, 190, 185]) }),
     )
-    expect(laid.boost).toBeGreaterThan(0)
-    expect(Math.round(laid.boost * 100) % 6).toBe(0)
+    expect(laid.boost.top + laid.boost.clear).toBeGreaterThan(0)
+    expect(Math.round(laid.boost.top * 100) % 6).toBe(0)
+    expect(Math.round(laid.boost.clear * 100) % 6).toBe(0)
     expect(lowest(laid.contrasts)).toBeGreaterThanOrEqual(4.6)
   })
 
-  it('deepens them over a white photo, never past 0.30', () => {
+  it('deepens over a white photo, the top never past 0.30 and the clearing never past 0.60', () => {
     const laid = layoutPrintFinalImmersiveFace(
       inputFor(immersive('small', 'upright'), { photo: flat([255, 255, 255]) }),
     )
-    expect(laid.boost).toBeGreaterThan(0.06)
-    expect(laid.boost).toBeLessThanOrEqual(0.3)
+    expect(laid.boost.top).toBeGreaterThan(0.06)
+    expect(laid.boost.top).toBeLessThanOrEqual(0.3)
+    expect(laid.boost.clear).toBeLessThanOrEqual(0.6)
     expect(lowest(laid.contrasts)).toBeGreaterThanOrEqual(4.6)
+  })
+
+  it('deepens the top scrim for the brand only, never the message for it', () => {
+    const laid = layoutPrintFinalImmersiveFace(
+      inputFor(immersive('tent', 'upright'), { photo: flat([120, 115, 110]) }),
+    )
+    const message = laid.contrasts.filter((c) => c.key !== 'brand')
+    if (laid.boost.clear > 0) expect(laid.boost.clearFrom).toBe('brand')
+    expect(lowest(message)).toBeGreaterThanOrEqual(4.6)
   })
 
   it('paints no scrims and no boost without a photo', () => {
     const laid = layoutPrintFinalImmersiveFace(
       inputFor(immersive('tent', 'wide'), { photo: null, fieldColour: '#232323' }),
     )
-    expect(laid.boost).toBe(0)
+    expect(laid.boost).toEqual({ top: 0, clear: 0, clearFrom: 'message' })
     expect(laid.art.scrims).toEqual([])
     expect(laid.palette.ground).toBe('#232323')
     expect(lowest(laid.contrasts)).toBeGreaterThan(4.5)

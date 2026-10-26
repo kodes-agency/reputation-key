@@ -5,7 +5,7 @@ import { printFinalFraming } from '#/shared/domain/portal-print-final-framing'
 import { newDocument } from './__fixtures__/print-kit-face-fixtures'
 import { grainTile } from './print-kit-final-art'
 import { finalLogoTone, finalPhotoImage, finalScenePhoto } from './print-kit-final-photo'
-import { drawRaster, maskedColour, rampMask } from './print-kit-final-raster'
+import { drawRaster, rampMask } from './print-kit-final-raster'
 
 // The pictures an Immersive final face is made of, alone: the grain, the soft
 // masks, the photo read and cropped, the logo's ink read.
@@ -98,11 +98,10 @@ describe('rampMask', () => {
 
   it('is one pixel thick along an axis no ramp changes along', async () => {
     const pdf = await pdfOf((doc) => {
-      drawRaster(doc, maskedColour(doc, [0, 0, 0], rampMask(doc, [FADE], BOX)), BOX)
+      rampMask(doc, [FADE], BOX)
     })
-    // The mask: a column 50 pt tall sampled every half point; the ink: one pixel.
+    // A column 50 pt tall sampled every half point.
     expect(widths(pdf)).toContainEqual([1, 100])
-    expect(widths(pdf)).toContainEqual([1, 1])
   })
 })
 
@@ -138,12 +137,23 @@ describe('finalScenePhoto', () => {
 })
 
 describe('finalPhotoImage', () => {
-  const art: NonNullable<PrintFinalArt['photo']> = {
+  const shown: NonNullable<PrintFinalArt['photo']> = {
     box: BOX,
     cover: BOX,
     fade: FADE,
+    clear: null,
     measure: { box: BOX, coverWidthPt: 100, coverHeightPt: 50 },
   }
+  const artWith = (photo: NonNullable<PrintFinalArt['photo']>): PrintFinalArt => ({
+    ground: '#202020',
+    groundBox: BOX,
+    washes: [],
+    photo,
+    scrims: [{ box: BOX, ramps: [FADE] }],
+    arch: null,
+    grainOpacity: 0,
+    foldStrip: null,
+  })
 
   it('crops to the cover box at 300 dpi at most', async () => {
     const bytes = await photo()
@@ -152,10 +162,10 @@ describe('finalPhotoImage', () => {
       printFinalFraming(),
     )
     const { doc } = newDocument()
-    const image = await finalPhotoImage(doc, bytes, scene, art)
+    const image = await finalPhotoImage(doc, bytes, scene, artWith(shown))
     // 100 pt is 1.39 in: 417 px at 300 dpi, and as tall as the box's shape asks.
-    expect(image.width).toBe(417)
-    expect(image.height).toBe(209)
+    expect(image?.width).toBe(417)
+    expect(image?.height).toBe(209)
   })
 
   it('never has more pixels than the photo has to give', async () => {
@@ -165,12 +175,29 @@ describe('finalPhotoImage', () => {
       printFinalFraming(),
     )
     const { doc } = newDocument()
-    const wide = { ...art, cover: { ...BOX, rightPt: 1000, bottomPt: 500 } }
-    const image = await finalPhotoImage(doc, bytes, scene, {
-      ...wide,
-      measure: { ...art.measure, coverWidthPt: 1000, coverHeightPt: 500 },
-    })
-    expect(image.width).toBeLessThanOrEqual(PHOTO_WIDTH)
+    const wide = { ...shown, cover: { ...BOX, rightPt: 1000, bottomPt: 500 } }
+    const image = await finalPhotoImage(
+      doc,
+      bytes,
+      scene,
+      artWith({
+        ...wide,
+        measure: { ...shown.measure, coverWidthPt: 1000, coverHeightPt: 500 },
+      }),
+    )
+    expect(image?.width).toBeLessThanOrEqual(PHOTO_WIDTH)
+  })
+
+  it('is nothing for art with no photo', async () => {
+    const bytes = await photo()
+    const scene = await finalScenePhoto(
+      { bytes, focalX: 0.5, focalY: 0.5 },
+      printFinalFraming(),
+    )
+    const { doc } = newDocument()
+    expect(
+      await finalPhotoImage(doc, bytes, scene, { ...artWith(shown), photo: null }),
+    ).toBeNull()
   })
 })
 

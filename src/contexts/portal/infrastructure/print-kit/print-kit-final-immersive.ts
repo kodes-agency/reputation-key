@@ -19,7 +19,7 @@ import {
   type PrintFinalImmersiveBrand,
   type PrintFinalImmersiveFace,
 } from '#/shared/domain/portal-print-final-immersive-face'
-import { drawFinalArt, grainTile, scrimImages } from './print-kit-final-art'
+import { drawFinalArt, grainTile } from './print-kit-final-art'
 import {
   drawFinalFace,
   finalLogoInkSize,
@@ -91,11 +91,11 @@ export async function prepareFinalImmersiveFace(
   })
   const { art } = immersive
   const photo =
-    scene === null || art.photo === null || input.photo === null
+    scene === null || input.photo === null
       ? null
-      : await finalPhotoImage(doc, input.photo.bytes, scene, art.photo)
+      : await finalPhotoImage(doc, input.photo.bytes, scene, art)
   // A sheet draws one face many times: its images are made once.
-  const images = { photo, grain: grainTile(doc), scrims: scrimImages(doc, art) }
+  const images = { photo, grain: grainTile(doc) }
   return {
     layout: immersive.layout,
     look: {

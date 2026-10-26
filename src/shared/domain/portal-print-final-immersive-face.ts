@@ -5,15 +5,24 @@
 //   - The plate (§4): the logo sits on the cream plate unless it is light (its
 //     median ink luminance 0.4 or more) and reaches 4.5:1 against a 1.5 mm ring
 //     round it where the face puts it, read with the logo straight on the photo.
-//   - The scrims (§6.3): deepened 0.06 at a time, up to 0.30, until every word
-//     reaches 4.6:1 against the 95th-percentile brightness under it (the
-//     generator's threshold: 4.5:1 with a tenth to spare for rounding).
+//   - The contrast loop (§6.3): until every word reaches 4.6:1 against the
+//     95th-percentile brightness under it (the generator's threshold: 4.5:1
+//     with a tenth to spare for rounding), 0.06 at a time, the top scrim
+//     deepens while the brand misses (up to 0.30) and the photo melts further
+//     into the ground behind the message while one of its words misses (up to
+//     0.60), from above the brand when the top scrim is at its most and the
+//     brand still misses. Each deepens only for its own words: one shared
+//     boost blackened the message band for a pale sky behind the brand.
 //
 // Pure and shared: the PDF and the Share tab's preview call this with their own
 // measures and their own decode of the same photo.
 
 import type { PrintFinalFace } from './portal-print-final'
 import { printFinalArt, type PrintFinalArt } from './portal-print-final-art'
+import {
+  PRINT_FINAL_NO_BOOST,
+  type PrintFinalBoost,
+} from './portal-print-final-photo-clear'
 import { printFinalLogoOnPlate } from './portal-print-final-brand'
 import type { PrintFinalTile } from './portal-print-final-code'
 import {
@@ -73,15 +82,15 @@ export type PrintFinalImmersiveFace = Readonly<{
   palette: PrintFinalImmersivePalette
   colours: PrintFinalColours
   art: PrintFinalArt
-  /** How much the scrims were deepened: 0 to 0.30. */
-  boost: number
+  /** How much the art was deepened for contrast. */
+  boost: PrintFinalBoost
   /** Each word's contrast against the face under it, at that boost. */
   contrasts: readonly PrintFinalWordContrast[]
   logoOnPlate: boolean
 }>
 
-/** The scrims deepen this much at a time, up to the most (§6.3). */
-const PRINT_FINAL_SCRIM_BOOST = Object.freeze({ step: 0.06, max: 0.3 })
+/** The art deepens this much at a time, up to the most for each (§6.3). */
+const PRINT_FINAL_BOOST = Object.freeze({ step: 0.06, top: 0.3, clear: 0.6 })
 /** Every word reaches this before the scrims stop deepening. */
 const WORD_CONTRAST_TARGET = 4.6
 
@@ -106,7 +115,7 @@ function artAt(
   input: PrintFinalImmersiveFaceInput,
   layout: PrintFinalFaceLayout,
   palette: PrintFinalImmersivePalette,
-  boost: number,
+  boost: PrintFinalBoost,
 ): PrintFinalArt {
   return printFinalArt({
     plan: layout.plan,
@@ -131,7 +140,10 @@ function decidePlate(
   const bare = layoutWith(input, false)
   const part = bare.plan.parts.find((p) => p.key === 'brand')
   if (part === undefined) return true
-  const scene = printFinalScene(artAt(input, bare, palette, 0), input.photo)
+  const scene = printFinalScene(
+    artAt(input, bare, palette, PRINT_FINAL_NO_BOOST),
+    input.photo,
+  )
   const ring = printFinalRingContrast(
     scene,
     {
@@ -169,6 +181,33 @@ function contrastsOf(
   })
 }
 
+const stepUp = (value: number, most: number) =>
+  Math.min(most, Math.round((value + PRINT_FINAL_BOOST.step) * 100) / 100)
+
+/**
+ * The next deepening: the top scrim for a brand that misses, then the clearing
+ * from above the brand once the top is at its most; the clearing for a message
+ * word that misses. Null when nothing more helps.
+ */
+function nextBoost(
+  boost: PrintFinalBoost,
+  contrasts: readonly PrintFinalWordContrast[],
+): PrintFinalBoost | null {
+  const misses = (brand: boolean) =>
+    contrasts.some((c) => (c.key === 'brand') === brand && c.ratio < WORD_CONTRAST_TARGET)
+  const brandMisses = misses(true)
+  const top = brandMisses ? stepUp(boost.top, PRINT_FINAL_BOOST.top) : boost.top
+  const brandClears = brandMisses && top === boost.top
+  const clearFrom = brandClears ? 'brand' : boost.clearFrom
+  const clear =
+    brandClears || misses(false)
+      ? stepUp(boost.clear, PRINT_FINAL_BOOST.clear)
+      : boost.clear
+  return top === boost.top && clear === boost.clear && clearFrom === boost.clearFrom
+    ? null
+    : { top, clear, clearFrom }
+}
+
 /** Lays out and paints one Immersive face. */
 export function layoutPrintFinalImmersiveFace(
   input: PrintFinalImmersiveFaceInput,
@@ -183,19 +222,15 @@ export function layoutPrintFinalImmersiveFace(
   const colours = printFinalImmersiveColours(palette)
   const logoOnPlate = decidePlate(input, palette)
   const layout = layoutWith(input, logoOnPlate)
-  const steps =
-    input.photo === null
-      ? 0
-      : Math.round(PRINT_FINAL_SCRIM_BOOST.max / PRINT_FINAL_SCRIM_BOOST.step)
-  let boost = 0
+  let boost = PRINT_FINAL_NO_BOOST
   let art = artAt(input, layout, palette, boost)
   let contrasts = contrastsOf(layout, colours, art, input.photo)
   for (
-    let step = 1;
-    step <= steps && contrasts.some((c) => c.ratio < WORD_CONTRAST_TARGET);
-    step++
+    let next = input.photo === null ? null : nextBoost(boost, contrasts);
+    next !== null;
+    next = nextBoost(boost, contrasts)
   ) {
-    boost = Math.round(step * PRINT_FINAL_SCRIM_BOOST.step * 100) / 100
+    boost = next
     art = artAt(input, layout, palette, boost)
     contrasts = contrastsOf(layout, colours, art, input.photo)
   }

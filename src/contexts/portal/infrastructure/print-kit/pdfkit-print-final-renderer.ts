@@ -4,8 +4,8 @@
 // marks), drawn with PDFKit; a card's optional back page follows its front, and a
 // sheet's reverse follows the sheet. Paper is vectors (the code is rectangles, the type
 // is the guest fonts embedded as subsets; only a logo is raster). Immersive adds
-// its art under them: the ground and washes as vectors, the photo with its fade
-// as a soft mask, the scrims, the grain (`print-kit-final-immersive.ts`); on an
+// its art under them: the ground and washes as vectors, the photo with its scrims
+// baked in and its fade as a soft mask, the grain (`print-kit-final-immersive.ts`); on an
 // office sheet or a print shop's page each piece's art runs into its bleed.
 //
 // The tile follows the symbol the address makes (`choosePrintFinalTile`): a
