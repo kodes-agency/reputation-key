@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { deriveFieldColour } from '#/shared/domain/portal-field-colour'
 import {
   DEFAULT_PORTAL_ACCENT,
+  DEFAULT_PORTAL_FIELD,
+  brandProfileOf,
+  fieldColourOf,
   resolvePortalPublication,
   type PortalPublicationSource,
 } from './portal-publication-source'
@@ -298,6 +302,16 @@ describe('resolvePortalPublication', () => {
       expect(manual).toBe('#202A30')
     })
 
+    it('keeps a hand-chosen field exactly as stored, lowercase included', () => {
+      const look = {
+        ...publicationSource().look!,
+        backgroundMode: 'manual' as const,
+        backgroundColour: '#20a0b0',
+      }
+
+      expect(resolve({ look }).content.brandProfile.fieldColour).toBe('#20a0b0')
+    })
+
     it('names the hero and logo by asset, with the focal point', () => {
       const { brandProfile } = resolve().content
 
@@ -361,5 +375,35 @@ describe('resolvePortalPublication', () => {
         aiDraftTextKeys: ['link:30000000-0000-4000-8000-000000000001:text:bg'],
       })
     })
+  })
+})
+
+describe('fieldColourOf', () => {
+  it('is the stored background, unchanged, when the field was chosen by hand', () => {
+    expect(fieldColourOf('manual', '#20a0b0', '#B8860B')).toBe('#20a0b0')
+    expect(fieldColourOf('manual', '#202A30', 'not a colour')).toBe('#202A30')
+  })
+
+  it('derives the field from the accent otherwise, whatever background is kept', () => {
+    expect(fieldColourOf('auto', '#20a0b0', '#B8860B')).toBe(deriveFieldColour('#B8860B'))
+    expect(fieldColourOf('anything', '#20a0b0', '#b8860b')).toBe(
+      deriveFieldColour('#b8860b'),
+    )
+  })
+
+  it('falls back to the default field for an accent that is not a colour', () => {
+    expect(fieldColourOf('auto', '#20a0b0', 'gold')).toBe(DEFAULT_PORTAL_FIELD)
+  })
+
+  it('is the field publish writes', () => {
+    for (const look of [
+      publicationSource().look!,
+      { ...publicationSource().look!, backgroundMode: 'manual' as const },
+      { ...publicationSource().look!, accentColour: '#2f855a' },
+    ]) {
+      expect(brandProfileOf(publicationSource({ look })).fieldColour).toBe(
+        fieldColourOf(look.backgroundMode, look.backgroundColour, look.accentColour),
+      )
+    }
   })
 })

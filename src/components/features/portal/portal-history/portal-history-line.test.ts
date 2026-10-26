@@ -198,6 +198,32 @@ describe('describeHistoryEntry: page edits', () => {
     })
   })
 
+  it('names the photo and the logo apart, and still reads the older images facet', () => {
+    expect(line(edited({ area: 'look', facet: 'photo' }))).toMatchObject({
+      action: 'changed the photo',
+    })
+    expect(line(edited({ area: 'look', facet: 'logo' }))).toMatchObject({
+      action: 'changed the logo',
+    })
+    expect(line(edited({ area: 'look', facet: 'images' }))).toMatchObject({
+      action: 'changed the logo or photo',
+    })
+  })
+
+  it('says a portal’s own look edit was made to this portal, with no wording', () => {
+    expect(
+      line(
+        edited(
+          { area: 'portal_look', facet: 'accent' },
+          { previousText: 'ignored', newText: 'ignored' },
+        ),
+      ),
+    ).toMatchObject({ action: 'changed this portal’s accent colour', detail: null })
+    expect(line(edited({ area: 'portal_look', facet: null }))).toMatchObject({
+      action: 'changed this portal’s look',
+    })
+  })
+
   it('counts saves that were folded into one entry', () => {
     expect(
       line(

@@ -10,7 +10,8 @@
 // (kind, key) pair back into the part of the page it names.
 
 import { isGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
-import type { LookFacet } from './property-look'
+import { PORTAL_LOOK_FACETS, type PortalLookFacet } from './portal-look'
+import { lookPendingKey, type LookFacet } from './property-look'
 
 export const PORTAL_PAGE_EDIT_KINDS = [
   'portal_configuration',
@@ -83,7 +84,19 @@ export const portalPageEditKey = {
   linktreeTitle: (locale: string) => `linktree:title:${locale}`,
   linktreeEnabled: () => 'linktree:enabled',
   setting: (field: PortalSettingField) => `settings:${field}`,
+  /** A Portal's own look (ADR 0070): the same key names the ledger row and the fence. */
+  portalLook: (facet: PortalLookFacet) => lookPendingKey(facet),
 } as const
+
+const PHOTO_ALT_KEY_PREFIX = 'photo_alt:'
+
+/**
+ * The ledger key of a Property photo's description in one language (kind
+ * `property_brand_content`). Its fence key stays the bare locale, which welcome
+ * text saves share; a ledger row keyed by the bare locale reads as welcome text.
+ */
+export const photoAltPageEditKey = (locale: GuestLocale): string =>
+  `${PHOTO_ALT_KEY_PREFIX}${locale}`
 
 /** The most wording the ledger keeps for one side of a change. */
 export const PORTAL_PAGE_EDIT_TEXT_MAX = 200
@@ -148,6 +161,8 @@ export type PortalPageEditSubject =
   | Readonly<{ area: 'link_section_title'; locale: GuestLocale }>
   | Readonly<{ area: 'display_name' }>
   | Readonly<{ area: 'look'; facet: LookFacet | null }>
+  /** One Portal's own look, recorded under `portal_configuration` as `look:<facet>`. */
+  | Readonly<{ area: 'portal_look'; facet: PortalLookFacet | null }>
   | Readonly<{ area: 'profile' }>
   | Readonly<{ area: 'welcome_text'; locale: GuestLocale | null }>
   | Readonly<{ area: 'portal_text'; locale: GuestLocale | null }>
@@ -158,6 +173,8 @@ const LOOK_FACETS: readonly LookFacet[] = [
   'field',
   'text',
   'wordmark',
+  'logo',
+  'photo',
   'images',
 ]
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
@@ -205,10 +222,22 @@ function describeLinksEdit(key: string): PortalPageEditSubject {
 }
 
 function describeSettingsEdit(key: string): PortalPageEditSubject {
+  if (key.startsWith('look:')) {
+    const facet = PORTAL_LOOK_FACETS.find(
+      (candidate) => key === portalPageEditKey.portalLook(candidate),
+    )
+    return { area: 'portal_look', facet: facet ?? null }
+  }
   const field = PORTAL_SETTING_FIELDS.find(
     (candidate) => key === portalPageEditKey.setting(candidate),
   )
   return { area: 'page_settings', field: field ?? null }
+}
+
+/** A Property photo's description is part of the look; any other key is welcome text. */
+function describeContentEdit(key: string): PortalPageEditSubject {
+  if (key.startsWith(PHOTO_ALT_KEY_PREFIX)) return { area: 'look', facet: 'photo' }
+  return { area: 'welcome_text', locale: localeOrNull(key) }
 }
 
 function describeProfileEdit(key: string): PortalPageEditSubject {
@@ -235,7 +264,7 @@ export function describePageEdit(
     case 'property_brand_profile':
       return describeProfileEdit(key)
     case 'property_brand_content':
-      return { area: 'welcome_text', locale: localeOrNull(key) }
+      return describeContentEdit(key)
     case 'portal_localized_override':
       return { area: 'portal_text', locale: localeOrNull(key) }
     case 'approved_destination':

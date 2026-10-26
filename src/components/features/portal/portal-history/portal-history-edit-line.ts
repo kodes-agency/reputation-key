@@ -51,7 +51,18 @@ const LOOK_ACTION: Readonly<Record<string, string>> = {
   field: 'changed the background colour',
   text: 'changed the text colour',
   wordmark: 'changed the wordmark',
+  logo: 'changed the logo',
+  photo: 'changed the photo',
   images: 'changed the logo or photo',
+}
+
+/** One Portal's own look (`portal_look`), as opposed to the look every portal starts with. */
+const PORTAL_LOOK_ACTION: Readonly<Record<string, string>> = {
+  accent: 'changed this portal’s accent colour',
+  field: 'changed this portal’s background colour',
+  wordmark: 'changed this portal’s wordmark',
+  logo: 'changed this portal’s logo',
+  photo: 'changed this portal’s photo',
 }
 
 type EditSentence = Readonly<{
@@ -177,6 +188,18 @@ function describeEditSubject(
             subject.facet === null
               ? 'changed the look'
               : (LOOK_ACTION[subject.facet] ?? 'changed the look'),
+          ),
+        ],
+        null,
+        false,
+      )
+    case 'portal_look':
+      return out(
+        [
+          plain(
+            subject.facet === null
+              ? 'changed this portal’s look'
+              : (PORTAL_LOOK_ACTION[subject.facet] ?? 'changed this portal’s look'),
           ),
         ],
         null,

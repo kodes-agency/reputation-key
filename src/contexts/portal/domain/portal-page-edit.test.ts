@@ -7,6 +7,7 @@ import {
   PORTAL_PAGE_EDIT_FOLD_WINDOW_MS,
   isPropertyWideEditKind,
   pageEditCarriesWording,
+  photoAltPageEditKey,
   portalPageEditKey,
   portalSettingField,
 } from './portal-page-edit'
@@ -175,7 +176,15 @@ describe('describePageEdit', () => {
     ['property_brand_profile', 'all', { area: 'display_name' }],
     ['property_brand_profile', 'look:accent', { area: 'look', facet: 'accent' }],
     ['property_brand_profile', 'look:images', { area: 'look', facet: 'images' }],
+    ['property_brand_profile', 'look:photo', { area: 'look', facet: 'photo' }],
+    ['property_brand_profile', 'look:logo', { area: 'look', facet: 'logo' }],
     ['property_brand_content', 'de', { area: 'welcome_text', locale: 'de' }],
+    ['property_brand_content', 'photo_alt:de', { area: 'look', facet: 'photo' }],
+    ['portal_configuration', 'look:accent', { area: 'portal_look', facet: 'accent' }],
+    ['portal_configuration', 'look:field', { area: 'portal_look', facet: 'field' }],
+    ['portal_configuration', 'look:wordmark', { area: 'portal_look', facet: 'wordmark' }],
+    ['portal_configuration', 'look:logo', { area: 'portal_look', facet: 'logo' }],
+    ['portal_configuration', 'look:photo', { area: 'portal_look', facet: 'photo' }],
     ['portal_localized_override', 'fr', { area: 'portal_text', locale: 'fr' }],
     ['approved_destination', ID, { area: 'destination', destinationId: ID }],
   ] as const)('reads %s / %s', (kind, key, expected) => {
@@ -193,10 +202,45 @@ describe('describePageEdit', () => {
     ['approved_destination', 'all', { area: 'destination', destinationId: null }],
     ['portal_configuration', 'anything', { area: 'page_settings', field: null }],
     ['portal_configuration', 'settings:sparkle', { area: 'page_settings', field: null }],
+    ['portal_configuration', 'look:text', { area: 'portal_look', facet: null }],
+    ['portal_configuration', 'look:images', { area: 'portal_look', facet: null }],
   ] as const)(
     'falls back to the kind itself for a key it does not know, never to a wrong claim: %s / %s',
     (kind, key, expected) => {
       expect(describePageEdit(kind, key)).toEqual(expected)
     },
   )
+})
+
+describe('a Portal’s own look in the ledger', () => {
+  it('keys each facet under look: for both the ledger and the fence', () => {
+    expect(portalPageEditKey.portalLook('accent')).toBe('look:accent')
+    expect(portalPageEditKey.portalLook('photo')).toBe('look:photo')
+  })
+
+  it('never keeps wording for a look edit of a Portal', () => {
+    for (const facet of ['accent', 'field', 'wordmark', 'logo', 'photo'] as const) {
+      expect(
+        pageEditCarriesWording(
+          'portal_configuration',
+          portalPageEditKey.portalLook(facet),
+        ),
+      ).toBe(false)
+    }
+  })
+
+  it('keys a Property photo description by its language, apart from welcome text', () => {
+    expect(photoAltPageEditKey('bg')).toBe('photo_alt:bg')
+    expect(describePageEdit('property_brand_content', photoAltPageEditKey('bg'))).toEqual(
+      {
+        area: 'look',
+        facet: 'photo',
+      },
+    )
+    // Rows written before the key moved still read as the welcome line they were.
+    expect(describePageEdit('property_brand_content', 'bg')).toEqual({
+      area: 'welcome_text',
+      locale: 'bg',
+    })
+  })
 })

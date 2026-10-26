@@ -39,6 +39,20 @@ export const DEFAULT_PORTAL_ACCENT = '#EAD6A8'
 /** Used only if the derived field cannot be computed, which a valid accent never causes. */
 export const DEFAULT_PORTAL_FIELD = '#15110D'
 
+/**
+ * The page's dark field: the background colour as stored when the look chose
+ * it by hand, otherwise derived from the accent. Publish (`brandProfileOf`) and
+ * the draft preview both draw the field through this one rule.
+ */
+export const fieldColourOf = (
+  backgroundMode: string,
+  backgroundColour: string,
+  accentColour: string,
+): string =>
+  backgroundMode === 'manual'
+    ? backgroundColour
+    : (deriveFieldColour(accentColour) ?? DEFAULT_PORTAL_FIELD)
+
 /** A stored image the page may use: its asset and its stored size. */
 export type PublicationMedia = Readonly<{
   assetId: string
@@ -293,10 +307,11 @@ export function brandProfileOf(source: PortalPublicationSource): ImmersiveBrandP
     logo: look.logo,
     hero: look.hero,
     accentColour: look.accentColour,
-    fieldColour:
-      look.backgroundMode === 'manual'
-        ? look.backgroundColour
-        : (deriveFieldColour(look.accentColour) ?? DEFAULT_PORTAL_FIELD),
+    fieldColour: fieldColourOf(
+      look.backgroundMode,
+      look.backgroundColour,
+      look.accentColour,
+    ),
     lookVersion: look.lookVersion,
   }
 }

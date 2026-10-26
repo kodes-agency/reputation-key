@@ -129,30 +129,45 @@ describe('changedLookFacets', () => {
     ).toEqual(['field'])
   })
 
-  it('names text, wordmark and images separately', () => {
+  it('names text, wordmark, logo and photo separately', () => {
     expect(changedLookFacets(look(), look({ textColor: '#000000' }))).toEqual(['text'])
     expect(changedLookFacets(look(), look({ wordmark: 'KODES' }))).toEqual(['wordmark'])
     expect(changedLookFacets(look(), look({ logoUrl: 'https://x.test/l.png' }))).toEqual([
-      'images',
+      'logo',
     ])
     expect(
       changedLookFacets(look(), look({ defaultHeroImageUrl: 'https://x.test/h.png' })),
-    ).toEqual(['images'])
+    ).toEqual(['photo'])
   })
 
-  it('names images when the logo, the hero or where it is anchored changes', () => {
-    expect(changedLookFacets(look(), look({ logoAssetId: 'asset-1' }))).toEqual([
-      'images',
-    ])
+  it('names the logo when the logo changes', () => {
+    expect(changedLookFacets(look(), look({ logoAssetId: 'asset-1' }))).toEqual(['logo'])
     expect(
       changedLookFacets(look({ logoAssetId: 'asset-1' }), look({ logoAssetId: null })),
-    ).toEqual(['images'])
+    ).toEqual(['logo'])
+  })
+
+  it('names the photo when the hero or where it is anchored changes', () => {
     const hero = { heroAssetId: 'asset-2', heroFocalX: 0.5, heroFocalY: 0.4 }
-    expect(changedLookFacets(look(), look(hero))).toEqual(['images'])
+    expect(changedLookFacets(look(), look(hero))).toEqual(['photo'])
     expect(changedLookFacets(look(hero), look({ ...hero, heroFocalY: 0.6 }))).toEqual([
-      'images',
+      'photo',
     ])
     expect(changedLookFacets(look(hero), look(hero))).toEqual([])
+  })
+
+  it('never writes the older images facet: a logo and a photo change name both', () => {
+    const facets = changedLookFacets(
+      look(),
+      look({
+        logoAssetId: 'asset-1',
+        heroAssetId: 'asset-2',
+        heroFocalX: 0.5,
+        heroFocalY: 0.5,
+      }),
+    )
+    expect(facets).toEqual(['logo', 'photo'])
+    expect(facets).not.toContain('images')
   })
 
   it('treats a profile that does not state its media as one with none', () => {

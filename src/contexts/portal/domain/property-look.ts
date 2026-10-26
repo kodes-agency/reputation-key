@@ -37,8 +37,13 @@ export type PropertyLook = Readonly<{
   heroFocalY?: number | null
 }>
 
-/** The parts of the look a pending change can name, in the order they are listed. */
-export type LookFacet = 'accent' | 'field' | 'text' | 'wordmark' | 'images'
+/**
+ * The parts of the look a pending change can name, in the order they are listed.
+ * `images` is how rows written before a Portal could own its photo or logo name
+ * either of them; new writes say `logo` or `photo`, and `images` stays readable.
+ */
+export type LookFacet =
+  'accent' | 'field' | 'text' | 'wordmark' | 'logo' | 'photo' | 'images'
 
 function boundedOrNull(value: string | null, field: string, max: number): string | null {
   if (value === null) return null
@@ -100,7 +105,11 @@ export function lookPendingKey(facet: LookFacet): string {
   return `look:${facet}`
 }
 
-/** Which facets of the look differ between two profiles, in a fixed order. */
+/**
+ * Which facets of the look differ between two profiles, in a fixed order. The
+ * logo and the photo are named apart, so a Portal that owns one of them is not
+ * told about a change of the other.
+ */
 export function changedLookFacets(
   before: PropertyLook,
   after: PropertyLook,
@@ -115,10 +124,13 @@ export function changedLookFacets(
     ['text', before.textColor !== after.textColor],
     ['wordmark', before.wordmark !== after.wordmark],
     [
-      'images',
+      'logo',
       before.logoUrl !== after.logoUrl ||
-        before.defaultHeroImageUrl !== after.defaultHeroImageUrl ||
-        (before.logoAssetId ?? null) !== (after.logoAssetId ?? null) ||
+        (before.logoAssetId ?? null) !== (after.logoAssetId ?? null),
+    ],
+    [
+      'photo',
+      before.defaultHeroImageUrl !== after.defaultHeroImageUrl ||
         (before.heroAssetId ?? null) !== (after.heroAssetId ?? null) ||
         (before.heroFocalX ?? null) !== (after.heroFocalX ?? null) ||
         (before.heroFocalY ?? null) !== (after.heroFocalY ?? null),

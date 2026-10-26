@@ -82,6 +82,36 @@ describe('describeReviewChange: edits', () => {
     expect(line).toMatchObject({ glyph: 'look', part: 'top' })
   })
 
+  it('puts a portal’s own look edit under Look, for this portal only', () => {
+    const line = describeReviewChange(
+      edit({
+        kind: 'portal_configuration',
+        subject: { area: 'portal_look', facet: 'photo' },
+      }),
+      3,
+    )
+
+    expect(text(line)).toEqual({
+      headline: 'Look · changed this portal’s photo',
+      detail: null,
+    })
+    expect(line).toMatchObject({ glyph: 'look', part: 'top', locale: null })
+  })
+
+  it('says a property photo description is part of the look', () => {
+    const line = describeReviewChange(
+      edit({
+        kind: 'property_brand_content',
+        propertyWide: true,
+        subject: { area: 'look', facet: 'photo' },
+      }),
+      4,
+    )
+
+    expect(text(line).headline).toBe('Look · changed the photo')
+    expect(line).toMatchObject({ glyph: 'look', part: 'top' })
+  })
+
   it('names nobody when the system made the change, and "Someone" for a person the directory cannot name', () => {
     const subject = { area: 'link_section_switch' } as const
     expect(describeReviewChange(edit({ subject, actor: null }), 0).actor).toBeNull()
