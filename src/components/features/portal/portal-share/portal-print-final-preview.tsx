@@ -71,8 +71,9 @@ type Props = Readonly<{
   final: PrintFinalState
   view: PortalPrintKitView | null
   placement: 'column' | 'sheet'
-  /** The property whose Photo and colours page changes the photo. */
+  /** The portal whose Look section changes the photo, with its property; absent: no link. */
   propertyId?: string
+  portalId?: string
   /** Under the face in the phone's sheet: the orientation control. */
   controls?: ReactNode
 }>
@@ -167,7 +168,15 @@ function SheetPreview({
   )
 }
 
-function Ready({ final, view, placement, propertyId, controls, tile }: ReadyProps) {
+function Ready({
+  final,
+  view,
+  placement,
+  propertyId,
+  portalId,
+  controls,
+  tile,
+}: ReadyProps) {
   const { print } = final
   const [chosenSide, setSide] = useState<PrintFinalSide>('front')
   const faceInput = { face: final.face, blocks: final.blocks, look: view.look, tile }
@@ -208,6 +217,7 @@ function Ready({ final, view, placement, propertyId, controls, tile }: ReadyProp
         <PrintFinalPhotoNotice
           notice={photo === null ? null : printFinalPhotoNotice(photo.dpi, photo.sharp)}
           propertyId={propertyId}
+          portalId={portalId}
         />
       )}
       {controls}

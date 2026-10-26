@@ -3,6 +3,7 @@
 // board prints, which portals the look reaches, and what the status line says.
 // Pure, so the wording and the rules are pinned by tests.
 
+import type { PortalLookSources } from '#/contexts/portal/application/public-api'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { isFieldForLightText } from '#/shared/domain/portal-field-colour'
 import {
@@ -14,6 +15,7 @@ import {
 } from '#/shared/domain/portal-look-readout'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLanguageSet } from '../portal-languages/portal-languages-rules'
+import { describeOwnLooks, followsAnyPart, sourcesOf } from './property-look-reach'
 
 export const WORDMARK_MAX = 24
 
@@ -174,6 +176,19 @@ export type AffectedPortalRow = Readonly<{
    * status line then says only how many portals use the look.
    */
   pendingChangeCount?: number
+  /**
+   * Where the portal's photo, colours, and name and logo come from (ADR 0070).
+   * Left out where the page was not given it: the portal follows the whole look.
+   */
+  lookSources?: PortalLookSources
+}>
+
+/** The portals the look still reaches: each follows at least one of its parts. */
+type FollowingPortals = Readonly<{
+  live: readonly AffectedPortalRow[]
+  drafts: readonly AffectedPortalRow[]
+  /** As `AffectedPortals.waiting`, over these live portals only. */
+  waiting: number | null
 }>
 
 export type AffectedPortals = Readonly<{
@@ -188,25 +203,57 @@ export type AffectedPortals = Readonly<{
    * any other); null when the rows do not say.
    */
   waiting: number | null
+  /** The listed portals an edit of the look can still reach; the line under the title counts only these. */
+  following: FollowingPortals
+  /** The listed portals with their own photo, colours, and name and logo: nothing here reaches them. */
+  independent: readonly AffectedPortalRow[]
 }>
+
+const waitingAmong = (live: readonly AffectedPortalRow[]): number | null =>
+  live.every((row) => row.pendingChangeCount !== undefined)
+    ? live.filter((row) => (row.pendingChangeCount ?? 0) > 0).length
+    : null
 
 /** Archived and switched-off portals show no guest page, so the look does not reach them. */
 export function affectedPortals(rows: readonly AffectedPortalRow[]): AffectedPortals {
   const live = rows.filter((row) => row.publicationState === 'published')
   const drafts = rows.filter((row) => row.publicationState === 'draft')
-  const isKnown = live.every((row) => row.pendingChangeCount !== undefined)
-  const waiting = isKnown
-    ? live.filter((row) => (row.pendingChangeCount ?? 0) > 0).length
-    : null
-  return { live, drafts, listed: [...live, ...drafts], waiting }
+  const follows = (row: AffectedPortalRow) => followsAnyPart(sourcesOf(row))
+  const followingLive = live.filter(follows)
+  return {
+    live,
+    drafts,
+    listed: [...live, ...drafts],
+    waiting: waitingAmong(live),
+    following: {
+      live: followingLive,
+      drafts: drafts.filter(follows),
+      waiting: waitingAmong(followingLive),
+    },
+    independent: [...live, ...drafts].filter((row) => !follows(row)),
+  }
+}
+
+/** The portal the preview draws until one is chosen: the first the look still reaches. */
+export function defaultPreviewPortal(
+  affected: AffectedPortals,
+): AffectedPortalRow | null {
+  return (
+    affected.following.live[0] ??
+    affected.following.drafts[0] ??
+    affected.listed[0] ??
+    null
+  )
 }
 
 export function describeAffected(affected: AffectedPortals): string {
+  const { live, drafts } = affected.following
   const parts = [
-    affected.live.length > 0 ? `${affected.live.length} live` : null,
-    affected.drafts.length > 0 ? `${affected.drafts.length} draft` : null,
+    live.length > 0 ? `${live.length} live` : null,
+    drafts.length > 0 ? `${drafts.length} draft` : null,
   ].filter((part): part is string => part !== null)
-  return parts.length === 0 ? 'No portals yet' : parts.join(' · ')
+  if (parts.length > 0) return parts.join(' · ')
+  return affected.listed.length === 0 ? 'No portals yet' : 'Every portal has its own look'
 }
 
 // ── The status line ──────────────────────────────────────────────────────────
@@ -229,9 +276,13 @@ export type LookStatus = Readonly<{
  * line says that instead. The count is of portals with any change waiting.
  */
 function reachOf(affected: AffectedPortals): string {
-  const live = affected.live.length
-  if (live === 0) return 'no live portal uses this look yet'
-  const { waiting } = affected
+  const live = affected.following.live.length
+  if (live === 0) {
+    return affected.live.length > 0
+      ? 'every live portal has its own look'
+      : 'no live portal uses this look yet'
+  }
+  const { waiting } = affected.following
   if (waiting === null) {
     return live === 1
       ? '1 live portal uses this look'
@@ -248,11 +299,20 @@ function reachOf(affected: AffectedPortals): string {
     : `changes are waiting to go live on ${waiting} of ${live} portals`
 }
 
+/** How far the look reaches, then the portals that differ from it ("Spa has its own photo and colours"). */
+function usersOf(affected: AffectedPortals): string {
+  const reach = reachOf(affected)
+  // "Every live portal has its own look" already says it.
+  const everyLiveIsOwn = affected.live.length > 0 && affected.following.live.length === 0
+  const own = everyLiveIsOwn ? null : describeOwnLooks(affected.listed)
+  return own === null ? reach : `${reach} · ${own}`
+}
+
 export function describeLookStatus(
   state: LookSaveState,
   affected: AffectedPortals,
 ): LookStatus {
-  const users = reachOf(affected)
+  const users = usersOf(affected)
   switch (state.status) {
     case 'pending':
     case 'saving':

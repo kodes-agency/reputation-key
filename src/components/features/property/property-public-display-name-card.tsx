@@ -65,7 +65,7 @@ export function PropertyPublicDisplayNameCard({
             {showLookLink ? (
               <>
                 {' '}
-                Colours, photo and logo are in{' '}
+                The colours, photo and logo every portal starts with are in{' '}
                 <InlineLink
                   to="/properties/$propertyId/portals/look"
                   params={{ propertyId }}

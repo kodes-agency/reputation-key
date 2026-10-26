@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { copiedLanguagesNote, languagesAfterChange } from './portal-new-follow-source'
+import {
+  copiedLanguagesNote,
+  copiedLookLine,
+  languagesAfterChange,
+} from './portal-new-follow-source'
 import type { PortalNewSource } from './portal-new-types'
 
 const options = { defaultGuestLocales: ['en'] as const }
@@ -52,5 +56,57 @@ describe('copiedLanguagesNote', () => {
     expect(copiedLanguagesNote(sources, 'property', 'a', false)).toBeNull()
     expect(copiedLanguagesNote(sources, 'portal', '', false)).toBeNull()
     expect(copiedLanguagesNote(sources, 'portal', 'missing', false)).toBeNull()
+  })
+})
+
+describe('copiedLookLine', () => {
+  const withLook: PortalNewSource[] = [
+    ...sources,
+    {
+      portalId: 'spa',
+      name: 'Spa',
+      primaryGuestLocale: 'en',
+      additionalGuestLocales: [],
+      lookSources: { photo: 'portal', colours: 'property', identity: 'property' },
+    },
+    {
+      portalId: 'bar',
+      name: 'Bar',
+      primaryGuestLocale: 'en',
+      additionalGuestLocales: [],
+      lookSources: { photo: 'property', colours: 'property', identity: 'property' },
+    },
+  ]
+
+  it('says the new portal follows the property look when it starts from the property’s wording', () => {
+    expect(copiedLookLine(withLook, 'property', 'spa')).toBe('Look: the property look')
+  })
+
+  it('says a copy of a portal with a look of its own carries it', () => {
+    expect(copiedLookLine(withLook, 'portal', 'spa')).toBe('Look: same as Spa')
+  })
+
+  it('says the property look for a copy of a portal that follows it, or has no read of its look', () => {
+    expect(copiedLookLine(withLook, 'portal', 'bar')).toBe('Look: the property look')
+    expect(copiedLookLine(withLook, 'portal', 'a')).toBe('Look: the property look')
+  })
+
+  it('says the property look until a portal is chosen, or when it is gone', () => {
+    expect(copiedLookLine(withLook, 'portal', '')).toBe('Look: the property look')
+    expect(copiedLookLine(withLook, 'portal', 'missing')).toBe('Look: the property look')
+  })
+
+  it('counts a portal that shows no photo as having a look of its own', () => {
+    const none: PortalNewSource[] = [
+      {
+        portalId: 'n',
+        name: 'Kiosk',
+        primaryGuestLocale: 'en',
+        additionalGuestLocales: [],
+        lookSources: { photo: 'none', colours: 'property', identity: 'property' },
+      },
+    ]
+
+    expect(copiedLookLine(none, 'portal', 'n')).toBe('Look: same as Kiosk')
   })
 })

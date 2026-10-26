@@ -98,13 +98,17 @@ export const SavingTheNameSendsNoColours: Story = {
   },
 }
 
-// Guests see it on every portal, and the colours moved to Property look: both are said.
+// Guests see it on every portal, and the look every portal starts with is in
+// Property look: both are said.
 export const SaysWhereTheNameShowsAndWhereTheColoursAre: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(
-      canvas.getByText(/Shown to guests at the top of every portal/),
-    ).toBeVisible()
+    for (const sentence of [
+      /Shown to guests at the top of every portal/,
+      /The colours, photo and logo every portal starts with are in/,
+    ]) {
+      await expect(canvas.getByText(sentence)).toBeVisible()
+    }
     expect(canvas.queryByText(/Portal settings continue to own/)).toBeNull()
     await expect(canvas.getByRole('link', { name: 'Property look' })).toHaveAttribute(
       'href',

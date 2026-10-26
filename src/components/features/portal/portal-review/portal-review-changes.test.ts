@@ -65,7 +65,7 @@ describe('describeReviewChange: edits', () => {
     expect(line.detail?.some((piece) => piece.lang === 'es')).toBe(true)
   })
 
-  it('says a change belongs to every portal of the property when it does', () => {
+  it('says a change to the look every portal starts with was made on the property look', () => {
     const line = describeReviewChange(
       edit({
         kind: 'property_brand_profile',
@@ -77,7 +77,7 @@ describe('describeReviewChange: edits', () => {
 
     expect(text(line)).toEqual({
       headline: 'Look · changed the accent colour',
-      detail: 'for every portal of this property',
+      detail: 'on the property look',
     })
     expect(line).toMatchObject({ glyph: 'look', part: 'top' })
   })
