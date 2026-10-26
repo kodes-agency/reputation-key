@@ -970,7 +970,8 @@ and it does so loudly, once.
   succeed, so it throws as before without reporting, keeps its three attempts
   and is captured by the worker when they are spent (reporting it here too would
   count one failure twice). A location over the cap is still parked and the job
-  ends normally, with no report.
+  ends normally, with no report (and so is a location Google rejects, note
+  2026-10-26).
 - **A failure nobody recorded is recorded by its replay.** The store fails the
   run and the failing step dates the Property's failure in two writes; a worker
   that dies between them (the cursor store is down while the cursors are
@@ -1018,6 +1019,86 @@ recorded once, a capped location left parked, the restart and reconnect
 replays), `snapshot-failure-backoff.test.ts` (`recordsFailureOfRun`), and the
 `import-history-cutoff` and `review-sync-listing-change` integration suites
 against PostgreSQL.
+
+## Note 2026-10-26 — a location Google rejects is named, its status logged, and it is parked
+
+On the beta on 2026-10-26, from between 23:48 and 00:19 UTC, Google answered HTTP
+400 or 404 on `reviews.list` for 4 of the 20 locations on one Google connection.
+The connection was healthy and the other 16 locations synced. The answer is the
+location's own state on Google (removed, suspended, or no longer readable through
+the connection), and asking again gets it again. For each of the four, the
+integration adapter had already named the answer `provider_rejected` (a 400 or
+404 answered by Google, `PERMANENT_ANSWER_STATUSES`), but the snapshot use case
+had no case for it, so it fell through to `provider_failure`: an uncoded error
+line ("review snapshot failed without a coded cause") with no status in it (the
+logger keeps an error's name and code only), a failed run, a
+`ReviewProviderSnapshotFailure` thrown on all three BullMQ attempts of the first
+step, a dead letter, and the same again on the 15 minute, 1 hour, 4 hour and
+6 hour ladder, for as long as the location stayed unreachable. By the time it was
+read that was 36 failed runs and 12 dead letters, with
+`queue.quarantine-nonempty`, `worker.job-runtime-unready` (the repair latch) and
+`sync.failed-nonzero` (`alert_codes` `provider_failure`) all raised by one
+condition no retry could change.
+
+**Decision (owner, 2026-10-26).** Name the failure, log its status once, and park
+the location like one over the cap.
+
+- **A new failure code, `provider_rejected`.** The snapshot use case maps the
+  review API's `provider_rejected` to a run failure code of the same name, in the
+  union (`ReviewProviderSnapshotFailureCode`), the stored `error_class` list
+  (`SYNC_FAILURE_CODES`, which feeds `alert_codes` of `sync.failed-nonzero`) and
+  the history import outcome (`temporary`: RepKey retries it itself). No
+  migration: `failure_code` is a `varchar(64)`. `PERMANENT_ANSWER_STATUSES` is
+  not widened.
+- **One warning with the status.** The use case logs
+  `review_snapshot_provider_rejected` at warn, with `providerStatus` (Google's
+  HTTP status, read from the error's dispatch evidence, or null), `dispatch` and
+  the run id (the approved execution identity the uncoded error line already
+  carried; it names the Property through the run row, and no tenant identifier is
+  logged). The "without a coded cause" error stays for failures that really have
+  none.
+- **The job parks it.** `isParkedSnapshotFailure` (pure; true for the cap codes
+  and `provider_rejected`) decides what `recordSnapshotFailure` returns, and a
+  step that gets `true` returns the failed result without throwing, for a first
+  step and a continuation step alike. Nothing is retried, dead-lettered,
+  reported to Sentry or latched, and `markSyncSucceeded` is not called. The
+  failure, its time and its retry date stay recorded, so `sync.failed-nonzero`
+  raises with `alert_codes` `provider_rejected` each time a retry date passes
+  before the next look re-dates the row, then clears. That is an edge per rung
+  of the ladder (about one 15-minute sweep, once per 6 hours at the cap), not a
+  standing signal. The durable view of what is rejected now is
+  `review_sync_state` where `error_class = 'provider_rejected'`. A standing
+  signal that ignores `error_retry_at` would be a separate change.
+- **The wait is the ordinary ladder, not a day.** 15 minutes, 1 hour, 4 hours, 6
+  hours (`snapshotFailureRetryMs`, unchanged; only the cap codes pass
+  `locationTooLarge`), because what ends a rejection is a person fixing the
+  location on Google, and the poll should find it within hours. Each look is one
+  `reviews.list` call that Google answers at once, so the price of the ladder is
+  small.
+- **Unchanged.** Loud: 429 and 5xx (recoverable: checkpoint, then retry), 401
+  and 403 (`authorization_changed`), `authorization_denied`, an uncoded failure
+  (`provider_failure`), and the one Sentry report of a failing continuation step
+  (note 2026-10-25). Quiet: `connection_unusable` (the reconnect skip), the codes
+  the job restarts at once (`cursor_lost`, `listing_changed`) and the replay of
+  a failed run (`run_already_failed`), which a replay of a rejected run is too.
+
+**What it costs.** A rejected location no longer produces a Sentry event, a
+dead letter or a latch per round: it produces the deferral warning and the
+status line, and `sync.failed-nonzero`. A dead letter left by an earlier release
+is redriven (§14 of the runbooks): the first step starts a new run, Google answers
+the same, and the job parks and completes, which answers the latch (§17). The
+operator checks the Location in Google Business Profile. Two edges are accepted:
+a 400 caused by a RepKey request defect, not by the location, would now be
+parked too (the status in the log, and a sweep of locations all failing the same
+way, tell the two apart), and a first history import ending this way reports
+`temporary` although the owner has to act on Google.
+
+Enforced by `run-review-provider-snapshot.test.ts` (the code, the one warning
+with each status, no uncoded error), `sync-property-reviews.job.test.ts` (a first
+step and a continuation step end without throwing or reporting, the ladder, the
+failure recorded, the replay), `parked-snapshot-failure.test.ts` (the table of
+every code) and `review-provider-snapshot-failure.test.ts` (the closed lists
+agree).
 
 ## Merged from ADR 0003
 

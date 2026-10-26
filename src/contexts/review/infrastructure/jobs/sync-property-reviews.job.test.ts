@@ -1085,6 +1085,191 @@ describe('sync-property-reviews snapshot handler', () => {
     })
   })
 
+  // Google answered 400 or 404 on reviews.list for a location whose connection
+  // is healthy (4 of 20 locations on the beta, 2026-10-26). Asking again gets
+  // the same answer, so the run ends as `provider_rejected` and the job parks
+  // the location on the retry ladder instead of failing: three BullMQ attempts,
+  // a dead letter and a repair latch per round told nobody anything new. The
+  // failure stays recorded, so `sync.failed-nonzero` keeps naming the code.
+  describe('when Google rejects the location (provider_rejected)', () => {
+    const RUN_ID = '44444444-4444-4444-8444-444444444444'
+    const MINUTE_MS = 60 * 1000
+    const HOUR_MS = 60 * MINUTE_MS
+    const STEP = { ...JOB_DATA, runId: RUN_ID }
+    const REJECTED = {
+      status: 'failed' as const,
+      runId: RUN_ID,
+      code: 'provider_rejected',
+    }
+
+    function rejectedHandler(
+      row: ReturnType<typeof fakeDiscoveryProperty>,
+      clock: { now: Date } = { now: NOW },
+      outcome: unknown = REJECTED,
+    ) {
+      const discoveryRepo = createFakeReviewDiscoveryRepository([row])
+      const markDeferred = vi.spyOn(discoveryRepo, 'markDiscoveryDeferred')
+      const markSucceeded = vi.spyOn(discoveryRepo, 'markSyncSucceeded')
+      const logger = { warn: vi.fn() }
+      const enqueueContinuation = vi.fn(async () => undefined)
+      const handler = createSyncPropertyReviewsHandler({
+        runSnapshot: vi.fn(async () => outcome) as never,
+        propertySourceEpoch,
+        enqueueContinuation,
+        syncActivity: makeSyncActivity(),
+        discoveryRepo,
+        clock: () => clock.now,
+        hotIntervalMs: HOT_INTERVAL_MS,
+        logger,
+      })
+      return { handler, logger, enqueueContinuation, markDeferred, markSucceeded }
+    }
+
+    it('ends the first step of a run without throwing, dated on the discovery interval', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler, markDeferred, markSucceeded, enqueueContinuation } =
+        rejectedHandler(row)
+
+      await expect(
+        handler({ id: 'job-rejected', data: JOB_DATA } as never),
+      ).resolves.toMatchObject({ status: 'failed', code: 'provider_rejected' })
+
+      expect(markDeferred).toHaveBeenCalledTimes(1)
+      expect(markDeferred).toHaveBeenCalledWith(
+        JOB_DATA.propertyId,
+        NOW,
+        new Date(NOW.getTime() + HOT_INTERVAL_MS),
+        'provider_rejected',
+      )
+      expect(markSucceeded).not.toHaveBeenCalled()
+      expect(enqueueContinuation).not.toHaveBeenCalled()
+      expect(mocks.capture).not.toHaveBeenCalled()
+    })
+
+    it('keeps the failure and its retry date recorded so sync.failed-nonzero can name it once the date passes', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler } = rejectedHandler(row)
+
+      await handler({ id: 'job-rejected', data: JOB_DATA } as never)
+
+      expect(row.errorClass).toBe('provider_rejected')
+      expect(row.errorRetryAt).toEqual(new Date(NOW.getTime() + HOT_INTERVAL_MS))
+      expect(row.lastFailureAt).toEqual(NOW)
+    })
+
+    it('waits 15 minutes, then 1 hour, 4 hours and 6 hours after consecutive rejections', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const clock = { now: NOW }
+      const { handler } = rejectedHandler(row, clock)
+      const waits: number[] = []
+
+      for (let round = 0; round < 5; round++) {
+        await handler({ id: 'job-ladder', data: JOB_DATA } as never)
+        waits.push((row.nextDueAt as Date).getTime() - clock.now.getTime())
+        clock.now = row.nextDueAt as Date
+      }
+
+      expect(waits).toEqual([
+        15 * MINUTE_MS,
+        HOUR_MS,
+        4 * HOUR_MS,
+        6 * HOUR_MS,
+        6 * HOUR_MS,
+      ])
+    })
+
+    it('ends a step that continues a run without throwing or reporting it', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler, markDeferred, markSucceeded, enqueueContinuation } =
+        rejectedHandler(row)
+
+      await expect(handler({ id: 'job-rejected', data: STEP } as never)).resolves.toEqual(
+        REJECTED,
+      )
+
+      expect(mocks.capture).not.toHaveBeenCalled()
+      expect(enqueueContinuation).not.toHaveBeenCalled()
+      expect(markDeferred).toHaveBeenCalledWith(
+        JOB_DATA.propertyId,
+        NOW,
+        new Date(NOW.getTime() + HOT_INTERVAL_MS),
+        'provider_rejected',
+      )
+      expect(markSucceeded).not.toHaveBeenCalled()
+    })
+
+    it('logs the deferral with the code and the chosen wait, and no tenant identifier', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler, logger } = rejectedHandler(row)
+
+      await handler({ id: 'job-rejected', data: STEP } as never)
+
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        {
+          event: 'review_snapshot_failure_deferred',
+          failureCode: 'provider_rejected',
+          retryAfterMs: HOT_INTERVAL_MS,
+        },
+        'Review snapshot failed; the next retry is backed off',
+      )
+    })
+
+    // The retry of a step that failed its run finds it failed (run_already_failed)
+    // and records nothing when the failing step dated the failure.
+    it('ends the replay of a rejected run quietly and leaves the earned wait alone', async () => {
+      const row = fakeDiscoveryProperty({
+        propertyId: JOB_DATA.propertyId,
+        errorClass: 'provider_rejected',
+        lastFailureAt: NOW,
+        errorRetryAt: new Date(NOW.getTime() + HOT_INTERVAL_MS),
+        nextDueAt: new Date(NOW.getTime() + HOT_INTERVAL_MS),
+      })
+      const before = { ...row }
+      const { handler, markDeferred } = rejectedHandler(
+        row,
+        { now: NOW },
+        {
+          ...REJECTED,
+          alreadyFailed: { failedAt: NOW },
+        },
+      )
+
+      await expect(handler({ id: 'job-replay', data: STEP } as never)).resolves.toEqual({
+        status: 'skipped',
+        code: 'run_already_failed',
+      })
+
+      expect(markDeferred).not.toHaveBeenCalled()
+      expect(row).toEqual(before)
+      expect(mocks.capture).not.toHaveBeenCalled()
+    })
+
+    it('records the replay of a rejection nobody dated, on the ladder, and still ends quietly', async () => {
+      const row = fakeDiscoveryProperty({ propertyId: JOB_DATA.propertyId })
+      const { handler, markDeferred } = rejectedHandler(
+        row,
+        { now: NOW },
+        {
+          ...REJECTED,
+          alreadyFailed: { failedAt: new Date(NOW.getTime() - MINUTE_MS) },
+        },
+      )
+
+      await expect(handler({ id: 'job-undated', data: STEP } as never)).resolves.toEqual({
+        status: 'skipped',
+        code: 'run_already_failed',
+      })
+
+      expect(markDeferred).toHaveBeenCalledWith(
+        JOB_DATA.propertyId,
+        NOW,
+        new Date(NOW.getTime() + HOT_INTERVAL_MS),
+        'provider_rejected',
+      )
+    })
+  })
+
   // A step is queued with the id of its run. A run that already failed cannot
   // be continued, so a step that finds it so (the queue retrying the step that
   // failed it, a redrive of its dead letter) has nothing left to fail. The
