@@ -40,3 +40,4 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0067](0067-property-google-rating-goal.md)                               | Property Google rating goal                                  | accepted | —             |
 | [0068](0068-monthly-portal-goal.md)                                       | Monthly portal goal                                          | accepted | —             |
 | [0069](0069-short-printed-portal-address.md)                              | Short printed Portal address                                 | accepted | —             |
+| [0070](0070-per-portal-look.md)                                           | A Portal's own look                                          | accepted | —             |

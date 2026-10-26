@@ -78,5 +78,5 @@ New in this design:
 
 - Replacing a code is drawn only as a menu entry; the planned-or-security choice is not drawn yet.
 - Moving the last portal out of a group leaves it empty. Should the product archive it, offer to, or leave it?
-- A photo for one portal only is not designed, although the data model allows one per portal and language.
+- A photo for one portal only is not designed, although the data model allows one per portal and language. _Answered 2026-10-26 by [ADR 0070](../../../adr/0070-per-portal-look.md): a portal may have its own photo, colours, or name and logo._
 - Round 3's open decisions ([round-3-admin](../round-3-admin/README.md)) still apply where this round did not settle them.

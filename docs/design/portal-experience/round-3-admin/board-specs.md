@@ -124,6 +124,7 @@ TOP TO BOTTOM:
    • ‘Group’ plus 12/16 #5b5d63 ‘optional’ — select 36×360, value ‘Dining’ (chevron-down 16 at .5; menu not drawn: None · Dining · Wellness · New group…) — helper ‘Groups keep related places together in lists and analytics.’
    • ‘Start from’ — a radio group, options 12 apart, 14/20: (●) ‘Avela Resort’s wording’ with 12/16 #5b5d63 ‘Guests see the property’s welcome line and description until you write your own.’; (○) ‘A copy of another portal’ with 12/16 #5b5d63 ‘Copies wording, links, the private-note setting and languages. Never codes or history.’
 6. FACTS y822–866, 8 apart, 13/20 #5b5d63, each led by a 14px glyph: palette + ‘Look: Carved Stillness, set for all of Avela Resort · ’ + DETAIL ‘Why not here?’ (popover ‘Every portal at a property shares one look so guests recognise it. An Account admin changes it in Property look.’); user-round-check + ‘You’ll be responsible for this portal · ’ + ghost xs ‘Change’.
+   _Superseded 2026-10-26 by [ADR 0070](../../../adr/0070-per-portal-look.md): the popover's claim that every portal at a property shares one look no longer holds. A portal may have its own photo, colours, or name and logo; an Account admin sets them in that portal's Look section._
 7. FOOTER y898–958: border-top 1px #dcdee2, padding-top 24, justify end, gap 8: outline 36 ‘Cancel’; primary 36 ‘Create draft’.
    Nothing asks for a slug, description, theme or threshold: the slug is derived and hidden, and the private note defaults to 3★ or below.
    No guest preview on this board.

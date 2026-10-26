@@ -5,6 +5,18 @@ date: 2026-09-30
 
 # 0061 — Guest languages and publication v3
 
+> **Amended 2026-10-26 by [ADR 0070](0070-per-portal-look.md).** Decision 7's v3 shape
+> is unchanged and there is no v4. What changes is what `configuration.brandProfile`
+> and `localizedContent[locale].heroAlt` carry: the Portal's **effective** look, the
+> Property's look with the Portal's own photo, colours, or name and logo laid over it,
+> resolved when the working copy is read and written into the snapshot at publish. A
+> Portal with no look of its own publishes exactly what it did before. `lookVersion` is
+> the Portal's effective version, the `look_version` of its own look override when it
+> has one and the Property Brand Profile's otherwise, and the mirrored
+> `brand_profile_version` column holds the same value. `displayName` stays the
+> Property's. The verifier, the zod schema, the digest and the v1, v2 and v3 goldens do
+> not change.
+
 ## Context
 
 The guest surface reads in two languages today (en, bg), and every place that
@@ -84,7 +96,8 @@ immutable evidence:
    title, short description, hero alt text and Linktree title (each
    `{value, fallbackFrom}`), the Linktree switch, a flat ordered link list
    with per-locale wording, the brand profile (display name, wordmark, logo
-   and hero by asset id, accent and field colour, look version), the time zone
+   and hero by asset id, accent and field colour, look version; the Portal's
+   effective look, ADR 0070), the time zone
    and optional provenance for history. The verifier requires every locale to
    be complete, the primary never to be a fallback, and every fallback to be
    an exact copy of another locale's own text. Media is an asset id in the

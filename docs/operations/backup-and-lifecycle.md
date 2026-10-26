@@ -272,6 +272,22 @@ orphaned object and logs `portal_media_orphan_object`; remove it by key from the
 bucket. The S3-compatible adapter remains a no-op while its access, bucket,
 region, and endpoint variables are incomplete.
 
+What names an image decides when it can go. An image is referenced by a Property's
+Brand Profile (`logo_asset_id`, `hero_asset_id`), by a link tile (`image_asset_id`), by
+a Portal's own look (`portal_look_overrides.hero_asset_id` and `logo_asset_id`, ADR 0070) and by any publication snapshot that names it; the hourly sweep deletes an
+unreferenced `active` image a day after upload, and counts the Portal's own look among
+the references. The foreign keys from `portal_look_overrides` are RESTRICT, so a
+referenced image cannot be deleted from under a Portal. The table is a child of
+Portals and is purged with the other Portal rows, after `portal_localized_overrides` and
+before the Property's brand contents and profiles, the media assets and the Portals
+(foreign-key order), and the Organization export carries it as the `portalLookOverrides`
+collection (one row per Portal that has an own look, its columns listed one by one,
+with the photo's descriptions as text; no image bytes). Its data fate is
+`erasable_source_content` (POR-01/LIF-01). Archiving or deleting a Portal does not remove
+its row, so an archived Portal's own photo and logo stay referenced, are never swept,
+and keep counting toward the 200-image cap of the Property until an Organization purge
+(owner decision D12 of 2026-10-26).
+
 The target Railway topology binds those variables to one private, cell-local
 `object-store` bucket; the variable names retain their `AWS_S3_*` compatibility
 prefix and do not identify the live storage provider.
