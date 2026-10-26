@@ -27,7 +27,13 @@ export function PortalEditorSectionFrame({
     <section aria-labelledby={headingId} className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="space-y-1">
-          <h2 id={headingId} className="text-lg font-semibold tracking-tight">
+          {/* Focusable by script only: a click on the preview that opens this
+              section moves focus here (`revealEditorSection`). */}
+          <h2
+            id={headingId}
+            tabIndex={-1}
+            className="text-lg font-semibold tracking-tight outline-none"
+          >
             {PORTAL_EDITOR_SECTION_LABELS[section]}
           </h2>
           {description ? (

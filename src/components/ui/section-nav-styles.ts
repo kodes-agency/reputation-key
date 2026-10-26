@@ -27,7 +27,7 @@ import { PAGE_GUTTER_BLEED_PHONE, PAGE_GUTTER_X } from '#/components/layout/page
 export type SectionNavFrame = 'rail' | 'inline'
 export type SectionNavPresentation = 'list' | 'strip' | 'auto'
 export type SectionNavSlot =
-  'nav' | 'scroller' | 'heading' | 'list' | 'summary' | 'footer'
+  'nav' | 'scroller' | 'heading' | 'list' | 'summary' | 'marker' | 'footer'
 
 type SlotClasses = Readonly<{
   base: string
@@ -76,6 +76,14 @@ export const SECTION_NAV_STYLES: Readonly<Record<SectionNavFrame, FrameStyles>> 
       list: 'flex',
       auto: 'hidden @6xl:flex',
     },
+    // The strip's stand-in for what a summary flags: drawn where the summary is
+    // left out, left out where it is drawn.
+    marker: {
+      base: 'flex shrink-0 items-center',
+      strip: '',
+      list: 'hidden',
+      auto: '@6xl:hidden',
+    },
     footer: {
       base: 'px-3 text-xs text-muted-foreground',
       strip: 'hidden',
@@ -113,6 +121,12 @@ export const SECTION_NAV_STYLES: Readonly<Record<SectionNavFrame, FrameStyles>> 
       strip: 'hidden',
       list: 'block',
       auto: 'hidden @3xl:block',
+    },
+    marker: {
+      base: 'flex shrink-0 items-center',
+      strip: '',
+      list: 'hidden',
+      auto: '@3xl:hidden',
     },
     footer: {
       base: 'text-xs text-muted-foreground',

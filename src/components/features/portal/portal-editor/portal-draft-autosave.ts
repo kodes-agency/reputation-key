@@ -57,6 +57,16 @@ export type PortalDraftAutosaveOptions = Readonly<{
 
 export type PortalDraftAutosave = ReturnType<typeof createPortalDraftAutosave>
 
+/**
+ * The keys of what only the person can resolve, by cause: a write that failed
+ * (a retry may put it right), values a form refused, and explicit-save edits.
+ */
+export type PortalDraftAttention = Readonly<{
+  failed: ReadonlyArray<string>
+  invalid: ReadonlyArray<string>
+  explicit: ReadonlyArray<string>
+}>
+
 export function createPortalDraftAutosave(options: PortalDraftAutosaveOptions = {}) {
   const delayMs = options.delayMs ?? PORTAL_DRAFT_AUTOSAVE_DELAY_MS
   const now = options.now ?? Date.now
@@ -228,6 +238,15 @@ export function createPortalDraftAutosave(options: PortalDraftAutosaveOptions = 
     /** Something only the person can resolve: a failed or refused save, or unsaved explicit edits. */
     needsAttention(): boolean {
       return failed.size > 0 || invalid.size > 0 || hasDirtyExplicitForm()
+    },
+
+    /** Which saves need the person, by cause, so a prompt can name them. */
+    attention(): PortalDraftAttention {
+      return {
+        failed: [...failed.keys()],
+        invalid: [...invalid],
+        explicit: [...explicit].filter(([, isDirty]) => isDirty()).map(([key]) => key),
+      }
     },
 
     getState(): PortalDraftAutosaveState {

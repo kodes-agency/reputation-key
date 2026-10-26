@@ -193,6 +193,19 @@ describe('SectionNav', () => {
       expect(html).toMatch(/<a [^>]*><svg [^>]*aria-hidden="true"/u)
     })
 
+    it('keeps a marker for the strip, where the summary is left out', () => {
+      const marker = createElement('i', null, 'needs something')
+      const strip = nav({ items: [{ ...ITEMS[0]!, marker }], presentation: 'strip' })
+      const list = nav({ items: [{ ...ITEMS[0]!, marker }], presentation: 'list' })
+      const auto = nav({ items: [{ ...ITEMS[0]!, marker }] })
+
+      expect(strip).toMatch(/data-slot="section-nav-marker" class="[^"]*flex[^"]*"/u)
+      expect(strip).not.toMatch(/data-slot="section-nav-marker" class="[^"]*hidden/u)
+      expect(list).toMatch(/data-slot="section-nav-marker" class="[^"]*\bhidden\b/u)
+      expect(auto).toMatch(/data-slot="section-nav-marker" class="[^"]*@3xl:hidden/u)
+      expect(nav()).not.toContain('section-nav-marker')
+    })
+
     it('takes any summary node, and leaves a missing one out', () => {
       const html = nav({
         items: [

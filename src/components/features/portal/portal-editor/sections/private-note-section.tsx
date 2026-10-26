@@ -9,7 +9,11 @@ export function PrivateNoteSection({ resources, canEdit }: PortalEditorSectionPr
   return (
     <PortalEditorSectionFrame
       section="private-note"
-      description="Choose how low a rating has to be before a guest is offered a private note. It saves as you change it."
+      description={
+        canEdit
+          ? 'Choose how low a rating has to be before a guest is offered a private note. It saves as you change it.'
+          : 'How low a rating has to be before a guest is offered a private note.'
+      }
     >
       <PortalPrivateNoteForm
         portal={resources.portal}

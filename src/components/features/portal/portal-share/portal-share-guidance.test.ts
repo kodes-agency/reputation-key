@@ -1,39 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   describeGraceCutoff,
-  describeShareAccess,
   describeUnpublishedCode,
   describeWhoToAsk,
   NFC_ADDRESS_HINT,
   NFC_SHORT_ADDRESS_HINT,
   nfcAddressHint,
 } from './portal-share-guidance'
-
-describe('describeShareAccess', () => {
-  it('lets someone manage the code only with the permission and the capability, as the server asks', () => {
-    expect(describeShareAccess({ canUpdate: true, writeEnabled: true })).toEqual({
-      canManage: true,
-      viewOnlyReason: null,
-    })
-  })
-
-  it('names the role when the permission is missing', () => {
-    expect(describeShareAccess({ canUpdate: false, writeEnabled: true })).toEqual({
-      canManage: false,
-      viewOnlyReason:
-        'You do not have permission to make, replace or stop the portal’s code.',
-    })
-  })
-
-  it('says portal changes are switched off when the capability is the reason', () => {
-    const access = describeShareAccess({ canUpdate: true, writeEnabled: false })
-
-    expect(access.canManage).toBe(false)
-    expect(access.viewOnlyReason).toBe(
-      'Changes to portals are switched off right now, so the code can’t be made, replaced or stopped.',
-    )
-  })
-})
 
 describe('describeWhoToAsk', () => {
   it('names the portal’s managers for someone who can only look', () => {

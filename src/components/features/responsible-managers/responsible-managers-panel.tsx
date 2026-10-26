@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { UserRoundCheck } from 'lucide-react'
 import { FormActions } from '#/components/forms/form-actions'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
@@ -26,6 +26,9 @@ export type ResponsibleManagersPanelCopy = Readonly<{
   alertDescription: string
 }>
 
+/** The panel's own heading, or none where the page already names it (the portal editor's section title). */
+export type ResponsibleManagersPanelHeading = 'h2' | 'h3' | null
+
 /**
  * Shared presentation for the Portal and Property "responsible managers"
  * cards (code-health-09): identical assignment UI and "at least one manager"
@@ -46,19 +49,27 @@ export function ResponsibleManagersPanel({
   idPrefix,
   copy,
   onSave,
+  onDirtyChange,
 }: Readonly<{
   state: ResponsibleManagersPanelState
   members: readonly ResponsibleManagersPanelMember[]
   disabled: boolean
   isPending: boolean
   error: unknown
-  headingLevel: 'h2' | 'h3'
+  headingLevel: ResponsibleManagersPanelHeading
   idPrefix: string
   copy: ResponsibleManagersPanelCopy
   onSave: (
     managerUserIds: readonly string[],
     expectedRevision: number,
   ) => Promise<unknown>
+  /**
+   * Hears whether ticks are waiting for Save, so a page can ask before they are
+   * lost (the portal editor's leave guard). The selection keeps an explicit
+   * Save: every save notifies people, and an emptied list raises a
+   * "no one is responsible" notice of its own.
+   */
+  onDirtyChange?: (dirty: boolean) => void
 }>) {
   const { selected, expectedRevision, dirty, toggle, reset } =
     useResponsibleManagerSelection(state.assignments, state.revision)
@@ -71,6 +82,9 @@ export function ResponsibleManagersPanel({
   const options = members.filter(
     (member) => eligibleIds.has(member.userId) || assignedIds.has(member.userId),
   )
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
 
   // The banner shows a refusal from the Action's own error; settling here keeps
   // it from escaping the click as an unhandled rejection (errors-01). The
@@ -86,10 +100,12 @@ export function ResponsibleManagersPanel({
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <UserRoundCheck className="size-4" aria-hidden="true" />
-          <Heading className="font-semibold">Responsible managers</Heading>
-        </div>
+        {Heading === null ? null : (
+          <div className="flex items-center gap-2">
+            <UserRoundCheck className="size-4" aria-hidden="true" />
+            <Heading className="font-semibold">Responsible managers</Heading>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground">{copy.description}</p>
       </div>
 
@@ -115,15 +131,18 @@ export function ResponsibleManagersPanel({
                 disabled={disabled || isPending || (!eligible && !checked)}
                 onCheckedChange={(next) => toggle(member.userId, next === true)}
               />
+              {/* The Label primitive centres its items; in a column that is
+                  across, so the name and email are pulled back to the start,
+                  beside the checkbox. */}
               <Label
                 htmlFor={`${idPrefix}-${member.userId}`}
-                className="flex min-w-0 flex-1 flex-col font-normal"
+                className="flex min-w-0 flex-1 flex-col items-start font-normal"
               >
                 <span className="font-medium">{member.name}</span>
-                <span className="truncate text-xs text-muted-foreground">
+                <span className="max-w-full truncate text-xs text-muted-foreground">
                   {member.email}
                   {!eligible && checked
-                    ? ' · Eligibility changed; remove this assignment'
+                    ? ' · can no longer be chosen; untick to remove'
                     : ''}
                 </span>
               </Label>
@@ -132,7 +151,7 @@ export function ResponsibleManagersPanel({
         })}
         {options.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            No eligible managers are currently available for this Property.
+            No managers can be chosen for this property yet.
           </p>
         )}
       </div>

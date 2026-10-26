@@ -1,7 +1,8 @@
 // Rating & Google: the rating card and the Google review action are part of
 // every portal, so this section explains them and shows where Google stands; it
-// has nothing to switch. The content review lives here too: it attests that the
-// saved page's destinations open the intended review pages.
+// has nothing to switch. The link check lives here too: the manager records
+// that the live page's Google link and Linktree links open the pages they
+// should.
 
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
 import { ContentReviewCard } from '../../portal-settings/content-review-card'
@@ -19,6 +20,8 @@ export function RatingSection({ resources, canEdit }: PortalEditorSectionProps) 
         portal={resources.portal}
         mutation={resources.completeReviewMutation}
         disabled={!canEdit}
+        liveVersion={resources.publicationHistory.current?.version ?? null}
+        hasPendingChanges={resources.publicationHistory.hasPendingChanges}
       />
     </PortalEditorSectionFrame>
   )

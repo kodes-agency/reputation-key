@@ -51,14 +51,19 @@ describe('deriveOpenPageMode', () => {
     )
   })
 
-  it('points to Share when no code is live', () => {
-    expect(mode({ tokenStatus: { ...RECOVERABLE, hasActiveToken: false } })).toBe('share')
+  // The header's status line says "no working code" and links to Share already.
+  it('offers nothing when no code is live', () => {
+    expect(mode({ tokenStatus: { ...RECOVERABLE, hasActiveToken: false } })).toBe(
+      'hidden',
+    )
   })
 
+  // Guests cannot open any of these; the preview shows the draft.
   it.each(['draft', 'disabled', 'archived'] as const)(
-    'points to Share when the portal is %s, whatever its address',
+    'offers nothing when the portal is %s, whatever its address',
     (publicationState) => {
-      expect(mode({ publicationState, hasHeldAddress: true })).toBe('share')
+      expect(mode({ publicationState, hasHeldAddress: true })).toBe('hidden')
+      expect(mode({ publicationState })).toBe('hidden')
     },
   )
 
