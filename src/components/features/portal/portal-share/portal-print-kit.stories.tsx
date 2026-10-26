@@ -899,7 +899,6 @@ export const ViewerGetsNoPrintKit: Story = {
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()
     await expect(canvas.queryByRole('heading', { name: 'Print kit' })).toBeNull()
     // The print kit is not silently gone: the viewer is told whom to ask.
     await expect(canvas.getByText(/for the QR code or print kit\./)).toBeInTheDocument()

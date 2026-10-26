@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
-import { workspaceStatus, workspaceStatusProblem } from './portal-workspace-status'
+import {
+  hasSomethingToPublish,
+  workspaceStatus,
+  workspaceStatusProblem,
+} from './portal-workspace-status'
 
 const CODE: PortalTokenStatus = {
   hasActiveToken: true,
@@ -93,5 +97,21 @@ describe('workspaceStatus — the whole quiet line', () => {
     expect(
       status({ publicationState: 'draft', liveVersion: null, token: NO_CODE }),
     ).toEqual({ line: 'Draft · not published', problem: null })
+  })
+})
+
+describe('hasSomethingToPublish — whether the publish step has work', () => {
+  it('has work for a draft and a disabled page, which come back through review', () => {
+    expect(hasSomethingToPublish('draft', false)).toBe(true)
+    expect(hasSomethingToPublish('disabled', false)).toBe(true)
+  })
+
+  it('has work for a live page only while changes are waiting', () => {
+    expect(hasSomethingToPublish('published', true)).toBe(true)
+    expect(hasSomethingToPublish('published', false)).toBe(false)
+  })
+
+  it('has none for an archived portal', () => {
+    expect(hasSomethingToPublish('archived', true)).toBe(false)
   })
 })

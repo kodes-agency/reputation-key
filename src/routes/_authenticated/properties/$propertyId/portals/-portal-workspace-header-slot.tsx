@@ -11,7 +11,6 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   canReviewAndPublish,
   describePendingChanges,
-  hasSomethingToPublish,
   type PortalDetailTab,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '#/components/features/portal/portal-editor/portal-editor-sections'
@@ -22,7 +21,10 @@ import {
   workspaceBackTarget,
   type WorkspaceOriginLocation,
 } from '#/components/features/portal/portal-workspace/portal-workspace-origin'
-import { workspaceStatus } from '#/components/features/portal/portal-workspace/portal-workspace-status'
+import {
+  hasSomethingToPublish,
+  workspaceStatus,
+} from '#/components/features/portal/portal-workspace/portal-workspace-status'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { usePortalOpenPageReveal } from './-portal-detail-actions'
 import {

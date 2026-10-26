@@ -109,7 +109,7 @@ export const Route = createFileRoute(
     )?.portal?.name
     return name === undefined
       ? {}
-      : { meta: [{ title: documentTitle(portalWorkspaceTitle(name, 'edit')) }] }
+      : { meta: [{ title: documentTitle(portalWorkspaceTitle(name)) }] }
   },
   component: PortalWorkspaceLayout,
   notFoundComponent: PortalNoLongerAvailable,

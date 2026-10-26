@@ -90,9 +90,28 @@ export function workspaceStatus(
     Readonly<{ liveVersion: number | null; hasPendingChanges: boolean }>,
 ): WorkspaceStatus {
   const problem = workspaceStatusProblem(input)
-  const upToDate = !input.hasPendingChanges && problem === null
-  return {
-    line: describePortalStatus(input.publicationState, input.liveVersion, upToDate),
-    problem,
-  }
+  const line = describePortalStatus(input.publicationState, input.liveVersion)
+  const upToDate =
+    input.publicationState === 'published' &&
+    input.liveVersion !== null &&
+    !input.hasPendingChanges &&
+    problem === null
+  return { line: upToDate ? `${line} · up to date` : line, problem }
+}
+
+/**
+ * Whether Review & publish has anything to put live: a draft that was never
+ * published, a disabled page (it comes back through review, like a first
+ * publish), or a live page with saved changes waiting. The Portals list's row
+ * menu offers the step by the same rule. A live page that matches its draft has
+ * nothing to publish, so the header does not make the step its loudest control.
+ * Here, not in portal-detail-rules, because those rules load with first paint
+ * and only the header reads this.
+ */
+export function hasSomethingToPublish(
+  state: PortalPublicationState,
+  hasPendingChanges: boolean,
+): boolean {
+  if (state === 'archived') return false
+  return state !== 'published' || hasPendingChanges
 }

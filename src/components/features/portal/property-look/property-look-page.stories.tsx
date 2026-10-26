@@ -482,7 +482,10 @@ export const RefusedSaveSaysWhy: Story = {
   },
 }
 
-/** Leaving with a save that failed asks first; keeping on stays, and nothing is lost silently. */
+/**
+ * Leaving with a save that failed asks first, names what was not saved and
+ * offers to try again; keeping on stays, and nothing is lost silently.
+ */
 export const LeavingAfterAFailedSaveAsks: Story = {
   args: { saveLook: rejectingLook(new Error('offline')) },
   play: async ({ canvasElement }) => {
@@ -494,11 +497,10 @@ export const LeavingAfterAFailedSaveAsks: Story = {
     await canvas.findByRole('button', { name: 'Try again' }, WAIT)
     await userEvent.click(canvas.getByRole('link', { name: 'Portals' }))
     await expect(
-      await body.findByRole('alertdialog', { name: 'Leave without saving?' }),
+      await body.findByRole('alertdialog', { name: 'Save before you leave?' }),
     ).toBeVisible()
-    await expect(
-      body.getByText(/Some changes to the look have not been saved/),
-    ).toBeVisible()
+    await expect(body.getByText(/Not saved: the property look\./)).toBeVisible()
+    await expect(body.getByRole('button', { name: 'Try saving again' })).toBeVisible()
     await userEvent.click(body.getByRole('button', { name: 'Keep editing' }))
     await waitFor(() => expect(body.queryByRole('alertdialog')).not.toBeInTheDocument())
     await expect(canvas.getByLabelText('Accent')).toHaveValue('#C8A45A')
