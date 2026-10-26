@@ -571,7 +571,9 @@ minute the window ends (`quiet-release-<emailId>-<ms>`); the hourly sweep is
 the fallback. Each email's
 source is one outbox primary-key lookup (a uuid event id, never `id::text`),
 and the gap and delivery-lag health reads run under a PostgreSQL statement
-timeout, so a stalled statement is cancelled rather than left running.
+timeout, so a stalled statement is cancelled rather than left running, with JIT
+off: a short OLTP read should not pay compile cost, which was 80% of the
+delivery-lag source read once a bulk import raised its cost estimate.
 
 ## Invariants
 

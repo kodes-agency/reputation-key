@@ -65,6 +65,12 @@ export function assertStatementTimeoutMs(statementTimeoutMs: number): void {
  * the transaction, so the pooled connection never keeps it). A cancelled
  * statement aborts the transaction, so the read's later statements never run,
  * and the read rejects with NotificationHealthReadTimeoutError.
+ *
+ * JIT is off for the same transaction: a health read is a short OLTP
+ * statement, and PostgreSQL's JIT compile cost (0.7-0.9 s, about 80% of the
+ * delivery-lag source read) dominated it once a bulk import inflated the cost
+ * estimate past jit_inline_above_cost / jit_optimize_above_cost (500k). With
+ * JIT off the same read ran in about 110 ms.
  */
 export async function withHealthReadTimeout<T>(
   db: Database,
@@ -76,7 +82,7 @@ export async function withHealthReadTimeout<T>(
     return await db.transaction(
       async (transaction) => {
         await transaction.execute(
-          sql`SELECT set_config('statement_timeout', ${String(statementTimeoutMs)}, true)`,
+          sql`SELECT set_config('statement_timeout', ${String(statementTimeoutMs)}, true), set_config('jit', 'off', true)`,
         )
         return read(transaction)
       },
