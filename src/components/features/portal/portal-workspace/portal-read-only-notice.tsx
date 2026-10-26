@@ -27,7 +27,7 @@ const NOTICE: Readonly<
   },
   archived: {
     icon: Archive,
-    text: 'This portal is archived, so nothing in it can be changed until it is restored.',
+    text: 'This portal is archived, so its page can’t be changed until it is restored.',
   },
 }
 

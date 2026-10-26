@@ -855,14 +855,12 @@ export const TurnedOffPortalAsksToPublishAgain: Story = {
   },
 }
 
-/** An archived portal is restored from the Portals list first, so there is no review to go to. */
+/** An archived portal is restored first (the workspace notice offers Restore), so there is no review to go to. */
 export const ArchivedPortalAsksToRestore: Story = {
   args: { ...NotLiveYetGetsOneNotice.args, publicationState: 'archived' },
   play: async ({ canvasElement }) => {
     const section = within(await printKitSection(canvasElement))
-    await expect(
-      section.getByText(/restore this portal from the portals list and publish it/i),
-    ).toBeVisible()
+    await expect(section.getByText(/restore this portal and publish it/i)).toBeVisible()
     await expect(section.queryByRole('link', { name: 'Review & publish' })).toBeNull()
   },
 }

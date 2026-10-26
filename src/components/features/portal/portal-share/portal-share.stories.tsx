@@ -293,7 +293,7 @@ export const ViewerOfADraftPortal: Story = {
   },
 }
 
-// An archived portal is restored from the Portals list, not published here.
+// An archived portal is restored first (the workspace notice offers Restore), not published here.
 export const ArchivedPortal: Story = {
   args: {
     ...baseArgs,

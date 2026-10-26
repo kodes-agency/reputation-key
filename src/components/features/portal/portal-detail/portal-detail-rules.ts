@@ -123,11 +123,12 @@ export function describePortalStatus(
 
 /**
  * Whether the header offers "Review & publish". An archived portal is restored
- * from the Portals list first, so there is nothing to publish here. The review
- * route needs both the role's `portal.update` permission and the organisation's
- * `portal.write` capability (a separate controlled-beta switch from reading), and
- * the server refuses the write without either — this only keeps a button off the
- * page that would lead to a denial.
+ * first (the workspace notice and the Portals list offer Restore), so there is
+ * nothing to publish here. The review route needs both the role's
+ * `portal.update` permission and the organisation's `portal.write` capability (a
+ * separate controlled-beta switch from reading), and the server refuses the
+ * write without either — this only keeps a button off the page that would lead
+ * to a denial.
  */
 export function canReviewAndPublish(
   access: Readonly<{ canUpdate: boolean; portalWriteEnabled: boolean }>,

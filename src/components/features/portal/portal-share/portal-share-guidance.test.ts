@@ -61,10 +61,10 @@ describe('describeUnpublishedCode', () => {
     })
   })
 
-  it('sends an archived portal to the Portals list, where it is restored', () => {
+  it('asks for an archived portal to be restored before it is shared', () => {
     expect(describeUnpublishedCode('archived', true)).toMatchObject({
       title: 'The portal is archived',
-      body: expect.stringMatching(/Restore it from the Portals list/),
+      body: expect.stringMatching(/Restore it before you share it\./),
       offersReview: false,
     })
   })

@@ -188,7 +188,7 @@ export function describePrintKitNotLive(
       }
     case 'archived':
       return {
-        body: `Restore this portal from the Portals list and publish it to make a print kit. ${PRINT_CARRIES_LIVE_CODE}`,
+        body: `Restore this portal and publish it to make a print kit. ${PRINT_CARRIES_LIVE_CODE}`,
         review: null,
       }
     default:

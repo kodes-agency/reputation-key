@@ -69,7 +69,7 @@ export function describeUnpublishedCode(
       return {
         title: 'The portal is archived',
         body: canManage
-          ? `${UNAVAILABLE}. Restore it from the Portals list before you share it.`
+          ? `${UNAVAILABLE}. Restore it before you share it.`
           : `${UNAVAILABLE}.`,
         offersReview: false,
       }
