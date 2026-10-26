@@ -28,6 +28,8 @@ import {
   immersiveSnapshot,
 } from '../__fixtures__/immersive-snapshot'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
+import { createInMemoryPortalLookRepo } from '#/shared/testing/in-memory-portal-look-repo'
+import type { PortalLookOverride } from '../../domain/portal-look'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import type { PortalMediaAsset } from '../../domain/portal-media-asset'
 import type { PropertyPortalBrandProfile } from '../ports/portal-experience.repository'
@@ -78,6 +80,10 @@ type Options = Readonly<{
   profile?: PropertyPortalBrandProfile | null
   /** The stored images of the Property. */
   assets?: ReadonlyArray<PortalMediaAsset>
+  /** The Portal's own look; none follows the Property look. */
+  override?: PortalLookOverride
+  /** The Property's description of its photograph, in English. */
+  heroAltText?: string | null
 }>
 
 function setup(options: Options = {}) {
@@ -114,10 +120,20 @@ function setup(options: Options = {}) {
   const validatedAfter: Date[] = []
   const mediaRepo = createInMemoryPortalMediaAssetRepo()
   mediaRepo.seed(options.assets ?? [])
+  const portalLookRepo = createInMemoryPortalLookRepo()
+  if (options.override) {
+    portalLookRepo.seed({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      override: options.override,
+    })
+  }
   const useCase = getPortalPreview({
     portalRepo,
     portalLinkRepo,
     mediaRepo,
+    portalLookRepo,
     experienceRepo: {
       getPropertyExperience: async () => ({
         profile: options.profile ?? null,
@@ -129,7 +145,7 @@ function setup(options: Options = {}) {
             locale: 'en',
             title: 'Avela Resort',
             shortDescription: 'Rate your visit.',
-            heroAltText: null,
+            heroAltText: options.heroAltText ?? null,
             version: 1,
             updatedBy: userId('user-1'),
             createdAt: AT,
@@ -290,6 +306,211 @@ describe('getPortalPreview (draft photograph and logo)', () => {
     const brand = outcome.preview.experiences.en?.brand
     expect(brand?.hero).toBeNull()
     expect(brand?.logo).not.toBeNull()
+  })
+})
+
+const OWN_HERO = '30000000-0000-4000-8000-000000000003'
+const OWN_LOGO = '30000000-0000-4000-8000-000000000004'
+const FOLLOWING: PortalLookOverride = {
+  photo: { mode: 'inherit' },
+  colours: { mode: 'inherit' },
+  identity: { mode: 'inherit' },
+  lookVersion: 3,
+}
+
+describe("getPortalPreview (draft, a Portal's own look)", () => {
+  const previewOf = async (options: Options) => {
+    const { useCase } = setup({
+      profile: lookProfile(),
+      assets: [
+        storedImage(HERO, 'hero'),
+        storedImage(LOGO, 'logo'),
+        storedImage(OWN_HERO, 'hero', { width: 1200, height: 800 }),
+        storedImage(OWN_LOGO, 'logo', { width: 300, height: 300 }),
+      ],
+      ...options,
+    })
+    const outcome = await useCase({ portalId: PORTAL, source: 'draft' }, manager())
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    return outcome.preview.experiences.en!
+  }
+
+  it('draws the Property look for a Portal with no look of its own', async () => {
+    const experience = await previewOf({ heroAltText: 'The pool' })
+
+    expect(experience.brand).toMatchObject({
+      accentColour: '#C8A45A',
+      hero: { url: `/api/public/portal-media/${HERO}`, focalX: 0.3, focalY: 0.6 },
+      logo: { url: `/api/public/portal-media/${LOGO}` },
+    })
+    expect(experience.content.heroAlt.value).toBe('The pool')
+  })
+
+  it('draws the Portal’s own photograph, and never describes it with the Property’s description', async () => {
+    const experience = await previewOf({
+      heroAltText: 'The pool',
+      override: {
+        ...FOLLOWING,
+        photo: {
+          mode: 'own',
+          heroAssetId: OWN_HERO,
+          focalX: 0.2,
+          focalY: 0.4,
+          altTexts: {},
+        },
+      },
+    })
+
+    expect(experience.brand.hero).toEqual({
+      url: `/api/public/portal-media/${OWN_HERO}`,
+      width: 1200,
+      height: 800,
+      focalX: 0.2,
+      focalY: 0.4,
+    })
+    expect(experience.brand.logo?.url).toContain(LOGO)
+    expect(experience.content.heroAlt.value).toBe('')
+  })
+
+  it('describes the Portal’s own photograph with its own description', async () => {
+    const experience = await previewOf({
+      heroAltText: 'The pool',
+      override: {
+        ...FOLLOWING,
+        photo: {
+          mode: 'own',
+          heroAssetId: OWN_HERO,
+          focalX: 0.5,
+          focalY: 0.5,
+          altTexts: { en: 'The spa pool' },
+        },
+      },
+    })
+
+    expect(experience.content.heroAlt.value).toBe('The spa pool')
+  })
+
+  it('draws no photograph, and no description, for a Portal that chose none', async () => {
+    const experience = await previewOf({
+      heroAltText: 'The pool',
+      override: { ...FOLLOWING, photo: { mode: 'none' } },
+    })
+
+    expect(experience.brand.hero).toBeNull()
+    expect(experience.brand.logo).not.toBeNull()
+    expect(experience.content.heroAlt.value).toBe('')
+  })
+
+  it('draws no photograph, not the Property’s, once the Portal’s own is taken down', async () => {
+    const { useCase } = setup({
+      profile: lookProfile(),
+      heroAltText: 'The pool',
+      assets: [
+        storedImage(HERO, 'hero'),
+        storedImage(OWN_HERO, 'hero', { status: 'taken_down', takenDownAt: AT }),
+      ],
+      override: {
+        ...FOLLOWING,
+        photo: {
+          mode: 'own',
+          heroAssetId: OWN_HERO,
+          focalX: 0.5,
+          focalY: 0.5,
+          altTexts: { en: 'The spa pool' },
+        },
+      },
+    })
+
+    const outcome = await useCase({ portalId: PORTAL, source: 'draft' }, manager())
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    const experience = outcome.preview.experiences.en!
+    expect(experience.brand.hero).toBeNull()
+    expect(experience.content.heroAlt.value).toBe('')
+  })
+
+  it('draws the Portal’s own colours and derives its field as publishing does', async () => {
+    const own = await previewOf({
+      override: {
+        ...FOLLOWING,
+        colours: {
+          mode: 'own',
+          accent: '#B8860B',
+          backgroundMode: 'manual',
+          backgroundColour: '#2a1f10',
+        },
+      },
+    })
+    const automatic = await previewOf({
+      override: {
+        ...FOLLOWING,
+        colours: {
+          mode: 'own',
+          accent: '#B8860B',
+          backgroundMode: 'auto',
+          backgroundColour: '#2a1f10',
+        },
+      },
+    })
+
+    // A hand-chosen background is drawn as stored; an automatic one follows the accent.
+    expect(own.brand).toMatchObject({ accentColour: '#B8860B', fieldColour: '#2a1f10' })
+    expect(automatic.brand.accentColour).toBe('#B8860B')
+    expect(automatic.brand.fieldColour).not.toBe('#2a1f10')
+  })
+
+  it('draws the Portal’s own wordmark and logo, or neither', async () => {
+    const own = await previewOf({
+      override: {
+        ...FOLLOWING,
+        identity: { mode: 'own', wordmark: 'SPA', logoAssetId: OWN_LOGO },
+      },
+    })
+    const bare = await previewOf({
+      override: {
+        ...FOLLOWING,
+        identity: { mode: 'own', wordmark: null, logoAssetId: null },
+      },
+    })
+
+    expect(own.brand.wordmark).toBe('SPA')
+    expect(own.brand.logo).toMatchObject({ width: 300, height: 300 })
+    expect(own.brand.displayName).toBe('Avela Resort')
+    expect(bare.brand.wordmark).toBeNull()
+    expect(bare.brand.logo).toBeNull()
+  })
+
+  it('describes nothing when the Property has no photograph to describe', async () => {
+    const { useCase } = setup({
+      profile: {
+        ...lookProfile(),
+        heroAssetId: null,
+        heroFocalX: null,
+        heroFocalY: null,
+      },
+      heroAltText: 'The pool',
+    })
+
+    const outcome = await useCase({ portalId: PORTAL, source: 'draft' }, manager())
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    expect(outcome.preview.experiences.en?.content.heroAlt.value).toBe('')
+  })
+
+  it('ignores the Portal’s own look while the Property has no Brand Profile', async () => {
+    const { useCase } = setup({
+      profile: null,
+      override: { ...FOLLOWING, photo: { mode: 'none' } },
+    })
+
+    const outcome = await useCase({ portalId: PORTAL, source: 'draft' }, manager())
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    expect(outcome.preview.experiences.en?.brand).toMatchObject({
+      hero: null,
+      logo: null,
+      accentColour: '#EAD6A8',
+    })
   })
 })
 

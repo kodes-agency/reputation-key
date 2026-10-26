@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildReviewChanges,
+  editReachesPortal,
   evaluateReviewChecks,
   reviewLanguageRows,
   type ReviewEditInput,
   type ReviewReadiness,
 } from './portal-review-rules'
 import type { PortalLanguageCoverage } from './portal-language-coverage'
+import { PROPERTY_LOOK_SOURCES, type PortalLookSources } from './portal-look'
 
 const READY: ReviewReadiness = {
   propertyActive: true,
@@ -453,6 +455,127 @@ describe('buildReviewChanges', () => {
     expect(buildReviewChanges({ ...base, workingCopyDiffers: true })).toEqual([
       { type: 'unlisted' },
     ])
+  })
+})
+
+describe('a photo description in the review', () => {
+  const photoAlt = (key: string) =>
+    edit({
+      kind: 'property_brand_content',
+      key,
+      propertyWide: true,
+      previousText: null,
+      newText: null,
+    })
+
+  it('lists a change of a photo description, which keeps no wording, as a change of the photo', () => {
+    const changes = buildReviewChanges({ ...base, edits: [photoAlt('photo_alt:en')] })
+
+    expect(changes).toMatchObject([
+      {
+        type: 'edit',
+        kind: 'property_brand_content',
+        key: 'photo_alt:en',
+        subject: { area: 'look', facet: 'photo' },
+      },
+    ])
+  })
+
+  it('still drops, as put back, a description row keyed by the bare language', () => {
+    // Rows written before descriptions had a key of their own read as welcome
+    // text with nothing before or after: no change that can be named.
+    expect(buildReviewChanges({ ...base, edits: [photoAlt('en')] })).toEqual([])
+  })
+
+  it('folds saves of one language’s description into one change', () => {
+    const changes = buildReviewChanges({
+      ...base,
+      edits: [
+        { ...photoAlt('photo_alt:en'), occurredAt: at(30) },
+        { ...photoAlt('photo_alt:en'), occurredAt: at(5) },
+        photoAlt('photo_alt:bg'),
+      ],
+    })
+
+    expect(changes).toHaveLength(2)
+  })
+})
+
+describe('editReachesPortal', () => {
+  const sources = (overrides: Partial<PortalLookSources>): PortalLookSources => ({
+    ...PROPERTY_LOOK_SOURCES,
+    ...overrides,
+  })
+  const row = (kind: ReviewEditInput['kind'], key: string) => ({ kind, key })
+
+  it('reaches a Portal that follows every group', () => {
+    for (const key of ['look:accent', 'look:logo', 'look:photo', 'look:images']) {
+      expect(
+        editReachesPortal(row('property_brand_profile', key), PROPERTY_LOOK_SOURCES),
+      ).toBe(true)
+    }
+    expect(
+      editReachesPortal(
+        row('property_brand_content', 'photo_alt:en'),
+        PROPERTY_LOOK_SOURCES,
+      ),
+    ).toBe(true)
+  })
+
+  it.each([
+    ['look:accent', { colours: 'portal' }],
+    ['look:field', { colours: 'portal' }],
+    ['look:text', { colours: 'portal' }],
+    ['look:wordmark', { identity: 'portal' }],
+    ['look:logo', { identity: 'portal' }],
+    ['look:photo', { photo: 'portal' }],
+    ['look:photo', { photo: 'none' }],
+    ['look:images', { photo: 'portal', identity: 'portal' }],
+    ['look:images', { photo: 'none', identity: 'portal' }],
+  ] as const)('does not reach a Portal that owns what %s belongs to (%j)', (key, own) => {
+    expect(editReachesPortal(row('property_brand_profile', key), sources(own))).toBe(
+      false,
+    )
+  })
+
+  it.each([
+    ['look:accent', { photo: 'portal', identity: 'portal' }],
+    ['look:logo', { photo: 'portal', colours: 'portal' }],
+    ['look:photo', { colours: 'portal', identity: 'portal' }],
+    ['look:images', { photo: 'portal' }],
+    ['look:images', { identity: 'portal' }],
+  ] as const)(
+    'still reaches a Portal that owns other groups than %s (%j)',
+    (key, own) => {
+      expect(editReachesPortal(row('property_brand_profile', key), sources(own))).toBe(
+        true,
+      )
+    },
+  )
+
+  it('judges a photo description by the photo alone', () => {
+    const description = row('property_brand_content', 'photo_alt:en')
+
+    expect(editReachesPortal(description, sources({ colours: 'portal' }))).toBe(true)
+    expect(editReachesPortal(description, sources({ photo: 'portal' }))).toBe(false)
+    expect(editReachesPortal(description, sources({ photo: 'none' }))).toBe(false)
+  })
+
+  it('always reaches a Portal with a row it cannot tell the area of', () => {
+    const everything = sources({ photo: 'portal', colours: 'portal', identity: 'portal' })
+
+    expect(
+      editReachesPortal(row('property_brand_profile', 'look:later'), everything),
+    ).toBe(true)
+    expect(editReachesPortal(row('property_brand_profile', 'all'), everything)).toBe(true)
+    expect(editReachesPortal(row('property_brand_content', 'en'), everything)).toBe(true)
+    expect(
+      editReachesPortal(row('portal_links', `link:${LINK}:updated`), everything),
+    ).toBe(true)
+    // A Portal's own look edit is its own, whatever it owns.
+    expect(editReachesPortal(row('portal_configuration', 'look:photo'), everything)).toBe(
+      true,
+    )
   })
 })
 

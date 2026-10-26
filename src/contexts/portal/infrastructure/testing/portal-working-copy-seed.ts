@@ -27,9 +27,38 @@ export type SeededBrand = Readonly<{
   defaultHeroImageUrl: string | null
   wordmark?: string | null
   backgroundMode?: 'auto' | 'manual'
+  /** The accent, as stored; #1D4ED8 when left out. */
+  primaryColor?: string
+  /** The background colour, as stored (it may be lowercase); #101820 when left out. */
+  backgroundColor?: string
   lookVersion?: number
   heroAsset?: Readonly<{ id: string; focalX: number; focalY: number }>
   logoAssetId?: string
+}>
+
+/**
+ * A Portal's own look (`portal_look_overrides`). A group left out follows the
+ * Property; a photo can be `none`. Written as the table's CHECKs require, so a
+ * test cannot seed a row the writers could never make.
+ */
+export type SeededLookOverride = Readonly<{
+  photo?:
+    | Readonly<{ mode: 'none' }>
+    | Readonly<{
+        mode: 'own'
+        assetId: string
+        focalX: number
+        focalY: number
+        /** The own photo's description per language. */
+        altTexts?: Readonly<Record<string, string>>
+      }>
+  colours?: Readonly<{
+    accent: string
+    backgroundMode: 'auto' | 'manual'
+    backgroundColour: string
+  }>
+  identity?: Readonly<{ wordmark: string | null; logoAssetId: string | null }>
+  lookVersion: number
 }>
 
 export type SeededLinkText = Readonly<{
@@ -70,6 +99,8 @@ export type PortalWorkingCopySeed = Readonly<{
   timeZone?: string
   linktreeEnabled?: boolean
   brand: SeededBrand | null
+  /** The Portal's own look; none follows the whole Property look. */
+  lookOverride?: SeededLookOverride
   mediaAssets?: readonly SeededMediaAsset[]
   contents: readonly SeededBrandContent[]
   overrides: readonly SeededOverride[]
@@ -118,7 +149,7 @@ async function seedBrand(pool: Pool, seed: PortalWorkingCopySeed): Promise<void>
           background_color, text_color, version, updated_by, created_at,
           updated_at)
        VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, $9, $10, $11, $12,
-               '#1D4ED8', '#101820', '#111827', 3, 'seed-manager', $13, $13)`,
+               $14, $15, '#111827', 3, 'seed-manager', $13, $13)`,
       [
         `b1000000-0000-4000-8000-${idTail(seed.propertyId)}`,
         seed.organizationId,
@@ -133,6 +164,8 @@ async function seedBrand(pool: Pool, seed: PortalWorkingCopySeed): Promise<void>
         brand.backgroundMode ?? 'auto',
         brand.lookVersion ?? 1,
         SEEDED_AT,
+        brand.primaryColor ?? '#1D4ED8',
+        brand.backgroundColor ?? '#101820',
       ],
     )
   }
@@ -174,6 +207,91 @@ async function seedBrand(pool: Pool, seed: PortalWorkingCopySeed): Promise<void>
       ],
     )
   }
+}
+
+type LookValues = readonly (string | number | null)[]
+
+/** photo_mode, hero_asset_id, hero_focal_x, hero_focal_y, hero_alt_texts */
+function photoValues(photo: SeededLookOverride['photo']): LookValues {
+  if (photo?.mode !== 'own') return [photo?.mode ?? 'inherit', null, null, null, '{}']
+  return [
+    'own',
+    photo.assetId,
+    photo.focalX,
+    photo.focalY,
+    JSON.stringify(photo.altTexts ?? {}),
+  ]
+}
+
+/** colours_mode, primary_color, background_mode, background_color */
+function coloursValues(colours: SeededLookOverride['colours']): LookValues {
+  if (!colours) return ['inherit', null, null, null]
+  return ['own', colours.accent, colours.backgroundMode, colours.backgroundColour]
+}
+
+/** identity_mode, wordmark, logo_asset_id */
+function identityValues(identity: SeededLookOverride['identity']): LookValues {
+  if (!identity) return ['inherit', null, null]
+  return ['own', identity.wordmark, identity.logoAssetId]
+}
+
+/** Inserts the Portal's own look row. */
+export async function seedPortalLookOverride(
+  pool: Pool,
+  scope: Readonly<{ organizationId: string; propertyId: string; portalId: string }>,
+  look: SeededLookOverride,
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO portal_look_overrides
+       (organization_id, property_id, portal_id, photo_mode, hero_asset_id,
+        hero_focal_x, hero_focal_y, hero_alt_texts, colours_mode, primary_color,
+        background_mode, background_color, identity_mode, wordmark,
+        logo_asset_id, look_version, updated_by, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9, $10, $11, $12, $13,
+             $14, $15::uuid, $16, 'seed-manager', $17, $17)`,
+    [
+      scope.organizationId,
+      scope.propertyId,
+      scope.portalId,
+      ...photoValues(look.photo),
+      ...coloursValues(look.colours),
+      ...identityValues(look.identity),
+      look.lookVersion,
+      SEEDED_AT,
+    ],
+  )
+}
+
+/**
+ * Another Portal of the seeded Property, in the same languages, with no links.
+ * It shares the Property's Brand Profile and wording, so a test can give it a
+ * look of its own beside a Portal that follows the Property's.
+ */
+export async function seedSiblingPortal(
+  pool: Pool,
+  seed: PortalWorkingCopySeed,
+  sibling: Readonly<{ portalId: string; slug: string; name?: string }>,
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO portals
+       (id, organization_id, property_id, entity_type, entity_id, name, slug,
+        description, theme, private_feedback_threshold, publication_state,
+        primary_guest_locale, additional_guest_locales, linktree_enabled,
+        created_at, updated_at)
+     VALUES ($1, $2, $3::uuid, 'property', $3::text, $4, $5, 'Scan for the spa',
+             '{"primaryColor":"#123456"}'::jsonb, 4, 'draft', $6, $7::jsonb, $8, $9, $9)`,
+    [
+      sibling.portalId,
+      seed.organizationId,
+      seed.propertyId,
+      sibling.name ?? 'Spa portal',
+      sibling.slug,
+      seed.primaryGuestLocale,
+      JSON.stringify(seed.additionalGuestLocales),
+      seed.linktreeEnabled ?? true,
+      SEEDED_AT,
+    ],
+  )
 }
 
 async function seedLink(
@@ -312,6 +430,9 @@ export async function seedPortalWorkingCopy(
     ],
   )
   await seedBrand(pool, seed)
+  if (seed.lookOverride) {
+    await seedPortalLookOverride(pool, seed, seed.lookOverride)
+  }
   await pool.query(
     `INSERT INTO portal_link_categories
        (id, portal_id, organization_id, title, sort_key, created_at, updated_at)

@@ -16,6 +16,7 @@ import type {
   MissingPortalText,
   PortalLanguageCoverage,
 } from './portal-language-coverage'
+import { facetReachesPortal, type PortalLookSources } from './portal-look'
 import {
   describePageEdit,
   pageEditCarriesWording,
@@ -230,6 +231,26 @@ export type ReviewChangesInput = Readonly<{
   workingCopyDiffers: boolean
 }>
 
+/**
+ * Whether a ledger row can still be about the page of a Portal whose look
+ * groups come from `sources` (ADR 0070). The Property's look rows (a colour, a
+ * wordmark, the photo or logo, a photo description) are Property-wide: one row
+ * serves every Portal. A Portal that has taken its own version of every group a
+ * row belongs to no longer shows that change, so its Review does not list it. A
+ * row opened before the Portal took ownership may then be left without a
+ * ledger row to explain its open pending change, which Review shows as an
+ * unrecorded change of that kind. Every other row, and a look row whose facet
+ * this code does not know, stays: the ledger outlives the code that wrote it.
+ */
+export function editReachesPortal(
+  edit: Pick<ReviewEditInput, 'kind' | 'key'>,
+  sources: PortalLookSources,
+): boolean {
+  const subject = describePageEdit(edit.kind, edit.key)
+  if (subject.area !== 'look' || subject.facet === null) return true
+  return facetReachesPortal(subject.facet, sources)
+}
+
 type EditGroup = Readonly<{
   first: ReviewEditInput
   last: ReviewEditInput
@@ -287,7 +308,14 @@ const NULL_MEANS_NO_TEXT: ReadonlySet<PortalPageEditSubject['area']> = new Set([
   'page_settings',
 ])
 
-/** Wording saved and then put back is no change at all. */
+/**
+ * Wording saved and then put back is no change at all. A photo description is
+ * recorded without its wording (the ledger says which language changed, not what
+ * it said) and is part of the look, which is not in `NULL_MEANS_NO_TEXT`: it is
+ * listed as a change of the photo, as a Property colour edit is. A row written
+ * before descriptions had a key of their own, keyed by the bare language, reads
+ * as welcome text and is dropped as it always was.
+ */
 function isPutBack(group: EditGroup): boolean {
   const { kind, key } = group.last
   if (!pageEditCarriesWording(kind, key)) return false

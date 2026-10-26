@@ -28,6 +28,7 @@ import { createPortalHealthRepository } from './portal-health.repository'
 import { createPortalPublicationRepository } from './portal-publication.repository'
 import { createPortalResponsibleManagerRepository } from './portal-responsible-manager.repository'
 import { createPortalTokenRepository } from './portal-token.repository'
+import { createPortalLookRepository } from './portal-look.repository'
 import { issueToken, rotateToken } from '../../domain/portal-token'
 
 const ORG = organizationId('org-portal-overview-reads')
@@ -62,6 +63,7 @@ const tables = [
   'portal_groups',
   'portal_access_artifacts',
   'portal_tokens',
+  'portal_look_overrides',
   'portals',
 ]
 
@@ -617,6 +619,16 @@ describe('listPortalOverview over the real repositories', () => {
         now: START,
       }),
     )
+    // FULL has its own colours; the other tenant's Portal has its own look too,
+    // which must never reach this organisation's overview.
+    await pool.query(
+      `INSERT INTO portal_look_overrides
+         (organization_id, property_id, portal_id, colours_mode, primary_color,
+          background_mode, background_color, look_version, updated_by)
+       VALUES ($1, $2, $3, 'own', '#B8860B', 'auto', '#201810', 2, 'owner'),
+              ($4, $5, $6, 'own', '#112233', 'auto', '#221100', 2, 'owner')`,
+      [ORG, PROPERTY, FULL, ORG_OTHER, PROPERTY_OTHER, OTHER_TENANT_PORTAL],
+    )
     const useCase = listPortalOverview({
       portalRepo: createPortalRepository(db),
       portalHealthRepo: healthRepo,
@@ -624,6 +636,7 @@ describe('listPortalOverview over the real repositories', () => {
       portalGroupRepo,
       managerRepo: createPortalResponsibleManagerRepository(db),
       portalTokenRepo,
+      portalLookRepo: createPortalLookRepository(db),
       staffPublicApi: {
         getAccessiblePropertyIds: async () => null,
         getAssignedPortals: async () => [],
@@ -649,13 +662,17 @@ describe('listPortalOverview over the real repositories', () => {
       group: { id: GROUP },
       responsibleManagerUserIds: ['user-a'],
       token: { hasActiveToken: true, version: 1 },
+      lookSources: { photo: 'property', colours: 'portal', identity: 'property' },
     })
-    expect(rows.find((row) => row.portalId === BARE)).toMatchObject({
+    const bare = rows.find((row) => row.portalId === BARE)
+    expect(bare).toMatchObject({
       health: null,
       pendingChangeCount: 0,
       group: null,
       responsibleManagerUserIds: [],
       token: { hasActiveToken: false },
     })
+    // A Portal with no look of its own carries no sources: it follows the Property.
+    expect(bare).not.toHaveProperty('lookSources')
   })
 })

@@ -7,7 +7,10 @@
 // language in), a Property with no Brand Profile has no look, an image that may
 // not be served is absent, and only approved links are listed, in guest order.
 
-import type { PortalPublicationSource } from '../../domain/portal-publication-source'
+import type {
+  PortalPublicationSource,
+  PublicationLook,
+} from '../../domain/portal-publication-source'
 
 export const COMPLETE_GOLDEN: PortalPublicationSource = {
   organizationId: 'org-workingcopy-0000-0000-00000001',
@@ -140,3 +143,83 @@ export const INCOMPLETE_GOLDEN: PortalPublicationSource = {
   },
   links: [],
 }
+
+// ── A Portal's own look (ADR 0070) ───────────────────────────────────────────
+//
+// The complete Portal's working copy with the parts of the look its own look
+// changes. The Property's colours, name and photo descriptions stay where the
+// Portal's look does not reach.
+
+const completeLook = (): PublicationLook => {
+  if (COMPLETE_GOLDEN.look === null) throw new Error('the complete golden has a look')
+  return COMPLETE_GOLDEN.look
+}
+
+const OWN_HERO = {
+  assetId: 'c5000000-0000-4000-8000-000000000004',
+  width: 1200,
+  height: 800,
+}
+const OWN_LOGO = {
+  assetId: 'c5000000-0000-4000-8000-000000000005',
+  width: 300,
+  height: 300,
+}
+const PROPERTY_ALT = 'Фасадата на хотела'
+
+function completeWith(
+  look: Partial<PublicationLook>,
+  heroAlt: Readonly<{ bg: string | null; en: string | null }>,
+): PortalPublicationSource {
+  const { bg, en } = COMPLETE_GOLDEN.wording
+  if (!bg || !en) throw new Error('the complete golden words both languages')
+  return {
+    ...COMPLETE_GOLDEN,
+    look: { ...completeLook(), ...look },
+    wording: { bg: { ...bg, heroAlt: heroAlt.bg }, en: { ...en, heroAlt: heroAlt.en } },
+  }
+}
+
+const OWN_PHOTO_PART = {
+  hero: { ...OWN_HERO, focalX: 0.2, focalY: 0.4 },
+} satisfies Partial<PublicationLook>
+const OWN_COLOURS_PART = {
+  accentColour: '#B8860B',
+  backgroundColour: '#201810',
+  backgroundMode: 'auto',
+} satisfies Partial<PublicationLook>
+const OWN_IDENTITY_PART = {
+  wordmark: 'SPA',
+  logo: OWN_LOGO,
+} satisfies Partial<PublicationLook>
+
+export const OWN_PHOTO_GOLDEN = completeWith(
+  { ...OWN_PHOTO_PART, lookVersion: 5 },
+  { bg: 'Басейнът', en: 'The pool' },
+)
+
+/** The Property's description of its own photograph is never carried to the Portal's. */
+export const OWN_PHOTO_WITHOUT_ALT_GOLDEN = completeWith(
+  { hero: { ...OWN_HERO, focalX: 0.5, focalY: 0.5 }, lookVersion: 5 },
+  { bg: null, en: null },
+)
+
+export const NO_PHOTO_GOLDEN = completeWith(
+  { hero: null, lookVersion: 5 },
+  { bg: null, en: null },
+)
+
+export const OWN_COLOURS_GOLDEN = completeWith(
+  { ...OWN_COLOURS_PART, lookVersion: 5 },
+  { bg: PROPERTY_ALT, en: null },
+)
+
+export const OWN_IDENTITY_GOLDEN = completeWith(
+  { ...OWN_IDENTITY_PART, lookVersion: 5 },
+  { bg: PROPERTY_ALT, en: null },
+)
+
+export const OWN_EVERYTHING_GOLDEN = completeWith(
+  { ...OWN_PHOTO_PART, ...OWN_COLOURS_PART, ...OWN_IDENTITY_PART, lookVersion: 6 },
+  { bg: 'Басейнът', en: 'The pool' },
+)
