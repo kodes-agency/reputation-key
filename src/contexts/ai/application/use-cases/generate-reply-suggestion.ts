@@ -38,6 +38,7 @@ import type {
 } from '../../domain/types'
 import type { AiErrorCode } from '../../domain/errors'
 import {
+  AI_PROVIDER_CHARGED_CODES,
   aiRequestFingerprint,
   aiRetryAt,
   aiReviewSourceProvenance,
@@ -257,11 +258,16 @@ async function recordReplyProviderFailure(
   // clock while stamping failure with a fresh read can put retry before write
   // when provider work outlasts the backoff. aiRetryAt preserves the ordering.
   const failedAtEpochMillis = dependencies.nowEpochMillis()
-  const retryAtEpochMillis = aiRetryAt(
-    failure.expectedAttempt,
-    failedAtEpochMillis,
-    failure.providerRetryAfterEpochMillis,
-  )
+  // A charged answer ends the operation under its own code: admission refuses
+  // any later attempt of it, and the composer asks again under a new key, so a
+  // scheduled retry only waited to be reaped as `operation_abandoned`.
+  const retryAtEpochMillis = AI_PROVIDER_CHARGED_CODES.has(failure.failureCode)
+    ? null
+    : aiRetryAt(
+        failure.expectedAttempt,
+        failedAtEpochMillis,
+        failure.providerRetryAfterEpochMillis,
+      )
   await dependencies.operations.recordFailure({
     operationId: failure.operationId,
     organizationId: failure.organizationId,
