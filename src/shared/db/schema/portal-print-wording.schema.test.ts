@@ -44,7 +44,8 @@ describe('portal_print_wordings schema', () => {
       'updated_at',
     ])
     for (const name of names) {
-      expect(name).not.toMatch(/address|token|code|url|pdf|file|hash|secret|user|_by$/u)
+      expect(name).not.toMatch(/address|token|code|url|pdf|file|hash|secret|user/u)
+      expect(name.endsWith('_by')).toBe(false)
     }
   })
 })
