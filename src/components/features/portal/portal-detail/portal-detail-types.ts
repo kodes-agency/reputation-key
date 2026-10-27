@@ -99,6 +99,8 @@ export type PortalDetailResources = Readonly<{
   downloadPrintKitMutation?: PortalPrintKitResources['downloadMutation']
   /** The final print kit's download, which the tab uses where the server shows the final kit. */
   downloadPrintFinalMutation?: PortalPrintKitResources['downloadFinalMutation']
+  /** "Save wording" in the final print kit: Share opens on the words saved. */
+  savePrintWordingMutation?: PortalPrintKitResources['saveWordingMutation']
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
   getPortalAnalytics: typeof getPortalAnalyticsFn

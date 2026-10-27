@@ -39,6 +39,18 @@ const downloadPortalPrintFinalLazily = async (
   return downloadPortalPrintFinal(input)
 }
 
+type SavePortalPrintWording =
+  typeof import('#/contexts/portal/server/portal-print-final').savePortalPrintWording
+
+/** Saving the final kit's wording, in the same lazily loaded module as its download. */
+const savePortalPrintWordingLazily = async (
+  input: Parameters<SavePortalPrintWording>[0],
+): Promise<Awaited<ReturnType<SavePortalPrintWording>>> => {
+  const { savePortalPrintWording } =
+    await import('#/contexts/portal/server/portal-print-final')
+  return savePortalPrintWording(input)
+}
+
 type PortalLookServer = typeof import('#/contexts/portal/server/portal-look')
 
 /**
@@ -244,6 +256,12 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   const downloadPrintFinal = useActionMutation(downloadPortalPrintFinalLazily, {
     errorMessage: actionErrorMessage,
   })
+  // "Save wording" beside it: a manager who saves asked for it, so it says so,
+  // and a refusal is a toast like the download's.
+  const savePrintWording = useActionMutation(savePortalPrintWordingLazily, {
+    successMessage: 'Wording saved',
+    errorMessage: actionErrorMessage,
+  })
   const revokeToken = useActionMutation(revokePortalTokens, {
     successMessage: 'All codes stopped',
     invalidateKeys: tokenInvalidations,
@@ -303,6 +321,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     revealAddress,
     downloadPrintKit,
     downloadPrintFinal,
+    savePrintWording,
     completeReview,
     updateResponsibleManagers,
     makeVersionLive,

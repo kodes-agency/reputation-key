@@ -8,6 +8,7 @@
 import { createHash } from 'node:crypto'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalLastPrintRepository } from './application/ports/portal-last-print.repository'
+import type { PortalPrintWordingRepository } from './application/ports/portal-print-wording.repository'
 import type { PortalMediaAssetRepository } from './application/ports/portal-media-asset.repository'
 import type { PortalPublicationRepository } from './application/ports/portal-publication.repository'
 import type { PortalRepository } from './application/ports/portal.repository'
@@ -15,6 +16,7 @@ import type { StoragePort } from './application/ports/storage.port'
 import { createPortalPrintFinal } from './application/use-cases/create-portal-print-final'
 import { createPortalPrintKit } from './application/use-cases/create-portal-print-kit'
 import { getPortalPrintKit } from './application/use-cases/get-portal-print-kit'
+import { savePortalPrintWording } from './application/use-cases/save-portal-print-wording'
 import type { RevealPortalAddress } from './application/use-cases/reveal-portal-address'
 import type { PortalPrintKitRenderer } from './application/ports/portal-print-kit-renderer.port'
 import type { PortalPrintFinalRenderer } from './application/ports/portal-print-final-renderer.port'
@@ -31,6 +33,8 @@ export type PortalPrintKitDeps = Readonly<{
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
   /** The final kit's memory of each Portal's last print. */
   lastPrintRepo: PortalLastPrintRepository
+  /** The wording each Portal saved for Share to open on. */
+  wordingRepo: PortalPrintWordingRepository
   objectStore: Pick<StoragePort, 'getObject'>
   revealAddress: RevealPortalAddress
   /** The Property's country, which sets the paper a print defaults to. */
@@ -83,7 +87,15 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       staffPublicApi: deps.staffPublicApi,
       publicationRepo: deps.publicationRepo,
       lastPrintRepo: deps.lastPrintRepo,
+      wordingRepo: deps.wordingRepo,
       mediaRepo: deps.mediaRepo,
+      finalKitEnabled: deps.finalKitEnabled,
+    }),
+    savePortalPrintWording: savePortalPrintWording({
+      portalRepo: deps.portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      wordingRepo: deps.wordingRepo,
+      clock: deps.clock,
       finalKitEnabled: deps.finalKitEnabled,
     }),
     createPortalPrintKit: createPortalPrintKit({
@@ -109,6 +121,7 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       propertyCountry: deps.propertyCountry,
       finalKitEnabled: deps.finalKitEnabled,
       lastPrintRepo: deps.lastPrintRepo,
+      wordingRepo: deps.wordingRepo,
       clock: deps.clock,
       logger: deps.logger,
     }),

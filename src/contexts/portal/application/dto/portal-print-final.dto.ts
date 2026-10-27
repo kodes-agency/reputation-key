@@ -41,6 +41,12 @@ const customCopySchema = z.object({
   subline: customFieldSchema,
 })
 
+/** The own words of a print or of a saved wording: guest languages only, each a headline and a sub-line. */
+export const printFinalCustomWordsSchema = z.partialRecord(
+  guestLocaleSchema,
+  customCopySchema,
+)
+
 /**
  * A final print (final design spec §11): a piece, upright or wide, in a look,
  * for the manager's printer or a print shop, in one or two of the Portal's
@@ -88,7 +94,7 @@ export const downloadPortalPrintFinalInputSchema = z
         message: 'Choose two different languages',
       }),
     callToAction: z.enum(PRINT_FINAL_CALLS_TO_ACTION),
-    customWords: z.partialRecord(guestLocaleSchema, customCopySchema).nullish(),
+    customWords: printFinalCustomWordsSchema.nullish(),
   })
   .refine(
     (input) =>

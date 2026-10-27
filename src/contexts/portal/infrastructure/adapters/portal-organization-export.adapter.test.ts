@@ -31,6 +31,7 @@ const READ_ORDER = [
   'addressDownloads',
   'healthIntervals',
   'lastPrints',
+  'printWordings',
 ] as const
 
 type Collection = (typeof READ_ORDER)[number]

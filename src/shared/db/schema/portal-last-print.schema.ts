@@ -28,8 +28,9 @@ export const PORTAL_LAST_PRINT_ORIENTATION_SQL_LIST = "'upright', 'wide'"
 export const PORTAL_LAST_PRINT_LOOK_SQL_LIST = "'paper', 'immersive'"
 export const PORTAL_LAST_PRINT_PAPER_SQL_LIST = "'letter', 'a4'"
 export const PORTAL_LAST_PRINT_PRINTER_SQL_LIST = "'my_printer', 'print_shop'"
+// Shared by `portal_print_wordings`: the saved wording says the same ids.
 export const PORTAL_LAST_PRINT_CTA_SQL_LIST =
-  "'how_did_we_do', 'how_was_visit', 'rate_visit', 'got_30_seconds'"
+  "'how_did_we_do', 'how_was_visit', 'how_was_stay', 'rate_visit', 'got_30_seconds'"
 
 /** The most pieces a print may ask for: the download's own bound. */
 export const PORTAL_LAST_PRINT_MAX_QUANTITY = 1000

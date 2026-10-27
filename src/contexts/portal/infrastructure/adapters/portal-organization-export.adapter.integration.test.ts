@@ -19,6 +19,7 @@ const DIGEST = 'a'.repeat(64)
 const CHILD_TABLES = [
   'portal_address_downloads',
   'portal_last_prints',
+  'portal_print_wordings',
   'portal_access_artifacts',
   'portal_tokens',
   'portal_pending_content_changes',
@@ -315,6 +316,16 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.portalId, organizationId, fixture.propertyId, fixture.mediaAssetId],
   )
 
+  await q(
+    `INSERT INTO portal_print_wordings (
+       portal_id, organization_id, property_id, call_to_action, call_to_action_custom,
+       updated_at
+     ) VALUES ($1, $2, $3, 'how_was_stay',
+               '{"en":{"headline":"Thanks for staying","subline":"Tell us more"}}'::jsonb,
+               now())`,
+    [fixture.portalId, organizationId, fixture.propertyId],
+  )
+
   // Secret and dark-capability rows the export must never touch.
   await q(
     `INSERT INTO portal_tokens (
@@ -430,6 +441,7 @@ describe.sequential('Portal Organization Export contributor', () => {
       'addressDownloads',
       'healthIntervals',
       'lastPrints',
+      'printWordings',
     ]) {
       expect(payload[collection], collection).toHaveLength(1)
     }
@@ -616,6 +628,38 @@ describe.sequential('Portal Organization Export contributor', () => {
     expect(new Set(contextEntries.map(({ classification }) => classification))).toEqual(
       new Set(['tenant_visible']),
     )
+  })
+
+  it('exports the saved print wording by Portal: its id and words, and nothing else', async () => {
+    const fixture = await seedFixture()
+    const contributor = createPortalOrganizationExportContributor(db)
+
+    const result = await contributor.contribute({
+      organizationId: fixture.organizationId,
+      requestId: randomUUID(),
+      asOf: new Date(Date.now() - 1000),
+    })
+
+    const json = result.entries.find(({ mediaType }) => mediaType === 'application/json')!
+    const payload = JSON.parse(Buffer.from(json.bytes).toString('utf8')) as Readonly<{
+      printWordings: readonly Readonly<Record<string, unknown>>[]
+    }>
+    expect(payload.printWordings).toHaveLength(1)
+    const [wording] = payload.printWordings
+    expect(wording).toMatchObject({
+      portal_id: fixture.portalId,
+      call_to_action: 'how_was_stay',
+      call_to_action_custom:
+        '{"en": {"subline": "Tell us more", "headline": "Thanks for staying"}}',
+    })
+    expect(Object.keys(wording ?? {}).sort()).toEqual([
+      'call_to_action',
+      'call_to_action_custom',
+      'id',
+      'portal_id',
+      'property_id',
+      'updated_at',
+    ])
   })
 
   // The CSV summary's portal_id column says which Portal a row belongs to, and

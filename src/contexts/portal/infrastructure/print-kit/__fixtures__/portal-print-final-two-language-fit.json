@@ -19,6 +19,39 @@
   "how_did_we_do es+en": [],
   "how_did_we_do fr+en": [],
   "how_did_we_do it+en": [],
+  "how_was_stay bg+en": [
+    "tent-upright-paper-us",
+    "tent-upright-paper-eu",
+    "small-upright-paper-eu",
+    "small-upright-immersive-eu"
+  ],
+  "how_was_stay de+en": [
+    "tent-upright-paper-us",
+    "tent-upright-paper-eu",
+    "small-upright-immersive-eu"
+  ],
+  "how_was_stay en+bg": [],
+  "how_was_stay en+de": [],
+  "how_was_stay en+es": [],
+  "how_was_stay en+fr": ["small-wide-immersive-eu"],
+  "how_was_stay en+it": ["small-wide-immersive-eu"],
+  "how_was_stay es+en": ["tent-upright-paper-us"],
+  "how_was_stay fr+en": [
+    "tent-upright-paper-us",
+    "tent-upright-immersive-us",
+    "tent-upright-paper-eu",
+    "tent-upright-immersive-eu",
+    "small-upright-paper-eu",
+    "small-upright-immersive-eu"
+  ],
+  "how_was_stay it+en": [
+    "tent-upright-paper-us",
+    "tent-upright-immersive-us",
+    "tent-upright-paper-eu",
+    "tent-upright-immersive-eu",
+    "small-upright-paper-eu",
+    "small-upright-immersive-eu"
+  ],
   "how_was_visit bg+en": [
     "tent-upright-paper-us",
     "tent-upright-immersive-us",

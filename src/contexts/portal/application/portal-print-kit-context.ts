@@ -17,6 +17,7 @@ import type {
   PrintFinalLastSettings,
   PrintFinalPhotoChange,
 } from '#/shared/domain/portal-print-final-last'
+import type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
 import {
   IMMERSIVE_HUB_SCHEMA_VERSION,
   isLocalizedConfiguration,
@@ -174,6 +175,8 @@ export type PortalPrintKitView = Readonly<{
   kit: PortalPrintKitGeneration
   /** The final kit's memory of the last print; null for today's kit and for a Portal never printed. */
   lastPrint: PortalPrintKitLastPrint | null
+  /** The wording the manager saved for Share to open on; null for today's kit and when none was saved. */
+  savedWording: PrintFinalSavedWording | null
   portalName: string
   primaryLocale: GuestLocale
   locales: readonly GuestLocale[]
@@ -197,12 +200,14 @@ export function presentPortalPrintKit(
   context: PortalPrintKitContext,
   kit: PortalPrintKitGeneration,
   lastPrint: PortalPrintKitLastPrint | null = null,
+  savedWording: PrintFinalSavedWording | null = null,
 ): PortalPrintKitView {
   const { look } = context
   return {
     portalId,
     kit,
     lastPrint,
+    savedWording,
     portalName: context.portalName,
     primaryLocale: context.primaryLocale,
     locales: context.locales,

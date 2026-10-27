@@ -283,6 +283,12 @@ async function seedFixture(): Promise<Fixture> {
                false, false, false, '["en"]'::jsonb, 'how_did_we_do', now())`,
     scope,
   )
+  await q(
+    `INSERT INTO portal_print_wordings (
+       portal_id, organization_id, property_id, call_to_action, updated_at
+     ) VALUES ($3, $1, $2, 'how_was_stay', now())`,
+    scope,
+  )
   return fixture
 }
 
@@ -468,6 +474,7 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
 const CLEANUP_ORDER = [
   'portal_address_downloads',
   'portal_last_prints',
+  'portal_print_wordings',
   'portal_access_artifacts',
   'portal_pending_content_changes',
   'portal_page_edits',

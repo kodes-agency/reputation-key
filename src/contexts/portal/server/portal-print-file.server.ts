@@ -43,15 +43,15 @@ function disableFileCaching(): void {
 }
 
 /**
- * Makes a print file for a manager: no copy kept anywhere, the caller's
- * `authorize` (the Portal's scope and the manager's rights), the address rate
- * limit spent, then `make`.
+ * Runs a manager's print action behind the guards every one shares: the tenant
+ * context, the caller's `authorize` (the Portal's scope and the manager's
+ * rights), the address rate limit spent, then `run`; a Portal error becomes the
+ * context error the client reads.
  */
-export async function downloadPortalPrintFile(
+export async function guardedPortalPrintAction<T>(
   authorize: (ctx: AuthContext) => Promise<unknown>,
-  make: (ctx: AuthContext) => Promise<PortalPrintKitFile>,
-): Promise<PortalPrintKitDownload> {
-  disableFileCaching()
+  run: (ctx: AuthContext) => Promise<T>,
+): Promise<T> {
   const ctx = await resolveTenantContext(await headersFromContext())
   try {
     await authorize(ctx)
@@ -61,11 +61,26 @@ export async function downloadPortalPrintFile(
       organizationId: ctx.organizationId,
     })
     if (limited) throw limited
-    return printKitDownloadOf(await make(ctx))
+    return await run(ctx)
   } catch (error) {
     if (isPortalError(error)) {
       throwContextError('PortalError', error, portalErrorStatus(error.code))
     }
     throw catchUntagged(error)
   }
+}
+
+/**
+ * Makes a print file for a manager: no copy kept anywhere, the caller's
+ * `authorize` (the Portal's scope and the manager's rights), the address rate
+ * limit spent, then `make`.
+ */
+export function downloadPortalPrintFile(
+  authorize: (ctx: AuthContext) => Promise<unknown>,
+  make: (ctx: AuthContext) => Promise<PortalPrintKitFile>,
+): Promise<PortalPrintKitDownload> {
+  disableFileCaching()
+  return guardedPortalPrintAction(authorize, async (ctx) =>
+    printKitDownloadOf(await make(ctx)),
+  )
 }

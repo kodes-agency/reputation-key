@@ -81,6 +81,7 @@ describe('downloadPortalPrintFinalInputSchema', () => {
     for (const callToAction of [
       'how_did_we_do',
       'how_was_visit',
+      'how_was_stay',
       'rate_visit',
       'got_30_seconds',
     ]) {

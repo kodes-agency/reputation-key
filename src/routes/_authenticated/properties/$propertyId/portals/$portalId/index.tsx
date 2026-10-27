@@ -74,6 +74,7 @@ function PortalWorkspaceEditor() {
       getPortalPrintKit={getPortalPrintKit}
       downloadPrintKitMutation={actions.downloadPrintKit}
       downloadPrintFinalMutation={actions.downloadPrintFinal}
+      savePrintWordingMutation={actions.savePrintWording}
       getPortalAnalytics={getPortalAnalyticsFn}
       goalLine={goal.line}
       goalLinePending={goal.pending}

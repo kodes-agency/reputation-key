@@ -23,6 +23,7 @@ import {
 } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
 import { portalGroupHistory, portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalLastPrints } from '#/shared/db/schema/portal-last-print.schema'
+import { portalPrintWordings } from '#/shared/db/schema/portal-print-wording.schema'
 import { portalLookOverrides } from '#/shared/db/schema/portal-look.schema'
 import {
   portalAccessArtifacts,
@@ -80,6 +81,7 @@ const CLOSING_DEACTIVATION_REASON = 'disabled'
 export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_address_downloads',
   'portal_last_prints',
+  'portal_print_wordings',
   'portal_access_artifacts',
   'portal_pending_content_changes',
   'portal_page_edits',
@@ -230,6 +232,9 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     await tx
       .delete(portalLastPrints)
       .where(eq(portalLastPrints.organizationId, organizationId))
+    await tx
+      .delete(portalPrintWordings)
+      .where(eq(portalPrintWordings.organizationId, organizationId))
     await tx
       .delete(portalAccessArtifacts)
       .where(eq(portalAccessArtifacts.organizationId, organizationId))
