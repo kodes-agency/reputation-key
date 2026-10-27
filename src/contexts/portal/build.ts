@@ -60,6 +60,7 @@ import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-c
 import { createPortalAddressCipher } from './infrastructure/adapters/portal-address-cipher'
 import { createPortalAddressRepository } from './infrastructure/repositories/portal-address.repository'
 import { createPortalLastPrintRepository } from './infrastructure/repositories/portal-last-print.repository'
+import { createPortalPrintWordingRepository } from './infrastructure/repositories/portal-print-wording.repository'
 import { createPortal } from './application/use-cases/create-portal'
 import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
 import { updatePortal } from './application/use-cases/update-portal'
@@ -621,6 +622,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       publicationRepo: portalPublicationRepo,
       mediaRepo: portalMediaAssetRepo,
       lastPrintRepo: createPortalLastPrintRepository(deps.db),
+      wordingRepo: createPortalPrintWordingRepository(deps.db),
       objectStore: storage,
       revealAddress,
       propertyCountry: createPropertyCountryReader(deps.db),

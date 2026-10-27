@@ -27,6 +27,7 @@ import { revealPortalAddress } from '../../application/use-cases/reveal-portal-a
 import { testPortalTokenCodec } from '../testing/portal-token-codec-fixture'
 import { createPortalAddressRepository } from '../repositories/portal-address.repository'
 import { createPortalLastPrintRepository } from '../repositories/portal-last-print.repository'
+import { createPortalPrintWordingRepository } from '../repositories/portal-print-wording.repository'
 import { createPortalMediaAssetRepository } from '../repositories/portal-media-asset.repository'
 import { createPortalPublicationRepository } from '../repositories/portal-publication.repository'
 import { createPortalRepository } from '../repositories/portal.repository'
@@ -122,6 +123,7 @@ async function harness(options: HarnessOptions = {}) {
       ...common,
       mediaRepo: createPortalMediaAssetRepository(db),
       lastPrintRepo: createPortalLastPrintRepository(db),
+      wordingRepo: createPortalPrintWordingRepository(db),
       finalKitEnabled: false,
     }),
     make: createPortalPrintKit({

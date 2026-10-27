@@ -51,6 +51,7 @@ import {
 } from '#/shared/domain/portal-print-final-offer'
 import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-refusals'
 import { printFinalWordsOffer } from '#/shared/domain/portal-print-final-warnings'
+import { printFinalWordingToSave } from '#/shared/domain/portal-print-final-wording'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalError } from '../../domain/errors'
 import { loadPortalOrThrow } from '../load-accessible-portal'
@@ -59,6 +60,10 @@ import {
   rememberLastPrint,
   type RememberLastPrintDeps,
 } from '../remember-portal-last-print'
+import {
+  rememberPrintWording,
+  type RememberPrintWordingDeps,
+} from '../remember-portal-print-wording'
 import type { DownloadPortalPrintFinalInput } from '../dto/portal-print-final.dto'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import {
@@ -76,6 +81,7 @@ import {
 import type { RevealPortalAddress } from './reveal-portal-address'
 
 export type CreatePortalPrintFinalDeps = RememberLastPrintDeps &
+  RememberPrintWordingDeps &
   Readonly<{
     portalRepo: PortalRepository
     staffPublicApi: StaffPublicApi
@@ -244,6 +250,13 @@ export const createPortalPrintFinal =
       choice,
       input,
       look: context.look,
+    })
+    // What printed is now what Share opens on, so a manager who downloads need not save too.
+    await rememberPrintWording(deps, {
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      wording: printFinalWordingToSave(words, input.languages),
     })
     return {
       fileName: printFinalFileName(context.portalName, print),

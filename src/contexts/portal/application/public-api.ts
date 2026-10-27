@@ -77,6 +77,7 @@ export type {
   PortalPrintKitLastPrint,
   PortalPrintKitView,
 } from './portal-print-kit-context'
+export type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
 export type { PortalPrintKitDownload } from './use-cases/create-portal-print-kit'
 export type { PortalReview, PortalReviewChange } from './use-cases/get-portal-review'
 export type { PublishPortalsChangesResult } from './use-cases/publish-portal-changes'

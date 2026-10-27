@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { createInMemoryPortalLastPrintRepo } from '#/shared/testing/in-memory-portal-last-print-repo'
+import { createInMemoryPortalPrintWordingRepo } from '#/shared/testing/in-memory-portal-print-wording-repo'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
@@ -13,6 +14,7 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
+import type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import {
   immersiveConfiguration,
@@ -64,6 +66,8 @@ function setup(
       photoAssetId?: string | null
       printedAt?: Date
     }>
+    /** The wording the Portal saved for Share to open on: none unless told otherwise. */
+    saved?: PrintFinalSavedWording
   }> = {},
 ) {
   const portal = buildTestPortal({ name: 'Harbor lobby' })
@@ -77,6 +81,19 @@ function setup(
       createdAt: options.heroUploadedAt ?? new Date('2026-10-01T09:00:00.000Z'),
     }),
   ])
+  const wordingRepo = createInMemoryPortalPrintWordingRepo(
+    options.saved === undefined
+      ? []
+      : [
+          {
+            organizationId: buildTestAuthContext().organizationId,
+            propertyId: portal.propertyId,
+            portalId: portal.id,
+            wording: options.saved,
+            savedAt: PRINTED_AT,
+          },
+        ],
+  )
   const last = options.last
   const lastPrintRepo = createInMemoryPortalLastPrintRepo(
     last === undefined
@@ -116,6 +133,7 @@ function setup(
     },
     mediaRepo,
     lastPrintRepo,
+    wordingRepo,
     finalKitEnabled: options.finalKit ?? false,
   })
   return { portal, read }
@@ -225,6 +243,37 @@ describe('getPortalPrintKit', () => {
       const view = await readFinal({ last: {} })
 
       expect(JSON.stringify(view.lastPrint)).not.toMatch(/railway|\/p\/|token|url/iu)
+    })
+  })
+
+  describe('the saved wording', () => {
+    const SAVED: PrintFinalSavedWording = {
+      callToAction: 'how_was_stay',
+      customWords: { en: { headline: 'Thanks for staying', subline: 'Tell us more' } },
+    }
+    const readFinal = async (options: Parameters<typeof setup>[0] = {}) => {
+      const { portal, read } = setup({ finalKit: true, ...options })
+      return read({ portalId: portal.id }, buildTestAuthContext())
+    }
+
+    it('is null for a Portal that saved none', async () => {
+      expect((await readFinal()).savedWording).toBeNull()
+    })
+
+    it('carries the wording and the own words the Portal saved', async () => {
+      expect((await readFinal({ saved: SAVED })).savedWording).toEqual(SAVED)
+    })
+
+    it('stands beside the last print, which keeps its own wording', async () => {
+      const view = await readFinal({ saved: SAVED, last: {} })
+      expect(view.savedWording).toEqual(SAVED)
+      expect(view.lastPrint?.settings.callToAction).toBe('how_did_we_do')
+    })
+
+    it('is not read while the server shows today’s kit', async () => {
+      const view = await readFinal({ finalKit: false, saved: SAVED })
+      expect(view.kit).toBe('current')
+      expect(view.savedWording).toBeNull()
     })
   })
 

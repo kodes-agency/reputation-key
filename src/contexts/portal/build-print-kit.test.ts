@@ -7,6 +7,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { createInMemoryPortalLastPrintRepo } from '#/shared/testing/in-memory-portal-last-print-repo'
+import { createInMemoryPortalPrintWordingRepo } from '#/shared/testing/in-memory-portal-print-wording-repo'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { immersiveConfiguration } from './domain/__fixtures__/immersive-configuration'
@@ -56,6 +57,7 @@ function wire(
     },
     mediaRepo: createInMemoryPortalMediaAssetRepo(),
     lastPrintRepo: createInMemoryPortalLastPrintRepo(),
+    wordingRepo: createInMemoryPortalPrintWordingRepo(),
     objectStore: createInMemoryObjectStore(),
     revealAddress: reveal,
     propertyCountry: async () => country,

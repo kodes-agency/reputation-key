@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { createInMemoryPortalLastPrintRepo } from '#/shared/testing/in-memory-portal-last-print-repo'
+import { createInMemoryPortalPrintWordingRepo } from '#/shared/testing/in-memory-portal-print-wording-repo'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
@@ -73,6 +74,7 @@ async function setup(options: Options = {}) {
     issuedAt: new Date('2026-10-01T10:00:00Z'),
   }))
   const lastPrintRepo = createInMemoryPortalLastPrintRepo()
+  const wordingRepo = createInMemoryPortalPrintWordingRepo()
   const warnings: object[] = []
   const logger = {
     ...createMockLogger(),
@@ -113,10 +115,11 @@ async function setup(options: Options = {}) {
     propertyCountry: async () => options.country ?? 'US',
     finalKitEnabled: options.enabled ?? true,
     lastPrintRepo,
+    wordingRepo,
     clock: () => PRINTED_AT,
     logger,
   })
-  return { portal, make, reveal, rendered, lastPrintRepo, warnings }
+  return { portal, make, reveal, rendered, lastPrintRepo, wordingRepo, warnings }
 }
 
 const tents = (
@@ -307,6 +310,80 @@ describe('createPortalPrintFinal', () => {
       make(tents(portal.id, { languages: ['en', 'fr'] }), buildTestAuthContext()),
     ).rejects.toMatchObject({ code: 'locale_not_offered' })
     expect(reveal).not.toHaveBeenCalled()
+  })
+
+  describe('saving the wording the print said as the Portal’s own', () => {
+    const ctx = buildTestAuthContext()
+    const own = { en: { headline: 'Thanks for staying', subline: 'Tell us more' } }
+
+    it('saves the wording and the own words that printed, normalised, for the languages of the print', async () => {
+      const { portal, make, wordingRepo } = await setup()
+
+      await make(
+        tents(portal.id, {
+          callToAction: 'how_was_stay',
+          languages: ['en'],
+          customWords: own,
+        }),
+        ctx,
+      )
+
+      expect(wordingRepo.saved()).toEqual([
+        {
+          organizationId: ctx.organizationId,
+          propertyId: portal.propertyId,
+          portalId: portal.id,
+          wording: { callToAction: 'how_was_stay', customWords: own },
+          savedAt: PRINTED_AT,
+        },
+      ])
+      expect(await wordingRepo.find(ctx.organizationId, portal.id)).toEqual({
+        callToAction: 'how_was_stay',
+        customWords: own,
+      })
+    })
+
+    it('saves the wording alone when no own words differ from its copy', async () => {
+      const { portal, make, wordingRepo } = await setup()
+
+      await make(
+        tents(portal.id, {
+          callToAction: 'how_was_stay',
+          customWords: {
+            en: { headline: 'How was your stay?', subline: 'Share your experience' },
+          },
+        }),
+        ctx,
+      )
+
+      expect(wordingRepo.saved()[0]?.wording).toEqual({
+        callToAction: 'how_was_stay',
+        customWords: null,
+      })
+    })
+
+    it('saves nothing for a print that was refused', async () => {
+      const { portal, make, wordingRepo } = await setup()
+
+      await expect(make(tents(portal.id, { quantity: 0 }), ctx)).rejects.toMatchObject({
+        code: 'print_format_not_offered',
+      })
+
+      expect(wordingRepo.saved()).toEqual([])
+    })
+
+    it('still hands over the file when the wording cannot be saved, and says so without the words', async () => {
+      const { portal, make, wordingRepo, warnings } = await setup()
+      wordingRepo.failNextSave(new Error('connection reset'))
+
+      const file = await make(tents(portal.id, { customWords: own }), ctx)
+
+      expect(file.pdf).toEqual(PDF)
+      expect(warnings).toEqual([
+        expect.objectContaining({ errorCode: 'portal_print_wording_not_remembered' }),
+      ])
+      expect(JSON.stringify(warnings)).not.toContain('Thanks for staying')
+    })
   })
 
   describe('remembering the print as the Portal’s last', () => {

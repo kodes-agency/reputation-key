@@ -53,6 +53,7 @@ const view = (
   portalId: 'portal-1',
   kit: 'final',
   lastPrint,
+  savedWording: null,
   portalName: 'Reception',
   primaryLocale: 'en',
   locales: ['en', 'es', 'bg'],

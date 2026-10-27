@@ -55,6 +55,7 @@ const view = (overrides: Partial<PortalPrintKitView> = {}): PortalPrintKitView =
   portalId: 'portal-1',
   kit: 'current',
   lastPrint: null,
+  savedWording: null,
   portalName: 'Pool & Terrace',
   primaryLocale: 'en',
   locales: ['en', 'bg'],
