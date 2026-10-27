@@ -35,6 +35,7 @@ import {
 import { Step } from './portal-print-final-choices'
 import { PrintFinalCtaSelect } from './print-final-cta-select'
 import { PrintFinalOwnWords } from './print-final-own-words'
+import { PrintFinalSaveWording } from './print-final-save-wording'
 import type { PrintFinalSharePrint } from './print-final-state'
 import type { PrintFinalState } from './use-print-final'
 
@@ -227,6 +228,7 @@ export function PrintFinalWordsStep(props: StepProps) {
       />
       <PrintFinalCtaSelect words={final.words} print={print} />
       {final.words.isOwn && <PrintFinalOwnWords words={final.words} print={print} />}
+      <PrintFinalSaveWording wording={final.wording} />
       <MoreOptions {...props} />
     </Step>
   )

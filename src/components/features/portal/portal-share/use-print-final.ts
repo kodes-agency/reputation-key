@@ -38,6 +38,8 @@ import {
   type PrintFinalSharePrint,
 } from './print-final-state'
 import { saveBlob } from './save-file'
+import { printFinalWordingToSave } from '#/shared/domain/portal-print-final-wording'
+import { usePrintFinalWording } from './use-print-final-wording'
 import { usePrintFinalWords, type PrintFinalWordsBlock } from './use-print-final-words'
 import { usePrintKitCode } from './use-print-kit-code'
 import { decodeBase64 } from './use-print-kit-download'
@@ -63,6 +65,8 @@ type Input = Readonly<{
   /** The live code's QR address, when it is in memory; the preview draws a sample otherwise. */
   qrAddress: string | null
   downloadMutation: PortalPrintKitResources['downloadFinalMutation']
+  /** "Save wording"; absent, Share offers none. */
+  saveWordingMutation: PortalPrintKitResources['saveWordingMutation']
   /** Called once the server made a file: the print is now the Portal's last, which the read says. */
   onDownloaded: () => void
 }>
@@ -195,6 +199,15 @@ export function usePrintFinal(input: Input) {
     code: { address: printAddressShape(code.address), symbolModules },
     editWords: changeWords,
   })
+  const wording = usePrintFinalWording({
+    portalId,
+    view,
+    print,
+    block: wordsState.block,
+    saveMutation: input.saveWordingMutation,
+    open: changeWords,
+  })
+  const { savedByDownload } = wording
   const sheet = useMemo(
     () => printFinalSheet({ piece, orientation, look, paper }),
     [piece, orientation, look, paper],
@@ -217,10 +230,12 @@ export function usePrintFinal(input: Input) {
       // The server made the file, so it now holds this print as the Portal's last.
       // Saved first: the file is what the manager came for, the notice follows.
       onDownloaded()
+      // The server saved the wording that printed, so the words on show are saved.
+      savedByDownload(printFinalWordingToSave(print.words, print.languages))
     } catch {
       // The mutation has already toasted the refusal.
     }
-  }, [print, view, portalId, downloadMutation, onDownloaded])
+  }, [print, view, portalId, downloadMutation, onDownloaded, savedByDownload])
   return {
     choice,
     change,
@@ -243,6 +258,8 @@ export function usePrintFinal(input: Input) {
     blocks: wordsState.blocks,
     /** The call to action: the menu checked against the print, the manager's own words and their fit. */
     words: wordsState,
+    /** The saved wording: Share opens on it, and "Save wording" keeps the words on show for next time. */
+    wording,
     sheet,
     /** The page a print shop's file has; null from the manager's own printer. */
     shopPage,

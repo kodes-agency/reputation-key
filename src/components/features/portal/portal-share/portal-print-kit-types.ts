@@ -20,6 +20,7 @@ import type {
 } from '#/shared/domain/portal-print-final'
 import type { PrintFinalCallToAction } from '#/shared/domain/portal-print-final-copy'
 import type { PrintFinalCustomWords } from '#/shared/domain/portal-print-final-custom'
+import type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
 
 /** The read, as the route hands it in (a server function takes its input as `data`). */
 export type PortalPrintKitReader = (args: {
@@ -65,12 +66,23 @@ export type DownloadPrintFinalInput = {
   }
 }
 
+/** "Save wording" in the final kit: the wording picked, and the own words where the manager wrote them. */
+export type SavePrintWordingInput = {
+  data: {
+    portalId: string
+    callToAction: PrintFinalCallToAction
+    customWords?: PrintFinalCustomWords | null
+  }
+}
+
 /** What the Print kit section needs from the route: its read and its download. */
 export type PortalPrintKitResources = Readonly<{
   read: PortalPrintKitReader
   downloadMutation: Action<DownloadPrintKitInput, PortalPrintKitDownload>
   /** The final kit's download, used where the read says the server shows the final kit. */
   downloadFinalMutation?: Action<DownloadPrintFinalInput, PortalPrintKitDownload>
+  /** The final kit's "Save wording"; absent, Share offers none. It answers with the wording as stored. */
+  saveWordingMutation?: Action<SavePrintWordingInput, PrintFinalSavedWording>
   /**
    * The sizes the section offers. Absent: `PRINT_KIT_SELECTABLE_SIZES`, which is
    * all the server will make; a story names the hidden ones to show them.

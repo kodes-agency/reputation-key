@@ -817,7 +817,7 @@
       "id": "src/components/features/portal/portal-share/use-print-final.ts:useState(choice)",
       "classification": "local_runtime",
       "owner": "Share tab final Print cards section",
-      "policy": "What the manager has chosen for a print (the piece, each piece's orientation, the look, who prints, the paper, the quantity as typed, the spares, the count a sheet, the languages and the call to action), starting on the board's wide table tent. It is the manager's own choice, not server state: the read's languages and the property's country are applied when the choice is resolved, never written into it, nothing is written back, and a remount of the tab is its reset boundary."
+      "policy": "What the manager has chosen for a print (the piece, each piece's orientation, the look, who prints, the paper, the quantity as typed, the spares, the count a sheet, the languages and the call to action), starting on the board's wide table tent. It is the manager's own choice, not server state: the read's languages and the property's country are applied when the choice is resolved, never written into it, and a remount of the tab is its reset boundary. The one server fact it takes in is the wording Share opens on (the saved wording, else the last print's, else the default): applied once, when the read first arrives (`usePrintFinalWording`), so a later read never overwrites words on show; it is written back only by the manager's own \"Save wording\" and by a download."
     }
   ],
   "classificationDefinitions": {

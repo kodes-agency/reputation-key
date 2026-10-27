@@ -41,6 +41,7 @@ type SharePanelProps = Pick<
   | 'getPortalPrintKit'
   | 'downloadPrintKitMutation'
   | 'downloadPrintFinalMutation'
+  | 'savePrintWordingMutation'
   | 'propertyTimeZone'
   | 'propertyCountryCode'
   | 'responsibleManagers'
@@ -62,6 +63,7 @@ function SharePanel({
   getPortalPrintKit,
   downloadPrintKitMutation,
   downloadPrintFinalMutation,
+  savePrintWordingMutation,
   issuedLink,
   linksRevoked,
   onLinkIssued,
@@ -99,6 +101,7 @@ function SharePanel({
               read: getPortalPrintKit,
               downloadMutation: downloadPrintKitMutation,
               downloadFinalMutation: downloadPrintFinalMutation,
+              saveWordingMutation: savePrintWordingMutation,
             }
           : undefined
       }

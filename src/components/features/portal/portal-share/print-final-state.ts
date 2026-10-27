@@ -23,6 +23,7 @@ import {
   type PrintFinalCustomWords,
   type PrintFinalWordsChoice,
 } from '#/shared/domain/portal-print-final-custom'
+import { printFinalSameOwnWords } from '#/shared/domain/portal-print-final-wording'
 import {
   PRINT_FINAL_DEFAULT_ORIENTATION,
   printFinalRegionOf,
@@ -220,19 +221,6 @@ export function printFinalLastLook(
   return lastPrint?.settings.look ?? null
 }
 
-/** Two prints' own words are the same: the same languages, each with the same headline and sub-line. */
-function sameOwnWords(
-  left: PrintFinalCustomWords | null,
-  right: PrintFinalCustomWords | null,
-): boolean {
-  // Field by field: a stored object's key order is not the order a print made it in.
-  const entries = (words: PrintFinalCustomWords | null) =>
-    Object.entries(words ?? {})
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([locale, copy]) => [locale, copy?.headline, copy?.subline])
-  return JSON.stringify(entries(left)) === JSON.stringify(entries(right))
-}
-
 /** Whether a print is the Portal's last print: every choice it took, as it took it. */
 export function printFinalMatchesLast(
   print: PrintFinalSharePrint,
@@ -250,7 +238,7 @@ export function printFinalMatchesLast(
     print.backPage === last.backPage &&
     print.cropMarks === last.cropMarks &&
     print.callToAction === last.callToAction &&
-    sameOwnWords(
+    printFinalSameOwnWords(
       printFinalOwnWordsToSend(print.words, print.languages),
       last.customWords,
     ) &&
