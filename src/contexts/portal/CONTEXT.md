@@ -711,9 +711,11 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   (fixed rule NP). The guest page dropped the adverb too on 2026-10-26: its button reads
   "Send", its receipt "Rating sent", and the line under the stars "Only {name} sees your
   rating. It isn’t posted anywhere."; it still says "private note" where it names that
-  feature. Share offers four wordings
-  (`PRINT_FINAL_CALLS_TO_ACTION`: `how_did_we_do`, `how_was_visit`, `rate_visit`,
-  `got_30_seconds`) and "Write your own…": a headline and a sub-line per language of the
+  feature. Share offers five wordings
+  (`PRINT_FINAL_CALLS_TO_ACTION`: `how_did_we_do`, `how_was_visit`, `how_was_stay`,
+  `rate_visit`, `got_30_seconds`; "How was your stay?" over "Share your experience", the
+  owner's wording of 2026-10-27, has its own sub-line in every language and fits every
+  layout in every language, so no language holds it back) and "Write your own…": a headline and a sub-line per language of the
   print (`portal-print-final-custom.ts`), printed as typed and never translated; the print
   keeps the wording id even with own words. The non-English strings are drafts that need a
   native check; rule F (a golden test over the planner) holds back the copies that missed
@@ -796,6 +798,26 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   English + Español", with "Use the same settings" (`choiceOfLastPrint`) until the choices
   on show already are the last print's, and opens on the last print's look until a look is
   picked (§11.2: Paper the first time, after that the last choice).
+- **The final kit's saved wording.** A manager can keep the wording Share opens on
+  (2026-10-27: the choice used to live only in the browser, so words written there were
+  gone on the next visit). One `portal_print_wordings` row per Portal (migration 0076,
+  `createPortalPrintWordingRepository`; composite tenant key into `portals`, removed with
+  its Portal, a later write is never replaced by an earlier one): the wording id and the
+  own words per language, no address, file or person. `savePortalPrintWording` (server
+  function beside the final download, the same scope, right, address rate limit and words
+  rules; it needs `portal.update` and the final kit on) stores the words as
+  `printFinalWordingToSave` says: normalised, per language only where they differ from the
+  wording's copy, null when none does; it refuses an offer, and does not judge fit, which
+  depends on the print and is the download's. A download that makes its file saves the
+  wording it printed too (best effort, `rememberPrintWording`, logged as
+  `portal_print_wording_not_remembered`), so the saved wording is what printed last. The
+  print kit read carries it as `savedWording` (null for today's kit, when none was saved
+  or when the row cannot be read). Share opens on the saved wording, else the last print's,
+  else the default (`printFinalOpeningWording`), once when the read first arrives; a later
+  read, the one after a download included, never reaches the words on show. "Save wording"
+  shows only while the words on show differ from the saved ones (`printFinalWordingIsSaved`),
+  is off for an empty headline or an offer, and goes once saved. The row is in the purge
+  plan, the export (`print_wording`) and the data-fate authority.
 
 ## Runtime
 
