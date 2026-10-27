@@ -1,0 +1,21 @@
+# Orca workspace settings for Reputation Key.
+# The setup script runs in each new Orca worktree (cwd = the new worktree).
+scripts:
+  setup: |
+    set -euo pipefail
+    cd "${ORCA_WORKTREE_PATH:-$PWD}"
+
+    # Orca is a GUI app, so Homebrew may be missing from its PATH.
+    command -v fnm >/dev/null 2>&1 || export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+    if ! command -v fnm >/dev/null 2>&1; then
+      echo "orca setup: fnm not found; install it with 'brew install fnm'." >&2
+      exit 1
+    fi
+
+    # Node comes from .nvmrc (engines pins 22.23.x); pnpm from package.json packageManager.
+    eval "$(fnm env --shell bash)"
+    fnm use --install-if-missing
+    command -v pnpm >/dev/null 2>&1 || corepack enable pnpm
+
+    echo "orca setup: node $(node -v), pnpm $(pnpm -v)"
+    pnpm install --frozen-lockfile
