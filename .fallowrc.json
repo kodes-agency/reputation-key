@@ -9,7 +9,6 @@
     "scripts/cleanup-kodes.ts",
     "scripts/local/host-stack.ts",
     "scripts/local/loopback-hosts.mjs",
-    "scripts/check-db.ts",
     "scripts/check-schema-drift.ts",
     "scripts/cleanup-all.ts",
     "scripts/ai-language-attestation.ts",
@@ -30,7 +29,9 @@
     "scripts/ops/ai-approve-enrollment.ts",
     "scripts/ops/ai-execution-control.ts",
     "scripts/ops/ai-release-orphan-sequences.ts",
+    "scripts/ops/ai-reopen-analyses.ts",
     "scripts/ops/bootstrap-owner.ts",
+    "scripts/ops/check-google-oauth.ts",
     "scripts/ops/deploy-ci-images.ts",
     "scripts/ops/disconnect-connection.ts",
     "scripts/ops/inbox-exclude-restated-revision-targets.ts",
@@ -56,6 +57,7 @@
     "scripts/ops/report-organization-lifecycle.ts",
     "scripts/ops/restore-preflight.ts",
     "scripts/ops/restore-verify.ts",
+    "scripts/ops/review-observations.ts",
     "scripts/ops/triage-beta-feedback.ts"
   ],
   "ignorePatterns": [
@@ -69,8 +71,6 @@
     ".claude/**"
   ],
   "ignoreDependencies": [
-    "@rolldown/binding-darwin-arm64",
-    "@tanstack/intent",
     "@better-auth/cli",
     "@tanstack/start-server-core",
     "eslint-import-resolver-typescript",
@@ -311,7 +311,7 @@
   },
   "overrides": [
     {
-      "files": [],
+      "files": ["src/contexts/identity/server/organizations.roles.ts"],
       "rules": {
         "unused-files": "off",
         "unused-exports": "off"

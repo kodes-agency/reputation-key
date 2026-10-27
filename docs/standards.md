@@ -382,7 +382,7 @@ Co-located context files in the source tree:
 - Contexts: `src/contexts/CONTEXT.md` — layers, use cases, server functions, dependency rules
 - Shared: `src/shared/CONTEXT.md` — auth, cache, observability, testing
 - Routes: `src/routes/CONTEXT.md` — loaders, mutations, auth guards, staleTime
-- Archive: `docs/archive/` — superseded plans and closed programmes (historical only)
+- Archive: `docs/archive/` — the lean programme plan and the hash-pinned AI governance package (historical only; the rest is in git history)
 - ADRs: `docs/adr/`
 - ADR navigation and supersession authority: `docs/adr/README.md`
 - Beta capability fate authority: `src/shared/governance/capability-fate.ts`

@@ -1,6 +1,6 @@
 # Flexible goal months (option B): implementation plan
 
-Date: 2026-10-11. Status: approved direction, being built slice by slice. The plan was written from four code maps and three reviews (data integrity, product honesty, delivery) against a clean checkout of `main` at `0ab0c4427`. Paths are relative to the repository root. Line numbers refer to that revision and shift after Slice 0.
+Date: 2026-10-11. Status: shipped (#768–#770, #773–#775): approved direction, built slice by slice. The plan was written from four code maps and three reviews (data integrity, product honesty, delivery) against a clean checkout of `main` at `0ab0c4427`. Paths are relative to the repository root. Line numbers refer to that revision and shift after Slice 0.
 
 ## What changes and why
 

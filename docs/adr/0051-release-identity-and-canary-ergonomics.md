@@ -29,9 +29,11 @@ so it is safe to paste into tickets, which also means it names neither variable
 and gives the operator nothing to correct.
 
 **2. The AI canary gate can only be exercised by taking AI down.**
-`issue_ai_canary_authorization_v1` (`drizzle/0067_ai-model-luna-switch.sql`)
-refuses to issue unless `review_analysis`, `reply_drafting` and `property_trends`
-are all `killed`/`draining`. `transition_ai_execution_control_v1` then refuses to
+`issue_ai_canary_authorization_v1` (the Luna switch migration
+`0067_ai-model-luna-switch.sql`, commit `41c9984ce`; the baseline squash
+`c5979c247` removed that file, and 0067 is now a different migration) refuses to
+issue unless `review_analysis`, `reply_drafting` and `property_trends` are all
+`killed`/`draining`. `transition_ai_execution_control_v1` then refuses to
 restore a capability without a `passed` canary head for the candidate release
 SHA.
 
@@ -83,8 +85,10 @@ heads remained `enabled`/`accepting` and a real `reply` operation settled
 ## Consequences
 
 - Deploy procedures are rewritten to set both revision variables per service.
-  `docs/operations/closed-beta-release-runbook-2026-08-19.md` §2 is superseded on
-  this point.
+  §2 of the closed-beta release runbook of 2026-08-19 (out of the tree, in git
+  history:
+  `git show 944895e91:docs/archive/2026-09-lean/operations/closed-beta-release-runbook-2026-08-19.md`)
+  is superseded on this point.
 - A release deployed without a canary head has no `restore` path until one is
   issued. That is an accepted trade: it is strictly better than an outage taken
   to manufacture one, and issuing a canary remains available whenever the plane

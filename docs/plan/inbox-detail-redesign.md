@@ -1,7 +1,8 @@
 # Inbox detail panel — analysis and directions
 
-Status: **direction chosen, plan proposed**, 2026-09-12. Direction A was
-picked from the design canvas linked from the PR; nothing is implemented yet.
+Status: **shipped (#569)**; direction chosen and plan proposed 2026-09-12. Direction A
+was picked from the design canvas linked from the PR. `inbox-detail-v2.md` supersedes
+parts of it.
 
 ## Scope
 

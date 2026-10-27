@@ -28,6 +28,8 @@ the presence of a route, table, or retained legacy module.
 | Domain, use cases, repos, server functions        | `src/contexts/CONTEXT.md`   |
 | Shared infrastructure, auth, cache, observability | `src/shared/CONTEXT.md`     |
 | Routes, loaders, mutations, auth guards           | `src/routes/CONTEXT.md`     |
+| Product intent: users, brand, principles          | `PRODUCT.md`                |
+| Visual design: colour, type, components           | `DESIGN.md`                 |
 
 ## Bounded contexts
 

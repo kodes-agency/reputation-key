@@ -4,7 +4,7 @@
 // build/migrate commands, sleep/clock) is injected — these tests pin the
 // orchestration contract (env assembly, port conflict resolution, idempotent
 // up, teardown escalation, protected-database guard, state store). The live
-// cell boot is the integration smoke (docs/archive/2026-09-lean/performance/scale-harness.md).
+// cell boot is the integration smoke (docs/archive/2026-09-lean/performance/scale-harness.md, git history at 944895e91).
 
 import { describe, it, expect } from 'vitest'
 import { findPlaceholderSecrets } from '#/shared/config/production-secrets'

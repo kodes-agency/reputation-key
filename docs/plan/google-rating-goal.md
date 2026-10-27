@@ -1,6 +1,6 @@
 # Property Google rating goal: plan
 
-Date: 2026-10-14. Status: owner-approved decisions (17), being built in six pull requests. Written from the owner grilling of 2026-10-14 against `origin/main` at `78f4d0b80`. The decision record is [ADR 0067](../adr/0067-property-google-rating-goal.md). Paths are relative to the repository root.
+Date: 2026-10-14. Status: shipped (#822–#828). Owner-approved decisions (17), built in six pull requests. Written from the owner grilling of 2026-10-14 against `origin/main` at `78f4d0b80`. The decision record is [ADR 0067](../adr/0067-property-google-rating-goal.md). Paths are relative to the repository root.
 
 **Amended 2026-10-16 (rounds 3 and 4, the one-screen setup).** Pick a plan gives way to one screen opened already answered: a recommended goal, a proactive pace a day and an automatic planned average. See [Rounds 3 and 4](#rounds-3-and-4-the-one-screen-setup-2026-10-16); where round 2 disagrees, rounds 3 and 4 win.
 

@@ -49,8 +49,10 @@ mayor/
 reputation_key/
 witness/
 
-# fallow analysis cache (regenerated locally; never commit)
+# fallow analysis cache and snapshots (regenerated locally; never commit)
 .fallow/cache.bin
+.fallow/churn.bin
+.fallow/snapshots/
 
 # test coverage (generated)
 /coverage/
@@ -67,6 +69,12 @@ graphify-out/
 .claude/
 .agents/
 skills-lock.json
+# Agent-tool folders and context files (each tool writes them locally)
+.superpowers/
+.omp/
+.od-skills/
+.codex/
+/.impeccable.md
 
 # Historical AI review output (regenerable; never commit)
 docs/reviews/

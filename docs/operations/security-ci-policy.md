@@ -290,8 +290,9 @@ pulled it. The token's only capability is uploading source maps to one project,
 so rotation is cheap.
 
 **Why it stood for so long:**
-`docs/archive/2026-09-lean/operations/closed-beta-ci-image-delivery.md` records
-the image-secret audit that accepted it — "build-time arguments such as
+The closed-beta CI image delivery record (out of the tree, in git history:
+`git show 944895e91:docs/archive/2026-09-lean/operations/closed-beta-ci-image-delivery.md`)
+records the image-secret audit that accepted it — "build-time arguments such as
 `SENTRY_AUTH_TOKEN` … are confined to discarded builder stages". That audit
 asked the right question of the wrong surface: it checked the final image's
 history, which is where a build argument is _least_ likely to appear in a
@@ -368,8 +369,9 @@ GET /repos/kodes-agency/reputation-key/environments
 on a branch that is up to date with `main`, and a direct push is rejected unless
 its commit already carries them. Admins are included: `enforce_admins` has been
 on since 2026-09-06, when a direct push was shown to fail with
-`GH006 … required status checks are expected` (`LEAN_TRANSFORMATION_PLAN.md`,
-"Review is reinstated"). History must stay linear, and `main` cannot be
+`GH006 … required status checks are expected`
+(`docs/archive/LEAN_TRANSFORMATION_PLAN.md`, "Review is reinstated"). History
+must stay linear, and `main` cannot be
 force-pushed or deleted. `check`, `docker` and `e2e` are `always()` aggregates
 over `static`/`test-unit`/`test-integration`/`artifacts`, `docker-images` and
 `e2e-shard`, so those jobs gate through them. `audit` is the Fallow workflow's
@@ -388,8 +390,9 @@ job, not the dependency-audit step; `Analyze (javascript-typescript)` is CodeQL.
   (ID `19948405265`) that this section used to describe no longer exists.
 
 This section previously reported (readback 2026-08-21) that `main` had no
-branch protection and every gate was advisory. `LEAN_TRANSFORMATION_PLAN.md`
-records that by 2026-09-06 protection with these checks was in place but
+branch protection and every gate was advisory.
+`docs/archive/LEAN_TRANSFORMATION_PLAN.md` records that by 2026-09-06
+protection with these checks was in place but
 `enforce_admins` was false, so pushes bypassed it until then.
 
 **Lesson for this section specifically:** a platform readback is evidence with

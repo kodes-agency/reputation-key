@@ -497,8 +497,11 @@ treat the static-rule total as the whole sweep.
 - **CI artifacts** (GitHub Actions): SBOM (`sbom-spdx`) 30d, container image
   SBOMs (`sbom-images-spdx`) 30d, e2e failure artifacts 7d
   (`.github/workflows/ci.yml`).
-- **Release evidence**: `docs/release-evidence/beta/` is git-retained
-  (permanent, reviewable history).
+- **Release evidence**: evidence packs live under `docs/release-evidence/` and are
+  git-retained (permanent, reviewable history). The only committed pack is
+  `docs/release-evidence/cnv-01/`; there is no `beta/` folder. `pnpm perf:evidence`
+  creates `docs/release-evidence/beta/<release-id>/` when a scale and recovery pack
+  is made, and that pack is committed like the others.
 - **Operational Redis keys**: alert firing-state 24h TTL (re-notify window),
   one global content-free Guest observation-loss hash whose stale five-minute
   bucket fields are pruned on every access and whose key has a refreshed

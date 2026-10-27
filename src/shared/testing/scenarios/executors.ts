@@ -215,8 +215,8 @@ function collectorCoverage(env: ScenarioRunEnv): CollectorCoverage {
   return {
     redisInfo: env.externalCollector ? 'redis-cli' : 'not-collected-in-this-environment',
     // DB CPU/locks are not app-readable and have no local CLI surface —
-    // platform observability is the acceptance surface (docs/performance/
-    // scale-harness.md). Stated here so the gap is never silent.
+    // platform observability is the acceptance surface (git history at 944895e91,
+    // docs/archive/2026-09-lean/performance/scale-harness.md). Stated here so the gap is never silent.
     dbCpuLocks: 'not-collected-in-this-environment',
   }
 }

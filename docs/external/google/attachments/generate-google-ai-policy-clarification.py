@@ -24,13 +24,10 @@ from reportlab.platypus import (
 )
 
 
-ROOT = Path(__file__).resolve().parents[1]
+# The PDF is written next to this script, so the pair stays together under
+# docs/external/google/attachments/.
 OUTPUT = (
-    ROOT
-    / "docs"
-    / "external"
-    / "google"
-    / "attachments"
+    Path(__file__).resolve().parent
     / "reputation-key-google-ai-policy-clarification.pdf"
 )
 

@@ -1,5 +1,10 @@
 # Lean transformation — program roadmap with Phase 0 and Phase 1 execution specs
 
+> **Archived.** This programme finished and deployed on 2026-09-08. The `review/` folder and
+> the `docs/archive/` documents cited below were removed from the tree on 2026-10-27; they
+> remain in git history at `944895e91` (`git show 944895e91:<path>`). The move changed
+> nothing else in this text.
+
 ## Context
 
 `review/2026-09-05-lean-audit/` (README + 8 audits, measured at `f3d9baac`; HEAD is now `a9d7ffe1`, three `ops` commits later) concludes that the product rules are right and the self-imposed machinery around them is the cost, and lays out a five-phase program to remove ~30% of TypeScript, all generated JSON, 182 migrations, five sidecars and most governance. This plan turns that program into ordered, PR-sized work packages (WP). Phase 0 and Phase 1 are written to implementer-executable detail against the current tree (every anchor below was read this session; where the audit's anchor was wrong, the corrected one is used). Phases 2–4 are sequenced with entry criteria and get their own detailed plan when reached.
