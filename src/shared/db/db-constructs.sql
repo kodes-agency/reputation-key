@@ -87,10 +87,16 @@ END;
 $function$
 ;
 --> statement-breakpoint
+-- PARALLEL UNSAFE, which PostgreSQL prints as no PARALLEL clause. The EXCEPTION
+-- clause below starts a subtransaction on every call, and PostgreSQL 16 refuses
+-- one while a parallel plan runs (SQLSTATE 25000: "cannot start subtransactions
+-- during a parallel operation"), in a worker and in the leader alike. Labelled
+-- PARALLEL SAFE or RESTRICTED, a read through this function failed whenever the
+-- planner chose a Gather (drizzle/0075_local_date_functions_parallel_unsafe.sql).
 CREATE OR REPLACE FUNCTION public.ai_property_local_date_v1(p_reviewed_at timestamp with time zone, p_timezone text)
  RETURNS date
  LANGUAGE plpgsql
- IMMUTABLE PARALLEL SAFE STRICT
+ IMMUTABLE STRICT
  SET search_path TO 'pg_catalog', 'public'
 AS $function$
 DECLARE
@@ -118,10 +124,11 @@ END;
 $function$
 ;
 --> statement-breakpoint
+-- PARALLEL UNSAFE for the same reason as ai_property_local_date_v1 above.
 CREATE OR REPLACE FUNCTION public.ai_property_local_midnight_v1(p_local_date date, p_timezone text)
  RETURNS timestamp with time zone
  LANGUAGE plpgsql
- STABLE PARALLEL SAFE STRICT
+ STABLE STRICT
  SET search_path TO 'pg_catalog', 'public'
 AS $function$
 DECLARE

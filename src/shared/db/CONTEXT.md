@@ -169,6 +169,17 @@ byte copy `drizzle/0001_db_constructs.sql`, and the new migration.
 `construct-definitions.test.ts` holds the copy and, with no database, that each
 construct's last migration creates what the comparator expects.
 
+A change to an attribute alone (volatility, strictness, parallel safety) can be
+made with `ALTER FUNCTION` instead of restating the body, as `0075` did for the
+two Property local-date functions; the file and its copy then carry the new
+attribute and the comparator checks the migrated catalogue against them. A
+function may be labelled `PARALLEL SAFE` or `PARALLEL RESTRICTED` only if its
+body starts no subtransaction (a PL/pgSQL `EXCEPTION` clause does), writes
+nothing and touches no sequence or setting; `db-constructs-parallel-safety.test.ts`
+reads the file for that, and `local-date-functions-parallel.integration.test.ts`
+runs the real functions in a forced parallel plan. PostgreSQL prints no clause for
+`PARALLEL UNSAFE`, so a function stated with none is unsafe.
+
 One function is a named exception. `apply_merchant_ai_transition_v1` was changed
 by 0006 and 0016 without being restated, so `db-constructs.sql` still carries a
 26-argument text no database runs; `SUPERSEDED_CONSTRUCT_DEFINITIONS` makes the

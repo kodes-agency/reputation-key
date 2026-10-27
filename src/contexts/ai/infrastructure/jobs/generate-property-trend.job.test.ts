@@ -14,6 +14,7 @@ import { ZodError } from 'zod/v4'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { GeneratePropertyTrendResult } from '../../application/use-cases/generate-property-trend'
 import { createGeneratePropertyTrendJobHandler } from './generate-property-trend.job'
+import { PropertyTrendRetryRequired } from './property-trend-retry-required'
 
 const SCHEDULE_ID = '71000000-0000-4000-8000-000000000301'
 const ORGANIZATION_ID = 'ai-trend-job-test'
@@ -74,6 +75,30 @@ describe('generate property AI trend job', () => {
       'AI property trend retry required: trend_sequence_or_aggregate_gap',
     )
   })
+
+  it.each([
+    'trend_sequence_or_aggregate_gap',
+    'trend_evidence_reconciling',
+    'trend_population_limit_exceeded',
+    'trend_population_policy_unavailable',
+  ] as const)(
+    'fails the attempt with a named error that carries %s as its failure code',
+    async (code) => {
+      const test = createHarness({ status: 'retry', retryAtEpochMillis: 1, code })
+
+      const failure = await test.handler(job(REQUEST)).then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+
+      expect(failure).toBeInstanceOf(PropertyTrendRetryRequired)
+      expect(failure).toMatchObject({
+        name: 'PropertyTrendRetryRequired',
+        message: `AI property trend retry required: ${code}`,
+        failureCode: code,
+      })
+    },
+  )
 
   it.each(['completed', 'replayed', 'no_data', 'stale'] as const)(
     'completes when generation reports %s',

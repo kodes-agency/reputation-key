@@ -43,6 +43,7 @@ import { reviews, reviewProviderSubjects } from '#/shared/db/schema/review.schem
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { Review, ReviewPlatform, StarRating } from '../../domain/types'
 import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
 import { reviewError } from '../../domain/errors'
@@ -63,6 +64,7 @@ import {
   type AiSourceDatabaseRow,
 } from './ai-source-lookup'
 import { persistReviewObservation } from './review-observation.repository'
+import { logTrendPopulationReadFailure } from '../trend-population-read-failure'
 import type { ReviewProviderObservationOrigin } from '../../application/ports/response-target-authority.port'
 
 const INSIGHTS_READ_BUDGET_MS = 5_000
@@ -129,6 +131,7 @@ async function clockBatchAcrossTenants(
 export const createReviewRepository = (
   db: Database,
   clock: () => Date,
+  logger?: Pick<LoggerPort, 'warn'>,
 ): ReviewRepository => ({
   findById: async (id: ReviewId, organizationId: OrganizationId) => {
     return trace('review.findById', async () => {
@@ -382,7 +385,10 @@ export const createReviewRepository = (
           reviews: Object.freeze(population),
           hasEvidenceBeforeStart,
         }
-      } catch {
+      } catch (error) {
+        // The answer is the documented contract: callers retry, and the insights
+        // reader shows "preparing". It names no cause, so say it here.
+        logTrendPopulationReadFailure(logger, error)
         return { status: 'policy_unavailable' as const }
       }
     })
