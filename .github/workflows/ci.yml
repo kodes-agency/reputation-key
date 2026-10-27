@@ -686,7 +686,7 @@ jobs:
         run: exit 1
 
       - name: Download staged image SBOMs
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: sbom-image-group-*-spdx
           path: image-sboms
@@ -705,7 +705,7 @@ jobs:
 
       - name: Download staged production image descriptors
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: ci-image-digests-*-${{ github.sha }}
           path: staged-image-digests
