@@ -630,8 +630,6 @@ describe.sequential('Portal Organization Export contributor', () => {
     )
   })
 
-  // The CSV summary's portal_id column says which Portal a row belongs to, and
-  // only a Portal row is its own Portal.
   it('exports the saved print wording by Portal: its id and words, and nothing else', async () => {
     const fixture = await seedFixture()
     const contributor = createPortalOrganizationExportContributor(db)
@@ -664,6 +662,8 @@ describe.sequential('Portal Organization Export contributor', () => {
     ])
   })
 
+  // The CSV summary's portal_id column says which Portal a row belongs to, and
+  // only a Portal row is its own Portal.
   it('puts a Portal in the portal_id column of the rows that belong to one, and nothing in the others', async () => {
     const fixture = await seedFixture()
     const contribution = await createPortalOrganizationExportContributor(db).contribute({

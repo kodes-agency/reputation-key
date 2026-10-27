@@ -28,6 +28,7 @@ export const LOGO_ASSET = 'c5000000-0000-4000-8000-000000000002'
 export const PRINT_KIT_INTEGRATION_TABLES = [
   'portal_address_downloads',
   'portal_last_prints',
+  'portal_print_wordings',
   'portal_access_artifacts',
   'portal_tokens',
   'portal_publication_activations',
