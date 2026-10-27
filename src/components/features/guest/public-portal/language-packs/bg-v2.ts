@@ -63,9 +63,9 @@ export const bgV2 = defineGuestCopyV2({
     googleUnavailableBody: 'Оценката ви стигна до {name}. Благодарим ви.',
     googleOpenFailed: 'Google не можа да бъде отворен. Моля, опитайте отново.',
 
-    noteOfferTitle: 'Добавете поверителна бележка за екипа',
-    noteOfferBody: 'По желание. Споделя се с {name}.',
-    noteOfferAction: 'Напиши поверителна бележка',
+    noteOfferTitle: 'Какво се обърка?',
+    noteOfferBody: 'Съобщете за преживяването си на нашето ръководство.',
+    noteOfferAction: 'Съобщи за проблема',
     noteLabel: 'Вашата бележка (по желание)',
     noteHint: 'Не е нужно да посочвате името си.',
     noteSend: 'Изпрати бележката',

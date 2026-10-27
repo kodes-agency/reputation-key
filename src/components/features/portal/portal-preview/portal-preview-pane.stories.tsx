@@ -113,7 +113,7 @@ export const AfterALowRating: Story = {
     const page = within(await phone(canvas, 'Draft · After 2★ · English'))
     await expect(page.getByText('Fair · sent')).toBeVisible()
     await expect(page.getByText('Share your experience on Google')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Write a private note' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Report the issue' })).toBeVisible()
   },
 }
 
@@ -126,7 +126,7 @@ export const AfterAHighRating: Story = {
     )
     const page = within(await phone(canvas, 'Draft · After 5★ · English'))
     await expect(page.getByText('Share your experience on Google')).toBeVisible()
-    await expect(page.queryByRole('button', { name: 'Write a private note' })).toBeNull()
+    await expect(page.queryByRole('button', { name: 'Report the issue' })).toBeNull()
   },
 }
 
@@ -183,7 +183,7 @@ export const TryAsGuest: Story = {
     await expect(page.getByText('Fair · sent')).toBeVisible()
     // Focus follows the rating into the receipt, as on the guest page.
     await expect(page.getByRole('heading', { name: 'Thank you.' })).toHaveFocus()
-    await userEvent.click(page.getByRole('button', { name: 'Write a private note' }))
+    await userEvent.click(page.getByRole('button', { name: 'Report the issue' }))
     await userEvent.type(page.getByRole('textbox'), 'The terrace was lovely')
     await userEvent.click(page.getByRole('button', { name: 'Send note' }))
     await expect(page.getByText(/Your note was sent to Avela Resort/)).toBeVisible()

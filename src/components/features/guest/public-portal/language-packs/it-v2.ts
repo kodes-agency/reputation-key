@@ -65,9 +65,9 @@ export const itV2 = defineGuestCopyV2({
     googleUnavailableBody: 'La sua valutazione è arrivata a {name}. Grazie.',
     googleOpenFailed: 'Non è stato possibile aprire Google. Riprovi.',
 
-    noteOfferTitle: 'Aggiunga una nota privata per il team',
-    noteOfferBody: 'Facoltativa. Condivisa con {name}.',
-    noteOfferAction: 'Scrivere una nota privata',
+    noteOfferTitle: 'Cosa non è andato bene?',
+    noteOfferBody: 'Segnali la sua esperienza al nostro team di direzione.',
+    noteOfferAction: 'Segnalare il problema',
     noteLabel: 'La sua nota (facoltativa)',
     noteHint: 'Non è necessario indicare il suo nome.',
     noteSend: 'Invia la nota',

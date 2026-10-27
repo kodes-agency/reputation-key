@@ -72,7 +72,7 @@ export const GUEST_COPY_V2_PLACEHOLDERS = {
   googleOpenFailed: [],
   // The private note.
   noteOfferTitle: [],
-  noteOfferBody: ['name'],
+  noteOfferBody: [],
   noteOfferAction: [],
   noteLabel: [],
   noteHint: [],

@@ -131,8 +131,8 @@ export const OneStarAndFiveStarPair: Story = {
     const high = within(await pagePhone(canvas, '5★ Excellent'))
     await expect(low.getByText('Share your experience on Google')).toBeVisible()
     await expect(high.getByText('Share your experience on Google')).toBeVisible()
-    await expect(low.getByRole('button', { name: 'Write a private note' })).toBeVisible()
-    await expect(high.queryByRole('button', { name: 'Write a private note' })).toBeNull()
+    await expect(low.getByRole('button', { name: 'Report the issue' })).toBeVisible()
+    await expect(high.queryByRole('button', { name: 'Report the issue' })).toBeNull()
   },
 }
 

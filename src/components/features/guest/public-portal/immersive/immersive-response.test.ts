@@ -189,9 +189,7 @@ describe.each(PACKS)('after a rating [$locale]', (pack) => {
   it('shows the note card collapsed, with a button that opens it', () => {
     const [, , note] = responseChildren(rendered[0]?.html ?? '')
     expect(note).toContain(`>${pack.copy.noteOfferTitle}</h2>`)
-    expect(text(note ?? '')).toContain(
-      guestCopyText(pack, 'noteOfferBody', { name: DISPLAY_NAME }),
-    )
+    expect(text(note ?? '')).toContain(pack.copy.noteOfferBody)
     expect(text(note ?? '')).toContain(pack.copy.noteOfferAction)
     expect(note).not.toContain('<textarea')
   })
