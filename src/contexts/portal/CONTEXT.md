@@ -715,9 +715,11 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   (`PRINT_FINAL_CALLS_TO_ACTION`: `how_did_we_do`, `how_was_visit`, `how_was_stay`,
   `rate_visit`, `got_30_seconds`; "How was your stay?" over "Share your experience", the
   owner's wording of 2026-10-27, has its own sub-line in every language and fits every
-  layout in every language, so no language holds it back) and "Write your own…": a headline and a sub-line per language of the
-  print (`portal-print-final-custom.ts`), printed as typed and never translated; the print
-  keeps the wording id even with own words. The non-English strings are drafts that need a
+  layout in every language, so no language holds it back; rule F measures with a 2:1 badge,
+  and with a squarer logo the Italian, French and Bulgarian lines miss the upright tents in
+  Europe, where Share greys it and the file refuses it) and "Write your own…": a headline
+  and a sub-line per language of the print (`portal-print-final-custom.ts`), printed as
+  typed and never translated; the print keeps the wording id even with own words. The non-English strings are drafts that need a
   native check; rule F (a golden test over the planner) holds back the copies that missed
   it in the brainstorm (`printFinalCopyStatus` = `held`). No piece carries stars (fixed rule
   NS). The kicker is left out when the headline repeats it once both are normalised

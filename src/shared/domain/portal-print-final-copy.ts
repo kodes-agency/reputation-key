@@ -163,10 +163,12 @@ export const PRINT_FINAL_COPY: Readonly<
 /**
  * How far each wording's copy in a language has come (§5.5):
  *   - `checked`: English, the language the owner reads;
- *   - `draft`: prints, but no native speaker has checked it ("How was your stay?" is a
- *     draft in every language but English and is held in none: the 2026-10-27 sweep fit
- *     all 24 layouts in all six languages; the † drafts, with a
- *     specific doubt, are fr, de and bg "How did we do?" and fr "Got 30 seconds?");
+ *   - `draft`: prints, but no native speaker has checked it (the † drafts, with a
+ *     specific doubt, are fr, de and bg "How did we do?" and fr "Got 30 seconds?").
+ *     "How was your stay?" is a draft in every language but English and is held in
+ *     none: the 2026-10-27 sweep fit all 24 layouts in all six languages. The sweep's
+ *     brand is a 2:1 badge; with a squarer logo (1.6:1 or less) it, fr and bg miss the
+ *     upright tents in Europe, where the menu greys it and the file refuses it;
  *   - `held`: misses rule F today (it does not fit every layout with one language),
  *     so Share greys it whenever that language is on the print, and the server
  *     refuses it, until a shorter draft passes: fr "How was your visit?" (the
