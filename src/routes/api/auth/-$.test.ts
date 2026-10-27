@@ -31,7 +31,7 @@ import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** The better-auth release the provider route lists were read against. */
-const VERIFIED_BETTER_AUTH_VERSION = '1.7.5'
+const VERIFIED_BETTER_AUTH_VERSION = '1.7.12'
 
 const mocks = vi.hoisted(() => ({
   check: vi.fn(),

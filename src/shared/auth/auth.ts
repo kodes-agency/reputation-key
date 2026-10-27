@@ -163,7 +163,7 @@ export function createAuth() {
       requireEmailVerification: env.EMAIL_VERIFICATION_REQUIRED,
       // The only sign-up caller is invitation-bound registration, which signs
       // the new member in explicitly once acceptance has verified the email.
-      // Better Auth 1.7.5 answers a sign-up for an existing address with a
+      // Better Auth 1.7.12 answers a sign-up for an existing address with a
       // synthetic user when this is false; registration refuses that address
       // before sign-up (account_exists) and acceptance fences the user row.
       autoSignIn: false,
