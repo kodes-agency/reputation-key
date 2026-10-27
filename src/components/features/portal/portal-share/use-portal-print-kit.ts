@@ -89,6 +89,7 @@ function usePortalPrintFinal(
     downloadMutation: isFinal ? props.printKit?.downloadFinalMutation : undefined,
     saveWordingMutation: isFinal ? props.printKit?.saveWordingMutation : undefined,
     onDownloaded: refreshRead,
+    onWordingSaved: refreshRead,
   })
   return { isFinal, state }
 }

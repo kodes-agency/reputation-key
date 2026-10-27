@@ -69,6 +69,8 @@ type Input = Readonly<{
   saveWordingMutation: PortalPrintKitResources['saveWordingMutation']
   /** Called once the server made a file: the print is now the Portal's last, which the read says. */
   onDownloaded: () => void
+  /** Called once the server saved the wording, which the read says too: the next visit opens on it. */
+  onWordingSaved: () => void
 }>
 
 /** What the download sends for a print. */
@@ -203,9 +205,9 @@ export function usePrintFinal(input: Input) {
     portalId,
     view,
     print,
-    block: wordsState.block,
     saveMutation: input.saveWordingMutation,
     open: changeWords,
+    onSaved: input.onWordingSaved,
   })
   const { savedByDownload } = wording
   const sheet = useMemo(

@@ -44,6 +44,9 @@ import type { PrintFinalWordsState } from './use-print-final-words'
 /** The menu's last option, which is no wording. */
 const OWN = 'own'
 
+/** The select's trigger (the phone's button): where focus goes when "Save wording" goes. One is on the page. */
+export const PRINT_FINAL_CTA_TRIGGER_ID = 'print-final-cta'
+
 type Props = Readonly<{ words: PrintFinalWordsState; print: PrintFinalSharePrint }>
 
 /** A wording on two lines, and why it is greyed under it. */
@@ -259,7 +262,7 @@ export function PrintFinalCtaSelect(props: Props) {
   const { words } = props
   const phone = useIsBelowLarge()
   const id = useId()
-  const triggerId = `${id}-cta`
+  const triggerId = PRINT_FINAL_CTA_TRIGGER_ID
   const whyId = `${id}-why`
   const problem = words.pickedProblem
   const Menu = phone ? PhoneMenu : DesktopMenu

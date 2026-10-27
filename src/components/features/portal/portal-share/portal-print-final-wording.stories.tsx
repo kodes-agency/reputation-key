@@ -326,13 +326,17 @@ export const SaveIsOffWithoutAHeadline: Story = {
   },
 }
 
-/** An offer cannot be saved either. */
+/** An offer cannot be saved either, and Save says so in its own words, not the Download note's PDF. */
 export const SaveIsOffForAnOffer: Story = {
   args: argsFor(printKit(async () => view())),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await writeOwnHeadline(canvas, 'Get 10% off')
-    await expect(await canvas.findByRole('button', SAVE)).toBeDisabled()
+    const save = await canvas.findByRole('button', SAVE)
+    await expect(save).toBeDisabled()
+    await expect(save).toHaveAccessibleDescription(
+      'Remove the offer to save these words.',
+    )
   },
 }
 
@@ -401,5 +405,98 @@ export const WordsSurviveADownload: Story = {
     await expect(field).toHaveValue('Thanks for staying')
     // A download saved what it printed: there is nothing left to save.
     await expect(canvas.queryByRole('button', SAVE)).toBeNull()
+  },
+}
+
+/**
+ * The read is cached for the session and Share is built again on every visit to
+ * its tab, so a save asks the read again: without that a visit a minute later
+ * would open on the wording from before the save.
+ */
+export const SaveAsksTheReadAgain: Story = {
+  args: argsFor(printKit(fn(async () => view()))),
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    await pickWording(canvas, /How was your stay\?/)
+    await userEvent.click(await canvas.findByRole('button', SAVE))
+    await waitFor(() =>
+      expect(
+        (args.printKit?.read as unknown as { mock: { calls: unknown[] } }).mock.calls
+          .length,
+      ).toBeGreaterThanOrEqual(2),
+    )
+  },
+}
+
+/** A keyboard save: the button goes, and focus goes to the call to action the words belong to, not to the page. */
+export const FocusReturnsToTheCallToActionAfterASave: Story = {
+  args: argsFor(printKit(async () => view())),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await pickWording(canvas, /How was your stay\?/)
+    const save = await canvas.findByRole('button', SAVE)
+    save.focus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(canvas.queryByRole('button', SAVE)).toBeNull())
+    await waitFor(() =>
+      expect(canvas.getByRole('combobox', { name: 'Call to action' })).toHaveFocus(),
+    )
+  },
+}
+
+/** A refused keyboard save leaves focus on "Save wording", so the manager can try again. */
+export const FocusStaysOnSaveWhenTheSaveIsRefused: Story = {
+  args: argsFor(
+    printKit(
+      async () => view(),
+      async () => {
+        throw new Error('Too many downloads. Please wait a little before trying again.')
+      },
+    ),
+  ),
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    await pickWording(canvas, /How was your stay\?/)
+    const save = await canvas.findByRole('button', SAVE)
+    save.focus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(args.printKit?.saveWordingMutation).toHaveBeenCalledTimes(1),
+    )
+    await waitFor(() => expect(canvas.getByRole('button', SAVE)).toHaveFocus())
+  },
+}
+
+/**
+ * A read that arrives after a download says another wording (the print's, saved
+ * elsewhere, a save that failed): the words on show are still the manager's.
+ */
+const downloadThenAnotherRead = action<DownloadPrintFinalInput, PortalPrintKitDownload>(
+  async () => TINY_PDF,
+)
+export const AReadAfterADownloadNeverReplacesTheWords: Story = {
+  args: argsFor({
+    ...printKit(async () => {
+      const calls = (downloadThenAnotherRead as unknown as { mock: { calls: unknown[] } })
+        .mock.calls
+      return calls.length === 0
+        ? view()
+        : view(
+            { callToAction: 'rate_visit', customWords: null },
+            lastPrint({ callToAction: 'rate_visit' }),
+          )
+    }),
+    downloadFinalMutation: downloadThenAnotherRead,
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await writeOwnHeadline(canvas, 'Thanks for staying')
+    await userEvent.click(canvas.getByRole('button', { name: /download pdf/i }))
+    await expect(await canvas.findByText(/^Last printed Oct 12/)).toBeVisible()
+    const [field] = canvas.getAllByRole('textbox', { name: 'Headline' })
+    await expect(field).toHaveValue('Thanks for staying')
+    await expect(
+      canvas.getByRole('combobox', { name: 'Call to action' }),
+    ).toHaveTextContent('Your own words')
   },
 }

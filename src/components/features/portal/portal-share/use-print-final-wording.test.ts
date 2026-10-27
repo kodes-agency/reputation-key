@@ -39,9 +39,9 @@ function opened(view: PortalPrintKitView | null) {
       portalId: 'portal-1',
       view,
       print: null,
-      block: null,
       saveMutation: undefined,
       open,
+      onSaved: vi.fn(),
     })
     return null
   }
