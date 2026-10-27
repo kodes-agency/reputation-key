@@ -6,9 +6,10 @@ import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_PROVIDER_FIXTURES_V1,
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { createReviewRepository } from './review.repository'
-import { getDb } from '#/shared/db'
+import { getDb, type Database } from '#/shared/db'
 import {
   googleConnectionId,
   organizationId,
@@ -496,6 +497,92 @@ describe.sequential('reviewRepository (integration)', () => {
           detectEvidenceBeforeStart: false,
         }),
       ).resolves.toEqual({ status: 'limit_exceeded' })
+    })
+  })
+
+  describe('readTrendPopulation under a parallel plan', () => {
+    // Session settings that make the planner choose a parallel plan wherever the
+    // functions in the read allow one. The read calls the Property local-date
+    // function, whose EXCEPTION clause starts a subtransaction: labelled
+    // PARALLEL SAFE it failed on PostgreSQL 16 with "cannot start subtransactions
+    // during a parallel operation", and the read answered `policy_unavailable`
+    // for every Property whose `reviews` table was big enough for the planner.
+    const FORCE_PARALLEL_PLAN = [
+      '-c max_parallel_workers_per_gather=2',
+      '-c parallel_setup_cost=0',
+      '-c parallel_tuple_cost=0',
+      '-c min_parallel_table_scan_size=0',
+      '-c min_parallel_index_scan_size=0',
+    ].join(' ')
+
+    let parallelPool: Pool
+
+    beforeAll(() => {
+      parallelPool = new Pool({
+        connectionString: getEnv().DATABASE_URL,
+        max: 2,
+        options: FORCE_PARALLEL_PLAN,
+      })
+    })
+
+    afterAll(async () => {
+      await parallelPool.end()
+    })
+
+    it('answers complete, as it does when the plan stays serial, and logs nothing', async () => {
+      const seeding = createReviewRepository(getDb(), () => new Date())
+      const fetchedAt = new Date('2026-08-20T00:00:00Z')
+      const future = new Date('2099-01-01T00:00:00Z')
+      // The first is before the window, so the evidence boundary has something to find.
+      for (const [index, reviewedAt] of [
+        '2026-08-10T09:00:00Z',
+        '2026-08-14T22:30:00Z',
+        '2026-08-15T09:00:00Z',
+        '2026-08-16T10:00:00Z',
+      ].entries()) {
+        await seeding.upsert(
+          makeReview({
+            id: `1a000000-0000-0000-0000-0000000000b${index}`,
+            externalId: `trend-parallel-${index}`,
+            text: 'Helpful staff',
+            reviewedAt: new Date(reviewedAt),
+            firstFetchedAt: fetchedAt,
+            lastFetchedAt: fetchedAt,
+            contentExpiresAt: future,
+            analysisSequence: 20 + index,
+          }),
+        )
+      }
+      const warn = vi.fn()
+      const repo = createReviewRepository(
+        drizzle(parallelPool) as Database,
+        () => new Date(),
+        { warn },
+      )
+
+      const result = await repo.readTrendPopulation({
+        organizationId: ORG_A,
+        propertyId: PROP_A,
+        sourceEpoch: 0,
+        timezone: 'Europe/Sofia',
+        calendarProfileVersion: 'property-calendar-v1',
+        startLocalDate: '2026-08-15',
+        endLocalDate: '2026-08-16',
+        limit: 10,
+        detectEvidenceBeforeStart: true,
+      })
+
+      expect(
+        (await parallelPool.query('SHOW max_parallel_workers_per_gather')).rows,
+      ).toEqual([{ max_parallel_workers_per_gather: '2' }])
+      expect(result).toMatchObject({
+        status: 'complete',
+        hasEvidenceBeforeStart: true,
+      })
+      expect(
+        result.status === 'complete' ? result.reviews.map((r) => r.localDate) : [],
+      ).toEqual(['2026-08-15', '2026-08-15', '2026-08-16'])
+      expect(warn).not.toHaveBeenCalled()
     })
   })
 

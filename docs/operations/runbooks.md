@@ -1341,6 +1341,48 @@ AI settings, which advances every epoch, and the first-enablement replay
 analyses the history on the new worker. Do not insert or rewrite settlements.
 Record the identifiers, epochs and counts only.
 
+**A trend that dead-letters on its population read (2026-10-27).** The
+`generate-property-ai-trend` job of one Property fails all three attempts, the
+error is `PropertyTrendRetryRequired` with the message "AI property trend retry
+required: trend_population_policy_unavailable", `worker.job-runtime-unready` and
+`queue.quarantine-nonempty` fire (§14, §17), and the error-monitoring issue
+carries the tag `failure_code:trend_population_policy_unavailable`. Before
+2026-10-27 the same failure read `Error: [REDACTED]` with no tag. The code means
+the Review population read answered `policy_unavailable`, which it does for _any_
+database error (its callers retry, and the insights reader shows "preparing"), so
+the code names no cause. The cause is in the worker log: one warning,
+`review_trend_population_read_failed`, with `errorName` and the SQLSTATE
+`errorCode`, and nothing else (no identifiers, statement or message). Read the
+code:
+
+- `25000`, "cannot start subtransactions during a parallel operation" in the
+  Postgres log: PostgreSQL 16 ran the read in a parallel plan and one of the
+  Property local-date functions (`ai_property_local_date_v1`,
+  `ai_property_local_midnight_v1`, each ending in an EXCEPTION clause, which
+  starts a subtransaction) was labelled `PARALLEL SAFE`. It fails for exactly
+  the Properties whose `reviews` table the planner scans in parallel, every time,
+  at their daily 02:15-local trend batch; the others are unaffected. Migration
+  0075 labels both `PARALLEL UNSAFE`. Both must read `u` here, and anything else
+  means the migration has not run (web's predeploy applies it):
+
+  ```sql
+  SELECT proname, proparallel FROM pg_proc
+  WHERE proname IN ('ai_property_local_date_v1', 'ai_property_local_midnight_v1');
+  ```
+
+- `57014`: the read exceeded its 5-second budget. Look at that Property's
+  `reviews` and `review_source_contents` row counts and the query plan before
+  anything else.
+- Another SQLSTATE (`40P01`, `57P01`, `53300`) or a socket code
+  (`ECONNRESET`): a database or pool fault. The retry normally clears it; if it
+  does not, work from §8.
+- No `errorCode`: the read raised a driver or runtime error, not a database
+  refusal. Take `errorName` and the Postgres log.
+
+Once the cause is fixed, redrive the quarantined jobs (§14); a run whose schedule
+has since been replaced ends `stale`. Acknowledge the family's `repair_required`
+(§17) once a later run has succeeded.
+
 **Verification:** For every enabled Property, the current-epoch settlement
 count exactly equals `head_sequence - analysis_start_sequence`, the count
 continues to advance when new review-analysis events arrive, and no actionable

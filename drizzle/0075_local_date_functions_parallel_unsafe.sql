@@ -1,0 +1,30 @@
+-- The Property local-date functions stop being PARALLEL SAFE (2026-10-27,
+-- closed-beta-v2).
+--
+-- `ai_property_local_date_v1` and `ai_property_local_midnight_v1` end in an
+-- `EXCEPTION WHEN invalid_parameter_value OR numeric_value_out_of_range THEN
+-- RETURN NULL` clause, and a PL/pgSQL EXCEPTION clause starts a subtransaction
+-- every time its block is entered. PostgreSQL 16 refuses one while a parallel plan
+-- runs ("cannot start subtransactions during a parallel operation", SQLSTATE
+-- 25000). Both were labelled PARALLEL SAFE, so as soon as a table grew past the
+-- planner's threshold for a Parallel Seq Scan, every read through them failed
+-- for the Properties whose plan changed. The daily Property trend was the first:
+-- its population read went parallel on `reviews` for 6 of 29 Properties, failed
+-- on all three attempts, and dead-lettered.
+--
+-- PARALLEL RESTRICTED would not have helped. The function would then run in the
+-- group leader, which is in parallel mode for the whole statement once the plan
+-- holds a Gather node, and the read's other table is read through one. Only
+-- PARALLEL UNSAFE keeps the planner from building a parallel plan around the
+-- function, which is what PostgreSQL's documentation asks of a function that
+-- establishes an EXCEPTION block. PostgreSQL prints no clause for it, so
+-- `db-constructs.sql` and its copy 0001 now state these two functions with none.
+--
+-- Volatility and strictness do not change, and neither does the body. Neither
+-- function is used in an index expression, a generated column or a CHECK, so
+-- nothing is rebuilt; the change is one `pg_proc` row each, no table is locked
+-- and the statements run in milliseconds. A database built from 0001 already has
+-- the unsafe label, so on an empty database both statements change nothing.
+ALTER FUNCTION public.ai_property_local_date_v1(timestamp with time zone, text) PARALLEL UNSAFE;
+--> statement-breakpoint
+ALTER FUNCTION public.ai_property_local_midnight_v1(date, text) PARALLEL UNSAFE;

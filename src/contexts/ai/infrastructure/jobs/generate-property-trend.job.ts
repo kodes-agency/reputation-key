@@ -6,6 +6,7 @@ import type {
   GeneratePropertyTrendInput,
   GeneratePropertyTrendResult,
 } from '../../application/use-cases/generate-property-trend'
+import { PropertyTrendRetryRequired } from './property-trend-retry-required'
 
 export const GENERATE_PROPERTY_TREND_JOB_NAME = 'generate-property-ai-trend'
 
@@ -50,7 +51,7 @@ export const createGeneratePropertyTrendJobHandler = (
       propertyId: propertyId(data.propertyId),
     })
     if (result.status === 'retry') {
-      throw new Error(`AI property trend retry required: ${result.code}`)
+      throw new PropertyTrendRetryRequired(result.code)
     }
   }
 }

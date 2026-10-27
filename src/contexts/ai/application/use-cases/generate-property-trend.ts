@@ -42,9 +42,26 @@ export type GeneratePropertyTrendInput = Readonly<{
   propertyId: PropertyId
 }>
 
+/**
+ * Why a trend run asks to be tried again. The set is closed: the job raises it
+ * as the failure code of a named error (PropertyTrendRetryRequired), error
+ * monitoring reads that code into a tag, and the quarantine reason and the
+ * runbooks quote it. The population codes are `trend_population_` and a status
+ * of the Review population read that is not `complete`.
+ */
+export type PropertyTrendRetryCode =
+  | 'trend_sequence_or_aggregate_gap'
+  | 'trend_evidence_reconciling'
+  | 'trend_population_limit_exceeded'
+  | 'trend_population_policy_unavailable'
+
 export type GeneratePropertyTrendResult =
   | Readonly<{ status: 'completed' | 'replayed' | 'no_data' | 'stale' }>
-  | Readonly<{ status: 'retry'; retryAtEpochMillis: number; code: string }>
+  | Readonly<{
+      status: 'retry'
+      retryAtEpochMillis: number
+      code: PropertyTrendRetryCode
+    }>
 
 export type GeneratePropertyTrendDependencies = Readonly<{
   authorization: AiAuthorizationPort

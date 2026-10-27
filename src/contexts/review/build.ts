@@ -348,7 +348,7 @@ function reviewPublicationLifecycle(
 }
 
 export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContextApi => {
-  const reviewRepo = createReviewRepository(input.db, input.clock)
+  const reviewRepo = createReviewRepository(input.db, input.clock, input.logger)
   const observationRepo = createReviewObservationRepository(input.db)
   const replyRepo = createReplyRepository(input.db, input.clock)
   const replyTemplateRepo = createReplyTemplateRepository(input.db, input.clock)
