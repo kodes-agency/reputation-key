@@ -19,24 +19,24 @@
       "license": "MPL-2.0",
       "scope": "both",
       "owner": "platform",
-      "reason": "Build-time CSS transformer in the vite/tailwind pipeline (incl. its os/cpu-specific binary packages). Used unmodified as a build plugin; MPL-2.0 §3.3 explicitly permits Larger Works under different terms and the covered source stays available on npm. No MPL-licensed file is modified.",
-      "expiresAt": "2026-10-31"
+      "reason": "Build-time CSS transformer in the vite/tailwind pipeline (incl. its os/cpu-specific binary packages). Used unmodified as a build plugin; MPL-2.0 §3.3 explicitly permits Larger Works under different terms and the covered source stays available on npm. No MPL-licensed file is modified. Re-reviewed 2026-10-27: still MPL-2.0 (1.32.0 and 1.33.0); its only production-tree path is the @tanstack/react-start build-plugin chain into vite, and nothing imports it at runtime.",
+      "expiresAt": "2027-01-31"
     },
     {
       "package": "caniuse-lite",
       "license": "CC-BY-4.0",
       "scope": "both",
       "owner": "platform",
-      "reason": "Browser-compatibility DATA (not executable code) consumed at build time by browserslist/@babel for transpile targeting. Data is unmodified and attribution ships with the package's own license file in node_modules.",
-      "expiresAt": "2026-10-31"
+      "reason": "Browser-compatibility DATA (not executable code) consumed at build time by browserslist/@babel for transpile targeting. Data is unmodified and attribution ships with the package's own license file in node_modules. Re-reviewed 2026-10-27: still CC-BY-4.0 (1.0.30001810); its only production-tree path is the @tanstack/react-start build-plugin chain (babel/browserslist), and nothing imports it at runtime.",
+      "expiresAt": "2027-01-31"
     },
     {
       "package": "axe-core",
       "license": "MPL-2.0",
       "scope": "dev",
       "owner": "platform",
-      "reason": "Accessibility audit engine loaded by @storybook/addon-a11y and the Storybook test-runner — CI/dev a11y tooling only, never bundled into production images (devDependency tree; the docker prod-deps sentinel gate proves devDeps are absent). Used unmodified; MPL-2.0 §3.3 permits Larger Works under different terms.",
-      "expiresAt": "2026-10-31"
+      "reason": "Accessibility audit engine loaded by @storybook/addon-a11y and the Storybook test-runner — CI/dev a11y tooling only, never bundled into production images (devDependency tree; the docker prod-deps sentinel gate proves devDeps are absent). Used unmodified; MPL-2.0 §3.3 permits Larger Works under different terms. Re-reviewed 2026-10-27: still MPL-2.0 (4.13.0), and `pnpm why axe-core --prod` resolves nothing.",
+      "expiresAt": "2027-01-31"
     },
     {
       "package": "@sentry/cli*",

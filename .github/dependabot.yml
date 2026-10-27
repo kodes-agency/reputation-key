@@ -68,6 +68,28 @@ updates:
           - vite
           - better-auth
           - openai
+    # Held on purpose; each lands as deliberate work, not as a chore bump.
+    #
+    # React 19.3 alone adds ~8.6 KB gzip to `vendor-react`, which takes the
+    # initial static closure past the bundle budget (320,529 B against
+    # 309,800 B in #997). No advisory forces it. The types
+    # move with the runtime so they never describe APIs we do not ship.
+    #
+    # `@types/node` must stay on the runtime's major:
+    # src/shared/testing/pinned-runtime.test.ts fails otherwise (#627). It
+    # moves with the Node 26 migration, together with the docker `node` image
+    # below.
+    ignore:
+      - dependency-name: react
+        versions: ['19.3.x']
+      - dependency-name: react-dom
+        versions: ['19.3.x']
+      - dependency-name: '@types/react'
+        versions: ['19.3.x']
+      - dependency-name: '@types/react-dom'
+        versions: ['19.3.x']
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     # Security updates are always opened immediately regardless of schedule
     # Major version updates get individual PRs for review
     reviewers:
@@ -91,6 +113,14 @@ updates:
       base-images:
         patterns:
           - '*'
+    # A Node major is a runtime migration, not a base-image bump (#483). The
+    # Dockerfiles assert {node, icu, unicode} at build and run time, the AI
+    # deployment contract pins the same triple, and Node 26 no longer ships
+    # corepack, so `corepack enable` exits 127. Redis updates and Node 22
+    # minor or patch updates still get PRs.
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
     reviewers:
       - kodes-agency/engineering
     labels:
