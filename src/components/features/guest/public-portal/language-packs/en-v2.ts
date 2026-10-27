@@ -60,9 +60,9 @@ export const enV2 = defineGuestCopyV2({
     googleUnavailableBody: 'Your rating reached {name}. Thank you.',
     googleOpenFailed: 'Google could not be opened. Please try again.',
 
-    noteOfferTitle: 'Add a private note for the team',
-    noteOfferBody: 'Optional. Shared with {name}.',
-    noteOfferAction: 'Write a private note',
+    noteOfferTitle: 'What went wrong?',
+    noteOfferBody: 'Escalate your experience with our Management team.',
+    noteOfferAction: 'Report the issue',
     noteLabel: 'Your note (optional)',
     noteHint: 'No need to include your name.',
     noteSend: 'Send note',

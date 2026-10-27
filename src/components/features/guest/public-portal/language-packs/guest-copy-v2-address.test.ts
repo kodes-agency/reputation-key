@@ -75,7 +75,6 @@ describe('the form of address', () => {
       ratingThanks: 'Vielen Dank.',
       googleTitle: 'Teilen Sie Ihre Erfahrung auf Google',
       googleAction: 'Weiter zu Google',
-      noteOfferTitle: 'Private Nachricht an das Team',
       ratingWord1: 'Schlecht',
       ratingWord2: 'Mäßig',
       ratingWord3: 'Gut',

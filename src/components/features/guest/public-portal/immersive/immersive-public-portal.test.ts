@@ -104,7 +104,7 @@ describe('a guest who has rated', () => {
     const order = [
       html.indexOf('Thank you.'),
       html.indexOf('Share your experience on Google'),
-      html.indexOf('Add a private note for the team'),
+      html.indexOf('What went wrong?'),
       html.indexOf('Your response'),
     ]
 

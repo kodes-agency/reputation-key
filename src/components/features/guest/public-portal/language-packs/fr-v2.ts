@@ -68,9 +68,9 @@ export const frV2 = defineGuestCopyV2({
     googleUnavailableBody: 'Votre note est bien parvenue à {name}. Merci.',
     googleOpenFailed: 'Google n’a pas pu être ouvert. Veuillez réessayer.',
 
-    noteOfferTitle: 'Ajoutez un message privé pour l’équipe',
-    noteOfferBody: 'Facultatif. Partagé avec {name}.',
-    noteOfferAction: 'Écrire un message privé',
+    noteOfferTitle: 'Qu’est-ce qui n’a pas été ?',
+    noteOfferBody: 'Faites part de votre expérience à notre équipe de direction.',
+    noteOfferAction: 'Signaler le problème',
     noteLabel: 'Votre message (facultatif)',
     noteHint: 'Inutile d’indiquer votre nom.',
     noteSend: 'Envoyer le message',

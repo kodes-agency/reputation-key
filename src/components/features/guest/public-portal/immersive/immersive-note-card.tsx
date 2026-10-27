@@ -50,7 +50,6 @@ export function ImmersiveNoteCard({
   return (
     <NoteComposer
       pack={pack}
-      displayName={displayName}
       pending={pending}
       sendFailed={sendFailed}
       initial={initial}
@@ -82,14 +81,12 @@ function SentNote({
 
 function NoteComposer({
   pack,
-  displayName,
   pending,
   sendFailed,
   initial,
   onSubmit,
 }: Readonly<{
   pack: GuestPortalCopyV2
-  displayName: string
   pending: boolean
   sendFailed: boolean
   initial?: NoteDraft
@@ -120,7 +117,7 @@ function NoteComposer({
       </h2>
       <p className="ih-note__hint">
         <LockIcon size={16} />
-        <span>{guestCopyText(pack, 'noteOfferBody', { name: displayName })}</span>
+        <span>{pack.copy.noteOfferBody}</span>
       </p>
       {open ? (
         <ImmersiveNoteForm

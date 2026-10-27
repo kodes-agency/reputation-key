@@ -3,9 +3,10 @@ import { defineGuestCopyV2 } from './guest-copy-v2'
 // German guest copy, generation 2 (schema version 3 snapshots). The form of
 // address is the formal "Sie" throughout. The wording the owner agreed in the
 // German glossary (the rating question and scale, the privacy line, the visit
-// notice, the language sheet, the Google card, the private note offer and the
-// footer) is used as written and pinned by `guest-copy-v2.test.ts`; it is the
-// wording of round 4 board G10. The rest is drafted in the same register. No
+// notice, the language sheet, the Google card and the footer) is used as
+// written and pinned by `guest-copy-v2.test.ts`; it is the wording of round 4
+// board G10. The rest, including the note offer the owner reworded on
+// 2026-10-27 ("What went wrong?"), is drafted in the same register. No
 // native check happens during the closed beta (owner decision 5, 2026-09-30).
 // Industry-neutral: no text names a kind of place.
 export const deV2 = defineGuestCopyV2({
@@ -70,9 +71,9 @@ export const deV2 = defineGuestCopyV2({
     googleOpenFailed:
       'Google konnte nicht geöffnet werden. Bitte versuchen Sie es erneut.',
 
-    noteOfferTitle: 'Private Nachricht an das Team',
-    noteOfferBody: 'Optional. Wird mit {name} geteilt.',
-    noteOfferAction: 'Private Nachricht schreiben',
+    noteOfferTitle: 'Was ist schiefgelaufen?',
+    noteOfferBody: 'Wenden Sie sich mit Ihrem Anliegen direkt an unser Management.',
+    noteOfferAction: 'Problem melden',
     noteLabel: 'Ihre Nachricht (optional)',
     noteHint: 'Sie müssen Ihren Namen nicht angeben.',
     noteSend: 'Nachricht senden',

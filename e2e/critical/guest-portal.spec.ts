@@ -144,7 +144,7 @@ test.describe('Critical: public Portal basics', () => {
     await expect(seededTile(page)).toHaveAttribute('href', expectedDestination)
 
     // A rating at or below the threshold is offered a private note.
-    await page.getByRole('button', { name: 'Write a private note' }).click()
+    await page.getByRole('button', { name: 'Report the issue' }).click()
     await page
       .getByRole('textbox', { name: 'Your note (optional)' })
       .fill('Initial private guest note.')
@@ -217,7 +217,7 @@ test.describe('Critical: public Portal basics', () => {
     await selectRating(page, 2)
     await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(receipt(page, 2)).toBeVisible()
-    await page.getByRole('button', { name: 'Write a private note' }).click()
+    await page.getByRole('button', { name: 'Report the issue' }).click()
     await page.getByRole('textbox', { name: 'Your note (optional)' }).fill(feedbackBody)
     await page.getByRole('button', { name: 'Send note' }).click()
     await expect(
@@ -440,7 +440,7 @@ test.describe('Critical: public Portal basics', () => {
     // response, with no private feedback attached.
     await page.reload()
     await expect(receipt(page, 2)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Write a private note' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Report the issue' })).toBeVisible()
   })
 
   // The portal.scan metric had NO producer: recordScanFn was exported and
