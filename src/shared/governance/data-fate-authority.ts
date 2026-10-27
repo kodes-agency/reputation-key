@@ -552,6 +552,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       "A remembered choice and a day, never an address or a file. The Portal lifecycle contributor deletes the Organization's rows at purge, and the Portal foreign key removes a row with its Portal.",
   }),
   ...rows({
+    schemaFile: 'portal-print-wording.schema.ts',
+    exportNames: ['portalPrintWordings'],
+    owner: 'portal',
+    disposition: 'active_authority',
+    authority: 'POR-01',
+    exitCriteria:
+      "A saved wording id and the manager's words, never an address, a file or who saved it. The Portal lifecycle contributor deletes the Organization's rows at purge, and the Portal foreign key removes a row with its Portal.",
+  }),
+  ...rows({
     schemaFile: 'portal-publication.schema.ts',
     exportNames: [
       'portalPageEdits',

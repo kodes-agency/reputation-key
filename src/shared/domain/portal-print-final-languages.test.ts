@@ -49,6 +49,7 @@ describe('PRINT_FINAL_CALL_TO_ACTION_LABELS', () => {
     expect(Object.entries(PRINT_FINAL_CALL_TO_ACTION_LABELS)).toEqual([
       ['how_did_we_do', 'How did we do? · About 30 seconds'],
       ['how_was_visit', 'How was your visit? · About 30 seconds'],
+      ['how_was_stay', 'How was your stay? · Share your experience'],
       ['rate_visit', 'Rate your visit · About 30 seconds'],
       ['got_30_seconds', 'Got 30 seconds? · Tell us how it went'],
     ])
@@ -75,7 +76,7 @@ describe('PRINT_FINAL_COPY (spec 5.5)', () => {
     )
   })
 
-  it('says the other three wordings as the spec’s table does', () => {
+  it('says the other four wordings as the spec’s table does', () => {
     const headlines = (callToAction: PrintFinalCallToAction) =>
       GUEST_LOCALES.map((locale) => PRINT_FINAL_COPY[locale][callToAction].headline)
     expect(headlines('how_was_visit')).toEqual([
@@ -85,6 +86,24 @@ describe('PRINT_FINAL_COPY (spec 5.5)', () => {
       'Comment était votre visite\u00a0?',
       'Wie war Ihr Besuch?',
       'Как мина посещението ви?',
+    ])
+    expect(headlines('how_was_stay')).toEqual([
+      'How was your stay?',
+      '¿Qué tal su estancia?',
+      'Com’è stato il suo soggiorno?',
+      'Comment était votre séjour\u00a0?',
+      'Wie war Ihr Aufenthalt?',
+      'Как мина престоят ви?',
+    ])
+    expect(
+      GUEST_LOCALES.map((locale) => PRINT_FINAL_COPY[locale].how_was_stay.subline),
+    ).toEqual([
+      'Share your experience',
+      'Comparta su experiencia',
+      'Condivida la sua esperienza',
+      'Partagez votre expérience',
+      'Teilen Sie Ihre Erfahrung',
+      'Споделете впечатленията си',
     ])
     expect(headlines('rate_visit')).toEqual([
       'Rate your visit',

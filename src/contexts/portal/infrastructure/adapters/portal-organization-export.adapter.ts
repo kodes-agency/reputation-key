@@ -43,6 +43,7 @@ type PortalOrganizationExportPayload = Readonly<{
   addressDownloads: readonly ExportRecord[]
   healthIntervals: readonly ExportRecord[]
   lastPrints: readonly ExportRecord[]
+  printWordings: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
     recordClass: string
     reasonCode: string
@@ -188,6 +189,7 @@ function collectionsOf(
     ['address_download', payload.addressDownloads],
     ['health_interval', payload.healthIntervals],
     ['last_print', payload.lastPrints],
+    ['print_wording', payload.printWordings],
   ]
 }
 
@@ -494,6 +496,17 @@ async function readPayload(
                    ${utc('printed_at')} AS printed_at
             FROM portal_last_prints WHERE organization_id = ${organizationId}`,
       )
+      // The wording each Portal saved for Share to open on, the manager's own
+      // words among them: a wording id and words, never an address, a file or
+      // the person who saved it. Its key is the Portal's own.
+      const printWordings = await readRows(
+        snapshot,
+        sql`SELECT portal_id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, call_to_action,
+                   call_to_action_custom::text AS call_to_action_custom,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_print_wordings WHERE organization_id = ${organizationId}`,
+      )
 
       return {
         version: 'portal-organization-export/v1' as const,
@@ -532,6 +545,7 @@ async function readPayload(
         ]),
         healthIntervals: sortRecords(healthIntervals, ['portal_id', 'id']),
         lastPrints: sortRecords(lastPrints, ['portal_id']),
+        printWordings: sortRecords(printWordings, ['portal_id']),
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
       }
     },

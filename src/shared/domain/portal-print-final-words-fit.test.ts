@@ -88,6 +88,7 @@ describe('printFinalMenuRows (spec 5.5)', () => {
     expect(rows.map((row) => [row.preset, row.state, row.heldIn])).toEqual([
       ['how_did_we_do', 'fits', null],
       ['how_was_visit', 'too_long', null],
+      ['how_was_stay', 'too_long', null],
       ['rate_visit', 'fits', null],
       ['got_30_seconds', 'held', 'de'],
     ])
