@@ -99,7 +99,7 @@ function admitsInPlatformRestoreTarget(environment: string): boolean {
   )
 }
 
-// The pages that speak for the present. LEAN_TRANSFORMATION_PLAN.md is not
+// The pages that speak for the present. docs/archive/LEAN_TRANSFORMATION_PLAN.md is not
 // one: it is the history of the program that ran while the premise held, and
 // it keeps the sentence, struck and dated, where it was decided.
 const CURRENT_PAGES: readonly (readonly [string, string])[] = [

@@ -13,7 +13,7 @@ const UNIT_REEXPORT_TARGET =
   'src/test-fixtures/generated/google-provider-identifiers-v1.ts'
 const SUBJECT_TARGET = 'test-fixtures/generated/review-provider-subject-v1.fixture.json'
 // The AI-governance specification was archived with the 42-package program
-// (docs/archive/2026-09-lean/), so it is no longer a generated target: this
+// (docs/archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/), so it is no longer a generated target: this
 // gate must not maintain live generated blocks inside an archive.
 const DOC_TARGETS = [
   'docs/adr/0031-google-source-content-and-ai-processing-boundary.md',

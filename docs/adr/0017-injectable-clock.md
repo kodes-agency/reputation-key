@@ -14,7 +14,8 @@ presets — read `new Date()` / `Date.now()` directly in roughly half the stack.
 This made the behaviors **untestable in fast-forward**: you cannot advance the
 clock to trigger an SLA breach or a review purge without waiting real
 wall-clock time. It also blocked deterministic simulation (the broader
-testability initiative, see `docs/archive/plan/testability-simulation-plan.md`).
+testability initiative; its plan is out of the tree, in git history:
+`git show 944895e91:docs/archive/plan/testability-simulation-plan.md`).
 
 An audit found 191 non-test time-reading sites, but classified them into three
 categories:

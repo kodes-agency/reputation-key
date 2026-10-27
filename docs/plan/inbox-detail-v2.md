@@ -1,7 +1,7 @@
 # Inbox detail pane — v2.1 (Ledger)
 
-Status: **implemented on `ux/inbox-detail` in PRs 1–5, not pushed.** PR 1
-`8593cd0b`, PR 2 `ac9d8983`, PR 3 `1daa7067`, PR 4 `10dbed38`, PR 5 on top of them.
+Status: **shipped (#569; review fixes #593).** Built on `ux/inbox-detail` in PRs 1–5:
+PR 1 `8593cd0b`, PR 2 `ac9d8983`, PR 3 `1daa7067`, PR 4 `10dbed38`, PR 5 on top of them.
 Where a row and the code disagree, the row's `Amended 2026-09-13 (PR N)` note is
 what shipped. Notes marked `(PR 5 housekeeping)` come from checking every row
 against the code at `10dbed38`, and their file:line citations are against that
@@ -242,8 +242,10 @@ approval` unchanged. `reply-lifecycle.spec.ts` gains one step: open _Draft
 
 ## Out of scope
 
-- The list panel is delivered by `docs/plan/inbox-workspace.md`; this document
-  still governs only the detail pane.
+- The list panel was delivered by the inbox workspace work (#569, #581, #582); its
+  plan is out of the tree, in git history:
+  `git show 944895e91:docs/plan/inbox-workspace.md`. This document still governs
+  only the detail pane.
 - The reopen and feedback-handling dialogs' content.
 - Template management and the AI settings page (`Set property language`
   links to the existing route).

@@ -1,6 +1,6 @@
 # Notifications — UX review and redesign proposal
 
-Status: **decided 2026-09-29, being built** — see §4 for the owner's answers and
+Status: **decided 2026-09-29, shipped (#637–#647)** — see §4 for the owner's answers and
 §6 for what each pull request delivers.
 
 - Prototypes: Storybook › `Design/Notification redesign` and

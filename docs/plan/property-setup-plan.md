@@ -1,8 +1,8 @@
 # Property setup, settings hub, and AI admission — plan
 
-**Date:** 2026-09-15 · **Status:** agreed in grilling, not started. Inputs: the eighteen decisions
+**Date:** 2026-09-15 · **Status:** shipped (#578). Agreed in grilling; inputs: the eighteen decisions
 in [`property-setup-exploration.md`](./property-setup-exploration.md) §6; facts in its §2–§4.
-Nothing here is implemented. Each workstream starts on its own branch off `main`.
+The sections below are the plan as agreed on that date.
 
 ## 0. Ground rules
 

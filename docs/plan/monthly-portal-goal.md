@@ -1,6 +1,6 @@
 # Monthly portal goal: plan
 
-Date: 2026-10-17. Status: owner-approved decisions (P-1 to P-8 and the smaller calls), being built in 21 pull requests (PG-01 to PG-21); each records itself under [As built](#as-built) when it lands. The decision record is [ADR 0068](../adr/0068-monthly-portal-goal.md). Paths are relative to the repository root.
+Date: 2026-10-17. Status: shipped (#851–#884, #899, #903). Owner-approved decisions (P-1 to P-8 and the smaller calls), built in 21 pull requests (PG-01 to PG-21); each recorded itself under [As built](#as-built) when it landed. The decision record is [ADR 0068](../adr/0068-monthly-portal-goal.md). Paths are relative to the repository root.
 
 **Sources.** The owner's binding log is `~/kodes/portal-goals-redesign/DECISIONS.md` ("go with your recommendations on all 8", 2026-10-17). The proposal the owner approved is `~/kodes/portal-goals-redesign/PROPOSAL.md` and its published page, https://claude.ai/artifact/9qxDqGGzdXNBT8BWwX8nXL. The lead engineer's full implementation plan, with each PR's files, tests and copy deck, is `~/kodes/portal-goals-redesign/PLAN.md`. Precedence: DECISIONS, then the published page (its P-3 lines win over PROPOSAL's earlier ones), then PROPOSAL, then the research. This page keeps what the repository needs to carry: the decisions, the PR map, the number rules and goldens, the deploy order and the risks.
 

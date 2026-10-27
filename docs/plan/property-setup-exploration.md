@@ -1,7 +1,8 @@
 # Property setup, settings, and AI admission — exploration
 
-**Date:** 2026-09-14 · **Status:** exploration only, no code changes. A plan follows the
-grilling recorded in §6. Branch `ux/inbox-detail` is unrelated; this work will get its own branch.
+**Date:** 2026-09-14 · **Status:** shipped (#578), through [`property-setup-plan.md`](./property-setup-plan.md).
+Written as an exploration with no code changes; §2–§4 describe the code as it was on that
+date. The plan followed the grilling recorded in §6.
 
 ## 1. The three asks
 
@@ -112,7 +113,8 @@ Other facts:
   workaround for re-versioned notices (`merchant-ai-settings-page.tsx:91-93`).
 - `properties` has no type/category column, although `docs/BETA.md` §3 says unsupported
   classifications are refused.
-- A prior IA audit exists at `docs/archive/2026-09-lean/design/current-state-settings-2026-08-19.md`
+- A prior IA audit is out of the tree now, in git history:
+  `git show 944895e91:docs/archive/2026-09-lean/design/current-state-settings-2026-08-19.md`
   ("ten routes, four scopes, one flat ungrouped list"); structurally still true.
 
 ## 4. AI admission and analysis today

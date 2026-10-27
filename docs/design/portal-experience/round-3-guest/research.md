@@ -681,7 +681,7 @@ Tokens (src/styles.css):
 - Fonts: Satoshi for body/sans (Fontshare CDN), Plus Jakarta Sans as display (.display-title, not used in the inbox), JetBrains Mono.
 - Radius base 6px (--radius 0.375rem): sm 4, md 6, lg 8, xl 12. The composer dock is rounded-xl.
 
-Density and structure (docs/plan/inbox-detail-v2.md, docs/plan/inbox-workspace.md, docs/plan/dashboard-redesign.md):
+Density and structure (docs/plan/inbox-detail-v2.md, docs/plan/inbox-workspace.md [out of the tree; git history at 944895e91], docs/plan/dashboard-redesign.md):
 
 - Regions are separated by 1px border-b or border-r hairlines, not nested cards. Cards appear only where an edge groups something.
 - Header 56px (h-14 border-b), case toolbar 48px (min-h-12, wraps to 85px), list rows fixed at 78px, queue rail 224px (w-56) with 32px rows.
