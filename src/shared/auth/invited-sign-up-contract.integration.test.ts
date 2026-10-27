@@ -1,4 +1,4 @@
-// The Better Auth 1.7.5 behaviours invitation registration relies on (ADR
+// The Better Auth 1.7.12 behaviours invitation registration relies on (ADR
 // 0062), pinned against the real provider and database with email
 // verification required, as production runs:
 //   - an unverified address is refused at sign-in with EMAIL_NOT_VERIFIED,

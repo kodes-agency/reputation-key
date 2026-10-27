@@ -20,7 +20,7 @@ import { classifyProviderRequest } from './-provider-routes'
 // and its create and update routes ran with none of the app's checks.
 //
 // Both lists name Better Auth's OWN routes, so they are only as correct as
-// the version they were read against: the exact pin in package.json (1.7.5).
+// the version they were read against: the exact pin in package.json (1.7.12).
 // The colocated tests enumerate the configured provider's endpoints and fail
 // on one that is on neither list, and assert the installed version, so a bump
 // is a deliberate re-read of what each allowed route returns and changes.

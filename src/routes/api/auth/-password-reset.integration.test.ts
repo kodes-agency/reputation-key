@@ -1,5 +1,5 @@
 // A password reset request through /api/auth/*, against the real provider
-// (Better Auth 1.7.5) and a real database, with the route's limiter ON.
+// (Better Auth 1.7.12) and a real database, with the route's limiter ON.
 //
 // The colocated unit test proves which keys the route counts. This suite
 // proves what the provider does with the request the route hands it:

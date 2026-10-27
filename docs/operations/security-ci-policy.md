@@ -318,8 +318,8 @@ that inventory expands elsewhere. Dependabot is the burn-down engine for
 dependency, action, and base-image updates; the gates above are the enforcement
 floor (they do not depend on Dependabot firing).
 
-**Exactly pinned, deliberately:** `better-auth` carries no range (`1.7.5`, not
-`^1.7.5`). `/api/auth/*` serves an allow list of better-auth's OWN routes and
+**Exactly pinned, deliberately:** `better-auth` carries no range (`1.7.12`, not
+`^1.7.12`). `/api/auth/*` serves an allow list of better-auth's OWN routes and
 refuses every other request at the HTTP boundary
 (`src/routes/api/auth/-provider-routes.ts`): the raw organization reads and
 writes, self-service `/sign-up/email`, and `/send-verification-email`, whose

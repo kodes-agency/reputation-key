@@ -1,5 +1,5 @@
 // What a signed-in account can reach through /api/auth/*, against the real
-// provider (Better Auth 1.7.5) and a real database.
+// provider (Better Auth 1.7.12) and a real database.
 //
 // The colocated unit test proves which requests the route hands to the
 // provider. This suite proves what that means: the provider answers its own
