@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import {
   createMemoryHistory,
   createRootRoute,
+  createRoute,
   createRouter,
   RouterContextProvider,
 } from '@tanstack/react-router'
@@ -17,13 +18,18 @@ import { visiblePropertySettingsSections } from './property-settings-sections'
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000101'
 const SECTIONS = visiblePropertySettingsSections(() => true)
 
-function renderAt(section: string): string {
+// The nav reads the section of the page ON SCREEN, so the router must have
+// presented a match for the address: a splat route answers every address.
+async function renderAt(section: string): Promise<string> {
+  const root = createRootRoute()
+  const page = createRoute({ getParentRoute: () => root, path: '$' })
   const router = createRouter({
-    routeTree: createRootRoute(),
+    routeTree: root.addChildren([page]),
     history: createMemoryHistory({
       initialEntries: [`/properties/${PROPERTY_ID}/settings/${section}`],
     }),
   })
+  await router.load()
   return renderToStaticMarkup(
     createElement(RouterContextProvider, {
       router,
@@ -58,32 +64,34 @@ describe('propertySettingsNavItems', () => {
 })
 
 describe('PropertySettingsNav', () => {
-  it('marks the open section current, from the address', () => {
-    const html = renderAt('ai')
+  it('marks the open section current, from the page on screen', async () => {
+    const html = await renderAt('ai')
 
     expect(html.match(/aria-current="page"/gu)).toHaveLength(1)
     const open = /<a [^>]*aria-current="page"[^>]*>/u.exec(html)?.[0] ?? ''
     expect(open).toContain(`href="/properties/${PROPERTY_ID}/settings/ai"`)
   })
 
-  it('draws the same layout whichever section is open, so no row moves when one is chosen', () => {
+  it('draws the same layout whichever section is open, so no row moves when one is chosen', async () => {
     // The Danger zone used to lose its 16px offset while it was the open section.
     // Layout cannot depend on the open section if the markup differs only by the
     // attribute the styles read.
     const withoutCurrent = (html: string) => html.replace(/ aria-current="page"/gu, '')
 
-    expect(withoutCurrent(renderAt('danger'))).toBe(withoutCurrent(renderAt('profile')))
+    expect(withoutCurrent(await renderAt('danger'))).toBe(
+      withoutCurrent(await renderAt('profile')),
+    )
   })
 
-  it('becomes a column from a container width, not from a viewport breakpoint', () => {
-    const html = renderAt('profile')
+  it('becomes a column from a container width, not from a viewport breakpoint', async () => {
+    const html = await renderAt('profile')
 
     expect(html).toContain('@3xl:flex-col')
     expect(html).not.toMatch(/(?:^|[\s"])md:flex-col/u)
     expect(html).not.toContain('md:mt-4')
   })
 
-  it('does not print group headings: the Danger zone is named by its own row', () => {
-    expect(renderAt('profile')).not.toContain('<p ')
+  it('does not print group headings: the Danger zone is named by its own row', async () => {
+    expect(await renderAt('profile')).not.toContain('<p ')
   })
 })
