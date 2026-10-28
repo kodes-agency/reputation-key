@@ -41,4 +41,5 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0068](0068-monthly-portal-goal.md)                                       | Monthly portal goal                                          | accepted | —             |
 | [0069](0069-short-printed-portal-address.md)                              | Short printed Portal address                                 | accepted | —             |
 | [0070](0070-per-portal-look.md)                                           | A Portal's own look                                          | accepted | —             |
+| [0071](0071-inbox-manual-priority.md)                                     | Inbox manual priority                                        | accepted | —             |
 | [0072](0072-shell-checks-remembered-in-the-browser.md)                    | The shell's checks are remembered in the browser for 30 s    | accepted | —             |
