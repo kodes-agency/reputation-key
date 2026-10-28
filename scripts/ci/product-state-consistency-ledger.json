@@ -262,6 +262,12 @@
   ],
   "stateMirrorCandidates": [
     {
+      "id": "src/routes/_authenticated/properties/$propertyId/-dashboard-range-read.ts:useState(shown)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Dashboard topic pages (Ratings)",
+      "policy": "The range of the figures on screen, copied from the URL's range once the read for it has settled and held at the previous one while the next range is read (kept data, dimmed), so the comparison wording and chart buckets describe the figures they sit beside. It is settled during render from the range and the placeholder flag, never written back, and a remount of the page is its reset boundary."
+    },
+    {
       "id": "src/components/features/portal/portal-review/portal-review-page.tsx:useState(view)",
       "classification": "local_runtime",
       "owner": "Portal Review & publish page",
