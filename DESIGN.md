@@ -258,8 +258,12 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 
 ### Navigation (Sidebar)
 
-- **Width:** 256px expanded, 48px collapsed (the icon rail). Below 768px (`md`) the sidebar is a sheet drawer; from 768px up it docks beside the content.
-- **One collapse mode:** the app sidebar and the Settings sidebar both collapse to the icon rail and share one open state, so collapsing on any page never leaves the other sidebar off-screen.
+- **Width:** 256px expanded, 48px collapsed (the icon rail). Below 768px (`md`) the sidebar is a sheet drawer (288px); from 768px up it docks beside the content.
+- **One state, the person's.** The app sidebar and the Settings sidebar share one open state. A new visitor starts expanded. The person sets it with the top-bar trigger, the rail edge or Cmd/Ctrl+B, and nothing else changes it: not a page, not a full-bleed surface, not a navigation. It is remembered (the `sidebar_state` cookie, a year, read by the server), so a reload paints the width they chose from the first frame and does not snap.
+- **The trigger is on every desktop page** (it hides only for a role that gets no sidebar outside Settings). It says whether the sidebar is open (`aria-expanded`) and what it controls (`aria-controls`). Cmd/Ctrl+B is ignored while a key is held, during IME composition, with Shift or Alt, and inside a contentEditable field, where it is Bold.
+- **Motion:** only a deliberate toggle animates, over the 200ms layout transition. Navigation never changes the width, so nothing animates on a route change. With reduced motion every sidebar transition (gap, panel, rail, rows, group labels) is instant.
+- **Follows the page on screen:** the sections, the active row, the Property switcher and the Settings row come from the page that is on screen, not the address the router is heading for. While a slow page loads the sidebar still describes the old page, and changes in the same frame as the page it sits beside.
+- **Settings:** shares the state. "Back to app" returns to the last app page seen in the tab, and to the Properties list (Home for a role with no Properties) when there was none.
 - **Background:** Same as page (Graphite Obsidian). No distinction between sidebar and content area — they share the same foundation.
 - **Active item:** Spectral Violet Muted background with Ink Primary text (`sidebar-accent-foreground`), font-weight 600. The muted purple fills the row, creating the Linear-style indent signal; the text stays primary ink so the label keeps its contrast on the fill.
 - **Inactive item:** `sidebar-foreground` ink (Ink Primary), no background. Hovered: subtle Graphite Surface background.
@@ -268,9 +272,11 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 
 ### Page frame
 
+- **One tree, one frame at a time.** The shell (provider, sidebar, inset, top bar, `<main>`) is the same set of elements on every route; between a padded page and a full-bleed surface only classes change (`data-frame="page"` or `"surface"` on the wrapper), so the shell is never remounted and the sidebar never moves. The frame is chosen from the page on screen and changes in the same frame as the content it holds: a slow load never draws the old page in the new page's frame.
+- **A pending navigation says so quietly:** after 150ms a 2px bar sweeps along the lower edge of the top bar (`RouteProgress`; transform only, hidden from assistive technology, a still bar with reduced motion). A fast navigation never shows it.
 - **One gutter owner:** `<main>` in the authenticated layout is the only element that pads a page: 16px on the sides on a phone and 24px from `md`, 20px above and below on a phone and 32px from `md`. A Property page, a Settings page and the Properties list all sit on that edge; nothing below `<main>` adds a second gutter.
 - **Width tiers:** `PageShell` sets the content width. Dashboard 1200px for data and management lists (Properties, Portals, People, Goals, the Property dashboards), standard 1024px for other lists and flows, narrow 768px for settings and forms.
-- **Full-bleed surfaces:** the Inbox, a Property's Reviews and the portal workspace own their viewport and scroll their own panes, so `<main>` pads nothing there and the sidebar holds at the icon rail. They are named in one place (`isFullBleedRoute`). A padded body inside one (a fallback, a tab of cards) wears `FullBleedFrame`, which gives back the same gutter.
+- **Full-bleed surfaces:** the Inbox, a Property's Reviews and the portal workspace own their viewport (`h-svh`, so a phone's toolbars do not hide the bottom) and scroll their own panes, so `<main>` pads nothing there. They keep the person's sidebar, open or folded, and lay themselves out by the room they get, not by the window: the Inbox shows three panes from 1,022px of room (1,278px of window with the sidebar open, 1,070px with the rail) and a compact list with a sheet below; the portal editor puts the preview beside the form from a 56rem body, gives it 30rem from 72rem, and adds the section column from 80rem. They are named in one place (`isFullBleedRoute`). A padded body inside one (a fallback, a tab of cards) wears `FullBleedFrame`, which gives back the same gutter.
 - **Theme:** one segmented Light / Dark / System control, in that order, in Preferences and in the account menu. The public header, which has no room for three segments on a phone, keeps a single icon button that steps through the same list.
 
 ### Tables
