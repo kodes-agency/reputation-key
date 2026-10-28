@@ -35,6 +35,19 @@ export const inboxAssignmentReasonEnum = pgEnum('inbox_assignment_reason', [
   'reopen_restore',
 ])
 
+/**
+ * The level a person set on an Inbox item (manager priority, ADR 0071). The
+ * same four words as the AI attention scale, but never a copy of it: Inbox
+ * stores only what a manager chose. Declared here, beside `inbox_items`, so the
+ * triage history schema can import it without a cycle back to this file.
+ */
+export const inboxPriorityLevelEnum = pgEnum('inbox_priority_level', [
+  'urgent',
+  'high',
+  'medium',
+  'low',
+])
+
 export const inboxItems = pgTable(
   'inbox_items',
   {
@@ -64,6 +77,13 @@ export const inboxItems = pgTable(
     commandRevision: bigint('command_revision', { mode: 'number' }).notNull().default(1),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
+    // Manager priority (migration 0077, ADR 0071): the level a person set, who
+    // set it and when — all three or none (`inbox_items_manager_priority_stamped`).
+    // Only the command store's set-priority command writes them; nothing inserts
+    // or rebuilds them, so a new row starts with no level.
+    managerPriority: inboxPriorityLevelEnum('manager_priority'),
+    managerPrioritySetBy: varchar('manager_priority_set_by', { length: 255 }),
+    managerPrioritySetAt: timestamp('manager_priority_set_at', { withTimezone: true }),
   },
   (t) => [
     index('inbox_items_org_status_idx').on(t.organizationId, t.status),
@@ -114,6 +134,10 @@ export const inboxItems = pgTable(
     check(
       'inbox_items_review_source_content_free',
       sql`${t.sourceType} <> 'review' OR (${t.rating} IS NULL AND ${t.snippet} IS NULL AND ${t.reviewerName} IS NULL)`,
+    ),
+    check(
+      'inbox_items_manager_priority_stamped',
+      sql`(${t.managerPriority} IS NULL) = (${t.managerPrioritySetBy} IS NULL) AND (${t.managerPriority} IS NULL) = (${t.managerPrioritySetAt} IS NULL)`,
     ),
   ],
 )
@@ -902,62 +926,8 @@ export const inboxAssignmentHistory = pgTable(
   ],
 )
 
-/**
- * Append-only escalation decisions (IBX-01).
- *
- * `inboxItems` keeps only the latest escalation flags, which cannot answer
- * "who escalated this, when, and how often". Like `inboxAssignmentHistory`,
- * the resulting item command revision is the history identity, so a row here
- * always names the exact command that committed the flag change.
- *
- * Per ADR 0055 escalation is orthogonal to status: this table intentionally
- * holds no status, no assignee and no permission, and writing to it neither
- * grants access nor moves an item between open and closed.
- *
- * `handlingCycleNumber` is nullable for the same expand-period reason as
- * assignment history: legacy items whose Handling Cycle head is still awaiting
- * repair must still be able to append their escalation fact.
- */
-export const inboxEscalationHistory = pgTable(
-  'inbox_escalation_history',
-  {
-    inboxItemId: uuid('inbox_item_id')
-      .notNull()
-      .references(() => inboxItems.id, { onDelete: 'cascade' }),
-    resultingCommandRevision: bigint('resulting_command_revision', {
-      mode: 'number',
-    }).notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: varchar('property_id', { length: 255 }).notNull(),
-    handlingCycleNumber: bigint('handling_cycle_number', { mode: 'number' }),
-    kind: varchar('kind', { length: 16 }).notNull(),
-    actorUserId: varchar('actor_user_id', { length: 255 }),
-    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
-    createdAt: createdAtColumn(),
-  },
-  (t) => [
-    primaryKey({
-      name: 'inbox_escalation_history_pk',
-      columns: [t.inboxItemId, t.resultingCommandRevision],
-    }),
-    index('inbox_escalation_history_scope_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.occurredAt,
-      t.inboxItemId,
-    ),
-    index('inbox_escalation_history_item_idx').on(t.inboxItemId, t.occurredAt),
-    check(
-      'inbox_escalation_history_revision_safe',
-      sql`${t.resultingCommandRevision} BETWEEN 2 AND '9007199254740991'::bigint
-        AND (${t.handlingCycleNumber} IS NULL OR ${t.handlingCycleNumber} BETWEEN 1 AND '9007199254740991'::bigint)`,
-    ),
-    check(
-      'inbox_escalation_history_kind_valid',
-      sql`${t.kind} IN ('escalated', 'resolved')`,
-    ),
-  ],
-)
+// `inboxEscalationHistory` moved to ./inbox-triage-history.schema.ts beside
+// `inboxPriorityHistory` (migration 0077): the two triage decision logs.
 
 export const inboxNotes = pgTable(
   'inbox_notes',

@@ -7,11 +7,8 @@
 
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  inboxEscalationHistory,
-  inboxHandlingCycleHeads,
-  inboxItems,
-} from '#/shared/db/schema/inbox.schema'
+import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
+import { inboxEscalationHistory } from '#/shared/db/schema/inbox-triage-history.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import { inboxError } from '../domain/errors'
 import type { InboxItem } from '../domain/types'

@@ -540,6 +540,13 @@
       "when": 1795700000000,
       "tag": "0076_portal_print_wordings",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1795800000000,
+      "tag": "0077_inbox_manager_priority",
+      "breakpoints": true
     }
   ]
 }

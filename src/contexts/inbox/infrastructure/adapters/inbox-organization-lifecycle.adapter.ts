@@ -48,7 +48,8 @@ type PhaseStep = Readonly<{ step: string; rows: number }>
  * this Organization", not "this phase happened to change no rows".
  *
  * `inbox_assignment_history`, `inbox_escalation_history`,
- * `inbox_feedback_handling_outcomes`, `inbox_handling_cycle_transitions`,
+ * `inbox_priority_history`, `inbox_feedback_handling_outcomes`,
+ * `inbox_handling_cycle_transitions`,
  * `inbox_handling_cycle_heads`, `inbox_handling_cycle_response_targets`,
  * `inbox_response_target_reminders` and `inbox_response_target_exclusions` are
  * omitted on purpose: each one is a child of a row already probed here, so

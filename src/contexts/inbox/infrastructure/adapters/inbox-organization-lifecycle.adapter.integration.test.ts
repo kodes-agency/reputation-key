@@ -52,6 +52,7 @@ const INBOX_TABLES = Object.freeze([
   'inbox_feedback_handling_outcomes',
   'inbox_assignment_history',
   'inbox_escalation_history',
+  'inbox_priority_history',
   'inbox_notes',
   'inbox_response_target_organization_policies',
   'inbox_private_feedback_target_property_overrides',
@@ -338,6 +339,15 @@ async function seedInboxWork(): Promise<void> {
        inbox_item_id, resulting_command_revision, organization_id, property_id,
        handling_cycle_number, kind, actor_user_id, occurred_at, created_at
      ) VALUES ($1, 4, $2, $3, 1, 'escalated', $4, $5, $5)`,
+    [FEEDBACK_ITEM_ID, ORG_ID, PROPERTY_ID, ACTOR_ID, AT],
+  )
+  // A manager's priority decision goes with its item (ON DELETE CASCADE).
+  await pool.query(
+    `INSERT INTO inbox_priority_history (
+       inbox_item_id, resulting_command_revision, organization_id, property_id,
+       handling_cycle_number, priority, previous_priority, actor_user_id,
+       occurred_at, created_at
+     ) VALUES ($1, 5, $2, $3, 1, 'urgent', NULL, $4, $5, $5)`,
     [FEEDBACK_ITEM_ID, ORG_ID, PROPERTY_ID, ACTOR_ID, AT],
   )
   await pool.query(
