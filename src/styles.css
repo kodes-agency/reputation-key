@@ -379,6 +379,21 @@ pre code {
   width: 100%;
 }
 
+/* The route progress bar (layout/route-progress): a third-width bar that sweeps
+   across the top bar's lower edge. Transform only, so it never touches layout. */
+@theme {
+  --animate-route-progress: route-progress 1.1s ease-in-out infinite;
+
+  @keyframes route-progress {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+}
+
 .display-title {
   font-family: var(--font-display);
 }

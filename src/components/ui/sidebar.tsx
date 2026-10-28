@@ -23,8 +23,6 @@ import {
   TooltipTrigger,
 } from '#/components/ui/tooltip'
 
-const SIDEBAR_COOKIE_NAME = 'sidebar_state'
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = '16rem'
 const SIDEBAR_WIDTH_MOBILE = '18rem'
 const SIDEBAR_WIDTH_ICON = '3rem'
@@ -38,6 +36,26 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+  /** The id of the docked sidebar, for the `aria-controls` of what toggles it. */
+  sidebarId: string
+}
+
+/**
+ * Whether a key press is the sidebar shortcut: Cmd/Ctrl+B and nothing else. A held
+ * key, a press that is part of an IME composition, a chord with Shift or Alt, and a
+ * contentEditable field (where the chord is Bold) all leave the sidebar alone.
+ */
+export function isSidebarShortcut(
+  event: Pick<
+    KeyboardEvent,
+    'key' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'repeat' | 'isComposing'
+  > & { target?: EventTarget | null },
+): boolean {
+  if (event.key.toLowerCase() !== SIDEBAR_KEYBOARD_SHORTCUT) return false
+  if (!(event.metaKey || event.ctrlKey)) return false
+  if (event.shiftKey || event.altKey || event.repeat || event.isComposing) return false
+  const target = event.target as { isContentEditable?: boolean } | null | undefined
+  return target?.isContentEditable !== true
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -75,6 +93,7 @@ function SidebarProvider({
 }) {
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
+  const sidebarId = React.useId()
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -88,9 +107,9 @@ function SidebarProvider({
       } else {
         _setOpen(openState)
       }
-
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      // Remembering the choice is the owner's business, not the primitive's: the
+      // app shell stores it in the `sidebar_state` cookie its server reads
+      // (`shell-continuity`). The vendored write here was never read by anything.
     },
     [setOpenProp, open],
   )
@@ -103,7 +122,7 @@ function SidebarProvider({
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
+      if (isSidebarShortcut(event)) {
         event.preventDefault()
         toggleSidebar()
       }
@@ -126,8 +145,9 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      sidebarId,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
+    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, sidebarId],
   )
 
   return (
@@ -171,7 +191,7 @@ function Sidebar({
   variant?: 'sidebar' | 'floating' | 'inset'
   collapsible?: 'offcanvas' | 'icon' | 'none'
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state, openMobile, setOpenMobile, sidebarId } = useSidebar()
 
   if (collapsible === 'none') {
     return (
@@ -238,7 +258,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear',
+          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear motion-reduce:transition-none',
           'group-data-[collapsible=offcanvas]:w-0',
           'group-data-[side=right]:rotate-180',
           variant === 'floating' || variant === 'inset'
@@ -247,9 +267,10 @@ function Sidebar({
         )}
       />
       <div
+        id={sidebarId}
         data-slot="sidebar-container"
         className={cn(
-          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex',
+          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear motion-reduce:transition-none md:flex',
           side === 'left'
             ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
             : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',
@@ -278,7 +299,7 @@ function SidebarTrigger({
   onClick,
   ...props
 }: Omit<IconButtonProps, 'label' | 'children'>) {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, isMobile, open, openMobile, sidebarId } = useSidebar()
 
   return (
     <IconButton
@@ -286,6 +307,8 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="ghost"
       label="Toggle sidebar"
+      aria-expanded={isMobile ? openMobile : open}
+      aria-controls={sidebarId}
       className={cn('size-7', className)}
       onClick={(event) => {
         onClick?.(event)
@@ -310,7 +333,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<'button'>) {
       onClick={toggleSidebar}
       title="Toggle sidebar"
       className={cn(
-        'absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex',
+        'absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear motion-reduce:transition-none group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex',
         'in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize',
         '[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize',
         'group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar',
@@ -421,7 +444,7 @@ function SidebarGroupLabel({
       data-slot="sidebar-group-label"
       data-sidebar="group-label"
       className={cn(
-        'flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0',
+        'flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear motion-reduce:transition-none focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0',
         'group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0',
         className,
       )}
@@ -487,7 +510,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<'li'>) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm max-md:min-h-(--control-touch) text-sidebar-foreground focus-ring transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&_svg]:text-(--accent) [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0',
+  'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm max-md:min-h-(--control-touch) text-sidebar-foreground focus-ring transition-[width,height,padding] motion-reduce:transition-none group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&_svg]:text-(--accent) [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0',
   {
     variants: {
       variant: {

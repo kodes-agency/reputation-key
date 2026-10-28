@@ -6,7 +6,7 @@
 //
 // What is asserted, and what is deliberately not:
 //
-//   - the top bar is 44 px on an inbox page (`sidebarLocked`) and keeps its
+//   - the top bar is 44 px on an inbox page (`isFullBleed`) and keeps its
 //     52 px elsewhere, but its controls are 36 px on every phone page;
 //   - the sidebar trigger's GLYPH and the account menu's avatar EDGE sit on the
 //     16 px gutter;
@@ -72,14 +72,14 @@ const sizeIs = (
 // ── The top bar ─────────────────────────────────────────────────────────────
 
 async function checkTopBar(page: Page, view: PageReport, id: string): Promise<Finding> {
-  const locked = id.endsWith('sidebar-locked')
+  const fullBleed = id.endsWith('full-bleed')
   const phone = view.innerWidth < 768
   const header = await measure(page, '#storybook-root header')
   const trigger = named(header, 'Toggle sidebar')
   const bell = named(header, /^Notifications/)
   const account = named(header, 'Account menu')
   const avatar = await measure(page, 'header button[aria-label="Account menu"] > *')
-  const expectedBar = phone && locked ? BAR_PX : TOP_BAR_PX
+  const expectedBar = phone && fullBleed ? BAR_PX : TOP_BAR_PX
   const phoneLines = [
     ...controlsAre(header.controls, CONTROL_PX),
     ...(trigger === undefined
@@ -90,20 +90,14 @@ async function checkTopBar(page: Page, view: PageReport, id: string): Promise<Fi
       : boxEndsOnGutter('the account avatar', avatar.box, view)),
   ]
   const desktopLines = [
-    // Nothing moved from `md`: the sidebar trigger is 28 px (and gone on an inbox
-    // page, where the desktop rail is always there), the rest 32.
-    ...(locked
-      ? trigger === undefined
-        ? []
-        : [
-            'the sidebar trigger shows on a wide inbox page, where the rail is always there',
-          ]
-      : sizeIs(
-          'the sidebar trigger',
-          trigger?.box,
-          DESKTOP_TRIGGER_PX,
-          DESKTOP_TRIGGER_PX,
-        )),
+    // Nothing moved from `md`: the sidebar trigger is 28 px on every page (the
+    // sidebar is the person's to fold on an inbox page too), the rest 32.
+    ...sizeIs(
+      'the sidebar trigger',
+      trigger?.box,
+      DESKTOP_TRIGGER_PX,
+      DESKTOP_TRIGGER_PX,
+    ),
     ...sizeIs('the bell', bell?.box, DESKTOP_CONTROL_PX, DESKTOP_CONTROL_PX),
     ...sizeIs('the account button', account?.box, DESKTOP_CONTROL_PX, DESKTOP_CONTROL_PX),
   ]
@@ -118,9 +112,9 @@ async function checkTopBar(page: Page, view: PageReport, id: string): Promise<Fi
   }
 }
 
-storyTests('app top bar', ['layout-apptopbar--sidebar-locked'], PHONES, checkTopBar)
-// The locked story's play finds the trigger, which a wide window hides, so it
-// throws there: the desktop bar is measured through the unlocked story.
+storyTests('app top bar', ['layout-apptopbar--full-bleed'], PHONES, checkTopBar)
+// The full-bleed story is the phone's 44 px bar; the desktop bar is measured
+// through the default story.
 storyTests(
   'app top bar',
   ['layout-apptopbar--default'],

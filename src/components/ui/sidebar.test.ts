@@ -10,6 +10,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import {
+  isSidebarShortcut,
   Sidebar,
   SidebarMenu,
   SidebarMenuButton,
@@ -18,6 +19,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarProvider,
+  SidebarTrigger,
 } from './sidebar'
 
 function render(open: boolean, collapsible?: 'offcanvas' | 'icon' | 'none'): string {
@@ -151,5 +153,75 @@ describe('Sidebar rows share the focus ring', () => {
     expect(row).toContain('focus-ring')
     expect(row).not.toContain(OLD_RING)
     expect(row).not.toContain('ring-sidebar-ring')
+  })
+})
+
+describe('the sidebar shortcut', () => {
+  const press = (over: Partial<Parameters<typeof isSidebarShortcut>[0]> = {}) =>
+    isSidebarShortcut({
+      key: 'b',
+      metaKey: true,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      repeat: false,
+      isComposing: false,
+      ...over,
+    })
+
+  it('is Cmd+B and Ctrl+B', () => {
+    expect(press()).toBe(true)
+    expect(press({ metaKey: false, ctrlKey: true })).toBe(true)
+  })
+
+  it('is not B without Cmd or Ctrl, or another key', () => {
+    expect(press({ metaKey: false })).toBe(false)
+    expect(press({ key: 'k' })).toBe(false)
+  })
+
+  it('leaves a held key, a composition and chords with Shift or Alt alone', () => {
+    expect(press({ repeat: true })).toBe(false)
+    expect(press({ isComposing: true })).toBe(false)
+    expect(press({ shiftKey: true })).toBe(false)
+    expect(press({ altKey: true })).toBe(false)
+  })
+
+  it('leaves a contentEditable field alone, where the chord is Bold', () => {
+    const editable = { isContentEditable: true } as unknown as EventTarget
+    const plain = { isContentEditable: false } as unknown as EventTarget
+
+    expect(press({ target: editable })).toBe(false)
+    expect(press({ target: plain })).toBe(true)
+  })
+})
+
+describe('the sidebar trigger', () => {
+  const html = renderToStaticMarkup(
+    createElement(
+      SidebarProvider,
+      { open: false },
+      createElement(Sidebar, null, 'nav'),
+      createElement(SidebarTrigger),
+    ),
+  )
+
+  it('says whether the sidebar is open, and which element it controls', () => {
+    const trigger = /<button [^>]*data-slot="sidebar-trigger"[^>]*>/u.exec(html)?.[0]
+    const container = /<div [^>]*data-slot="sidebar-container"[^>]*>/u.exec(html)?.[0]
+    const controls = /aria-controls="([^"]+)"/u.exec(trigger ?? '')?.[1]
+
+    expect(trigger).toContain('aria-expanded="false"')
+    expect(controls).toBeDefined()
+    expect(container).toContain(`id="${controls}"`)
+  })
+
+  it('stops every sidebar transition under reduced motion', () => {
+    const slots = ['sidebar-gap', 'sidebar-container']
+    for (const slot of slots) {
+      const element = new RegExp(`<div [^>]*data-slot="${slot}"[^>]*>`, 'u').exec(
+        html,
+      )?.[0]
+      expect(element).toContain('motion-reduce:transition-none')
+    }
   })
 })

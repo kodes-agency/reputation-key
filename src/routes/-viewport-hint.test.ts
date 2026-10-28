@@ -18,9 +18,15 @@ describe('readViewportHint on the server', () => {
   })
 
   it('reads the reported width from the request cookie', () => {
-    requestWith({ cookie: 'rk_viewport=390; sidebar_state=false' })
+    requestWith({ cookie: 'rk_viewport=390' })
 
     expect(readViewportHint()).toEqual({ width: 390, mobile: false })
+  })
+
+  it('reads the person’s sidebar choice from the same cookie header', () => {
+    requestWith({ cookie: 'rk_viewport=1440; sidebar_state=false' })
+
+    expect(readViewportHint()).toEqual({ width: 1440, mobile: false, sidebarOpen: false })
   })
 
   it('reads the mobile client hint and the user agent', () => {

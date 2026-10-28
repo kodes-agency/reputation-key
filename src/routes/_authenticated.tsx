@@ -1,13 +1,7 @@
 // Authenticated layout route — protects all nested routes and renders the app shell.
 // Per better-auth TanStack Start docs: use createServerFn (getSession)
 // in beforeLoad — not authClient.getSession(), which can't forward cookies during SSR.
-import {
-  createFileRoute,
-  Outlet,
-  redirect,
-  isRedirect,
-  useRouterState,
-} from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect, isRedirect } from '@tanstack/react-router'
 import { getSession } from '#/shared/auth/auth.functions'
 import { getActiveOrganization } from '#/contexts/identity/server/organizations'
 import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
@@ -25,7 +19,12 @@ import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
 import { pageHead } from '#/components/layout/page-identity'
 import { PAGE_GUTTER } from '#/components/layout/page-shell'
 import { ShellNoticeBoundary } from '#/components/layout/shell-notice-boundary'
-import { useKeepSidebarFocus, useSidebarOpen } from '#/components/layout/shell-continuity'
+import {
+  useKeepSidebarFocus,
+  useRememberAppLocation,
+  useSidebarOpen,
+} from '#/components/layout/shell-continuity'
+import { useRenderedPathname } from '#/components/layout/rendered-location'
 import { ShellPresence } from '#/components/layout/route-page-state'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
@@ -75,10 +74,6 @@ export type AuthRouteContext = Readonly<{
   } | null
 }>
 
-type CapabilityResolution =
-  | Readonly<{ ok: true; capabilities: CapabilitySet }>
-  | Readonly<{ ok: false; error: unknown }>
-
 /**
  * Every expected way the organization lookup fails becomes a redirect:
  *  1. isRedirect — always forward (e.g., auth middleware redirects).
@@ -103,9 +98,48 @@ function organizationLoadFailure(error: unknown, href: string): unknown {
   return error
 }
 
+type Settled<T> =
+  Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: unknown }>
+
+/**
+ * Waits for `promise` without letting it reject: the shell asks three questions
+ * at once, and a rejection of one that is left waiting while another is awaited
+ * would be an unhandled rejection. Each answer is read in the order the rules
+ * below need it, not in the order the answers arrive.
+ */
+function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
+  return promise.then(
+    (value) => ({ ok: true, value }),
+    (error: unknown) => ({ ok: false, error }),
+  )
+}
+
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
-    const session = await getSession()
+    // One stage, not three in a row. Router-core awaits every `beforeLoad` before
+    // any loader starts, and this one runs on every navigation (a search-only
+    // change and a hover preload too), so a chain here is a delay in front of every
+    // page. The three server calls read the tenant from the same request headers
+    // and none needs another's answer, so they start together:
+    //  - the session;
+    //  - the active Organization and the person's role;
+    //  - the capability set, property-scoped when a property is in scope, because
+    //    policy allowlists per property.
+    // The decisions below keep their order: no session sends the person to log in
+    // whatever the other two said.
+    const scopedPropertyId = propertyIdFromLocation(location.pathname, location.search)
+    const [sessionResult, organizationResult, capabilityResult] = await Promise.all([
+      settle(getSession()),
+      settle(getActiveOrganization()),
+      settle(
+        getCapabilitySet({
+          data: scopedPropertyId ? { propertyId: scopedPropertyId } : {},
+        }),
+      ),
+    ])
+
+    if (!sessionResult.ok) throw sessionResult.error
+    const session = sessionResult.value
     if (!session) {
       throw redirect({
         to: '/login',
@@ -119,26 +153,12 @@ export const Route = createFileRoute('/_authenticated')({
       activeOrganization: NonNullable<AuthRouteContext['activeOrganization']>
     }>
 
-    // Resolved in parallel with the organization lookup: it reads the tenant
-    // from the same request headers and does not depend on that result.
-    // Property-scoped when a property is in scope, because policy allowlists
-    // per property. A failure yields the empty posture rather than an error —
-    // this set is a navigation affordance, and the route gates remain the
-    // boundary. Missing active-Organization state is handled separately below
-    // before any tenant shell or loader can mount.
-    const scopedPropertyId = propertyIdFromLocation(location.pathname, location.search)
-    const capabilitiesPromise: Promise<CapabilityResolution> = getCapabilitySet({
-      data: scopedPropertyId ? { propertyId: scopedPropertyId } : {},
-    }).then(
-      (capabilities) => ({ ok: true, capabilities }),
-      (error: unknown) => ({ ok: false, error }),
-    )
-
     // `availability: disabled` — the entire workspace is intentionally dark;
     // redirect before rendering any authenticated surface. Failures are
     // classified by organizationLoadFailure().
     try {
-      const org = await getActiveOrganization()
+      if (!organizationResult.ok) throw organizationResult.error
+      const org = organizationResult.value
       if (org.availability === 'disabled') {
         throw redirect({ to: '/unavailable', search: { feature: 'Workspace' } })
       }
@@ -170,9 +190,12 @@ export const Route = createFileRoute('/_authenticated')({
       throw organizationLoadFailure(e, location.href)
     }
 
-    const capabilityResolution = await capabilitiesPromise
-    if (!capabilityResolution.ok && isRedirect(capabilityResolution.error)) {
-      throw capabilityResolution.error
+    // A failure yields the empty posture rather than an error — this set is a
+    // navigation affordance, and the route gates remain the boundary. A redirect
+    // it raised is still followed. Missing active-Organization state was handled
+    // above, before any tenant shell or loader can mount.
+    if (!capabilityResult.ok && isRedirect(capabilityResult.error)) {
+      throw capabilityResult.error
     }
 
     return {
@@ -184,9 +207,7 @@ export const Route = createFileRoute('/_authenticated')({
       },
       role: resolvedOrganization.role,
       authz: resolvedOrganization.authz,
-      capabilities: capabilityResolution.ok
-        ? capabilityResolution.capabilities
-        : EMPTY_CAPABILITY_SET,
+      capabilities: capabilityResult.ok ? capabilityResult.value : EMPTY_CAPABILITY_SET,
       activeOrganization: resolvedOrganization.activeOrganization,
     } satisfies AuthRouteContext
   },
@@ -219,81 +240,85 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
   // Removed properties stay out of the navigation. They remain reachable and
   // restorable from the Properties page, which lists them under "Removed".
   const properties = partitionWorkspaceProperties(propsData.properties).workspace
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  // The frame follows the page ON SCREEN, never the address the router is heading
+  // for (`rendered-location`): the sidebar, the padding and the height change in the
+  // same frame as the page they hold, so the old page is never drawn in the new
+  // page's frame while a loader runs.
+  const pathname = useRenderedPathname()
   const isSettings = pathname.startsWith('/settings')
-  // A full-bleed surface (Inbox, Property Reviews, the portal workspace): the
-  // sidebar collapses to the icon rail and the surface scrolls its own panes.
-  // `isFullBleedRoute` is the one place that says which routes those are.
+  // A full-bleed surface (Inbox, Property Reviews, the portal workspace): it owns
+  // the viewport below the top bar and scrolls its own panes. `isFullBleedRoute`
+  // is the one place that says which routes those are.
   const isFullBleed = isFullBleedRoute(pathname)
-  // Kept outside this component: a refusal replaces the shell with a new one
-  // (see `shell-continuity`), and a collapsed sidebar must not open again.
-  const [sidebarOpen, setSidebarOpen] = useSidebarOpen()
+  // The sidebar is the person's: one state they set with the trigger, the rail or
+  // Cmd/Ctrl+B, that no navigation changes, and that the `sidebar_state` cookie
+  // carries to the next load. Kept outside this component because a refusal
+  // replaces the shell with a new one (see `shell-continuity`). The server's answer
+  // (the loader's reading of the cookie) is what hydration starts from.
+  const [sidebarOpen, setSidebarOpen] = useSidebarOpen(viewportHint?.sidebarOpen ?? true)
   useKeepSidebarFocus()
+  useRememberAppLocation()
   // The launcher is offered to whoever the server lets report, which is a
   // permission and not a rank.
   const mayReportBeta = usePermissions().can('feedback.beta_report')
+  const isManager = hasRole(ctx.role, 'PropertyManager')
 
-  const content = (
-    <SidebarProvider
-      open={isFullBleed ? false : sidebarOpen}
-      onOpenChange={(next) => {
-        if (!isFullBleed) setSidebarOpen(next)
-      }}
-    >
-      {isSettings ? (
-        <SettingsSidebar />
-      ) : hasRole(ctx.role, 'PropertyManager') ? (
-        <ManagerSidebar
-          properties={properties}
-          organizationName={ctx.activeOrganization?.name}
-          getLastVisitCount={getLastVisitCountFn}
-        />
-      ) : null}
-      {/*
-        BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
-        vendored SidebarInset renders <main>, which nested the content <main>
-        below inside it (duplicate main, main-in-main, non-unique landmarks on
-        the e2e axe gate). With a div wrapper the landmarks are textbook:
-        sidebar nav (landmark) + AppTopBar <header> (top-level banner) + one
-        <main>. The inset-variant peer classes from SidebarInset are dead
-        weight here (the app sidebars never use variant="inset").
-      */}
-      <div
-        data-slot="sidebar-inset"
-        className={`relative flex w-full flex-1 flex-col bg-background min-w-0 ${
-          isFullBleed ? 'overflow-hidden' : ''
-        }`}
-      >
-        <AppTopBar
-          user={ctx.user}
-          sidebarLocked={isFullBleed}
-          organizationId={ctx.activeOrganization?.id ?? 'no-active-organization'}
-          notificationFns={notificationFns}
-          submitBetaFeedback={mayReportBeta ? submitBetaFeedbackFn : undefined}
-          listBetaFeedback={mayReportBeta ? listMyBetaFeedbackFn : undefined}
-        />
-        {/* The only element that pads a page (PAGE_GUTTER); nothing below adds a second gutter. */}
-        <main
-          className={`min-w-0 flex-1 ${
-            isFullBleed ? 'overflow-hidden' : `overflow-auto ${PAGE_GUTTER}`
-          }`}
-        >
-          <ShellPresence value>{children}</ShellPresence>
-        </main>
-      </div>
-    </SidebarProvider>
-  )
-
+  // One tree whatever the page: the provider, sidebar, inset, top bar and `<main>`
+  // are the same elements on every route, and only classes change between a padded
+  // page and a full-bleed surface. Swapping the element type of the root (as a
+  // wrapper that came and went did) remounted the whole shell on every crossing and
+  // snapped the sidebar to its new width in one frame.
   return (
     <ViewportHintContext.Provider value={viewportHint ?? UNKNOWN_VIEWPORT}>
-      {isFullBleed ? (
-        <div className="h-screen overflow-hidden flex flex-col">
-          <style>{`[data-slot="sidebar-wrapper"]{flex:1 1 0%;overflow:hidden}`}</style>
-          {content}
+      <SidebarProvider
+        open={sidebarOpen}
+        onOpenChange={setSidebarOpen}
+        data-frame={isFullBleed ? 'surface' : 'page'}
+        className={isFullBleed ? 'h-svh overflow-hidden' : undefined}
+      >
+        {isSettings ? (
+          <SettingsSidebar />
+        ) : isManager ? (
+          <ManagerSidebar
+            properties={properties}
+            organizationName={ctx.activeOrganization?.name}
+            getLastVisitCount={getLastVisitCountFn}
+          />
+        ) : null}
+        {/*
+          BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
+          vendored SidebarInset renders <main>, which nested the content <main>
+          below inside it (duplicate main, main-in-main, non-unique landmarks on
+          the e2e axe gate). With a div wrapper the landmarks are textbook:
+          sidebar nav (landmark) + AppTopBar <header> (top-level banner) + one
+          <main>. The inset-variant peer classes from SidebarInset are dead
+          weight here (the app sidebars never use variant="inset").
+        */}
+        <div
+          data-slot="sidebar-inset"
+          className={`relative flex w-full flex-1 flex-col bg-background min-w-0 ${
+            isFullBleed ? 'overflow-hidden' : ''
+          }`}
+        >
+          <AppTopBar
+            user={ctx.user}
+            hasSidebar={isSettings || isManager}
+            isFullBleed={isFullBleed}
+            organizationId={ctx.activeOrganization?.id ?? 'no-active-organization'}
+            notificationFns={notificationFns}
+            submitBetaFeedback={mayReportBeta ? submitBetaFeedbackFn : undefined}
+            listBetaFeedback={mayReportBeta ? listMyBetaFeedbackFn : undefined}
+          />
+          {/* The only element that pads a page (PAGE_GUTTER); nothing below adds a second gutter. */}
+          <main
+            className={`min-w-0 flex-1 ${
+              isFullBleed ? 'overflow-hidden' : `overflow-auto ${PAGE_GUTTER}`
+            }`}
+          >
+            <ShellPresence value>{children}</ShellPresence>
+          </main>
         </div>
-      ) : (
-        content
-      )}
+      </SidebarProvider>
     </ViewportHintContext.Provider>
   )
 }

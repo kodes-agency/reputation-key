@@ -1,4 +1,4 @@
-import { useRouterState, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { Settings } from 'lucide-react'
 import {
   Sidebar,
@@ -15,6 +15,7 @@ import {
 import { NavLink } from '#/components/ui/nav-link'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { useInboxScopeNavigation } from '#/components/inbox/use-inbox-scope-navigation'
+import { useRenderedPathname } from './rendered-location'
 import { ManagerNavItems } from './manager-nav-items'
 import { ManagerPropertySwitcher } from './manager-property-switcher'
 import { isOrganisationView, organisationViewFor } from './organisation-scope'
@@ -26,37 +27,28 @@ type Props = Readonly<{
   getLastVisitCount: typeof getLastVisitCountFn
 }>
 
-function useActiveSection(): string {
-  return useRouterState({
-    select: (s) => {
-      if (s.location.pathname.startsWith('/settings')) return 'settings'
-      if (s.location.pathname === '/inbox' || s.location.pathname.startsWith('/inbox'))
-        return 'inbox'
-      // The All properties page: Portals across the Organization, no Property in scope.
-      if (
-        s.location.pathname === '/portals' ||
-        s.location.pathname.startsWith('/portals/')
-      )
-        return 'portals'
-      if (
-        s.location.pathname === '/properties' ||
-        s.location.pathname.startsWith('/properties/import-google')
-      )
-        return ''
-      // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): char-class-only pattern, no nested quantifiers; safe-regex star-height false positive
-      const m = s.location.pathname.match(/\/properties\/[^/]+(?:\/([^/]+))?/)
-      if (!m) return 'dashboard'
-      if (m[1] === 'portals') return 'portals'
-      if (m[1] === 'ratings') return 'ratings'
-      if (m[1] === 'google') return 'google'
-      if (m[1] === 'guests') return 'guests'
-      if (m[1] === 'reviews') return 'reviews'
-      if (m[1] === 'people') return 'people'
-      if (m[1] === 'goals') return 'goals'
-      if (m[1] === 'settings') return 'property-settings'
-      return 'dashboard'
-    },
-  })
+// The section a pathname belongs to. It is asked of the page ON SCREEN (see
+// `rendered-location`), so the links keep naming the old page's section until the
+// new page replaces it.
+function sectionForPathname(pathname: string): string {
+  if (pathname.startsWith('/settings')) return 'settings'
+  if (pathname === '/inbox' || pathname.startsWith('/inbox')) return 'inbox'
+  // The All properties page: Portals across the Organization, no Property in scope.
+  if (pathname === '/portals' || pathname.startsWith('/portals/')) return 'portals'
+  if (pathname === '/properties' || pathname.startsWith('/properties/import-google'))
+    return ''
+  // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): char-class-only pattern, no nested quantifiers; safe-regex star-height false positive
+  const m = pathname.match(/\/properties\/[^/]+(?:\/([^/]+))?/)
+  if (!m) return 'dashboard'
+  if (m[1] === 'portals') return 'portals'
+  if (m[1] === 'ratings') return 'ratings'
+  if (m[1] === 'google') return 'google'
+  if (m[1] === 'guests') return 'guests'
+  if (m[1] === 'reviews') return 'reviews'
+  if (m[1] === 'people') return 'people'
+  if (m[1] === 'goals') return 'goals'
+  if (m[1] === 'settings') return 'property-settings'
+  return 'dashboard'
 }
 
 export function ManagerSidebar({
@@ -65,10 +57,10 @@ export function ManagerSidebar({
   getLastVisitCount,
 }: Props) {
   const propertyId = usePropertyId()
-  const activeSection = useActiveSection()
+  const pathname = useRenderedPathname()
+  const activeSection = sectionForPathname(pathname)
   const navigate = useNavigate()
   const selectInboxScope = useInboxScopeNavigation()
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isInboxSection = activeSection === 'inbox' || activeSection === 'reviews'
   const allPropertiesPath = organisationViewFor(activeSection)
   const isAllProperties = isOrganisationView(pathname, propertyId)
