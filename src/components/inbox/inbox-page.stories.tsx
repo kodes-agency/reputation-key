@@ -106,7 +106,10 @@ const meta: Meta<typeof InboxPageV2> = {
   decorators: [
     (Story) => (
       <div className="h-dvh min-h-[800px] w-full bg-background text-foreground">
-        <SidebarProvider>
+        {/* No sidebar is drawn here, so the provider holds the icon rail: the room
+           the Inbox lays its panes out beside (`use-inbox-compact-layout`). Open,
+           it would reserve 256 px for a sidebar that is not on screen. */}
+        <SidebarProvider defaultOpen={false}>
           <SidebarInset>
             <Story />
           </SidebarInset>
