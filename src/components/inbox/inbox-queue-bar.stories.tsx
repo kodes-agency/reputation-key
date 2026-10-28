@@ -49,6 +49,13 @@ export default meta
 type Story = StoryObj<typeof InboxQueueBar>
 type Play = NonNullable<Story['play']>
 
+/**
+ * A queue control by its label and count. The count follows the label with no
+ * space where no Tailwind is compiled (the vitest runner), so the gap is ignored.
+ */
+const withCount = (label: string, count: number) => (accessibleName: string) =>
+  accessibleName.replace(/\s/g, '') === `${label}${count}`.replace(/\s/g, '')
+
 /** The sheet is a Radix portal: it lives on `document.body`, not in the story root. */
 async function openSheet(canvasElement: HTMLElement) {
   await userEvent.click(
@@ -64,10 +71,14 @@ async function openSheet(canvasElement: HTMLElement) {
 /** A Reviews queue: the button names it, the chip offers To handle with its count. */
 const expectReviewsQueue: Play = async ({ canvasElement }) => {
   const canvas = within(canvasElement)
-  await expect(canvas.getByRole('button', { name: 'Needs reply 12' })).toBeVisible()
-  await expect(canvas.getByRole('button', { name: 'To handle 5' })).toBeVisible()
+  await expect(
+    canvas.getByRole('button', { name: withCount('Needs reply', 12) }),
+  ).toBeVisible()
+  await expect(
+    canvas.getByRole('button', { name: withCount('To handle', 5) }),
+  ).toBeVisible()
 
-  await userEvent.click(canvas.getByRole('button', { name: 'To handle 5' }))
+  await userEvent.click(canvas.getByRole('button', { name: withCount('To handle', 5) }))
   await expect(onQueueChange).toHaveBeenCalledWith('feedback')
 }
 
@@ -83,8 +94,12 @@ export const FeedbackQueue: Story = {
   args: { queue: 'feedback' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'To handle 5' })).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Needs reply 12' }))
+    await expect(
+      canvas.getByRole('button', { name: withCount('To handle', 5) }),
+    ).toBeVisible()
+    await userEvent.click(
+      canvas.getByRole('button', { name: withCount('Needs reply', 12) }),
+    )
     await expect(onQueueChange).toHaveBeenCalledWith('reply')
   },
 }
@@ -95,7 +110,9 @@ export const RepliedFolder: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Replied' })).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'To handle 5' })).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: withCount('To handle', 5) }),
+    ).toBeVisible()
   },
 }
 
@@ -104,7 +121,9 @@ export const SharedViewHasNoChip: Story = {
   args: { queue: 'escalated' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'Escalated 2' })).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: withCount('Escalated', 2) }),
+    ).toBeVisible()
     await expect(canvas.getAllByRole('button')).toHaveLength(1)
   },
 }
@@ -126,8 +145,12 @@ export const WithoutReplyStages: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'Open 24' })).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'To handle 5' })).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: withCount('Open', 24) }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: withCount('To handle', 5) }),
+    ).toBeVisible()
   },
 }
 
@@ -139,7 +162,7 @@ export const FeedbackQueueWithoutReplyStages: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Open 24' }))
+    await userEvent.click(canvas.getByRole('button', { name: withCount('Open', 24) }))
     await expect(onQueueChange).toHaveBeenCalledWith('reply')
   },
 }
