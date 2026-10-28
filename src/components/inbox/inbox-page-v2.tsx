@@ -99,6 +99,7 @@ export function InboxPageV2({
     selectedIds: s.selectedIds,
     activeItemId: search.itemId,
     isLoading: s.isLoading,
+    isRefreshing: s.isRefreshing,
     error: s.error,
     onRetry: s.refetch,
     isRetrying: s.isRetrying,

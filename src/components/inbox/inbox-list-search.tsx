@@ -13,12 +13,15 @@ import { SearchField } from '#/components/ui/search-field'
 export function InboxListSearch({
   value,
   totalCount,
+  isLoading = false,
   queueTotal,
   onChange,
   onClose,
 }: Readonly<{
   value: string | undefined
   totalCount: number
+  /** The list is on its way: its count is not quoted. */
+  isLoading?: boolean
   /** What the queue holds before the search; null until its count has arrived. */
   queueTotal: number | null
   onChange: (value: string | undefined) => void
@@ -44,7 +47,7 @@ export function InboxListSearch({
         className="shrink-0 text-xs"
         shown={totalCount}
         total={queueTotal}
-        active={!!value}
+        active={!!value && !isLoading}
       />
       {/* 36px on phones, pulled out 10px so the 16px X glyph sits on the right gutter. */}
       <IconButton

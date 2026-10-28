@@ -43,8 +43,11 @@ export const selectedItemPresenceAction = (
   departure: SelectedItemDeparture = 'close',
 ): SelectedItemPresenceAction => {
   if (!selectedId) return 'reset'
+  // While the list is not known (loading, or still showing the previous scope's
+  // rows) nothing in `items` says anything about this one.
+  if (isLoading) return 'keep'
   if (items.some((item) => item.id === selectedId)) return 'remember'
-  if (isLoading || seenSelectedId !== selectedId) return 'keep'
+  if (seenSelectedId !== selectedId) return 'keep'
   return departure
 }
 

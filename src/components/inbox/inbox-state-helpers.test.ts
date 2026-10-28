@@ -26,6 +26,13 @@ describe('selectedItemPresenceAction', () => {
     expect(selectedItemPresenceAction('item-1', 'item-1', false, [])).toBe('close')
   })
 
+  it('knows nothing from rows kept from the previous list while the new one loads', () => {
+    // The selected row is among the previous scope's rows: that proves nothing
+    // about this one, so it is neither remembered nor closed.
+    expect(selectedItemPresenceAction(undefined, 'item-1', true, [item])).toBe('keep')
+    expect(selectedItemPresenceAction('item-1', 'item-1', true, [])).toBe('keep')
+  })
+
   it('resets the observation when selection is cleared', () => {
     expect(selectedItemPresenceAction('item-1', undefined, false, [item])).toBe('reset')
   })

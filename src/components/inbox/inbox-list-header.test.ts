@@ -81,3 +81,16 @@ describe('InboxListHeader heading while the header is taken over', () => {
     expect(html).toContain('3 selected')
   })
 })
+
+describe('InboxListHeader count', () => {
+  const count = (html: string) => />(18|–)</u.exec(html)?.[1]
+
+  it('quotes the list count once it is known', () => {
+    expect(count(markup)).toBe('18')
+  })
+
+  it('shows a dash, not a count, while the list is on its way', () => {
+    // A pending or kept list has no count of its own: 0 would be a claim.
+    expect(count(render({ isLoading: true }))).toBe('–')
+  })
+})
