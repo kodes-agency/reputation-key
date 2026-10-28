@@ -27,7 +27,10 @@ vi.mock('#/shared/auth/headers', () => ({
 vi.mock('#/shared/auth/middleware', () => ({
   resolveTenantContext: mocks.resolveTenantContext,
 }))
-vi.mock('#/shared/auth/execution-policy', () => ({
+// Only the gate and the policy are stood in for: `refuseDecision` stays real, so
+// the refusal a test sees is the tagged 403 the policy module really throws.
+vi.mock('#/shared/auth/execution-policy', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/shared/auth/execution-policy')>()),
   requireExecutionAllowed: mocks.requireExecutionAllowed,
   getExecutionPolicy: vi.fn(() => ({ decide: mocks.decideExecution })),
 }))
@@ -289,6 +292,87 @@ describe('inbox query authorization', () => {
       { queue: 'reply', replyQueuesEnabled: false },
       MANAGER,
     )
+  })
+
+  // A settled "no" is an answer: the stages are off. Each is a reason the policy
+  // gives for a request it understood.
+  it.each(['permission_denied', 'scope_denied', 'org_suspended', 'property_suspended'])(
+    'reads %s as no reply stages, on the list and the per-property count',
+    async (reason) => {
+      mocks.decideExecution.mockResolvedValue({
+        allowed: false,
+        reason,
+        action: 'reply.manage',
+        policyVersion: 'test',
+      })
+
+      await withStartContext(() =>
+        getInboxItemsFn({ data: { queue: 'reply', propertyId: PROPERTY_ID } }),
+      )
+      await withStartContext(() => getInboxPropertyCountsFn({ data: { queue: 'reply' } }))
+
+      expect(mocks.getInboxItems).toHaveBeenCalledWith(
+        expect.objectContaining({ queue: 'reply', replyQueuesEnabled: false }),
+        MANAGER,
+      )
+      expect(mocks.getInboxPropertyCounts).toHaveBeenCalledWith(
+        { queue: 'reply', replyQueuesEnabled: false },
+        MANAGER,
+      )
+    },
+  )
+
+  // A policy that could not answer (its grant lookup failed) says nothing about
+  // the stages. Read as "off" it served every open Review under the "Needs
+  // reply" label the page draws from its own permissions, and flipped the rail
+  // to "Open" through the counts, for as long as the outage lasted. It refuses,
+  // as every other gated read does, and the page shows its retry state.
+  describe('when the reply policy cannot answer', () => {
+    beforeEach(() => {
+      mocks.decideExecution.mockResolvedValue({
+        allowed: false,
+        reason: 'policy_unavailable',
+        action: 'reply.manage',
+        policyVersion: 'test',
+      })
+    })
+
+    const refusal = { _tag: 'AuthError', code: 'policy_unavailable', status: 403 }
+
+    it('refuses the reply queue instead of answering with every open Review', async () => {
+      await expect(
+        withStartContext(() =>
+          getInboxItemsFn({ data: { queue: 'reply', propertyId: PROPERTY_ID } }),
+        ),
+      ).rejects.toMatchObject(refusal)
+
+      expect(mocks.getInboxItems).not.toHaveBeenCalled()
+    })
+
+    it('refuses the reply queue count per property', async () => {
+      await expect(
+        withStartContext(() => getInboxPropertyCountsFn({ data: { queue: 'reply' } })),
+      ).rejects.toMatchObject(refusal)
+
+      expect(mocks.getInboxPropertyCounts).not.toHaveBeenCalled()
+    })
+
+    it('refuses the queue counts, so the rail cannot lose its stages to an outage', async () => {
+      await expect(
+        withStartContext(() =>
+          getInboxQueueCountsFn({ data: { propertyId: PROPERTY_ID } }),
+        ),
+      ).rejects.toMatchObject(refusal)
+
+      expect(mocks.getInboxQueueCounts).not.toHaveBeenCalled()
+    })
+
+    it('leaves a queue that depends on no reply alone', async () => {
+      await withStartContext(() => getInboxItemsFn({ data: { queue: 'feedback' } }))
+
+      expect(mocks.decideExecution).not.toHaveBeenCalled()
+      expect(mocks.getInboxItems).toHaveBeenCalledOnce()
+    })
   })
 
   it('admits only a known queue at the boundary', () => {

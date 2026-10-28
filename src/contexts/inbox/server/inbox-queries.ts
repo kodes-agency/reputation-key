@@ -2,6 +2,7 @@
 
 import {
   getExecutionPolicy,
+  refuseDecision,
   requireExecutionAllowed,
 } from '#/shared/auth/execution-policy'
 import {
@@ -27,9 +28,38 @@ import { REPLY_STAGE_QUEUES, type InboxQueue } from '../application/inbox-queues
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 /**
- * Whether reply stages are available to this request, for the queues that
- * involve them. `approval` and `waiting` exist only with the stages, so the
- * policy is required for them and refuses the request. `reply` is also every
+ * Whether reply stages are available for this scope: the policy lets the caller
+ * manage replies there. The browser draws the rail, its labels and its empty
+ * states from this answer (the queue counts carry it as `replyStages`), so every
+ * function that answers the question asks it here and asks it the same way.
+ *
+ * Only a settled "no" (no permission, outside the caller's Properties, reply
+ * publication off, a suspension) means there are no stages. A policy that could
+ * not answer (`policy_unavailable`: its grant lookup failed) says nothing about
+ * them, so it refuses the request as every other policy outage does. Read as
+ * "no stages" it served another set than the page was drawn for, under the wrong
+ * label, for as long as the outage lasted.
+ */
+async function replyStagesAvailable(
+  ctx: AuthContext,
+  propertyId: string | undefined,
+): Promise<boolean> {
+  const decision = await getExecutionPolicy().decide({
+    principal: { kind: 'user', ctx },
+    action: 'reply.manage',
+    organizationId: ctx.organizationId,
+    propertyId,
+    executionKind: 'interactive',
+    now: getContainer().clock(),
+  })
+  if (decision.reason === 'policy_unavailable') refuseDecision(decision)
+  return decision.allowed
+}
+
+/**
+ * The stage decision to hand a list or a per-property count, for the queues that
+ * involve reply stages. `approval` and `waiting` exist only with the stages, so
+ * the policy is required for them and refuses the request. `reply` is also every
  * open Review without the stages (the rail's "Open", ADR 0057 amended
  * 2026-10-28), so its answer is handed to the use case as a boundary decision
  * instead of refusing. A queue that depends on no reply asks nothing.
@@ -45,15 +75,7 @@ async function replyQueuesEnabledFor(
     await requireExecutionAllowed({ actor: ctx, action: 'reply.manage', propertyId })
     return undefined
   }
-  const decision = await getExecutionPolicy().decide({
-    principal: { kind: 'user', ctx },
-    action: 'reply.manage',
-    organizationId: ctx.organizationId,
-    propertyId,
-    executionKind: 'interactive',
-    now: getContainer().clock(),
-  })
-  return decision.allowed
+  return replyStagesAvailable(ctx, propertyId)
 }
 
 // ── getInboxItems ──────────────────────────────────────────────────
@@ -195,18 +217,11 @@ export const getInboxQueueCountsFn = createServerFn({ method: 'GET' })
           action: 'inbox.read',
           propertyId: data?.propertyId,
         })
-        const { clock, inboxPublicApi } = getContainer()
-        const replyDecision = await getExecutionPolicy().decide({
-          principal: { kind: 'user', ctx },
-          action: 'reply.manage',
-          organizationId: ctx.organizationId,
-          propertyId: data?.propertyId,
-          executionKind: 'interactive',
-          now: clock(),
-        })
+        const replyQueuesEnabled = await replyStagesAvailable(ctx, data?.propertyId)
+        const { inboxPublicApi } = getContainer()
         try {
           return await inboxPublicApi.getInboxQueueCounts(
-            { propertyId: data?.propertyId, replyQueuesEnabled: replyDecision.allowed },
+            { propertyId: data?.propertyId, replyQueuesEnabled },
             ctx,
           )
         } catch (e) {

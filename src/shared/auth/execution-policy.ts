@@ -524,6 +524,19 @@ export function getExecutionPolicy(): ExecutionPolicy {
 }
 
 /**
+ * The serializable AuthError (403) a denied decision becomes, with the policy's
+ * stable reason as its code. `requireExecutionAllowed` throws it for every
+ * denial; a caller that answers some denials itself uses it for the rest.
+ */
+export function refuseDecision(decision: ExecutionDecision): never {
+  throwContextError(
+    'AuthError',
+    { code: decision.reason, message: `Authorization denied: ${decision.reason}` },
+    403,
+  )
+}
+
+/**
  * Interactive migration helper (BQC-2.4): the drop-in async replacement for
  * requireAuthorized on enabled server functions. Throws a serializable
  * AuthError (403) with the stable reason on deny.
@@ -547,13 +560,7 @@ export async function requireExecutionAllowed(input: {
     now: new Date(),
     correlationId: input.correlationId,
   })
-  if (!decision.allowed) {
-    throwContextError(
-      'AuthError',
-      { code: decision.reason, message: `Authorization denied: ${decision.reason}` },
-      403,
-    )
-  }
+  if (!decision.allowed) refuseDecision(decision)
 }
 
 export async function decidePublicExecution(

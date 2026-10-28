@@ -11,6 +11,7 @@ import {
   createExecutionPolicy,
   initExecutionPolicy,
   parseOperatorIdentities,
+  refuseDecision,
   requireExecutionAllowed,
   registerExecutionPolicyInit,
   resetExecutionPolicy,
@@ -511,6 +512,29 @@ describe('requireExecutionAllowed (BQC-2.4 migration helper)', () => {
       }),
     ).resolves.toBeUndefined()
   })
+})
+
+describe('refuseDecision', () => {
+  it.each(['scope_denied', 'policy_unavailable'] as const)(
+    'is the AuthError (403) a %s decision becomes, with the reason as its code',
+    (reason) => {
+      expect(() =>
+        refuseDecision({
+          allowed: false,
+          reason,
+          action: 'reply.manage',
+          policyVersion: EXECUTION_POLICY_VERSION,
+        }),
+      ).toThrow(
+        expect.objectContaining({
+          _tag: 'AuthError',
+          code: reason,
+          status: 403,
+          message: `Authorization denied: ${reason}`,
+        }),
+      )
+    },
+  )
 })
 
 describe('registerExecutionPolicyInit (cold-boot lazy init)', () => {
