@@ -123,10 +123,10 @@ decisions 1 and 3 and the count cost under Consequences; decisions 2, 4, 5 and
    in this state (it was All open).
 5. **Filters offer only what can match.** Source (All items, Reviews, Feedback)
    appears only in Mine, Escalated and All open. The topic filters (Aspect,
-   Polarity) and the AI Priority do not appear in To handle and Handled; Rating
-   appears everywhere. What a queue does not offer is neither applied nor kept in
-   the address when a person moves into the queue. The dashboard "Overdue" link
-   opens All open narrowed to Reviews.
+   Polarity) do not appear in To handle and Handled; Priority and Rating appear
+   everywhere (see the 2026-10-29 note). What a queue does not offer is neither
+   applied nor kept in the address when a person moves into the queue. The
+   dashboard "Overdue" link opens All open narrowed to Reviews.
 6. **Phone.** The strip of queue pills becomes one queue button (the current
    queue's glyph, label, count and a chevron) that opens the rail's sections in a
    bottom sheet, and a chip beside it that jumps to the other kind's open queue
@@ -144,3 +144,14 @@ Deployment note: a tab that loaded the page before this shipped keeps working
 against the new server until it reloads. It still asks for `closed` and the other
 old keys, which still answer, and it reads the counts it already knows (`closed`
 arrives as `null`, so its Closed row loses its badge).
+
+## Note 2026-10-29 — Priority is offered in every queue
+
+Decision 5 of the amendment above withheld the Priority filter from To handle
+and Handled, because it matched only the AI's attention level, which private
+feedback never has. [ADR 0071](0071-inbox-manual-priority.md) makes it match the
+effective level (the one a person set, else the AI's suggestion), so a manager's
+Urgent on feedback can be found there: Priority is offered in every queue, and
+the topic filters (Aspect, Polarity) are the only ones still withheld from the
+two feedback queues. The filter also gains one value, "Urgent and High"
+(`attention=urgent_high`). Nothing else in the amendment changes.

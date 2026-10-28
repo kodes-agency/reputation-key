@@ -152,6 +152,40 @@ export const loadInboxItemOrThrow = async (
   return item
 }
 
+/**
+ * The prologue every single-item command shares — status, note, escalate,
+ * resolve the escalation, set the priority — in the one order they all need:
+ * the write permission, the item, the source's handle permission, then the
+ * item's Property scope BEFORE the revision fence (invariant 3). A conflict
+ * names the item's current revision and status, which a caller with no access
+ * to its Property must not be told.
+ */
+export const loadItemForCommand = async (
+  deps: Readonly<{ repo: InboxRepository; staffPublicApi: StaffPublicApi }>,
+  input: Readonly<{ inboxItemId: InboxItemId; expectedCommandRevision: number }>,
+  ctx: AuthContext,
+): Promise<InboxItem> => {
+  if (!canForContext(ctx, 'inbox.write'))
+    throw inboxError('forbidden', 'No inbox write permission')
+  const item = await loadInboxItemOrThrow(
+    deps.repo,
+    input.inboxItemId,
+    ctx.organizationId,
+  )
+  if (!canHandleInboxSource(ctx, item.sourceType)) {
+    throw inboxError('forbidden', 'No permission to handle this inbox source')
+  }
+  await assertInboxSourcePropertyAccessible(
+    deps.staffPublicApi,
+    ctx,
+    'handle',
+    item.sourceType,
+    item.propertyId,
+  )
+  assertExpectedCommandRevision(item, input.expectedCommandRevision)
+  return item
+}
+
 /** Reject stale client intent before deriving a command fact. The command
  * store repeats this fence in PostgreSQL so a later race still commits
  * neither state nor fact. */

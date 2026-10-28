@@ -1,6 +1,6 @@
 // Inbox context — Drizzle Handling History read model (IBX-01-T5).
 //
-// Five append-only tables, one story. Each source is read with an explicit
+// Six append-only tables, one story. Each source is read with an explicit
 // LIMIT and an organization_id predicate, then merged by the pure domain
 // ordering rule. The tenant fence is on every query, not on the merge: an item
 // id belonging to another Organization returns an empty page, never rows.
@@ -13,10 +13,13 @@ import { and, asc, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   inboxAssignmentHistory,
-  inboxEscalationHistory,
   inboxFeedbackHandlingOutcomes,
   inboxHandlingCycles,
 } from '#/shared/db/schema/inbox.schema'
+import {
+  inboxEscalationHistory,
+  inboxPriorityHistory,
+} from '#/shared/db/schema/inbox-triage-history.schema'
 import { trace } from '#/shared/observability/trace'
 import { inboxItemId as toInboxItemId, userId as toUserId } from '#/shared/domain/ids'
 import type { InboxItemId, UserId } from '#/shared/domain/ids'
@@ -121,6 +124,25 @@ export const createInboxHistoryRepository = (db: Database): InboxHistoryReposito
             ),
           )
           .orderBy(asc(inboxEscalationHistory.resultingCommandRevision))
+          .limit(limit)
+
+        const priorityRows = await db
+          .select({
+            resultingCommandRevision: inboxPriorityHistory.resultingCommandRevision,
+            handlingCycleNumber: inboxPriorityHistory.handlingCycleNumber,
+            priority: inboxPriorityHistory.priority,
+            previousPriority: inboxPriorityHistory.previousPriority,
+            actorUserId: inboxPriorityHistory.actorUserId,
+            occurredAt: inboxPriorityHistory.occurredAt,
+          })
+          .from(inboxPriorityHistory)
+          .where(
+            and(
+              eq(inboxPriorityHistory.inboxItemId, itemId),
+              eq(inboxPriorityHistory.organizationId, organizationId),
+            ),
+          )
+          .orderBy(asc(inboxPriorityHistory.resultingCommandRevision))
           .limit(limit)
 
         const outcomeRows = await db
@@ -233,6 +255,24 @@ export const createInboxHistoryRepository = (db: Database): InboxHistoryReposito
           },
         }))
 
+        // A person's priority decision; an AI change never writes one.
+        const priorityEntries = priorityRows.map((row): InboxHistoryEntry => ({
+          id: `priority:${itemId}:${row.resultingCommandRevision}`,
+          inboxItemId: inboxItem,
+          kind: 'priority',
+          occurredAt: row.occurredAt,
+          cycleNumber: row.handlingCycleNumber,
+          stateRevision: null,
+          actorUserId: toUserId(row.actorUserId),
+          actorDisplayName: null,
+          legacy: false,
+          detail: {
+            kind: 'priority',
+            priority: row.priority,
+            previousPriority: row.previousPriority,
+          },
+        }))
+
         const outcomeEntries = outcomeRows.map((row): InboxHistoryEntry => {
           // The raw note travels no further than the use case, which owns the
           // permission decision. It is included conditionally so that "no note
@@ -265,6 +305,7 @@ export const createInboxHistoryRepository = (db: Database): InboxHistoryReposito
           transitionRows.length,
           assignmentRows.length,
           escalationRows.length,
+          priorityRows.length,
           outcomeRows.length,
         ].some((count) => count >= limit)
 
@@ -274,6 +315,7 @@ export const createInboxHistoryRepository = (db: Database): InboxHistoryReposito
             ...transitionEntries,
             ...assignmentEntries,
             ...escalationEntries,
+            ...priorityEntries,
             ...outcomeEntries,
           ]),
           truncated,

@@ -46,6 +46,13 @@ export const inboxItemFromRow = (row: InboxItemRow): Omit<InboxItem, 'propertyNa
   commandRevision: row.commandRevision,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
+  // Manager priority (ADR 0071): always all three keys, so a client can tell a
+  // reset (null) from a read that predates the columns (absent).
+  managerPriority: row.managerPriority ?? null,
+  managerPrioritySetBy: row.managerPrioritySetBy
+    ? userId(row.managerPrioritySetBy)
+    : null,
+  managerPrioritySetAt: row.managerPrioritySetAt ?? null,
 })
 
 export const inboxItemToInsertRow = (
@@ -73,4 +80,6 @@ export const inboxItemToInsertRow = (
   firstReplySubmittedAt: item.firstReplySubmittedAt,
   firstReplyPublishedAt: item.firstReplyPublishedAt,
   commandRevision: item.commandRevision,
+  // No manager priority: only the set-priority command writes it, so every
+  // insert (projection, rebuild, repair) starts the item with no level.
 })

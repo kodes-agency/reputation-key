@@ -18,6 +18,7 @@ export {
   bulkAssignInboxItemsFn,
 } from './inbox-item-actions'
 export { checkReviewOnGoogleFn } from './inbox-google-check'
+export { setInboxItemPriorityFn } from './inbox-priority'
 export {
   getInboxItemDetailFn,
   getInboxItemHistoryFn,

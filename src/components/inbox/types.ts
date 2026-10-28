@@ -27,6 +27,7 @@ import type {
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
   checkReviewOnGoogleFn,
+  setInboxItemPriorityFn,
 } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
@@ -44,6 +45,7 @@ export type InboxServerFns = Readonly<{
   updateInboxStatus: typeof updateInboxStatusFn
   escalateInboxItem: typeof escalateInboxItemFn
   resolveEscalation: typeof resolveEscalationFn
+  setInboxItemPriority: typeof setInboxItemPriorityFn
   addInboxNote: typeof addInboxNoteFn
   assignInboxItem: typeof assignInboxItemFn
   bulkUpdateInboxStatus: typeof bulkUpdateInboxStatusFn

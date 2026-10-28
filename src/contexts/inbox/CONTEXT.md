@@ -5,8 +5,8 @@
 ## Responsibility
 
 Unified triage for Reviews and private feedback: open/closed workflow state,
-assignment, escalation, internal notes, Handling Cycles, Response Targets, and
-new-item counts.
+assignment, escalation, manager priority, internal notes, Handling Cycles,
+Response Targets, and new-item counts.
 
 ## Boundaries
 
@@ -18,7 +18,7 @@ new-item counts.
   `inbox.write ∧ feedback.handle`. Assignment never grants either permission.
 - Review owns exact Google reply truth. Guest owns ratings, feedback text,
   correction, and withdrawal. Identity owns manager eligibility (membership, role, PropertyAccessGrant); Staff participation plays no part.
-- Recent Activity is **never** evidence that an Inbox command committed, so history is merged from Inbox's five append-only tables — `inbox_handling_cycles`, `inbox_handling_cycle_transitions`, `inbox_assignment_history`, `inbox_escalation_history` and `inbox_feedback_handling_outcomes` — and never from the activity feed.
+- Recent Activity is **never** evidence that an Inbox command committed, so history is merged from Inbox's six append-only tables — `inbox_handling_cycles`, `inbox_handling_cycle_transitions`, `inbox_assignment_history`, `inbox_escalation_history`, `inbox_priority_history` and `inbox_feedback_handling_outcomes` — and never from the activity feed.
 - The organization-export contributor remains outside `publicApi`; no request path
   may call it.
 
@@ -29,6 +29,25 @@ triage state. A Handling Cycle is an immutable numbered work episode anchored to
 one source revision; its compare-and-swap head selects the current episode and
 state revision. Feedback Handling Outcomes are append-only manager results, and
 corrections supersede rather than rewrite them.
+
+An item's priority is a person's choice (ADR 0071). A manager sets Urgent,
+High, Medium or Low on any Review or private-feedback item
+(`setInboxItemPriority`, server function `setInboxItemPriorityFn`, gated like
+Escalate); Inbox stores the level, who set it and when on `inbox_items`
+(`manager_priority*`) and one `inbox_priority_history` row per decision, and
+records the audit-only `inbox.inbox_item.priority_changed` fact. The AI's
+attention level is only a suggestion: it is read live through `aiInsights`
+and never stored here, so turning AI off or erasing AI data still removes it.
+What a manager sees — the list's Urgent tint and High cue, the toolbar, the
+Priority filter and its count — is the EFFECTIVE level: the set level,
+otherwise the current suggestion (Reviews only; feedback is never analysed),
+otherwise "Not set". A set level survives guest edits and new feedback
+messages; picking the level already set writes nothing; a refusal names a
+colleague's change to the priority itself (`priority_changed`, never replayed
+by the client's revision retry). The list asks the AI's id gate for its
+suggestions and the toolbar reads the detail's stricter delivery gate, so the
+two can briefly disagree after a notice or redaction change; the toolbar is
+authoritative for the open item.
 
 A Review item's detail carries the way to the review on Google: its own
 Business Profile page (`googleReviewUrl`, from Review's eligible snippet, so
@@ -252,6 +271,13 @@ state.
 13. Analytics never mix Review and feedback targets. Reminders never auto-escalate.
 14. Inbox notes, private feedback, Review or Reply text, contact details, credentials, and raw network values must never enter the Activity projection or replay fact.
 15. An excluded Response Target is never counted, never reminded and still closable. A row in `inbox_response_target_exclusions` (migration 0069, append-only, written only by `pnpm ops inbox exclude-restated-revision-targets` for a cycle opened on a revision Google only restated) leaves its cycle out of the Google analytics, the per-Property overdue figures, reminder selection and admission, and waiting time, through one predicate (`src/shared/db/inbox-response-target-exclusions.ts`); it reads as "Not measured". The target and cycle are untouched, so a later real reply closes both normally and the completion stays out of the figures. Inbox never reads Review tables: Review lists the restated revisions and the command hands the list in.
+
+16. Priority is human-owned. Only a signed-in manager's command sets it: the
+    command store refuses a priority write whose fact names no web actor, and
+    re-authorizes that actor inside the transaction. AI levels are read, never
+    stored. Setting a priority never notifies, never opens, closes or reopens a
+    cycle, never escalates, never changes a Response Target, and never enters
+    Reporting or AI.
 
 ## Verification
 

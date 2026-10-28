@@ -34,6 +34,12 @@ export function reconcileInboxPageItems(
           escalationResolvedAt: updated.escalationResolvedAt,
           escalationResolvedBy: updated.escalationResolvedBy,
           assignedTo: updated.assignedTo,
+          // A person's level (ADR 0071): the row's Urgent tint and High cue
+          // follow a priority command at once. The suggestion (`attention`)
+          // stays the list's own until the folder re-read.
+          managerPriority: updated.managerPriority,
+          managerPrioritySetBy: updated.managerPrioritySetBy,
+          managerPrioritySetAt: updated.managerPrioritySetAt,
           replyState: updated.replyState,
           updatedAt: updated.updatedAt,
         }

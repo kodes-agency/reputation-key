@@ -11,6 +11,7 @@ import type {
   HandlingCycleCloseReason,
   InboxItem,
   InboxNote,
+  InboxPriority,
   InboxStatus,
 } from '../../domain/types'
 import type { ManualReopenReason } from '../../domain/types'
@@ -24,6 +25,7 @@ import type {
   InboxItemCreated,
   InboxItemEscalated,
   InboxItemEscalationResolved,
+  InboxItemPriorityChanged,
   InboxItemStatusChanged,
   InboxItemUnassigned,
   InboxNoteAdded,
@@ -333,6 +335,20 @@ export type InboxCommandStore = Readonly<{
     item: InboxItem,
     updates: Readonly<{ resolvedBy: UserId }>,
     event: InboxItemEscalationResolved,
+    now?: Date,
+  ): Promise<InboxItem>
+
+  /**
+   * Set or clear the manager priority (ADR 0071): the three columns, one
+   * `inbox_priority_history` row and the audit-only priority fact, in one
+   * transaction. The fact must name a web actor — the store re-authorizes that
+   * person inside the transaction and refuses a write without one, because a
+   * priority is only ever a signed-in manager's choice.
+   */
+  setPriority(
+    item: InboxItem,
+    updates: Readonly<{ priority: InboxPriority | null; setBy: UserId }>,
+    event: InboxItemPriorityChanged,
     now?: Date,
   ): Promise<InboxItem>
 

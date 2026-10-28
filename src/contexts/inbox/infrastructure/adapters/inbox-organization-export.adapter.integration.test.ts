@@ -297,6 +297,26 @@ async function seedInboxWork(): Promise<void> {
     [FEEDBACK_ITEM_ID, ORG_ID, PROPERTY_ID, ACTOR_ID, COMPLETED_AT],
   )
 
+  // A manager set Urgent on the review, then reset it: the item keeps no
+  // level, and the history keeps both decisions.
+  await pool.query(
+    `INSERT INTO inbox_priority_history (
+       inbox_item_id, resulting_command_revision, organization_id, property_id,
+       handling_cycle_number, priority, previous_priority, actor_user_id,
+       occurred_at, created_at
+     ) VALUES ($1, 2, $2, $3, 1, 'urgent', NULL, $4, $5, $5),
+              ($1, 3, $2, $3, 1, NULL, 'urgent', $4, $6, $6)`,
+    [REVIEW_ITEM_ID, ORG_ID, PROPERTY_ID, ACTOR_ID, AT, COMPLETED_AT],
+  )
+  // The feedback item holds a level a manager set.
+  await pool.query(
+    `UPDATE inbox_items
+        SET manager_priority = 'high', manager_priority_set_by = $2,
+            manager_priority_set_at = $3
+      WHERE id = $1`,
+    [FEEDBACK_ITEM_ID, ACTOR_ID, COMPLETED_AT],
+  )
+
   await pool.query(
     `INSERT INTO inbox_response_target_organization_policies (
        organization_id, target_kind, duration_minutes, policy_version,
@@ -376,6 +396,8 @@ describe.sequential('Inbox Organization Export contributor (PostgreSQL)', () => 
       'inbox/items.json',
       'inbox/notes.csv',
       'inbox/notes.json',
+      'inbox/priority-history.csv',
+      'inbox/priority-history.json',
       'inbox/response-target-policies.csv',
       'inbox/response-target-policies.json',
     ])
@@ -429,6 +451,55 @@ describe.sequential('Inbox Organization Export contributor (PostgreSQL)', () => 
     ) as { escalations: readonly Record<string, unknown>[] }
     expect(escalations.escalations).toEqual([
       expect.objectContaining({ kind: 'escalated', actor_user_id: ACTOR_ID }),
+    ])
+
+    // The item carries the level a person set, with who and when; never an AI
+    // level (there is no column for one).
+    expect(items.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: FEEDBACK_ITEM_ID,
+          manager_priority: 'high',
+          manager_priority_set_by: ACTOR_ID,
+          manager_priority_set_at: COMPLETED_AT.toISOString().replace('Z', '000Z'),
+        }),
+        expect.objectContaining({
+          id: REVIEW_ITEM_ID,
+          manager_priority: null,
+          manager_priority_set_by: null,
+          manager_priority_set_at: null,
+        }),
+      ]),
+    )
+    const priorities = JSON.parse(
+      Buffer.from(
+        first.entries.find((e) => e.path === 'inbox/priority-history.json')!.bytes,
+      ).toString('utf8'),
+    ) as { priorities: readonly Record<string, unknown>[] }
+    expect(priorities.priorities).toEqual([
+      expect.objectContaining({
+        inbox_item_id: REVIEW_ITEM_ID,
+        kind: 'urgent',
+        priority: 'urgent',
+        previous_priority: null,
+        actor_user_id: ACTOR_ID,
+      }),
+      expect.objectContaining({
+        inbox_item_id: REVIEW_ITEM_ID,
+        kind: 'reset',
+        priority: null,
+        previous_priority: 'urgent',
+      }),
+    ])
+    // The CSV's summary label says what happened, a reset included.
+    const priorityCsv = Buffer.from(
+      first.entries.find((e) => e.path === 'inbox/priority-history.csv')!.bytes,
+    ).toString('utf8')
+    expect(
+      priorityCsv.split('\n').filter((line) => line.startsWith('priority,')),
+    ).toEqual([
+      expect.stringContaining(`,${ACTOR_ID},urgent,`),
+      expect.stringContaining(`,${ACTOR_ID},reset,`),
     ])
   })
 

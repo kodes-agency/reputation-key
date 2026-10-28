@@ -16,6 +16,7 @@ import type {
   HandlingCycleActorType,
   HandlingCycleCloseReason,
   HandlingCycleOpenReason,
+  InboxPriority,
   InboxStatus,
   ManualReopenReason,
   SourceType,
@@ -816,11 +817,51 @@ export const inboxResponseTargetPolicyChanged = (
   }
 }
 
+/**
+ * A manager set, changed or reset an item's priority (ADR 0071). Audit-only:
+ * nothing consumes it, so no one is notified and Recent Activity shows nothing.
+ * It is required all the same — the command store re-authorizes the actor it
+ * names inside the write transaction, and refuses a priority write without one.
+ * Identifiers and levels only; `priority: null` is a reset.
+ */
+export type InboxItemPriorityChanged = Readonly<{
+  _tag: 'inbox.inbox_item.priority_changed'
+  eventId: string
+  inboxItemId: InboxItemId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  userId: UserId
+  source: 'web'
+  priority: InboxPriority | null
+  previousPriority: InboxPriority | null
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const inboxItemPriorityChanged = (
+  args: Omit<InboxItemPriorityChanged, '_tag' | 'eventId' | 'source' | 'correlationId'> &
+    Readonly<{ correlationId?: string | null }>,
+): InboxItemPriorityChanged => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    args.priority !== args.previousPriority,
+    'a priority change must change the priority',
+  )
+  return {
+    _tag: 'inbox.inbox_item.priority_changed',
+    eventId: newEventId(),
+    ...args,
+    source: 'web',
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type InboxEvent =
   | InboxItemCreated
   | InboxItemStatusChanged
   | InboxItemEscalated
   | InboxItemEscalationResolved
+  | InboxItemPriorityChanged
   | InboxItemAssigned
   | InboxItemUnassigned
   | InboxNoteAdded

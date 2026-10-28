@@ -3,10 +3,8 @@
 // Tenant isolation test is NON-NEGOTIABLE.
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
-import {
-  createInboxRepository as createProductionInboxRepository,
-  inboxSourceIdMatchesAny,
-} from './inbox.repository'
+import { createInboxRepository as createProductionInboxRepository } from './inbox.repository'
+import { inboxSourceIdMatchesAny } from './inbox-list-narrowing'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type {
   ReviewLookupPort,
@@ -147,6 +145,24 @@ function createInboxRepository(database: Database, ports: RepositoryPorts) {
       ).item
     },
   }
+}
+
+type AttentionLookup = Parameters<
+  AiReviewInsightsPort['findCurrentReviewIdsByAttention']
+>[0]
+
+/** A level a manager set, written as the command store writes it. */
+async function setManagerPriority(
+  id: InboxItem['id'],
+  level: 'urgent' | 'high' | 'medium' | 'low',
+): Promise<void> {
+  await pool.query(
+    `UPDATE inbox_items
+        SET manager_priority = $2, manager_priority_set_by = $3,
+            manager_priority_set_at = $4, command_revision = command_revision + 1
+      WHERE id = $1`,
+    [id, level, USER_A, TEST_NOW],
+  )
 }
 
 it('binds large source-id sets as one PostgreSQL array parameter', () => {
@@ -1334,12 +1350,16 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     })
   })
 
-  it('enriches urgent attention only from a page-bounded current analysis', async () => {
+  it('enriches the urgent and high suggestions from a page-bounded current analysis', async () => {
     const urgentSourceId = reviewId(crypto.randomUUID())
+    const highSourceId = reviewId(crypto.randomUUID())
     const otherSourceId = reviewId(crypto.randomUUID())
-    await repo.create(makeInboxItem({ sourceId: urgentSourceId }), ORG_A)
-    await repo.create(makeInboxItem({ sourceId: otherSourceId }), ORG_A)
-    const findCurrentReviewIdsByAttention = vi.fn(async () => [urgentSourceId])
+    for (const sourceId of [urgentSourceId, highSourceId, otherSourceId]) {
+      await repo.create(makeInboxItem({ sourceId }), ORG_A)
+    }
+    const findCurrentReviewIdsByAttention = vi.fn(async (input: AttentionLookup) =>
+      input.attention.includes('urgent') ? [urgentSourceId] : [highSourceId],
+    )
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
@@ -1349,18 +1369,49 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
 
     const result = await enrichedRepo.findFilteredPaginated({}, ORG_A, undefined, 50)
 
-    expect(findCurrentReviewIdsByAttention).toHaveBeenCalledWith({
-      organizationId: ORG_A,
-      propertyIds: [PROP_A],
-      reviewIds: expect.arrayContaining([urgentSourceId, otherSourceId]),
-      attention: ['urgent'],
+    for (const attention of [['urgent'], ['high']]) {
+      expect(findCurrentReviewIdsByAttention).toHaveBeenCalledWith({
+        organizationId: ORG_A,
+        propertyIds: [PROP_A],
+        reviewIds: expect.arrayContaining([urgentSourceId, highSourceId, otherSourceId]),
+        attention,
+      })
+    }
+    const attentionOf = (sourceId: string) =>
+      result.items.find((item) => item.sourceId === sourceId)?.attention
+    expect(attentionOf(urgentSourceId)).toBe('urgent')
+    expect(attentionOf(highSourceId)).toBe('high')
+    expect(attentionOf(otherSourceId)).toBe(null)
+  })
+
+  it('skips the suggestion for a row a manager set a level on', async () => {
+    const setSourceId = reviewId(crypto.randomUUID())
+    const openSourceId = reviewId(crypto.randomUUID())
+    const set = await repo.create(makeInboxItem({ sourceId: setSourceId }), ORG_A)
+    await repo.create(makeInboxItem({ sourceId: openSourceId }), ORG_A)
+    await setManagerPriority(set.id, 'low')
+    const findCurrentReviewIdsByAttention = vi.fn(async () => [setSourceId])
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      findCurrentReviewIdsByAttention,
+      findCurrentReviewIdsByAspect: vi.fn(async () => []),
+    }
+    const enrichedRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    const result = await enrichedRepo.findFilteredPaginated({}, ORG_A, undefined, 50)
+
+    // Only the row with no level is asked about: a set level wins anyway.
+    for (const [input] of findCurrentReviewIdsByAttention.mock.calls as unknown as [
+      { reviewIds: readonly string[] },
+    ][]) {
+      expect(input.reviewIds).toEqual([openSourceId])
+    }
+    const row = result.items.find((item) => item.sourceId === setSourceId)
+    expect(row).toMatchObject({
+      managerPriority: 'low',
+      managerPrioritySetBy: USER_A,
+      attention: null,
     })
-    expect(result.items.find((item) => item.sourceId === urgentSourceId)?.attention).toBe(
-      'urgent',
-    )
-    expect(result.items.find((item) => item.sourceId === otherSourceId)?.attention).toBe(
-      null,
-    )
   })
 
   it('list items render nulls when the lookup has no eligible snippet', async () => {
@@ -1430,7 +1481,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     expect(result.items[0]?.sourceType).toBe('feedback')
   })
 
-  it('attention filters resolve through the tenant and property-scoped AI projection', async () => {
+  it('the Priority filter asks the tenant and property-scoped AI projection for the suggestion', async () => {
     const srcMatch = reviewId(crypto.randomUUID())
     const srcOther = reviewId(crypto.randomUUID())
     await repo.create(makeInboxItem({ sourceId: srcMatch }), ORG_A)
@@ -1456,6 +1507,103 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       attention: ['urgent', 'high'],
     })
     expect(result.items.map((item) => item.sourceId)).toEqual([srcMatch])
+  })
+
+  it('the Priority filter matches a level a manager set on private feedback', async () => {
+    const feedback = await repo.create(
+      makeInboxItem({
+        sourceType: 'feedback',
+        sourceId: feedbackId(crypto.randomUUID()),
+      }),
+      ORG_A,
+    )
+    await repo.create(
+      makeInboxItem({
+        sourceType: 'feedback',
+        sourceId: feedbackId(crypto.randomUUID()),
+      }),
+      ORG_A,
+    )
+    await setManagerPriority(feedback.id, 'urgent')
+
+    const result = await repo.findFilteredPaginated(
+      { attention: ['urgent'] },
+      ORG_A,
+      undefined,
+      50,
+    )
+
+    expect(result.items.map((item) => item.id)).toEqual([feedback.id])
+    expect(result.totalCount).toBe(1)
+  })
+
+  it('a feedback-only Priority filter asks the AI nothing: feedback is never analysed', async () => {
+    const feedback = await repo.create(
+      makeInboxItem({
+        sourceType: 'feedback',
+        sourceId: feedbackId(crypto.randomUUID()),
+      }),
+      ORG_A,
+    )
+    await setManagerPriority(feedback.id, 'high')
+    const findCurrentReviewIdsByAttention = vi.fn(async () => [])
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      findCurrentReviewIdsByAttention,
+      findCurrentReviewIdsByAspect: vi.fn(async () => []),
+    }
+    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    const result = await filteredRepo.findFilteredPaginated(
+      { sourceType: 'feedback', attention: ['urgent', 'high'] },
+      ORG_A,
+    )
+
+    expect(result.items.map((item) => item.id)).toEqual([feedback.id])
+    expect(findCurrentReviewIdsByAttention).not.toHaveBeenCalled()
+  })
+
+  it('a manager downgrade takes an AI Urgent review out of Urgent and into Low', async () => {
+    const downgraded = await repo.create(
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }),
+      ORG_A,
+    )
+    await setManagerPriority(downgraded.id, 'low')
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      // The AI still calls it Urgent.
+      findCurrentReviewIdsByAttention: vi.fn(async (input: AttentionLookup) =>
+        input.attention.includes('urgent') ? [downgraded.sourceId as never] : [],
+      ),
+      findCurrentReviewIdsByAspect: vi.fn(async () => []),
+    }
+    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    const urgent = await filteredRepo.findFilteredPaginated(
+      { attention: ['urgent'] },
+      ORG_A,
+    )
+    const low = await filteredRepo.findFilteredPaginated({ attention: ['low'] }, ORG_A)
+
+    expect(urgent.items).toEqual([])
+    expect(low.items.map((item) => item.id)).toEqual([downgraded.id])
+  })
+
+  it('set levels match with no AI port at all', async () => {
+    const set = await repo.create(
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }),
+      ORG_A,
+    )
+    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    await setManagerPriority(set.id, 'high')
+
+    // `repo` has no `aiInsights`: AI off for this reader.
+    const result = await repo.findFilteredPaginated(
+      { attention: ['urgent', 'high'] },
+      ORG_A,
+    )
+
+    expect(result.items.map((item) => item.id)).toEqual([set.id])
   })
 
   it('aspect and polarity filters intersect with attention through the AI projection', async () => {
@@ -1495,12 +1643,14 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     expect(result.items.map((item) => item.sourceId)).toEqual([srcBoth])
   })
 
-  it('an empty AI id set means no matches, never no filter', async () => {
+  it('an empty AI id set means no aspect matches, never no filter', async () => {
     // The dangerous failure mode: a tenant without the AI capability, or an
     // aspect/polarity pair nobody has mentioned, resolves to zero review ids.
     // Skipping the predicate then would show the ENTIRE inbox while the UI
     // claims a filter is applied -- the same class of defect as a search param
-    // that gets stripped before it reaches the query.
+    // that gets stripped before it reaches the query. The Priority filter is
+    // held to the same rule for the suggestion: with no AI answer, only a
+    // level a person set can match, and here nobody set one.
     await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
     await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
     const aiInsights: AiReviewInsightsPort = {
@@ -1527,6 +1677,103 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       expect(result.items).toHaveLength(0)
       expect(result.nextCursor).toBeNull()
     }
+  })
+
+  it('aspect still narrows to reviews: a set level on feedback does not satisfy it', async () => {
+    const feedback = await repo.create(
+      makeInboxItem({
+        sourceType: 'feedback',
+        sourceId: feedbackId(crypto.randomUUID()),
+      }),
+      ORG_A,
+    )
+    await setManagerPriority(feedback.id, 'urgent')
+    const review = await repo.create(
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }),
+      ORG_A,
+    )
+    await setManagerPriority(review.id, 'urgent')
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      findCurrentReviewIdsByAttention: vi.fn(async () => []),
+      findCurrentReviewIdsByAspect: vi.fn(async () => [review.sourceId as never]),
+    }
+    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    const result = await filteredRepo.findFilteredPaginated(
+      { attention: ['urgent'], aspect: ['service'] },
+      ORG_A,
+    )
+
+    expect(result.items.map((item) => item.id)).toEqual([review.id])
+  })
+
+  it('counts equal the page total and the four levels plus Not set partition the list', async () => {
+    // A shared fixture: a review the AI calls Urgent, one it calls High with a
+    // manager's Medium over it, one with no analysis, feedback set to Low,
+    // feedback with nothing set, and a review the id gate lists as Urgent
+    // while its delivery read says `none` (a notice-mismatch review, §8): the
+    // row and the filter follow the id lookup.
+    const create = (sourceType: 'review' | 'feedback') =>
+      repo.create(
+        makeInboxItem(
+          sourceType === 'review'
+            ? { sourceId: reviewId(crypto.randomUUID()) }
+            : { sourceType, sourceId: feedbackId(crypto.randomUUID()) },
+        ),
+        ORG_A,
+      )
+    const aiUrgent = await create('review')
+    const aiHighSetMedium = await create('review')
+    const unanalysed = await create('review')
+    const feedbackLow = await create('feedback')
+    const feedbackNone = await create('feedback')
+    const noticeMismatch = await create('review')
+    await setManagerPriority(aiHighSetMedium.id, 'medium')
+    await setManagerPriority(feedbackLow.id, 'low')
+    const suggestions: Readonly<Record<string, readonly string[]>> = {
+      urgent: [aiUrgent.sourceId, noticeMismatch.sourceId],
+      high: [aiHighSetMedium.sourceId],
+      medium: [],
+      low: [],
+    }
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'none' as const })),
+      findCurrentReviewIdsByAttention: vi.fn(
+        async (input: AttentionLookup) =>
+          input.attention.flatMap((level) => suggestions[level] ?? []) as never,
+      ),
+      findCurrentReviewIdsByAspect: vi.fn(async () => []),
+    }
+    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    const ids = async (attention: readonly ('urgent' | 'high' | 'medium' | 'low')[]) => {
+      const page = await filteredRepo.findFilteredPaginated({ attention }, ORG_A)
+      const count = await filteredRepo.countFiltered({ attention }, ORG_A)
+      expect(count).toBe(page.totalCount)
+      expect(page.items).toHaveLength(page.totalCount)
+      return page.items.map((item) => item.id).sort()
+    }
+    const urgent = await ids(['urgent'])
+    const high = await ids(['high'])
+    const medium = await ids(['medium'])
+    const low = await ids(['low'])
+    const total = await filteredRepo.countFiltered({}, ORG_A)
+
+    expect(urgent).toEqual([aiUrgent.id, noticeMismatch.id].sort())
+    expect(high).toEqual([])
+    expect(medium).toEqual([aiHighSetMedium.id])
+    expect(low).toEqual([feedbackLow.id])
+    expect(await ids(['urgent', 'high'])).toEqual(urgent)
+    const notSet = [unanalysed.id, feedbackNone.id]
+    expect(urgent.length + high.length + medium.length + low.length + notSet.length).toBe(
+      total,
+    )
+    // The row's suggestion follows the same id lookup as the filter.
+    const all = await filteredRepo.findFilteredPaginated({}, ORG_A)
+    expect(all.items.find((item) => item.id === noticeMismatch.id)?.attention).toBe(
+      'urgent',
+    )
   })
 
   it('rating/search filters match nothing when no reviews are eligible', async () => {

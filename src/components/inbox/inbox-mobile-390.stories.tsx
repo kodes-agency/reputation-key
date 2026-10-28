@@ -513,6 +513,7 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
       reviewItem,
     ) as unknown as InboxDetailState['resolveEscalation'],
     assign: idleCommand(reviewItem) as unknown as InboxDetailState['assign'],
+    setPriority: idleCommand(reviewItem) as unknown as InboxDetailState['setPriority'],
     markFeedbackHandled: refuses as unknown as InboxDetailState['markFeedbackHandled'],
     correctFeedbackHandlingOutcome:
       refuses as unknown as InboxDetailState['correctFeedbackHandlingOutcome'],

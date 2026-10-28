@@ -47,8 +47,19 @@ const DESKTOP_TRIGGER_PX = 28
 const SHEET = '[data-slot="sheet-content"]'
 /** The case toolbar with its facts on a second line: 2 + 36 + 4 + 36 + 2 + 1. */
 const WRAPPED_TOOLBAR_PX = 81
-/** The one detail-sheet story whose closed-review facts (`Replied on time`) wrap at 320. */
-const WRAPS_AT_320 = 'inbox-mobile-390--review-closed'
+/**
+ * The detail-sheet stories whose toolbar takes a second line at 320 (and only
+ * there): the closed review's `Replied on time` fact, and since the Priority
+ * member (ADR 0071) the open review's reply-due detail. Measured on the open
+ * review: `Open` 57 + owner, priority and flag at 36 each = 165, `gap-3` 12
+ * and `Reply due in 31 h` 116 = 293 px of the 288 inside the gutters. At 390
+ * the same row is one 44 px line.
+ */
+const WRAPS_AT_320: ReadonlySet<string> = new Set([
+  'inbox-mobile-390--review-closed',
+  'inbox-mobile-390--review-open',
+  'inbox-mobile-390--mobile-composer-opens-collapsed',
+])
 /** Where `sm` starts: the sheet keeps its `border-l` from here. */
 const SM_PX = 640
 
@@ -195,7 +206,7 @@ async function checkDetailSheet(
       ...heightIs(
         'the case toolbar',
         toolbar.box,
-        id === WRAPS_AT_320 && view.innerWidth < 390 ? WRAPPED_TOOLBAR_PX : BAR_PX,
+        WRAPS_AT_320.has(id) && view.innerWidth < 390 ? WRAPPED_TOOLBAR_PX : BAR_PX,
       ),
       ...found(header, 'the review header'),
       ...heightIs('the review header', header.box, BAR_PX),

@@ -31,7 +31,12 @@ const inboxErrorStatus = (code: InboxErrorCode): number =>
     )
     .with('not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
-    .with('already_exists', 'revision_conflict', () => HTTP_STATUS.CONFLICT)
+    .with(
+      'already_exists',
+      'revision_conflict',
+      'priority_changed',
+      () => HTTP_STATUS.CONFLICT,
+    )
     .with('bulk_partial_failure', () => HTTP_STATUS.MULTI_STATUS)
     .exhaustive()
 

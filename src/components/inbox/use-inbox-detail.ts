@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import {
   actionErrorMessage,
@@ -6,6 +6,7 @@ import {
 } from '#/components/hooks/use-action-mutation'
 import type { Action } from '#/components/hooks/use-action'
 import { HTTP_STATUS } from '#/shared/http/status'
+import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
 import { useReplyPublicationChangeDetection } from './use-reply-publication-change'
@@ -21,10 +22,12 @@ import type {
   escalateInboxItemFn,
   resolveEscalationFn,
   assignInboxItemFn,
+  setInboxItemPriorityFn,
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
 import type { InboxServerFns } from './types'
+import type { InboxPriorityMenuBox } from './inbox-case-toolbar-props'
 import {
   isInboxRevisionConflictResult,
   type InboxItem,
@@ -132,6 +135,10 @@ export type InboxDetailState = Readonly<{
   escalate: Action<Parameters<typeof escalateInboxItemFn>[0], InboxItem>
   resolveEscalation: Action<Parameters<typeof resolveEscalationFn>[0], InboxItem>
   assign: Action<Parameters<typeof assignInboxItemFn>[0], InboxItem>
+  /** Sets or clears the manager priority (ADR 0071). */
+  setPriority: Action<Parameters<typeof setInboxItemPriorityFn>[0], InboxItem>
+  /** Where the Priority menu keeps its opener for the `p` shortcut. */
+  priorityMenu?: InboxPriorityMenuBox
   markFeedbackHandled: Action<
     Parameters<typeof markFeedbackHandledFn>[0],
     FeedbackHandlingCommandResult
@@ -172,7 +179,11 @@ function useInboxAutoCloseDetection(
 function useInboxStatusMutations(
   inboxFns: Pick<
     InboxServerFns,
-    'updateInboxStatus' | 'escalateInboxItem' | 'resolveEscalation' | 'assignInboxItem'
+    | 'updateInboxStatus'
+    | 'escalateInboxItem'
+    | 'resolveEscalation'
+    | 'assignInboxItem'
+    | 'setInboxItemPriority'
   >,
   id: string,
   qc: QueryClient,
@@ -231,7 +242,25 @@ function useInboxStatusMutations(
       onSuccess: handleStatusChanged,
     },
   )
-  return { updateStatus, escalate, resolveEscalation, assign }
+  // A colleague's change to the priority itself is a thrown 409, which the one
+  // revision retry above never replays (C-9). Re-read the detail, so the
+  // manager checks the level as it is now and chooses again.
+  const setPriority = useActionMutation(
+    withFreshCommandRevision(qc, id, inboxFns.setInboxItemPriority),
+    {
+      successMessage: 'Priority updated',
+      errorMessage: actionErrorMessage,
+      onSuccess: handleStatusChanged,
+      onError: (error, input) => {
+        if (!isServerFunctionError(error) || error.code !== 'priority_changed') return
+        void qc.invalidateQueries({
+          queryKey: inboxKeys.detail(input.data.inboxItemId),
+          exact: true,
+        })
+      },
+    },
+  )
+  return { updateStatus, escalate, resolveEscalation, assign, setPriority }
 }
 
 export function useInboxDetail(
@@ -246,6 +275,7 @@ export function useInboxDetail(
     | 'escalateInboxItem'
     | 'resolveEscalation'
     | 'assignInboxItem'
+    | 'setInboxItemPriority'
     | 'markFeedbackHandled'
     | 'correctFeedbackHandlingOutcome'
     | 'checkReviewOnGoogle'
@@ -257,6 +287,7 @@ export function useInboxDetail(
   const id = selectedItemId ?? item?.id ?? ''
   const enabled = active && !!id
   const [statusObserver] = useState(createInboxItemStatusObserver)
+  const priorityMenu = useRef<(() => void) | null>(null)
 
   const queries = useInboxDetailQueries(inboxFns, id, enabled, item)
   useInboxAutoCloseDetection(qc, id, queries.polledStatus, statusObserver)
@@ -309,6 +340,8 @@ export function useInboxDetail(
     escalate: mutations.escalate,
     resolveEscalation: mutations.resolveEscalation,
     assign: mutations.assign,
+    setPriority: mutations.setPriority,
+    priorityMenu,
     markFeedbackHandled: feedbackMutations.markFeedbackHandled,
     correctFeedbackHandlingOutcome: feedbackMutations.correctFeedbackHandlingOutcome,
     refetch: queries.refetch,

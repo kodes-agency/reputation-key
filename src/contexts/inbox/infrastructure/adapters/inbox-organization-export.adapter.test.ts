@@ -1,5 +1,7 @@
+import { getTableColumns } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
+import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import { createInboxOrganizationExportContributor } from './inbox-organization-export.adapter'
 
 type Row = Record<string, unknown>
@@ -29,6 +31,7 @@ const TABLE_MARKERS = [
   'inbox_handling_cycles',
   'inbox_assignment_history',
   'inbox_escalation_history',
+  'inbox_priority_history',
   'inbox_feedback_handling_outcomes',
   'inbox_response_target_organization_policies',
   'inbox_private_feedback_target_property_overrides',
@@ -165,6 +168,16 @@ const POPULATED_TABLES: StubTables = {
       actor_user_id: 'user-a',
     },
   ],
+  inbox_priority_history: [
+    {
+      inbox_item_id: '11111111-1111-4111-8111-111111111111',
+      resulting_command_revision: 5,
+      kind: 'urgent',
+      priority: 'urgent',
+      previous_priority: null,
+      actor_user_id: 'user-a',
+    },
+  ],
   inbox_feedback_handling_outcomes: [
     {
       id: '55555555-5555-4555-8555-555555555555',
@@ -231,6 +244,63 @@ describe('Inbox Organization Export contributor', () => {
     expect(allSql).not.toContain('snippet')
     expect(allSql).not.toContain('reviewer_name')
     expect(allSql).not.toMatch(/\brating\b/u)
+  })
+
+  it('exports every inbox_items column except the ones it names as not exported', async () => {
+    // A column added to `inbox_items` must be a decision here: exported, or
+    // listed below with the reason. Before this test a forgotten column simply
+    // never reached the archive and nothing said so.
+    const NOT_EXPORTED: Readonly<Record<string, string>> = {
+      organization_id: 'the archive is already one Organization',
+      rating: 'denormalized source copy (inbox_denormalized_source_content_copies)',
+      snippet: 'denormalized source copy (inbox_denormalized_source_content_copies)',
+      reviewer_name:
+        'denormalized source copy (inbox_denormalized_source_content_copies)',
+      command_revision: 'a fence, not a fact (inbox_transient_projection_fences)',
+    }
+    const seen: string[] = []
+    await contributorFor(POPULATED_TABLES, seen).contribute({
+      organizationId: 'org-1',
+      requestId: 'request-1',
+      asOf: ASOF,
+    })
+    const itemsQuery = seen.find((text) => /FROM inbox_items\b/u.test(text)) ?? ''
+    const selected = itemsQuery.slice(0, itemsQuery.indexOf('FROM inbox_items'))
+    const columns = Object.values(getTableColumns(inboxItems)).map(
+      (column) => column.name,
+    )
+
+    const missing = columns.filter(
+      (name) =>
+        !(name in NOT_EXPORTED) && !new RegExp(`\\b${name}\\b`, 'u').test(selected),
+    )
+    const leaked = Object.keys(NOT_EXPORTED).filter((name) =>
+      new RegExp(`\\b${name}\\b`, 'u').test(selected),
+    )
+    const stale = Object.keys(NOT_EXPORTED).filter((name) => !columns.includes(name))
+
+    expect(missing).toEqual([])
+    expect(leaked).toEqual([])
+    expect(stale).toEqual([])
+    expect(selected).toContain('manager_priority')
+  })
+
+  it('reads the priority history with a summary label that says reset for a reset', async () => {
+    const seen: string[] = []
+    const contribution = await contributorFor(POPULATED_TABLES, seen).contribute({
+      organizationId: 'org-1',
+      requestId: 'request-1',
+      asOf: ASOF,
+    })
+
+    const historyQuery = seen.find((text) => text.includes('FROM inbox_priority_history'))
+    expect(historyQuery).toContain("COALESCE(priority::text, 'reset') AS kind")
+    expect(historyQuery).toContain('WHERE organization_id =')
+    const entry = contribution.entries.find(
+      (candidate) => candidate.path === 'inbox/priority-history.csv',
+    )
+    expect(entry?.classification).toBe('tenant_visible')
+    expect(Buffer.from(entry!.bytes).toString('utf8')).toContain('priority,')
   })
 
   it('fails closed when the queued request is outside the bounded snapshot window', async () => {

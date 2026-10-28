@@ -7,8 +7,10 @@
 //
 // Inbox exports the MANAGER'S OWN WORK RECORD: which items exist, how their
 // numbered Handling Cycles opened and closed, who was assigned, who escalated,
-// which private-feedback outcome was recorded, which Response Target policy
-// applied, and the manager's own internal notes. Two disclosure classes are
+// who set which priority, which private-feedback outcome was recorded, which
+// Response Target policy applied, and the manager's own internal notes (the
+// priority columns and history hold a manager's level, never an AI one). Two
+// disclosure classes are
 // used deliberately — `manager_authored` for free text a manager typed, and
 // `tenant_visible` for the content-free workflow record around it — because
 // CLASSIFICATIONS_BY_CONTEXT permits Inbox exactly those two and a reviewer
@@ -209,6 +211,7 @@ type InboxExportTables = Readonly<{
   responseTargets: readonly ExportRecord[]
   assignments: readonly ExportRecord[]
   escalations: readonly ExportRecord[]
+  priorities: readonly ExportRecord[]
   outcomes: readonly ExportRecord[]
   organizationPolicies: readonly ExportRecord[]
   propertyOverrides: readonly ExportRecord[]
@@ -246,7 +249,10 @@ async function readTables(
           to_char(first_reply_submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS first_reply_submitted_at,
           to_char(first_reply_published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS first_reply_published_at,
           to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
-          to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
+          to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at,
+          manager_priority,
+          manager_priority_set_by,
+          to_char(manager_priority_set_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS manager_priority_set_at
         FROM inbox_items
         WHERE organization_id = ${organizationId}
         ORDER BY id`,
@@ -356,6 +362,25 @@ async function readTables(
         WHERE organization_id = ${organizationId}
         ORDER BY inbox_item_id, resulting_command_revision`,
   )
+  // `kind` is the CSV's summary label (`SUMMARY_SOURCE_FIELDS.label`): the level
+  // a person chose, or `reset` when they cleared it. `priority` itself is NULL
+  // on a reset, which `firstPresent` would skip and leave the label blank.
+  const priorities = await readRows(
+    snapshot,
+    sql`SELECT
+          inbox_item_id,
+          resulting_command_revision,
+          property_id,
+          handling_cycle_number,
+          COALESCE(priority::text, 'reset') AS kind,
+          priority,
+          previous_priority,
+          actor_user_id,
+          to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS occurred_at
+        FROM inbox_priority_history
+        WHERE organization_id = ${organizationId}
+        ORDER BY inbox_item_id, resulting_command_revision`,
+  )
   const outcomes = await readRows(
     snapshot,
     sql`SELECT
@@ -455,6 +480,7 @@ async function readTables(
     responseTargets,
     assignments,
     escalations,
+    priorities,
     outcomes,
     organizationPolicies,
     propertyOverrides,
@@ -540,6 +566,12 @@ function buildEntries(
       payload: { escalations: tables.escalations },
     },
     {
+      name: 'priority-history',
+      classification: 'tenant_visible',
+      collections: [['priority', tables.priorities]],
+      payload: { priorities: tables.priorities },
+    },
+    {
       name: 'handling-outcomes',
       classification: 'tenant_visible',
       collections: [['handling_outcome', tables.outcomes]],
@@ -598,7 +630,7 @@ function buildEntries(
  * (every row, with `excluded_reason` set from `inbox_response_target_exclusions`
  * on a target the operator left out of reporting, so the record stays whole),
  * `inbox_assignment_history`, `inbox_escalation_history`,
- * `inbox_feedback_handling_outcomes`,
+ * `inbox_priority_history`, `inbox_feedback_handling_outcomes`,
  * `inbox_response_target_organization_policies`,
  * `inbox_private_feedback_target_property_overrides`, `inbox_notes`.
  *

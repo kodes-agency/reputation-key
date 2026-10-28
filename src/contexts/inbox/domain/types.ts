@@ -10,6 +10,9 @@ import type {
   ReviewId,
   FeedbackId,
 } from '#/shared/domain/ids'
+import type { InboxPriority } from './priority'
+
+export type { InboxPriority } from './priority'
 
 export type InboxStatus = 'open' | 'closed'
 export type SourceType = 'review' | 'feedback'
@@ -187,8 +190,22 @@ export type InboxItem = Readonly<{
   propertyName: string | null
   /** Live review-language metadata; null for feedback or unavailable content. */
   reviewLanguageCode?: string | null
-  /** Current governed AI attention. Null means unavailable or not enriched. */
+  /**
+   * The AI suggestion: the review's current governed attention, read live and
+   * never stored by Inbox. List rows carry only `urgent` or `high`, and only
+   * for a review with no level set (ADR 0071). Null means none, unavailable or
+   * not enriched — never "the item's priority": that is `managerPriority`,
+   * else this.
+   */
   attention?: 'urgent' | 'high' | 'medium' | 'low' | null
+  /**
+   * The level a person set (manager priority, ADR 0071), who set it and when:
+   * all three or none. Optional only so hand-built snapshots that predate the
+   * columns stay valid; every repository read sets the three keys.
+   */
+  managerPriority?: InboxPriority | null
+  managerPrioritySetBy?: UserId | null
+  managerPrioritySetAt?: Date | null
   /** Governed reply state for the row chip. Absent on unenriched reads and for actors without reply.manage. */
   replyState?: InboxItemReplyState | null
   closedAt: Date | null

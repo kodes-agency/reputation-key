@@ -4,13 +4,14 @@ import type {
   ReviewAspectPolarity,
   SourceType,
 } from '#/contexts/inbox/application/public-api'
+import type { InboxPriorityFilterValue } from './inbox-priority-filter'
 
 export type InboxFilterValues = Readonly<{
   propertyId: string | undefined
   sourceType: SourceType | undefined
   ratingMin: number | undefined
   ratingMax: number | undefined
-  attention: 'urgent' | 'high' | 'medium' | 'low' | undefined
+  attention: InboxPriorityFilterValue | undefined
   aspect: ReviewAspect | undefined
   polarity: ReviewAspectPolarity | undefined
   q: string | undefined

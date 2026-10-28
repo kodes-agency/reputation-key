@@ -75,6 +75,21 @@ describe('activeInboxFilterChips', () => {
     ])
   })
 
+  it('labels the combined priority choice', () => {
+    expect(
+      activeInboxFilterChips(
+        { ...CLEARED_INBOX_LIST_FILTERS, attention: 'urgent_high' },
+        'newest',
+      ),
+    ).toStrictEqual([
+      {
+        key: 'priority',
+        label: 'Urgent and High',
+        clear: { filters: { attention: undefined } },
+      },
+    ])
+  })
+
   it('labels the rating filter and clears both bounds', () => {
     expect(
       activeInboxFilterChips({ ...CLEARED_INBOX_LIST_FILTERS, ratingMin: 4 }, 'newest'),

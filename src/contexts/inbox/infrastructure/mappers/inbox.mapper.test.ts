@@ -34,6 +34,9 @@ const sampleRow: InboxItemRow = {
   commandRevision: 1,
   createdAt: now,
   updatedAt: now,
+  managerPriority: null,
+  managerPrioritySetBy: null,
+  managerPrioritySetAt: null,
 }
 
 describe('inboxItemFromRow', () => {
@@ -62,6 +65,26 @@ describe('inboxItemFromRow', () => {
     expect(item.commandRevision).toBe(1)
     expect(item.createdAt).toBe(now)
     expect(item.updatedAt).toBe(now)
+  })
+
+  it('carries the manager priority, all three fields, and null when none is set', () => {
+    const setAt = new Date('2025-06-02T09:00:00Z')
+    const set = inboxItemFromRow({
+      ...sampleRow,
+      managerPriority: 'urgent',
+      managerPrioritySetBy: 'user-uuid-002',
+      managerPrioritySetAt: setAt,
+    })
+    expect(set.managerPriority).toBe('urgent')
+    expect(String(set.managerPrioritySetBy)).toBe('user-uuid-002')
+    expect(set.managerPrioritySetAt).toBe(setAt)
+
+    const none = inboxItemFromRow(sampleRow)
+    expect(none).toMatchObject({
+      managerPriority: null,
+      managerPrioritySetBy: null,
+      managerPrioritySetAt: null,
+    })
   })
 
   it('handles null assignedTo', () => {
@@ -108,6 +131,19 @@ describe('inboxItemToInsertRow', () => {
     expect(row.closedAt).toBe(sampleRow.closedAt)
     expect(row.escalatedAt).toBe(sampleRow.escalatedAt)
     expect(row.commandRevision).toBe(sampleRow.commandRevision)
+  })
+
+  it('never writes a manager priority: a new item starts with no level', () => {
+    const item = inboxItemFromRow({
+      ...sampleRow,
+      managerPriority: 'high',
+      managerPrioritySetBy: 'user-uuid-002',
+      managerPrioritySetAt: now,
+    })
+    const row = inboxItemToInsertRow({ ...item, reviewerName: null, propertyName: null })
+    expect('managerPriority' in row).toBe(false)
+    expect('managerPrioritySetBy' in row).toBe(false)
+    expect('managerPrioritySetAt' in row).toBe(false)
   })
 
   it('excludes createdAt and updatedAt', () => {

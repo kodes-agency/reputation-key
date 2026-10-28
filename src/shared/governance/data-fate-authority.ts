@@ -355,11 +355,19 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'inbox.schema.ts',
-    exportNames: [
-      'inboxEscalationHistory',
-      'inboxFeedbackHandlingOutcomes',
-      'inboxHandlingCycleTransitions',
-    ],
+    exportNames: ['inboxFeedbackHandlingOutcomes', 'inboxHandlingCycleTransitions'],
+    owner: 'inbox',
+    disposition: 'recoverable_archive',
+    authority: 'IBX-01',
+    exitCriteria: RETAINED_HISTORY,
+  }),
+  ...rows({
+    // The two triage decision logs: who escalated an item and who set its
+    // priority (ADR 0071). Append-only, content-free, and deleted with their
+    // item by cascade; the manager priority columns themselves sit on
+    // `inboxItems` above, under its active authority.
+    schemaFile: 'inbox-triage-history.schema.ts',
+    exportNames: ['inboxEscalationHistory', 'inboxPriorityHistory'],
     owner: 'inbox',
     disposition: 'recoverable_archive',
     authority: 'IBX-01',

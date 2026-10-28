@@ -1,5 +1,7 @@
-import { Flag, type LucideIcon } from 'lucide-react'
+import { Flag } from 'lucide-react'
+import type { ComponentType } from 'react'
 import { TONE_ICON, TONE_INK } from '#/components/ui/tone'
+import { HighPriorityGlyph } from './inbox-priority-glyph'
 import type { InboxRowSignal } from './inbox-list-row-view'
 
 // An urgent review stands out in the list (owner decision, 2026-10-17): users
@@ -33,14 +35,21 @@ export function inboxRowFill(
   return row.isUrgent ? URGENT_ROW_TINT : null
 }
 
-export type InboxRowSignalTone = Readonly<{ ink: string; Icon: LucideIcon }>
+/** A signal's glyph: a lucide icon, or the priority's signal bars. */
+type SignalIcon = ComponentType<Readonly<{ className?: string; 'aria-hidden'?: 'true' }>>
+
+export type InboxRowSignalTone = Readonly<{ ink: string; Icon: SignalIcon }>
 
 const ESCALATED: InboxRowSignalTone = { ink: TONE_INK.negative, Icon: Flag }
 const URGENT: InboxRowSignalTone = { ink: TONE_INK.negative, Icon: TONE_ICON.negative }
+// High (owner D-3 / P-8): the word in the page ink with the three-bar glyph,
+// and no tint. The bars carry the level by shape, so the cue needs no colour.
+const HIGH: InboxRowSignalTone = { ink: 'text-foreground', Icon: HighPriorityGlyph }
 
 /** The ink and icon a row signal prints in; null for a plain one (a reply state). */
 export function inboxRowSignalTone(signal: InboxRowSignal): InboxRowSignalTone | null {
   if (signal === 'Escalated') return ESCALATED
   if (signal === 'Urgent') return URGENT
+  if (signal === 'High') return HIGH
   return null
 }

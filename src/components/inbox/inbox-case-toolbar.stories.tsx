@@ -276,6 +276,7 @@ const onAssign = fn()
 const onReopen = fn()
 const onEscalate = fn()
 const onResolveEscalation = fn()
+const onSetPriority = fn()
 
 const meta: Meta<typeof InboxCaseToolbar> = {
   title: 'Inbox/Case Toolbar',
@@ -313,6 +314,8 @@ const meta: Meta<typeof InboxCaseToolbar> = {
     onAssign,
     onEscalate,
     onResolveEscalation,
+    prioritySuggestion: null,
+    onSetPriority,
   },
 }
 export default meta
@@ -942,6 +945,278 @@ export const MemberSeesColleagueWithoutDirectory390: Story = {
   parameters: PHONE,
 }
 
+// ─── priority (ADR 0071) ─────────────────────────────────────────────────────
+
+const setPriority = (
+  item: InboxItem,
+  level: NonNullable<InboxItem['managerPriority']>,
+  setBy: string,
+): InboxItem => ({
+  ...item,
+  managerPriority: level,
+  managerPrioritySetBy: setBy as InboxItem['managerPrioritySetBy'],
+  managerPrioritySetAt: hoursFromNow(-2),
+})
+
+/** Opens the Priority menu by its trigger; returns its rows' accessible names. */
+async function openPriorityMenu(name: string): Promise<ReadonlyArray<string>> {
+  const body = within(document.body)
+  // `find`, not `get`: a menu that has just closed keeps the rest of the page
+  // aria-hidden until its exit animation ends, so for a moment the trigger is
+  // not in the accessibility tree (seen in the Storybook geometry harness).
+  await userEvent.click(await body.findByRole('button', { name }))
+  const rows = await body.findAllByRole('menuitemradio')
+  await waitFor(() => expect(rows[0]).toBeVisible())
+  return rows.map((row) => row.textContent?.trim() ?? '')
+}
+
+/**
+ * Nobody has set a level and the review's signals suggest High: the trigger
+ * says the suggestion and tags it (copy C-1, C-3, C-4). Nothing is checked in
+ * the menu, because the check mark is a person's choice; High carries
+ * "Suggested"; and with no level set there is no way back to offer.
+ */
+export const PrioritySuggested: Story = {
+  args: { prioritySuggestion: 'high' },
+  play: async ({ canvasElement }) => {
+    const controls = controlsOf(within(canvasElement))
+    await expect(
+      controls.getByRole('button', { name: 'Priority: High, suggested' }),
+    ).toBeEnabled()
+
+    const rows = await openPriorityMenu('Priority: High, suggested')
+    const body = within(document.body)
+    await expect(rows).toEqual(['Urgent', 'High' + 'Suggested', 'Medium', 'Low'])
+    await expect(body.getByText('Suggested from review signals')).toBeVisible()
+    for (const row of body.getAllByRole('menuitemradio')) {
+      await expect(row).toHaveAttribute('aria-checked', 'false')
+    }
+    await expect(body.queryByRole('menuitem')).toBeNull()
+    await closeMenu()
+    // `closeMenu` waits for a `menuitem`, and this menu has none to wait for.
+    await waitFor(() => expect(body.queryByRole('menu')).toBeNull())
+  },
+}
+export const PrioritySuggested390: Story = { ...PrioritySuggested, parameters: PHONE }
+
+/**
+ * A manager set Urgent over the review signals' Low: the person's level wins,
+ * the source line says who and when, and the way back names the suggestion.
+ * Picking Low (the suggestion) stores it as the manager's own; picking Urgent
+ * again sends nothing.
+ */
+export const PrioritySetOverSuggestion: Story = {
+  args: {
+    item: setPriority(reviewItem, 'urgent', GRACE_ID),
+    prioritySuggestion: 'low',
+  },
+  play: async ({ canvasElement }) => {
+    onSetPriority.mockClear()
+    const body = within(document.body)
+    await expect(
+      controlsOf(within(canvasElement)).getByRole('button', { name: 'Priority: Urgent' }),
+    ).toBeEnabled()
+
+    await openPriorityMenu('Priority: Urgent')
+    await expect(body.getByText('Set by Grace Hopper · 2h')).toBeVisible()
+    await expect(body.getByRole('menuitemradio', { name: 'Urgent' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    await expect(
+      body.getByRole('menuitem', { name: 'Back to suggestion (Low)' }),
+    ).toBeVisible()
+    await userEvent.click(body.getByRole('menuitemradio', { name: 'Urgent' }))
+    await waitFor(() => expect(body.queryByRole('menu')).toBeNull())
+    await expect(onSetPriority).not.toHaveBeenCalled()
+
+    await openPriorityMenu('Priority: Urgent')
+    await userEvent.click(body.getByRole('menuitemradio', { name: /^Low/ }))
+    await expect(onSetPriority).toHaveBeenCalledWith('low')
+  },
+}
+export const PrioritySetOverSuggestion390: Story = {
+  ...PrioritySetOverSuggestion,
+  parameters: PHONE,
+}
+
+/**
+ * Private feedback is never analysed, so with nothing set it reads "Priority",
+ * not set — never a made-up Low or Medium. A manager can still set any level.
+ */
+export const PriorityFeedbackNotSet: Story = {
+  args: { item: feedbackItem, feedbackHandling: OPEN_CYCLE, target: feedbackTarget },
+  play: async ({ canvasElement }) => {
+    onSetPriority.mockClear()
+    const body = within(document.body)
+    await expect(
+      controlsOf(within(canvasElement)).getByRole('button', {
+        name: 'Priority: not set',
+      }),
+    ).toBeEnabled()
+
+    await openPriorityMenu('Priority: not set')
+    await expect(body.getByText('Not set')).toBeVisible()
+    await expect(body.queryByText('Suggested')).toBeNull()
+    await userEvent.click(body.getByRole('menuitemradio', { name: 'High' }))
+    await expect(onSetPriority).toHaveBeenCalledWith('high')
+  },
+}
+export const PriorityFeedbackNotSet390: Story = {
+  ...PriorityFeedbackNotSet,
+  parameters: PHONE,
+}
+
+/**
+ * The widest phone row the plan names (§3.3): open, escalated feedback a
+ * manager set to Urgent. The status member is the one built to truncate; the
+ * owner, Urgent and the flag keep their size.
+ */
+export const PriorityFeedbackEscalatedUrgent: Story = {
+  args: {
+    item: setPriority({ ...feedbackItem, isEscalated: true }, 'urgent', ADA_ID),
+    feedbackHandling: OPEN_CYCLE,
+    target: feedbackTarget,
+    isEscalationActive: true,
+  },
+  play: async ({ canvasElement }) => {
+    const controls = controlsOf(within(canvasElement))
+    await expect(controls.getByText('To handle')).toBeVisible()
+    await expect(controls.getByRole('button', { name: 'Priority: Urgent' })).toBeEnabled()
+    await expect(controls.getByRole('button', { name: 'Resolve' })).toBeEnabled()
+    await expect(controls.getByText('Escalated')).toBeVisible()
+  },
+}
+export const PriorityFeedbackEscalatedUrgent390: Story = {
+  ...PriorityFeedbackEscalatedUrgent,
+  parameters: PHONE,
+}
+export const PriorityFeedbackEscalatedUrgent320: Story = {
+  ...PriorityFeedbackEscalatedUrgent,
+  parameters: { ...PHONE, paneWidth: 320 },
+}
+
+/**
+ * A viewer without Escalate's gate sees a level only when it asks for
+ * attention: Urgent or High as a box-less fact (copy C-11), never a menu.
+ */
+export const PriorityReadOnlyUrgent: Story = {
+  decorators: [withRole('Member')],
+  args: {
+    item: setPriority(reviewItem, 'urgent', GRACE_ID),
+    prioritySuggestion: 'low',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // The level is read as words beside the status, and there is no menu to open.
+    await expect(factTexts(canvas)).toEqual(['Open', 'Priority: Urgent'])
+    await expect(canvas.queryByRole('button', { name: /^Priority/ })).toBeNull()
+  },
+}
+
+// ─── the detail pane's floor ─────────────────────────────────────────────────
+
+/**
+ * The narrowest pane the desktop gives the toolbar: `InboxDetailPane`'s
+ * `minSize` (`inbox-page-parts.tsx`), which is what a 1280 px laptop with the
+ * app sidebar open gets, and 424 px of room inside the toolbar's `lg:px-6`. The
+ * box is that pane and the window stays the gate's 1440 px, so `md:` and `lg:`
+ * apply as they do on the real page. A pane's width is not the window's, which
+ * is why the Priority control sizes itself by the toolbar's own width (a
+ * container query) and not by a breakpoint; `inbox-case-toolbar-floor.metrics.ts`
+ * measures that every story below fits it with the status word whole.
+ */
+const FLOOR_PANE_WIDTH_PX = 472
+const FLOOR = { paneWidth: FLOOR_PANE_WIDTH_PX } as const
+
+const LONG_ASSIGNEE_ID = 'user-long'
+const LONG_ASSIGNEE_NAME = 'Alexandra Whitmore-Castellanos'
+
+/**
+ * An open review held by a colleague with a long name and set to Urgent: the
+ * everyday row that overflowed the floor once Priority took its word. The owner
+ * gives first — its name ellipsises — so `Open` keeps its whole word.
+ */
+export const PriorityLongAssignee472: Story = {
+  args: {
+    item: setPriority(assignedTo(reviewItem, LONG_ASSIGNEE_ID), 'urgent', ADA_ID),
+    assignmentOptions: [
+      ...assignmentOptions,
+      { userId: LONG_ASSIGNEE_ID, name: LONG_ASSIGNEE_NAME },
+    ],
+  },
+  parameters: FLOOR,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const controls = controlsOf(canvas)
+    await expect(factTexts(canvas)).toEqual(['Open'])
+    await expect(
+      controls.getByRole('button', { name: `Assignment: ${LONG_ASSIGNEE_NAME}` }),
+    ).toBeEnabled()
+    await expect(controls.getByRole('button', { name: 'Priority: Urgent' })).toBeEnabled()
+    await expect(controls.getByRole('button', { name: 'Escalate' })).toBeEnabled()
+  },
+}
+
+/**
+ * Open private feedback with no level: Priority is the 36 px glyph square, so
+ * the owner keeps its whole name beside `To handle`.
+ */
+export const PriorityFeedbackNotSet472: Story = {
+  ...PriorityFeedbackNotSet,
+  parameters: FLOOR,
+}
+
+/**
+ * A closed review with the review signals' High: `[Closed ▾]` is a control
+ * that carries its chevron, so it is the widest status member on a review.
+ */
+export const PriorityClosedReviewSuggested472: Story = {
+  args: { item: closedItem, prioritySuggestion: 'high', target: repliedOnTimeTarget },
+  parameters: FLOOR,
+  play: async ({ canvasElement }) => {
+    const controls = controlsOf(within(canvasElement))
+    await expect(
+      controls.getByRole('button', { name: 'Work status: Closed' }),
+    ).toBeEnabled()
+    await expect(
+      controls.getByRole('button', { name: 'Priority: High, suggested' }),
+    ).toBeEnabled()
+    await expect(controls.getByRole('button', { name: 'Escalate' })).toBeEnabled()
+  },
+}
+
+/**
+ * Open, escalated and Urgent: `[Resolve]` and the `Escalated` fact add 176 px,
+ * the widest review row. The owner's name gives the 32 px it is short of, so
+ * `Open` keeps its whole word.
+ */
+export const PriorityEscalatedUrgent472: Story = {
+  args: {
+    item: setPriority(escalatedItem, 'urgent', ADA_ID),
+    isEscalationActive: true,
+  },
+  parameters: FLOOR,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const controls = controlsOf(canvas)
+    await expect(factTexts(canvas)).toEqual(['Open', 'Escalated'])
+    await expect(controls.getByRole('button', { name: 'Priority: Urgent' })).toBeEnabled()
+    await expect(controls.getByRole('button', { name: 'Resolve' })).toBeEnabled()
+  },
+}
+
+/**
+ * Open, escalated feedback a manager set to Urgent: the widest feedback row.
+ * `[Resolve]` and the `Escalated` fact add 176 px, which is 57 px more than the
+ * pane has, so the owner's name gives that much (81 px of it are left) and
+ * `To handle` prints whole.
+ */
+export const PriorityFeedbackEscalatedUrgent472: Story = {
+  ...PriorityFeedbackEscalatedUrgent,
+  parameters: FLOOR,
+}
+
 // ─── pending ─────────────────────────────────────────────────────────────────
 
 /**
@@ -964,5 +1239,8 @@ export const CommandPending: Story = {
       controls.getByRole('button', { name: 'Assignment: Grace Hopper' }),
     ).toBeDisabled()
     await expect(controls.getByRole('button', { name: 'Resolve' })).toBeDisabled()
+    await expect(
+      controls.getByRole('button', { name: 'Priority: not set' }),
+    ).toBeDisabled()
   },
 }

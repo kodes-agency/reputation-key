@@ -1,7 +1,7 @@
 // Keyboard shortcuts for the inbox — j/k/ArrowDown/ArrowUp walk the list and
-// Escape closes the detail; r and n open the composer and e escalates the open
+// Escape closes the detail; r and n open the composer, e escalates the open
 // item (plan row 17, which described all three as already working — they were
-// not). Extracted from inbox-page-v2.tsx for max-lines compliance.
+// not), and p opens its Priority menu (owner P-7). Extracted from inbox-page-v2.tsx for max-lines compliance.
 //
 // Every decision lives in `handleInboxShortcut`, a pure function of the
 // keypress and of what the page can currently do with it. The unit project
@@ -41,6 +41,16 @@ export type InboxEscalationShortcut = Readonly<{
 }>
 
 /**
+ * What `p` needs (owner P-7): the same two "not available" conditions as `e`,
+ * and the way to open the Priority menu. Built in `use-inbox-priority-shortcut.ts`.
+ */
+export type InboxPriorityShortcut = Readonly<{
+  isAllowed: boolean
+  isPending: boolean
+  open: () => void
+}>
+
+/**
  * The part of `KeyboardEvent` the shortcuts read. A real `KeyboardEvent`
  * satisfies it; a test hands over a plain object.
  */
@@ -68,6 +78,8 @@ export type InboxShortcutInput = Readonly<{
   /** Puts the composer in Note mode and focuses its field. */
   focusNoteComposer?: () => void
   escalation?: InboxEscalationShortcut
+  /** Opens the open item's Priority menu. */
+  priority?: InboxPriorityShortcut
   /** Toggles the active row in the bulk selection. */
   toggleSelect?: () => void
   /** Opens the shared keyboard-shortcut legend. */
@@ -171,6 +183,31 @@ function runEscalation(event: InboxShortcutEvent, input: InboxShortcutInput): vo
   else escalation.escalate()
 }
 
+/** `p` opens the Priority menu, under exactly `e`'s conditions. */
+function runPriority(event: InboxShortcutEvent, input: InboxShortcutInput): void {
+  const { priority, selectedItem } = input
+  if (!priority || !selectedItem) return
+  if (!priority.isAllowed || priority.isPending) return
+
+  event.preventDefault()
+  priority.open()
+}
+
+/**
+ * The single-letter commands on the open item. A lookup rather than more
+ * `switch` arms keeps the dispatcher readable as the toolbar grows a key.
+ */
+const COMMAND_KEYS: ReadonlyMap<
+  string,
+  (event: InboxShortcutEvent, input: InboxShortcutInput) => void
+> = new Map([
+  ['r', (event, input) => runShortcut(event, input.focusReplyComposer)],
+  ['n', (event, input) => runShortcut(event, input.focusNoteComposer)],
+  ['e', runEscalation],
+  ['p', runPriority],
+  ['x', (event, input) => runShortcut(event, input.toggleSelect)],
+])
+
 function selectNext({ items, selectedIndex, handleRowClick }: InboxShortcutInput): void {
   if (selectedIndex.current < 0 && items.length > 0) {
     selectedIndex.current = 0
@@ -219,6 +256,12 @@ export function handleInboxShortcut(
 
   if (input.isMobile) return
 
+  const command = COMMAND_KEYS.get(event.key)
+  if (command) {
+    command(event, input)
+    return
+  }
+
   switch (event.key) {
     case 'ArrowDown':
       if (ownsArrowKeys(event.target)) return
@@ -237,18 +280,6 @@ export function handleInboxShortcut(
     case 'k':
       event.preventDefault()
       selectPrevious(input)
-      break
-    case 'r':
-      runShortcut(event, input.focusReplyComposer)
-      break
-    case 'n':
-      runShortcut(event, input.focusNoteComposer)
-      break
-    case 'e':
-      runEscalation(event, input)
-      break
-    case 'x':
-      runShortcut(event, input.toggleSelect)
       break
     case 'Enter':
       if (input.selectedItem) {
@@ -272,6 +303,7 @@ export function useInboxKeyboardShortcuts({
   focusReplyComposer,
   focusNoteComposer,
   escalation,
+  priority,
   toggleSelect,
   openShortcuts,
 }: Readonly<{
@@ -283,6 +315,7 @@ export function useInboxKeyboardShortcuts({
   focusReplyComposer?: () => void
   focusNoteComposer?: () => void
   escalation?: InboxEscalationShortcut
+  priority?: InboxPriorityShortcut
   toggleSelect?: () => void
   openShortcuts?: () => void
 }>) {
@@ -300,6 +333,7 @@ export function useInboxKeyboardShortcuts({
         focusReplyComposer,
         focusNoteComposer,
         escalation,
+        priority,
         toggleSelect,
         openShortcuts,
       })
@@ -316,6 +350,7 @@ export function useInboxKeyboardShortcuts({
     focusReplyComposer,
     focusNoteComposer,
     escalation,
+    priority,
     toggleSelect,
     openShortcuts,
   ])

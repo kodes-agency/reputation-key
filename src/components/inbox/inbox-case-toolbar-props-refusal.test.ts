@@ -26,6 +26,7 @@ function makeInput(overrides: Partial<InboxCaseToolbarInput>): InboxCaseToolbarI
     escalate: idle(),
     resolveEscalation: idle(),
     assign: idle(),
+    setPriority: idle(),
     markFeedbackHandled: idle(),
     correctFeedbackHandlingOutcome: idle(),
     item: {
@@ -66,6 +67,7 @@ describe('a refused toolbar command', () => {
     ['assign', (props: Props) => props.onAssign('user-georgi')],
     ['escalate', (props: Props) => props.onEscalate()],
     ['resolveEscalation', (props: Props) => props.onResolveEscalation()],
+    ['setPriority', (props: Props) => props.onSetPriority('urgent')],
   ] as const)('%s is caught rather than left unhandled', async (name, click) => {
     const unhandled: unknown[] = []
     const listen = (reason: unknown) => unhandled.push(reason)

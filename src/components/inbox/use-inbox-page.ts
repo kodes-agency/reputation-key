@@ -7,7 +7,7 @@ import { useInboxDetail } from '#/components/inbox/use-inbox-detail'
 import { useInboxState } from '#/components/inbox/use-inbox-state'
 import { useInboxKeyboardShortcuts } from '#/components/inbox/use-inbox-keyboard-shortcuts'
 import { useInboxVisitStamp } from '#/components/inbox/use-inbox-visit-stamp'
-import { useInboxEscalationShortcut } from '#/components/inbox/use-inbox-escalation-shortcut'
+import { useInboxTriageShortcuts } from '#/components/inbox/use-inbox-triage-shortcuts'
 import { useInboxSelectionActions } from '#/components/inbox/use-inbox-selection-actions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { ComposerFocusBox } from '#/components/inbox/inbox-detail-content'
@@ -164,7 +164,11 @@ export function useInboxPage(
 
   const focusReplyComposer = useCallback(() => composerFocusRef.current?.('reply'), [])
   const focusNoteComposer = useCallback(() => composerFocusRef.current?.('note'), [])
-  const escalation = useInboxEscalationShortcut(resolvedSelectedItem, detailState, can)
+  const { escalation, priority } = useInboxTriageShortcuts(
+    resolvedSelectedItem,
+    detailState,
+    can,
+  )
   const selectionActions = useInboxSelectionActions(
     items,
     resolvedSelectedItem,
@@ -180,6 +184,7 @@ export function useInboxPage(
     focusReplyComposer,
     focusNoteComposer,
     escalation,
+    priority,
     toggleSelect: selectionActions.toggleSelectedItem,
     openShortcuts: () => setShortcutsOpen(true),
   })

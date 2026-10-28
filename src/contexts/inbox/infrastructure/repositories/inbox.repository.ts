@@ -32,16 +32,8 @@ import type {
   Cursor,
   PaginatedResult,
 } from '../../application/ports/inbox.repository'
-import type {
-  ReviewLookupPort,
-  ReviewSnippet,
-} from '../../application/ports/review-lookup.port'
-import type {
-  FeedbackLookupPort,
-  FeedbackSnippet,
-} from '../../application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
-import type { AiReviewInsightsPort } from '../../application/ports/ai-review-insights.port'
+import type { ReviewSnippet } from '../../application/ports/review-lookup.port'
+import type { FeedbackSnippet } from '../../application/ports/feedback-lookup.port'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type {
   InboxItemId,
@@ -53,18 +45,18 @@ import type {
 } from '#/shared/domain/ids'
 import { reviewId, feedbackId, inboxItemId, propertyId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
+import {
+  findSuggestedRowLevels,
+  inboxSourceIdMatchesAny,
+  resolveAnalysisNarrowing,
+  resolveContentNarrowing,
+  type LookupPorts,
+} from './inbox-list-narrowing'
 import { feedbackItemDetail, reviewItemDetail } from '../mappers/inbox-detail.mapper'
 import { trace } from '#/shared/observability/trace'
 import { inboxError } from '../../domain/errors'
 
 type InboxItemRow = Parameters<typeof inboxItemFromRow>[0]
-
-type LookupPorts = Readonly<{
-  reviewLookup: ReviewLookupPort
-  feedbackLookup: FeedbackLookupPort
-  propertyLookup: PropertyLookupPort
-  aiInsights?: AiReviewInsightsPort
-}>
 
 export type InboxRepositoryRuntime = Readonly<{
   clock: () => Date
@@ -97,17 +89,6 @@ const effectiveInboxStatus = sql<InboxStatus>`${inboxHandlingCycleHeads.status}`
 const activeInboxItemColumns = {
   ...getTableColumns(inboxItems),
   status: effectiveInboxStatus,
-}
-
-/**
- * Match source ids with one PostgreSQL array parameter. Content and AI
- * lookups can legitimately return thousands of ids; expanding them through
- * `inArray` would consume one bind parameter per id and eventually exceed the
- * PostgreSQL parameter ceiling.
- */
-export function inboxSourceIdMatchesAny(ids: ReadonlyArray<string>): SQL {
-  if (ids.length === 0) return sql`false`
-  return sql`${inboxItems.sourceId} = ANY(${sql.param(ids.map(String))}::uuid[])`
 }
 
 /** Mutable set-values for an inbox_items update. */
@@ -167,97 +148,6 @@ async function countWhere(
   return Number(result[0]?.count ?? 0)
 }
 
-/**
- * AI-derived narrowing for the item list: attention and aspect mentions.
- *
- * Neither is a column on `inbox_items`. Each active filter resolves to the
- * review ids whose CURRENT analysis matches, through the AI context's gated
- * projection, and contributes its own `IN` predicate. Aspect and polarity
- * constrain the same mention; attention intersects that mention result.
- *
- * Returns `null` to mean "stop, nothing can match". An absent AI port or an
- * empty id set is "no review matches", NEVER "no filter": treating it as the
- * latter would show the entire inbox while the UI claimed a filter was applied.
- */
-async function resolveAiNarrowing(
-  ports: LookupPorts,
-  orgId: OrganizationId,
-  filters: InboxFilters,
-): Promise<SQL[] | null> {
-  if (
-    !filters.attention?.length &&
-    !filters.aspect?.length &&
-    !filters.polarity?.length
-  ) {
-    return []
-  }
-  const propertyIds =
-    filters.propertyIds ?? (filters.propertyId ? [filters.propertyId] : undefined)
-  const lookups: Array<Promise<readonly ReviewId[]> | undefined> = []
-  if (filters.attention?.length) {
-    lookups.push(
-      ports.aiInsights?.findCurrentReviewIdsByAttention({
-        organizationId: orgId,
-        propertyIds,
-        attention: filters.attention,
-      }),
-    )
-  }
-  if (filters.aspect?.length || filters.polarity?.length) {
-    lookups.push(
-      ports.aiInsights?.findCurrentReviewIdsByAspect({
-        organizationId: orgId,
-        propertyIds,
-        aspects: filters.aspect,
-        polarities: filters.polarity,
-      }),
-    )
-  }
-  const narrowing: SQL[] = [eq(inboxItems.sourceType, 'review')]
-  for (const reviewIds of await Promise.all(lookups)) {
-    if (reviewIds === undefined || reviewIds.length === 0) return null
-    narrowing.push(inboxSourceIdMatchesAny(reviewIds))
-  }
-  return narrowing
-}
-
-/** Resolve rating/text predicates against each source's owning content store. */
-async function resolveContentNarrowing(
-  ports: LookupPorts,
-  orgId: OrganizationId,
-  filters: InboxFilters,
-): Promise<SQL[] | null> {
-  if (filters.ratingMin === undefined && filters.ratingMax === undefined && !filters.q) {
-    return []
-  }
-  const contentFilter = {
-    ratingMin: filters.ratingMin,
-    ratingMax: filters.ratingMax,
-    textQuery: filters.q,
-  }
-  const [reviewIds, feedbackIds] = await Promise.all([
-    filters.sourceType === 'feedback'
-      ? Promise.resolve([])
-      : ports.reviewLookup.findEligibleReviewIds(orgId, contentFilter),
-    filters.sourceType === 'review'
-      ? Promise.resolve([])
-      : ports.feedbackLookup.findEligibleFeedbackIds(orgId, contentFilter),
-  ])
-  const sourceMatches: SQL[] = []
-  if (reviewIds.length > 0) {
-    sourceMatches.push(
-      and(eq(inboxItems.sourceType, 'review'), inboxSourceIdMatchesAny(reviewIds))!,
-    )
-  }
-  if (feedbackIds.length > 0) {
-    sourceMatches.push(
-      and(eq(inboxItems.sourceType, 'feedback'), inboxSourceIdMatchesAny(feedbackIds))!,
-    )
-  }
-  if (sourceMatches.length === 0) return null
-  return [sourceMatches.length === 1 ? sourceMatches[0]! : or(...sourceMatches)!]
-}
-
 /** Resolve every governed list/count predicate through the same path. */
 async function resolveFilterConditions(
   ports: LookupPorts,
@@ -271,9 +161,9 @@ async function resolveFilterConditions(
   if (contentNarrowing === null) return null
   conditions.push(...contentNarrowing)
 
-  const aiNarrowing = await resolveAiNarrowing(ports, orgId, filters)
-  if (aiNarrowing === null) return null
-  conditions.push(...aiNarrowing)
+  const analysisNarrowing = await resolveAnalysisNarrowing(ports, orgId, filters)
+  if (analysisNarrowing === null) return null
+  conditions.push(...analysisNarrowing)
   return conditions
 }
 
@@ -433,14 +323,13 @@ export const createInboxRepository = (
 
         const propertyIdsToFetch = [...new Set(sliced.map((r) => r.propertyId))]
 
-        const [reviewSnippets, feedbackSnippets, propertyNames, urgentReviewIds] =
+        const [reviewSnippets, feedbackSnippets, propertyNames, suggestedLevels] =
           await Promise.all([
             batchReviewSnippets(ports, reviewIdsToFetch, orgId),
             batchFeedbackSnippets(ports, feedbackIdsToFetch, orgId),
             batchPropertyNames(ports, propertyIdsToFetch, orgId),
-            findUrgentReviewIds(ports, reviewIdsToFetch, propertyIdsToFetch, orgId),
+            findSuggestedRowLevels(ports, sliced, propertyIdsToFetch, orgId),
           ])
-        const urgentSet = new Set(urgentReviewIds)
 
         const items = sliced.map((row) => {
           const item = inboxItemFromRow(row)
@@ -467,10 +356,9 @@ export const createInboxRepository = (
             reviewerName: review?.reviewerName ?? null,
             propertyName: propertyNames.get(row.propertyId) ?? null,
             reviewLanguageCode: review?.languageCode ?? null,
-            attention:
-              row.sourceType === 'review' && urgentSet.has(reviewId(row.sourceId))
-                ? ('urgent' as const)
-                : null,
+            // The AI suggestion the row shows (ADR 0071): `urgent` or `high`,
+            // only for a review with no level a person set.
+            attention: suggestedLevels.get(row.sourceId) ?? null,
           }
         })
 
@@ -962,21 +850,6 @@ async function batchFeedbackSnippets(
 ): Promise<ReadonlyMap<string, FeedbackSnippet>> {
   if (sourceIds.length === 0) return new Map<string, FeedbackSnippet>()
   return ports.feedbackLookup.getFeedbackSnippetsByIds(sourceIds, orgId)
-}
-
-async function findUrgentReviewIds(
-  ports: LookupPorts,
-  sourceIds: string[],
-  propertyIds: string[],
-  orgId: OrganizationId,
-): Promise<readonly ReviewId[]> {
-  if (!ports.aiInsights || sourceIds.length === 0) return []
-  return ports.aiInsights.findCurrentReviewIdsByAttention({
-    organizationId: orgId,
-    propertyIds: propertyIds.map(propertyId),
-    reviewIds: sourceIds.map(reviewId),
-    attention: ['urgent'],
-  })
 }
 
 async function batchPropertyNames(

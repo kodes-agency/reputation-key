@@ -71,6 +71,14 @@ the required Google, retention, reply-publication, or private-feedback behavior.
     on a process-local event or retain provider/private content without their own
     authorized lifecycle.
 
+## Note 2026-10-28 — priority is a fifth independent dimension
+
+Decision 9's list gains manager priority ([ADR 0071](0071-inbox-manual-priority.md)):
+the level a person sets on an item, which never opens, closes or reopens a
+cycle, never escalates, never touches a Response Target and never notifies. It
+shares the item's command fence with the other item commands. The AI attention
+level stays a suggestion read from the AI context, never Inbox state.
+
 ## Note 2026-10-13 — what decision 11 fences on a guest edit
 
 Decision 11 says a material source change fences "stale drafts/publications".

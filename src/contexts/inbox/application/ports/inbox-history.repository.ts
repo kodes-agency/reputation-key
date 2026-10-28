@@ -22,9 +22,10 @@ export type InboxHistoryPage = Readonly<{
 
 export type InboxHistoryRepository = Readonly<{
   /**
-   * One ordered stream merged from `inbox_handling_cycles`,
+   * One ordered stream merged from six tables: `inbox_handling_cycles`,
    * `inbox_handling_cycle_transitions`, `inbox_assignment_history`,
-   * `inbox_escalation_history` and `inbox_feedback_handling_outcomes`.
+   * `inbox_escalation_history`, `inbox_priority_history` and
+   * `inbox_feedback_handling_outcomes`.
    *
    * Every entry is returned with its raw manager-internal note included; the
    * use case, which is the only place that knows the caller's current

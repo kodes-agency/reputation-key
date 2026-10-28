@@ -387,6 +387,7 @@ const commands = {
     openItem,
   ) as unknown as InboxDetailState['resolveEscalation'],
   assign: idleCommand(openItem) as unknown as InboxDetailState['assign'],
+  setPriority: idleCommand(openItem) as unknown as InboxDetailState['setPriority'],
   markFeedbackHandled: refuses as unknown as InboxDetailState['markFeedbackHandled'],
   correctFeedbackHandlingOutcome:
     refuses as unknown as InboxDetailState['correctFeedbackHandlingOutcome'],

@@ -22,16 +22,10 @@ import type { ReviewSourceLookupPort } from '../ports/review-source-lookup.port'
 import type { ReviewResponseTargetAuthorityPort } from '../ports/review-response-target-authority.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { canForContext } from '#/shared/domain/permissions'
 import { validateTransition } from '../../domain/rules'
 import { inboxItemStatusChanged } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
-import {
-  loadInboxItemOrThrow,
-  assertExpectedCommandRevision,
-  assertInboxSourcePropertyAccessible,
-  canHandleInboxSource,
-} from '../inbox-access'
+import { loadItemForCommand } from '../inbox-access'
 
 export type UpdateInboxStatusInput = Readonly<{
   inboxItemId: InboxItemId
@@ -64,29 +58,7 @@ async function authorizeStatusUpdate(
   input: UpdateInboxStatusInput,
   ctx: AuthContext,
 ): Promise<InboxItem> {
-  if (!canForContext(ctx, 'inbox.write'))
-    throw inboxError('forbidden', 'No inbox write permission')
-
-  const item = await loadInboxItemOrThrow(
-    deps.repo,
-    input.inboxItemId,
-    ctx.organizationId,
-  )
-  if (!canHandleInboxSource(ctx, item.sourceType)) {
-    throw inboxError('forbidden', 'No permission to handle this inbox source')
-  }
-  // Scope before the revision fence: a conflict names the item's current
-  // revision and status, which a caller with no access to its Property must
-  // not be told.
-  await assertInboxSourcePropertyAccessible(
-    deps.staffPublicApi,
-    ctx,
-    'handle',
-    item.sourceType,
-    item.propertyId,
-  )
-  assertExpectedCommandRevision(item, input.expectedCommandRevision)
-  return item
+  return loadItemForCommand(deps, input, ctx)
 }
 
 /** Source-agnostic head when the store offers one; otherwise the Review-only head. */

@@ -4,8 +4,8 @@ import type {
   ReviewAspect,
   ReviewAspectPolarity,
 } from '#/contexts/inbox/application/ports/ai-review-insights.port'
-import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { reviewId, unbrandAll } from '#/shared/domain/ids'
+import type { InboxItem, InboxPriority } from '#/contexts/inbox/domain/types'
+import { reviewId, unbrandAll, type UserId } from '#/shared/domain/ids'
 
 /**
  * Stand-in star rating for the `available` review branch of `findDetailById`,
@@ -129,14 +129,34 @@ function applyContentFilters(
     )
   }
   if (filters.attention?.length) {
-    filtered = filtered.filter(
-      (item) => item.attention !== null && filters.attention!.includes(item.attention!),
-    )
+    const levels = filters.attention
+    filtered = filtered.filter((item) => {
+      const level = effectivePriorityOf(item)
+      return level !== null && levels.includes(level)
+    })
   }
   return filtered.filter((item) =>
     matchesAnalysisNarrowing(item, filters, analysisAspects),
   )
 }
+
+/**
+ * The level the Priority filter matches, as the PostgreSQL repository decides
+ * it (ADR 0071): the level a person set, else — for a review only — the seeded
+ * `attention`, which stands for the AI suggestion here. Feedback is never
+ * analysed, so it matches only through a level a person set.
+ */
+function effectivePriorityOf(item: InboxItem): InboxPriority | null {
+  if (item.managerPriority) return item.managerPriority
+  return item.sourceType === 'review' ? (item.attention ?? null) : null
+}
+
+/** What `createItem` stores: a new row never carries a level (inserts omit it). */
+const NO_MANAGER_PRIORITY = {
+  managerPriority: null,
+  managerPrioritySetBy: null,
+  managerPrioritySetAt: null,
+} as const
 
 function applyEscalationFilter(
   items: ReadonlyArray<InboxItem>,
@@ -150,10 +170,30 @@ function applyEscalationFilter(
   )
 }
 
-export function createInMemoryInboxRepo(): InboxRepository & {
+/** The three manager priority columns, as the command store writes them. */
+export type InMemoryPriorityWrite = Readonly<{
+  managerPriority: InboxPriority | null
+  managerPrioritySetBy: UserId | null
+  managerPrioritySetAt: Date | null
+}>
+
+export type InMemoryInboxRepo = InboxRepository & {
   items: InboxItem[]
   analysisAspects: Map<string, readonly ReviewAspectMention[]>
-} {
+  /**
+   * The set-priority write, outside the port: production writes the columns
+   * only inside the command store's transaction (`setPriority`), so the
+   * repository port has no seam for it. The sequential fake calls this.
+   */
+  setManagerPriority(
+    id: InboxItem['id'],
+    orgId: InboxItem['organizationId'],
+    write: InMemoryPriorityWrite,
+    now: Date,
+  ): Promise<InboxItem>
+}
+
+export function createInMemoryInboxRepo(): InMemoryInboxRepo {
   const items: InboxItem[] = []
   const analysisAspects = new Map<string, readonly ReviewAspectMention[]>()
   const matching = (filters: InboxFilters, orgId: string): InboxItem[] => {
@@ -228,8 +268,9 @@ export function createInMemoryInboxRepo(): InboxRepository & {
       return [...counts].map(([propertyId, count]) => ({ propertyId, count }))
     },
     create: async (item) => {
-      items.push(item)
-      return item
+      const created = { ...item, ...NO_MANAGER_PRIORITY }
+      items.push(created)
+      return created
     },
     updateStatus: async (id, orgId, status, timestampFields, now) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)
@@ -419,5 +460,20 @@ export function createInMemoryInboxRepo(): InboxRepository & {
       }
     },
   }
-  return { ...repo, items, analysisAspects }
+  // The fake command store's one write path for the level (the real one is the
+  // command store's own transition, ADR 0071): replaces the row, bumps the fence.
+  const setManagerPriority: InMemoryInboxRepo['setManagerPriority'] = async (
+    id,
+    orgId,
+    write,
+    now,
+  ) => {
+    const at = items.findIndex((i) => i.id === id && i.organizationId === orgId)
+    const current = at === -1 ? undefined : items[at]
+    if (!current) throw new Error('not found')
+    const next = { ...current, ...write, updatedAt: now }
+    items.splice(at, 1, { ...next, commandRevision: nextCommandRevision(current) })
+    return items[at] ?? next
+  }
+  return { ...repo, items, analysisAspects, setManagerPriority }
 }

@@ -4,10 +4,11 @@
 //
 //   - Source (All items / Reviews / Feedback) only in the shared views (Mine,
 //     Escalated, All open), which hold both kinds. A section queue already is one kind.
-//   - The topics (Aspect, Polarity) and the AI Priority never in the private
-//     feedback queues: they read the analysis of a Review, which feedback has not.
-//     (Priority returns there once a person can set it on feedback.)
-//   - Rating everywhere.
+//   - The topics (Aspect, Polarity) never in the private feedback queues: they
+//     read the analysis of a Review, which feedback has not.
+//   - Priority and Rating everywhere. Priority matches the effective level (the
+//     one a person set, else the AI's suggestion; ADR 0071), so it can match
+//     private feedback a manager has marked.
 //
 // What is not offered is not applied either, so a bookmark that carries one reads
 // the queue as it is, and moving into a queue drops what it cannot use.
@@ -26,7 +27,7 @@ export function filtersOffered(queue: InboxQueue): InboxFilterOffer {
   const kind = queueKind(queue)
   return {
     source: kind === null,
-    priority: kind !== 'feedback',
+    priority: true,
     topics: kind !== 'feedback',
     rating: true,
   }

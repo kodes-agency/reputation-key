@@ -29,7 +29,7 @@ export const inboxSearchObjectSchema = z.object({
   sourceType: readable(z.enum(['review', 'feedback'])),
   ratingMin: readable(z.coerce.number().int().min(1).max(5)),
   ratingMax: readable(z.coerce.number().int().min(1).max(5)),
-  attention: readable(z.enum(['urgent', 'high', 'medium', 'low'])),
+  attention: readable(z.enum(['urgent', 'high', 'medium', 'low', 'urgent_high'])),
   // Aspect and polarity remain separate URL keys so dashboard drill-downs are
   // readable (`?aspect=wait_time&polarity=negative`) and either dimension can
   // be widened without inventing a second composite vocabulary.

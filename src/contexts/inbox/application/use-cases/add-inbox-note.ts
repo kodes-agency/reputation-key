@@ -8,14 +8,7 @@ import type { InboxNote } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createInboxNote } from '../../domain/constructors'
-import { inboxError } from '../../domain/errors'
-import {
-  loadInboxItemOrThrow,
-  assertExpectedCommandRevision,
-  assertInboxSourcePropertyAccessible,
-  canHandleInboxSource,
-} from '../inbox-access'
-import { canForContext } from '#/shared/domain/permissions'
+import { loadItemForCommand } from '../inbox-access'
 import { inboxNoteAdded } from '../../domain/events'
 
 export type AddInboxNoteInput = Readonly<{
@@ -35,29 +28,9 @@ export type AddInboxNoteDeps = Readonly<{
 export const addInboxNote =
   (deps: AddInboxNoteDeps) =>
   async (input: AddInboxNoteInput, ctx: AuthContext): Promise<InboxNote> => {
-    if (!canForContext(ctx, 'inbox.write')) {
-      throw inboxError('forbidden', 'No inbox write permission')
-    }
-    // 1. Find item + enforce role-scoped property access
-    const item = await loadInboxItemOrThrow(
-      deps.repo,
-      input.inboxItemId,
-      ctx.organizationId,
-    )
-    if (!canHandleInboxSource(ctx, item.sourceType)) {
-      throw inboxError('forbidden', 'No permission to handle this inbox source')
-    }
-    // Scope before the revision fence: a conflict names the item's current
-    // revision and status, which a caller with no access to its Property must
-    // not be told.
-    await assertInboxSourcePropertyAccessible(
-      deps.staffPublicApi,
-      ctx,
-      'handle',
-      item.sourceType,
-      item.propertyId,
-    )
-    assertExpectedCommandRevision(item, input.expectedCommandRevision)
+    // 1. Write permission, the item, its source and Property scope, then the
+    //    revision fence — the order every single-item command shares.
+    const item = await loadItemForCommand(deps, input, ctx)
 
     // 2. Build domain note
     const result = createInboxNote({

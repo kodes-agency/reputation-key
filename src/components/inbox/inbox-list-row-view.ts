@@ -1,10 +1,13 @@
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import {
+  effectiveInboxPriority,
+  type InboxItem,
+} from '#/contexts/inbox/application/public-api'
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 import { resolveInboxOwner, type InboxAssignmentOption } from './inbox-owner-view'
 import { replyStateRowLabel } from './reply-state-copy'
 import { formatCompactAge } from './utils'
 
-export type InboxRowSignal = 'Escalated' | 'Urgent' | string
+export type InboxRowSignal = 'Escalated' | 'Urgent' | 'High' | string
 
 function inboxRowName(item: InboxItem): string {
   return (
@@ -20,8 +23,17 @@ function inboxRowContent(item: InboxItem): string {
   return item.snippet?.trim() || 'Content unavailable'
 }
 
-function isInboxRowUrgent(item: InboxItem): boolean {
-  return item.attention === 'urgent'
+/**
+ * The priority a row prints (ADR 0071): the EFFECTIVE level — a person's,
+ * else the AI suggestion the list read (`urgent` or `high` only) — so a
+ * manager's Low takes the red off a review the AI calls Urgent, and a
+ * manager's Urgent puts it on feedback. Medium and Low are silent here. The
+ * list does not tell set from suggested; the toolbar does.
+ */
+function inboxRowPriority(item: InboxItem): 'Urgent' | 'High' | null {
+  const level = effectiveInboxPriority(item.managerPriority, item.attention)?.level
+  if (level === 'urgent') return 'Urgent'
+  return level === 'high' ? 'High' : null
 }
 
 function inboxRowSignals(item: InboxItem): ReadonlyArray<InboxRowSignal> {
@@ -29,7 +41,8 @@ function inboxRowSignals(item: InboxItem): ReadonlyArray<InboxRowSignal> {
   const reply = replyStateRowLabel(item.replyState)
   if (reply) signals.push(reply)
   if (item.isEscalated && item.escalationResolvedAt === null) signals.push('Escalated')
-  if (isInboxRowUrgent(item)) signals.push('Urgent')
+  const priority = inboxRowPriority(item)
+  if (priority) signals.push(priority)
   return signals
 }
 
@@ -56,7 +69,7 @@ export function inboxRowView(
     signals,
     // The row's tint follows the same test as its "Urgent" label, so the two
     // can never disagree.
-    isUrgent: isInboxRowUrgent(item),
+    isUrgent: inboxRowPriority(item) === 'Urgent',
     isNew,
     age: formatCompactAge(item.sourceDate, options.now),
     owner: resolveInboxOwner(

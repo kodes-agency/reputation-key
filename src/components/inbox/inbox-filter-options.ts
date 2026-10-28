@@ -13,6 +13,7 @@ export const SOURCE_OPTIONS = [
 
 export const ATTENTION_OPTIONS = [
   { value: 'all', label: 'All priorities' },
+  { value: 'urgent_high', label: 'Urgent and High' },
   { value: 'urgent', label: 'Urgent' },
   { value: 'high', label: 'High' },
   { value: 'medium', label: 'Medium' },

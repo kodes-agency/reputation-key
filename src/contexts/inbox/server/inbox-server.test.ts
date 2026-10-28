@@ -17,6 +17,7 @@ import {
   stampLastInboxViewDto,
   getInboxItemHistoryDto,
   checkReviewOnGoogleDto,
+  setInboxItemPriorityDto,
 } from '../application/dto/inbox.dto'
 import { inboxError, isInboxError, toInboxRevisionConflictResult } from '../domain/errors'
 
@@ -413,6 +414,31 @@ describe('getInboxItemHistoryDto (IBX-01-T5)', () => {
   })
 })
 
+describe('setInboxItemPriorityDto (ADR 0071)', () => {
+  const validInput = {
+    inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
+    expectedCommandRevision: 3,
+    expectedPriority: null,
+    priority: 'urgent' as const,
+  }
+
+  it('takes the four levels, and null to clear a level', () => {
+    for (const priority of ['urgent', 'high', 'medium', 'low', null]) {
+      expect(setInboxItemPriorityDto.safeParse({ ...validInput, priority }).success).toBe(
+        true,
+      )
+    }
+  })
+
+  it('refuses an unknown level and a missing expected level', () => {
+    expect(
+      setInboxItemPriorityDto.safeParse({ ...validInput, priority: 'critical' }).success,
+    ).toBe(false)
+    const { expectedPriority: _omitted, ...withoutExpected } = validInput
+    expect(setInboxItemPriorityDto.safeParse(withoutExpected).success).toBe(false)
+  })
+})
+
 describe('inboxErrorStatus', () => {
   it('maps invalid_transition to 400', () => {
     expect(inboxErrorStatus('invalid_transition')).toBe(400)
@@ -444,6 +470,14 @@ describe('inboxErrorStatus', () => {
 
   it('maps revision_conflict to 409', () => {
     expect(inboxErrorStatus('revision_conflict')).toBe(409)
+    // A colleague changed the priority itself: a refusal the client shows, and
+    // never a conflict RESULT its one retry would replay.
+    expect(inboxErrorStatus('priority_changed')).toBe(409)
+    expect(
+      toInboxRevisionConflictResult(
+        inboxError('priority_changed', 'changed', { currentCommandRevision: 4 }),
+      ),
+    ).toBeNull()
   })
 })
 

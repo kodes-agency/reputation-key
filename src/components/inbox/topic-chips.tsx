@@ -1,11 +1,12 @@
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Badge, type BadgeVariant } from '#/components/ui/badge'
-import { StatusBadge } from '#/components/ui/status-badge'
 import { cn } from '#/lib/utils'
 import { ASPECT_LABELS } from '#/shared/aspect-labels'
 import { INBOX_CHIP_STATIC_CLASS } from './inbox-chip'
+import { prioritySuggestion, prioritySuggestionHint } from './inbox-priority-view'
 import type { ReactNode } from 'react'
 import type {
+  InboxPriority,
   InboxReviewAnalysis,
   ReviewAnalysisAspect,
   ReviewAspectPolarity,
@@ -61,10 +62,22 @@ function AspectChip({ aspect }: Readonly<{ aspect: ReviewAnalysisAspect }>): Rea
  * the old analysis panel led with is gone: a chip per mentioned topic already
  * says which way each one points, and one summary word over the top of them
  * only disagreed with the detail underneath it.
+ *
+ * The "Needs attention" pill is gone too (owner P-5, 2026-10-28). It showed the
+ * AI's urgent-or-high, so it contradicted a manager's Low a few centimetres
+ * away, and the same words are the open-feedback status in the toolbar. The
+ * toolbar's Priority control now says the level; when a person's level and the
+ * current suggestion disagree, one muted line here says what the review's
+ * signals suggest (copy C-10).
  */
 export function TopicChips({
   analysis,
-}: Readonly<{ analysis: InboxReviewAnalysis | null }>): ReactNode {
+  managerPriority = null,
+}: Readonly<{
+  analysis: InboxReviewAnalysis | null
+  /** The level a person set on the item, if any (ADR 0071). */
+  managerPriority?: InboxPriority | null
+}>): ReactNode {
   if (!analysis || analysis.status === 'disabled') return null
 
   // `none` is not "in progress". The adapter returns it for a review whose
@@ -82,34 +95,30 @@ export function TopicChips({
     )
   }
 
-  // Today only `urgent` is marked, but the attention scale keeps `high` above
-  // the "worth a look" line, and one chip covers both.
-  const needsAttention = analysis.attention === 'urgent' || analysis.attention === 'high'
+  const hint = prioritySuggestionHint(managerPriority, prioritySuggestion(analysis))
+  const hintLine = hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null
 
   // A `ready` analysis may name no aspect at all. An empty `<ul>` is announced
   // as "Review topics, list, 0 items" and still takes its share of the guest
-  // article's gap, so render nothing when nothing would go inside it.
-  if (analysis.aspects.length === 0 && !needsAttention) return null
+  // article's gap, so render no list when nothing would go inside it.
+  if (analysis.aspects.length === 0) return hintLine
 
-  return (
+  const chips = (
     <ul aria-label="Review topics" className="flex flex-wrap items-center gap-2">
       {analysis.aspects.map((aspect) => (
         <li key={`${aspect.aspect}:${aspect.polarity}`}>
           <AspectChip aspect={aspect} />
         </li>
       ))}
-      {needsAttention && (
-        <li>
-          {/* "Needs attention" is the warn pill wherever it appears (the Google
-              connection, the import review): a person has to act, and nothing has
-              failed. The red chips beside it name a complaint, which is a fact. */}
-          <StatusBadge
-            tone="warn"
-            label="Needs attention"
-            className={cn(INBOX_CHIP_STATIC_CLASS, 'font-normal')}
-          />
-        </li>
-      )}
     </ul>
+  )
+  if (!hintLine) return chips
+  // The line belongs to the chips, so it sits closer to them than the guest
+  // article's own gap.
+  return (
+    <div className="flex flex-col gap-2">
+      {chips}
+      {hintLine}
+    </div>
   )
 }

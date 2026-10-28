@@ -94,6 +94,7 @@ export function InboxDetailContent({
     escalate,
     resolveEscalation,
     assign,
+    setPriority,
     markFeedbackHandled,
     correctFeedbackHandlingOutcome,
   } = detailState
@@ -229,8 +230,10 @@ export function InboxDetailContent({
           escalate,
           resolveEscalation,
           assign,
+          setPriority,
           markFeedbackHandled,
           correctFeedbackHandlingOutcome,
+          priorityMenu: detailState.priorityMenu,
         })}
       />
 

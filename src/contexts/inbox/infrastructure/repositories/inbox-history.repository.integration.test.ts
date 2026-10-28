@@ -336,6 +336,51 @@ describe.sequential('Inbox Handling History repository (PostgreSQL)', () => {
     })
   })
 
+  it('reads priority decisions as a sixth source, told after an escalation at the same instant', async () => {
+    await seedThreeCycleItem()
+    // A level set, then reset, by a manager. The reset lands at the escalation's
+    // own instant, where the kind rank orders the two.
+    await pool.query(
+      `INSERT INTO inbox_priority_history (
+         inbox_item_id, resulting_command_revision, organization_id, property_id,
+         handling_cycle_number, priority, previous_priority, actor_user_id,
+         occurred_at, created_at
+       ) VALUES ($1, 5, $2, $3, 3, 'urgent', NULL, $4, $5, $5),
+                ($1, 6, $2, $3, 3, NULL, 'urgent', $4, $6, $6)`,
+      [ITEM_ID, ORG_ID, PROPERTY_ID, ACTOR_ID, at(31), at(32)],
+    )
+    const repo = createInboxHistoryRepository(db)
+
+    const page = await repo.findByInboxItemId({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+    })
+    const priorities = page.entries.filter((entry) => entry.kind === 'priority')
+
+    expect(priorities).toEqual([
+      expect.objectContaining({
+        id: `priority:${ITEM_ID}:5`,
+        actorUserId: ACTOR_ID,
+        cycleNumber: 3,
+        detail: { kind: 'priority', priority: 'urgent', previousPriority: null },
+      }),
+      expect.objectContaining({
+        id: `priority:${ITEM_ID}:6`,
+        detail: { kind: 'priority', priority: null, previousPriority: 'urgent' },
+      }),
+    ])
+    expect(page.entries.map((entry) => entry.id).slice(-2)).toEqual([
+      `escalation:${ITEM_ID}:4`,
+      `priority:${ITEM_ID}:6`,
+    ])
+    // Fenced like every other source: another Organization reads none of it.
+    const other = await repo.findByInboxItemId({
+      inboxItemId: ITEM_ID,
+      organizationId: OTHER_ORG_ID,
+    })
+    expect(other.entries).toEqual([])
+  })
+
   it('is tenant-fenced: the same item id under another Organization returns nothing', async () => {
     await seedThreeCycleItem()
     const repo = createInboxHistoryRepository(db)

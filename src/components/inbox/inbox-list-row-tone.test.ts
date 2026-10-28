@@ -110,6 +110,13 @@ const INKS = [
   ]),
 ]
 
+describe('the High signal (ADR 0071)', () => {
+  it('prints in the page ink, so it is measured with the other inks below', () => {
+    expect(signalInk('High')).toBe('--foreground')
+    expect(inboxRowSignalTone('High')?.Icon).toBeTypeOf('function')
+  })
+})
+
 describe('the urgent row recipe', () => {
   it('is the negative tone’s own fill', () => {
     expect(fillOf(URGENT_ROW_TINT).token).toBe('--destructive-muted')

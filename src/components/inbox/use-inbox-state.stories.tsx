@@ -147,6 +147,7 @@ const fns = {
   escalateInboxItem: unused,
   resolveEscalation: unused,
   assignInboxItem: unused,
+  setInboxItemPriority: unused,
   markFeedbackHandled: unused,
   correctFeedbackHandlingOutcome: unused,
 }

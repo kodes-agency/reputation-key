@@ -55,13 +55,17 @@ describe('moveToInboxQueue', () => {
     expect(next).toMatchObject({ attention: 'urgent', aspect: 'service' })
   })
 
-  it('drops the topics and the AI Priority on the way into the private feedback queues', () => {
+  it('drops the Source filter and the topics, and keeps Priority, on the way into the private feedback queues', () => {
     for (const queue of ['feedback', 'handled'] as const) {
       const next = moveToInboxQueue(queue).search(search)
 
-      expect(next).toMatchObject({ queue, ratingMin: 4, q: 'breakfast' })
+      expect(next).toMatchObject({
+        queue,
+        ratingMin: 4,
+        q: 'breakfast',
+        attention: 'urgent',
+      })
       expect(next.sourceType).toBeUndefined()
-      expect(next.attention).toBeUndefined()
       expect(next.aspect).toBeUndefined()
       expect(next.polarity).toBeUndefined()
     }

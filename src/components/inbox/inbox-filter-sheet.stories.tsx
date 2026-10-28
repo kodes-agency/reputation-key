@@ -148,15 +148,18 @@ export const SectionQueueHasNoSource: Story = {
   },
 }
 
-/** Feedback has no analysis to filter by: only the sort and the rating are left. */
-export const PrivateFeedbackOffersOnlyRating: Story = {
+/**
+ * Feedback has no analysis to filter by, but a manager can set its priority
+ * (ADR 0071): the sort, the rating and Priority are left.
+ */
+export const PrivateFeedbackOffersPriorityAndRating: Story = {
   args: { queue: 'feedback' },
   play: async ({ canvasElement }) => {
     const sheet = await openSheet(canvasElement, 'Filters')
-    for (const name of ['Sort', 'Rating']) {
+    for (const name of ['Sort', 'Rating', 'Priority']) {
       await expect(sheet.getByRole('radiogroup', { name })).toBeVisible()
     }
-    for (const name of ['Source', 'Priority', 'Polarity', 'Aspect']) {
+    for (const name of ['Source', 'Polarity', 'Aspect']) {
       await expect(sheet.queryByRole('radiogroup', { name })).toBeNull()
     }
   },

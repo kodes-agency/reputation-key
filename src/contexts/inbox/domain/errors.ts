@@ -12,6 +12,7 @@ export type InboxErrorCode =
   | 'assignment_not_allowed'
   | 'already_exists'
   | 'revision_conflict'
+  | 'priority_changed'
   | 'bulk_partial_failure'
 
 export type InboxError = Readonly<{
@@ -66,6 +67,15 @@ export const toInboxRevisionConflictResult = (
 }
 
 export const REVISION_CONFLICT_MESSAGE = 'Inbox item changed; reload current state'
+
+/**
+ * A colleague changed the priority itself after this manager's pane read it
+ * (copy C-9). Its own code, not `revision_conflict`: the client's one automatic
+ * retry replays a revision conflict with the fresh revision, which would let a
+ * second manager overwrite the first without ever seeing their choice.
+ */
+export const PRIORITY_CHANGED_MESSAGE =
+  'Someone else changed the priority just now. Check it and choose again.'
 
 export const isInboxError = (e: unknown): e is InboxError =>
   typeof e === 'object' && e !== null && (e as InboxError)._tag === 'InboxError'

@@ -143,6 +143,18 @@ function buildChoices(
  * `max-w-40 truncate` caps a long directory name at 160 px so one person
  * cannot push the reply-due fact off the toolbar; the full name stays in
  * the accessible name.
+ *
+ * From `md` the trigger is also the member that gives when the group is wider
+ * than the toolbar (the detail pane is 424 px of toolbar at its narrowest, and an
+ * escalated, Urgent item needs more): a name is the one thing in the row that
+ * still reads when cut short, because the disc says who and the accessible name
+ * is the whole of it, while the status word must print whole. `md:flex-1` makes
+ * the trigger take what room is LEFT rather than keep its own width, down to
+ * `md:min-w-18` (the disc, the chevron and their padding), and only then does the
+ * status truncate. A plain `shrink` would split a shortage between the owner and
+ * the status in proportion to their widths, and `Open` would lose a few pixels
+ * and print `Op…`. Below `md` the trigger is a fixed 36 px square and none of
+ * this applies.
  */
 const NAME_CLASS = 'max-w-40 truncate'
 const TRIGGER_LABEL_CLASS = `${NAME_CLASS} max-md:sr-only`
@@ -225,7 +237,7 @@ export function InboxOwnerControl({
           disabled={isPending}
           aria-label={`Assignment: ${owner.label}`}
           iconBelow="md"
-          className="group/owner"
+          className="group/owner md:min-w-18 md:flex-1"
         >
           <OwnerMark owner={owner} tone="control" />
           <span className={TRIGGER_LABEL_CLASS}>{owner.label}</span>
