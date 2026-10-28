@@ -120,6 +120,19 @@ describe('gateControlledRoute', () => {
       expect(checkControlledRoute).toHaveBeenCalledTimes(2)
     })
 
+    it('answers from the server, not with a cancellation, when a forget lands mid-check', async () => {
+      let answer: (decision: typeof allowed) => void = () => undefined
+      checkControlledRoute.mockImplementationOnce(
+        () => new Promise<typeof allowed>((resolve) => (answer = resolve)),
+      )
+      const pending = gate()
+      invalidateShellContext(queryClient)
+      answer(allowed)
+
+      await expect(pending).resolves.toBeUndefined()
+      expect(checkControlledRoute).toHaveBeenCalledTimes(2)
+    })
+
     it('asks again after the shell context is invalidated', async () => {
       await gate()
       invalidateShellContext(queryClient)

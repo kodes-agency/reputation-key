@@ -53,6 +53,6 @@ describe('sites that forget the shell checks', () => {
   })
 
   it('the browser router forgets them when the tab comes back', () => {
-    expect(read('src/router.tsx')).toMatch(/forgetShellContextOnReturn\(queryClient\)/)
+    expect(read('src/router.tsx')).toMatch(/forgetShellContextOnReturn\(queryClient,/)
   })
 })

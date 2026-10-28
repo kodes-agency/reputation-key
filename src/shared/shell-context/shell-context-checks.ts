@@ -18,9 +18,12 @@ import { httpStatus } from '#/shared/security/expected-refusal'
 import type { CapabilitySet } from '#/shared/auth/capability-set'
 import {
   SHELL_CONTEXT_STALE_MS,
+  invalidateShellContext,
+  noteSignedInUser,
   shellContextGeneration,
   shellContextKeys,
 } from '#/shared/queries/shell-context-cache'
+import { fetchRemembered } from './fetch-remembered'
 
 export type Settled<T> =
   Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: unknown }>
@@ -81,8 +84,21 @@ async function askServer<S extends SignedInSession, O>(
   return { session, organization, capabilities }
 }
 
+/**
+ * Forget every shell entry and stop any older check still in flight from being kept
+ * (one that is out for another Property scope may answer after this one said 401).
+ */
 function forgetAll(queryClient: QueryClient): void {
-  queryClient.removeQueries({ queryKey: shellContextKeys.all })
+  invalidateShellContext(queryClient)
+}
+
+/** An Organization answer is judged by the shell's own rule; a rule that throws says no. */
+function admits<O>(admitsShell: (organization: O) => boolean, organization: O): boolean {
+  try {
+    return admitsShell(organization)
+  } catch {
+    return false
+  }
 }
 
 /** A 401 from any of the three: the session ended, so nothing remembered stands. */
@@ -118,10 +134,11 @@ function remember<S extends SignedInSession, O>(
     return
   }
   const userId = session.user.id
-  const previous = queryClient.getQueryData<S>(shellContextKeys.session())
-  if (previous && previous.user.id !== userId) forgetAll(queryClient)
+  // A different person than the shell last answered for (this tab was away while
+  // another signed in as someone else): everything the client holds is theirs.
+  if (noteSignedInUser(queryClient, userId)) queryClient.clear()
   queryClient.setQueryData(shellContextKeys.session(), session)
-  if (checks.organization.ok && admitsShell(checks.organization.value)) {
+  if (checks.organization.ok && admits(admitsShell, checks.organization.value)) {
     queryClient.setQueryData(
       shellContextKeys.organization(userId),
       checks.organization.value,
@@ -149,21 +166,13 @@ async function askForPerson<S extends SignedInSession, O>(
   // retried behind the person's click. A rejected fetch keeps no data, so it is
   // asked again next time.
   const [organization, capabilities] = await Promise.all([
+    settle(fetchRemembered(queryClient, organizationKey, fns.organization)),
     settle(
-      queryClient.fetchQuery({
-        queryKey: organizationKey,
-        queryFn: fns.organization,
-        staleTime: SHELL_CONTEXT_STALE_MS,
-        retry: false,
-      }),
-    ),
-    settle(
-      queryClient.fetchQuery({
-        queryKey: shellContextKeys.capabilities(userId, propertyId),
-        queryFn: () => fns.capabilities(propertyId),
-        staleTime: SHELL_CONTEXT_STALE_MS,
-        retry: false,
-      }),
+      fetchRemembered(
+        queryClient,
+        shellContextKeys.capabilities(userId, propertyId),
+        () => fns.capabilities(propertyId),
+      ),
     ),
   ])
   const checks: ShellChecks<S, O> = {
@@ -172,7 +181,7 @@ async function askForPerson<S extends SignedInSession, O>(
     capabilities,
   }
   if (anySignedOut(checks)) forgetAll(queryClient)
-  else if (!organization.ok || !fns.admitsShell(organization.value)) {
+  else if (!organization.ok || !admits(fns.admitsShell, organization.value)) {
     queryClient.removeQueries({ queryKey: organizationKey })
   }
   return checks
@@ -212,9 +221,11 @@ function askAndRemember<S extends SignedInSession, O>(
     return checks
   })
   pending.set(scope, { generation, asking })
-  void asking.finally(() => {
+  // Settled either way, so the copy that clears the entry never rejects on its own.
+  const done = () => {
     if (pending.get(scope)?.asking === asking) pending.delete(scope)
-  })
+  }
+  asking.then(done, done)
   return asking
 }
 

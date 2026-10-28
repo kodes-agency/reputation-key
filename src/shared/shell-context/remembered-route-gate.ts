@@ -20,11 +20,8 @@ import {
 } from '#/shared/auth/controlled-route-check'
 import { denyControlledRoute } from '#/shared/auth/controlled-route-gate'
 import type { CapabilityDecision } from '#/shared/auth/beta-capabilities'
-import {
-  SHELL_CONTEXT_STALE_MS,
-  shellCheckSide,
-  shellContextKeys,
-} from '#/shared/queries/shell-context-cache'
+import { shellCheckSide, shellContextKeys } from '#/shared/queries/shell-context-cache'
+import { fetchRemembered } from './fetch-remembered'
 
 type ControlledRouteGateContext = Readonly<{
   queryClient: QueryClient
@@ -38,18 +35,11 @@ function controlledRouteDecision(
   if (shellCheckSide() === 'server') return checkControlledRoute({ data })
   // Keyed by what decides the answer: the person, the capability and the Property.
   // The label only names the feature in the notice, so it is not part of the key.
-  // `retry: false`, as the direct call was: a failure reaches the page at once, and a
-  // rejected fetch keeps no data, so it is asked again next time.
-  return context.queryClient.fetchQuery({
-    queryKey: shellContextKeys.routeGate(
-      context.user.id,
-      data.capability,
-      data.propertyId ?? null,
-    ),
-    queryFn: () => checkControlledRoute({ data }),
-    staleTime: SHELL_CONTEXT_STALE_MS,
-    retry: false,
-  })
+  return fetchRemembered(
+    context.queryClient,
+    shellContextKeys.routeGate(context.user.id, data.capability, data.propertyId ?? null),
+    () => checkControlledRoute({ data }),
+  )
 }
 
 /**

@@ -64,7 +64,7 @@ describe('tenant cache transition', () => {
     expect(
       queryClient.getQueryCache().findAll({ queryKey: shellContextKeys.all }),
     ).toEqual([])
-    await expect(announced).resolves.toBe('forget')
+    await expect(announced).resolves.toBe('tenant-changed')
     otherTab.close()
   })
 

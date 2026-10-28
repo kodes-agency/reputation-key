@@ -53,8 +53,9 @@ import type { ComponentProps, ReactNode } from 'react'
  * The server render resolves it fresh on every request. In the browser it may be up
  * to 30 seconds old (ADR 0072): `beforeLoad` reuses the last answers for the signed-in
  * person until they are stale, and forgets them on sign-in, sign-out, a tab coming
- * back, the person's own profile, Organization or member changes, and any refusal a
- * page boundary meets (`invalidateShellContext`). So every field is a navigation
+ * back, the person's own profile, Organization or member changes, and any refusal that
+ * reaches a route error boundary (`invalidateShellContext`); other refusals wait out
+ * the 30 seconds. So every field is a navigation
  * affordance, never an authority: each page's server functions check the session,
  * role and capability on their own, and their refusal is what the person is told.
  */

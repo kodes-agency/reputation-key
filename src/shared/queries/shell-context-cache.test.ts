@@ -7,6 +7,7 @@ import {
   shellCheckSide,
   shellContextForgotten,
   shellContextGeneration,
+  noteSignedInUser,
   shellContextKeys,
 } from './shell-context-cache'
 import { identityKeys } from './query-keys'
@@ -77,7 +78,7 @@ describe('shellContextForgotten', () => {
     const queryClient = rememberedShell()
     const announced = nextAnnouncement()
     shellContextForgotten(queryClient)
-    await expect(announced).resolves.toBe('forget')
+    await expect(announced).resolves.toBe('tenant-changed')
     expect(shellEntries(queryClient)).toBe(4)
   })
 
@@ -130,6 +131,41 @@ describe('forgetShellContextOnReturn', () => {
     await vi.waitFor(() => expect(shellEntries(queryClient)).toBe(0))
   })
 
+  it('forgets the entries but not the pages when another tab only changes the shell', async () => {
+    const queryClient = rememberedShell()
+    const onTenantChanged = vi.fn()
+    stop = forgetShellContextOnReturn(queryClient, onTenantChanged)
+
+    invalidateShellContext(new QueryClient())
+
+    await vi.waitFor(() => expect(shellEntries(queryClient)).toBe(0))
+    expect(onTenantChanged).not.toHaveBeenCalled()
+    expect(queryClient.getQueryData(identityKeys.members())).toEqual([])
+  })
+
+  it('hands a tenant change to the tab, which drops its pages for the new person', async () => {
+    const queryClient = rememberedShell()
+    const onTenantChanged = vi.fn()
+    stop = forgetShellContextOnReturn(queryClient, onTenantChanged)
+
+    shellContextForgotten(new QueryClient())
+
+    await vi.waitFor(() => expect(onTenantChanged).toHaveBeenCalledTimes(1))
+    expect(shellEntries(queryClient)).toBe(0)
+  })
+
+  it('listens once: a second subscription replaces the first', () => {
+    const queryClient = rememberedShell()
+    const first = vi.fn()
+    forgetShellContextOnReturn(queryClient, first)
+    stop = forgetShellContextOnReturn(queryClient, vi.fn())
+
+    turn('hidden')
+    turn('visible')
+    // One visibility listener ran: one forget, not two.
+    expect(shellContextGeneration(queryClient)).toBe(1)
+  })
+
   it('stops listening when unsubscribed', () => {
     const queryClient = rememberedShell()
     forgetShellContextOnReturn(queryClient)()
@@ -137,6 +173,18 @@ describe('forgetShellContextOnReturn', () => {
     turn('hidden')
     turn('visible')
     expect(shellEntries(queryClient)).toBe(4)
+  })
+})
+
+describe('noteSignedInUser', () => {
+  it('reports a different person than the last one, and moves the generation on', () => {
+    const queryClient = new QueryClient()
+
+    expect(noteSignedInUser(queryClient, 'user-1')).toBe(false)
+    expect(noteSignedInUser(queryClient, 'user-1')).toBe(false)
+    expect(shellContextGeneration(queryClient)).toBe(0)
+    expect(noteSignedInUser(queryClient, 'user-2')).toBe(true)
+    expect(shellContextGeneration(queryClient)).toBe(1)
   })
 })
 

@@ -92,7 +92,12 @@ export function getRouter() {
     staleTab.reloadOnNavigation(router)
     // The shell's remembered checks are forgotten when the tab comes back or another
     // tab signs in or out, so the next navigation asks the server who is here.
-    forgetShellContextOnReturn(queryClient)
+    // Another tab changing who is signed in also drops every page's data here, and the
+    // page on screen loads again for whoever the session now names.
+    forgetShellContextOnReturn(queryClient, () => {
+      queryClient.clear()
+      void router.invalidate()
+    })
   }
 
   return router

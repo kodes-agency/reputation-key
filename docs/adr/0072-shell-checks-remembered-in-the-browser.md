@@ -95,7 +95,18 @@ then forgets the entries, so the next navigation and Try again ask afresh.
   after the other: the window that did not sign in keeps the old person's shell until
   the announcement reaches it, its next refused read or 30 seconds, while its page
   reads answer as the cookie's person. The announcement covers every browser with
-  `BroadcastChannel`.
+  `BroadcastChannel`. A sign-in or sign-out announces a tenant change, and the
+  receiving tab drops every Query entry (not only the shell's) and reloads the page it
+  is on; a tab that was away and finds a different person at its next check does the
+  same, so the previous person's pages are never shown under the new person's shell.
+- A refusal that never reaches a route error boundary (a role notice rendered as Not
+  Found, a refused mutation) does not forget the entries: a stale "allowed" lasts at
+  most 30 seconds, and the page's own server functions still refuse.
+- A page whose route data is still fresh in the Query cache can be reopened from it
+  within the same 30 seconds after a permission was withdrawn; it was fetched while the
+  person was allowed, and the next fetch is refused.
+- A forget that lands while a check is out cancels that check; the cancelled answer is
+  asked for again directly and not remembered.
 - A new mutation that changes what the shell shows or decides from must call
   `invalidateShellContext`; `shell-context-invalidation-sites.test.ts` lists the
   current sites.

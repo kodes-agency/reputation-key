@@ -229,6 +229,73 @@ describe('readShellChecks', () => {
       expect(asked()).toEqual([2, 2, 2])
     })
 
+    it('keeps nothing an older check answers after a newer one said the session ended', async () => {
+      let answerOlder: (set: CapabilitySet) => void = () => undefined
+      fns.capabilities.mockImplementationOnce(
+        () => new Promise<CapabilitySet>((resolve) => (answerOlder = resolve)),
+      )
+      const older = read('browser', PROPERTY_A)
+      fns.capabilities.mockRejectedValueOnce(unauthenticated())
+      // Same moment, another Property: its 401 ends the session first.
+      await read('browser', PROPERTY_B)
+      answerOlder(capabilitySetFor(PROPERTY_A))
+      await older
+
+      expect(shellEntries(queryClient)).toEqual([])
+    })
+
+    it('asks again, unremembered, when a forget cancels a check that is out', async () => {
+      await read('browser')
+      let answer: (organization: Organization) => void = () => undefined
+      fns.organization.mockImplementationOnce(
+        () => new Promise<Organization>((resolve) => (answer = resolve)),
+      )
+      later(1_000)
+      const reading = read('browser', PROPERTY_B)
+      // A profile save while the Organization is being asked for.
+      invalidateShellContext(queryClient)
+      answer(RIVERSIDE)
+
+      await expect(reading).resolves.toMatchObject({
+        organization: { ok: true, value: RIVERSIDE },
+        capabilities: { ok: true },
+      })
+      expect(shellEntries(queryClient)).toEqual([])
+    })
+
+    it("drops the previous person's pages when the session now names someone else", async () => {
+      await read('browser')
+      queryClient.setQueryData(['properties'], ["Ana's hotel"])
+      // Another tab signed in as Bo: this tab only forgot its shell entries.
+      invalidateShellContext(queryClient)
+      fns.session.mockResolvedValue(BO)
+
+      await read('browser')
+      expect(queryClient.getQueryData(['properties'])).toBeUndefined()
+      expect(queryClient.getQueryData(shellContextKeys.session())).toEqual(BO)
+    })
+
+    it('keeps the pages when the same person is asked about again', async () => {
+      await read('browser')
+      queryClient.setQueryData(['properties'], ["Ana's hotel"])
+      invalidateShellContext(queryClient)
+
+      await read('browser')
+      expect(queryClient.getQueryData(['properties'])).toEqual(["Ana's hotel"])
+    })
+
+    it('treats an Organization answer the rule cannot read as one that keeps the person out', async () => {
+      fns.admitsShell = () => {
+        throw new TypeError('availability of null')
+      }
+      await expect(read('browser')).resolves.toMatchObject({
+        organization: { ok: true, value: RIVERSIDE },
+      })
+      expect(queryClient.getQueryData(shellContextKeys.organization(ANA.user.id))).toBe(
+        undefined,
+      )
+    })
+
     it('asks all three again after the shell context is invalidated', async () => {
       await read('browser')
       invalidateShellContext(queryClient)

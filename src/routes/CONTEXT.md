@@ -61,7 +61,8 @@ alters what the shell shows or decides from calls `invalidateShellContext(queryC
 sign-out, the profile save, an Organization update, a member's role, removal or
 access save, leaving, a password change, and a 401 or 403 at a route error boundary.
 The router also forgets the entries when the tab is shown again or another tab
-announces a change. A new mutation of that kind joins
+announces a change; a sign-in or sign-out in another tab also clears every page's
+Query data here and reloads the page on screen. A new mutation of that kind joins
 `shell-context-invalidation-sites.test.ts`.
 
 The shell draws its frame from the page ON SCREEN: the deepest of the router's

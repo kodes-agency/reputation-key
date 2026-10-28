@@ -41,7 +41,10 @@ export const shellContextKeys = {
 type ForgettingClient = Pick<QueryClient, 'removeQueries'>
 
 const CHANNEL_NAME = 'repkey-shell-context'
+/** The shell's own entries are stale (a profile save, a role change, a refusal). */
 const FORGET_MESSAGE = 'forget'
+/** Who is here changed (sign-in, sign-out, a new Organization): nothing cached stands. */
+const TENANT_CHANGED_MESSAGE = 'tenant-changed'
 
 /**
  * How many times this QueryClient's shell checks were forgotten. A check asked before
@@ -55,43 +58,75 @@ export function shellContextGeneration(queryClient: object): number {
   return generations.get(queryClient) ?? 0
 }
 
+/** The last person a shell check named, kept across forgets so a switch is noticed. */
+const lastSignedInUsers = new WeakMap<object, string>()
+
+/**
+ * Notes who the shell was last answered for. True when that is a different person
+ * than the one before: the caller must then drop everything else the client holds,
+ * which is the previous person's (a tab that came back after another tab switched
+ * accounts has no sign-in of its own to have cleared it). The switch also moves the
+ * generation on, so a check still in flight for the previous person is not kept. Other
+ * tabs are not told: they were told by the tab that signed in.
+ */
+export function noteSignedInUser(queryClient: object, userId: string): boolean {
+  const previous = lastSignedInUsers.get(queryClient)
+  lastSignedInUsers.set(queryClient, userId)
+  const switched = previous !== undefined && previous !== userId
+  if (switched) generations.set(queryClient, shellContextGeneration(queryClient) + 1)
+  return switched
+}
+
 function forgetHere(queryClient: ForgettingClient): void {
   queryClient.removeQueries({ queryKey: shellContextKeys.all })
   generations.set(queryClient, shellContextGeneration(queryClient) + 1)
 }
 
+function announce(message: string): void {
+  if (typeof BroadcastChannel === 'undefined') return
+  const channel = new BroadcastChannel(CHANNEL_NAME)
+  channel.postMessage(message)
+  channel.close()
+}
+
 /**
  * Who is here, or what they may do, changed in a way that already emptied the cache
  * (`queryClient.clear()` on sign-in and sign-out): stop any check still in flight
- * from being remembered, and tell the person's other tabs, which forget their entries
- * and check again on their next navigation.
+ * from being remembered, and tell the person's other tabs, which drop everything they
+ * hold (not only the shell's entries: their pages' data is the previous person's) and
+ * reload the page they are on.
  */
 export function shellContextForgotten(queryClient: object): void {
   generations.set(queryClient, shellContextGeneration(queryClient) + 1)
-  if (typeof BroadcastChannel === 'undefined') return
-  const channel = new BroadcastChannel(CHANNEL_NAME)
-  channel.postMessage(FORGET_MESSAGE)
-  channel.close()
+  announce(TENANT_CHANGED_MESSAGE)
 }
 
 /**
  * Forget every remembered shell check, in this tab and the person's other tabs, so the
  * next navigation asks the server. Call it after anything the shell shows or decides
  * from changes: the person's name or picture, the Organization's name, a member's role
- * or Property access, an active Organization being set. Removed rather than marked
- * stale, so nothing can read them afterwards.
+ * or Property access, an active Organization being set, a refusal. Removed rather than
+ * marked stale, so nothing can read them afterwards.
  */
 export function invalidateShellContext(queryClient: ForgettingClient): void {
-  queryClient.removeQueries({ queryKey: shellContextKeys.all })
-  shellContextForgotten(queryClient)
+  forgetHere(queryClient)
+  announce(FORGET_MESSAGE)
 }
+
+let stopListening: (() => void) | undefined
 
 /**
  * Forget the entries whenever this tab may have missed a change: when it becomes
  * visible again (another tab may have signed out, or in as someone else, while it was
- * hidden) and when another tab announces one. Browser only; returns the unsubscribe.
+ * hidden) and when another tab announces one. A tenant change also runs
+ * `onTenantChanged`, which drops the rest of the tab's data. Browser only; returns the
+ * unsubscribe. A second call (a hot reload) replaces the first listener.
  */
-export function forgetShellContextOnReturn(queryClient: ForgettingClient): () => void {
+export function forgetShellContextOnReturn(
+  queryClient: ForgettingClient,
+  onTenantChanged: () => void = () => undefined,
+): () => void {
+  stopListening?.()
   const onVisibilityChange = () => {
     if (document.visibilityState === 'visible') forgetHere(queryClient)
   }
@@ -101,12 +136,19 @@ export function forgetShellContextOnReturn(queryClient: ForgettingClient): () =>
   if (channel) {
     channel.onmessage = (event: MessageEvent) => {
       if (event.data === FORGET_MESSAGE) forgetHere(queryClient)
+      if (event.data === TENANT_CHANGED_MESSAGE) {
+        forgetHere(queryClient)
+        onTenantChanged()
+      }
     }
   }
-  return () => {
+  const stop = () => {
     document.removeEventListener('visibilitychange', onVisibilityChange)
     channel?.close()
+    if (stopListening === stop) stopListening = undefined
   }
+  stopListening = stop
+  return stop
 }
 
 /**
