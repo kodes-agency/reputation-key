@@ -39,6 +39,8 @@ export const getPropertyOverview =
     propertyAccess: DashboardPropertyAccess
     attention: AttentionSignalsPort
     inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
+    /** Opens a review in the Inbox: the lookup behind the recent-review links. */
+    inboxItems: Pick<InboxPublicApi, 'getReviewInboxItemIds'>
     clock: () => Date
     googleNumbers: ReadGoogleNumbers
   }): GetPropertyOverview =>
@@ -50,9 +52,30 @@ export const getPropertyOverview =
       organizationId: input.organizationId,
       propertyIds: [input.propertyId],
     })
+    // Each recent review carries the Inbox item that opens it, so its row can
+    // link there: one lookup for at most a handful of ids, through the Inbox's
+    // own reader (it applies `inbox.read` and `review.read` over the Property,
+    // and answers nothing for a review the reader could not open).
+    const linkRecentReviews = async (read: DashboardData): Promise<DashboardData> => {
+      if (read.recentReviews.length === 0) return read
+      const items = await deps.inboxItems.getReviewInboxItemIds(
+        {
+          propertyId: input.propertyId,
+          reviewIds: read.recentReviews.map((review) => review.id),
+        },
+        ctx,
+      )
+      return {
+        ...read,
+        recentReviews: read.recentReviews.map((review) => ({
+          ...review,
+          inboxItemId: items.get(review.id) ?? null,
+        })),
+      }
+    }
     const now = deps.clock()
     const [dashboard, counts, targetCounts, google] = await Promise.all([
-      deps.getDashboardData(input, ctx),
+      deps.getDashboardData(input, ctx).then((read) => linkRecentReviews(read)),
       deps.attention.getAttentionCounts(input.organizationId, input.propertyId),
       deps.inboxTargets.getGoogleReviewTargetCountsByProperty({
         organizationId: input.organizationId,

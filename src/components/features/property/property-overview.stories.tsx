@@ -246,6 +246,32 @@ export const Ready: Story = {
     expect(chip.className).toContain('[&>svg]:size-4')
     expect(chip.className).not.toContain('[&>svg]:size-3')
 
+    // Overdue opens All open, narrowed to Reviews: late replies sit in any reply
+    // stage, and All open is the shared view that offers the Source filter.
+    const overdue = new URL(chip.getAttribute('href') ?? '', 'http://localhost')
+    expect(overdue.pathname).toBe('/inbox')
+    expect(overdue.searchParams.get('queue')).toBe('open')
+    expect(overdue.searchParams.get('sourceType')).toBe('review')
+
+    // A latest review opens its own Inbox item, by the key the Inbox reads; one
+    // the reader has no item for opens the Property's Inbox.
+    const rows = within(
+      canvas.getByRole('heading', { name: 'Latest reviews' }).closest('section')!,
+    )
+    const withItem = new URL(
+      rows.getByRole('link', { name: /Amazing service/ }).getAttribute('href') ?? '',
+      'http://localhost',
+    )
+    expect(withItem.searchParams.get('itemId')).toBe(
+      '30000000-0000-4000-8000-000000000001',
+    )
+    expect(withItem.searchParams.has('reviewId')).toBe(false)
+    const withoutItem = new URL(
+      rows.getByRole('link', { name: /Slow response/ }).getAttribute('href') ?? '',
+      'http://localhost',
+    )
+    expect(withoutItem.searchParams.has('itemId')).toBe(false)
+
     // No range control: Overview is a reading, not a report you configure.
     expect(canvas.queryByRole('radiogroup', { name: 'Time range' })).toBeNull()
 

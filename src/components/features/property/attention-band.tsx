@@ -93,9 +93,13 @@ export function AttentionBand({
   }
 
   if (signals.overdue > 0) {
+    // Only a Review has a reply to be late with, and it can be in any reply stage,
+    // so it opens All open narrowed to Reviews: a shared view, where the Source
+    // filter is offered. (It opened the default queue before, with the filter
+    // dropped on the way in when the default was a section queue.)
     chips.push(
       <Badge key="overdue" asChild variant="negative" className={CHIP_BASE}>
-        <Link to="/inbox" search={{ propertyId, sourceType: 'review' }}>
+        <Link to="/inbox" search={{ propertyId, queue: 'open', sourceType: 'review' }}>
           <ChipContent icon={Clock} count={signals.overdue} label="Overdue" />
         </Link>
       </Badge>,

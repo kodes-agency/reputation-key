@@ -23,6 +23,19 @@ export function formatReviewedAt(value: Date): string | null {
 }
 
 /**
+ * Where a recent review opens: its own Inbox item, for a reader who has one,
+ * else the Property's Inbox. The link used to carry `reviewId`, a key the Inbox
+ * does not read (it opens an item by `itemId`, the Inbox item's id, which is not
+ * the review's), so every row landed on the default queue with nothing open.
+ */
+export function reviewRowSearch(
+  review: Pick<RecentReview, 'inboxItemId'>,
+  propertyId: string,
+): Readonly<{ propertyId: string; itemId?: string }> {
+  return review.inboxItemId ? { propertyId, itemId: review.inboxItemId } : { propertyId }
+}
+
+/**
  * The whole row is the link. It used to be inert, with a single "View all"
  * above the list — so the five reviews a manager most wants to open were the
  * only things on the page that could not be clicked (redesign row 4).
@@ -34,7 +47,7 @@ export function ReviewRow({
   return (
     <Link
       to="/inbox"
-      search={{ propertyId, reviewId: review.id }}
+      search={reviewRowSearch(review, propertyId)}
       className={cn(
         'flex min-h-11 items-center gap-4 rounded-lg border p-3',
         ROW_LINK_SURFACE,
