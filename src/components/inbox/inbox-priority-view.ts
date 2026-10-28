@@ -50,8 +50,11 @@ export type InboxPriorityView = Readonly<{
   sourceLine: string
   /** C-7: the reset item, offered only while a level is set. */
   resetLabel: string | null
-  /** Urgent and High keep their word on a phone; the rest become glyph squares. */
-  keepsWordOnPhone: boolean
+  /**
+   * In a narrow toolbar — a phone, or the detail pane at its desktop floor —
+   * Urgent and High keep their word and the rest become glyph squares.
+   */
+  keepsWordWhenNarrow: boolean
 }>
 
 type PriorityOwner = Pick<
@@ -127,7 +130,7 @@ export function presentInboxPriority(
         : input.suggestion === null
           ? 'Remove priority'
           : `Back to suggestion (${PRIORITY_WORD[input.suggestion]})`,
-    keepsWordOnPhone: level === 'urgent' || level === 'high',
+    keepsWordWhenNarrow: level === 'urgent' || level === 'high',
   }
 }
 

@@ -62,7 +62,10 @@ and actions supply server state.
   are 36px there. A menu, sheet or dialog that portals out of the container says
   `data-density="compact"` itself. A small button that must stay a tap target on a
   phone is `touch` (`size="xs"`, `icon-xs`), and one whose label hides below a width
-  is `iconBelow="md"` (or `"sm"`): no caller spells `--control-touch`. `Button` owns `pending` / `pendingLabel` (a
+  is `iconBelow="md"` (or `"sm"`): no caller spells `--control-touch`. A bar in a pane the
+  window does not size (the Inbox's detail pane is 472 px wide in a 1280 px window) asks the
+  width it has instead: `iconBelow="@lg"` is the square below 32rem of its nearest `@container`
+  (the bar declares it), and the label hides under the same `@max-lg:`. `Button` owns `pending` / `pendingLabel` (a
   spinner that stops for reduced motion, `aria-busy`, disabled, an optional label
   swap) and `SubmitButton` is that Button wired to a mutation: never draw a
   spinner beside a Button or swap its label while it runs. An icon-only control is

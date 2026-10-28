@@ -23,6 +23,9 @@ function render(props: Props, label = 'Save'): string {
   return renderToStaticMarkup(createElement(Button, props, label))
 }
 
+/** The markup with the `>` a class name carries (`has-[>svg]`) as written, not escaped. */
+const unescaped = (html: string): string => html.replaceAll('&gt;', '>')
+
 describe('Button pending', () => {
   it('is idle by default: no spinner, not busy, enabled', () => {
     const html = render({})
@@ -121,6 +124,34 @@ describe('Button density', () => {
 
     expect(html).toContain('h-auto')
     expect(html).toContain('max-md:min-h-(--control-touch)')
+  })
+})
+
+describe('Button iconBelow', () => {
+  it.each([
+    ['sm', 'max-sm'],
+    ['md', 'max-md'],
+  ] as const)('is a square below the window width %s', (width, variant) => {
+    const html = unescaped(render({ iconBelow: width }))
+
+    expect(html).toContain(`${variant}:w-(--control-touch)`)
+    expect(html).toContain(`${variant}:px-0`)
+    expect(html).toContain(`${variant}:has-[>svg]:px-0`)
+  })
+
+  it('is a square below the width of the container it sits in, whatever the window is', () => {
+    const html = unescaped(render({ iconBelow: '@lg' }))
+
+    expect(html).toContain('@max-lg:w-(--control-touch)')
+    expect(html).toContain('@max-lg:px-0')
+    expect(html).toContain('@max-lg:has-[>svg]:px-0')
+    // Not the window's: a pane 472 px wide in a 1280 px window is not a phone.
+    expect(html).not.toContain('max-md:w-(--control-touch)')
+    expect(html).not.toContain('max-sm:w-(--control-touch)')
+  })
+
+  it('keeps its width at every size when it is not set', () => {
+    expect(render({})).not.toMatch(/(?:max-\w+|@max-\w+):w-\(--control-touch\)/u)
   })
 })
 

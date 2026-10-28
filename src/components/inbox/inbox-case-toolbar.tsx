@@ -212,7 +212,8 @@ function StatusMember({
     // No height of its own: the group stretches it to the controls beside
     // it. The word never drops at any width — it is the one member whose label
     // IS the information. It may only TRUNCATE, and only when the whole group
-    // is wider than the toolbar (see `InboxCaseToolbar`): `Fact`'s
+    // is wider than the toolbar (see `InboxCaseToolbar`) and, from `md`, after
+    // the owner has given all it can (`inbox-owner-control.tsx`): `Fact`'s
     // `min-w-0` lets it give, and the text stays whole in the DOM, so the
     // fact's name — which on a `div` is its text — never loses a word.
     return (
@@ -233,8 +234,9 @@ function StatusMember({
           aria-label={`Work status: ${label}`}
           // `shrink min-w-0` undoes `Button`'s own `shrink-0` for this member
           // alone, so a long outcome truncates here while the owner and flag
-          // squares keep their 36 px. The accessible name is the `aria-label`,
-          // so an ellipsis on screen never shortens what is announced.
+          // squares keep their 36 px (from `md` the owner's name gives first).
+          // The accessible name is the `aria-label`, so an ellipsis on screen
+          // never shortens what is announced.
           className="min-w-0 shrink gap-2"
         >
           {dot}
@@ -446,6 +448,21 @@ export function InboxCaseToolbar({
     // stays one 48 px line at 390 and wraps to 85 px at 320. No run overflowed
     // (`scrollWidth === clientWidth` in all of them).
     //
+    // The pane is not the window on the desktop either. The detail pane is never
+    // narrower than 472 px (`InboxDetailPane`'s `minSize`), which is a 1280 px
+    // laptop with the app sidebar open, and the toolbar has 424 px of it inside
+    // `lg:px-6`. `[Open] [owner] [Priority] [Escalate]` for a long name is
+    // 57 + 226 + 108 + 95 = 486 px, and the status, then the only member that gave,
+    // was squeezed to its dot: the `inbox-triage` journey could not see `Open`.
+    // Three rules hold it, each measured at that floor by
+    // `inbox-case-toolbar-floor.metrics.ts`: this section is the `@container` the
+    // Priority control sizes itself by (below 32rem Medium, Low and Not set are the
+    // 36 px glyph square, and Urgent and High keep their word without the chevron
+    // or the tag); the owner's name gives next (`md:flex-1`, in
+    // `inbox-owner-control.tsx`); and only then does the status truncate. With
+    // Priority beside them the reply-due detail takes the second line at the floor,
+    // as it does on a 320 px phone.
+    //
     // No scroll container is left, which retires three workarounds the old
     // one needed: the hidden scrollbar, `overscroll-x-contain` (a flick past
     // the row's end chaining to the browser's back gesture, which pops
@@ -455,7 +472,7 @@ export function InboxCaseToolbar({
     // lets the wrapped row grow.
     <section
       aria-label="Case status"
-      className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-5 py-1 max-md:min-h-11 max-md:px-4 max-md:py-0.5 lg:px-6"
+      className="@container flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-5 py-1 max-md:min-h-11 max-md:px-4 max-md:py-0.5 lg:px-6"
     >
       {/* `min-w-0 max-w-full`: the group may be no wider than the row, and a
           flex item's automatic minimum (its min-content width) would

@@ -11,7 +11,10 @@ import { cn } from '#/lib/utils'
 // never re-spells either number; it sets the density on a container. Two props cover
 // the cases the sizes cannot: `touch` keeps a small button (`xs`, `icon-xs`, `inline`)
 // a tap target on a phone, and `iconBelow` is the button whose label hides below a
-// width, a square as wide as the touch height there.
+// width, a square as wide as the touch height there. `sm` and `md` are the window's
+// breakpoints; `@lg` is the width of the nearest `@container` ancestor, for a bar in
+// a pane the window does not size (the Inbox's detail pane is 472 px wide in a 1280 px
+// window). Whoever sets `@lg` also hides the label under the same `@max-lg:`.
 const buttonVariants = cva(
   "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-busy:disabled:opacity-100 aria-disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
@@ -43,6 +46,7 @@ const buttonVariants = cva(
       iconBelow: {
         sm: 'max-sm:w-(--control-touch) max-sm:px-0 max-sm:has-[>svg]:px-0',
         md: 'max-md:w-(--control-touch) max-md:px-0 max-md:has-[>svg]:px-0',
+        '@lg': '@max-lg:w-(--control-touch) @max-lg:px-0 @max-lg:has-[>svg]:px-0',
       },
     },
     compoundVariants: [

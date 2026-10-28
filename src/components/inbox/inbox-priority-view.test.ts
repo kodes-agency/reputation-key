@@ -44,7 +44,7 @@ describe('presentInboxPriority', () => {
       accessibleName: 'Priority: not set',
       sourceLine: 'Not set',
       resetLabel: null,
-      keepsWordOnPhone: false,
+      keepsWordWhenNarrow: false,
     })
   })
 
@@ -57,7 +57,7 @@ describe('presentInboxPriority', () => {
       accessibleName: 'Priority: High, suggested',
       sourceLine: 'Suggested from review signals',
       resetLabel: null,
-      keepsWordOnPhone: true,
+      keepsWordWhenNarrow: true,
     })
   })
 
@@ -85,10 +85,10 @@ describe('presentInboxPriority', () => {
   })
 
   it('keeps the word on a phone for Urgent and High only', () => {
-    expect(present(setBy('user-maria', 'urgent')).keepsWordOnPhone).toBe(true)
-    expect(present(setBy('user-maria', 'high')).keepsWordOnPhone).toBe(true)
-    expect(present(setBy('user-maria', 'medium')).keepsWordOnPhone).toBe(false)
-    expect(present(setBy('user-maria', 'low')).keepsWordOnPhone).toBe(false)
+    expect(present(setBy('user-maria', 'urgent')).keepsWordWhenNarrow).toBe(true)
+    expect(present(setBy('user-maria', 'high')).keepsWordWhenNarrow).toBe(true)
+    expect(present(setBy('user-maria', 'medium')).keepsWordWhenNarrow).toBe(false)
+    expect(present(setBy('user-maria', 'low')).keepsWordWhenNarrow).toBe(false)
   })
 })
 

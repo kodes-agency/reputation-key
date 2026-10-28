@@ -64,9 +64,9 @@ function inkFor(level: InboxPriority | null): string | undefined {
  * nothing, as an item with no escalation prints no escalation fact.
  */
 function PriorityFact({ view }: Readonly<{ view: InboxPriorityView }>) {
-  if (!view.keepsWordOnPhone) return null
+  if (!view.keepsWordWhenNarrow) return null
   return (
-    <Fact className={inkFor(view.level)}>
+    <Fact className={cn('shrink-0', inkFor(view.level))}>
       <InboxPriorityGlyph level={view.level} className="size-3.5" />
       <span className="sr-only">Priority: </span>
       {view.word}
@@ -140,10 +140,24 @@ function PriorityMenuItems({
  * permission and `inbox.manage` (`inbox-detail-manager-actions.tsx`).
  *
  * Geometry. One element, like the owner control: Radix's root draws no DOM, so
- * the trigger `Button` is the group's direct child. Below `md`, Urgent and High
- * keep their word (and drop the chevron) because the word is the signal;
- * Medium, Low and Not set become the 36 px glyph square (`iconBelow="md"`), the
- * word kept for a screen reader. "Suggested" is for a screen reader there.
+ * the trigger `Button` is the group's direct child. It sizes itself by the room
+ * the TOOLBAR has (the section is the `@container`), not by the window, because a
+ * pane's width is not the window's: the detail pane is 472 px at its narrowest,
+ * which is a 1280 px laptop with the app sidebar open, and 424 px inside the
+ * toolbar's padding. With Priority in full, an owner with a long name makes the
+ * group 57 + 226 + 108 + 95 = 486 px there, and the status, then the only member
+ * built to give, was squeezed to its dot.
+ *
+ * So below 32rem (`@max-lg:`) Urgent and High keep their word, because the word is
+ * the signal, and drop the chevron and the "Suggested" tag; Medium, Low and Not
+ * set become the 36 px glyph square (`iconBelow="@lg"`), the word kept for a screen
+ * reader. A phone is just a narrow toolbar (288 to 398 px of it, held upright), so
+ * this is its rule too. The square is as wide as the touch token, 36 px, and as
+ * tall as the row: 32 px from `md`, 36 px below it. From 32rem up the control is
+ * whole: the word, "Suggested" and the chevron, 32rem being the first width at
+ * which the busiest everyday row (a closed review held by a named colleague with a
+ * suggested High, 508 px) fits without cutting a name. Whoever changes `@lg`
+ * changes the three `@max-lg:` below with it.
  */
 export function InboxPriorityControl({
   item,
@@ -189,18 +203,21 @@ export function InboxPriorityControl({
           size="sm"
           disabled={isPending}
           aria-label={view.accessibleName}
-          iconBelow={view.keepsWordOnPhone ? undefined : 'md'}
+          iconBelow={view.keepsWordWhenNarrow ? undefined : '@lg'}
         >
           <InboxPriorityGlyph level={view.level} className={cn('size-4', ink)} />
-          <span className={cn(ink, !view.keepsWordOnPhone && 'max-md:sr-only')}>
+          <span className={cn(ink, !view.keepsWordWhenNarrow && '@max-lg:sr-only')}>
             {view.word}
           </span>
           {view.isSuggested && (
-            <span className="text-xs font-normal text-muted-foreground max-md:sr-only">
+            <span className="text-xs font-normal text-muted-foreground @max-lg:sr-only">
               Suggested
             </span>
           )}
-          <ChevronDown className="size-3.5 opacity-60 max-md:hidden" aria-hidden="true" />
+          <ChevronDown
+            className="size-3.5 opacity-60 @max-lg:hidden"
+            aria-hidden="true"
+          />
         </Button>
       </DropdownMenuTrigger>
       {/* A menu ITEM keeps 44 px below `md`: it is a different target class
