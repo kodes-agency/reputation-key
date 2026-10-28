@@ -47,6 +47,7 @@ import type { BulkUpdateInboxStatus } from './application/use-cases/bulk-update-
 import type { BulkAssignInboxItems } from './application/use-cases/bulk-assign-inbox-items'
 import type { EscalateInboxItem } from './application/use-cases/escalate-inbox-item'
 import type { ResolveEscalation } from './application/use-cases/resolve-escalation'
+import type { SetInboxItemPriority } from './application/use-cases/set-inbox-item-priority'
 import type { AssignInboxItem } from './application/use-cases/assign-inbox-item'
 import type { GetInboxItems } from './application/use-cases/get-inbox-items'
 import type { AddInboxNote } from './application/use-cases/add-inbox-note'
@@ -143,6 +144,7 @@ type InboxUseCases = Readonly<{
   bulkAssignInboxItems: BulkAssignInboxItems
   escalateInboxItem: EscalateInboxItem
   resolveEscalation: ResolveEscalation
+  setInboxItemPriority: SetInboxItemPriority
   assignInboxItem: AssignInboxItem
   getInboxItems: GetInboxItems
   addInboxNote: AddInboxNote
@@ -175,6 +177,7 @@ type InboxRequestApi = Readonly<
     | 'bulkAssignInboxItems'
     | 'escalateInboxItem'
     | 'resolveEscalation'
+    | 'setInboxItemPriority'
     | 'assignInboxItem'
     | 'getInboxItems'
     | 'addInboxNote'

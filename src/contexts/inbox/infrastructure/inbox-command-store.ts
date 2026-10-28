@@ -115,6 +115,17 @@ import {
   appendEscalationHistory,
   readCurrentCycleNumber,
 } from './inbox-escalation-history'
+import { resolveBulkReopenAssignee } from './inbox-bulk-reopen-assignee'
+import type {
+  InboxCommandAuthority,
+  InboxCommandAuthorityPrincipal,
+  InboxCommandAuthorityRequirement,
+} from './inbox-command-authority'
+import {
+  appendPriorityHistory,
+  guardPriorityCommand,
+  managerPriorityColumns,
+} from './inbox-priority-history'
 import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head'
 import {
   closeReviewCycleOnGoogleReply,
@@ -122,23 +133,11 @@ import {
   lockReviewRowsForObservation,
 } from './review-reply-close'
 
-export type InboxCommandAuthorityPrincipal = Readonly<{
-  userId: string
-  permissions: readonly Permission[]
-  purpose: 'actor' | 'assignee'
-}>
-
-export type InboxCommandAuthorityRequirement = InboxCommandAuthorityPrincipal &
-  Readonly<{ propertyId: string }>
-
-export type InboxCommandAuthority = (
-  tx: Tx,
-  input: Readonly<{
-    organizationId: string
-    at: Date
-    requirements: readonly InboxCommandAuthorityRequirement[]
-  }>,
-) => Promise<Readonly<{ allowed: true }> | Readonly<{ allowed: false; reason: string }>>
+export type {
+  InboxCommandAuthority,
+  InboxCommandAuthorityPrincipal,
+  InboxCommandAuthorityRequirement,
+} from './inbox-command-authority'
 
 const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -978,63 +977,6 @@ async function applyBulkAssignmentToItem(
   })
   await insertOutboxRow(tx, fact)
   return { outcome, previousAssignee }
-}
-
-/**
- * An assignee who no longer holds handling authority is dropped with an
- * unassignment fact. A changed authority contract is a conflict instead: the
- * command was planned against an authority state that no longer exists.
- */
-async function resolveBulkReopenAssignee(
-  tx: Tx,
-  authorizeCommand: InboxCommandAuthority,
-  item: InboxItem,
-  itemRow: PersistedItem,
-  actorId: string,
-  now: Date,
-): Promise<
-  Readonly<{
-    assignedTo: string | null
-    unassignedFact: ReturnType<typeof inboxItemUnassigned> | null
-  }>
-> {
-  const assignedTo = itemRow.assignedTo
-  if (assignedTo === null) return { assignedTo: null, unassignedFact: null }
-  const eligibility = await authorizeCommand(tx, {
-    organizationId: itemRow.organizationId,
-    at: now,
-    requirements: [
-      {
-        propertyId: itemRow.propertyId,
-        userId: assignedTo,
-        permissions: ['inbox.write', sourceCommandPermission(itemRow.sourceType)],
-        purpose: 'assignee',
-      },
-    ],
-  })
-  if (eligibility.allowed) return { assignedTo, unassignedFact: null }
-  if (
-    eligibility.reason.includes('authority_changed') ||
-    eligibility.reason.includes('contract_mismatch')
-  ) {
-    throw inboxError(
-      'revision_conflict',
-      'Inbox assignment authority changed during bulk reopen',
-      { authorityReason: eligibility.reason },
-    )
-  }
-  return {
-    assignedTo: null,
-    unassignedFact: inboxItemUnassigned({
-      inboxItemId: item.id,
-      organizationId: item.organizationId,
-      propertyId: item.propertyId,
-      userId: userId(actorId),
-      previousAssignee: userId(assignedTo),
-      source: 'web',
-      occurredAt: now,
-    }),
-  }
 }
 
 /**
@@ -2301,6 +2243,27 @@ export const createAtomicInboxCommandStore = (
           appendEscalationHistory(tx, item, row, {
             kind: 'escalated',
             actorUserId: updates.escalatedBy,
+            occurredAt: stamp,
+          }),
+      )
+    },
+
+    setPriority: async (item, updates, event, now) => {
+      // Fail closed: `transition()` re-authorizes the actor its fact names, and
+      // a fact naming no web actor would run no authority check at all.
+      guardPriorityCommand(item, updates, event)
+      const stamp = now ?? clock()
+      return transition(
+        'inbox.commandStore.setPriority',
+        item,
+        managerPriorityColumns(updates.priority, updates.setBy, stamp),
+        'Inbox item priority update failed — no row returned',
+        event,
+        stamp,
+        (tx, row) =>
+          appendPriorityHistory(tx, item, row, {
+            priority: updates.priority,
+            actorUserId: updates.setBy,
             occurredAt: stamp,
           }),
       )

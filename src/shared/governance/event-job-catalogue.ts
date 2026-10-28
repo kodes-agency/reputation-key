@@ -227,6 +227,9 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
     ),
   ]),
   ev('inbox.response_target.policy_changed', []),
+  // Audit-only (ADR 0071): setting a priority notifies nobody and writes no
+  // Recent Activity line.
+  ev('inbox.inbox_item.priority_changed', []),
 ]
 
 const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [

@@ -16,6 +16,7 @@ import {
 import { resolveGoogleReplyCompletion } from '#/contexts/inbox/domain/response-target'
 import type { CurrentReplyObservationPermit } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
+import type { InMemoryInboxRepo } from './in-memory-inbox-repo'
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
 import type {
   ApplyReceiptStatus,
@@ -37,7 +38,12 @@ const googleReplyTime = (observation: CurrentReplyObservationPermit): Date =>
   })
 
 export function createSequentialInboxCommandStore(deps: {
-  repo: InboxRepository
+  /**
+   * The in-memory repository's `setManagerPriority` is the only priority
+   * writer this fake has: the production port has no such seam (the atomic
+   * store writes the columns inside its own transaction).
+   */
+  repo: InboxRepository & Partial<Pick<InMemoryInboxRepo, 'setManagerPriority'>>
   noteRepo?: InboxNoteRepository
   outbox?: RecordedOutbox
   recordReceipt?: (
@@ -224,6 +230,31 @@ export function createSequentialInboxCommandStore(deps: {
         item.organizationId,
         updates.escalatedBy,
         now,
+      )
+      await recordAndEmit(event)
+      return saved
+    },
+
+    // The production store refuses a fact with no web actor before anything
+    // else; the fake keeps that refusal so a use-case test cannot pass a path
+    // the real store would reject.
+    setPriority: async (item, updates, event, now) => {
+      if (event.source !== 'web' || event.userId !== updates.setBy) {
+        throw new Error('A priority is set only by a signed-in manager')
+      }
+      if (!deps.repo.setManagerPriority) {
+        throw new Error('setPriority needs the in-memory inbox repository')
+      }
+      const stamp = now ?? new Date()
+      const saved = await deps.repo.setManagerPriority(
+        item.id,
+        item.organizationId,
+        {
+          managerPriority: updates.priority,
+          managerPrioritySetBy: updates.priority === null ? null : updates.setBy,
+          managerPrioritySetAt: updates.priority === null ? null : stamp,
+        },
+        stamp,
       )
       await recordAndEmit(event)
       return saved

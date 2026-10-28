@@ -151,6 +151,8 @@ const EXPECTED_INBOX_PUBLIC_API_KEYS = [
   'getReviewInboxItemIds',
   'markFeedbackHandled',
   'resolveEscalation',
+  // ADR 0071: a manager sets an item's priority.
+  'setInboxItemPriority',
   'setResponseTargetPolicy',
   'stampLastInboxView',
   'updateInboxStatus',

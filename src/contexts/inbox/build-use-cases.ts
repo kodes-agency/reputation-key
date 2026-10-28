@@ -23,6 +23,7 @@ import { bulkUpdateInboxStatus } from './application/use-cases/bulk-update-inbox
 import { bulkAssignInboxItems } from './application/use-cases/bulk-assign-inbox-items'
 import { escalateInboxItem } from './application/use-cases/escalate-inbox-item'
 import { resolveEscalation } from './application/use-cases/resolve-escalation'
+import { setInboxItemPriority } from './application/use-cases/set-inbox-item-priority'
 import { assignInboxItem } from './application/use-cases/assign-inbox-item'
 import { getInboxItems } from './application/use-cases/get-inbox-items'
 import { addInboxNote } from './application/use-cases/add-inbox-note'
@@ -120,6 +121,12 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       staffPublicApi: input.staffPublicApi,
     }),
     resolveEscalation: resolveEscalation({
+      repo: input.inboxRepo,
+      commandStore: input.commandStore,
+      clock: input.clock,
+      staffPublicApi: input.staffPublicApi,
+    }),
+    setInboxItemPriority: setInboxItemPriority({
       repo: input.inboxRepo,
       commandStore: input.commandStore,
       clock: input.clock,
@@ -277,6 +284,7 @@ export function projectInboxRequestApi(
     bulkAssignInboxItems: useCases.bulkAssignInboxItems,
     escalateInboxItem: useCases.escalateInboxItem,
     resolveEscalation: useCases.resolveEscalation,
+    setInboxItemPriority: useCases.setInboxItemPriority,
     assignInboxItem: useCases.assignInboxItem,
     getInboxItems: useCases.getInboxItems,
     addInboxNote: useCases.addInboxNote,

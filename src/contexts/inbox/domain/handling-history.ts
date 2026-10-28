@@ -1,9 +1,10 @@
 // Inbox context — the manager Handling History record and its ordering rule
 // (IBX-01-T5).
 //
-// Handling work is written to five append-only tables — cycle openings, cycle
-// transitions, assignment decisions, escalation decisions and private-feedback
-// outcomes. A manager does not think in five tables; they think in one story.
+// Handling work is written to six append-only tables — cycle openings, cycle
+// transitions, assignment decisions, escalation decisions, priority decisions
+// and private-feedback outcomes. A manager does not think in six tables; they
+// think in one story.
 // This module owns the merged record and, crucially, the ONE total order that
 // story is told in. Recent Activity is explicitly never evidence that an Inbox
 // command committed (src/contexts/inbox/CONTEXT.md), so nothing here is derived
@@ -20,6 +21,7 @@ import type {
   HandlingCycleActorType,
   HandlingCycleOpenReason,
   HandlingCycleTransitionKind,
+  InboxPriority,
   ManualReopenReason,
 } from './types'
 
@@ -29,6 +31,7 @@ export const INBOX_HISTORY_KINDS = [
   'assignment',
   'escalation',
   'handling_outcome',
+  'priority',
 ] as const
 
 export type InboxHistoryKind = (typeof INBOX_HISTORY_KINDS)[number]
@@ -68,6 +71,17 @@ export type InboxHistoryEscalationDetail = Readonly<{
   escalation: 'escalated' | 'resolved'
 }>
 
+/**
+ * A person's priority decision (ADR 0071). `priority: null` is a reset ("Back
+ * to suggestion" or "Remove priority"); `previousPriority: null` is the first
+ * level set. Only people write these rows, and an AI change never does.
+ */
+export type InboxHistoryPriorityDetail = Readonly<{
+  kind: 'priority'
+  priority: InboxPriority | null
+  previousPriority: InboxPriority | null
+}>
+
 export type InboxHistoryOutcomeDetail = Readonly<{
   kind: 'handling_outcome'
   outcome: PrivateFeedbackHandlingOutcome
@@ -89,6 +103,7 @@ export type InboxHistoryDetail =
   | InboxHistoryAssignmentDetail
   | InboxHistoryEscalationDetail
   | InboxHistoryOutcomeDetail
+  | InboxHistoryPriorityDetail
 
 export type InboxHistoryEntry = Readonly<{
   /** Stable across replays: derived from the append-only row's own key. */
@@ -121,6 +136,8 @@ const KIND_RANK: Readonly<Record<InboxHistoryKind, number>> = {
   assignment: 2,
   escalation: 3,
   handling_outcome: 4,
+  // Appended, so no existing rank moves.
+  priority: 5,
 }
 
 /**

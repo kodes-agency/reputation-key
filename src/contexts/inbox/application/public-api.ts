@@ -35,6 +35,12 @@ export {
   type PrivateFeedbackHandlingOutcome,
 } from '../domain/feedback-handling'
 export {
+  INBOX_PRIORITY_LEVELS,
+  effectiveInboxPriority,
+  type EffectiveInboxPriority,
+  type InboxPriority,
+} from '../domain/priority'
+export {
   isInboxRevisionConflictResult,
   type InboxRevisionConflictResult,
 } from '../domain/errors'
@@ -67,6 +73,7 @@ export type InboxPublicApi = Readonly<{
   bulkAssignInboxItems: import('./use-cases/bulk-assign-inbox-items').BulkAssignInboxItems
   escalateInboxItem: import('./use-cases/escalate-inbox-item').EscalateInboxItem
   resolveEscalation: import('./use-cases/resolve-escalation').ResolveEscalation
+  setInboxItemPriority: import('./use-cases/set-inbox-item-priority').SetInboxItemPriority
   assignInboxItem: import('./use-cases/assign-inbox-item').AssignInboxItem
   getInboxItems: import('./use-cases/get-inbox-items').GetInboxItems
   addInboxNote: import('./use-cases/add-inbox-note').AddInboxNote
@@ -94,6 +101,7 @@ export type {
   InboxItemStatusChanged,
   InboxItemEscalated,
   InboxItemEscalationResolved,
+  InboxItemPriorityChanged,
   InboxItemAssigned,
   InboxItemUnassigned,
   InboxNoteAdded,

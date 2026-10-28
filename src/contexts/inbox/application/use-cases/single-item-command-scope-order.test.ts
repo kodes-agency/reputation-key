@@ -29,6 +29,7 @@ import { correctFeedbackHandlingOutcome } from './correct-feedback-handling-outc
 import { escalateInboxItem } from './escalate-inbox-item'
 import { markFeedbackHandled } from './mark-feedback-handled'
 import { resolveEscalation } from './resolve-escalation'
+import { setInboxItemPriority } from './set-inbox-item-priority'
 import { updateInboxStatus } from './update-inbox-status'
 
 const NOW = new Date('2026-10-13T09:00:00.000Z')
@@ -128,6 +129,34 @@ const commands: ReadonlyArray<readonly [string, SourceType, Run]> = [
     (repo, ctx) =>
       resolveEscalation(guards(repo) as never)(
         { inboxItemId: ITEM_ID, expectedCommandRevision: STALE_REVISION },
+        ctx,
+      ),
+  ],
+  [
+    'setInboxItemPriority',
+    'review',
+    (repo, ctx) =>
+      setInboxItemPriority(guards(repo) as never)(
+        {
+          inboxItemId: ITEM_ID,
+          expectedCommandRevision: STALE_REVISION,
+          expectedPriority: null,
+          priority: 'urgent',
+        },
+        ctx,
+      ),
+  ],
+  [
+    'setInboxItemPriority',
+    'feedback',
+    (repo, ctx) =>
+      setInboxItemPriority(guards(repo) as never)(
+        {
+          inboxItemId: ITEM_ID,
+          expectedCommandRevision: STALE_REVISION,
+          expectedPriority: null,
+          priority: 'urgent',
+        },
         ctx,
       ),
   ],

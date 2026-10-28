@@ -1,7 +1,7 @@
 // The ONE total order the Handling History is told in, and the legacy
 // redaction that keeps a backfilled row from inventing an actor.
 //
-// Both are pure and both are load-bearing: five append-only tables merge into
+// Both are pure and both are load-bearing: six append-only tables merge into
 // one stream, and if the order were not total, two machines rendering the same
 // history would tell a manager two different stories.
 
@@ -50,6 +50,8 @@ const detailFor = (kind: InboxHistoryKind): InboxHistoryEntry['detail'] => {
       return { kind: 'escalation' } as InboxHistoryEntry['detail']
     case 'handling_outcome':
       return { kind: 'handling_outcome' } as InboxHistoryEntry['detail']
+    case 'priority':
+      return { kind: 'priority', priority: 'urgent', previousPriority: null }
   }
 }
 
@@ -104,6 +106,17 @@ describe('compareInboxHistoryEntries', () => {
     // A close transition and the outcome it completes are written in one
     // transaction: the transition is told first.
     expect(compareInboxHistoryEntries(transition, outcome)).toBeLessThan(0)
+  })
+
+  it('places a priority decision after every older kind at the same instant', () => {
+    // The sixth source was appended to the rank, so no existing pair moved.
+    const at = AT('2026-08-28T10:00:00.000Z')
+    const outcome = entry({ id: 'a', occurredAt: at, kind: 'handling_outcome' })
+    const escalation = entry({ id: 'a', occurredAt: at, kind: 'escalation' })
+    const priority = entry({ id: 'a', occurredAt: at, kind: 'priority' })
+    expect(compareInboxHistoryEntries(outcome, priority)).toBeLessThan(0)
+    expect(compareInboxHistoryEntries(escalation, priority)).toBeLessThan(0)
+    expect(compareInboxHistoryEntries(escalation, outcome)).toBeLessThan(0)
   })
 
   it('finally by id, in code-unit order, so the order is total', () => {

@@ -86,6 +86,33 @@ describe('inbox_items.status is a read-only-retained compatibility mirror', () =
     }
   })
 
+  it('lets only the command store write the manager priority (ADR 0071)', () => {
+    // Every module allowed to write `inbox_items` could set the three priority
+    // columns; only the command store's `setPriority` may, because only it
+    // re-authorizes the signed-in manager its fact names. A projection, a
+    // rebuild or a close that wrote a level would make an AI or a system change
+    // look like a person's choice.
+    const priorityWriters = Object.keys(FENCED_MIRROR_WRITERS).filter((permitted) =>
+      /managerPriority|manager_priority/.test(
+        readFileSync(join(REPO_SRC, permitted), 'utf8'),
+      ),
+    )
+    expect(priorityWriters).toEqual([
+      'contexts/inbox/infrastructure/inbox-command-store.ts',
+    ])
+
+    // The columns a set or a reset writes are spelled once, and only the
+    // store's `setPriority` hands them to its compare-and-swap.
+    const columnCallers = productionFiles
+      .filter((file) => /\bmanagerPriorityColumns\(/.test(readFileSync(file, 'utf8')))
+      .map(relativeToSrc)
+      .sort()
+    expect(columnCallers).toEqual([
+      'contexts/inbox/infrastructure/inbox-command-store.ts',
+      'contexts/inbox/infrastructure/inbox-priority-history.ts',
+    ])
+  })
+
   it('keeps the application, server, and domain layers out of the mirror entirely', () => {
     const layered = productionFiles.filter((file) => {
       const path = relativeToSrc(file)

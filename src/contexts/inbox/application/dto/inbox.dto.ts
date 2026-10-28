@@ -7,6 +7,7 @@ import { z } from 'zod/v4'
 import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 import { SAFE_OPAQUE_IDENTIFIER_PATTERN } from '#/shared/domain/safe-identifier'
 import { PRIVATE_FEEDBACK_HANDLING_OUTCOMES } from '../../domain/feedback-handling'
+import { INBOX_PRIORITY_LEVELS } from '../../domain/priority'
 import { INBOX_QUEUES } from '../inbox-queues'
 
 export const INBOX_BULK_LIMIT = 100
@@ -147,6 +148,17 @@ export const escalateInboxItemDto = z.object({
 export const resolveEscalationDto = z.object({
   inboxItemId: z.uuid(),
   expectedCommandRevision: commandRevisionSchema,
+})
+
+// POST set or clear the manager priority (ADR 0071). `expectedPriority` is the
+// level the caller's pane showed as SET (never the suggestion): a different
+// stored level is a colleague's change, refused rather than overwritten.
+const inboxPrioritySchema = z.enum(INBOX_PRIORITY_LEVELS).nullable()
+export const setInboxItemPriorityDto = z.object({
+  inboxItemId: z.uuid(),
+  expectedCommandRevision: commandRevisionSchema,
+  expectedPriority: inboxPrioritySchema,
+  priority: inboxPrioritySchema,
 })
 
 // POST assign

@@ -30,6 +30,10 @@ import {
 } from './portal-workflow-event-schemas'
 import { registerIdentityAccessEventSchemas } from './identity-access-event-schemas'
 import {
+  inboxActorShape,
+  registerInboxItemEventSchemas,
+} from './inbox-item-event-schemas'
+import {
   databaseUuidSchema,
   replyPublicationCancelledSchema,
 } from './reply-publication-cancelled-schema'
@@ -284,31 +288,8 @@ const inboxItemStatusChangedSchema = z.object({
 // rows exist for these types. The two compatible inbox schemas
 // (inbox_item.created, inbox_item.status_changed) are unchanged.
 
-/**
- * Who acted, where, and when — the tail these corrected Inbox facts share,
- * in the order they store it. Written once so they cannot be corrected apart
- * from each other; it stays a shape rather than a schema so each event still
- * declares its own identifiers first, and so none of them becomes `.strict()`
- * (an unknown key is a producer ahead of this deploy, not a bad payload).
- */
-const inboxActorShape = {
-  userId: z.string().nullable().optional(),
-  propertyId: z.string().nullable().optional(),
-  source: z.string().optional(),
-  occurredAt: z.string().optional(),
-} as const
-
-/** One Inbox item, and nothing about it beyond the identifiers. */
-const inboxItemEventShape = {
-  inboxItemId: z.string(),
-  organizationId: z.string(),
-  ...inboxActorShape,
-} as const
-
-const inboxItemEscalatedSchema = z.object(inboxItemEventShape)
-
-const inboxItemEscalationResolvedSchema = z.object(inboxItemEventShape)
-
+// `inboxActorShape` and the escalation and priority facts are in
+// ./inbox-item-event-schemas.ts.
 const inboxNoteAddedSchema = z.object({
   inboxItemId: z.string(),
   noteId: z.string(),
@@ -1334,16 +1315,7 @@ export function registerAllEventSchemas(): void {
     version: EVENT_VERSION,
     schema: inboxItemStatusChangedSchema,
   })
-  registerEventSchema({
-    type: 'inbox.inbox_item.escalated',
-    version: EVENT_VERSION,
-    schema: inboxItemEscalatedSchema,
-  })
-  registerEventSchema({
-    type: 'inbox.inbox_item.escalation_resolved',
-    version: EVENT_VERSION,
-    schema: inboxItemEscalationResolvedSchema,
-  })
+  registerInboxItemEventSchemas(EVENT_VERSION)
   registerEventSchema({
     type: 'inbox.inbox_note.added',
     version: EVENT_VERSION,
