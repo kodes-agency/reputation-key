@@ -30,6 +30,7 @@ const counts: InboxQueueCounts = {
   replied: null,
   handled: null,
   closed: null,
+  replyStages: true,
 }
 
 const MANAGER: InboxQueueViewer = {
@@ -45,6 +46,7 @@ const WITHOUT_STAGES_COUNTS: InboxQueueCounts = {
   reply: 24,
   approval: null,
   waiting: null,
+  replyStages: false,
 }
 
 function RailStory({

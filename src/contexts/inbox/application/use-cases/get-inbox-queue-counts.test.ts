@@ -130,6 +130,7 @@ describe('getInboxQueueCounts', () => {
       replied: null,
       handled: null,
       closed: null,
+      replyStages: true,
     })
     expect(findStages).toHaveBeenCalledOnce()
     expect(findStages).toHaveBeenCalledWith(ORG_ID, undefined)
@@ -203,6 +204,7 @@ describe('getInboxQueueCounts', () => {
       replied: null,
       handled: null,
       closed: null,
+      replyStages: false,
     })
     expect(findStages).not.toHaveBeenCalled()
   })
@@ -228,8 +230,55 @@ describe('getInboxQueueCounts', () => {
       replied: null,
       handled: null,
       closed: null,
+      replyStages: false,
     })
     expect(findStages).not.toHaveBeenCalled()
+  })
+
+  // The browser draws the rail's labels from this answer, not from its own
+  // permissions, so it must be true to what the counts above were decided with.
+  it.each([
+    ['a manager', manager, undefined, true],
+    ['a manager the boundary withholds the stages from', manager, false, false],
+    ['a reader without reply.manage', reader, undefined, false],
+    // Never true on the boundary's word alone: the role still has to hold it.
+    ['a reader the boundary says may use the stages', reader, true, false],
+  ] as const)(
+    'says whether reply stages are available to %s',
+    async (_who, ctx, replyQueuesEnabled, expected) => {
+      const repo = createInMemoryInboxRepo()
+      seedQueueCases(repo)
+      const useCase = getInboxQueueCounts({
+        repo,
+        staffPublicApi: allAccessStaffApi,
+        replyLookup: replyLookup(),
+      })
+
+      const counts = await useCase({ replyQueuesEnabled }, ctx)
+
+      expect(counts.replyStages).toBe(expected)
+      // The stage counts are present exactly when the stages are.
+      expect(counts.approval !== null).toBe(expected)
+      expect(counts.waiting !== null).toBe(expected)
+    },
+  )
+
+  it('says so for a scope that holds no rows at all', async () => {
+    const useCase = getInboxQueueCounts({
+      repo: createInMemoryInboxRepo(),
+      staffPublicApi: scopedStaffApi([]),
+      replyLookup: replyLookup(),
+    })
+    const propertyManager = { ...manager, role: 'PropertyManager' as const }
+
+    await expect(useCase({}, propertyManager)).resolves.toMatchObject({
+      reply: 0,
+      approval: 0,
+      replyStages: true,
+    })
+    await expect(
+      useCase({ replyQueuesEnabled: false }, propertyManager),
+    ).resolves.toMatchObject({ reply: 0, approval: null, replyStages: false })
   })
 
   it('runs five count queries without reply stages', async () => {

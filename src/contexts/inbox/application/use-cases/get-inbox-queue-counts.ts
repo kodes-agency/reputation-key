@@ -27,6 +27,14 @@ export type InboxQueueCounts = Readonly<{
   replied: null
   handled: null
   closed: null
+  /**
+   * Whether reply stages are available for this scope, the answer every count
+   * above was decided with. The browser draws the rail's labels and rows, the
+   * list's empty copy and where an edited row belongs from it, so the page cannot
+   * disagree with `reply` and the stage counts about what they hold. Its own
+   * permissions and capability set are only a first guess until this arrives.
+   */
+  replyStages: boolean
 }>
 
 export type GetInboxQueueCountsInput = Readonly<{
@@ -58,6 +66,7 @@ function emptyCounts(canManageReplies: boolean): InboxQueueCounts {
     replied: null,
     handled: null,
     closed: null,
+    replyStages: canManageReplies,
   }
 }
 
@@ -114,5 +123,6 @@ export const getInboxQueueCounts =
       replied: null,
       handled: null,
       closed: null,
+      replyStages: canManageReplies,
     }
   }

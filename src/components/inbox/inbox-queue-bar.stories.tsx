@@ -27,6 +27,7 @@ const counts: InboxQueueCounts = {
   replied: null,
   handled: null,
   closed: null,
+  replyStages: true,
 }
 
 const MANAGER: InboxQueueViewer = {
@@ -141,7 +142,7 @@ export const NoChipWhenTheOtherQueueIsEmpty: Story = {
 export const WithoutReplyStages: Story = {
   args: {
     viewer: { ...MANAGER, canManageReplies: false },
-    counts: { ...counts, reply: 24, approval: null, waiting: null },
+    counts: { ...counts, reply: 24, approval: null, waiting: null, replyStages: false },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -158,7 +159,7 @@ export const FeedbackQueueWithoutReplyStages: Story = {
   args: {
     queue: 'feedback',
     viewer: { ...MANAGER, canManageReplies: false },
-    counts: { ...counts, reply: 24, approval: null, waiting: null },
+    counts: { ...counts, reply: 24, approval: null, waiting: null, replyStages: false },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

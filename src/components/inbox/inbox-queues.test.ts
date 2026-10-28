@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   InboxItem,
   InboxItemReplyState,
+  InboxQueueCounts,
 } from '#/contexts/inbox/application/public-api'
 import {
   canUseReplyQueues,
@@ -11,6 +12,7 @@ import {
   queueItem,
   queueLabel,
   queueReplyStage,
+  resolveReplyStages,
 } from './inbox-queues'
 
 describe('canUseReplyQueues', () => {
@@ -18,6 +20,49 @@ describe('canUseReplyQueues', () => {
     expect(canUseReplyQueues(true, true)).toBe(true)
     expect(canUseReplyQueues(true, false)).toBe(false)
     expect(canUseReplyQueues(false, true)).toBe(false)
+  })
+})
+
+describe('resolveReplyStages', () => {
+  const countsSaying = (replyStages: boolean): InboxQueueCounts => ({
+    reply: 4,
+    approval: replyStages ? 1 : null,
+    waiting: replyStages ? 0 : null,
+    feedback: 2,
+    escalated: 0,
+    mine: 0,
+    open: 6,
+    replied: null,
+    handled: null,
+    closed: null,
+    replyStages,
+  })
+
+  it('takes the stages from the server when the browser guessed none', () => {
+    // The capability set failed to load, so `has()` is false everywhere, while the
+    // server's policy allows the stages: `reply` holds the needs-reply set only.
+    expect(resolveReplyStages(countsSaying(true), canUseReplyQueues(true, false))).toBe(
+      true,
+    )
+  })
+
+  it('takes no stages from the server when the browser guessed some', () => {
+    // The permissions are held and the page loaded with the capability on, then an
+    // operator turned reply publication off: `reply` now holds every open Review.
+    expect(resolveReplyStages(countsSaying(false), canUseReplyQueues(true, true))).toBe(
+      false,
+    )
+  })
+
+  it('draws the browser guess until the counts answer, and when they cannot', () => {
+    expect(resolveReplyStages(undefined, true)).toBe(true)
+    expect(resolveReplyStages(undefined, false)).toBe(false)
+  })
+
+  it('draws the browser guess from a server that predates the answer', () => {
+    // A tab on a new build against a server not yet rolled over: no field at all.
+    const older = { ...countsSaying(true), replyStages: undefined } as unknown
+    expect(resolveReplyStages(older as InboxQueueCounts, false)).toBe(false)
   })
 })
 

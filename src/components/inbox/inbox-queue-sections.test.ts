@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InboxQueueCounts } from '#/contexts/inbox/application/public-api'
+import { resolveReplyStages } from './inbox-queues'
 import {
   defaultInboxQueue,
   otherKindShortcut,
@@ -26,6 +27,7 @@ const COUNTS: InboxQueueCounts = {
   replied: null,
   handled: null,
   closed: null,
+  replyStages: true,
 }
 
 const outline = (viewer: InboxQueueViewer) =>
@@ -152,5 +154,57 @@ describe('otherKindShortcut', () => {
   it('offers nothing towards a section the viewer cannot see', () => {
     expect(shortcut('reply', { ...MANAGER, canReadFeedback: false })).toBeNull()
     expect(shortcut('feedback', { ...MANAGER, canReadReviews: false })).toBeNull()
+  })
+})
+
+// The page draws its rail from the server's answer to "are there reply stages
+// here?", which the counts carry, and from the browser's own permissions and
+// capability set only until that answer arrives. The two can disagree: the
+// capability set fails to load (the browser guesses none), or an operator turns
+// reply publication off after the page loaded (the browser guesses some).
+describe('a rail drawn from the server, not the browser', () => {
+  const viewerFor = (counts: InboxQueueCounts | undefined, browserGuess: boolean) => ({
+    ...MANAGER,
+    canManageReplies: resolveReplyStages(counts, browserGuess),
+  })
+  const SERVER_HAS_STAGES = COUNTS
+  const SERVER_HAS_NONE: InboxQueueCounts = {
+    ...COUNTS,
+    reply: 24,
+    approval: null,
+    waiting: null,
+    replyStages: false,
+  }
+
+  it('lists the stages the server has although the capability set failed to load', () => {
+    const viewer = viewerFor(SERVER_HAS_STAGES, false)
+
+    expect(outline(viewer)[0]).toEqual([
+      'Reviews',
+      ['Needs reply', 'Awaiting approval', 'Waiting for Google', 'Replied'],
+    ])
+    expect(resolveInboxQueue('approval', viewer)).toBe('approval')
+  })
+
+  it('collapses to "Open" when the server has no stages although the browser guessed some', () => {
+    const viewer = viewerFor(SERVER_HAS_NONE, true)
+
+    expect(outline(viewer)[0]).toEqual(['Reviews', ['Open', 'Replied']])
+    expect(resolveInboxQueue('approval', viewer)).toBe('reply')
+    // The phone's chip back to the Reviews reads as the row does.
+    expect(otherKindShortcut('feedback', viewer, SERVER_HAS_NONE)?.item.label).toBe(
+      'Open',
+    )
+  })
+
+  it('draws what the browser guessed, until the counts answer', () => {
+    expect(outline(viewerFor(undefined, true))[0]).toEqual([
+      'Reviews',
+      ['Needs reply', 'Awaiting approval', 'Waiting for Google', 'Replied'],
+    ])
+    expect(outline(viewerFor(undefined, false))[0]).toEqual([
+      'Reviews',
+      ['Open', 'Replied'],
+    ])
   })
 })

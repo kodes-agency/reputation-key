@@ -14,9 +14,11 @@ import {
 } from './inbox-queues'
 
 /**
- * What decides the rail. Reply stages need `reply.manage` and the reply
- * publication capability; each kind needs its own read permission, so a viewer
- * who may not read private feedback is never shown a section for it.
+ * What decides the rail. `canManageReplies` is whether reply stages are
+ * available here, as the server answers for the scope in view
+ * (`resolveReplyStages`): they need `reply.manage` and the reply publication
+ * capability. Each kind needs its own read permission, so a viewer who may not
+ * read private feedback is never shown a section for it.
  */
 export type InboxQueueViewer = Readonly<{
   canManageReplies: boolean

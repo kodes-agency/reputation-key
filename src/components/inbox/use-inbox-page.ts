@@ -18,7 +18,7 @@ import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { mergeInboxCommandItem } from './inbox-cache-policy'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
-import { canUseReplyQueues } from './inbox-queues'
+import { canUseReplyQueues, resolveReplyStages } from './inbox-queues'
 import { resolveInboxQueue, type InboxQueueViewer } from './inbox-queue-sections'
 import { filtersOffered } from './inbox-filter-offer'
 
@@ -44,9 +44,21 @@ export function useInboxPage(
   const { itemId: _, queue: requestedQueue, ...rest } = search
   const isMobile = useIsMobile()
   const isCompactLayout = useInboxCompactLayout()
-  const canManageReplies = canUseReplyQueues(
-    can('reply.manage'),
-    has('property.publish_reply'),
+  // Counted first: they carry the server's answer to "are there reply stages
+  // here?", which the rail, the labels and the list below all draw from. They
+  // depend on the scope in view and nothing the queue decides.
+  const queueCounts = useQuery({
+    queryKey: inboxKeys.countsFor(rest.propertyId),
+    queryFn: () =>
+      inboxFns.getInboxQueueCounts({ data: { propertyId: rest.propertyId } }),
+    enabled: !!orgId,
+    staleTime: 0,
+  })
+  // The server decides, for the scope; the browser's own permissions and
+  // capability set only guess until its answer arrives (`resolveReplyStages`).
+  const canManageReplies = resolveReplyStages(
+    queueCounts.data,
+    canUseReplyQueues(can('reply.manage'), has('property.publish_reply')),
   )
   const canReadReviews = can('review.read')
   const canReadFeedback = can('feedback.read')
@@ -84,14 +96,6 @@ export function useInboxPage(
       offer.topics,
     ],
   )
-
-  const queueCounts = useQuery({
-    queryKey: inboxKeys.countsFor(rest.propertyId),
-    queryFn: () =>
-      inboxFns.getInboxQueueCounts({ data: { propertyId: rest.propertyId } }),
-    enabled: !!orgId,
-    staleTime: 0,
-  })
 
   const {
     items,

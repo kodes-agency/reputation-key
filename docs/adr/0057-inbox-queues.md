@@ -108,7 +108,14 @@ decisions 1 and 3 and the count cost under Consequences; decisions 2, 4, 5 and
    `waiting` stay unavailable (refused, counted `null`). The list and per-property
    count functions take the reply policy's answer for `reply` as a boundary
    decision (`replyQueuesEnabled`), as the queue counts always did, instead of
-   refusing the request. Only AccountAdmin and PropertyManager reach the Inbox in
+   refusing the request. Only a settled denial is that answer: a policy that
+   could not answer (`policy_unavailable`) refuses the request, as every gated
+   read does, so an outage never serves another set than the page is drawn for.
+   The server decides, per scope, and the queue counts carry the answer
+   (`replyStages`). The browser draws the rail's rows and labels, the empty copy,
+   where an edited row belongs and an open item's departure from it, and uses its
+   own permissions and capability set only as the guess a first paint draws until
+   the counts arrive. Only AccountAdmin and PropertyManager reach the Inbox in
    the closed beta and both hold `reply.manage`, so the stages drop only when an
    operator turns reply publication off, a fresh database has not yet allowed it,
    or the restore mode is isolated. Where a viewer lands without a queue in the

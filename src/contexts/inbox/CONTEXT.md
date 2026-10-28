@@ -158,7 +158,11 @@ unavailable) the Reviews section is one row, "Open", under the `reply` key, whic
 then holds every open Review; `approval` and `waiting` are refused. The server
 functions pass the reply policy's answer for `reply` to the use cases as
 `replyQueuesEnabled`, as they always did for the counts, rather than refusing the
-request.
+request. Only a settled denial is that answer: a policy that cannot answer
+(`policy_unavailable`) refuses the request, so an outage never serves another set
+than the page is drawn for. The queue counts carry the answer as `replyStages`,
+and the browser draws the rail, the labels and the empty copy from it; its own
+permissions and capability set only guess until the counts arrive.
 
 A section is drawn for a viewer who can read its kind (`review.read`,
 `feedback.read`); All open only when both are visible. Private feedback stays in

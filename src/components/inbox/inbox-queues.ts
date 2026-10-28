@@ -79,11 +79,31 @@ const QUEUE_KIND: Readonly<Record<InboxQueue, InboxKind | null>> = {
   open: null,
 }
 
+/**
+ * What the browser can tell about reply stages from its own permission and
+ * capability set. Only a guess: it is the organization's capability set as the
+ * page loaded, and a set that failed to load reads as no capabilities at all.
+ */
 export function canUseReplyQueues(
   canManageReplies: boolean,
   canPublishReplies: boolean,
 ): boolean {
   return canManageReplies && canPublishReplies
+}
+
+/**
+ * Whether the Inbox draws reply stages. The server decides, for the scope in
+ * view, and says so with the queue counts (`replyStages`): the answer `reply` and
+ * the stage counts were decided with, so a label cannot disagree with what it
+ * holds. `guess` (see `canUseReplyQueues`) is what a first paint draws until the
+ * counts arrive, and the fallback while they cannot (failed, or from a server
+ * that predates the answer).
+ */
+export function resolveReplyStages(
+  counts: InboxQueueCounts | undefined,
+  guess: boolean,
+): boolean {
+  return counts?.replyStages ?? guess
 }
 
 const REPLY_QUEUES: ReadonlySet<InboxQueue> = new Set(['reply', 'approval', 'waiting'])

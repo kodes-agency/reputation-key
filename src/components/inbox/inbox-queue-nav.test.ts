@@ -22,6 +22,7 @@ const COUNTS: InboxQueueCounts = {
   replied: null,
   handled: null,
   closed: null,
+  replyStages: true,
 }
 
 const MANAGER: InboxQueueViewer = {
