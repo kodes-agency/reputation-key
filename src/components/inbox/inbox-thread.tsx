@@ -12,8 +12,8 @@ import {
 } from '#/components/ui/timeline'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { inboxKeys } from '#/shared/queries/query-keys'
 import { GuestMessage } from './guest-message'
+import { inboxHistoryQueryOptions } from './inbox-history-query'
 import { historyEventLine } from './history-event-line'
 import { HistoryEventNode } from './history-event-node'
 import { googleReviewLink } from './google-review-link'
@@ -398,11 +398,8 @@ export function InboxThread({
   replyActions,
 }: Props): ReactNode {
   const { can } = usePermissions()
-  const historyQuery = useQuery({
-    queryKey: inboxKeys.history(item.id),
-    queryFn: () => getInboxItemHistory({ data: { inboxItemId: item.id } }),
-    staleTime: 0,
-  })
+  // The pane started this read with the detail (`useInboxDetailQueries`).
+  const historyQuery = useQuery(inboxHistoryQueryOptions(item.id, getInboxItemHistory))
 
   // Which item's fold the reader toggled, and which way — not a bare boolean.
   // The pane does not key this component by item (`inbox-detail-content.tsx`

@@ -218,7 +218,8 @@ export const PhoneGutters: Story = {
   },
 }
 
-// Open + loading → skeleton placeholders in the sheet body.
+// Open + loading → the toolbar row, the conversation and the composer dock as
+// placeholders in the sheet body.
 export const Loading: Story = {
   args: {
     open: true,
@@ -226,6 +227,13 @@ export const Loading: Story = {
     item,
     detailState: makeDetailState({ isLoading: true, currentItem: null, detail: null }),
     detailFns,
+  },
+  play: async () => {
+    const body = within(document.body)
+    await expect(
+      await body.findByRole('region', { name: 'Conversation' }),
+    ).toHaveAttribute('aria-busy', 'true')
+    expect(body.queryByRole('button', { name: 'Try again' })).toBeNull()
   },
 }
 

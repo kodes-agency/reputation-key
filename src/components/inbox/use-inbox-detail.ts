@@ -241,6 +241,7 @@ export function useInboxDetail(
     InboxServerFns,
     | 'getInboxItemDetail'
     | 'getInboxNotes'
+    | 'getInboxItemHistory'
     | 'updateInboxStatus'
     | 'escalateInboxItem'
     | 'resolveEscalation'
