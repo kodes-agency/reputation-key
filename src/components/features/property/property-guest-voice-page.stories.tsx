@@ -410,6 +410,15 @@ export const AnalysisOffForMember: Story = {
   },
 }
 
+/** The next range is being read: the page stays, dimmed, and its range control with it. */
+export const ReadingNextRange: Story = {
+  args: { busy: true },
+  play: async ({ canvas, canvasElement }) => {
+    expect(await canvas.findByRole('heading', { name: 'Guest voice' })).toBeVisible()
+    expect(canvasElement.querySelector('[aria-busy="true"]')).not.toBeNull()
+  },
+}
+
 export const Preparing: Story = {
   args: {
     result: { status: 'preparing' },

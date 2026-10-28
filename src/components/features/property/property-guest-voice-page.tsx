@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { DashboardRangeControl } from '#/components/features/dashboard/dashboard-range-control'
+import { RangeBusyRegion } from '#/components/features/dashboard/range-busy-region'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
-import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
+import { Skeleton } from '#/components/ui/skeleton'
 import { ROW_FIGURE_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import type {
@@ -17,8 +17,8 @@ import type {
 } from '#/contexts/ai/application/public-api'
 import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import type { DashboardRange } from '#/shared/dashboard-range'
-import { usePermissions } from '#/shared/hooks/usePermissions'
 import { aiKeys } from '#/shared/queries/query-keys'
+import { GuestVoiceState } from './property-guest-voice-state'
 import { PropertyInsightsTopicTable } from './property-insights-aspect-table'
 import { PropertyInsightsEmergingIssues } from './property-insights-emerging-issues'
 import { formatNumber, formatLocalDate } from '#/lib/format'
@@ -141,10 +141,24 @@ export function TrendSupportingReviews({
   )
 }
 
+/**
+ * The headline sentence is read beside the page and used to pop in above the
+ * topics, moving them down. While it is still on its way its line is held, one
+ * heading high; if it turns out there is none, the line goes and the page closes
+ * up, which only happens for a property with no trend report.
+ */
 function TrendHeadline({
   trend,
+  pending,
   propertyId,
-}: Readonly<{ trend: AiTrendReportView | undefined; propertyId: string }>) {
+}: Readonly<{
+  trend: AiTrendReportView | undefined
+  pending: boolean
+  propertyId: string
+}>) {
+  if (pending) {
+    return <Skeleton className="h-7 w-3/4 max-w-3xl" aria-hidden="true" />
+  }
   if (trend?.status !== 'ready') return null
   const sentence =
     trend.report.sentences?.[0] ?? trend.report.summary ?? trend.report.headline
@@ -166,67 +180,6 @@ function TrendHeadline({
   )
 }
 
-function DisabledGuestVoice({ propertyId }: Readonly<{ propertyId: string }>) {
-  const { can } = usePermissions()
-  return (
-    <Alert variant="info">
-      <AlertTitle>AI analysis is off for this property</AlertTitle>
-      <AlertDescription className="flex flex-col gap-3">
-        <p>
-          Guest voice needs AI analysis. Nothing is sent to the AI provider until it is
-          enabled.
-        </p>
-        {can('ai.manage') ? (
-          <Button asChild size="sm">
-            <Link to="/properties/$propertyId/settings/ai" params={{ propertyId }}>
-              Turn on AI analysis
-            </Link>
-          </Button>
-        ) : (
-          <p>An account admin can enable it from this property&rsquo;s AI settings.</p>
-        )}
-      </AlertDescription>
-    </Alert>
-  )
-}
-
-function GuestVoiceState({
-  result,
-  range,
-  propertyId,
-}: Readonly<{
-  result: Exclude<AiPropertyInsightsRead, ReadyInsights>
-  range: DashboardRange
-  propertyId: string
-}>) {
-  if (result.status === 'disabled') return <DisabledGuestVoice propertyId={propertyId} />
-  if (result.status === 'preparing') {
-    return (
-      <Alert variant="info">
-        <AlertTitle>Guest voice is being prepared</AlertTitle>
-        <AlertDescription>
-          AI analysis is still settling. Topics appear as soon as there is enough review
-          evidence.
-        </AlertDescription>
-      </Alert>
-    )
-  }
-  return (
-    <Alert variant="info">
-      <AlertTitle>
-        {range === 'all'
-          ? 'Not enough review evidence in the available history'
-          : 'Not enough review evidence in this period'}
-      </AlertTitle>
-      <AlertDescription>
-        {range === 'all'
-          ? 'No reviews were found within the available AI analysis history.'
-          : 'No reviews were found in the selected period. Choose a longer range to look further back.'}
-      </AlertDescription>
-    </Alert>
-  )
-}
-
 export function PropertyGuestVoicePage({
   propertyId,
   propertyName,
@@ -234,6 +187,7 @@ export function PropertyGuestVoicePage({
   onRangeChange,
   result,
   serverFns,
+  busy = false,
 }: Readonly<{
   propertyId: string
   propertyName: string
@@ -241,6 +195,8 @@ export function PropertyGuestVoicePage({
   onRangeChange: (range: DashboardRange) => void
   result: AiPropertyInsightsRead
   serverFns: PropertyGuestVoiceServerFns
+  /** The next range is being read: the page shown is the previous range's, dimmed. */
+  busy?: boolean
 }>) {
   const trend = useQuery({
     queryKey: aiKeys.propertyTrend(propertyId),
@@ -263,45 +219,51 @@ export function PropertyGuestVoicePage({
         actions={<DashboardRangeControl range={range} onRangeChange={onRangeChange} />}
       />
 
-      {result.status !== 'ready' ? (
-        <GuestVoiceState result={result} range={range} propertyId={propertyId} />
-      ) : (
-        <div className="flex flex-col gap-6">
-          <TrendHeadline trend={trend.data} propertyId={propertyId} />
-          <PropertyGuestVoiceBasis result={result} />
-          <section aria-labelledby="guest-voice-topics" className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <h2
-                id="guest-voice-topics"
-                className="text-lg font-semibold tracking-tight"
-              >
-                <GlossaryTerm term="topics" />
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                One row per topic found in analysed review text.
-              </p>
-            </div>
-            <PropertyInsightsTopicTable propertyId={propertyId} evidence={result} />
-          </section>
-          <section
-            aria-labelledby="guest-voice-emerging-issues"
-            className="flex flex-col gap-4"
-          >
-            <div className="flex flex-col gap-1">
-              <h2
-                id="guest-voice-emerging-issues"
-                className="text-lg font-semibold tracking-tight"
-              >
-                <GlossaryTerm term="emerging-issues" />
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Specific recurring problems found in analysed review text.
-              </p>
-            </div>
-            <PropertyInsightsEmergingIssues evidence={result} />
-          </section>
-        </div>
-      )}
+      <RangeBusyRegion busy={busy}>
+        {result.status !== 'ready' ? (
+          <GuestVoiceState result={result} range={range} propertyId={propertyId} />
+        ) : (
+          <div className="flex flex-col gap-6">
+            <TrendHeadline
+              trend={trend.data}
+              pending={trend.isPending}
+              propertyId={propertyId}
+            />
+            <PropertyGuestVoiceBasis result={result} />
+            <section aria-labelledby="guest-voice-topics" className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <h2
+                  id="guest-voice-topics"
+                  className="text-lg font-semibold tracking-tight"
+                >
+                  <GlossaryTerm term="topics" />
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  One row per topic found in analysed review text.
+                </p>
+              </div>
+              <PropertyInsightsTopicTable propertyId={propertyId} evidence={result} />
+            </section>
+            <section
+              aria-labelledby="guest-voice-emerging-issues"
+              className="flex flex-col gap-4"
+            >
+              <div className="flex flex-col gap-1">
+                <h2
+                  id="guest-voice-emerging-issues"
+                  className="text-lg font-semibold tracking-tight"
+                >
+                  <GlossaryTerm term="emerging-issues" />
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Specific recurring problems found in analysed review text.
+                </p>
+              </div>
+              <PropertyInsightsEmergingIssues evidence={result} />
+            </section>
+          </div>
+        )}
+      </RangeBusyRegion>
     </PageShell>
   )
 }

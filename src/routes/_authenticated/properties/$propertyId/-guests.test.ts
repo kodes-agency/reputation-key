@@ -66,11 +66,12 @@ describe('Guest voice route', () => {
 
     await loader({
       params: { propertyId: PROPERTY_ID },
-      deps: { range: '180d' },
+      location: { search: { range: '180d' } },
       context: {
         queryClient: {
           ensureQueryData: async (options: { queryFn: () => Promise<unknown> }) =>
             options.queryFn(),
+          prefetchQuery: async () => undefined,
         },
       },
     } as never)
@@ -78,6 +79,32 @@ describe('Guest voice route', () => {
     expect(server.getPropertyInsights).toHaveBeenCalledWith({
       data: { propertyId: PROPERTY_ID, range: 180 },
     })
+  })
+
+  it('reads the range the URL names, not a loader dependency', () => {
+    // The range is not a dependency: a new range must not be a new route match,
+    // which would swap the page for its skeleton under the range control.
+    expect(Route.options.loaderDeps).toBeUndefined()
+  })
+
+  it('starts the headline alongside the topics, whether or not they turn out ready', async () => {
+    const loader = Route.options.loader
+    if (typeof loader !== 'function') {
+      throw new Error('Guest voice route must define a loader')
+    }
+    const prefetchQuery = vi.fn(async () => undefined)
+    const run = (result: unknown) =>
+      loader({
+        params: { propertyId: PROPERTY_ID },
+        location: { search: {} },
+        context: { queryClient: { ensureQueryData: async () => result, prefetchQuery } },
+      } as never)
+
+    await run({ status: 'preparing' })
+    await run({ status: 'ready' })
+
+    // Started both times, alongside the topics.
+    expect(prefetchQuery).toHaveBeenCalledTimes(2)
   })
 
   it('uses a distinct client cache entry for every selected range', () => {

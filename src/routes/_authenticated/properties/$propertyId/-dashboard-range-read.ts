@@ -1,0 +1,36 @@
+// How a dashboard topic page (Ratings, Guest voice) reads its range.
+//
+// The range used to be a loader dependency, so choosing one made a new route
+// match, and a new match shows the route's pending fallback at once: the page
+// (header, range control and all) was replaced by a skeleton and the keyboard
+// focus was lost. Now the range is not a dependency. The loader primes the range
+// the URL names when the page is entered, and the page reads whatever range is
+// chosen through the query cache, keeping the previous one on screen, dimmed,
+// until the new one arrives.
+import type { UseQueryResult } from '@tanstack/react-query'
+import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-range'
+
+/**
+ * The range the URL names, for a loader. A loader must not read search that has
+ * not been validated, so the same schema as the route's reads it: anything but a
+ * preset is the default, as it is for the page.
+ */
+export function rangeOfLocation(location: Readonly<{ search: unknown }>): DashboardRange {
+  const search = location.search
+  const range =
+    typeof search === 'object' && search !== null && 'range' in search
+      ? search.range
+      : undefined
+  return dashboardRangeSearch.parse(range)
+}
+
+/**
+ * The data of a read that is kept on screen between ranges. It is always there
+ * once the loader has primed the page; the one way it is not is a failed read,
+ * which is the route's error to show (its Try again), so it is thrown.
+ */
+export function keptData<T>(query: Pick<UseQueryResult<T>, 'data' | 'error'>): T | null {
+  if (query.data !== undefined) return query.data
+  if (query.error) throw query.error
+  return null
+}
