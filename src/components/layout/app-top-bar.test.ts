@@ -16,12 +16,13 @@ describe('AppTopBar frame styles', () => {
     expect(TOP_BAR).toContain('bg-background')
   })
 
-  it('reserves the document gutter only for padded pages without doubling a dialog lock', () => {
+  it('reserves the document gutter on every shell page, so crossings keep one width, without doubling a dialog lock', () => {
     expect(STYLES).toMatch(
-      /:root:has\(\[data-frame='page'\]\)\s*\{[^}]*scrollbar-gutter:\s*stable/su,
+      /:root:has\(\[data-frame\]\)\s*\{[^}]*scrollbar-gutter:\s*stable/su,
     )
+    expect(STYLES).not.toMatch(/:root:has\(\[data-frame='page'\]\)/u)
     expect(STYLES).toMatch(
-      /:root:has\(\[data-frame='page'\]\) body\[data-scroll-locked\]\s*\{[^}]*margin-right:\s*0\s*!important/su,
+      /:root:has\(\[data-frame\]\) body\[data-scroll-locked\]\s*\{[^}]*margin-right:\s*0\s*!important/su,
     )
   })
 })

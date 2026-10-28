@@ -147,13 +147,17 @@
   }
 }
 
-/* Padded pages keep document scroll. Reserve its gutter so opening a dialog does
-   not move the shell; react-remove-scroll-bar otherwise adds the same width again. */
-:root:has([data-frame='page']) {
+/* Padded pages keep document scroll, and every page of the shell reserves its
+   gutter, full-bleed surfaces included. With classic scrollbars (Windows, Linux)
+   a gutter on padded pages alone made the content 15 px narrower there than on
+   the Inbox, so it changed width on every crossing; reserved on both, the shell
+   is one width whatever page it holds, scrolling or not. A dialog's scroll lock
+   (react-remove-scroll-bar) would otherwise add the same width again. */
+:root:has([data-frame]) {
   scrollbar-gutter: stable;
 }
 
-:root:has([data-frame='page']) body[data-scroll-locked] {
+:root:has([data-frame]) body[data-scroll-locked] {
   margin-right: 0 !important;
 }
 
