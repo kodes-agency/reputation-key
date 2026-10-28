@@ -87,6 +87,13 @@ const REGION_GROUPS: ReadonlyArray<Group> = [
       'priority-feedback-not-set',
       'priority-feedback-escalated-urgent',
       'priority-read-only-urgent',
+      // The detail pane's 472 px floor (a 1280 px laptop with the sidebar open),
+      // in a 1440 px window; the fit itself is `inbox-case-toolbar-floor.metrics.ts`.
+      'priority-long-assignee-472',
+      'priority-feedback-not-set-472',
+      'priority-closed-review-suggested-472',
+      'priority-escalated-urgent-472',
+      'priority-feedback-escalated-urgent-472',
     ],
   },
   {

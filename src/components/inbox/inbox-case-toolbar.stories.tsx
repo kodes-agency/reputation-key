@@ -1114,6 +1114,109 @@ export const PriorityReadOnlyUrgent: Story = {
   },
 }
 
+// ─── the detail pane's floor ─────────────────────────────────────────────────
+
+/**
+ * The narrowest pane the desktop gives the toolbar: `InboxDetailPane`'s
+ * `minSize` (`inbox-page-parts.tsx`), which is what a 1280 px laptop with the
+ * app sidebar open gets, and 424 px of room inside the toolbar's `lg:px-6`. The
+ * box is that pane and the window stays the gate's 1440 px, so `md:` and `lg:`
+ * apply as they do on the real page. A pane's width is not the window's, which
+ * is why the Priority control sizes itself by the toolbar's own width (a
+ * container query) and not by a breakpoint; `inbox-case-toolbar-floor.metrics.ts`
+ * measures that every story below fits it with the status word whole.
+ */
+const FLOOR_PANE_WIDTH_PX = 472
+const FLOOR = { paneWidth: FLOOR_PANE_WIDTH_PX } as const
+
+const LONG_ASSIGNEE_ID = 'user-long'
+const LONG_ASSIGNEE_NAME = 'Alexandra Whitmore-Castellanos'
+
+/**
+ * An open review held by a colleague with a long name and set to Urgent: the
+ * everyday row that overflowed the floor once Priority took its word. The owner
+ * gives first — its name ellipsises — so `Open` keeps its whole word.
+ */
+export const PriorityLongAssignee472: Story = {
+  args: {
+    item: setPriority(assignedTo(reviewItem, LONG_ASSIGNEE_ID), 'urgent', ADA_ID),
+    assignmentOptions: [
+      ...assignmentOptions,
+      { userId: LONG_ASSIGNEE_ID, name: LONG_ASSIGNEE_NAME },
+    ],
+  },
+  parameters: FLOOR,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const controls = controlsOf(canvas)
+    await expect(factTexts(canvas)).toEqual(['Open'])
+    await expect(
+      controls.getByRole('button', { name: `Assignment: ${LONG_ASSIGNEE_NAME}` }),
+    ).toBeEnabled()
+    await expect(controls.getByRole('button', { name: 'Priority: Urgent' })).toBeEnabled()
+    await expect(controls.getByRole('button', { name: 'Escalate' })).toBeEnabled()
+  },
+}
+
+/**
+ * Open private feedback with no level: Priority is the 36 px glyph square, so
+ * the owner keeps its whole name beside `To handle`.
+ */
+export const PriorityFeedbackNotSet472: Story = {
+  ...PriorityFeedbackNotSet,
+  parameters: FLOOR,
+}
+
+/**
+ * A closed review with the review signals' High: `[Closed ▾]` is a control
+ * that carries its chevron, so it is the widest status member on a review.
+ */
+export const PriorityClosedReviewSuggested472: Story = {
+  args: { item: closedItem, prioritySuggestion: 'high', target: repliedOnTimeTarget },
+  parameters: FLOOR,
+  play: async ({ canvasElement }) => {
+    const controls = controlsOf(within(canvasElement))
+    await expect(
+      controls.getByRole('button', { name: 'Work status: Closed' }),
+    ).toBeEnabled()
+    await expect(
+      controls.getByRole('button', { name: 'Priority: High, suggested' }),
+    ).toBeEnabled()
+    await expect(controls.getByRole('button', { name: 'Escalate' })).toBeEnabled()
+  },
+}
+
+/**
+ * Open, escalated and Urgent: `[Resolve]` and the `Escalated` fact add 176 px,
+ * the widest review row. The owner's name gives the 32 px it is short of, so
+ * `Open` keeps its whole word.
+ */
+export const PriorityEscalatedUrgent472: Story = {
+  args: {
+    item: setPriority(escalatedItem, 'urgent', ADA_ID),
+    isEscalationActive: true,
+  },
+  parameters: FLOOR,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const controls = controlsOf(canvas)
+    await expect(factTexts(canvas)).toEqual(['Open', 'Escalated'])
+    await expect(controls.getByRole('button', { name: 'Priority: Urgent' })).toBeEnabled()
+    await expect(controls.getByRole('button', { name: 'Resolve' })).toBeEnabled()
+  },
+}
+
+/**
+ * Open, escalated feedback a manager set to Urgent: the widest feedback row.
+ * `[Resolve]` and the `Escalated` fact add 176 px, which is 57 px more than the
+ * pane has, so the owner's name gives that much (81 px of it are left) and
+ * `To handle` prints whole.
+ */
+export const PriorityFeedbackEscalatedUrgent472: Story = {
+  ...PriorityFeedbackEscalatedUrgent,
+  parameters: FLOOR,
+}
+
 // ─── pending ─────────────────────────────────────────────────────────────────
 
 /**
