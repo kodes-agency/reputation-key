@@ -126,7 +126,7 @@ describe('a loading state', () => {
   it('lays the Inbox out on its container, the queue rail from 64rem', () => {
     const html = render({ kind: 'loading', title: 'Inbox', shape: 'inbox' })
     expect(html).toContain('@container')
-    expect(html).toContain('@5xl:flex')
+    expect(html).toContain('@min-[1022px]:flex')
     expect(html).toContain('h-[78px]')
   })
 })

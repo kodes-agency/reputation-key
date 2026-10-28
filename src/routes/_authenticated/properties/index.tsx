@@ -34,7 +34,7 @@ import {
 } from './-properties-prefetch'
 
 export const Route = createFileRoute('/_authenticated/properties/')({
-  staticData: { page: { title: 'Properties', tier: 'dashboard' } },
+  staticData: { page: { title: 'Properties', tier: 'dashboard', loading: 'list' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     // Properties admin list is a manager surface (property.admin).

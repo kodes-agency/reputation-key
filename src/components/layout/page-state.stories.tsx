@@ -128,7 +128,7 @@ export const LoadingWorkspace: Story = {
   },
 }
 
-/** The Inbox loads as its queue rail, list and detail pane, the rail from `@5xl`. */
+/** The Inbox loads as its queue rail, list and detail pane, the rail from `@min-[1022px]`. */
 export const LoadingInbox: Story = {
   args: { kind: 'loading', title: 'Inbox', fullBleed: true, shape: 'inbox' },
   render: (args) => (

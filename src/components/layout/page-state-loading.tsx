@@ -18,8 +18,8 @@ import { PAGE_GUTTER_X } from './page-shell'
 // they are spelled in classes here and must change with them: the portal editor
 // splits at `@4xl`, widens its preview at `@6xl` and shows its section column at
 // `@7xl` (`portal-editor`, `section-nav-styles`); the Inbox shows its queue rail
-// from `@5xl`, the width of a rail, a list and a detail pane at their minimums
-// (`inbox-page-parts`).
+// from `@min-[1022px]`, the width of a rail, a list and a detail pane at their
+// minimums, which is the floor `use-inbox-compact-layout` measures beside the sidebar.
 
 type BodyProps = Readonly<{
   /** What a screen reader hears while the page loads. */
@@ -219,22 +219,22 @@ function InboxRowPlaceholder() {
 
 /**
  * The Inbox (and a Property's Reviews) while it loads: queue rail, list and
- * detail pane in a container, the rail from `@5xl`. Below that the list stands
- * alone with the queues as a strip of chips above it, as the compact layout does
- * (on a phone the header row is the scope, and the queue's name is read, not drawn).
+ * detail pane in a container, the rail from `@min-[1022px]` (the Inbox's own
+ * floor, `use-inbox-compact-layout`). Below that the list stands alone with the
+ * queues as a strip of chips above it, as the compact layout does (on a phone the header row is the scope, and the queue's name is read, not drawn).
  */
 function InboxBody({ title, label }: BodyProps & Readonly<{ title?: string }>) {
   return (
     <BusyRegion shape="inbox" label={label} className="@container h-full min-w-0">
       <div className="flex h-full min-w-0">
-        <div className="hidden h-full w-56 shrink-0 flex-col gap-1 border-r px-3 py-4 @5xl:flex">
+        <div className="hidden h-full w-56 shrink-0 flex-col gap-1 border-r px-3 py-4 @min-[1022px]:flex">
           <Skeleton className="mb-3 h-8" />
           {Array.from({ length: 8 }).map((_, index) => (
             <Skeleton key={index} className="h-8" />
           ))}
         </div>
-        <div className="flex h-full min-w-0 flex-1 flex-col @5xl:flex-none @5xl:basis-[25rem] @5xl:shrink">
-          <div className="flex h-11 shrink-0 items-center gap-3 border-b px-4 md:h-14 @5xl:px-3">
+        <div className="flex h-full min-w-0 flex-1 flex-col @min-[1022px]:flex-none @min-[1022px]:basis-[25rem] @min-[1022px]:shrink">
+          <div className="flex h-11 shrink-0 items-center gap-3 border-b px-4 md:h-14 @min-[1022px]:px-3">
             <div className="min-w-0 flex-1 space-y-1">
               {title ? (
                 <h1 className="truncate text-sm font-semibold max-md:sr-only">{title}</h1>
@@ -246,7 +246,7 @@ function InboxBody({ title, label }: BodyProps & Readonly<{ title?: string }>) {
             <Skeleton className="size-8" />
             <Skeleton className="h-8 w-36 max-md:w-16" />
           </div>
-          <div className="flex h-[43px] shrink-0 items-center gap-2 border-b px-4 @5xl:hidden">
+          <div className="flex h-[43px] shrink-0 items-center gap-2 border-b px-4 @min-[1022px]:hidden">
             {Array.from({ length: 3 }).map((_, index) => (
               <Skeleton key={index} className="h-8 w-24 rounded-full" />
             ))}
@@ -257,8 +257,8 @@ function InboxBody({ title, label }: BodyProps & Readonly<{ title?: string }>) {
             ))}
           </div>
         </div>
-        <div className="hidden w-1.5 shrink-0 bg-border @5xl:block" />
-        <div className="hidden min-w-0 flex-1 @5xl:block" />
+        <div className="hidden w-1.5 shrink-0 bg-border @min-[1022px]:block" />
+        <div className="hidden min-w-0 flex-1 @min-[1022px]:block" />
       </div>
     </BusyRegion>
   )

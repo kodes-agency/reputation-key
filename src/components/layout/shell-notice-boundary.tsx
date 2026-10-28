@@ -1,9 +1,9 @@
 import { useContext, type ComponentType, type ReactNode } from 'react'
-import { useRouterState } from '@tanstack/react-router'
 import { isFullBleedRoute } from './full-bleed-route'
 import { FullBleedFrame } from './page-shell'
 import { NoticeState } from './route-notice-state'
 import { ShellPresence } from './route-page-state'
+import { useRenderedPathname } from './rendered-location'
 
 /**
  * What the app shell route draws for a not-found: the notice, inside a shell.
@@ -22,7 +22,7 @@ export function ShellNoticeBoundary({
   shell: ComponentType<Readonly<{ children: ReactNode }>>
 }>) {
   const shellPresent = useContext(ShellPresence)
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const pathname = useRenderedPathname()
   const notice = <NoticeState data={data} />
   const state = isFullBleedRoute(pathname) ? (
     <FullBleedFrame scroll>{notice}</FullBleedFrame>

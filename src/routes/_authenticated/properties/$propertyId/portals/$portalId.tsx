@@ -1,9 +1,4 @@
-import {
-  createFileRoute,
-  Outlet,
-  useRouterState,
-  type SearchSchemaInput,
-} from '@tanstack/react-router'
+import { createFileRoute, Outlet, type SearchSchemaInput } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -21,6 +16,7 @@ import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-work
 import { PortalWorkspaceShell } from '#/components/features/portal/portal-workspace/portal-workspace-shell'
 import { PortalWorkspaceTabs } from '#/components/features/portal/portal-workspace/portal-workspace-tabs'
 import { documentTitle } from '#/components/layout/page-identity'
+import { useRenderedPathname } from '#/components/layout/rendered-location'
 import { RouteNotFound } from '#/components/layout/route-page-state'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { PortalWorkspaceHeaderSlot } from './-portal-workspace-header-slot'
@@ -93,7 +89,9 @@ function PortalNoLongerAvailable() {
 function PortalWorkspaceLayout() {
   const { propertyId, portalId } = Route.useParams()
   const { tab, section } = Route.useSearch()
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  // The page on screen decides the header and tabs, so they do not change under
+  // the old page while the next one loads (rendered-location).
+  const pathname = useRenderedPathname()
   const { has } = useCapabilities()
 
   const reviewing = isWorkspaceReviewRoute(pathname)

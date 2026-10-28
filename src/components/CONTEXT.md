@@ -365,12 +365,13 @@ tier, under } }`, see `page-identity.ts`): that gives its fallbacks their frame
   shape of its content (`loading`, `headerLines` on `staticData.page`, resolved
   by `loadingShapeOf` in `page-identity.ts`; bodies in `page-state-loading.tsx`),
   so the title and the first block stay where the page lands: a Settings page is
-  `narrow`, Staff and Notifications a `list`, Goals `cards`, the Property look
+  `narrow`, the Properties list, Staff and Notifications a `list`, Goals `cards`, the Property look
   and a Portal group `split` (the group header is two lines), the Inbox and
   Reviews `inbox`, the Portal workspace a `workspace`. The workspace and Inbox
   placeholders are containers whose breakpoints are the surfaces' own (editor
   preview beside the form from `@4xl`, 30rem from `@6xl`, section column from
-  `@7xl`; Inbox queue rail from `@5xl`), so change them together. The router
+  `@7xl`; Inbox queue rail from `@min-[1022px]`, the floor of
+  `use-inbox-compact-layout` beside the sidebar), so change them together. The router
   keeps the old page for the first 250 ms of a navigation, counted from the click
   and including the shell's own `beforeLoad` stage (`defaultPendingMs`), and holds
   a placeholder that did appear for 300 ms (`defaultPendingMinMs`), so a quick
@@ -600,7 +601,9 @@ server, and during the hydration that must match it, it answers from the
 request's viewport hint: the width the authenticated layout keeps in the
 `rk_viewport` cookie, else a mobile user agent. A phone's first paint is then
 already the phone layout. Do not add a `matchMedia` hook with a fixed server
-answer.
+answer. `useInboxCompactLayout` adds the room the app sidebar takes (256 px open,
+48 px folded, none on a phone) to the Inbox's 1,022 px floor, so the three panes
+need 1,278 px of window beside an open sidebar and 1,070 px beside the rail.
 
 ## Presentation
 
