@@ -961,7 +961,10 @@ const setPriority = (
 /** Opens the Priority menu by its trigger; returns its rows' accessible names. */
 async function openPriorityMenu(name: string): Promise<ReadonlyArray<string>> {
   const body = within(document.body)
-  await userEvent.click(body.getByRole('button', { name }))
+  // `find`, not `get`: a menu that has just closed keeps the rest of the page
+  // aria-hidden until its exit animation ends, so for a moment the trigger is
+  // not in the accessibility tree (seen in the Storybook geometry harness).
+  await userEvent.click(await body.findByRole('button', { name }))
   const rows = await body.findAllByRole('menuitemradio')
   await waitFor(() => expect(rows[0]).toBeVisible())
   return rows.map((row) => row.textContent?.trim() ?? '')
@@ -990,6 +993,8 @@ export const PrioritySuggested: Story = {
     }
     await expect(body.queryByRole('menuitem')).toBeNull()
     await closeMenu()
+    // `closeMenu` waits for a `menuitem`, and this menu has none to wait for.
+    await waitFor(() => expect(body.queryByRole('menu')).toBeNull())
   },
 }
 export const PrioritySuggested390: Story = { ...PrioritySuggested, parameters: PHONE }
@@ -1022,6 +1027,7 @@ export const PrioritySetOverSuggestion: Story = {
       body.getByRole('menuitem', { name: 'Back to suggestion (Low)' }),
     ).toBeVisible()
     await userEvent.click(body.getByRole('menuitemradio', { name: 'Urgent' }))
+    await waitFor(() => expect(body.queryByRole('menu')).toBeNull())
     await expect(onSetPriority).not.toHaveBeenCalled()
 
     await openPriorityMenu('Priority: Urgent')
