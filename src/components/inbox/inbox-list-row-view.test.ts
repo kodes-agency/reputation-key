@@ -60,4 +60,31 @@ describe('inboxRowView', () => {
       expect(view.signals).not.toContain('Urgent')
     }
   })
+
+  it("reads the effective level: a person's over the suggestion, Medium and Low silent", () => {
+    const view = (over: Partial<InboxItem>) =>
+      inboxRowView(
+        { ...item, isEscalated: false, ...over },
+        {
+          assignmentOptions: [],
+          viewedUpTo: null,
+        },
+      )
+
+    // A manager's Low over the AI's Urgent: no red, and nothing printed.
+    expect(view({ managerPriority: 'low' })).toMatchObject({ isUrgent: false })
+    expect(view({ managerPriority: 'low' }).signals).toEqual(['Awaiting approval'])
+    // A manager's Urgent on feedback, which has no suggestion of its own.
+    expect(
+      view({ sourceType: 'feedback', attention: null, managerPriority: 'urgent' }),
+    ).toMatchObject({ isUrgent: true })
+    // High prints its word; the list does not tell set from suggested.
+    expect(view({ attention: 'high' }).signals).toContain('High')
+    expect(view({ attention: null, managerPriority: 'high' }).accessibleName).toBe(
+      'Open review from Grace Hopper, Awaiting approval, High',
+    )
+    expect(view({ attention: null, managerPriority: 'medium' }).signals).toEqual([
+      'Awaiting approval',
+    ])
+  })
 })

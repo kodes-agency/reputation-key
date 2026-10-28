@@ -30,6 +30,7 @@ import { CASE_GROUP_CLASS } from './inbox-case-member'
 import type { InboxCaseToolbarProps } from './inbox-case-toolbar-props'
 import { InboxDetailManagerActions } from './inbox-detail-manager-actions'
 import { INBOX_SOURCE_HANDLE_PERMISSION, InboxOwnerControl } from './inbox-owner-control'
+import { InboxPriorityControl } from './inbox-priority-control'
 import {
   presentResponseTargetChip,
   type ResponseTargetChipTone,
@@ -365,7 +366,8 @@ function ReplyDueDetail({
 
 /**
  * Region 2 of the pane (plan v2.1 row 3): ONE `ButtonGroup` — status, owner,
- * escalation, in that order — then the reply-due detail on the trailing edge.
+ * priority, escalation, in that order (the two triage signals side by side,
+ * ADR 0071) — then the reply-due detail on the trailing edge.
  * Row 2's rule is what the file is for: a control is an outlined button inside
  * the group, a fact is plain text with a glyph and no box (`Fact`, in
  * `ui/fact.tsx`, with the group's edge rules in `inbox-case-member.tsx`), and a detail
@@ -392,6 +394,9 @@ export function InboxCaseToolbar({
   onAssign,
   onEscalate,
   onResolveEscalation,
+  prioritySuggestion,
+  onSetPriority,
+  priorityMenu,
 }: InboxCaseToolbarProps) {
   return (
     // The row WRAPS; it does not scroll. v1's strip, and this toolbar until
@@ -469,6 +474,16 @@ export function InboxCaseToolbar({
           currentUser={currentUser}
           isPending={isPending}
           onAssign={onAssign}
+        />
+        <InboxPriorityControl
+          item={item}
+          suggestion={prioritySuggestion}
+          assignmentOptions={assignmentOptions}
+          currentUser={currentUser}
+          isPending={isPending}
+          onSetPriority={onSetPriority}
+          menuRef={priorityMenu}
+          now={now}
         />
         <InboxDetailManagerActions
           sourceType={item.sourceType}

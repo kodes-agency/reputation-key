@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
 import { inboxItemId } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import { removeInboxSelection, toggleInboxSelection } from './inbox-selection'
+import {
+  reconcileInboxPageItems,
+  removeInboxSelection,
+  toggleInboxSelection,
+} from './inbox-selection'
 import { itemMatchesQueue } from './inbox-queues'
 
 describe('toggleInboxSelection', () => {
@@ -59,5 +63,36 @@ describe('selection reconciliation', () => {
         'viewer',
       ),
     ).toBe(false)
+  })
+})
+
+describe('reconcileInboxPageItems', () => {
+  it('carries a priority command onto the row, and keeps the list its suggestion', () => {
+    const row = {
+      id: inboxItemId('00000000-0000-4000-8000-000000000002'),
+      status: 'open',
+      attention: 'urgent',
+      managerPriority: null,
+      managerPrioritySetBy: null,
+      managerPrioritySetAt: null,
+    } as unknown as InboxItem
+    const setAt = new Date('2026-10-28T10:00:00Z')
+    const command = {
+      ...row,
+      attention: undefined,
+      managerPriority: 'low',
+      managerPrioritySetBy: 'user-maria',
+      managerPrioritySetAt: setAt,
+    } as unknown as InboxItem
+
+    const [patched] = reconcileInboxPageItems([row], command, true)
+
+    expect(patched).toMatchObject({
+      managerPriority: 'low',
+      managerPrioritySetBy: 'user-maria',
+      managerPrioritySetAt: setAt,
+      // The list's own read, not the command's: commands carry no suggestion.
+      attention: 'urgent',
+    })
   })
 })

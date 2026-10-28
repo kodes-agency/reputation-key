@@ -9,6 +9,7 @@ const SHORTCUTS = [
   ['r', 'Reply'],
   ['n', 'Add note'],
   ['e', 'Escalate or resolve'],
+  ['p', 'Set priority'],
   ['Esc', 'Close detail'],
   ['?', 'Show this list'],
 ] as const

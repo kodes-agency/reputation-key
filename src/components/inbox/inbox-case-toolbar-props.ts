@@ -31,10 +31,12 @@ import type {
   FeedbackHandlingState,
   InboxItem,
   InboxItemDetailResult,
+  InboxPriority,
   ResponseTargetView,
 } from '#/contexts/inbox/application/public-api'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { isHeaderCommandPending } from './inbox-header-command-pending'
+import { prioritySuggestion } from './inbox-priority-view'
 import type { InboxDetailState } from './use-inbox-detail'
 
 /**
@@ -66,9 +68,17 @@ export type InboxCurrentUser = Readonly<{
 }>
 
 /**
- * The six item commands that share one `commandRevision` fence, exactly as the
- * pane receives them (`DetailContentProps`). All six are here and not just the
- * three the toolbar issues, because the toolbar's lock has to cover every
+ * Where the open Priority menu's opener is kept while the control is mounted,
+ * so the page's `p` shortcut can open it (the `composerFocusRef` pattern): the
+ * key is bound on `window`, above the pane, and the menu's open state is the
+ * control's own. Carried on the detail state, which already reaches both.
+ */
+export type InboxPriorityMenuBox = { current: (() => void) | null }
+
+/**
+ * The seven item commands that share one `commandRevision` fence, exactly as
+ * the pane receives them (`DetailContentProps`). All seven are here and not just
+ * the four the toolbar issues, because the toolbar's lock has to cover every
  * command that would stale its revision — see `isHeaderCommandPending`.
  */
 export type InboxCaseToolbarCommands = Pick<
@@ -77,6 +87,7 @@ export type InboxCaseToolbarCommands = Pick<
   | 'escalate'
   | 'resolveEscalation'
   | 'assign'
+  | 'setPriority'
   | 'markFeedbackHandled'
   | 'correctFeedbackHandlingOutcome'
 >
@@ -91,10 +102,15 @@ export type InboxCaseToolbarInput = InboxCaseToolbarCommands &
   Readonly<{
     item: InboxItem
     /**
-     * `null` while the detail query is loading. Only the two fields the toolbar
+     * `null` while the detail query is loading. Only the fields the toolbar
      * reads are required, so a story or a test need not build a whole payload.
+     * `analysis` is optional for the same reason: the Priority control reads
+     * its suggestion from it, and a fixture without one has none.
      */
-    detail: Pick<InboxItemDetailResult, 'responseTarget' | 'feedbackHandling'> | null
+    detail:
+      | (Pick<InboxItemDetailResult, 'responseTarget' | 'feedbackHandling'> &
+          Partial<Pick<InboxItemDetailResult, 'analysis'>>)
+      | null
     assignmentOptions: ReadonlyArray<InboxAssignmentOption>
     currentUser?: InboxCurrentUser
     /**
@@ -103,6 +119,8 @@ export type InboxCaseToolbarInput = InboxCaseToolbarCommands &
      * is the pane's own `useState`, so this is a callback in, not a command.
      */
     onReopen: () => void
+    /** The `p` shortcut's way into the Priority menu (`InboxPriorityMenuBox`). */
+    priorityMenu?: InboxPriorityMenuBox
   }>
 
 /**
@@ -125,7 +143,7 @@ export type InboxCaseToolbarProps = Readonly<{
   feedbackHandling: FeedbackHandlingState | null
   assignmentOptions: ReadonlyArray<InboxAssignmentOption>
   currentUser?: InboxCurrentUser
-  /** Any of the six item commands in flight; disables every toolbar control. */
+  /** Any of the seven item commands in flight; disables every toolbar control. */
   isPending: boolean
   /**
    * A raised escalation not yet resolved. `isEscalated` alone is not enough:
@@ -142,6 +160,15 @@ export type InboxCaseToolbarProps = Readonly<{
   onAssign: (assignedToUserId: string | null) => void
   onEscalate: () => void
   onResolveEscalation: () => void
+  /**
+   * The review's current AI attention, from the detail's analysis (the stricter
+   * delivery gate, so the toolbar is authoritative for the open item); null for
+   * feedback, no analysis, or AI off.
+   */
+  prioritySuggestion: InboxPriority | null
+  /** Sets a level, or clears it with `null`; bound to the fence and the set level. */
+  onSetPriority: (priority: InboxPriority | null) => void
+  priorityMenu?: InboxPriorityMenuBox
 }>
 
 /**
@@ -234,13 +261,15 @@ export function buildInboxCaseToolbarProps(
     feedbackHandling: detail?.feedbackHandling ?? null,
     assignmentOptions: input.assignmentOptions,
     currentUser: input.currentUser,
-    // All six, not the three this toolbar issues: every command is fenced on
+    // All seven, not the four this toolbar issues: every command is fenced on
     // the same `commandRevision`, so a click here while a feedback outcome is
     // in flight would ship a revision about to go stale
-    // (`inbox-header-command-pending.ts:19-26`).
+    // (`inbox-header-command-pending.ts`).
     isPending: isHeaderCommandPending(input),
     isEscalationActive: isEscalationActive(item),
     onReopen: input.onReopen,
+    prioritySuggestion: prioritySuggestion(detail?.analysis),
+    priorityMenu: input.priorityMenu,
     // Each `.catch`ed, not merely `void`ed: an `Action` is `mutateAsync` and
     // rejects on refusal, so a bare `void` made every refused command an
     // unhandled rejection. What TELLS the manager is the `errorMessage` toast
@@ -254,6 +283,16 @@ export function buildInboxCaseToolbarProps(
     },
     onResolveEscalation: () => {
       void input.resolveEscalation({ data: fence }).catch(() => undefined)
+    },
+    // The expectation is the level a person SET on the item this pane shows,
+    // never the suggestion: the server refuses a different stored level as a
+    // colleague's change (`priority_changed`).
+    onSetPriority: (priority) => {
+      void input
+        .setPriority({
+          data: { ...fence, expectedPriority: item.managerPriority ?? null, priority },
+        })
+        .catch(() => undefined)
     },
   }
 }

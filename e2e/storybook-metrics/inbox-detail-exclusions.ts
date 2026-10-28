@@ -136,6 +136,8 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
   'pages-inbox--property-scope':
     'no item is open: the page shows the rail and the list panel; the rail is measured by Inbox/Queue Rail',
   'pages-inbox--long-content': 'no item is open: the page shows only the list panel',
+  'pages-inbox--priority-change-leaves-the-filter':
+    'ends with no item open: its play sets the open item out of the Priority filter, the pane closes and the page shows only the list panel',
   'pages-inbox--mobile-viewport':
     'no item is open, and its play drives the phone layout (queue bar, Select items), which throws at 1440: the phone list (header, queue bar, rows) is measured on the grid by inbox-phone.metrics.ts at 320 and 390; the detail sheet by Inbox/Mobile 390',
   'pages-inbox--mobile-filtered-viewport':
@@ -152,6 +154,8 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
     'the pane shows only its loading state, measured as inbox-detail-panel--loading; the play is desktop-only',
   'inbox-escalation-shortcut--detail-failed':
     'the pane shows only its failure state, measured as inbox-detail-panel--error-state; the play is desktop-only',
+  'inbox-escalation-shortcut--p-then-u-sets-urgent':
+    'its play ends on a priority command held in flight, so every toolbar control is disabled; the same page and pane are measured as inbox-escalation-shortcut--detail-ready, and the Priority menu as the inbox-case-toolbar--priority-* stories',
 }
 
 /** Whole titles under `src/components/inbox/` measured nowhere, and why. */

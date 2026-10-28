@@ -20,6 +20,7 @@ import {
 import { cn } from '#/lib/utils'
 import { MESSAGE_PROSE_CLASS } from './guest-message'
 import { historyEventLine } from './history-event-line'
+import { InboxPriorityGlyph } from './inbox-priority-glyph'
 import { formatExactTime, formatRelativeTime } from './utils'
 import type { InboxHistoryEntry } from './inbox-thread-model'
 import type { ReactNode } from 'react'
@@ -58,6 +59,9 @@ function eventIcon(entry: InboxHistoryEntry): ReactNode {
       )
     case 'handling_outcome':
       return <ClipboardCheck className="size-3.5" />
+    case 'priority':
+      // The level it was set to; a reset shows the empty bars of "Not set".
+      return <InboxPriorityGlyph level={detail.priority} className="size-3.5" />
     default:
       return <Layers className="size-3.5" />
   }

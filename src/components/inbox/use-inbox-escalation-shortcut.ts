@@ -37,6 +37,26 @@ export function bindEscalationShortcutCommands(
 }
 
 /**
+ * Whether a triage key (`e`, `p`) may act on the open item: the toolbar is
+ * showing its controls, and the caller holds the gate Escalate and Priority
+ * share — `inbox.write`, the source's handle permission and `inbox.manage`. A
+ * key must never reach past a control the pane has taken away.
+ */
+export function isTriageShortcutAllowed(
+  item: InboxItem | null,
+  detailState: InboxDetailState,
+  can: CanPermission,
+): boolean {
+  return (
+    item !== null &&
+    isCaseToolbarShown(detailState) &&
+    can('inbox.write') &&
+    can(INBOX_SOURCE_HANDLE_PERMISSION[item.sourceType]) &&
+    can('inbox.manage')
+  )
+}
+
+/**
  * Builds the `e` shortcut from the same availability and command fences as the
  * detail toolbar. Keeping the whole policy here prevents the page controller
  * from growing a second, subtly different escalation path.
@@ -46,12 +66,7 @@ export function useInboxEscalationShortcut(
   detailState: InboxDetailState,
   can: CanPermission,
 ) {
-  const isAllowed =
-    item !== null &&
-    isCaseToolbarShown(detailState) &&
-    can('inbox.write') &&
-    can(INBOX_SOURCE_HANDLE_PERMISSION[item.sourceType]) &&
-    can('inbox.manage')
+  const isAllowed = isTriageShortcutAllowed(item, detailState, can)
   const isPending = isHeaderCommandPending(detailState)
   const { escalate, resolveEscalation } = detailState
 

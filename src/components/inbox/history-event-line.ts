@@ -52,6 +52,7 @@ import {
 } from './feedback-handling-presentation'
 import type { InboxHistoryEntry } from './inbox-thread-model'
 import type { ManualReopenReason } from '#/contexts/inbox/application/public-api'
+import { PRIORITY_WORD } from './inbox-priority-view'
 
 type InboxHistoryDetail = InboxHistoryEntry['detail']
 type DetailOf<K extends InboxHistoryDetail['kind']> = Extract<
@@ -385,6 +386,48 @@ function outcomeLine(
 }
 
 /**
+ * A person's priority decision (ADR 0071, copy C-14 alone and C-15 after a
+ * name): set, changed, or reset to the suggestion. Only a person writes these
+ * rows, so the line names whoever the server resolved; an AI change is never
+ * a row at all. A level this build cannot spell is silence, as everywhere in
+ * this file — never `Priority set to undefined`.
+ */
+function priorityLine(
+  detail: DetailOf<'priority'>,
+  actor: Actor,
+): HistoryEventLine | null {
+  const next = detail.priority === null ? null : ownWord(PRIORITY_WORD, detail.priority)
+  const previous =
+    detail.previousPriority === null
+      ? null
+      : ownWord(PRIORITY_WORD, detail.previousPriority)
+  if (next === undefined || previous === undefined) return null
+  if (next === null) {
+    // A reset of nothing is not a row the server writes.
+    if (previous === null) return null
+    return {
+      actor,
+      verb: verbFor(
+        actor,
+        `Priority reset (was ${previous})`,
+        `reset the priority (was ${previous})`,
+      ),
+      object: null,
+      body: null,
+    }
+  }
+  const verb =
+    previous === null
+      ? verbFor(actor, `Priority set to ${next}`, `set the priority to ${next}`)
+      : verbFor(
+          actor,
+          `Priority changed from ${previous} to ${next}`,
+          `changed the priority from ${previous} to ${next}`,
+        )
+  return { actor, verb, object: null, body: null }
+}
+
+/**
  * The parts for one entry, or `null` when this build cannot say what happened —
  * an unknown enum value, a sixth kind, or the `opened` transition a
  * `cycle_opened` row already tells. A caller renders nothing for `null`: not an
@@ -409,6 +452,8 @@ export function historyEventLine(entry: InboxHistoryEntry): HistoryEventLine | n
       return escalationLine(detail, actor)
     case 'handling_outcome':
       return outcomeLine(detail, actor)
+    case 'priority':
+      return priorityLine(detail, actor)
     default:
       // A sixth InboxHistoryKind reaching an older client must be silence, not
       // a crash or a half-written sentence.

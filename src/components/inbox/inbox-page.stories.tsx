@@ -422,6 +422,61 @@ export const EscalatedFolder: Story = {
   ),
 }
 
+/**
+ * Filtered to Urgent, a manager sets the open item to Low (owner P-8, plan D-9
+ * A): the item no longer matches, the list re-reads without it and the pane
+ * closes — the way resolving an escalation inside Escalated closes it, through
+ * the same `selectedItemDeparture`, with no code of its own. The other Urgent
+ * item stays listed. Fresh state per mount, because the play changes it.
+ */
+function PriorityFilterHarness() {
+  const [inboxFns] = useState(() => {
+    const scoped = createInboxContainer()
+    const setByColleague = {
+      managerPrioritySetBy: userId('user-colleague'),
+      managerPrioritySetAt: new Date('2025-01-15T10:00:00Z'),
+    }
+    scoped.seed([
+      {
+        ...makeInboxItem({ id: 'urgent-1', sourceType: 'review', rating: 1 }),
+        managerPriority: 'urgent',
+        ...setByColleague,
+      },
+      {
+        ...makeInboxItem({ id: 'urgent-2', sourceType: 'feedback', rating: 2 }),
+        snippet: 'The room was not cleaned during our stay.',
+        managerPriority: 'urgent',
+        ...setByColleague,
+      },
+    ])
+    return makeInboxFns(scoped)
+  })
+  return (
+    <InboxPageHarness
+      ctx={orgCtx}
+      inboxFns={inboxFns}
+      initialSearch={{ queue: 'open', attention: 'urgent', itemId: 'urgent-1' }}
+    />
+  )
+}
+
+export const PriorityChangeLeavesTheFilter: Story = {
+  render: () => <PriorityFilterHarness />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement)
+    await page.findByRole('button', { name: 'Close detail' })
+    await userEvent.click(await page.findByRole('button', { name: 'Priority: Urgent' }))
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: /^Low/ }))
+
+    await waitFor(() =>
+      expect(page.queryByRole('button', { name: 'Close detail' })).toBeNull(),
+    )
+    await expect(
+      page.getByText('The room was not cleaned during our stay.'),
+    ).toBeVisible()
+  },
+}
+
 // No active organization → the page renders its NoOrg empty state.
 export const NoOrg: Story = {
   render: () => (

@@ -76,6 +76,7 @@ const COMMAND_NAMES: ReadonlyArray<CommandName> = [
   'escalate',
   'resolveEscalation',
   'assign',
+  'setPriority',
   'markFeedbackHandled',
   'correctFeedbackHandlingOutcome',
 ]
@@ -105,6 +106,7 @@ function makeCommands(pending?: CommandName) {
     escalate: fakeAction(pending === 'escalate'),
     resolveEscalation: fakeAction(pending === 'resolveEscalation'),
     assign: fakeAction(pending === 'assign'),
+    setPriority: fakeAction(pending === 'setPriority'),
     markFeedbackHandled: fakeAction(pending === 'markFeedbackHandled'),
     correctFeedbackHandlingOutcome: fakeAction(
       pending === 'correctFeedbackHandlingOutcome',
@@ -311,7 +313,7 @@ describe('buildInboxCaseToolbarProps — escalation', () => {
 })
 
 describe('buildInboxCaseToolbarProps — pending command', () => {
-  // All six, because all six share the `commandRevision` fence: the toolbar
+  // All seven, because all seven share the `commandRevision` fence: the toolbar
   // must lock while a command it does not issue itself is in flight too.
   it.each(COMMAND_NAMES)('locks the toolbar while %s is in flight', (pending) => {
     const { input } = makeInput({ pending })

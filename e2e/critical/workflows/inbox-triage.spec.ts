@@ -32,6 +32,7 @@ import {
   getInboxHandlingCycles,
   getInboxHandlingCycleHead,
   getInboxNotes,
+  getInboxPriorityHistory,
   callServerFn,
   callServerFnExpectError,
   waitFor,
@@ -249,5 +250,54 @@ test.describe('Critical workflow: inbox triage persists', () => {
     const notes = await getInboxNotes(inboxItemId)
     expect(notes).toHaveLength(1)
     expect(notes[0].text).toBe('Triage note: called the guest back.')
+
+    // 8. Manager priority (ADR 0071): set Urgent from the toolbar's Priority
+    // menu — durable, one history row, and it alone moves the Priority filter.
+    // The trigger reads the level or the review signals' suggestion, so it is
+    // matched by its prefix.
+    await dismissToasts(page)
+    await page.getByRole('button', { name: /^Priority: / }).click()
+    await page.getByRole('menuitemradio', { name: /^Urgent/ }).click()
+    const urgent = await waitFor(
+      async () => {
+        const row = await getInboxItemById(inboxItemId)
+        return row?.manager_priority === 'urgent' ? row : null
+      },
+      { timeoutMs: 10_000, description: 'manager priority set to Urgent' },
+    )
+    expect(urgent.manager_priority_set_by).toBeTruthy()
+    expect(urgent.manager_priority_set_at).toBeTruthy()
+    // Priority is independent: status, assignment and escalation are untouched.
+    expect(urgent.assigned_to).toBe(assignee.userId)
+    expect(urgent.is_escalated).toBe(false)
+    expect((await getInboxHandlingCycleHead(inboxItemId))?.status).toBe('open')
+    expect(await getInboxPriorityHistory(inboxItemId)).toEqual([
+      expect.objectContaining({ priority: 'urgent', previous_priority: null }),
+    ])
+    await expect(page.getByRole('button', { name: 'Priority: Urgent' })).toBeVisible()
+
+    // The Priority filter matches the level a person set.
+    await page.goto('/inbox?queue=open&attention=urgent')
+    await expect(
+      page.getByRole('button', { name: /^Open review from Triage Reviewer\b.*Urgent/ }),
+    ).toBeVisible({ timeout: 15_000 })
+
+    // And the way back clears it, recording what it cleared.
+    await page.goto(`/inbox?itemId=${inboxItemId}`)
+    await page.getByRole('button', { name: 'Priority: Urgent' }).click()
+    await page
+      .getByRole('menuitem', { name: /^(Back to suggestion|Remove priority)/ })
+      .click()
+    await waitFor(
+      async () => {
+        const row = await getInboxItemById(inboxItemId)
+        return row?.manager_priority === null ? row : null
+      },
+      { timeoutMs: 10_000, description: 'manager priority cleared' },
+    )
+    expect(await getInboxPriorityHistory(inboxItemId)).toEqual([
+      expect.objectContaining({ priority: 'urgent', previous_priority: null }),
+      expect.objectContaining({ priority: null, previous_priority: 'urgent' }),
+    ])
   })
 })

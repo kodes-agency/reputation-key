@@ -28,9 +28,9 @@ describe('filtersOffered', () => {
   )
 
   it.each(['feedback', 'handled'] as const)(
-    'does not offer the topics or the AI Priority in %s',
+    'does not offer the topics in %s, which hold no analysis to read',
     (queue) => {
-      expect(filtersOffered(queue)).toMatchObject({ topics: false, priority: false })
+      expect(filtersOffered(queue).topics).toBe(false)
     },
   )
 
@@ -42,8 +42,12 @@ describe('filtersOffered', () => {
     'mine',
     'escalated',
     'open',
-  ] as const)('offers the topics and the AI Priority in %s', (queue) => {
-    expect(filtersOffered(queue)).toMatchObject({ topics: true, priority: true })
+  ] as const)('offers the topics in %s', (queue) => {
+    expect(filtersOffered(queue).topics).toBe(true)
+  })
+
+  it('offers Priority in every queue, private feedback included (ADR 0071)', () => {
+    for (const queue of INBOX_QUEUES) expect(filtersOffered(queue).priority).toBe(true)
   })
 
   it('offers Rating in every queue', () => {
@@ -63,14 +67,10 @@ describe('offeredListFilters', () => {
     })
   })
 
-  it('keeps only Rating in a private feedback queue', () => {
-    expect(offeredListFilters('feedback', EVERYTHING)).toEqual({
-      ...CLEARED_INBOX_LIST_FILTERS,
-      ratingMin: 4,
-    })
-    expect(offeredListFilters('handled', EVERYTHING)).toEqual({
-      ...CLEARED_INBOX_LIST_FILTERS,
-      ratingMin: 4,
-    })
+  it('keeps only Rating and Priority in a private feedback queue', () => {
+    const kept = { ...CLEARED_INBOX_LIST_FILTERS, ratingMin: 4, attention: 'urgent' }
+
+    expect(offeredListFilters('feedback', EVERYTHING)).toEqual(kept)
+    expect(offeredListFilters('handled', EVERYTHING)).toEqual(kept)
   })
 })

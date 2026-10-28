@@ -26,6 +26,7 @@ import {
 import { reconcileInboxPageItems, removeInboxSelection } from './inbox-selection'
 import { itemMatchesQueue } from './inbox-queues'
 import { useDebouncedValue } from './use-debounced-value'
+import { priorityFilterLevels } from './inbox-priority-filter'
 import { useScopedInboxSelection } from './use-scoped-inbox-selection'
 import {
   inboxCachePolicy,
@@ -159,6 +160,7 @@ export function useInboxState(
       getInboxItems({
         data: {
           ...debouncedFilters,
+          attention: priorityFilterLevels(debouncedFilters.attention),
           queue,
           cursor: pageParam ? btoa(JSON.stringify(pageParam)) : undefined,
           limit: INBOX_PAGE_SIZE,

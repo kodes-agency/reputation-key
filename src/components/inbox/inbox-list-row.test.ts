@@ -228,3 +228,33 @@ describe('the kind of the row', () => {
     )
   })
 })
+
+describe('the row follows the effective priority (ADR 0071)', () => {
+  it('prints High in the page ink with the three-bar glyph, and wears no tint', () => {
+    const html = renderRow(makeItem({ attention: 'high' }))
+    const label = signalLabel(html, 'High')
+
+    expect(label.classes).toContain('text-foreground')
+    expect(label.icon).toContain('data-priority-glyph="high"')
+    expect(label.icon).toContain('aria-hidden="true"')
+    expect(rowClasses(html)).not.toContain(URGENT_ROW_TINT)
+    expect(html).toContain('aria-label="Open review from Guest One, High"')
+  })
+
+  it('takes the red off a review the AI calls Urgent when a manager set Low', () => {
+    const html = renderRow(makeItem({ ...URGENT, managerPriority: 'low' }))
+
+    expect(rowClasses(html)).not.toContain(URGENT_ROW_TINT)
+    expect(html).not.toContain('Urgent ·')
+    expect(html).toContain('aria-label="Open review from Guest One"')
+  })
+
+  it('tints private feedback a manager set to Urgent, which the AI never reads', () => {
+    const html = renderRow(
+      makeItem({ sourceType: 'feedback', managerPriority: 'urgent', rating: null }),
+    )
+
+    expect(rowClasses(html)).toContain(URGENT_ROW_TINT)
+    expect(signalLabel(html, 'Urgent').classes).toContain('text-negative')
+  })
+})

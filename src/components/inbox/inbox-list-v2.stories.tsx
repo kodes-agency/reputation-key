@@ -22,6 +22,7 @@ function makeItem(opts: {
   propertyName?: string
   reviewLanguageCode?: string
   attention?: InboxItem['attention']
+  managerPriority?: InboxItem['managerPriority']
   replyState?: InboxItem['replyState']
   assignedTo?: string | null
   createdAt?: Date
@@ -46,6 +47,7 @@ function makeItem(opts: {
     propertyName: opts.propertyName ?? 'Acme Hotel',
     reviewLanguageCode: opts.reviewLanguageCode,
     attention: opts.attention,
+    managerPriority: opts.managerPriority ?? null,
     ...(opts.replyState !== undefined ? { replyState: opts.replyState } : {}),
     isEscalated: opts.isEscalated ?? false,
     escalatedAt: null,
@@ -558,4 +560,75 @@ export const UrgentRowsSelectingPhone: Story = {
     ).not.toBeChecked()
     expect(canvas.getAllByText('Urgent ·')).toHaveLength(4)
   },
+}
+
+// ─── Priority (ADR 0071) ─────────────────────────────────────────────────────
+// The row prints the EFFECTIVE level: a person's, else the review signals'
+// suggestion. High is the word in the page ink with the three-bar glyph and no
+// tint; Medium and Low are silent; a manager's Low takes the red off a review
+// the signals call Urgent, and a manager's Urgent tints private feedback, which
+// is never analysed. The list does not tell set from suggested; the toolbar does.
+const priorityItems: ReadonlyArray<InboxItem> = [
+  makeItem({
+    id: 'rev-suggested-high',
+    sourceType: 'review',
+    rating: 2,
+    reviewerName: 'Suggested Reviewer',
+    snippet: 'Breakfast was cold two mornings in a row.',
+    attention: 'high',
+  }),
+  makeItem({
+    id: 'rev-downgraded',
+    sourceType: 'review',
+    rating: 1,
+    reviewerName: 'Downgraded Reviewer',
+    snippet: 'The lift was out of order for an hour.',
+    attention: 'urgent',
+    managerPriority: 'low',
+  }),
+  makeItem({
+    id: 'fb-set-urgent',
+    sourceType: 'feedback',
+    rating: 1,
+    reviewerName: 'Feedback Guest',
+    snippet: 'Someone walked into our room by mistake.',
+    managerPriority: 'urgent',
+  }),
+  makeItem({
+    id: 'rev-set-medium',
+    sourceType: 'review',
+    rating: 3,
+    reviewerName: 'Medium Reviewer',
+    snippet: 'Parking was hard to find.',
+    managerPriority: 'medium',
+  }),
+]
+
+export const PriorityRows: Story = {
+  args: { ...baseArgs, items: priorityItems },
+  decorators: [UrgentPane],
+  parameters: URGENT_PANE,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const high = canvas.getByText('High ·')
+    expect(high.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(
+      canvas.getByRole('button', { name: 'Open review from Suggested Reviewer, High' }),
+    ).toBeVisible()
+    expect(
+      canvas.getByRole('button', { name: 'Open review from Downgraded Reviewer' }),
+    ).toBeVisible()
+    expect(
+      canvas.getByRole('button', { name: 'Open feedback from Feedback Guest, Urgent' }),
+    ).toBeVisible()
+    expect(
+      canvas.getByRole('button', { name: 'Open review from Medium Reviewer' }),
+    ).toBeVisible()
+    expect(canvas.getAllByText('Urgent ·')).toHaveLength(1)
+  },
+}
+
+export const PriorityRowsPhone: Story = {
+  ...PriorityRows,
+  parameters: PHONE,
 }

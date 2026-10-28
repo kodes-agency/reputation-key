@@ -1999,11 +1999,10 @@ export const AnalysisReadyWithNoSignals: Story = {
   },
 }
 
-// The same empty aspect list one step up the attention scale. `high` is above
-// the line, so the row renders for the attention chip alone — which is what
-// makes the story above a statement about the attention level rather than a
-// component that gave up whenever `aspects` is empty.
-export const AnalysisReadyNeedsAttentionOnly: Story = {
+// The "Needs attention" pill is retired (owner P-5): the review's own signals
+// say High here, and nobody has set a level, so the toolbar already says it —
+// the thread adds nothing, not even an empty topics list.
+export const AnalysisSuggestsWithNoLevelSet: Story = {
   args: {
     detail: {
       ...reviewDetail,
@@ -2012,13 +2011,32 @@ export const AnalysisReadyNeedsAttentionOnly: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('list', { name: 'Review topics' })).toBeVisible()
-    await expect(canvas.getByText('Needs attention')).toBeVisible()
-    // One tone for the label across the product: a person has to act.
-    await expect(canvas.getByText('Needs attention')).toHaveAttribute(
-      'data-variant',
-      'warn',
-    )
+    await expect(canvas.queryByRole('list', { name: 'Review topics' })).toBeNull()
+    await expect(canvas.queryByText('Needs attention')).toBeNull()
+    await expect(canvas.queryByText(/review signals suggest/i)).toBeNull()
+  },
+}
+
+// A manager set Low, and the review's signals now suggest Urgent: one quiet
+// line under the guest's words says so (copy C-10). It is the only place the
+// thread mentions a priority, and it disappears once the two agree.
+export const AnalysisDisagreesWithTheSetLevel: Story = {
+  args: {
+    detail: {
+      ...reviewDetail,
+      item: {
+        ...reviewItem,
+        managerPriority: 'low',
+        managerPrioritySetBy: 'user-maria' as InboxItem['managerPrioritySetBy'],
+        managerPrioritySetAt: SOURCE_DATE,
+      },
+      analysis: { ...NO_SIGNAL_ANALYSIS, attention: 'urgent' },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Review signals suggest Urgent.')).toBeVisible()
+    await expect(canvas.queryByText('Needs attention')).toBeNull()
   },
 }
 

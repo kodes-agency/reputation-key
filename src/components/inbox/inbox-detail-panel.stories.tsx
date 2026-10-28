@@ -129,6 +129,7 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     escalate: makeIdAction(),
     resolveEscalation: makeIdAction(),
     assign: makeAssignAction(),
+    setPriority: makeIdAction(),
     markFeedbackHandled: unusedFeedbackAction,
     correctFeedbackHandlingOutcome: unusedFeedbackAction,
     refetch: () => {},

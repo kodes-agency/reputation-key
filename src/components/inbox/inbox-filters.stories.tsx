@@ -80,26 +80,42 @@ export const ChangeRating: Story = {
   },
 }
 
-export const SectionQueueHasNoSource: Story = {
-  args: { queue: 'reply' },
-  play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole('button', { name: /filters/i }))
-    const body = within(canvasElement.ownerDocument.body)
-    for (const name of ['Priority', 'Aspect', 'Polarity', 'Rating']) {
-      await expect(body.getByRole('combobox', { name })).toBeVisible()
-    }
-    await expect(body.queryByRole('combobox', { name: 'Source' })).toBeNull()
-  },
+/** Opens the popover and says which filters it offers and which it leaves out. */
+async function expectOffered(
+  canvasElement: HTMLElement,
+  offered: ReadonlyArray<string>,
+  leftOut: ReadonlyArray<string>,
+) {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: /filters/i }))
+  const body = within(canvasElement.ownerDocument.body)
+  for (const name of offered) {
+    await expect(body.getByRole('combobox', { name })).toBeVisible()
+  }
+  for (const name of leftOut) {
+    await expect(body.queryByRole('combobox', { name })).toBeNull()
+  }
 }
 
-export const PrivateFeedbackOffersOnlyRating: Story = {
+export const SectionQueueHasNoSource: Story = {
+  args: { queue: 'reply' },
+  play: ({ canvasElement }) =>
+    expectOffered(
+      canvasElement,
+      ['Priority', 'Aspect', 'Polarity', 'Rating'],
+      ['Source'],
+    ),
+}
+
+/**
+ * Priority matches a level a manager sets on feedback too (ADR 0071); the
+ * topics read an analysis feedback lacks.
+ */
+export const PrivateFeedbackOffersPriorityAndRating: Story = {
   args: { queue: 'feedback' },
-  play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole('button', { name: /filters/i }))
-    const body = within(canvasElement.ownerDocument.body)
-    await expect(body.getByRole('combobox', { name: 'Rating' })).toBeVisible()
-    for (const name of ['Source', 'Priority', 'Aspect', 'Polarity']) {
-      await expect(body.queryByRole('combobox', { name })).toBeNull()
-    }
-  },
+  play: ({ canvasElement }) =>
+    expectOffered(
+      canvasElement,
+      ['Priority', 'Rating'],
+      ['Source', 'Aspect', 'Polarity'],
+    ),
 }

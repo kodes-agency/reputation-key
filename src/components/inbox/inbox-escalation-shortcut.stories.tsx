@@ -23,12 +23,17 @@
 // toolbar is up, does issue `escalate` — so the two refusals are not passing
 // because the key is not wired at all.
 //
+// `p` (owner P-7, ADR 0071) is bound under exactly `e`'s conditions and lives
+// here for the same reason: the key opens the Priority menu the pane's toolbar
+// mounts, and the menu's own typeahead picks a level — U, H, M or L, then
+// Enter. `PThenUSetsUrgent` presses it on the ready page.
+//
 // Desktop only, which is also the only width the key is bound at
 // (`handleInboxShortcut` returns early on mobile); a story with no viewport
 // parameter runs at 1200 x 900 (`inbox-page.stories.tsx:445-455`).
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
-import { expect, fn, waitFor, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { InboxPageV2 } from './inbox-page-v2'
 import {
   createInboxContainer,
@@ -56,6 +61,7 @@ const ctx: InboxCtx = { activeOrganization: { id: String(inboxTestIds.ORG) } }
  */
 const escalateInboxItem = fn(() => new Promise<never>(() => {}))
 const resolveEscalation = fn(() => new Promise<never>(() => {}))
+const setInboxItemPriority = fn(() => new Promise<never>(() => {}))
 
 type DetailBranch = 'loading' | 'failed' | 'ready'
 
@@ -76,6 +82,8 @@ function fnsFor(branch: DetailBranch): InboxServerFns {
       escalateInboxItem as unknown as InboxServerFns['escalateInboxItem'],
     resolveEscalation:
       resolveEscalation as unknown as InboxServerFns['resolveEscalation'],
+    setInboxItemPriority:
+      setInboxItemPriority as unknown as InboxServerFns['setInboxItemPriority'],
   }
   if (branch === 'ready') return { ...base, ...spies }
   const getInboxItemDetail = branch === 'loading' ? neverLoads : failsToLoad
@@ -124,10 +132,10 @@ const meta: Meta<typeof ShortcutHarness> = {
 export default meta
 type Story = StoryObj<typeof ShortcutHarness>
 
-/** Presses `e` with nothing focused; returns whether the page acted on it. */
-function pressE(): boolean {
+/** Presses `key` with nothing focused; returns whether the page acted on it. */
+function press(key: 'e' | 'p'): boolean {
   const event = new KeyboardEvent('keydown', {
-    key: 'e',
+    key,
     bubbles: true,
     cancelable: true,
   })
@@ -135,9 +143,12 @@ function pressE(): boolean {
   return event.defaultPrevented
 }
 
+const pressE = (): boolean => press('e')
+
 function resetSpies(): void {
   escalateInboxItem.mockClear()
   resolveEscalation.mockClear()
+  setInboxItemPriority.mockClear()
 }
 
 /**
@@ -191,5 +202,42 @@ export const DetailReady: Story = {
       data: expect.objectContaining({ inboxItemId: ITEM_ID }),
     })
     await expect(resolveEscalation).not.toHaveBeenCalled()
+  },
+}
+
+/**
+ * `p` opens the Priority menu on the same ready page, and the menu's typeahead
+ * answers U with Urgent; Enter saves it at once, fenced on the level the pane
+ * showed as set (none).
+ */
+export const PThenUSetsUrgent: Story = {
+  args: { branch: 'ready' },
+  play: async ({ canvasElement }) => {
+    resetSpies()
+    const canvas = within(canvasElement)
+    const toolbar = await canvas.findByRole('region', { name: 'Case status' })
+    await waitFor(() =>
+      expect(
+        within(toolbar).getByRole('button', { name: 'Priority: not set' }),
+      ).toBeEnabled(),
+    )
+
+    await expect(press('p')).toBe(true)
+    const menu = await within(document.body).findByRole('menu')
+    await userEvent.keyboard('u')
+    await waitFor(() =>
+      expect(within(menu).getByRole('menuitemradio', { name: 'Urgent' })).toHaveFocus(),
+    )
+    await userEvent.keyboard('{Enter}')
+
+    await waitFor(() => expect(setInboxItemPriority).toHaveBeenCalledTimes(1))
+    await expect(setInboxItemPriority).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        inboxItemId: ITEM_ID,
+        expectedPriority: null,
+        priority: 'urgent',
+      }),
+    })
+    await expect(escalateInboxItem).not.toHaveBeenCalled()
   },
 }

@@ -218,6 +218,10 @@ const assign: InboxDetailState['assign'] = Object.assign(
   async (_input: Parameters<InboxDetailState['assign']>[0]) => reviewItem,
   { isPending: false, error: null, isSuccess: false, data: null },
 )
+const setPriority: InboxDetailState['setPriority'] = Object.assign(
+  async (_input: Parameters<InboxDetailState['setPriority']>[0]) => reviewItem,
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
 
 const markFeedbackHandled: InboxDetailState['markFeedbackHandled'] = Object.assign(
   async (_input: Parameters<InboxDetailState['markFeedbackHandled']>[0]) => {
@@ -246,6 +250,7 @@ const BASE_DETAIL_STATE: InboxDetailState = {
   escalate,
   resolveEscalation,
   assign,
+  setPriority,
   markFeedbackHandled,
   correctFeedbackHandlingOutcome,
   detail: null,
@@ -374,8 +379,12 @@ export const ReviewWithMixedAspectPolarities: Story = {
     await expect(canvas.getByRole('list', { name: 'Review topics' })).toBeVisible()
     await expect(canvas.getByText('Service · Complaint')).toBeVisible()
     await expect(canvas.getByText('Room · Praise')).toBeVisible()
-    // `high` sits above the "worth a look" line with `urgent`; one chip covers both.
-    await expect(canvas.getByText('Needs attention')).toBeVisible()
+    // The AI pill is retired (owner P-5): the toolbar's Priority control says
+    // the suggestion instead, and nobody set a level here.
+    await expect(canvas.queryByText('Needs attention')).toBeNull()
+    await expect(
+      canvas.getByRole('button', { name: 'Priority: High, suggested' }),
+    ).toBeVisible()
     // Praise / Complaint, never Positive / Negative (plan rows 11, 14).
     await expect(canvas.queryByText(/·\s*(Positive|Negative)$/)).toBeNull()
     await expect(canvas.queryByText(/sentiment/i)).toBeNull()

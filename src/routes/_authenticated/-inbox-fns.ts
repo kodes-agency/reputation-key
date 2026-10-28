@@ -40,6 +40,7 @@ import {
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
   checkReviewOnGoogleFn,
+  setInboxItemPriorityFn,
 } from '#/contexts/inbox/server/inbox'
 import { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
@@ -90,6 +91,9 @@ export const inboxFns: InboxServerFns = {
   },
   get resolveEscalation() {
     return resolveEscalationFn
+  },
+  get setInboxItemPriority() {
+    return setInboxItemPriorityFn
   },
   get addInboxNote() {
     return addInboxNoteFn

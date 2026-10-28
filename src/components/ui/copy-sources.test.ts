@@ -83,6 +83,8 @@ const ALLOWED_LABELS: Readonly<Record<string, string>> = {
     'quotes the print kit’s default call to action, a wording the guest reads, as it prints',
   'the Organization target':
     'the text of a link inside a sentence of help text, which follows the glossary',
+  'Urgent and High':
+    'names two Inbox priority levels, each spelled as the level reads everywhere it appears (owner decision P-3, ADR 0071)',
 }
 
 function capitalisedAfterTheFirst(label: string): readonly string[] {

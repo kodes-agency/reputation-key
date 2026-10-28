@@ -1470,6 +1470,18 @@ export async function getInboxItemById(inboxItemId: string) {
   return rows[0] ?? null
 }
 
+/** The append-only manager priority log for one Inbox item (ADR 0071). */
+export async function getInboxPriorityHistory(inboxItemId: string) {
+  return dbQuery(
+    `SELECT resulting_command_revision::int AS resulting_command_revision,
+            priority, previous_priority, actor_user_id
+       FROM inbox_priority_history
+      WHERE inbox_item_id = $1
+      ORDER BY resulting_command_revision`,
+    [inboxItemId],
+  )
+}
+
 export async function getInboxNotes(inboxItemId: string) {
   return dbQuery(
     'SELECT * FROM inbox_notes WHERE inbox_item_id = $1 ORDER BY created_at',

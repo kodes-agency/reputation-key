@@ -460,7 +460,10 @@ export function GuestMessage({ item, detail, reviewReplyLanguage }: Props): Reac
           <ReviewBody view={body} />
         )}
 
-        <TopicChips analysis={detail.analysis} />
+        <TopicChips
+          analysis={detail.analysis}
+          managerPriority={detail.item.managerPriority ?? null}
+        />
       </article>
     </GuestNode>
   )

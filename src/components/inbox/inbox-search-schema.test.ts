@@ -53,6 +53,12 @@ describe('inboxSearchSchema', () => {
     expect(inboxSearchSchema.parse({ [key]: value, ...rest })).toEqual(rest)
   })
 
+  it('reads the one combined priority choice, "Urgent and High"', () => {
+    expect(inboxSearchSchema.parse({ attention: 'urgent_high' })).toEqual({
+      attention: 'urgent_high',
+    })
+  })
+
   it('drops a property that is not an id, so the scope stays "All properties"', () => {
     expect(inboxSearchSchema.parse({ propertyId: 'foo', queue: 'reply' })).toEqual({
       queue: 'reply',

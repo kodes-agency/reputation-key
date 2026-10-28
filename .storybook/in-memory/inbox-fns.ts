@@ -21,6 +21,7 @@ import {
   updateStatusDto,
   escalateInboxItemDto,
   resolveEscalationDto,
+  setInboxItemPriorityDto,
   addInboxNoteDto,
   assignInboxItemDto,
   bulkUpdateStatusDto,
@@ -42,6 +43,7 @@ import type {
   updateInboxStatusFn,
   escalateInboxItemFn,
   resolveEscalationFn,
+  setInboxItemPriorityFn,
   addInboxNoteFn,
   assignInboxItemFn,
   bulkUpdateInboxStatusFn,
@@ -192,6 +194,21 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
         },
         ctx,
       )) as unknown as typeof resolveEscalationFn,
+
+    setInboxItemPriority: (async ({
+      data,
+    }: {
+      data: z.infer<typeof setInboxItemPriorityDto>
+    }) =>
+      container.inboxPublicApi.setInboxItemPriority(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+          expectedCommandRevision: data.expectedCommandRevision,
+          expectedPriority: data.expectedPriority,
+          priority: data.priority,
+        },
+        ctx,
+      )) as unknown as typeof setInboxItemPriorityFn,
 
     addInboxNote: (async ({ data }: { data: z.infer<typeof addInboxNoteDto> }) =>
       container.inboxPublicApi.addInboxNote(
