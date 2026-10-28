@@ -238,6 +238,11 @@
       "policy": "The generic adapter accepts typed QueryKey values supplied through invalidateKeys; feature routes remain responsible for building those values from an owned shared factory, while this loop performs only the declared targeted invalidations."
     },
     {
+      "id": "src/routes/-queries/prime-within-grace.ts:queryKey#1",
+      "owner": "Route loaders' side-read grace",
+      "policy": "The helper is intentionally generic over the caller-supplied QueryKey prefixes of one loader's own side reads; its four production callers (the Properties list, the property Overview, the property settings and Guest voice loaders) pass keys built from dashboardKeys, propertyKeys, goalKeys and aiKeys or from their own query options, and on the server it removes only the queries under them that are still pending when the grace ends."
+    },
+    {
       "id": "src/routes/_authenticated/properties/$propertyId/portals/-portal-detail-actions.ts:queryKey#1",
       "owner": "Portal optimistic-update transaction",
       "policy": "The block-local queryKey alias is portalKeys.detail(portalId); it is cancelled and snapshotted before the optimistic write."

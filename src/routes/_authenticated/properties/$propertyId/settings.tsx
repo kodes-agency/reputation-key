@@ -13,12 +13,17 @@ import {
 } from '#/components/features/property/settings/property-settings-sections'
 import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
 import type { AuthRouteContext } from '#/routes/_authenticated'
+import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useRatingGoalNotNow } from './goals/-rating-goal-not-now'
 
-/** How long the page waits for the setup strip once the property is in. */
+/**
+ * How long the page waits for the setup strip once the property is in. A read that
+ * has not answered by then goes on in the browser; on the server it is dropped
+ * (`primeWithinGrace`) and starts again after hydration.
+ */
 const SETUP_GRACE_MS = 300
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
@@ -35,16 +40,18 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/set
   // as a side read (no retry, so a failure does not hold the page): the strip is
   // then in the first paint, and a failure leaves it to its own read.
   loader: async ({ params: { propertyId }, context }) => {
-    const setup = context.queryClient.prefetchQuery({
-      ...propertySetupQuery(propertyId),
-      retry: false,
-    })
+    const setupRead = propertySetupQuery(propertyId)
+    const setup = context.queryClient.prefetchQuery({ ...setupRead, retry: false })
     await context.queryClient.ensureQueryData(propertyQuery(propertyId))
-    // Never longer than the grace: a slow side read must not hold the page.
-    await Promise.race([
+    // Never longer than the grace: a slow side read must not hold the page, and
+    // on the server one still pending then is dropped, so the browser is not
+    // handed its answer before the page hydrates.
+    await primeWithinGrace(
+      context.queryClient,
       setup,
-      new Promise((resolve) => setTimeout(resolve, SETUP_GRACE_MS)),
-    ])
+      [setupRead.queryKey],
+      SETUP_GRACE_MS,
+    )
   },
   component: PropertySettingsLayout,
 })

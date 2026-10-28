@@ -124,6 +124,17 @@ lists two goal reads that stay per route because sharing them costs first-paint
 bytes (the measurement is beside the list), and holds their copies to the same
 read.
 
+A loader may also start a side read the page can draw without (the figures beside
+a list, a setup strip) and hold the page for it at most a grace. It does that
+through `primeWithinGrace` (`-queries/prime-within-grace.ts`), never its own
+`Promise.race`: on the server a side read still pending when the grace ends is
+dropped from the request's QueryClient, or the SSR integration hands the browser
+its answer along with HTML that drew a placeholder, and hydration fails (React
+error 418). The loader names the keys of its own reads, because the module that
+starts them loads on demand. `properties/-side-read-loaders.test.ts` runs the
+loaders that do this and fails on a read one of them did not name; a loader that
+starts to use the helper joins it.
+
 Interactive or action-triggered reads may use `useQuery`; cursor lists use
 `useInfiniteQuery`. Query keys come from `src/shared/queries/query-keys.ts`.
 Invalidate the narrow parent key whose descendants changed—never the whole router.

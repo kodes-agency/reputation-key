@@ -8,7 +8,8 @@ import {
 import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
 import { PropertyOverview } from '#/components/features/property/property-overview'
-import { dashboardKeys } from '#/shared/queries/query-keys'
+import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
+import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
 import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
 import { ratingGoalNotNowChosen } from '#/components/features/property/settings/property-setup-steps'
@@ -49,7 +50,8 @@ const overviewQuery = (propertyId: string, timeRange: TimeRangePreset) =>
  * setup strip and the goals (the Google rating goal and the Monthly portal
  * goal), read together beside them, so it waits for the slowest, never longer.
  * They are usually there by then, so nothing below them moves; a slower one
- * follows on its own, and never holds the page.
+ * never holds the page: in the browser it goes on in the background, and on the
+ * server it is dropped (`primeWithinGrace`) and read again after hydration.
  */
 const RATING_GOAL_GRACE_MS = 300
 
@@ -76,19 +78,26 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/')(
     // the first paint. It is a side read: a failure (no retry, so it does not
     // hold the page) leaves the strip to its own read, never the page in an
     // error, and a slow one waits no longer than the goals do.
-    const setup = context.queryClient.prefetchQuery({
-      ...propertySetupQuery(propertyId),
-      retry: false,
-    })
+    const setupRead = propertySetupQuery(propertyId)
+    const setup = context.queryClient.prefetchQuery({ ...setupRead, retry: false })
     await Promise.all([
       context.queryClient.ensureQueryData(overviewQuery(propertyId, LIFETIME)),
       context.queryClient.ensureQueryData(overviewQuery(propertyId, PULSE)),
     ])
-    // Neither side read rejects (a failure is caught or settled above).
-    await Promise.race([
+    // Neither side read rejects (a failure is caught or settled above). The keys
+    // name this loader's own side reads: the setup, and the two goals' families
+    // (the module that starts them loads on demand). On the server whatever of
+    // them is still pending when the grace ends is dropped, not streamed.
+    await primeWithinGrace(
+      context.queryClient,
       Promise.all([setup, goal]),
-      new Promise((resolve) => setTimeout(resolve, RATING_GOAL_GRACE_MS)),
-    ])
+      [
+        setupRead.queryKey,
+        goalKeys.ratingGoal(propertyId),
+        goalKeys.portalGoal(propertyId),
+      ],
+      RATING_GOAL_GRACE_MS,
+    )
   },
   component: PropertyOverviewRoute,
 })

@@ -9,7 +9,12 @@
 // largest cold layout shift of any page (0.091). The loader now starts both and
 // holds the page for them at most `LIST_GRACE_MS`, the way Overview holds for
 // its goals: usually they are in, and the first paint is the finished list; a
-// slow one follows on its own and never holds the page.
+// slow one never holds the page. In the browser it goes on in the background; on
+// the server the loader drops it (`primeWithinGrace`) and the page starts it again
+// after hydration, so the HTML and what the browser is handed agree. The loader
+// names the keys it drops, `dashboardKeys.fleets()` and
+// `propertyKeys.setupSummaries()`, because this module loads on demand: a read
+// started here must sit under one of them.
 import { infiniteQueryOptions, type QueryClient } from '@tanstack/react-query'
 import { getFleetOverviewFn } from '#/contexts/reporting/server/fleet-overview'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'

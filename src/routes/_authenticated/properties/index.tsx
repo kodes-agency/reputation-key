@@ -22,17 +22,20 @@ import {
 } from '#/components/features/property/property-list-page'
 import { propertyListSearchSchema } from '#/components/features/property/property-list-search-schema'
 import type { DataState } from '#/components/features/property/property-list-view'
+import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
 import {
   propertiesQuery,
   propertySetupSummariesQuery,
 } from '#/routes/-queries/route-queries'
+import { dashboardKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { LIFETIME, fleetQuery } from './-properties-prefetch'
 
 /**
  * How long the list waits for its figures and its setup progress once the
  * layout's list is in. Both reads start together, so it is the slower of the
  * two, never longer. Counted from the loader's start, so the chunk fetch below
- * is inside it.
+ * is inside it. A read that has not answered by then goes on in the browser; on
+ * the server it is dropped (`primeWithinGrace`) and starts again after hydration.
  */
 const LIST_GRACE_MS = 300
 
@@ -59,10 +62,15 @@ export const Route = createFileRoute('/_authenticated/properties/')({
     const primed = import('./-properties-prefetch')
       .then(({ prefetchPropertyList }) => prefetchPropertyList(context.queryClient))
       .catch(() => undefined)
-    await Promise.race([
+    // The reads' keys are named here, not taken from that chunk. On the server a
+    // read still pending when the grace ends is dropped, so the browser is not
+    // handed its answer before the page hydrates (`prime-within-grace.ts`).
+    await primeWithinGrace(
+      context.queryClient,
       primed,
-      new Promise((resolve) => setTimeout(resolve, LIST_GRACE_MS)),
-    ])
+      [dashboardKeys.fleets(), propertyKeys.setupSummaries()],
+      LIST_GRACE_MS,
+    )
   },
   component: PropertyListRoute,
 })

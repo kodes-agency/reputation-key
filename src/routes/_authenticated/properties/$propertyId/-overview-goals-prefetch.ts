@@ -8,6 +8,9 @@
 // the page for this at most its grace (`RATING_GOAL_GRACE_MS`), so the Overview
 // waits for the slower of the two, never longer. The Monthly portal goal's card
 // is read only for someone who may set the goal, since that is who it is for.
+// On the server the loader drops what is still pending when the grace ends
+// (`primeWithinGrace`), by the families `goalKeys.ratingGoal` and
+// `goalKeys.portalGoal` it names itself: a read started here must sit under one.
 import type { QueryClient } from '@tanstack/react-query'
 import { can } from '#/shared/domain/permissions'
 import type { Role } from '#/shared/domain/roles'
