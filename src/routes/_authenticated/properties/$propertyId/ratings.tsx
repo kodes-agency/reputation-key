@@ -11,7 +11,8 @@ import { PropertyRatingsPage } from '#/components/features/property/property-rat
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-range'
-import { keptData, rangeOfLocation } from './-dashboard-range-read'
+import { keptData, rangeOfLocation, useRangeOfShownData } from './-dashboard-range-read'
+import { RoutePending } from '#/components/layout/route-page-state'
 
 /**
  * The reporting read model is keyed by its own preset, of which `DashboardRange`
@@ -51,6 +52,7 @@ function PropertyRatingsRoute() {
     placeholderData: keepPreviousData,
   })
   const overview = keptData(reading)
+  const dataRange = useRangeOfShownData(range, reading.isPlaceholderData)
 
   const onRangeChange = (value: DashboardRange) => {
     // A window on the page, not a place: replace, so arrowing through the
@@ -61,13 +63,16 @@ function PropertyRatingsRoute() {
     })
   }
 
-  if (overview === null) return null
+  // Entered at a range nothing has read yet (the loader is not re-run within its
+  // fresh window): the page's own loading state, not an empty frame.
+  if (overview === null) return <RoutePending />
 
   return (
     <PropertyRatingsPage
       property={propData.property}
       dashboard={overview.dashboard}
       range={range}
+      dataRange={dataRange}
       onRangeChange={onRangeChange}
       busy={reading.isPlaceholderData}
     />

@@ -24,7 +24,10 @@ import { replyTimeMissing, type ReplyTimeMissing } from './reply-time-missing'
 export interface PropertyRatingsPageProps {
   property: Readonly<{ id: string; name: string }>
   dashboard: DashboardData
+  /** The range the control shows: the one just chosen. */
   range: DashboardRange
+  /** The range the figures are for, while the next is read (defaults to `range`). */
+  dataRange?: DashboardRange
   onRangeChange: (range: DashboardRange) => void
   /** The next range is being read: the figures shown are the previous range's, dimmed. */
   busy?: boolean
@@ -50,13 +53,14 @@ export function PropertyRatingsPage({
   property,
   dashboard,
   range,
+  dataRange = range,
   onRangeChange,
   busy = false,
 }: PropertyRatingsPageProps) {
   const distributionHeadingId = useId()
   const { kpis, ratingDistribution, ratingTrend, reviewVolume, replyPerformance } =
     dashboard
-  const comparisonLabel = dashboardRangeComparisonLabel(range)
+  const comparisonLabel = dashboardRangeComparisonLabel(dataRange)
   const hasReviews = kpis.reviews.value > 0
 
   const ratingContext =
@@ -70,7 +74,7 @@ export function PropertyRatingsPage({
 
   const reviewContext =
     comparisonLabel === null ? null : kpis.reviews.trend === null ? (
-      `No reviews in the previous ${DASHBOARD_RANGE_LABELS[range].toLowerCase()} to compare.`
+      `No reviews in the previous ${DASHBOARD_RANGE_LABELS[dataRange].toLowerCase()} to compare.`
     ) : (
       <MetricDelta
         value={kpis.reviews.trend}
@@ -134,7 +138,7 @@ export function PropertyRatingsPage({
           <PropertyReputationTrendChart
             ratingTrend={ratingTrend}
             reviewVolume={reviewVolume}
-            range={range}
+            range={dataRange}
           />
         </section>
 

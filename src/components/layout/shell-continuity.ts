@@ -16,6 +16,7 @@
 // store; it draws the shell from the loader's copy of the same cookie
 // (`useSidebarOpen`'s argument), so the first frame and the hydrated one agree.
 import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
+import { useRouteContext } from '@tanstack/react-router'
 import { useRenderedLocation } from './rendered-location'
 import { sidebarCookie, sidebarOpenFromCookie } from './sidebar-cookie'
 
@@ -89,17 +90,36 @@ export type AppLocation = Readonly<{
 }>
 
 let lastAppLocation: AppLocation | null = null
+/** Whose page `lastAppLocation` is: the person and organization it was seen under. */
+let lastOwner = ''
 
 const SETTINGS_PATH = /^\/settings(?:\/|$)/u
 
-/** The last page outside Settings that was on screen in this tab, or `null` before one. */
+/**
+ * The last page outside Settings that was on screen in this tab, for `owner`; or
+ * `null` before one, and after the person or the organization changed (another
+ * person's Inbox item, or another organization's Property, is not a place to go back to).
+ */
 export const appLocationStore = {
-  get: (): AppLocation | null => lastAppLocation,
+  get: (owner = ''): AppLocation | null => (owner === lastOwner ? lastAppLocation : null),
   /** Remembers `location` unless it is a Settings page, which is what we came from. */
-  remember(location: AppLocation): void {
+  remember(location: AppLocation, owner = ''): void {
+    if (owner !== lastOwner) {
+      lastOwner = owner
+      lastAppLocation = null
+    }
     if (SETTINGS_PATH.test(location.pathname)) return
     lastAppLocation = location
   },
+}
+
+/** Who "Back to app" belongs to: the signed-in person and the active organization. */
+export function useAppLocationOwner(): string {
+  const ctx = useRouteContext({ from: '/_authenticated' }) as Readonly<{
+    user?: Readonly<{ id?: string }>
+    activeOrganization?: Readonly<{ id?: string }> | null
+  }>
+  return `${ctx.user?.id ?? ''}:${ctx.activeOrganization?.id ?? ''}`
 }
 
 /**
@@ -109,12 +129,16 @@ export const appLocationStore = {
  */
 export function useRememberAppLocation(): void {
   const { pathname, search } = useRenderedLocation()
+  const owner = useAppLocationOwner()
   useEffect(() => {
-    appLocationStore.remember({
-      pathname,
-      search: typeof search === 'object' && search !== null ? { ...search } : {},
-    })
-  }, [pathname, search])
+    appLocationStore.remember(
+      {
+        pathname,
+        search: typeof search === 'object' && search !== null ? { ...search } : {},
+      },
+      owner,
+    )
+  }, [pathname, search, owner])
 }
 
 /** The sidebar link that had focus when a shell went, for the shell that follows it. */

@@ -7,6 +7,7 @@
 // the URL names when the page is entered, and the page reads whatever range is
 // chosen through the query cache, keeping the previous one on screen, dimmed,
 // until the new one arrives.
+import { useState } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-range'
 
@@ -33,4 +34,19 @@ export function keptData<T>(query: Pick<UseQueryResult<T>, 'data' | 'error'>): T
   if (query.data !== undefined) return query.data
   if (query.error) throw query.error
   return null
+}
+
+/**
+ * The range of the figures on screen. While the next range is read the page keeps
+ * the previous range's figures, so what describes them (the comparison wording,
+ * the chart's buckets) must stay the previous range's too; only the range control
+ * moves to the one just chosen. Settled during render, as `SearchField` does.
+ */
+export function useRangeOfShownData(
+  range: DashboardRange,
+  isPlaceholderData: boolean,
+): DashboardRange {
+  const [shown, setShown] = useState(range)
+  if (!isPlaceholderData && shown !== range) setShown(range)
+  return isPlaceholderData ? shown : range
 }

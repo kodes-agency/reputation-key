@@ -81,6 +81,18 @@ describe('the last app page, for "Back to app"', () => {
     })
   })
 
+  it('is not handed to another person, or into another organization', () => {
+    appLocationStore.remember({ pathname: '/inbox', search: { itemId: 'a' } }, 'u1:o1')
+
+    expect(appLocationStore.get('u1:o1')?.pathname).toBe('/inbox')
+    expect(appLocationStore.get('u2:o1')).toBeNull()
+
+    appLocationStore.remember({ pathname: '/settings/profile', search: {} }, 'u2:o1')
+    expect(appLocationStore.get('u2:o1')).toBeNull()
+    expect(appLocationStore.get('u1:o1')).toBeNull()
+    appLocationStore.remember({ pathname: '/', search: {} })
+  })
+
   it('does not take a path that only starts like Settings for Settings', () => {
     appLocationStore.remember({ pathname: '/settings-help', search: {} })
 

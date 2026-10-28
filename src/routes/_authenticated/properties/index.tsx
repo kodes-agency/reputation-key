@@ -135,7 +135,19 @@ function PropertyListRoute() {
       setup={setup}
       setupState={setupState}
       search={search}
-      onSearchChange={(next) => void navigate({ search: next, replace: true })}
+      // A change that leaves the search text alone (a filter, a sort, a tab) keeps
+      // the text of the newest navigation: the page builds `next` from the
+      // committed search, which on a slow network is still the one before what was
+      // just typed.
+      onSearchChange={(next) =>
+        void navigate({
+          search: (latest: { q?: string }) => ({
+            ...next,
+            q: next.q === (search as { q?: string }).q ? latest.q : next.q,
+          }),
+          replace: true,
+        })
+      }
     />
   )
 }

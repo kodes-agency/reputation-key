@@ -308,7 +308,8 @@ function SidebarTrigger({
       variant="ghost"
       label="Toggle sidebar"
       aria-expanded={isMobile ? openMobile : open}
-      aria-controls={sidebarId}
+      // The id is on the docked sidebar; a phone's sheet is not mounted while closed.
+      aria-controls={isMobile ? undefined : sidebarId}
       className={cn('size-7', className)}
       onClick={(event) => {
         onClick?.(event)

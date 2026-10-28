@@ -18,6 +18,9 @@ import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useRatingGoalNotNow } from './goals/-rating-goal-not-now'
 
+/** How long the page waits for the setup strip once the property is in. */
+const SETUP_GRACE_MS = 300
+
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
   staticData: {
     page: { title: NAV_LABEL.propertySettings, under: 'property' },
@@ -32,12 +35,15 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/set
   // as a side read (no retry, so a failure does not hold the page): the strip is
   // then in the first paint, and a failure leaves it to its own read.
   loader: async ({ params: { propertyId }, context }) => {
-    await Promise.all([
-      context.queryClient.ensureQueryData(propertyQuery(propertyId)),
-      context.queryClient.prefetchQuery({
-        ...propertySetupQuery(propertyId),
-        retry: false,
-      }),
+    const setup = context.queryClient.prefetchQuery({
+      ...propertySetupQuery(propertyId),
+      retry: false,
+    })
+    await context.queryClient.ensureQueryData(propertyQuery(propertyId))
+    // Never longer than the grace: a slow side read must not hold the page.
+    await Promise.race([
+      setup,
+      new Promise((resolve) => setTimeout(resolve, SETUP_GRACE_MS)),
     ])
   },
   component: PropertySettingsLayout,

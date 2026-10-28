@@ -18,6 +18,7 @@ import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-ag
 import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
+import { Skeleton } from '#/components/ui/skeleton'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { ASPECT_LABELS } from '#/shared/aspect-labels'
@@ -162,7 +163,10 @@ export function OverviewGuestVoice({
 
   if (trend.isPending && aggregates.isPending) {
     return (
-      <Row>
+      // The action's height is held: the answer this strip most often gives
+      // ("Turn on AI analysis") has a button, and a card without one is 16 px
+      // shorter than the page it becomes (server HTML vs hydrated page).
+      <Row action={<Skeleton className="h-9 w-40 shrink-0" aria-hidden="true" />}>
         <p className="text-sm text-muted-foreground">Reading what guests said…</p>
       </Row>
     )

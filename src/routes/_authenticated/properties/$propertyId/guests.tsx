@@ -20,6 +20,7 @@ import {
   type DashboardRange,
 } from '#/shared/dashboard-range'
 import { keptData, rangeOfLocation } from './-dashboard-range-read'
+import { RoutePending } from '#/components/layout/route-page-state'
 
 export const propertyGuestsSearchSchema = z.object({ range: dashboardRangeSearch })
 
@@ -100,7 +101,9 @@ function PropertyGuestsRoute() {
     })
   }
 
-  if (result === null) return null
+  // Entered at a range nothing has read yet (the loader is not re-run within its
+  // fresh window): the page's own loading state, not an empty frame.
+  if (result === null) return <RoutePending />
 
   return (
     <PropertyGuestVoicePage

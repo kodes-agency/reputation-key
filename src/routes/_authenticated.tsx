@@ -315,7 +315,15 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
               isFullBleed ? 'overflow-hidden' : `overflow-auto ${PAGE_GUTTER}`
             }`}
           >
-            <ShellPresence value>{children}</ShellPresence>
+            {/*
+              Keyed by the lane: a padded page and a full-bleed surface are never
+              the same page, and without a key React keeps the page's outer
+              element and restyles it into the surface, which the browser reports
+              as that whole page shifting from its padded box to the full one.
+            */}
+            <ShellPresence key={isFullBleed ? 'surface' : 'page'} value>
+              {children}
+            </ShellPresence>
           </main>
         </div>
       </SidebarProvider>

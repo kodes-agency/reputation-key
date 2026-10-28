@@ -25,7 +25,7 @@ import { NavLink } from '#/components/ui/nav-link'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { hasRole } from '#/shared/domain/roles'
 import { useRenderedPathname } from './rendered-location'
-import { appLocationStore } from './shell-continuity'
+import { appLocationStore, useAppLocationOwner } from './shell-continuity'
 
 type NavItem = Readonly<{
   key: string
@@ -45,9 +45,11 @@ export function SettingsSidebar() {
   const activeSection = useActiveSettingsSection()
   const { can, role } = usePermissions()
   const isManager = hasRole(role, 'PropertyManager')
+  const owner = useAppLocationOwner()
   // Back to the page the person came from, in this tab; with none (Settings was
-  // the first page loaded) the Properties list for a manager, and Home otherwise.
-  const back = appLocationStore.get()
+  // the first page loaded, or the person or organization changed since) the
+  // Properties list for a manager, and Home otherwise.
+  const back = appLocationStore.get(owner)
 
   // Two scopes, labelled, because nothing else says which rows a page
   // changes: "You" is the signed-in account (notification rows included — they
