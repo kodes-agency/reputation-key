@@ -27,34 +27,34 @@ colors:
   signal-green-muted: '#1A3328'
 typography:
   body:
-    fontFamily: 'Satoshi, Inter, system-ui, -apple-system, sans-serif'
+    fontFamily: 'Satoshi, Satoshi Fallback, Inter, system-ui, -apple-system, sans-serif'
     fontSize: '0.9375rem'
     fontWeight: 400
     lineHeight: 1.55
   label:
-    fontFamily: 'Satoshi, Inter, system-ui, -apple-system, sans-serif'
+    fontFamily: 'Satoshi, Satoshi Fallback, Inter, system-ui, -apple-system, sans-serif'
     fontSize: '0.8125rem'
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: '0.01em'
   title:
-    fontFamily: 'Satoshi, Inter, system-ui, -apple-system, sans-serif'
+    fontFamily: 'Satoshi, Satoshi Fallback, Inter, system-ui, -apple-system, sans-serif'
     fontSize: '1.125rem'
     fontWeight: 600
     lineHeight: 1.25
   headline:
-    fontFamily: 'Satoshi, Inter, system-ui, -apple-system, sans-serif'
+    fontFamily: 'Satoshi, Satoshi Fallback, Inter, system-ui, -apple-system, sans-serif'
     fontSize: 'clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem)'
     fontWeight: 600
     lineHeight: 1.2
   display:
-    fontFamily: 'Plus Jakarta Sans, Satoshi, system-ui, sans-serif'
+    fontFamily: 'Plus Jakarta Sans, Plus Jakarta Sans Fallback, Satoshi, system-ui, sans-serif'
     fontSize: 'clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem)'
     fontWeight: 700
     lineHeight: 1.15
     letterSpacing: '-0.01em'
   mono:
-    fontFamily: 'JetBrains Mono, Fira Code, ui-monospace, monospace'
+    fontFamily: 'JetBrains Mono, JetBrains Mono Fallback, Fira Code, ui-monospace, monospace'
     fontSize: '0.875rem'
     fontWeight: 500
     lineHeight: 1.4
@@ -168,9 +168,13 @@ A restrained palette built on tinted violet-graphite neutrals with one deliberat
 
 ## 3. Typography
 
-**Display Font:** Plus Jakarta Sans (with Satoshi fallback)
-**Body Font:** Satoshi (with Inter, system-ui fallback)
-**Mono Font:** JetBrains Mono (with Fira Code, ui-monospace fallback)
+**Display Font:** Plus Jakarta Sans (with a size-adjusted local fallback, then Satoshi)
+**Body Font:** Satoshi (with a size-adjusted local fallback, then Inter, system-ui)
+**Mono Font:** JetBrains Mono (with a size-adjusted local fallback, then Fira Code, ui-monospace)
+
+**Where they come from.** Plus Jakarta Sans and JetBrains Mono are SIL OFL 1.1 and self-hosted from `public/fonts/app/` (Fontsource woff2, unmodified, in unicode-range subsets: latin, latin-ext, vietnamese, and Cyrillic and Greek where the family has them, because review text arrives in any language), behind one stylesheet, `app-fonts.css`, that sits outside the Vite pipeline so the bundle budget does not count it. Satoshi is the exception. Its Free Font License allows web use but forbids distributing or uploading the files, and this repository is public, so it stays on Fontshare: the root document preconnects to `api.fontshare.com` and `cdn.fontshare.com` and links the Fontshare stylesheet. Fontshare serves Satoshi at 400, 500 and 700 only; 600 draws the 700 file. No Google font host is used, and the CSP allows only the two Fontshare origins besides `'self'`. `src/shared/font-sets.ts` owns the links.
+
+**No jump on swap.** Each of the three families has a local fallback face in `app-fonts.css` (`Satoshi Fallback`, `Plus Jakarta Sans Fallback`, `JetBrains Mono Fallback`), a local Arial (Courier New for the mono) with `size-adjust`, `ascent-override`, `descent-override` and `line-gap-override` computed from the font files' mean advance width and line metrics, and listed right after its web font in the `--font-*` stacks in `src/styles.css`. So `font-display: swap` replaces text without moving it. Where no Arial exists (stock Android) the face is skipped and the next family in the stack is used, unadjusted. When Satoshi's files change, re-measure.
 
 **Character:** Satoshi carries the system — geometric but warm, highly legible at body sizes, with enough character at larger weights to serve headings. Plus Jakarta Sans steps in for display moments where more personality is warranted. The pairing is subtle: both are geometric sans families, separated by weight and proportion, not category. JetBrains Mono anchors data with precision.
 
@@ -196,7 +200,7 @@ The public guest page (`/p/$token`, the Immersive Hub) is not product UI. It is 
 - **Display:** Cormorant Garamond (600, and 500 italic), `--font-guest-display`.
 - **Body:** Ysabeau Office (400, 600), `--font-guest-body`.
 
-Both are SIL OFL 1.1 and self-hosted from `public/fonts/guest/` in four subsets (latin, latin-ext, cyrillic, cyrillic-ext), so a guest's phone contacts no font CDN. Each has a local fallback face sized to it (`size-adjust`, `ascent-override`, `descent-override`), measured against Times New Roman (Cormorant Garamond) and Arial (Ysabeau Office), so on macOS, iOS, Windows and Linux with Liberation fonts the swap from `font-display: swap` does not move the layout. Stock Android carries neither, so there the fallback resolves to Georgia or the generic serif and to `system-ui` unadjusted, and the swap can shift lines; adding measured Noto Serif and Roboto faces is a follow-up. `/p/$token` opts in through its loader (`fontSet: 'guest'`, derived from the snapshot's guest surface, `src/shared/font-sets.ts`); the root document then links `guest-fonts.css` and preloads the above-the-fold pair, in the Cyrillic subset for Bulgarian. Every other page, including login, `/privacy`, invites and guest pages published before the Immersive Hub (snapshot v1/v2), keeps Satoshi, Plus Jakarta Sans and JetBrains Mono from the app stylesheets. The root document links one set per page. A surface with no guest loader data, such as the unavailable page or an admin live preview of the guest look, links `GUEST_FONT_STYLESHEET` itself (as the Storybook story does), or declares the set another way, rather than changing this rule.
+Both are SIL OFL 1.1 and self-hosted from `public/fonts/guest/` in four subsets (latin, latin-ext, cyrillic, cyrillic-ext), so a guest's phone contacts no font CDN. Each has a local fallback face sized to it (`size-adjust`, `ascent-override`, `descent-override`), measured against Times New Roman (Cormorant Garamond) and Arial (Ysabeau Office), so on macOS, iOS, Windows and Linux with Liberation fonts the swap from `font-display: swap` does not move the layout. Stock Android carries neither, so there the fallback resolves to Georgia or the generic serif and to `system-ui` unadjusted, and the swap can shift lines; adding measured Noto Serif and Roboto faces is a follow-up. `/p/$token` opts in through its loader (`fontSet: 'guest'`, derived from the snapshot's guest surface, `src/shared/font-sets.ts`); the root document then links `guest-fonts.css` and preloads the above-the-fold pair, in the Cyrillic subset for Bulgarian. Every other page, including login, `/privacy`, invites and guest pages published before the Immersive Hub (snapshot v1/v2), keeps Satoshi, Plus Jakarta Sans and JetBrains Mono from the app set (Fontshare for Satoshi, `public/fonts/app/` for the other two). The root document links one set per page. A surface with no guest loader data, such as the unavailable page or an admin live preview of the guest look, links `GUEST_FONT_STYLESHEET` itself (as the Storybook story does), or declares the set another way, rather than changing this rule.
 
 ## 4. Elevation
 
@@ -274,9 +278,10 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 
 - **One tree, one frame at a time.** The shell (provider, sidebar, inset, top bar, `<main>`) is the same set of elements on every route; between a padded page and a full-bleed surface only classes change (`data-frame="page"` or `"surface"` on the wrapper), so the shell is never remounted and the sidebar never moves. The frame is chosen from the page on screen and changes in the same frame as the content it holds: a slow load never draws the old page in the new page's frame.
 - **A pending navigation says so quietly:** after 150ms a 2px bar sweeps along the lower edge of the top bar (`RouteProgress`; transform only, hidden from assistive technology, a still bar with reduced motion). A fast navigation never shows it.
+- **Document scrolls padded pages:** the window owns vertical scroll on a padded page; `<main>` clips only horizontal overflow. The top bar stays at the top of the viewport, and every sticky element in the document sits immediately beneath it at `--app-top-bar-height`. Every page of the shell reserves the scrollbar gutter, full-bleed surfaces too, so with classic scrollbars (Windows) the content is one width on every page and never changes on navigation.
 - **One gutter owner:** `<main>` in the authenticated layout is the only element that pads a page: 16px on the sides on a phone and 24px from `md`, 20px above and below on a phone and 32px from `md`. A Property page, a Settings page and the Properties list all sit on that edge; nothing below `<main>` adds a second gutter.
 - **Width tiers:** `PageShell` sets the content width. Dashboard 1200px for data and management lists (Properties, Portals, People, Goals, the Property dashboards), standard 1024px for other lists and flows, narrow 768px for settings and forms.
-- **Full-bleed surfaces:** the Inbox, a Property's Reviews and the portal workspace own their viewport (`h-svh`, so a phone's toolbars do not hide the bottom) and scroll their own panes, so `<main>` pads nothing there. They keep the person's sidebar, open or folded, and lay themselves out by the room they get, not by the window: the Inbox shows three panes from 1,022px of room (1,278px of window with the sidebar open, 1,070px with the rail) and a compact list with a sheet below; the portal editor puts the preview beside the form from a 56rem body, gives it 30rem from 72rem, and adds the section column from 80rem. They are named in one place (`isFullBleedRoute`). A padded body inside one (a fallback, a tab of cards) wears `FullBleedFrame`, which gives back the same gutter.
+- **Full-bleed surfaces:** the Inbox, a Property's Reviews and the portal workspace own their viewport (`h-svh`, so a phone's toolbars do not hide the bottom) and scroll their own panes rather than the document, so `<main>` pads nothing there. They keep the person's sidebar, open or folded, and lay themselves out by the room they get, not by the window: the Inbox shows three panes from 1,022px of room (1,278px of window with the sidebar open, 1,070px with the rail) and a compact list with a sheet below; the portal editor puts the preview beside the form from a 56rem body, gives it 30rem from 72rem, and adds the section column from 80rem. They are named in one place (`isFullBleedRoute`). A padded body inside one (a fallback, a tab of cards) wears `FullBleedFrame`, which gives back the same gutter.
 - **Theme:** one segmented Light / Dark / System control, in that order, in Preferences and in the account menu. The public header, which has no room for three segments on a phone, keeps a single icon button that steps through the same list.
 
 ### Tables

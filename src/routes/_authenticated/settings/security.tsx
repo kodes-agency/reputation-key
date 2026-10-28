@@ -3,7 +3,9 @@ import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { changePasswordFn } from '#/contexts/identity/server/auth-settings'
+import { useQueryClient } from '@tanstack/react-query'
 import { ensureActiveOrg } from '#/shared/auth/auth.functions'
+import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 import { SecuritySettingsForm } from '#/components/features/identity'
 
 export const Route = createFileRoute('/_authenticated/settings/security')({
@@ -12,6 +14,7 @@ export const Route = createFileRoute('/_authenticated/settings/security')({
 })
 
 function SecuritySettings() {
+  const queryClient = useQueryClient()
   const changePassword = useActionMutation(changePasswordFn, {
     successMessage: 'Password updated',
     // A password change revokes every other session and ROTATES this one
@@ -19,8 +22,10 @@ function SecuritySettings() {
     // organization, so without this the very next organization-scoped read
     // threw "No active organization selected" — every settings page broke
     // until the operator signed out and back in.
+    // The shell's remembered session is the one the change replaced.
     onSuccess: async () => {
       await ensureActiveOrg()
+      invalidateShellContext(queryClient)
     },
   })
 

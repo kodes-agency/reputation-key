@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
+import { QueryClient } from '@tanstack/react-query'
 import {
   clearTenantCacheAfterSessionEnd,
   clearTenantCacheAfterTenantChange,
   clearTenantCacheBeforeNavigation,
 } from './tenant-cache-transition'
 import { notificationKeys } from './query-keys'
+import { shellContextKeys } from './shell-context-cache'
 
 describe('tenant cache transition', () => {
   it('clears cached tenant data before organization navigation starts', async () => {
@@ -42,6 +44,28 @@ describe('tenant cache transition', () => {
     clearTenantCacheAfterTenantChange({ clear })
 
     expect(clear).toHaveBeenCalledOnce()
+  })
+
+  // The shell remembers who is signed in for 30 seconds (ADR 0072). A sign-out or a
+  // sign-in must not leave that answer for the next navigation, here or in another tab.
+  it('forgets the shell checks with the rest and tells the other tabs', async () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(shellContextKeys.session(), { user: { id: 'user-1' } })
+    queryClient.setQueryData(shellContextKeys.organization('user-1'), {
+      name: 'Riverside',
+    })
+    const otherTab = new BroadcastChannel('repkey-shell-context')
+    const announced = new Promise((received) => {
+      otherTab.onmessage = (event: MessageEvent) => received(event.data)
+    })
+
+    await clearTenantCacheAfterSessionEnd(queryClient, async () => undefined)
+
+    expect(
+      queryClient.getQueryCache().findAll({ queryKey: shellContextKeys.all }),
+    ).toEqual([])
+    await expect(announced).resolves.toBe('tenant-changed')
+    otherTab.close()
   })
 
   it('partitions notification cache keys by organization', () => {

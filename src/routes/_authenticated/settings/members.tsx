@@ -9,7 +9,13 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import {
+  queryOptions,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
+import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
@@ -112,6 +118,7 @@ const RENEWAL_EMAIL_UNSENT =
   'Invitation renewed, but the email could not be sent. Try Resend again.'
 
 function MembersSettingsRoute() {
+  const queryClient = useQueryClient()
   const { allowedRoles, selfServiceLeaveAvailable } = Route.useLoaderData()
   const { data: memberResult } = useSuspenseQuery(membersQuery)
   const { user, role, reportUnexpectedFailure } = authRoute.useRouteContext()
@@ -155,13 +162,18 @@ function MembersSettingsRoute() {
   // rate limit) by toast. The invite form, and the Change role, Remove and Cancel
   // invitation confirmations, stay open and show their own banner, so those
   // mutations do not: that would report it twice.
+  // A role change or a removal can be the reader's own (an admin among admins), and
+  // the shell remembers the reader's role for 30 seconds (ADR 0072): forget it, so
+  // the next page is opened with the role the server now holds.
   const updateRoleMutation = useActionMutation(updateMemberRole, {
     successMessage: 'Role updated',
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
+    onSuccess: () => invalidateShellContext(queryClient),
   })
   const removeMemberMutation = useActionMutation(removeMember, {
     successMessage: 'Member removed',
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
+    onSuccess: () => invalidateShellContext(queryClient),
   })
   const resendMutation = useActionMutation(resendInvitation, {
     errorMessage: actionErrorMessage,

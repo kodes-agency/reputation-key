@@ -88,11 +88,13 @@ export const Default: Story = {
     const canvas = within(canvasElement)
     // User menu trigger shows the initials fallback (image is null).
     expect(await canvas.findByText(/^al$/i)).toBeInTheDocument()
-    // Every other page keeps its 52 px bar: only the inbox shrinks it to 44 px.
-    // A class pin: the real check is `inbox-phone-chrome.metrics.ts` ("app top bar").
+    // Every other page keeps its 52 px bar: only a full-bleed surface shrinks it
+    // to 44 px on a phone. The height is `--app-top-bar-height` (styles.css), the
+    // one the page's sticky elements sit under, and the bar is sticky itself. A
+    // class pin: the real check is `inbox-phone-chrome.metrics.ts` ("app top bar").
     const bar = canvasElement.querySelector('header')
-    expect(bar).toHaveClass('h-13')
-    expect(bar).not.toHaveClass('max-md:h-11')
+    expect(bar).toHaveClass('sticky', 'top-0', 'h-(--app-top-bar-height)')
+    expect(bar).not.toHaveAttribute('data-full-bleed')
   },
 }
 
@@ -141,10 +143,12 @@ export const FullBleed: Story = {
     // bar is a compact workspace, so its controls read the 36 px touch token from
     // the Button; the margins pull the glyphs onto the gutter. Tailwind is not
     // compiled in this runner, so the geometry itself is the Playwright metrics
-    // gate's; this pins the classes that produce it. The real check is
+    // gate's; this pins what produces it: the full-bleed mark, under which
+    // styles.css sets `--app-top-bar-height` to 44 px below md. The real check is
     // `inbox-phone-chrome.metrics.ts` ("app top bar").
     const header = canvasElement.querySelector('header')
-    expect(header).toHaveClass('max-md:h-11')
+    expect(header).toHaveAttribute('data-full-bleed', 'true')
+    expect(header).toHaveClass('h-(--app-top-bar-height)')
     expect(header).toHaveAttribute('data-density', 'compact')
     expect(trigger).toHaveClass('max-md:min-w-(--control-touch)', 'max-md:-ml-2.5')
     expect(canvas.getByRole('button', { name: 'Account menu' })).toHaveClass(

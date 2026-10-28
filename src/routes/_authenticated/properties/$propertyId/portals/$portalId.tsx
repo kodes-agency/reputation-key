@@ -18,7 +18,7 @@ import { PortalWorkspaceTabs } from '#/components/features/portal/portal-workspa
 import { documentTitle } from '#/components/layout/page-identity'
 import { useRenderedPathname } from '#/components/layout/rendered-location'
 import { RouteNotFound } from '#/components/layout/route-page-state'
-import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { PortalWorkspaceHeaderSlot } from './-portal-workspace-header-slot'
 import { PortalWorkspaceNoticeSlot } from './-portal-workspace-notice-slot'
 import { loadPortalWorkspace, portalQuery } from './-portal-detail-data'
@@ -35,6 +35,7 @@ export const Route = createFileRoute(
   ) => normalizePortalWorkspaceSearch(search),
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
+      context,
       data: {
         capability: 'portal.read',
         featureLabel: 'Portals',

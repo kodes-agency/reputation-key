@@ -31,12 +31,9 @@ describe('getSecurityHeaders', () => {
     })['Content-Security-Policy']
 
     expect(csp).toContain("script-src 'self' 'nonce-bqc-csp-nonce'")
-    expect(csp).toContain(
-      "style-src 'self' 'unsafe-inline' https://api.fontshare.com https://fonts.googleapis.com",
-    )
-    expect(csp).toContain(
-      "font-src 'self' https://cdn.fontshare.com https://fonts.gstatic.com",
-    )
+    expect(csp).toContain("style-src 'self' 'unsafe-inline' https://api.fontshare.com")
+    expect(csp).toContain("font-src 'self' https://cdn.fontshare.com;")
+    expect(csp).not.toMatch(/googleapis|gstatic/)
   })
 
   it('allows only the configured browser-upload origin for connections', () => {

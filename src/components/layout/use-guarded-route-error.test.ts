@@ -52,6 +52,22 @@ describe('routeErrorFacts', () => {
     })
   })
 
+  // A refusal forgets the shell's remembered checks (ADR 0072), so a session, role or
+  // feature the server just refused never opens the next page.
+  describe('refused', () => {
+    it.each([401, 403])('is true for a %i', (status) => {
+      expect(routeErrorFacts(withStatus(status), true).refused).toBe(true)
+    })
+
+    it.each([404, 409, 500])('is false for a %i', (status) => {
+      expect(routeErrorFacts(withStatus(status), true).refused).toBe(false)
+    })
+
+    it('is false for an error with no status', () => {
+      expect(routeErrorFacts(new Error('boom'), true).refused).toBe(false)
+    })
+  })
+
   describe('report', () => {
     it('reports an error with no status', () => {
       expect(routeErrorFacts(new Error('boom'), true).report).toBe(true)

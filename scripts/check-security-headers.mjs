@@ -59,7 +59,7 @@ const PROBE_PRINT_ORIGIN = 'https://ap.probe.repkey.invalid'
 // src/shared/security/security-headers.ts — keep in sync deliberately; this
 // independent encoding is what makes the gate fail on drift.
 const EXPECTED_CSP_PATTERN =
-  /^default-src 'none'; script-src 'self'(?: 'nonce-[A-Za-z0-9+/_-]+={0,2}')?; style-src 'self' 'unsafe-inline' https:\/\/api\.fontshare\.com https:\/\/fonts\.googleapis\.com; img-src 'self' data: https:; connect-src 'self' https:\/\/uploads\.security-probe\.repkey\.invalid; font-src 'self' https:\/\/cdn\.fontshare\.com https:\/\/fonts\.gstatic\.com; object-src 'none'; frame-src 'none'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'$/
+  /^default-src 'none'; script-src 'self'(?: 'nonce-[A-Za-z0-9+/_-]+={0,2}')?; style-src 'self' 'unsafe-inline' https:\/\/api\.fontshare\.com; img-src 'self' data: https:; connect-src 'self' https:\/\/uploads\.security-probe\.repkey\.invalid; font-src 'self' https:\/\/cdn\.fontshare\.com; object-src 'none'; frame-src 'none'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'$/
 
 const EXPECTED_HEADERS = {
   'x-content-type-options': 'nosniff',

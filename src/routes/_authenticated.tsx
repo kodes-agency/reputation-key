@@ -14,6 +14,8 @@ import {
   getCapabilitySet,
   type CapabilitySet,
 } from '#/shared/auth/capability-set'
+import { readShellChecks } from '#/shared/shell-context/shell-context-checks'
+import { shellCheckSide } from '#/shared/queries/shell-context-cache'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
 import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
 import { pageHead } from '#/components/layout/page-identity'
@@ -45,7 +47,20 @@ import {
 } from '#/contexts/identity/server/beta-feedback'
 import type { ComponentProps, ReactNode } from 'react'
 
+/**
+ * What the shell knows about the person, read by every page below it.
+ *
+ * The server render resolves it fresh on every request. In the browser it may be up
+ * to 30 seconds old (ADR 0072): `beforeLoad` reuses the last answers for the signed-in
+ * person until they are stale, and forgets them on sign-in, sign-out, a tab coming
+ * back, the person's own profile, Organization or member changes, and any refusal that
+ * reaches a route error boundary (`invalidateShellContext`); other refusals wait out
+ * the 30 seconds. So every field is a navigation
+ * affordance, never an authority: each page's server functions check the session,
+ * role and capability on their own, and their refusal is what the person is told.
+ */
 export type AuthRouteContext = Readonly<{
+  /** The signed-in person; also the key every remembered shell answer sits under. */
   user: {
     id: string
     name: string
@@ -59,7 +74,8 @@ export type AuthRouteContext = Readonly<{
    * property-scoped — not org-scoped — because policy allowlists per property
    * (`property_not_allowlisted`), so a tenant whose properties differ would get
    * the wrong answer from an org-only set. `beforeLoad` re-runs on every
-   * navigation, so switching property re-resolves it.
+   * navigation and remembers one set per Property scope, so switching property
+   * reads that Property's set (asked for when there is no fresh one).
    *
    * UI affordance only: it exists so navigation can render an unavailable
    * feature as disabled instead of routing into its unavailable page. It is not a
@@ -98,24 +114,13 @@ function organizationLoadFailure(error: unknown, href: string): unknown {
   return error
 }
 
-type Settled<T> =
-  Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: unknown }>
-
-/**
- * Waits for `promise` without letting it reject: the shell asks three questions
- * at once, and a rejection of one that is left waiting while another is awaited
- * would be an unhandled rejection. Each answer is read in the order the rules
- * below need it, not in the order the answers arrive.
- */
-function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
-  return promise.then(
-    (value) => ({ ok: true, value }),
-    (error: unknown) => ({ ok: false, error }),
-  )
+/** An Organization answer that lets the person into the shell: the only kind remembered. */
+function admitsShell(org: Awaited<ReturnType<typeof getActiveOrganization>>): boolean {
+  return org.availability !== 'disabled' && org.organization !== null && Boolean(org.role)
 }
 
 export const Route = createFileRoute('/_authenticated')({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ location, context }) => {
     // One stage, not three in a row. Router-core awaits every `beforeLoad` before
     // any loader starts, and this one runs on every navigation (a search-only
     // change and a hover preload too), so a chain here is a delay in front of every
@@ -125,18 +130,27 @@ export const Route = createFileRoute('/_authenticated')({
     //  - the active Organization and the person's role;
     //  - the capability set, property-scoped when a property is in scope, because
     //    policy allowlists per property.
-    // The decisions below keep their order: no session sends the person to log in
-    // whatever the other two said.
+    // In the browser the answers are remembered for 30 seconds under the signed-in
+    // person (`shell-context-checks`), so a navigation soon after the last check asks
+    // nothing; the server render always asks. The decisions below keep their order:
+    // no session sends the person to log in whatever the other two said.
     const scopedPropertyId = propertyIdFromLocation(location.pathname, location.search)
-    const [sessionResult, organizationResult, capabilityResult] = await Promise.all([
-      settle(getSession()),
-      settle(getActiveOrganization()),
-      settle(
-        getCapabilitySet({
-          data: scopedPropertyId ? { propertyId: scopedPropertyId } : {},
-        }),
-      ),
-    ])
+    const {
+      session: sessionResult,
+      organization: organizationResult,
+      capabilities: capabilityResult,
+    } = await readShellChecks({
+      queryClient: context.queryClient,
+      propertyId: scopedPropertyId,
+      side: shellCheckSide(),
+      fns: {
+        session: () => getSession(),
+        organization: () => getActiveOrganization(),
+        capabilities: (propertyId) =>
+          getCapabilitySet({ data: propertyId ? { propertyId } : {} }),
+        admitsShell,
+      },
+    })
 
     if (!sessionResult.ok) throw sessionResult.error
     const session = sessionResult.value
@@ -335,7 +349,7 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
           {/* The only element that pads a page (PAGE_GUTTER); nothing below adds a second gutter. */}
           <main
             className={`min-w-0 flex-1 ${
-              isFullBleed ? 'overflow-hidden' : `overflow-auto ${PAGE_GUTTER}`
+              isFullBleed ? 'overflow-hidden' : `overflow-x-clip ${PAGE_GUTTER}`
             }`}
           >
             {/*

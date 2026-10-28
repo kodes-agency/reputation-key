@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { useServerFn } from '@tanstack/react-start'
@@ -17,6 +17,7 @@ import { ProfileSettingsPage } from '#/components/features/identity'
 import { TimezoneAndFormatCard } from '#/components/features/settings'
 import { notificationUserSettingsQuery } from '#/routes/-queries/route-queries'
 import { identityKeys, notificationKeys } from '#/shared/queries/query-keys'
+import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const NO_ACTIVE_ORGANIZATION = 'no-active-organization'
@@ -43,6 +44,7 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
 function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
   const router = useRouter()
+  const queryClient = useQueryClient()
   const organizationId = ctx.activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
   // The name and avatar are not a Query: the form's saved values and the top bar's
   // account menu are the `user` that `_authenticated`'s `beforeLoad` puts in the route
@@ -50,8 +52,12 @@ function ProfileSettings() {
   // on the open page and so reads the session. The filter is what keeps that from being
   // the whole router: only `_authenticated` is marked stale (its own loader reads from
   // the Query cache), so every other page, open or cached, keeps the data it loaded.
-  const readSignedInUserAgain = () =>
-    router.invalidate({ filter: (match) => match.routeId === '/_authenticated' })
+  // The shell remembers the session for 30 seconds (ADR 0072), so it is forgotten
+  // first: otherwise `beforeLoad` would answer with the name from before the save.
+  const readSignedInUserAgain = () => {
+    invalidateShellContext(queryClient)
+    return router.invalidate({ filter: (match) => match.routeId === '/_authenticated' })
+  }
   const updateProfile = useActionMutation(updateProfileFn, {
     successMessage: 'Profile saved',
     // Two Query caches hold the name as well: the member list, which Members, Inbox,

@@ -351,6 +351,45 @@ test.describe('Shell stability', () => {
     await expect(page.locator(WRAPPER)).toHaveAttribute('data-frame', 'surface')
   })
 
+  test('the top bar and section navigation stay visible on a long padded page', async ({
+    page,
+  }) => {
+    const seed = requireE2eSeedState()
+    await page.goto(`/properties/${seed.propertyId}/settings/replies`)
+    await waitForHydration(page)
+    await expect(page.getByRole('heading', { level: 1, name: 'Replies' })).toBeVisible()
+    await untilSettled(page)
+
+    const topBar = page.locator('[data-slot="sidebar-inset"] > header')
+    const sectionNav = page.getByRole('navigation', {
+      name: 'Property settings sections',
+    })
+    await expect(topBar).toBeVisible()
+    await expect(sectionNav).toBeVisible()
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight),
+      )
+      .toBeGreaterThanOrEqual(800)
+    await page.evaluate(() => window.scrollTo(0, 800))
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(800)
+
+    await expect
+      .poll(() =>
+        topBar.evaluate((element) => Math.round(element.getBoundingClientRect().top)),
+      )
+      .toBe(0)
+    const barBottom = await topBar.evaluate((element) =>
+      Math.round(element.getBoundingClientRect().bottom),
+    )
+    await expect
+      .poll(() =>
+        sectionNav.evaluate((element) => Math.round(element.getBoundingClientRect().top)),
+      )
+      .toBe(barBottom)
+  })
+
   test('a collapsed sidebar is remembered, and the controls work on the Inbox', async ({
     page,
   }) => {

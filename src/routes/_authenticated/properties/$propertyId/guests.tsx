@@ -10,6 +10,7 @@ import { z } from 'zod/v4'
 import { PropertyGuestVoicePage } from '#/components/features/property/property-guest-voice-page'
 import { getPropertyInsightsFn } from '#/contexts/ai/server/property-insights'
 import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
+import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -37,9 +38,10 @@ export const propertyGuestsQuery = (propertyId: string, range: DashboardRange) =
 
 /**
  * How long the page waits for the headline sentence once its topics are in: it
- * is usually there by then, so nothing below it moves; a slower one follows on
- * its own (the page holds its line meanwhile) and never holds the page. The
- * page's own read (`PropertyGuestVoicePage`) shares this entry.
+ * is usually there by then, so nothing below it moves; a slower one never holds
+ * the page (the page holds its line meanwhile). In the browser it follows on its
+ * own; on the server it is dropped (`primeWithinGrace`) and read again after
+ * hydration. The page's own read (`PropertyGuestVoicePage`) shares this entry.
  */
 const TREND_GRACE_MS = 300
 
@@ -72,10 +74,12 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/gue
       propertyGuestsQuery(propertyId, rangeOfLocation(location)),
     )
     if (result.status === 'ready') {
-      await Promise.race([
+      await primeWithinGrace(
+        queryClient,
         trend,
-        new Promise((resolve) => setTimeout(resolve, TREND_GRACE_MS)),
-      ])
+        [aiKeys.propertyTrend(propertyId)],
+        TREND_GRACE_MS,
+      )
     }
   },
   component: PropertyGuestsRoute,

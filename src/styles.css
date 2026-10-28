@@ -24,6 +24,9 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Shell chrome and every document-sticky element share one viewport offset. */
+  --app-top-bar-height: 3.25rem;
+
   /* Surface tokens */
   --background: oklch(0.98 0.003 270);
   --surface: oklch(1 0.003 270);
@@ -138,6 +141,26 @@
   --control-touch: 2.75rem;
 }
 
+@media (width < 48rem) {
+  [data-full-bleed='true'] {
+    --app-top-bar-height: 2.75rem;
+  }
+}
+
+/* Padded pages keep document scroll, and every page of the shell reserves its
+   gutter, full-bleed surfaces included. With classic scrollbars (Windows, Linux)
+   a gutter on padded pages alone made the content 15 px narrower there than on
+   the Inbox, so it changed width on every crossing; reserved on both, the shell
+   is one width whatever page it holds, scrolling or not. A dialog's scroll lock
+   (react-remove-scroll-bar) would otherwise add the same width again. */
+:root:has([data-frame]) {
+  scrollbar-gutter: stable;
+}
+
+:root:has([data-frame]) body[data-scroll-locked] {
+  margin-right: 0 !important;
+}
+
 [data-density='compact'] {
   --control-touch: 2.25rem;
 }
@@ -222,9 +245,13 @@
 }
 
 @theme inline {
-  --font-sans: 'Satoshi', 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Plus Jakarta Sans', var(--font-sans);
-  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  /* Each web font is followed by its size-adjusted local fallback face, defined
+     in public/fonts/app/app-fonts.css, so the swap does not move text. */
+  --font-sans:
+    'Satoshi', 'Satoshi Fallback', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Plus Jakarta Sans Fallback', var(--font-sans);
+  --font-mono:
+    'JetBrains Mono', 'JetBrains Mono Fallback', 'Fira Code', ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

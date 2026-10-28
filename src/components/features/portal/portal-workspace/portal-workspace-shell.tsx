@@ -27,7 +27,12 @@ export function PortalWorkspaceShell({ header, tabs, notice, children }: Props) 
       {tabs}
       {notice}
       {/* Full width: a tab body decides its own frame (see PortalWorkspaceBodyFrame). */}
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      <div
+        data-scroll-restoration-id="portal-workspace-body"
+        className="min-h-0 flex-1 overflow-y-auto"
+      >
+        {children}
+      </div>
     </div>
   )
 }

@@ -6,8 +6,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 // The controlled-feature gate is a server function with its own tests; here the
 // feature is on, so only the role check is left to answer.
-vi.mock('#/shared/auth/controlled-route-gate', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('#/shared/auth/controlled-route-gate')>()),
+vi.mock('#/shared/shell-context/remembered-route-gate', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('#/shared/shell-context/remembered-route-gate')
+  >()),
   gateControlledRoute: vi.fn(async () => undefined),
 }))
 

@@ -16,7 +16,7 @@ import { listPortals } from '#/contexts/portal/server/portals'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { PeoplePage } from '#/components/features/property/people/people-page'
 import { peopleSearchSchema } from '#/components/features/property/people/people-search-schema'
-import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { staffKeys, portalKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 
@@ -57,6 +57,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
   },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
+      context,
       data: {
         capability: 'staff.use',
         featureLabel: 'Staff',

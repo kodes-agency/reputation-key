@@ -20,6 +20,7 @@
 // their own frame (title, breadcrumbs, tier). PageState builds on this hook.
 import { useEffect, useSyncExternalStore } from 'react'
 import { Navigate, useRouter } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   GENERIC_CLIENT_ERROR_MESSAGE,
   publicErrorMessage,
@@ -27,12 +28,20 @@ import {
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
 import { httpStatus, isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { staleTab } from '#/shared/stale-tab/stale-tab'
+import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 
 const UNAUTHENTICATED = 401
+const FORBIDDEN = 403
 
 export type RouteErrorFacts = Readonly<{
   /** The session ended under an open page: redirect to sign-in, show no error. */
   signedOut: boolean
+  /**
+   * The server refused the person (401) or what they asked for (403). The shell's
+   * remembered checks are forgotten then (ADR 0072): the session, role or feature
+   * they hold may be exactly what was refused.
+   */
+  refused: boolean
   /** The sentence to print. Never the raw message in production. */
   message: string
   /** Whether this failure is worth a report (not an expected 4xx refusal). */
@@ -48,8 +57,10 @@ export function routeErrorFacts(
   isProduction: boolean,
   fallback: string = GENERIC_CLIENT_ERROR_MESSAGE,
 ): RouteErrorFacts {
+  const status = httpStatus(error)
   return {
-    signedOut: httpStatus(error) === UNAUTHENTICATED,
+    signedOut: status === UNAUTHENTICATED,
+    refused: status === UNAUTHENTICATED || status === FORBIDDEN,
     message: publicErrorMessage(error, isProduction, fallback),
     report: !isExpectedRefusal(error),
   }
@@ -82,11 +93,18 @@ export function useGuardedRouteError(
     staleTab.isReloading,
     () => false,
   )
-  const { signedOut, message, report } = routeErrorFacts(
+  const { signedOut, refused, message, report } = routeErrorFacts(
     error,
     import.meta.env.PROD,
     fallback,
   )
+
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    // A refusal wins over the shell's memory: the next navigation and Try again
+    // ask the server afresh instead of opening the shell on what it refused.
+    if (refused) invalidateShellContext(queryClient)
+  }, [error, refused, queryClient])
 
   useEffect(() => {
     // A failure of stale code is cured by the current code, not reported. If

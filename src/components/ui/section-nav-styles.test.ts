@@ -58,6 +58,14 @@ describe('the two frames', () => {
   it('switch at different container widths', () => {
     expect(SECTION_NAV_LIST_FROM.rail).not.toBe(SECTION_NAV_LIST_FROM.inline)
   })
+
+  it('keeps a padded-page list below the top bar and a full-bleed rail in its own pane', () => {
+    expect(SECTION_NAV_STYLES.inline.nav.list).toContain('top-(--app-top-bar-height)')
+    expect(SECTION_NAV_STYLES.inline.nav.auto).toContain(
+      '@3xl:top-(--app-top-bar-height)',
+    )
+    expect(SECTION_NAV_STYLES.rail.scroller.list).toContain('top-0')
+  })
 })
 
 describe.each(FRAMES)('the %s layout', (frame) => {

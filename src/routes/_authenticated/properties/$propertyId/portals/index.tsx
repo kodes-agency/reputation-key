@@ -21,7 +21,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { portalGroupsQuery } from './-portal-detail-data'
 import { portalOverviewQuery } from './-portal-overview-data'
 import { useNewPortal } from './-use-new-portal'
@@ -33,6 +33,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
   staticData: { page: { title: 'Portals', tier: 'dashboard', under: 'property' } },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
+      context,
       data: {
         capability: 'portal.read',
         featureLabel: 'Portals',

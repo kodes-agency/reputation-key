@@ -3,13 +3,14 @@
 // Identity says self-service leave is composed, so a page that cannot offer it
 // shows no section at all.
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { SectionTitle } from '#/components/ui/section-title'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { LeaveOrganizationDialog } from '#/components/features/people/leave-organization-dialog'
 import { leaveOrganizationFn } from '#/contexts/identity/server/organization-leave-fns'
 import { hasRole, type Role } from '#/shared/domain/roles'
 import { identityKeys } from '#/shared/queries/query-keys'
+import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 import { outstandingResponsibilitiesQuery } from './-leave-organization-queries'
 
 type Props = Readonly<{
@@ -24,6 +25,7 @@ type Props = Readonly<{
 }>
 
 export function LeaveOrganizationSection({ members, currentUserId, role }: Props) {
+  const queryClient = useQueryClient()
   // NOT useSuspenseQuery. The identity container installs a fail-closed
   // offboarding dependency until the responsibility facts are composed, so
   // this read THROWS by design. Suspending the route on it meant one deliberately
@@ -40,6 +42,8 @@ export function LeaveOrganizationSection({ members, currentUserId, role }: Props
   const leaveMutation = useActionMutation(leaveOrganizationFn, {
     successMessage: 'You have left this organization',
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
+    // The shell's remembered session is the one that just ended.
+    onSuccess: () => invalidateShellContext(queryClient),
     // Their session is already gone server-side; send them to sign-in rather
     // than letting the app render a workspace they no longer belong to.
     navigateTo: { to: '/login' },

@@ -3,7 +3,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
-import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { importFns, importSetupFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { CONNECTION_CALLBACK_ERRORS } from '#/components/features/integration/google-import-manager/google-import-callback-errors'
@@ -31,6 +31,7 @@ export const Route = createFileRoute('/_authenticated/properties/import-google/'
     const { role } = context as AuthRouteContext
     requireGoogleImportRole(role)
     await gateControlledRoute({
+      context,
       data: {
         capability: 'property.import_gbp_v2',
         featureLabel: 'Google property import',
