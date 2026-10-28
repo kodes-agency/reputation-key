@@ -111,9 +111,10 @@ and actions supply server state.
   focus are shared (`focus-ring`), and rows take the touch token; no nav draws its
   own active fill or its own ring. A group that must stay apart (Danger zone) is a
   group of its own, never an offset that depends on which section is open. The Inbox
-  queue rail and strip keep their own composition (buttons that change a filter, a
-  bar of pills) but wear the same fill (from `aria-current`), the same ring and
-  `NavCount`, the shared trailing figure. The sidebar drawer on a phone closes when a
+  queue rail and the phone's queue sheet keep their own composition (buttons that
+  change a filter, grouped under the Reviews and Private feedback headings) but wear
+  the same fill (from `aria-current`), the same ring and `NavCount`, the shared
+  trailing figure. The sidebar drawer on a phone closes when a
   link in it is chosen and its rows are the touch height.
   A page's sibling views are underline tabs, drawn from one recipe
   (`tabs-line-styles.ts`): `LinkTabs` / `LinkTab` when each view is a route or a
@@ -446,7 +447,7 @@ way.
 <!-- prettier-ignore -->
 | Family | Import | Use it for | Variants | Differs on purpose | Guard |
 | --- | --- | --- | --- | --- | --- |
-| Section navigation | `SectionNav` from `#/components/ui/section-nav`<br>`SectionNavLayout` from `#/components/ui/section-nav-layout` | The sections of one place (Property settings, the Portal editor's parts) | Items with icon, summary, count and group; `presentation` `list`, `strip`, `auto` (by container width) | The Inbox queue rail and strip keep their own composition, with the same fill, ring and `NavCount` | `ui/nav-link-sources.test.ts`, `ui/section-nav-styles.test.ts`, `ui/nav-contrast.test.ts` |
+| Section navigation | `SectionNav` from `#/components/ui/section-nav`<br>`SectionNavLayout` from `#/components/ui/section-nav-layout` | The sections of one place (Property settings, the Portal editor's parts) | Items with icon, summary, count and group; `presentation` `list`, `strip`, `auto` (by container width) | The Inbox queue rail and the phone's queue sheet keep their own composition, with the same fill, ring and `NavCount` | `ui/nav-link-sources.test.ts`, `ui/section-nav-styles.test.ts`, `ui/nav-contrast.test.ts` |
 | Navigation link | `NavLink` from `#/components/ui/nav-link` | Any link that says where you are: it sets `aria-current` once, from the `current` the nav passes | | | `ui/nav-link-sources.test.ts` |
 | Page views | `LinkTabs`, `LinkTab` from `#/components/ui/link-tabs`<br>`Tabs`, `TabCount` from `#/components/ui/tabs` | Sibling views of one page (a route or a search value): underline tabs | `Tabs variant="line"` for views that swap a panel; the pill `Tabs` only for a mode inside a component | `LinkTabs` is a navigation landmark of links, an in-page `Tabs` is a tablist | `ui/view-switcher-sources.test.ts` |
 | Value choice and range | `SegmentedControl` from `#/components/ui/segmented-control`<br>`RangeControl` from `#/components/ui/range-control` | A short, always-answered choice (a radio group); a time range, worded from `RANGE_PRESET_LABELS` in `#/shared/dashboard-range` | `touch` | The Portal Results window keeps its own preset list and is remembered per reader | `ui/view-switcher-sources.test.ts` |
