@@ -1,3 +1,4 @@
+import { notFound } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery, type QueryClient } from '@tanstack/react-query'
 import {
   getPropertyPortalExperience,
@@ -127,6 +128,58 @@ export const findAuthorizedPortal = async (
   if (hit) return hit
   const fresh = await queryClient.fetchQuery({ ...options, staleTime: 0 })
   return fresh.portals.find((candidate) => String(candidate.id) === portalId) ?? null
+}
+
+/**
+ * The workspace loader: the portal is looked up in the property's authorized
+ * collection AND the ten reads of the screen start at the same moment.
+ *
+ * They used to run in sequence (the list, then the ten), which put a whole
+ * round trip in front of every read (a chain six deep on a slow network, the
+ * preview at 4.4 s). The reads do not depend on the lookup, so they start
+ * together; what the lookup decides is what the person is told.
+ *
+ * - The portal is not in this property's collection: `notFound()`, whatever the
+ *   other reads did. A portal of another property or organization fails some of
+ *   them for reasons of its own, and those must not tell it apart from one that
+ *   was removed (a direct URL never reveals that a portal exists elsewhere).
+ * - The portal is there and a read failed: that failure, the first, so the route
+ *   shows its error and Try again as before. Every read is waited for, so none
+ *   is left running unobserved.
+ *
+ * `notFound()`, not `/unavailable`: that page states the whole Portals feature
+ * is switched off, which is a lie while the sidebar still links to a working
+ * list. `notFoundComponent` renders an in-route "no longer available" state
+ * instead. `/unavailable` stays for the capability-denied and cross-tenant
+ * PROPERTY cases, which `gateControlledRoute` decides in `beforeLoad`.
+ */
+export async function loadPortalWorkspace(
+  queryClient: QueryClient,
+  propertyId: string,
+  portalId: string,
+): Promise<void> {
+  const [lookup, ...reads] = await Promise.allSettled([
+    findAuthorizedPortal(queryClient, propertyId, portalId),
+    // The detail entry is FETCHED, not seeded from the list row: `getPortal`
+    // also returns `tokenStatus` (C2), which no list row carries, so a
+    // hand-built `{ portal }` seed would leave the Share tab reading
+    // `tokenStatus` as undefined instead of triggering a fetch.
+    queryClient.ensureQueryData(portalQuery(portalId)),
+    queryClient.ensureQueryData(portalLinksQuery(portalId)),
+    queryClient.ensureQueryData(portalLanguageCoverageQuery(propertyId, portalId)),
+    queryClient.ensureQueryData(portalLinktreeQuery(portalId)),
+    queryClient.ensureQueryData(portalGroupsQuery(propertyId)),
+    queryClient.ensureQueryData(responsibleManagersQuery(portalId)),
+    queryClient.ensureQueryData(membersQuery),
+    queryClient.ensureQueryData(portalPublicationHistoryQuery(portalId)),
+    queryClient.ensureQueryData(portalExperienceQuery(propertyId, portalId)),
+    queryClient.ensureQueryData(portalApprovedDestinationsQuery(portalId)),
+  ])
+  if (lookup.status === 'rejected') throw lookup.reason
+  if (!lookup.value) throw notFound()
+  for (const read of reads) {
+    if (read.status === 'rejected') throw read.reason
+  }
 }
 
 /**

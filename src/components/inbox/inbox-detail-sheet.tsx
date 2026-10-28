@@ -12,7 +12,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '#/components/ui/sheet'
-import { Skeleton } from '#/components/ui/skeleton'
+import { InboxDetailPending } from './inbox-detail-pending'
 import { InboxDetailContent } from './inbox-detail-content'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { InboxDetailHeader } from './inbox-detail-header'
@@ -126,22 +126,18 @@ export function InboxDetailSheet({
         {/* The `e` shortcut's own predicate (`inbox-case-toolbar-props.ts`); the
             null check only narrows the type for the content branch. */}
         {!isCaseToolbarShown(detailState) || !detailState.currentItem ? (
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-            {detailState.error ? (
+          detailState.error ? (
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
               <RegionError
                 size="compact"
                 message={detailState.error}
                 onRetry={detailState.refetch}
                 retrying={detailState.retrying}
               />
-            ) : (
-              <>
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-4 w-1/2" />
-              </>
-            )}
-          </div>
+            </div>
+          ) : (
+            <InboxDetailPending />
+          )
         ) : (
           <InboxDetailContent
             currentItem={detailState.currentItem}

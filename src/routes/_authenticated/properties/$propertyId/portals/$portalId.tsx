@@ -1,10 +1,4 @@
-import {
-  createFileRoute,
-  notFound,
-  Outlet,
-  useRouterState,
-  type SearchSchemaInput,
-} from '@tanstack/react-router'
+import { createFileRoute, Outlet, type SearchSchemaInput } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -22,23 +16,12 @@ import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-work
 import { PortalWorkspaceShell } from '#/components/features/portal/portal-workspace/portal-workspace-shell'
 import { PortalWorkspaceTabs } from '#/components/features/portal/portal-workspace/portal-workspace-tabs'
 import { documentTitle } from '#/components/layout/page-identity'
+import { useRenderedPathname } from '#/components/layout/rendered-location'
 import { RouteNotFound } from '#/components/layout/route-page-state'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
-import { membersQuery } from '#/routes/-queries/route-queries'
 import { PortalWorkspaceHeaderSlot } from './-portal-workspace-header-slot'
 import { PortalWorkspaceNoticeSlot } from './-portal-workspace-notice-slot'
-import {
-  findAuthorizedPortal,
-  portalGroupsQuery,
-  portalApprovedDestinationsQuery,
-  portalLanguageCoverageQuery,
-  portalExperienceQuery,
-  portalLinksQuery,
-  portalLinktreeQuery,
-  portalPublicationHistoryQuery,
-  portalQuery,
-  responsibleManagersQuery,
-} from './-portal-detail-data'
+import { loadPortalWorkspace, portalQuery } from './-portal-detail-data'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
@@ -62,44 +45,8 @@ export const Route = createFileRoute(
     if (!can(role, 'portal.read')) throw roleUnavailable('Portal', 'properties')
   },
   staleTime: 30_000,
-  loader: async ({ params, context }) => {
-    const portal = await findAuthorizedPortal(
-      context.queryClient,
-      params.propertyId,
-      params.portalId,
-    )
-    // `notFound()`, not `/unavailable`: that page states the whole Portals
-    // feature is switched off, which is a lie while the sidebar still links to a
-    // working list. `notFoundComponent` renders an in-route "no longer
-    // available" state instead. `/unavailable` stays for the capability-denied
-    // and cross-tenant PROPERTY cases, which `gateControlledRoute` decides in
-    // beforeLoad. A portal id belonging to another property or organization is
-    // simply absent from this collection, so it lands here — identical to a
-    // removed portal, which is the point.
-    if (!portal) throw notFound()
-    await Promise.all([
-      // The detail entry is FETCHED, not seeded from the list row: `getPortal`
-      // also returns `tokenStatus` (C2), which no list row carries, so a
-      // hand-built `{ portal }` seed would leave the Share tab reading
-      // `tokenStatus` as undefined instead of triggering a fetch.
-      context.queryClient.ensureQueryData(portalQuery(params.portalId)),
-      context.queryClient.ensureQueryData(portalLinksQuery(params.portalId)),
-      context.queryClient.ensureQueryData(
-        portalLanguageCoverageQuery(params.propertyId, params.portalId),
-      ),
-      context.queryClient.ensureQueryData(portalLinktreeQuery(params.portalId)),
-      context.queryClient.ensureQueryData(portalGroupsQuery(params.propertyId)),
-      context.queryClient.ensureQueryData(responsibleManagersQuery(params.portalId)),
-      context.queryClient.ensureQueryData(membersQuery),
-      context.queryClient.ensureQueryData(portalPublicationHistoryQuery(params.portalId)),
-      context.queryClient.ensureQueryData(
-        portalExperienceQuery(params.propertyId, params.portalId),
-      ),
-      context.queryClient.ensureQueryData(
-        portalApprovedDestinationsQuery(params.portalId),
-      ),
-    ])
-  },
+  loader: ({ params, context }) =>
+    loadPortalWorkspace(context.queryClient, params.propertyId, params.portalId),
   // The tab is titled after the portal (the static title is the fallback while
   // nothing is cached). Read from the cache the loader filled and every edit
   // updates, so a renamed portal's tab follows on the next navigation.
@@ -142,7 +89,9 @@ function PortalNoLongerAvailable() {
 function PortalWorkspaceLayout() {
   const { propertyId, portalId } = Route.useParams()
   const { tab, section } = Route.useSearch()
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  // The page on screen decides the header and tabs, so they do not change under
+  // the old page while the next one loads (rendered-location).
+  const pathname = useRenderedPathname()
   const { has } = useCapabilities()
 
   const reviewing = isWorkspaceReviewRoute(pathname)

@@ -184,13 +184,18 @@ function QueueHeading({
   scopeLabel,
   scopeControl,
   totalCount,
-}: Readonly<Pick<Props, 'queueLabel' | 'scopeLabel' | 'scopeControl' | 'totalCount'>>) {
+  isLoading,
+}: Readonly<
+  Pick<Props, 'queueLabel' | 'scopeLabel' | 'scopeControl' | 'totalCount'> & {
+    isLoading: boolean
+  }
+>) {
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-2">
         <h1 className="truncate text-sm font-semibold max-md:sr-only">{queueLabel}</h1>
         <span className="text-xs tabular-nums text-muted-foreground max-md:hidden">
-          {totalCount}
+          {isLoading ? <span aria-hidden="true">–</span> : totalCount}
         </span>
       </div>
       {scopeControl ?? (
@@ -247,6 +252,7 @@ export function InboxListHeader({
           <InboxListSearch
             value={searchQ}
             totalCount={totalCount}
+            isLoading={isLoading}
             queueTotal={queueTotal}
             onChange={onSearchChange}
             onClose={() => setSearchOpen(false)}
@@ -258,6 +264,7 @@ export function InboxListHeader({
               scopeLabel={scopeLabel}
               scopeControl={scopeControl}
               totalCount={totalCount}
+              isLoading={isLoading}
             />
             <HeaderControls
               isMobile={isMobile}

@@ -37,6 +37,11 @@ export interface InboxListPanelProps {
   selectedIds: readonly string[]
   activeItemId: string | undefined
   isLoading: boolean
+  /**
+   * The rows shown are the previous list's, kept while this one loads: dimmed,
+   * their count and "load more" not quoted.
+   */
+  isRefreshing?: boolean
   error: string | null
   onRetry: () => void
   /** Try again is reading; the error panel stays, its button busy. */
@@ -80,7 +85,11 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
       />
     )
   }
-  if (props.isLoading) return <InboxListSkeleton />
+  // Kept rows are the previous list's. An empty previous list is no answer for
+  // this one, so it gives way to the skeleton rather than say "no matches".
+  if (props.isLoading || (props.isRefreshing && props.items.length === 0)) {
+    return <InboxListSkeleton />
+  }
   if (props.items.length === 0) {
     return (
       <InboxListEmpty

@@ -11,7 +11,7 @@
 // notification/inbox story uses. No value import from #/contexts/*/server/**.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
-import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
+import { SidebarProvider, SidebarInset, useSidebar } from '#/components/ui/sidebar'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 import { AppTopBar } from './app-top-bar'
 
@@ -52,6 +52,16 @@ const user = {
   image: null,
 }
 
+/**
+ * The sidebar the trigger names in `aria-controls`. The shell draws the bar beside
+ * a real sidebar; these stories draw the bar alone, so an empty stand-in carries
+ * the id, or the reference would point at nothing (axe: aria-valid-attr-value).
+ */
+function SidebarStandIn() {
+  const { sidebarId } = useSidebar()
+  return <div id={sidebarId} hidden />
+}
+
 const meta: Meta<typeof AppTopBar> = {
   title: 'Layout/AppTopBar',
   component: AppTopBar,
@@ -60,6 +70,7 @@ const meta: Meta<typeof AppTopBar> = {
   decorators: [
     (Story) => (
       <SidebarProvider>
+        <SidebarStandIn />
         <SidebarInset>
           <Story />
         </SidebarInset>
@@ -112,18 +123,19 @@ export const NoNotifications: Story = {
   },
 }
 
-// Inbox routes hold the desktop sidebar in icon mode. The trigger remains for
-// the phone sheet, but disappears once the desktop navigation is visible.
-export const SidebarLocked: Story = {
+// A full-bleed surface (Inbox, Reviews, the workspace): the phone bar is 44 px.
+// The trigger stays on every page, because the sidebar is the person's to fold
+// wherever they are.
+export const FullBleed: Story = {
   args: {
     user,
     notificationFns: makeNotificationFns(0),
-    sidebarLocked: true,
+    isFullBleed: true,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const trigger = await canvas.findByRole('button', { name: /toggle sidebar/i })
-    expect(trigger).toHaveClass('md:hidden')
+    expect(trigger).not.toHaveClass('md:hidden')
     // Phone grid: a 44 px bar, a 36 px trigger whose glyph (not its box) lands
     // on the 16 px gutter, and the 28 px avatar's right edge on the gutter. The
     // bar is a compact workspace, so its controls read the 36 px touch token from
@@ -139,6 +151,30 @@ export const SidebarLocked: Story = {
       'max-md:min-w-(--control-touch)',
       'max-md:-mr-1',
     )
+  },
+}
+
+// A role with no sidebar (outside Settings) has nothing for the trigger to open.
+export const WithoutSidebar: Story = {
+  args: { user, notificationFns: makeNotificationFns(0), hasSidebar: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByRole('button', { name: 'Account menu' })
+    expect(canvas.queryByRole('button', { name: /toggle sidebar/i })).toBeNull()
+  },
+}
+
+// The trigger says whether it opens or folds the sidebar, and which one.
+export const TriggerStatesTheSidebar: Story = {
+  args: { user, notificationFns: makeNotificationFns(0) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const trigger = await canvas.findByRole('button', { name: /toggle sidebar/i })
+    expect(trigger).toHaveAttribute('aria-controls')
+    const before = trigger.getAttribute('aria-expanded')
+    expect(['true', 'false']).toContain(before)
+    await userEvent.click(trigger)
+    expect(trigger.getAttribute('aria-expanded')).not.toBe(before)
   },
 }
 

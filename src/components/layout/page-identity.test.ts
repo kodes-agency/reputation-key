@@ -8,7 +8,10 @@ import { NAV_LABEL } from './nav-labels'
 import {
   documentTitle,
   fallbackIdentity,
+  headerLinesOf,
+  loadingShapeOf,
   pageHead,
+  propertyNameInList,
   resolveCrumbs,
   trailCrumbs,
   type PageIdentity,
@@ -248,5 +251,53 @@ describe('pageHead', () => {
 
   it('leaves the root title alone when no route names the page', () => {
     expect(pageHead(chain(['__root__'], ['/_authenticated']))).toEqual({})
+  })
+})
+
+describe('loadingShapeOf', () => {
+  it('uses the shape a page names for itself', () => {
+    expect(loadingShapeOf({ loading: 'list', tier: 'dashboard' })).toBe('list')
+    expect(loadingShapeOf({ loading: 'inbox', fullBleed: true })).toBe('inbox')
+  })
+
+  it('makes a full-bleed surface a workspace unless it names another shape', () => {
+    expect(loadingShapeOf({ fullBleed: true })).toBe('workspace')
+  })
+
+  it('makes a dashboard page a scorecard', () => {
+    expect(loadingShapeOf({ tier: 'dashboard' })).toBe('scorecard')
+  })
+
+  it('makes every other page, and a body with no page around it, a column of cards', () => {
+    expect(loadingShapeOf({ tier: 'narrow' })).toBe('cards')
+    expect(loadingShapeOf({ tier: 'standard' })).toBe('cards')
+    expect(loadingShapeOf({})).toBe('cards')
+  })
+})
+
+describe('headerLinesOf', () => {
+  it('holds the place of one line under the title unless the page says otherwise', () => {
+    expect(headerLinesOf({})).toBe(1)
+    expect(headerLinesOf({ headerLines: 0 })).toBe(0)
+    expect(headerLinesOf({ headerLines: 2 })).toBe(2)
+  })
+})
+
+describe('propertyNameInList', () => {
+  const list = { properties: [{ id: 'p1', name: 'Hotel Elegance' }, { id: 'p2' }] }
+
+  it('names a Property from the Properties list the shell already read', () => {
+    expect(propertyNameInList(list, 'p1')).toBe('Hotel Elegance')
+  })
+
+  it('names nothing for a Property the list does not hold or that has no name', () => {
+    expect(propertyNameInList(list, 'p3')).toBeUndefined()
+    expect(propertyNameInList(list, 'p2')).toBeUndefined()
+  })
+
+  it('names nothing when the list is not in the cache or is not a list', () => {
+    expect(propertyNameInList(undefined, 'p1')).toBeUndefined()
+    expect(propertyNameInList(null, 'p1')).toBeUndefined()
+    expect(propertyNameInList({ properties: 'x' }, 'p1')).toBeUndefined()
   })
 })

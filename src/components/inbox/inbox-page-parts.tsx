@@ -130,7 +130,7 @@ export function InboxDetailPane({
   composerFocusRef,
 }: InboxDetailPaneProps) {
   return (
-    <Panel id={INBOX_PANEL_IDS.detail} minSize={480} style={CLIP_PANEL_CONTENT}>
+    <Panel id={INBOX_PANEL_IDS.detail} minSize={472} style={CLIP_PANEL_CONTENT}>
       {selectedItem ? (
         <InboxDetailPanel
           selectedItem={selectedItem}

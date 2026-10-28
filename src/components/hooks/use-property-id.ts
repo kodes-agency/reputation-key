@@ -1,5 +1,6 @@
-import { useRouterState } from '@tanstack/react-router'
+import { useMatches } from '@tanstack/react-router'
 import { z } from 'zod/v4'
+import { renderedLocationFromMatches } from '#/components/layout/rendered-location'
 
 const propertyScopeSchema = z.uuid()
 
@@ -39,10 +40,16 @@ export function propertyIdFromLocation(
 /**
  * React binding for {@link propertyIdFromLocation}.
  *
- * Used by the property switcher and property-aware navigation.
+ * Used by the property switcher and property-aware navigation. It answers for the
+ * page ON SCREEN (the deepest presented match), not the address the router is
+ * heading for: the switcher and the sidebar links keep naming the Property of the
+ * page the person still sees until the new page replaces it.
  */
 export function usePropertyId(): string | null {
-  return useRouterState({
-    select: (s) => propertyIdFromLocation(s.location.pathname, s.location.search),
+  return useMatches({
+    select: (matches) => {
+      const { pathname, search } = renderedLocationFromMatches(matches)
+      return propertyIdFromLocation(pathname, search)
+    },
   })
 }

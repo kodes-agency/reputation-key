@@ -138,6 +138,11 @@ const fns = {
     }
   }) as unknown as InboxServerFns['getInboxItemDetail'],
   getInboxNotes: (async () => []) as unknown as InboxServerFns['getInboxNotes'],
+  getInboxItemHistory: (async () => ({
+    inboxItemId: ITEM.id,
+    entries: [],
+    truncated: false,
+  })) as unknown as InboxServerFns['getInboxItemHistory'],
   updateInboxStatus: unused,
   escalateInboxItem: unused,
   resolveEscalation: unused,

@@ -49,6 +49,102 @@ export const Loading: Story = {
   },
 }
 
+const shapeOf = (canvasElement: HTMLElement) =>
+  canvasElement.querySelector('[data-loading-shape]')?.getAttribute('data-loading-shape')
+
+/** A dashboard page loads as a row of tiles and a chart: the shape of what replaces it. */
+export const LoadingScorecard: Story = {
+  args: { kind: 'loading', title: 'Ratings', tier: 'dashboard', shape: 'scorecard' },
+  play: async ({ canvasElement }) => {
+    expect(shapeOf(canvasElement)).toBe('scorecard')
+    expect(
+      canvasElement.querySelectorAll('[data-slot="skeleton"]').length,
+    ).toBeGreaterThan(5)
+  },
+}
+
+/** A list loads as its toolbar and a bordered table of rows. */
+export const LoadingList: Story = {
+  args: { kind: 'loading', title: 'Staff', tier: 'dashboard', shape: 'list' },
+  play: async ({ canvasElement }) => {
+    expect(shapeOf(canvasElement)).toBe('list')
+    expect(canvasElement.querySelector('.rounded-lg.border')).not.toBeNull()
+  },
+}
+
+/** A settings page loads as cards, in the narrow tier it is drawn in. */
+export const LoadingCards: Story = {
+  args: { kind: 'loading', title: 'Profile', tier: 'narrow', headerLines: 1 },
+  play: async ({ canvasElement }) => {
+    expect(shapeOf(canvasElement)).toBe('cards')
+    expect(canvasElement.querySelector('.max-w-3xl')).not.toBeNull()
+  },
+}
+
+/** A form with its preview loads as two columns from `lg`; a header of two lines holds both. */
+export const LoadingSplit: Story = {
+  args: {
+    kind: 'loading',
+    title: 'Portal group',
+    tier: 'dashboard',
+    shape: 'split',
+    headerLines: 2,
+  },
+  play: async ({ canvasElement }) => {
+    expect(shapeOf(canvasElement)).toBe('split')
+    expect(
+      canvasElement.querySelector('.lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_21rem\\]'),
+    ).not.toBeNull()
+  },
+}
+
+/** A page whose header has no line under its title holds none. */
+export const LoadingNoHeaderLines: Story = {
+  args: { kind: 'loading', title: 'Goal', headerLines: 0, shape: 'cards' },
+  play: async ({ canvasElement }) => {
+    const header = canvasElement.querySelector('h1')?.parentElement
+    expect(header?.querySelector('[data-slot="skeleton"]')).toBeNull()
+  },
+}
+
+/**
+ * The Portal workspace loads as its own surface: header band, tab strip, section
+ * column, form and preview, on the breakpoints of the editor.
+ */
+export const LoadingWorkspace: Story = {
+  args: { kind: 'loading', title: 'Portal', fullBleed: true },
+  render: (args) => (
+    <div className="h-[40rem] overflow-hidden border-y">
+      <PageState {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    expect(shapeOf(canvasElement)).toBe('workspace')
+    expect(
+      within(canvasElement).getByRole('heading', { level: 1, name: 'Portal' }),
+    ).toBeVisible()
+    // A surface draws no page gutter or shell around itself.
+    expect(canvasElement.querySelector('.overflow-y-auto')).toBeNull()
+  },
+}
+
+/** The Inbox loads as its queue rail, list and detail pane, the rail from `@min-[1022px]`. */
+export const LoadingInbox: Story = {
+  args: { kind: 'loading', title: 'Inbox', fullBleed: true, shape: 'inbox' },
+  render: (args) => (
+    <div className="h-[40rem] overflow-hidden border-y">
+      <PageState {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    expect(shapeOf(canvasElement)).toBe('inbox')
+    expect(
+      within(canvasElement).getByRole('heading', { level: 1, name: 'Inbox' }),
+    ).toBeVisible()
+    expect(canvasElement.querySelectorAll('.h-\\[78px\\]').length).toBe(8)
+  },
+}
+
 export const LoadingLight: Story = {
   ...Loading,
   parameters: { ...Loading.parameters, theme: 'light' },
@@ -193,10 +289,12 @@ export const StandardTier: Story = {
 
 /**
  * A full-bleed surface drops the `<main>` gutter and owns its scroll, so its
- * states wear the gutter themselves (the Portal workspace, Inbox, Reviews).
+ * states wear the gutter themselves (the Portal workspace, Inbox, Reviews). A
+ * loading state of one of them draws the surface itself (`LoadingWorkspace`); a
+ * failure, or a page of a body shape that is not a surface, wears the frame.
  */
 export const FullBleed: Story = {
-  args: { kind: 'loading', title: 'Portal', fullBleed: true },
+  args: { kind: 'loading', title: 'Portal', fullBleed: true, shape: 'cards' },
   render: (args) => (
     <div className="h-72 overflow-hidden border-y">
       <PageState {...args} />

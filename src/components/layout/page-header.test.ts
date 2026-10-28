@@ -172,3 +172,16 @@ describe('PageHeader actions', () => {
     expect(html).toContain('justify-between')
   })
 })
+
+describe('PageHeader placeholder lines', () => {
+  const bars = (html: string) => html.match(/data-slot="skeleton"/gu)?.length ?? 0
+
+  it('draws no bar unless the loading state asks for one', () => {
+    expect(bars(render({ title: 'Ratings' }))).toBe(0)
+  })
+
+  it('holds the place of the one or two lines the loaded header draws under the title', () => {
+    expect(bars(render({ title: 'Ratings', placeholderLines: 1 }))).toBe(1)
+    expect(bars(render({ title: 'Ratings', placeholderLines: 2 }))).toBe(2)
+  })
+})

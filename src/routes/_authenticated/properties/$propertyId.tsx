@@ -1,6 +1,6 @@
 // Property layout — shared shell for property-scoped routes.
 // Child routes render via <Outlet />. Navigation is handled by the sidebar.
-import { createFileRoute, Outlet, useRouterState } from '@tanstack/react-router'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 import {
   PROPERTY_NOT_FOUND,
   roleUnavailable,
@@ -11,6 +11,7 @@ import { can } from '#/shared/domain/permissions'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
+import { useRenderedPathname } from '#/components/layout/rendered-location'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   beforeLoad: ({ context, params }) => {
@@ -66,8 +67,9 @@ function isNotFoundStatus(error: unknown): boolean {
  * that exists.
  */
 function PropertyLayout() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const isFullHeight = isFullBleedRoute(pathname)
+  // The page on screen, not the address the router is heading for: the height
+  // frame changes in the same frame as the page it holds (`rendered-location`).
+  const isFullHeight = isFullBleedRoute(useRenderedPathname())
   const { propertyId } = Route.useParams()
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
   const property = data.property

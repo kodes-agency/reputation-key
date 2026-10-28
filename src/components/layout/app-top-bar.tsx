@@ -22,13 +22,20 @@ import type {
 } from '#/components/features/beta-feedback/beta-feedback-form-context'
 import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 import { IconButton } from '#/components/ui/icon-button'
+import { RouteProgress } from '#/components/layout/route-progress'
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
   organizationId: string
   notificationFns: NotificationServerFns
   submitBetaFeedback?: SubmitBetaFeedback
-  sidebarLocked?: boolean
+  /**
+   * Whether the shell draws a sidebar for this person on this page. A role with
+   * none has nothing for the trigger to open, so the trigger is not drawn either.
+   */
+  hasSidebar?: boolean
+  /** The page is a full-bleed surface: the phone bar is 44 px, as the Inbox grid is. */
+  isFullBleed?: boolean
   listBetaFeedback?: ListMyBetaFeedback
 }>
 
@@ -37,7 +44,8 @@ export function AppTopBar({
   organizationId,
   notificationFns,
   submitBetaFeedback,
-  sidebarLocked = false,
+  hasSidebar = true,
+  isFullBleed = false,
   listBetaFeedback,
 }: Props) {
   const navigate = useNavigate()
@@ -63,18 +71,19 @@ export function AppTopBar({
     // at the edges are pulled out by half of (36 - glyph) so the glyph, not the
     // box, sits on the 16 px gutter: the trigger's 16 px glyph by 10 px, the
     // account button's 28 px circle by 4 px. Non-inbox phone pages keep the
-    // 52 px bar (h-13) with the same 36 px controls on purpose; only inbox
-    // routes (`sidebarLocked`) compress to 44.
+    // 52 px bar (h-13) with the same 36 px controls on purpose; only the
+    // full-bleed surfaces (`isFullBleed`: Inbox, Reviews, the workspace) compress
+    // to 44. The sidebar trigger is the person's on every page from md up (the
+    // sidebar is theirs to open or fold, wherever they are), and the progress bar
+    // lies on the bar's lower edge, which is why the header is `relative`.
     <header
       data-density="compact"
       className={cn(
-        'flex h-13 shrink-0 items-center gap-2 border-b px-4',
-        sidebarLocked && 'max-md:h-11',
+        'relative flex h-13 shrink-0 items-center gap-2 border-b px-4',
+        isFullBleed && 'max-md:h-11',
       )}
     >
-      <SidebarTrigger
-        className={cn('-ml-1 max-md:-ml-2.5', sidebarLocked && 'md:hidden')}
-      />
+      {hasSidebar && <SidebarTrigger className="-ml-1 max-md:-ml-2.5" />}
 
       <div className="flex-1" />
 
@@ -128,6 +137,7 @@ export function AppTopBar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <RouteProgress />
     </header>
   )
 }

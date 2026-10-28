@@ -1,4 +1,3 @@
-import { useRouterState } from '@tanstack/react-router'
 import {
   User,
   Users,
@@ -25,6 +24,8 @@ import {
 import { NavLink } from '#/components/ui/nav-link'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { hasRole } from '#/shared/domain/roles'
+import { useRenderedPathname } from './rendered-location'
+import { appLocationStore, useAppLocationOwner } from './shell-continuity'
 
 type NavItem = Readonly<{
   key: string
@@ -33,19 +34,22 @@ type NavItem = Readonly<{
   href: string
 }>
 
+// The Settings page ON SCREEN (see `rendered-location`), so the row that is
+// marked is the page the person is reading until the new one replaces it.
 function useActiveSettingsSection(): string {
-  return useRouterState({
-    select: (s) => {
-      const match = s.location.pathname.match(/\/settings\/([^/]+)/)
-      return match?.[1] ?? 'profile'
-    },
-  })
+  const pathname = useRenderedPathname()
+  return pathname.match(/\/settings\/([^/]+)/)?.[1] ?? 'profile'
 }
 
 export function SettingsSidebar() {
   const activeSection = useActiveSettingsSection()
   const { can, role } = usePermissions()
   const isManager = hasRole(role, 'PropertyManager')
+  const owner = useAppLocationOwner()
+  // Back to the page the person came from, in this tab; with none (Settings was
+  // the first page loaded, or the person or organization changed since) the
+  // Properties list for a manager, and Home otherwise.
+  const back = appLocationStore.get(owner)
 
   // Two scopes, labelled, because nothing else says which rows a page
   // changes: "You" is the signed-in account (notification rows included — they
@@ -121,7 +125,11 @@ export function SettingsSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild tooltip="Back to app">
-                <NavLink to={isManager ? '/properties' : '/'} current={false}>
+                <NavLink
+                  to={back?.pathname ?? (isManager ? '/properties' : '/')}
+                  search={back?.search}
+                  current={false}
+                >
                   <ArrowLeft />
                   <span>Back to app</span>
                 </NavLink>

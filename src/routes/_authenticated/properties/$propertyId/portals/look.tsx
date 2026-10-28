@@ -31,7 +31,14 @@ import { portalOverviewQuery } from './-portal-overview-data'
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/look',
 )({
-  staticData: { page: { title: 'Property look', tier: 'dashboard', under: 'portals' } },
+  staticData: {
+    page: {
+      title: 'Property look',
+      tier: 'dashboard',
+      under: 'portals',
+      loading: 'split',
+    },
+  },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
       data: {

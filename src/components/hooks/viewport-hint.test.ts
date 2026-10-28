@@ -56,6 +56,28 @@ describe('viewportHintFromRequest', () => {
     expect(viewportHintFromRequest({ userAgent: DESKTOP_CHROME }).mobile).toBe(false)
   })
 
+  it('carries the sidebar choice the person made, whatever else is known', () => {
+    expect(viewportHintFromRequest({ cookie: 'sidebar_state=false' })).toEqual({
+      width: null,
+      mobile: false,
+      sidebarOpen: false,
+    })
+    expect(
+      viewportHintFromRequest({
+        cookie: `${VIEWPORT_COOKIE}=1440; sidebar_state=true`,
+      }),
+    ).toEqual({ width: 1440, mobile: false, sidebarOpen: true })
+  })
+
+  it('leaves the sidebar choice out when the cookie is absent or not true or false', () => {
+    expect(
+      viewportHintFromRequest({ cookie: `${VIEWPORT_COOKIE}=390` }),
+    ).not.toHaveProperty('sidebarOpen')
+    expect(viewportHintFromRequest({ cookie: 'sidebar_state=maybe' })).toEqual(
+      UNKNOWN_VIEWPORT,
+    )
+  })
+
   it('knows nothing about a request that says nothing', () => {
     expect(viewportHintFromRequest({})).toEqual(UNKNOWN_VIEWPORT)
   })

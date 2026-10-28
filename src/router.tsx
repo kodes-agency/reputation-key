@@ -64,10 +64,14 @@ export function getRouter() {
     defaultPreload: 'intent',
 
     // ── Pending UI ──────────────────────────────────────────────────────
-    // Show skeleton immediately on navigation (no delay).
-    defaultPendingMs: 0,
-    // Don't enforce a minimum display time for the skeleton.
-    defaultPendingMinMs: 0,
+    // Keep the old page on screen for the first quarter second of a navigation, so
+    // a load that is quick shows no placeholder at all instead of a flash of one.
+    // The delay runs from the click and includes the shell's own `beforeLoad` stage,
+    // not just the page's loader, so it is the time the old page stays up.
+    defaultPendingMs: 250,
+    // Once a placeholder is up, hold it for 300 ms: it was drawn in the page's own
+    // shape, and replacing it at once with the page would read as a second flash.
+    defaultPendingMinMs: 300,
     defaultPendingComponent: RoutePending,
     defaultErrorComponent: RouteError,
     defaultNotFoundComponent: RouteNotFound,

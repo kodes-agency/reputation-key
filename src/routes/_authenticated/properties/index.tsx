@@ -2,21 +2,17 @@
 //
 // Absorbs what `/dashboard` was for. The list itself comes from the parent
 // layout's cached `propertiesQuery`; the comparison figures and setup progress
-// are enrichments, each fetched with `useQuery` rather than the loader so a
-// denial or an outage costs a column, not the page. A manager whose fleet read
-// is gated (`dashboard.fleet_read`) still gets the management list they came for.
+// are enrichments, each read with `useQuery` and started by the loader for at
+// most its grace (`-properties-prefetch.ts`), so a denial or an outage costs a
+// column, not the page. A manager whose fleet read is gated
+// (`dashboard.fleet_read`) still gets the management list they came for.
 //
 // Search, filter and sort live in the URL (`propertyListSearchSchema`), and the
 // default view writes nothing there, so `/properties` stays bare.
 import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import {
-  infiniteQueryOptions,
-  useInfiniteQuery,
-  useQuery,
-  useSuspenseQuery,
-} from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
@@ -30,41 +26,18 @@ import {
   propertiesQuery,
   propertySetupSummariesQuery,
 } from '#/routes/-queries/route-queries'
-import { getFleetOverviewFn } from '#/contexts/reporting/server/fleet-overview'
-import { dashboardKeys } from '#/shared/queries/query-keys'
-import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
+import { LIFETIME, fleetQuery } from './-properties-prefetch'
 
 /**
- * One unbounded read, not the identity/pulse pair Overview uses.
- *
- * A bounded fleet window counts governed metric readings by their `event_at`,
- * which is when the review was *recorded*; the per-property overview counts by
- * when the guest wrote it. On a freshly imported property those disagree
- * sharply — Hotel Elegance read "259 reviews in the last 30 days" here beside
- * "3 in the last 30 days" on its own Overview, because all 259 were ingested
- * today. Reconciling the two event-time semantics is a read-model decision, so
- * this list shows the figure both sources agree on and leaves the 30-day pulse
- * to the property's own page, where one basis is in force. The Rating and
- * Reviews columns are Google's own number and count (decision 16), which the
- * same read carries.
+ * How long the list waits for its figures and its setup progress once the
+ * layout's list is in. Both reads start together, so it is the slower of the
+ * two, never longer. Counted from the loader's start, so the chunk fetch below
+ * is inside it.
  */
-const LIFETIME: TimeRangePreset = 'all'
-
-const fleetQuery = (timeRange: TimeRangePreset) =>
-  infiniteQueryOptions({
-    queryKey: dashboardKeys.fleet(timeRange),
-    queryFn: ({ pageParam }) =>
-      getFleetOverviewFn({
-        data: { timeRange, ...(pageParam ? { cursor: pageParam } : {}) },
-      }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    staleTime: 60_000,
-    retry: false,
-  })
+const LIST_GRACE_MS = 300
 
 export const Route = createFileRoute('/_authenticated/properties/')({
-  staticData: { page: { title: 'Properties', tier: 'dashboard' } },
+  staticData: { page: { title: 'Properties', tier: 'dashboard', loading: 'list' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     // Properties admin list is a manager surface (property.admin).
@@ -73,6 +46,24 @@ export const Route = createFileRoute('/_authenticated/properties/')({
     }
   },
   validateSearch: (search) => propertyListSearchSchema.parse(search),
+  // The figures and the setup progress are enrichments, so the page never waits
+  // for them past the grace: they are usually in by then, which is what lets the
+  // first paint be the finished list instead of rows that grow and re-sort.
+  // Fresh for a minute, so typing a search (a search-only navigation) does not
+  // run the loader again for every key.
+  staleTime: 60_000,
+  // Route loaders are eager (first paint), so the prefetch and the fleet read it
+  // starts load on demand, as the Goals routes do. A chunk that fails to load
+  // costs the figures only: the page's own chunk reports that failure.
+  loader: async ({ context }) => {
+    const primed = import('./-properties-prefetch')
+      .then(({ prefetchPropertyList }) => prefetchPropertyList(context.queryClient))
+      .catch(() => undefined)
+    await Promise.race([
+      primed,
+      new Promise((resolve) => setTimeout(resolve, LIST_GRACE_MS)),
+    ])
+  },
   component: PropertyListRoute,
 })
 
@@ -144,7 +135,19 @@ function PropertyListRoute() {
       setup={setup}
       setupState={setupState}
       search={search}
-      onSearchChange={(next) => void navigate({ search: next, replace: true })}
+      // A change that leaves the search text alone (a filter, a sort, a tab) keeps
+      // the text of the newest navigation: the page builds `next` from the
+      // committed search, which on a slow network is still the one before what was
+      // just typed.
+      onSearchChange={(next) =>
+        void navigate({
+          search: (latest: { q?: string }) => ({
+            ...next,
+            q: next.q === (search as { q?: string }).q ? latest.q : next.q,
+          }),
+          replace: true,
+        })
+      }
     />
   )
 }

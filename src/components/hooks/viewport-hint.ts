@@ -3,11 +3,19 @@
 // a hard load on a phone paints the phone layout instead of the desktop one.
 // After hydration the hooks read `matchMedia` and the hint no longer matters.
 
+import { sidebarOpenFromCookie } from '#/components/layout/sidebar-cookie'
+
 export type ViewportHint = Readonly<{
   /** CSS px width the browser last reported, from `VIEWPORT_COOKIE`. */
   width: number | null
   /** The browser says it is a phone (client hint or user agent). */
   mobile: boolean
+  /**
+   * The sidebar choice the person made (`sidebar_state`); absent when they made
+   * none, which means open. It rides along with the viewport because both are
+   * what the server must know to draw the first frame the way the browser will.
+   */
+  sidebarOpen?: boolean
 }>
 
 export const UNKNOWN_VIEWPORT: ViewportHint = { width: null, mobile: false }
@@ -39,8 +47,9 @@ export function viewportHintFromRequest(request: ViewportRequest): ViewportHint 
   const mobile =
     request.uaMobile === '?1' ||
     (request.uaMobile !== '?0' && MOBILE_USER_AGENT.test(request.userAgent ?? ''))
-  if (width === null && !mobile) return UNKNOWN_VIEWPORT
-  return { width, mobile }
+  const sidebarOpen = sidebarOpenFromCookie(request.cookie)
+  if (width === null && !mobile && sidebarOpen === null) return UNKNOWN_VIEWPORT
+  return sidebarOpen === null ? { width, mobile } : { width, mobile, sidebarOpen }
 }
 
 /**

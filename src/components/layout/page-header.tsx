@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { cn } from '#/lib/utils'
+import { Skeleton } from '#/components/ui/skeleton'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -31,6 +32,12 @@ type Props = Readonly<{
   breadcrumbs?: readonly Crumb[]
   /** Primary-action slot, right-aligned. */
   actions?: ReactNode
+  /**
+   * For the page's loading state only: bars where the loaded header draws its
+   * meta and description lines (20 px each), so the content below starts where
+   * it will once the page has arrived.
+   */
+  placeholderLines?: 1 | 2
   className?: string
 }>
 
@@ -45,6 +52,7 @@ export function PageHeader({
   description,
   breadcrumbs,
   actions,
+  placeholderLines,
   className,
 }: Props) {
   return (
@@ -66,10 +74,20 @@ export function PageHeader({
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <HeaderMeta items={meta} />
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
+          {placeholderLines && <HeaderPlaceholder lines={placeholderLines} />}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
     </div>
+  )
+}
+
+function HeaderPlaceholder({ lines }: Readonly<{ lines: 1 | 2 }>) {
+  return (
+    <>
+      <Skeleton className="h-5 w-72 max-w-full" />
+      {lines === 2 && <Skeleton className="h-5 w-56 max-w-full" />}
+    </>
   )
 }
 

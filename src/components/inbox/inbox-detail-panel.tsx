@@ -1,6 +1,6 @@
 import { RegionError } from '#/components/ui/region-error'
-import { Skeleton } from '#/components/ui/skeleton'
 import { InboxDetailContent } from '#/components/inbox/inbox-detail-content'
+import { InboxDetailPending } from '#/components/inbox/inbox-detail-pending'
 import { InboxDetailHeader } from '#/components/inbox/inbox-detail-header'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { useInboxDetail } from '#/components/inbox/use-inbox-detail'
@@ -54,22 +54,18 @@ export function InboxDetailPanel({
           so the key can never reach an Escalate this branch has not rendered.
           `!currentItem` only narrows the type for the content branch. */}
       {!isCaseToolbarShown(detailState) || !currentItem ? (
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-          {detailState.error ? (
+        detailState.error ? (
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
             <RegionError
               size="compact"
               message={detailState.error}
               onRetry={() => detailState.refetch()}
               retrying={detailState.retrying}
             />
-          ) : (
-            <>
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-4 w-1/2" />
-            </>
-          )}
-        </div>
+          </div>
+        ) : (
+          <InboxDetailPending />
+        )
       ) : (
         <InboxDetailContent
           currentItem={currentItem}

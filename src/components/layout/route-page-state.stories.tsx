@@ -105,6 +105,8 @@ type Scenario = Readonly<{
   people?: Readonly<{ beforeLoad?: () => void; loader?: () => Promise<void> }>
   /** Render this in place of the page, to show an error without throwing. */
   failure?: unknown
+  /** The Property is known only from the Properties list, as when a link led straight here. */
+  propertyFromList?: boolean
 }>
 
 function buildRouter(scenario: Scenario) {
@@ -185,9 +187,15 @@ function buildRouter(scenario: Scenario) {
 function Harness({ scenario }: Readonly<{ scenario: Scenario }>) {
   const queryClient = useQueryClient()
   const router = useMemo(() => {
-    queryClient.setQueryData(propertyKeys.detail('p1'), {
-      property: { name: 'Hotel Elegance' },
-    })
+    if (scenario.propertyFromList) {
+      queryClient.setQueryData(propertyKeys.list(), {
+        properties: [{ id: 'p1', name: 'Hotel Elegance' }],
+      })
+    } else {
+      queryClient.setQueryData(propertyKeys.detail('p1'), {
+        property: { name: 'Hotel Elegance' },
+      })
+    }
     return buildRouter(scenario)
   }, [queryClient, scenario])
   return <RouterProvider router={router} />
@@ -220,6 +228,24 @@ export const PendingPage: Story = {
     // Inside the shell, whose `<main>` pads it: the state adds no gutter of its own.
     expect(canvas.getByTestId('shell')).toBeVisible()
     expect(canvasElement.querySelector('.page-wrap')).toBeNull()
+  },
+}
+
+/** A page reached by a link names its Property from the Properties list while it loads, not "Property". */
+export const PendingNamesPropertyFromList: Story = {
+  args: {
+    scenario: {
+      url: '/properties/p1/people',
+      people: { loader: NEVER },
+      propertyFromList: true,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    expect(await pageHeading(canvasElement, 'People')).toBeVisible()
+    expect(
+      within(canvasElement).getByRole('link', { name: 'Hotel Elegance' }),
+    ).toBeVisible()
+    expect(within(canvasElement).queryByRole('link', { name: 'Property' })).toBeNull()
   },
 }
 

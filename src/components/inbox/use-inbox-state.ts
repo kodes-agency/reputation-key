@@ -4,7 +4,7 @@
 // into the query key (300ms) so typing doesn't refetch per keystroke. Optimistic
 // status updates + bulk reload use setQueryData / invalidateQueries (targeted,
 // never router.invalidate()). Navigation sub-hook lives in inbox-state-helpers.
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
@@ -47,6 +47,8 @@ type ReplyPollObservation = Readonly<{
   filters: InboxFilterValues
   polledItemIds: ReadonlySet<string>
 }>
+
+const NO_ITEMS: ReadonlyArray<InboxItem> = []
 
 function useViewedUpToLatch(
   organizationId: string | undefined,
@@ -161,12 +163,19 @@ export function useInboxState(
         },
       }),
     initialPageParam: undefined as Cursor | undefined,
+    // A queue, filter or sort change keeps the rows on screen, dimmed, until the
+    // new ones arrive, rather than blanking to the skeleton and back.
+    placeholderData: keepPreviousData,
     getNextPageParam: (last: InboxPage) => last.nextCursor ?? undefined,
     enabled: !!orgId,
     refetchInterval: (activeQuery) =>
       inboxListPagesRefetchInterval(activeQuery.state.data?.pages),
   })
 
+  // Rows kept from the previous list while the new one loads (`isRefreshing`).
+  // They belong to another scope, so everything that reasons about what this
+  // list holds treats them as not known yet, exactly as it does while pending.
+  const isRefreshing = query.isPlaceholderData
   const pages = query.data?.pages
   const items = useMemo(() => pages?.flatMap((page) => page.items) ?? [], [pages])
   const pageViewedUpTo = pages?.[0]?.viewedUpTo
@@ -176,7 +185,12 @@ export function useInboxState(
   // can remain in the folder with a terminal outcome. Either transition makes
   // the summary badges stale. Scope identity prevents filter/org changes from
   // being mistaken for settlement.
-  useReplySettlementInvalidation(orgId, debouncedFilters, items, qc)
+  useReplySettlementInvalidation(
+    orgId,
+    debouncedFilters,
+    isRefreshing ? NO_ITEMS : items,
+    qc,
+  )
   const nextCursor = pages?.length ? pages[pages.length - 1]!.nextCursor : null
   const totalCount = pages?.[0]?.totalCount ?? 0
   const responseCutoff = pages?.[0]?.responseCutoff ?? null
@@ -186,7 +200,14 @@ export function useInboxState(
   // through its independently authorized query. An open item whose own reply
   // moved it to another reply queue stays open (D8, `selectedItemDeparture`).
   const departure = useSelectedItemDeparture(qc, queue, selectedId, query.dataUpdatedAt)
-  useSelectedItemPresence(qc, selectedId, items, query.isPending, onNavigate, departure)
+  useSelectedItemPresence(
+    qc,
+    selectedId,
+    items,
+    query.isPending || isRefreshing,
+    onNavigate,
+    departure,
+  )
 
   // Optimistic in-place patch after a detail status change (mark-read / escalate /
   // archive): update the item across all loaded pages, or drop it if its new
@@ -223,10 +244,11 @@ export function useInboxState(
     items,
     totalCount,
     nextCursor,
-    hasLoadedSuccessfully: query.isSuccess && query.isFetchedAfterMount,
+    hasLoadedSuccessfully: query.isSuccess && query.isFetchedAfterMount && !isRefreshing,
     responseCutoff,
     viewedUpTo,
     isLoading: query.isPending,
+    isRefreshing,
     error: hasFailed(query) ? 'The inbox couldn’t be loaded.' : null,
     // The error panel stays while Try again reads (`hasFailed` above), its button busy.
     isRetrying: isRetrying(query),

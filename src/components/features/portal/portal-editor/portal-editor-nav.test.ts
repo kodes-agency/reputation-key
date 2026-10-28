@@ -152,7 +152,7 @@ describe('PortalEditorNav', () => {
   it('waits for a wide container before it is a column', () => {
     const html = render('welcome')
 
-    expect(html).toContain('@6xl:flex-col')
+    expect(html).toContain('@7xl:flex-col')
     expect(html).not.toMatch(/(?:^|[\s"])xl:/u)
   })
 })

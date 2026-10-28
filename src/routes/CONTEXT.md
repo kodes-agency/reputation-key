@@ -35,6 +35,21 @@ read refused within three seconds of it reloads the current address at once.
 Missing Organization access or role resolves to the appropriate unavailable state.
 Never synthesize a fallback role or run tenant loaders before both bindings exist.
 
+Its `beforeLoad` runs on every navigation (a search-only change and a hover preload
+too) and the router awaits it before any loader, so it is one stage: the session,
+the active Organization and the property-scoped capability set start together and
+are settled, then decided in order (no session, then an Organization failure, then
+a capability redirect; a failed capability read is the empty set). Do not add an
+`await` before them, or a chain returns in front of every page.
+
+The shell draws its frame from the page ON SCREEN: the deepest of the router's
+presented matches (`useRenderedPathname` in `components/layout/rendered-location.ts`),
+never `location` (the address the router is heading for, which changes at the click
+while the old page stays) and never `resolvedLocation` (set only after the commit).
+The shell is one tree on every route, a full-bleed surface only toggles classes, and
+the sidebar's open state is the person's: the `sidebar_state` cookie, read here with
+the request next to the viewport hint and applied from the first paint.
+
 Its loader also returns the request's viewport hint (`-viewport-hint.ts`) and the
 layout provides it to the breakpoint hooks, so the server renders the layout the
 browser will show. The hint is read in the loader because loader data is what

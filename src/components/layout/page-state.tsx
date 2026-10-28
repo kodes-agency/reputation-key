@@ -3,8 +3,9 @@ import { Alert, AlertDescription } from '#/components/ui/alert'
 import { BackLink } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
-import { Skeleton } from '#/components/ui/skeleton'
 import { PageHeader, type Crumb } from './page-header'
+import { loadingShapeOf, type HeaderLines, type LoadingShape } from './page-identity'
+import { isSurfaceShape, LoadingShapeBody } from './page-state-loading'
 import { FullBleedFrame, PageShell, type PageTier } from './page-shell'
 
 // The one page-level state: a page that is loading, failed, is missing, or is
@@ -27,6 +28,13 @@ export type PageStateFrame = Readonly<{
   tier?: PageTier
   /** For a full-bleed surface: wear the page gutter and scroll the state itself. */
   fullBleed?: boolean
+  /**
+   * Loading only: the body that holds the place of the page's content. Left out,
+   * the frame decides (`loadingShapeOf`).
+   */
+  shape?: LoadingShape
+  /** Loading only: the header lines under the title the loaded page draws. */
+  headerLines?: HeaderLines
 }>
 
 export type PageStateProps = PageStateFrame &
@@ -51,20 +59,6 @@ export type PageStateProps = PageStateFrame &
         back: PageStateBack
       }>
   )
-
-function LoadingBody({ label }: Readonly<{ label: string }>) {
-  return (
-    <div className="space-y-4" aria-busy="true" aria-live="polite">
-      <span className="sr-only">{label}</span>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-24" />
-        ))}
-      </div>
-      <Skeleton className="h-64" />
-    </div>
-  )
-}
 
 function ErrorBody({
   message,
@@ -99,10 +93,21 @@ function NoticeBody({
   )
 }
 
+/** The shape a loading state draws: the one it was given, else what its frame implies. */
+function shapeOf({ shape, tier, fullBleed }: PageStateFrame): LoadingShape {
+  return loadingShapeOf({ loading: shape, tier, fullBleed })
+}
+
 function PageStateBody(props: PageStateProps) {
   switch (props.kind) {
     case 'loading':
-      return <LoadingBody label={props.label ?? `Loading ${props.title ?? 'page'}`} />
+      return (
+        <LoadingShapeBody
+          shape={shapeOf(props)}
+          label={props.label ?? `Loading ${props.title ?? 'page'}`}
+          title={props.title}
+        />
+      )
     case 'error':
       return <ErrorBody message={props.message} onRetry={props.onRetry} />
     default:
@@ -117,12 +122,27 @@ function PageStateBody(props: PageStateProps) {
  * in the frame of the page it stands in for. Use through `RoutePending`,
  * `RouteError` and `RouteNotFound` for a route; use it directly where a page
  * decides for itself.
+ *
+ * A loading state is the shape of its page: a header with the title and the
+ * lines under it, then a body of the page's kind (`loadingShapeOf`). A workspace
+ * or Inbox shape is a whole surface, so it draws no `PageShell`, header or gutter
+ * of its own around it.
  */
 export function PageState(props: PageStateProps) {
   const { title, breadcrumbs, tier, fullBleed } = props
+  if (props.kind === 'loading' && isSurfaceShape(shapeOf(props))) {
+    return <PageStateBody {...props} />
+  }
+  const lines = props.kind === 'loading' ? (props.headerLines ?? 1) : 0
   const state = (
     <PageShell tier={tier}>
-      {title && <PageHeader title={title} breadcrumbs={breadcrumbs} />}
+      {title && (
+        <PageHeader
+          title={title}
+          breadcrumbs={breadcrumbs}
+          placeholderLines={lines === 0 ? undefined : lines}
+        />
+      )}
       <PageStateBody {...props} />
     </PageShell>
   )

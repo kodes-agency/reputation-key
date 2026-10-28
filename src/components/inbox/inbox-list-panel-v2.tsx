@@ -2,6 +2,7 @@
 // Header + bulk bar + scroll area (content + load-more). Presentational parts
 // live in inbox-list-panel-parts.tsx.
 
+import { cn } from '#/lib/utils'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { InboxActiveFilters } from '#/components/inbox/inbox-active-filters'
 import { InboxListHeader } from '#/components/inbox/inbox-list-header'
@@ -27,6 +28,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
     items,
     selectedIds,
     isLoading,
+    isRefreshing = false,
     nextCursor,
     loadAction,
     listRef,
@@ -65,7 +67,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
         filters={filters}
         onFiltersChange={onFiltersChange}
         sort={sort}
-        isLoading={isLoading}
+        isLoading={isLoading || isRefreshing}
         onSortChange={onSortChange}
         onClearFilters={onClearFilters}
         onStartSelection={onStartSelection}
@@ -97,13 +99,20 @@ export function InboxListPanel(props: InboxListPanelProps) {
           onClearFilters={onClearFilters}
         />
       )}
-      <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
+      <div
+        ref={listRef}
+        aria-busy={isRefreshing}
+        className={cn(
+          'min-h-0 flex-1 overflow-y-auto transition-opacity motion-reduce:transition-none',
+          isRefreshing && 'opacity-60',
+        )}
+      >
         {renderListContent(props)}
         <InboxLoadMore
           nextCursor={nextCursor}
           loadedCount={items.length}
           totalCount={totalCount}
-          isLoading={isLoading}
+          isLoading={isLoading || isRefreshing}
           loadAction={loadAction}
           onLoadMore={onLoadMore}
         />

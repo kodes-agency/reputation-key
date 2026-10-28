@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, useRouterState } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useMatches } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
@@ -18,6 +18,9 @@ import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useRatingGoalNotNow } from './goals/-rating-goal-not-now'
 
+/** How long the page waits for the setup strip once the property is in. */
+const SETUP_GRACE_MS = 300
+
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
   staticData: {
     page: { title: NAV_LABEL.propertySettings, under: 'property' },
@@ -27,8 +30,22 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/set
     if (!can(role, 'property.read'))
       throw roleUnavailable(NAV_LABEL.propertySettings, 'properties')
   },
-  loader: ({ params: { propertyId }, context }) =>
-    context.queryClient.ensureQueryData(propertyQuery(propertyId)),
+  // The setup strip above the section draws nothing until its read arrives, so
+  // the card below it jumped down (200 to 362 px). It is read with the property,
+  // as a side read (no retry, so a failure does not hold the page): the strip is
+  // then in the first paint, and a failure leaves it to its own read.
+  loader: async ({ params: { propertyId }, context }) => {
+    const setup = context.queryClient.prefetchQuery({
+      ...propertySetupQuery(propertyId),
+      retry: false,
+    })
+    await context.queryClient.ensureQueryData(propertyQuery(propertyId))
+    // Never longer than the grace: a slow side read must not hold the page.
+    await Promise.race([
+      setup,
+      new Promise((resolve) => setTimeout(resolve, SETUP_GRACE_MS)),
+    ])
+  },
   component: PropertySettingsLayout,
 })
 
@@ -39,8 +56,12 @@ function PropertySettingsLayout() {
   const { data: setup } = useQuery(propertySetupQuery(propertyId))
   const notNow = useRatingGoalNotNow(propertyId)
   const sections = visiblePropertySettingsSections(canDo)
-  const active = useRouterState({
-    select: (state) => activePropertySettingsSection(state.location.pathname),
+  // The section that is on screen, from the rendered leaf: while the next
+  // section loads, the location is already the new one, and the header and the
+  // nav would name a section whose page has not arrived.
+  const active = useMatches({
+    select: (matches) =>
+      activePropertySettingsSection(matches[matches.length - 1]?.pathname ?? ''),
   })
   // The header names the section that is open, as every account settings page does.
   const header = propertySettingsHeader({

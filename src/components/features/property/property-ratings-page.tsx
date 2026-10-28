@@ -6,6 +6,7 @@ import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { DashboardRangeControl } from '#/components/features/dashboard/dashboard-range-control'
+import { RangeBusyRegion } from '#/components/features/dashboard/range-busy-region'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
 import {
@@ -23,8 +24,13 @@ import { replyTimeMissing, type ReplyTimeMissing } from './reply-time-missing'
 export interface PropertyRatingsPageProps {
   property: Readonly<{ id: string; name: string }>
   dashboard: DashboardData
+  /** The range the control shows: the one just chosen. */
   range: DashboardRange
+  /** The range the figures are for, while the next is read (defaults to `range`). */
+  dataRange?: DashboardRange
   onRangeChange: (range: DashboardRange) => void
+  /** The next range is being read: the figures shown are the previous range's, dimmed. */
+  busy?: boolean
 }
 
 const REPLY_TIME_MISSING: Readonly<Record<ReplyTimeMissing, string>> = {
@@ -47,12 +53,14 @@ export function PropertyRatingsPage({
   property,
   dashboard,
   range,
+  dataRange = range,
   onRangeChange,
+  busy = false,
 }: PropertyRatingsPageProps) {
   const distributionHeadingId = useId()
   const { kpis, ratingDistribution, ratingTrend, reviewVolume, replyPerformance } =
     dashboard
-  const comparisonLabel = dashboardRangeComparisonLabel(range)
+  const comparisonLabel = dashboardRangeComparisonLabel(dataRange)
   const hasReviews = kpis.reviews.value > 0
 
   const ratingContext =
@@ -66,7 +74,7 @@ export function PropertyRatingsPage({
 
   const reviewContext =
     comparisonLabel === null ? null : kpis.reviews.trend === null ? (
-      `No reviews in the previous ${DASHBOARD_RANGE_LABELS[range].toLowerCase()} to compare.`
+      `No reviews in the previous ${DASHBOARD_RANGE_LABELS[dataRange].toLowerCase()} to compare.`
     ) : (
       <MetricDelta
         value={kpis.reviews.trend}
@@ -100,63 +108,68 @@ export function PropertyRatingsPage({
         actions={<DashboardRangeControl range={range} onRangeChange={onRangeChange} />}
       />
 
-      <MetricStrip aria-label="Ratings summary" variant="ruled">
-        <Metric label="Average rating">
-          <MetricValue
-            value={
-              kpis.avgRating.value === null ? null : (
-                <RatingFigure value={kpis.avgRating.value} size="lg" />
-              )
-            }
-            detail={ratingContext}
-          />
-        </Metric>
-        <Metric label="Reviews">
-          <MetricValue value={formatNumber(kpis.reviews.value)} detail={reviewContext} />
-        </Metric>
-        <Metric label={<GlossaryTerm term="reply-rate" />}>
-          <MetricValue value={replyRateValue} detail={replyRateContext} />
-        </Metric>
-      </MetricStrip>
-
-      <section aria-labelledby="ratings-trend-title" className="min-w-0 space-y-3">
-        <h2 id="ratings-trend-title" className="text-lg font-semibold tracking-tight">
-          Rating over time
-        </h2>
-        <PropertyReputationTrendChart
-          ratingTrend={ratingTrend}
-          reviewVolume={reviewVolume}
-          range={range}
-        />
-      </section>
-
-      <section aria-labelledby={distributionHeadingId} className="min-w-0 space-y-3">
-        <h2 id={distributionHeadingId} className="text-lg font-semibold tracking-tight">
-          Rating mix
-        </h2>
-        <RatingDistributionChart
-          distribution={ratingDistribution}
-          labelledBy={distributionHeadingId}
-          label="Rating mix"
-        />
-      </section>
-
-      <section aria-labelledby="ratings-responding-title" className="space-y-3">
-        <h2
-          id="ratings-responding-title"
-          className="text-lg font-semibold tracking-tight"
-        >
-          Responding
-        </h2>
-        <MetricStrip aria-label="Responding" variant="ruled">
-          <Metric label="Reply rate">
+      <RangeBusyRegion busy={busy}>
+        <MetricStrip aria-label="Ratings summary" variant="ruled">
+          <Metric label="Average rating">
+            <MetricValue
+              value={
+                kpis.avgRating.value === null ? null : (
+                  <RatingFigure value={kpis.avgRating.value} size="lg" />
+                )
+              }
+              detail={ratingContext}
+            />
+          </Metric>
+          <Metric label="Reviews">
+            <MetricValue
+              value={formatNumber(kpis.reviews.value)}
+              detail={reviewContext}
+            />
+          </Metric>
+          <Metric label={<GlossaryTerm term="reply-rate" />}>
             <MetricValue value={replyRateValue} detail={replyRateContext} />
           </Metric>
-          <Metric label={<GlossaryTerm term="reply-time" />}>
-            <MetricValue value={replyTimeValue} detail={replyTimeContext} />
-          </Metric>
         </MetricStrip>
-      </section>
+
+        <section aria-labelledby="ratings-trend-title" className="min-w-0 space-y-3">
+          <h2 id="ratings-trend-title" className="text-lg font-semibold tracking-tight">
+            Rating over time
+          </h2>
+          <PropertyReputationTrendChart
+            ratingTrend={ratingTrend}
+            reviewVolume={reviewVolume}
+            range={dataRange}
+          />
+        </section>
+
+        <section aria-labelledby={distributionHeadingId} className="min-w-0 space-y-3">
+          <h2 id={distributionHeadingId} className="text-lg font-semibold tracking-tight">
+            Rating mix
+          </h2>
+          <RatingDistributionChart
+            distribution={ratingDistribution}
+            labelledBy={distributionHeadingId}
+            label="Rating mix"
+          />
+        </section>
+
+        <section aria-labelledby="ratings-responding-title" className="space-y-3">
+          <h2
+            id="ratings-responding-title"
+            className="text-lg font-semibold tracking-tight"
+          >
+            Responding
+          </h2>
+          <MetricStrip aria-label="Responding" variant="ruled">
+            <Metric label="Reply rate">
+              <MetricValue value={replyRateValue} detail={replyRateContext} />
+            </Metric>
+            <Metric label={<GlossaryTerm term="reply-time" />}>
+              <MetricValue value={replyTimeValue} detail={replyTimeContext} />
+            </Metric>
+          </MetricStrip>
+        </section>
+      </RangeBusyRegion>
     </PageShell>
   )
 }

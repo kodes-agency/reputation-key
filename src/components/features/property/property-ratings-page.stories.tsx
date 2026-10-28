@@ -154,6 +154,18 @@ export const AllTime: Story = {
   },
 }
 
+/** The next range is being read: the page stays, dimmed, and its range control with it. */
+export const ReadingNextRange: Story = {
+  args: { busy: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const range = canvas.getByRole('radiogroup', { name: 'Time range' })
+    expect(range).toBeVisible()
+    expect(canvasElement.querySelector('[aria-busy="true"]')).not.toBeNull()
+    expect(canvas.getByRole('heading', { name: 'Ratings' })).toBeVisible()
+  },
+}
+
 export const TooThinToChart: Story = {
   args: { dashboard: tooThinDashboard },
   play: async ({ canvasElement }) => {

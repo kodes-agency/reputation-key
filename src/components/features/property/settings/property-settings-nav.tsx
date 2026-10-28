@@ -1,4 +1,5 @@
-import { linkOptions, useRouterState } from '@tanstack/react-router'
+import { linkOptions } from '@tanstack/react-router'
+import { useRenderedPathname } from '#/components/layout/rendered-location'
 import { SectionNav } from '#/components/ui/section-nav'
 import type { SectionNavItem } from '#/components/ui/section-nav-types'
 import {
@@ -49,9 +50,9 @@ export function PropertySettingsNav({
   propertyId: string
   sections: ReadonlyArray<PropertySettingsSection>
 }>) {
-  const active = useRouterState({
-    select: (state) => activePropertySettingsSection(state.location.pathname),
-  })
+  // The section of the page on screen, not of the address the router is heading
+  // to: the highlight moves with the content (rendered-location).
+  const active = activePropertySettingsSection(useRenderedPathname())
 
   return (
     <SectionNav

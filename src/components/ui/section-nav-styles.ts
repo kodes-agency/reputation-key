@@ -17,7 +17,7 @@
 //
 // - `rail`: a full-bleed workspace (the Portal editor). The strip is a bordered band
 //   on the page gutter; the list is a bordered 18rem column that stays in view while
-//   the section scrolls, from a 72rem container (room for the list, a form and the
+//   the section scrolls, from an 80rem container (room for the list, a form and the
 //   live preview).
 // - `inline`: a page's own content (Property settings). The strip scrolls to the
 //   screen edge on a phone; the list is a 14rem column beside the content, from a
@@ -50,31 +50,31 @@ export const SECTION_NAV_STYLES: Readonly<Record<SectionNavFrame, FrameStyles>> 
       base: '',
       strip: 'border-b',
       list: 'w-72 shrink-0 self-stretch border-r border-b-0',
-      auto: 'border-b @6xl:w-72 @6xl:shrink-0 @6xl:self-stretch @6xl:border-r @6xl:border-b-0',
+      auto: 'border-b @7xl:w-72 @7xl:shrink-0 @7xl:self-stretch @7xl:border-r @7xl:border-b-0',
     },
     scroller: {
       base: 'relative flex scroll-px-6',
       strip: `${PAGE_GUTTER_X} gap-1 overflow-x-auto py-2 [scrollbar-width:none]`,
       list: 'sticky top-0 flex-col gap-5 px-3 py-5',
-      auto: `${PAGE_GUTTER_X} gap-1 overflow-x-auto py-2 [scrollbar-width:none] @6xl:sticky @6xl:top-0 @6xl:flex-col @6xl:gap-5 @6xl:px-3 @6xl:py-5`,
+      auto: `${PAGE_GUTTER_X} gap-1 overflow-x-auto py-2 [scrollbar-width:none] @7xl:sticky @7xl:top-0 @7xl:flex-col @7xl:gap-5 @7xl:px-3 @7xl:py-5`,
     },
     heading: {
       base: SHARED_BASE.heading,
       strip: 'hidden',
       list: 'block',
-      auto: 'hidden @6xl:block',
+      auto: 'hidden @7xl:block',
     },
     list: {
       base: SHARED_BASE.list,
       strip: '',
       list: 'flex-col',
-      auto: '@6xl:flex-col',
+      auto: '@7xl:flex-col',
     },
     summary: {
       base: 'items-center gap-1 truncate text-xs font-normal text-muted-foreground',
       strip: 'hidden',
       list: 'flex',
-      auto: 'hidden @6xl:flex',
+      auto: 'hidden @7xl:flex',
     },
     // The strip's stand-in for what a summary flags: drawn where the summary is
     // left out, left out where it is drawn.
@@ -82,13 +82,13 @@ export const SECTION_NAV_STYLES: Readonly<Record<SectionNavFrame, FrameStyles>> 
       base: 'flex shrink-0 items-center',
       strip: '',
       list: 'hidden',
-      auto: '@6xl:hidden',
+      auto: '@7xl:hidden',
     },
     footer: {
       base: 'px-3 text-xs text-muted-foreground',
       strip: 'hidden',
       list: 'block',
-      auto: 'hidden @6xl:block',
+      auto: 'hidden @7xl:block',
     },
   },
   inline: {
@@ -147,7 +147,7 @@ export const SECTION_NAV_LAYOUT: Readonly<
 > = {
   rail: {
     outer: 'flex min-h-full flex-col',
-    inner: 'flex flex-1 flex-col @6xl:flex-row',
+    inner: 'flex flex-1 flex-col @7xl:flex-row',
   },
   inline: {
     outer: '',
@@ -157,7 +157,7 @@ export const SECTION_NAV_LAYOUT: Readonly<
 
 /** The container variant a frame's `auto` presentation waits for. */
 export const SECTION_NAV_LIST_FROM: Readonly<Record<SectionNavFrame, string>> = {
-  rail: '@6xl:',
+  rail: '@7xl:',
   inline: '@3xl:',
 }
 

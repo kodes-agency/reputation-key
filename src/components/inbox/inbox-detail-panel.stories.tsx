@@ -197,13 +197,25 @@ export const Populated: Story = {
   },
 }
 
-// detailState.isLoading → skeleton placeholders.
+// detailState.isLoading → the toolbar row, the conversation and the composer dock
+// as placeholders, so the pane keeps its three regions while it loads.
 export const Loading: Story = {
   args: {
     selectedItem: item,
     detailState: makeDetailState({ isLoading: true, currentItem: null, detail: null }),
     onClose: () => {},
     detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('region', { name: 'Conversation' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+    // The conversation sits between the toolbar row above it and the dock below.
+    const pane = canvasElement.querySelector('[aria-busy="true"]')!.parentElement!
+    expect(pane.children).toHaveLength(4)
+    expect(canvas.queryByRole('button', { name: 'Try again' })).toBeNull()
   },
 }
 

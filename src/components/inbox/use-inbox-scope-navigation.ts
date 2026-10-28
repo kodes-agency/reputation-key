@@ -8,8 +8,9 @@
 // view does nothing holds for all of them. That choice changes no scope, so it
 // must not close the open item or add a history entry either.
 import { useCallback } from 'react'
-import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
+import { useRenderedLocation } from '#/components/layout/rendered-location'
 
 /**
  * Search carried across a scope change: the queue, filters and sort stay; an
@@ -33,12 +34,15 @@ export function isInboxScopeInView(
 
 export function useInboxScopeNavigation(): (propertyId: string | null) => void {
   const navigate = useNavigate()
-  const location = useRouterState({ select: (state) => state.location })
+  // The Inbox on screen, not where a slow navigation is heading: a scope chosen
+  // in the Inbox the person sees is compared with that Inbox's scope and carries
+  // its filters (`rendered-location`).
+  const { pathname, search } = useRenderedLocation()
 
   return useCallback(
     (propertyId: string | null) => {
-      if (isInboxScopeInView(location, propertyId)) return
-      const nextSearch = searchAfterInboxScopeChange(location.search)
+      if (isInboxScopeInView({ pathname, search }, propertyId)) return
+      const nextSearch = searchAfterInboxScopeChange(search)
       if (propertyId === null) {
         void navigate({ to: '/inbox', search: nextSearch })
         return
@@ -49,6 +53,6 @@ export function useInboxScopeNavigation(): (propertyId: string | null) => void {
         search: nextSearch,
       })
     },
-    [navigate, location],
+    [navigate, pathname, search],
   )
 }
