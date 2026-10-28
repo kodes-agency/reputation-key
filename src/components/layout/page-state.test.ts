@@ -123,6 +123,12 @@ describe('a loading state', () => {
     expect(html).toContain('@7xl:w-72')
   })
 
+  it('sizes the way back by its own words, so the title lands where the loaded one does', () => {
+    const html = render({ kind: 'loading', title: 'Portal', shape: 'workspace' })
+    expect(html).toContain('>Back to portals</span>')
+    expect(html).not.toContain('w-[8.75rem]')
+  })
+
   it('lays the Inbox out on its container, the queue rail from 64rem', () => {
     const html = render({ kind: 'loading', title: 'Inbox', shape: 'inbox' })
     expect(html).toContain('@container')

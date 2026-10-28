@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '#/lib/utils'
+import { buttonVariants } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { LoadingShape } from './page-identity'
 import { PAGE_GUTTER_X } from './page-shell'
@@ -130,12 +131,36 @@ function HeaderTitle({ title }: Readonly<{ title: string }>) {
 }
 
 /**
+ * The workspace header's way back while it loads: the box of the loaded control
+ * (the Button classes the BackLink draws, pulled 8 px into the gutter like it)
+ * around the arrow's room and the same words, kept invisible. The block is then
+ * as wide as the loaded one in whatever font the platform draws the label, so the
+ * title beside it does not move when the header arrives; a fixed 140 px block put
+ * it 7 px off in Linux Chromium. Below `sm` the loaded control is the arrow alone,
+ * a tap target wide, and so is this. It takes no pointer, so no hover state shows.
+ */
+function WorkspaceBackPlaceholder() {
+  return (
+    <Skeleton
+      aria-hidden="true"
+      className={cn(
+        buttonVariants({ variant: 'ghost', size: 'sm', iconBelow: 'sm' }),
+        'pointer-events-none -ml-2',
+      )}
+    >
+      {/* An empty svg in the arrow's place, so the Button's svg spacing applies. */}
+      <svg className="invisible" />
+      <span className="invisible max-sm:sr-only">Back to portals</span>
+    </Skeleton>
+  )
+}
+
+/**
  * The Portal workspace while it loads: the editor's own header band, tab strip
  * and body, so the page does not jump from a centred column to an edge-to-edge
  * editor. The measures are the loaded header's (a 65 px band, a 37 px strip, a
- * 288 px section column, a 26 or 30 rem preview). The way back is a block of
- * 140 px: its label is 136 px in the page's font and 141 in the fallback font
- * before the web font arrives, so the title lands within 4 px either way.
+ * 288 px section column, a 26 or 30 rem preview), and the way back is the loaded
+ * control's own box (`WorkspaceBackPlaceholder`).
  */
 function WorkspaceBody({ title, label }: BodyProps & Readonly<{ title?: string }>) {
   return (
@@ -150,7 +175,7 @@ function WorkspaceBody({ title, label }: BodyProps & Readonly<{ title?: string }
           PAGE_GUTTER_X,
         )}
       >
-        <Skeleton className="-ml-2 h-8 w-11 sm:w-[8.75rem]" />
+        <WorkspaceBackPlaceholder />
         <div className="min-w-0 flex-1 basis-0 border-l pl-3 sm:basis-56 sm:pl-4">
           {title ? <HeaderTitle title={title} /> : <Skeleton className="h-6 w-40" />}
           <Skeleton className="h-4 w-56 max-w-full" />
