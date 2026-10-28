@@ -39,7 +39,7 @@ const notificationsSearchSchema = z.object({
 })
 
 export const Route = createFileRoute('/_authenticated/settings/notifications')({
-  staticData: { page: { title: 'Notifications', under: 'settings' } },
+  staticData: { page: { title: 'Notifications', tier: 'narrow', under: 'settings' } },
   validateSearch: (search) => notificationsSearchSchema.parse(search),
   loader: async ({ context }) => {
     const routeContext = context as AuthRouteContext & {

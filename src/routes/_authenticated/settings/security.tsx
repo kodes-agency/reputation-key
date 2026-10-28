@@ -7,7 +7,7 @@ import { ensureActiveOrg } from '#/shared/auth/auth.functions'
 import { SecuritySettingsForm } from '#/components/features/identity'
 
 export const Route = createFileRoute('/_authenticated/settings/security')({
-  staticData: { page: { title: 'Security', under: 'settings' } },
+  staticData: { page: { title: 'Security', tier: 'narrow', under: 'settings' } },
   component: SecuritySettings,
 })
 

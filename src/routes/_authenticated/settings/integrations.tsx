@@ -17,7 +17,7 @@ import { integrationKeys } from '#/shared/queries/query-keys'
 import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 
 export const Route = createFileRoute('/_authenticated/settings/integrations')({
-  staticData: { page: { title: 'Integrations', under: 'settings' } },
+  staticData: { page: { title: 'Integrations', tier: 'narrow', under: 'settings' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'integration.manage')) {

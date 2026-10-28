@@ -18,7 +18,7 @@ import {
 const aiOverviewSearch = z.object({ propertyId: z.uuid().optional().catch(undefined) })
 
 export const Route = createFileRoute('/_authenticated/settings/ai')({
-  staticData: { page: { title: 'AI overview', under: 'settings' } },
+  staticData: { page: { title: 'AI overview', tier: 'narrow', under: 'settings' } },
   validateSearch: aiOverviewSearch,
   beforeLoad: ({ context, search }) => {
     const { role } = context as AuthRouteContext

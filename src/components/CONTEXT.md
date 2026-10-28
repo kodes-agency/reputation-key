@@ -360,7 +360,20 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   and `RouteNotFound`, in the title, breadcrumbs and `PageShell` tier the loaded
   page has. A page is named once, on its route (`staticData: { page: { title,
 tier, under } }`, see `page-identity.ts`): that gives its fallbacks their frame
-  and its tab title (`<Page> | Reputation Key`). A route does not write its own
+  and its tab title (`<Page> | Reputation Key`). A loading page also draws the
+  shape of its content (`loading`, `headerLines` on `staticData.page`, resolved
+  by `loadingShapeOf` in `page-identity.ts`; bodies in `page-state-loading.tsx`),
+  so the title and the first block stay where the page lands: a Settings page is
+  `narrow`, Staff and Notifications a `list`, Goals `cards`, the Property look
+  and a Portal group `split` (the group header is two lines), the Inbox and
+  Reviews `inbox`, the Portal workspace a `workspace`. The workspace and Inbox
+  placeholders are containers whose breakpoints are the surfaces' own (editor
+  preview beside the form from `@4xl`, 30rem from `@6xl`, section column from
+  `@7xl`; Inbox queue rail from `@5xl`), so change them together. The router
+  keeps the old page for the first 250 ms of a navigation, counted from the click
+  and including the shell's own `beforeLoad` stage (`defaultPendingMs`), and holds
+  a placeholder that did appear for 300 ms (`defaultPendingMinMs`), so a quick
+  load shows none and a slow one shows no flash. A route does not write its own
   `pendingComponent`, `errorComponent` or `notFoundComponent` unless it names a
   missing entity (`RouteNotFound` with `entity`). The error state takes the
   guarded behaviour (sanitised message, report, 401 sign-in redirect, Try again,
@@ -422,7 +435,7 @@ way.
 | Top bar, account menu, theme | `AppTopBar` from `#/components/layout/app-top-bar`<br>`ThemeModeControl` from `#/components/layout/theme-mode-control` | The signed-in chrome; the theme as one Light / Dark / System control in the menu and on Preferences | | The public Header and Footer keep the public chrome | Review (`layout/theme-mode-control.test.ts` covers the control) |
 | Page gutter and width | `PageShell`, `FullBleedFrame` from `#/components/layout/page-shell`<br>`isFullBleedRoute` from `#/components/layout/full-bleed-route` | `<main>` owns the gutter. A page picks a width `tier`; a surface that owns its scroll asks `isFullBleedRoute` and takes the gutter back from `FullBleedFrame` | `tier`: `dashboard` 1200, `standard` 1024 (lists, management), `narrow` 768 (forms, settings) | The Inbox, property Reviews and the Portal workspace are full-bleed | `layout/page-shell.test.ts`, `layout/full-bleed-route.test.ts` |
 | Sidebar | `Sidebar` from `#/components/ui/sidebar` | The app and settings sidebars, one collapse mode (the icon rail) | | Account and Organization settings swap the sidebar; a Property's settings keep it beside an in-page nav | `ui/sidebar.test.ts` |
-| Page state | `PageState` from `#/components/layout/page-state`<br>`RoutePending`, `RouteError`, `RouteNotFound` from `#/components/layout/route-page-state` | A page that is loading, failed, missing or unavailable, in the page's own title and tier. A route never writes its own | `kind`: `loading`, `error`, `notFound`, `unavailable` | `/unavailable` is only for an account with no workspace; a missing entity names itself through `RouteNotFound` | `src/routes/route-boundaries.test.ts` |
+| Page state | `PageState` from `#/components/layout/page-state`<br>`RoutePending`, `RouteError`, `RouteNotFound` from `#/components/layout/route-page-state` | A page that is loading, failed, missing or unavailable, in the page's own title and tier. A loading page draws the shape of its content: the title and the header lines under it, then a body that holds the content's place. A route never writes its own | `kind`: `loading`, `error`, `notFound`, `unavailable`; a page's `staticData.page` may add `loading` (`scorecard` for a dashboard page, `list`, `cards` for anything else, `split`, `workspace` for a full-bleed surface, `inbox`) and `headerLines` (0, 1 or 2 lines under the title; 1 when left out) | `/unavailable` is only for an account with no workspace; a missing entity names itself through `RouteNotFound`. The workspace and Inbox shapes are whole surfaces: they draw their own header, tabs and panes with no `PageShell` or gutter around them | `src/routes/route-boundaries.test.ts`, `src/routes/page-identities.test.ts`, `layout/page-state.test.ts` |
 | Region state | `EmptyState` from `#/components/ui/empty-state`<br>`RegionError` from `#/components/ui/region-error` | A region with nothing to show, nothing that matches or a failed read, with "Try again" | `size`: `default`, `compact`; `tone`: `neutral`, `error` | A dashed box is kept for a drop zone, a private-note cue, a chart line and a chip | `ui/region-states.test.ts` |
 | Document title | `pageHead` from `#/components/layout/page-identity` | The tab title `<Page> \| Reputation Key`, named once on the route | `staticData.page`: `title`, `tier`, `under` | | Review (`layout/page-identity.test.ts` and `layout/page-head.test.ts` cover the rules) |
 

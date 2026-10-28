@@ -22,6 +22,27 @@ import type { PageTier } from './page-shell'
 export type PageTrail =
   'properties' | 'property' | 'portals' | 'goals' | 'propertySettings' | 'settings'
 
+/**
+ * What a page looks like while it loads: the shape of its body. One of six, so a
+ * placeholder holds the place of the content that replaces it rather than a block
+ * the page never had (`page-state-loading`).
+ */
+export type LoadingShape =
+  'scorecard' | 'list' | 'cards' | 'split' | 'workspace' | 'inbox'
+
+/** Every shape, so a test can walk the routes and name the one that is not. */
+export const LOADING_SHAPES: readonly LoadingShape[] = [
+  'scorecard',
+  'list',
+  'cards',
+  'split',
+  'workspace',
+  'inbox',
+]
+
+/** How many lines the loaded header draws under its title: a state line, a sentence, both or neither. */
+export type HeaderLines = 0 | 1 | 2
+
 export type PageIdentity = Readonly<{
   /** The page header's `h1`, and the tab title. */
   title: string
@@ -32,12 +53,34 @@ export type PageIdentity = Readonly<{
   under?: PageTrail
   /** A full-bleed surface: its fallbacks wear the page gutter and scroll themselves. */
   fullBleed?: boolean
+  /**
+   * The body its fallback draws while the page loads. Left out, the page's frame
+   * decides (`loadingShapeOf`): a full-bleed surface is a workspace, a dashboard
+   * page a scorecard, anything else a column of cards.
+   */
+  loading?: LoadingShape
+  /** The header lines under the title the loaded page draws; 1 when left out. */
+  headerLines?: HeaderLines
 }>
 
 declare module '@tanstack/react-router' {
   interface StaticDataRouteOption {
     page?: PageIdentity
   }
+}
+
+/** The body shape a page's fallback draws: the page's own say, else what its frame implies. */
+export function loadingShapeOf(
+  identity: Pick<PageIdentity, 'loading' | 'fullBleed' | 'tier'>,
+): LoadingShape {
+  if (identity.loading) return identity.loading
+  if (identity.fullBleed) return 'workspace'
+  return identity.tier === 'dashboard' ? 'scorecard' : 'cards'
+}
+
+/** The header lines a fallback holds the place of under the title. */
+export function headerLinesOf(identity: Pick<PageIdentity, 'headerLines'>): HeaderLines {
+  return identity.headerLines ?? 1
 }
 
 /** The part of a route match this module reads. */
@@ -96,6 +139,24 @@ export function fallbackIdentity(
 
 /** What the address and the cache know about where a page sits. */
 export type PageWhere = Readonly<{ propertyId?: string; propertyName?: string }>
+
+/** The name of a Property in the cached Properties list, if the list is there. */
+export function propertyNameInList(
+  cached: unknown,
+  propertyId: string,
+): string | undefined {
+  if (typeof cached !== 'object' || cached === null) return undefined
+  const { properties } = cached as { properties?: unknown }
+  if (!Array.isArray(properties)) return undefined
+  const found: unknown = properties.find(
+    (candidate: unknown) =>
+      typeof candidate === 'object' &&
+      candidate !== null &&
+      (candidate as { id?: unknown }).id === propertyId,
+  )
+  const { name } = (found ?? {}) as { name?: unknown }
+  return typeof name === 'string' ? name : undefined
+}
 
 /** The Property crumb, named once the Property is known; generic before that. Always a link. */
 function propertyCrumb({ propertyId, propertyName }: PageWhere): readonly Crumb[] {

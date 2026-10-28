@@ -26,7 +26,7 @@ const reviewsSearchSchema = inboxSearchObjectSchema
   .transform((search) => inboxSearchSchema.parse(normalizeInboxRatingPreset(search)))
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/reviews')({
-  staticData: { page: { title: 'Reviews', fullBleed: true } },
+  staticData: { page: { title: 'Reviews', fullBleed: true, loading: 'inbox' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'inbox.read')) throw roleUnavailable('Reviews', 'properties')

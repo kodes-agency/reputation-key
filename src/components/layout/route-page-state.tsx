@@ -7,7 +7,13 @@ import {
   type ErrorComponentProps,
 } from '@tanstack/react-router'
 import { propertyKeys } from '#/shared/queries/query-keys'
-import { fallbackIdentity, resolveCrumbs } from './page-identity'
+import {
+  fallbackIdentity,
+  headerLinesOf,
+  loadingShapeOf,
+  propertyNameInList,
+  resolveCrumbs,
+} from './page-identity'
 import { PageState, type PageStateBack, type PageStateFrame } from './page-state'
 import { SignedOutRedirect, useGuardedRouteError } from './use-guarded-route-error'
 
@@ -34,15 +40,19 @@ function propertyNameIn(cached: unknown): string | undefined {
 
 /**
  * What the address and the cache know about where a page sits: the Property in
- * the address, and its name once it has been read.
+ * the address, and its name once it has been read. The Property's own read comes
+ * first; the Properties list, which the sidebar and the Properties page fill, is
+ * the fallback, so a page reached by a link names its Property in the breadcrumb
+ * while it loads rather than "Property".
  */
 export function usePageWhere(): Readonly<{ propertyId?: string; propertyName?: string }> {
   const { propertyId } = useParams({ strict: false }) as { propertyId?: string }
   const queryClient = useQueryClient()
-  const cached = propertyId
-    ? queryClient.getQueryData(propertyKeys.detail(propertyId))
-    : undefined
-  return { propertyId, propertyName: propertyNameIn(cached) }
+  if (!propertyId) return {}
+  const propertyName =
+    propertyNameIn(queryClient.getQueryData(propertyKeys.detail(propertyId))) ??
+    propertyNameInList(queryClient.getQueryData(propertyKeys.list()), propertyId)
+  return { propertyId, propertyName }
 }
 
 type RouteFrame = Readonly<{
@@ -70,6 +80,8 @@ function useRouteFrame(): RouteFrame {
       breadcrumbs: resolveCrumbs(identity, where),
       tier: identity.tier,
       fullBleed: identity.fullBleed,
+      shape: loadingShapeOf(identity),
+      headerLines: headerLinesOf(identity),
     },
   }
 }

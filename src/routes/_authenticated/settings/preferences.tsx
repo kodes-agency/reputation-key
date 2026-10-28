@@ -4,7 +4,7 @@ import { trailCrumbs } from '#/components/layout/page-identity'
 import { PreferencesSettingsPage } from '#/components/features/settings'
 
 export const Route = createFileRoute('/_authenticated/settings/preferences')({
-  staticData: { page: { title: 'Preferences', under: 'settings' } },
+  staticData: { page: { title: 'Preferences', tier: 'narrow', under: 'settings' } },
   component: PreferencesSettings,
 })
 

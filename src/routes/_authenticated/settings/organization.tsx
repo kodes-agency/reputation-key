@@ -47,7 +47,7 @@ const googleReviewTargetAnalyticsQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/settings/organization')({
-  staticData: { page: { title: 'Organization', under: 'settings' } },
+  staticData: { page: { title: 'Organization', tier: 'narrow', under: 'settings' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'organization.update')) {

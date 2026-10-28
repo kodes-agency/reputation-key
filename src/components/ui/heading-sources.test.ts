@@ -24,6 +24,8 @@ describe('a page has one h1, drawn by a few components', () => {
   /** The only components that draw a page's h1, each for the surface it heads. */
   const ALLOWED: Readonly<Record<string, string>> = {
     'src/components/layout/page-header.tsx': 'the page header of every page with one',
+    'src/components/layout/page-state-loading.tsx':
+      'the Portal workspace and Inbox placeholders: the compact h1 the loaded surface draws, in the same place',
     'src/components/layout/auth-layout.tsx':
       'sign in, join and reset: the card is the page',
     'src/components/inbox/inbox-list-header.tsx':

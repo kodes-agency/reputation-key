@@ -70,7 +70,7 @@ const memberPropertyAccessQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/settings/members')({
-  staticData: { page: { title: 'Members', under: 'settings' } },
+  staticData: { page: { title: 'Members', tier: 'narrow', under: 'settings' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'member.list')) throw roleUnavailable('Members', 'profile')
