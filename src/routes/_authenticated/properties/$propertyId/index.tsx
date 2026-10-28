@@ -73,6 +73,16 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/')(
     await Promise.all([
       context.queryClient.ensureQueryData(overviewQuery(propertyId, LIFETIME)),
       context.queryClient.ensureQueryData(overviewQuery(propertyId, PULSE)),
+      // The setup strip and the goal prompt read this, and drew nothing until it
+      // arrived, so the sections below them jumped down (a 170 px shift, the
+      // page's whole cold layout shift). Read with the page, so the strip is in
+      // the first paint. It is a side read: a failure (no retry, so it does not
+      // hold the page) leaves the strip to its own read, never the page in an
+      // error.
+      context.queryClient.prefetchQuery({
+        ...propertySetupQuery(propertyId),
+        retry: false,
+      }),
     ])
     // The goals' promise never rejects (a failure is caught above).
     if (goal !== null) {

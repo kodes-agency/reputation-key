@@ -221,6 +221,28 @@ function Segments({ done, total }: Readonly<{ done: number; total: number }>) {
   )
 }
 
+/**
+ * The cell while setup is being read: the two lines it will have, so the row
+ * does not grow when the figures arrive (a one-line bar became a progress line
+ * and a next-step line, 63 to 79 px, and the rows below moved with it).
+ */
+export function SetupPending() {
+  return (
+    <span className="flex flex-col gap-0.5" aria-hidden="true">
+      <Skeleton className="h-5 w-24" />
+      <Skeleton className="h-4 w-32" />
+    </span>
+  )
+}
+
+/**
+ * The next step is one line, whatever it says: the column is 160 to 176px wide
+ * and a longer step ("Connect Google Business Profile") wrapped to a second
+ * line, which made the loaded cell taller than the placeholder. The whole step
+ * stays in `title`, and the link's `aria-label` already carries it.
+ */
+const NEXT_STEP_LINE = 'block truncate text-xs text-muted-foreground @3xl:max-w-40'
+
 export function SetupValue({
   setup,
   state,
@@ -232,7 +254,7 @@ export function SetupValue({
   propertyId: string
   propertyName: string
 }>) {
-  if (!setup) return state === 'loading' ? <Pending className="w-24" /> : null
+  if (!setup) return state === 'loading' ? <SetupPending /> : null
   const { completedCount, stepCount, nextStep } = setup
   if (nextStep === null) {
     return (
@@ -259,7 +281,9 @@ export function SetupValue({
     return (
       <span className="flex flex-col gap-0.5">
         {progress}
-        <span className="text-xs text-muted-foreground">{next}</span>
+        <span className={NEXT_STEP_LINE} title={next}>
+          {next}
+        </span>
       </span>
     )
   }
@@ -272,7 +296,9 @@ export function SetupValue({
       className={cn('flex flex-col gap-0.5', ROW_FIGURE_LINK)}
     >
       {progress}
-      <span className="text-xs text-muted-foreground">Next: {next}</span>
+      <span className={NEXT_STEP_LINE} title={`Next: ${next}`}>
+        Next: {next}
+      </span>
     </Link>
   )
 }
