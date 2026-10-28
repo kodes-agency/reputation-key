@@ -6,7 +6,7 @@
 // person toggles. It holds `true` (open) or `false` (collapsed); anything else,
 // or no cookie, means the default, which is open.
 
-export const SIDEBAR_COOKIE = 'sidebar_state'
+const SIDEBAR_COOKIE = 'sidebar_state'
 
 /** A year: a choice about how the app looks is not something to ask again weekly. */
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 365

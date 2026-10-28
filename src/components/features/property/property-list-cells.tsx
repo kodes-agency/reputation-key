@@ -226,7 +226,7 @@ function Segments({ done, total }: Readonly<{ done: number; total: number }>) {
  * does not grow when the figures arrive (a one-line bar became a progress line
  * and a next-step line, 63 to 79 px, and the rows below moved with it).
  */
-export function SetupPending() {
+function SetupPending() {
   return (
     <span className="flex flex-col gap-0.5" aria-hidden="true">
       <Skeleton className="h-5 w-24" />

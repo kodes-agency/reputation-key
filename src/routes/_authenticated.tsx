@@ -43,7 +43,7 @@ import {
   listMyBetaFeedbackFn,
   submitBetaFeedbackFn,
 } from '#/contexts/identity/server/beta-feedback'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -231,6 +231,32 @@ export const Route = createFileRoute('/_authenticated')({
   notFoundComponent: AuthenticatedNotFound,
 })
 
+/**
+ * The sidebar the shell draws: Settings has its own, a manager gets the app's,
+ * and a role with no navigation of its own gets none.
+ */
+function ShellSidebar({
+  isSettings,
+  isManager,
+  properties,
+  organizationName,
+}: Readonly<{
+  isSettings: boolean
+  isManager: boolean
+  properties: ComponentProps<typeof ManagerSidebar>['properties']
+  organizationName: string | undefined
+}>) {
+  if (isSettings) return <SettingsSidebar />
+  if (!isManager) return null
+  return (
+    <ManagerSidebar
+      properties={properties}
+      organizationName={organizationName}
+      getLastVisitCount={getLastVisitCountFn}
+    />
+  )
+}
+
 /** The app shell around `children`: sidebar, top bar and the one padded `<main>`. */
 function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
   const ctx = Route.useRouteContext()
@@ -276,15 +302,12 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
         data-frame={isFullBleed ? 'surface' : 'page'}
         className={isFullBleed ? 'h-svh overflow-hidden' : undefined}
       >
-        {isSettings ? (
-          <SettingsSidebar />
-        ) : isManager ? (
-          <ManagerSidebar
-            properties={properties}
-            organizationName={ctx.activeOrganization?.name}
-            getLastVisitCount={getLastVisitCountFn}
-          />
-        ) : null}
+        <ShellSidebar
+          isSettings={isSettings}
+          isManager={isManager}
+          properties={properties}
+          organizationName={ctx.activeOrganization?.name}
+        />
         {/*
           BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
           vendored SidebarInset renders <main>, which nested the content <main>
