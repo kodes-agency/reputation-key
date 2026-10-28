@@ -5,7 +5,7 @@ import {
   type InboxListPanelProps,
 } from '#/components/inbox/inbox-list-panel-v2'
 import { useInboxPage, type InboxPageNav } from './use-inbox-page'
-import { replaceInboxSearch } from './inbox-navigation'
+import { moveToInboxQueue, replaceInboxSearch } from './inbox-navigation'
 import type { InboxServerFns } from './types'
 import { useRef, useState } from 'react'
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
@@ -23,8 +23,9 @@ import {
 import { InboxDetailSheet } from './inbox-detail-sheet'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { CLEARED_INBOX_LIST_FILTERS } from './inbox-filters'
+import { InboxFeedbackSetup } from './inbox-feedback-setup'
+import { InboxQueueBar } from './inbox-queue-bar'
 import { InboxQueueRail } from './inbox-queue-rail'
-import { InboxQueueStrip } from './inbox-queue-strip'
 import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'
 import { queueCount, queueLabel } from './inbox-queues'
 import type { InboxPropertyScopeInput } from './inbox-property-scope'
@@ -80,19 +81,21 @@ export function InboxPageV2({
 
   const listPanelProps: InboxListPanelProps = {
     queue: s.queue,
-    queueLabel: queueLabel(s.queue),
+    hasReplyStages: s.canManageReplies,
+    queueLabel: queueLabel(s.queue, s.canManageReplies),
     scopeLabel,
-    showPropertyNames: !(activePropertyId ?? search.propertyId),
+    showPropertyNames: !s.search.propertyId,
     totalCount: s.totalCount,
     queueTotal: queueCount(s.queueCounts, s.queue),
     searchQ: search.q,
+    // Those the queue offers: what it does not offer is not applied (see `s.filters`).
     filters: {
-      sourceType: search.sourceType,
-      ratingMin: search.ratingMin,
-      ratingMax: search.ratingMax,
-      attention: search.attention,
-      aspect: search.aspect,
-      polarity: search.polarity,
+      sourceType: s.filters.sourceType,
+      ratingMin: s.filters.ratingMin,
+      ratingMax: s.filters.ratingMax,
+      attention: s.filters.attention,
+      aspect: s.filters.aspect,
+      polarity: s.filters.polarity,
     },
     sort: search.sort ?? 'newest',
     items: s.items,
@@ -143,15 +146,20 @@ export function InboxPageV2({
     isCompactLayout: s.isCompactLayout,
     selectionMode,
     onStartSelection: () => setSelectionMode(true),
+    // Mounted only while the empty To handle queue shows, so what it asks is asked only then.
+    feedbackEmptyAction: (
+      <InboxFeedbackSetup
+        scopePropertyId={s.search.propertyId}
+        propertyChoices={propertyScope?.properties}
+        getPortalPresence={inboxFns.getPortalPresence}
+      />
+    ),
   }
 
   const changeQueue = (queue: typeof s.queue) => {
     setSelectionMode(false)
     s.handleDeselectAll()
-    onNavigate({
-      to: '.',
-      search: (previous) => ({ ...previous, queue, itemId: undefined }),
-    })
+    onNavigate(moveToInboxQueue(queue))
   }
 
   const propertySelect = (placement: 'rail' | 'header') =>
@@ -160,6 +168,7 @@ export function InboxPageV2({
         scope={scope}
         scopeLabel={scopeLabel}
         queue={s.queue}
+        hasReplyStages={s.canManageReplies}
         placement={placement}
         getInboxPropertyCounts={inboxFns.getInboxPropertyCounts}
       />
@@ -171,11 +180,11 @@ export function InboxPageV2({
         <InboxListPanel
           {...listPanelProps}
           scopeControl={propertySelect('header')}
-          queueStrip={
-            <InboxQueueStrip
+          queueBar={
+            <InboxQueueBar
               queue={s.queue}
               counts={s.queueCounts}
-              canManageReplies={s.canManageReplies}
+              viewer={s.queueViewer}
               onQueueChange={changeQueue}
             />
           }
@@ -202,7 +211,7 @@ export function InboxPageV2({
       <InboxQueueRail
         queue={s.queue}
         counts={s.queueCounts}
-        canManageReplies={s.canManageReplies}
+        viewer={s.queueViewer}
         scopeControl={propertySelect('rail')}
         onQueueChange={changeQueue}
         onOpenShortcuts={() => s.setShortcutsOpen(true)}

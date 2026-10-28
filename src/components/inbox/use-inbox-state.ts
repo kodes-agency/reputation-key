@@ -142,6 +142,8 @@ export function useInboxState(
   selectedId: string | undefined,
   onNavigate: InboxNavigate,
   getInboxItems: typeof getInboxItemsFn,
+  /** Reply stages are available; without them `reply` is every open Review. */
+  hasReplyStages = true,
 ) {
   const qc = useQueryClient()
   const { selectedIds, setSelectedIds } = useScopedInboxSelection(orgId, queue, filters)
@@ -199,7 +201,13 @@ export function useInboxState(
   // itemId may legitimately name an item outside the queue and loads detail
   // through its independently authorized query. An open item whose own reply
   // moved it to another reply queue stays open (D8, `selectedItemDeparture`).
-  const departure = useSelectedItemDeparture(qc, queue, selectedId, query.dataUpdatedAt)
+  const departure = useSelectedItemDeparture(
+    qc,
+    queue,
+    selectedId,
+    query.dataUpdatedAt,
+    hasReplyStages,
+  )
   useSelectedItemPresence(
     qc,
     selectedId,
@@ -214,7 +222,7 @@ export function useInboxState(
   // status no longer matches the active filter. Replaces the old setItems callback.
   const patchItem = useCallback(
     (u: InboxItem) => {
-      const visible = itemMatchesQueue(u, queue, viewerId)
+      const visible = itemMatchesQueue(u, queue, viewerId, hasReplyStages)
       if (!visible) {
         setSelectedIds((previous) => removeInboxSelection(previous, u.id))
       }
@@ -230,7 +238,7 @@ export function useInboxState(
         }
       })
     },
-    [qc, queue, viewerId, debouncedFilters, setSelectedIds],
+    [qc, queue, viewerId, hasReplyStages, debouncedFilters, setSelectedIds],
   )
 
   // Bulk update → clear selection, refetch the list (targeted), close detail.

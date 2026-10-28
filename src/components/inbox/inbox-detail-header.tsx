@@ -1,9 +1,10 @@
-import { MessageSquare, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { InboxDetailState } from './use-inbox-detail'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
 import { BackIconButton } from '#/components/ui/back-icon-button'
 import { IconButton } from '#/components/ui/icon-button'
+import { KindGlyph, kindMarkerWords } from './inbox-kind-marker'
 
 /**
  * How this pane is left, and therefore where the control sits and what it says.
@@ -42,7 +43,7 @@ type Props = Readonly<{
  *
  * Plan v2.1 row 5 moved `InboxDetailManagerActions` (Escalate / Resolve) out of
  * this row and into the toolbar's `ButtonGroup`, so the header keeps exactly
- * property · platform · copy menu · close/back, and no longer reads
+ * kind · property · copy menu · close/back, and no longer reads
  * `usePermissions` or the detail state's commands at all.
  *
  * The row cannot wrap and both containers clip (`overflow-hidden` on the panel
@@ -93,38 +94,30 @@ export function InboxDetailHeader({
         <BackIconButton flush label="Back to list" onClick={onClose} />
       )}
 
-      {/* Two `max-md:hidden`s, and they were the difference between this
-          block saying something and saying nothing. When this row still held
-          Escalate its fixed children cost 252 px at 320 px wide (40 padding +
-          44 dismissal + 100 Escalate + 44 copy menu + 24 gaps), so the name
-          absorbed the deficit — and measured with all three present it
-          absorbed ALL of it: the name span came out 0 px and the `shrink-0`
-          platform tag, the one thing left, overflowed the block by 11 px and
-          was clipped too. A 320 px phone read `· google` and nothing about
-          which property. Escalate has since moved to the case toolbar (plan
-          v2.1 row 5), which frees 108 px; the two hides stay, because the
-          phone's name is still the one thing on this row worth the width and
-          nobody has measured whether glyph and tag would now fit beside it.
+      {/* Which kind of work this is, in the rail's own words (ADR 0057, amended
+          2026-10-28): the kind's glyph, then the property, then `· Google
+          review` / `· Review` / `· Private feedback`. It replaces the decorative
+          chat glyph and the platform word, which a phone hid altogether and which
+          left private feedback with no mark but the rail it was opened from.
 
-          The 24 px `MessageSquare` is decoration — no label, no meaning, and a
-          second glyph a gap away from the back arrow. The platform is real, but
-          it is on the list row that was tapped to get here
-          (`inbox-list-v2.tsx:97`) and the reply's own state chip says Google
-          again further down. Giving the name what the two of them were holding
-          took it from 0 px to 75 px at 320, and from 60 px to 145 px at 390,
-          measured with Escalate still present.
-          Below `md` only, and the desktop panel never renders below `md`
-          (`hidden md:flex`), so nothing about the desktop header moves. */}
-      <div className="mr-auto flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-        <MessageSquare className="shrink-0 text-muted-foreground max-md:hidden" />
-        <span className="truncate text-sm font-semibold">
-          {item.propertyName ?? 'Property'}
-        </span>
-        {item.platform && (
-          <span className="shrink-0 text-xs text-muted-foreground max-md:hidden">
-            · {item.platform}
+          The glyph shows at every width. The words share the line with the
+          property only when both fit: the block wraps, is one line high and clips,
+          so a name that needs the room keeps it and the words fall onto the
+          clipped second line (still there for a screen reader, as `sr-only` would
+          leave them). Below `md` that is the usual case at 320 px; from `md` the
+          words are nearly always whole. The name block is `flex-1`, so nothing
+          here pushes the copy menu or the dismissal off a phone's right edge,
+          which they must never leave. */}
+      <div className="mr-auto flex h-5 min-w-0 flex-1 flex-wrap items-center gap-x-2 overflow-hidden">
+        <span className="flex min-w-0 items-center gap-2">
+          <KindGlyph item={item} />
+          <span className="truncate text-sm font-semibold">
+            {item.propertyName ?? 'Property'}
           </span>
-        )}
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          · {kindMarkerWords(item)}
+        </span>
       </div>
 
       <InboxDetailCopyMenu detail={detail} googleCheck={googleCheck} />

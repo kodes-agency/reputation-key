@@ -7,6 +7,7 @@ import type {
   InboxQueueCounts,
 } from '#/contexts/inbox/application/public-api'
 import { InboxQueueRail } from './inbox-queue-rail'
+import { defaultInboxQueue, type InboxQueueViewer } from './inbox-queue-sections'
 import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'
 import { sortScopeProperties, type InboxScopeProperty } from './inbox-property-scope'
 import { InboxPropertySelect } from './inbox-property-select'
@@ -24,23 +25,43 @@ const counts: InboxQueueCounts = {
   feedback: 7,
   escalated: 3,
   mine: 5,
-  closed: 42,
   open: 31,
+  // The closed folders carry no badge (ADR 0057, amended 2026-10-28).
+  replied: null,
+  handled: null,
+  closed: null,
 }
 
-function RailStory({ canManageReplies = true }: { canManageReplies?: boolean }) {
-  const [queue, setQueue] = useState<InboxQueue>(canManageReplies ? 'reply' : 'open')
+const MANAGER: InboxQueueViewer = {
+  canManageReplies: true,
+  canReadReviews: true,
+  canReadFeedback: true,
+}
+
+/** Reply stages are off: the one reply row counts every open Review. */
+const WITHOUT_STAGES: InboxQueueViewer = { ...MANAGER, canManageReplies: false }
+const WITHOUT_STAGES_COUNTS: InboxQueueCounts = {
+  ...counts,
+  reply: 24,
+  approval: null,
+  waiting: null,
+}
+
+function RailStory({
+  viewer = MANAGER,
+  railCounts = counts,
+}: {
+  viewer?: InboxQueueViewer
+  railCounts?: InboxQueueCounts
+}) {
+  const [queue, setQueue] = useState<InboxQueue>(defaultInboxQueue(viewer))
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   return (
     <div className="h-[560px]">
       <InboxQueueRail
         queue={queue}
-        counts={
-          canManageReplies
-            ? counts
-            : { ...counts, reply: null, approval: null, waiting: null }
-        }
-        canManageReplies={canManageReplies}
+        counts={railCounts}
+        viewer={viewer}
         onQueueChange={setQueue}
         onOpenShortcuts={() => setShortcutsOpen(true)}
       />
@@ -57,29 +78,111 @@ const meta: Meta<typeof InboxQueueRail> = {
 export default meta
 type Story = StoryObj<typeof InboxQueueRail>
 
+/** The queue buttons of each titled group, in the order they are drawn. */
+function groupsOf(canvasElement: HTMLElement) {
+  const nav = within(canvasElement).getByRole('navigation', { name: 'Queues' })
+  return [...nav.querySelectorAll<HTMLElement>('[role="group"]')].map((group) => ({
+    name: group.getAttribute('aria-labelledby')
+      ? document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent
+      : null,
+    queues: within(group)
+      .getAllByRole('button')
+      .map((button) => button.textContent?.replace(/\d+$/, '')),
+  }))
+}
+
 export const Manager: Story = {
   render: () => <RailStory />,
   play: async ({ canvasElement }) => {
     const queues = within(
       within(canvasElement).getByRole('navigation', { name: 'Queues' }),
     )
-    const open = queues.getByRole('button', { name: /^Open\s*31$/ })
-    expect(open).not.toHaveAttribute('aria-current')
+    // Two titled groups, then the shared views below a separator with no heading.
+    expect(groupsOf(canvasElement)).toEqual([
+      {
+        name: 'Reviews',
+        queues: ['Needs reply', 'Awaiting approval', 'Waiting for Google', 'Replied'],
+      },
+      { name: 'Private feedback', queues: ['To handle', 'Handled'] },
+    ])
+    const allOpen = queues.getByRole('button', { name: /^All open\s*31$/ })
+    expect(allOpen).not.toHaveAttribute('aria-current')
+    expect(queues.getByRole('button', { name: /^Needs reply/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
 
-    await userEvent.click(open)
+    await userEvent.click(allOpen)
 
-    expect(open).toHaveAttribute('aria-current', 'page')
+    expect(allOpen).toHaveAttribute('aria-current', 'page')
     expect(queues.getByRole('button', { name: /^Needs reply/ })).not.toHaveAttribute(
       'aria-current',
     )
   },
 }
-export const Member: Story = { render: () => <RailStory canManageReplies={false} /> }
+
+// A closed folder is an archive, not work: no badge, even though it holds items.
+export const ClosedFoldersHaveNoBadge: Story = {
+  render: () => <RailStory />,
+  play: async ({ canvasElement }) => {
+    const queues = within(
+      within(canvasElement).getByRole('navigation', { name: 'Queues' }),
+    )
+    expect(queues.getByRole('button', { name: 'Replied' })).toBeVisible()
+    expect(queues.getByRole('button', { name: 'Handled' })).toBeVisible()
+    expect(queues.queryByRole('button', { name: /^Closed/ })).toBeNull()
+  },
+}
+
+// Reply publication is off: the Reviews section is one "Open" row and Replied.
+export const WithoutReplyStages: Story = {
+  render: () => <RailStory viewer={WITHOUT_STAGES} railCounts={WITHOUT_STAGES_COUNTS} />,
+  play: async ({ canvasElement }) => {
+    expect(groupsOf(canvasElement)).toEqual([
+      { name: 'Reviews', queues: ['Open', 'Replied'] },
+      { name: 'Private feedback', queues: ['To handle', 'Handled'] },
+    ])
+    const queues = within(
+      within(canvasElement).getByRole('navigation', { name: 'Queues' }),
+    )
+    expect(queues.getByRole('button', { name: /^Open\s*24$/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(queues.queryByRole('button', { name: /^Awaiting approval/ })).toBeNull()
+  },
+}
+
+// A section disappears with its permission, and All open with the second kind.
+export const ReviewsOnly: Story = {
+  render: () => <RailStory viewer={{ ...MANAGER, canReadFeedback: false }} />,
+  play: async ({ canvasElement }) => {
+    expect(groupsOf(canvasElement).map((group) => group.name)).toEqual(['Reviews'])
+    const queues = within(
+      within(canvasElement).getByRole('navigation', { name: 'Queues' }),
+    )
+    expect(queues.queryByRole('button', { name: /^All open/ })).toBeNull()
+    expect(queues.getByRole('button', { name: /^Escalated/ })).toBeVisible()
+  },
+}
+
+export const FeedbackOnly: Story = {
+  render: () => <RailStory viewer={{ ...MANAGER, canReadReviews: false }} />,
+  play: async ({ canvasElement }) => {
+    expect(groupsOf(canvasElement).map((group) => group.name)).toEqual([
+      'Private feedback',
+    ])
+    expect(
+      within(canvasElement).getByRole('button', { name: /^To handle/ }),
+    ).toHaveAttribute('aria-current', 'page')
+  },
+}
+
 export const ZeroCounts: Story = {
   args: {
     queue: 'reply',
     counts: { ...counts, reply: 0, approval: 0, waiting: 0, feedback: 0 },
-    canManageReplies: true,
+    viewer: MANAGER,
     onQueueChange: () => undefined,
     onOpenShortcuts: () => undefined,
   },
@@ -144,19 +247,16 @@ function ScopedRailStory({
   initialPropertyId?: string | null
   canManageReplies?: boolean
 }>) {
-  const [queue, setQueue] = useState<InboxQueue>(canManageReplies ? 'reply' : 'open')
+  const viewer = canManageReplies ? MANAGER : WITHOUT_STAGES
+  const [queue, setQueue] = useState<InboxQueue>(defaultInboxQueue(viewer))
   const [activePropertyId, setActivePropertyId] = useState(initialPropertyId)
   const sorted = sortScopeProperties(properties)
   return (
     <div className="h-[560px]">
       <InboxQueueRail
         queue={queue}
-        counts={
-          canManageReplies
-            ? counts
-            : { ...counts, reply: null, approval: null, waiting: null }
-        }
-        canManageReplies={canManageReplies}
+        counts={canManageReplies ? counts : WITHOUT_STAGES_COUNTS}
+        viewer={viewer}
         scopeControl={
           <InboxPropertySelect
             scope={{
@@ -170,6 +270,7 @@ function ScopedRailStory({
               'All properties'
             }
             queue={queue}
+            hasReplyStages={canManageReplies}
             placement="rail"
             getInboxPropertyCounts={
               countsFn as unknown as InboxServerFns['getInboxPropertyCounts']

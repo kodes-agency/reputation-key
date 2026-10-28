@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { ListFilter, X } from 'lucide-react'
-import type { InboxSort } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue, InboxSort } from '#/contexts/inbox/application/public-api'
 import { Button } from '#/components/ui/button'
 import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import {
@@ -13,6 +13,7 @@ import {
 } from '#/components/ui/sheet'
 import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
 import { InboxChoiceChips } from './inbox-choice-chips'
+import { filtersOffered } from './inbox-filter-offer'
 import {
   ATTENTION_OPTIONS,
   ratingPatch,
@@ -58,6 +59,8 @@ function resultsLabel(totalCount: number, isLoading: boolean): string {
 }
 
 type Props = Readonly<{
+  /** The queue in view: a filter that cannot match in it is not offered. */
+  queue: InboxQueue
   filters: InboxListFilterValues
   sort: InboxSort
   totalCount: number
@@ -73,6 +76,7 @@ type Props = Readonly<{
  * away, so the footer only reports what they left and closes the sheet.
  */
 export function InboxFilterSheet({
+  queue,
   filters,
   sort,
   totalCount,
@@ -83,6 +87,7 @@ export function InboxFilterSheet({
 }: Props) {
   const activeCount = countActiveInboxFilters(filters)
   const canClear = activeCount > 0
+  const offer = filtersOffered(queue)
   const primaryRef = useRef<HTMLButtonElement>(null)
 
   // Once it has run there is nothing left to clear, so "Clear filters" goes
@@ -140,55 +145,68 @@ export function InboxFilterSheet({
             options={SORT_OPTIONS}
             onChange={(next) => onSortChange(next as InboxSort)}
           />
-          <InboxChoiceChips
-            label="Source"
-            value={filters.sourceType ?? 'all'}
-            options={SOURCE_CHOICES}
-            onChange={(sourceType) =>
-              onFiltersChange({
-                sourceType: orUndefined<'review' | 'feedback'>(sourceType),
-              })
-            }
-          />
+          {offer.source && (
+            <InboxChoiceChips
+              label="Source"
+              value={filters.sourceType ?? 'all'}
+              options={SOURCE_CHOICES}
+              onChange={(sourceType) =>
+                onFiltersChange({
+                  sourceType: orUndefined<'review' | 'feedback'>(sourceType),
+                })
+              }
+            />
+          )}
           <InboxChoiceChips
             label="Rating"
             value={ratingValue(filters)}
             options={RATING_CHOICES}
             onChange={(rating) => onFiltersChange(ratingPatch(rating))}
           />
-          <InboxChoiceChips
-            label="Priority"
-            value={filters.attention ?? 'all'}
-            options={ATTENTION_CHOICES}
-            onChange={(attention) =>
-              onFiltersChange({
-                attention:
-                  orUndefined<NonNullable<InboxListFilterValues['attention']>>(attention),
-              })
-            }
-          />
-          <InboxChoiceChips
-            label="Polarity"
-            value={filters.polarity ?? 'all'}
-            options={POLARITY_CHOICES}
-            onChange={(polarity) =>
-              onFiltersChange({
-                polarity:
-                  orUndefined<NonNullable<InboxListFilterValues['polarity']>>(polarity),
-              })
-            }
-          />
-          {/* Last: it is the longest group, so it scrolls instead of pushing the rest down. */}
-          <InboxChoiceChips
-            label="Aspect"
-            value={filters.aspect ?? 'all'}
-            options={ASPECT_CHOICES}
-            onChange={(aspect) =>
-              onFiltersChange({
-                aspect: orUndefined<NonNullable<InboxListFilterValues['aspect']>>(aspect),
-              })
-            }
-          />
+          {offer.priority && (
+            <InboxChoiceChips
+              label="Priority"
+              value={filters.attention ?? 'all'}
+              options={ATTENTION_CHOICES}
+              onChange={(attention) =>
+                onFiltersChange({
+                  attention:
+                    orUndefined<NonNullable<InboxListFilterValues['attention']>>(
+                      attention,
+                    ),
+                })
+              }
+            />
+          )}
+          {offer.topics && (
+            <>
+              <InboxChoiceChips
+                label="Polarity"
+                value={filters.polarity ?? 'all'}
+                options={POLARITY_CHOICES}
+                onChange={(polarity) =>
+                  onFiltersChange({
+                    polarity:
+                      orUndefined<NonNullable<InboxListFilterValues['polarity']>>(
+                        polarity,
+                      ),
+                  })
+                }
+              />
+              {/* Last: it is the longest group, so it scrolls instead of pushing the rest down. */}
+              <InboxChoiceChips
+                label="Aspect"
+                value={filters.aspect ?? 'all'}
+                options={ASPECT_CHOICES}
+                onChange={(aspect) =>
+                  onFiltersChange({
+                    aspect:
+                      orUndefined<NonNullable<InboxListFilterValues['aspect']>>(aspect),
+                  })
+                }
+              />
+            </>
+          )}
         </div>
         <div className="flex shrink-0 gap-2 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {/* The sort has its own choice above; no search is in force while the sheet is reachable. */}

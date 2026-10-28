@@ -12,13 +12,21 @@ const managerContext = {
   replyStages: { awaiting: [AWAITING], waiting: [WAITING] },
 } as const
 
+const withoutReplyStages = {
+  viewerId: VIEWER,
+  canManageReplies: false,
+  replyStages: { awaiting: [], waiting: [] },
+} as const
+
 describe('queueToFilters', () => {
   it('defines the complete queue vocabulary', () => {
     expect(INBOX_QUEUES).toEqual([
       'reply',
       'approval',
       'waiting',
+      'replied',
       'feedback',
+      'handled',
       'escalated',
       'mine',
       'closed',
@@ -51,7 +59,11 @@ describe('queueToFilters', () => {
         replyStage: { match: 'include', reviewIds: [WAITING] },
       },
     ],
+    // The closed folders hold every closed item of their kind, including the
+    // rare close that is not a reply or a handling (ADR 0057, amended 2026-10-28).
+    ['replied', { status: 'closed', sourceType: 'review' }],
     ['feedback', { status: 'open', sourceType: 'feedback' }],
+    ['handled', { status: 'closed', sourceType: 'feedback' }],
     ['escalated', { isEscalated: true }],
     ['mine', { status: 'open', assignedTo: VIEWER }],
     ['closed', { status: 'closed' }],
@@ -60,16 +72,27 @@ describe('queueToFilters', () => {
     expect(queueToFilters(queue, managerContext)).toEqual(expected)
   })
 
-  it.each<InboxQueue>(['reply', 'approval', 'waiting'])(
-    'refuses %s without reply.manage',
+  it('reads reply as every open Review when reply stages are unavailable', () => {
+    // The rail's one reply row is then labelled "Open": no stage decides it.
+    expect(queueToFilters('reply', withoutReplyStages)).toEqual({
+      status: 'open',
+      sourceType: 'review',
+    })
+  })
+
+  it.each<InboxQueue>(['approval', 'waiting'])(
+    'refuses %s without reply stages',
     (queue) => {
-      expect(() =>
-        queueToFilters(queue, {
-          viewerId: VIEWER,
-          canManageReplies: false,
-          replyStages: { awaiting: [], waiting: [] },
-        }),
-      ).toThrowError(expect.objectContaining({ _tag: 'InboxError', code: 'forbidden' }))
+      expect(() => queueToFilters(queue, withoutReplyStages)).toThrowError(
+        expect.objectContaining({ _tag: 'InboxError', code: 'forbidden' }),
+      )
+    },
+  )
+
+  it.each<InboxQueue>(['replied', 'handled', 'feedback', 'escalated', 'mine', 'open'])(
+    'does not need reply stages to read %s',
+    (queue) => {
+      expect(() => queueToFilters(queue, withoutReplyStages)).not.toThrow()
     },
   )
 })

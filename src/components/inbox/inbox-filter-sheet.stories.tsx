@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
-import type { InboxSort } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue, InboxSort } from '#/contexts/inbox/application/public-api'
 import { InboxFilterSheet } from './inbox-filter-sheet'
 import { CLEARED_INBOX_LIST_FILTERS, type InboxListFilterValues } from './inbox-filters'
 
 type HarnessProps = Readonly<{
+  queue: InboxQueue
   filters: InboxListFilterValues
   sort: InboxSort
   totalCount: number
@@ -17,6 +18,7 @@ type HarnessProps = Readonly<{
 
 /** Holds the choices so a click shows up as a checked chip, as it does on the page. */
 function Harness({
+  queue,
   filters: initialFilters,
   sort: initialSort,
   totalCount,
@@ -29,6 +31,7 @@ function Harness({
   const [sort, setSort] = useState(initialSort)
   return (
     <InboxFilterSheet
+      queue={queue}
       filters={filters}
       sort={sort}
       totalCount={totalCount}
@@ -55,6 +58,8 @@ const meta = {
   component: InboxFilterSheet,
   parameters: { layout: 'centered', viewport: { defaultViewport: 'mobileStaff' } },
   args: {
+    // A shared view, which offers every filter; the stories further down choose a queue that offers fewer.
+    queue: 'open',
     filters: CLEARED_INBOX_LIST_FILTERS,
     sort: 'newest',
     totalCount: 18,
@@ -128,6 +133,32 @@ export const ChooseSource: Story = {
       'aria-checked',
       'false',
     )
+  },
+}
+
+/** A queue holds one kind, so the sheet does not ask which kind (ADR 0057, amended 2026-10-28). */
+export const SectionQueueHasNoSource: Story = {
+  args: { queue: 'reply' },
+  play: async ({ canvasElement }) => {
+    const sheet = await openSheet(canvasElement, 'Filters')
+    for (const name of ['Sort', 'Rating', 'Priority', 'Polarity', 'Aspect']) {
+      await expect(sheet.getByRole('radiogroup', { name })).toBeVisible()
+    }
+    await expect(sheet.queryByRole('radiogroup', { name: 'Source' })).toBeNull()
+  },
+}
+
+/** Feedback has no analysis to filter by: only the sort and the rating are left. */
+export const PrivateFeedbackOffersOnlyRating: Story = {
+  args: { queue: 'feedback' },
+  play: async ({ canvasElement }) => {
+    const sheet = await openSheet(canvasElement, 'Filters')
+    for (const name of ['Sort', 'Rating']) {
+      await expect(sheet.getByRole('radiogroup', { name })).toBeVisible()
+    }
+    for (const name of ['Source', 'Priority', 'Polarity', 'Aspect']) {
+      await expect(sheet.queryByRole('radiogroup', { name })).toBeNull()
+    }
   },
 }
 

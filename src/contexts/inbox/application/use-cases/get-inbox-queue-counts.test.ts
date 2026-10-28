@@ -124,12 +124,61 @@ describe('getInboxQueueCounts', () => {
       feedback: 1,
       escalated: 2,
       mine: 1,
-      closed: 1,
       open: 6,
+      // The closed folders are archives, not work: they carry no badge (ADR 0057,
+      // amended 2026-10-28), so nothing is counted for them.
+      replied: null,
+      handled: null,
+      closed: null,
     })
     expect(findStages).toHaveBeenCalledOnce()
     expect(findStages).toHaveBeenCalledWith(ORG_ID, undefined)
   })
+
+  it('runs seven count queries for a manager, none for the closed folders', async () => {
+    const repo = createInMemoryInboxRepo()
+    seedQueueCases(repo)
+    const countFiltered = vi.spyOn(repo, 'countFiltered')
+    const useCase = getInboxQueueCounts({
+      repo,
+      staffPublicApi: allAccessStaffApi,
+      replyLookup: replyLookup(),
+    })
+
+    await useCase({}, manager)
+
+    expect(countFiltered).toHaveBeenCalledTimes(7)
+    const statuses = countFiltered.mock.calls.map(([filters]) => filters.status)
+    expect(statuses.filter((status) => status === 'closed')).toEqual([])
+  })
+
+  it.each([
+    ['replied', { status: 'closed', sourceType: 'review' }, 1],
+    ['handled', { status: 'closed', sourceType: 'feedback' }, 1],
+  ] as const)(
+    'would count %s to the list total, were it counted (ADR 0057 d6)',
+    async (_queue, filters, expected) => {
+      const repo = createInMemoryInboxRepo()
+      repo.items.push(
+        makeItem({ id: '1', status: 'closed' }),
+        makeItem({
+          id: '2',
+          status: 'closed',
+          sourceType: 'feedback',
+          sourceId: feedbackId('30000000-0000-4000-8000-000000000002'),
+        }),
+        makeItem({ id: '3' }),
+      )
+
+      const [page, count] = await Promise.all([
+        repo.findFilteredPaginated(filters, ORG_ID),
+        repo.countFiltered(filters, ORG_ID),
+      ])
+
+      expect(count).toBe(expected)
+      expect(count).toBe(page.totalCount)
+    },
+  )
 
   it('withholds reply-stage counts and their lookup without reply.manage', async () => {
     const repo = createInMemoryInboxRepo()
@@ -141,15 +190,19 @@ describe('getInboxQueueCounts', () => {
       replyLookup: replyLookup(findStages),
     })
 
+    // `reply` is then the rail's "Open": every open Review, and it is counted
+    // as the list would total it. Only the stages that need reply.manage are withheld.
     await expect(useCase({}, reader)).resolves.toEqual({
-      reply: null,
+      reply: 5,
       approval: null,
       waiting: null,
       feedback: 1,
       escalated: 2,
       mine: 1,
-      closed: 1,
       open: 6,
+      replied: null,
+      handled: null,
+      closed: null,
     })
     expect(findStages).not.toHaveBeenCalled()
   })
@@ -165,16 +218,33 @@ describe('getInboxQueueCounts', () => {
     })
 
     await expect(useCase({ replyQueuesEnabled: false }, manager)).resolves.toEqual({
-      reply: null,
+      reply: 5,
       approval: null,
       waiting: null,
       feedback: 1,
       escalated: 2,
       mine: 1,
-      closed: 1,
       open: 6,
+      replied: null,
+      handled: null,
+      closed: null,
     })
     expect(findStages).not.toHaveBeenCalled()
+  })
+
+  it('runs five count queries without reply stages', async () => {
+    const repo = createInMemoryInboxRepo()
+    seedQueueCases(repo)
+    const countFiltered = vi.spyOn(repo, 'countFiltered')
+    const useCase = getInboxQueueCounts({
+      repo,
+      staffPublicApi: allAccessStaffApi,
+      replyLookup: replyLookup(),
+    })
+
+    await useCase({ replyQueuesEnabled: false }, manager)
+
+    expect(countFiltered).toHaveBeenCalledTimes(5)
   })
 
   it('narrows all counts and the stage lookup to an accessible property', async () => {

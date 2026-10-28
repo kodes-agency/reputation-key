@@ -45,7 +45,8 @@ export function InboxListPanel(props: InboxListPanelProps) {
     isCompactLayout,
     onLoadMore,
     onStartSelection,
-    queueStrip,
+    queueBar,
+    queue,
   } = props
   const isMobile = useIsMobile()
 
@@ -64,6 +65,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
         queueTotal={queueTotal}
         searchQ={searchQ}
         onSearchChange={onSearchChange}
+        queue={queue}
         filters={filters}
         onFiltersChange={onFiltersChange}
         sort={sort}
@@ -87,7 +89,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
           ) : undefined
         }
       />
-      {queueStrip}
+      {queueBar}
       {/* Phone only: shown whenever `useIsMobile` says phone, the header's own test. */}
       {isMobile && (
         <InboxActiveFilters

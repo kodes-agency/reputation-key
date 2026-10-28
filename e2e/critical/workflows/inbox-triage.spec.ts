@@ -108,8 +108,8 @@ test.describe('Critical workflow: inbox triage persists', () => {
       closeReason: 'external_reply_observed',
     })
 
-    // 3. Reopen from the Closed folder — through the reason dialog, durable.
-    await page.goto(`/inbox?queue=closed&itemId=${inboxItemId}`)
+    // 3. Reopen from the Replied folder (a closed Review's) — through the reason dialog, durable.
+    await page.goto(`/inbox?queue=replied&itemId=${inboxItemId}`)
     await expect(page.getByText('Triage Reviewer').first()).toBeVisible({
       timeout: 15_000,
     })

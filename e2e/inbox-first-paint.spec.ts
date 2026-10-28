@@ -1,5 +1,5 @@
 // E2E: the Inbox's server render is its first paint on a hard load. On a phone
-// it must already be the compact composition (queue strip above the list), not
+// it must already be the compact composition (queue bar above the list), not
 // the desktop queue rail that hydration used to swap out a moment later. The
 // server picks the layout from the width cookie the app writes, or from the
 // user agent on a first visit (src/components/hooks/viewport-hint.ts).
@@ -47,6 +47,11 @@ function queueRail(inbox: Page) {
   return inbox.locator('[data-inbox-queue-rail]')
 }
 
+/** The phone's bar: one button naming the queue, and a chip to the other kind's. */
+function queueButton(inbox: Page) {
+  return inbox.locator('[data-inbox-queue-bar] [data-inbox-queue-button]')
+}
+
 function withoutViewportCookie(
   state: Awaited<ReturnType<BrowserContext['storageState']>>,
 ) {
@@ -57,7 +62,7 @@ function withoutViewportCookie(
 }
 
 test.describe('Inbox first paint', () => {
-  test('a phone that has opened the app paints the queue strip, not the rail', async ({
+  test('a phone that has opened the app paints the queue bar, not the rail', async ({
     browser,
     page,
   }) => {
@@ -73,7 +78,7 @@ test.describe('Inbox first paint', () => {
       viewport: PHONE.viewport,
     })
     await expect(queueRail(inbox)).toHaveCount(0)
-    await expect(inbox.getByRole('navigation', { name: 'Queues' })).toBeVisible()
+    await expect(queueButton(inbox)).toBeVisible()
     await context.close()
 
     await page.goto('/inbox')
@@ -115,6 +120,7 @@ test.describe('Inbox first paint', () => {
     expect(response.ok()).toBe(true)
     const html = await response.text()
     expect(html).toContain('data-inbox-list-header')
+    expect(html).toContain('data-inbox-queue-bar')
     expect(html).not.toContain('data-inbox-queue-rail')
     await safari.dispose()
   })

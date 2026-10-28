@@ -445,14 +445,14 @@ export const ClosedReview390: Story = { ...ClosedReview, parameters: PHONE }
 
 /**
  * Private feedback, open. The anatomy holds and the vocabulary swaps: the
- * status fact reads `Needs attention`, and the detail counts down with
+ * status fact reads `To handle`, and the detail counts down with
  * `Handle within`, never `Reply due in`.
  */
 export const FeedbackOpen: Story = {
   args: { item: feedbackItem, target: feedbackTarget, feedbackHandling: OPEN_CYCLE },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(controlsOf(canvas).getByText('Needs attention')).toBeVisible()
+    await expect(controlsOf(canvas).getByText('To handle')).toBeVisible()
     await expect(canvas.queryByRole('button', { name: /work status/i })).toBeNull()
     await expect(canvas.getByText('Handle within 6 h')).toBeVisible()
     await expect(canvas.queryByText(/reply due/i)).toBeNull()
@@ -516,7 +516,7 @@ export const FeedbackHandlingWithheld: Story = {
   args: { item: feedbackItem, target: feedbackTarget, feedbackHandling: null },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Needs attention')).toBeVisible()
+    await expect(canvas.getByText('To handle')).toBeVisible()
     await expect(canvas.queryByText('Open')).toBeNull()
     await expect(canvas.queryByText('Closed')).toBeNull()
   },

@@ -46,6 +46,17 @@ import type { InboxServerFns } from '#/components/inbox/types'
 import { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
 
+// Fetched with its first use, not imported. Only the empty To handle queue asks,
+// and a server-function module that two entries share is grouped with the stubs
+// first paint already loads (vite.config.ts, `app-server-fns`, merged under 16
+// KiB): measured on 2026-10-28, this one stub put 51 B gzip into the first-paint
+// closure. A module reached only by its own dynamic import is shared by nothing,
+// so it stays a chunk of its own (the same reason as
+// `properties/$propertyId/goals/-rating-goal-queries.ts`).
+const readPortalPresence: NonNullable<InboxServerFns['getPortalPresence']> = async (
+  input,
+) => (await import('#/contexts/portal/server/portal-presence')).getPortalPresence(input)
+
 export const inboxFns: InboxServerFns = {
   get getInboxItems() {
     return getInboxItemsFn
@@ -106,5 +117,8 @@ export const inboxFns: InboxServerFns = {
   },
   get requestReviewAnalysisNow() {
     return requestReviewAnalysisNowFn
+  },
+  get getPortalPresence() {
+    return readPortalPresence
   },
 }

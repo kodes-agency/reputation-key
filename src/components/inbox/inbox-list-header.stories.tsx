@@ -43,6 +43,7 @@ function HeaderStory({
   return (
     <div className={phone ? PHONE_FRAME : COLUMN_FRAME}>
       <InboxListHeader
+        queue="reply"
         queueLabel="Needs reply"
         scopeLabel="Hotel Elegance"
         totalCount={18}
@@ -158,6 +159,7 @@ function PropertySelectStory({ phone = false }: { phone?: boolean }) {
   return (
     <div className={phone ? PHONE_FRAME : 'w-[390px] border-x'}>
       <InboxListHeader
+        queue="reply"
         queueLabel="Needs reply"
         scopeLabel={scopeLabel}
         scopeControl={
@@ -306,7 +308,9 @@ export const PhoneSelection: Story = {
 
 export const PhoneFilterSheet: Story = {
   args: {
-    queueLabel: 'Needs reply',
+    // A shared view, which offers the Source choice the play makes.
+    queue: 'open',
+    queueLabel: 'All open',
     scopeLabel: 'Hotel Elegance',
     totalCount: 18,
     queueTotal: 42,

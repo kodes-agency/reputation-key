@@ -10,15 +10,23 @@ import {
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { ReplyLookupPort } from '../ports/reply-lookup.port'
 
+/**
+ * What the rail badges. `reply` is "Needs reply" with reply stages and "Open"
+ * (every open Review) without them, so it is always counted; `approval` and
+ * `waiting` exist only with the stages. The closed folders are never counted
+ * (ADR 0057, amended 2026-10-28): they are archives, not work, and carry no badge.
+ */
 export type InboxQueueCounts = Readonly<{
-  reply: number | null
+  reply: number
   approval: number | null
   waiting: number | null
   feedback: number
   escalated: number
   mine: number
-  closed: number
   open: number
+  replied: null
+  handled: null
+  closed: null
 }>
 
 export type GetInboxQueueCountsInput = Readonly<{
@@ -40,14 +48,16 @@ export type GetInboxQueueCounts = (
 
 function emptyCounts(canManageReplies: boolean): InboxQueueCounts {
   return {
-    reply: canManageReplies ? 0 : null,
+    reply: 0,
     approval: canManageReplies ? 0 : null,
     waiting: canManageReplies ? 0 : null,
     feedback: 0,
     escalated: 0,
     mine: 0,
-    closed: 0,
     open: 0,
+    replied: null,
+    handled: null,
+    closed: null,
   }
 }
 
@@ -77,36 +87,32 @@ export const getInboxQueueCounts =
         ctx.organizationId,
       )
 
-    if (!canManageReplies) {
-      const [feedback, escalated, mine, closed, open] = await Promise.all([
-        count('feedback'),
-        count('escalated'),
-        count('mine'),
-        count('closed'),
-        count('open'),
-      ])
-      return {
-        reply: null,
-        approval: null,
-        waiting: null,
-        feedback,
-        escalated,
-        mine,
-        closed,
-        open,
-      }
-    }
+    // The stages need reply.manage; without them only the queues that do not
+    // depend on a reply are counted (five queries instead of seven).
+    const stageCount = (queue: InboxQueue) =>
+      canManageReplies ? count(queue) : Promise.resolve(null)
 
-    const [reply, approval, waiting, feedback, escalated, mine, closed, open] =
-      await Promise.all([
+    const [reply, approval, waiting, feedback, escalated, mine, open] = await Promise.all(
+      [
         count('reply'),
-        count('approval'),
-        count('waiting'),
+        stageCount('approval'),
+        stageCount('waiting'),
         count('feedback'),
         count('escalated'),
         count('mine'),
-        count('closed'),
         count('open'),
-      ])
-    return { reply, approval, waiting, feedback, escalated, mine, closed, open }
+      ],
+    )
+    return {
+      reply,
+      approval,
+      waiting,
+      feedback,
+      escalated,
+      mine,
+      open,
+      replied: null,
+      handled: null,
+      closed: null,
+    }
   }

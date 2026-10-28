@@ -197,21 +197,78 @@ describe('getInboxPropertyCounts', () => {
     })
   })
 
-  it('refuses a reply-stage queue without reply.manage, before reading anything', async () => {
-    const findStages = vi.fn(async () => ({ awaiting: [], waiting: [] }))
-    const getAccessiblePropertyIds = vi.fn(async () => null)
+  it.each(['approval', 'waiting'] as const)(
+    'refuses the %s queue without reply.manage, before reading anything',
+    async (queue) => {
+      const findStages = vi.fn(async () => ({ awaiting: [], waiting: [] }))
+      const getAccessiblePropertyIds = vi.fn(async () => null)
+      const useCase = getInboxPropertyCounts({
+        repo: createInMemoryInboxRepo(),
+        staffPublicApi: { getAccessiblePropertyIds, getAssignedPortals: async () => [] },
+        replyLookup: replyLookup(findStages),
+      })
+
+      await expect(useCase({ queue }, member)).rejects.toMatchObject({
+        _tag: 'InboxError',
+        code: 'forbidden',
+      })
+      expect(getAccessiblePropertyIds).not.toHaveBeenCalled()
+      expect(findStages).not.toHaveBeenCalled()
+    },
+  )
+
+  it('counts the reply queue as every open Review without reply stages, reading none', async () => {
+    const repo = createInMemoryInboxRepo()
+    seedPortfolio(repo)
+    const findStages = vi.fn(async () => ({ awaiting: [AWAITING], waiting: [] }))
     const useCase = getInboxPropertyCounts({
-      repo: createInMemoryInboxRepo(),
-      staffPublicApi: { getAccessiblePropertyIds, getAssignedPortals: async () => [] },
+      repo,
+      staffPublicApi: allAccessStaffApi,
       replyLookup: replyLookup(findStages),
     })
 
-    await expect(useCase({ queue: 'reply' }, member)).rejects.toMatchObject({
-      _tag: 'InboxError',
-      code: 'forbidden',
-    })
-    expect(getAccessiblePropertyIds).not.toHaveBeenCalled()
+    // Open Reviews: Elegance 3 (one is awaiting approval, which this view does
+    // not tell apart), Rila 1. Feedback and the closed Review are not counted.
+    const expected = {
+      queue: 'reply',
+      total: 4,
+      byProperty: { [ELEGANCE]: 3, [RILA]: 1 },
+    }
+    await expect(useCase({ queue: 'reply' }, member)).resolves.toEqual(expected)
+    await expect(
+      useCase({ queue: 'reply', replyQueuesEnabled: false }, accountAdmin),
+    ).resolves.toEqual(expected)
     expect(findStages).not.toHaveBeenCalled()
+  })
+
+  it('counts the closed folders by kind, as their lists total them', async () => {
+    const repo = createInMemoryInboxRepo()
+    seedPortfolio(repo)
+    repo.items.push(
+      makeItem({
+        id: '7',
+        propertyId: BLACK_SEA,
+        status: 'closed',
+        sourceType: 'feedback',
+        sourceId: feedbackId('30000000-0000-4000-8000-000000000007'),
+      }),
+    )
+    const useCase = getInboxPropertyCounts({
+      repo,
+      staffPublicApi: allAccessStaffApi,
+      replyLookup: replyLookup(),
+    })
+
+    await expect(useCase({ queue: 'replied' }, accountAdmin)).resolves.toEqual({
+      queue: 'replied',
+      total: 1,
+      byProperty: { [RILA]: 1 },
+    })
+    await expect(useCase({ queue: 'handled' }, accountAdmin)).resolves.toEqual({
+      queue: 'handled',
+      total: 1,
+      byProperty: { [BLACK_SEA]: 1 },
+    })
   })
 
   it('rejects a caller without inbox.read', async () => {

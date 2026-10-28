@@ -182,3 +182,49 @@ describe('the fallback copy', () => {
     expect(html).not.toMatch(TRANSLUCENT_INK)
   })
 })
+
+describe('the kind of the row', () => {
+  const feedback = (overrides: Partial<InboxItem> = {}) =>
+    makeItem({
+      sourceType: 'feedback',
+      reviewerName: null,
+      platform: null,
+      ...overrides,
+    })
+
+  /** The row's first line: its badge, rating and name. */
+  const firstLine = (html: string) => {
+    const start = html.indexOf('<span data-inbox-row-identity')
+    return html.slice(start, html.indexOf('</span></span>', start))
+  }
+
+  it('marks private feedback "Private" with the locked message, before the rating', () => {
+    const line = firstLine(renderRow(feedback()))
+
+    expect(line).toContain('lucide-message-square-lock')
+    expect(line).toContain('Private')
+    expect(line.indexOf('Private')).toBeLessThan(line.indexOf('lucide-star'))
+  })
+
+  it('marks private feedback with no rating too, in place of the old chat glyph', () => {
+    const line = firstLine(renderRow(feedback({ rating: null })))
+
+    expect(line).toContain('Private')
+    expect(line).not.toContain('lucide-star')
+    expect(line).not.toContain('lucide-message-square-text')
+  })
+
+  it('leaves a Review with the rating star alone', () => {
+    const html = renderRow(makeItem())
+
+    expect(html).not.toContain('Private')
+    expect(html).not.toContain('lucide-message-square-lock')
+    expect(html).toContain('lucide-star')
+  })
+
+  it('keeps the row’s spoken name as it was: the badge is a mark, not the name', () => {
+    expect(renderRow(feedback())).toContain(
+      'aria-label="Open feedback from Guest feedback"',
+    )
+  })
+})

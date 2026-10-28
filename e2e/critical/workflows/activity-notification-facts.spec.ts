@@ -193,7 +193,7 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     )
     // Reopen through the real manager path: work-status select → reason →
     // confirm. A reopen without a stated reason is refused by the dialog.
-    await page.goto(`/inbox?queue=closed&itemId=${inboxItem.id}`)
+    await page.goto(`/inbox?queue=replied&itemId=${inboxItem.id}`)
     // Work status is now a case-strip chip BUTTON whose menu offers `Reopen`
     // (role `menuitem`, not `option`) — see inbox-triage.spec.ts.
     await page.getByRole('button', { name: 'Work status' }).click()

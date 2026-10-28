@@ -47,8 +47,8 @@ import type {
 
 // ─── the copy this PR is responsible for ─────────────────────────────────────
 
-/** The strip chip's two words (row 10), spelled once. */
-const NEEDS_ATTENTION = 'Needs attention'
+/** The strip chip's word for an open feedback item (row 10), spelled once: the rail's queue name. */
+const TO_HANDLE = 'To handle'
 
 /**
  * The two names the e2e journeys reach for. Neither may move or be renamed.
@@ -699,7 +699,7 @@ export const FeedbackOpen: Story = {
     expectTheFourRegions(canvas)
 
     // Region 2: the feedback vocabulary, and never the review's.
-    await expect(canvas.getByText(NEEDS_ATTENTION)).toBeVisible()
+    await expect(canvas.getByText(TO_HANDLE)).toBeVisible()
     await expect(canvas.queryByText('Open')).toBeNull()
     await expect(canvas.queryByText('Closed')).toBeNull()
 
@@ -774,7 +774,7 @@ export const FeedbackHandled: Story = {
     await expect(
       canvas.getByRole('button', { name: /^Work status/ }),
     ).toHaveAccessibleName('Work status: Handled · Follow-up completed')
-    await expect(canvas.queryByText(NEEDS_ATTENTION)).toBeNull()
+    await expect(canvas.queryByText(TO_HANDLE)).toBeNull()
 
     // The outcome record, as a thread event rather than a box beside one.
     const handled = await canvas.findByText(sentence(HANDLED_LINE))

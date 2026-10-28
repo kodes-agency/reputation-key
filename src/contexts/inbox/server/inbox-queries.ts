@@ -23,7 +23,38 @@ import {
   getInboxPropertyCountsDto,
 } from '../application/dto/inbox.dto'
 import { decodeInboxCursor } from '../application/inbox-cursor'
-import { REPLY_STAGE_QUEUES } from '../application/inbox-queues'
+import { REPLY_STAGE_QUEUES, type InboxQueue } from '../application/inbox-queues'
+import type { AuthContext } from '#/shared/domain/auth-context'
+
+/**
+ * Whether reply stages are available to this request, for the queues that
+ * involve them. `approval` and `waiting` exist only with the stages, so the
+ * policy is required for them and refuses the request. `reply` is also every
+ * open Review without the stages (the rail's "Open", ADR 0057 amended
+ * 2026-10-28), so its answer is handed to the use case as a boundary decision
+ * instead of refusing. A queue that depends on no reply asks nothing.
+ */
+async function replyQueuesEnabledFor(
+  ctx: AuthContext,
+  queue: InboxQueue | undefined,
+  propertyId: string | undefined,
+): Promise<boolean | undefined> {
+  if (queue === undefined || !REPLY_STAGE_QUEUES.has(queue)) return undefined
+  if (queue !== 'reply') {
+    // Allowed past this line, so the use case's default (stages on) is the answer.
+    await requireExecutionAllowed({ actor: ctx, action: 'reply.manage', propertyId })
+    return undefined
+  }
+  const decision = await getExecutionPolicy().decide({
+    principal: { kind: 'user', ctx },
+    action: 'reply.manage',
+    organizationId: ctx.organizationId,
+    propertyId,
+    executionKind: 'interactive',
+    now: getContainer().clock(),
+  })
+  return decision.allowed
+}
 
 // ── getInboxItems ──────────────────────────────────────────────────
 
@@ -39,13 +70,11 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
           action: 'inbox.read',
           propertyId: data.propertyId,
         })
-        if (data.queue && REPLY_STAGE_QUEUES.has(data.queue)) {
-          await requireExecutionAllowed({
-            actor: ctx,
-            action: 'reply.manage',
-            propertyId: data.propertyId,
-          })
-        }
+        const replyQueuesEnabled = await replyQueuesEnabledFor(
+          ctx,
+          data.queue,
+          data.propertyId,
+        )
         const { inboxPublicApi, logger } = getContainer()
         try {
           const cursor = data.cursor ? decodeInboxCursor(data.cursor) : null
@@ -56,6 +85,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
           return await inboxPublicApi.getInboxItems(
             {
               queue: data.queue,
+              replyQueuesEnabled,
               filters: {
                 propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
                 status: data.status,
@@ -202,12 +232,13 @@ export const getInboxPropertyCountsFn = createServerFn({ method: 'GET' })
         // Counted across every visible property, so authorized at organization
         // level — with the list's own reply authority for a reply-stage queue.
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        if (REPLY_STAGE_QUEUES.has(data.queue)) {
-          await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        }
+        const replyQueuesEnabled = await replyQueuesEnabledFor(ctx, data.queue, undefined)
         const { inboxPublicApi } = getContainer()
         try {
-          return await inboxPublicApi.getInboxPropertyCounts({ queue: data.queue }, ctx)
+          return await inboxPublicApi.getInboxPropertyCounts(
+            { queue: data.queue, replyQueuesEnabled },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))

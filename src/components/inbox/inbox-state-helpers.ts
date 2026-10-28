@@ -85,8 +85,10 @@ export function selectedItemDeparture(
   queue: InboxQueue,
   detail: SelectedItemDetailState | undefined,
   listUpdatedAt: number,
+  hasReplyStages = true,
 ): SelectedItemDeparture {
-  const queueStage = queueReplyStage(queue)
+  // Without reply stages `reply` is every open Review: no reply moves an item out of it.
+  const queueStage = queueReplyStage(queue, hasReplyStages)
   if (queueStage === null || !detail?.data || detail.status === 'error') return 'close'
   const { item, reply } = detail.data
   if (
@@ -112,6 +114,7 @@ export function useSelectedItemDeparture(
   queue: InboxQueue,
   selectedId: string | undefined,
   listUpdatedAt: number,
+  hasReplyStages = true,
 ): SelectedItemDeparture {
   // Only updates to this item's detail entry: query-cache events also fire
   // while other components create their queries during render, and reacting to
@@ -128,7 +131,8 @@ export function useSelectedItemDeparture(
   )
   return useSyncExternalStore(
     subscribe,
-    () => selectedItemDepartureInCache(qc, queue, selectedId, listUpdatedAt),
+    () =>
+      selectedItemDepartureInCache(qc, queue, selectedId, listUpdatedAt, hasReplyStages),
     () => 'close',
   )
 }
@@ -138,10 +142,11 @@ export function selectedItemDepartureInCache(
   queue: InboxQueue,
   selectedId: string | undefined,
   listUpdatedAt: number,
+  hasReplyStages = true,
 ): SelectedItemDeparture {
   if (!selectedId) return 'close'
   const state = qc.getQueryState<InboxItemDetailResult>(inboxKeys.detail(selectedId))
-  return selectedItemDeparture(queue, state, listUpdatedAt)
+  return selectedItemDeparture(queue, state, listUpdatedAt, hasReplyStages)
 }
 
 /** Stable row-click / close-detail callbacks derived from the navigate fn. */

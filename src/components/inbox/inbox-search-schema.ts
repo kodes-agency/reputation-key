@@ -57,16 +57,18 @@ export function normalizeInboxRatingPreset(search: InboxSearchObject): InboxSear
   return rest
 }
 
+// Closed items are split by kind now (ADR 0057, amended 2026-10-28). An old
+// `queue=closed` or `folder=closed` is read as Replied, the folder of Reviews.
 const LEGACY_FOLDER_QUEUE = {
   open: 'reply',
   escalated: 'escalated',
-  closed: 'closed',
+  closed: 'replied',
 } as const
 
 export const inboxSearchSchema = inboxSearchObjectSchema.transform((input) => {
   const { folder, ...search } = normalizeInboxRatingPreset(input)
   const queue = search.queue ?? (folder ? LEGACY_FOLDER_QUEUE[folder] : undefined)
-  return queue ? { ...search, queue } : search
+  return queue ? { ...search, queue: queue === 'closed' ? 'replied' : queue } : search
 })
 
 export type InboxSearchParams = z.infer<typeof inboxSearchSchema>

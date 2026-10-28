@@ -160,6 +160,56 @@ describe('inbox query authorization', () => {
     ])
   })
 
+  it('serves the reply queue without stages when the reply policy refuses, as every open Review', async () => {
+    mocks.decideExecution.mockResolvedValue({
+      allowed: false,
+      reason: 'capability_disabled',
+      action: 'reply.manage',
+      policyVersion: 'test',
+    })
+
+    await withStartContext(() =>
+      getInboxItemsFn({ data: { queue: 'reply', propertyId: PROPERTY_ID } }),
+    )
+
+    // Only the Inbox read is required: the reply row survives as "Open".
+    expect(mocks.requireExecutionAllowed.mock.calls.map(([request]) => request)).toEqual([
+      { actor: MANAGER, action: 'inbox.read', propertyId: PROPERTY_ID },
+    ])
+    expect(mocks.decideExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: { kind: 'user', ctx: MANAGER },
+        action: 'reply.manage',
+        propertyId: PROPERTY_ID,
+        executionKind: 'interactive',
+        now: CONTAINER_NOW,
+      }),
+    )
+    expect(mocks.getInboxItems).toHaveBeenCalledWith(
+      expect.objectContaining({ queue: 'reply', replyQueuesEnabled: false }),
+      MANAGER,
+    )
+  })
+
+  it('serves the reply queue with its stages when the reply policy allows', async () => {
+    await withStartContext(() => getInboxItemsFn({ data: { queue: 'reply' } }))
+
+    expect(mocks.getInboxItems).toHaveBeenCalledWith(
+      expect.objectContaining({ queue: 'reply', replyQueuesEnabled: true }),
+      MANAGER,
+    )
+  })
+
+  it('asks no reply policy for a queue that does not depend on a reply', async () => {
+    await withStartContext(() => getInboxItemsFn({ data: { queue: 'replied' } }))
+
+    expect(mocks.decideExecution).not.toHaveBeenCalled()
+    expect(mocks.getInboxItems).toHaveBeenCalledWith(
+      expect.objectContaining({ queue: 'replied', replyQueuesEnabled: undefined }),
+      MANAGER,
+    )
+  })
+
   it('keeps non-reply staff queue counts available after reply policy denial', async () => {
     mocks.resolveTenantContext.mockResolvedValue(STAFF)
     mocks.decideExecution.mockResolvedValue({
@@ -211,15 +261,34 @@ describe('inbox query authorization', () => {
     )
   })
 
-  it('does not count per property when reply policy refuses a reply-stage queue', async () => {
+  it('does not count per property when reply policy refuses a stage queue', async () => {
     mocks.requireExecutionAllowed
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('reply.manage refused'))
 
     await expect(
-      withStartContext(() => getInboxPropertyCountsFn({ data: { queue: 'reply' } })),
+      withStartContext(() => getInboxPropertyCountsFn({ data: { queue: 'approval' } })),
     ).rejects.toThrow('reply.manage refused')
     expect(mocks.getInboxPropertyCounts).not.toHaveBeenCalled()
+  })
+
+  it('counts the reply queue per property without stages when the reply policy refuses', async () => {
+    mocks.decideExecution.mockResolvedValue({
+      allowed: false,
+      reason: 'capability_disabled',
+      action: 'reply.manage',
+      policyVersion: 'test',
+    })
+
+    await withStartContext(() => getInboxPropertyCountsFn({ data: { queue: 'reply' } }))
+
+    expect(mocks.requireExecutionAllowed.mock.calls.map(([request]) => request)).toEqual([
+      { actor: MANAGER, action: 'inbox.read' },
+    ])
+    expect(mocks.getInboxPropertyCounts).toHaveBeenCalledWith(
+      { queue: 'reply', replyQueuesEnabled: false },
+      MANAGER,
+    )
   })
 
   it('admits only a known queue at the boundary', () => {

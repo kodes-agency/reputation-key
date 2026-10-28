@@ -12,7 +12,7 @@ describe('inboxSearchSchema', () => {
   it('reads an address made of values it knows', () => {
     expect(
       inboxSearchSchema.parse({
-        queue: 'closed',
+        queue: 'replied',
         itemId: ITEM_ID,
         propertyId: PROPERTY_ID,
         sourceType: 'review',
@@ -23,7 +23,7 @@ describe('inboxSearchSchema', () => {
         sort: 'oldest',
       }),
     ).toEqual({
-      queue: 'closed',
+      queue: 'replied',
       itemId: ITEM_ID,
       propertyId: PROPERTY_ID,
       sourceType: 'review',
@@ -64,6 +64,22 @@ describe('inboxSearchSchema', () => {
     expect(inboxSearchSchema.parse({ folder: 'archive' })).toEqual({})
   })
 
+  it('reads the new closed folders of the two kinds', () => {
+    expect(inboxSearchSchema.parse({ queue: 'replied' })).toEqual({ queue: 'replied' })
+    expect(inboxSearchSchema.parse({ queue: 'handled' })).toEqual({ queue: 'handled' })
+  })
+
+  it('reads the retired closed queue, and the closed folder, as Replied', () => {
+    // A bookmark or an old notice: closed items are now split by kind (ADR 0057,
+    // amended 2026-10-28), and a closed Review is by far the common one.
+    expect(inboxSearchSchema.parse({ queue: 'closed' })).toEqual({ queue: 'replied' })
+    expect(inboxSearchSchema.parse({ folder: 'closed' })).toEqual({ queue: 'replied' })
+    expect(inboxSearchSchema.parse({ queue: 'closed', itemId: ITEM_ID })).toEqual({
+      queue: 'replied',
+      itemId: ITEM_ID,
+    })
+  })
+
   it('keeps the rating presets the filter can show and drops a range it cannot', () => {
     expect(inboxSearchSchema.parse({ ratingMin: '4' })).toEqual({ ratingMin: 4 })
     expect(inboxSearchSchema.parse({ ratingMin: 2, ratingMax: 4 })).toEqual({})
@@ -76,7 +92,7 @@ describe("a property's Reviews address", () => {
 
   it('drops a value it cannot read instead of refusing the page', () => {
     expect(
-      reviewsSearch.parse({ sort: 'recent', itemId: 'abc', queue: 'closed' }),
-    ).toEqual({ queue: 'closed' })
+      reviewsSearch.parse({ sort: 'recent', itemId: 'abc', queue: 'handled' }),
+    ).toEqual({ queue: 'handled' })
   })
 })

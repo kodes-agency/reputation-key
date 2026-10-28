@@ -9,7 +9,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from '#/components/ui/select'
-import type { InboxSort } from '#/contexts/inbox/application/public-api'
+import type { InboxQueue, InboxSort } from '#/contexts/inbox/application/public-api'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { InboxFilterPopover } from './inbox-filter-popover'
 import { InboxFilterSheet } from './inbox-filter-sheet'
@@ -18,6 +18,8 @@ import { InboxListSearch } from './inbox-list-search'
 import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
+  /** The queue in view: it decides which filters are offered. */
+  queue: InboxQueue
   queueLabel: string
   scopeLabel: string
   /** Replaces the plain scope line when the scope can be changed from here. */
@@ -41,6 +43,7 @@ type Props = Readonly<{
 }>
 
 type ControlsProps = Readonly<{
+  queue: InboxQueue
   filters: InboxListFilterValues
   sort: InboxSort
   onOpenSearch: () => void
@@ -76,6 +79,7 @@ function SelectButton({ className, onClick }: SelectButtonProps) {
  * layout follows `useInboxCompactLayout`.
  */
 function PhoneControls({
+  queue,
   filters,
   sort,
   totalCount,
@@ -97,6 +101,7 @@ function PhoneControls({
         <Search />
       </IconButton>
       <InboxFilterSheet
+        queue={queue}
         filters={filters}
         sort={sort}
         totalCount={totalCount}
@@ -114,6 +119,7 @@ function PhoneControls({
 
 /** Tablet and desktop bar: 32px controls, the filter popover and the sort select. */
 function WideControls({
+  queue,
   filters,
   sort,
   onOpenSearch,
@@ -127,7 +133,7 @@ function WideControls({
         <Search />
       </IconButton>
       <ButtonGroup>
-        <InboxFilterPopover value={filters} onChange={onFiltersChange} />
+        <InboxFilterPopover queue={queue} value={filters} onChange={onFiltersChange} />
         <Select value={sort} onValueChange={(value) => onSortChange(value as InboxSort)}>
           <SelectTrigger size="sm" aria-label="Sort reviews">
             <ArrowDownUp className="size-4" aria-hidden="true" />
@@ -176,7 +182,7 @@ function HeaderControls({
 
 /**
  * The queue's name, its count and the scope under it. The name is the page's one h1 at
- * every width: on a phone the queue strip above draws it, so the heading is read, not
+ * every width: on a phone the queue bar above draws it, so the heading is read, not
  * drawn.
  */
 function QueueHeading({
@@ -215,6 +221,7 @@ const takesHeaderOver = (selectionToolbar: ReactNode, searchVisible: boolean) =>
   (selectionToolbar ?? null) !== null || searchVisible
 
 export function InboxListHeader({
+  queue,
   queueLabel,
   scopeLabel,
   scopeControl,
@@ -268,6 +275,7 @@ export function InboxListHeader({
             />
             <HeaderControls
               isMobile={isMobile}
+              queue={queue}
               filters={filters}
               sort={sort}
               totalCount={totalCount}

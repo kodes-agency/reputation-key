@@ -30,6 +30,12 @@ export type GetInboxItemsInput = Readonly<{
   queue?: InboxQueue
   cursor?: Cursor
   limit?: number
+  /**
+   * Trusted boundary decision, as for the queue counts: false means reply stages
+   * are unavailable (reply publication is off) whatever the role says. The reply
+   * queue is then every open Review, and the stage queues stay refused.
+   */
+  replyQueuesEnabled?: boolean
 }>
 
 export type GetInboxItemsDeps = Readonly<{
@@ -108,7 +114,9 @@ async function queueFiltersForRequest(
   if (initialSourceType !== undefined && !readableSources.includes(initialSourceType)) {
     return null
   }
-  if (input.queue && REPLY_STAGE_QUEUES.has(input.queue)) {
+  // Reply stages are read only when they decide the queue: without them `reply`
+  // is every open Review and `approval` and `waiting` were refused above.
+  if (canManageReplies && input.queue && REPLY_STAGE_QUEUES.has(input.queue)) {
     const narrowed = input.filters.propertyId ? [input.filters.propertyId] : propertyIds
     replyStages = await deps.replyLookup.findReviewIdsByReplyStage(
       ctx.organizationId,
@@ -170,7 +178,8 @@ export const getInboxItems =
     const propertyIds = await scopedPropertyIds(deps, input, ctx)
     if (propertyIds === null) return emptyInboxPage(responseCutoff, viewedUpTo)
 
-    const canManageReplies = canForContext(ctx, 'reply.manage')
+    const canManageReplies =
+      input.replyQueuesEnabled !== false && canForContext(ctx, 'reply.manage')
     const queueFilters = await queueFiltersForRequest(
       deps,
       input,

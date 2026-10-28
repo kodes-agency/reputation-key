@@ -10,7 +10,8 @@ const meta = {
   component: InboxFilterPopover,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
-  args: { value: emptyFilters, onChange: fn() },
+  // A shared view offers every filter; the stories at the end choose a queue that offers fewer.
+  args: { queue: 'open', value: emptyFilters, onChange: fn() },
 } satisfies Meta<typeof InboxFilterPopover>
 
 export default meta
@@ -76,5 +77,29 @@ export const ChangeRating: Story = {
       ratingMin: undefined,
       ratingMax: 3,
     })
+  },
+}
+
+export const SectionQueueHasNoSource: Story = {
+  args: { queue: 'reply' },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /filters/i }))
+    const body = within(canvasElement.ownerDocument.body)
+    for (const name of ['Priority', 'Aspect', 'Polarity', 'Rating']) {
+      await expect(body.getByRole('combobox', { name })).toBeVisible()
+    }
+    await expect(body.queryByRole('combobox', { name: 'Source' })).toBeNull()
+  },
+}
+
+export const PrivateFeedbackOffersOnlyRating: Story = {
+  args: { queue: 'feedback' },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /filters/i }))
+    const body = within(canvasElement.ownerDocument.body)
+    await expect(body.getByRole('combobox', { name: 'Rating' })).toBeVisible()
+    for (const name of ['Source', 'Priority', 'Aspect', 'Polarity']) {
+      await expect(body.queryByRole('combobox', { name })).toBeNull()
+    }
   },
 }
