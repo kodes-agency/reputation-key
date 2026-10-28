@@ -335,7 +335,7 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
           {/* The only element that pads a page (PAGE_GUTTER); nothing below adds a second gutter. */}
           <main
             className={`min-w-0 flex-1 ${
-              isFullBleed ? 'overflow-hidden' : `overflow-auto ${PAGE_GUTTER}`
+              isFullBleed ? 'overflow-hidden' : `overflow-x-clip ${PAGE_GUTTER}`
             }`}
           >
             {/*

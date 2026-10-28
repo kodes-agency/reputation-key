@@ -95,8 +95,8 @@ export const SECTION_NAV_STYLES: Readonly<Record<SectionNavFrame, FrameStyles>> 
     nav: {
       base: 'min-w-0',
       strip: '',
-      list: 'sticky top-4',
-      auto: '@3xl:sticky @3xl:top-4',
+      list: 'sticky top-(--app-top-bar-height)',
+      auto: '@3xl:sticky @3xl:top-(--app-top-bar-height)',
     },
     scroller: {
       base: 'relative -mx-1 flex scroll-px-6 overflow-x-auto px-1 py-1',

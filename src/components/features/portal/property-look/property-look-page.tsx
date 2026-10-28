@@ -90,7 +90,8 @@ export type PropertyLookPageProps = PropertyLookSaves &
     ownLookEnabled?: boolean
   }>
 
-const SIDE_COLUMN = 'min-w-0 min-[90rem]:sticky min-[90rem]:top-6 min-[90rem]:self-start'
+const SIDE_COLUMN =
+  'min-w-0 min-[90rem]:sticky min-[90rem]:top-(--app-top-bar-height) min-[90rem]:self-start'
 
 /**
  * The portal list grows with the portals, and a portal with a look of its own is
@@ -99,7 +100,7 @@ const SIDE_COLUMN = 'min-w-0 min-[90rem]:sticky min-[90rem]:top-6 min-[90rem]:se
  * The small padding and the matching negative margin keep a row's focus ring from
  * being clipped at the column's edge.
  */
-const PORTALS_COLUMN = `${SIDE_COLUMN} min-[90rem]:-mx-1 min-[90rem]:max-h-[calc(100dvh-3rem)] min-[90rem]:overflow-y-auto min-[90rem]:px-1`
+const PORTALS_COLUMN = `${SIDE_COLUMN} min-[90rem]:-mx-1 min-[90rem]:max-h-[calc(100dvh-var(--app-top-bar-height)-1.5rem)] min-[90rem]:overflow-y-auto min-[90rem]:px-1`
 
 /** While an edit is waiting, being saved or refused, what a review would read is not settled. */
 const SETTLING: ReadonlySet<string> = new Set(['pending', 'saving', 'invalid', 'error'])

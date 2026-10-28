@@ -9,7 +9,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
-import { cn } from '#/lib/utils'
 import { authClient } from '#/shared/auth/auth-client'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
 import type { NotificationServerFns } from '#/components/features/notification/types'
@@ -75,13 +74,11 @@ export function AppTopBar({
     // full-bleed surfaces (`isFullBleed`: Inbox, Reviews, the workspace) compress
     // to 44. The sidebar trigger is the person's on every page from md up (the
     // sidebar is theirs to open or fold, wherever they are), and the progress bar
-    // lies on the bar's lower edge, which is why the header is `relative`.
+    // lies on the bar's lower edge, which is why the header is positioned.
     <header
       data-density="compact"
-      className={cn(
-        'relative flex h-13 shrink-0 items-center gap-2 border-b px-4',
-        isFullBleed && 'max-md:h-11',
-      )}
+      data-full-bleed={isFullBleed ? 'true' : undefined}
+      className="sticky top-0 z-20 flex h-(--app-top-bar-height) shrink-0 items-center gap-2 border-b bg-background px-4"
     >
       {hasSidebar && <SidebarTrigger className="-ml-1 max-md:-ml-2.5" />}
 
