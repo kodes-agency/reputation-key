@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEventHandler } from 'react'
+import { useRef, useState, type KeyboardEventHandler } from 'react'
 import { Search, X } from 'lucide-react'
 
 import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
@@ -6,6 +6,12 @@ import { IconButton } from '#/components/ui/icon-button'
 import { Input } from '#/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#/components/ui/input-group'
 import { cn } from '#/lib/utils'
+import {
+  reconcileDraft,
+  shownText,
+  typeIntoDraft,
+  type SearchDraft,
+} from './search-field-draft'
 
 /** The browser draws its own cancel glyph in a search input; the field draws one, so never two. */
 const NO_NATIVE_CANCEL = '[&::-webkit-search-cancel-button]:appearance-none'
@@ -44,6 +50,14 @@ type Props = Readonly<{
  * field in a picker (which is a different job and keeps the Command primitive's).
  * The Inbox composes the `bare` variant, so its glyph, input type and limit are
  * these.
+ *
+ * The lists keep the search in the URL, and a keystroke is a navigation that
+ * commits only once the route has loaded. So the field keeps what was typed as a
+ * draft and shows it until `value` catches up (`search-field-draft.ts`); without
+ * it a slow network put the field back to an older search under the person's
+ * fingers and dropped the keys typed meanwhile. Callers change nothing: `value`
+ * is still the committed search, and a change to it that the person did not
+ * type (Clear all, Back) replaces the draft.
  */
 export function SearchField({
   label,
@@ -59,16 +73,27 @@ export function SearchField({
   className,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [pending, setPending] = useState<SearchDraft | null>(null)
+  // Settled during render, as React advises for state derived from a prop: the
+  // frame in which `value` moved already shows the right text.
+  const draft = reconcileDraft(pending, value)
+  if (draft !== pending) setPending(draft)
+  const shown = shownText(draft, value)
+  const change = (text: string) => {
+    setPending(typeIntoDraft(draft, value, text))
+    onValueChange(text)
+  }
   const input = {
     type: 'search',
     'aria-label': label,
     placeholder,
     maxLength,
-    value,
+    value: shown,
     autoFocus,
     onKeyDown,
-    onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
-      onValueChange(event.target.value),
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) => change(event.target.value),
+    // A person who leaves the field sees the search the page is on.
+    onBlur: () => setPending(null),
   } as const
 
   if (variant === 'bare') {
@@ -96,7 +121,7 @@ export function SearchField({
         <Search aria-hidden="true" />
       </InputGroupAddon>
       <InputGroupInput ref={inputRef} {...input} className={NO_NATIVE_CANCEL} />
-      {clearable && value !== '' ? (
+      {clearable && shown !== '' ? (
         // The X is a tap target below `md` (`touch`), so the addon adds no padding of
         // its own around it: the field is as tall as the button, not 12px taller.
         <InputGroupAddon align="inline-end" className="py-0">
@@ -106,7 +131,7 @@ export function SearchField({
             label={clearLabel}
             tooltip={false}
             onClick={() => {
-              onValueChange('')
+              change('')
               // The button leaves with the text: keep the focus in the field.
               inputRef.current?.focus()
             }}

@@ -146,7 +146,8 @@ and actions supply server state.
   range change that pushes history; `nav-link-sources.test.ts` fails on a router
   `Link` that writes its own `aria-current` and on a `Link` inside a `LinkTab`.
   A list's search, filter, sort, count and Clear are one set of parts in a
-  `ListToolbar` row: `SearchField`, `ListFilterMenu` (a filter), `ListChoiceMenu` (how the
+  `ListToolbar` row: `SearchField` (it keeps what is typed as a draft until the URL's
+  committed value catches up, so a slow navigation never drops a key), `ListFilterMenu` (a filter), `ListChoiceMenu` (how the
   list is shown, as Group by), `ListSortMenu`, and `ResultCount` with `ClearFiltersButton`
   inside a `ListToolbarStatus` (the two wrap together, so Clear never starts a line); the
   Properties list, the Portals overview and All properties compose them and write the
