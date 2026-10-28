@@ -26,12 +26,15 @@ import {
   propertiesQuery,
   propertySetupSummariesQuery,
 } from '#/routes/-queries/route-queries'
-import {
-  LIFETIME,
-  LIST_GRACE_MS,
-  fleetQuery,
-  prefetchPropertyList,
-} from './-properties-prefetch'
+import { LIFETIME, fleetQuery } from './-properties-prefetch'
+
+/**
+ * How long the list waits for its figures and its setup progress once the
+ * layout's list is in. Both reads start together, so it is the slower of the
+ * two, never longer. Counted from the loader's start, so the chunk fetch below
+ * is inside it.
+ */
+const LIST_GRACE_MS = 300
 
 export const Route = createFileRoute('/_authenticated/properties/')({
   staticData: { page: { title: 'Properties', tier: 'dashboard', loading: 'list' } },
@@ -49,9 +52,15 @@ export const Route = createFileRoute('/_authenticated/properties/')({
   // Fresh for a minute, so typing a search (a search-only navigation) does not
   // run the loader again for every key.
   staleTime: 60_000,
+  // Route loaders are eager (first paint), so the prefetch and the fleet read it
+  // starts load on demand, as the Goals routes do. A chunk that fails to load
+  // costs the figures only: the page's own chunk reports that failure.
   loader: async ({ context }) => {
+    const primed = import('./-properties-prefetch')
+      .then(({ prefetchPropertyList }) => prefetchPropertyList(context.queryClient))
+      .catch(() => undefined)
     await Promise.race([
-      prefetchPropertyList(context.queryClient),
+      primed,
       new Promise((resolve) => setTimeout(resolve, LIST_GRACE_MS)),
     ])
   },

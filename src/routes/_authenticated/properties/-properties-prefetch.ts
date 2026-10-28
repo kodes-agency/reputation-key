@@ -46,13 +46,6 @@ export const fleetQuery = (timeRange: TimeRangePreset) =>
   })
 
 /**
- * How long the list waits for its figures and its setup progress once the
- * layout's list is in. Both reads start together, so it is the slower of the
- * two, never longer.
- */
-export const LIST_GRACE_MS = 300
-
-/**
  * Starts the fleet read (its first page; the page reads the rest) and the setup
  * summaries together. Settles once both have, whichever way: a denied or failed
  * read leaves its columns unavailable on the page, as before, never the page in
