@@ -51,6 +51,15 @@ function useSidebar() {
   return context
 }
 
+/**
+ * The sidebar state when there is one, else `null`. For a surface that sizes
+ * itself by the room the sidebar leaves (the Inbox) and is also rendered
+ * without a shell: in Storybook and in tests.
+ */
+function useSidebarIfPresent() {
+  return React.useContext(SidebarContext)
+}
+
 function SidebarProvider({
   defaultOpen = true,
   open: openProp,
@@ -713,4 +722,5 @@ export {
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
+  useSidebarIfPresent,
 }

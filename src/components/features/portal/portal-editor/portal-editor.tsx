@@ -69,8 +69,8 @@ export function PortalEditor({ resources, requestedSection }: Props) {
     [],
   )
   // A click on a part of the preview opens its section, as its link in the list
-  // does, and brings that section into view: below lg the preview sits under
-  // the form, far from where the section opens.
+  // does, and brings that section into view: in a narrow editor the preview
+  // sits under the form, far from where the section opens.
   const openSection = (next: PreviewPartSection) =>
     void navigate({
       to: '/properties/$propertyId/portals/$portalId',
@@ -79,9 +79,11 @@ export function PortalEditor({ resources, requestedSection }: Props) {
     }).then(() => revealEditorSection(panel.current))
 
   return (
-    // The form and its preview sit side by side from lg (iPad landscape, a
-    // small laptop), so an edit is seen as it is typed; the section list joins
-    // them as a column only where the container has room for three.
+    // The form and its preview sit side by side once the editor is 56rem wide,
+    // so an edit is seen as it is typed; the section list joins them as a column
+    // only where it is 80rem wide, room for three. These are container widths,
+    // not the window's: the app sidebar takes 256 px of a 1440 px window when it
+    // is open, and a viewport breakpoint cannot see that.
     <SectionNavLayout frame="rail">
       <PortalEditorNav
         propertyId={propertyId}
@@ -91,7 +93,7 @@ export function PortalEditor({ resources, requestedSection }: Props) {
         summaries={summaries}
         canEdit={canEdit}
       />
-      <div className="flex min-w-0 flex-1 flex-col lg:flex-row">
+      <div className="flex min-w-0 flex-1 flex-col @4xl:flex-row">
         <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-8">
           <div ref={panel} className="mx-auto max-w-2xl space-y-6">
             <PortalLookPreviewProvider setBrandPatch={setBrandPatch}>
@@ -106,7 +108,7 @@ export function PortalEditor({ resources, requestedSection }: Props) {
         </div>
         <aside
           aria-label="Live preview"
-          className="border-t bg-muted/20 px-4 py-5 md:px-8 lg:sticky lg:top-0 lg:max-h-dvh lg:w-[26rem] lg:shrink-0 lg:self-start lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-6 xl:w-[30rem]"
+          className="border-t bg-muted/20 px-4 py-5 md:px-8 @4xl:sticky @4xl:top-0 @4xl:max-h-dvh @4xl:w-[26rem] @4xl:shrink-0 @4xl:self-start @4xl:overflow-y-auto @4xl:border-t-0 @4xl:border-l @4xl:px-6 @6xl:w-[30rem]"
         >
           <PortalPreviewPane
             portalId={portal.id}

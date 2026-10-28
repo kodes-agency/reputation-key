@@ -661,9 +661,9 @@ export const NoMatchesOfferClearFilters: Story = {
   },
 }
 
-// The desktop workspace needs 48 px app rail + 224 px queue rail + 320 px list,
-// a 6 px separator, and 480 px detail. Until that 1078 px floor, use the
-// strip/sheet composition.
+// The desktop workspace needs 224 px queue rail + 320 px list, a 6 px separator,
+// and 472 px detail beside the app sidebar (1,070 px with the rail, 1,278 px
+// with it open). Until that floor, use the strip/sheet composition.
 export const TabletViewport: Story = {
   render: () => <InboxPageHarness ctx={orgCtx} inboxFns={makeInboxFns(container)} />,
   parameters: {

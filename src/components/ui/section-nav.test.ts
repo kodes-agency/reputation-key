@@ -260,7 +260,7 @@ describe('SectionNav', () => {
     it('waits for the wider container in the rail frame', () => {
       const html = nav({ frame: 'rail' })
 
-      expect(html).toContain('@6xl:flex-col')
+      expect(html).toContain('@7xl:flex-col')
       expect(html).not.toContain('@3xl:')
     })
 
@@ -303,7 +303,7 @@ describe('SectionNav', () => {
         }),
       )
 
-      expect(html).toContain('@6xl:flex-col')
+      expect(html).toContain('@7xl:flex-col')
     })
 
     it('declares the container the nav waits for, around the layout that changes', () => {

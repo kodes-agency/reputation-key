@@ -85,63 +85,68 @@ export function PortalReviewPage({
     })
   }
 
-  // One column below `lg`, in the order a manager decides in: the lists, what
-  // guests will see, then the footer that publishes, pinned to the bottom of the
-  // whole page so it is there under the phones too. From `lg` the lists and the
-  // footer are the left column and the phones stay in view beside them.
+  // One column in a narrow page, in the order a manager decides in: the lists,
+  // what guests will see, then the footer that publishes, pinned to the bottom of
+  // the whole page so it is there under the phones too. From a 56rem page the
+  // lists and the footer are the left column and the phones stay in view beside
+  // them. The page's own width decides, not the window's: the app sidebar takes
+  // 256 px of it when it is open. A container cannot restyle itself, so the outer
+  // element declares it and the inner one is the layout that changes.
   return (
-    <div className="flex min-h-full flex-col lg:grid lg:grid-cols-[34rem_minmax(0,1fr)] lg:grid-rows-[1fr_auto]">
-      <div
-        className={cn(
-          PAGE_GUTTER_X,
-          'min-w-0 space-y-8 py-5 md:py-6 lg:col-start-1 lg:row-start-1 lg:border-r',
-        )}
-      >
-        <ReviewChanges
-          review={review}
-          now={now}
-          timeZone={timeZone}
-          shownId={shown?.id ?? null}
-          onShow={show}
-          onSeeGuestPage={seeGuestPage}
-        />
-        <ReviewChecks
-          checks={review.checks}
-          languages={review.languages}
+    <div className="@container flex min-h-full flex-col">
+      <div className="flex flex-1 flex-col @4xl:grid @4xl:grid-cols-[34rem_minmax(0,1fr)] @4xl:grid-rows-[1fr_auto]">
+        <div
+          className={cn(
+            PAGE_GUTTER_X,
+            'min-w-0 space-y-8 py-5 md:py-6 @4xl:col-start-1 @4xl:row-start-1 @4xl:border-r',
+          )}
+        >
+          <ReviewChanges
+            review={review}
+            now={now}
+            timeZone={timeZone}
+            shownId={shown?.id ?? null}
+            onShow={show}
+            onSeeGuestPage={seeGuestPage}
+          />
+          <ReviewChecks
+            checks={review.checks}
+            languages={review.languages}
+            propertyId={propertyId}
+            portalId={portal.id}
+            whoCanFix={describeWhoCanFix(viewerId, fixPeople)}
+          />
+          <ReviewLanguages languages={review.languages} />
+          <ReviewStates
+            data={preview}
+            view={view}
+            onViewChange={setView}
+            languageCount={review.languages.length}
+          />
+        </div>
+        <aside
+          ref={guestPage}
+          className="min-w-0 flex-1 scroll-mt-4 border-t bg-muted/20 px-4 py-5 md:px-8 @4xl:sticky @4xl:top-0 @4xl:col-start-2 @4xl:row-span-2 @4xl:row-start-1 @4xl:max-h-full @4xl:self-start @4xl:overflow-y-auto @4xl:border-t-0"
+        >
+          <ReviewPreview
+            data={preview}
+            view={view}
+            onViewChange={setView}
+            onLocaleChange={setChosenLocale}
+            showRequest={shown ?? null}
+          />
+        </aside>
+        <ReviewFooter
+          view={describeReviewFooter(review)}
           propertyId={propertyId}
           portalId={portal.id}
-          whoCanFix={describeWhoCanFix(viewerId, fixPeople)}
-        />
-        <ReviewLanguages languages={review.languages} />
-        <ReviewStates
-          data={preview}
-          view={view}
-          onViewChange={setView}
-          languageCount={review.languages.length}
+          tab={tab}
+          section={section}
+          isPublishing={isPublishing}
+          onPublish={onPublish}
+          className="@4xl:col-start-1 @4xl:row-start-2 @4xl:border-r"
         />
       </div>
-      <aside
-        ref={guestPage}
-        className="min-w-0 flex-1 scroll-mt-4 border-t bg-muted/20 px-4 py-5 md:px-8 lg:sticky lg:top-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:max-h-full lg:self-start lg:overflow-y-auto lg:border-t-0"
-      >
-        <ReviewPreview
-          data={preview}
-          view={view}
-          onViewChange={setView}
-          onLocaleChange={setChosenLocale}
-          showRequest={shown ?? null}
-        />
-      </aside>
-      <ReviewFooter
-        view={describeReviewFooter(review)}
-        propertyId={propertyId}
-        portalId={portal.id}
-        tab={tab}
-        section={section}
-        isPublishing={isPublishing}
-        onPublish={onPublish}
-        className="lg:col-start-1 lg:row-start-2 lg:border-r"
-      />
     </div>
   )
 }
