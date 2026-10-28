@@ -128,6 +128,46 @@ is prompted: the rating stays here, read from Review's attested target permit,
 and Feed never sees one (ADR 0046 r.8). It is off by default, because
 shortening a target changes which cycles count as late.
 
+## Queues
+
+The rail is two titled sections and the shared views (ADR 0057, amended
+2026-10-28). Each queue is a key (`INBOX_QUEUES`, `application/inbox-queues.ts`)
+that `queueToFilters` turns into the list's own predicates, and the same
+predicates count it.
+
+| Section          | Rail row           | Key         | Holds                                                   |
+| ---------------- | ------------------ | ----------- | ------------------------------------------------------- |
+| Reviews          | Needs reply        | `reply`     | open Reviews outside the awaiting and waiting stages    |
+|                  | Awaiting approval  | `approval`  | open Reviews with a reply pending approval              |
+|                  | Waiting for Google | `waiting`   | open Reviews whose reply is approved or being published |
+|                  | Replied            | `replied`   | every closed Review                                     |
+| Private feedback | To handle          | `feedback`  | open private feedback                                   |
+|                  | Handled            | `handled`   | every closed private feedback                           |
+| (no heading)     | Mine               | `mine`      | open items assigned to the viewer, of both kinds        |
+|                  | Escalated          | `escalated` | every active unresolved escalation, of both kinds       |
+|                  | All open           | `open`      | every open item, of both kinds                          |
+
+`closed` (every closed item) is still a valid key but is no longer in the rail;
+the client reads `queue=closed` and `folder=closed` as `replied`. Replied and
+Handled are archives: they are never counted and carry no badge, so a manager's
+rail is one stage lookup and seven counts (five without reply stages), each equal
+to its list total.
+
+Without reply stages (`reply.manage` missing, or `property.publish_reply`
+unavailable) the Reviews section is one row, "Open", under the `reply` key, which
+then holds every open Review; `approval` and `waiting` are refused. The server
+functions pass the reply policy's answer for `reply` to the use cases as
+`replyQueuesEnabled`, as they always did for the counts, rather than refusing the
+request. Only a settled denial is that answer: a policy that cannot answer
+(`policy_unavailable`) refuses the request, so an outage never serves another set
+than the page is drawn for. The queue counts carry the answer as `replyStages`,
+and the browser draws the rail, the labels and the empty copy from it; its own
+permissions and capability set only guess until the counts arrive.
+
+A section is drawn for a viewer who can read its kind (`review.read`,
+`feedback.read`); All open only when both are visible. Private feedback stays in
+the rail when empty, so its empty state can say where feedback comes from.
+
 ## Runtime
 
 Source lifecycle facts arrive through durable, apply-once consumers. Inbox-owned

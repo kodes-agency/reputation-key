@@ -1,4 +1,5 @@
 import { Inbox } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
@@ -50,17 +51,23 @@ export function InboxListError({
 
 export function InboxListEmpty({
   queue,
+  hasReplyStages,
   isFiltered,
   searching,
   onClearFilters,
+  feedbackAction,
 }: Readonly<{
   queue: InboxQueue
+  /** Reply stages are available; without them the reply queue reads "Open". */
+  hasReplyStages: boolean
   isFiltered: boolean
   /** A search is among what narrowed the list, so Clear takes it away too. */
   searching: boolean
   onClearFilters: () => void
+  /** What an empty To handle queue offers beside its explanation. */
+  feedbackAction?: ReactNode
 }>) {
-  const copy = inboxEmptyCopy(queue, isFiltered)
+  const copy = inboxEmptyCopy(queue, isFiltered, hasReplyStages)
   return (
     <div className="p-4">
       <EmptyState
@@ -77,6 +84,8 @@ export function InboxListEmpty({
               searching={searching}
               onClear={onClearFilters}
             />
+          ) : queue === 'feedback' ? (
+            feedbackAction
           ) : undefined
         }
       />

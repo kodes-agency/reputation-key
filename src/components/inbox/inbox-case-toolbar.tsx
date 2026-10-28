@@ -412,7 +412,8 @@ export function InboxCaseToolbar({
     //   `[Closed ▾]` 103 + 36 + 36 = 175, plus `gap-3` and `Replied on time`
     //   109 = 296, so the fact ran 16 px under the right padding (336 / 320).
     //   `Needs attention` 137 + 72 + 12 + `Handle within 6 h` 120 = 341, the
-    //   fact wholly clipped (381 / 320).
+    //   fact wholly clipped (381 / 320). (The open feedback status now reads
+    //   `To handle`, a shorter word, so that sum is an upper bound.)
     //
     // So: `flex-wrap`, and the reply-due detail — the only item outside the
     // group — drops to a second line, still on the trailing edge (`ml-auto`

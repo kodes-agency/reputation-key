@@ -290,8 +290,8 @@ describe('the action a handling cycle offers', () => {
  * about which of those claims the data actually supports.
  */
 describe('the work-status chip for a feedback item', () => {
-  it('reads `Needs attention` while the cycle is open', () => {
-    expect(feedbackHandlingStatusLabel(CYCLE, 'open')).toBe('Needs attention')
+  it('reads `To handle` while the cycle is open, as the rail’s queue is named', () => {
+    expect(feedbackHandlingStatusLabel(CYCLE, 'open')).toBe('To handle')
   })
 
   it('names the recorded outcome once one closed the cycle', () => {
@@ -365,7 +365,7 @@ describe('the work-status chip for a feedback item', () => {
   // own status — `Closed — no outcome` would be a guess, and `Open`/`Closed`
   // would leak the review vocabulary onto a feedback item.
   it('reads the item status when the handling cycle is withheld', () => {
-    expect(feedbackHandlingStatusLabel(null, 'open')).toBe('Needs attention')
+    expect(feedbackHandlingStatusLabel(null, 'open')).toBe('To handle')
     expect(feedbackHandlingStatusLabel(null, 'closed')).toBe('Handled')
   })
 

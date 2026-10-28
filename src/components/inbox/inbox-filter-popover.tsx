@@ -9,6 +9,8 @@ import {
 } from '#/components/ui/popover'
 import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
 import { ListFilter } from 'lucide-react'
+import type { InboxQueue } from '#/contexts/inbox/application/public-api'
+import { filtersOffered } from './inbox-filter-offer'
 import { InboxFilterSelect } from './inbox-filter-select'
 import {
   ATTENTION_OPTIONS,
@@ -27,12 +29,15 @@ import { IconButton } from '#/components/ui/icon-button'
 const TITLE_ID = 'inbox-filter-popover-title'
 
 type Props = Readonly<{
+  /** The queue in view: a filter that cannot match in it is not offered. */
+  queue: InboxQueue
   value: InboxListFilterValues
   onChange: (patch: Partial<InboxListFilterValues>) => void
 }>
 
-export function InboxFilterPopover({ value, onChange }: Props) {
+export function InboxFilterPopover({ queue, value, onChange }: Props) {
   const activeCount = countActiveInboxFilters(value)
+  const offer = filtersOffered(queue)
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -69,61 +74,69 @@ export function InboxFilterPopover({ value, onChange }: Props) {
           />
         </PopoverHeader>
         <FieldGroup className="gap-4">
-          <InboxFilterSelect
-            label="Source"
-            value={value.sourceType ?? 'all'}
-            options={SOURCE_OPTIONS}
-            onChange={(sourceType) =>
-              onChange({
-                sourceType:
-                  sourceType === 'all'
-                    ? undefined
-                    : (sourceType as 'review' | 'feedback'),
-              })
-            }
-          />
-          <InboxFilterSelect
-            label="Priority"
-            value={value.attention ?? 'all'}
-            options={ATTENTION_OPTIONS}
-            onChange={(attention) =>
-              onChange({
-                attention:
-                  attention === 'all'
-                    ? undefined
-                    : (attention as InboxListFilterValues['attention']),
-              })
-            }
-          />
-          <InboxFilterSelect
-            label="Aspect"
-            value={value.aspect ?? 'all'}
-            options={[{ value: 'all', label: 'All aspects' }, ...ASPECT_OPTIONS]}
-            onChange={(aspect) =>
-              onChange({
-                aspect:
-                  aspect === 'all'
-                    ? undefined
-                    : (aspect as InboxListFilterValues['aspect']),
-              })
-            }
-          />
-          <InboxFilterSelect
-            label="Polarity"
-            value={value.polarity ?? 'all'}
-            options={[
-              { value: 'all', label: 'All polarities' },
-              ...ASPECT_POLARITY_OPTIONS,
-            ]}
-            onChange={(polarity) =>
-              onChange({
-                polarity:
-                  polarity === 'all'
-                    ? undefined
-                    : (polarity as InboxListFilterValues['polarity']),
-              })
-            }
-          />
+          {offer.source && (
+            <InboxFilterSelect
+              label="Source"
+              value={value.sourceType ?? 'all'}
+              options={SOURCE_OPTIONS}
+              onChange={(sourceType) =>
+                onChange({
+                  sourceType:
+                    sourceType === 'all'
+                      ? undefined
+                      : (sourceType as 'review' | 'feedback'),
+                })
+              }
+            />
+          )}
+          {offer.priority && (
+            <InboxFilterSelect
+              label="Priority"
+              value={value.attention ?? 'all'}
+              options={ATTENTION_OPTIONS}
+              onChange={(attention) =>
+                onChange({
+                  attention:
+                    attention === 'all'
+                      ? undefined
+                      : (attention as InboxListFilterValues['attention']),
+                })
+              }
+            />
+          )}
+          {offer.topics && (
+            <>
+              <InboxFilterSelect
+                label="Aspect"
+                value={value.aspect ?? 'all'}
+                options={[{ value: 'all', label: 'All aspects' }, ...ASPECT_OPTIONS]}
+                onChange={(aspect) =>
+                  onChange({
+                    aspect:
+                      aspect === 'all'
+                        ? undefined
+                        : (aspect as InboxListFilterValues['aspect']),
+                  })
+                }
+              />
+              <InboxFilterSelect
+                label="Polarity"
+                value={value.polarity ?? 'all'}
+                options={[
+                  { value: 'all', label: 'All polarities' },
+                  ...ASPECT_POLARITY_OPTIONS,
+                ]}
+                onChange={(polarity) =>
+                  onChange({
+                    polarity:
+                      polarity === 'all'
+                        ? undefined
+                        : (polarity as InboxListFilterValues['polarity']),
+                  })
+                }
+              />
+            </>
+          )}
           <InboxFilterSelect
             label="Rating"
             value={ratingValue(value)}

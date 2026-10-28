@@ -85,7 +85,7 @@ describe('inboxSearchSchema queue params', () => {
     expect(inboxSearchSchema.parse({ folder: 'escalated' })).toEqual({
       queue: 'escalated',
     })
-    expect(inboxSearchSchema.parse({ folder: 'closed' })).toEqual({ queue: 'closed' })
+    expect(inboxSearchSchema.parse({ folder: 'closed' })).toEqual({ queue: 'replied' })
   })
 
   it('prefers an explicit queue and drops retired platform state', () => {

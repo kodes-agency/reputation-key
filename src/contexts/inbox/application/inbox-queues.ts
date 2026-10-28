@@ -6,11 +6,17 @@ import {
   type ReplyQueueStage as InboxReplyStage,
 } from '#/shared/domain/reply-queue-stage'
 
+// `replied` and `handled` are the closed folders of the two kinds (ADR 0057,
+// amended 2026-10-28). `closed`, every closed item whatever its kind, stays a
+// valid key for API compatibility; the rail no longer lists it, and the client
+// reads an old `queue=closed` address as `replied`.
 export const INBOX_QUEUES = [
   'reply',
   'approval',
   'waiting',
+  'replied',
   'feedback',
+  'handled',
   'escalated',
   'mine',
   'closed',
@@ -40,16 +46,22 @@ export const REPLY_STAGE_QUEUES: ReadonlySet<InboxQueue> = new Set([
   'waiting',
 ])
 
+/** The queues that exist only with reply stages: `reply` is also "every open Review" without them. */
+const STAGE_ONLY_QUEUES: ReadonlySet<InboxQueue> = new Set(['approval', 'waiting'])
+
 export function queueToFilters(
   queue: InboxQueue,
   ctx: InboxQueueFilterContext,
 ): InboxFilters {
-  if (REPLY_STAGE_QUEUES.has(queue) && !ctx.canManageReplies) {
+  if (STAGE_ONLY_QUEUES.has(queue) && !ctx.canManageReplies) {
     throw inboxError('forbidden', 'Reply queues require reply.manage')
   }
 
   switch (queue) {
     case 'reply':
+      // Without reply stages the rail's one reply row reads "Open" and holds
+      // every open Review: no stage decides it, so no stage is withheld.
+      if (!ctx.canManageReplies) return { status: 'open', sourceType: 'review' }
       return {
         status: 'open',
         sourceType: 'review',
@@ -70,8 +82,12 @@ export function queueToFilters(
         sourceType: 'review',
         replyStage: { match: 'include', reviewIds: ctx.replyStages.waiting },
       }
+    case 'replied':
+      return { status: 'closed', sourceType: 'review' }
     case 'feedback':
       return { status: 'open', sourceType: 'feedback' }
+    case 'handled':
+      return { status: 'closed', sourceType: 'feedback' }
     case 'escalated':
       return { isEscalated: true }
     case 'mine':

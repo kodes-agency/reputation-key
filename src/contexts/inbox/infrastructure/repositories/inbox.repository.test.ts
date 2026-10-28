@@ -32,6 +32,7 @@ import {
   type InboxCommandAuthority,
 } from '../inbox-command-store'
 
+import { queueToFilters } from '../../application/inbox-queues'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -602,6 +603,72 @@ describe('inbox repository — queue predicates', () => {
         ORG_A,
       ),
     ).resolves.toBe(1)
+  })
+})
+
+describe('inbox repository — closed folders by kind', () => {
+  const repo = createInboxRepository(db, stubPorts)
+  const context = {
+    viewerId: USER_A,
+    canManageReplies: true,
+    replyStages: { awaiting: [], waiting: [] },
+  } as const
+
+  it('lists Replied and Handled apart, and counts each exactly as its list totals it', async () => {
+    const closedReview = makeInboxItem({ status: 'closed' })
+    const closedFeedback = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+      status: 'closed',
+    })
+    const openReview = makeInboxItem()
+    const openFeedback = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+    })
+    for (const item of [closedReview, closedFeedback, openReview, openFeedback]) {
+      await repo.create(item, ORG_A)
+    }
+
+    const folders = [
+      ['replied', closedReview],
+      ['handled', closedFeedback],
+    ] as const
+    for (const [queue, expected] of folders) {
+      const filters = queueToFilters(queue, context)
+      const [page, count] = await Promise.all([
+        repo.findFilteredPaginated(filters, ORG_A),
+        repo.countFiltered(filters, ORG_A),
+      ])
+
+      expect(page.items.map((item) => item.id)).toEqual([expected.id])
+      expect(count).toBe(page.totalCount)
+      expect(count).toBe(1)
+    }
+  })
+
+  it('reads the reply queue without stages as every open Review, and counts it as the list does', async () => {
+    const needsReply = makeInboxItem()
+    const awaiting = makeInboxItem()
+    const closed = makeInboxItem({ status: 'closed' })
+    const feedback = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+    })
+    for (const item of [needsReply, awaiting, closed, feedback]) {
+      await repo.create(item, ORG_A)
+    }
+
+    const filters = queueToFilters('reply', { ...context, canManageReplies: false })
+    const [page, count] = await Promise.all([
+      repo.findFilteredPaginated(filters, ORG_A),
+      repo.countFiltered(filters, ORG_A),
+    ])
+
+    expect(page.items.map((item) => item.id).sort()).toEqual(
+      [needsReply.id, awaiting.id].sort(),
+    )
+    expect(count).toBe(page.totalCount)
   })
 })
 

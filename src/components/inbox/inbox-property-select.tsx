@@ -28,6 +28,8 @@ type Props = Readonly<{
   scopeLabel: string
   /** The queue in view: its counts fill the list. */
   queue: InboxQueue
+  /** Reply stages are available; without them the reply queue reads "Open". */
+  hasReplyStages?: boolean
   /** `rail`: a full-width control above the queues. `header`: the list header's scope line. */
   placement: 'rail' | 'header'
   getInboxPropertyCounts: InboxServerFns['getInboxPropertyCounts']
@@ -75,13 +77,14 @@ export function InboxPropertySelect({
   scope,
   scopeLabel,
   queue,
+  hasReplyStages = true,
   placement,
   getInboxPropertyCounts,
 }: Props) {
   const [open, setOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const counts = useInboxPropertyCounts(queue, open, getInboxPropertyCounts)
-  const heading = `${queueLabel(queue)} by property`
+  const heading = `${queueLabel(queue, hasReplyStages)} by property`
   const choose = (value: string) => {
     setOpen(false)
     scope.onSelect(value === ALL_PROPERTIES ? null : value)

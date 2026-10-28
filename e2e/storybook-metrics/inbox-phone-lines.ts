@@ -1,11 +1,12 @@
-// The verdicts of the list-side phone grid: what a header, strip, chip row, row
-// and filter sheet must measure. Pure except `readRowInternals`, which runs in
+// The verdicts of the list-side phone grid: what a header, queue bar, chip row,
+// row and filter sheet must measure. Pure except `readRowInternals`, which runs in
 // the page, and the two `measure*` helpers, which call it. The tests that use
 // them, and the grid they enforce, are in `inbox-phone.metrics.ts`.
 
 import type { Page } from '@playwright/test'
 import {
   GUTTER_PX,
+  boxEndsOnGutter,
   boxStartsOnGutter,
   controlsAre,
   found,
@@ -27,9 +28,9 @@ import type { Finding } from './phone-story-tests'
 
 const BAR_PX = 44
 export const CONTROL_PX = 36
-/** A queue pill in the strip. */
-const PILL_PX = 32
 const ROW_PX = 78
+/** A queue row in the queue sheet: a touch row. */
+const QUEUE_ROW_PX = 44
 /** The checkbox column (20) and its gap (8) that the row text sits behind while selecting. */
 const SELECTING_TEXT_X = GUTTER_PX + 20 + 8
 /** The sheet caps at 85dvh. */
@@ -42,7 +43,8 @@ const PROPERTY_MIN_PX = 24
 const PROPERTY_CAP_RATIO = 0.4
 
 export const HEADER = '[data-inbox-list-header]'
-export const STRIP = 'nav[aria-label="Queues"]'
+export const QUEUE_BAR = '[data-inbox-queue-bar]'
+export const QUEUE_SHEET = '[data-inbox-queue-sheet]'
 export const ROW = '[data-inbox-list-row]'
 export const ACTIVE_FILTERS = '[role="group"][aria-label="Active filters"]'
 const SHEET = '[data-slot="sheet-content"]'
@@ -62,12 +64,89 @@ export function headerLines(
   ]
 }
 
-export function stripLines(nav: ScopeReport, view: PageReport): ReadonlyArray<string> {
+/**
+ * The phone's queue bar (ADR 0057, amended 2026-10-28): a 44 px bar holding a
+ * queue button and, when the other kind has open work, a chip. Both are 36 px
+ * controls with their BOX on the gutter (an outline button and a pill are
+ * boxes), the button at the start and the chip at the end, and they never touch.
+ */
+export function queueBarLines(bar: ScopeReport, view: PageReport): ReadonlyArray<string> {
+  const [button, chip] = bar.controls
   return [
-    ...found(nav, 'the queue strip'),
-    ...heightIs('the queue strip', nav.box, BAR_PX),
-    ...spansWindow('the queue strip', nav.box, view),
-    ...controlsAre(nav.controls, PILL_PX),
+    ...found(bar, 'the queue bar'),
+    ...heightIs('the queue bar', bar.box, BAR_PX),
+    ...spansWindow('the queue bar', bar.box, view),
+    ...controlsAre(bar.controls, CONTROL_PX),
+    ...(bar.scrollWidth > bar.clientWidth
+      ? [
+          `the queue bar overflows: ${bar.scrollWidth} px of content in ${bar.clientWidth}`,
+        ]
+      : []),
+    ...(button === undefined
+      ? ['the queue bar has no queue button']
+      : [
+          ...boxStartsOnGutter('the queue button', button.box),
+          ...insideWindow('the queue button', button.box, view),
+        ]),
+    ...(chip === undefined
+      ? []
+      : [
+          ...boxEndsOnGutter('the chip', chip.box, view),
+          ...(button !== undefined && button.box.right > chip.box.left - 1
+            ? [
+                `the queue button ends at x=${button.box.right}, over the chip that starts at x=${chip.box.left}`,
+              ]
+            : []),
+        ]),
+  ]
+}
+
+/** The queue sheet's rows are 44 px touch rows, and the sections are headed. */
+export function queueSheetLines(
+  sheet: ScopeReport,
+  headings: ReadonlyArray<string>,
+  view: PageReport,
+): ReadonlyArray<string> {
+  const rows = sheet.controls.filter((control) => control.name !== 'Close')
+  return [
+    ...found(sheet, 'the queue sheet'),
+    ...insideWindow('the queue sheet', sheet.box, view),
+    ...spansWindow('the queue sheet', sheet.box, view),
+    ...(Math.abs(sheet.box.bottom - view.innerHeight) > 0.5
+      ? [
+          `the queue sheet ends at y=${sheet.box.bottom}, not on the window's bottom edge ${view.innerHeight}`,
+        ]
+      : []),
+    ...(sheet.box.height > view.innerHeight * SHEET_MAX_HEIGHT_RATIO + 1
+      ? [
+          `the queue sheet is ${sheet.box.height} px tall, over ${SHEET_MAX_HEIGHT_RATIO * 100}% of the ${view.innerHeight} px window`,
+        ]
+      : []),
+    ...(sheet.scrollWidth > sheet.clientWidth
+      ? [`the queue sheet scrolls sideways: ${sheet.scrollWidth}/${sheet.clientWidth}`]
+      : []),
+    ...(rows.length === 0 ? ['the queue sheet lists no queue'] : []),
+    // A touch row is at least the 44 px a sheet's rows are; the whole row is the target.
+    ...rows
+      .filter((row) => row.box.height < QUEUE_ROW_PX - 0.5)
+      .map(
+        (row) =>
+          `queue row "${row.name}" is ${row.box.height} px tall, under ${QUEUE_ROW_PX}`,
+      ),
+    ...rows
+      .filter(
+        (row) =>
+          row.box.left < GUTTER_PX - 1 || row.box.right > view.innerWidth - GUTTER_PX + 1,
+      )
+      .map(
+        (row) =>
+          `queue row "${row.name}" is x=${row.box.left}..${row.box.right}, across a ${GUTTER_PX} px gutter`,
+      ),
+    ...(headings.join('|') === 'Reviews|Private feedback'
+      ? []
+      : [
+          `the queue sheet headings are "${headings.join('", "')}", expected Reviews and Private feedback`,
+        ]),
   ]
 }
 
@@ -90,6 +169,8 @@ export function activeFilterLines(
 /** What a row draws that the box test cannot see: icons squeezed, the property crowded out. */
 type RowInternals = Readonly<{
   icon: number | null
+  /** The line starts with a "Private" badge: a feedback row, whose mark is the badge. */
+  hasBadge: boolean
   nameWidth: number | null
   /** The name's full text width, which is more than `nameWidth` once it truncates. */
   nameTextWidth: number | null
@@ -104,8 +185,11 @@ type RowInternals = Readonly<{
 function readRowInternals(rowSelector: string): ReadonlyArray<RowInternals> {
   return Array.from(document.querySelectorAll(rowSelector)).map((row) => {
     const open = row.querySelector('button[aria-label^="Open "]')
-    const icon = open?.querySelector('svg') ?? null
-    const identity = icon?.parentElement ?? null
+    const identity = open?.querySelector('[data-inbox-row-identity]') ?? null
+    // The rating star: a direct child of the line. A private feedback row's
+    // "Private" badge holds its own 12 px glyph inside the badge, which is not it.
+    const icon = identity?.querySelector(':scope > svg') ?? null
+    const hasBadge = identity?.querySelector('[data-slot="badge"]') != null
     const parts = identity ? Array.from(identity.children) : []
     const property = parts.find((part) => (part.textContent ?? '').startsWith('·'))
     const name = property ? property.previousElementSibling : null
@@ -127,6 +211,7 @@ function readRowInternals(rowSelector: string): ReadonlyArray<RowInternals> {
         ?.parentElement?.getBoundingClientRect() ?? null
     return {
       icon: icon ? icon.getBoundingClientRect().width : null,
+      hasBadge,
       nameWidth: name ? name.getBoundingClientRect().width : null,
       nameTextWidth: name ? name.scrollWidth : null,
       propertyWidth: property ? property.getBoundingClientRect().width : null,
@@ -176,7 +261,9 @@ export function rowLines(
       ...atRest,
       ...inkStaysInsideGutter(what, row.ink, view),
       ...(inner?.icon == null
-        ? [`${what} has no leading icon to measure`]
+        ? inner?.hasBadge
+          ? []
+          : [`${what} has no leading icon to measure`]
         : inner.icon < ROW_ICON_MIN_PX
           ? [`${what}'s leading icon shrank to ${inner.icon} px`]
           : []),

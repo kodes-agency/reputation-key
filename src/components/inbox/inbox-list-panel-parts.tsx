@@ -21,6 +21,8 @@ import { countActiveInboxFilters } from './inbox-filters'
 
 export interface InboxListPanelProps {
   queue: InboxQueue
+  /** Reply stages are available; without them the reply queue reads "Open". */
+  hasReplyStages: boolean
   queueLabel: string
   scopeLabel: string
   /** The header's scope control, when the scope can be changed from the list. */
@@ -68,7 +70,14 @@ export interface InboxListPanelProps {
   isCompactLayout: boolean
   selectionMode?: boolean
   onStartSelection?: () => void
-  queueStrip?: ReactNode
+  /** The phone's queue bar, between the header and the list. */
+  queueBar?: ReactNode
+  /**
+   * What the empty To handle queue offers beside its explanation (a way to set up
+   * the page feedback comes from). Mounted only while that state shows, so what it
+   * reads is read only then.
+   */
+  feedbackEmptyAction?: ReactNode
 }
 
 /** Picks the scroll-area content (skeleton / error / empty / list). Kept as a
@@ -94,9 +103,11 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
     return (
       <InboxListEmpty
         queue={props.queue}
+        hasReplyStages={props.hasReplyStages}
         isFiltered={!!props.searchQ || countActiveInboxFilters(props.filters) > 0}
         searching={!!props.searchQ}
         onClearFilters={props.onClearFilters}
+        feedbackAction={props.feedbackEmptyAction}
       />
     )
   }

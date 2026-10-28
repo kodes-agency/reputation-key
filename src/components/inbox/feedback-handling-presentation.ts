@@ -106,7 +106,10 @@ const isPermanentlyUnhandleableClose = (
 
 /**
  * The case strip's work-status chip for a private-feedback item (row 10):
- * `Needs attention` / `Handled · <outcome>` / `Closed — no outcome`.
+ * `To handle` / `Handled · <outcome>` / `Closed — no outcome`. An open item
+ * reads `To handle`, the name of the rail's queue it sits in (ADR 0057, amended
+ * 2026-10-28; it read `Needs attention` before, which the AI's flag under a
+ * review's topics also says).
  *
  * The outcome is `currentOutcome`, and `currentOutcome` is `history.at(-1)`
  * over the CURRENT cycle ordered by `outcomeRevision`
@@ -114,7 +117,7 @@ const isPermanentlyUnhandleableClose = (
  * matter. A correction SUPERSEDES rather than rewrites — it appends a fact
  * carrying `supersedesOutcomeId` and a higher revision — so the corrected
  * outcome is already what this reads and nothing has to walk `history`. And the
- * cycle scope is why a reopened item reads `Needs attention` again instead of
+ * cycle scope is why a reopened item reads `To handle` again instead of
  * the outcome that closed cycle 1: cycle 2 arrives `open`, with an empty history
  * and a null `currentOutcome`, while the prior cycle's facts stay in Handling
  * History where the thread shows them.
@@ -153,7 +156,7 @@ export function feedbackHandlingStatusLabel(
 ): string {
   // Handled-vs-open comes from the handling cycle when the caller may read it,
   // and from the item's own status when it is withheld.
-  if ((handling?.status ?? itemStatus) !== 'closed') return 'Needs attention'
+  if ((handling?.status ?? itemStatus) !== 'closed') return 'To handle'
 
   const recorded = handling?.currentOutcome
   if (recorded) {

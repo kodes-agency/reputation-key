@@ -5,10 +5,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import {
-  getExecutionPolicy,
-  requireExecutionAllowed,
-} from '#/shared/auth/execution-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -43,6 +40,7 @@ import type { Permission } from '#/shared/domain/permissions'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import { requirePortalResourceScope } from './property-scope'
 import { checkPortalAddressRateLimit } from './portal-address-rate-limit.server'
+import { listAuthorizedPortalPropertyIds } from './authorized-portal-properties.server'
 
 // ── Error → HTTP status mapping ───────────────────────────────────
 
@@ -358,33 +356,6 @@ async function authorizePortalResource(
       throwContextError('PortalError', error, portalErrorStatus(error.code))
     throw error
   }
-}
-
-async function listAuthorizedPortalPropertyIds(
-  ctx: AuthContext,
-): Promise<readonly string[]> {
-  const container = getContainer()
-  const { management: useCases } = container.portalPublicApi
-  const { clock } = container
-  const propertyIds = await useCases.listPortalManagementPropertyIds(ctx.organizationId)
-  const observedAt = clock()
-  const decisions = await Promise.all(
-    propertyIds.map(async (propertyId) => ({
-      propertyId,
-      decision: await getExecutionPolicy().decide({
-        principal: { kind: 'user', ctx },
-        action: 'portal.read',
-        capability: 'portal.read',
-        organizationId: ctx.organizationId,
-        propertyId,
-        executionKind: 'interactive',
-        now: observedAt,
-      }),
-    })),
-  )
-  return decisions
-    .filter(({ decision }) => decision.allowed)
-    .map(({ propertyId }) => propertyId)
 }
 
 // ── createPortal ───────────────────────────────────────────────────

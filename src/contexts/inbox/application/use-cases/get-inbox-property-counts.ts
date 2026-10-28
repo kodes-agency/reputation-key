@@ -26,7 +26,15 @@ export type InboxPropertyCounts = Readonly<{
   byProperty: Readonly<Record<string, number>>
 }>
 
-export type GetInboxPropertyCountsInput = Readonly<{ queue: InboxQueue }>
+export type GetInboxPropertyCountsInput = Readonly<{
+  queue: InboxQueue
+  /**
+   * Trusted boundary decision, as for the queue counts: false means reply stages
+   * are unavailable, so the reply queue is every open Review and the stage
+   * queues are refused.
+   */
+  replyQueuesEnabled?: boolean
+}>
 
 export type GetInboxPropertyCountsDeps = Readonly<{
   repo: InboxRepository
@@ -41,20 +49,22 @@ export type GetInboxPropertyCounts = (
 
 export const getInboxPropertyCounts =
   (deps: GetInboxPropertyCountsDeps): GetInboxPropertyCounts =>
-  async ({ queue }, ctx) => {
-    const isReplyStageQueue = REPLY_STAGE_QUEUES.has(queue)
-    const canManageReplies = canForContext(ctx, 'reply.manage')
-    // Refused before any read, with the list's own error for the same queue.
-    if (isReplyStageQueue && !canManageReplies) {
+  async ({ queue, replyQueuesEnabled }, ctx) => {
+    const canManageReplies =
+      replyQueuesEnabled !== false && canForContext(ctx, 'reply.manage')
+    // Refused before any read, with the list's own error for the same queue:
+    // `reply` alone survives without stages, as every open Review.
+    if (REPLY_STAGE_QUEUES.has(queue) && queue !== 'reply' && !canManageReplies) {
       throw inboxError('forbidden', 'Reply queues require reply.manage')
     }
 
     const scope = await resolveInboxCountScope(deps.staffPublicApi, ctx)
     if (scope === null) return { queue, total: 0, byProperty: {} }
 
-    const replyStages = isReplyStageQueue
-      ? await findScopeReplyStages(deps.replyLookup, ctx, scope)
-      : NO_REPLY_STAGES
+    const replyStages =
+      canManageReplies && REPLY_STAGE_QUEUES.has(queue)
+        ? await findScopeReplyStages(deps.replyLookup, ctx, scope)
+        : NO_REPLY_STAGES
     const rows = await deps.repo.countFilteredByProperty(
       {
         ...queueToFilters(queue, {

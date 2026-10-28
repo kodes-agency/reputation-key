@@ -123,6 +123,8 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
   'pages-inbox--escalated-folder': 'no item is open: the page shows only the list panel',
   'pages-inbox--no-org': 'no item is open: the page shows only the list panel',
   'pages-inbox--empty-list': 'no item is open: the page shows only the list panel',
+  'pages-inbox--empty-feedback-queue':
+    'no item is open: the page shows the rail and the empty To handle state, measured by Inbox/Queue Rail',
   'pages-inbox--successful-load-stamps-visit':
     'no item is open: the page shows only the list panel',
   'pages-inbox--failed-load-preserves-visit-watermark':
@@ -135,7 +137,7 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
     'no item is open: the page shows the rail and the list panel; the rail is measured by Inbox/Queue Rail',
   'pages-inbox--long-content': 'no item is open: the page shows only the list panel',
   'pages-inbox--mobile-viewport':
-    'no item is open, and its play drives the phone layout (queue strip, Select items), which throws at 1440: the phone list (header, queue strip, rows) is measured on the grid by inbox-phone.metrics.ts at 320 and 390; the detail sheet by Inbox/Mobile 390',
+    'no item is open, and its play drives the phone layout (queue bar, Select items), which throws at 1440: the phone list (header, queue bar, rows) is measured on the grid by inbox-phone.metrics.ts at 320 and 390; the detail sheet by Inbox/Mobile 390',
   'pages-inbox--mobile-filtered-viewport':
     'no item is open, and it is a phone story: the list with its active-filter chips is measured on the grid by inbox-phone.metrics.ts at 320 and 390',
   'pages-inbox--mobile-removing-every-filter':
@@ -154,6 +156,8 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
 
 /** Whole titles under `src/components/inbox/` measured nowhere, and why. */
 export const EXCLUDED_TITLES: Readonly<Record<string, string>> = {
+  'Inbox/Feedback Setup':
+    'one link button in the empty To handle state, shown or not by what the Portal presence read answers: no pane, nothing to press but a link; the empty state around it is pages-inbox--empty-feedback-queue',
   'Inbox/Hooks/Open item across queue moves':
     'a hook harness: three status paragraphs and three story buttons, drawn by the story to drive the hook — no product surface to measure',
   'Inbox/Real Logic (In-Memory)':

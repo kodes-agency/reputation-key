@@ -312,7 +312,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
 
     // CORRECT THE OUTCOME — a superseding fact. The completion time and the
     // timing result are the two things a correction must never rewrite.
-    await page.goto(`/inbox?queue=closed&itemId=${handled.inboxItemId}`)
+    await page.goto(`/inbox?queue=handled&itemId=${handled.inboxItemId}`)
     // `Current outcome` was the card's outcome box; the recorded outcome is a
     // thread event now, and the gate is the correction control itself.
     await expect(page.getByRole('button', { name: 'Correct outcome' })).toBeVisible({
@@ -397,7 +397,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     ).toBe(true)
 
     // WITHDRAWN — a separate item that must claim no manager handling at all.
-    await page.goto(`/inbox?queue=closed&itemId=${withdrawn.inboxItemId}`)
+    await page.goto(`/inbox?queue=handled&itemId=${withdrawn.inboxItemId}`)
     await expect(
       page.getByText(
         'This feedback was withdrawn by the guest. No manager outcome was recorded.',
@@ -472,7 +472,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
 
     // Reloading the stale tab shows the CURRENT state, not its own attempt.
     await stale.reload()
-    await stale.goto(`/inbox?queue=closed&itemId=${item.inboxItemId}`)
+    await stale.goto(`/inbox?queue=handled&itemId=${item.inboxItemId}`)
     await expect(stale.getByText('Follow-up completed').first()).toBeVisible({
       timeout: 15_000,
     })

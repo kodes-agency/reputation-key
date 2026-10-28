@@ -4,7 +4,7 @@ import type {
   MetricKPIValue,
   RatingKPIValue,
 } from '#/contexts/reporting/application/public-api'
-import { reviewId } from '#/shared/domain/ids'
+import { inboxItemId, reviewId } from '#/shared/domain/ids'
 
 // Seed data for property-dashboard.stories.tsx — extracted for line-count compliance.
 export const property = {
@@ -112,6 +112,8 @@ export const populatedDashboard: DashboardData = {
       snippet: 'Amazing service and spotless rooms!',
       reviewedAt: new Date('2026-07-01T10:00:00Z'),
       replyStatus: 'published',
+      // Opens its own item in the Inbox; the second review has none for this reader.
+      inboxItemId: inboxItemId('30000000-0000-4000-8000-000000000001'),
     },
     {
       id: reviewId('rev-00000000-0000-0000-0000-000000000002'),
@@ -119,6 +121,7 @@ export const populatedDashboard: DashboardData = {
       snippet: 'Slow response from the front desk.',
       reviewedAt: new Date('2026-06-28T14:30:00Z'),
       replyStatus: 'none',
+      inboxItemId: null,
     },
   ],
 }

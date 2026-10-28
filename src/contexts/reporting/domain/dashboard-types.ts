@@ -2,7 +2,7 @@
 // Read-only aggregation surface. No domain rules, no events, no writes.
 
 import { ok, err, type Result } from '#/shared/domain'
-import type { ReviewId } from '#/shared/domain/ids'
+import type { InboxItemId, ReviewId } from '#/shared/domain/ids'
 
 import type { PortalResultsSeries, PortalVersionMarker } from './portal-results-series'
 import type { GoogleNumbersView } from './google-numbers'
@@ -122,6 +122,14 @@ export type RecentReview = Readonly<{
   snippet: string
   reviewedAt: Date
   replyStatus: DashboardReplyStatus
+  /**
+   * The Inbox item that opens this review for the reader, so the row can link
+   * to it. Reporting never reads Inbox tables: the Property overview fills it
+   * in through the Inbox's own lookup (`getReviewInboxItemIds`), and it is null
+   * where the reader has no item to open. Absent from every other read, which
+   * links nothing.
+   */
+  inboxItemId?: InboxItemId | null
 }>
 
 // ─── Full Dashboard Response ───

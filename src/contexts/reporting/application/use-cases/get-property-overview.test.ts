@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
 import { getDashboardData } from './get-dashboard-data'
 import { getPropertyOverview } from './get-property-overview'
+import type { GetReviewInboxItemIds } from '#/contexts/inbox/application/use-cases/get-review-inbox-item-ids'
 import type { MetricKPIValue } from '../../domain/dashboard-types'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
@@ -25,6 +26,9 @@ const allTime = {
   startDate: new Date('2020-01-01T00:00:00.000Z'),
   timeRange: 'all' as const,
 }
+
+/** An Inbox that opens none of the reviews, for the tests that are not about links. */
+const NO_INBOX_ITEMS = { getReviewInboxItemIds: async () => new Map() }
 
 const metricKpi = (value: number, priorValue: number, trend: number): MetricKPIValue => ({
   value,
@@ -100,6 +104,7 @@ describe('getPropertyOverview', () => {
           ])
         },
       },
+      inboxItems: NO_INBOX_ITEMS,
       clock: () => NOW,
       googleNumbers: async () => null,
     })
@@ -141,6 +146,7 @@ describe('getPropertyOverview', () => {
         }),
       },
       inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
+      inboxItems: NO_INBOX_ITEMS,
       clock: () => NOW,
       googleNumbers,
     })
@@ -170,6 +176,7 @@ describe('getPropertyOverview', () => {
       propertyAccess: grantsElsewhere,
       attention: { getAttentionCounts },
       inboxTargets: { getGoogleReviewTargetCountsByProperty },
+      inboxItems: NO_INBOX_ITEMS,
       clock: () => NOW,
       googleNumbers,
     })
@@ -198,6 +205,7 @@ describe('getPropertyOverview', () => {
       propertyAccess: grantsHere,
       attention: { getAttentionCounts },
       inboxTargets: { getGoogleReviewTargetCountsByProperty },
+      inboxItems: NO_INBOX_ITEMS,
       clock: () => NOW,
       googleNumbers: async () => null,
     })
@@ -228,6 +236,7 @@ describe('getPropertyOverview', () => {
         }),
       },
       inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
+      inboxItems: NO_INBOX_ITEMS,
       clock: () => NOW,
       googleNumbers: async () => null,
     })
@@ -236,5 +245,76 @@ describe('getPropertyOverview', () => {
     const overview = await getOverview(last30Days, manager)
 
     expect(overview.signals).toMatchObject({ itemsToTriage: 7, escalated: 2 })
+  })
+})
+
+describe('getPropertyOverview recent reviews', () => {
+  const REVIEW_WITH_ITEM = reviewId('60000000-0000-4000-8000-00000000000a')
+  const REVIEW_WITHOUT_ITEM = reviewId('60000000-0000-4000-8000-00000000000b')
+  const ITEM = inboxItemId('70000000-0000-4000-8000-00000000000a')
+
+  const recentReview = (id: ReturnType<typeof reviewId>) => ({
+    id,
+    rating: 2,
+    snippet: 'The room was not ready.',
+    reviewedAt: new Date('2026-08-24T10:00:00.000Z'),
+    replyStatus: 'none' as const,
+  })
+
+  const overviewWith = (
+    getReviewInboxItemIds: GetReviewInboxItemIds,
+    reviews = [recentReview(REVIEW_WITH_ITEM), recentReview(REVIEW_WITHOUT_ITEM)],
+  ) => {
+    const repo = {
+      ...createInMemoryDashboardRepository(),
+      getRecentReviews: async () => reviews,
+    }
+    return getPropertyOverview({
+      getDashboardData: getDashboardData({ repo, propertyAccess: async () => null }),
+      propertyAccess: async () => null,
+      attention: {
+        getAttentionCounts: async () => ({
+          overdue: 0,
+          itemsToTriage: 0,
+          escalated: 0,
+          goalsBehindPace: 0,
+          attentionWork: 0,
+        }),
+      },
+      inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
+      inboxItems: { getReviewInboxItemIds },
+      clock: () => NOW,
+      googleNumbers: async () => null,
+    })
+  }
+
+  it('gives each recent review the Inbox item that opens it, in one lookup', async () => {
+    // Arrange
+    const lookup = vi.fn<GetReviewInboxItemIds>(
+      async () => new Map([[REVIEW_WITH_ITEM, ITEM]]),
+    )
+
+    // Act
+    const result = await overviewWith(lookup)(allTime, ADMIN)
+
+    // Assert: the item id is carried; a review the reader has no item for reads null.
+    expect(result.dashboard.recentReviews.map((r) => [r.id, r.inboxItemId])).toEqual([
+      [REVIEW_WITH_ITEM, ITEM],
+      [REVIEW_WITHOUT_ITEM, null],
+    ])
+    expect(lookup).toHaveBeenCalledOnce()
+    expect(lookup).toHaveBeenCalledWith(
+      { propertyId: PROPERTY, reviewIds: [REVIEW_WITH_ITEM, REVIEW_WITHOUT_ITEM] },
+      ADMIN,
+    )
+  })
+
+  it('asks the Inbox nothing when there is no recent review to open', async () => {
+    const lookup = vi.fn<GetReviewInboxItemIds>(async () => new Map())
+
+    const result = await overviewWith(lookup, [])(allTime, ADMIN)
+
+    expect(result.dashboard.recentReviews).toEqual([])
+    expect(lookup).not.toHaveBeenCalled()
   })
 })

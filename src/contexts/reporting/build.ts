@@ -183,7 +183,10 @@ export type ReportingContextBuildInput = Readonly<{
   reviewServingStats: ReviewServingStats
   /** Review's counts and star sums of current Google reviews (rating goal). */
   reviewGoogleRatingReads: ReviewGoogleRatingReads
-  inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
+  inboxTargets: Pick<
+    InboxPublicApi,
+    'getGoogleReviewTargetCountsByProperty' | 'getReviewInboxItemIds'
+  >
   guestResponseIntegrity: GetPortalAnalyticsDeps['responseIntegrity']
 }>
 
@@ -647,6 +650,7 @@ function buildDashboardModule(
     propertyAccess,
     attention: attentionSignals,
     inboxTargets: input.inboxTargets,
+    inboxItems: input.inboxTargets,
     clock: input.clock,
     googleNumbers: (organizationId, propertyId, now) =>
       readGoogleNumbers(googleNumbersDeps, organizationId, propertyId, now),

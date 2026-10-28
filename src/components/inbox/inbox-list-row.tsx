@@ -1,4 +1,4 @@
-import { MessageSquareText, Star, UserRoundCheck } from 'lucide-react'
+import { Star, UserRoundCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Checkbox } from '#/components/ui/checkbox'
 import { cn } from '#/lib/utils'
@@ -8,6 +8,7 @@ import type { InboxAssignmentOption } from './inbox-owner-view'
 import { inboxRowView } from './inbox-list-row-view'
 import { inboxRowFill, inboxRowSignalTone } from './inbox-list-row-tone'
 import { STAR_FILLED_CLASS } from './inbox-detail-helpers'
+import { PrivateBadge } from './inbox-kind-marker'
 import { formatExactTime } from './utils'
 
 type RowView = ReturnType<typeof inboxRowView>
@@ -89,15 +90,19 @@ function RowIdentity({
 }: Pick<InboxListRowProps, 'item' | 'allProperties'> & Readonly<{ view: RowView }>) {
   const showProperty = allProperties && Boolean(item.propertyName)
   return (
-    <span className="flex h-[18px] min-w-0 items-center gap-1 text-[13px] leading-[18px]">
-      {item.rating !== null ? (
+    <span
+      data-inbox-row-identity
+      className="flex h-[18px] min-w-0 items-center gap-1 text-[13px] leading-[18px]"
+    >
+      {/* Private feedback says so first, in the rail's words: with a rating it
+          printed the same gold star and number as a review. */}
+      {item.sourceType === 'feedback' && <PrivateBadge />}
+      {item.rating !== null && (
         <>
           <Star className={`size-3.5 shrink-0 ${STAR_FILLED_CLASS}`} aria-hidden="true" />
           <span className="tabular-nums">{item.rating}</span>
         </>
-      ) : item.sourceType === 'feedback' ? (
-        <MessageSquareText className="size-3.5 shrink-0" aria-hidden="true" />
-      ) : null}
+      )}
       {/* The guest name is what the row is about, so the PROPERTY is what is
           capped: it takes at most 40% of the line, and the name keeps the rest
           and truncates only when it alone does not fit. Capping the name

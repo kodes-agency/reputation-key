@@ -383,6 +383,9 @@ export const portalKeys = {
     ] as const,
   /** The All properties page: every Portal the reader may see, in one batch. */
   organizationOverview: () => [...portalKeys.all, 'organization', 'overview'] as const,
+  // Whether a scope has a Portal at all: the Inbox's empty feedback queue asks.
+  presence: (propertyId: string | undefined) =>
+    [...portalKeys.all, 'presence', propertyId ?? 'organization'] as const,
   /** Every window of the All properties results. */
   organizationResultsOverviewRoot: () =>
     [...portalKeys.all, 'organization', 'results-overview'] as const,

@@ -732,7 +732,7 @@ export const FeedbackOpen: Story = {
   play: async () => {
     const canvas = pane()
     expectTheMobileFrame(canvas)
-    await expect(canvas.getByText('Needs attention')).toBeVisible()
+    await expect(canvas.getByText('To handle')).toBeVisible()
     expectGuestMessage(canvas, 'Guest feedback', FEEDBACK_COMMENT)
     // One mode is not a choice, so region 4 drops the segment.
     await expect(canvas.queryAllByRole('tab')).toHaveLength(0)

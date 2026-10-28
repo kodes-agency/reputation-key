@@ -437,6 +437,39 @@ export const EmptyList: Story = {
   render: () => <InboxPageHarness ctx={orgCtx} inboxFns={makeInboxFns(emptyContainer)} />,
 }
 
+// Nothing to handle yet: the queue explains where private feedback comes from
+// and, for someone who may create a Portal and whose scope has none, offers to
+// set one up (ADR 0057, amended 2026-10-28). The Private feedback section itself
+// stays in the rail with nothing in it.
+const noPortalFns: InboxServerFns = {
+  ...makeInboxFns(emptyContainer),
+  getPortalPresence: async () => ({ hasPortal: false }),
+}
+
+export const EmptyFeedbackQueue: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      inboxFns={noPortalFns}
+      initialSearch={{ queue: 'feedback' }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(await canvas.findByText('No feedback to handle')).toBeVisible()
+    await expect(canvas.getByText(/private note from your guest page/)).toBeVisible()
+    const setup = await canvas.findByRole('link', { name: 'Set up a feedback page' })
+    // No Property is chosen here, so the organization's Portals page opens and
+    // asks which Property the new page is for.
+    await expect(setup).toHaveAttribute('href', '/portals')
+    await expect(
+      within(canvas.getByRole('navigation', { name: 'Queues' })).getByRole('button', {
+        name: /^To handle/,
+      }),
+    ).toHaveAttribute('aria-current', 'page')
+  },
+}
+
 const visitContainer = createInboxContainer()
 visitContainer.seed([
   makeInboxItem({ id: 'visit-1', sourceType: 'review', status: 'open', rating: 5 }),
@@ -496,7 +529,7 @@ export const Loading: Story = {
   render: () => <InboxPageHarness ctx={orgCtx} inboxFns={loadingFns} />,
 }
 
-// Mobile viewport (390×844): list + queue strip + detail sheet.
+// Mobile viewport (390×844): list + queue bar + detail sheet.
 //
 // This story used to install a `pinMobileBreakpoint` helper, under a comment
 // saying `parameters.viewport` "only resizes the preview iframe from the
@@ -518,11 +551,27 @@ export const MobileViewport: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const queues = await canvas.findByRole('navigation', { name: 'Queues' })
-    await expect(within(queues).findByText(/needs reply/i)).resolves.toBeVisible()
+    // The phone's queue bar: one button naming the queue in view, with its count,
+    // and a chip to the other kind's open queue (one open feedback item is seeded).
+    const queueButton = await canvas.findByRole('button', { name: /^Needs reply/ })
+    await expect(queueButton).toBeVisible()
+    await expect(
+      canvas.findByRole('button', { name: /^To handle/ }),
+    ).resolves.toBeVisible()
     await expect(
       canvas.findByRole('button', { name: 'Select items' }),
     ).resolves.toBeVisible()
+    // The rail's sections open in a sheet from the button, headings and all.
+    await userEvent.click(queueButton)
+    const sheet = await within(canvasElement.ownerDocument.body).findByRole('dialog', {
+      name: 'Queues',
+    })
+    await expect(within(sheet).getByText('Reviews')).toBeVisible()
+    await expect(within(sheet).getByText('Private feedback')).toBeVisible()
+    await userEvent.click(within(sheet).getByRole('button', { name: /^Replied/ }))
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: /^Replied/ })).toBeVisible(),
+    )
   },
 }
 
@@ -534,7 +583,12 @@ export const MobileFilteredViewport: Story = {
     <InboxPageHarness
       ctx={orgCtx}
       inboxFns={makeInboxFns(container)}
-      initialSearch={{ sourceType: 'review', ratingMax: 3, sort: 'oldest' }}
+      initialSearch={{
+        queue: 'open',
+        sourceType: 'review',
+        ratingMax: 3,
+        sort: 'oldest',
+      }}
     />
   ),
   parameters: {
@@ -581,7 +635,12 @@ export const MobileRemovingEveryFilter: Story = {
     <InboxPageHarness
       ctx={orgCtx}
       inboxFns={makeInboxFns(container)}
-      initialSearch={{ sourceType: 'review', ratingMax: 3, sort: 'oldest' }}
+      initialSearch={{
+        queue: 'open',
+        sourceType: 'review',
+        ratingMax: 3,
+        sort: 'oldest',
+      }}
     />
   ),
   parameters: {
@@ -624,7 +683,12 @@ export const MobileClearFilters: Story = {
     <InboxPageHarness
       ctx={orgCtx}
       inboxFns={makeInboxFns(container)}
-      initialSearch={{ sourceType: 'review', ratingMax: 3, sort: 'oldest' }}
+      initialSearch={{
+        queue: 'open',
+        sourceType: 'review',
+        ratingMax: 3,
+        sort: 'oldest',
+      }}
     />
   ),
   parameters: {
@@ -653,7 +717,7 @@ export const NoMatchesOfferClearFilters: Story = {
     <InboxPageHarness
       ctx={orgCtx}
       inboxFns={makeInboxFns(container)}
-      initialSearch={{ sourceType: 'feedback', ratingMin: 5 }}
+      initialSearch={{ queue: 'open', sourceType: 'feedback', ratingMin: 5 }}
     />
   ),
   play: async ({ canvasElement }) => {

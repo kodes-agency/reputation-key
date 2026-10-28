@@ -1,7 +1,7 @@
 // The Inbox's one h1 (UI consistency scan: FRAME-10). The queue's name was an h1 inside
 // a `max-md:hidden` box, so on a phone the page had no h1 at all (a `display: none`
 // heading is not in the outline). It stays in the page at every width and is only
-// drawn from `md`: the phone's queue strip names the queue on screen. Search and the
+// drawn from `md`: the phone's queue button names the queue on screen. Search and the
 // selection toolbar take the header over and the drawn heading with it, so the h1 is
 // then read and not drawn at every width, and the page still has exactly one.
 import { createElement } from 'react'
@@ -12,6 +12,7 @@ import { InboxListHeader } from './inbox-list-header'
 import { CLEARED_INBOX_LIST_FILTERS } from './inbox-filters'
 
 const baseProps = {
+  queue: 'reply',
   queueLabel: 'Needs reply',
   scopeLabel: 'Hotel Elegance',
   totalCount: 18,

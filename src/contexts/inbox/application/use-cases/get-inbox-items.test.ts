@@ -229,14 +229,95 @@ describe('getInboxItems', () => {
     expect(result.totalCount).toBe(0)
   })
 
-  it('refuses a reply-stage queue without reply.manage', async () => {
-    const { useCase } = setup()
+  it.each(['approval', 'waiting'] as const)(
+    'refuses the %s queue without reply.manage',
+    async (queue) => {
+      const { useCase } = setup()
 
-    await expect(
-      useCase({ filters: {}, queue: 'reply' }, dynamicCtx('inbox.read', 'review.read')),
-    ).rejects.toSatisfy(
-      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
-    )
+      await expect(
+        useCase({ filters: {}, queue }, dynamicCtx('inbox.read', 'review.read')),
+      ).rejects.toSatisfy(
+        (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+      )
+    },
+  )
+
+  describe('without reply stages, the reply queue is every open Review', () => {
+    // The rail's one reply row is then labelled "Open" (ADR 0057, amended 2026-10-28).
+    const seedMixed = (repo: ReturnType<typeof setup>['repo']) => {
+      const awaiting = seedItem({ id: 'ii-awaiting' })
+      const needsReply = seedItem({ id: 'ii-needs-reply' })
+      const closedReview = seedItem({ id: 'ii-closed-review', status: 'closed' })
+      const feedback = seedItem({
+        id: 'ii-open-feedback',
+        sourceType: 'feedback',
+        sourceId: feedbackId('fb-open-feedback'),
+      })
+      repo.items.push(awaiting, needsReply, closedReview, feedback)
+      return { awaiting, needsReply }
+    }
+
+    it('serves it to an actor without reply.manage, with no stage lookup', async () => {
+      const { useCase, repo, replyLookup } = setup()
+      const { awaiting, needsReply } = seedMixed(repo)
+
+      const result = await useCase(
+        { filters: {}, queue: 'reply' },
+        dynamicCtx('inbox.read', 'review.read', 'feedback.read'),
+      )
+
+      expect(result.items.map((item) => item.id).sort()).toEqual(
+        [awaiting.id, needsReply.id].sort(),
+      )
+      expect(result.totalCount).toBe(2)
+      expect(replyLookup.findReviewIdsByReplyStage).not.toHaveBeenCalled()
+    })
+
+    it('serves it when the boundary says reply publication is off, even to a manager', async () => {
+      const { useCase, repo, replyLookup } = setup()
+      const { awaiting, needsReply } = seedMixed(repo)
+
+      const result = await useCase(
+        { filters: {}, queue: 'reply', replyQueuesEnabled: false },
+        adminCtx,
+      )
+
+      expect(result.items.map((item) => item.id).sort()).toEqual(
+        [awaiting.id, needsReply.id].sort(),
+      )
+      expect(replyLookup.findReviewIdsByReplyStage).not.toHaveBeenCalled()
+    })
+
+    it('still refuses the stage queues when the boundary says publication is off', async () => {
+      const { useCase } = setup()
+
+      await expect(
+        useCase({ filters: {}, queue: 'approval', replyQueuesEnabled: false }, adminCtx),
+      ).rejects.toSatisfy(
+        (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+      )
+    })
+  })
+
+  it('lists closed Reviews under Replied and closed feedback under Handled', async () => {
+    const closedReview = seedItem({ id: 'ii-closed-review', status: 'closed' })
+    const closedFeedback = seedItem({
+      id: 'ii-closed-feedback',
+      status: 'closed',
+      sourceType: 'feedback',
+      sourceId: feedbackId('fb-closed-feedback'),
+    })
+    const openReview = seedItem({ id: 'ii-open-review' })
+    const { useCase, repo } = setup()
+    repo.items.push(closedReview, closedFeedback, openReview)
+
+    const replied = await useCase({ filters: {}, queue: 'replied' }, adminCtx)
+    const handled = await useCase({ filters: {}, queue: 'handled' }, adminCtx)
+
+    expect(replied.items.map((item) => item.id)).toEqual([closedReview.id])
+    expect(replied.totalCount).toBe(1)
+    expect(handled.items.map((item) => item.id)).toEqual([closedFeedback.id])
+    expect(handled.totalCount).toBe(1)
   })
 
   it('omits reply state when the actor lacks reply.manage', async () => {

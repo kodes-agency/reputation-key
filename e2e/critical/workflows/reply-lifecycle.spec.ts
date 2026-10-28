@@ -326,7 +326,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
       { timeoutMs: 30_000, description: 'inbox item auto-closed by the observation' },
     )
     await page.goto(
-      `/inbox?queue=closed&propertyId=${s.propertyId}&itemId=${s.inboxItemId}`,
+      `/inbox?queue=replied&propertyId=${s.propertyId}&itemId=${s.inboxItemId}`,
     )
     // The chip names the PROVIDER-confirmed state, not the internal status:
     // 'published' here means Google's own read-back showed the reply.

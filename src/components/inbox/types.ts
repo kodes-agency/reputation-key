@@ -54,7 +54,19 @@ export type InboxServerFns = Readonly<{
   checkReviewOnGoogle?: typeof checkReviewOnGoogleFn
   generateReplySuggestion?: typeof generateReplySuggestionFn
   requestReviewAnalysisNow?: typeof requestReviewAnalysisNowFn
+  /**
+   * Whether a scope has a Portal: the empty To handle queue offers a feedback
+   * page only where there is none. A plain function, not a server function's
+   * type, because the route fetches the server function with its first use
+   * (`routes/_authenticated/-inbox-fns.ts` says why).
+   */
+  getPortalPresence?: (
+    input: Readonly<{ data: { propertyId?: string } }>,
+  ) => Promise<PortalPresence>
 }>
+
+/** The answer to "does this scope have a Portal?": a yes or a no, nothing of any Portal. */
+export type PortalPresence = Readonly<{ hasPortal: boolean }>
 
 /** Functions consumed by the Inbox detail content subtree. */
 export type InboxDetailFns = Pick<

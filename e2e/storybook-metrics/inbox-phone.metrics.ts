@@ -1,6 +1,6 @@
 // The inbox's phone grid, on the list side: the list header and its search and
-// selection states, the queue strip, the rows, the active-filter chips and the
-// filter sheet. Run with `pnpm test:storybook:metrics`, against Storybook with
+// selection states, the queue bar and its sheet, the rows, the active-filter
+// chips and the filter sheet. Run with `pnpm test:storybook:metrics`, against Storybook with
 // Tailwind compiled, at 320 and 390 (the phones `inbox-detail.metrics.ts`
 // draws its panes at).
 //
@@ -8,9 +8,10 @@
 //
 //   1. a 16 px gutter: every bar, row and chip row starts its content at x=16
 //      and ends it at window - 16;
-//   2. bars are 44 px, the controls inside a bar 36 px (a removable chip is one,
-//      and the compact density holds it to the touch height), queue pills 32 px,
-//      the filter sheet's choice chips 36 px, list rows 78 px;
+//   2. bars are 44 px, the controls inside a bar 36 px (a removable chip, the
+//      queue button and its chip are, and the compact density holds them to the
+//      touch height), the queue sheet's rows 44 px, the filter sheet's choice
+//      chips 36 px, list rows 78 px;
 //   3. a ghost icon button at a bar's edge is pulled out so its GLYPH is on the
 //      gutter; a box (outline button, pill, chip) puts its BOX there.
 //
@@ -20,7 +21,7 @@
 // says what "on the gutter" means and how it is measured.
 //
 // Two kinds of story are measured. The COMPONENT stories draw one part alone
-// (`Inbox/List Header`, `Inbox/Queue Strip`, …); the PAGE stories
+// (`Inbox/List Header`, `Inbox/Queue Bar`, …); the PAGE stories
 // (`pages-inbox--mobile-*`) draw them together, and are the only place the
 // composition is checked: that the list panel is exactly the window wide (its
 // `border-r` used to leave every bar 1 px short of the edge) and that the
@@ -33,8 +34,7 @@
 // A story only counts here if Tailwind is what lays it out: the ones that draw
 // a part alone are `layout: 'fullscreen'` (a centered story shrink-wraps the
 // part and pads it), and a story's own layout scaffold may not stand in for the
-// classes (`inbox-queue-strip.stories.tsx` drops its scaffold when Tailwind is
-// compiled).
+// classes (the queue bar needs none).
 //
 // A red run prints one line per violation, with the measured number, and
 // attaches every measurement as `phone-grid.json`.
@@ -43,11 +43,9 @@ import type { Page } from '@playwright/test'
 import {
   GUTTER_PX,
   boxEndsOnGutter,
-  boxStartsAt,
   boxStartsOnGutter,
   controlsAre,
   found,
-  insideWindow,
   measure,
   measureAll,
 } from './phone-geometry'
@@ -55,18 +53,17 @@ import {
   ACTIVE_FILTERS,
   CONTROL_PX,
   HEADER,
+  QUEUE_BAR,
+  QUEUE_SHEET,
   ROW,
-  STRIP,
   activeFilterLines,
   headerLines,
   measureRows,
   measureSheet,
-  stripLines,
+  queueBarLines,
+  queueSheetLines,
 } from './inbox-phone-lines'
-import { DESKTOP, PHONES, storyTests } from './phone-story-tests'
-
-/** The strip's own padding from `md`, where the phone gutter no longer applies. */
-const STRIP_PADDING_DESKTOP_PX = 12
+import { PHONES, storyTests } from './phone-story-tests'
 
 // ── The list header ─────────────────────────────────────────────────────────
 // Every state the phone header has: resting (with and without a property
@@ -90,140 +87,64 @@ storyTests(
   },
 )
 
-// ── The queue strip ─────────────────────────────────────────────────────────
-
-/** A strip's fade is an inline mask, set only while something is out of reach. */
-const maskOf = (page: Page, selector: string = STRIP): Promise<string> =>
+/** A scrolling row's fade is an inline mask, set only while something is out of reach. */
+const maskOf = (page: Page, selector: string): Promise<string> =>
   page.evaluate((target) => {
     const element = document.querySelector(target)
     return element ? getComputedStyle(element).maskImage : ''
   }, selector)
 
+// ── The queue bar ───────────────────────────────────────────────────────────
+// One button naming the queue in view and, when the other kind has open work, a
+// chip to it. The stories cover a Reviews queue (with the chip), a feedback queue
+// (the chip back), a closed folder, a shared view (no chip) and the reply row
+// without stages ("Open"); the narrow one is the 320 px worst case, where the
+// button's label gives way before the chip does.
+
 storyTests(
-  'queue strip at rest',
-  ['inbox-queue-strip--resting'],
+  'queue bar',
+  [
+    'inbox-queue-bar--resting',
+    'inbox-queue-bar--resting-narrow',
+    'inbox-queue-bar--feedback-queue',
+    'inbox-queue-bar--replied-folder',
+    'inbox-queue-bar--shared-view-has-no-chip',
+    'inbox-queue-bar--without-reply-stages',
+    'inbox-queue-bar--feedback-queue-without-reply-stages',
+  ],
   PHONES,
-  async (page, view) => {
-    const nav = await measure(page, STRIP)
-    const mask = await maskOf(page)
-    const first = nav.controls[0]
+  async (page, view, id) => {
+    const bar = await measure(page, QUEUE_BAR)
+    const hasChip = !id.includes('shared-view')
     return {
-      evidence: { nav, mask },
+      evidence: { bar },
       lines: [
-        ...stripLines(nav, view),
-        ...(first === undefined
-          ? ['the strip has no pills']
-          : boxStartsOnGutter('the first pill', first.box)),
-        ...(nav.scrollLeft === 0
-          ? []
-          : [`the strip loaded scrolled by ${nav.scrollLeft} px`]),
-        ...(mask === 'none'
-          ? ['the strip has pills out of reach and draws no fade']
+        ...queueBarLines(bar, view),
+        ...(hasChip && bar.controls.length < 2 && !id.includes('replied-folder')
+          ? ['the queue bar offers no chip to the other kind']
+          : []),
+        ...(!hasChip && bar.controls.length > 1
+          ? ['a shared view shows a chip, where both kinds are already in it']
           : []),
       ],
     }
   },
 )
 
-storyTests(
-  'queue strip on the last queue',
-  ['inbox-queue-strip--closed-active'],
-  PHONES,
-  async (page, view) => {
-    const nav = await measure(page, STRIP)
-    const mask = await maskOf(page)
-    const last = nav.controls[nav.controls.length - 1]
-    return {
-      evidence: { nav, mask },
-      lines: [
-        ...stripLines(nav, view),
-        ...(last === undefined
-          ? ['the strip has no pills']
-          : [
-              ...insideWindow('the active (last) pill', last.box, view),
-              ...(last.box.right > view.innerWidth - GUTTER_PX + 1
-                ? [
-                    `the active pill ends at x=${last.box.right}, inside the window but on the gutter's far side (${view.innerWidth - GUTTER_PX})`,
-                  ]
-                : []),
-            ]),
-        ...(nav.scrollLeft > 0
-          ? []
-          : ['the strip did not scroll the active pill into view']),
-        ...(mask === 'none'
-          ? ['the strip has pills out of reach and draws no fade']
-          : []),
-      ],
-    }
-  },
-)
-
-// The active pill is scrolled in clear of the edge fade on both sides, not just
-// of the edge, and snapping must not pull it back out (it did at 320 px):
-// `STRIP_FADE_PX` in `ui/strip-scroll.ts`, restated here because the
-// gate reads the rendered page and imports nothing from `src`.
-const EDGE_FADE_PX = 24
-
-storyTests(
-  'queue strip on a middle queue',
-  ['inbox-queue-strip--escalated-active', 'inbox-queue-strip--escalated-active-narrow'],
-  PHONES,
-  async (page, view) => {
-    const nav = await measure(page, STRIP)
-    const mask = await maskOf(page)
-    const active = nav.controls.find((control) => control.name.startsWith('Escalated'))
-    return {
-      evidence: { nav, mask },
-      lines: [
-        ...stripLines(nav, view),
-        ...(nav.scrollLeft > 0
-          ? []
-          : ['the strip did not scroll the active pill into view']),
-        ...(active === undefined
-          ? ['the strip has no Escalated pill']
-          : [
-              ...(active.box.left < EDGE_FADE_PX - 1
-                ? [
-                    `the active pill starts at x=${active.box.left}, under the ${EDGE_FADE_PX} px fade on the left edge`,
-                  ]
-                : []),
-              ...(active.box.right > view.innerWidth - EDGE_FADE_PX + 1
-                ? [
-                    `the active pill ends at x=${active.box.right}, under the ${EDGE_FADE_PX} px fade that starts at x=${view.innerWidth - EDGE_FADE_PX} (a snap back to the previous pill leaves it half off the edge at 320 px)`,
-                  ]
-                : []),
-            ]),
-        ...(mask === 'none'
-          ? ['the strip has pills out of reach and draws no fade']
-          : []),
-      ],
-    }
-  },
-)
-
-storyTests(
-  'queue strip from md',
-  // `resting` is a phone story: its play waits for the fade a wide window never draws.
-  ['inbox-queue-strip--fits-without-fade'],
-  DESKTOP,
-  async (page, view) => {
-    const nav = await measure(page, STRIP)
-    const mask = await maskOf(page)
-    const first = nav.controls[0]
-    return {
-      evidence: { nav, mask },
-      lines: [
-        ...stripLines(nav, view),
-        ...(first === undefined
-          ? ['the strip has no pills']
-          : boxStartsAt('the first pill', first.box, STRIP_PADDING_DESKTOP_PX)),
-        ...(mask === 'none'
-          ? []
-          : [`the strip draws a fade (${mask}) with nothing out of reach`]),
-      ],
-    }
-  },
-)
+// The sheet the button opens: the desktop rail's sections as 44 px rows, under
+// their headings, on the window's bottom edge and no taller than 85% of it.
+storyTests('queue sheet', ['inbox-queue-bar--sheet-open'], PHONES, async (page, view) => {
+  const sheet = await measure(page, QUEUE_SHEET)
+  const headings = await page.evaluate(
+    (selector) =>
+      Array.from(
+        document.querySelectorAll(`${selector} nav [role="group"] > p`),
+        (heading) => heading.textContent?.trim() ?? '',
+      ),
+    QUEUE_SHEET,
+  )
+  return { evidence: { sheet, headings }, lines: queueSheetLines(sheet, headings, view) }
+})
 
 // ── Rows ────────────────────────────────────────────────────────────────────
 // The phone stories are fullscreen, so a row spans the window as it does on the
@@ -304,9 +225,8 @@ storyTests('list search', ['inbox-list-search--phone'], [390], async (page) => {
 
 // ── The active-filters row ──────────────────────────────────────────────────
 
-// The row scrolls sideways when its chips do not fit, and says so the way the
-// queue strip does: an edge fade while something is out of reach, none when
-// every chip is in view.
+// The row scrolls sideways when its chips do not fit, and says so with an edge
+// fade while something is out of reach, none when every chip is in view.
 storyTests(
   'active filters',
   ['inbox-active-filters--one-filter'],
@@ -397,10 +317,9 @@ async function waitForRows(page: Page): Promise<void> {
 storyTests('page at rest', PAGE_STORIES, PHONES, async (page, view, id) => {
   await waitForRows(page)
   const header = await measure(page, HEADER)
-  const nav = await measure(page, STRIP)
+  const bar = await measure(page, QUEUE_BAR)
   const filters = await measure(page, ACTIVE_FILTERS)
   const panel = await page.evaluate(readPanel, HEADER)
-  const first = nav.controls[0]
   const rows = await measureRows(page, view, {
     selecting: false,
     unread: false,
@@ -408,11 +327,10 @@ storyTests('page at rest', PAGE_STORIES, PHONES, async (page, view, id) => {
   })
   const filtered = id.includes('filtered')
   return {
-    evidence: { header, nav, filters, panel, rows: rows.evidence },
+    evidence: { header, bar, filters, panel, rows: rows.evidence },
     lines: [
       ...headerLines(header, view),
-      ...stripLines(nav, view),
-      ...(first === undefined ? [] : boxStartsOnGutter('the first pill', first.box)),
+      ...queueBarLines(bar, view),
       ...(filtered
         ? activeFilterLines(filters, view)
         : filters.found

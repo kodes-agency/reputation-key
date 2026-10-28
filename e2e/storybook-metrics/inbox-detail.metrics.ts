@@ -90,7 +90,7 @@ const WORKSPACE_METRIC_TITLES = new Set([
   'Inbox/Active Filters',
   'Inbox/Filter Sheet',
   'Inbox/List Search',
-  'Inbox/Queue Strip',
+  'Inbox/Queue Bar',
 ])
 const LIST_STORIES = [
   'default',
@@ -121,7 +121,10 @@ const HEADER_STORIES = [
 const FROM_MD_ONLY = new Set(['resting', 'select-row'])
 const RAIL_STORIES = [
   'manager',
-  'member',
+  'closed-folders-have-no-badge',
+  'without-reply-stages',
+  'reviews-only',
+  'feedback-only',
   'zero-counts',
   'all-properties',
   'property-in-view',
