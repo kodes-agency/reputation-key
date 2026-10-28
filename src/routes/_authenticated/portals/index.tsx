@@ -28,7 +28,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { isRetrying } from '#/components/hooks/is-retrying'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -61,6 +61,7 @@ export const Route = createFileRoute('/_authenticated/portals/')({
     // Organization-wide: no Property is in scope, so the gate asks about the
     // Organization; the reads narrow to each Property the reader may use.
     await gateControlledRoute({
+      context,
       data: { capability: 'portal.read', featureLabel: 'Portals' },
     })
     const { role } = context as AuthRouteContext

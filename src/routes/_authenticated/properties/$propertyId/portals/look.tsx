@@ -7,7 +7,7 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -41,6 +41,7 @@ export const Route = createFileRoute(
   },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
+      context,
       data: {
         capability: 'portal.read',
         featureLabel: 'Portals',

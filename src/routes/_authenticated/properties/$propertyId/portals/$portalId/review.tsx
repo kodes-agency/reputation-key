@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
@@ -28,6 +28,7 @@ export const Route = createFileRoute(
 )({
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
+      context,
       data: {
         capability: 'portal.write',
         featureLabel: 'Portals',

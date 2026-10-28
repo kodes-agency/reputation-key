@@ -18,6 +18,7 @@ import { captureBrowserException } from '#/shared/observability/browser-exceptio
 import { setBrowserRouteSource } from '#/shared/observability/browser-route'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { staleTab } from '#/shared/stale-tab/stale-tab'
+import { forgetShellContextOnReturn } from '#/shared/queries/shell-context-cache'
 
 /**
  * Hands a failure to monitoring unless it is an expected refusal (a 4xx): a
@@ -37,6 +38,8 @@ export function getRouter() {
   // TanStack Query client cache. The ssr-query integration handles per-request
   // dehydration/hydration + streaming during SSR, and auto-wraps the app in
   // QueryClientProvider (no manual provider needed in the root component).
+  // One per call: the server calls this for every request, so nothing a request
+  // caches (the shell's checks never are, ADR 0072) can answer another request.
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { staleTime: 30_000, retry: 1 },
@@ -87,6 +90,9 @@ export function getRouter() {
     // A tab whose code is older than the server loads its next view (a new
     // path or new search) afresh; a read refused just after one reloads it.
     staleTab.reloadOnNavigation(router)
+    // The shell's remembered checks are forgotten when the tab comes back or another
+    // tab signs in or out, so the next navigation asks the server who is here.
+    forgetShellContextOnReturn(queryClient)
   }
 
   return router

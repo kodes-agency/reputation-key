@@ -42,6 +42,28 @@ are settled, then decided in order (no session, then an Organization failure, th
 a capability redirect; a failed capability read is the empty set). Do not add an
 `await` before them, or a chain returns in front of every page.
 
+The browser remembers those answers for 30 seconds (ADR 0072,
+`shared/shell-context/shell-context-checks.ts`), and a controlled route's
+`gateControlledRoute` (`shared/shell-context/remembered-route-gate.ts`) remembers its
+decision the same way (pass it the route's `context`). The server render always asks
+and writes nothing, because its QueryClient is the request's. Remembered: a positive session, an Organization answer that admits
+the person to the shell, and the capability set per Property scope, all but the
+session under the signed-in user id. Never remembered: a missing session, a refused
+workspace, any failure. A navigation with a fresh session asks the server nothing; a
+stale one asks all three at once, blocking, as before. The decisions above see the
+same settled answers in the same order whichever way they came.
+
+The route context is therefore up to 30 seconds old in the browser and stays an
+affordance: the server functions behind every page assert the session, role and
+capability on each call, and their refusal is what the person sees. A change that
+alters what the shell shows or decides from calls `invalidateShellContext(queryClient)`
+(`shared/queries/shell-context-cache.ts`): the tenant cache transitions on sign-in and
+sign-out, the profile save, an Organization update, a member's role, removal or
+access save, leaving, a password change, and a 401 or 403 at a route error boundary.
+The router also forgets the entries when the tab is shown again or another tab
+announces a change. A new mutation of that kind joins
+`shell-context-invalidation-sites.test.ts`.
+
 The shell draws its frame from the page ON SCREEN: the deepest of the router's
 presented matches (`useRenderedPathname` in `components/layout/rendered-location.ts`),
 never `location` (the address the router is heading for, which changes at the click

@@ -29,7 +29,7 @@ import { readStateOf } from '#/components/features/portal/portal-group/portal-gr
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 import { RouteNotFound } from '#/components/layout/route-page-state'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
@@ -73,6 +73,7 @@ export const Route = createFileRoute(
   },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
+      context,
       data: {
         capability: 'portal.read',
         featureLabel: 'Portals',

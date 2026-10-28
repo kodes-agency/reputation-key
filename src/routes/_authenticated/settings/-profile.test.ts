@@ -15,7 +15,7 @@ import {
   createRouter,
   RouterContextProvider,
 } from '@tanstack/react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Action } from '#/components/hooks/use-action'
 
 type Account = { id: string; name: string; email: string; image: string | null }
@@ -47,6 +47,14 @@ const server = vi.hoisted(() => {
 })
 
 vi.mock('#/shared/auth/auth.functions', () => ({ getSession: server.getSession }))
+// Which side the shell's checks run on. The router here runs its browser loading path
+// without a DOM, so the side is set by hand: the server (always asks) unless a test
+// says the browser (remembers for 30 seconds).
+const side = vi.hoisted(() => ({ current: 'server' as 'server' | 'browser' }))
+vi.mock('#/shared/queries/shell-context-cache', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/shared/queries/shell-context-cache')>()),
+  shellCheckSide: () => side.current,
+}))
 vi.mock('#/contexts/identity/server/auth-settings', () => ({
   updateProfileFn: vi.fn(async (input: { data: { name: string } }) => {
     server.account.current = { ...server.account.current, name: input.data.name }
@@ -262,5 +270,43 @@ describe('saving the profile', () => {
     // is still within its minute and opens from what it has.
     await router.navigate({ to: '/settings/organization' })
     expect(organizationLoader).toHaveBeenCalledTimes(1)
+  })
+
+  // In the browser `_authenticated` remembers the session for 30 seconds (ADR 0072), so
+  // without the save forgetting it the router's second load would answer with the name
+  // from before the save. (The tests above run as the server, which always asks.)
+  describe('where the shell remembers its checks', () => {
+    beforeEach(() => {
+      side.current = 'browser'
+    })
+    afterEach(() => {
+      side.current = 'server'
+    })
+
+    it('opens another page without reading the session again', async () => {
+      const { router } = await openProfile()
+      const sessionReads = server.getSession.mock.calls.length
+
+      await router.navigate({ to: '/settings/organization' })
+
+      expect(server.getSession).toHaveBeenCalledTimes(sessionReads)
+    })
+
+    it('still makes the saved name the one the shell holds', async () => {
+      const { page, shellUser } = await openProfile()
+
+      await page().updateProfile({ data: { name: 'Ana Petrova' } })
+
+      expect(shellUser()).toMatchObject({ name: 'Ana Petrova' })
+      expect(page().user.name).toBe('Ana Petrova')
+    })
+
+    it('still shows a new avatar in the shell once its save lands', async () => {
+      const { page, shellUser } = await openProfile()
+
+      await page().updateUserImage({ data: { imageUrl: AVATAR } })
+
+      await vi.waitFor(() => expect(shellUser()).toMatchObject({ image: AVATAR }))
+    })
   })
 })

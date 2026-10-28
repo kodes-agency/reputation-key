@@ -26,6 +26,7 @@ import {
 import { setMemberPropertyAccess } from '#/contexts/identity/server/organizations'
 import { responsibleManagersQuery } from '#/routes/_authenticated/properties/$propertyId/-settings-queries'
 import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 import {
   createSaveMemberAccess,
   responsibilityFailureReason,
@@ -109,6 +110,9 @@ export function MemberAccessContainer({
     {
       invalidateKeys: [identityKeys.members()],
       onSuccess: async (result, input) => {
+        // The member may be the reader, whose Property access the shell remembers
+        // for 30 seconds (ADR 0072).
+        invalidateShellContext(queryClient)
         const touched = new Set([
           ...result.grantedPropertyIds,
           ...result.revokedPropertyIds,
