@@ -96,6 +96,8 @@ export function InboxPageV2({
       attention: s.filters.attention,
       aspect: s.filters.aspect,
       polarity: s.filters.polarity,
+      since: s.filters.since,
+      until: s.filters.until,
     },
     sort: search.sort ?? 'newest',
     items: s.items,

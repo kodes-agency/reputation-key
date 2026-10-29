@@ -16,6 +16,8 @@ function selectionScope(
     filters.attention,
     filters.aspect,
     filters.polarity,
+    filters.since,
+    filters.until,
     filters.propertyId,
     filters.q,
     filters.sort,

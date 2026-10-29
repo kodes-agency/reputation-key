@@ -12,6 +12,7 @@ import { presentGuestReviewBody } from './guest-message-view'
 import { personInitials } from './person-initials'
 import { languageDisplayName } from './reply-language-options'
 import { TopicChips } from './topic-chips'
+import { useMatchedTopic } from './use-matched-topic'
 import { formatExactTime, formatInboxDay } from './utils'
 import type { GuestReviewBodyView, GuestReviewDisclosure } from './guest-message-view'
 import type { ReactNode } from 'react'
@@ -345,6 +346,8 @@ type Props = Readonly<{
  * body, and the topic chips.
  */
 export function GuestMessage({ item, detail, reviewReplyLanguage }: Props): ReactNode {
+  // Read before any early return: a hook runs on every render or on none.
+  const matchedTopic = useMatchedTopic()
   if (!detail) return null
 
   if (item.sourceType === 'feedback') {
@@ -463,6 +466,7 @@ export function GuestMessage({ item, detail, reviewReplyLanguage }: Props): Reac
         <TopicChips
           analysis={detail.analysis}
           managerPriority={detail.item.managerPriority ?? null}
+          matched={matchedTopic}
         />
       </article>
     </GuestNode>

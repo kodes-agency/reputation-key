@@ -1,4 +1,5 @@
 import type { InboxSort } from '#/contexts/inbox/application/public-api'
+import { formatLocalDate } from '#/lib/format'
 import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
 import type { InboxListFilterValues } from './inbox-filters'
 
@@ -57,12 +58,26 @@ function labelOf(options: ReadonlyArray<InboxFilterOption>, value: string): stri
   return options.find((option) => option.value === value)?.label ?? value
 }
 
+/**
+ * The days a drill-down was counted over: "Jun 13, 2026 to Sep 10, 2026". The
+ * list is cut to them, so the person is told, and can lift the cut.
+ */
+function datesLabel(since: string | undefined, until: string | undefined): string {
+  const start = since === undefined ? null : formatLocalDate(since)
+  const end = until === undefined ? null : formatLocalDate(until)
+  if (start !== null && end !== null) return `${start} to ${end}`
+  if (start !== null) return `From ${start}`
+  if (end !== null) return `Until ${end}`
+  return 'Dates'
+}
+
 /** One removable chip per narrowing choice, in the order the sheet lists them. */
 export function activeInboxFilterChips(
   filters: InboxListFilterValues,
   sort: InboxSort,
 ): ReadonlyArray<InboxFilterChip> {
-  const { sourceType, attention, ratingMin, ratingMax, polarity, aspect } = filters
+  const { sourceType, attention, ratingMin, ratingMax, polarity, aspect, since, until } =
+    filters
   const chips: ReadonlyArray<InboxFilterChip | null> = [
     sourceType === undefined
       ? null
@@ -98,6 +113,13 @@ export function activeInboxFilterChips(
           key: 'aspect',
           label: labelOf(ASPECT_OPTIONS, aspect),
           clear: { filters: { aspect: undefined } },
+        },
+    since === undefined && until === undefined
+      ? null
+      : {
+          key: 'dates',
+          label: datesLabel(since, until),
+          clear: { filters: { since: undefined, until: undefined } },
         },
     sort === 'oldest'
       ? { key: 'sort', label: 'Oldest first', clear: { sort: 'newest' } }

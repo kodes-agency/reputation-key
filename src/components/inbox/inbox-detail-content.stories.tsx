@@ -391,6 +391,24 @@ export const ReviewWithMixedAspectPolarities: Story = {
   },
 }
 
+/**
+ * The Inbox opened from a Guest voice count (`?aspect=room&polarity=positive`):
+ * the chip that was followed is marked, in a ring and in words, so the person sees
+ * which of the review's topics the number was counting.
+ */
+export const ReviewOpenedOnATopic: Story = {
+  decorators: [withRole('PropertyManager', { at: '/?aspect=room&polarity=positive' })],
+  args: ReviewWithMixedAspectPolarities.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Matched: Room, praise')).toBeVisible()
+    const matched = canvas.getByText('Room · Praise').closest('[data-slot="badge"]')
+    await expect(matched).toHaveClass('ring-2')
+    const other = canvas.getByText('Service · Complaint').closest('[data-slot="badge"]')
+    await expect(other).not.toHaveClass('ring-2')
+  },
+}
+
 // BQC-6.8: light-theme variant — axe runs on it too (light contrast proof).
 export const ReviewAsPropertyManagerLight: Story = {
   decorators: [withRole('PropertyManager')],

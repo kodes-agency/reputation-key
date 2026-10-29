@@ -35,6 +35,12 @@ export const inboxSearchObjectSchema = z.object({
   // be widened without inventing a second composite vocabulary.
   aspect: readable(z.enum(ASPECT_TAXONOMY_V1)),
   polarity: readable(z.enum(ASPECT_POLARITIES_V1)),
+  // The window a drill-down came from, as the Property's own calendar days
+  // (`?since=2026-06-13&until=2026-09-10`). They narrow the list to the reviews
+  // published in those days, so the list holds the reviews the number that was
+  // followed counted. Dates that are not days are dropped, as any other key.
+  since: readable(z.iso.date()),
+  until: readable(z.iso.date()),
   q: readable(z.string()),
   sort: readable(z.enum(['newest', 'oldest'])),
 })

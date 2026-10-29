@@ -19,6 +19,8 @@ describe('inboxSearchSchema', () => {
         attention: 'urgent',
         aspect: 'wait_time',
         polarity: 'negative',
+        since: '2026-06-13',
+        until: '2026-09-10',
         q: 'breakfast',
         sort: 'oldest',
       }),
@@ -30,6 +32,8 @@ describe('inboxSearchSchema', () => {
       attention: 'urgent',
       aspect: 'wait_time',
       polarity: 'negative',
+      since: '2026-06-13',
+      until: '2026-09-10',
       q: 'breakfast',
       sort: 'oldest',
     })
@@ -44,6 +48,11 @@ describe('inboxSearchSchema', () => {
     ['attention', 'critical'],
     ['aspect', 'parking_valet'],
     ['polarity', 'angry'],
+    // A window is two calendar days; anything else is dropped, so a hand-edited
+    // link cannot ask the list for a day that does not exist.
+    ['since', 'last week'],
+    ['since', '2026-13-45'],
+    ['until', '20260910'],
     // The router reads `?q=123` as a number.
     ['q', 123],
     ['sort', 'recent'],

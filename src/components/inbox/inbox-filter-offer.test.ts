@@ -10,6 +10,8 @@ const EVERYTHING: InboxListFilterValues = {
   attention: 'urgent',
   aspect: 'service',
   polarity: 'negative',
+  since: '2026-06-13',
+  until: '2026-09-10',
 }
 
 describe('filtersOffered', () => {
@@ -67,8 +69,15 @@ describe('offeredListFilters', () => {
     })
   })
 
-  it('keeps only Rating and Priority in a private feedback queue', () => {
-    const kept = { ...CLEARED_INBOX_LIST_FILTERS, ratingMin: 4, attention: 'urgent' }
+  it('keeps only Rating, Priority and the dates in a private feedback queue', () => {
+    // The dates are the window a number was counted over; every item has a day.
+    const kept = {
+      ...CLEARED_INBOX_LIST_FILTERS,
+      ratingMin: 4,
+      attention: 'urgent',
+      since: '2026-06-13',
+      until: '2026-09-10',
+    }
 
     expect(offeredListFilters('feedback', EVERYTHING)).toEqual(kept)
     expect(offeredListFilters('handled', EVERYTHING)).toEqual(kept)
