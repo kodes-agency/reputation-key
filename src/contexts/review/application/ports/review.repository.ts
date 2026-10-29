@@ -10,6 +10,7 @@ import type {
 } from '#/shared/domain/ids'
 import type {
   AiReviewSourceDenial,
+  AiReviewSourceReadRequest,
   AiReviewSourceRequest,
   AiReviewSourceResult,
   AiTrendPopulationRequest,
@@ -48,7 +49,7 @@ export type StableReviewSourceIdentity = Readonly<{
  */
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
-  readForAi(input: AiReviewSourceRequest): Promise<AiReviewSourceResult>
+  readForAi(input: AiReviewSourceReadRequest): Promise<AiReviewSourceResult>
   readTrendPopulation(input: AiTrendPopulationRequest): Promise<AiTrendPopulationResult>
   assertCurrentForAi(
     input: AiReviewSourceRequest,

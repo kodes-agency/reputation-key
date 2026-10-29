@@ -3,13 +3,14 @@ import {
   AI_REVIEW_SOURCE_CONTRACT_VERSION,
   AiReviewSourceRefusal,
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
+  canonicalizeRawAiReviewSentences,
   canonicalizeRawAiReviewSource,
   canonicalizeRawAiReviewSourcePreviousRevision,
   type CanonicalAiReviewSource,
 } from '#/shared/ai-review-source-contract'
 import type { StarRating } from '../domain/types'
 import type { ReviewRepository } from './ports/review.repository'
-import type { AiReviewSourcePort } from './ports/ai-review-source.port'
+import type { AiReviewSentence, AiReviewSourcePort } from './ports/ai-review-source.port'
 
 const DIGEST_PREFIX = new TextEncoder().encode(`${AI_REVIEW_SOURCE_CONTRACT_VERSION}\0`)
 
@@ -53,6 +54,19 @@ export function computeAiReviewSourceProvenance(
   input: AiReviewSourceInput,
 ): AiReviewSourceProvenance {
   return provenanceOf(canonicalizeRawAiReviewSource(input))
+}
+
+/**
+ * The numbered sentences of the raw source a v3 analysis reads (contract §6.1).
+ * They are cut from the same raw fields the provenance above covers, so they
+ * describe the same review revision; they carry no digest of their own. A source
+ * with more sentences than an evidence request carries throws
+ * `AiReviewSourceRefusal`, which `readForAi` answers as `source_too_large`.
+ */
+export function computeAiReviewSourceSentences(
+  input: AiReviewSourceInput,
+): readonly AiReviewSentence[] {
+  return canonicalizeRawAiReviewSentences(input)
 }
 
 /**

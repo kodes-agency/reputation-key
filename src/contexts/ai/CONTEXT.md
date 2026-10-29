@@ -279,6 +279,40 @@ a hint reaches the next request and re-analyses nothing. The catalogue is pinned
 manifest so an edit is a reviewed change; a hint change that needs a new topic, cause shape
 or normalizer rule is not a hint change.
 
+### Evidence request path (dark)
+
+A v3 request carries the review as numbered sentences (`review-analysis-v3-request.ts`,
+`ai-provider-control/review-evidence-request.ts`). Review cuts the RAW text with
+`review-sentences-v1` and canonicalizes each sentence (`readForAi` with `sentences: true`),
+so sentence `n` is the sentence the live display underlines for a stored pointer `n`; the
+request's `source.text` stays the whole canonical text, so the operation's source digest is
+the one v2 computes and the gateway checks that the sentences are that text, cut and
+numbered from one (`reviewSentencesMatchText`). Only a binding that names
+`review-analysis-v3` may carry sentences and a `propertyContext`, and the live catalogue
+holds no such entry, so the transport refuses a v3 request as cross-wired until activation;
+a v2 request that carries either is refused too. The property context must be what
+`resolveReviewPropertyContext` yields for its category.
+
+The preparer sends `{ rating, languageCode, propertyContext, sentences: [{ number, text }] }`
+and no `reviewText`. The sentences are redacted from one scan of the review joined by single
+spaces (`redactAiReviewSentences`), so a marker a line break cut in two is read as one and
+written into each sentence it touches, the limits (64 intervals, three fifths) are the
+review's as they are for the whole text, and no sentence loses its number. That redaction is
+then compared with `redactAiReviewText` of the whole canonical text, the fence that has
+always run (`reviewRedactionsAgree`): when they differ the review is `redaction_blocked`, so a
+sentence-wise redaction is never weaker than v2's. The contract's "redact each sentence
+independently" would leak a phone number or an email broken across lines; this does not.
+
+`acceptProviderResult` is the one point where a v3 answer becomes the stored contract
+(`normalizeReviewAnalysisV3` over the sentences the provider read). It answers
+`{ contract: 'review-analysis-v3', answer, normalization: { version, digest, flags,
+droppedMentionCount } }`, which the response schema accepts beside a v2 answer. Only a
+top level that is not usable is a billed `output_invalid`. `AiGatewayRoutePreparer` takes its
+profiles as a dependency (the live catalogue by default), which is how the dark path is
+exercised without a live entry. The in-process adapter gives a v3 request a bound of
+98,304 bytes (v2 keeps 65,536): 512 sentences of 30 characters, all needing a JSON escape,
+are the largest request the Review limits allow and fit under it.
+
 ## Runtime
 
 Identity's merchant-AI fact drives one durable lifecycle command, which opens a

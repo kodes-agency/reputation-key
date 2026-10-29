@@ -139,6 +139,8 @@ export type {
 } from './ports/google-rating-reads.port'
 export type {
   AiReviewSourcePort,
+  AiReviewSentence,
+  AiReviewSourceReadRequest,
   AiReviewCurrentSource,
   AiTrendPopulationReview,
   AiTrendPopulationRequest,

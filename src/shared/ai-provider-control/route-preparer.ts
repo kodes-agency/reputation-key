@@ -48,6 +48,7 @@ import {
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
   mergeAiAnalysisV2Duplicates,
 } from '#/shared/ai-route-output-schemas'
+import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '#/shared/review-analysis-v3'
 import {
   AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
@@ -57,7 +58,10 @@ import {
   AI_PROVIDER_DEPLOYMENT_PROFILE_V1,
   maximumCostMicros as maximumProviderCostMicros,
 } from '#/shared/ai-openai-provider-profile'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import {
+  AI_OPERATION_PROFILES,
+  type AiOperationProfile,
+} from '#/shared/ai-operation-profiles'
 import type {
   AiAdmissionDescriptorV1,
   AiExecutionGrantV1,
@@ -82,6 +86,12 @@ import {
   type DerivedDescriptorFacts,
 } from './prepared-invocation'
 import { derivePropertySafetyIdentifier } from './safety-identifier'
+import {
+  acceptReviewAnalysisV3Answer,
+  isReviewAnalysisV3Operation,
+  prepareReviewEvidence,
+  type PreparedReviewEvidence,
+} from './review-evidence-request'
 import { digestRenderedReply, signAiReplyProvenance } from '#/shared/ai-reply-provenance'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 const analysisAnswerSchema = AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA
@@ -103,19 +113,34 @@ function isClosedTrendSignalId(value: string): value is ClosedTrendSignalId {
   return CLOSED_TREND_SIGNAL_ID_SET.has(value)
 }
 
-const profileByRoute = new Map(
-  AI_OPERATION_PROFILES.map((profile) => [profile.sourceRoute, profile]),
-)
+/**
+ * What the preparer reads of an operation profile. The live catalogue holds the
+ * v2 profiles only; a profile for review-analysis v3 is handed in by a test or,
+ * at activation, by the catalogue, and never found by accident.
+ */
+export type RoutePreparationProfile = Omit<
+  AiOperationProfile,
+  'profileVersion' | 'providerDeploymentProfileVersion'
+> &
+  Readonly<{ profileVersion: string; providerDeploymentProfileVersion: string }>
 
-function profileFor(route: AiGatewayRouteRequestV1['route']) {
-  const profile = profileByRoute.get(route)
+/** The profile a request names: its route and its operation profile version. */
+function profileFor(
+  profiles: readonly RoutePreparationProfile[],
+  request: AiGatewayRouteRequestV1,
+): RoutePreparationProfile {
+  const profile = profiles.find(
+    (candidate) =>
+      candidate.sourceRoute === request.route &&
+      candidate.profileVersion === request.binding.operationProfileVersion,
+  )
   if (!profile || profile.sourceRoute === 'synthetic-canary')
     throw new GatewayPreparationError('policy_unavailable')
   return profile
 }
 
 function formatFor(
-  profile: ReturnType<typeof profileFor>,
+  profile: RoutePreparationProfile,
   outputSchema: z.ZodTypeAny,
 ): ClosedJsonSchemaFormat {
   return closedJsonSchemaFormatSchema.parse(
@@ -124,7 +149,7 @@ function formatFor(
 }
 
 function maximumCostMicros(
-  profile: ReturnType<typeof profileFor>,
+  profile: RoutePreparationProfile,
   providerPayloadBytes: number,
 ): number {
   try {
@@ -136,7 +161,7 @@ function maximumCostMicros(
 
 function createDescriptor(
   request: AiGatewayRouteRequestV1,
-  profile: ReturnType<typeof profileFor>,
+  profile: RoutePreparationProfile,
   facts: DerivedDescriptorFacts,
 ): AiAdmissionDescriptorV1 {
   const common = {
@@ -271,6 +296,8 @@ export function createAiGatewayRoutePreparer(
     provenanceKid: string
     provenancePrivateKey: KeyObject
     now?: () => number
+    /** The operation profiles requests may name. Defaults to the live catalogue. */
+    profiles?: readonly RoutePreparationProfile[]
     /**
      * Content-free notice of WHICH output rule refused a reply draft.
      *
@@ -286,9 +313,11 @@ export function createAiGatewayRoutePreparer(
   }>,
 ): AiGatewayRoutePreparer {
   const now = dependencies.now ?? Date.now
+  const profiles: readonly RoutePreparationProfile[] =
+    dependencies.profiles ?? AI_OPERATION_PROFILES
   return Object.freeze({
     prepare: (request): PreparedGatewayRouteExecution => {
-      const profile = profileFor(request.route)
+      const profile = profileFor(profiles, request)
       if (
         request.binding.operationProfileVersion !== profile.profileVersion ||
         request.binding.providerDeploymentProfileVersion !==
@@ -302,6 +331,8 @@ export function createAiGatewayRoutePreparer(
       let outputSchema: z.ZodTypeAny
       let responseContext:
         | Readonly<{ route: 'review-analysis' }>
+        | (Readonly<{ route: 'review-analysis-v3' }> &
+            Pick<PreparedReviewEvidence, 'redactedSentences' | 'vocabularyHints'>)
         | Readonly<{
             route: 'property-trend'
             candidates: readonly DeterministicTrendCandidate[]
@@ -348,7 +379,19 @@ export function createAiGatewayRoutePreparer(
       } else {
         const evaluated = languageFor(request)
         const text = redactedText(request)
-        if (request.route === 'review-analysis') {
+        if (request.route === 'review-analysis' && isReviewAnalysisV3Operation(request)) {
+          const evidence = prepareReviewEvidence(request, {
+            languageTag: evaluated.tag,
+            redactedWholeText: text,
+          })
+          providerPayload = evidence.providerPayload
+          outputSchema = REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA
+          responseContext = Object.freeze({
+            route: 'review-analysis-v3',
+            redactedSentences: evidence.redactedSentences,
+            vocabularyHints: evidence.vocabularyHints,
+          })
+        } else if (request.route === 'review-analysis') {
           providerPayload = {
             reviewText: text,
             rating: request.source.rating,
@@ -402,7 +445,11 @@ export function createAiGatewayRoutePreparer(
               AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST
           )
             throw new GatewayPreparationError('policy_unavailable')
-          if (profile.profileVersion !== 'reply-suggestion-v1') {
+          if (
+            profile.profileVersion !== 'reply-suggestion-v1' ||
+            profile.providerDeploymentProfileVersion !==
+              AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion
+          ) {
             throw new GatewayPreparationError('policy_unavailable')
           }
           const fence = request.binding.capabilityFence
@@ -506,6 +553,20 @@ export function createAiGatewayRoutePreparer(
         invocation,
         outputSchema,
         acceptProviderResult: (rawResult: unknown) => {
+          if (responseContext.route === 'review-analysis-v3') {
+            const accepted = acceptReviewAnalysisV3Answer(rawResult, responseContext)
+            if (accepted === null) return null
+            return Object.freeze({
+              buildResponse: (
+                receipt: AiSettlementReceiptV1,
+              ): AiGatewayRouteResponseV1 => ({
+                route: 'review-analysis',
+                status: 'success',
+                result: accepted,
+                settlementReceipt: receipt,
+              }),
+            })
+          }
           if (responseContext.route === 'review-analysis') {
             const answer = analysisAnswerSchema.safeParse(rawResult)
             if (!answer.success) return null

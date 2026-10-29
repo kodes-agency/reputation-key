@@ -49,11 +49,18 @@ import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
 import { reviewError } from '../../domain/errors'
 import { escapeLikePattern } from '#/shared/db/like-pattern'
 import { trace } from '#/shared/observability/trace'
-import type { AiReviewSourceResult } from '../../application/ports/ai-review-source.port'
-import { findStoredAiReviewSourceProvenance } from '../../application/ai-review-source'
+import type {
+  AiReviewSentence,
+  AiReviewSourceResult,
+} from '../../application/ports/ai-review-source.port'
+import {
+  computeAiReviewSourceSentences,
+  findStoredAiReviewSourceProvenance,
+} from '../../application/ai-review-source'
 import { upsertReviewSourceContent } from '../review-source-content-store'
 import { reviewIsSyncable } from '#/shared/db/syncable-review'
 import {
+  AiReviewSourceRefusal,
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
 } from '#/shared/ai-review-source-contract'
@@ -208,17 +215,32 @@ export const createReviewRepository = (
           return { status: 'policy_unavailable' }
         }
 
-        const provenance = findStoredAiReviewSourceProvenance(
-          {
-            text: row.text as string | null,
-            rating: rating as Review['rating'],
-            languageCode: row.language_code as string | null,
-            reviewedAtEpochMillis,
-            reviewerDisplayName: row.reviewer_name as string | null,
-          },
-          { digest: row.ai_source_digest, byteLength: storedByteLength },
-        )
+        const rawSource = {
+          text: row.text as string | null,
+          rating: rating as Review['rating'],
+          languageCode: row.language_code as string | null,
+          reviewedAtEpochMillis,
+          reviewerDisplayName: row.reviewer_name as string | null,
+        }
+        const provenance = findStoredAiReviewSourceProvenance(rawSource, {
+          digest: row.ai_source_digest,
+          byteLength: storedByteLength,
+        })
         if (provenance === null) return { status: 'policy_unavailable' }
+
+        let sentences: readonly AiReviewSentence[] | null = null
+        if (input.sentences === true) {
+          try {
+            sentences = computeAiReviewSourceSentences(rawSource)
+          } catch (error) {
+            // Too many sentences to number is the text being too large for the
+            // request, like the byte limits above; any other fault is not an answer.
+            if (error instanceof AiReviewSourceRefusal) {
+              return { status: 'source_too_large' }
+            }
+            throw error
+          }
+        }
 
         return {
           status: 'available',
@@ -228,6 +250,7 @@ export const createReviewRepository = (
             organizationId: input.organizationId,
             propertyId: input.propertyId,
             text: provenance.text,
+            ...(sentences === null ? {} : { sentences }),
             rating: provenance.rating,
             languageCode: provenance.languageCode,
             reviewedAtEpochMillis,
