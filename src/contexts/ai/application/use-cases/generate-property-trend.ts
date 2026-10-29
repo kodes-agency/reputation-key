@@ -3,7 +3,6 @@ import {
   AI_PROPERTY_TREND_DEFINITION_DIGEST,
   AI_PROPERTY_TREND_DEFINITION_VERSION,
   AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW,
-  AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS,
   AI_TREND_RENDER_PROFILE_DIGEST,
   AI_TREND_RENDER_PROFILE_VERSION,
   computeDeterministicTrendCandidates,
@@ -11,6 +10,7 @@ import {
   type DeterministicAggregateWindow,
   type DeterministicTrendCandidate,
 } from '#/shared/ai-property-trend-contract'
+import { trendWindowIsIncomplete } from '#/shared/ai-property-trend-minimums'
 import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { addDays } from '../local-date'
@@ -489,11 +489,12 @@ export function createGeneratePropertyTrend(
         selectedSignals: Object.freeze([]),
         supportingReviews: Object.freeze([]),
       })
+    // Updating means a window still has reviews waiting to be analysed. A window
+    // with no text review waits for nothing: it falls through to the count below
+    // and is recorded as insufficient data (`trendWindowIsIncomplete`).
     if (
-      baseline.evidence.coverageBasisPoints <
-        AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS ||
-      current.evidence.coverageBasisPoints <
-        AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS
+      trendWindowIsIncomplete(baseline.evidence) ||
+      trendWindowIsIncomplete(current.evidence)
     ) {
       return recordProviderFreeOutcome('updating', evidenceWithoutSignals())
     }
