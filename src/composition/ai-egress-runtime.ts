@@ -60,6 +60,11 @@ import {
 import { createPostgresAiAdmissionAuthority } from '#/shared/db/ai/postgres-admission-authority'
 import { createAiGatewayRoutePreparer } from '#/shared/ai-provider-control/route-preparer'
 import { createOpenAiConnector } from '#/shared/ai-provider-control/openai-connector'
+import { createOpenAiProviderAdapter } from '#/shared/ai-provider-control/openai-provider-adapter'
+import {
+  createAiProviderRegistry,
+  type AiProviderSelectionConfig,
+} from '#/shared/ai-provider-control/provider-selection'
 import { createLocalAiProviderFetch } from '#/shared/ai-provider-control/local-provider-fetch'
 import {
   loadEd25519PrivateKey,
@@ -156,6 +161,12 @@ export function createAiEgressRuntime(
     pool: Pool
     clock: () => Date
     runtimeEnvironment: Readonly<Record<string, string | undefined>>
+    /**
+     * The operator's choice of provider per capability (contract section 7.3). It
+     * only matters to a profile attested for more than one provider; every profile
+     * in the live catalogue is OpenAI's alone, so leaving it out changes nothing.
+     */
+    providerSelection?: AiProviderSelectionConfig
   }>,
 ): AiEgressRuntime {
   assertLocalProviderOriginAllowed(input.env)
@@ -247,7 +258,16 @@ export function createAiEgressRuntime(
         : { outboundFetch: createLocalAiProviderFetch() }),
     })
 
+    // One adapter per provider the process can call. The same registry shapes the
+    // request and makes the call, so a provider that prepared a request is the only
+    // one that sends it.
+    const providers = createAiProviderRegistry(
+      [createOpenAiProviderAdapter(connector)],
+      input.providerSelection,
+    )
+
     const preparer = createAiGatewayRoutePreparer({
+      providers,
       requestBindingKeys,
       safetyIdentifierKey: safety.key,
       replyLanguageDetector: await createCld3ReplyLanguageDetector(),
@@ -264,7 +284,7 @@ export function createAiEgressRuntime(
 
     return createAiEgressGatewayService({
       admission,
-      connector,
+      providers,
       preparer,
       admissionPublicKeys,
     })

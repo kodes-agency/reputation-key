@@ -6,7 +6,8 @@ import type { Database } from '#/shared/db'
 import { aiOperations } from '#/shared/db/schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
-import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
+import { settledCostMicrosWith } from '#/shared/ai-provider-pricing'
+import { priceCatalogueOfProvider } from '#/shared/ai-provider-pricing-registry'
 import type { AiSettlementRequestV1 } from '#/shared/ai-internal-transport-contract'
 import type {
   AiAdmissionDatabaseAuthority,
@@ -30,9 +31,13 @@ type Dependencies = Readonly<{
   nonce?: () => string
 }>
 
-function profileForRoute(route: string) {
+/** The profile a descriptor names: its route and its operation profile version. */
+function profileFor(route: string, operationProfileVersion: string) {
   return AI_OPERATION_PROFILES.find(
-    (profile) => profile.sourceRoute === route && profile.capability !== null,
+    (profile) =>
+      profile.sourceRoute === route &&
+      profile.profileVersion === operationProfileVersion &&
+      profile.capability !== null,
   )
 }
 
@@ -98,7 +103,10 @@ export function createPostgresAiAdmissionAuthority(
   return Object.freeze({
     authorizeProperty: async (descriptor, requestBinding) =>
       db.transaction(async (tx) => {
-        const profile = profileForRoute(descriptor.route)
+        const profile = profileFor(
+          descriptor.route,
+          descriptor.binding.operationProfileVersion,
+        )
         if (
           !profile ||
           descriptor.binding.operationProfileVersion !== profile.profileVersion ||
@@ -187,6 +195,7 @@ export function createPostgresAiAdmissionAuthority(
           propertyId: descriptor.propertyId,
           operationKey: descriptor.operationId,
           routeKey: descriptor.route,
+          operationProfileVersion: descriptor.binding.operationProfileVersion,
           providerPayloadBytes: descriptor.providerPayloadByteCount,
         })
         if (!admitted.ok) {
@@ -232,6 +241,7 @@ export function createPostgresAiAdmissionAuthority(
             admissionNonce: aiOperations.admissionNonce,
             requestBindingHmac: aiOperations.requestBindingHmac,
             grantKid: aiOperations.grantKid,
+            providerId: aiOperations.providerId,
             reservedMicros: aiOperations.reservedMicros,
             actualMicros: aiOperations.actualMicros,
             budgetSettledAt: aiOperations.budgetSettledAt,
@@ -255,8 +265,17 @@ export function createPostgresAiAdmissionAuthority(
         ) {
           return { status: 'denied' as const, code: 'permit_mismatch' as const }
         }
+        // Priced by the provider the operation was claimed under (OpenAI when it
+        // records none), the same list the gateway checks the receipt against. A
+        // provider with no price list settles nothing.
+        const pricing = priceCatalogueOfProvider(operation.providerId)
+        if (pricing === null && request.disposition !== 'no_dispatch') {
+          return { status: 'denied' as const, code: 'settlement_conflict' as const }
+        }
         const cost =
-          request.disposition === 'no_dispatch' ? 0 : Number(settledCostMicros(request))
+          request.disposition === 'no_dispatch' || pricing === null
+            ? 0
+            : Number(settledCostMicrosWith(pricing, request))
         if (!Number.isSafeInteger(cost) || cost > operation.reservedMicros) {
           return { status: 'denied' as const, code: 'settlement_conflict' as const }
         }

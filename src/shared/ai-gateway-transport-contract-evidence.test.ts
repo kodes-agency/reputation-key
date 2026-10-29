@@ -58,6 +58,12 @@ describe('review-analysis v3 evidence request (dark)', () => {
       ).toEqual(['analysis v2 route forbids an evidence request'])
     })
 
+    it('refuses a v2 request that names a provider', () => {
+      expect(
+        issuesOf({ ...analysisRequest(), provider: analysisV3Request().provider }),
+      ).toEqual(['analysis v2 route forbids an evidence request'])
+    })
+
     it('refuses a v2 request that carries a property context', () => {
       expect(
         issuesOf({
@@ -79,17 +85,39 @@ describe('review-analysis v3 evidence request (dark)', () => {
   })
 
   describe('v3 evidence', () => {
-    it('requires the numbered sentences and the property context together', () => {
+    it('requires the numbered sentences, the property context and the provider together', () => {
       const request = analysisV3Request()
       const { sentences: _sentences, ...sourceWithoutSentences } = request.source
       const { propertyContext: _context, ...requestWithoutContext } = request
+      const { provider: _provider, ...requestWithoutProvider } = request
 
       expect(issuesOf({ ...request, source: sourceWithoutSentences })).toContain(
-        'analysis v3 route requires numbered sentences and a property context',
+        'analysis v3 route requires numbered sentences, a property context and a provider',
       )
       expect(issuesOf(requestWithoutContext)).toContain(
-        'analysis v3 route requires numbered sentences and a property context',
+        'analysis v3 route requires numbered sentences, a property context and a provider',
       )
+      expect(issuesOf(requestWithoutProvider)).toContain(
+        'analysis v3 route requires numbered sentences, a property context and a provider',
+      )
+    })
+
+    it('takes the claimed provider as an identity of the closed set and nothing looser', () => {
+      const request = analysisV3Request()
+      const provider = request.provider!
+
+      expect(provider).toMatchObject({ id: 'openai', model: 'gpt-5.6-luna' })
+      for (const wrong of [
+        { ...provider, id: 'google' },
+        { ...provider, id: 'OpenAI' },
+        { ...provider, model: '' },
+        { ...provider, requestProfileDigest: 'F'.repeat(64) },
+        { ...provider, requestProfileDigest: 'a'.repeat(63) },
+        { ...provider, extra: true },
+      ]) {
+        expect(issuesOf({ ...request, provider: wrong }).length).toBeGreaterThan(0)
+        expect(issuesOf({ ...request, provider: wrong })).not.toEqual([CROSS_WIRED])
+      }
     })
 
     it('requires sentence n to stand at index n - 1', () => {

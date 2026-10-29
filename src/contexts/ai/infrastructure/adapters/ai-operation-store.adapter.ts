@@ -8,12 +8,9 @@ import {
   outboxEvents,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import {
-  AI_OPERATION_PROFILES,
-  AI_PROVIDER_DEPLOYMENT_PROFILE,
-  AI_ROUTING_POLICY,
-} from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES, AI_ROUTING_POLICY } from '#/shared/ai-operation-profiles'
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { AI_PROVIDER_IDS, type AiProviderId } from '#/shared/ai-provider-ids'
 import {
   REVIEW_VOCABULARY_HINTS_VERSION,
   type VocabularyHintIdentity,
@@ -27,6 +24,8 @@ import type {
   AiOperationIdentity,
 } from '../../domain/types'
 import type {
+  AiOperationNormalizationLineage,
+  AiOperationProviderLineage,
   AiOperationRecord,
   AiOperationRecoveryCandidate,
   AiOperationState,
@@ -222,10 +221,13 @@ function parseBinding(
     outputLeakageProfileDigest: row.outputLeakageProfileDigest,
     replyTemplateCatalogueVersion: row.replyTemplateCatalogueVersion,
     replyTemplateCatalogueDigest: row.replyTemplateCatalogueDigest,
-    providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
-    operationProfileVersion: operationProfile(identity.command).profileVersion,
-    capabilityRuntimeProfileVersion: getAiRuntimeCapability(identity.capability)
-      .runtimeProfileVersion,
+    // What the operation recorded, not what is in force now: an operation
+    // claimed under another profile reads back as the profile it was claimed under.
+    providerDeploymentProfileVersion: row.providerDeploymentProfileVersion,
+    operationProfileVersion: row.operationProfileVersion,
+    capabilityRuntimeProfileVersion:
+      row.capabilityRuntimeProfileVersion ??
+      getAiRuntimeCapability(identity.capability).runtimeProfileVersion,
     aiSubjectHmacKeyVersion: row.subjectHmacKeyVersion,
     stopFence: {
       globalControlId: row.globalControlId,
@@ -268,6 +270,71 @@ function sameHints(
   )
 }
 
+/** The provider lineage an operation row holds: all four columns, or none. */
+function parseProviderLineage(row: OperationRow): AiOperationProviderLineage | null {
+  const {
+    providerId,
+    providerModel: model,
+    providerRequestProfileVersion: requestProfileVersion,
+    providerRequestProfileDigest: requestProfileDigest,
+  } = row
+  if (
+    providerId === null &&
+    model === null &&
+    requestProfileVersion === null &&
+    requestProfileDigest === null
+  ) {
+    return null
+  }
+  if (
+    providerId === null ||
+    model === null ||
+    requestProfileVersion === null ||
+    requestProfileDigest === null
+  ) {
+    failCorrupt('provider lineage is partial')
+  }
+  if (!(AI_PROVIDER_IDS as readonly string[]).includes(providerId)) {
+    failCorrupt('provider is unknown')
+  }
+  return {
+    providerId: providerId as AiProviderId,
+    model,
+    requestProfileVersion,
+    requestProfileDigest,
+  }
+}
+
+/** The normalizer an operation row holds: both columns, or none. */
+function parseNormalization(row: OperationRow): AiOperationNormalizationLineage | null {
+  const { normalizationProfileVersion: version, normalizationProfileDigest: digest } = row
+  if (version === null && digest === null) return null
+  if (version === null || digest === null) failCorrupt('normalization lineage is partial')
+  return { version, digest }
+}
+
+function sameLineage(
+  first: AiOperationProviderLineage | null | undefined,
+  second: AiOperationProviderLineage | null | undefined,
+): boolean {
+  return (
+    (first?.providerId ?? null) === (second?.providerId ?? null) &&
+    (first?.model ?? null) === (second?.model ?? null) &&
+    (first?.requestProfileVersion ?? null) === (second?.requestProfileVersion ?? null) &&
+    (first?.requestProfileDigest ?? null) === (second?.requestProfileDigest ?? null)
+  )
+}
+
+function sameNormalization(
+  first: AiOperationNormalizationLineage | null | undefined,
+  second: AiOperationNormalizationLineage | null | undefined,
+): boolean {
+  return (
+    (first?.version ?? null) === (second?.version ?? null) &&
+    (first?.digest ?? null) === (second?.digest ?? null)
+  )
+}
+
 function mapOperation(row: OperationRow): AiOperationRecord {
   const identity = parseIdentity(row)
   return {
@@ -275,6 +342,8 @@ function mapOperation(row: OperationRow): AiOperationRecord {
     identity,
     binding: parseBinding(row, identity),
     vocabularyHints: parseVocabularyHints(row),
+    providerLineage: parseProviderLineage(row),
+    normalization: parseNormalization(row),
     idempotencyKey: row.idempotencyKey,
     requestFingerprint: row.requestFingerprint,
     sourceProvenance:
@@ -400,8 +469,14 @@ function assertSourceProvenance(
   }
 }
 
-function operationProfile(command: AiOperationIdentity['command']) {
-  const profile = AI_OPERATION_PROFILES.find((candidate) => candidate.command === command)
+function operationProfile(
+  command: AiOperationIdentity['command'],
+  profileVersion: string,
+) {
+  const profile = AI_OPERATION_PROFILES.find(
+    (candidate) =>
+      candidate.command === command && candidate.profileVersion === profileVersion,
+  )
   if (!profile || profile.capability === null)
     failCorrupt('operation profile is unavailable')
   return profile
@@ -428,7 +503,7 @@ function insertionValues(
   const isAnalysis = identity.command === 'analysis'
   const isReply = identity.command === 'reply'
   const isTrend = identity.command === 'trend'
-  const profile = operationProfile(identity.command)
+  const profile = operationProfile(identity.command, binding.operationProfileVersion)
   return {
     id: idGen(),
     idempotencyScope: scopeDigest(identity),
@@ -482,6 +557,12 @@ function insertionValues(
     vocabularyHintSetId: input.vocabularyHints?.setId ?? null,
     vocabularyHintSetVersion: input.vocabularyHints?.setVersion ?? null,
     vocabularyHintSetDigest: input.vocabularyHints?.digest ?? null,
+    providerId: input.providerLineage?.providerId ?? null,
+    providerModel: input.providerLineage?.model ?? null,
+    providerRequestProfileVersion: input.providerLineage?.requestProfileVersion ?? null,
+    providerRequestProfileDigest: input.providerLineage?.requestProfileDigest ?? null,
+    normalizationProfileVersion: input.normalization?.version ?? null,
+    normalizationProfileDigest: input.normalization?.digest ?? null,
     globalControlId: binding.stopFence.globalControlId,
     globalControlGeneration: binding.stopFence.globalGeneration,
     providerControlId: binding.stopFence.providerControlId,
@@ -530,7 +611,9 @@ export const createAiOperationStoreAdapter = (
         if (!existing) failCorrupt('idempotency conflict row disappeared')
         const operation = mapOperation(existing)
         return existing.requestFingerprint === input.requestFingerprint &&
-          sameHints(operation.vocabularyHints, input.vocabularyHints)
+          sameHints(operation.vocabularyHints, input.vocabularyHints) &&
+          sameLineage(operation.providerLineage, input.providerLineage) &&
+          sameNormalization(operation.normalization, input.normalization)
           ? { status: 'replayed', operation }
           : { status: 'conflict', operation }
       })

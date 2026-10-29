@@ -23,7 +23,13 @@ import type {
 } from './contracts'
 import { createAiSettlementSignal } from './settlement-signal'
 import { enforceOutboundFetchDisposition } from './dispositions'
-import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
+import {
+  settledCostMicrosWith,
+  type AiProviderPriceCatalogue,
+} from '#/shared/ai-provider-pricing'
+import { createOpenAiProviderAdapter } from './openai-provider-adapter'
+import type { AiProviderAdapter } from './provider-contracts'
+import { createAiProviderRegistry, type AiProviderRegistry } from './provider-selection'
 
 type AiGatewayErrorCode = Extract<AiGatewayRouteResponseV1, { status: 'error' }>['code']
 
@@ -190,6 +196,7 @@ function dispositionCode(
 function expectedSettlementCostMicros(
   request: AiSettlementRequestV1,
   grant: AiExecutionGrantV1,
+  pricing: AiProviderPriceCatalogue,
 ): number | null {
   if (request.disposition === 'no_dispatch') return 0
   // Unknown usage (a timeout, a lost connection) may have been billed in full.
@@ -197,7 +204,9 @@ function expectedSettlementCostMicros(
   // does not bind and the caller sees `operation_ambiguous`, which is what the
   // attempt is. A provider's refusal by status is known usage (none) and binds.
   if (!request.usageKnown) return grant.limits.costMicros
-  const value = settledCostMicros(request)
+  // The price list of the provider that ran the call: the admission authority
+  // settles with the same one, or the receipt does not bind.
+  const value = settledCostMicrosWith(pricing, request)
   return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null
 }
 
@@ -240,6 +249,7 @@ function receiptMatches(
   grant: AiExecutionGrantV1,
   request: AiSettlementRequestV1,
   publicKeys: ReadonlyMap<string, KeyObject>,
+  pricing: AiProviderPriceCatalogue,
 ): boolean {
   const finalDispositionAccepted =
     receipt.disposition === request.disposition ||
@@ -251,7 +261,7 @@ function receiptMatches(
       : receipt.disposition === 'transport_ambiguous'
         ? 'ambiguous'
         : 'settled'
-  const expectedCost = expectedSettlementCostMicros(request, grant)
+  const expectedCost = expectedSettlementCostMicros(request, grant, pricing)
   return (
     verifyAiSettlementReceipt(receipt, publicKeys) &&
     receipt.grantKid === grant.grantKid &&
@@ -304,16 +314,45 @@ export type AiEgressGatewayService = Readonly<{
   readiness(signal: AbortSignal): Promise<boolean>
 }>
 
+/**
+ * Where provider calls go: one OpenAI connector (every v2 route, as before the
+ * seam), or the registry of provider adapters (contract section 7.1). The
+ * registry's selection is the operator's choice and nothing here consults it: the
+ * preparer has chosen already, and a call goes to the adapter of the provider that
+ * prepared it or to none.
+ */
+export type AiEgressProviders =
+  | Readonly<{ connector: OpenAiConnector; providers?: undefined }>
+  | Readonly<{ providers: AiProviderRegistry<AiProviderAdapter>; connector?: undefined }>
+
+function providerRegistryOf(
+  dependencies: AiEgressProviders,
+): AiProviderRegistry<AiProviderAdapter> {
+  if (dependencies.providers !== undefined) {
+    if (dependencies.connector !== undefined) {
+      throw new TypeError(
+        'the gateway takes a connector or a provider registry, not both',
+      )
+    }
+    return dependencies.providers
+  }
+  if (dependencies.connector === undefined) {
+    throw new TypeError('the gateway needs a connector or a provider registry')
+  }
+  return createAiProviderRegistry([createOpenAiProviderAdapter(dependencies.connector)])
+}
+
 export function createAiEgressGatewayService(
   dependencies: Readonly<{
     admission: AiAdmissionClient
-    connector: OpenAiConnector
     preparer: AiGatewayRoutePreparer
     admissionPublicKeys: ReadonlyMap<string, KeyObject>
     now?: () => number
-  }>,
+  }> &
+    AiEgressProviders,
 ): AiEgressGatewayService {
   const now = dependencies.now ?? Date.now
+  const registry = providerRegistryOf(dependencies)
   return Object.freeze({
     execute: async (lease, signal) => {
       let attemptedRoute: string = 'review-analysis'
@@ -352,6 +391,14 @@ export function createAiEgressGatewayService(
       const route = request.route
       const outerDeadlineEpochMillis = request.deadlineEpochMillis
       if (!descriptorMatches) {
+        prepared.invocation.canonicalProviderBytes.fill(0)
+        return errorResponse(route, 'policy_unavailable')
+      }
+      // The call goes to the adapter of the provider that prepared it. A provider
+      // this process holds no adapter for is a refusal before anything is reserved,
+      // never a call to another provider's adapter.
+      const adapter = registry.adapters.get(prepared.providerId ?? 'openai')
+      if (adapter === undefined) {
         prepared.invocation.canonicalProviderBytes.fill(0)
         return errorResponse(route, 'policy_unavailable')
       }
@@ -455,7 +502,7 @@ export function createAiEgressGatewayService(
             'provider_deadline',
           )
           try {
-            outcome = await dependencies.connector.invoke(
+            outcome = await adapter.invoke(
               prepared.invocation,
               grant,
               prepared.outputSchema,
@@ -508,6 +555,7 @@ export function createAiEgressGatewayService(
             grant,
             settleRequest,
             dependencies.admissionPublicKeys,
+            adapter.pricing,
           )
         if (settlement.status !== 'settled' || !receiptBound) {
           // Two independent causes behind one exit: admission did not return a
@@ -626,7 +674,12 @@ export function createAiEgressGatewayService(
       }
     },
     readiness: async (signal) => {
-      if (signal.aborted || dependencies.connector.readiness?.() === false) return false
+      if (
+        signal.aborted ||
+        [...registry.adapters.values()].some((adapter) => adapter.readiness?.() === false)
+      ) {
+        return false
+      }
       return dependencies.admission.readiness(signal)
     },
   })

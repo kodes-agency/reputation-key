@@ -313,6 +313,72 @@ exercised without a live entry. The in-process adapter gives a v3 request a boun
 98,304 bytes (v2 keeps 65,536): 512 sentences of 30 characters, all needing a JSON escape,
 are the largest request the Review limits allow and fit under it.
 
+### Provider seam (dark)
+
+Providers sit behind one interface (`ai-provider-control/provider-contracts.ts`): an adapter
+shapes the exact request (`prepare`, no credential), makes the one call (`invoke`) and says
+what it charges (`pricing`) and what request profile it pins (`requestProfile`: model, kind,
+attestation digest). OpenAI is the first adapter (`openai-provider-adapter.ts`); its `prepare`
+is the request building the route preparer used to do inline and its `invoke` is the
+connector, both unchanged. `openai-v2-parity.test.ts` pins, as literals taken before the seam
+existed, every v2 profile digest, the deployment profile and, for each route, the descriptor,
+the request binding and the SHA-256 of the exact body sent to OpenAI; it passes unchanged at
+the commit before the seam and after it.
+
+Switching providers is an operator's act and nothing else (decision 7,
+`provider-selection.ts`). The operator names a provider per capability
+(`createAiEgressRuntime({ providerSelection })`; there is no environment variable until
+activation needs one). A profile attested for one provider is served by it and ignores the
+choice, so naming Anthropic moves no v2 operation. A profile attested for several is served by
+the provider named and by nothing else: when its adapter is missing or not ready the answer is
+a closed refusal (`policy_unavailable`, or `provider_unavailable` for a provider that is down),
+never the other provider, and a refusal, overload, quota stop, truncation or ambiguous dispatch
+from the chosen provider is the answer to the caller whichever provider it was. The provider
+the preparer selects is the only one the gateway hands the invocation to
+(`PreparedGatewayRouteExecution.providerId`; no adapter for it is refused before admission
+reserves anything). A v3 request names the provider it was claimed under
+(`provider: { id, model, requestProfileVersion, requestProfileDigest }`) and the preparer
+ends it with `provider_profile_changed` when the provider in force differs or was
+re-attested: an operation does not follow a switch, a new one is claimed, and the claim
+records the provider (`AiOperationStorePort.claim` `providerLineage` and `normalization`,
+columns of migration 0078; the same key under another lineage answers `conflict`). Moving the
+history to the other provider is a new review-analysis epoch, so one evidence window never
+mixes two models' judgements.
+
+An operation profile used to hash its prompt and schema beside OpenAI's request shape and
+the token count of OpenAI's wrapper. It is now two things. The logical profile
+(`ai-logical-operation-profile.ts`) is the operation in no provider's terms: prompt, answer
+schema, the artifacts it reads (taxonomy, sentence rules, normalizer, attention formula, source
+rules) and limits, with a `logicalDigest` that moves for those and for nothing a provider does.
+A provider's attestation (`ai-provider-attestations.ts`; OpenAI's, `ai-openai-provider-attestation.ts`,
+restates the deployment contract it already had) covers model, SDK, request shape, endpoint,
+name resolution, headers, usage and status mapping, price list, rate limit and posture, with its
+own digest. A pairing (`AiOperationProviderPairing`) is one provider's carrying of one logical
+profile: the wire schema it derives and the static tokens a reservation prices. The profiles in
+force are untouched; `ai-operation-profile-views.ts` reads each as logical profile plus OpenAI
+pairing and builds it back with every digest intact (`ai-operation-profile-views.test.ts`),
+and is how the dark v3 profile (`review-analysis-v3-profile.ts`, with its prompt from the
+annotation guide) becomes a catalogue entry at activation. `defineProviderDeploymentEnvelope`
+names every provider of a deployment by attestation digest (`private-beta-global-v2` is built
+from both at activation, when the Anthropic attestation exists); choosing one of them is not an
+input to it.
+
+Cost follows the provider. A reservation is `maximumCostMicrosWith(adapter pricing, profile,
+payload bytes)` from the tokens the provider's pairing reserves; a settlement is
+`settledCostMicrosWith` over the price list of the provider recorded on the operation
+(`AI_PROVIDER_PRICE_CATALOGUES`; none recorded means OpenAI). The gateway checks the signed
+receipt against the same list, a provider with no list or no pairing is refused, and nothing
+falls back to OpenAI's.
+
+Left for the slices that need it, not done here: the Anthropic adapter, attestation, pairing and
+price list (3.6); the analysis use case choosing the provider before the claim, building the
+v3 request and storing the normalized result (3.7); the `AI_OPERATION_PROFILES` entry, the
+runtime catalogue row, the notice and the `private-beta-global-v2` envelope (3.10); a
+`provider` execution-control head and its place in the stop fence (the binding schema lives in
+`ai-internal-transport-contract.ts`, which is at its file-length ceiling and must be split first,
+and PR-3 has no migration number left to seed heads); `openai-usage.ts` resolving the input
+ceiling of a profile that is not in the live catalogue.
+
 ## Runtime
 
 Identity's merchant-AI fact drives one durable lifecycle command, which opens a

@@ -18,6 +18,8 @@ import {
   canonicalizeRawAiReviewSentences,
   canonicalizeRawAiReviewSource,
 } from './ai-review-source-contract'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from './ai-openai-provider-attestation'
+import { providerRequestProfileOf } from './ai-provider-attestations'
 import { resolveReviewPropertyContext } from './review-vocabulary-hints'
 import { computeDeterministicTrendCandidates } from './ai-property-trend-contract'
 import {
@@ -96,6 +98,17 @@ export function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
   }
 }
 
+/** The provider identity an operation claimed under OpenAI records. */
+export function claimedProvider() {
+  const profile = providerRequestProfileOf(OPENAI_PROVIDER_ATTESTATION_V1)
+  return {
+    id: 'openai',
+    model: profile.model,
+    requestProfileVersion: profile.version,
+    requestProfileDigest: profile.digest,
+  } as const
+}
+
 /**
  * A review-analysis request in the v3 evidence form (dark): the raw text is cut
  * into numbered sentences before it is canonicalized, as the Review context does
@@ -141,6 +154,7 @@ export function analysisV3Request(
     propertyContext: resolveReviewPropertyContext(
       input.googlePrimaryCategory === undefined ? 'Hotel' : input.googlePrimaryCategory,
     ).propertyContext,
+    provider: claimedProvider(),
   }
 }
 

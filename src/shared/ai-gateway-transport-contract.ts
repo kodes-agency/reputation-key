@@ -29,6 +29,7 @@ import {
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
   personalizedReplyDraftOutputSchema,
 } from './ai-personalized-reply-profile'
+import { AI_PROVIDER_IDS } from './ai-provider-ids'
 import { MAX_AI_REVIEW_SENTENCES_V1 } from './ai-review-source-contract'
 import {
   REVIEW_ANALYSIS_V3_OPERATION_PROFILE,
@@ -113,6 +114,18 @@ const reviewSentenceSchema = z
     text: z
       .string()
       .refine((value) => hasOnlyUnicodeScalars(value) && !value.includes('\0')),
+  })
+  .strict()
+
+// The provider an operation was claimed under (contract section 7.1): the identity
+// its row records, so the gateway can refuse an operation when the provider in
+// force is another. Review-analysis v3 only.
+const providerSelectionSchema = z
+  .object({
+    id: z.enum(AI_PROVIDER_IDS),
+    model: z.string().min(1).max(100),
+    requestProfileVersion: z.string().min(1).max(100),
+    requestProfileDigest: z.string().regex(/^[0-9a-f]{64}$/),
   })
   .strict()
 
@@ -256,8 +269,10 @@ export const reviewAnalysisGatewayRequestSchema = z
     redactionCountry: z.string().regex(/^[A-Z]{2}$/),
     observedContentExpiresAtEpochMillis: positiveSafeInteger,
     source: reviewAnalysisSourceSchema,
-    // Review-analysis v3 only: the hints the provider is steered with.
+    // Review-analysis v3 only: the hints the provider is steered with, and the
+    // provider the operation was claimed under.
     propertyContext: reviewPropertyContextSchema.optional(),
+    provider: providerSelectionSchema.optional(),
   })
   .strict()
 
@@ -285,27 +300,36 @@ export const propertyTrendGatewayRequestSchema = z
   .strict()
 
 /**
- * A review-analysis request carries numbered sentences and a property context
- * exactly when it names the v3 operation profile, and then they must describe the
- * text it carries: v2 has no use for them and v3 cannot run without them.
+ * A review-analysis request carries numbered sentences, a property context and the
+ * provider it was claimed under exactly when it names the v3 operation profile, and
+ * then the sentences must describe the text it carries: v2 has no use for any of
+ * them and v3 cannot run without them.
  */
 function reviewEvidenceIssue(
   request: Readonly<{
     binding: Readonly<{ operationProfileVersion: string }>
     source: z.infer<typeof reviewAnalysisSourceSchema>
     propertyContext?: z.infer<typeof reviewPropertyContextSchema> | undefined
+    provider?: z.infer<typeof providerSelectionSchema> | undefined
   }>,
 ): string | null {
   const { sentences, text } = request.source
   const v3 =
     request.binding.operationProfileVersion === REVIEW_ANALYSIS_V3_OPERATION_PROFILE
   if (!v3) {
-    return sentences !== undefined || request.propertyContext !== undefined
+    return sentences !== undefined ||
+      request.propertyContext !== undefined ||
+      request.provider !== undefined
       ? 'analysis v2 route forbids an evidence request'
       : null
   }
-  if (sentences === undefined || request.propertyContext === undefined || text === null) {
-    return 'analysis v3 route requires numbered sentences and a property context'
+  if (
+    sentences === undefined ||
+    request.propertyContext === undefined ||
+    request.provider === undefined ||
+    text === null
+  ) {
+    return 'analysis v3 route requires numbered sentences, a property context and a provider'
   }
   if (
     !reviewSentencesAreNumberedFromOne(sentences) ||
