@@ -12,10 +12,11 @@ import type {
   AiTrendSupportingReviewView,
 } from '#/contexts/ai/application/public-api'
 import { inboxItemId, reviewId } from '#/shared/domain/ids'
-import {
-  PropertyGuestVoiceBasis,
-  TrendSupportingReviews,
-} from './property-guest-voice-page'
+import { PropertyGuestVoiceBasis } from './property-guest-voice-basis'
+import { TrendSupportingReviews } from './property-guest-voice-trend'
+import { PropertyInsightsRecurringIssues } from './property-insights-recurring-issues'
+import { PropertyInsightsTopicTable } from './property-insights-aspect-table'
+import { LARGE_PROPERTY, SMALL_PROPERTY } from './property-guest-voice-stories-data'
 
 const DISAGREEING_SOURCE_FIELDS: AiPropertyInsightsPresetReady = {
   status: 'ready',
@@ -29,7 +30,7 @@ const DISAGREEING_SOURCE_FIELDS: AiPropertyInsightsPresetReady = {
   startLocalDate: '2026-06-13',
   endLocalDate: '2026-09-10',
   dataThroughLocalDate: '2026-09-10',
-  impactVersion: 'aspect-impact-v1',
+  window: { selection: 'chosen', textReviewCount: 27 },
   aspectEvidenceState: 'available',
   basis: {
     reviewCount: 39,
@@ -63,6 +64,25 @@ describe('PropertyGuestVoiceBasis', () => {
     expect(markup).toMatch(/<dt>Awaiting analysis<\/dt><dd[^>]*>9<\/dd>/)
     expect(markup).not.toContain('0 reviews still being analysed')
     expect(markup).not.toMatch(/<dt>Awaiting analysis<\/dt><dd[^>]*>0<\/dd>/)
+  })
+
+  it('names the window and what it holds before the figures that depend on it', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyGuestVoiceBasis, { result: LARGE_PROPERTY }),
+    )
+
+    expect(markup).toContain(
+      'Last 90 days, chosen because it holds 128 reviews with text.',
+    )
+    expect(markup.indexOf('chosen because')).toBeLessThan(markup.indexOf('Based on'))
+  })
+
+  it('lists the days the window covers among the figures behind it', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyGuestVoiceBasis, { result: LARGE_PROPERTY }),
+    )
+
+    expect(markup).toMatch(/<dt>Period<\/dt><dd[^>]*>Jun 13, 2026 to Sep 10, 2026<\/dd>/)
   })
 })
 
@@ -127,5 +147,128 @@ describe('TrendSupportingReviews', () => {
 
   it('renders nothing when the trend cites no review', () => {
     expect(renderSupportingReviews([])).toBe('')
+  })
+})
+
+/** Links need a router to build their hrefs; none of its routes load. */
+function renderWithRouter(node: ReturnType<typeof createElement>) {
+  const router = createRouter({
+    routeTree: createRootRoute(),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  return renderToStaticMarkup(
+    createElement(RouterContextProvider, { router, children: node }),
+  )
+}
+
+describe('PropertyInsightsTopicTable', () => {
+  const render = (evidence: AiPropertyInsightsPresetReady) =>
+    renderWithRouter(
+      createElement(PropertyInsightsTopicTable, { propertyId: PROPERTY_ID, evidence }),
+    )
+
+  it('has the columns a manager can check against the reviews, and no Impact', () => {
+    const markup = render(LARGE_PROPERTY)
+
+    for (const head of [
+      'Topic',
+      'Reviews',
+      'Praise and complaints',
+      'Stars when mentioned',
+    ]) {
+      expect(markup).toContain(head)
+    }
+    expect(markup).not.toContain('Impact')
+    expect(markup).not.toMatch(/[+−]\d+ mentions?/)
+  })
+
+  it('counts reviews of the reviews read for topics, with the stars of those that complain', () => {
+    const markup = render(LARGE_PROPERTY)
+
+    expect(markup).toContain('26 of 120')
+    expect(markup).toContain('2.0★, the rest 4.2★')
+    expect(markup).toContain('Complaints likely rising')
+  })
+
+  it('opens the reviews it counted: the topic, the polarity and the days of the window', () => {
+    const markup = render(LARGE_PROPERTY)
+    const link =
+      /<a [^>]*aria-label="19 complaint reviews for Service; open in inbox"[^>]*>/.exec(
+        markup,
+      )?.[0]
+
+    expect(link).toBeDefined()
+    expect(link).toContain('aspect=service')
+    expect(link).toContain('polarity=negative')
+    expect(link).toContain('since=2026-06-13')
+    expect(link).toContain('until=2026-09-10')
+    expect(link).toContain(`propertyId=${PROPERTY_ID}`)
+  })
+
+  it('does not link a count of none', () => {
+    const markup = render(SMALL_PROPERTY)
+
+    // Staff has praise and no complaints: the 0 is text, not a link to an empty list.
+    expect(markup).toContain('0 complaints')
+    expect(markup).not.toContain('0 complaint reviews')
+  })
+
+  it('shows counts only where there are too few reviews to weigh', () => {
+    const markup = render(SMALL_PROPERTY)
+
+    expect(markup).toContain('too few')
+    expect(markup).toContain('No complaints')
+  })
+
+  it('leaves out the Change column when no period was compared', () => {
+    const markup = render({ ...LARGE_PROPERTY, provisional: true } as never)
+
+    expect(markup).not.toContain('Complaints likely rising')
+    expect(markup).not.toMatch(/<th[^>]*>[^<]*Change/)
+  })
+
+  it('draws the Change column when a topic moved', () => {
+    expect(render(LARGE_PROPERTY)).toMatch(/<th[^>]*>.*Change/)
+  })
+
+  it('leaves out the Change column when a period was compared and no topic moved', () => {
+    // A column that says nothing in every row is noise.
+    const markup = render(SMALL_PROPERTY)
+
+    expect(markup).not.toMatch(/<th[^>]*>.*Change/)
+    expect(markup).not.toContain('likely rising')
+    expect(markup).not.toContain('likely falling')
+  })
+
+  it('does not print the Change label over a row with nothing to say', () => {
+    // Stacked on a phone each cell carries its column's name; an empty cell has none.
+    const markup = render(LARGE_PROPERTY)
+
+    // 13 topics; two moved. The label is printed twice in the table (once each) plus
+    // once in the header row.
+    const labels = markup.match(/@3xl:hidden[^>]*>(?:<button[^>]*>)?Change/g) ?? []
+    expect(labels).toHaveLength(2)
+  })
+})
+
+describe('PropertyInsightsRecurringIssues', () => {
+  it('lists the issues two or more reviews name, with how many reviews', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyInsightsRecurringIssues, { evidence: LARGE_PROPERTY }),
+    )
+
+    expect(markup).toContain('front desk delays')
+    expect(markup).toMatch(/<span class="font-semibold">12<\/span> reviews/)
+    expect(markup).not.toContain('compared with the previous period')
+  })
+
+  it('says no issue was named in more than one review when there are none', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyInsightsRecurringIssues, {
+        evidence: { ...LARGE_PROPERTY, emergingIssues: [] },
+      }),
+    )
+
+    expect(markup).toContain('No issue was named in more than one review in this period.')
   })
 })

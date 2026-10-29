@@ -267,7 +267,26 @@ atomically revalidated adoption creates Review-owned draft content.
 
 Property Trends compare the latest 30 complete Property-local days with the prior 30. Readiness requires at least 20 analyzed text Reviews, at least 90% coverage,
 and a caught-up enrollment; incomplete settlement coverage reports
-`preparing`/`Updating` rather than a fabricated zero.
+`preparing`/`Updating` rather than a fabricated zero. A window with no text Review
+has nothing to analyse, so it is not incomplete: it reports `insufficient_data`
+(`trendWindowIsIncomplete`, `src/shared/ai-property-trend-minimums.ts`, which the
+Guest voice page reads too, so a stored `updating` report whose windows are all
+complete is worded as insufficient data). Before 2026-10-29 its stored coverage of
+0 (0 of 0) read as below 90% and left every quiet Property in `Updating`.
+
+Guest voice (`readPropertyInsights`) counts Reviews, not mentions: a Review that
+names a topic twice counts once (`aspect-review-evidence.ts`, shared with the
+30-day aggregate read of Overview). Per topic and polarity it reads the Reviews,
+their stars as how many gave 1 to 5, those stars against every other Review in the
+window (the Reviews with only stars included here; the aggregate read has analyses
+only, so its "rest" is Reviews with text), and, against the equal-length period
+before, whether the share moved (`guest-voice-statistics.ts`, the engine
+`GUEST_VOICE_STATISTICS_VERSION` names). The window is `auto` by default: the
+shortest of 30 days, 90 days, 6 months and 12 months holding 60 Reviews with text,
+or 12 months, with `enoughForPatterns` false under 10 in the year. A recurring
+issue is a label two or more Reviews carry. Topics still come from the v2 analysis
+(taxonomy v1), where Staff and Service overlap, so a Review about the front desk can
+count under both.
 
 The aggregate head counts every sequence the settlement ledger settles for its
 profile generation, including one a newer sequence of the same review had

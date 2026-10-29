@@ -17,12 +17,33 @@ import {
   type AiPropertyAccess,
 } from '../ai-property-read-access'
 import { ASPECT_IMPACT_VERSION, computeAspectImpact } from '#/shared/aspect-impact'
-import { isAiIssueLabel } from '#/shared/ai-issue-label'
+import {
+  NO_RATING_COUNTS,
+  aspectKey,
+  collectAspectReviewEvidence,
+  countIssueLabels,
+  ratingCountsOf,
+  recurringIssues,
+  starsOfMentioned,
+  type AspectStars,
+  type RatingCounts,
+} from '../aspect-review-evidence'
 
 export type AiAspectAggregate = Readonly<{
   aspect: AiPropertyDailyAspectCount['aspect']
   polarity: AiPropertyDailyAspectCount['polarity']
   mentionCount: number
+  /** Reviews, not mentions: a review that names the topic twice counts once. */
+  reviewCount: number
+  /** The stars those reviews gave: how many gave 1, 2, 3, 4 and 5. */
+  ratingCounts: RatingCounts
+  /**
+   * Those stars against the other reviews analysed for topics in the window.
+   * This read is built from analyses, which a review with only stars never has,
+   * so "the rest" here is reviews with text: a page that has the star-only
+   * reviews (Guest voice) puts them in.
+   */
+  stars: AspectStars
   impact: number
 }>
 
@@ -58,8 +79,9 @@ export type AiPropertyAggregateWindowRead =
       /** Ready v1-era analyses that predate aspect extraction. */
       preAspectAnalysisCount: number
       impactVersion: typeof ASPECT_IMPACT_VERSION
-      /** Descending by mention count, then stable aspect/polarity identity. */
+      /** Descending by review count, then mention count, then stable aspect/polarity identity. */
       aspects: readonly AiAspectAggregate[]
+      /** Labels two or more of the window's reviews carry. */
       emergingIssues: readonly AiEmergingIssue[]
       /** Only days that actually have a row; absent days are genuinely absent. */
       sentimentByDay: readonly AiSentimentDay[]
@@ -152,33 +174,29 @@ function summarize(
   Extract<AiPropertyAggregateWindowRead, { status: 'ready' }>,
   'status' | 'provisional' | 'coverage' | 'startLocalDate' | 'endLocalDate'
 > {
-  const aspectTotals = new Map<
+  const mentionTotals = new Map<
     string,
     {
       aspect: AiAspectAggregate['aspect']
       polarity: AiAspectAggregate['polarity']
       mentionCount: number
-      impact: number
     }
   >()
   const sentimentTotals = { positive: 0, neutral: 0, negative: 0, mixed: 0 }
   let reviewCount = 0
   const sentimentByDay: AiSentimentDay[] = []
-  let analyzedReviewCount = 0
-  let preAspectAnalysisCount = 0
 
   for (const day of days) {
     reviewCount += day.reviewCount
     for (const mention of day.aspectCounts) {
-      const key = `${mention.aspect}:${mention.polarity}`
-      const total = aspectTotals.get(key) ?? {
+      const key = aspectKey(mention.aspect, mention.polarity)
+      const total = mentionTotals.get(key) ?? {
         aspect: mention.aspect,
         polarity: mention.polarity,
         mentionCount: 0,
-        impact: 0,
       }
       total.mentionCount += mention.count
-      aspectTotals.set(key, total)
+      mentionTotals.set(key, total)
     }
     sentimentTotals.positive += day.sentimentCounts.positive
     sentimentTotals.neutral += day.sentimentCounts.neutral
@@ -187,35 +205,47 @@ function summarize(
     sentimentByDay.push({ localDate: day.localDate, ...day.sentimentCounts })
   }
 
-  const issueCounts = new Map<string, number>()
-  for (const review of analyzedReviews) {
-    if (review.aspects.length === 0) {
-      preAspectAnalysisCount += 1
-    } else {
-      analyzedReviewCount += 1
-    }
+  // A review with no topic at all is a v1-era analysis: it says nothing about
+  // any topic, so it is neither a review that names one nor one that does not.
+  const withTopics = analyzedReviews.filter((review) => review.aspects.length > 0)
+  const analyzedReviewCount = withTopics.length
+  const preAspectAnalysisCount = analyzedReviews.length - analyzedReviewCount
+  const evidence = collectAspectReviewEvidence(withTopics)
+  const window = {
+    ratingCounts: ratingCountsOf(withTopics),
+    reviewCount: analyzedReviewCount,
+  }
+  const impacts = new Map<string, number>()
+  for (const review of withTopics) {
     for (const mention of review.aspects) {
-      const key = `${mention.aspect}:${mention.polarity}`
-      const total = aspectTotals.get(key)
-      if (total) {
-        total.impact += computeAspectImpact({ ...mention, rating: review.rating })
-      }
-    }
-    if (review.issueLabel !== null && isAiIssueLabel(review.issueLabel)) {
-      issueCounts.set(review.issueLabel, (issueCounts.get(review.issueLabel) ?? 0) + 1)
+      const key = aspectKey(mention.aspect, mention.polarity)
+      impacts.set(
+        key,
+        (impacts.get(key) ?? 0) +
+          computeAspectImpact({ ...mention, rating: review.rating }),
+      )
     }
   }
 
-  const aspects = [...aspectTotals.values()].sort(
-    (a, b) =>
-      b.mentionCount - a.mentionCount ||
-      a.aspect.localeCompare(b.aspect) ||
-      a.polarity.localeCompare(b.polarity),
-  )
-  const emergingIssues = [...issueCounts]
-    .map(([label, count]) => ({ label, count }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
-    .slice(0, 5)
+  const aspects = [...mentionTotals]
+    .map(([key, total]): AiAspectAggregate => {
+      const reviews = evidence.byAspect.get(key)
+      const ratingCounts = reviews?.ratingCounts ?? NO_RATING_COUNTS
+      return {
+        ...total,
+        reviewCount: reviews?.reviewCount ?? 0,
+        ratingCounts,
+        stars: starsOfMentioned(ratingCounts, window),
+        impact: impacts.get(key) ?? 0,
+      }
+    })
+    .sort(
+      (a, b) =>
+        b.reviewCount - a.reviewCount ||
+        b.mentionCount - a.mentionCount ||
+        a.aspect.localeCompare(b.aspect) ||
+        a.polarity.localeCompare(b.polarity),
+    )
 
   return {
     reviewCount,
@@ -223,7 +253,7 @@ function summarize(
     preAspectAnalysisCount,
     impactVersion: ASPECT_IMPACT_VERSION,
     aspects,
-    emergingIssues,
+    emergingIssues: recurringIssues(countIssueLabels(analyzedReviews)),
     sentimentByDay,
     sentimentTotals,
   }

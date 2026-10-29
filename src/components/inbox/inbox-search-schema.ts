@@ -20,6 +20,9 @@ export const INBOX_PAGE_SIZE = 50
 const readable = <Schema extends z.ZodType>(schema: Schema) =>
   schema.optional().catch(undefined)
 
+/** A calendar day, `YYYY-MM-DD`: the Property's own, as Guest voice counts them. */
+const day = readable(z.iso.date())
+
 export const inboxSearchObjectSchema = z.object({
   queue: readable(z.enum(INBOX_QUEUES)),
   folder: readable(z.enum(['open', 'escalated', 'closed'])),
@@ -39,8 +42,8 @@ export const inboxSearchObjectSchema = z.object({
   // (`?since=2026-06-13&until=2026-09-10`). They narrow the list to the reviews
   // published in those days, so the list holds the reviews the number that was
   // followed counted. Dates that are not days are dropped, as any other key.
-  since: readable(z.iso.date()),
-  until: readable(z.iso.date()),
+  since: day,
+  until: day,
   q: readable(z.string()),
   sort: readable(z.enum(['newest', 'oldest'])),
 })

@@ -8,12 +8,25 @@ import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { propertyId } from '#/shared/domain/ids'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { GUEST_VOICE_RANGES } from '#/shared/dashboard-range'
+import type { PropertyInsightsRange } from '../application/public-api'
 import { isAiError } from '../domain/errors'
 
+// The page's own vocabulary (`?range=`). The AI context counts days as numbers, so
+// this function speaks that to it: the browser does not carry the translation.
 const getPropertyInsightsDto = z.strictObject({
   propertyId: z.uuid(),
-  range: z.union([z.literal(30), z.literal(90), z.literal(180), z.literal('all')]),
+  range: z.enum(GUEST_VOICE_RANGES),
 })
+
+const INSIGHTS_RANGE = {
+  auto: 'auto',
+  '30d': 30,
+  '90d': 90,
+  '180d': 180,
+  '365d': 365,
+  all: 'all',
+} as const satisfies Record<(typeof GUEST_VOICE_RANGES)[number], PropertyInsightsRange>
 
 /**
  * Insights is a dashboard read. `dashboard.read` maps to the CORE
@@ -40,7 +53,7 @@ export const getPropertyInsightsFn = createServerFn({ method: 'GET' })
             organizationId: context.organizationId,
             propertyId: id,
             actor: context,
-            range: data.range,
+            range: INSIGHTS_RANGE[data.range],
           })
         } catch (error) {
           // The use case authorizes the reader for the Property itself.

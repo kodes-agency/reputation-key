@@ -15,21 +15,16 @@ import { propertyQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { aiKeys } from '#/shared/queries/query-keys'
-import {
-  dashboardRangeSearch,
-  toInsightsRange,
-  type DashboardRange,
-} from '#/shared/dashboard-range'
-import { keptData, rangeOfLocation } from './-dashboard-range-read'
+import { guestVoiceRangeSearch, type GuestVoiceRange } from '#/shared/dashboard-range'
+import { guestVoiceRangeOfLocation, keptData } from './-dashboard-range-read'
 import { RoutePending } from '#/components/layout/route-page-state'
 
-export const propertyGuestsSearchSchema = z.object({ range: dashboardRangeSearch })
+export const propertyGuestsSearchSchema = z.object({ range: guestVoiceRangeSearch })
 
-export const propertyGuestsQuery = (propertyId: string, range: DashboardRange) =>
+export const propertyGuestsQuery = (propertyId: string, range: GuestVoiceRange) =>
   queryOptions({
-    queryKey: aiKeys.propertyInsights(propertyId, toInsightsRange(range)),
-    queryFn: () =>
-      getPropertyInsightsFn({ data: { propertyId, range: toInsightsRange(range) } }),
+    queryKey: aiKeys.propertyInsights(propertyId, range),
+    queryFn: () => getPropertyInsightsFn({ data: { propertyId, range } }),
     staleTime: 60_000,
     // A capability denial is a permanent answer for this render, not a
     // transient fault: retrying would only delay the disabled state.
@@ -71,7 +66,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/gue
     // the read fails or says so; either way it is settled, never thrown.
     const trend = queryClient.prefetchQuery(trendQuery(propertyId))
     const result = await queryClient.ensureQueryData(
-      propertyGuestsQuery(propertyId, rangeOfLocation(location)),
+      propertyGuestsQuery(propertyId, guestVoiceRangeOfLocation(location)),
     )
     if (result.status === 'ready') {
       await primeWithinGrace(
@@ -96,7 +91,7 @@ function PropertyGuestsRoute() {
   })
   const result = keptData(reading)
 
-  const onRangeChange = (value: DashboardRange) => {
+  const onRangeChange = (value: GuestVoiceRange) => {
     // A window on the page, not a place: replace, so arrowing through the
     // segments (a radio group chooses on focus) is no history entry per step.
     void navigate({
