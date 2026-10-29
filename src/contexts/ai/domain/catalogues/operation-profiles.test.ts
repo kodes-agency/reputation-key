@@ -48,7 +48,7 @@ import {
   OPENAI_PROMPT_VERSIONS,
   renderOpenAiStaticTokenBearingMaterial,
 } from '#/shared/ai-openai-request-contract'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/openai-route-output-schemas'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
 import {
   AI_OPERATION_PROFILES,
   AI_PROVIDER_DEPLOYMENT_PROFILE,

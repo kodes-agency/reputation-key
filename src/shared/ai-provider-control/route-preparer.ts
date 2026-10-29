@@ -47,7 +47,7 @@ import {
   AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
   mergeAiAnalysisV2Duplicates,
-} from '#/shared/openai-route-output-schemas'
+} from '#/shared/ai-route-output-schemas'
 import {
   AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,

@@ -222,6 +222,30 @@ stop (`hotel.Staff`, `Dr.Smith`) as a domain, because nothing separates it from
 `example.Com`. Taking any of the rest is a change to the detectors' digest and a
 decision, not a patch.
 
+## Review analysis v3 contracts (dark)
+
+The shape of a v3 analysis lives in `src/shared` and nothing selects it: no operation
+profile, runtime catalogue row, merchant notice or deployment profile serves it
+(`review-analysis-v3.test.ts` fails if a profile or the catalogue does). It replaces the
+eighteen aspects, the -100 to 100 intensities and the issue label with twelve universal
+topics (`review-topic-taxonomy.ts`) and one mention per topic, thing and polarity: a strength
+(`mild | clear | strong`), an optional cause (`thing` and `issue`, lowercase, at most
+three words each), the one-based sentence numbers that state it (`review-sentences.ts`,
+the rule the live display will run on the original text) and a names flag. No quote,
+name or sentence text is stored.
+
+Every provider's answer passes one normalizer before it is stored
+(`review-analysis-v3-normalizer.ts`, `review-analysis-normalization-v1`). Only an answer
+that is not an object, has no `mentions` array or has no valid sentiment fails an answer
+already paid for; any other fault is repaired, or the mention is dropped and counted, and
+the result carries closed, content-free flags. A cause that holds a person, brand or
+place word (a capitalised word of the review that is neither a common word nor one of the
+request's vocabulary hints) or that repeats four or more contiguous words of the review is
+refused and its mention stays as a topic-level mention. Attention v2
+(`deriveReviewAttentionV2`) is derived from the stored answer and the star rating; Urgent
+exists only when the provider reports one of its four reasons. `aspect-taxonomy-v1` and
+every v2 schema stay as they are for history.
+
 ## Runtime
 
 Identity's merchant-AI fact drives one durable lifecycle command, which opens a

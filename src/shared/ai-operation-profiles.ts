@@ -17,7 +17,7 @@ import {
   AI_PROPERTY_TREND_CONTRACT_DIGEST,
   AI_TREND_RENDER_PROFILE_DIGEST,
 } from '#/shared/ai-property-trend-contract'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/openai-route-output-schemas'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
 import {
   AI_PROVIDER_DEPLOYMENT_PROFILE_V1,
   OPENAI_REQUEST_SHAPE_V1_DIGEST,

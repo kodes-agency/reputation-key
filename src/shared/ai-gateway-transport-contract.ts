@@ -24,7 +24,7 @@ import {
 import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
-} from './openai-route-output-schemas'
+} from './ai-route-output-schemas'
 import {
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
   personalizedReplyDraftOutputSchema,

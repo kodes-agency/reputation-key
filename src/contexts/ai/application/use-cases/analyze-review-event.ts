@@ -5,7 +5,7 @@ import { mapReviewLanguageMetadata } from '#/shared/ai-review-language-catalogue
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
 import type { AnalysisResult } from '#/shared/ai-gateway-transport-contract'
-import { AI_ANALYSIS_V2_OUTPUT_SCHEMA } from '#/shared/openai-route-output-schemas'
+import { AI_ANALYSIS_V2_OUTPUT_SCHEMA } from '#/shared/ai-route-output-schemas'
 import type { AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'

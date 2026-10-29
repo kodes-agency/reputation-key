@@ -4,7 +4,7 @@ import { parsePersonalizedReplyDraft } from '../../src/shared/ai-personalized-re
 import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
-} from '../../src/shared/openai-route-output-schemas'
+} from '../../src/shared/ai-route-output-schemas'
 
 let handle: AiProviderStubHandle | undefined
 afterEach(async () => {
