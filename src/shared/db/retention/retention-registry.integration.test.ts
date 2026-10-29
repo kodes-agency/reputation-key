@@ -23,6 +23,9 @@ import {
 let lease: TestLease
 let db: Database
 
+const CASCADE_CHILD_REASON =
+  'a table with no age column of its own is counted through the rule that deletes its parent'
+
 const ORGANIZATION = `org-retreg-${randomUUID().slice(0, 8)}`
 const PROPERTY_ID = randomUUID()
 const PORTAL_ID = randomUUID()
@@ -191,6 +194,8 @@ describe('retention registry report-only mode', () => {
       'guest.deidentified_facts',
       'guest.deidentified_qualified_scan_facts',
       'guest.deidentified_visit_record_facts',
+      'ai.review_analysis_v3_derivatives',
+      'ai.property_review_population_daily',
       'notification.delivery_records',
       'notification.coalesced_delivery_records',
       'notification.terminal_digest_batches',
@@ -226,6 +231,11 @@ describe('retention registry report-only mode', () => {
       'activity.operational_action_history': 'no counsel-approved horizon exists',
       'platform.logs_sentry_replay_screenshots': 'no counsel-approved horizon exists',
       'ai.local_derivatives': 'the accepted 24-month horizon has no executing rule',
+      // The three v3 child tables have no age column; the analysis that deletes
+      // them is counted by ai.review_analysis_v3_derivatives.
+      'ai.review_analysis_v3_mentions': CASCADE_CHILD_REASON,
+      'ai.review_analysis_v3_mention_sentences': CASCADE_CHILD_REASON,
+      'ai.review_analysis_v3_contribution_mentions': CASCADE_CHILD_REASON,
       'platform.uploads': 'no counsel-approved horizon exists',
       'lifecycle.organization_exports':
         'object_store sources are not countable from PostgreSQL',

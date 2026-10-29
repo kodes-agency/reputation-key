@@ -239,6 +239,11 @@ those reports does not migrate, archive or delete their source rows.
      reads once a reading is gone has not been examined;
    - corrections and withdrawals (`metric_corrections`): go with their reading,
      so they wait for that sweep;
-   - AI derivatives (`ai_review_analyses` and what is built from it): the
+   - v2 AI derivatives (`ai_review_analyses` and what is built from it): the
      analysis and trend-outcome reads withhold a row after `expires_at`, but
-     nothing deletes it, and the daily aggregates have no age to measure.
+     nothing deletes it, and the daily aggregates have no age to measure. The
+     Review Analysis v3 tables are not in this list: `ai_review_analyses.v3_expired`
+     deletes a v3 analysis on its `expires_at` with every row that cascades from
+     it, and `ai_property_review_population_daily.expired` deletes the daily
+     star counts 24 UTC calendar months after the day they count
+     (`retention-registry-ai.ts`).

@@ -35,6 +35,7 @@ const OWNED_TABLES = [
   'ai_property_processing_profiles',
   'ai_review_analyses',
   'ai_property_daily_aggregates',
+  'ai_property_review_population_daily',
   'ai_property_trend_schedules',
   'ai_property_trend_outcomes',
   'ai_operations',
@@ -333,6 +334,15 @@ async function seedFixture(): Promise<Fixture> {
        mixed_count, urgent_count, high_count, medium_count, low_count, updated_at
      ) VALUES ($1, $2, $3, 0, 1, 1, 'property-calendar-v1', 1, 1, 1, 5, 1, 0, 0,
                0, 0, 0, 0, 1, $4)`,
+    [fixture.organizationId, fixture.propertyId, LOCAL_DATE, ANALYZED_AT],
+  )
+  await lease.pool.query(
+    `INSERT INTO ai_property_review_population_daily (
+       organization_id, property_id, local_date, source_epoch, property_profile_version,
+       calendar_profile_version, review_count, text_review_count, rating_1_count,
+       rating_2_count, rating_3_count, rating_4_count, rating_5_count,
+       population_revision, updated_at
+     ) VALUES ($1, $2, $3, 0, 1, 'property-calendar-v1', 2, 1, 0, 0, 0, 0, 2, 1, $4)`,
     [fixture.organizationId, fixture.propertyId, LOCAL_DATE, ANALYZED_AT],
   )
   await lease.pool.query(

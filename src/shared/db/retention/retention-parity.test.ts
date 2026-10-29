@@ -13,6 +13,18 @@ executingTables.add('guest_contact_requests')
 // before its event (retention-sweep-consumer-receipts.integration.test.ts).
 executingTables.add('event_consumer_receipts')
 
+// The Review Analysis v3 mention rows are deleted by the cascade from the
+// analysis (or the aggregate contribution) that ai_review_analyses.v3_expired
+// removes. ai-review-analysis-v3-retention.test.ts proves the cascade path from
+// the schema, so naming them here cannot hide a table nothing deletes.
+for (const table of [
+  'ai_review_analysis_mentions',
+  'ai_review_analysis_mention_sentences',
+  'ai_property_aggregate_contribution_mentions',
+]) {
+  executingTables.add(table)
+}
+
 describe('retention registry execution parity', () => {
   it('declares every table targeted by the executing retention rules', () => {
     const declaredTables = new Set(
@@ -63,6 +75,7 @@ describe('retention registry execution parity', () => {
     expect(executed.map(({ evidenceSubject }) => evidenceSubject)).toEqual([
       'guest_qualified_scans.deidentified_fact',
       'scan_events.deidentified_fact',
+      'ai_property_review_population_daily.expired',
     ])
     expect(declared).toEqual(executed)
   })

@@ -17,6 +17,8 @@ type PropertyRow = Omit<
   | 'googleReviewDestinationRetrievedAt'
   | 'googleReviewDestinationSourceEpoch'
   | 'googleReviewDestinationProfileVersion'
+  | 'googlePrimaryCategory'
+  | 'googlePrimaryCategoryUpdatedAt'
 > &
   Readonly<{
     defaultReplyLanguage?: string | null
@@ -28,6 +30,8 @@ type PropertyRow = Omit<
     googleReviewDestinationRetrievedAt?: Date | null
     googleReviewDestinationSourceEpoch?: number | null
     googleReviewDestinationProfileVersion?: number | null
+    googlePrimaryCategory?: string | null
+    googlePrimaryCategoryUpdatedAt?: Date | null
   }>
 type PropertyInsertRow = typeof properties.$inferInsert
 

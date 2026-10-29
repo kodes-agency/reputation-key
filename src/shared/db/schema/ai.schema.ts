@@ -1,6 +1,5 @@
 import { sql } from 'drizzle-orm'
 import {
-  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -11,32 +10,45 @@ import {
   jsonb,
   pgTable,
   primaryKey,
-  timestamp,
   text,
   uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
-import { properties } from './property.schema'
+import { AI_PROVIDER_IDS } from '../../ai-provider-ids'
+import {
+  REVIEW_ANALYSIS_V3_MAX_MENTIONS,
+  REVIEW_ATTENTION_LEVELS_V2,
+  REVIEW_URGENT_REASONS_V3,
+} from '../../review-analysis-v3'
 import { materialReviewRevisions, reviews } from './review.schema'
 import { merchantAiConsentEvidence } from './merchant-ai-authorization.schema'
+import { propertyTenantForeignKey, sqlStringList, timestamptz } from './ai-schema-helpers'
 
-const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
+/** The provider ids as an `IN (...)` list; one place so every check names the same two. */
+const PROVIDER_LIST = sqlStringList(AI_PROVIDER_IDS)
 
 /**
- * Every AI table carries its Property's tenant as a composite key to
- * `properties`, so a row can never name another Organization's Property, and
- * it goes when the Property does.
+ * The closed, content-free flags a normalizer run may record on its operation
+ * (`REVIEW_ANALYSIS_NORMALIZATION_FLAGS`, which imports server-only code this
+ * schema must not). `ai-review-analysis-v3.schema.test.ts` holds the two lists equal.
  */
-const propertyTenantForeignKey = (
-  t: Readonly<{ organizationId: AnyPgColumn; propertyId: AnyPgColumn }>,
-  name: string,
-) =>
-  foreignKey({
-    columns: [t.organizationId, t.propertyId],
-    foreignColumns: [properties.organizationId, properties.id],
-    name,
-  }).onDelete('cascade')
+const NORMALIZATION_FLAGS = [
+  'mentions_capped',
+  'sentence_refs_capped',
+  'enum_case_repaired',
+  'mention_dropped_malformed',
+  'mention_dropped_enum',
+  'mention_dropped_cause',
+  'mention_dropped_sentences',
+  'sentence_refs_repaired',
+  'cause_refused_name',
+  'cause_refused_quotation',
+  'names_person_invalid',
+  'names_person_raised',
+  'mentions_merged',
+  'urgent_reason_unknown',
+] as const
 
 export const aiPropertyProcessingProfiles = pgTable(
   'ai_property_processing_profiles',
@@ -109,7 +121,8 @@ export const aiExecutionControlTransitions = pgTable(
       'ai_execution_control_transitions_scope_valid',
       sql`(
         (${t.scopeKind} = 'global' AND ${t.scopeKey} = 'global' AND ${t.scopeValue} IS NULL)
-        OR (${t.scopeKind} = 'provider_deployment_profile' AND ${t.scopeValue} ~ '^[a-z0-9][a-z0-9._-]{0,99}$' AND ${t.scopeKey} = 'provider:' || ${t.scopeValue})
+        OR (${t.scopeKind} = 'provider_deployment_profile' AND ${t.scopeValue} ~ '^[a-z0-9][a-z0-9._-]{0,99}$' AND ${t.scopeValue} NOT IN (${PROVIDER_LIST}) AND ${t.scopeKey} = 'provider:' || ${t.scopeValue})
+        OR (${t.scopeKind} = 'provider' AND ${t.scopeValue} IS NOT NULL AND ${t.scopeValue} IN (${PROVIDER_LIST}) AND ${t.scopeKey} = 'provider:' || ${t.scopeValue})
         OR (${t.scopeKind} = 'capability' AND ${t.scopeValue} IN ('review_analysis', 'reply_drafting', 'property_trends') AND ${t.scopeKey} = 'capability:' || ${t.scopeValue})
       )`,
     ),
@@ -158,7 +171,8 @@ export const aiExecutionControlHeads = pgTable(
       'ai_execution_control_heads_scope_valid',
       sql`(
         (${t.scopeKind} = 'global' AND ${t.scopeKey} = 'global' AND ${t.scopeValue} IS NULL)
-        OR (${t.scopeKind} = 'provider_deployment_profile' AND ${t.scopeValue} ~ '^[a-z0-9][a-z0-9._-]{0,99}$' AND ${t.scopeKey} = 'provider:' || ${t.scopeValue})
+        OR (${t.scopeKind} = 'provider_deployment_profile' AND ${t.scopeValue} ~ '^[a-z0-9][a-z0-9._-]{0,99}$' AND ${t.scopeValue} NOT IN (${PROVIDER_LIST}) AND ${t.scopeKey} = 'provider:' || ${t.scopeValue})
+        OR (${t.scopeKind} = 'provider' AND ${t.scopeValue} IS NOT NULL AND ${t.scopeValue} IN (${PROVIDER_LIST}) AND ${t.scopeKey} = 'provider:' || ${t.scopeValue})
         OR (${t.scopeKind} = 'capability' AND ${t.scopeValue} IN ('review_analysis', 'reply_drafting', 'property_trends') AND ${t.scopeKey} = 'capability:' || ${t.scopeValue})
       )`,
     ),
@@ -274,6 +288,28 @@ export const aiOperations = pgTable(
     adoptedReviewReplyStateRevision: bigint('adopted_review_reply_state_revision', {
       mode: 'number',
     }),
+    // Review Analysis v3 lineage (migration 0078): what the operation actually
+    // used. Null on every operation before v3.
+    providerId: varchar('provider_id', { length: 20 }),
+    providerModel: varchar('provider_model', { length: 100 }),
+    providerRequestProfileVersion: varchar('provider_request_profile_version', {
+      length: 100,
+    }),
+    providerRequestProfileDigest: varchar('provider_request_profile_digest', {
+      length: 64,
+    }),
+    vocabularyHintSetId: varchar('vocabulary_hint_set_id', { length: 100 }),
+    vocabularyHintSetVersion: varchar('vocabulary_hint_set_version', { length: 100 }),
+    vocabularyHintSetDigest: varchar('vocabulary_hint_set_digest', { length: 64 }),
+    normalizationProfileVersion: varchar('normalization_profile_version', {
+      length: 100,
+    }),
+    normalizationProfileDigest: varchar('normalization_profile_digest', { length: 64 }),
+    normalizationFlags: text('normalization_flags')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    droppedMentionCount: integer('dropped_mention_count').notNull().default(0),
   },
   (t) => [
     uniqueIndex('ai_operations_idempotency_unique').on(
@@ -370,6 +406,41 @@ export const aiOperations = pgTable(
       sql`${t.globalControlGeneration} >= 1 AND ${t.providerControlGeneration} >= 1
         AND ${t.capabilityControlGeneration} >= 1 AND jsonb_typeof(${t.capabilityFences}) = 'object'`,
     ),
+    // Each group is all NULL or fully stated. A comparison against a NULL column is
+    // unknown, which a CHECK lets through, so the second arm names every column
+    // IS NOT NULL.
+    check(
+      'ai_operations_provider_lineage_valid',
+      sql`(${t.providerId} IS NULL AND ${t.providerModel} IS NULL AND ${t.providerRequestProfileVersion} IS NULL AND ${t.providerRequestProfileDigest} IS NULL)
+        OR (${t.providerId} IS NOT NULL AND ${t.providerModel} IS NOT NULL AND ${t.providerRequestProfileVersion} IS NOT NULL AND ${t.providerRequestProfileDigest} IS NOT NULL
+          AND ${t.providerId} IN (${PROVIDER_LIST}) AND char_length(${t.providerModel}) BETWEEN 1 AND 100
+          AND char_length(${t.providerRequestProfileVersion}) BETWEEN 1 AND 100
+          AND ${t.providerRequestProfileDigest} ~ '^[0-9a-f]{64}$')`,
+    ),
+    check(
+      'ai_operations_vocabulary_lineage_valid',
+      sql`(${t.vocabularyHintSetId} IS NULL AND ${t.vocabularyHintSetVersion} IS NULL AND ${t.vocabularyHintSetDigest} IS NULL)
+        OR (${t.vocabularyHintSetId} IS NOT NULL AND ${t.vocabularyHintSetVersion} IS NOT NULL AND ${t.vocabularyHintSetDigest} IS NOT NULL
+          AND ${t.vocabularyHintSetId} ~ '^[a-z0-9][a-z0-9._-]{0,99}$'
+          AND char_length(${t.vocabularyHintSetVersion}) BETWEEN 1 AND 100
+          AND ${t.vocabularyHintSetDigest} ~ '^[0-9a-f]{64}$')`,
+    ),
+    check(
+      'ai_operations_normalization_lineage_valid',
+      sql`(${t.normalizationProfileVersion} IS NULL AND ${t.normalizationProfileDigest} IS NULL
+          AND ${t.normalizationFlags} = '{}' AND ${t.droppedMentionCount} = 0)
+        OR (${t.normalizationProfileVersion} IS NOT NULL AND ${t.normalizationProfileDigest} IS NOT NULL
+          AND char_length(${t.normalizationProfileVersion}) BETWEEN 1 AND 100
+          AND ${t.normalizationProfileDigest} ~ '^[0-9a-f]{64}$'
+          AND ${t.normalizationFlags} <@ ARRAY[${sqlStringList(NORMALIZATION_FLAGS)}]
+          AND ${t.droppedMentionCount} BETWEEN 0 AND ${sql.raw(String(REVIEW_ANALYSIS_V3_MAX_MENTIONS))})`,
+    ),
+    check(
+      'ai_operations_v3_lineage_required',
+      sql`${t.operationProfileVersion} <> 'review-analysis-v3'
+        OR (${t.command} = 'analysis' AND ${t.providerId} IS NOT NULL
+          AND ${t.vocabularyHintSetId} IS NOT NULL AND ${t.normalizationProfileVersion} IS NOT NULL)`,
+    ),
     index('ai_operations_due_idx').on(t.state, t.nextAttemptAt),
     index('ai_operations_property_idx').on(
       t.organizationId,
@@ -434,6 +505,9 @@ export const aiReviewAnalyses = pgTable(
     primaryCategory: varchar('primary_category', { length: 40 }),
     issueLabel: varchar('issue_label', { length: 40 }),
     attention: varchar('attention', { length: 20 }),
+    // Set exactly when `attention` is 'urgent' under review-analysis-v3: the
+    // reason shown in the app and never in a message (ADR 0046). Null in v2.
+    urgentReason: varchar('urgent_reason', { length: 30 }),
     generatedAt: timestamptz('generated_at').notNull(),
     expiresAt: timestamptz('expires_at').notNull(),
   },
@@ -479,11 +553,22 @@ export const aiReviewAnalyses = pgTable(
       'ai_review_analyses_versions_valid',
       sql`${t.sourceEpoch} >= 0 AND ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1`,
     ),
+    // Two shapes, told apart by the profile that wrote the row. A v2 row keeps its
+    // primary category, issue label and no Urgent reason; a v3 row has no primary
+    // topic (zero mentions is a valid answer) and no issue label, and carries an
+    // Urgent reason exactly when its attention is urgent.
     check(
       'ai_review_analyses_result_valid',
       sql`(
-        (${t.status} = 'ready' AND ${t.unavailableReason} IS NULL AND ${t.sentiment} IN ('positive', 'neutral', 'negative', 'mixed') AND ${t.primaryCategory} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other', 'room', 'food_and_drink', 'noise', 'wifi_and_tech', 'check_in_out', 'parking', 'amenities', 'events') AND ${t.attention} IN ('urgent', 'high', 'medium', 'low') AND (${t.issueLabel} IS NULL OR ${t.issueLabel} ~ '^[a-z]+( [a-z]+){0,3}$'))
-        OR (${t.status} = 'unavailable' AND ${t.unavailableReason} = 'language_not_supported' AND ${t.sentiment} IS NULL AND ${t.primaryCategory} IS NULL AND ${t.attention} IS NULL AND ${t.issueLabel} IS NULL)
+        (${t.analysisProfileVersion} <> 'review-analysis-v3' AND ${t.urgentReason} IS NULL AND (
+          (${t.status} = 'ready' AND ${t.unavailableReason} IS NULL AND ${t.sentiment} IN ('positive', 'neutral', 'negative', 'mixed') AND ${t.primaryCategory} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other', 'room', 'food_and_drink', 'noise', 'wifi_and_tech', 'check_in_out', 'parking', 'amenities', 'events') AND ${t.attention} IN ('urgent', 'high', 'medium', 'low') AND (${t.issueLabel} IS NULL OR ${t.issueLabel} ~ '^[a-z]+( [a-z]+){0,3}$'))
+          OR (${t.status} = 'unavailable' AND ${t.unavailableReason} = 'language_not_supported' AND ${t.sentiment} IS NULL AND ${t.primaryCategory} IS NULL AND ${t.attention} IS NULL AND ${t.issueLabel} IS NULL)
+        ))
+        OR (${t.analysisProfileVersion} = 'review-analysis-v3' AND (
+          (${t.status} = 'ready' AND ${t.unavailableReason} IS NULL AND ${t.sentiment} IS NOT NULL AND ${t.sentiment} IN ('positive', 'neutral', 'negative', 'mixed') AND ${t.primaryCategory} IS NULL AND ${t.issueLabel} IS NULL AND ${t.attention} IS NOT NULL AND ${t.attention} IN (${sqlStringList(REVIEW_ATTENTION_LEVELS_V2)})
+            AND ((${t.attention} = 'urgent' AND ${t.urgentReason} IS NOT NULL AND ${t.urgentReason} IN (${sqlStringList(REVIEW_URGENT_REASONS_V3)})) OR (${t.attention} <> 'urgent' AND ${t.urgentReason} IS NULL)))
+          OR (${t.status} = 'unavailable' AND ${t.unavailableReason} IS NOT NULL AND ${t.unavailableReason} = 'language_not_supported' AND ${t.sentiment} IS NULL AND ${t.primaryCategory} IS NULL AND ${t.attention} IS NULL AND ${t.issueLabel} IS NULL AND ${t.urgentReason} IS NULL)
+        ))
       )`,
     ),
     check('ai_review_analyses_retention_valid', sql`${t.expiresAt} > ${t.generatedAt}`),
@@ -614,10 +699,12 @@ export const aiPropertyAggregateContributions = pgTable(
       'ai_property_aggregate_contributions_values_valid',
       sql`${t.sourceEpoch} >= 0 AND ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.rating} BETWEEN 1 AND 5 AND ${t.appliedAggregateRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
     ),
+    // A v3 contribution has no primary category (its topics are mention rows), so a
+    // ready row may leave it null; a v2 row still names one of the eighteen.
     check(
       'ai_property_aggregate_contributions_result_valid',
       sql`(
-        (${t.status} = 'ready' AND ${t.sentiment} IN ('positive', 'neutral', 'negative', 'mixed') AND ${t.primaryCategory} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other', 'room', 'food_and_drink', 'noise', 'wifi_and_tech', 'check_in_out', 'parking', 'amenities', 'events') AND ${t.attention} IN ('urgent', 'high', 'medium', 'low'))
+        (${t.status} = 'ready' AND ${t.sentiment} IN ('positive', 'neutral', 'negative', 'mixed') AND (${t.primaryCategory} IS NULL OR ${t.primaryCategory} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other', 'room', 'food_and_drink', 'noise', 'wifi_and_tech', 'check_in_out', 'parking', 'amenities', 'events')) AND ${t.attention} IN ('urgent', 'high', 'medium', 'low'))
         OR (${t.status} = 'unavailable' AND ${t.sentiment} IS NULL AND ${t.primaryCategory} IS NULL AND ${t.attention} IS NULL)
       )`,
     ),
@@ -904,182 +991,6 @@ export const aiPropertyDailyAspectAggregates = pgTable(
       t.reviewAnalysisEpoch,
       t.localDate,
     ),
-  ],
-)
-
-export const aiPropertyTrendSchedulerHeads = pgTable(
-  'ai_property_trend_scheduler_heads',
-  {
-    schedulerKey: varchar('scheduler_key', { length: 64 }).primaryKey(),
-    generation: bigint('generation', { mode: 'number' }).notNull(),
-    cursorOrganizationId: varchar('cursor_organization_id', { length: 255 }),
-    cursorPropertyId: uuid('cursor_property_id'),
-    leaseOwner: uuid('lease_owner'),
-    claimedAt: timestamptz('claimed_at'),
-    leaseExpiresAt: timestamptz('lease_expires_at'),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    check(
-      'ai_property_trend_scheduler_heads_valid',
-      sql`${t.schedulerKey} = 'property-trend-v1' AND ${t.generation} BETWEEN 0 AND '9007199254740991'::bigint
-        AND ((${t.cursorOrganizationId} IS NULL AND ${t.cursorPropertyId} IS NULL) OR (${t.cursorOrganizationId} IS NOT NULL AND ${t.cursorPropertyId} IS NOT NULL))
-        AND ((${t.leaseOwner} IS NULL AND ${t.claimedAt} IS NULL AND ${t.leaseExpiresAt} IS NULL) OR (${t.leaseOwner} IS NOT NULL AND ${t.claimedAt} IS NOT NULL AND ${t.leaseExpiresAt} > ${t.claimedAt}))`,
-    ),
-  ],
-)
-
-export const aiPropertyTrendSchedules = pgTable(
-  'ai_property_trend_schedules',
-  {
-    id: uuid('id').primaryKey(),
-    outboxEventId: uuid('outbox_event_id').notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    dueLocalDate: date('due_local_date', { mode: 'string' }).notNull(),
-    sourceEpoch: integer('source_epoch').notNull(),
-    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
-    propertyTrendsEpoch: integer('property_trends_epoch').notNull(),
-    propertyProfileVersion: integer('property_profile_version').notNull(),
-    terminalAnalysisSequence: bigint('terminal_analysis_sequence', {
-      mode: 'number',
-    }).notNull(),
-    aggregateRevision: bigint('aggregate_revision', { mode: 'number' }).notNull(),
-    timezone: varchar('timezone', { length: 64 }).notNull(),
-    calendarProfileVersion: varchar('calendar_profile_version', {
-      length: 100,
-    }).notNull(),
-    reportProfileVersion: varchar('report_profile_version', {
-      length: 100,
-    }).notNull(),
-    schedulerGeneration: bigint('scheduler_generation', { mode: 'number' }).notNull(),
-    scheduledAt: timestamptz('scheduled_at').notNull(),
-  },
-  (t) => [
-    uniqueIndex('ai_property_trend_schedules_outbox_unique').on(t.outboxEventId),
-    uniqueIndex('ai_property_trend_schedules_generation_unique').on(
-      t.organizationId,
-      t.propertyId,
-      t.dueLocalDate,
-      t.sourceEpoch,
-      t.reviewAnalysisEpoch,
-      t.propertyTrendsEpoch,
-      t.propertyProfileVersion,
-      t.terminalAnalysisSequence,
-      t.aggregateRevision,
-    ),
-    propertyTenantForeignKey(t, 'ai_property_trend_schedules_tenant_fk'),
-    check(
-      'ai_property_trend_schedules_versions_valid',
-      sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyTrendsEpoch} >= 1
-        AND ${t.propertyProfileVersion} >= 1 AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint
-        AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint
-        AND ${t.schedulerGeneration} BETWEEN 1 AND '9007199254740991'::bigint
-        AND ${t.timezone} ~ '^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+)$'`,
-    ),
-    index('ai_property_trend_schedules_property_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.dueLocalDate.desc(),
-    ),
-  ],
-)
-
-export const aiPropertyTrendOutcomes = pgTable(
-  'ai_property_trend_outcomes',
-  {
-    scheduleId: uuid('schedule_id')
-      .primaryKey()
-      .references(() => aiPropertyTrendSchedules.id, { onDelete: 'cascade' }),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    disposition: varchar('disposition', { length: 32 }).notNull(),
-    operationId: uuid('operation_id').references(() => aiOperations.id, {
-      onDelete: 'restrict',
-    }),
-    selectedSignalIds: jsonb('selected_signal_ids').$type<readonly string[]>(),
-    signalKey: varchar('signal_key', { length: 64 }),
-    direction: varchar('direction', { length: 20 }),
-    confidenceBasisPoints: integer('confidence_basis_points'),
-    supportingReviewCount: integer('supporting_review_count'),
-    headline: varchar('headline', { length: 80 }),
-    sentences: jsonb('sentences').$type<readonly string[]>(),
-    summary: text('summary'),
-    renderProfileVersion: varchar('render_profile_version', { length: 100 }),
-    renderProfileDigest: varchar('render_profile_digest', { length: 64 }),
-    definitionVersion: varchar('definition_version', { length: 100 }),
-    definitionDigest: varchar('definition_digest', { length: 64 }),
-    evidence: jsonb('evidence').$type<Readonly<Record<string, unknown>>>(),
-    providerSelectionRecordedAt: timestamptz('provider_selection_recorded_at'),
-    recordedAt: timestamptz('recorded_at').notNull(),
-    expiresAt: timestamptz('expires_at'),
-  },
-  (t) => [
-    uniqueIndex('ai_property_trend_outcomes_operation_unique')
-      .on(t.operationId)
-      .where(sql`${t.operationId} IS NOT NULL`),
-    propertyTenantForeignKey(t, 'ai_property_trend_outcomes_tenant_fk'),
-    check(
-      'ai_property_trend_outcomes_valid',
-      sql`(
-        ${t.disposition} = 'ready'
-        AND (${t.operationId} IS NOT NULL OR ${t.providerSelectionRecordedAt} IS NULL)
-        AND jsonb_typeof(${t.selectedSignalIds}) = 'array'
-        AND jsonb_array_length(${t.selectedSignalIds}) BETWEEN 1 AND 4
-        AND ${t.signalKey} ~ '^[a-z][a-z0-9_.]{2,63}$'
-        AND ${t.direction} IN ('improving', 'stable', 'declining')
-        AND ${t.confidenceBasisPoints} BETWEEN 0 AND 10000
-        AND ${t.supportingReviewCount} >= 0
-        AND ${t.headline} IN ('Review signals improved', 'Review signals need attention', 'Notable review changes')
-        AND jsonb_typeof(${t.sentences}) = 'array'
-        AND jsonb_array_length(${t.sentences}) BETWEEN 1 AND 4
-        AND length(${t.summary}) BETWEEN 1 AND 1000
-        AND ${t.renderProfileVersion} = 'trend-render-v1'
-        AND ${t.renderProfileDigest} ~ '^[0-9a-f]{64}$'
-        AND (
-          (${t.definitionVersion} IS NULL AND ${t.definitionDigest} IS NULL AND ${t.evidence} IS NULL)
-          OR (${t.definitionVersion} = 'property-trend-definition-v1'
-            AND ${t.definitionDigest} ~ '^[0-9a-f]{64}$'
-            AND jsonb_typeof(${t.evidence}) = 'object')
-        )
-        AND (
-          (${t.operationId} IS NOT NULL
-            AND ${t.providerSelectionRecordedAt} IS NOT NULL
-            AND ${t.recordedAt} = ${t.providerSelectionRecordedAt})
-          OR (${t.operationId} IS NULL AND ${t.providerSelectionRecordedAt} IS NULL)
-        )
-        AND ${t.expiresAt} > ${t.recordedAt}
-      ) OR (
-        ${t.disposition} IN ('updating', 'insufficient_data', 'no_material_change')
-        AND ${t.operationId} IS NULL
-        AND ${t.selectedSignalIds} IS NULL
-        AND ${t.signalKey} IS NULL
-        AND ${t.direction} IS NULL
-        AND ${t.confidenceBasisPoints} IS NULL
-        AND ${t.supportingReviewCount} IS NULL
-        AND ${t.headline} IS NULL
-        AND ${t.sentences} IS NULL
-        AND ${t.summary} IS NULL
-        AND ${t.renderProfileVersion} IS NULL
-        AND ${t.renderProfileDigest} IS NULL
-        AND (
-          (${t.definitionVersion} IS NULL AND ${t.definitionDigest} IS NULL AND ${t.evidence} IS NULL AND ${t.expiresAt} IS NULL)
-          OR (${t.definitionVersion} = 'property-trend-definition-v1'
-            AND ${t.definitionDigest} ~ '^[0-9a-f]{64}$'
-            AND jsonb_typeof(${t.evidence}) = 'object'
-            AND ${t.expiresAt} > ${t.recordedAt})
-        )
-        AND ${t.providerSelectionRecordedAt} IS NULL
-      )`,
-    ),
-    index('ai_property_trend_outcomes_property_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.recordedAt.desc(),
-    ),
-    index('ai_property_trend_outcomes_expiry_idx')
-      .on(t.expiresAt)
-      .where(sql`${t.expiresAt} IS NOT NULL`),
   ],
 )
 

@@ -246,6 +246,23 @@ refused and its mention stays as a topic-level mention. Attention v2
 exists only when the provider reports one of its four reasons. `aspect-taxonomy-v1` and
 every v2 schema stay as they are for history.
 
+Storage for it exists and is empty (migration 0078, `ai-review-analysis-v3.schema.ts`):
+`ai_review_analysis_mentions` and `ai_review_analysis_mention_sentences` for the analysis,
+`ai_property_aggregate_contribution_mentions` for the same mentions under the contribution
+that retracts with them, `ai_property_review_population_daily` for the reviews of a local
+day by stars (star-only reviews included), `ai_review_analyses.urgent_reason`, and lineage
+columns on `ai_operations` (provider, model, request profile, vocabulary hint set,
+normalizer, and once settled the closed flags it raised). `ai_review_analyses_result_valid`
+tells the two shapes apart by `analysis_profile_version`: a v3 row has no primary category
+and no issue label, and carries an Urgent reason exactly when its attention is urgent. A
+CHECK passes on an unknown, so each v3 arm states IS NOT NULL beside a comparison. The
+execution-control scopes also admit `provider` (`provider:openai`, `provider:anthropic`).
+Every v3 derivative expires 24 months after it was generated: the sweep deletes the analysis
+on `expires_at` (`ai_review_analyses.v3_expired`, v3 rows only) and the three mention tables
+go with it by cascade; the daily star counts have a rule of their own, counted from the day
+they are for (`retention-registry-ai.ts`). Nothing in them is a quote, a sentence, a name or a
+provider response.
+
 ## Runtime
 
 Identity's merchant-AI fact drives one durable lifecycle command, which opens a
