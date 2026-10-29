@@ -16,6 +16,7 @@ import {
   LARGE_PROPERTY,
   LARGE_PROPERTY_ROWS,
   SMALL_PROPERTY,
+  TOO_FEW_PROPERTY,
 } from './property-guest-voice-stories-data'
 
 const PROPERTY_ID = '11111111-1111-4111-8111-111111111111'
@@ -55,7 +56,8 @@ const provisional: AiPropertyInsightsPresetReady = {
     expectedAnalysisCount: 10,
     awaitingAnalysisCount: 0,
   },
-  window: { selection: 'chosen', textReviewCount: 39 },
+  // 39 reviews less the 12 with only stars; 10 + 3 + 9 + 5 are the 27.
+  window: { selection: 'chosen', textReviewCount: 27 },
   basis: {
     reviewCount: 39,
     analyzedReviewCount: 10,
@@ -143,18 +145,21 @@ const FINISHED = {
   updating: false,
 } as const
 
+// The last 30 days against the 30 before. Its finding agrees with the table's Wait
+// time row (the 90-day window against the 12 months before); the table's other
+// moving row, Service, is the one the headline does not mention.
 const readyTrend: Extract<AiTrendReportView, { status: 'ready' }> = {
   ...FINISHED,
   status: 'ready',
   reportProfileVersion: 'property-trend-v1',
   report: {
-    signalKey: 'aspect.service.negative.down',
+    signalKey: 'aspect.wait_time.negative.down',
     direction: 'improving',
     changeMagnitudeBasisPoints: 1_500,
     supportingReviewCount: 10,
     headline: 'Review signals improved',
-    sentences: ['Service complaints fell from 30.0% to 15.0%'],
-    summary: 'Service complaints fell from 30.0% to 15.0%.',
+    sentences: ['Wait time complaints fell from 30.0% to 15.0%'],
+    summary: 'Wait time complaints fell from 30.0% to 15.0%.',
   },
   evidence: {
     ...trendEvidence([22, 22], [20, 20]),
@@ -213,7 +218,7 @@ type Story = StoryObj<typeof meta>
 export const ReadyWithComparison: Story = {
   play: async ({ canvas, args }) => {
     expect(
-      await canvas.findByText('Service complaints fell from 30.0% to 15.0%.'),
+      await canvas.findByText('Wait time complaints fell from 30.0% to 15.0%.'),
     ).toBeVisible()
     expect(
       canvas.getByText(
@@ -235,6 +240,10 @@ export const ReadyWithComparison: Story = {
     // The window is named, with the reviews it holds, and the figures say what they count.
     expect(
       canvas.getByText('Last 90 days, chosen because it holds 128 reviews with text.'),
+    ).toBeVisible()
+    // The rows count 120, not 128: the page says why.
+    expect(
+      canvas.getByText("120 of them analysed; 8 in a language we don't analyse yet."),
     ).toBeVisible()
     expect(canvas.getByText('Based on 150 reviews · 120 analysed')).toBeVisible()
 
@@ -262,15 +271,16 @@ export const ReadyWithComparison: Story = {
     expect(within(serviceRow).getByText('26 of 120')).toBeVisible()
     expect(within(serviceRow).getByText(/2\.0★, the rest 4\.2★/)).toBeVisible()
     expect(within(serviceRow).getByText('Complaints likely rising')).toBeVisible()
+    // A link's name starts with the words it shows (WCAG 2.5.3).
     expect(
       within(serviceRow).getByRole('link', {
-        name: '19 complaint reviews for Service; open in inbox',
+        name: '19 complaints for Service; open in inbox',
       }),
     ).toHaveAttribute('href', expect.stringContaining('polarity=negative'))
     // The drill-down keeps the window the table counted over.
     expect(
       within(serviceRow).getByRole('link', {
-        name: '7 praise reviews for Service; open in inbox',
+        name: '7 praise for Service; open in inbox',
       }),
     ).toHaveAttribute(
       'href',
@@ -314,11 +324,18 @@ export const SmallProperty: Story = {
       ),
     ).toBeVisible()
     const topics = canvas.getByRole('table', { name: 'Topics' })
-    // Under three complaining reviews there is no average to print: the row shows counts only.
+    // Under three reviews there is no average to print and no proportion to draw:
+    // the row shows counts only.
     const parkingRow = within(topics).getByText('Parking').closest('tr')
     if (!parkingRow) throw new Error('Parking row is missing')
     expect(within(parkingRow).getByText('too few')).toBeVisible()
     expect(within(parkingRow).getByText('1 of 34')).toBeVisible()
+    expect(within(parkingRow).getByText('1 complaint')).toBeVisible()
+    expect(parkingRow.querySelector('[data-slot="topic-bar"]')).toBeNull()
+    const serviceRow = within(topics).getByText('Service').closest('tr')
+    if (!serviceRow) throw new Error('Service row is missing')
+    expect(within(serviceRow).getByText('2 of 34')).toBeVisible()
+    expect(serviceRow.querySelector('[data-slot="topic-bar"]')).toBeNull()
     // A topic nobody complains about has nothing to compare.
     const staffRow = within(topics).getByText('Staff').closest('tr')
     if (!staffRow) throw new Error('Staff row is missing')
@@ -327,7 +344,8 @@ export const SmallProperty: Story = {
     const roomRow = within(topics).getByText('Room').closest('tr')
     if (!roomRow) throw new Error('Room row is missing')
     expect(within(roomRow).getByText(/★, the rest/)).toBeVisible()
-    // Fewer than ten reviews in the year before: no change is claimed.
+    expect(roomRow.querySelector('[data-slot="topic-bar"]')).not.toBeNull()
+    // Fewer than twenty analysed reviews in the 12 months before: no change is claimed.
     expect(canvas.queryByText(/likely (rising|falling)/)).toBeNull()
     // Two reviews name it: that is the least a recurring issue is.
     expect(canvas.getByText('slow wifi')).toBeVisible()
@@ -336,12 +354,7 @@ export const SmallProperty: Story = {
 
 /** Fewer than ten reviews with text in 12 months: the page says it cannot spot patterns. */
 export const TooFewToSpotPatterns: Story = {
-  args: {
-    result: {
-      ...SMALL_PROPERTY,
-      window: { selection: 'automatic', textReviewCount: 6, enoughForPatterns: false },
-    },
-  },
+  args: { result: TOO_FEW_PROPERTY },
   play: async ({ canvas }) => {
     expect(
       await canvas.findByText(
@@ -358,12 +371,12 @@ export const ChosenWindow: Story = {
     result: {
       ...LARGE_PROPERTY,
       range: 30,
-      window: { selection: 'chosen', textReviewCount: 41 },
+      window: { selection: 'chosen', textReviewCount: 128 },
     },
   },
   play: async ({ canvas }) => {
     expect(
-      await canvas.findByText('Last 30 days. It holds 41 reviews with text.'),
+      await canvas.findByText('Last 30 days. It holds 128 reviews with text.'),
     ).toBeVisible()
     expect(canvas.getByRole('radio', { name: '30 days' })).toBeChecked()
   },
@@ -533,9 +546,11 @@ export const TrendStillAnalysing: Story = {
   },
   play: async ({ canvas }) => {
     expect(
-      await canvas.findByText('Still analysing: 34 of 42 reviews done.'),
+      await canvas.findByText(
+        'Still analysing: 14 of 20 reviews done in the last 30 days.',
+      ),
     ).toBeVisible()
-    expect(canvas.queryByRole('heading', { name: /Service complaints/ })).toBeNull()
+    expect(canvas.queryByRole('heading', { name: /Wait time complaints/ })).toBeNull()
   },
 }
 
@@ -617,7 +632,7 @@ export const Compact390: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvas }) => {
     expect(
-      await canvas.findByText('Service complaints fell from 30.0% to 15.0%.'),
+      await canvas.findByText('Wait time complaints fell from 30.0% to 15.0%.'),
     ).toBeVisible()
     const control = canvas
       .getAllByLabelText('Time range')
@@ -631,7 +646,7 @@ export const Compact390: Story = {
     ).toBe(true)
     expect(
       canvas.getByRole('link', {
-        name: '7 praise reviews for Service; open in inbox',
+        name: '7 praise for Service; open in inbox',
       }),
     ).toBeVisible()
     await userEvent.click(canvas.getByText('Show all topics'))

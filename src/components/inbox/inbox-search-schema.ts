@@ -40,8 +40,9 @@ export const inboxSearchObjectSchema = z.object({
   polarity: readable(z.enum(ASPECT_POLARITIES_V1)),
   // The window a drill-down came from, as the Property's own calendar days
   // (`?since=2026-06-13&until=2026-09-10`). They narrow the list to the reviews
-  // published in those days, so the list holds the reviews the number that was
-  // followed counted. Dates that are not days are dropped, as any other key.
+  // published in those days, the days the number that was followed counted; which
+  // of those reviews show first is the queue's choice (Needs reply, unless the
+  // address names another). Dates that are not days are dropped, as any other key.
   since: day,
   until: day,
   q: readable(z.string()),

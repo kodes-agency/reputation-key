@@ -2,15 +2,16 @@
 // 128 reviews with text in 90 days, and one that gets about three a month.
 //
 // Every topic row is worked out from the stars its reviews gave and the stars of
-// the whole window, by the same functions the read model uses, so a story never
-// shows a figure the read could not have produced.
+// the whole window, and its change from the reviews that named it in the 12 months
+// before, by the same functions the read model uses, so a story never shows a
+// figure the read could not have produced.
 import {
+  changeOfMentions,
   starsOfMentioned,
   type RatingCounts,
   type WindowRatings,
 } from '#/contexts/ai/application/aspect-review-evidence'
 import type {
-  AiPropertyInsightAspect,
   AiPropertyInsightComparedAspect,
   AiPropertyInsightsPresetReady,
 } from '#/contexts/ai/application/public-api'
@@ -26,10 +27,15 @@ type RowSpec = Readonly<{
    * (a review that both praises and criticises it). Said on one row of the topic.
    */
   topicReviews?: number
-  change?: AiPropertyInsightAspect['change']
-  /** Reviews that named it in the period before. */
+  /**
+   * Reviews that named it in the 12 months before the window. Left out, the same
+   * share as in the window: a topic that did not change.
+   */
   before?: number
 }>
+
+/** The analysed reviews with text a window holds and the 12 months before it hold. */
+type Analysed = Readonly<{ window: number; baseline: number }>
 
 const sum = (counts: readonly number[]) =>
   counts.reduce((total, count) => total + count, 0)
@@ -37,6 +43,7 @@ const sum = (counts: readonly number[]) =>
 function compared(
   specs: readonly RowSpec[],
   window: WindowRatings,
+  analysed: Analysed,
 ): readonly AiPropertyInsightComparedAspect[] {
   const topicReviews = new Map<AspectTaxonomyV1Id, number>()
   for (const spec of specs) {
@@ -50,6 +57,8 @@ function compared(
   }
   return specs.map((spec) => {
     const reviewCount = sum(spec.ratings)
+    const before =
+      spec.before ?? Math.round((reviewCount * analysed.baseline) / analysed.window)
     return {
       aspect: spec.aspect,
       polarity: spec.polarity,
@@ -59,11 +68,11 @@ function compared(
       topicReviewCount: topicReviews.get(spec.aspect) ?? reviewCount,
       ratingCounts: spec.ratings,
       stars: starsOfMentioned(spec.ratings, window),
-      change: spec.change ?? 'unknown',
-      comparison: {
-        precedingMentionCount: spec.before ?? reviewCount,
-        precedingReviewCount: spec.before ?? reviewCount,
-      },
+      change: changeOfMentions(
+        { reviewCount, textReviews: analysed.window },
+        { reviewCount: before, textReviews: analysed.baseline },
+      ),
+      comparison: { precedingMentionCount: before, precedingReviewCount: before },
     }
   })
 }
@@ -75,39 +84,22 @@ const LARGE_WINDOW: WindowRatings = {
   reviewCount: 150,
 }
 
+// 90 days hold 120 analysed reviews, and the 12 months before them about four times
+// that: a topic's share in the window is set against its share in those 480.
+const LARGE_ANALYSED: Analysed = { window: 120, baseline: 480 }
+
 export const LARGE_PROPERTY_ROWS = compared(
   [
-    {
-      aspect: 'service',
-      polarity: 'negative',
-      ratings: [8, 6, 3, 1, 1],
-      change: 'rising',
-      before: 7,
-    },
+    // 19 of 120 reviews against 36 of 480: a share that doubled.
+    { aspect: 'service', polarity: 'negative', ratings: [8, 6, 3, 1, 1], before: 36 },
     { aspect: 'service', polarity: 'positive', ratings: [0, 0, 1, 2, 4] },
-    {
-      aspect: 'cleanliness',
-      polarity: 'positive',
-      ratings: [0, 0, 1, 6, 17],
-      before: 22,
-    },
+    { aspect: 'cleanliness', polarity: 'positive', ratings: [0, 0, 1, 6, 17] },
     // One review praises the room and complains about it: 25 reviews, not 26.
-    {
-      aspect: 'room',
-      polarity: 'negative',
-      ratings: [3, 5, 5, 3, 1],
-      topicReviews: 25,
-      before: 21,
-    },
+    { aspect: 'room', polarity: 'negative', ratings: [3, 5, 5, 3, 1], topicReviews: 25 },
     { aspect: 'room', polarity: 'positive', ratings: [0, 0, 0, 3, 6] },
-    { aspect: 'staff', polarity: 'positive', ratings: [0, 0, 0, 3, 13], before: 11 },
-    {
-      aspect: 'wait_time',
-      polarity: 'negative',
-      ratings: [3, 4, 3, 2, 1],
-      change: 'falling',
-      before: 27,
-    },
+    { aspect: 'staff', polarity: 'positive', ratings: [0, 0, 0, 3, 13] },
+    // 13 of 120 reviews against 90 of 480: a share that fell by almost half.
+    { aspect: 'wait_time', polarity: 'negative', ratings: [3, 4, 3, 2, 1], before: 90 },
     { aspect: 'food_and_drink', polarity: 'positive', ratings: [0, 0, 1, 3, 8] },
     { aspect: 'value', polarity: 'positive', ratings: [0, 0, 2, 4, 5] },
     { aspect: 'parking', polarity: 'negative', ratings: [1, 2, 3, 2, 2] },
@@ -118,6 +110,7 @@ export const LARGE_PROPERTY_ROWS = compared(
     { aspect: 'quality', polarity: 'positive', ratings: [0, 0, 0, 1, 4] },
   ],
   LARGE_WINDOW,
+  LARGE_ANALYSED,
 )
 
 export const LARGE_PROPERTY: AiPropertyInsightsPresetReady = {
@@ -131,7 +124,8 @@ export const LARGE_PROPERTY: AiPropertyInsightsPresetReady = {
   range: 90,
   startLocalDate: '2026-06-13',
   endLocalDate: '2026-09-10',
-  precedingPeriod: { startLocalDate: '2026-03-15', endLocalDate: '2026-06-12' },
+  // The 12 months that end the day before the window starts.
+  precedingPeriod: { startLocalDate: '2025-06-13', endLocalDate: '2026-06-12' },
   dataThroughLocalDate: '2026-09-10',
   window: { selection: 'automatic', textReviewCount: 128, enoughForPatterns: true },
   aspectEvidenceState: 'available',
@@ -161,6 +155,10 @@ export const LARGE_PROPERTY: AiPropertyInsightsPresetReady = {
 
 const SMALL_WINDOW: WindowRatings = { ratingCounts: [2, 3, 5, 12, 22], reviewCount: 44 }
 
+// Three reviews with text a month leave 12 analysed in the year before the window:
+// fewer than the 20 a usual share is judged from, so no row claims a change.
+const SMALL_ANALYSED: Analysed = { window: 34, baseline: 12 }
+
 const SMALL_PROPERTY_ROWS = compared(
   [
     { aspect: 'staff', polarity: 'positive', ratings: [0, 0, 1, 4, 9] },
@@ -171,6 +169,7 @@ const SMALL_PROPERTY_ROWS = compared(
     { aspect: 'parking', polarity: 'negative', ratings: [0, 0, 1, 0, 0] },
   ],
   SMALL_WINDOW,
+  SMALL_ANALYSED,
 )
 
 /** About 3 reviews with text a month, so no shorter window than 12 months holds enough. */
@@ -201,4 +200,41 @@ export const SMALL_PROPERTY: AiPropertyInsightsPresetReady = {
   },
   aspects: SMALL_PROPERTY_ROWS,
   emergingIssues: [{ label: 'slow wifi', count: 2 }],
+}
+
+// ── A property with too few reviews with text to spot patterns ─────────────
+
+const TOO_FEW_WINDOW: WindowRatings = { ratingCounts: [0, 1, 1, 2, 4], reviewCount: 8 }
+
+/** Six reviews with text and two with only stars in the whole year. */
+export const TOO_FEW_PROPERTY: AiPropertyInsightsPresetReady = {
+  ...SMALL_PROPERTY,
+  window: { selection: 'automatic', textReviewCount: 6, enoughForPatterns: false },
+  coverage: {
+    settledAnalysisCount: 8,
+    expectedAnalysisCount: 8,
+    awaitingAnalysisCount: 0,
+  },
+  basis: {
+    reviewCount: 8,
+    analyzedReviewCount: 6,
+    preAspectAnalysisCount: 0,
+    currentAnalysisCount: 6,
+    starOnlyCount: 2,
+    notAnalyzableCount: 0,
+    awaitingAnalysisCount: 0,
+    ratingDistribution: TOO_FEW_WINDOW.ratingCounts.map((count, index) => ({
+      stars: (index + 1) as 1 | 2 | 3 | 4 | 5,
+      count,
+    })),
+  },
+  aspects: compared(
+    [
+      { aspect: 'staff', polarity: 'positive', ratings: [0, 0, 0, 1, 3] },
+      { aspect: 'room', polarity: 'negative', ratings: [0, 1, 0, 0, 0] },
+    ],
+    TOO_FEW_WINDOW,
+    { window: 6, baseline: 0 },
+  ),
+  emergingIssues: [],
 }

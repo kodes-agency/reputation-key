@@ -8,15 +8,19 @@ import {
   complaintReviews,
   complaintStars,
   praiseReviews,
+  TOPIC_MIN_REVIEWS,
   type PropertyInsightsEvidence,
   type TopicChange,
   type TopicRow,
 } from './property-insights-topic-rows'
 
 /**
- * The reviews behind one number, opened in the Inbox on the window the table is
- * showing: the list holds the same reviews the number counts, not every review
- * that ever named the topic.
+ * The reviews behind one number, opened in the Inbox on the topic, the praise or
+ * complaint and the days of the window the table is showing, not every review that
+ * ever named the topic. The Inbox opens its Needs reply queue, so a review that
+ * has been replied to is not in that first list: it is in Replied, one click away
+ * with the topic and the days kept. A view of every review behind a Guest voice
+ * number, whatever its queue, is a later change (PR-4).
  */
 function ReviewsLink({
   propertyId,
@@ -45,7 +49,7 @@ function ReviewsLink({
         since: evidence.startLocalDate,
         until: evidence.endLocalDate,
       }}
-      aria-label={`${count} ${polarity === 'positive' ? 'praise' : 'complaint'} ${count === 1 ? 'review' : 'reviews'} for ${row.label}; open in inbox`}
+      aria-label={`${text} for ${row.label}; open in inbox`}
       className={cn('font-medium', ROW_FIGURE_LINK)}
     >
       {text}
@@ -56,7 +60,9 @@ function ReviewsLink({
 /**
  * Praise against complaints, as proportions of the reviews that did either. The
  * bar is a picture of the two counts printed under it, never the only place a
- * difference is shown: its colours are a second cue to the words.
+ * difference is shown: its colours are a second cue to the words. A topic under
+ * `TOPIC_MIN_REVIEWS` reviews has the counts alone: a proportion of one or two
+ * reviews is an anecdote drawn as a fact.
  */
 export function PraiseAndComplaints({
   propertyId,
@@ -72,23 +78,26 @@ export function PraiseAndComplaints({
   const total = praise + complaints
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <span
-        aria-hidden="true"
-        className="flex h-2 w-full max-w-60 overflow-hidden rounded-full bg-muted"
-      >
-        {total === 0 ? null : (
-          <>
-            <span
-              className="bg-positive"
-              style={{ width: `${(praise / total) * 100}%` }}
-            />
-            <span
-              className="bg-destructive"
-              style={{ width: `${(complaints / total) * 100}%` }}
-            />
-          </>
-        )}
-      </span>
+      {row.reviews < TOPIC_MIN_REVIEWS ? null : (
+        <span
+          aria-hidden="true"
+          data-slot="topic-bar"
+          className="flex h-2 w-full max-w-60 overflow-hidden rounded-full bg-muted"
+        >
+          {total === 0 ? null : (
+            <>
+              <span
+                className="bg-positive"
+                style={{ width: `${(praise / total) * 100}%` }}
+              />
+              <span
+                className="bg-destructive"
+                style={{ width: `${(complaints / total) * 100}%` }}
+              />
+            </>
+          )}
+        </span>
+      )}
       <span className="flex flex-wrap items-center gap-x-4 text-sm tabular-nums">
         <ReviewsLink
           propertyId={propertyId}

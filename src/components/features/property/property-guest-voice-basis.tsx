@@ -1,5 +1,6 @@
 import { formatNumber } from '#/lib/format'
 import {
+  analysedStatement,
   windowDates,
   windowStatement,
   type ReadyInsights,
@@ -11,15 +12,17 @@ function pluralized(count: number, singular: string, plural = `${singular}s`): s
 
 /**
  * Which window this is and what is in it, before the figures that depend on
- * both: the sentence that names the window, then the review counts, with the
- * breakdown on request.
+ * both: the sentence that names the window and, when fewer reviews were read than
+ * it holds, why; then the review counts, with the breakdown on request.
  */
 export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsights }>) {
   const { basis } = result
   const dates = windowDates(result)
+  const analysed = analysedStatement(result)
   return (
     <div className="flex flex-col gap-2 text-sm text-muted-foreground">
       <p className="text-foreground">{windowStatement(result)}</p>
+      {analysed === null ? null : <p>{analysed}</p>}
       <p>
         Based on {pluralized(basis.reviewCount, 'review')} ·{' '}
         {formatNumber(basis.analyzedReviewCount)} analysed

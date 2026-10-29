@@ -5,7 +5,7 @@
 // compared with a number of reviews and was never what the Inbox lists when the
 // number is followed. These functions count reviews, take the stars those
 // reviews gave, and say how those stars sit against the rest of the window; the
-// Guest voice read (a chosen window, with the period before it) and the Overview
+// Guest voice read (a chosen window, with the 12 months before it) and the Overview
 // read (30 days) share them so the two pages cannot disagree.
 //
 // Pure functions of an analysed-review list: no I/O, no clock.
@@ -154,18 +154,20 @@ export function starsOfMentioned(
 export type AspectChange = ReturnType<typeof likelyChange>
 
 /**
- * Whether the share of reviews that name a topic moved against the period
- * before. `unknown` for a window with no period to compare with.
+ * Whether the share of reviews that name a topic moved more than its usual ups
+ * and downs against the Property's own previous 12 months (`baseline`, counted in
+ * analysed reviews with text). `unknown` where the 12 months hold too few of them
+ * to have a usual.
  */
 export function changeOfMentions(
   current: Readonly<{ reviewCount: number; textReviews: number }>,
-  preceding: Readonly<{ reviewCount: number; textReviews: number }>,
+  baseline: Readonly<{ reviewCount: number; textReviews: number }>,
 ): AspectChange {
   return likelyChange({
     mentions: current.reviewCount,
     textReviews: current.textReviews,
-    baselineMentions: preceding.reviewCount,
-    baselineReviews: preceding.textReviews,
+    baselineMentions: baseline.reviewCount,
+    baselineReviews: baseline.textReviews,
   })
 }
 

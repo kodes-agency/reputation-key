@@ -164,11 +164,20 @@ describe('starsOfMentioned', () => {
 })
 
 describe('changeOfMentions', () => {
-  it('is unknown when either period holds under ten reviews to compare', () => {
+  it('is unknown when the window holds under ten reviews to compare', () => {
     expect(
       changeOfMentions(
         { reviewCount: 5, textReviews: 8 },
         { reviewCount: 5, textReviews: 40 },
+      ),
+    ).toBe('unknown')
+  })
+
+  it('is unknown when the previous 12 months hold under twenty analysed reviews', () => {
+    expect(
+      changeOfMentions(
+        { reviewCount: 12, textReviews: 20 },
+        { reviewCount: 1, textReviews: 19 },
       ),
     ).toBe('unknown')
   })

@@ -79,7 +79,8 @@ describe('describeTrend', () => {
     })
   })
 
-  it('counts the reviews done of the reviews to do while a window is still being analysed', () => {
+  it('counts the reviews done of the reviews to do in the window still being analysed', () => {
+    // The earlier window is finished (20 of 22 is over 90%): it is not part of the wait.
     expect(
       describeTrend({
         status: 'updating',
@@ -88,9 +89,31 @@ describe('describeTrend', () => {
       }),
     ).toEqual({
       kind: 'state',
-      text: 'Still analysing: 34 of 42 reviews done.',
+      text: 'Still analysing: 14 of 20 reviews done in the last 30 days.',
       sample: null,
     })
+  })
+
+  it('names the earlier window when that is the one still being analysed', () => {
+    expect(
+      describeTrend({
+        status: 'updating',
+        ...EPOCHS,
+        evidence: evidence([22, 15], [20, 20]),
+      })?.text,
+    ).toBe('Still analysing: 15 of 22 reviews done in the 30 days before.')
+  })
+
+  it('reports each window that is still being analysed, and only those', () => {
+    expect(
+      describeTrend({
+        status: 'updating',
+        ...EPOCHS,
+        evidence: evidence([22, 15], [20, 14]),
+      })?.text,
+    ).toBe(
+      'Still analysing: 14 of 20 reviews done in the last 30 days, 15 of 22 in the 30 days before.',
+    )
   })
 
   it('does not call a window that has no text review "still analysing": 0 of 0 waits for nothing', () => {

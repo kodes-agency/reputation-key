@@ -6,8 +6,10 @@
 // link that opens them says `since` and `until` in those days. An Inbox item
 // stores the review's date as an instant, so the days are turned into the
 // instants they start and end at in the Property's timezone: reading them as UTC
-// days would move a review near midnight in or out of the list, and the list
-// would no longer hold the reviews the number counted.
+// days would move a review near midnight in or out of the days, and the list and
+// the number would disagree about which reviews they cover. (The queue is a
+// separate choice: the Inbox opens Needs reply, so a review already replied to is
+// in Replied.)
 import { propertyWallClockToInstant } from '#/shared/domain/property-calendar'
 
 export type SourceDateWindow = Readonly<{

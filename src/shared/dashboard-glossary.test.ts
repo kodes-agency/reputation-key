@@ -49,3 +49,16 @@ describe('dashboard glossary definitions', () => {
     }
   })
 })
+
+describe('the Change definition', () => {
+  const { definition } = DASHBOARD_GLOSSARY['likely-change']
+
+  it('names what the change is compared with', () => {
+    expect(definition).toContain('compared with the 12 months before')
+  })
+
+  it('says the share moved more than its usual ups and downs, and promises no probability', () => {
+    expect(definition).toContain('more than its usual ups and downs over the past year')
+    expect(definition).not.toMatch(/\d+ in \d+|\d+\s?%|unlikely|chance/i)
+  })
+})

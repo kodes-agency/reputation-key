@@ -49,6 +49,31 @@ export function windowStatement(result: ReadyInsights): string {
   return `${period}, chosen because it holds ${holds}.`
 }
 
+/**
+ * Why the table's denominator is smaller than the reviews with text the window
+ * holds, when it is: "120 of them analysed; 8 in a language we don't analyse
+ * yet." Every row says "26 of 120", the reviews read for topics, and a manager who
+ * has just been told the window holds 128 would otherwise take the 120 for a
+ * mistake. Nothing to say when every review with text was read.
+ */
+export function analysedStatement(result: ReadyInsights): string | null {
+  const { basis, window } = result
+  if (basis.analyzedReviewCount === window.textReviewCount) return null
+  const parts = [`${formatNumber(basis.analyzedReviewCount)} of them analysed`]
+  if (basis.notAnalyzableCount > 0) {
+    parts.push(
+      `${formatNumber(basis.notAnalyzableCount)} in a language we don't analyse yet`,
+    )
+  }
+  if (basis.awaitingAnalysisCount > 0) {
+    parts.push(`${formatNumber(basis.awaitingAnalysisCount)} still being analysed`)
+  }
+  if (basis.preAspectAnalysisCount > 0) {
+    parts.push(`${formatNumber(basis.preAspectAnalysisCount)} not analysed for topics`)
+  }
+  return `${parts.join('; ')}.`
+}
+
 /** "Jun 13, 2026 to Sep 10, 2026": the days the window covers, the days a drill-down opens. */
 export function windowDates(result: ReadyInsights): string | null {
   const start = formatLocalDate(result.startLocalDate)

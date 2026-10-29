@@ -96,7 +96,9 @@ function AnalysisOff({ propertyId }: Readonly<{ propertyId: string }>) {
 
 /**
  * One topic and how many of the reviews name it, opened in the Inbox on the same
- * 30 days the figure counts, so the list holds the reviews the number does.
+ * 30 days the figure counts. The Inbox opens its Needs reply queue, so a review
+ * that has been replied to is in Replied, one click away with the topic and the
+ * days kept.
  */
 function TopicChip({
   tone,

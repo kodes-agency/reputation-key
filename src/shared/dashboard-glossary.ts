@@ -44,10 +44,13 @@ export const DASHBOARD_GLOSSARY: Readonly<Record<GlossaryTermKey, GlossaryEntry>
     definition:
       'The average stars of the reviews that complain about a topic, next to the average of every other review in this period. It shows that they go together, not that the topic caused the lower rating.',
   },
+  // The comparison is the Property's own previous 12 months, and what it claims is
+  // that the share moved more than its usual ups and downs over that year. It states
+  // no odds: a stated chance promised more than the test measures.
   'likely-change': {
     term: 'Change',
     definition:
-      'Shown only when a topic is named in a clearly different share of reviews than in the period before, and chance alone is unlikely to explain it (at least 9 in 10). Most topics show nothing.',
+      'Shown when the share of reviews that name a topic has moved by more than its usual ups and downs over the past year. It is compared with the 12 months before this period, and only once those months hold at least 20 analysed reviews. Most topics show nothing.',
   },
   topics: {
     term: 'Topics',

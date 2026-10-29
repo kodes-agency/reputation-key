@@ -1,5 +1,16 @@
-export const GUEST_VOICE_STATISTICS_VERSION = 'guest-voice-statistics-v1' as const
+// v2: a change is judged against the Property's own previous 12 months with both
+// shares uncertain (v1 took the baseline's observed rate as exact, and flagged an
+// unchanged topic in 11% to 19% of the windows).
+export const GUEST_VOICE_STATISTICS_VERSION = 'guest-voice-statistics-v2' as const
 export const PERCENT_MIN_REVIEWS = 20 as const
+/**
+ * Analysed text reviews the 12 months before a window must hold before a change
+ * is claimed against them: fewer, and the usual ups and downs of the share are not
+ * known.
+ */
+export const CHANGE_BASELINE_MIN_REVIEWS = 20 as const
+/** Analysed text reviews the window itself must hold before a change is claimed. */
+const CHANGE_WINDOW_MIN_REVIEWS = 10
 
 type EvidenceWindow = '30d' | '90d' | '180d' | '365d'
 
@@ -135,50 +146,117 @@ export function baselineRate(baselineMentions: number, baselineReviews: number):
   return (baselineMentions + 0.5) / (baselineReviews + 1)
 }
 
+type ShareCounts = Readonly<{ successes: number; trials: number }>
+
+function isShareCounts({ successes, trials }: ShareCounts): boolean {
+  return (
+    Number.isInteger(successes) &&
+    Number.isInteger(trials) &&
+    successes >= 0 &&
+    successes <= trials
+  )
+}
+
+/**
+ * The chance that the share behind `current` is higher than the share behind
+ * `baseline`, each known only from its counts.
+ *
+ * Each true share starts flat, Beta(1, 1), so `successes` of `trials` leaves it
+ * Beta(successes + 1, trials - successes + 1). With whole-number shapes the chance
+ * that one such share beats another is a finite sum (Evan Miller, "Formulas for
+ * Bayesian A/B Testing"):
+ *
+ *   P(X > Y) = sum over i = 0 .. aX - 1 of
+ *     B(aY + i, bY + bX) / ((bX + i) * B(1 + i, bX) * B(aY, bY))
+ *
+ * Its terms follow each other by a ratio of two fractions, so the sum is one pass.
+ * The terms are kept as logarithms and added from the largest, because the first
+ * one alone is smaller than a double for hundreds of reviews even where the whole
+ * sum is nearly 1.
+ */
+export function probabilityShareHigher(
+  current: ShareCounts,
+  baseline: ShareCounts,
+): number {
+  if (!isShareCounts(current) || !isShareCounts(baseline)) {
+    throw new RangeError('successes must be a whole number from 0 to trials')
+  }
+  const aX = current.successes + 1
+  const bX = current.trials - current.successes + 1
+  const aY = baseline.successes + 1
+  const bY = baseline.trials - baseline.successes + 1
+
+  let logTerm =
+    logGamma(bY + bX) + logGamma(aY + bY) - logGamma(aY + bY + bX) - logGamma(bY)
+  const logTerms: number[] = []
+  let largest = logTerm
+  for (let i = 0; i < aX; i += 1) {
+    logTerms.push(logTerm)
+    largest = Math.max(largest, logTerm)
+    logTerm += Math.log((aY + i) / (aY + bY + bX + i)) + Math.log((bX + i) / (1 + i))
+  }
+  const scaledSum = logTerms.reduce((sum, term) => sum + Math.exp(term - largest), 0)
+
+  return Math.min(1, Math.exp(largest) * scaledSum)
+}
+
+/**
+ * Whether the share of reviews that name a topic moved against the Property's own
+ * previous 12 months: `mentions` of `textReviews` in the window, `baselineMentions`
+ * of `baselineReviews` in the 12 months that end where it starts.
+ *
+ * Both shares are uncertain, so they are compared as two posteriors
+ * (`probabilityShareHigher`). `threshold` is the central range of the difference
+ * between the two shares that must leave zero out: at 0.95 a rise is called when
+ * the chance that the share went up is at least 0.975, and a fall when the chance
+ * that it went down is, so each direction has a tail of 2.5% and an unchanged
+ * topic is flagged in at most about 5% of the windows. (v1 set a prior on the
+ * window's share at the baseline's observed rate and took that rate as exact. It
+ * flagged an unchanged topic in 11% to 19% of the windows, by exact enumeration
+ * over both binomials at 20 and 60 reviews, and still 9% to 10% at 60 once the bar
+ * was raised to 0.95.)
+ *
+ * The share must also have moved by `margin` and rest on 3 reviews, so a
+ * confident but immaterial move does not become a trend. Without a baseline of
+ * `CHANGE_BASELINE_MIN_REVIEWS` there is nothing to be unusual against: unknown.
+ */
 export function likelyChange({
   mentions,
   textReviews,
   baselineMentions,
   baselineReviews,
-  priorStrength = 20,
   margin = 0.05,
-  threshold = 0.9,
+  threshold = 0.95,
 }: Readonly<{
   mentions: number
   textReviews: number
   baselineMentions: number
   baselineReviews: number
-  priorStrength?: number
   margin?: number
   threshold?: number
 }>): LikelyChange {
-  if (textReviews < 10 || baselineReviews < 10) return 'unknown'
+  const current = { successes: mentions, trials: textReviews }
+  const baselineCounts = { successes: baselineMentions, trials: baselineReviews }
+  if (
+    textReviews < CHANGE_WINDOW_MIN_REVIEWS ||
+    baselineReviews < CHANGE_BASELINE_MIN_REVIEWS ||
+    !isShareCounts(current) ||
+    !isShareCounts(baselineCounts)
+  ) {
+    return 'unknown'
+  }
 
   const baseline = baselineRate(baselineMentions, baselineReviews)
-  const priorAlpha = priorStrength * baseline
-  const priorBeta = priorStrength * (1 - baseline)
-  const posteriorAlpha = priorAlpha + mentions
-  const posteriorBeta = priorBeta + textReviews - mentions
   const currentRate = mentions / textReviews
+  const needed = (1 + threshold) / 2
+  const higher = probabilityShareHigher(current, baselineCounts)
 
-  // The rate margin and minimum counts prevent a confident but immaterial
-  // posterior movement from becoming a user-facing trend.
-  if (
-    mentions >= 3 &&
-    currentRate >= baseline + margin &&
-    1 - regularizedIncompleteBeta(baseline, posteriorAlpha, posteriorBeta) >= threshold
-  ) {
+  if (mentions >= 3 && currentRate >= baseline + margin && higher >= needed) {
     return 'rising'
   }
-
-  if (
-    baselineMentions >= 3 &&
-    currentRate <= baseline - margin &&
-    regularizedIncompleteBeta(baseline, posteriorAlpha, posteriorBeta) >= threshold
-  ) {
+  if (baselineMentions >= 3 && currentRate <= baseline - margin && 1 - higher >= needed) {
     return 'falling'
   }
-
   return 'steady'
 }
 

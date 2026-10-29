@@ -86,12 +86,30 @@ function notEnough(windows: TrendWindows): TrendWords {
   }
 }
 
-function stillAnalysing(windows: TrendWindows): TrendWords {
-  const total = windows.baseline.textCandidateCount + windows.current.textCandidateCount
-  const done = windows.baseline.analyzedCount + windows.current.analyzedCount
+type WaitingWindow = Readonly<{ window: TrendWindow; words: string }>
+
+/**
+ * The windows still being analysed, the latest first. Only these hold the
+ * comparison back: a window that is finished is not part of the wait, so the
+ * progress is never a sum with it.
+ */
+function windowsStillAnalysing(windows: TrendWindows): readonly WaitingWindow[] {
+  const period = periodWords(windows)
+  return [
+    { window: windows.current, words: period.current },
+    { window: windows.baseline, words: period.baseline },
+  ].filter(({ window }) => trendWindowIsIncomplete(window))
+}
+
+/** "Still analysing: 14 of 20 reviews done in the last 30 days." */
+function stillAnalysing(waiting: readonly WaitingWindow[]): TrendWords {
+  const progress = waiting.map(
+    ({ window, words }, index) =>
+      `${formatNumber(window.analyzedCount)} of ${formatNumber(window.textCandidateCount)}${index === 0 ? ' reviews done' : ''} in ${words}`,
+  )
   return {
     kind: 'state',
-    text: `Still analysing: ${formatNumber(done)} of ${formatNumber(total)} reviews done.`,
+    text: `Still analysing: ${progress.join(', ')}.`,
     sample: null,
   }
 }
@@ -125,10 +143,8 @@ export function describeTrend(trend: AiTrendReportView): TrendWords | null {
           sample: null,
         }
       }
-      return trendWindowIsIncomplete(windows.baseline) ||
-        trendWindowIsIncomplete(windows.current)
-        ? stillAnalysing(windows)
-        : notEnough(windows)
+      const waiting = windowsStillAnalysing(windows)
+      return waiting.length > 0 ? stillAnalysing(waiting) : notEnough(windows)
     }
     case 'insufficient_data':
       return notEnough(trend.evidence)

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { LARGE_PROPERTY, SMALL_PROPERTY } from './property-guest-voice-stories-data'
-import { windowDates, windowStatement } from './property-guest-voice-window'
+import {
+  analysedStatement,
+  windowDates,
+  windowStatement,
+} from './property-guest-voice-window'
 
 describe('windowStatement', () => {
   it('names the window an automatic choice made and the reviews that made it', () => {
@@ -76,5 +80,55 @@ describe('windowStatement', () => {
 describe('windowDates', () => {
   it('gives the days the window covers, the ones a drill-down opens', () => {
     expect(windowDates(LARGE_PROPERTY)).toBe('Jun 13, 2026 to Sep 10, 2026')
+  })
+})
+
+describe('analysedStatement', () => {
+  it('says why the rows count 120 when the window holds 128 reviews with text', () => {
+    expect(analysedStatement(LARGE_PROPERTY)).toBe(
+      "120 of them analysed; 8 in a language we don't analyse yet.",
+    )
+  })
+
+  it('says nothing when every review with text was read', () => {
+    expect(
+      analysedStatement({
+        ...LARGE_PROPERTY,
+        window: { selection: 'chosen', textReviewCount: 120 },
+        basis: { ...LARGE_PROPERTY.basis, notAnalyzableCount: 0 },
+      }),
+    ).toBeNull()
+  })
+
+  it('accounts for every review with text that was not read, each in its own words', () => {
+    expect(
+      analysedStatement({
+        ...LARGE_PROPERTY,
+        window: { selection: 'chosen', textReviewCount: 27 },
+        basis: {
+          ...LARGE_PROPERTY.basis,
+          analyzedReviewCount: 10,
+          notAnalyzableCount: 3,
+          awaitingAnalysisCount: 9,
+          preAspectAnalysisCount: 5,
+        },
+      }),
+    ).toBe(
+      "10 of them analysed; 3 in a language we don't analyse yet; 9 still being analysed; 5 not analysed for topics.",
+    )
+  })
+
+  it('adds up to the reviews with text the window names, for the small property too', () => {
+    const { basis, window } = SMALL_PROPERTY
+
+    expect(
+      basis.analyzedReviewCount +
+        basis.notAnalyzableCount +
+        basis.awaitingAnalysisCount +
+        basis.preAspectAnalysisCount,
+    ).toBe(window.textReviewCount)
+    expect(analysedStatement(SMALL_PROPERTY)).toBe(
+      "34 of them analysed; 2 in a language we don't analyse yet.",
+    )
   })
 })

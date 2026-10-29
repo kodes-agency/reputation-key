@@ -103,9 +103,10 @@ export type AiPropertyInsightAspect = Readonly<{
   /** Those stars against every other review in the window (see `AspectStars`). */
   stars: AspectStars
   /**
-   * Whether the share of reviews that name it moved against the period before.
-   * `unknown` where there is no period to compare (All Time, a window still
-   * being analysed) or too few reviews to say.
+   * Whether the share of reviews that name it moved more than its usual ups and
+   * downs, against the Property's own previous 12 months. `unknown` where there is
+   * nothing to compare (All Time, a window still being analysed) or those 12 months
+   * hold too few analysed reviews to say.
    */
   change: AspectChange
 }>
@@ -113,8 +114,9 @@ export type AiPropertyInsightAspect = Readonly<{
 export type AiPropertyInsightComparedAspect = Readonly<
   AiPropertyInsightAspect & {
     comparison: Readonly<{
+      /** Mentions in the 12 months before the window. */
       precedingMentionCount: number
-      /** The reviews that named it in the period before, what `change` is measured against. */
+      /** The reviews that named it in the 12 months before, what `change` is measured against. */
       precedingReviewCount: number
     }>
   }
@@ -173,6 +175,11 @@ type AiPropertyInsightsReadyBase<Provisional extends boolean> = Readonly<{
 type AiPropertyInsightsComparedPresetReady = Readonly<
   AiPropertyInsightsReadyBase<false> & {
     range: PropertyInsightsPreset
+    /**
+     * The 12 months that end the day before the window starts: the Property's own
+     * previous year, whatever the window's length, what every `change` is measured
+     * against.
+     */
     precedingPeriod: Period
     aspects: readonly AiPropertyInsightComparedAspect[]
     /** Labels two or more reviews in the window carry (`recurringIssues`). */
@@ -366,7 +373,7 @@ function windowEvidence(summary: WindowSummary): WindowEvidence {
   })
 }
 
-/** A topic and polarity row; `preceding` is the period before, when there is one to compare. */
+/** A topic and polarity row; `preceding` is the 12 months before the window, when there is a comparison. */
 function aspectRow(
   identity: Readonly<{ aspect: AspectTaxonomyV1Id; polarity: AspectPolarityV1 }>,
   current: WindowEvidence,
@@ -642,37 +649,68 @@ async function readAllTimeInsights(
   })
 }
 
+/**
+ * The 12 months that end the day before a window starts: the Property's own
+ * previous year, whatever the window's length. A change is measured against its
+ * usual ups and downs over that year, which a period as short as the window cannot
+ * show: 30 days of a busy month would stand beside 30 days of a quiet one. The year
+ * of a 12-month window reaches back 24 months, the retention of the derived data.
+ */
+function baselineOf(window: Period): Period {
+  const endLocalDate = addDays(window.startLocalDate, -1)
+  return Object.freeze({
+    startLocalDate: addDays(endLocalDate, -(YEAR_DAYS - 1)),
+    endLocalDate,
+  })
+}
+
+/**
+ * The Reviews of a window and of the year before it, in one read. A Property with
+ * this many Reviews in the two together (more than the read can hold at once) is
+ * read for its window alone: its baseline stays empty, which `change` reads as
+ * nothing to compare against, rather than the whole page being left unanswered.
+ */
+async function readPresetPopulation(
+  dependencies: ReadPropertyInsightsDependencies,
+  requests: InsightsEvidenceRequests,
+  window: Period,
+  baseline: Period,
+): Promise<AiTrendPopulationResult> {
+  const read = (startLocalDate: string) =>
+    dependencies.reviewSources.readTrendPopulation({
+      ...requests.populationScope,
+      startLocalDate,
+      detectEvidenceBeforeStart: false,
+    })
+  const withBaseline = await read(baseline.startLocalDate)
+  return withBaseline.status === 'limit_exceeded'
+    ? read(window.startLocalDate)
+    : withBaseline
+}
+
 async function readPresetInsights(
   dependencies: ReadPropertyInsightsDependencies,
   requests: InsightsEvidenceRequests,
   range: PropertyInsightsPreset,
   selection: WindowSelection,
 ): Promise<AiPropertyInsightsRead> {
-  const { aggregateScope, populationScope, endLocalDate } = requests
+  const { aggregateScope, endLocalDate } = requests
   const startLocalDate = addDays(endLocalDate, -(range - 1))
-  const precedingEndLocalDate = addDays(startLocalDate, -1)
-  const precedingPeriod = Object.freeze({
-    startLocalDate: addDays(precedingEndLocalDate, -(range - 1)),
-    endLocalDate: precedingEndLocalDate,
-  })
+  const currentPeriod = Object.freeze({ startLocalDate, endLocalDate })
+  const precedingPeriod = baselineOf(currentPeriod)
   const [aggregate, population] = await Promise.all([
     dependencies.aggregates.readWindow({
       ...aggregateScope,
       startLocalDate: precedingPeriod.startLocalDate,
       endLocalDate,
     }),
-    dependencies.reviewSources.readTrendPopulation({
-      ...populationScope,
-      startLocalDate: precedingPeriod.startLocalDate,
-      detectEvidenceBeforeStart: false,
-    }),
+    readPresetPopulation(dependencies, requests, currentPeriod, precedingPeriod),
   ])
   if (population.status !== 'complete') return { status: 'preparing' }
   if (aggregate === null || aggregate.coverage.settledAnalysisCount === 0) {
     return { status: 'preparing' }
   }
 
-  const currentPeriod = Object.freeze({ startLocalDate, endLocalDate })
   const { current, analyzedByVersion, unavailableByVersion } = prepareCurrentWindow(
     currentPeriod,
     population,
@@ -702,9 +740,9 @@ async function readPresetInsights(
     basis: current.basis,
   })
 
-  // A window still being analysed has no comparison: the period before it may
-  // be missing reviews too, and a change measured against half of it would be
-  // a change in the analysis, not in the guests.
+  // A window still being analysed has no comparison, and neither has one whose
+  // previous 12 months still wait on a review: a change measured against half of
+  // them would be a change in the analysis, not in the guests.
   if (provisional) {
     const aspects = allTimeAspects(current)
     return Object.freeze({
@@ -741,6 +779,10 @@ const PRESET_OF_WINDOW = {
  * months that holds enough reviews with text (`chooseEvidenceWindow`). It counts
  * from the last 12 months of the Review population, which is read once more for
  * the window it picks; the count is cheap beside the analyses the window reads.
+ *
+ * A year too full to read (10,001 Reviews or more) holds more than enough with
+ * text in any window, so it is answered with the 90-day window, the default Guest
+ * voice had before the choice was automatic, rather than left unanswered.
  */
 async function chooseAutomaticRange(
   dependencies: ReadPropertyInsightsDependencies,
@@ -752,6 +794,9 @@ async function chooseAutomaticRange(
     startLocalDate: addDays(endLocalDate, -(YEAR_DAYS - 1)),
     detectEvidenceBeforeStart: false,
   })
+  if (population.status === 'limit_exceeded') {
+    return { range: QUARTER_DAYS, enough: true }
+  }
   if (population.status !== 'complete') return null
 
   const textReviewsSince = (days: number) => {

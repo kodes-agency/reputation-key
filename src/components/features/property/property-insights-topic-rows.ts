@@ -20,9 +20,10 @@ export type PropertyInsightsEvidence =
 
 /**
  * Under this many reviews a topic shows its counts and nothing else: an average
- * of two reviews is an anecdote, and the stars column says so ("too few").
+ * of two reviews is an anecdote, and the stars column says so ("too few"). The
+ * praise and complaints bar, a proportion of the same reviews, is not drawn either.
  */
-const TOPIC_MIN_REVIEWS = 3
+export const TOPIC_MIN_REVIEWS = 3
 
 export type TopicRow = Readonly<{
   aspect: AspectTaxonomyV1Id
@@ -77,7 +78,7 @@ export function topicRows(evidence: PropertyInsightsEvidence): readonly TopicRow
   }
   return (
     [...topics]
-      // The read keeps a topic that only the period before named, so its row could
+      // The read keeps a topic that only the 12 months before named, so its row could
       // say it fell; nothing named it in this window, and a row of 0 says nothing.
       .filter(([, topic]) => topic.reviews > 0)
       .map(([aspect, topic]): TopicRow => ({
@@ -144,7 +145,7 @@ const CHANGE_WORDS = {
 } as const
 
 /**
- * What moved against the period before, in words, only for a share that did so
+ * What moved against the previous 12 months, in words, only for a share that did so
  * with enough evidence. A steady or unknown change says nothing, and neither does
  * a topic under three reviews.
  */

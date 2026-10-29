@@ -106,6 +106,8 @@ function harness(
     localDate?: string | null
     aggregate?: unknown
     population?: unknown
+    /** The answer to each Review population read, by the read asked: wins over `population`. */
+    populationFor?: (request: Readonly<{ startLocalDate: string }>) => unknown
     /** The Properties a PropertyManager reader is granted. */
     grants?: readonly (typeof PROPERTY_ID)[]
   }> = {},
@@ -130,15 +132,16 @@ function harness(
       ...aggregate,
     }
   })
-  const readTrendPopulation = vi.fn(async () =>
-    options.population === undefined
+  const readTrendPopulation = vi.fn(async (request: { startLocalDate: string }) => {
+    if (options.populationFor !== undefined) return options.populationFor(request)
+    return options.population === undefined
       ? {
           status: 'complete' as const,
           reviews: [],
           hasEvidenceBeforeStart: false,
         }
-      : options.population,
-  )
+      : options.population
+  })
   const resolveLocalDate = vi.fn(async () =>
     options.localDate === undefined ? '2026-08-20' : options.localDate,
   )
@@ -247,7 +250,7 @@ describe('readPropertyInsights gates and windows', () => {
     expect(readTrendPopulation).not.toHaveBeenCalled()
   })
 
-  it('uses an equal-length preceding window ending the day before the current one', async () => {
+  it('measures change against the 12 months ending the day before the window starts', async () => {
     const current = populationReview(1, '2026-08-20')
     const { read, readWindow, readTrendPopulation } = harness({
       population: { status: 'complete', reviews: [current] },
@@ -265,8 +268,10 @@ describe('readPropertyInsights gates and windows', () => {
       range: 30,
       startLocalDate: '2026-07-22',
       endLocalDate: '2026-08-20',
+      // 365 days, not the 30 the window holds: a month is measured against the
+      // Property's own year.
       precedingPeriod: {
-        startLocalDate: '2026-06-22',
+        startLocalDate: '2025-07-22',
         endLocalDate: '2026-07-21',
       },
     })
@@ -276,14 +281,14 @@ describe('readPropertyInsights gates and windows', () => {
       sourceEpoch: 7,
       reviewAnalysisEpoch: 4,
       propertyProfileVersion: 11,
-      startLocalDate: '2026-06-22',
+      startLocalDate: '2025-07-22',
       endLocalDate: '2026-08-20',
     })
     expect(readTrendPopulation).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
-        startLocalDate: '2026-06-22',
+        startLocalDate: '2025-07-22',
         endLocalDate: '2026-08-20',
       }),
     )
@@ -838,8 +843,8 @@ describe('readPropertyInsights topics counted in reviews', () => {
     expect(result.aspects.every((row) => row.change === 'unknown')).toBe(true)
   })
 
-  it('says a share rose or fell only against the period before, with the evidence for it', async () => {
-    // 20 reviews in the window, 12 complain about the room; 30 in the period
+  it('says a share rose or fell only against the 12 months before, with the evidence for it', async () => {
+    // 20 reviews in the window, 12 complain about the room; 30 in the 12 months
     // before, 3 complained. Praise went the other way.
     const current = Array.from({ length: 20 }, (_, index) => ({
       population: populationReview(index + 1, '2026-08-10', {
@@ -882,6 +887,165 @@ describe('readPropertyInsights topics counted in reviews', () => {
       change: 'falling',
       comparison: { precedingReviewCount: 27 },
     })
+  })
+})
+
+describe('readPropertyInsights change against the previous 12 months', () => {
+  // Window 2026-07-22..2026-08-20; the 12 months before it are 2025-07-22..2026-07-21.
+  type Entry = ReturnType<typeof entry>
+
+  function entry(sequence: number, localDate: string, complaint: boolean) {
+    return {
+      population: populationReview(sequence, localDate, { rating: complaint ? 2 : 5 }),
+      analyzed: analyzedNaming(sequence, localDate, complaint ? 2 : 5, [
+        { aspect: 'room', polarity: complaint ? 'negative' : 'positive' },
+      ]),
+    }
+  }
+
+  /** `count` reviews on one day, the first `complaints` of them complaining about the room. */
+  function onDay(
+    count: number,
+    complaints: number,
+    localDate: string,
+    firstSequence: number,
+  ): Entry[] {
+    return Array.from({ length: count }, (_, index) =>
+      entry(firstSequence + index, localDate, index < complaints),
+    )
+  }
+
+  function harnessOf(entries: readonly Entry[]) {
+    return harness({
+      population: {
+        status: 'complete',
+        reviews: entries.map(({ population }) => population),
+      },
+      aggregate: {
+        head: {},
+        days: [],
+        analyzedReviews: entries.map(({ analyzed }) => analyzed),
+        unavailableReviews: [],
+      },
+    })
+  }
+
+  function roomComplaints(result: AiPropertyInsightsRead) {
+    return readyAspects(result).find(
+      (row) => row.aspect === 'room' && row.polarity === 'negative',
+    )
+  }
+
+  it('counts reviews from any day of the year before, however far from the window', async () => {
+    // 25 reviews from 11 months before the window, none complaining; 12 of the
+    // window's 20 complain.
+    const { read } = harnessOf([
+      ...onDay(20, 12, '2026-08-10', 1),
+      ...onDay(25, 0, '2025-09-15', 100),
+    ])
+
+    const row = roomComplaints(await read(input))
+
+    expect(row).toMatchObject({
+      reviewCount: 12,
+      change: 'rising',
+      comparison: { precedingReviewCount: 0 },
+    })
+  })
+
+  it('leaves out reviews from before those 12 months: they are in neither period', async () => {
+    // 100 complaints from 13 months before the window would turn the baseline into
+    // a falling share if they counted.
+    const { read } = harnessOf([
+      ...onDay(20, 12, '2026-08-10', 1),
+      ...onDay(25, 0, '2026-01-15', 100),
+      ...onDay(100, 100, '2025-06-15', 200),
+    ])
+
+    const row = roomComplaints(await read(input))
+
+    expect(row).toMatchObject({
+      change: 'rising',
+      comparison: { precedingReviewCount: 0 },
+    })
+  })
+
+  it('claims no change when the 12 months before hold under twenty analysed reviews', async () => {
+    const { read } = harnessOf([
+      ...onDay(20, 12, '2026-08-10', 1),
+      ...onDay(19, 0, '2026-01-15', 100),
+    ])
+
+    expect(roomComplaints(await read(input))).toMatchObject({
+      reviewCount: 12,
+      change: 'unknown',
+    })
+  })
+
+  it('claims a change from twenty analysed reviews in the 12 months before', async () => {
+    const { read } = harnessOf([
+      ...onDay(20, 12, '2026-08-10', 1),
+      ...onDay(20, 0, '2026-01-15', 100),
+    ])
+
+    expect(roomComplaints(await read(input))).toMatchObject({ change: 'rising' })
+  })
+
+  it('reads a window on its own for a Property too full to read with its previous year', async () => {
+    const entries = [
+      ...onDay(20, 12, '2026-08-10', 1),
+      ...onDay(25, 0, '2026-01-15', 100),
+    ]
+    const WINDOW_START = '2026-07-22'
+    const { read, readTrendPopulation } = harness({
+      populationFor: ({ startLocalDate }) =>
+        startLocalDate < WINDOW_START
+          ? { status: 'limit_exceeded' }
+          : {
+              status: 'complete',
+              // What a read from the window's start returns: the window's reviews.
+              reviews: entries
+                .filter(({ population }) => population.localDate >= WINDOW_START)
+                .map(({ population }) => population),
+              hasEvidenceBeforeStart: false,
+            },
+      aggregate: {
+        head: {},
+        days: [],
+        analyzedReviews: entries.map(({ analyzed }) => analyzed),
+        unavailableReviews: [],
+      },
+    })
+
+    const result = await read(input)
+
+    expect(
+      readTrendPopulation.mock.calls.map(([request]) => request.startLocalDate),
+    ).toEqual(['2025-07-22', WINDOW_START])
+    // The window is shown; with nothing to compare it against, no change is claimed.
+    expect(roomComplaints(result)).toMatchObject({
+      reviewCount: 12,
+      change: 'unknown',
+      comparison: { precedingReviewCount: 0 },
+    })
+  })
+
+  it('keeps preparing when even the window alone is too full to read', async () => {
+    const { read, readTrendPopulation } = harness({
+      population: { status: 'limit_exceeded' },
+    })
+
+    await expect(read(input)).resolves.toEqual({ status: 'preparing' })
+    expect(readTrendPopulation).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry a read that failed for another reason', async () => {
+    const { read, readTrendPopulation } = harness({
+      population: { status: 'policy_unavailable' },
+    })
+
+    await expect(read(input)).resolves.toEqual({ status: 'preparing' })
+    expect(readTrendPopulation).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -975,7 +1139,7 @@ describe('readPropertyInsights window', () => {
         range: 30,
         window: { selection: 'automatic', textReviewCount: 60, enoughForPatterns: true },
       })
-      // 12 months to count in, then the window it picked and the one before it.
+      // 12 months to count in, then the window it picked and the 12 months before it.
       expect(readTrendPopulation).toHaveBeenCalledTimes(2)
       expect(readTrendPopulation).toHaveBeenNthCalledWith(
         1,
@@ -986,7 +1150,7 @@ describe('readPropertyInsights window', () => {
       )
       expect(readTrendPopulation).toHaveBeenNthCalledWith(
         2,
-        expect.objectContaining({ startLocalDate: '2026-06-22' }),
+        expect.objectContaining({ startLocalDate: '2025-07-22' }),
       )
     })
 
@@ -1069,10 +1233,47 @@ describe('readPropertyInsights window', () => {
       })
     })
 
-    it('keeps preparing when the year of reviews cannot be read', async () => {
-      const { read } = harness({ population: { status: 'limit_exceeded' } })
+    it('keeps preparing when the year of reviews cannot be read safely', async () => {
+      const { read } = harness({ population: { status: 'policy_unavailable' } })
 
       await expect(read(auto)).resolves.toEqual({ status: 'preparing' })
+    })
+
+    it('falls back to 90 days, the previous default, when the year holds too many reviews to read', async () => {
+      // A year this full holds far more than 60 reviews with text in any window,
+      // but cannot be counted. Only a read of 90 days or fewer (the window alone,
+      // from 2026-05-23) comes back; anything reaching further says limit_exceeded.
+      const WINDOW_START = '2026-05-23'
+      const entries = textReviews(5, '2026-08-10', 1)
+      const { read, readTrendPopulation } = harness({
+        populationFor: ({ startLocalDate }) =>
+          startLocalDate < WINDOW_START
+            ? { status: 'limit_exceeded' }
+            : {
+                status: 'complete',
+                reviews: entries.map((entry) => entry.population),
+                hasEvidenceBeforeStart: false,
+              },
+        aggregate: {
+          head: {},
+          days: [],
+          analyzedReviews: entries.map((entry) => entry.analyzed),
+          unavailableReviews: [],
+        },
+      })
+
+      const result = await read(auto)
+
+      expect(result).toMatchObject({
+        status: 'ready',
+        range: 90,
+        startLocalDate: WINDOW_START,
+        window: { selection: 'automatic', enoughForPatterns: true },
+      })
+      // The year, then the window with its baseline, then the window alone.
+      expect(
+        readTrendPopulation.mock.calls.map(([request]) => request.startLocalDate),
+      ).toEqual(['2025-08-21', '2025-05-23', WINDOW_START])
     })
 
     it('says there is not enough when the year holds no review at all', async () => {
