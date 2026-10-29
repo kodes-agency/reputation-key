@@ -18,10 +18,12 @@ import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-ag
 import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
+import { ROW_FIGURE_LINK } from '#/components/ui/row-link'
 import { Skeleton } from '#/components/ui/skeleton'
+import { cn } from '#/lib/utils'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { ASPECT_LABELS } from '#/shared/aspect-labels'
+import { topComplaint, topicCountText, topPraise } from './overview-guest-voice-topics'
 
 export type OverviewGuestVoiceServerFns = Readonly<{
   getTrend: typeof getPropertyAiTrendFn
@@ -92,18 +94,42 @@ function AnalysisOff({ propertyId }: Readonly<{ propertyId: string }>) {
   )
 }
 
+/**
+ * One topic and how many of the reviews name it, opened in the Inbox on the same
+ * 30 days the figure counts. The Inbox opens its Needs reply queue, so a review
+ * that has been replied to is in Replied, one click away with the topic and the
+ * days kept.
+ */
 function TopicChip({
   tone,
   entry,
-}: Readonly<{ tone: 'praise' | 'complaint'; entry: AiAspectAggregate }>) {
+  read,
+  propertyId,
+}: Readonly<{
+  tone: 'praise' | 'complaint'
+  entry: AiAspectAggregate
+  read: ReadyAggregates
+  propertyId: string
+}>) {
+  const text = topicCountText(entry, read.analyzedReviewCount)
   return (
-    <span className="flex items-center gap-1.5">
+    <Link
+      to="/inbox"
+      search={{
+        propertyId,
+        aspect: entry.aspect,
+        polarity: tone === 'praise' ? 'positive' : 'negative',
+        since: read.startLocalDate,
+        until: read.endLocalDate,
+      }}
+      aria-label={`${tone === 'praise' ? 'Praise' : 'Complaints'}: ${text}; open in inbox`}
+      className={cn('flex min-h-11 items-center gap-1.5 md:min-h-0', ROW_FIGURE_LINK)}
+    >
       <Badge variant={tone === 'praise' ? 'positive' : 'negative'}>
         {tone === 'praise' ? 'Praise' : 'Complaints'}
       </Badge>
-      {ASPECT_LABELS[entry.aspect]}
-      <span className="tabular-nums text-muted-foreground">×{entry.mentionCount}</span>
-    </span>
+      {text}
+    </Link>
   )
 }
 
@@ -117,9 +143,8 @@ function TopicSummary({
   headline: string | null | undefined
   propertyId: string
 }>) {
-  const mentioned = read.aspects.filter((entry) => entry.mentionCount > 0)
-  const praise = mentioned.find((entry) => entry.polarity === 'positive')
-  const complaint = mentioned.find((entry) => entry.polarity === 'negative')
+  const praise = topPraise(read.aspects)
+  const complaint = topComplaint(read.aspects)
 
   if (!praise && !complaint) {
     return (
@@ -136,9 +161,18 @@ function TopicSummary({
   return (
     <Row action={<ReadMore propertyId={propertyId} />}>
       {headline === null ? null : <p className="text-sm font-medium">{headline}</p>}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        {praise ? <TopicChip tone="praise" entry={praise} /> : null}
-        {complaint ? <TopicChip tone="complaint" entry={complaint} /> : null}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        {praise ? (
+          <TopicChip tone="praise" entry={praise} read={read} propertyId={propertyId} />
+        ) : null}
+        {complaint ? (
+          <TopicChip
+            tone="complaint"
+            entry={complaint}
+            read={read}
+            propertyId={propertyId}
+          />
+        ) : null}
       </div>
     </Row>
   )

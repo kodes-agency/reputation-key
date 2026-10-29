@@ -138,13 +138,43 @@ describe('activeInboxFilterChips', () => {
     ])
   })
 
+  it('words the dates a drill-down was counted over and clears both together', () => {
+    expect(
+      activeInboxFilterChips(
+        { ...CLEARED_INBOX_LIST_FILTERS, since: '2026-06-13', until: '2026-09-10' },
+        'newest',
+      ),
+    ).toStrictEqual([
+      {
+        key: 'dates',
+        label: 'Jun 13, 2026 to Sep 10, 2026',
+        clear: { filters: { since: undefined, until: undefined } },
+      },
+    ])
+  })
+
+  it('words a window with one end', () => {
+    expect(
+      activeInboxFilterChips(
+        { ...CLEARED_INBOX_LIST_FILTERS, since: '2026-06-13' },
+        'newest',
+      )[0]?.label,
+    ).toBe('From Jun 13, 2026')
+    expect(
+      activeInboxFilterChips(
+        { ...CLEARED_INBOX_LIST_FILTERS, until: '2026-09-10' },
+        'newest',
+      )[0]?.label,
+    ).toBe('Until Sep 10, 2026')
+  })
+
   it('adds a sort chip only for the non-default sort, clearing back to newest', () => {
     expect(activeInboxFilterChips(CLEARED_INBOX_LIST_FILTERS, 'oldest')).toStrictEqual([
       { key: 'sort', label: 'Oldest first', clear: { sort: 'newest' } },
     ])
   })
 
-  it('orders chips source, priority, rating, polarity, aspect, sort', () => {
+  it('orders chips source, priority, rating, polarity, aspect, dates, sort', () => {
     const chips = activeInboxFilterChips(
       {
         sourceType: 'feedback',
@@ -153,6 +183,8 @@ describe('activeInboxFilterChips', () => {
         ratingMax: 3,
         polarity: 'positive',
         aspect: 'staff',
+        since: '2026-06-13',
+        until: '2026-09-10',
       },
       'oldest',
     )
@@ -162,6 +194,7 @@ describe('activeInboxFilterChips', () => {
       'rating',
       'polarity',
       'aspect',
+      'dates',
       'sort',
     ])
     expect(chips.map((chip) => chip.label)).toEqual([
@@ -170,6 +203,7 @@ describe('activeInboxFilterChips', () => {
       '3 stars and below',
       'Praise',
       'Staff',
+      'Jun 13, 2026 to Sep 10, 2026',
       'Oldest first',
     ])
   })

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getInboxItems: vi.fn(),
+  getPropertyTimezone: vi.fn(),
   getInboxQueueCounts: vi.fn(),
   getInboxPropertyCounts: vi.fn(),
   resolveTenantContext: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('#/composition', () => ({
       getInboxQueueCounts: mocks.getInboxQueueCounts,
       getInboxPropertyCounts: mocks.getInboxPropertyCounts,
     },
+    propertyPublicApi: { getPropertyTimezone: mocks.getPropertyTimezone },
     logger: { warn: vi.fn() },
     clock: () => CONTAINER_NOW,
   })),
@@ -43,7 +45,7 @@ import {
   getInboxPropertyCountsFn,
   getInboxQueueCountsFn,
 } from './inbox-queries'
-import { getInboxPropertyCountsDto } from '../application/dto/inbox.dto'
+import { getInboxItemsDto, getInboxPropertyCountsDto } from '../application/dto/inbox.dto'
 
 const PROPERTY_ID = '750e8400-e29b-41d4-a716-446655440000'
 /** Not the wall clock: a simulated or backdated container reads this one. */
@@ -71,6 +73,7 @@ describe('inbox query authorization', () => {
       policyVersion: 'test',
     })
     mocks.getInboxItems.mockResolvedValue({ items: [], totalCount: 0 })
+    mocks.getPropertyTimezone.mockResolvedValue('Europe/Sofia')
     mocks.getInboxQueueCounts.mockResolvedValue({ open: 0 })
     mocks.getInboxPropertyCounts.mockResolvedValue({
       queue: 'open',
@@ -211,6 +214,96 @@ describe('inbox query authorization', () => {
       expect.objectContaining({ queue: 'replied', replyQueuesEnabled: undefined }),
       MANAGER,
     )
+  })
+
+  describe('the days a drill-down was counted over', () => {
+    it('narrows the list to the Property’s own days, as the moments they start and end', async () => {
+      await withStartContext(() =>
+        getInboxItemsFn({
+          data: {
+            propertyId: PROPERTY_ID,
+            aspect: 'room',
+            polarity: 'negative',
+            since: '2026-06-13',
+            until: '2026-09-10',
+          },
+        }),
+      )
+
+      // Sofia is UTC+3 in summer: its 13 June begins at 21:00 UTC on the 12th.
+      expect(mocks.getInboxItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({
+            propertyId: PROPERTY_ID,
+            sourceDateFrom: new Date('2026-06-12T21:00:00.000Z'),
+            sourceDateTo: new Date('2026-09-10T20:59:59.999Z'),
+          }),
+        }),
+        MANAGER,
+      )
+      expect(mocks.getPropertyTimezone).toHaveBeenCalledWith(
+        MANAGER.organizationId,
+        PROPERTY_ID,
+      )
+    })
+
+    it('reads the days in UTC when no Property is named', async () => {
+      await withStartContext(() =>
+        getInboxItemsFn({ data: { since: '2026-06-13', until: '2026-06-13' } }),
+      )
+
+      expect(mocks.getPropertyTimezone).not.toHaveBeenCalled()
+      expect(mocks.getInboxItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({
+            sourceDateFrom: new Date('2026-06-13T00:00:00.000Z'),
+            sourceDateTo: new Date('2026-06-13T23:59:59.999Z'),
+          }),
+        }),
+        MANAGER,
+      )
+    })
+
+    it('reads the days in UTC when the Property has no timezone on record', async () => {
+      mocks.getPropertyTimezone.mockResolvedValue(null)
+
+      await withStartContext(() =>
+        getInboxItemsFn({ data: { propertyId: PROPERTY_ID, since: '2026-06-13' } }),
+      )
+
+      expect(mocks.getInboxItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({
+            sourceDateFrom: new Date('2026-06-13T00:00:00.000Z'),
+            sourceDateTo: undefined,
+          }),
+        }),
+        MANAGER,
+      )
+    })
+
+    it('asks the Property nothing, and bounds nothing, when no day is named', async () => {
+      await withStartContext(() => getInboxItemsFn({ data: { propertyId: PROPERTY_ID } }))
+
+      expect(mocks.getPropertyTimezone).not.toHaveBeenCalled()
+      expect(mocks.getInboxItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({
+            sourceDateFrom: undefined,
+            sourceDateTo: undefined,
+          }),
+        }),
+        MANAGER,
+      )
+    })
+
+    it('takes only calendar days: the list’s request is refused before anything is asked', () => {
+      expect(getInboxItemsDto.safeParse({ since: '2026-06-13' }).success).toBe(true)
+      for (const since of ['last week', '2026-13-45', '20260613', '']) {
+        expect(getInboxItemsDto.safeParse({ since }).success).toBe(false)
+        expect(getInboxItemsDto.safeParse({ until: since }).success).toBe(false)
+      }
+    })
   })
 
   it('keeps non-reply staff queue counts available after reply policy denial', async () => {

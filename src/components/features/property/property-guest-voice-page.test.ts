@@ -12,10 +12,10 @@ import type {
   AiTrendSupportingReviewView,
 } from '#/contexts/ai/application/public-api'
 import { inboxItemId, reviewId } from '#/shared/domain/ids'
-import {
-  PropertyGuestVoiceBasis,
-  TrendSupportingReviews,
-} from './property-guest-voice-page'
+import { PropertyGuestVoiceBasis } from './property-guest-voice-basis'
+import { TrendSupportingReviews } from './property-guest-voice-trend'
+import { PropertyInsightsRecurringIssues } from './property-insights-recurring-issues'
+import { LARGE_PROPERTY } from './property-guest-voice-stories-data'
 
 const DISAGREEING_SOURCE_FIELDS: AiPropertyInsightsPresetReady = {
   status: 'ready',
@@ -29,7 +29,7 @@ const DISAGREEING_SOURCE_FIELDS: AiPropertyInsightsPresetReady = {
   startLocalDate: '2026-06-13',
   endLocalDate: '2026-09-10',
   dataThroughLocalDate: '2026-09-10',
-  impactVersion: 'aspect-impact-v1',
+  window: { selection: 'chosen', textReviewCount: 27 },
   aspectEvidenceState: 'available',
   basis: {
     reviewCount: 39,
@@ -63,6 +63,55 @@ describe('PropertyGuestVoiceBasis', () => {
     expect(markup).toMatch(/<dt>Awaiting analysis<\/dt><dd[^>]*>9<\/dd>/)
     expect(markup).not.toContain('0 reviews still being analysed')
     expect(markup).not.toMatch(/<dt>Awaiting analysis<\/dt><dd[^>]*>0<\/dd>/)
+  })
+
+  it('names the window and what it holds before the figures that depend on it', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyGuestVoiceBasis, { result: LARGE_PROPERTY }),
+    )
+
+    expect(markup).toContain(
+      'Last 90 days, chosen because it holds 128 reviews with text.',
+    )
+    expect(markup.indexOf('chosen because')).toBeLessThan(markup.indexOf('Based on'))
+  })
+
+  it('says why the rows count fewer reviews than the window holds, next to the window', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyGuestVoiceBasis, { result: LARGE_PROPERTY }),
+    )
+
+    expect(markup).toContain(
+      '120 of them analysed; 8 in a language we don&#x27;t analyse yet.',
+    )
+    expect(markup.indexOf('chosen because')).toBeLessThan(markup.indexOf('120 of them'))
+    expect(markup.indexOf('120 of them')).toBeLessThan(markup.indexOf('Based on'))
+  })
+
+  it('has nothing to explain when every review with text was read', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyGuestVoiceBasis, {
+        result: {
+          ...LARGE_PROPERTY,
+          window: {
+            selection: 'automatic',
+            textReviewCount: 120,
+            enoughForPatterns: true,
+          },
+          basis: { ...LARGE_PROPERTY.basis, notAnalyzableCount: 0 },
+        },
+      }),
+    )
+
+    expect(markup).not.toContain('of them analysed')
+  })
+
+  it('lists the days the window covers among the figures behind it', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyGuestVoiceBasis, { result: LARGE_PROPERTY }),
+    )
+
+    expect(markup).toMatch(/<dt>Period<\/dt><dd[^>]*>Jun 13, 2026 to Sep 10, 2026<\/dd>/)
   })
 })
 
@@ -127,5 +176,27 @@ describe('TrendSupportingReviews', () => {
 
   it('renders nothing when the trend cites no review', () => {
     expect(renderSupportingReviews([])).toBe('')
+  })
+})
+
+describe('PropertyInsightsRecurringIssues', () => {
+  it('lists the issues two or more reviews name, with how many reviews', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyInsightsRecurringIssues, { evidence: LARGE_PROPERTY }),
+    )
+
+    expect(markup).toContain('front desk delays')
+    expect(markup).toMatch(/<span class="font-semibold">12<\/span> reviews/)
+    expect(markup).not.toContain('compared with the previous period')
+  })
+
+  it('says no issue was named in more than one review when there are none', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyInsightsRecurringIssues, {
+        evidence: { ...LARGE_PROPERTY, emergingIssues: [] },
+      }),
+    )
+
+    expect(markup).toContain('No issue was named in more than one review in this period.')
   })
 })

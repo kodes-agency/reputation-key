@@ -12,10 +12,11 @@
 // get it wrong. Everything else is renamed until it explains itself.
 
 export type GlossaryTermKey =
-  | 'impact'
   | 'praise-and-complaints'
+  | 'stars-when-mentioned'
+  | 'likely-change'
   | 'topics'
-  | 'emerging-issues'
+  | 'recurring-issues'
   | 'needs-attention'
   | 'reply-rate'
   | 'reply-time'
@@ -31,25 +32,35 @@ export type GlossaryEntry = Readonly<{
 }>
 
 export const DASHBOARD_GLOSSARY: Readonly<Record<GlossaryTermKey, GlossaryEntry>> = {
-  impact: {
-    term: 'Impact',
-    definition:
-      'How strongly a topic pulls your rating up or down, from how often guests mention it and how strongly they feel. Above zero helps your rating; below zero hurts it.',
-  },
   'praise-and-complaints': {
     term: 'Praise and complaints',
     definition:
-      'Each mention of a topic in a review is counted as praise or a complaint, based on how the guest wrote about it. One review can mention several topics.',
+      'A review counts as praise for a topic when the guest writes well of it, and as a complaint when they write badly of it. One review can name several topics, and can both praise and criticise one.',
+  },
+  // "Association, not proof": guests who complain tend to rate lower, which this
+  // shows; it cannot show that the topic is why they rated lower.
+  'stars-when-mentioned': {
+    term: 'Stars when mentioned',
+    definition:
+      'The average stars of the reviews that complain about a topic, next to the average of every other review in this period. It shows that they go together, not that the topic caused the lower rating.',
+  },
+  // The comparison is the Property's own previous 12 months, and what it claims is
+  // that the share moved more than its usual ups and downs over that year. It states
+  // no odds: a stated chance promised more than the test measures.
+  'likely-change': {
+    term: 'Change',
+    definition:
+      'Shown when the share of reviews that name a topic has moved by more than its usual ups and downs over the past year. It is compared with the 12 months before this period, and only once those months hold at least 20 analysed reviews. Most topics show nothing.',
   },
   topics: {
     term: 'Topics',
     definition:
       'What a review is about — rooms, staff, cleanliness, parking and so on. Found by reading the review text, so reviews without text have no topics.',
   },
-  'emerging-issues': {
-    term: 'Emerging issues',
+  'recurring-issues': {
+    term: 'Recurring issues',
     definition:
-      'Specific problems named in more than one review, like "air conditioning failure". Narrower than a topic, and usually newer.',
+      'Specific problems named in two or more reviews in this period, like "air conditioning failure". Narrower than a topic. A problem one guest names once is not counted.',
   },
   'needs-attention': {
     term: 'Needs attention',

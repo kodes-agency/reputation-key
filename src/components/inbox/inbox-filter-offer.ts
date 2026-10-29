@@ -6,6 +6,8 @@
 //     Escalated, All open), which hold both kinds. A section queue already is one kind.
 //   - The topics (Aspect, Polarity) never in the private feedback queues: they
 //     read the analysis of a Review, which feedback has not.
+//   - The dates (since, until) everywhere: they are the window a drill-down was
+//     counted over, and every item has a day.
 //   - Priority and Rating everywhere. Priority matches the effective level (the
 //     one a person set, else the AI's suggestion; ADR 0071), so it can match
 //     private feedback a manager has marked.
@@ -46,5 +48,8 @@ export function offeredListFilters(
     attention: offer.priority ? filters.attention : undefined,
     aspect: offer.topics ? filters.aspect : undefined,
     polarity: offer.topics ? filters.polarity : undefined,
+    // Dates narrow every queue: they are the window a number was counted over.
+    since: filters.since,
+    until: filters.until,
   }
 }

@@ -140,7 +140,10 @@ and actions supply server state.
   list worded from the one table (`RANGE_PRESET_LABELS`: "30 days" everywhere, never
   "Last 30 days"). A range is a window on its page, so a route changes it by
   replacing the history entry (a radio group chooses as focus moves). A dashboard
-  topic page keeps the range in `?range=` (`dashboardRangeSearch`); the Portal
+  topic page keeps the range in `?range=` (`dashboardRangeSearch`; Guest voice has
+  its own list, `GUEST_VOICE_RANGES`, which adds Automatic, the default, and 12
+  months, because its evidence is reviews with text and the other pages' reads
+  cannot answer 12 months); the Portal
   Results window is a reader-wide preference that follows the reader from portal to
   portal and to the overview, so it is remembered per reader. That is two mechanisms
   for one vocabulary, and unifying them (the URL as the source of truth on the Portal

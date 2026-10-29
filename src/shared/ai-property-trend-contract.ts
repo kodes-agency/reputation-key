@@ -8,13 +8,22 @@ import {
   type AspectTaxonomyV1Id,
 } from './aspect-taxonomy'
 import { ASPECT_LABELS } from './aspect-labels'
+import {
+  AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW,
+  AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS,
+} from './ai-property-trend-minimums'
+
+// The two minimums live in a module the browser can import (this one hashes with
+// node:crypto); they are re-exported here so the contract keeps naming them.
+export {
+  AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW,
+  AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS,
+}
 
 export const AI_PROPERTY_TREND_CONTRACT_VERSION = 'property-trend-v1' as const
 export const AI_PROPERTY_TREND_DEFINITION_VERSION =
   'property-trend-definition-v1' as const
 export const AI_TREND_RENDER_PROFILE_VERSION = 'trend-render-v1' as const
-export const AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW = 20 as const
-export const AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS = 9_000 as const
 const AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS = 15 as const
 const AI_PROPERTY_TREND_ASPECT_MINIMUM_SHARE_PERCENT = 10 as const
 

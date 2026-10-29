@@ -9,7 +9,19 @@
 // until the new one arrives.
 import { useState } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
-import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-range'
+import {
+  dashboardRangeSearch,
+  guestVoiceRangeSearch,
+  type DashboardRange,
+  type GuestVoiceRange,
+} from '#/shared/dashboard-range'
+
+function rangeOfSearch(location: Readonly<{ search: unknown }>): unknown {
+  const search = location.search
+  return typeof search === 'object' && search !== null && 'range' in search
+    ? search.range
+    : undefined
+}
 
 /**
  * The range the URL names, for a loader. A loader must not read search that has
@@ -17,12 +29,14 @@ import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-ra
  * preset is the default, as it is for the page.
  */
 export function rangeOfLocation(location: Readonly<{ search: unknown }>): DashboardRange {
-  const search = location.search
-  const range =
-    typeof search === 'object' && search !== null && 'range' in search
-      ? search.range
-      : undefined
-  return dashboardRangeSearch.parse(range)
+  return dashboardRangeSearch.parse(rangeOfSearch(location))
+}
+
+/** `rangeOfLocation` for Guest voice, whose presets add `auto` and 12 months. */
+export function guestVoiceRangeOfLocation(
+  location: Readonly<{ search: unknown }>,
+): GuestVoiceRange {
+  return guestVoiceRangeSearch.parse(rangeOfSearch(location))
 }
 
 /**

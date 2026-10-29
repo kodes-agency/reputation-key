@@ -460,6 +460,74 @@ describe('generate property trend', () => {
     expect(harness.recordDeterministicReport).not.toHaveBeenCalled()
   })
 
+  // A window with no text review has nothing to analyse. Its coverage is stored as
+  // 0 (0 of 0), which read as "below ninety percent" put every quiet Property in
+  // Updating, for as long as it stayed quiet.
+  describe('a window with no text review', () => {
+    const CURRENT_DATE = '2024-03-01'
+
+    function currentWindowOnly(unanalysed = 0) {
+      const evidence = defaultEvidence()
+      return {
+        population: [
+          ...evidence.population.filter((review) => review.localDate === CURRENT_DATE),
+          ...Array.from({ length: unanalysed }, (_, index) =>
+            populationReview(CURRENT_DATE, 301 + index),
+          ),
+        ],
+        analyzed: evidence.analyzed.filter((review) => review.localDate === CURRENT_DATE),
+      }
+    }
+
+    it('records insufficient data, not Updating, when the earlier window is empty', async () => {
+      const harness = createHarness([aggregateDay(CURRENT_DATE, 20)], currentWindowOnly())
+
+      await expect(harness.generate(RUN)).resolves.toEqual({ status: 'no_data' })
+      expect(harness.recordProviderFreeOutcome).toHaveBeenCalledWith({
+        scheduleId: SCHEDULE_ID,
+        disposition: 'insufficient_data',
+        evidence: expect.objectContaining({
+          baseline: expect.objectContaining({
+            textCandidateCount: 0,
+            analyzedCount: 0,
+            coverageBasisPoints: 0,
+          }),
+          current: expect.objectContaining({ analyzedCount: 20 }),
+        }),
+      })
+    })
+
+    it('records insufficient data for a Property with no text review in either window', async () => {
+      const harness = createHarness([], { population: [], analyzed: [] })
+
+      await expect(harness.generate(RUN)).resolves.toEqual({ status: 'no_data' })
+      expect(harness.recordProviderFreeOutcome).toHaveBeenCalledWith(
+        expect.objectContaining({ disposition: 'insufficient_data' }),
+      )
+    })
+
+    it('still records Updating when the other window has reviews waiting to be analysed', async () => {
+      const harness = createHarness(
+        [aggregateDay(CURRENT_DATE, 20)],
+        currentWindowOnly(3),
+      )
+
+      await expect(harness.generate(RUN)).resolves.toEqual({ status: 'no_data' })
+      expect(harness.recordProviderFreeOutcome).toHaveBeenCalledWith(
+        expect.objectContaining({
+          disposition: 'updating',
+          evidence: expect.objectContaining({
+            current: expect.objectContaining({
+              textCandidateCount: 23,
+              analyzedCount: 20,
+              coverageBasisPoints: 8695,
+            }),
+          }),
+        }),
+      )
+    })
+  })
+
   it('excludes the current partial local day from every count and supporting link', async () => {
     const evidence = defaultEvidence()
     evidence.population.push(populationReview('2024-03-31', 401))

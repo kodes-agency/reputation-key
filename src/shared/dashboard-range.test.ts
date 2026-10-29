@@ -3,13 +3,15 @@ import { timeRangePreset } from '#/contexts/reporting/application/dto/dashboard.
 import {
   DASHBOARD_RANGES,
   DASHBOARD_RANGE_LABELS,
+  GUEST_VOICE_RANGES,
+  GUEST_VOICE_RANGE_DEFAULT,
   RANGE_PRESET_LABELS,
   DASHBOARD_RANGE_DEFAULT,
   bucketUnitForRange,
   dashboardRangeComparisonLabel,
   dashboardRangeDays,
   dashboardRangeSearch,
-  toInsightsRange,
+  guestVoiceRangeSearch,
   toPerformancePreset,
 } from './dashboard-range'
 
@@ -55,13 +57,6 @@ describe('adapters', () => {
     expect(toPerformancePreset('30d')).toBe('30d')
     expect(toPerformancePreset('180d')).toBe('180d')
   })
-
-  it('converts to the AI contexts numeric range', () => {
-    expect(toInsightsRange('30d')).toBe(30)
-    expect(toInsightsRange('90d')).toBe(90)
-    expect(toInsightsRange('180d')).toBe(180)
-    expect(toInsightsRange('all')).toBe('all')
-  })
 })
 
 describe('range semantics', () => {
@@ -83,5 +78,31 @@ describe('range semantics', () => {
     expect(bucketUnitForRange('90d')).toBe('week')
     expect(bucketUnitForRange('180d')).toBe('week')
     expect(bucketUnitForRange('all')).toBe('month')
+  })
+})
+
+describe('the Guest voice ranges', () => {
+  it('add automatic and 12 months to the shared ones, in order of reach', () => {
+    expect(GUEST_VOICE_RANGES).toEqual(['auto', '30d', '90d', '180d', '365d', 'all'])
+    // The other dashboard pages keep theirs: the reporting read answers no 12 months.
+    expect(DASHBOARD_RANGES).toEqual(['30d', '90d', '180d', 'all'])
+    expect(timeRangePreset.safeParse('365d').success).toBe(false)
+  })
+
+  it('word the 12-month window from the one preset table', () => {
+    expect(RANGE_PRESET_LABELS['365d']).toBe('12 months')
+  })
+
+  it('open on automatic, and fall back to it rather than reject a hand-edited URL', () => {
+    expect(GUEST_VOICE_RANGE_DEFAULT).toBe('auto')
+    expect(guestVoiceRangeSearch.parse(undefined)).toBe('auto')
+    expect(guestVoiceRangeSearch.parse('weekly')).toBe('auto')
+    expect(guestVoiceRangeSearch.parse(90)).toBe('auto')
+  })
+
+  it('keep every range a reader can choose', () => {
+    for (const range of GUEST_VOICE_RANGES) {
+      expect(guestVoiceRangeSearch.parse(range)).toBe(range)
+    }
   })
 })

@@ -33,7 +33,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'three counts with captions inside a report: a MetricStrip candidate owned by the Results surface',
   'src/components/features/portal/portal-analytics/portal-lifetime-reconciliation-summary.tsx':
     'four readings inside a disclosure: a MetricStrip candidate owned by the Results surface',
-  'src/components/features/property/property-guest-voice-page.tsx':
+  'src/components/features/property/property-guest-voice-basis.tsx':
     'what is in a figure: counts set against their captions in a disclosure of a report',
   'src/components/features/property/property-reputation-trend-chart.tsx':
     'the readout of a chart: a date and its values',

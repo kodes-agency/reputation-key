@@ -54,6 +54,10 @@ export const getInboxItemsDto = z.object({
     .optional(),
   sourceDateFrom: z.coerce.date().optional(),
   sourceDateTo: z.coerce.date().optional(),
+  // The Property's own calendar days a drill-down was counted over; the server
+  // turns them into the moments they start and end at (`sourceDateWindow`).
+  since: z.iso.date().optional(),
+  until: z.iso.date().optional(),
   cursor: z.string().optional(), // base64-encoded cursor JSON
   limit: z.number().int().min(1).max(100).default(50),
   q: z.string().optional(), // full-text search on snippet

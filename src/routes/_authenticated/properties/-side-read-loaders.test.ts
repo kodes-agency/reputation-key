@@ -202,7 +202,7 @@ describe('the loaders that hold the page for a side read', () => {
 
       expect(started).toHaveLength(1)
       expect(
-        queryClient.getQueryData(propertyGuestsQuery(PROPERTY, '90d').queryKey),
+        queryClient.getQueryData(propertyGuestsQuery(PROPERTY, 'auto').queryKey),
       ).toEqual({ status: 'ready' })
       expect(pending(queryClient)).toEqual([])
     })

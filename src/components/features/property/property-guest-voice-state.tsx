@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import type { AiPropertyInsightsRead } from '#/contexts/ai/application/public-api'
-import type { DashboardRange } from '#/shared/dashboard-range'
+import type { GuestVoiceRange } from '#/shared/dashboard-range'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type ReadyInsights = Extract<AiPropertyInsightsRead, { status: 'ready' }>
@@ -40,7 +40,7 @@ export function GuestVoiceState({
   propertyId,
 }: Readonly<{
   result: Exclude<AiPropertyInsightsRead, ReadyInsights>
-  range: DashboardRange
+  range: GuestVoiceRange
   propertyId: string
 }>) {
   if (result.status === 'disabled') return <DisabledGuestVoice propertyId={propertyId} />
@@ -51,6 +51,19 @@ export function GuestVoiceState({
         <AlertDescription>
           AI analysis is still settling. Topics appear as soon as there is enough review
           evidence.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+  // Automatic reaches back 12 months, the furthest a window goes short of All
+  // time, so a longer range is not the way out of it.
+  if (range === 'auto') {
+    return (
+      <Alert variant="info">
+        <AlertTitle>No reviews in the last 12 months</AlertTitle>
+        <AlertDescription>
+          Guest voice appears once this property has reviews to read. Choose All time to
+          look further back.
         </AlertDescription>
       </Alert>
     )

@@ -84,7 +84,8 @@ const ACTOR = {
   role: 'AccountAdmin',
 } as unknown as AuthContext
 
-const call = () => getPropertyInsightsFn({ data: { propertyId: PROPERTY_ID, range: 90 } })
+const call = () =>
+  getPropertyInsightsFn({ data: { propertyId: PROPERTY_ID, range: '90d' } })
 
 const callUnchecked = (data: unknown) =>
   getPropertyInsightsFn({ data } as Parameters<typeof getPropertyInsightsFn>[0])
@@ -154,7 +155,7 @@ describe('getPropertyInsightsFn single-property payload', () => {
       callUnchecked({
         propertyId: PROPERTY_ID,
         propertyIds: [PROPERTY_ID],
-        range: 90,
+        range: '90d',
       }),
     )
 
@@ -162,22 +163,30 @@ describe('getPropertyInsightsFn single-property payload', () => {
     expect(mocks.readPropertyInsights).not.toHaveBeenCalled()
   })
 
-  it.each([30, 90, 180, 'all'] as const)(
-    'accepts the supported %s range',
-    async (range) => {
-      await getPropertyInsightsFn({ data: { propertyId: PROPERTY_ID, range } })
+  // The page asks in its own words; the AI context counts days.
+  it.each([
+    ['auto', 'auto'],
+    ['30d', 30],
+    ['90d', 90],
+    ['180d', 180],
+    ['365d', 365],
+    ['all', 'all'],
+  ] as const)('accepts the page’s %s range and reads %s', async (range, read) => {
+    await getPropertyInsightsFn({ data: { propertyId: PROPERTY_ID, range } })
 
-      expect(mocks.readPropertyInsights).toHaveBeenCalledWith(
-        expect.objectContaining({ range }),
-      )
+    expect(mocks.readPropertyInsights).toHaveBeenCalledWith(
+      expect.objectContaining({ range: read }),
+    )
+  })
+
+  it.each([7, 30, 400, '12m', 'automatic', null])(
+    'rejects the malformed range %s before resolving the tenant',
+    async (range) => {
+      await rejection(callUnchecked({ propertyId: PROPERTY_ID, range }))
+
+      expect(mocks.resolveTenantContext).not.toHaveBeenCalled()
     },
   )
-
-  it('rejects an unbounded or malformed range before resolving the tenant', async () => {
-    await rejection(callUnchecked({ propertyId: PROPERTY_ID, range: 365 }))
-
-    expect(mocks.resolveTenantContext).not.toHaveBeenCalled()
-  })
 })
 
 describe('getPropertyInsightsFn return contract', () => {

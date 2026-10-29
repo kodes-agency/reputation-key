@@ -4,12 +4,25 @@ import type {
   AiTrendPopulationResult,
   AiTrendPopulationReview,
 } from '#/contexts/review/application/public-api'
-import { ASPECT_IMPACT_VERSION, computeAspectImpact } from '#/shared/aspect-impact'
-import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import { chooseEvidenceWindow } from '../../domain/guest-voice-statistics'
 import { DERIVATIVE_RETENTION_MILLIS } from '../../domain/types'
+import {
+  NO_RATING_COUNTS,
+  aspectKey,
+  changeOfMentions,
+  collectAspectReviewEvidence,
+  countIssueLabels,
+  recurringIssues,
+  starsOfMentioned,
+  type AspectChange,
+  type AspectReviewTotals,
+  type AspectStars,
+  type RatingCounts,
+  type WindowRatings,
+} from '../aspect-review-evidence'
 import {
   requireAiPropertyReadAccess,
   type AiPropertyAccess,
@@ -27,9 +40,18 @@ import type {
 } from '../ports/ai-property-aggregate-store.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 
-const PROPERTY_INSIGHTS_PRESETS = [30, 90, 180] as const
+const PROPERTY_INSIGHTS_PRESETS = [30, 90, 180, 365] as const
 export type PropertyInsightsPreset = (typeof PROPERTY_INSIGHTS_PRESETS)[number]
-export const PROPERTY_INSIGHTS_RANGES = [...PROPERTY_INSIGHTS_PRESETS, 'all'] as const
+/**
+ * `auto` is the default the Guest voice page asks for: the shortest of 30 days,
+ * 90 days, 6 months and 12 months that holds enough reviews with text
+ * (`chooseEvidenceWindow`). The answer names the window it chose (`range`).
+ */
+export const PROPERTY_INSIGHTS_RANGES = [
+  'auto',
+  ...PROPERTY_INSIGHTS_PRESETS,
+  'all',
+] as const
 export type PropertyInsightsRange = (typeof PROPERTY_INSIGHTS_RANGES)[number]
 
 export function isPropertyInsightsRange(value: unknown): value is PropertyInsightsRange {
@@ -58,20 +80,44 @@ export type AiPropertyInsightsBasis = Readonly<{
   ratingDistribution: readonly AiPropertyInsightsRatingBucket[]
 }>
 
+/**
+ * One topic and one polarity, counted in reviews. A mention is one topic named
+ * once in one analysis; a review that names it twice is still one review, and a
+ * review is what the Inbox lists when a number here is followed.
+ */
 export type AiPropertyInsightAspect = Readonly<{
   aspect: AspectTaxonomyV1Id
   polarity: AspectPolarityV1
+  /** Mentions: a review that names the topic twice counts twice. */
   mentionCount: number
-  impact: number
+  /** Reviews that name the topic with this polarity: each counts once. */
+  reviewCount: number
+  /**
+   * Reviews that name the topic in any way (praise, complaint or neutral), each
+   * once: the same on every row of one topic, and not the sum of its rows when a
+   * review both praises and criticises it.
+   */
+  topicReviewCount: number
+  /** The stars those reviews gave: how many gave 1, 2, 3, 4 and 5. */
+  ratingCounts: RatingCounts
+  /** Those stars against every other review in the window (see `AspectStars`). */
+  stars: AspectStars
+  /**
+   * Whether the share of reviews that name it moved more than its usual ups and
+   * downs, against the Property's own previous 12 months. `unknown` where there is
+   * nothing to compare (All Time, a window still being analysed) or those 12 months
+   * hold too few analysed reviews to say.
+   */
+  change: AspectChange
 }>
 
 export type AiPropertyInsightComparedAspect = Readonly<
   AiPropertyInsightAspect & {
     comparison: Readonly<{
+      /** Mentions in the 12 months before the window. */
       precedingMentionCount: number
-      precedingImpact: number
-      mentionCountDelta: number
-      impactDelta: number
+      /** The reviews that named it in the 12 months before, what `change` is measured against. */
+      precedingReviewCount: number
     }>
   }
 >
@@ -86,21 +132,32 @@ export type AiPropertyInsightWeeklySeries = Readonly<{
   points: readonly AiPropertyInsightWeeklyPoint[]
 }>
 
+/** A recurring issue: a label two or more reviews in the window carry. */
 export type AiPropertyInsightIssue = Readonly<{
   label: string
   count: number
 }>
 
-export type AiPropertyInsightComparedIssue = Readonly<
-  AiPropertyInsightIssue & {
-    comparison: Readonly<{
-      precedingCount: number
-      delta: number
-    }>
-  }
->
-
 export type Period = Readonly<{ startLocalDate: string; endLocalDate: string }>
+
+/**
+ * How the window was set and what it holds, so the page can say it: "Last 90
+ * days, chosen because it holds 128 reviews with text".
+ */
+export type AiPropertyInsightsWindow =
+  | Readonly<{
+      /** The reader picked the window. */
+      selection: 'chosen'
+      /** Reviews with text in the window, analysed yet or not. */
+      textReviewCount: number
+    }>
+  | Readonly<{
+      /** The shortest window that holds enough reviews with text (`range` names it). */
+      selection: 'automatic'
+      textReviewCount: number
+      /** False when even the last 12 months hold too few reviews with text to spot patterns. */
+      enoughForPatterns: boolean
+    }>
 
 type AiPropertyInsightsReadyBase<Provisional extends boolean> = Readonly<{
   status: 'ready'
@@ -109,7 +166,7 @@ type AiPropertyInsightsReadyBase<Provisional extends boolean> = Readonly<{
   startLocalDate: string
   endLocalDate: string
   dataThroughLocalDate: string
-  impactVersion: typeof ASPECT_IMPACT_VERSION
+  window: AiPropertyInsightsWindow
   basis: AiPropertyInsightsBasis
   aspectEvidenceState: AiPropertyInsightAspectEvidenceState
   weeklyAspectSeries: readonly AiPropertyInsightWeeklySeries[]
@@ -118,9 +175,15 @@ type AiPropertyInsightsReadyBase<Provisional extends boolean> = Readonly<{
 type AiPropertyInsightsComparedPresetReady = Readonly<
   AiPropertyInsightsReadyBase<false> & {
     range: PropertyInsightsPreset
+    /**
+     * The 12 months that end the day before the window starts: the Property's own
+     * previous year, whatever the window's length, what every `change` is measured
+     * against.
+     */
     precedingPeriod: Period
     aspects: readonly AiPropertyInsightComparedAspect[]
-    emergingIssues: readonly AiPropertyInsightComparedIssue[]
+    /** Labels two or more reviews in the window carry (`recurringIssues`). */
+    emergingIssues: readonly AiPropertyInsightIssue[]
   }
 >
 
@@ -178,17 +241,13 @@ type WindowSummary = Readonly<{
   analyzed: readonly AiPropertyAnalyzedReview[]
 }>
 
-type AspectTotal = Readonly<{
-  aspect: AspectTaxonomyV1Id
-  polarity: AspectPolarityV1
-  mentionCount: number
-  impact: number
-}>
-
 const POPULATION_QUERY_LIMIT = 10_001
-const MAX_EMERGING_ISSUES = 5
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1_000
 const DERIVATIVE_RETENTION_DAYS = DERIVATIVE_RETENTION_MILLIS / MILLIS_PER_DAY
+const MONTH_DAYS = 30
+const QUARTER_DAYS = 90
+const HALF_YEAR_DAYS = 180
+const YEAR_DAYS = 365
 
 function reviewVersionKey(
   review: Readonly<{
@@ -283,88 +342,108 @@ function resolveAspectEvidenceState(
   return aspects.some((aspect) => aspect.mentionCount > 0) ? 'available' : 'no_mentions'
 }
 
-function aggregateAspects(
-  reviews: readonly AiPropertyAnalyzedReview[],
-): ReadonlyMap<string, AspectTotal> {
-  const totals = new Map<string, AspectTotal>()
-  for (const review of reviews) {
-    for (const mention of review.aspects) {
-      const key = `${mention.aspect}:${mention.polarity}`
-      const previous = totals.get(key)
-      totals.set(
-        key,
-        Object.freeze({
-          aspect: mention.aspect,
-          polarity: mention.polarity,
-          mentionCount: (previous?.mentionCount ?? 0) + 1,
-          impact:
-            (previous?.impact ?? 0) +
-            computeAspectImpact({ ...mention, rating: review.rating }),
-        }),
-      )
-    }
-  }
-  return totals
+/**
+ * What a window's topic rows are worked out from: the reviews that name each
+ * topic, the stars of every review in the window, and how many reviews were
+ * analysed for topics (what a share of reviews is a share of).
+ */
+type WindowEvidence = Readonly<{
+  totals: AspectReviewTotals
+  /**
+   * Every review in the window by the stars it gave, the ones with only stars,
+   * the ones still waiting and the ones in a language the analysis does not read
+   * included: "the rest" a topic's stars are set against is all of them.
+   */
+  window: WindowRatings
+  textReviews: number
+}>
+
+function windowEvidence(summary: WindowSummary): WindowEvidence {
+  const distribution = summary.basis.ratingDistribution
+  const stars = [1, 2, 3, 4, 5] as const
+  return Object.freeze({
+    totals: collectAspectReviewEvidence(summary.analyzed),
+    window: Object.freeze({
+      ratingCounts: stars.map(
+        (star) => distribution.find((bucket) => bucket.stars === star)?.count ?? 0,
+      ) as unknown as RatingCounts,
+      reviewCount: summary.basis.reviewCount,
+    }),
+    textReviews: summary.basis.analyzedReviewCount,
+  })
 }
 
-function allTimeAspects(
-  current: readonly AiPropertyAnalyzedReview[],
-): readonly AiPropertyInsightAspect[] {
-  const rows = [...aggregateAspects(current).values()].map((value) =>
-    Object.freeze({
-      aspect: value.aspect,
-      polarity: value.polarity,
-      mentionCount: value.mentionCount,
-      impact: value.impact,
-    }),
+/** A topic and polarity row; `preceding` is the 12 months before the window, when there is a comparison. */
+function aspectRow(
+  identity: Readonly<{ aspect: AspectTaxonomyV1Id; polarity: AspectPolarityV1 }>,
+  current: WindowEvidence,
+  preceding: WindowEvidence | null,
+): AiPropertyInsightAspect {
+  const key = aspectKey(identity.aspect, identity.polarity)
+  const now = current.totals.byAspect.get(key)
+  const reviewCount = now?.reviewCount ?? 0
+  const ratingCounts = now?.ratingCounts ?? NO_RATING_COUNTS
+  return Object.freeze({
+    aspect: identity.aspect,
+    polarity: identity.polarity,
+    mentionCount: now?.mentionCount ?? 0,
+    reviewCount,
+    topicReviewCount: current.totals.reviewsByTopic.get(identity.aspect) ?? 0,
+    ratingCounts,
+    stars: starsOfMentioned(ratingCounts, current.window),
+    change:
+      preceding === null
+        ? 'unknown'
+        : changeOfMentions(
+            { reviewCount, textReviews: current.textReviews },
+            {
+              reviewCount: preceding.totals.byAspect.get(key)?.reviewCount ?? 0,
+              textReviews: preceding.textReviews,
+            },
+          ),
+  })
+}
+
+/** Most-named first: the page orders its own rows, this order only has to be stable. */
+function byPrevalence(
+  left: AiPropertyInsightAspect,
+  right: AiPropertyInsightAspect,
+): number {
+  return (
+    right.reviewCount - left.reviewCount ||
+    right.mentionCount - left.mentionCount ||
+    left.aspect.localeCompare(right.aspect) ||
+    left.polarity.localeCompare(right.polarity)
   )
-  rows.sort(
-    (left, right) =>
-      Math.abs(right.impact) - Math.abs(left.impact) ||
-      right.mentionCount - left.mentionCount ||
-      left.aspect.localeCompare(right.aspect) ||
-      left.polarity.localeCompare(right.polarity),
+}
+
+function allTimeAspects(current: WindowSummary): readonly AiPropertyInsightAspect[] {
+  const evidence = windowEvidence(current)
+  const rows = [...evidence.totals.byAspect.values()].map((total) =>
+    aspectRow(total, evidence, null),
   )
+  rows.sort(byPrevalence)
   return Object.freeze(rows)
 }
 
 function compareAspects(
-  current: readonly AiPropertyAnalyzedReview[],
-  preceding: readonly AiPropertyAnalyzedReview[],
+  current: WindowSummary,
+  preceding: WindowSummary,
 ): readonly AiPropertyInsightComparedAspect[] {
-  const currentTotals = aggregateAspects(current)
-  const precedingTotals = aggregateAspects(preceding)
-  const identities = new Set([...currentTotals.keys(), ...precedingTotals.keys()])
-  const rows = [...identities].map((identity) => {
-    const currentValue = currentTotals.get(identity)
-    const precedingValue = precedingTotals.get(identity)
-    const source = currentValue ?? precedingValue
-    if (source === undefined)
-      throw new Error('Property insight aspect identity is missing')
-    const mentionCount = currentValue?.mentionCount ?? 0
-    const impact = currentValue?.impact ?? 0
-    const precedingMentionCount = precedingValue?.mentionCount ?? 0
-    const precedingImpact = precedingValue?.impact ?? 0
+  const now = windowEvidence(current)
+  const before = windowEvidence(preceding)
+  const identities = new Map([...before.totals.byAspect, ...now.totals.byAspect])
+  const rows = [...identities].map(([key, identity]) => {
+    const earlier = before.totals.byAspect.get(key)
     return Object.freeze({
-      aspect: source.aspect,
-      polarity: source.polarity,
-      mentionCount,
-      impact,
+      ...aspectRow(identity, now, before),
       comparison: Object.freeze({
-        precedingMentionCount,
-        precedingImpact,
-        mentionCountDelta: mentionCount - precedingMentionCount,
-        impactDelta: Number((impact - precedingImpact).toFixed(6)),
+        precedingMentionCount: earlier?.mentionCount ?? 0,
+        precedingReviewCount: earlier?.reviewCount ?? 0,
       }),
     })
   })
-  rows.sort(
-    (left, right) =>
-      Math.abs(right.impact) - Math.abs(left.impact) ||
-      right.mentionCount - left.mentionCount ||
-      left.aspect.localeCompare(right.aspect) ||
-      left.polarity.localeCompare(right.polarity),
-  )
+  rows.sort(byPrevalence)
   return Object.freeze(rows)
 }
 
@@ -373,27 +452,18 @@ function weeklySeries(
   analyzed: readonly AiPropertyAnalyzedReview[],
   aspects: readonly AiPropertyInsightAspect[],
 ): readonly AiPropertyInsightWeeklySeries[] {
-  const ranking = new Map<
-    AspectTaxonomyV1Id,
-    Readonly<{ impactMagnitude: number; mentionCount: number }>
-  >()
+  const mentionsByAspect = new Map<AspectTaxonomyV1Id, number>()
   for (const row of aspects) {
     if (row.mentionCount === 0) continue
-    const previous = ranking.get(row.aspect)
-    ranking.set(
+    mentionsByAspect.set(
       row.aspect,
-      Object.freeze({
-        impactMagnitude: (previous?.impactMagnitude ?? 0) + Math.abs(row.impact),
-        mentionCount: (previous?.mentionCount ?? 0) + row.mentionCount,
-      }),
+      (mentionsByAspect.get(row.aspect) ?? 0) + row.mentionCount,
     )
   }
-  const selected = [...ranking]
+  const selected = [...mentionsByAspect]
     .sort(
-      ([leftAspect, left], [rightAspect, right]) =>
-        right.impactMagnitude - left.impactMagnitude ||
-        right.mentionCount - left.mentionCount ||
-        leftAspect.localeCompare(rightAspect),
+      ([leftAspect, leftMentions], [rightAspect, rightMentions]) =>
+        rightMentions - leftMentions || leftAspect.localeCompare(rightAspect),
     )
     .map(([aspect]) => aspect)
   if (selected.length === 0) return Object.freeze([])
@@ -441,56 +511,11 @@ function weeklySeries(
   )
 }
 
-function countIssueLabels(
-  reviews: readonly AiPropertyAnalyzedReview[],
-): ReadonlyMap<string, number> {
-  const counts = new Map<string, number>()
-  for (const review of reviews) {
-    if (review.issueLabel !== null && isAiIssueLabel(review.issueLabel)) {
-      counts.set(review.issueLabel, (counts.get(review.issueLabel) ?? 0) + 1)
-    }
-  }
-  return counts
-}
-
-function allTimeEmergingIssues(
-  current: readonly AiPropertyAnalyzedReview[],
+/** The window's recurring issues: labels two or more of its reviews carry. */
+function windowIssues(
+  analyzed: readonly AiPropertyAnalyzedReview[],
 ): readonly AiPropertyInsightIssue[] {
-  return Object.freeze(
-    [...countIssueLabels(current)]
-      .map(([label, count]) => Object.freeze({ label, count }))
-      .sort(
-        (left, right) =>
-          right.count - left.count || left.label.localeCompare(right.label),
-      )
-      .slice(0, MAX_EMERGING_ISSUES),
-  )
-}
-
-function compareEmergingIssues(
-  current: readonly AiPropertyAnalyzedReview[],
-  preceding: readonly AiPropertyAnalyzedReview[],
-): readonly AiPropertyInsightComparedIssue[] {
-  const precedingCounts = countIssueLabels(preceding)
-  return Object.freeze(
-    [...countIssueLabels(current)]
-      .map(([label, count]) => {
-        const precedingCount = precedingCounts.get(label) ?? 0
-        return Object.freeze({
-          label,
-          count,
-          comparison: Object.freeze({
-            precedingCount,
-            delta: count - precedingCount,
-          }),
-        })
-      })
-      .sort(
-        (left, right) =>
-          right.count - left.count || left.label.localeCompare(right.label),
-      )
-      .slice(0, MAX_EMERGING_ISSUES),
-  )
+  return recurringIssues(countIssueLabels(analyzed))
 }
 
 type CompleteTrendPopulation = Extract<AiTrendPopulationResult, { status: 'complete' }>
@@ -534,6 +559,25 @@ function prepareCurrentWindow(
     analyzedByVersion,
     unavailableByVersion,
   })
+}
+
+/** How the window was set: by the reader, or by `chooseEvidenceWindow`. */
+type WindowSelection =
+  | Readonly<{ selection: 'chosen' }>
+  | Readonly<{ selection: 'automatic'; enoughForPatterns: boolean }>
+
+function describeWindow(
+  selection: WindowSelection,
+  basis: AiPropertyInsightsBasis,
+): AiPropertyInsightsWindow {
+  const textReviewCount = basis.reviewCount - basis.starOnlyCount
+  return selection.selection === 'chosen'
+    ? { selection: 'chosen', textReviewCount }
+    : {
+        selection: 'automatic',
+        textReviewCount,
+        enoughForPatterns: selection.enoughForPatterns,
+      }
 }
 
 async function readAllTimeInsights(
@@ -580,7 +624,7 @@ async function readAllTimeInsights(
   if (current.basis.reviewCount === 0) {
     return { status: 'insufficient_data', startLocalDate, endLocalDate }
   }
-  const aspects = allTimeAspects(current.analyzed)
+  const aspects = allTimeAspects(current)
   const provisional =
     aggregate.coverage.awaitingAnalysisCount > 0 ||
     current.basis.awaitingAnalysisCount > 0
@@ -596,45 +640,77 @@ async function readAllTimeInsights(
       ? 'derivative_retention_horizon'
       : 'earliest_evidence',
     dataThroughLocalDate: endLocalDate,
-    impactVersion: ASPECT_IMPACT_VERSION,
+    window: describeWindow({ selection: 'chosen' }, current.basis),
     basis: current.basis,
     aspectEvidenceState: resolveAspectEvidenceState(current.basis, aspects),
     aspects,
     weeklyAspectSeries: weeklySeries(currentPeriod, current.analyzed, aspects),
-    emergingIssues: allTimeEmergingIssues(current.analyzed),
+    emergingIssues: windowIssues(current.analyzed),
   })
+}
+
+/**
+ * The 12 months that end the day before a window starts: the Property's own
+ * previous year, whatever the window's length. A change is measured against its
+ * usual ups and downs over that year, which a period as short as the window cannot
+ * show: 30 days of a busy month would stand beside 30 days of a quiet one. The year
+ * of a 12-month window reaches back 24 months, the retention of the derived data.
+ */
+function baselineOf(window: Period): Period {
+  const endLocalDate = addDays(window.startLocalDate, -1)
+  return Object.freeze({
+    startLocalDate: addDays(endLocalDate, -(YEAR_DAYS - 1)),
+    endLocalDate,
+  })
+}
+
+/**
+ * The Reviews of a window and of the year before it, in one read. A Property with
+ * this many Reviews in the two together (more than the read can hold at once) is
+ * read for its window alone: its baseline stays empty, which `change` reads as
+ * nothing to compare against, rather than the whole page being left unanswered.
+ */
+async function readPresetPopulation(
+  dependencies: ReadPropertyInsightsDependencies,
+  requests: InsightsEvidenceRequests,
+  window: Period,
+  baseline: Period,
+): Promise<AiTrendPopulationResult> {
+  const read = (startLocalDate: string) =>
+    dependencies.reviewSources.readTrendPopulation({
+      ...requests.populationScope,
+      startLocalDate,
+      detectEvidenceBeforeStart: false,
+    })
+  const withBaseline = await read(baseline.startLocalDate)
+  return withBaseline.status === 'limit_exceeded'
+    ? read(window.startLocalDate)
+    : withBaseline
 }
 
 async function readPresetInsights(
   dependencies: ReadPropertyInsightsDependencies,
   requests: InsightsEvidenceRequests,
   range: PropertyInsightsPreset,
+  selection: WindowSelection,
 ): Promise<AiPropertyInsightsRead> {
-  const { aggregateScope, populationScope, endLocalDate } = requests
+  const { aggregateScope, endLocalDate } = requests
   const startLocalDate = addDays(endLocalDate, -(range - 1))
-  const precedingEndLocalDate = addDays(startLocalDate, -1)
-  const precedingPeriod = Object.freeze({
-    startLocalDate: addDays(precedingEndLocalDate, -(range - 1)),
-    endLocalDate: precedingEndLocalDate,
-  })
+  const currentPeriod = Object.freeze({ startLocalDate, endLocalDate })
+  const precedingPeriod = baselineOf(currentPeriod)
   const [aggregate, population] = await Promise.all([
     dependencies.aggregates.readWindow({
       ...aggregateScope,
       startLocalDate: precedingPeriod.startLocalDate,
       endLocalDate,
     }),
-    dependencies.reviewSources.readTrendPopulation({
-      ...populationScope,
-      startLocalDate: precedingPeriod.startLocalDate,
-      detectEvidenceBeforeStart: false,
-    }),
+    readPresetPopulation(dependencies, requests, currentPeriod, precedingPeriod),
   ])
   if (population.status !== 'complete') return { status: 'preparing' }
   if (aggregate === null || aggregate.coverage.settledAnalysisCount === 0) {
     return { status: 'preparing' }
   }
 
-  const currentPeriod = Object.freeze({ startLocalDate, endLocalDate })
   const { current, analyzedByVersion, unavailableByVersion } = prepareCurrentWindow(
     currentPeriod,
     population,
@@ -659,24 +735,27 @@ async function readPresetInsights(
     startLocalDate,
     endLocalDate,
     dataThroughLocalDate: endLocalDate,
-    impactVersion: ASPECT_IMPACT_VERSION,
+    window: describeWindow(selection, current.basis),
     coverage: aggregate.coverage,
     basis: current.basis,
   })
 
+  // A window still being analysed has no comparison, and neither has one whose
+  // previous 12 months still wait on a review: a change measured against half of
+  // them would be a change in the analysis, not in the guests.
   if (provisional) {
-    const aspects = allTimeAspects(current.analyzed)
+    const aspects = allTimeAspects(current)
     return Object.freeze({
       ...readyBase,
       provisional: true,
       aspects,
       aspectEvidenceState: resolveAspectEvidenceState(current.basis, aspects),
       weeklyAspectSeries: weeklySeries(currentPeriod, current.analyzed, aspects),
-      emergingIssues: allTimeEmergingIssues(current.analyzed),
+      emergingIssues: windowIssues(current.analyzed),
     })
   }
 
-  const aspects = compareAspects(current.analyzed, preceding.analyzed)
+  const aspects = compareAspects(current, preceding)
   return Object.freeze({
     ...readyBase,
     provisional: false,
@@ -684,8 +763,55 @@ async function readPresetInsights(
     aspects,
     aspectEvidenceState: resolveAspectEvidenceState(current.basis, aspects),
     weeklyAspectSeries: weeklySeries(currentPeriod, current.analyzed, aspects),
-    emergingIssues: compareEmergingIssues(current.analyzed, preceding.analyzed),
+    emergingIssues: windowIssues(current.analyzed),
   })
+}
+
+const PRESET_OF_WINDOW = {
+  '30d': MONTH_DAYS,
+  '90d': QUARTER_DAYS,
+  '180d': HALF_YEAR_DAYS,
+  '365d': YEAR_DAYS,
+} as const
+
+/**
+ * The window `auto` asks for: the shortest of 30 days, 90 days, 6 months and 12
+ * months that holds enough reviews with text (`chooseEvidenceWindow`). It counts
+ * from the last 12 months of the Review population, which is read once more for
+ * the window it picks; the count is cheap beside the analyses the window reads.
+ *
+ * A year too full to read (10,001 Reviews or more) holds more than enough with
+ * text in any window, so it is answered with the 90-day window, the default Guest
+ * voice had before the choice was automatic, rather than left unanswered.
+ */
+async function chooseAutomaticRange(
+  dependencies: ReadPropertyInsightsDependencies,
+  requests: InsightsEvidenceRequests,
+): Promise<Readonly<{ range: PropertyInsightsPreset; enough: boolean }> | null> {
+  const { populationScope, endLocalDate } = requests
+  const population = await dependencies.reviewSources.readTrendPopulation({
+    ...populationScope,
+    startLocalDate: addDays(endLocalDate, -(YEAR_DAYS - 1)),
+    detectEvidenceBeforeStart: false,
+  })
+  if (population.status === 'limit_exceeded') {
+    return { range: QUARTER_DAYS, enough: true }
+  }
+  if (population.status !== 'complete') return null
+
+  const textReviewsSince = (days: number) => {
+    const since = addDays(endLocalDate, -(days - 1))
+    return population.reviews.filter(
+      (review) => review.hasText && review.localDate >= since,
+    ).length
+  }
+  const choice = chooseEvidenceWindow({
+    '30d': textReviewsSince(MONTH_DAYS),
+    '90d': textReviewsSince(QUARTER_DAYS),
+    '180d': textReviewsSince(HALF_YEAR_DAYS),
+    '365d': textReviewsSince(YEAR_DAYS),
+  })
+  return { range: PRESET_OF_WINDOW[choice.window], enough: choice.enough }
 }
 
 export function createReadPropertyInsights(
@@ -699,7 +825,9 @@ export function createReadPropertyInsights(
       input,
     )
     if (!isPropertyInsightsRange(input.range)) {
-      throw new TypeError('Property insights range must be 30, 90, 180, or all')
+      throw new TypeError(
+        'Property insights range must be auto, 30, 90, 180, 365, or all',
+      )
     }
 
     // This intentionally mirrors every AI-owned aggregate read: the same gate and
@@ -736,8 +864,17 @@ export function createReadPropertyInsights(
       },
     }
 
-    return input.range === 'all'
-      ? readAllTimeInsights(dependencies, requests)
-      : readPresetInsights(dependencies, requests, input.range)
+    if (input.range === 'all') return readAllTimeInsights(dependencies, requests)
+    if (input.range !== 'auto') {
+      return readPresetInsights(dependencies, requests, input.range, {
+        selection: 'chosen',
+      })
+    }
+    const chosen = await chooseAutomaticRange(dependencies, requests)
+    if (chosen === null) return { status: 'preparing' }
+    return readPresetInsights(dependencies, requests, chosen.range, {
+      selection: 'automatic',
+      enoughForPatterns: chosen.enough,
+    })
   }
 }

@@ -30,6 +30,7 @@ export const RANGE_PRESET_LABELS = {
   '60d': '60 days',
   '90d': '90 days',
   '180d': '6 months',
+  '365d': '12 months',
   all: 'All time',
 } as const
 
@@ -114,8 +115,29 @@ export function toPerformancePreset(range: DashboardRange): '30d' | '90d' | '180
   return range === 'all' ? '180d' : range
 }
 
-/** The AI contexts count days as a number and spell the unbounded window `all`. */
-export function toInsightsRange(range: DashboardRange): 30 | 90 | 180 | 'all' {
-  if (range === 'all') return 'all'
-  return range === '30d' ? 30 : range === '90d' ? 90 : 180
-}
+// ── Guest voice ──
+//
+// Guest voice is the one dashboard page whose evidence is reviews with text: a
+// small property holds three of them a month, so a fixed 90 days says almost
+// nothing for it and a large one needs no more than 30. It offers what the
+// other pages do not: `auto`, the shortest of 30 days, 90 days, 6 months and 12
+// months that holds enough of them (the AI context picks it and the page says
+// which), and 12 months to choose. The other pages keep `DASHBOARD_RANGES`:
+// the reporting read cannot answer 12 months, and Google's reach is 6.
+//
+// Only what a route reads before the page loads lives here (the address schema):
+// this module is in first paint. The control's labels and options are the page's
+// own (`property-guest-voice-ranges.ts`), and the AI context's own vocabulary (days
+// as numbers) is spoken by its server function, not by the browser.
+
+export const GUEST_VOICE_RANGES = ['auto', '30d', '90d', '180d', '365d', 'all'] as const
+
+export type GuestVoiceRange = (typeof GUEST_VOICE_RANGES)[number]
+
+export const GUEST_VOICE_RANGE_DEFAULT: GuestVoiceRange = 'auto'
+
+/** As `dashboardRangeSearch`: a hand-edited or retired value loads the page at its default. */
+export const guestVoiceRangeSearch = z
+  .enum(GUEST_VOICE_RANGES)
+  .catch(GUEST_VOICE_RANGE_DEFAULT)
+  .default(GUEST_VOICE_RANGE_DEFAULT)

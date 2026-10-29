@@ -332,13 +332,28 @@ describe('readPropertyAggregates summary', () => {
       awaitingAnalysisCount: 0,
     })
     expect(result.aspects).toEqual([
-      { aspect: 'service', polarity: 'negative', mentionCount: 2, impact: -1.6 },
-      { aspect: 'room', polarity: 'positive', mentionCount: 1, impact: 1 },
+      {
+        aspect: 'service',
+        polarity: 'negative',
+        mentionCount: 2,
+        reviewCount: 2,
+        ratingCounts: [1, 0, 1, 0, 0],
+        // Two reviews are too few to weigh the stars they gave.
+        stars: { mentionedAverage: 2, othersAverage: 5, gap: 3, upTo: null },
+        impact: -1.6,
+      },
+      {
+        aspect: 'room',
+        polarity: 'positive',
+        mentionCount: 1,
+        reviewCount: 1,
+        ratingCounts: [0, 0, 0, 0, 1],
+        stars: { mentionedAverage: 5, othersAverage: 2, gap: -3, upTo: null },
+        impact: 1,
+      },
     ])
-    expect(result.emergingIssues).toEqual([
-      { label: 'slow front desk', count: 2 },
-      { label: 'quiet rooms', count: 1 },
-    ])
+    // One review naming an issue is not a recurring one.
+    expect(result.emergingIssues).toEqual([{ label: 'slow front desk', count: 2 }])
   })
 
   it('separates v1 reviews that predate aspect extraction', async () => {
@@ -398,20 +413,24 @@ describe('readPropertyAggregates summary', () => {
           }),
         ],
         analyzedReviews: [
-          analyzedReview(1, {
-            rating: 2,
-            aspect: 'service',
-            polarity: 'negative',
-            intensity: -50,
-            issueLabel: 'slow service',
-          }),
-          analyzedReview(2, {
-            rating: 2,
-            aspect: 'cleanliness',
-            polarity: 'negative',
-            intensity: -50,
-            issueLabel: 'dirty bathroom',
-          }),
+          ...[1, 2].map((sequence) =>
+            analyzedReview(sequence, {
+              rating: 2,
+              aspect: 'service',
+              polarity: 'negative',
+              intensity: -50,
+              issueLabel: 'slow service',
+            }),
+          ),
+          ...[3, 4].map((sequence) =>
+            analyzedReview(sequence, {
+              rating: 2,
+              aspect: 'cleanliness',
+              polarity: 'negative',
+              intensity: -50,
+              issueLabel: 'dirty bathroom',
+            }),
+          ),
         ],
       },
     })
@@ -447,5 +466,108 @@ describe('readPropertyAggregates summary', () => {
       '2026-08-20',
     ])
     expect(result.emergingIssues).toEqual([])
+  })
+})
+
+describe('readPropertyAggregates topics counted in reviews', () => {
+  type Mention = Readonly<{
+    aspect: 'service' | 'cleanliness' | 'room'
+    polarity: 'positive' | 'neutral' | 'negative'
+  }>
+
+  function naming(sequence: number, rating: number, mentions: readonly Mention[]) {
+    return {
+      ...analyzedReview(sequence, {
+        rating,
+        aspect: 'service',
+        polarity: 'positive',
+        intensity: 100,
+      }),
+      aspects: mentions.map((mention) => ({ ...mention, intensity: 100 })),
+    }
+  }
+
+  /** The daily counts the same reviews add up to, as the aggregate store keeps them. */
+  function countsOf(analyzedReviews: readonly ReturnType<typeof naming>[]) {
+    const counts = new Map<string, Mention & { count: number }>()
+    for (const review of analyzedReviews) {
+      for (const { aspect, polarity } of review.aspects) {
+        const key = `${aspect}:${polarity}`
+        counts.set(key, { aspect, polarity, count: (counts.get(key)?.count ?? 0) + 1 })
+      }
+    }
+    return [...counts.values()]
+  }
+
+  async function readReviews(analyzedReviews: readonly ReturnType<typeof naming>[]) {
+    const { read } = harness({
+      window: {
+        head: {},
+        days: [day('2026-08-20', { aspectCounts: countsOf(analyzedReviews) })],
+        analyzedReviews,
+      },
+    })
+    const result = await read(input)
+    if (result.status !== 'ready') throw new Error('expected ready')
+    return result
+  }
+
+  it('counts a review once however many times it names a topic', async () => {
+    const result = await readReviews([
+      naming(1, 2, [
+        { aspect: 'room', polarity: 'negative' },
+        { aspect: 'room', polarity: 'negative' },
+      ]),
+      naming(2, 5, [{ aspect: 'room', polarity: 'positive' }]),
+    ])
+
+    expect(result.aspects.find((row) => row.polarity === 'negative')).toMatchObject({
+      reviewCount: 1,
+      ratingCounts: [0, 1, 0, 0, 0],
+    })
+  })
+
+  it('weighs a complaint by the stars it puts at stake: the share of reviews times the gap', async () => {
+    // Ten reviews with topics. Three that complain about service gave 1 star; the
+    // other seven gave 5. 3 of 10 reviews x a gap of 4 stars = 1.2 stars.
+    const complaining = [1, 2, 3].map((sequence) =>
+      naming(sequence, 1, [{ aspect: 'service', polarity: 'negative' }]),
+    )
+    const content = [4, 5, 6, 7, 8, 9, 10].map((sequence) =>
+      naming(sequence, 5, [{ aspect: 'room', polarity: 'positive' }]),
+    )
+
+    const result = await readReviews([...complaining, ...content])
+
+    expect(result.aspects.find((row) => row.aspect === 'service')?.stars).toEqual({
+      mentionedAverage: 1,
+      othersAverage: 5,
+      gap: 4,
+      upTo: 1.2,
+    })
+  })
+
+  it('leaves a review with no topic out of the reviews a share is of', async () => {
+    const legacy = { ...naming(9, 1, []), aspects: [] }
+
+    const result = await readReviews([
+      naming(1, 5, [{ aspect: 'room', polarity: 'positive' }]),
+      legacy,
+    ])
+
+    expect(result.analyzedReviewCount).toBe(1)
+    expect(result.preAspectAnalysisCount).toBe(1)
+    // The 1-star legacy review is not "the rest" the room's 5 stars is set against.
+    expect(result.aspects[0]?.stars.othersAverage).toBeNull()
+  })
+
+  it('orders by reviews, so the topic most reviews name comes first', async () => {
+    const result = await readReviews([
+      naming(1, 3, [{ aspect: 'room', polarity: 'positive' }]),
+      naming(2, 3, [{ aspect: 'service', polarity: 'positive' }]),
+      naming(3, 3, [{ aspect: 'service', polarity: 'positive' }]),
+    ])
+
+    expect(result.aspects.map((row) => row.aspect)).toEqual(['service', 'room'])
   })
 })

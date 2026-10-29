@@ -20,6 +20,9 @@ export const INBOX_PAGE_SIZE = 50
 const readable = <Schema extends z.ZodType>(schema: Schema) =>
   schema.optional().catch(undefined)
 
+/** A calendar day, `YYYY-MM-DD`: the Property's own, as Guest voice counts them. */
+const day = readable(z.iso.date())
+
 export const inboxSearchObjectSchema = z.object({
   queue: readable(z.enum(INBOX_QUEUES)),
   folder: readable(z.enum(['open', 'escalated', 'closed'])),
@@ -35,6 +38,13 @@ export const inboxSearchObjectSchema = z.object({
   // be widened without inventing a second composite vocabulary.
   aspect: readable(z.enum(ASPECT_TAXONOMY_V1)),
   polarity: readable(z.enum(ASPECT_POLARITIES_V1)),
+  // The window a drill-down came from, as the Property's own calendar days
+  // (`?since=2026-06-13&until=2026-09-10`). They narrow the list to the reviews
+  // published in those days, the days the number that was followed counted; which
+  // of those reviews show first is the queue's choice (Needs reply, unless the
+  // address names another). Dates that are not days are dropped, as any other key.
+  since: day,
+  until: day,
   q: readable(z.string()),
   sort: readable(z.enum(['newest', 'oldest'])),
 })

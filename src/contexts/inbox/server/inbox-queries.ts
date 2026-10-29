@@ -25,6 +25,7 @@ import {
 } from '../application/dto/inbox.dto'
 import { decodeInboxCursor } from '../application/inbox-cursor'
 import { REPLY_STAGE_QUEUES, type InboxQueue } from '../application/inbox-queues'
+import { sourceDateWindow } from '../application/source-date-window'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 /**
@@ -78,6 +79,26 @@ async function replyQueuesEnabledFor(
   return replyStagesAvailable(ctx, propertyId)
 }
 
+/**
+ * The moments a `since`/`until` window starts and ends at. The days are the
+ * Property's own, so the Property is asked its timezone; with none named (the
+ * whole Inbox) they are read in UTC. Asked after the read permission is held for
+ * that Property, and only when a day was named.
+ */
+async function requestedSourceDates(
+  ctx: AuthContext,
+  data: Readonly<{ propertyId?: string; since?: string; until?: string }>,
+) {
+  if (data.since === undefined && data.until === undefined) return {}
+  const timezone = data.propertyId
+    ? await getContainer().propertyPublicApi.getPropertyTimezone(
+        ctx.organizationId,
+        propertyId(data.propertyId),
+      )
+    : null
+  return sourceDateWindow({ since: data.since, until: data.until, timezone })
+}
+
 // ── getInboxItems ──────────────────────────────────────────────────
 
 export const getInboxItemsFn = createServerFn({ method: 'GET' })
@@ -99,6 +120,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
         )
         const { inboxPublicApi, logger } = getContainer()
         try {
+          const sourceDates = await requestedSourceDates(ctx, data)
           const cursor = data.cursor ? decodeInboxCursor(data.cursor) : null
           if (data.cursor && cursor === null) {
             // Do not echo the untrusted cursor into logs.
@@ -131,8 +153,8 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
                     ? data.polarity
                     : [data.polarity]
                   : undefined,
-                sourceDateFrom: data.sourceDateFrom,
-                sourceDateTo: data.sourceDateTo,
+                sourceDateFrom: sourceDates.sourceDateFrom ?? data.sourceDateFrom,
+                sourceDateTo: sourceDates.sourceDateTo ?? data.sourceDateTo,
                 q: data.q,
                 sort: data.sort,
               },

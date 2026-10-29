@@ -11,6 +11,7 @@ import type {
   ReviewAnalysisAspect,
   ReviewAspectPolarity,
 } from '#/contexts/inbox/application/public-api'
+import type { MatchedTopic } from './use-matched-topic'
 
 /**
  * The dashboard settled on Praise / Complaint (plan rows 6, 11) but neither
@@ -45,16 +46,45 @@ function PolarityArrow({
   return null
 }
 
-function AspectChip({ aspect }: Readonly<{ aspect: ReviewAnalysisAspect }>): ReactNode {
+/** Whether a chip is the one the Inbox was opened on: the topic, and the polarity if one was named. */
+function isMatched(aspect: ReviewAnalysisAspect, matched: MatchedTopic | null): boolean {
+  return (
+    matched !== null &&
+    aspect.aspect === matched.aspect &&
+    (matched.polarity === undefined || aspect.polarity === matched.polarity)
+  )
+}
+
+function AspectChip({
+  aspect,
+  matched,
+}: Readonly<{ aspect: ReviewAnalysisAspect; matched: boolean }>): ReactNode {
   return (
     <Badge
       variant={POLARITY_VARIANT[aspect.polarity]}
-      className={cn(INBOX_CHIP_STATIC_CLASS, 'font-normal')}
+      // A ring, not a colour: the chip keeps its own tone, and the line under the
+      // chips says in words which one matched.
+      className={cn(
+        INBOX_CHIP_STATIC_CLASS,
+        'font-normal',
+        matched && 'ring-2 ring-ring',
+      )}
     >
       <PolarityArrow polarity={aspect.polarity} />
       {ASPECT_LABELS[aspect.aspect]} · {POLARITY_WORD[aspect.polarity]}
+      {matched ? (
+        <span className="sr-only"> (matches the topic you followed)</span>
+      ) : null}
     </Badge>
   )
+}
+
+/** "Matched: Room, complaint": what the Inbox was opened on, when this review holds it. */
+function matchedLine(matched: MatchedTopic): string {
+  const topic = ASPECT_LABELS[matched.aspect]
+  return matched.polarity === undefined
+    ? `Matched: ${topic}`
+    : `Matched: ${topic}, ${POLARITY_WORD[matched.polarity].toLowerCase()}`
 }
 
 /**
@@ -73,10 +103,13 @@ function AspectChip({ aspect }: Readonly<{ aspect: ReviewAnalysisAspect }>): Rea
 export function TopicChips({
   analysis,
   managerPriority = null,
+  matched = null,
 }: Readonly<{
   analysis: InboxReviewAnalysis | null
   /** The level a person set on the item, if any (ADR 0071). */
   managerPriority?: InboxPriority | null
+  /** The topic the Inbox was opened on (a Guest voice link), to mark where it is here. */
+  matched?: MatchedTopic | null
 }>): ReactNode {
   if (!analysis || analysis.status === 'disabled') return null
 
@@ -107,17 +140,24 @@ export function TopicChips({
     <ul aria-label="Review topics" className="flex flex-wrap items-center gap-2">
       {analysis.aspects.map((aspect) => (
         <li key={`${aspect.aspect}:${aspect.polarity}`}>
-          <AspectChip aspect={aspect} />
+          <AspectChip aspect={aspect} matched={isMatched(aspect, matched)} />
         </li>
       ))}
     </ul>
   )
-  if (!hintLine) return chips
-  // The line belongs to the chips, so it sits closer to them than the guest
+  // Said only when this review holds the topic: a review the analysis has since
+  // moved off it has nothing to point at.
+  const matchedNote =
+    matched !== null && analysis.aspects.some((aspect) => isMatched(aspect, matched)) ? (
+      <p className="text-xs text-muted-foreground">{matchedLine(matched)}</p>
+    ) : null
+  if (!hintLine && !matchedNote) return chips
+  // The lines belong to the chips, so they sit closer to them than the guest
   // article's own gap.
   return (
     <div className="flex flex-col gap-2">
       {chips}
+      {matchedNote}
       {hintLine}
     </div>
   )

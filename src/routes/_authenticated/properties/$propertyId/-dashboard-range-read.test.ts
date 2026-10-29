@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { keptData, rangeOfLocation } from './-dashboard-range-read'
+import {
+  guestVoiceRangeOfLocation,
+  keptData,
+  rangeOfLocation,
+} from './-dashboard-range-read'
 
 describe('rangeOfLocation', () => {
   it('reads the range the URL names', () => {
@@ -13,6 +17,26 @@ describe('rangeOfLocation', () => {
     expect(rangeOfLocation({ search: { range: 90 } })).toBe('90d')
     expect(rangeOfLocation({ search: undefined })).toBe('90d')
     expect(rangeOfLocation({ search: null })).toBe('90d')
+  })
+})
+
+describe('guestVoiceRangeOfLocation', () => {
+  it('reads the range the URL names, 12 months and automatic included', () => {
+    expect(guestVoiceRangeOfLocation({ search: { range: '365d' } })).toBe('365d')
+    expect(guestVoiceRangeOfLocation({ search: { range: 'auto' } })).toBe('auto')
+    expect(guestVoiceRangeOfLocation({ search: { range: '30d' } })).toBe('30d')
+  })
+
+  it('is automatic for a missing, hand-edited or old numeric range', () => {
+    expect(guestVoiceRangeOfLocation({ search: {} })).toBe('auto')
+    expect(guestVoiceRangeOfLocation({ search: { range: 'weekly' } })).toBe('auto')
+    expect(guestVoiceRangeOfLocation({ search: { range: 90 } })).toBe('auto')
+    expect(guestVoiceRangeOfLocation({ search: undefined })).toBe('auto')
+    expect(guestVoiceRangeOfLocation({ search: null })).toBe('auto')
+  })
+
+  it('leaves the other pages’ reading of a range alone', () => {
+    expect(rangeOfLocation({ search: { range: '365d' } })).toBe('90d')
   })
 })
 

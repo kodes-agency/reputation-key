@@ -267,7 +267,34 @@ atomically revalidated adoption creates Review-owned draft content.
 
 Property Trends compare the latest 30 complete Property-local days with the prior 30. Readiness requires at least 20 analyzed text Reviews, at least 90% coverage,
 and a caught-up enrollment; incomplete settlement coverage reports
-`preparing`/`Updating` rather than a fabricated zero.
+`preparing`/`Updating` rather than a fabricated zero. A window with no text Review
+has nothing to analyse, so it is not incomplete: it reports `insufficient_data`
+(`trendWindowIsIncomplete`, `src/shared/ai-property-trend-minimums.ts`, which the
+Guest voice page reads too, so a stored `updating` report whose windows are all
+complete is worded as insufficient data). Before 2026-10-29 its stored coverage of
+0 (0 of 0) read as below 90% and left every quiet Property in `Updating`.
+
+Guest voice (`readPropertyInsights`) counts Reviews, not mentions: a Review that
+names a topic twice counts once (`aspect-review-evidence.ts`, shared with the 30-day
+aggregate read of Overview). Per topic and polarity it reads the Reviews, their
+stars as how many gave 1 to 5, those stars against every other Review in the window
+(the Reviews with only stars included here; the aggregate read has analyses only, so
+its "rest" is Reviews with text), and, against the Property's own previous 12 months
+(the 365 days that end the day before the window starts, whatever its length; a
+12-month window reaches back to the 24-month retention), whether the share moved
+more than its usual ups and downs (`guest-voice-statistics.ts`, the engine
+`GUEST_VOICE_STATISTICS_VERSION` names). Both shares are uncertain, so they are
+compared as two posteriors and a change is called at a two-sided 95%; a unit test
+enumerates both binomials exactly and pins an unchanged topic's false flags at 5% or
+less (rates of 10% and 30%, windows of 20 and 60 Reviews, a baseline four times the
+window). Without 20 analysed Reviews with text in those 12 months the change is
+unknown. A Property with too many Reviews to read the window with its 12 months
+(10,001) is read for the window alone and claims no change. The window is `auto` by
+default: the shortest of 30 days, 90 days, 6 months and 12 months holding 60 Reviews
+with text, or 12 months, with `enoughForPatterns` false under 10 in the year; a year
+too full to read is answered with 90 days. A recurring issue is a label two or more
+Reviews carry. Topics still come from the v2 analysis (taxonomy v1), where Staff and
+Service overlap, so a Review about the front desk can count under both.
 
 The aggregate head counts every sequence the settlement ledger settles for its
 profile generation, including one a newer sequence of the same review had
