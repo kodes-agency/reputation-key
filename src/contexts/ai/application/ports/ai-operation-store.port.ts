@@ -1,4 +1,5 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import type { VocabularyHintIdentity } from '#/shared/review-vocabulary-hints'
 import type { AiError } from '../../domain/errors'
 import type {
   AiOperationBinding,
@@ -21,6 +22,13 @@ export type AiOperationRecord = Readonly<{
   idempotencyKey: string
   requestFingerprint: string
   sourceProvenance: Readonly<{ digest: string; byteCount: number }> | null
+  /**
+   * The vocabulary hint set the request carried (Review Analysis v3): its id,
+   * version and digest. Null on every operation without hints. Hints are request
+   * context, so this is a record of what was sent, not a fence a profile change
+   * moves.
+   */
+  vocabularyHints?: VocabularyHintIdentity | null
   state: AiOperationState
   executionAttempt: number
   executionPermitId: string | null
@@ -132,6 +140,12 @@ export type AiOperationStorePort = Readonly<{
       idempotencyKey: string
       requestFingerprint: string
       sourceProvenance: Readonly<{ digest: string; byteCount: number }> | null
+      /**
+       * The hints the request carries. A claim under the same key whose stored
+       * hints differ is a conflict, even when the caller left them out of the
+       * fingerprint: one operation cannot have sent two sets of hints.
+       */
+      vocabularyHints?: VocabularyHintIdentity | null
       nowEpochMillis: number
       expiresAtEpochMillis: number
     }>,

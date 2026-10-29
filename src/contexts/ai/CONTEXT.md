@@ -263,6 +263,22 @@ go with it by cascade; the daily star counts have a rule of their own, counted f
 they are for (`retention-registry-ai.ts`). Nothing in them is a quote, a sentence, a name or a
 provider response.
 
+Vocabulary hints steer the `thing` of a v3 mention (`review-vocabulary-hints.ts`,
+`review-vocabulary-hints-v1`). A set is chosen from the Property's Google primary
+category (`PropertyVocabularyContextPort`, read from `properties`) by an exact alias
+after NFKC, whitespace, trim and case-folding, with no substring guessing, and falls back
+to `generic-service`. `resolveReviewPropertyContext` returns the `propertyContext` the
+request will carry (the category as stored, the set id and version, the hints) and the
+`VocabularyHintIdentity` (id, version, digest) to record. The identity belongs in the
+request fingerprint and goes to `AiOperationStorePort.claim`, which stores it on
+`ai_operations.vocabulary_hint_set_*` and answers `conflict` when a claim under the same
+key names other hints. Hints are request context, not analysis semantics: they are in no
+operation-profile or runtime digest (`review-vocabulary-hints.test.ts` changes a hint and
+shows the logical-artifacts digest does not move), so adding a kind of business or editing
+a hint reaches the next request and re-analyses nothing. The catalogue is pinned by a
+manifest so an edit is a reviewed change; a hint change that needs a new topic, cause shape
+or normalizer rule is not a hint change.
+
 ## Runtime
 
 Identity's merchant-AI fact drives one durable lifecycle command, which opens a

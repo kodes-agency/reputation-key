@@ -42,6 +42,32 @@ describe('buildGoogleImportedProperty', () => {
     })
   })
 
+  it('keeps the category Google gave the location, stamped with the import time', () => {
+    const property = buildGoogleImportedProperty({
+      ...BASE_INPUT,
+      googlePrimaryCategory: 'Day spa',
+    })
+
+    expect(property).toMatchObject({
+      googlePrimaryCategory: 'Day spa',
+      googlePrimaryCategoryUpdatedAt: NOW,
+    })
+  })
+
+  it('has no category when discovery read none', () => {
+    for (const googlePrimaryCategory of [undefined, null]) {
+      const property = buildGoogleImportedProperty({
+        ...BASE_INPUT,
+        googlePrimaryCategory,
+      })
+
+      expect(property).toMatchObject({
+        googlePrimaryCategory: null,
+        googlePrimaryCategoryUpdatedAt: null,
+      })
+    }
+  })
+
   it('rejects non-canonical provider resource names', () => {
     expect(() =>
       buildGoogleImportedProperty({

@@ -39,6 +39,9 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *   merely for export, so the archive keeps only the content-free binding and
  *   destination *state* that tells a tenant whether their Property is
  *   connected.
+ * - The Google primary category is Google's description of the location, kept
+ *   only to choose a review analysis's vocabulary hints. It is not a record the
+ *   tenant keeps or can edit, and it is never shown as a venue type.
  * - Property policy, capability, and access-grant rows genuinely belong to the
  *   tenant, but Identity already exports them; a second copy would let the two
  *   drift inside one archive.
@@ -47,6 +50,10 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
   {
     recordClass: 'google_account_location_and_review_destination_identifiers',
     reasonCode: 'google_controlled_identifier',
+  },
+  {
+    recordClass: 'google_primary_category_hint',
+    reasonCode: 'provider_controlled_content',
   },
   {
     recordClass: 'property_operation_idempotency_receipts',

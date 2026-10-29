@@ -1,0 +1,38 @@
+{
+  "version": "review-vocabulary-hints-v1",
+  "catalogueDigest": "ff6f2f12ab38c53f46ea01dd90dec4ebb229f41c631b18185f70081af0e2e90a",
+  "sets": [
+    {
+      "id": "lodging",
+      "digest": "3caa6184097dafa47592154a0207fb708884fd25bf51660962d4c795c89d2c0a"
+    },
+    {
+      "id": "food-service",
+      "digest": "a5ad5a9465ad21503ed3e3ea42f249e643bff073e713d0053b654afab777a643"
+    },
+    {
+      "id": "beauty",
+      "digest": "f9c70b24d1c82bff014992179f7416e606f372921455795f65a6103b27f6b945"
+    },
+    {
+      "id": "spa-wellness",
+      "digest": "792e8247bdc9d2aed6463d66d57b821daf427420da431a81dda1d8f365ea0ee5"
+    },
+    {
+      "id": "boat-water-activities",
+      "digest": "aee33df60f020c548cf3a9927ce106fbe22967bbb1ae3cd1484bdc91cf3eed89"
+    },
+    {
+      "id": "tour-operator",
+      "digest": "ee7e33b3b97f3ab86174a14403647a4124198cb050ca53b947b76abb507b55af"
+    },
+    {
+      "id": "gym-fitness",
+      "digest": "f137470a1c4c61843e4926bc781c31d0cf49ae4b3f86a22abcd095ce68b9a488"
+    },
+    {
+      "id": "generic-service",
+      "digest": "aa45057cf282a1b23bc99ac618f4a1df1aaa894a434544e9796e35ca92b04ca8"
+    }
+  ]
+}

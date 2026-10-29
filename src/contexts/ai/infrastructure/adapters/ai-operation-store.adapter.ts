@@ -14,6 +14,10 @@ import {
   AI_ROUTING_POLICY,
 } from '#/shared/ai-operation-profiles'
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import {
+  REVIEW_VOCABULARY_HINTS_VERSION,
+  type VocabularyHintIdentity,
+} from '#/shared/review-vocabulary-hints'
 import { AI_REVIEW_ANALYSIS_CONSUMER } from '../outbox-consumers'
 import type { AiErrorCode } from '../../domain/errors'
 import { createAiOperationIdentity, parseAiExecutionBinding } from '../../domain/rules'
@@ -239,12 +243,38 @@ function parseBinding(
   return parsed.value
 }
 
+/** The hint identity an operation row holds: all three columns, or none. */
+function parseVocabularyHints(row: OperationRow): VocabularyHintIdentity | null {
+  const { vocabularyHintSetId: setId, vocabularyHintSetVersion: setVersion } = row
+  const digest = row.vocabularyHintSetDigest
+  if (setId === null && setVersion === null && digest === null) return null
+  if (setId === null || setVersion === null || digest === null) {
+    failCorrupt('vocabulary hint identity is partial')
+  }
+  if (setVersion !== REVIEW_VOCABULARY_HINTS_VERSION) {
+    failCorrupt('vocabulary hint version is unknown')
+  }
+  return { setId, setVersion, digest }
+}
+
+function sameHints(
+  first: VocabularyHintIdentity | null | undefined,
+  second: VocabularyHintIdentity | null | undefined,
+): boolean {
+  return (
+    (first?.setId ?? null) === (second?.setId ?? null) &&
+    (first?.setVersion ?? null) === (second?.setVersion ?? null) &&
+    (first?.digest ?? null) === (second?.digest ?? null)
+  )
+}
+
 function mapOperation(row: OperationRow): AiOperationRecord {
   const identity = parseIdentity(row)
   return {
     id: operationId(row.id),
     identity,
     binding: parseBinding(row, identity),
+    vocabularyHints: parseVocabularyHints(row),
     idempotencyKey: row.idempotencyKey,
     requestFingerprint: row.requestFingerprint,
     sourceProvenance:
@@ -449,6 +479,9 @@ function insertionValues(
     outputLeakageProfileDigest: binding.outputLeakageProfileDigest,
     replyTemplateCatalogueVersion: binding.replyTemplateCatalogueVersion,
     replyTemplateCatalogueDigest: binding.replyTemplateCatalogueDigest,
+    vocabularyHintSetId: input.vocabularyHints?.setId ?? null,
+    vocabularyHintSetVersion: input.vocabularyHints?.setVersion ?? null,
+    vocabularyHintSetDigest: input.vocabularyHints?.digest ?? null,
     globalControlId: binding.stopFence.globalControlId,
     globalControlGeneration: binding.stopFence.globalGeneration,
     providerControlId: binding.stopFence.providerControlId,
@@ -496,7 +529,8 @@ export const createAiOperationStoreAdapter = (
           .for('update')
         if (!existing) failCorrupt('idempotency conflict row disappeared')
         const operation = mapOperation(existing)
-        return existing.requestFingerprint === input.requestFingerprint
+        return existing.requestFingerprint === input.requestFingerprint &&
+          sameHints(operation.vocabularyHints, input.vocabularyHints)
           ? { status: 'replayed', operation }
           : { status: 'conflict', operation }
       })

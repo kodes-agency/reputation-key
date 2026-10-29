@@ -101,6 +101,26 @@ describe('propertyFromRow', () => {
     })
   })
 
+  it('maps the Google primary category and the instant it was read', () => {
+    const readAt = new Date('2026-09-01T08:00:00Z')
+    const property = propertyFromRow(
+      makePropertyRow({
+        googlePrimaryCategory: 'Hair salon',
+        googlePrimaryCategoryUpdatedAt: readAt,
+      }),
+    )
+
+    expect(property.googlePrimaryCategory).toBe('Hair salon')
+    expect(property.googlePrimaryCategoryUpdatedAt).toEqual(readAt)
+  })
+
+  it('reads a row written before the column as no category', () => {
+    const property = propertyFromRow(makePropertyRow())
+
+    expect(property.googlePrimaryCategory).toBeNull()
+    expect(property.googlePrimaryCategoryUpdatedAt).toBeNull()
+  })
+
   it('maps a null canonical location ID correctly', () => {
     const row = makePropertyRow({ gbpLocationId: null })
     const property = propertyFromRow(row)
@@ -133,6 +153,26 @@ describe('propertyFromRow', () => {
 })
 
 describe('propertyToRow', () => {
+  it('writes the Google primary category and the instant it was read, or nulls', () => {
+    const readAt = new Date('2026-09-01T08:00:00Z')
+
+    expect(
+      propertyToRow(
+        makeProperty({
+          googlePrimaryCategory: 'Hair salon',
+          googlePrimaryCategoryUpdatedAt: readAt,
+        }),
+      ),
+    ).toMatchObject({
+      googlePrimaryCategory: 'Hair salon',
+      googlePrimaryCategoryUpdatedAt: readAt,
+    })
+    expect(propertyToRow(makeProperty())).toMatchObject({
+      googlePrimaryCategory: null,
+      googlePrimaryCategoryUpdatedAt: null,
+    })
+  })
+
   it('maps all fields from domain to row', () => {
     const property = makeProperty()
     const row = propertyToRow(property)

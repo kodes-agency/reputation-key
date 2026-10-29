@@ -16,6 +16,7 @@ import {
 } from './rules'
 import { isGoogleResourceSuffix } from './google-binding-contract'
 import { verifiedGoogleReviewDestination } from './google-review-destination'
+import { normalizeGooglePrimaryCategory } from '#/shared/domain/google-primary-category'
 
 export type BuildPropertyInput = Readonly<{
   id: PropertyId
@@ -31,6 +32,8 @@ export type BuildPropertyInput = Readonly<{
   profileConfirmedAt?: Date | null
   profileConfirmedBy?: string | null
   googleReviewUri?: string | null
+  /** Google's display name for the location's primary category, as discovery read it. */
+  googlePrimaryCategory?: string | null
   /** Optional ISO country describing the Property's business location. */
   countryCode?: string | null
   countrySource?: string
@@ -80,6 +83,10 @@ export const buildProperty = (
     )
   }
 
+  const googlePrimaryCategory = normalizeGooglePrimaryCategory(
+    input.googlePrimaryCategory,
+  )
+
   return Result.combine([nameResult, slug, tz, countryResult]).map(
     ([validName, validSlug, validTz, countryCode]): Property => {
       return {
@@ -107,6 +114,8 @@ export const buildProperty = (
         profileConfirmedAt: input.profileConfirmedAt ?? null,
         profileConfirmedBy: input.profileConfirmedBy ?? null,
         googleReviewDestination,
+        googlePrimaryCategory,
+        googlePrimaryCategoryUpdatedAt: googlePrimaryCategory === null ? null : input.now,
         createdAt: input.now,
         updatedAt: input.now,
         deletedAt: null,

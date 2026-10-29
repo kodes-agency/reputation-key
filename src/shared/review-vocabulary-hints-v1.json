@@ -1,0 +1,935 @@
+{
+  "version": "review-vocabulary-hints-v1",
+  "sets": [
+    {
+      "id": "lodging",
+      "categoryAliases": [
+        "Hotel",
+        "Bed & breakfast",
+        "Bed and breakfast",
+        "Motel",
+        "Hostel",
+        "Guest house",
+        "Inn",
+        "Lodge",
+        "Resort hotel",
+        "Boutique hotel",
+        "Apartment hotel",
+        "Extended stay hotel",
+        "Serviced accommodation",
+        "Self-catering accommodation",
+        "Holiday apartment rental",
+        "Vacation home rental"
+      ],
+      "hints": {
+        "staff_service": [
+          "front desk",
+          "receptionist",
+          "housekeeping",
+          "concierge",
+          "manager",
+          "porter",
+          "waiter",
+          "bartender"
+        ],
+        "speed_waiting": [
+          "check-in",
+          "check-out",
+          "queue",
+          "room service",
+          "laundry",
+          "repair",
+          "reception"
+        ],
+        "booking_arrival": [
+          "reservation",
+          "booking",
+          "early check-in",
+          "late check-out",
+          "room type",
+          "overbooking",
+          "cancellation",
+          "transfer"
+        ],
+        "main_service": ["room", "bed", "mattress", "pillow", "suite", "apartment"],
+        "food_drink": [
+          "breakfast",
+          "restaurant",
+          "bar",
+          "buffet",
+          "coffee",
+          "dinner",
+          "minibar",
+          "drinks"
+        ],
+        "cleanliness": [
+          "room",
+          "bathroom",
+          "towel",
+          "sheets",
+          "toilet",
+          "floor",
+          "carpet",
+          "pool"
+        ],
+        "facilities_equipment": [
+          "air conditioning",
+          "heating",
+          "shower",
+          "hot water",
+          "wifi",
+          "tv",
+          "lift",
+          "pool",
+          "key card",
+          "safe",
+          "fridge",
+          "hair dryer"
+        ],
+        "price_billing": [
+          "price",
+          "bill",
+          "deposit",
+          "tip",
+          "refund",
+          "resort fee",
+          "parking fee",
+          "city tax",
+          "extra charge"
+        ],
+        "atmosphere_noise": [
+          "noise",
+          "street noise",
+          "music",
+          "neighbour",
+          "decor",
+          "lighting",
+          "view",
+          "crowd"
+        ],
+        "location_access": [
+          "location",
+          "parking",
+          "entrance",
+          "stairs",
+          "wheelchair access",
+          "public transport",
+          "beach",
+          "signage"
+        ],
+        "safety": [
+          "balcony",
+          "railing",
+          "lock",
+          "fire exit",
+          "stairs",
+          "wiring",
+          "wet floor"
+        ],
+        "communication": [
+          "email",
+          "phone",
+          "website",
+          "listing",
+          "photos",
+          "confirmation",
+          "information",
+          "reply"
+        ]
+      }
+    },
+    {
+      "id": "food-service",
+      "categoryAliases": [
+        "Restaurant",
+        "Family restaurant",
+        "Fine dining restaurant",
+        "Fast food restaurant",
+        "Buffet restaurant",
+        "Breakfast restaurant",
+        "Brunch restaurant",
+        "Barbecue restaurant",
+        "Steak house",
+        "Seafood restaurant",
+        "Hamburger restaurant",
+        "Pizza restaurant",
+        "Pizzeria",
+        "Italian restaurant",
+        "French restaurant",
+        "Spanish restaurant",
+        "Greek restaurant",
+        "German restaurant",
+        "Turkish restaurant",
+        "Mediterranean restaurant",
+        "Middle Eastern restaurant",
+        "Lebanese restaurant",
+        "Chinese restaurant",
+        "Japanese restaurant",
+        "Sushi restaurant",
+        "Ramen restaurant",
+        "Korean restaurant",
+        "Thai restaurant",
+        "Vietnamese restaurant",
+        "Indian restaurant",
+        "Asian restaurant",
+        "Mexican restaurant",
+        "American restaurant",
+        "Brazilian restaurant",
+        "Vegetarian restaurant",
+        "Vegan restaurant",
+        "Tapas restaurant",
+        "Bistro",
+        "Brasserie",
+        "Diner",
+        "Cafe",
+        "Coffee shop",
+        "Bar",
+        "Bar & grill",
+        "Pub",
+        "Gastropub",
+        "Wine bar",
+        "Cocktail bar"
+      ],
+      "hints": {
+        "staff_service": [
+          "waiter",
+          "host",
+          "manager",
+          "bartender",
+          "server",
+          "chef",
+          "cashier"
+        ],
+        "speed_waiting": [
+          "table",
+          "order",
+          "food",
+          "drinks",
+          "bill",
+          "delivery",
+          "queue",
+          "kitchen"
+        ],
+        "booking_arrival": [
+          "reservation",
+          "booking",
+          "cancellation",
+          "overbooking",
+          "table assignment",
+          "arrival"
+        ],
+        "food_drink": [
+          "menu",
+          "dish",
+          "portion",
+          "starter",
+          "main course",
+          "dessert",
+          "coffee",
+          "cocktail",
+          "wine",
+          "beer",
+          "pizza",
+          "pasta",
+          "steak",
+          "burger",
+          "salad",
+          "bread"
+        ],
+        "cleanliness": [
+          "table",
+          "plate",
+          "glass",
+          "cutlery",
+          "toilet",
+          "floor",
+          "kitchen",
+          "menu"
+        ],
+        "facilities_equipment": [
+          "air conditioning",
+          "heating",
+          "toilet",
+          "terrace",
+          "high chair",
+          "card machine",
+          "wifi",
+          "fan"
+        ],
+        "price_billing": [
+          "price",
+          "bill",
+          "tip",
+          "service charge",
+          "cover charge",
+          "deposit",
+          "refund",
+          "card payment"
+        ],
+        "atmosphere_noise": [
+          "noise",
+          "music",
+          "decor",
+          "lighting",
+          "crowd",
+          "terrace",
+          "view",
+          "smoke"
+        ],
+        "location_access": [
+          "location",
+          "parking",
+          "entrance",
+          "stairs",
+          "wheelchair access",
+          "signage",
+          "outdoor seating"
+        ],
+        "safety": ["wet floor", "stairs", "hot plate", "fire exit", "lock", "security"],
+        "communication": [
+          "menu",
+          "allergen information",
+          "phone",
+          "email",
+          "website",
+          "reply",
+          "opening hours"
+        ]
+      }
+    },
+    {
+      "id": "beauty",
+      "categoryAliases": [
+        "Beauty salon",
+        "Hair salon",
+        "Barber shop",
+        "Hairdresser",
+        "Nail salon",
+        "Beauty parlour",
+        "Eyebrow bar",
+        "Eyelash salon",
+        "Makeup artist",
+        "Tanning salon",
+        "Hair removal service"
+      ],
+      "hints": {
+        "staff_service": [
+          "stylist",
+          "barber",
+          "therapist",
+          "receptionist",
+          "manager",
+          "assistant",
+          "nail technician"
+        ],
+        "speed_waiting": [
+          "appointment",
+          "waiting time",
+          "queue",
+          "walk-in",
+          "start time",
+          "treatment time"
+        ],
+        "booking_arrival": [
+          "appointment",
+          "booking",
+          "cancellation",
+          "double booking",
+          "rescheduling",
+          "online booking",
+          "reminder"
+        ],
+        "main_service": [
+          "haircut",
+          "hair colour",
+          "highlights",
+          "balayage",
+          "blow-dry",
+          "manicure",
+          "pedicure",
+          "facial",
+          "waxing",
+          "beard trim",
+          "shave",
+          "styling",
+          "eyebrow",
+          "lash extension",
+          "nail polish"
+        ],
+        "food_drink": ["coffee", "tea", "drink", "water", "snack"],
+        "cleanliness": [
+          "salon",
+          "chair",
+          "towel",
+          "tools",
+          "brush",
+          "basin",
+          "floor",
+          "toilet"
+        ],
+        "facilities_equipment": [
+          "hair dryer",
+          "chair",
+          "basin",
+          "mirror",
+          "air conditioning",
+          "heating",
+          "wifi",
+          "lighting"
+        ],
+        "price_billing": [
+          "price",
+          "bill",
+          "deposit",
+          "tip",
+          "refund",
+          "package",
+          "discount",
+          "extra charge"
+        ],
+        "atmosphere_noise": ["music", "noise", "decor", "smell", "lighting", "crowd"],
+        "location_access": [
+          "location",
+          "parking",
+          "entrance",
+          "stairs",
+          "wheelchair access",
+          "signage"
+        ],
+        "safety": ["wet floor", "stairs", "hot tool", "chemicals", "lock"],
+        "communication": [
+          "phone",
+          "email",
+          "website",
+          "price list",
+          "instructions",
+          "aftercare",
+          "consultation",
+          "reply"
+        ]
+      }
+    },
+    {
+      "id": "spa-wellness",
+      "categoryAliases": [
+        "Day spa",
+        "Spa",
+        "Health spa",
+        "Massage spa",
+        "Massage therapist",
+        "Medical spa",
+        "Thermal spa",
+        "Wellness center",
+        "Sauna"
+      ],
+      "hints": {
+        "staff_service": [
+          "therapist",
+          "receptionist",
+          "manager",
+          "attendant",
+          "host",
+          "instructor"
+        ],
+        "speed_waiting": [
+          "appointment",
+          "waiting time",
+          "queue",
+          "check-in",
+          "start time"
+        ],
+        "booking_arrival": [
+          "booking",
+          "reservation",
+          "appointment",
+          "cancellation",
+          "time slot",
+          "double booking",
+          "arrival"
+        ],
+        "main_service": [
+          "massage",
+          "facial",
+          "treatment",
+          "body wrap",
+          "sauna",
+          "steam room",
+          "hot tub",
+          "pool",
+          "massage pressure",
+          "scrub",
+          "aromatherapy",
+          "hot stone"
+        ],
+        "food_drink": ["tea", "water", "fruit", "snack", "drink", "lunch"],
+        "cleanliness": [
+          "treatment room",
+          "towel",
+          "robe",
+          "changing room",
+          "shower",
+          "sauna",
+          "pool",
+          "floor",
+          "toilet",
+          "slippers"
+        ],
+        "facilities_equipment": [
+          "sauna",
+          "steam room",
+          "hot tub",
+          "pool",
+          "shower",
+          "locker",
+          "heating",
+          "air conditioning",
+          "massage table",
+          "music system",
+          "hair dryer"
+        ],
+        "price_billing": [
+          "price",
+          "bill",
+          "deposit",
+          "tip",
+          "refund",
+          "gift voucher",
+          "package",
+          "extra charge",
+          "membership"
+        ],
+        "atmosphere_noise": [
+          "music",
+          "noise",
+          "lighting",
+          "scent",
+          "crowd",
+          "decor",
+          "ambience"
+        ],
+        "location_access": [
+          "location",
+          "parking",
+          "entrance",
+          "stairs",
+          "wheelchair access",
+          "signage"
+        ],
+        "safety": ["wet floor", "hot water", "sauna", "stairs", "lock", "security"],
+        "communication": [
+          "phone",
+          "email",
+          "website",
+          "instructions",
+          "consultation",
+          "information",
+          "booking confirmation",
+          "reply"
+        ]
+      }
+    },
+    {
+      "id": "boat-water-activities",
+      "categoryAliases": [
+        "Boat rental service",
+        "Boat tour agency",
+        "Boat club",
+        "Yacht club",
+        "Sailing club",
+        "Fishing charter",
+        "Jet ski rental service",
+        "Water sports equipment rental service",
+        "Diving center",
+        "Surf school"
+      ],
+      "hints": {
+        "staff_service": [
+          "captain",
+          "skipper",
+          "crew",
+          "guide",
+          "instructor",
+          "manager",
+          "receptionist",
+          "host"
+        ],
+        "speed_waiting": [
+          "departure",
+          "pick-up",
+          "queue",
+          "return",
+          "delay",
+          "waiting time",
+          "check-in"
+        ],
+        "booking_arrival": [
+          "booking",
+          "reservation",
+          "cancellation",
+          "overbooking",
+          "meeting point",
+          "pick-up",
+          "boarding"
+        ],
+        "main_service": [
+          "boat",
+          "trip",
+          "tour",
+          "route",
+          "cruise",
+          "sailing",
+          "fishing trip",
+          "lesson",
+          "excursion",
+          "swimming stop"
+        ],
+        "food_drink": [
+          "lunch",
+          "drinks",
+          "snacks",
+          "water",
+          "barbecue",
+          "fruit",
+          "coffee",
+          "beer",
+          "wine"
+        ],
+        "cleanliness": [
+          "boat",
+          "deck",
+          "toilet",
+          "cabin",
+          "seat",
+          "towel",
+          "life jacket"
+        ],
+        "facilities_equipment": [
+          "engine",
+          "motor",
+          "life jacket",
+          "anchor",
+          "radio",
+          "gps",
+          "sail",
+          "toilet",
+          "canopy",
+          "ladder",
+          "fridge",
+          "music system"
+        ],
+        "price_billing": [
+          "price",
+          "bill",
+          "deposit",
+          "fuel charge",
+          "tip",
+          "refund",
+          "extra charge",
+          "discount",
+          "cancellation fee"
+        ],
+        "atmosphere_noise": ["noise", "engine noise", "music", "crowd", "view"],
+        "location_access": [
+          "harbour",
+          "pier",
+          "jetty",
+          "parking",
+          "meeting point",
+          "signage",
+          "directions",
+          "wheelchair access"
+        ],
+        "safety": [
+          "life jacket",
+          "railing",
+          "ladder",
+          "deck",
+          "fire extinguisher",
+          "fuel",
+          "anchor",
+          "lifebuoy"
+        ],
+        "communication": [
+          "safety briefing",
+          "instructions",
+          "phone",
+          "email",
+          "website",
+          "weather update",
+          "booking confirmation",
+          "directions",
+          "reply",
+          "listing"
+        ]
+      }
+    },
+    {
+      "id": "tour-operator",
+      "categoryAliases": [
+        "Tour operator",
+        "Tour agency",
+        "Sightseeing tour agency",
+        "Travel agency",
+        "Tour guide"
+      ],
+      "hints": {
+        "staff_service": [
+          "guide",
+          "driver",
+          "host",
+          "manager",
+          "receptionist",
+          "tour leader",
+          "crew"
+        ],
+        "speed_waiting": [
+          "pick-up",
+          "departure",
+          "queue",
+          "waiting time",
+          "delay",
+          "entry",
+          "check-in"
+        ],
+        "booking_arrival": [
+          "booking",
+          "reservation",
+          "cancellation",
+          "overbooking",
+          "meeting point",
+          "pick-up",
+          "ticket",
+          "itinerary change"
+        ],
+        "main_service": [
+          "tour",
+          "itinerary",
+          "route",
+          "excursion",
+          "stop",
+          "day trip",
+          "visit",
+          "activity"
+        ],
+        "food_drink": [
+          "lunch",
+          "drinks",
+          "snacks",
+          "water",
+          "dinner",
+          "tasting",
+          "coffee"
+        ],
+        "cleanliness": ["vehicle", "bus", "van", "seat", "toilet", "equipment"],
+        "facilities_equipment": [
+          "bus",
+          "van",
+          "air conditioning",
+          "seat belt",
+          "microphone",
+          "headset",
+          "equipment",
+          "wifi",
+          "toilet",
+          "heating"
+        ],
+        "price_billing": [
+          "price",
+          "bill",
+          "deposit",
+          "tip",
+          "refund",
+          "extra charge",
+          "entrance fee",
+          "fee",
+          "discount",
+          "cancellation fee"
+        ],
+        "atmosphere_noise": ["group size", "noise", "crowd", "music", "view"],
+        "location_access": [
+          "meeting point",
+          "pick-up point",
+          "parking",
+          "directions",
+          "signage",
+          "stairs",
+          "wheelchair access",
+          "entrance"
+        ],
+        "safety": [
+          "seat belt",
+          "driving",
+          "railing",
+          "helmet",
+          "life jacket",
+          "equipment",
+          "stairs"
+        ],
+        "communication": [
+          "safety briefing",
+          "instructions",
+          "itinerary",
+          "phone",
+          "email",
+          "website",
+          "confirmation",
+          "directions",
+          "reply",
+          "commentary"
+        ]
+      }
+    },
+    {
+      "id": "gym-fitness",
+      "categoryAliases": [
+        "Gym",
+        "Fitness center",
+        "Health club",
+        "Yoga studio",
+        "Pilates studio",
+        "Personal trainer",
+        "CrossFit gym",
+        "Boxing gym"
+      ],
+      "hints": {
+        "staff_service": [
+          "trainer",
+          "instructor",
+          "receptionist",
+          "manager",
+          "coach",
+          "personal trainer"
+        ],
+        "speed_waiting": [
+          "queue",
+          "waiting time",
+          "machine",
+          "class start",
+          "check-in",
+          "shower"
+        ],
+        "booking_arrival": [
+          "booking",
+          "class booking",
+          "cancellation",
+          "trial session",
+          "access card",
+          "reservation",
+          "sign-up"
+        ],
+        "main_service": [
+          "class",
+          "workout",
+          "session",
+          "training session",
+          "personal training",
+          "programme",
+          "yoga class",
+          "pilates class",
+          "coaching",
+          "trial class"
+        ],
+        "food_drink": [
+          "smoothie",
+          "protein shake",
+          "cafe",
+          "water",
+          "vending machine",
+          "juice",
+          "coffee"
+        ],
+        "cleanliness": [
+          "equipment",
+          "changing room",
+          "shower",
+          "toilet",
+          "floor",
+          "mat",
+          "towel",
+          "locker room",
+          "machine",
+          "sauna"
+        ],
+        "facilities_equipment": [
+          "treadmill",
+          "weights",
+          "machine",
+          "locker",
+          "shower",
+          "sauna",
+          "air conditioning",
+          "music system",
+          "water fountain",
+          "pool",
+          "wifi",
+          "mat"
+        ],
+        "price_billing": [
+          "membership",
+          "price",
+          "fee",
+          "joining fee",
+          "cancellation fee",
+          "contract",
+          "refund",
+          "direct debit",
+          "discount",
+          "billing"
+        ],
+        "atmosphere_noise": ["music", "noise", "crowd", "lighting", "vibe", "decor"],
+        "location_access": [
+          "location",
+          "parking",
+          "entrance",
+          "stairs",
+          "wheelchair access",
+          "signage"
+        ],
+        "safety": [
+          "wet floor",
+          "weights",
+          "machine",
+          "locker",
+          "first aid",
+          "fire exit",
+          "stairs"
+        ],
+        "communication": [
+          "phone",
+          "email",
+          "app",
+          "website",
+          "timetable",
+          "opening hours",
+          "notice",
+          "reply",
+          "information"
+        ]
+      }
+    },
+    {
+      "id": "generic-service",
+      "categoryAliases": [],
+      "hints": {
+        "staff_service": ["staff", "receptionist", "manager", "front desk"],
+        "speed_waiting": ["queue", "waiting time", "appointment", "check-in"],
+        "booking_arrival": ["booking", "reservation", "appointment", "cancellation"],
+        "food_drink": ["food", "drink", "coffee", "menu"],
+        "cleanliness": ["toilet", "floor", "table", "reception"],
+        "facilities_equipment": [
+          "air conditioning",
+          "heating",
+          "wifi",
+          "toilet",
+          "equipment",
+          "lift"
+        ],
+        "price_billing": ["price", "bill", "refund", "fee"],
+        "atmosphere_noise": ["noise", "music", "decor", "crowd"],
+        "location_access": ["parking", "entrance", "location", "wheelchair access"],
+        "safety": ["stairs", "lock", "security", "wet floor"],
+        "communication": ["phone", "email", "website", "reply"]
+      }
+    }
+  ]
+}

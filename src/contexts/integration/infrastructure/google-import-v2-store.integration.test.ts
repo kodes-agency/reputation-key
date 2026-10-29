@@ -37,7 +37,7 @@ const matchesDigest =
   (stored: Readonly<{ keyVersion: string; digest: string }>) =>
     stored.keyVersion === expected.keyVersion && stored.digest === expected.digest
 
-function intent(now = NOW): GoogleImportV2Intent {
+function intent(now = NOW, googlePrimaryCategory?: string | null): GoogleImportV2Intent {
   return {
     id: REQUEST_ID,
     organizationId: ORG_ID,
@@ -53,6 +53,7 @@ function intent(now = NOW): GoogleImportV2Intent {
         destinationPropertyId: PROPERTY_ID,
         providerAccountSuffix: 'account-1',
         providerLocationSuffix: 'location-1',
+        ...(googlePrimaryCategory === undefined ? {} : { googlePrimaryCategory }),
         expectedConnectionLifecycleVersion: 1,
         expectedConnectionAccessVersion: 1,
         expectedCredentialGeneration: 1,
@@ -751,6 +752,128 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       expectedCredentialGeneration: null,
       expectedSourceEpoch: null,
       expectedProfileVersion: null,
+    })
+  })
+
+  describe('the Google primary category an item carries to its Property', () => {
+    const CLAIM_FENCE = '10000000-0000-4000-8000-000000000020'
+    const category = async () =>
+      (
+        await db
+          .select({ category: gbpImportRequestItems.googlePrimaryCategory })
+          .from(gbpImportRequestItems)
+          .where(eq(gbpImportRequestItems.id, ITEM_ID))
+      )[0]?.category
+
+    const claim = () =>
+      store.claimItem({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+        claimFence: CLAIM_FENCE,
+        now: NOW,
+        leaseExpiresAt: new Date(NOW.getTime() + 30_000),
+      })
+
+    it('is stored with the item and handed to the effect that creates the Property', async () => {
+      await resetStorage()
+      await expect(store.commitIntent(intent(NOW, 'Boat rental service'))).resolves.toBe(
+        'committed',
+      )
+
+      expect(await category()).toBe('Boat rental service')
+      await expect(claim()).resolves.toMatchObject({
+        kind: 'claimed',
+        item: { googlePrimaryCategory: 'Boat rental service' },
+      })
+    })
+
+    it('is absent for an item written without one, and reaches the effect as null', async () => {
+      await resetStorage()
+      await expect(store.commitIntent(intent(NOW))).resolves.toBe('committed')
+
+      expect(await category()).toBeNull()
+      await expect(claim()).resolves.toMatchObject({
+        kind: 'claimed',
+        item: { googlePrimaryCategory: null },
+      })
+    })
+
+    it('goes with the other provider state when the item ends, but not when it may be retried', async () => {
+      await resetStorage()
+      await expect(store.commitIntent(intent(NOW, 'Day spa'))).resolves.toBe('committed')
+
+      await expect(
+        store.terminalizeItem({
+          organizationId: ORG_ID,
+          itemId: ITEM_ID,
+          retryRevision: 0,
+          outcomeCode: 'temporarily_unavailable',
+          retainRetryState: true,
+          now: NOW,
+        }),
+      ).resolves.toBe('completed')
+      expect(await category()).toBe('Day spa')
+
+      await resetStorage()
+      await expect(store.commitIntent(intent(NOW, 'Day spa'))).resolves.toBe('committed')
+      await expect(
+        store.terminalizeItem({
+          organizationId: ORG_ID,
+          itemId: ITEM_ID,
+          retryRevision: 0,
+          outcomeCode: 'authorization_changed',
+          retainRetryState: false,
+          now: NOW,
+        }),
+      ).resolves.toBe('completed')
+      expect(await category()).toBeNull()
+    })
+
+    it('is cleared by the lifecycle scrub of a finished item, whatever it still held', async () => {
+      await resetStorage()
+      await expect(store.commitIntent(intent(NOW, 'Day spa'))).resolves.toBe('committed')
+      await store.terminalizeItem({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        outcomeCode: 'authorization_changed',
+        retainRetryState: false,
+        now: NOW,
+      })
+      // A finished item holds no category; put one back to see the scrub take it.
+      await db
+        .update(gbpImportRequestItems)
+        .set({ googlePrimaryCategory: 'Day spa' })
+        .where(eq(gbpImportRequestItems.id, ITEM_ID))
+      expect(await category()).toBe('Day spa')
+
+      await expect(
+        store.scrubLifecycleItems({
+          organizationId: ORG_ID,
+          itemIds: [ITEM_ID],
+          now: NOW,
+        }),
+      ).resolves.toBe(1)
+
+      expect(await category()).toBeNull()
+    })
+
+    it('is refused by the database when it is empty, padded or too long to be a category', async () => {
+      await resetStorage()
+      await expect(store.commitIntent(intent(NOW, 'Day spa'))).resolves.toBe('committed')
+
+      for (const value of ['', ' Day spa', 'Day spa ']) {
+        await expect(
+          db
+            .update(gbpImportRequestItems)
+            .set({ googlePrimaryCategory: value })
+            .where(eq(gbpImportRequestItems.id, ITEM_ID)),
+        ).rejects.toMatchObject({
+          cause: { constraint: 'gbp_import_request_items_google_primary_category_valid' },
+        })
+      }
     })
   })
 

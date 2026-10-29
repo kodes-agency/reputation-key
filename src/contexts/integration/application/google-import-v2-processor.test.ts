@@ -27,6 +27,7 @@ const PROVIDER_LOCATION_ID =
   GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments.locationId
 const GOOGLE_REVIEW_URI =
   'https://search.google.com/local/writereview?placeid=provider-location-1'
+const GOOGLE_PRIMARY_CATEGORY = 'Boat rental service'
 
 const actor = {
   organizationId: ORG_ID,
@@ -67,6 +68,7 @@ function claimedItem(
     providerAccountSuffix: PROVIDER_ACCOUNT_ID,
     providerLocationSuffix: PROVIDER_LOCATION_ID,
     googleReviewUri: GOOGLE_REVIEW_URI,
+    googlePrimaryCategory: GOOGLE_PRIMARY_CATEGORY,
     expectedConnectionLifecycleVersion: 4,
     expectedConnectionAccessVersion: 3,
     expectedCredentialGeneration: 2,
@@ -321,6 +323,9 @@ describe('GoogleImportV2Processor', () => {
             sourceEpoch: 0,
             profileVersion: 1,
           },
+          // Read at discovery, stored with the Property it creates.
+          googlePrimaryCategory: GOOGLE_PRIMARY_CATEGORY,
+          googlePrimaryCategoryUpdatedAt: NOW,
         }),
       }),
     )
@@ -928,6 +933,7 @@ describe('GoogleImportV2Processor', () => {
         expectedProfileVersion: 9,
         profile: expect.objectContaining({
           googleReviewUri: GOOGLE_REVIEW_URI,
+          googlePrimaryCategory: GOOGLE_PRIMARY_CATEGORY,
         }),
       }),
     )
