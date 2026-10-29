@@ -21,3 +21,11 @@ export const GUEST_VOICE_RANGE_OPTIONS: ReadonlyArray<{
   value,
   label: GUEST_VOICE_RANGE_LABELS[value],
 }))
+
+/**
+ * Guest voice 2.0 reads its windows from the statistics engine, which has four: it has
+ * no All time, so the control does not offer it.
+ */
+export const GUEST_VOICE_V2_RANGE_OPTIONS = GUEST_VOICE_RANGE_OPTIONS.filter(
+  (option) => option.value !== 'all',
+)

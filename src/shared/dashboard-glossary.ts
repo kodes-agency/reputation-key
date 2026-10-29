@@ -14,6 +14,7 @@
 export type GlossaryTermKey =
   | 'praise-and-complaints'
   | 'stars-when-mentioned'
+  | 'worth-up-to'
   | 'likely-change'
   | 'topics'
   | 'recurring-issues'
@@ -43,6 +44,14 @@ export const DASHBOARD_GLOSSARY: Readonly<Record<GlossaryTermKey, GlossaryEntry>
     term: 'Stars when mentioned',
     definition:
       'The average stars of the reviews that complain about a topic, next to the average of every other review in this period. It shows that they go together, not that the topic caused the lower rating.',
+  },
+  // The same caveat, for the figure Guest voice ranks a problem by: the share of every
+  // review in the period that names it, times the gap in stars. It is read as "up to"
+  // because the gap is an association, never a cause.
+  'worth-up-to': {
+    term: 'Worth up to',
+    definition:
+      "How much this problem could be costing your rating: the share of every review in this period that names it, times the gap between their stars and everyone else's. It shows that the two go together, not that the problem caused the lower stars.",
   },
   // The comparison is the Property's own previous 12 months, and what it claims is
   // that the share moved more than its usual ups and downs over that year. It states

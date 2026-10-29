@@ -29,6 +29,32 @@ export type {
   PropertyInsightsRange,
 } from './use-cases/read-property-insights'
 
+// Guest voice 2.0: what the page and the issue drawer are drawn from. `Window`,
+// `Change` and `EvidenceLevel` are the read model's own names; they leave here
+// prefixed, so a consumer's `Window` is still the browser's.
+export type {
+  ChangedItem,
+  FixFirstItem,
+  GuestsLoveItem,
+  GuestVoiceV2NotEnough,
+  GuestVoiceV2Read,
+  GuestVoiceV2Ready,
+  InShortLine,
+  IssueDrawer,
+  IssueStatistics,
+  LiveEvidence,
+  StaffPraiseLine,
+  TopicRow,
+  WatchItem,
+  Change as GuestVoiceChange,
+  EvidenceLevel as GuestVoiceEvidenceLevel,
+  Window as GuestVoiceWindow,
+} from './read-models/guest-voice-v2'
+export type {
+  ReviewTopicV3,
+  UrgentReasonV3,
+} from './read-models/guest-voice-v2-v3-vocabulary'
+
 export type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,

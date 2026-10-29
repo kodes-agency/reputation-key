@@ -668,6 +668,18 @@ too full to read is answered with 90 days. A recurring issue is a label two or m
 Reviews carry. Topics still come from the v2 analysis (taxonomy v1), where Staff and
 Service overlap, so a Review about the front desk can count under both.
 
+Guest voice 2.0 is drawn from the read-model types in
+`application/read-models/guest-voice-v2.ts` (v3 contract, section 9), built on fixtures
+ahead of the v3 analysis it will read: nothing reads v3 data yet, and the page renders 2.0
+only where the route passes it (`PropertyGuestVoicePage`'s `v2`). The types are
+content-free except `LiveEvidence`, one quote read live from the Review's current text
+(its cited sentences as character ranges) and never stored; a quote that names a person is
+left out of the read. `issueStatistics` (`read-models/issue-statistics.ts`) is how counts
+become the `IssueStatistics` a page prints, every field an output of the statistics engine,
+so the fixtures and the read model cannot disagree. `ReviewTopicV3` and `UrgentReasonV3`
+are stand-ins (`guest-voice-v2-v3-vocabulary.ts`) for the types PR-3 owns in
+`src/shared/review-analysis-v3.ts`: delete the stand-in when PR-3 lands.
+
 The aggregate head counts every sequence the settlement ledger settles for its
 profile generation, including one a newer sequence of the same review had
 already superseded, so coverage can complete. A head that is the only head of

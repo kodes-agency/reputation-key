@@ -3,6 +3,7 @@ import { GUEST_VOICE_RANGES } from '#/shared/dashboard-range'
 import {
   GUEST_VOICE_RANGE_LABELS,
   GUEST_VOICE_RANGE_OPTIONS,
+  GUEST_VOICE_V2_RANGE_OPTIONS,
 } from './property-guest-voice-ranges'
 
 describe('the Guest voice range control', () => {
@@ -28,6 +29,16 @@ describe('the Guest voice range control', () => {
       '6 months',
       '12 months',
       'All time',
+    ])
+  })
+
+  it('offers Guest voice 2.0 the same, without All time, which its four windows do not reach', () => {
+    expect(GUEST_VOICE_V2_RANGE_OPTIONS.map((option) => option.label)).toEqual([
+      'Automatic',
+      '30 days',
+      '90 days',
+      '6 months',
+      '12 months',
     ])
   })
 })
