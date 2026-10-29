@@ -63,7 +63,7 @@ const regionTableBytes = readFileSync(resolve(ROOT, REGION_TABLE_PATH))
 const manifest = Object.freeze({
   version: 'ai-review-language-catalogue-v1',
   unicodeVersion: '17.0.0',
-  icuVersion: '78.2',
+  icuVersion: '78.3',
   groups: GROUPS,
   wrapper: Object.freeze({
     path: WRAPPER_PATH,

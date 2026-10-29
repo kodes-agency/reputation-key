@@ -1,7 +1,7 @@
 {
   "version": "language-script-consistency-v1",
   "unicodeVersion": "17.0.0",
-  "icuVersion": "78.2",
+  "icuVersion": "78.3",
   "generatedTableDigest": "60d7100a24737b690f51c8ad35ee323f812208a2aabb30b1b9a9581ad1c92912",
   "thresholdNumerator": 4,
   "thresholdDenominator": 5,
@@ -21,11 +21,11 @@
   },
   "generator": {
     "path": "scripts/generate-ai-language-script-table.ts",
-    "sha256": "22e5e75ab85755c3eabcf3fb9d180b91d82fd030feb872a1cc5e0ab99fbfef05"
+    "sha256": "6e7703f30996384f3e7135598a39123f35668bb9b82e63e9e1beb02845bc1b42"
   },
   "table": {
     "path": "src/shared/generated/ai-language-script-extensions-v17.ts",
-    "sha256": "78b356093e5a1f847026e33379b75060e46fea71ce80306b9d6b624ecd985dd8"
+    "sha256": "09bca35982509e8521dded2292a56e9dc23c6a1a78ece9b39dc213b6735f5067"
   },
   "wrapper": {
     "path": "src/shared/ai-language-script-consistency.ts",
@@ -35,5 +35,5 @@
     "path": "src/shared/ai-language-script-consistency-v1.vectors.json",
     "sha256": "b60873ea1f89634fa1d6453a3396a181e31286ad70fcabd7a8af07073f45a2f6"
   },
-  "attestationDigest": "16be4d6ec7e2bf13a4f059bc6249de7972fcb543e7989543b18903791fcb65fa"
+  "attestationDigest": "081f6d749cc88529032855279e60a9eea058cd82df15534667ac0af0a0f461e7"
 }

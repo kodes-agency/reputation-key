@@ -7,7 +7,8 @@
 // rather than editing entries by hand.
 //
 // Every zone is spelled the way `isValidIanaTimezone` accepts it (Node 22,
-// ICU 78.2). That runtime lists CLDR-canonical names, so 19 zone.tab names are
+// ICU 78.2, and still on ICU 78.3 since Node 22.23.4). That runtime lists
+// CLDR-canonical names, so 19 zone.tab names are
 // stored under their accepted alias: for example Asia/Kolkata as Asia/Calcutta and
 // Europe/Kyiv as Europe/Kiev. No zone was dropped.
 

@@ -46,7 +46,7 @@
 //   4. Unasserted async failure — `.rejects` with no matcher naming the
 //      expected error (e.g. a line ending in `.rejects;`).
 //   5. Runtime-fence liveness — SKIP_REGISTER entries marked `runtimeFence`
-//      execute ONLY on the pinned runtime (node 22.23.2 / ICU 78.2 /
+//      execute ONLY on the pinned runtime (node 22.23.4 / ICU 78.3 /
 //      Unicode 17.0 — the triple every Dockerfile asserts and every ci.yml job
 //      installs). Under CI a drifted runtime FAILS: it means a governed
 //      AI-language admission table stopped being verified while `pnpm test`
@@ -122,7 +122,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // Node bundles ICU, so those two attested runtime values remain explicit.
 const PINNED_RUNTIME = {
   node: readFileSync(join(ROOT, '.nvmrc'), 'utf8').trim(),
-  icu: '78.2',
+  icu: '78.3',
   unicode: '17.0',
 }
 const RUNTIME_DRIFT = Object.entries(PINNED_RUNTIME)
@@ -157,7 +157,7 @@ const SKIP_REGISTER = [
     file: 'src/shared/ai-review-language-catalogue.test.ts',
     owner: 'engineering',
     reason:
-      'describe.runIf pair fencing the 24-group review-language catalogue on the pinned runtime (node 22.23.2 / ICU 78.2 / Unicode 17.0) — the group mapping is generated from that exact ICU, so a different runtime must fail closed rather than assert a foreign table; the negative fence asserts that fail-closed path',
+      'describe.runIf pair fencing the 24-group review-language catalogue on the pinned runtime (node 22.23.4 / ICU 78.3 / Unicode 17.0) — the group mapping is generated from that exact ICU, so a different runtime must fail closed rather than assert a foreign table; the negative fence asserts that fail-closed path',
     maxHits: 2,
     runtimeFence: true,
     skippedTests: 79,

@@ -18,7 +18,7 @@ import {
   verifyReplyTemplateCatalogueEntry,
 } from './ai-reply-language-verifier'
 const PINNED_LANGUAGE_RUNTIME =
-  process.versions.unicode === '17.0' && process.versions.icu === '78.2'
+  process.versions.unicode === '17.0' && process.versions.icu === '78.3'
 
 function detector(
   language: string,
@@ -269,9 +269,9 @@ afterEach(() => {
  */
 describe('bg-Cyrl reply language wiring', () => {
   function simulatePinnedLanguageRuntime(): void {
-    vi.spyOn(process.versions, 'node', 'get').mockReturnValue('22.23.2')
+    vi.spyOn(process.versions, 'node', 'get').mockReturnValue('22.23.4')
     vi.spyOn(process.versions, 'unicode', 'get').mockReturnValue('17.0')
-    vi.spyOn(process.versions, 'icu', 'get').mockReturnValue('78.2')
+    vi.spyOn(process.versions, 'icu', 'get').mockReturnValue('78.3')
   }
 
   it('is the 24th reply template group and a canonical concrete tag', () => {

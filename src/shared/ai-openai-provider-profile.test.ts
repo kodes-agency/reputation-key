@@ -19,9 +19,9 @@ describe('OpenAI private-beta provider profile', () => {
       dispatcherVersion: 'undici@8.10.0',
       runtime: {
         nodeImage:
-          'node:22.23.2-trixie-slim@sha256:7b8a0c89c54499bee567618f96578e1a12a800f062fbdbfd1fb6a443fa6f6284',
-        nodeVersion: '22.23.2',
-        icuVersion: '78.2',
+          'node:22.23.4-trixie-slim@sha256:2117f713a417f3aff682ac8f5bc2ebbdf1beed51f36e67ab1e0fd3866b6d2d8f',
+        nodeVersion: '22.23.4',
+        icuVersion: '78.3',
         unicodeVersion: '17.0',
       },
       endpoint: 'https://api.openai.com/v1/responses',

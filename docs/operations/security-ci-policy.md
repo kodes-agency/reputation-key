@@ -185,8 +185,12 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   `security/license-policy.json`.
 - Grype: 29 won't-fix/not-fixed Debian trixie CVE entries + 2 Go-stdlib
   package entries in `.grype.yaml` (each with owner/reason/expiry). The base
-  moved to `node:22.23.2-trixie-slim` (Debian 13) on 2026-09-07; the one
-  fixable class it shipped with — OpenSSL 3.5.6 (nine CVEs, two Critical) —
+  moved to `node:22-trixie-slim` (Debian 13) on 2026-09-07. Node 22.23.2's
+  CVE-2026-111497 (Critical, known-exploited), CVE-2026-105482 (High) and
+  CVE-2026-106072 (Medium) then failed the gate with a fix available, so the
+  pin moved to `node:22.23.4-trixie-slim` on 2026-10-29 — fixed, not excepted.
+  The one fixable class the trixie base shipped with — OpenSSL 3.5.6 (nine
+  CVEs, two Critical) —
   is fixed by pinning `libssl3t64`/`openssl-provider-legacy` to
   `3.5.7-1~deb13u3` in every base stage, not excepted (bumped from
   `~deb13u2` on 2026-09-30 for DSA-6531-1, whose three High CVEs —
@@ -219,7 +223,7 @@ Convention since BQC-7.1, now **enforced** by `check:action-pins`: every
 `uses:` is `owner/repo@<40-hex-SHA> # vX.Y.Z`; every workflow `image:`
 (service containers: postgres, redis) is digest-pinned with a tag comment;
 the gitleaks invocation pins `zricethezav/gitleaks:vX@sha256:…`. The Docker
-base images (`node:22.23.2-trixie-slim@sha256:…`) are digest-pinned in the Dockerfiles.
+base images (`node:22.23.4-trixie-slim@sha256:…`) are digest-pinned in the Dockerfiles.
 `uses:` under a step's `with:` (e.g. the locally-built `repkey-web:ci` handed
 to the SBOM/scan actions) is not a registry reference and is out of scope —
 the actions consuming them are themselves SHA-pinned.

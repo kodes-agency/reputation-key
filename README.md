@@ -9,7 +9,7 @@ A reputation management platform built with TanStack Start, Better Auth, Drizzle
 ## Quick Start
 
 ```bash
-# 0. Use the pinned Node runtime — 22.23.2, exactly (.nvmrc)
+# 0. Use the pinned Node runtime — 22.23.4, exactly (.nvmrc)
 fnm use            # or: nvm use
 pnpm local:doctor  # Docker, published stack ports, stale containers, VM headroom
 

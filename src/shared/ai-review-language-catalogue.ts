@@ -52,7 +52,7 @@ export type ReviewLanguageMappingResult =
 export const AI_REVIEW_LANGUAGE_CATALOGUE_VERSION =
   'ai-review-language-catalogue-v1' as const
 export const AI_REVIEW_LANGUAGE_UNICODE_VERSION = '17.0.0' as const
-export const AI_REVIEW_LANGUAGE_ICU_VERSION = '78.2' as const
+export const AI_REVIEW_LANGUAGE_ICU_VERSION = '78.3' as const
 
 function makeEvaluatedLanguage(
   tag: CanonicalSupportedBcp47Tag | 'und',

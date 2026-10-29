@@ -4,7 +4,7 @@ import {
   evaluateLanguageScriptConsistency,
 } from './ai-language-script-consistency'
 const PINNED_LANGUAGE_RUNTIME =
-  process.versions.unicode === '17.0' && process.versions.icu === '78.2'
+  process.versions.unicode === '17.0' && process.versions.icu === '78.3'
 
 const SCRIPT_CASES = [
   ['en-Latn', 'a'],

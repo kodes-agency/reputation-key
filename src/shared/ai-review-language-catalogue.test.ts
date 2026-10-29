@@ -9,9 +9,9 @@ import {
   parseCanonicalReplyLanguageTag,
 } from './ai-review-language-catalogue'
 const PINNED_LANGUAGE_RUNTIME =
-  process.versions.node === '22.23.2' &&
+  process.versions.node === '22.23.4' &&
   process.versions.unicode === '17.0' &&
-  process.versions.icu === '78.2'
+  process.versions.icu === '78.3'
 
 const GROUP_CASES = [
   ['en-US', 'en-Latn-US', 'en-Latn'],
@@ -157,7 +157,7 @@ describe.runIf(PINNED_LANGUAGE_RUNTIME)('AI review language catalogue', () => {
   )
 
   it('fails closed when only the Node runtime version drifts', () => {
-    vi.spyOn(process.versions, 'node', 'get').mockReturnValue('22.23.3')
+    vi.spyOn(process.versions, 'node', 'get').mockReturnValue('22.23.5')
     expect(isAiReviewLanguageRuntimeAvailable()).toBe(false)
     expect(mapReviewLanguageMetadata('en-US')).toEqual({ status: 'policy_unavailable' })
   })

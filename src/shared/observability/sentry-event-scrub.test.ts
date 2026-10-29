@@ -161,7 +161,7 @@ describe('telemetry PII scrubbing (B3.5)', () => {
       extra: { arbitrary: marker },
       tags: { service: 'web', tenant_name: marker },
       contexts: {
-        runtime: { name: 'node', version: '22.23.2', commandLine: marker },
+        runtime: { name: 'node', version: '22.23.4', commandLine: marker },
         custom: { note: marker },
       },
       fingerprint: [marker],
@@ -179,7 +179,7 @@ describe('telemetry PII scrubbing (B3.5)', () => {
     expect(scrubbed).not.toHaveProperty('logentry')
     expect(scrubbed.tags).toEqual({ service: 'web' })
     expect(scrubbed.contexts).toEqual({
-      runtime: { name: 'node', version: '22.23.2' },
+      runtime: { name: 'node', version: '22.23.4' },
     })
   })
 

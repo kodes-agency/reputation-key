@@ -1,7 +1,7 @@
 {
   "version": "ai-review-language-catalogue-v1",
   "unicodeVersion": "17.0.0",
-  "icuVersion": "78.2",
+  "icuVersion": "78.3",
   "groups": [
     "und",
     "en-Latn",
@@ -31,7 +31,7 @@
   ],
   "wrapper": {
     "path": "src/shared/ai-review-language-catalogue.ts",
-    "sha256": "cf2448f67cbdf9c8421a03c665b85822f63032f812830549e47b7c1bb54bbf0c"
+    "sha256": "52a54e453cfc8b1167a0968740c47ab7934e37cb0f9331e2dd6503018f172f25"
   },
   "vectors": {
     "path": "src/shared/ai-review-language-v1.vectors.json",
@@ -43,17 +43,17 @@
   },
   "canonicalRegions": {
     "digest": "a0ee776f63981ff76b8ef7f24522341ad007a2c854b11836af4b5a2bf8eb89fa",
-    "nodeVersion": "22.23.2",
-    "icuVersion": "78.2",
+    "nodeVersion": "22.23.4",
+    "icuVersion": "78.3",
     "unicodeVersion": "17.0",
     "generator": {
       "path": "scripts/generate-ai-review-language-regions.ts",
-      "sha256": "ac6d40c4a0a904c8d6df9d9314d2cb1d87e6fc8a10469a30fd719dd8c4fe73b5"
+      "sha256": "5e8a7d763d7d51b109eb9c082e25c00279a0af83e4d81d4d3f0e5c9a7c53e927"
     },
     "table": {
       "path": "src/shared/generated/ai-review-language-canonical-regions-v1.ts",
-      "sha256": "5dfcf15ae19579ec5b07a2db15bd7b0765cea01c37152871891f93e321ccad77"
+      "sha256": "510bf2f85a8b3ce392e412b1b43e73e47d24f5f491d7f083ddec3af0a2bd61ec"
     }
   },
-  "attestationDigest": "1e81444e68d22e397c9a12a263388ab5686f4b07b97c879a8083797263258ed9"
+  "attestationDigest": "0541685d1f0b039bd9ceb20b3a5724c7a038da718c9117e9db584b60f287e4cc"
 }
