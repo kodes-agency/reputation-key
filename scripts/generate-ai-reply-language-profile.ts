@@ -42,7 +42,7 @@ const canonicalVectorBytes = Buffer.from(canonicalizeRfc8785(vectorValue), 'utf8
 const profileManifest = {
   version: 'reply-language-verifier-v1',
   unicodeVersion: '17.0.0',
-  icuVersion: '78.2',
+  icuVersion: '78.3',
   package: { name: 'cld3-asm', version: '4.0.0', integrity: CLD3_INTEGRITY },
   embeddedWasmRuntime: { path: CLD3_ASSET, sha256: CLD3_ASSET_SHA256 },
   vectors: {

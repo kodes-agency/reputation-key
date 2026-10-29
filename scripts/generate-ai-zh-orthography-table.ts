@@ -22,7 +22,7 @@ const PACKAGE_VERSION = '1.4.2'
 const PACKAGE_INTEGRITY =
   'sha512-EdcspgdROiCCZDM+jZR6Pa670xW+EW2QhctPBQ8gRjg6lrx4IHEl+2s+kt5izk/TkxVRgdWuFgaGkaEdIUfdaw=='
 const UNICODE_VERSION = '17.0'
-const ICU_VERSION = '78.2'
+const ICU_VERSION = '78.3'
 const MEMBERS = Object.freeze([
   [
     'dist/esm/cn2t.js',

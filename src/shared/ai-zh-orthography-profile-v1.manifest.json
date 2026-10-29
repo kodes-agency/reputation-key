@@ -1,5 +1,5 @@
 {
-  "attestationDigest": "5b9434548d3766edc36f3cc2b2627908e5265b1b5b8218259f6f615e42a53cc2",
+  "attestationDigest": "55ed80bd828c6edd21b328b2399660b24742f55008163e945f58581465178009",
   "constants": {
     "minimumDecisiveLetters": 4,
     "ratioDenominator": 5,
@@ -7,9 +7,9 @@
   },
   "generator": {
     "path": "scripts/generate-ai-zh-orthography-table.ts",
-    "sha256": "7fcbec350b7724d5dd5a29aa9c65d069fbac61445b1028019a021cbd8f870af8"
+    "sha256": "5d3905d228ee241afe6af467885ba60fa46b545935fbffaf101e4c5dea679504"
   },
-  "icuVersion": "78.2",
+  "icuVersion": "78.3",
   "importedMembers": [
     {
       "path": "dist/esm/cn2t.js",

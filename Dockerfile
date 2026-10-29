@@ -12,7 +12,7 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # to the Railway service. The IaC graph never rebuilds a working tree.
 #
 # Reproducibility:
-#   - base image pinned by digest (node:22.23.2-trixie-slim; bump deliberately)
+#   - base image pinned by digest (node:22.23.4-trixie-slim; bump deliberately)
 #   - pnpm pinned via package.json packageManager (corepack resolves it)
 #   - every install is `pnpm install --frozen-lockfile` (same lockfile CI tests)
 #
@@ -48,18 +48,27 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # naturally well inside drainingSeconds (verified: ~1.3s after traffic).
 # ─────────────────────────────────────────────────────────────────────────────
 
-# node:22.23.2-trixie-slim (Debian 13) — digest resolved 2026-09-07. Debian 12
-# bookworm is EOL, which was the source of every `won't fix` row in the scan.
+# node:22.23.4-trixie-slim (Debian 13) — index digest resolved 2026-10-29
+# (22.23.2 on 2026-09-07). Debian 12 bookworm is EOL, which was the source of
+# every `won't fix` row in the scan. 22.23.4 closes CVE-2026-111497 (Critical),
+# CVE-2026-105482 (High) and CVE-2026-106072 (Medium) in Node 22.23.2 and moves
+# ICU 78.2 -> 78.3 (Unicode stays 17.0).
 #
 # A digest bump MUST keep the node/ICU/Unicode triple asserted below. Web and
 # worker run the AI review-language catalogue, which fails closed when the
 # runtime does not match its pinned triple; a silent patch bump would degrade
-# every analysis and reply draft. If a bump must move the triple, regenerate
-# src/shared/generated/ai-review-language-canonical-regions-v1.ts
-# (pnpm tsx scripts/generate-ai-review-language-regions.ts) and re-run the AI
-# language corpus in the same change. The image asserts the triple again in the
-# final runtime stage so build and serving environments cannot drift.
-FROM node:22.23.2-trixie-slim@sha256:7b8a0c89c54499bee567618f96578e1a12a800f062fbdbfd1fb6a443fa6f6284 AS base
+# every analysis and reply draft. If a bump must move the triple, move the ICU
+# constants in the generators named below and in
+# src/shared/ai-review-language-catalogue.ts, then regenerate under the new
+# runtime (pnpm tsx scripts/<name>.ts; the first three check the runtime
+# first) in this order: generate-ai-review-language-regions,
+# generate-ai-language-script-table, generate-ai-zh-orthography-table,
+# generate-ai-review-language-profile, generate-ai-reply-language-profile.
+# Compare the generated tables with git diff (only version lines may move) and
+# re-run the AI language corpus in the same change. The image asserts the
+# triple again in the final runtime stage so build and serving environments
+# cannot drift.
+FROM node:22.23.4-trixie-slim@sha256:2117f713a417f3aff682ac8f5bc2ebbdf1beed51f36e67ab1e0fd3866b6d2d8f AS base
 # HUSKY=0: Husky's `prepare` must not try to install git hooks in the image.
 # COREPACK_HOME + the pinned `corepack install` below: identical to the other
 # Node-based Dockerfiles ON PURPOSE. Docker keys a layer on the instruction text, so
@@ -86,7 +95,7 @@ RUN apt-get update \
         openssl-provider-legacy=3.5.7-1~deb13u3 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
+RUN node -e "const expected={node:'22.23.4',icu:'78.3',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
 
 # ── Full dependencies (build toolchain) ──────────────────────────────────────
 FROM base AS deps
@@ -174,7 +183,7 @@ LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
 # (dist-worker) both execute the review-language catalogue, which fails closed on
 # a drifted node/ICU/Unicode triple. Explicit here so a future `FROM` change in
 # this stage cannot silently lose the base-stage assertion.
-RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
+RUN node -e "const expected={node:'22.23.4',icu:'78.3',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
 # BQC-7.7: the runtime never installs packages — strip the npm CLI shipped in
 # the base image (its bundled deps carry known CVEs: grype container gate).
 # node itself is untouched; corepack/pnpm shims stay for operator tooling.

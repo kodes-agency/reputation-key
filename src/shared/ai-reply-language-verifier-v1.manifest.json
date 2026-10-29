@@ -1,20 +1,20 @@
 {
-  "attestationDigest": "40ae89abbb4c03fbb0fb7ccae8e4b42071e0ee926e3a38df0476806ba111d37b",
+  "attestationDigest": "ff7799e6086f02886a8cd6c1765de3f4eac19d32ee0d46f5fed8719c9a4ec33e",
   "constants": {
     "minimumLetters": 24,
     "minimumProbability": 0.85,
     "reliableRequired": true
   },
   "dependencies": {
-    "languageCatalogueDigest": "1e81444e68d22e397c9a12a263388ab5686f4b07b97c879a8083797263258ed9",
-    "languageScriptConsistencyDigest": "16be4d6ec7e2bf13a4f059bc6249de7972fcb543e7989543b18903791fcb65fa",
-    "zhOrthographyDigest": "5b9434548d3766edc36f3cc2b2627908e5265b1b5b8218259f6f615e42a53cc2"
+    "languageCatalogueDigest": "0541685d1f0b039bd9ceb20b3a5724c7a038da718c9117e9db584b60f287e4cc",
+    "languageScriptConsistencyDigest": "081f6d749cc88529032855279e60a9eea058cd82df15534667ac0af0a0f461e7",
+    "zhOrthographyDigest": "55ed80bd828c6edd21b328b2399660b24742f55008163e945f58581465178009"
   },
   "embeddedWasmRuntime": {
     "path": "node_modules/cld3-asm/dist/cjs/lib/node/cld3.js",
     "sha256": "3f14aa4639bcf6e4cdf29f2125b337ed7cff41f49dad291621ce8f5a414f8840"
   },
-  "icuVersion": "78.2",
+  "icuVersion": "78.3",
   "labelMap": {
     "ar": "ar-Arab",
     "bg": "bg-Cyrl",

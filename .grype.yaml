@@ -3,7 +3,7 @@
 # severity-cutoff: high; policy: docs/operations/security-ci-policy.md).
 #
 # Zero exceptions is the target. Before any entry below is written, every
-# finding WITH a fix is fixed: the base is node:22.23.2-trixie-slim (Debian 13,
+# finding WITH a fix is fixed: the base is node:22.23.4-trixie-slim (Debian 13,
 # plan revision R2, 2026-09-07; bookworm was EOL), the npm CLI is stripped from
 # every runtime stage, and OpenSSL is pinned to the patched 3.5.7-1~deb13u3 in
 # every Dockerfile base stage (nine CVEs incl. CVE-2026-63073 / CVE-2026-75803

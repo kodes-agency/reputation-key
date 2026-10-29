@@ -18,7 +18,7 @@ const TABLE_PATH = 'src/shared/generated/ai-language-script-extensions-v17.ts'
 const WRAPPER_PATH = 'src/shared/ai-language-script-consistency.ts'
 const VECTORS_PATH = 'src/shared/ai-language-script-consistency-v1.vectors.json'
 const EXPECTED_UNICODE_VERSION = '17.0'
-const EXPECTED_ICU_VERSION = '78.2'
+const EXPECTED_ICU_VERSION = '78.3'
 
 const SCRIPTS = [
   ['Latin', 1],

@@ -4,7 +4,7 @@ import {
   evaluateZhOrthography,
 } from './ai-zh-orthography-verifier'
 const PINNED_LANGUAGE_RUNTIME =
-  process.versions.unicode === '17.0' && process.versions.icu === '78.2'
+  process.versions.unicode === '17.0' && process.versions.icu === '78.3'
 
 describe.runIf(PINNED_LANGUAGE_RUNTIME)('zh-orthography-verifier-v1', () => {
   it('requires at least four decisive Han scalars', () => {
