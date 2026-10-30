@@ -21,35 +21,13 @@ import {
   REVIEW_ATTENTION_LEVELS_V2,
   REVIEW_URGENT_REASONS_V3,
 } from '../../review-analysis-v3'
+import { NORMALIZATION_FLAGS } from './ai-normalization-flags'
 import { materialReviewRevisions, reviews } from './review.schema'
 import { merchantAiConsentEvidence } from './merchant-ai-authorization.schema'
 import { propertyTenantForeignKey, sqlStringList, timestamptz } from './ai-schema-helpers'
 
 /** The provider ids as an `IN (...)` list; one place so every check names the same two. */
 const PROVIDER_LIST = sqlStringList(AI_PROVIDER_IDS)
-
-/**
- * The closed, content-free flags a normalizer run may record on its operation
- * (`REVIEW_ANALYSIS_NORMALIZATION_FLAGS`, which imports server-only code this
- * schema must not). `ai-review-analysis-v3.schema.test.ts` holds the two lists equal.
- */
-const NORMALIZATION_FLAGS = [
-  'mentions_capped',
-  'sentence_refs_capped',
-  'enum_case_repaired',
-  'mention_dropped_malformed',
-  'mention_dropped_enum',
-  'mention_dropped_cause',
-  'mention_dropped_sentences',
-  'sentence_refs_repaired',
-  'cause_refused_name',
-  'cause_refused_quotation',
-  'cause_refused_shape',
-  'names_person_invalid',
-  'names_person_raised',
-  'mentions_merged',
-  'urgent_reason_unknown',
-] as const
 
 export const aiPropertyProcessingProfiles = pgTable(
   'ai_property_processing_profiles',
