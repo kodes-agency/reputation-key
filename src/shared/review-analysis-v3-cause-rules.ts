@@ -150,3 +150,57 @@ export function reviewCauseReproducesQuotation(input: {
   }
   return false
 }
+
+/**
+ * Why a cause a MANAGER typed may not be stored, or null when it may. The same two guards
+ * an AI's cause passes (decision 9 of docs/plan/guest-voice-2.md; ADR 0031, amended
+ * 2026-10-30): no person, brand or place word, and no four or more contiguous words of the
+ * review. The decision is that names stay out of a stored cause whoever writes it.
+ *
+ * `thing` and `issue` are the phrases as the stored contract holds them (lowercase, folded);
+ * `typed` is what the manager typed, because folding to lowercase would hide the one thing
+ * a name guard reads: a capital letter. A word the manager typed with a capital is a name
+ * candidate wherever it stands, like a capitalised word of a review, and is let through
+ * only as a common word or a vocabulary hint. `reviewText` is the review as it stands at
+ * the revision the analysis was made on, or null where it cannot be read (the raw text is
+ * served for 30 days): then the review's own capitalised words and its quotations cannot be
+ * compared, and what the manager typed is still held to the capitals rule. A name typed in
+ * lowercase passes, as one in a review does; the merchant notice says so.
+ */
+export function managerCauseRefusal(input: {
+  readonly typed: readonly (string | null)[]
+  readonly thing: string | null
+  readonly issue: string | null
+  readonly reviewText: string | null
+  readonly allowedWords: ReadonlySet<string>
+}): 'name' | 'quotation' | null {
+  const nameTokens = new Set<string>()
+  for (const typed of input.typed) {
+    if (typed === null) continue
+    for (const token of collectReviewNameTokens([typed])) nameTokens.add(token)
+  }
+  if (input.reviewText !== null) {
+    for (const token of collectReviewNameTokens([input.reviewText])) nameTokens.add(token)
+  }
+  if (
+    reviewCauseContainsRefusedName({
+      thing: input.thing,
+      issue: input.issue,
+      nameTokens,
+      allowedWords: input.allowedWords,
+    })
+  ) {
+    return 'name'
+  }
+  if (
+    input.reviewText !== null &&
+    reviewCauseReproducesQuotation({
+      thing: input.thing,
+      issue: input.issue,
+      reviewText: input.reviewText,
+    })
+  ) {
+    return 'quotation'
+  }
+  return null
+}

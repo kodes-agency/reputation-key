@@ -89,6 +89,12 @@ const commonWordCatalogue = commonWordCatalogueSchema.parse(commonWordSource)
 const COMMON_WORDS = Object.freeze([...commonWordCatalogue.words])
 const COMMON_WORD_SET = new Set<string>(COMMON_WORDS)
 
+/**
+ * The common words a capitalised word of a cause is let through as (the manifest's
+ * `commonWords`): the AI's causes and the causes a manager types are held to the same list.
+ */
+export const REVIEW_CAUSE_COMMON_WORDS: ReadonlySet<string> = COMMON_WORD_SET
+
 export const REVIEW_ANALYSIS_NORMALIZATION_MANIFEST = Object.freeze({
   version: REVIEW_ANALYSIS_NORMALIZATION_VERSION,
   limits: Object.freeze({
