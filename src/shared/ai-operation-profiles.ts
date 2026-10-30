@@ -32,6 +32,11 @@ import {
   ASPECT_TAXONOMY_V1_DIGEST,
 } from '#/shared/aspect-taxonomy'
 
+export {
+  OPENAI_REQUEST_SHAPE_V1,
+  OPENAI_REQUEST_SHAPE_V1_DIGEST,
+} from '#/shared/ai-openai-provider-profile'
+
 function digest(domain: string, value: unknown): string {
   return createHash('sha256')
     .update(domain, 'utf8')
