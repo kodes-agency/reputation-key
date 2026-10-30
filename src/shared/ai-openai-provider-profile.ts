@@ -1,7 +1,14 @@
 import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { AI_GATEWAY_KEY_INVENTORY_V1 } from './ai-gateway-key-inventory'
+import {
+  maximumCostMicrosWith,
+  settledCostMicrosWith,
+  type AiMaximumCostProfileV1,
+  type AiSettledUsageV1,
+} from './ai-provider-pricing'
 export { AI_GATEWAY_KEY_INVENTORY_V1 }
+export type { AiMaximumCostProfileV1, AiSettledUsageV1 }
 
 function digest(domain: string, value: unknown): string {
   return createHash('sha256')
@@ -108,44 +115,12 @@ export const OPENAI_PRICE_CATALOGUE_V1 = Object.freeze({
   retrievalDate: '2026-08-19',
 })
 
-export type AiMaximumCostProfileV1 = Readonly<{
-  staticTokenBearingBytes: number
-  maxOutputTokens: number
-}>
-
 export function maximumCostMicros(
   profile: AiMaximumCostProfileV1,
   providerPayloadBytes: number,
 ): number {
-  if (
-    !Number.isSafeInteger(profile.staticTokenBearingBytes) ||
-    profile.staticTokenBearingBytes < 0 ||
-    !Number.isSafeInteger(profile.maxOutputTokens) ||
-    profile.maxOutputTokens < 0 ||
-    !Number.isSafeInteger(providerPayloadBytes) ||
-    providerPayloadBytes < 0
-  ) {
-    throw new RangeError('AI maximum cost inputs must be nonnegative safe integers')
-  }
-
-  const unitTokens = BigInt(OPENAI_PRICE_CATALOGUE_V1.unitTokens)
-  const inputTokens =
-    BigInt(profile.staticTokenBearingBytes) + BigInt(providerPayloadBytes)
-  const numerator =
-    inputTokens * BigInt(OPENAI_PRICE_CATALOGUE_V1.uncachedInputMicros) +
-    BigInt(profile.maxOutputTokens) * BigInt(OPENAI_PRICE_CATALOGUE_V1.outputMicros)
-  const result = (numerator + unitTokens - 1n) / unitTokens
-  if (result > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new RangeError('AI maximum cost exceeds the safe integer range')
-  }
-  return Number(result)
+  return maximumCostMicrosWith(OPENAI_PRICE_CATALOGUE_V1, profile, providerPayloadBytes)
 }
-
-export type AiSettledUsageV1 = Readonly<{
-  inputTokens: number
-  cachedInputTokens: number
-  outputTokens: number
-}>
 
 /**
  * The one settled-cost formula. Every party that recomputes what a settlement
@@ -161,28 +136,11 @@ export type AiSettledUsageV1 = Readonly<{
  * only `operation_ambiguous`.
  *
  * Ceiling division, matching the SQL settlement function: partial micros are
- * charged, never dropped.
+ * charged, never dropped. This is OpenAI's catalogue; a call settled by another
+ * provider is priced by that provider's own (`settledCostMicrosWith`).
  */
 export function settledCostMicros(usage: AiSettledUsageV1): bigint {
-  if (
-    !Number.isSafeInteger(usage.inputTokens) ||
-    !Number.isSafeInteger(usage.cachedInputTokens) ||
-    !Number.isSafeInteger(usage.outputTokens) ||
-    usage.inputTokens < 0 ||
-    usage.cachedInputTokens < 0 ||
-    usage.outputTokens < 0 ||
-    usage.cachedInputTokens > usage.inputTokens
-  ) {
-    throw new RangeError('AI settled usage must be nonnegative safe integers')
-  }
-  const unitTokens = BigInt(OPENAI_PRICE_CATALOGUE_V1.unitTokens)
-  const numerator =
-    BigInt(usage.inputTokens - usage.cachedInputTokens) *
-      BigInt(OPENAI_PRICE_CATALOGUE_V1.uncachedInputMicros) +
-    BigInt(usage.cachedInputTokens) *
-      BigInt(OPENAI_PRICE_CATALOGUE_V1.cachedInputMicros) +
-    BigInt(usage.outputTokens) * BigInt(OPENAI_PRICE_CATALOGUE_V1.outputMicros)
-  return (numerator + unitTokens - 1n) / unitTokens
+  return settledCostMicrosWith(OPENAI_PRICE_CATALOGUE_V1, usage)
 }
 
 export const AI_SERVICE_DRAIN_SECONDS_V1 = 130

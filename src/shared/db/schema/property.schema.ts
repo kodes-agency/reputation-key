@@ -58,6 +58,15 @@ export const properties = pgTable(
     googleReviewDestinationProfileVersion: integer(
       'google_review_destination_profile_version',
     ),
+    // Google's display name for the location's primary category ("Hotel",
+    // "Italian restaurant"), read at import and relink. It is a hint that picks
+    // the vocabulary a review analysis is steered with, never a venue type the
+    // product shows or filters by (docs/BETA.md §3). Changing it moves no profile
+    // version, source epoch or AI epoch, and re-analyses nothing.
+    googlePrimaryCategory: varchar('google_primary_category', { length: 512 }),
+    googlePrimaryCategoryUpdatedAt: timestamp('google_primary_category_updated_at', {
+      withTimezone: true,
+    }),
     profileSource: varchar('profile_source', { length: 32 }).notNull().default('legacy'),
     profileConfirmedAt: timestamp('profile_confirmed_at', { withTimezone: true }),
     profileConfirmedBy: varchar('profile_confirmed_by', { length: 255 }),
@@ -144,6 +153,17 @@ export const properties = pgTable(
           AND ${t.googleReviewDestinationRetrievedAt} IS NULL
           AND ${t.googleReviewDestinationSourceEpoch} IS NULL
           AND ${t.googleReviewDestinationProfileVersion} IS NULL
+        )
+      )`,
+    ),
+    check(
+      'properties_google_primary_category_valid',
+      sql`(
+        ${t.googlePrimaryCategory} IS NULL
+        OR (
+          char_length(${t.googlePrimaryCategory}) BETWEEN 1 AND 512
+          AND ${t.googlePrimaryCategory} = btrim(${t.googlePrimaryCategory})
+          AND ${t.googlePrimaryCategoryUpdatedAt} IS NOT NULL
         )
       )`,
     ),

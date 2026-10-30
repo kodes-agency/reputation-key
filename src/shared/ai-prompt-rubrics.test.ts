@@ -6,7 +6,7 @@ import {
   AI_REPLY_TEMPLATE_IDS,
   AI_SENTIMENTS,
   CONCRETE_REPLY_LANGUAGE_PATTERN,
-} from './openai-route-output-schemas'
+} from './ai-route-output-schemas'
 import { ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from './ai-personalized-reply-contract'
 import { evaluateLanguageScriptConsistency } from './ai-language-script-consistency'

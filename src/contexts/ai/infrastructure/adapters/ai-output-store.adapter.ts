@@ -1,25 +1,12 @@
-import {
-  and,
-  desc,
-  eq,
-  exists,
-  gt,
-  inArray,
-  isNotNull,
-  isNull,
-  sql,
-  type SQL,
-} from 'drizzle-orm'
+import { and, desc, eq, exists, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { readAggregateCoverageFence } from './ai-aggregate-coverage-fence'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
-import type { ReviewId } from '#/shared/domain/ids'
 import {
   AI_PROPERTY_TREND_DEFINITION_DIGEST,
   AI_PROPERTY_TREND_DEFINITION_VERSION,
   AI_TREND_RENDER_PROFILE_DIGEST,
   AI_TREND_RENDER_PROFILE_VERSION,
-  CLOSED_TREND_SIGNAL_IDS,
 } from '#/shared/ai-property-trend-contract'
 import {
   aiOperations,
@@ -40,14 +27,18 @@ import { isAspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import type {
   AiOutputStorePort,
-  AiTrendEvidence,
   AiTrendReportRead,
 } from '../../application/ports/ai-output-store.port'
 import type {
   ReviewAnalysisCurrentnessV1,
   ReviewAnalysisReadV1,
 } from '../../domain/types'
-import { addDays } from '../../application/local-date'
+import {
+  insertAnalysisMentions,
+  readReadyAnalysisV3,
+} from './ai-review-analysis-mentions'
+import { findCurrentAnalysisReviewIds } from './ai-current-analysis-review-ids'
+import { trendEvidence } from './ai-trend-evidence'
 
 function currentness(
   input: Readonly<{
@@ -72,218 +63,6 @@ function capabilityFence(value: unknown): Readonly<Record<string, unknown>> | nu
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Readonly<Record<string, unknown>>)
     : null
-}
-
-const LOCAL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-const REVIEW_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const CLOSED_SIGNAL_ID_SET = new Set<string>(CLOSED_TREND_SIGNAL_IDS)
-
-function objectValue(value: unknown): Readonly<Record<string, unknown>> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Readonly<Record<string, unknown>>)
-    : null
-}
-
-function boundedCount(value: unknown): value is number {
-  return Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= 10_000
-}
-
-function validWindowEvidence(
-  value: unknown,
-  startLocalDate: string,
-  endLocalDate: string,
-): boolean {
-  const window = objectValue(value)
-  const period = objectValue(window?.period)
-  if (
-    window === null ||
-    period?.startLocalDate !== startLocalDate ||
-    period.endLocalDate !== endLocalDate ||
-    !boundedCount(window.textCandidateCount) ||
-    !boundedCount(window.analyzedCount) ||
-    !boundedCount(window.excludedCount) ||
-    !boundedCount(window.starOnlyCount) ||
-    !boundedCount(window.coverageBasisPoints) ||
-    window.coverageBasisPoints > 10_000 ||
-    window.analyzedCount > window.textCandidateCount ||
-    window.excludedCount !== window.textCandidateCount - window.analyzedCount
-  ) {
-    return false
-  }
-  const expectedCoverage =
-    window.textCandidateCount === 0
-      ? 0
-      : Number(
-          (BigInt(window.analyzedCount) * 10_000n) / BigInt(window.textCandidateCount),
-        )
-  return window.coverageBasisPoints === expectedCoverage
-}
-
-/** The definition, render profile, and timezone the evidence was pinned to. */
-function validTrendProfile(candidate: Partial<AiTrendEvidence>): boolean {
-  return (
-    candidate.definitionVersion === AI_PROPERTY_TREND_DEFINITION_VERSION &&
-    candidate.definitionDigest === AI_PROPERTY_TREND_DEFINITION_DIGEST &&
-    candidate.renderProfileVersion === AI_TREND_RENDER_PROFILE_VERSION &&
-    candidate.renderProfileDigest === AI_TREND_RENDER_PROFILE_DIGEST &&
-    typeof candidate.timezone === 'string' &&
-    candidate.timezone.length >= 1 &&
-    candidate.timezone.length <= 100
-  )
-}
-
-function validModelLineage(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.length <= 10_000 &&
-    value.every((lineage) => {
-      const row = objectValue(lineage)
-      return (
-        row !== null &&
-        typeof row.analysisProfileVersion === 'string' &&
-        row.analysisProfileVersion.length > 0 &&
-        typeof row.providerDeploymentProfileVersion === 'string' &&
-        row.providerDeploymentProfileVersion.length > 0 &&
-        typeof row.modelSnapshot === 'string' &&
-        row.modelSnapshot.length > 0
-      )
-    })
-  )
-}
-
-/**
- * Every selected signal must be a closed signal id whose counts sit inside the
- * two analyzed windows and whose stored magnitude reproduces exactly from those
- * counts — the number the merchant sees is never trusted from the row.
- */
-function validSelectedSignal(
-  signal: unknown,
-  baselineAnalyzedCount: unknown,
-  currentAnalyzedCount: unknown,
-): boolean {
-  const row = objectValue(signal)
-  const baseline = objectValue(row?.baseline)
-  const current = objectValue(row?.current)
-  if (
-    row === null ||
-    typeof row.signalId !== 'string' ||
-    !CLOSED_SIGNAL_ID_SET.has(row.signalId) ||
-    baseline === null ||
-    current === null ||
-    !boundedCount(baseline.count) ||
-    !boundedCount(baseline.total) ||
-    !boundedCount(current.count) ||
-    !boundedCount(current.total) ||
-    baseline.count > baseline.total ||
-    current.count > current.total ||
-    !boundedCount(row.changeMagnitudeBasisPoints) ||
-    row.changeMagnitudeBasisPoints > 10_000 ||
-    baseline.total !== baselineAnalyzedCount ||
-    current.total !== currentAnalyzedCount
-  ) {
-    return false
-  }
-  const denominator = BigInt(baseline.total) * BigInt(current.total)
-  if (denominator === 0n) return false
-  const delta =
-    BigInt(current.count) * BigInt(baseline.total) -
-    BigInt(baseline.count) * BigInt(current.total)
-  const magnitude = delta < 0n ? -delta : delta
-  return row.changeMagnitudeBasisPoints === Number((magnitude * 10_000n) / denominator)
-}
-
-function validSelectedSignals(candidate: Partial<AiTrendEvidence>): boolean {
-  const signals = candidate.selectedSignals
-  return (
-    Array.isArray(signals) &&
-    signals.length <= 4 &&
-    signals.every((signal) =>
-      validSelectedSignal(
-        signal,
-        candidate.baseline?.analyzedCount,
-        candidate.current?.analyzedCount,
-      ),
-    ) &&
-    new Set(signals.map((signal) => signal.signalId)).size === signals.length
-  )
-}
-
-/** Local-date bounds of the two windows the evidence covers. */
-type TrendWindowBounds = Readonly<{
-  baselineStart: string
-  baselineEnd: string
-  currentStart: string
-  currentEnd: string
-}>
-
-function validSupportingReview(supporting: unknown, bounds: TrendWindowBounds): boolean {
-  const row = objectValue(supporting)
-  if (
-    row === null ||
-    typeof row.reviewId !== 'string' ||
-    !REVIEW_ID_PATTERN.test(row.reviewId) ||
-    (row.window !== 'baseline' && row.window !== 'current') ||
-    typeof row.localDate !== 'string' ||
-    !LOCAL_DATE_PATTERN.test(row.localDate) ||
-    typeof row.href !== 'string' ||
-    !row.href.endsWith(`/reviews?reviewId=${row.reviewId}`)
-  ) {
-    return false
-  }
-  return row.window === 'baseline'
-    ? row.localDate >= bounds.baselineStart && row.localDate <= bounds.baselineEnd
-    : row.localDate >= bounds.currentStart && row.localDate <= bounds.currentEnd
-}
-
-function validSupportingReviews(
-  candidate: Partial<AiTrendEvidence>,
-  bounds: TrendWindowBounds,
-): boolean {
-  const supportingReviews = candidate.supportingReviews
-  return (
-    Array.isArray(supportingReviews) &&
-    supportingReviews.length <= 20 &&
-    supportingReviews.every((supporting) => validSupportingReview(supporting, bounds)) &&
-    new Set(supportingReviews.map((supporting) => supporting.reviewId)).size ===
-      supportingReviews.length
-  )
-}
-
-function trendEvidence(value: unknown): AiTrendEvidence | null {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
-  const candidate = value as Partial<AiTrendEvidence>
-  if (
-    typeof candidate.dataThroughLocalDate !== 'string' ||
-    !LOCAL_DATE_PATTERN.test(candidate.dataThroughLocalDate)
-  ) {
-    return null
-  }
-  let bounds: TrendWindowBounds
-  try {
-    const currentStart = addDays(candidate.dataThroughLocalDate, -29)
-    bounds = {
-      baselineStart: addDays(currentStart, -30),
-      baselineEnd: addDays(currentStart, -1),
-      currentStart,
-      currentEnd: candidate.dataThroughLocalDate,
-    }
-  } catch {
-    return null
-  }
-  if (!validTrendProfile(candidate)) return null
-  if (
-    !validWindowEvidence(candidate.baseline, bounds.baselineStart, bounds.baselineEnd)
-  ) {
-    return null
-  }
-  if (!validWindowEvidence(candidate.current, bounds.currentStart, bounds.currentEnd)) {
-    return null
-  }
-  if (!validModelLineage(candidate.modelLineage)) return null
-  if (!validSelectedSignals(candidate)) return null
-  if (!validSupportingReviews(candidate, bounds)) return null
-  return candidate as AiTrendEvidence
 }
 
 type AiOutputCapability = 'review_analysis' | 'reply_drafting' | 'property_trends'
@@ -322,6 +101,7 @@ const reviewOperationColumns = {
 
 const lockedReviewOperationColumns = {
   ...reviewOperationColumns,
+  operationProfileVersion: aiOperations.operationProfileVersion,
   analysisSequence: aiOperations.analysisSequence,
   actorUserId: aiOperations.actorUserId,
   baseReplyStateRevision: aiOperations.baseReplyStateRevision,
@@ -506,88 +286,219 @@ async function isCurrentAuthorizedEffect(
   )
 }
 
+type AnalysisWriteFacts = Readonly<{
+  operationId: string
+  providerCompletion: Readonly<{
+    expectedAttempt: number
+    completedAtEpochMillis: number
+  }>
+  organizationId: string
+  propertyId: string
+  reviewId: string
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+  authorizationLineageId: string
+  reviewAnalysisEpoch: number
+  propertyProfileVersion: number
+}>
+
+/** The key every row of one analysis (root, aspects, mentions) is filed under. */
+const analysisRootKey = (input: AnalysisWriteFacts) => ({
+  organizationId: input.organizationId,
+  propertyId: input.propertyId,
+  reviewId: input.reviewId,
+  sourceEpoch: input.sourceEpoch,
+  sourceRevision: input.sourceRevision,
+  analysisSequence: input.analysisSequence,
+})
+
 /**
- * The governed "which reviews currently have a live analysis" query, shared by
- * every attribute an inbox filter can select on.
- *
- * Everything except the discriminating predicate is policy, and it is the same
- * policy in every case: the merchant authorization must be enabled and still
- * carry `review_analysis`; the analysis must sit on the authorization's own
- * lineage and epoch; the analysis, the review and the processing profile must
- * all agree on the source epoch; the review content must not have expired; and
- * the profile must still be active. Copying that per attribute is how the two
- * lists in this codebase drifted, so callers supply only what distinguishes
- * them.
+ * The review's source as it stands now, share-locked: its epoch, revision and
+ * sequence, the digest and size of the canonical source an operation read, when
+ * its content expires and where its reply state is. Every provider result is
+ * written only if this still matches what the operation was claimed on.
  */
-function findCurrentAnalysisReviewIds(
-  db: Database,
-  input: Readonly<{
-    organizationId: string
-    propertyIds?: readonly string[]
-    reviewIds?: readonly string[]
-    nowEpochMillis: number
-  }>,
-  discriminate: (now: Date) => readonly SQL<unknown>[],
-): Promise<readonly ReviewId[]> {
-  if (input.propertyIds?.length === 0) return Promise.resolve([])
-  if (input.reviewIds?.length === 0) return Promise.resolve([])
-  const now = new Date(input.nowEpochMillis)
-  const conditions = [
-    eq(aiReviewAnalyses.organizationId, input.organizationId),
-    eq(aiReviewAnalyses.status, 'ready'),
-    ...discriminate(now),
-    eq(merchantAiEnablement.state, 'enabled'),
-    sql`${merchantAiEnablement.capabilities} @> ARRAY['review_analysis']::text[]`,
-    eq(
-      aiReviewAnalyses.authorizationLineageId,
-      merchantAiEnablement.authorizationLineageId,
-    ),
-    eq(aiReviewAnalyses.reviewAnalysisEpoch, merchantAiEnablement.reviewAnalysisEpoch),
-    eq(aiReviewAnalyses.sourceEpoch, merchantAiEnablement.authorizedSourceEpoch),
-    eq(aiReviewAnalyses.sourceEpoch, reviews.sourceEpoch),
-    eq(aiReviewAnalyses.sourceRevision, reviews.sourceRevision),
-    eq(aiReviewAnalyses.analysisSequence, reviews.analysisSequence),
-    gt(reviews.contentExpiresAt, now),
-    eq(aiPropertyProcessingProfiles.lifecycleState, 'active'),
-    eq(
-      aiReviewAnalyses.propertyProfileVersion,
-      aiPropertyProcessingProfiles.profileVersion,
-    ),
-    eq(aiReviewAnalyses.sourceEpoch, aiPropertyProcessingProfiles.sourceEpoch),
-  ]
-  if (input.propertyIds) {
-    conditions.push(inArray(aiReviewAnalyses.propertyId, [...input.propertyIds]))
+async function readCurrentReviewSource(
+  tx: Transaction,
+  input: Readonly<{ organizationId: string; propertyId: string; reviewId: string }>,
+) {
+  const [source] = await tx
+    .select({
+      sourceEpoch: reviews.sourceEpoch,
+      sourceRevision: reviews.sourceRevision,
+      analysisSequence: reviews.analysisSequence,
+      sourceDigest: reviews.aiSourceDigest,
+      sourceByteCount: reviews.aiSourceByteLength,
+      contentExpiresAt: reviews.contentExpiresAt,
+      replyStateRevision: reviews.replyStateRevision,
+    })
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.organizationId, input.organizationId),
+        eq(reviews.propertyId, input.propertyId),
+        eq(reviews.id, input.reviewId),
+      ),
+    )
+    .limit(1)
+    .for('share')
+  return source
+}
+
+/**
+ * Whether the review's source is still the one the operation read: the same
+ * epoch and revision, the same canonical source by digest and size, and content
+ * that had not expired when the provider completed. The contract's own fence
+ * (the analysis sequence, the reply state) is checked by the caller.
+ */
+function sourceHoldsOperation(
+  source: NonNullable<Awaited<ReturnType<typeof readCurrentReviewSource>>>,
+  operation: Readonly<{ sourceDigest: string | null; sourceByteCount: number | null }>,
+  input: Readonly<{ sourceEpoch: number; sourceRevision: number }>,
+  completedAt: Date,
+): boolean {
+  return (
+    source.sourceEpoch === input.sourceEpoch &&
+    source.sourceRevision === input.sourceRevision &&
+    source.sourceDigest === operation.sourceDigest &&
+    source.sourceByteCount === operation.sourceByteCount &&
+    source.contentExpiresAt !== null &&
+    source.contentExpiresAt > completedAt
+  )
+}
+
+type LockedReviewOperation = NonNullable<Awaited<ReturnType<typeof lockReviewOperation>>>
+
+type VerifiedAnalysisWrite = Readonly<{
+  executionAttempt: number
+  completedAt: Date
+}>
+
+/**
+ * The fences every analysis write holds, whatever the contract: the operation is
+ * the executing attempt the provider answered, for this review's source and
+ * sequence, under this lineage and these epochs; the authorization, processing
+ * profile and execution controls it was claimed under still stand; and the
+ * review still has the source the operation read, unexpired when the provider
+ * completed. `profileChecks` are the contract's own conditions, already evaluated.
+ * The operation row stays locked until the transaction ends.
+ */
+async function verifyAnalysisWrite(
+  tx: Transaction,
+  input: AnalysisWriteFacts,
+  profileChecks: (operation: LockedReviewOperation) => readonly boolean[],
+): Promise<VerifiedAnalysisWrite | null> {
+  const operation = await lockReviewOperation(tx, input.operationId, input.organizationId)
+  const fence = capabilityFence(operation?.capabilityFences)
+  if (
+    !operation ||
+    !fence ||
+    ![
+      operation.state === 'executing',
+      operation.executionAttempt === input.providerCompletion.expectedAttempt,
+      operation.command === 'analysis',
+      operation.capability === 'review_analysis',
+      operation.organizationId === input.organizationId,
+      operation.propertyId === input.propertyId,
+      operation.reviewId === input.reviewId,
+      operation.sourceEpoch === input.sourceEpoch,
+      operation.sourceRevision === input.sourceRevision,
+      operation.analysisSequence === input.analysisSequence,
+      operation.authorizationLineageId === input.authorizationLineageId,
+      operation.propertyProfileVersion === input.propertyProfileVersion,
+      ...profileChecks(operation),
+      fence.capability === 'review_analysis',
+      fence.reviewAnalysisEpoch === input.reviewAnalysisEpoch,
+    ].every(Boolean) ||
+    !(await isCurrentAuthorizedEffect(tx, {
+      capability: 'review_analysis',
+      operation,
+      capabilityFence: fence,
+    }))
+  ) {
+    return null
   }
-  if (input.reviewIds) {
-    conditions.push(inArray(aiReviewAnalyses.reviewId, [...input.reviewIds]))
+  // The review's own analysis_sequence proves the source has not been
+  // re-sequenced since the operation was reserved. The property head is a
+  // per-property allocator (every pin or source change takes the next
+  // number), so it equals this sequence only for the last review sequenced
+  // — comparing against it discarded every other paid analysis.
+  const completedAt = new Date(input.providerCompletion.completedAtEpochMillis)
+  const currentSource = await readCurrentReviewSource(tx, input)
+  if (
+    currentSource === undefined ||
+    !sourceHoldsOperation(currentSource, operation, input, completedAt) ||
+    currentSource.analysisSequence !== input.analysisSequence
+  ) {
+    return null
   }
-  return db
-    .selectDistinct({ reviewId: aiReviewAnalyses.reviewId })
-    .from(aiReviewAnalyses)
-    .innerJoin(
-      reviews,
+  return { executionAttempt: operation.executionAttempt, completedAt }
+}
+
+type AnalysisRootContent = Readonly<{
+  status: 'ready' | 'unavailable'
+  unavailableReason: 'language_not_supported' | null
+  sentiment: string | null
+  primaryCategory: string | null
+  issueLabel: string | null
+  attention: string | null
+  urgentReason: string | null
+}>
+
+/** Writes the analysis root once; false when the analysis already exists. */
+async function insertAnalysisRoot(
+  tx: Transaction,
+  input: AnalysisWriteFacts &
+    Readonly<{
+      analysisProfileVersion: string
+      generatedAtEpochMillis: number
+      expiresAtEpochMillis: number
+    }>,
+  content: AnalysisRootContent,
+): Promise<boolean> {
+  const [inserted] = await tx
+    .insert(aiReviewAnalyses)
+    .values({
+      ...analysisRootKey(input),
+      operationId: input.operationId,
+      authorizationLineageId: input.authorizationLineageId,
+      reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+      propertyProfileVersion: input.propertyProfileVersion,
+      analysisProfileVersion: input.analysisProfileVersion,
+      ...content,
+      generatedAt: new Date(input.generatedAtEpochMillis),
+      expiresAt: new Date(input.expiresAtEpochMillis),
+    })
+    .onConflictDoNothing()
+    .returning({ operationId: aiReviewAnalyses.operationId })
+  return inserted !== undefined
+}
+
+/** Closes the operation the analysis came from, in the transaction that wrote it. */
+async function completeAnalysisOperation(
+  tx: Transaction,
+  input: AnalysisWriteFacts,
+  verified: VerifiedAnalysisWrite,
+  record: Readonly<{ normalizationFlags?: string[]; droppedMentionCount?: number }>,
+): Promise<void> {
+  const completed = await tx
+    .update(aiOperations)
+    .set({
+      state: 'succeeded_pending_delivery',
+      updatedAt: verified.completedAt,
+      ...record,
+    })
+    .where(
       and(
-        eq(reviews.organizationId, aiReviewAnalyses.organizationId),
-        eq(reviews.propertyId, aiReviewAnalyses.propertyId),
-        eq(reviews.id, aiReviewAnalyses.reviewId),
+        eq(aiOperations.id, input.operationId),
+        eq(aiOperations.organizationId, input.organizationId),
+        eq(aiOperations.state, 'executing'),
+        eq(aiOperations.executionAttempt, verified.executionAttempt),
       ),
     )
-    .innerJoin(
-      merchantAiEnablement,
-      and(
-        eq(merchantAiEnablement.organizationId, aiReviewAnalyses.organizationId),
-        eq(merchantAiEnablement.propertyId, aiReviewAnalyses.propertyId),
-      ),
-    )
-    .innerJoin(
-      aiPropertyProcessingProfiles,
-      and(
-        eq(aiPropertyProcessingProfiles.organizationId, aiReviewAnalyses.organizationId),
-        eq(aiPropertyProcessingProfiles.propertyId, aiReviewAnalyses.propertyId),
-      ),
-    )
-    .where(and(...conditions))
-    .then((rows) => rows.map((row) => row.reviewId as ReviewId))
+    .returning({ id: aiOperations.id })
+  if (completed.length !== 1) throw new Error('AI analysis result commit conflict')
 }
 
 export const createAiOutputStoreAdapter = (
@@ -600,145 +511,71 @@ export const createAiOutputStoreAdapter = (
   return {
     async storeAnalysis(input) {
       return db.transaction(async (tx) => {
-        const operation = await lockReviewOperation(
-          tx,
-          input.operationId,
-          input.organizationId,
-        )
-        const fence = capabilityFence(operation?.capabilityFences)
-        if (
-          !operation ||
-          !fence ||
-          ![
-            operation.state === 'executing',
-            operation.executionAttempt === input.providerCompletion.expectedAttempt,
-            operation.command === 'analysis',
-            operation.capability === 'review_analysis',
-            operation.organizationId === input.organizationId,
-            operation.propertyId === input.propertyId,
-            operation.reviewId === input.reviewId,
-            operation.sourceEpoch === input.sourceEpoch,
-            operation.sourceRevision === input.sourceRevision,
-            operation.analysisSequence === input.analysisSequence,
-            operation.authorizationLineageId === input.authorizationLineageId,
-            operation.propertyProfileVersion === input.propertyProfileVersion,
-            input.analysisProfileVersion === 'review-analysis-v2',
-            input.result.status !== 'ready' ||
-              input.result.derivative.issueLabel === null ||
-              isAiIssueLabel(input.result.derivative.issueLabel),
-            fence.capability === 'review_analysis',
-            fence.reviewAnalysisEpoch === input.reviewAnalysisEpoch,
-          ].every(Boolean)
-        ) {
-          return false
-        }
-        if (
-          !(await isCurrentAuthorizedEffect(tx, {
-            capability: 'review_analysis',
-            operation,
-            capabilityFence: fence,
-          }))
-        ) {
-          return false
-        }
-        // The review's own analysis_sequence proves the source has not been
-        // re-sequenced since the operation was reserved. The property head is a
-        // per-property allocator (every pin or source change takes the next
-        // number), so it equals this sequence only for the last review sequenced
-        // — comparing against it discarded every other paid analysis.
-        const completedAt = new Date(input.providerCompletion.completedAtEpochMillis)
-        const [currentSource] = await tx
-          .select({
-            sourceEpoch: reviews.sourceEpoch,
-            sourceRevision: reviews.sourceRevision,
-            analysisSequence: reviews.analysisSequence,
-            sourceDigest: reviews.aiSourceDigest,
-            sourceByteCount: reviews.aiSourceByteLength,
-            contentExpiresAt: reviews.contentExpiresAt,
-          })
-          .from(reviews)
-          .where(
-            and(
-              eq(reviews.organizationId, input.organizationId),
-              eq(reviews.propertyId, input.propertyId),
-              eq(reviews.id, input.reviewId),
-            ),
-          )
-          .limit(1)
-          .for('share')
-        if (
-          !currentSource ||
-          currentSource.sourceEpoch !== input.sourceEpoch ||
-          currentSource.sourceRevision !== input.sourceRevision ||
-          currentSource.analysisSequence !== input.analysisSequence ||
-          currentSource.sourceDigest !== operation.sourceDigest ||
-          currentSource.sourceByteCount !== operation.sourceByteCount ||
-          currentSource.contentExpiresAt === null ||
-          currentSource.contentExpiresAt <= completedAt
-        ) {
-          return false
-        }
+        const verified = await verifyAnalysisWrite(tx, input, () => [
+          input.analysisProfileVersion === 'review-analysis-v2',
+          input.result.status !== 'ready' ||
+            input.result.derivative.issueLabel === null ||
+            isAiIssueLabel(input.result.derivative.issueLabel),
+        ])
+        if (!verified) return false
 
-        const [inserted] = await tx
-          .insert(aiReviewAnalyses)
-          .values({
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-            reviewId: input.reviewId,
-            sourceEpoch: input.sourceEpoch,
-            sourceRevision: input.sourceRevision,
-            analysisSequence: input.analysisSequence,
-            operationId: input.operationId,
-            authorizationLineageId: input.authorizationLineageId,
-            reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-            propertyProfileVersion: input.propertyProfileVersion,
-            analysisProfileVersion: input.analysisProfileVersion,
-            status: input.result.status,
-            unavailableReason:
-              input.result.status === 'unavailable' ? input.result.reason : null,
-            sentiment:
-              input.result.status === 'ready' ? input.result.derivative.sentiment : null,
-            primaryCategory:
-              input.result.status === 'ready'
-                ? input.result.derivative.primaryCategory
-                : null,
-            issueLabel:
-              input.result.status === 'ready' ? input.result.derivative.issueLabel : null,
-            attention:
-              input.result.status === 'ready' ? input.result.derivative.attention : null,
-            generatedAt: new Date(input.generatedAtEpochMillis),
-            expiresAt: new Date(input.expiresAtEpochMillis),
-          })
-          .onConflictDoNothing()
-          .returning({ operationId: aiReviewAnalyses.operationId })
+        const inserted = await insertAnalysisRoot(tx, input, {
+          status: input.result.status,
+          unavailableReason:
+            input.result.status === 'unavailable' ? input.result.reason : null,
+          sentiment:
+            input.result.status === 'ready' ? input.result.derivative.sentiment : null,
+          primaryCategory:
+            input.result.status === 'ready'
+              ? input.result.derivative.primaryCategory
+              : null,
+          issueLabel:
+            input.result.status === 'ready' ? input.result.derivative.issueLabel : null,
+          attention:
+            input.result.status === 'ready' ? input.result.derivative.attention : null,
+          urgentReason: null,
+        })
         if (!inserted) return false
         if (input.result.status === 'ready') {
           await tx.insert(aiReviewAnalysisAspects).values(
             input.result.derivative.aspects.map((aspect) => ({
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              reviewId: input.reviewId,
-              sourceEpoch: input.sourceEpoch,
-              sourceRevision: input.sourceRevision,
-              analysisSequence: input.analysisSequence,
+              ...analysisRootKey(input),
               aspect: aspect.aspect,
               polarity: aspect.polarity,
               intensity: aspect.intensity,
             })),
           )
         }
-        const completed = await tx
-          .update(aiOperations)
-          .set({ state: 'succeeded_pending_delivery', updatedAt: completedAt })
-          .where(
-            and(
-              eq(aiOperations.id, input.operationId),
-              eq(aiOperations.state, 'executing'),
-              eq(aiOperations.executionAttempt, operation.executionAttempt),
-            ),
-          )
-          .returning({ id: aiOperations.id })
-        if (completed.length !== 1) throw new Error('AI analysis result commit conflict')
+        await completeAnalysisOperation(tx, input, verified, {})
+        return true
+      })
+    },
+    async storeAnalysisV3(input) {
+      return db.transaction(async (tx) => {
+        const verified = await verifyAnalysisWrite(tx, input, (operation) => [
+          input.analysisProfileVersion === 'review-analysis-v3',
+          operation.operationProfileVersion === 'review-analysis-v3',
+        ])
+        if (!verified) return false
+        const inserted = await insertAnalysisRoot(tx, input, {
+          status: 'ready',
+          unavailableReason: null,
+          sentiment: input.derivative.sentiment,
+          primaryCategory: null,
+          issueLabel: null,
+          attention: input.derivative.attention,
+          urgentReason: input.derivative.urgentReason,
+        })
+        if (!inserted) return false
+        await insertAnalysisMentions(
+          tx,
+          analysisRootKey(input),
+          input.derivative.mentions,
+        )
+        await completeAnalysisOperation(tx, input, verified, {
+          normalizationFlags: [...input.derivative.normalization.flags],
+          droppedMentionCount: input.derivative.normalization.droppedMentionCount,
+        })
         return true
       })
     },
@@ -798,33 +635,10 @@ export const createAiOutputStoreAdapter = (
           return false
         }
         const completedAt = new Date(input.providerCompletion.completedAtEpochMillis)
-        const [currentSource] = await tx
-          .select({
-            sourceEpoch: reviews.sourceEpoch,
-            sourceRevision: reviews.sourceRevision,
-            contentExpiresAt: reviews.contentExpiresAt,
-            sourceDigest: reviews.aiSourceDigest,
-            sourceByteCount: reviews.aiSourceByteLength,
-            replyStateRevision: reviews.replyStateRevision,
-          })
-          .from(reviews)
-          .where(
-            and(
-              eq(reviews.organizationId, input.organizationId),
-              eq(reviews.propertyId, input.propertyId),
-              eq(reviews.id, input.reviewId),
-            ),
-          )
-          .limit(1)
-          .for('share')
+        const currentSource = await readCurrentReviewSource(tx, input)
         if (
-          !currentSource ||
-          currentSource.sourceEpoch !== input.sourceEpoch ||
-          currentSource.sourceRevision !== input.sourceRevision ||
-          currentSource.sourceDigest !== operation.sourceDigest ||
-          currentSource.sourceByteCount !== operation.sourceByteCount ||
-          currentSource.contentExpiresAt === null ||
-          currentSource.contentExpiresAt <= completedAt ||
+          currentSource === undefined ||
+          !sourceHoldsOperation(currentSource, operation, input, completedAt) ||
           currentSource.replyStateRevision !== input.baseReplyStateRevision
         ) {
           return false
@@ -835,6 +649,7 @@ export const createAiOutputStoreAdapter = (
           .where(
             and(
               eq(aiOperations.id, input.operationId),
+              eq(aiOperations.organizationId, input.organizationId),
               eq(aiOperations.state, 'executing'),
               eq(aiOperations.executionAttempt, input.providerCompletion.expectedAttempt),
             ),
@@ -1140,6 +955,7 @@ export const createAiOutputStoreAdapter = (
             primaryCategory: aiReviewAnalyses.primaryCategory,
             attention: aiReviewAnalyses.attention,
             issueLabel: aiReviewAnalyses.issueLabel,
+            urgentReason: aiReviewAnalyses.urgentReason,
             analysisProfileVersion: aiReviewAnalyses.analysisProfileVersion,
             generatedAt: aiReviewAnalyses.generatedAt,
             operationState: aiOperations.state,
@@ -1213,6 +1029,11 @@ export const createAiOutputStoreAdapter = (
             reason: 'language_not_supported',
             ...currentness(input),
           })
+        }
+        if (analysis.analysisProfileVersion === 'review-analysis-v3') {
+          return deliverCurrent(
+            await readReadyAnalysisV3(tx, input, currentness(input), analysis),
+          )
         }
         if (
           analysis.sentiment === null ||

@@ -128,6 +128,15 @@ foreign keys deliberately stop cross-owner deletion.
     repeated from that read would undo another admin's save of it. A save that
     read the Property before a rename or timezone change committed is refused
     (`stale_property`); two saves of the same other column are last-write-wins.
+15. The Google primary category (`googlePrimaryCategory`, with the instant it was
+    read) is the display name Google reports for the location, kept in the form
+    `normalizeGooglePrimaryCategory` gives it. It is a vocabulary hint for review
+    analysis and never a venue type: no manager surface shows it, nothing filters or
+    gates on it, and it is not exported. Create stores what discovery read; a
+    relink stores the one it read and keeps the held one when it read none, so a
+    missing answer never erases a hint; the provider identity scrub clears it with
+    the other Google-supplied descriptors. Like the review destination it has no
+    background refresh. It moves no `profileVersion`, `sourceEpoch` or AI epoch.
 
 ## Verification
 

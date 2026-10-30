@@ -121,6 +121,8 @@ export type PropertyGoogleBindingStore = Readonly<{
         timezone: string
         confirmedBy: string
         googleReviewUri?: string | null
+        /** Google's display name for the location's primary category, as discovery read it. */
+        googlePrimaryCategory?: string | null
       }>
       expectedSourceEpoch: number
       expectedProfileVersion: number

@@ -1,6 +1,5 @@
 import type { KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
-import { zodTextFormat } from 'openai/helpers/zod'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
 import {
@@ -47,17 +46,20 @@ import {
   AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
   mergeAiAnalysisV2Duplicates,
-} from '#/shared/openai-route-output-schemas'
+} from '#/shared/ai-route-output-schemas'
+import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '#/shared/review-analysis-v3'
 import {
   AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
   parsePersonalizedReplyDraft,
 } from '#/shared/ai-personalized-reply-contract'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V1 } from '#/shared/ai-openai-provider-profile'
+import { maximumCostMicrosWith } from '#/shared/ai-provider-pricing'
+import type { AiOperationProviderPairing } from '#/shared/ai-provider-attestations'
 import {
-  AI_PROVIDER_DEPLOYMENT_PROFILE_V1,
-  maximumCostMicros as maximumProviderCostMicros,
-} from '#/shared/ai-openai-provider-profile'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+  AI_OPERATION_PROFILES,
+  type AiOperationProfile,
+} from '#/shared/ai-operation-profiles'
 import type {
   AiAdmissionDescriptorV1,
   AiExecutionGrantV1,
@@ -72,29 +74,29 @@ import {
   GatewayPreparationError,
   OPENAI_PROMPT_VERSIONS,
   type AiGatewayRoutePreparer,
-  type ClosedJsonSchemaFormat,
   type PreparedGatewayRouteExecution,
 } from './contracts'
+import type { DerivedDescriptorFacts } from './prepared-invocation'
+import { createOpenAiProviderPreparation } from './openai-provider-adapter'
+import type { AiProviderId, AiProviderPreparation } from './provider-contracts'
 import {
-  buildClosedOpenAiRequest,
-  computePromptCacheShard,
-  createPreparedAiInvocation,
-  type DerivedDescriptorFacts,
-} from './prepared-invocation'
+  AiProviderSelectionError,
+  createAiProviderRegistry,
+  selectAiProvider,
+  type AiProviderRegistry,
+} from './provider-selection'
 import { derivePropertySafetyIdentifier } from './safety-identifier'
+import {
+  acceptReviewAnalysisV3Answer,
+  isReviewAnalysisV3Operation,
+  prepareReviewEvidence,
+  type PreparedReviewEvidence,
+} from './review-evidence-request'
 import { digestRenderedReply, signAiReplyProvenance } from '#/shared/ai-reply-provenance'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 const analysisAnswerSchema = AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA
 const personalizedReplySchema = AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA
 const trendSelectionSchema = AI_TREND_SELECTION_OUTPUT_SCHEMA
-const closedJsonSchemaFormatSchema = z
-  .object({
-    type: z.literal('json_schema'),
-    name: z.string().regex(/^[a-z0-9][a-z0-9._-]*$/),
-    strict: z.literal(true),
-    schema: z.record(z.string(), z.unknown()),
-  })
-  .strict()
 const CLOSED_TREND_SIGNAL_ID_SET: ReadonlySet<string> = new Set<string>(
   CLOSED_TREND_SIGNAL_IDS,
 )
@@ -103,41 +105,127 @@ function isClosedTrendSignalId(value: string): value is ClosedTrendSignalId {
   return CLOSED_TREND_SIGNAL_ID_SET.has(value)
 }
 
-const profileByRoute = new Map(
-  AI_OPERATION_PROFILES.map((profile) => [profile.sourceRoute, profile]),
-)
+/**
+ * What the preparer reads of an operation profile. The live catalogue holds the
+ * v2 profiles only; a profile for review-analysis v3 is handed in by a test or,
+ * at activation, by the catalogue, and never found by accident.
+ */
+export type RoutePreparationProfile = Omit<
+  AiOperationProfile,
+  'profileVersion' | 'providerDeploymentProfileVersion'
+> &
+  Readonly<{
+    profileVersion: string
+    providerDeploymentProfileVersion: string
+    /**
+     * The providers the profile is attested for (contract section 7.1). Absent
+     * means OpenAI alone, which is what every profile in the live catalogue is.
+     */
+    attestedProviders?: readonly AiProviderId[]
+    /**
+     * What each attested provider reserves before the first payload byte. A
+     * provider with no pairing is priced from the profile's own OpenAI-shaped
+     * `staticTokenBearingBytes`, which only OpenAI may be.
+     */
+    pairings?: Readonly<Partial<Record<AiProviderId, AiOperationProviderPairing>>>
+  }>
 
-function profileFor(route: AiGatewayRouteRequestV1['route']) {
-  const profile = profileByRoute.get(route)
+/** The profile a request names: its route and its operation profile version. */
+function profileFor(
+  profiles: readonly RoutePreparationProfile[],
+  request: AiGatewayRouteRequestV1,
+): RoutePreparationProfile {
+  const profile = profiles.find(
+    (candidate) =>
+      candidate.sourceRoute === request.route &&
+      candidate.profileVersion === request.binding.operationProfileVersion,
+  )
   if (!profile || profile.sourceRoute === 'synthetic-canary')
     throw new GatewayPreparationError('policy_unavailable')
   return profile
 }
 
-function formatFor(
-  profile: ReturnType<typeof profileFor>,
-  outputSchema: z.ZodTypeAny,
-): ClosedJsonSchemaFormat {
-  return closedJsonSchemaFormatSchema.parse(
-    JSON.parse(JSON.stringify(zodTextFormat(outputSchema, profile.outputSchemaName))),
-  )
-}
-
-function maximumCostMicros(
-  profile: ReturnType<typeof profileFor>,
+/** What an operation may cost, priced by the provider that will serve it. */
+function reservationMicros(
+  profile: RoutePreparationProfile,
+  provider: Pick<AiProviderPreparation, 'providerId' | 'pricing'>,
   providerPayloadBytes: number,
 ): number {
   try {
-    return maximumProviderCostMicros(profile, providerPayloadBytes)
+    return maximumCostMicrosWith(
+      provider.pricing,
+      {
+        staticTokenBearingBytes:
+          profile.pairings?.[provider.providerId]?.staticTokenBearing.bytes ??
+          profile.staticTokenBearingBytes,
+        maxOutputTokens: profile.maxOutputTokens,
+      },
+      providerPayloadBytes,
+    )
   } catch {
     throw new GatewayPreparationError('policy_unavailable')
   }
 }
 
+/**
+ * The adapter that serves a profile: the provider the operator chose, or the one
+ * provider the profile is attested for. A refusal is final for this call. It is
+ * never answered by another provider (`provider-selection.ts`).
+ */
+function providerFor(
+  registry: AiProviderRegistry<AiProviderPreparation>,
+  profile: RoutePreparationProfile,
+): AiProviderPreparation {
+  try {
+    return selectAiProvider(registry, {
+      capability: profile.capability,
+      eligible: profile.attestedProviders ?? ['openai'],
+    })
+  } catch (error) {
+    if (error instanceof AiProviderSelectionError) {
+      throw new GatewayPreparationError(
+        error.code === 'selected_not_ready'
+          ? 'provider_unavailable'
+          : 'policy_unavailable',
+      )
+    }
+    throw error
+  }
+}
+
+/**
+ * A request that names the provider it was claimed under is served only by that
+ * provider as it is attested now. Another provider, or the same one re-attested,
+ * means the operator switched since the claim, and the operation does not follow
+ * the switch: it ends and a new one is claimed (contract section 7.3).
+ */
+function assertClaimedProvider(
+  request: AiGatewayRouteRequestV1,
+  profile: RoutePreparationProfile,
+  provider: AiProviderPreparation,
+): void {
+  const claimed = request.route === 'review-analysis' ? request.provider : undefined
+  if (claimed === undefined) {
+    if ((profile.attestedProviders?.length ?? 1) > 1) {
+      throw new GatewayPreparationError('invalid_request')
+    }
+    return
+  }
+  if (
+    claimed.id !== provider.providerId ||
+    claimed.model !== provider.requestProfile.model ||
+    claimed.requestProfileVersion !== provider.requestProfile.version ||
+    claimed.requestProfileDigest !== provider.requestProfile.digest
+  ) {
+    throw new GatewayPreparationError('provider_profile_changed')
+  }
+}
+
 function createDescriptor(
   request: AiGatewayRouteRequestV1,
-  profile: ReturnType<typeof profileFor>,
+  profile: RoutePreparationProfile,
   facts: DerivedDescriptorFacts,
+  costMicros: number,
 ): AiAdmissionDescriptorV1 {
   const common = {
     version: 'ai-admission-descriptor-v1' as const,
@@ -151,7 +239,7 @@ function createDescriptor(
       preparedRequestBytes: profile.preparedRequestByteLimit,
       responseBytes: profile.responseByteLimit,
       outputTokens: profile.maxOutputTokens,
-      costMicros: maximumCostMicros(profile, facts.providerPayloadByteCount),
+      costMicros,
     },
     callerDeadlineEpochMillis: request.deadlineEpochMillis,
     subjectKind: 'property' as const,
@@ -271,6 +359,13 @@ export function createAiGatewayRoutePreparer(
     provenanceKid: string
     provenancePrivateKey: KeyObject
     now?: () => number
+    /** The operation profiles requests may name. Defaults to the live catalogue. */
+    profiles?: readonly RoutePreparationProfile[]
+    /**
+     * The providers that can shape a request, and the operator's choice among
+     * them. Defaults to OpenAI alone, which is every v2 route.
+     */
+    providers?: AiProviderRegistry<AiProviderPreparation>
     /**
      * Content-free notice of WHICH output rule refused a reply draft.
      *
@@ -286,9 +381,14 @@ export function createAiGatewayRoutePreparer(
   }>,
 ): AiGatewayRoutePreparer {
   const now = dependencies.now ?? Date.now
+  const profiles: readonly RoutePreparationProfile[] =
+    dependencies.profiles ?? AI_OPERATION_PROFILES
+  const registry =
+    dependencies.providers ??
+    createAiProviderRegistry([createOpenAiProviderPreparation()])
   return Object.freeze({
     prepare: (request): PreparedGatewayRouteExecution => {
-      const profile = profileFor(request.route)
+      const profile = profileFor(profiles, request)
       if (
         request.binding.operationProfileVersion !== profile.profileVersion ||
         request.binding.providerDeploymentProfileVersion !==
@@ -297,11 +397,15 @@ export function createAiGatewayRoutePreparer(
           profile.capabilityRuntimeProfileVersion
       )
         throw new GatewayPreparationError('policy_unavailable')
+      const provider = providerFor(registry, profile)
+      assertClaimedProvider(request, profile, provider)
 
       let providerPayload: Readonly<Record<string, unknown>>
       let outputSchema: z.ZodTypeAny
       let responseContext:
         | Readonly<{ route: 'review-analysis' }>
+        | (Readonly<{ route: 'review-analysis-v3' }> &
+            Pick<PreparedReviewEvidence, 'redactedSentences' | 'vocabularyHints'>)
         | Readonly<{
             route: 'property-trend'
             candidates: readonly DeterministicTrendCandidate[]
@@ -348,7 +452,19 @@ export function createAiGatewayRoutePreparer(
       } else {
         const evaluated = languageFor(request)
         const text = redactedText(request)
-        if (request.route === 'review-analysis') {
+        if (request.route === 'review-analysis' && isReviewAnalysisV3Operation(request)) {
+          const evidence = prepareReviewEvidence(request, {
+            languageTag: evaluated.tag,
+            redactedWholeText: text,
+          })
+          providerPayload = evidence.providerPayload
+          outputSchema = REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA
+          responseContext = Object.freeze({
+            route: 'review-analysis-v3',
+            redactedSentences: evidence.redactedSentences,
+            vocabularyHints: evidence.vocabularyHints,
+          })
+        } else if (request.route === 'review-analysis') {
           providerPayload = {
             reviewText: text,
             rating: request.source.rating,
@@ -402,7 +518,11 @@ export function createAiGatewayRoutePreparer(
               AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST
           )
             throw new GatewayPreparationError('policy_unavailable')
-          if (profile.profileVersion !== 'reply-suggestion-v1') {
+          if (
+            profile.profileVersion !== 'reply-suggestion-v1' ||
+            profile.providerDeploymentProfileVersion !==
+              AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion
+          ) {
             throw new GatewayPreparationError('policy_unavailable')
           }
           const fence = request.binding.capabilityFence
@@ -454,11 +574,6 @@ export function createAiGatewayRoutePreparer(
           })
         }
       }
-      const promptCacheShard = computePromptCacheShard({
-        operationId: request.operationId,
-        route: request.route,
-        promptVersion: OPENAI_PROMPT_VERSIONS[request.route],
-      })
       const safetyIdentifier = derivePropertySafetyIdentifier(
         request.route === 'reply-suggestion'
           ? {
@@ -475,37 +590,57 @@ export function createAiGatewayRoutePreparer(
               key: dependencies.safetyIdentifierKey,
             },
       )
-      const sdkRequest = buildClosedOpenAiRequest({
-        route: request.route,
-        promptVersion: OPENAI_PROMPT_VERSIONS[request.route],
-        promptCacheShard,
-        developerMessage: profile.developerPrompt,
-        untrustedData: canonicalizeRfc8785(providerPayload),
-        format: formatFor(profile, outputSchema),
-        maxOutputTokens: profile.maxOutputTokens,
-        reasoningEffort: profile.reasoningEffort,
-        safetyIdentifier,
-      })
       const sourceBytes =
         request.route === 'property-trend'
           ? Buffer.from(`\u0002${canonicalizeRfc8785(request.source)}`, 'utf8')
           : reviewSourceBytes(request)
       let invocation
       try {
-        invocation = createPreparedAiInvocation({
+        invocation = provider.prepare({
+          logical: {
+            route: request.route,
+            operationId: request.operationId,
+            developerPrompt: profile.developerPrompt,
+            outputSchemaName: profile.outputSchemaName,
+            outputSchema,
+            untrustedData: canonicalizeRfc8785(providerPayload),
+            maxOutputTokens: profile.maxOutputTokens,
+            reasoningEffort: profile.reasoningEffort,
+            safetyIdentifier,
+          },
           sourceBytes,
           providerPayload,
-          sdkRequest,
-          createDescriptor: (facts) => createDescriptor(request, profile, facts),
+          createDescriptor: (facts) =>
+            createDescriptor(
+              request,
+              profile,
+              facts,
+              reservationMicros(profile, provider, facts.providerPayloadByteCount),
+            ),
           requestBindingKeys: dependencies.requestBindingKeys,
         })
       } finally {
         sourceBytes.fill(0)
       }
       return Object.freeze({
+        providerId: provider.providerId,
         invocation,
         outputSchema,
         acceptProviderResult: (rawResult: unknown) => {
+          if (responseContext.route === 'review-analysis-v3') {
+            const accepted = acceptReviewAnalysisV3Answer(rawResult, responseContext)
+            if (accepted === null) return null
+            return Object.freeze({
+              buildResponse: (
+                receipt: AiSettlementReceiptV1,
+              ): AiGatewayRouteResponseV1 => ({
+                route: 'review-analysis',
+                status: 'success',
+                result: accepted,
+                settlementReceipt: receipt,
+              }),
+            })
+          }
           if (responseContext.route === 'review-analysis') {
             const answer = analysisAnswerSchema.safeParse(rawResult)
             if (!answer.success) return null

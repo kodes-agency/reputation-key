@@ -25,11 +25,18 @@ import { describe, expect, it } from 'vitest'
 const ROOT = process.cwd()
 
 /** The one module allowed to construct the provider client. */
-const SOLE_SDK_IMPORTER = join(
+const SOLE_OPENAI_SDK_IMPORTER = join(
   'src',
   'shared',
   'ai-provider-control',
   'openai-connector.ts',
+)
+const SOLE_ANTHROPIC_SDK_IMPORTER = join(
+  'src',
+  'shared',
+  'ai-provider-control',
+  'anthropic',
+  'connector.ts',
 )
 
 /**
@@ -88,7 +95,10 @@ describe('provider client singleton', () => {
   it('walks a non-empty production tree', () => {
     // A broken walk would make every assertion below vacuously pass.
     expect(productionSources.length).toBeGreaterThan(500)
-    expect(productionSources.map(({ file }) => file)).toContain(SOLE_SDK_IMPORTER)
+    expect(productionSources.map(({ file }) => file)).toContain(SOLE_OPENAI_SDK_IMPORTER)
+    expect(productionSources.map(({ file }) => file)).toContain(
+      SOLE_ANTHROPIC_SDK_IMPORTER,
+    )
   })
 
   it('strips comments without destroying the code underneath', () => {
@@ -112,7 +122,31 @@ describe('provider client singleton', () => {
         .filter(({ source }) => /from\s+['"]openai['"]/u.test(source))
         .map(({ file }) => file)
         .sort(),
-    ).toEqual([SOLE_SDK_IMPORTER])
+    ).toEqual([SOLE_OPENAI_SDK_IMPORTER])
+  })
+
+  it('imports and constructs the Anthropic SDK in exactly one production module', () => {
+    expect(
+      productionSources
+        .filter(({ source }) => /from\s+['"]@anthropic-ai\/sdk['"]/u.test(source))
+        .map(({ file }) => file)
+        .sort(),
+    ).toEqual([SOLE_ANTHROPIC_SDK_IMPORTER])
+    expect(
+      productionSources
+        .filter(({ source }) => /new\s+Anthropic\s*\(/u.test(source))
+        .map(({ file }) => file)
+        .sort(),
+    ).toEqual([SOLE_ANTHROPIC_SDK_IMPORTER])
+  })
+
+  it('keeps the dark Anthropic API key out of every production module', () => {
+    expect(
+      productionSources
+        .filter(({ source }) => /ANTHROPIC_API_KEY/u.test(source))
+        .map(({ file }) => file)
+        .sort(),
+    ).toEqual([])
   })
 
   it('keeps the SDK zod helpers beside the connector', () => {

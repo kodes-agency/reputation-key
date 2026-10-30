@@ -24,11 +24,21 @@ import {
 import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
-} from './openai-route-output-schemas'
+} from './ai-route-output-schemas'
 import {
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
   personalizedReplyDraftOutputSchema,
 } from './ai-personalized-reply-profile'
+import { AI_PROVIDER_IDS } from './ai-provider-ids'
+import { MAX_AI_REVIEW_SENTENCES_V1 } from './ai-review-source-contract'
+import {
+  REVIEW_ANALYSIS_V3_OPERATION_PROFILE,
+  reviewAnalysisV3GatewayResultSchema,
+  reviewSentencesAreNumberedFromOne,
+  reviewSentencesMatchText,
+  isCatalogueReviewPropertyContext,
+} from './review-analysis-v3-request'
+import { reviewPropertyContextSchema } from './review-vocabulary-hints'
 
 const CONTROL_OR_FORMAT = /[\p{Cc}\p{Cf}]/u
 
@@ -93,6 +103,35 @@ const reviewSourceSchema = z
     reviewedAtEpochMillis: nonnegativeSafeInteger,
   })
   .strict()
+
+// The numbered sentences of a review-analysis v3 request (contract section 6.1):
+// the canonical text cut by `review-sentences-v1` over the raw text, so a number
+// the provider cites is the sentence the live display resolves. A sentence may be
+// empty (it held only control characters) but keeps its number.
+const reviewSentenceSchema = z
+  .object({
+    number: z.number().int().min(1).max(MAX_AI_REVIEW_SENTENCES_V1),
+    text: z
+      .string()
+      .refine((value) => hasOnlyUnicodeScalars(value) && !value.includes('\0')),
+  })
+  .strict()
+
+// The provider an operation was claimed under (contract section 7.1): the identity
+// its row records, so the gateway can refuse an operation when the provider in
+// force is another. Review-analysis v3 only.
+const providerSelectionSchema = z
+  .object({
+    id: z.enum(AI_PROVIDER_IDS),
+    model: z.string().min(1).max(100),
+    requestProfileVersion: z.string().min(1).max(100),
+    requestProfileDigest: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .strict()
+
+const reviewAnalysisSourceSchema = reviewSourceSchema.extend({
+  sentences: z.array(reviewSentenceSchema).max(MAX_AI_REVIEW_SENTENCES_V1).optional(),
+})
 
 const replyBrandProfileSchema = z
   .object({
@@ -229,7 +268,11 @@ export const reviewAnalysisGatewayRequestSchema = z
     actorId: z.null(),
     redactionCountry: z.string().regex(/^[A-Z]{2}$/),
     observedContentExpiresAtEpochMillis: positiveSafeInteger,
-    source: reviewSourceSchema,
+    source: reviewAnalysisSourceSchema,
+    // Review-analysis v3 only: the hints the provider is steered with, and the
+    // provider the operation was claimed under.
+    propertyContext: reviewPropertyContextSchema.optional(),
+    provider: providerSelectionSchema.optional(),
   })
   .strict()
 
@@ -255,6 +298,64 @@ export const propertyTrendGatewayRequestSchema = z
     source: propertyTrendProviderInputSchema,
   })
   .strict()
+
+/**
+ * A review-analysis request carries numbered sentences, a property context and the
+ * provider it was claimed under exactly when it names the v3 operation profile, and
+ * then the sentences must describe the text it carries: v2 has no use for any of
+ * them and v3 cannot run without them.
+ */
+function reviewEvidenceIssue(
+  request: Readonly<{
+    binding: Readonly<{ operationProfileVersion: string }>
+    source: z.infer<typeof reviewAnalysisSourceSchema>
+    propertyContext?: z.infer<typeof reviewPropertyContextSchema> | undefined
+    provider?: z.infer<typeof providerSelectionSchema> | undefined
+  }>,
+): string | null {
+  const { sentences, text } = request.source
+  const v3 =
+    request.binding.operationProfileVersion === REVIEW_ANALYSIS_V3_OPERATION_PROFILE
+  if (!v3) {
+    return sentences !== undefined ||
+      request.propertyContext !== undefined ||
+      request.provider !== undefined
+      ? 'analysis v2 route forbids an evidence request'
+      : null
+  }
+  if (
+    sentences === undefined ||
+    request.propertyContext === undefined ||
+    request.provider === undefined ||
+    text === null
+  ) {
+    return 'analysis v3 route requires numbered sentences, a property context and a provider'
+  }
+  if (
+    !reviewSentencesAreNumberedFromOne(sentences) ||
+    !reviewSentencesMatchText(text, sentences)
+  ) {
+    return 'analysis v3 sentences are not the review text, numbered from one'
+  }
+  return isCatalogueReviewPropertyContext(request.propertyContext)
+    ? null
+    : 'analysis v3 property context is not the catalogue hint set for its category'
+}
+
+type GatewayRouteValue =
+  | z.infer<typeof reviewAnalysisGatewayRequestSchema>
+  | z.infer<typeof replySuggestionGatewayRequestSchema>
+  | z.infer<typeof propertyTrendGatewayRequestSchema>
+
+/** A review-analysis request must carry the evidence its operation profile asks for. */
+function addReviewEvidenceIssue(
+  value: GatewayRouteValue,
+  context: z.RefinementCtx,
+): void {
+  if (value.route !== 'review-analysis') return
+  const evidenceIssue = reviewEvidenceIssue(value)
+  if (evidenceIssue !== null) context.addIssue({ code: 'custom', message: evidenceIssue })
+}
 
 export const aiGatewayRouteRequestSchema = z
   .discriminatedUnion('route', [
@@ -300,6 +401,7 @@ export const aiGatewayRouteRequestSchema = z
         message: 'review route source binding is inconsistent',
       })
     }
+    addReviewEvidenceIssue(value, context)
     if (value.route === 'reply-suggestion') {
       const language = value.binding.concreteReplyLanguage
       if (
@@ -353,6 +455,7 @@ export type PropertyTrendGatewayRequestV1 = z.infer<
   typeof propertyTrendGatewayRequestSchema
 >
 export type ReviewAiSourcePayload = z.infer<typeof reviewSourceSchema>
+export type ReviewAnalysisSourcePayload = z.infer<typeof reviewAnalysisSourceSchema>
 export type { DeterministicAggregateWindow, DeterministicTrendCandidate }
 export type PropertyTrendProviderInput = PropertyTrendProviderInputV1
 
@@ -391,7 +494,12 @@ const aiErrorCodeSchema = z.enum([
   'policy_unavailable',
 ])
 
-const analysisPayloadSchema = AI_ANALYSIS_V2_OUTPUT_SCHEMA
+// A v3 answer is the normalized answer and what normalizing it did. It shares no
+// key with a v2 answer, so the two never match each other.
+const analysisPayloadSchema = z.union([
+  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
+  reviewAnalysisV3GatewayResultSchema,
+])
 
 const replyPayloadSchema = personalizedReplyDraftOutputSchema
   .omit({ languageCode: true, grounding: true })

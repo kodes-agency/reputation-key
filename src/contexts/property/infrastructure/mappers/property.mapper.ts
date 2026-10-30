@@ -17,6 +17,8 @@ type PropertyRow = Omit<
   | 'googleReviewDestinationRetrievedAt'
   | 'googleReviewDestinationSourceEpoch'
   | 'googleReviewDestinationProfileVersion'
+  | 'googlePrimaryCategory'
+  | 'googlePrimaryCategoryUpdatedAt'
 > &
   Readonly<{
     defaultReplyLanguage?: string | null
@@ -28,6 +30,8 @@ type PropertyRow = Omit<
     googleReviewDestinationRetrievedAt?: Date | null
     googleReviewDestinationSourceEpoch?: number | null
     googleReviewDestinationProfileVersion?: number | null
+    googlePrimaryCategory?: string | null
+    googlePrimaryCategoryUpdatedAt?: Date | null
   }>
 type PropertyInsertRow = typeof properties.$inferInsert
 
@@ -55,6 +59,8 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
     sourceEpoch: row.googleReviewDestinationSourceEpoch ?? null,
     profileVersion: row.googleReviewDestinationProfileVersion ?? null,
   },
+  googlePrimaryCategory: row.googlePrimaryCategory ?? null,
+  googlePrimaryCategoryUpdatedAt: row.googlePrimaryCategoryUpdatedAt ?? null,
   profileSource: row.profileSource as Property['profileSource'],
   profileConfirmedAt: row.profileConfirmedAt,
   profileConfirmedBy: row.profileConfirmedBy,
@@ -97,6 +103,8 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
     property.googleReviewDestination?.sourceEpoch ?? null,
   googleReviewDestinationProfileVersion:
     property.googleReviewDestination?.profileVersion ?? null,
+  googlePrimaryCategory: property.googlePrimaryCategory ?? null,
+  googlePrimaryCategoryUpdatedAt: property.googlePrimaryCategoryUpdatedAt ?? null,
   profileSource: property.profileSource,
   profileConfirmedAt: property.profileConfirmedAt,
   profileConfirmedBy: property.profileConfirmedBy,

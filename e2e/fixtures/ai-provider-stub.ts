@@ -104,6 +104,44 @@ function parseOperationKind(body: unknown): AiProviderStubOperationKind | null {
   }
 }
 
+const ANTHROPIC_REQUEST_KEYS = Object.freeze([
+  'max_tokens',
+  'messages',
+  'metadata',
+  'model',
+  'output_config',
+  'system',
+  'thinking',
+])
+
+function hasAnthropicHeaders(request: IncomingMessage): boolean {
+  return (
+    request.headers.accept === 'application/json' &&
+    request.headers['anthropic-version'] === '2026-10-21' &&
+    request.headers['content-type'] === 'application/json' &&
+    request.headers['user-agent'] === 'repkey-ai-egress-gateway/1.0' &&
+    typeof request.headers['x-api-key'] === 'string' &&
+    request.headers['x-api-key'].length > 0
+  )
+}
+
+function parseAnthropicOperationKind(body: unknown): AiProviderStubOperationKind | null {
+  if (!exactObject(body, ANTHROPIC_REQUEST_KEYS)) return null
+  const outputConfig = body.output_config
+  if (outputConfig === null || typeof outputConfig !== 'object') return null
+  const format = (outputConfig as Record<string, unknown>).format
+  if (format === null || typeof format !== 'object') return null
+  const schema = (format as Record<string, unknown>).schema
+  if (schema === null || typeof schema !== 'object') return null
+  const properties = (schema as Record<string, unknown>).properties
+  if (properties === null || typeof properties !== 'object') return null
+  return ['sentiment', 'mentions', 'urgent'].every((key) =>
+    Object.hasOwn(properties, key),
+  )
+    ? 'analysis'
+    : null
+}
+
 function parseScript(value: unknown): AiProviderStubResponse | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
   const candidate = value as Record<string, unknown>
@@ -228,6 +266,64 @@ function providerResponse(script: AiProviderStubResponse): Record<string, unknow
   }
 }
 
+function anthropicProviderResponse(
+  script: AiProviderStubResponse,
+): Record<string, unknown> {
+  const usage = script.usage ?? {
+    inputTokens: 10,
+    cachedTokens: 2,
+    outputTokens: 5,
+    reasoningTokens: 1,
+  }
+  const refusal = script.refusal
+  return {
+    id: 'synthetic-anthropic-message-id',
+    type: 'message',
+    role: 'assistant',
+    model: 'claude-haiku-5-5',
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(refusal === undefined ? (script.parsed ?? {}) : {}),
+      },
+    ],
+    stop_reason: refusal === undefined ? 'end_turn' : 'refusal',
+    stop_sequence: null,
+    stop_details:
+      refusal === undefined
+        ? null
+        : { type: 'refusal', category: 'general_harms', explanation: refusal },
+    usage: {
+      input_tokens: usage.inputTokens - usage.cachedTokens,
+      output_tokens: usage.outputTokens,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: usage.cachedTokens,
+      cache_creation: null,
+      output_tokens_details: { thinking_tokens: usage.reasoningTokens },
+      service_tier: 'standard',
+      speed: 'standard',
+      inference_geo: 'global',
+      server_tool_use: null,
+    },
+  }
+}
+
+function anthropicError(status: number): Record<string, unknown> {
+  const type =
+    status === 402
+      ? 'billing_error'
+      : status === 429
+        ? 'rate_limit_error'
+        : status === 529
+          ? 'overloaded_error'
+          : 'api_error'
+  return {
+    type: 'error',
+    error: { type, message: `Synthetic ${type}` },
+    request_id: 'synthetic-anthropic-request-id',
+  }
+}
+
 /**
  * `AI_PROVIDER_STUB_UNSCRIPTED=respond` (the local inner loop, `pnpm local:up`):
  * an unscripted request gets a synthesized answer instead of 503, so analysis,
@@ -262,6 +358,34 @@ function providerPayload(body: Record<string, unknown>): Record<string, unknown>
       : null
   } catch {
     return null
+  }
+}
+
+function anthropicProviderPayload(
+  body: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const messages = body.messages
+  if (!Array.isArray(messages) || messages.length !== 1) return null
+  const first = messages[0] as { role?: unknown; content?: unknown } | undefined
+  if (first?.role !== 'user' || typeof first.content !== 'string') return null
+  try {
+    const parsed = JSON.parse(first.content) as unknown
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+function synthesizedAnthropicAnalysis(
+  payload: Record<string, unknown> | null,
+): Record<string, unknown> {
+  const rating = typeof payload?.rating === 'number' ? payload.rating : 5
+  return {
+    sentiment: rating >= 4 ? 'positive' : rating === 3 ? 'neutral' : 'negative',
+    mentions: [],
+    urgent: null,
   }
 }
 
@@ -384,11 +508,16 @@ async function handler(
       json(response, 200, { reset: true })
       return
     }
-    if (request.method !== 'POST' || url.pathname !== '/v1/responses') {
+    const isAnthropic = url.pathname === '/v1/messages'
+    if (request.method !== 'POST' || (url.pathname !== '/v1/responses' && !isAnthropic)) {
       json(response, 404, { error: 'not_found' })
       return
     }
-    const operationKind = parseOperationKind(body)
+    const operationKind = isAnthropic
+      ? hasAnthropicHeaders(request)
+        ? parseAnthropicOperationKind(body)
+        : null
+      : parseOperationKind(body)
     if (operationKind === null) {
       calls.push({
         ordinal: ++callOrdinal,
@@ -401,10 +530,14 @@ async function handler(
     }
     let script = scripts.get(operationKind)?.shift()
     if (script === undefined && unscriptedMode() === 'respond') {
-      const parsed = synthesizedParsed(
-        operationKind,
-        providerPayload(body as Record<string, unknown>),
-      )
+      const parsed = isAnthropic
+        ? synthesizedAnthropicAnalysis(
+            anthropicProviderPayload(body as Record<string, unknown>),
+          )
+        : synthesizedParsed(
+            operationKind,
+            providerPayload(body as Record<string, unknown>),
+          )
       if (parsed !== null) script = { operationKind, parsed }
     }
     if (script === undefined) {
@@ -428,7 +561,14 @@ async function handler(
       script.retryAfterSeconds === undefined
         ? {}
         : { 'retry-after': String(script.retryAfterSeconds) }
-    json(response, status, status === 200 ? providerResponse(script) : {}, headers)
+    const value = isAnthropic
+      ? status === 200
+        ? anthropicProviderResponse(script)
+        : anthropicError(status)
+      : status === 200
+        ? providerResponse(script)
+        : {}
+    json(response, status, value, headers)
   } catch {
     json(response, 400, { error: 'invalid_json' })
   } finally {

@@ -14,6 +14,13 @@ import {
   type ReplySuggestionGatewayRequestV1,
   type ReviewAnalysisGatewayRequestV1,
 } from './ai-gateway-transport-contract'
+import {
+  canonicalizeRawAiReviewSentences,
+  canonicalizeRawAiReviewSource,
+} from './ai-review-source-contract'
+import { OPENAI_PROVIDER_ATTESTATION_V1 } from './ai-openai-provider-attestation'
+import { providerRequestProfileOf } from './ai-provider-attestations'
+import { resolveReviewPropertyContext } from './review-vocabulary-hints'
 import { computeDeterministicTrendCandidates } from './ai-property-trend-contract'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -88,6 +95,66 @@ export function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
       languageCode: 'en-Latn',
       reviewedAtEpochMillis: 1_780_000_000_000,
     },
+  }
+}
+
+/** The provider identity an operation claimed under OpenAI records. */
+function claimedProvider() {
+  const profile = providerRequestProfileOf(OPENAI_PROVIDER_ATTESTATION_V1)
+  return {
+    id: 'openai',
+    model: profile.model,
+    requestProfileVersion: profile.version,
+    requestProfileDigest: profile.digest,
+  } as const
+}
+
+/**
+ * A review-analysis request in the v3 evidence form (dark): the raw text is cut
+ * into numbered sentences before it is canonicalized, as the Review context does
+ * it, and the property context is the catalogue's for the category. The binding
+ * names the v3 profiles, which the live catalogue refuses until activation.
+ */
+export function analysisV3Request(
+  input: Readonly<{
+    rawText?: string
+    reviewerDisplayName?: string | null
+    googlePrimaryCategory?: string | null
+  }> = {},
+): ReviewAnalysisGatewayRequestV1 {
+  const base = analysisRequest()
+  const raw = {
+    text:
+      input.rawText ??
+      'The room was lovely.\nCheck-in took an hour. Nobody answered the phone!',
+    rating: 2,
+    languageCode: 'en-Latn',
+    reviewedAtEpochMillis: base.source.reviewedAtEpochMillis,
+    reviewerDisplayName: input.reviewerDisplayName ?? null,
+  } as const
+  return {
+    ...base,
+    binding: {
+      ...base.binding,
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
+      operationProfileVersion: 'review-analysis-v3',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
+    },
+    source: {
+      kind: 'review',
+      text: canonicalizeRawAiReviewSource(raw).text,
+      rating: 2,
+      languageCode: raw.languageCode,
+      reviewedAtEpochMillis: raw.reviewedAtEpochMillis,
+      sentences: canonicalizeRawAiReviewSentences(raw).map((sentence) => ({
+        number: sentence.number,
+        text: sentence.text,
+      })),
+    },
+    propertyContext: resolveReviewPropertyContext(
+      input.googlePrimaryCategory === undefined ? 'Hotel' : input.googlePrimaryCategory,
+    ).propertyContext,
+    provider: claimedProvider(),
   }
 }
 

@@ -63,6 +63,7 @@ const authorization: ImportDiscoveryAuthorization = {
 function createClaim(
   candidateRef: string,
   locationId = 'location-1',
+  primaryCategory: string | null = 'Cafe',
 ): ClaimedImportCandidate {
   return {
     candidateRef,
@@ -75,7 +76,7 @@ function createClaim(
       accountDisplayName: 'Primary',
       businessName: 'Cafe One',
       address: '1 Main Street',
-      primaryCategory: 'Cafe',
+      primaryCategory,
       countryCode: 'US',
       eligibility: { kind: 'create' },
       expectedSourceEpoch: null,
@@ -231,11 +232,12 @@ function setup(
   candidateRefs: readonly string[] = [REF_A],
   overrides?: Readonly<{
     cancelImportSaga?: (organizationId: string, importJobId: string) => Promise<void>
+    primaryCategory?: string | null
   }>,
 ) {
   const refs = referenceStore(
     candidateRefs.map((reference, index) =>
-      createClaim(reference, `location-${index + 1}`),
+      createClaim(reference, `location-${index + 1}`, overrides?.primaryCategory),
     ),
   )
   const stored = memoryStore()
@@ -296,6 +298,8 @@ describe('Google import transaction', () => {
             {
               providerAccountSuffix: 'account-1',
               providerLocationSuffix: 'location-1',
+              // The category discovery read rides with the item to the Property.
+              googlePrimaryCategory: 'Cafe',
               effectDeadlineAt: new Date('2026-08-13T10:00:00.000Z'),
             },
           ],
@@ -305,6 +309,38 @@ describe('Google import transaction', () => {
     expect(fixture.authorizeGoogleImportCommand).toHaveBeenCalledTimes(2)
     expect(fixture.consumeCandidateClaims).toHaveBeenCalledTimes(1)
     expect(fixture.releaseCandidateClaims).not.toHaveBeenCalled()
+  })
+
+  it('stores the category in the form a Property keeps, and none when Google gave none or text it cannot use', async () => {
+    const cases: ReadonlyArray<readonly [string | null, string | null]> = [
+      ['  Day   spa ', 'Day spa'],
+      [null, null],
+      ['', null],
+      ['Spa\u0000', null],
+    ]
+
+    for (const [given, stored] of cases) {
+      const fixture = setup([REF_A], { primaryCategory: given })
+
+      await fixture.transaction.start(startInput(), actor)
+
+      expect(
+        fixture.sagaIntents[0]?.batches[0]?.items[0]?.googlePrimaryCategory,
+        String(given),
+      ).toBe(stored)
+    }
+  })
+
+  it('leaves the category out of the replay digest, so a category Google moved cannot make a replay a conflict', async () => {
+    const first = setup([REF_A], { primaryCategory: 'Cafe' })
+    await first.transaction.start(startInput(), actor)
+
+    const second = setup([REF_A], { primaryCategory: 'Day spa' })
+    await second.transaction.start(startInput(), actor)
+
+    expect(first.sagaIntents[0]?.semanticReplay.digest).toBe(
+      second.sagaIntents[0]?.semanticReplay.digest,
+    )
   })
 
   it('claims and persists every location through resumable 100-item child batches', async () => {

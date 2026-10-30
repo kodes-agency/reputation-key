@@ -1,12 +1,26 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { StarRating } from '../../domain/types'
 
+/**
+ * One sentence of the review as a v3 analysis reads it. `number` is its place in
+ * the RAW text under `review-sentences-v1`, the numbering the live display uses
+ * to underline the evidence a stored pointer names; `text` is that sentence
+ * canonicalized and identity-minimized like the whole `text`, and may be empty.
+ */
+export type AiReviewSentence = Readonly<{ number: number; text: string }>
+
 export type AiReviewObservation = Readonly<{
   kind: 'review'
   reviewId: ReviewId
   organizationId: OrganizationId
   propertyId: PropertyId
   text: string | null
+  /**
+   * Present only when the read asked for it (`AiReviewSourceReadRequest`): the
+   * same review, cut into the numbered sentences a v3 request carries. Never
+   * stored by AI, logged or sent anywhere but the provider call.
+   */
+  sentences?: readonly AiReviewSentence[]
   rating: StarRating
   languageCode: string | null
   reviewedAtEpochMillis: number
@@ -44,6 +58,16 @@ export type AiReviewSourceRequest = Readonly<{
   reviewId: ReviewId
   expected: AiReviewSourceExpectation
 }>
+
+/** What `readForAi` is asked for: the request, and optionally the numbered sentences. */
+export type AiReviewSourceReadRequest = AiReviewSourceRequest &
+  Readonly<{
+    /**
+     * Also return `observation.sentences`. A review with more sentences than an
+     * evidence request carries is `source_too_large`, like one with too much text.
+     */
+    sentences?: true
+  }>
 
 export type AiReviewSourceResult =
   | Readonly<{ status: 'available'; observation: AiReviewObservation }>
@@ -105,7 +129,7 @@ export type AiReviewSourcePort = Readonly<{
       reviewId: ReviewId
     }>,
   ): Promise<AiReviewCurrentSourceResult>
-  readForAi(input: AiReviewSourceRequest): Promise<AiReviewSourceResult>
+  readForAi(input: AiReviewSourceReadRequest): Promise<AiReviewSourceResult>
   readTrendPopulation(input: AiTrendPopulationRequest): Promise<AiTrendPopulationResult>
   readReplyStateRevision(
     input: Readonly<{

@@ -20,19 +20,25 @@ import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-p
 import type {
   AiPropertyAnalyzedReview,
   AiPropertyAggregateStorePort,
-  AiPropertyDailyAggregate,
   AiPropertyDailyAspectCount,
   AiPropertyUnavailableReview,
 } from '../../application/ports/ai-property-aggregate-store.port'
-import { reviewId } from '#/shared/domain/ids'
 import { readAnalysisCoverage } from './ai-property-aggregate-coverage'
+import {
+  mapAnalyzedReview,
+  mapDaily,
+  mapUnavailableReview,
+} from './ai-property-aggregate-window-mappers'
+import { copyMentionsToContribution } from './ai-review-analysis-mentions'
+import { assignContributionIssueGroups } from './ai-issue-group-assignment'
+
+// Re-exported: the legacy evidence boundary is tested through this module.
+export { mapAnalyzedReview }
 import { isAspectTaxonomyV1Id, type AspectPolarityV1 } from '#/shared/aspect-taxonomy'
-import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import {
   commitAggregateHead,
   countSettledSequence,
   lockAggregateHead,
-  safeSequence,
 } from './ai-property-aggregate-head'
 import {
   readPreviousContribution,
@@ -41,7 +47,6 @@ import {
   type AggregateTransaction,
   type Contribution,
   type ContributionAspect,
-  type DailyRow,
 } from './ai-property-aggregate-contributions'
 
 const AI_INSIGHTS_READ_BUDGET_MS = 5_000
@@ -81,170 +86,6 @@ async function withStatementTimeout<T>(
     }
     throw error
   }
-}
-
-function mapDaily(
-  row: DailyRow,
-  aspectCounts: readonly AiPropertyDailyAspectCount[],
-): AiPropertyDailyAggregate {
-  return {
-    localDate: row.localDate,
-    reviewCount: row.reviewCount,
-    ratingSum: row.ratingSum,
-    sentimentCounts: {
-      positive: row.positiveCount,
-      neutral: row.neutralCount,
-      negative: row.negativeCount,
-      mixed: row.mixedCount,
-    },
-    aspectCounts,
-    attentionCounts: {
-      urgent: row.urgentCount,
-      high: row.highCount,
-      medium: row.mediumCount,
-      low: row.lowCount,
-    },
-  }
-}
-
-const SENTIMENT_VALUES: Readonly<Record<AiPropertyAnalyzedReview['sentiment'], true>> =
-  Object.freeze({
-    positive: true,
-    neutral: true,
-    negative: true,
-    mixed: true,
-  })
-const ATTENTION_VALUES: Readonly<Record<AiPropertyAnalyzedReview['attention'], true>> =
-  Object.freeze({
-    urgent: true,
-    high: true,
-    medium: true,
-    low: true,
-  })
-
-function isAnalyzedReviewAspect(
-  value: unknown,
-): value is AiPropertyAnalyzedReview['aspects'][number] {
-  if (typeof value !== 'object' || value === null) return false
-  const aspect = Reflect.get(value, 'aspect')
-  const polarity = Reflect.get(value, 'polarity')
-  const intensity = Reflect.get(value, 'intensity')
-  if (
-    typeof aspect !== 'string' ||
-    !isAspectTaxonomyV1Id(aspect) ||
-    (polarity !== 'positive' && polarity !== 'neutral' && polarity !== 'negative') ||
-    typeof intensity !== 'number' ||
-    !Number.isInteger(intensity)
-  ) {
-    return false
-  }
-  return (
-    (polarity === 'positive' && intensity >= 20 && intensity <= 100) ||
-    (polarity === 'neutral' && intensity >= -19 && intensity <= 19) ||
-    (polarity === 'negative' && intensity >= -100 && intensity <= -20)
-  )
-}
-
-// This fail-closed row boundary keeps every correlated evidence field in one
-// validation decision so an invalid projection can never be partially accepted.
-// fallow-ignore-next-line complexity
-export function mapAnalyzedReview(
-  row: Readonly<{
-    reviewId: string
-    sourceRevision: number | string
-    analysisSequence: number | string
-    localDate: string
-    rating: number
-    sentiment: string | null
-    attention: string | null
-    aspects: unknown
-    issueLabel: string | null
-    analysisProfileVersion: string
-    providerDeploymentProfileVersion: string
-    modelSnapshot: string
-  }>,
-): AiPropertyAnalyzedReview {
-  // v1 analyses predate aspect extraction and remain current evidence until an
-  // epoch bump retires them. Only that profile may legitimately have no children.
-  const aspects =
-    Array.isArray(row.aspects) &&
-    row.aspects.length <= 5 &&
-    (row.aspects.length >= 1 || row.analysisProfileVersion === 'review-analysis-v1') &&
-    row.aspects.every(isAnalyzedReviewAspect)
-      ? row.aspects
-      : null
-  const sourceRevision = safeSequence(row.sourceRevision)
-  const analysisSequence = safeSequence(row.analysisSequence)
-  if (
-    sourceRevision === null ||
-    sourceRevision < 1 ||
-    analysisSequence === null ||
-    analysisSequence < 1 ||
-    aspects === null ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(row.localDate) ||
-    !Number.isInteger(row.rating) ||
-    row.rating < 1 ||
-    row.rating > 5 ||
-    typeof row.sentiment !== 'string' ||
-    !Object.hasOwn(SENTIMENT_VALUES, row.sentiment) ||
-    typeof row.attention !== 'string' ||
-    !Object.hasOwn(ATTENTION_VALUES, row.attention) ||
-    (row.issueLabel !== null && !isAiIssueLabel(row.issueLabel)) ||
-    row.analysisProfileVersion.length === 0 ||
-    row.providerDeploymentProfileVersion.length === 0 ||
-    row.modelSnapshot.length === 0
-  ) {
-    throw new Error('Property analyzed Review evidence is invalid')
-  }
-  return Object.freeze({
-    reviewId: reviewId(row.reviewId),
-    sourceRevision,
-    analysisSequence,
-    localDate: row.localDate,
-    rating: row.rating,
-    sentiment: row.sentiment as AiPropertyAnalyzedReview['sentiment'],
-    attention: row.attention as AiPropertyAnalyzedReview['attention'],
-    aspects: Object.freeze(aspects.map((aspect) => Object.freeze({ ...aspect }))),
-    issueLabel: row.issueLabel,
-    analysisProfileVersion: row.analysisProfileVersion,
-    providerDeploymentProfileVersion: row.providerDeploymentProfileVersion,
-    modelSnapshot: row.modelSnapshot,
-  })
-}
-
-function mapUnavailableReview(
-  row: Readonly<{
-    reviewId: string
-    sourceRevision: number | string
-    analysisSequence: number | string
-    localDate: string
-    rating: number
-    unavailableReason: string | null
-  }>,
-): AiPropertyUnavailableReview {
-  const sourceRevision = safeSequence(row.sourceRevision)
-  const analysisSequence = safeSequence(row.analysisSequence)
-  if (
-    sourceRevision === null ||
-    sourceRevision < 1 ||
-    analysisSequence === null ||
-    analysisSequence < 1 ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(row.localDate) ||
-    !Number.isInteger(row.rating) ||
-    row.rating < 1 ||
-    row.rating > 5 ||
-    row.unavailableReason !== 'language_not_supported'
-  ) {
-    throw new Error('Property unavailable Review evidence is invalid')
-  }
-  return Object.freeze({
-    reviewId: reviewId(row.reviewId),
-    sourceRevision,
-    analysisSequence,
-    localDate: row.localDate,
-    rating: row.rating,
-    reason: row.unavailableReason,
-  })
 }
 
 type ApplyReviewAnalysisInput = Parameters<
@@ -403,9 +244,11 @@ export const createAiPropertyAggregateStoreAdapter = (
             reviewAnalysisEpoch: aiReviewAnalyses.reviewAnalysisEpoch,
             propertyProfileVersion: aiReviewAnalyses.propertyProfileVersion,
             status: aiReviewAnalyses.status,
+            analysisProfileVersion: aiReviewAnalyses.analysisProfileVersion,
             sentiment: aiReviewAnalyses.sentiment,
             primaryCategory: aiReviewAnalyses.primaryCategory,
             attention: aiReviewAnalyses.attention,
+            expiresAt: aiReviewAnalyses.expiresAt,
             timezone: aiPropertyProcessingProfiles.timezone,
           })
           .from(aiReviewAnalyses)
@@ -490,8 +333,10 @@ export const createAiPropertyAggregateStoreAdapter = (
           primaryCategory: analysis.primaryCategory,
           attention: analysis.attention,
         }
+        // A v3 analysis has mentions, not aspects (migration 0078).
+        const mentions = analysis.analysisProfileVersion === 'review-analysis-v3'
         const analysisAspects: readonly ContributionAspect[] =
-          analysis.status === 'ready'
+          analysis.status === 'ready' && !mentions
             ? await tx
                 .select({
                   aspect: aiReviewAnalysisAspects.aspect,
@@ -513,7 +358,7 @@ export const createAiPropertyAggregateStoreAdapter = (
                 .for('share')
             : []
         const validAnalysisAspectCount =
-          analysis.status === 'ready'
+          analysis.status === 'ready' && !mentions
             ? analysisAspects.length >= 1 && analysisAspects.length <= 5
             : analysisAspects.length === 0
         if (!validAnalysisAspectCount) {
@@ -553,6 +398,10 @@ export const createAiPropertyAggregateStoreAdapter = (
             analysisSequence: aiPropertyAggregateContributions.analysisSequence,
           })
         if (!inserted) throw new Error('Property aggregate contribution conflict')
+        if (mentions && analysis.status === 'ready') {
+          await copyMentionsToContribution(tx, input)
+          await assignContributionIssueGroups(tx, input, analysis.expiresAt, appliedAt)
+        }
         if (analysisAspects.length > 0) {
           await tx.insert(aiPropertyAggregateContributionAspects).values(
             analysisAspects.map((aspect) => ({
@@ -569,20 +418,23 @@ export const createAiPropertyAggregateStoreAdapter = (
           )
         }
 
-        await updateDailyAggregates({
-          tx,
-          command: input,
-          head,
-          next: {
-            contribution: currentAnalysis,
-            localDate: currentReview.localDate,
-            aspects: analysisAspects,
-          },
-          previous,
-          previousAspects,
-          aggregateRevision,
-          appliedAt,
-        })
+        // The daily cube is v2's. A v3 contribution is read from its mentions.
+        if (!mentions) {
+          await updateDailyAggregates({
+            tx,
+            command: input,
+            head,
+            next: {
+              contribution: currentAnalysis,
+              localDate: currentReview.localDate,
+              aspects: analysisAspects,
+            },
+            previous,
+            previousAspects,
+            aggregateRevision,
+            appliedAt,
+          })
+        }
 
         await commitAggregateHead(tx, input, head, aggregateRevision, appliedAt)
         return { status: 'applied', aggregateRevision }
@@ -822,6 +674,7 @@ export const createAiPropertyAggregateStoreAdapter = (
             AND latest.status IN ('ready', 'unavailable')
             AND latest.local_date BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
             AND operation.state IN ('succeeded_pending_delivery', 'succeeded')
+            AND analysis.analysis_profile_version <> 'review-analysis-v3'
           ORDER BY latest.local_date, latest.review_id
         `)
         const analyzedReviews: AiPropertyAnalyzedReview[] = []

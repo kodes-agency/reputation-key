@@ -12,6 +12,9 @@
 // table is missing from the model.
 
 export * from './ai.schema'
+export * from './ai-property-trend.schema'
+export * from './ai-review-analysis-v3.schema'
+export * from './ai-property-issue-groups.schema'
 export * from './activity.schema'
 export * from './audit'
 export * from './beta-feedback-masked-layout.schema'

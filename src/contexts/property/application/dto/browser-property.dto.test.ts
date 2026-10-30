@@ -33,6 +33,18 @@ describe('toBrowserProperty', () => {
     )
   })
 
+  it('withholds the Google primary category and the instant it was read: a hint, never a venue type', () => {
+    const browser = toBrowserProperty({
+      ...linked,
+      googlePrimaryCategory: 'Boat rental service',
+      googlePrimaryCategoryUpdatedAt: RETRIEVED_AT,
+    })
+
+    expect(Object.keys(browser)).not.toContain('googlePrimaryCategory')
+    expect(Object.keys(browser)).not.toContain('googlePrimaryCategoryUpdatedAt')
+    expect(JSON.stringify(browser)).not.toContain('Boat rental service')
+  })
+
   it('keeps the destination state and read time, and no URI or pin, even when verified', () => {
     expect(toBrowserProperty(linked).googleReviewDestination).toEqual({
       state: 'verified',

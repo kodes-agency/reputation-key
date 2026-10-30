@@ -9,9 +9,15 @@ import type {
   AiGatewayRouteRequestV1,
   AiGatewayRouteResponseV1,
 } from '#/shared/ai-gateway-transport-contract'
-import type { AiGatewayRoute } from '#/shared/ai-openai-request-contract'
 import type { PreparedAiInvocation } from './prepared-invocation'
+import type {
+  AiProviderId,
+  AiProviderOutcome,
+  AiProviderUsage,
+  PreparedInvocationBase,
+} from './provider-contracts'
 export type { PreparedAiInvocation } from './prepared-invocation'
+export type { ProductAiGatewayRoute } from './provider-contracts'
 export {
   OPENAI_MODEL_SNAPSHOT,
   OPENAI_PROMPT_VERSIONS,
@@ -29,6 +35,10 @@ export type GatewayPreparationErrorCode =
   | 'redaction_blocked'
   | 'output_invalid'
   | 'policy_unavailable'
+  /** The provider the operator chose cannot take a call now. Zero use; try again. */
+  | 'provider_unavailable'
+  /** The operation was claimed under another provider than the one in force. */
+  | 'provider_profile_changed'
 
 export class GatewayPreparationError extends Error {
   constructor(readonly code: GatewayPreparationErrorCode) {
@@ -36,8 +46,6 @@ export class GatewayPreparationError extends Error {
     this.name = 'GatewayPreparationError'
   }
 }
-
-export type ProductAiGatewayRoute = Exclude<AiGatewayRoute, 'synthetic-canary'>
 
 export type AiAdmissionClient = Readonly<{
   authorize(
@@ -57,24 +65,11 @@ export type AiAdmissionClient = Readonly<{
   readiness(signal: AbortSignal): Promise<boolean>
 }>
 
-export type OpenAiUsageV1 = Readonly<{
-  inputTokens: number
-  cachedTokens: number
-  outputTokens: number
-  reasoningTokens: number
-  totalTokens: number
-}>
+/** OpenAI's usage block is the provider-neutral one (`AiProviderUsage`). */
+export type OpenAiUsageV1 = AiProviderUsage
 
-export type OpenAiConnectorOutcome<T> = Readonly<{
-  disposition: AiSettlementRequestV1['disposition']
-  reportedDisposition: AiSettlementRequestV1['reportedDisposition']
-  result: T | null
-  usageKnown: boolean
-  providerRetryable: boolean
-  usage: OpenAiUsageV1
-  retryAfterSeconds: number | null
-  outboundFetchUsed: boolean
-}>
+/** OpenAI's outcome is the provider-neutral one (`AiProviderOutcome`). */
+export type OpenAiConnectorOutcome<T> = AiProviderOutcome<T>
 
 export type OpenAiConnector = Readonly<{
   invoke(
@@ -96,7 +91,14 @@ export type AcceptedGatewayResult = Readonly<{
 }>
 
 export type PreparedGatewayRouteExecution = Readonly<{
-  invocation: PreparedAiInvocation
+  /**
+   * The provider whose adapter prepared the invocation, and so the only one the
+   * gateway may hand it to. Absent on a v2 route: every v2 route is OpenAI's.
+   */
+  providerId?: AiProviderId
+  // Orchestration reads only the provider-neutral fields; the request itself is
+  // the adapter's own (`sdkRequest` has one shape per provider).
+  invocation: PreparedInvocationBase
   outputSchema: z.ZodTypeAny
   acceptProviderResult(result: unknown): AcceptedGatewayResult | null
 }>

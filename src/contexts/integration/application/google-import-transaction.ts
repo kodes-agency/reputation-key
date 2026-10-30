@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { googleConnectionId, propertyId } from '#/shared/domain/ids'
+import { normalizeGooglePrimaryCategory } from '#/shared/domain/google-primary-category'
 import {
   authorizerDenialErrorCode,
   type GoogleImportCommandAuthorizer,
@@ -339,6 +340,9 @@ export function createGoogleImportTransaction(
             providerAccountSuffix: item.accountId,
             providerLocationSuffix: item.locationId,
             googleReviewUri: item.googleReviewUri,
+            googlePrimaryCategory: normalizeGooglePrimaryCategory(
+              source.claim.candidate.primaryCategory,
+            ),
             expectedConnectionLifecycleVersion: item.expectedConnectionLifecycleVersion,
             expectedConnectionAccessVersion: item.expectedConnectionAccessVersion,
             expectedCredentialGeneration: item.expectedCredentialGeneration,

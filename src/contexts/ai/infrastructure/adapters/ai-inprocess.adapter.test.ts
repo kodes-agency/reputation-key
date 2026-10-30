@@ -18,10 +18,20 @@ import type { AiEgressGatewayService } from '#/shared/ai-provider-control/servic
 import type { AiGatewayRouteRequestV1 } from '#/shared/ai-gateway-transport-contract'
 import {
   analysisRequest,
+  analysisV3Request,
   replyRequest,
   trendRequest,
 } from '#/shared/ai-gateway-transport-contract.test-fixtures'
-import { createAiInProcessInference } from './ai-inprocess.adapter'
+import {
+  AI_REVIEW_ROUTE_MAX_BYTES,
+  AI_TREND_ROUTE_MAX_BYTES,
+} from '#/shared/ai-internal-transport-contract'
+import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source-contract'
+import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
+import {
+  aiGatewayRequestMaxBytes,
+  createAiInProcessInference,
+} from './ai-inprocess.adapter'
 
 const NOW = 1_700_000_000_000
 
@@ -176,5 +186,33 @@ describe('in-process AI inference deadlines and construction', () => {
     const before = JSON.stringify(source)
     await port.generateReply(request as never, new AbortController().signal)
     expect(JSON.stringify(source)).toBe(before)
+  })
+})
+
+describe('in-process AI inference request bound', () => {
+  it('keeps each route its bound and gives a v3 evidence request its own', () => {
+    expect(aiGatewayRequestMaxBytes(analysisRequest())).toBe(AI_REVIEW_ROUTE_MAX_BYTES)
+    expect(aiGatewayRequestMaxBytes(replyRequest())).toBe(AI_REVIEW_ROUTE_MAX_BYTES)
+    expect(aiGatewayRequestMaxBytes(trendRequest())).toBe(AI_TREND_ROUTE_MAX_BYTES)
+    expect(aiGatewayRequestMaxBytes(analysisV3Request())).toBe(
+      AI_REVIEW_V3_ROUTE_MAX_BYTES,
+    )
+  })
+
+  it('holds the largest evidence request a review can make, with every character escaped', () => {
+    // 512 sentences of 30 quotes: the most sentences, the longest text the
+    // canonical limit leaves them and the most JSON escaping, beside the largest
+    // hint set the catalogue has.
+    const sentence = '"'.repeat(30)
+    const rawText = Array.from(
+      { length: MAX_AI_REVIEW_SENTENCES_V1 },
+      () => sentence,
+    ).join('\n')
+    const request = analysisV3Request({ rawText, googlePrimaryCategory: 'Hotel' })
+    const bytes = new TextEncoder().encode(JSON.stringify(request)).byteLength
+
+    expect(request.source.sentences).toHaveLength(MAX_AI_REVIEW_SENTENCES_V1)
+    expect(bytes).toBeGreaterThan(AI_REVIEW_ROUTE_MAX_BYTES)
+    expect(bytes).toBeLessThanOrEqual(AI_REVIEW_V3_ROUTE_MAX_BYTES)
   })
 })

@@ -1,12 +1,7 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { mapReviewLanguageMetadata } from '#/shared/ai-review-language-catalogue'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
-import type { AnalysisResult } from '#/shared/ai-gateway-transport-contract'
-import { AI_ANALYSIS_V2_OUTPUT_SCHEMA } from '#/shared/openai-route-output-schemas'
-import type { AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type { AiInferencePort } from '../ports/ai-inference.port'
@@ -15,7 +10,6 @@ import type {
   AiOperationStorePort,
 } from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
-import { issueLabelReproducesSource } from '#/shared/ai-issue-label'
 import type { AiPropertyAggregateStorePort } from '../ports/ai-property-aggregate-store.port'
 import type { AiAdmissionClaim, AiAdmissionPort } from '../ports/ai-admission.port'
 import type { AiAdmissionLane } from '../../domain/admission-lanes'
@@ -26,10 +20,7 @@ import type {
 } from '../ports/ai-review-event-store.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import type { AiSubjectHmacPort } from '../ports/ai-subject-hmac.port'
-import {
-  DERIVATIVE_RETENTION_MILLIS,
-  type AiPropertyProfileResult,
-} from '../../domain/types'
+import type { AiPropertyProfileResult } from '../../domain/types'
 import {
   AI_PROVIDER_ATTEMPT_BUDGET,
   AI_PROVIDER_CAPACITY_CODES,
@@ -37,18 +28,24 @@ import {
   aiRequestFingerprint,
   aiRetryAt,
   aiReviewSourceProvenance,
-  isAiAuthorizationUnderServedContract,
   resolveAiExecutionStopFence,
 } from '../ai-workflow-support'
+import type { ReviewAnalysisContract } from '../review-analysis-contract'
+import {
+  createReviewAnalysisContractV2,
+  type AiAnalysisObservabilityPort,
+} from '../review-analysis-contract-v2'
 import { resolveAnalysisClaimConflict } from '../analysis-claim-conflict'
 import {
   analysisExecutionBinding,
   analysisOperationIdentity,
 } from '../ai-operation-binding'
 
-const PROFILE = AI_OPERATION_PROFILES.find(
-  (candidate) => candidate.profileVersion === 'review-analysis-v2',
-)!
+// The v2 profile facts, the v2 answer rules and the v2 store call live in
+// review-analysis-contract-v2.ts; the contract a build runs is picked there and in
+// review-analysis-runtime.ts. Re-exported because callers and tests name them here.
+export { derivePrimaryCategoryV1 } from '../review-analysis-contract-v2'
+export type { AiAnalysisObservabilityPort }
 
 /**
  * Every retry branch is bounded in time by the plan's 15-minute background
@@ -116,22 +113,14 @@ export type AnalyzeReviewEventResult =
    */
   | Readonly<{ status: 'stopped' }>
 
-/** Content-free record of a governed refusal. Carries identifiers and the rule
- *  only: the refused label and the matched excerpt are deliberately absent. */
-export type AiAnalysisObservabilityPort = Readonly<{
-  recordIssueLabelRefused(
-    event: Readonly<{
-      organizationId: OrganizationId
-      propertyId: PropertyId
-      reviewId: ReviewId
-      analysisSequence: number
-      rule: 'reproduces_source'
-    }>,
-  ): void
-}>
-
 export type AnalyzeReviewEventDependencies = Readonly<{
   observability?: AiAnalysisObservabilityPort
+  /**
+   * How this build runs a review analysis (contract section 2.2): the profile
+   * facts, what is prepared before the claim and how an answer is stored. Absent
+   * means v2, the contract every build has run so far.
+   */
+  contract?: ReviewAnalysisContract
   authorization: AiAuthorizationPort
   control: AiControlPort
   inference: AiInferencePort
@@ -247,65 +236,6 @@ export async function settleReviewAnalysisWithResult(
     : { status: 'terminal' }
 }
 
-export function derivePrimaryCategoryV1(
-  aspects: ReadonlyArray<
-    Readonly<{
-      aspect: AspectTaxonomyV1Id
-      polarity: 'positive' | 'neutral' | 'negative'
-      intensity: number
-    }>
-  >,
-): AspectTaxonomyV1Id {
-  let primary:
-    | Readonly<{
-        aspect: AspectTaxonomyV1Id
-        polarity: 'positive' | 'neutral' | 'negative'
-        intensity: number
-      }>
-    | undefined
-  for (const candidate of aspects) {
-    if (
-      primary === undefined ||
-      Math.abs(candidate.intensity) > Math.abs(primary.intensity) ||
-      (Math.abs(candidate.intensity) === Math.abs(primary.intensity) &&
-        candidate.polarity === 'negative' &&
-        primary.polarity !== 'negative')
-    ) {
-      primary = candidate
-    }
-  }
-  return primary?.aspect ?? 'other'
-}
-
-function attentionFor(
-  output: Extract<AnalysisResult, { status: 'success' }>['result'],
-  rating: number,
-): 'urgent' | 'high' | 'medium' | 'low' {
-  if (
-    output.urgencySignals.some((signal) =>
-      ['safety', 'health', 'discrimination', 'legal', 'fraud'].includes(signal),
-    )
-  ) {
-    return 'urgent'
-  }
-  if (
-    output.urgencySignals.includes('service_failure') ||
-    output.sentimentValence <= -60 ||
-    (rating <= 2 && output.sentiment !== 'positive')
-  ) {
-    return 'high'
-  }
-  if (
-    output.sentiment === 'negative' ||
-    output.sentiment === 'mixed' ||
-    output.sentimentValence <= -20 ||
-    rating <= 3
-  ) {
-    return 'medium'
-  }
-  return 'low'
-}
-
 export function createAnalyzeReviewEvent(
   dependencies: AnalyzeReviewEventDependencies,
 ): (input: AnalyzeReviewEventInput) => Promise<AnalyzeReviewEventResult> {
@@ -313,6 +243,14 @@ export function createAnalyzeReviewEvent(
     reviewEvents: dependencies.reviewEvents,
     aggregates: dependencies.aggregates,
   }
+  const contract: ReviewAnalysisContract =
+    dependencies.contract ??
+    createReviewAnalysisContractV2({
+      outputs: dependencies.outputs,
+      ...(dependencies.observability === undefined
+        ? {}
+        : { observability: dependencies.observability }),
+    })
 
   /**
    * `operationId` names the operation the settlement closes. It is null when
@@ -536,11 +474,11 @@ export function createAnalyzeReviewEvent(
         authorization.authorizedSourceEpoch === input.sourceEpoch,
         authorization.capabilities.includes('review_analysis'),
         authorization.capabilityRuntimeProfileVersions.review_analysis ===
-          PROFILE.capabilityRuntimeProfileVersion,
+          contract.operationProfile.capabilityRuntimeProfileVersion,
         // A consent under a notice no longer in force. Re-consent bumps the
         // Review Analysis epoch and the enrollment replay analyses the history
         // again, so the review is settled here rather than held.
-        isAiAuthorizationUnderServedContract(authorization, 'review_analysis'),
+        contract.isServedContract(authorization),
       ].every(Boolean)
     ) {
       return settleWithoutResult(
@@ -573,6 +511,7 @@ export function createAnalyzeReviewEvent(
         sourceRevision: input.sourceRevision,
         analysisSequence: input.analysisSequence,
       },
+      ...contract.sourceRead,
     })
     if (source.status !== 'available') {
       return settleWithoutResult(
@@ -642,7 +581,7 @@ export function createAnalyzeReviewEvent(
       input,
       authorization,
       authorizationLineageId,
-      operationProfile: PROFILE,
+      operationProfile: contract.operationProfile,
       reviewAnalysisEpoch,
       evaluatedLanguage: language.language.group,
       reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
@@ -651,12 +590,33 @@ export function createAnalyzeReviewEvent(
       stopFence,
     })
     const requestFingerprint = aiRequestFingerprint({ identity, binding, provenance })
+    // What the contract adds before the claim (v3: the hints, the provider and
+    // the normalizer the operation is claimed under). A refusal waits within the
+    // event's horizon, like any other wait that comes before an attempt.
+    const prepared = await contract.prepare({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      reviewId: input.reviewId,
+      observation,
+    })
+    if (prepared.status === 'refused') {
+      return deferOrSettle(
+        input,
+        reviewAnalysisEpoch,
+        profile.profileVersion,
+        prepared.code,
+        nowEpochMillis,
+        eventHorizonEpochMillis,
+      )
+    }
+    const preparation: Extract<typeof prepared, { status: 'ready' }> = prepared
     const claimed = await dependencies.operations.claim({
       identity,
       binding,
       idempotencyKey: `analysis:${input.eventEnvelopeId}`,
       requestFingerprint,
       sourceProvenance: provenance,
+      ...preparation.claim,
       nowEpochMillis,
       expiresAtEpochMillis: nowEpochMillis + 24 * 60 * 60 * 1_000,
     })
@@ -745,7 +705,8 @@ export function createAnalyzeReviewEvent(
             internalSubjectId: input.reviewId,
             actorId: null,
             binding,
-            deadlineEpochMillis: nowEpochMillis + PROFILE.requestDeadlineMs,
+            deadlineEpochMillis:
+              nowEpochMillis + contract.operationProfile.requestDeadlineMs,
             redactionCountry: profile.countryCode,
             observedContentExpiresAtEpochMillis: observation.contentExpiresAtEpochMillis,
             source: {
@@ -754,9 +715,23 @@ export function createAnalyzeReviewEvent(
               rating: observation.rating,
               languageCode: observation.languageCode,
               reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
+              ...(preparation.request.sentences === undefined
+                ? {}
+                : {
+                    sentences: preparation.request.sentences.map((sentence) => ({
+                      number: sentence.number,
+                      text: sentence.text,
+                    })),
+                  }),
             },
+            ...(preparation.request.propertyContext === undefined
+              ? {}
+              : { propertyContext: preparation.request.propertyContext }),
+            ...(preparation.request.provider === undefined
+              ? {}
+              : { provider: preparation.request.provider }),
           },
-          AbortSignal.timeout(PROFILE.requestDeadlineMs),
+          AbortSignal.timeout(contract.operationProfile.requestDeadlineMs),
         )
         if (response.status === 'error') {
           // ONE clock read for both instants. Anchoring the backoff to the pre-call
@@ -792,8 +767,26 @@ export function createAnalyzeReviewEvent(
             'policy_disabled',
           )
         }
-        const parsedAnalysis = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(response.result)
-        if (!parsedAnalysis.success) {
+        const accepted = await contract.accept({
+          operationId: execution.id,
+          expectedAttempt,
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          reviewId: input.reviewId,
+          sourceEpoch: input.sourceEpoch,
+          sourceRevision: input.sourceRevision,
+          analysisSequence: input.analysisSequence,
+          authorizationLineageId,
+          reviewAnalysisEpoch,
+          propertyProfileVersion: profile.profileVersion,
+          observation,
+          result: response.result,
+          completedAtEpochMillis: response.settlementReceipt.settledAtEpochMillis,
+          inputTokens: response.settlementReceipt.inputTokens,
+          outputTokens: response.settlementReceipt.outputTokens,
+          preparation,
+        })
+        if (accepted === 'invalid') {
           // The gateway settled this answer as a success, so it is charged and
           // no retry of this operation can reach the provider.
           await dependencies.operations.recordFailure({
@@ -811,62 +804,7 @@ export function createAnalyzeReviewEvent(
             'policy_disabled',
           )
         }
-        const analysisResult = parsedAnalysis.data
-        const completedAtEpochMillis = response.settlementReceipt.settledAtEpochMillis
-        // The merchant notice promises the issue label never reproduces review
-        // text. The output schema, the server-side shape check and the SQL
-        // CHECK all validate shape only, so a lowercase quotation satisfies
-        // every layer. Refuse a multi-word label whose words follow one another
-        // in the source; the aspects are the expensive part of the call and stay.
-        // Refused content is never logged — recording the label would leak the
-        // very excerpt the rule exists to keep out of storage.
-        const reproducesSource =
-          analysisResult.issueLabel !== null &&
-          observation.text !== null &&
-          issueLabelReproducesSource(analysisResult.issueLabel, observation.text)
-        const acceptedIssueLabel = reproducesSource ? null : analysisResult.issueLabel
-        if (reproducesSource) {
-          dependencies.observability?.recordIssueLabelRefused({
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-            reviewId: input.reviewId,
-            analysisSequence: input.analysisSequence,
-            rule: 'reproduces_source',
-          })
-        }
-        const stored = await dependencies.outputs.storeAnalysis({
-          operationId: execution.id,
-          providerCompletion: {
-            expectedAttempt,
-            modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE.modelSnapshot,
-            inputTokens: response.settlementReceipt.inputTokens,
-            outputTokens: response.settlementReceipt.outputTokens,
-            completedAtEpochMillis,
-          },
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          reviewId: input.reviewId,
-          sourceEpoch: input.sourceEpoch,
-          sourceRevision: input.sourceRevision,
-          analysisSequence: input.analysisSequence,
-          authorizationLineageId,
-          reviewAnalysisEpoch,
-          propertyProfileVersion: profile.profileVersion,
-          analysisProfileVersion: PROFILE.profileVersion,
-          result: {
-            status: 'ready',
-            derivative: {
-              sentiment: analysisResult.sentiment,
-              primaryCategory: derivePrimaryCategoryV1(analysisResult.aspects),
-              attention: attentionFor(analysisResult, observation.rating),
-              aspects: analysisResult.aspects,
-              issueLabel: acceptedIssueLabel,
-            },
-          },
-          generatedAtEpochMillis: completedAtEpochMillis,
-          expiresAtEpochMillis: completedAtEpochMillis + DERIVATIVE_RETENTION_MILLIS,
-        })
-        if (!stored) return { status: 'generation_changed' }
+        if (accepted === 'stale') return { status: 'generation_changed' }
         const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
           organizationId: input.organizationId,
           propertyId: input.propertyId,

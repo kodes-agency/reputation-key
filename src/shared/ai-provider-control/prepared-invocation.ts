@@ -91,23 +91,33 @@ export function deriveOpenAiClientRequestId(permitId: string): `rk_ai_${string}`
   return `rk_ai_${digest}`
 }
 
-export function createPreparedAiInvocation(
+export type PreparedInvocationTraceStage =
+  'source' | 'provider_payload' | 'prepared_request' | 'descriptor' | 'request_binding'
+
+/**
+ * The provider-neutral tail of preparing an invocation. A provider supplies the
+ * one content field that must equal the canonical payload, its cache-shard fact,
+ * and any provider-specific descriptor check; this function owns the digests,
+ * limits and request-binding signature shared by every adapter.
+ */
+export function finalizePreparedProviderInvocation<Invocation>(
   input: Readonly<{
     sourceBytes: Uint8Array
     providerPayload: unknown
-    sdkRequest: ClosedOpenAiRequest
+    sdkRequest: unknown
+    providerPayloadContent: string
+    payloadMismatchMessage: string
+    derivePromptCacheShard(): number
+    validateDescriptor?(descriptor: AiAdmissionDescriptorV1): void
     createDescriptor: (facts: DerivedDescriptorFacts) => AiAdmissionDescriptorV1
     requestBindingKeys: VersionedHmacKeyring
-    traceStage?: (
-      stage:
-        | 'source'
-        | 'provider_payload'
-        | 'prepared_request'
-        | 'descriptor'
-        | 'request_binding',
-    ) => void
+    createInvocation(
+      request: ReturnType<typeof signAiRequestBinding>,
+      canonicalProviderBytes: Uint8Array,
+    ): Invocation
+    traceStage?: (stage: PreparedInvocationTraceStage) => void
   }>,
-): PreparedAiInvocation {
+): Invocation {
   if (input.sourceBytes.byteLength < 1) throw new TypeError('AI source bytes are empty')
   input.traceStage?.('source')
   const sourceDigest = sha256(SOURCE_DOMAIN, input.sourceBytes)
@@ -117,10 +127,8 @@ export function createPreparedAiInvocation(
   let canonicalProviderBytes: Buffer | null = null
   let ownershipTransferred = false
   try {
-    if (input.sdkRequest.input[1].content !== canonicalProviderPayload) {
-      throw new TypeError(
-        'Closed OpenAI request is not derived from its provider payload',
-      )
+    if (input.providerPayloadContent !== canonicalProviderPayload) {
+      throw new TypeError(input.payloadMismatchMessage)
     }
     input.traceStage?.('provider_payload')
     assertClosedJsonAndFreeze(input.sdkRequest, 'Prepared AI value')
@@ -131,12 +139,7 @@ export function createPreparedAiInvocation(
     canonicalProviderBytes = canonicalRequestBytes
     const preparedDigest = sha256(PREPARED_DOMAIN, canonicalRequestBytes)
     input.traceStage?.('prepared_request')
-    const cacheMatch =
-      /^rk:([a-z0-9][a-z0-9._-]*):([a-z0-9][a-z0-9._-]*):(0[0-9a-f])$/u.exec(
-        input.sdkRequest.prompt_cache_key,
-      )
-    if (!cacheMatch) throw new TypeError('OpenAI prompt cache key is invalid')
-    const promptCacheShard = Number.parseInt(cacheMatch[3]!, 16)
+    const promptCacheShard = input.derivePromptCacheShard()
     const facts: DerivedDescriptorFacts = Object.freeze({
       sourceDigest,
       preparedDigest,
@@ -158,39 +161,72 @@ export function createPreparedAiInvocation(
     ) {
       throw new TypeError('Prepared AI request exceeds its route profile limits')
     }
-    const cacheRoute = cacheMatch[1]!
-    const promptVersion = cacheMatch[2]!
-    const expectedShard =
-      descriptor.route === 'synthetic-canary'
-        ? 0
-        : computePromptCacheShard({
-            operationId: descriptor.operationId,
-            route: descriptor.route,
-            promptVersion,
-          })
-    if (
-      cacheRoute !== descriptor.route ||
-      promptVersion !== OPENAI_PROMPT_VERSIONS[descriptor.route] ||
-      promptCacheShard !== expectedShard ||
-      descriptor.promptCacheShard !== expectedShard
-    ) {
-      throw new TypeError('OpenAI prompt cache key does not match the descriptor')
-    }
+    input.validateDescriptor?.(descriptor)
     input.traceStage?.('descriptor')
     const request = signAiRequestBinding(descriptor, input.requestBindingKeys)
     input.traceStage?.('request_binding')
-    const invocation: PreparedAiInvocation = Object.freeze({
-      descriptor: request.descriptor,
-      requestBindingKeyId: request.requestBindingKeyId,
-      requestBindingHmac: request.requestBindingHmac,
-      sdkRequest: input.sdkRequest,
-      canonicalProviderBytes: canonicalRequestBytes,
-      [preparedAiInvocationBrand]: PREPARED_AI_INVOCATION_BRAND_VALUE,
-    })
+    const invocation = input.createInvocation(request, canonicalRequestBytes)
     ownershipTransferred = true
     return invocation
   } finally {
     providerPayloadBytes.fill(0)
     if (!ownershipTransferred) canonicalProviderBytes?.fill(0)
   }
+}
+
+export function createPreparedAiInvocation(
+  input: Readonly<{
+    sourceBytes: Uint8Array
+    providerPayload: unknown
+    sdkRequest: ClosedOpenAiRequest
+    createDescriptor: (facts: DerivedDescriptorFacts) => AiAdmissionDescriptorV1
+    requestBindingKeys: VersionedHmacKeyring
+    traceStage?: (stage: PreparedInvocationTraceStage) => void
+  }>,
+): PreparedAiInvocation {
+  let cacheMatch: RegExpExecArray | null = null
+  return finalizePreparedProviderInvocation({
+    ...input,
+    providerPayloadContent: input.sdkRequest.input[1].content,
+    payloadMismatchMessage:
+      'Closed OpenAI request is not derived from its provider payload',
+    derivePromptCacheShard: () => {
+      cacheMatch = /^rk:([a-z0-9][a-z0-9._-]*):([a-z0-9][a-z0-9._-]*):(0[0-9a-f])$/u.exec(
+        input.sdkRequest.prompt_cache_key,
+      )
+      if (!cacheMatch) throw new TypeError('OpenAI prompt cache key is invalid')
+      return Number.parseInt(cacheMatch[3]!, 16)
+    },
+    validateDescriptor: (descriptor) => {
+      if (cacheMatch === null) throw new TypeError('OpenAI prompt cache key is invalid')
+      const cacheRoute = cacheMatch[1]!
+      const promptVersion = cacheMatch[2]!
+      const promptCacheShard = Number.parseInt(cacheMatch[3]!, 16)
+      const expectedShard =
+        descriptor.route === 'synthetic-canary'
+          ? 0
+          : computePromptCacheShard({
+              operationId: descriptor.operationId,
+              route: descriptor.route,
+              promptVersion,
+            })
+      if (
+        cacheRoute !== descriptor.route ||
+        promptVersion !== OPENAI_PROMPT_VERSIONS[descriptor.route] ||
+        promptCacheShard !== expectedShard ||
+        descriptor.promptCacheShard !== expectedShard
+      ) {
+        throw new TypeError('OpenAI prompt cache key does not match the descriptor')
+      }
+    },
+    createInvocation: (request, canonicalRequestBytes) =>
+      Object.freeze({
+        descriptor: request.descriptor,
+        requestBindingKeyId: request.requestBindingKeyId,
+        requestBindingHmac: request.requestBindingHmac,
+        sdkRequest: input.sdkRequest,
+        canonicalProviderBytes: canonicalRequestBytes,
+        [preparedAiInvocationBrand]: PREPARED_AI_INVOCATION_BRAND_VALUE,
+      }),
+  })
 }

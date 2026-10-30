@@ -50,6 +50,15 @@ const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
 const GUEST_VISIT_FACT_RETENTION_MONTHS = 24
 
 /**
+ * ADR 0031 / Privacy Notice §6: a de-identified AI insight is kept 24 months.
+ * An analysis stamps its own deadline at generation (`expires_at`,
+ * `DERIVATIVE_RETENTION_MILLIS`), so its rule counts nothing back from the run.
+ * The daily star counts stamp none, so theirs counts the same calendar months
+ * back from the day they count.
+ */
+const AI_DERIVATIVE_RETENTION_MONTHS = 24
+
+/**
  * The retention rule registry. Durations per table docs:
  * outbox/sync/webhook ~30d operational history; notifications/activity 90d
  * (documented in their CONTEXT docs); cache expires per-entry; audit
@@ -277,6 +286,57 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     keyColumns: ['id'],
     tsColumn: 'created_at',
     olderThanMs: AUDIT_EVIDENCE_RETENTION_MS,
+  },
+  {
+    // Review Analysis v3 (migration 0078). The analysis stamps `expires_at` when
+    // it is generated, and nothing moves it: reading, correcting or aggregating an
+    // analysis writes other rows. Its mention rows, their sentence numbers, its
+    // aggregate contribution and that contribution's mention rows all cascade
+    // from this row, so one delete takes the whole derivative. A v2 analysis is
+    // not reached: v2 stays UNENFORCED (docs/BETA.md §3) until activation retires
+    // its generation.
+    subject: 'ai_review_analyses.v3_expired',
+    table: 'ai_review_analyses',
+    keyColumns: [
+      'organization_id',
+      'property_id',
+      'review_id',
+      'source_epoch',
+      'source_revision',
+      'analysis_sequence',
+    ],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+    extraWhere: "analysis_profile_version = 'review-analysis-v3'",
+  },
+  {
+    // Stable issue identities and manager presentation metadata remain while an
+    // unexpired contribution points at them. Once the analysis rule above has
+    // removed those references, the same run may remove the expired group;
+    // members and redirects cascade with it.
+    subject: 'ai_property_issue_groups.expired',
+    table: 'ai_property_issue_groups',
+    keyColumns: ['id'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+    extraWhere:
+      'NOT EXISTS (SELECT 1 FROM ai_property_aggregate_contribution_mentions m WHERE m.issue_group_id = ai_property_issue_groups.id)',
+  },
+  {
+    // How many reviews a Property got on a local day, by stars. Kept from the day
+    // it counts, not from the last update: a late review re-counts the day and
+    // must not keep it.
+    subject: 'ai_property_review_population_daily.expired',
+    table: 'ai_property_review_population_daily',
+    keyColumns: [
+      'organization_id',
+      'property_id',
+      'source_epoch',
+      'property_profile_version',
+      'local_date',
+    ],
+    tsColumn: 'local_date',
+    olderThanMonths: AI_DERIVATIVE_RETENTION_MONTHS,
   },
 ]
 

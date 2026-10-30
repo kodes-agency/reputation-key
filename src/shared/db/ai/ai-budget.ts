@@ -5,11 +5,11 @@ import {
   aiOperations,
   aiOrganizationCostWindows,
 } from '#/shared/db/schema'
-import {
-  AI_OPERATION_PROFILES,
-  AI_PROVIDER_DEPLOYMENT_PROFILE,
-} from '#/shared/ai-operation-profiles'
-import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { operationProviderPairing } from '#/shared/ai-operation-provider-pairings'
+import { AI_PROVIDER_IDS, type AiProviderId } from '#/shared/ai-provider-ids'
+import { maximumCostMicrosWith } from '#/shared/ai-provider-pricing'
+import { priceCatalogueOfProvider } from '#/shared/ai-provider-pricing-registry'
 
 export type AiBudgetTx = Parameters<Parameters<Database['transaction']>[0]>[0]
 
@@ -18,6 +18,12 @@ export type AiBudgetAdmissionInput = Readonly<{
   propertyId: string
   operationKey: string
   routeKey: string
+  /**
+   * The operation profile the operation runs under. Absent means the first profile
+   * of the route, which is the only one a route has until review-analysis v3 is
+   * activated.
+   */
+  operationProfileVersion?: string
   providerPayloadBytes: number
 }>
 
@@ -56,9 +62,45 @@ type AiBudgetDependencies = Readonly<{
 export const ORGANIZATION_MONTHLY_CAP_MICROS = 50_000_000
 const RESERVATION_TTL_INTERVAL = '15 minutes'
 
-function profileForRoute(routeKey: string) {
+function profileForRoute(routeKey: string, operationProfileVersion?: string) {
   return AI_OPERATION_PROFILES.find(
-    (profile) => profile.sourceRoute === routeKey && profile.capability !== null,
+    (profile) =>
+      profile.sourceRoute === routeKey &&
+      profile.capability !== null &&
+      (operationProfileVersion === undefined ||
+        profile.profileVersion === operationProfileVersion),
+  )
+}
+
+/**
+ * What an operation may cost, priced by the provider it was claimed under and from
+ * that provider's own static token figure. An operation that records no provider is
+ * a v2 operation: OpenAI's price list and its profile's own figure, as before. A
+ * provider with no price list or no pairing for the profile cannot be reserved.
+ */
+function reservationFor(
+  profile: NonNullable<ReturnType<typeof profileForRoute>>,
+  providerId: string | null,
+  providerPayloadBytes: number,
+): number | null {
+  const pricing = priceCatalogueOfProvider(providerId)
+  if (pricing === null) return null
+  if (providerId === null) {
+    return maximumCostMicrosWith(pricing, profile, providerPayloadBytes)
+  }
+  if (!(AI_PROVIDER_IDS as readonly string[]).includes(providerId)) return null
+  const pairing = operationProviderPairing(
+    profile.profileVersion,
+    providerId as AiProviderId,
+  )
+  if (pairing === null) return null
+  return maximumCostMicrosWith(
+    pricing,
+    {
+      staticTokenBearingBytes: pairing.staticTokenBearing.bytes,
+      maxOutputTokens: profile.maxOutputTokens,
+    },
+    providerPayloadBytes,
   )
 }
 
@@ -67,7 +109,7 @@ export function createAiBudgetControl(
 ): AiBudgetControl {
   return Object.freeze({
     async admitAiOperation(tx, input) {
-      const profile = profileForRoute(input.routeKey)
+      const profile = profileForRoute(input.routeKey, input.operationProfileVersion)
       if (!profile || !profile.capability)
         return { ok: false, code: 'capability_unavailable' }
       if (
@@ -83,6 +125,7 @@ export function createAiBudgetControl(
           id: aiOperations.id,
           command: aiOperations.command,
           capability: aiOperations.capability,
+          providerId: aiOperations.providerId,
           reservedMicros: aiOperations.reservedMicros,
           costWindowId: aiOperations.costWindowId,
         })
@@ -113,7 +156,7 @@ export function createAiBudgetControl(
 
       const controlKeys = [
         'global',
-        `provider:${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}`,
+        `provider:${profile.providerDeploymentProfileVersion}`,
         `capability:${profile.capability}`,
       ]
       const controls = await tx
@@ -135,7 +178,12 @@ export function createAiBudgetControl(
         return { ok: false, code: 'kill_switch' }
       }
 
-      const reservedMicros = maximumCostMicros(profile, input.providerPayloadBytes)
+      const reservedMicros = reservationFor(
+        profile,
+        operation.providerId,
+        input.providerPayloadBytes,
+      )
+      if (reservedMicros === null) return { ok: false, code: 'capability_unavailable' }
       const now = dependencies.now()
       const startsAt = sql<Date>`date_trunc('month', ${now}::timestamptz)`
       const windowId = dependencies.idGen()

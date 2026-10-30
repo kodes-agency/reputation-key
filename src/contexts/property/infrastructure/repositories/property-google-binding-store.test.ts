@@ -612,4 +612,174 @@ describe.sequential('Property Google binding store', () => {
     expect(receiptRows.rows).toEqual([{ idempotency_key: retainedKey }])
     expect(await store.cleanupOrganization(ORG_ID)).toBe(1)
   })
+
+  describe('the Google primary category', () => {
+    const categoryRow = async (id: string) =>
+      (
+        await pool.query(
+          `SELECT google_primary_category AS category,
+                  google_primary_category_updated_at AS updated_at,
+                  source_epoch, profile_version
+           FROM properties WHERE organization_id = $1 AND id = $2`,
+          [ORG_ID, id],
+        )
+      ).rows[0]
+
+    const disconnectedFor = (idSuffix: string, overrides: Partial<Property> = {}) => ({
+      ...makeActiveProperty(idSuffix, `old-location-${idSuffix}`),
+      googleBindingState: 'disconnected' as const,
+      sourceEpoch: 4,
+      profileVersion: 3,
+      ...overrides,
+    })
+
+    const relinkInput = (
+      property: Property,
+      idempotencyKey: string,
+      googlePrimaryCategory: string | null | undefined,
+    ) =>
+      ({
+        organizationId: ORG_ID,
+        propertyId: property.id,
+        idempotencyKey,
+        connectionId: CONNECTION_ID_2,
+        accountId: 'account-2',
+        locationId: `location-relinked-${property.id.slice(-2)}`,
+        profile: {
+          name: 'Confirmed Name',
+          address: '2 Main Street',
+          timezone: 'America/Chicago',
+          confirmedBy: 'user-2',
+          ...(googlePrimaryCategory === undefined ? {} : { googlePrimaryCategory }),
+        },
+        expectedSourceEpoch: 4,
+        expectedProfileVersion: 3,
+        now: NOW,
+      }) as const
+
+    it('is stored with the Property an import creates, beside the confirmed profile', async () => {
+      const store = createPropertyGoogleBindingStore(db)
+      const property = makeActiveProperty('8', 'location-8')
+      const withCategory = {
+        ...property,
+        googlePrimaryCategory: 'Boat rental service',
+        googlePrimaryCategoryUpdatedAt: NOW,
+      }
+
+      await store.createBoundProperty({
+        organizationId: ORG_ID,
+        idempotencyKey: '20000000-0000-4000-8000-000000000008',
+        property: withCategory,
+        now: NOW,
+      })
+
+      expect(await categoryRow(property.id)).toEqual({
+        category: 'Boat rental service',
+        updated_at: NOW,
+        source_epoch: 1,
+        profile_version: 1,
+      })
+    })
+
+    it('is empty for a Property created with none, never an invented one', async () => {
+      const store = createPropertyGoogleBindingStore(db)
+      const property = makeActiveProperty('9', 'location-9')
+
+      await store.createBoundProperty({
+        organizationId: ORG_ID,
+        idempotencyKey: '20000000-0000-4000-8000-000000000009',
+        property,
+        now: NOW,
+      })
+
+      expect(await categoryRow(property.id)).toMatchObject({
+        category: null,
+        updated_at: null,
+      })
+    })
+
+    it('is replaced by the one a relink read, which moves no version beyond the relink’s own', async () => {
+      const store = createPropertyGoogleBindingStore(db)
+      const property = disconnectedFor('10', {
+        googlePrimaryCategory: 'Hotel',
+        googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
+      })
+      await db.insert(properties).values(propertyToRow(property))
+
+      await store.relink(
+        relinkInput(
+          property,
+          '20000000-0000-4000-8000-000000000010',
+          '  Boat rental service ',
+        ),
+      )
+
+      expect(await categoryRow(property.id)).toEqual({
+        category: 'Boat rental service',
+        updated_at: NOW,
+        // The relink bumps these; the category adds nothing to them.
+        source_epoch: 5,
+        profile_version: 4,
+      })
+    })
+
+    it('is kept by a relink that read none, so a missing answer never erases a hint', async () => {
+      const store = createPropertyGoogleBindingStore(db)
+      const held = {
+        googlePrimaryCategory: 'Hotel',
+        googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
+      }
+      const cases: ReadonlyArray<readonly [string, string | null | undefined]> = [
+        ['11', null],
+        ['12', undefined],
+        ['13', '\u0000not text'],
+      ]
+
+      for (const [suffix, read] of cases) {
+        const property = disconnectedFor(suffix, held)
+        await db.insert(properties).values(propertyToRow(property))
+
+        await store.relink(
+          relinkInput(property, `20000000-0000-4000-8000-0000000000${suffix}`, read),
+        )
+
+        expect(await categoryRow(property.id), String(read)).toMatchObject({
+          category: 'Hotel',
+          updated_at: CONFIRMED_AT,
+        })
+      }
+    })
+
+    it('goes with the provider identity when it is scrubbed', async () => {
+      const store = createPropertyGoogleBindingStore(db)
+      const property = {
+        ...makeActiveProperty('14', 'location-14'),
+        googlePrimaryCategory: 'Hotel',
+        googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
+      }
+      await db.insert(properties).values(propertyToRow(property))
+      await store.disconnect({
+        organizationId: ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: 1,
+        expectedProfileVersion: 1,
+        now: NOW,
+      })
+      // A disconnected Property is still bound to its location and keeps the hint.
+      expect(await categoryRow(property.id)).toMatchObject({ category: 'Hotel' })
+
+      await store.scrubProviderIdentity({
+        organizationId: ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: 2,
+        expectedProfileVersion: 1,
+        now: NOW,
+      })
+
+      expect(await categoryRow(property.id)).toMatchObject({
+        category: null,
+        updated_at: null,
+      })
+    })
+  })
 })

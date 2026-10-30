@@ -38,6 +38,7 @@
  * carries `accepted_unexecuted` and says what is missing.
  */
 
+import { AI_REVIEW_ANALYSIS_V3_RULES } from './retention-registry-ai'
 import { GUEST_DEIDENTIFIED_FACT_RULES } from './retention-registry-guest-facts'
 import {
   defineRetentionRegistryRule as rule,
@@ -379,6 +380,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   ...GUEST_DEIDENTIFIED_FACT_RULES,
+  ...AI_REVIEW_ANALYSIS_V3_RULES,
   rule({
     id: 'metric.lifetime_aggregates',
     dataClass: 'guest_lifetime_aggregates',
@@ -676,9 +678,9 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       horizon: { kind: 'accepted_unexecuted', months: 24 },
       predicate: 'the owning authorization is withdrawn or the generation is retired',
       query:
-        'The accepted Privacy Notice keeps de-identified AI derivatives for 24 months. No rule deletes on age: the analysis and trend-outcome reads withhold a row once expires_at has passed, and the row stays stored. Erasure is driven by AccountAdmin-requested erasure and generation retirement.',
+        'The accepted Privacy Notice keeps de-identified AI derivatives for 24 months. No rule deletes a v2 analysis on age: the analysis and trend-outcome reads withhold a row once expires_at has passed, and the row stays stored. Erasure is driven by AccountAdmin-requested erasure and generation retirement. A v3 analysis is the exception, deleted at its expires_at by ai.review_analysis_v3_derivatives.',
       implementedBoundary:
-        'Live for retired generations only: the durable merchant authorization-change consumer deletes them in the same transaction that records its event-consumer receipt. Nothing deletes an expired analysis, the aspects and aggregate contributions that cascade from it, or the daily aggregates built from them, which have no age to measure.',
+        'Live for retired generations only: the durable merchant authorization-change consumer deletes them in the same transaction that records its event-consumer receipt. Nothing deletes an expired v2 analysis, the aspects and aggregate contributions that cascade from it, or the daily aggregates built from them, which have no age to measure. The v3 tables have their own rules (ai.review_analysis_v3_derivatives and the entries beside it).',
     },
     evidenceSubject: 'ai.enroll-review-analysis',
     restoreImplication:

@@ -15,12 +15,20 @@ export type BrowserGoogleReviewDestination = Readonly<
  * Browser-safe Property. Contains no provider or connection identifiers: the
  * Google account and location suffixes, the Organization connection reference
  * and the review URI are server-only (ADR 0050). The manager app reads the
- * binding and destination states, never the identifiers behind them.
+ * binding and destination states, never the identifiers behind them. The Google
+ * primary category is server-only too: it is a vocabulary hint for review
+ * analysis and never shown as a venue type (docs/BETA.md §3), so no browser is
+ * sent it to show.
  */
 export type BrowserProperty = Readonly<
   Omit<
     Property,
-    'gbpAccountId' | 'gbpLocationId' | 'googleConnectionId' | 'googleReviewDestination'
+    | 'gbpAccountId'
+    | 'gbpLocationId'
+    | 'googleConnectionId'
+    | 'googleReviewDestination'
+    | 'googlePrimaryCategory'
+    | 'googlePrimaryCategoryUpdatedAt'
   > & { googleReviewDestination?: BrowserGoogleReviewDestination }
 >
 
@@ -31,6 +39,8 @@ export function toBrowserProperty(property: Property): BrowserProperty {
     gbpLocationId: _location,
     googleConnectionId: _connection,
     googleReviewDestination: destination,
+    googlePrimaryCategory: _category,
+    googlePrimaryCategoryUpdatedAt: _categoryReadAt,
     ...browserSafe
   } = property
   if (!destination) return browserSafe

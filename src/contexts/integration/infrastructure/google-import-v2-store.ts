@@ -160,6 +160,24 @@ function frozenCount(vector: FrozenVector, key: string): number {
 
 type FrozenVector = Readonly<Record<string, string | number | boolean | null>>
 
+/**
+ * The ten columns that carry an item's frozen authorization and its source
+ * expectations. Three reads select exactly these, so they are stated once.
+ */
+const AUTHORIZATION_SNAPSHOT_COLUMNS = {
+  expectedConnectionLifecycleVersion:
+    gbpImportRequestItems.expectedConnectionLifecycleVersion,
+  expectedConnectionAccessVersion: gbpImportRequestItems.expectedConnectionAccessVersion,
+  expectedCredentialGeneration: gbpImportRequestItems.expectedCredentialGeneration,
+  expectedExecutionPolicyVersion: gbpImportRequestItems.expectedExecutionPolicyVersion,
+  expectedActorRole: gbpImportRequestItems.expectedActorRole,
+  expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
+  expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
+  expectedPermissionVersion: gbpImportRequestItems.expectedPermissionVersion,
+  expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
+  expectedProfileVersion: gbpImportRequestItems.expectedProfileVersion,
+} as const
+
 function authorizationColumns(item: GoogleImportV2Intent['items'][number]) {
   const vector: FrozenVector = item.authorization.authorizationVector
   return {
@@ -355,6 +373,7 @@ function terminalItemPatch(
     providerAccountSuffix: protectedState,
     providerLocationSuffix: protectedState,
     googleReviewUri: protectedState,
+    googlePrimaryCategory: protectedState,
     expectedExecutionPolicyVersion: protectedState,
     expectedActorRole: protectedState,
     expectedPermissionDigest: protectedState,
@@ -877,20 +896,7 @@ export const createGoogleImportV2Store = (
             parentFirstTerminalAt: gbpImportRequests.firstTerminalAt,
             connectionId: gbpImportRequestItems.connectionId,
             existingPropertyId: gbpImportRequestItems.existingPropertyId,
-            expectedConnectionLifecycleVersion:
-              gbpImportRequestItems.expectedConnectionLifecycleVersion,
-            expectedConnectionAccessVersion:
-              gbpImportRequestItems.expectedConnectionAccessVersion,
-            expectedCredentialGeneration:
-              gbpImportRequestItems.expectedCredentialGeneration,
-            expectedExecutionPolicyVersion:
-              gbpImportRequestItems.expectedExecutionPolicyVersion,
-            expectedActorRole: gbpImportRequestItems.expectedActorRole,
-            expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
-            expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
-            expectedPermissionVersion: gbpImportRequestItems.expectedPermissionVersion,
-            expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
-            expectedProfileVersion: gbpImportRequestItems.expectedProfileVersion,
+            ...AUTHORIZATION_SNAPSHOT_COLUMNS,
             providerAccountSuffix: gbpImportRequestItems.providerAccountSuffix,
             providerLocationSuffix: gbpImportRequestItems.providerLocationSuffix,
             googleReviewUri: gbpImportRequestItems.googleReviewUri,
@@ -1075,20 +1081,8 @@ export const createGoogleImportV2Store = (
             providerAccountSuffix: gbpImportRequestItems.providerAccountSuffix,
             providerLocationSuffix: gbpImportRequestItems.providerLocationSuffix,
             googleReviewUri: gbpImportRequestItems.googleReviewUri,
-            expectedConnectionLifecycleVersion:
-              gbpImportRequestItems.expectedConnectionLifecycleVersion,
-            expectedConnectionAccessVersion:
-              gbpImportRequestItems.expectedConnectionAccessVersion,
-            expectedCredentialGeneration:
-              gbpImportRequestItems.expectedCredentialGeneration,
-            expectedExecutionPolicyVersion:
-              gbpImportRequestItems.expectedExecutionPolicyVersion,
-            expectedActorRole: gbpImportRequestItems.expectedActorRole,
-            expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
-            expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
-            expectedPermissionVersion: gbpImportRequestItems.expectedPermissionVersion,
-            expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
-            expectedProfileVersion: gbpImportRequestItems.expectedProfileVersion,
+            googlePrimaryCategory: gbpImportRequestItems.googlePrimaryCategory,
+            ...AUTHORIZATION_SNAPSHOT_COLUMNS,
             action: gbpImportRequestItems.action,
             updateExistingProfile: gbpImportRequestItems.updateExistingProfile,
             propertyName: gbpImportRequestItems.propertyName,
@@ -1363,6 +1357,7 @@ export const createGoogleImportV2Store = (
             providerAccountSuffix: null,
             providerLocationSuffix: null,
             googleReviewUri: null,
+            googlePrimaryCategory: null,
             expectedExecutionPolicyVersion: null,
             expectedActorRole: null,
             expectedPermissionDigest: null,
@@ -1576,20 +1571,7 @@ export const createGoogleImportV2Store = (
           initiatedBy: gbpImportRequests.initiatedBy,
           connectionId: gbpImportRequestItems.connectionId,
           existingPropertyId: gbpImportRequestItems.existingPropertyId,
-          expectedConnectionLifecycleVersion:
-            gbpImportRequestItems.expectedConnectionLifecycleVersion,
-          expectedConnectionAccessVersion:
-            gbpImportRequestItems.expectedConnectionAccessVersion,
-          expectedCredentialGeneration:
-            gbpImportRequestItems.expectedCredentialGeneration,
-          expectedExecutionPolicyVersion:
-            gbpImportRequestItems.expectedExecutionPolicyVersion,
-          expectedActorRole: gbpImportRequestItems.expectedActorRole,
-          expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
-          expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
-          expectedPermissionVersion: gbpImportRequestItems.expectedPermissionVersion,
-          expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
-          expectedProfileVersion: gbpImportRequestItems.expectedProfileVersion,
+          ...AUTHORIZATION_SNAPSHOT_COLUMNS,
           providerAccountSuffix: gbpImportRequestItems.providerAccountSuffix,
           providerLocationSuffix: gbpImportRequestItems.providerLocationSuffix,
         })
@@ -1910,6 +1892,7 @@ export const createGoogleImportV2Store = (
           providerAccountSuffix: null,
           providerLocationSuffix: null,
           googleReviewUri: null,
+          googlePrimaryCategory: null,
           expectedConnectionLifecycleVersion: null,
           expectedConnectionAccessVersion: null,
           expectedCredentialGeneration: null,

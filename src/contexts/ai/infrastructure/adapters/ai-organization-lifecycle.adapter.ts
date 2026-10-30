@@ -188,7 +188,11 @@ const verifyPurgeReadiness = async (
 
 /**
  * Retained AI derivatives and the ledgers that could rebuild them, in
- * foreign-key-safe order (children before parents).
+ * foreign-key-safe order (children before parents). The Review Analysis v3 mention
+ * tables are not listed: they cascade from `ai_review_analyses` and from
+ * `ai_property_aggregate_contributions`. Contribution mentions must disappear
+ * before their referenced issue groups; members then precede groups. The daily
+ * star counts hang from `properties` only, so they are named here.
  *
  * The ordering is not cosmetic: derivative rows are deleted before the
  * operation records they reference. Erasure also removes enrollment and
@@ -200,8 +204,11 @@ const PURGE_DELETE_TABLES = Object.freeze([
   'ai_property_trend_outcomes',
   'ai_property_trend_schedules',
   'ai_property_aggregate_contributions',
+  'ai_property_issue_members',
+  'ai_property_issue_groups',
   'ai_property_aggregate_settlements',
   'ai_property_daily_aggregates',
+  'ai_property_review_population_daily',
   'ai_property_aggregate_heads',
   'ai_review_analyses',
   'ai_organization_cost_windows',

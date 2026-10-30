@@ -222,6 +222,378 @@ stop (`hotel.Staff`, `Dr.Smith`) as a domain, because nothing separates it from
 `example.Com`. Taking any of the rest is a change to the detectors' digest and a
 decision, not a patch.
 
+## Review analysis v3 contracts (dark)
+
+The shape of a v3 analysis lives in `src/shared` and nothing selects it: no operation
+profile, runtime catalogue row, merchant notice or deployment profile serves it
+(`review-analysis-v3.test.ts` fails if a profile or the catalogue does). It replaces the
+eighteen aspects, the -100 to 100 intensities and the issue label with twelve universal
+topics (`review-topic-taxonomy.ts`) and one mention per topic, thing and polarity: a strength
+(`mild | clear | strong`), an optional cause (`thing` and `issue`, lowercase, at most
+three words each), the one-based sentence numbers that state it (`review-sentences.ts`,
+the rule the live display will run on the original text) and a names flag. No quote,
+name or sentence text is stored.
+
+Every provider's answer passes one normalizer before it is stored
+(`review-analysis-v3-normalizer.ts`, `review-analysis-normalization-v1`). Only an answer
+that is not an object, has no `mentions` array or has no valid sentiment fails an answer
+already paid for; any other fault is repaired, or the mention is dropped and counted, and
+the result carries closed, content-free flags. A cause that holds a person, brand or
+place word (a capitalised word of the review, wherever it stands, the first word of a
+sentence and a heading included, that is neither a common word, nor one of the request's
+vocabulary hints, nor also written in lowercase in the review) or that repeats four or more
+contiguous words of the review is refused and its mention stays as a topic-level mention.
+Mentions that repeat a topic, thing and polarity merge; the merged mention keeps the lowest 16
+sentence numbers and reports `sentence_refs_capped`, so a merge can never fail a paid answer.
+The guard reads capitals, so a name the guest writes entirely in lowercase passes it; the
+request's prompt, which forbids names, brands and places in a cause, is the other line. Attention v2
+(`deriveReviewAttentionV2`) is derived from the stored answer and the star rating; Urgent
+exists only when the provider reports one of its four reasons. `aspect-taxonomy-v1` and
+every v2 schema stay as they are for history.
+
+Storage for it exists and stays empty until activation (migration 0078, `ai-review-analysis-v3.schema.ts`; the analysis flow below writes it behind the runtime selection):
+`ai_review_analysis_mentions` and `ai_review_analysis_mention_sentences` for the analysis,
+`ai_property_aggregate_contribution_mentions` for the same mentions under the contribution
+that retracts with them, `ai_property_review_population_daily` for the reviews of a local
+day by stars (star-only reviews included), `ai_review_analyses.urgent_reason`, and lineage
+columns on `ai_operations` (provider, model, request profile, vocabulary hint set,
+normalizer, and once settled the closed flags it raised). `ai_review_analyses_result_valid`
+tells the two shapes apart by `analysis_profile_version`: a v3 row has no primary category
+and no issue label, and carries an Urgent reason exactly when its attention is urgent. A
+CHECK passes on an unknown, so each v3 arm states IS NOT NULL beside a comparison. The
+execution-control scopes also admit `provider` (`provider:openai`, `provider:anthropic`), but
+nothing reads or seeds them yet (see "Left for the slices that need it" below).
+Every v3 derivative expires 24 months after it was generated: the sweep deletes the analysis
+on `expires_at` (`ai_review_analyses.v3_expired`, v3 rows only) and the three mention tables
+go with it by cascade; the daily star counts have a rule of their own, counted from the day
+they are for (`retention-registry-ai.ts`). Nothing in them is a quote, a sentence, a name or a
+provider response.
+
+Vocabulary hints steer the `thing` of a v3 mention (`review-vocabulary-hints.ts`,
+`review-vocabulary-hints-v1`). A set is chosen from the Property's Google primary
+category (`PropertyVocabularyContextPort`, read from `properties`) by an exact alias
+after NFKC, whitespace, trim and case-folding, with no substring guessing, and falls back
+to `generic-service`. `resolveReviewPropertyContext` returns the `propertyContext` the
+request will carry (the category as stored, the set id and version, the hints) and the
+`VocabularyHintIdentity` (id, version, digest) to record. The identity belongs in the
+request fingerprint and goes to `AiOperationStorePort.claim`, which stores it on
+`ai_operations.vocabulary_hint_set_*` and answers `conflict` when a claim under the same
+key names other hints. Hints are request context, not analysis semantics: they are in no
+operation-profile or runtime digest (`review-vocabulary-hints.test.ts` changes a hint and
+shows the logical-artifacts digest does not move), so adding a kind of business or editing
+a hint reaches the next request and re-analyses nothing. The catalogue is pinned by a
+manifest so an edit is a reviewed change; a hint change that needs a new topic, cause shape
+or normalizer rule is not a hint change.
+
+### Evidence request path (dark)
+
+A v3 request carries the review as numbered sentences (`review-analysis-v3-request.ts`,
+`ai-provider-control/review-evidence-request.ts`). Review cuts the RAW text with
+`review-sentences-v1` and canonicalizes each sentence (`readForAi` with `sentences: true`),
+so sentence `n` is the sentence the live display underlines for a stored pointer `n`; the
+request's `source.text` stays the whole canonical text, so the operation's source digest is
+the one v2 computes and the gateway checks that the sentences are that text, cut and
+numbered from one (`reviewSentencesMatchText`). Only a binding that names
+`review-analysis-v3` may carry sentences and a `propertyContext`, and the live catalogue
+holds no such entry, so the transport refuses a v3 request as cross-wired until activation;
+a v2 request that carries either is refused too. The property context must be what
+`resolveReviewPropertyContext` yields for its category.
+
+The preparer sends `{ rating, languageCode, propertyContext, sentences: [{ number, text }] }`
+and no `reviewText`. The sentences are redacted from one scan of the review joined by single
+spaces (`redactAiReviewSentences`), so a marker a line break cut in two is read as one and
+written into each sentence it touches, the limits (64 intervals, three fifths) are the
+review's as they are for the whole text, and no sentence loses its number. That redaction is
+then compared with `redactAiReviewText` of the whole canonical text, the fence that has
+always run (`reviewRedactionsAgree`): when they differ the review is `redaction_blocked`, so a
+sentence-wise redaction is never weaker than v2's. The contract's "redact each sentence
+independently" would leak a phone number or an email broken across lines; this does not.
+
+`acceptProviderResult` is the one point where a v3 answer becomes the stored contract
+(`normalizeReviewAnalysisV3` over the sentences the provider read). It answers
+`{ contract: 'review-analysis-v3', answer, normalization: { version, digest, flags,
+droppedMentionCount } }`, which the response schema accepts beside a v2 answer. Only a
+top level that is not usable is a billed `output_invalid`. `AiGatewayRoutePreparer` takes its
+profiles as a dependency (the live catalogue by default), which is how the dark path is
+exercised without a live entry. The in-process adapter gives a v3 request a bound of
+98,304 bytes (v2 keeps 65,536): 512 sentences of 30 characters, all needing a JSON escape,
+are the largest request the Review limits allow and fit under it.
+
+### Provider seam (dark)
+
+Providers sit behind one interface (`ai-provider-control/provider-contracts.ts`): an adapter
+shapes the exact request (`prepare`, no credential), makes the one call (`invoke`) and says
+what it charges (`pricing`) and what request profile it pins (`requestProfile`: model, kind,
+attestation digest). OpenAI is the first adapter (`openai-provider-adapter.ts`); its `prepare`
+is the request building the route preparer used to do inline and its `invoke` is the
+connector, both unchanged. `openai-v2-parity.test.ts` pins, as literals taken before the seam
+existed, every v2 profile digest, the deployment profile and, for each route, the descriptor,
+the request binding and the SHA-256 of the exact body sent to OpenAI; it passes unchanged at
+the commit before the seam and after it.
+
+Switching providers is an operator's act and nothing else (decision 7,
+`provider-selection.ts`). The operator names a provider per capability
+(`createAiEgressRuntime({ providerSelection })`; there is no environment variable until
+activation needs one). A profile attested for one provider is served by it and ignores the
+choice, so naming Anthropic moves no v2 operation. A profile attested for several is served by
+the provider named and by nothing else: when its adapter is missing or not ready the answer is
+a closed refusal (`policy_unavailable`, or `provider_unavailable` for a provider that is down),
+never the other provider, and a refusal, overload, quota stop, truncation or ambiguous dispatch
+from the chosen provider is the answer to the caller whichever provider it was. The provider
+the preparer selects is the only one the gateway hands the invocation to
+(`PreparedGatewayRouteExecution.providerId`; no adapter for it is refused before admission
+reserves anything). A v3 request names the provider it was claimed under
+(`provider: { id, model, requestProfileVersion, requestProfileDigest }`) and the preparer
+ends it with `provider_profile_changed` when the provider in force differs or was
+re-attested: an operation does not follow a switch, a new one is claimed, and the claim
+records the provider (`AiOperationStorePort.claim` `providerLineage` and `normalization`,
+columns of migration 0078; the same key under another lineage answers `conflict`). Moving the
+history to the other provider is a new review-analysis epoch, so one evidence window never
+mixes two models' judgements.
+
+An operation profile used to hash its prompt and schema beside OpenAI's request shape and
+the token count of OpenAI's wrapper. It is now two things. The logical profile
+(`ai-logical-operation-profile.ts`) is the operation in no provider's terms: prompt, answer
+schema, the artifacts it reads (taxonomy, sentence rules, normalizer, attention formula, source
+rules) and limits, with a `logicalDigest` that moves for those and for nothing a provider does.
+A provider's attestation (`ai-provider-attestations.ts`; OpenAI's, `ai-openai-provider-attestation.ts`,
+restates the deployment contract it already had) covers model, SDK, request shape, endpoint,
+name resolution, headers, usage and status mapping, price list, rate limit and posture, with its
+own digest. A pairing (`AiOperationProviderPairing`) is one provider's carrying of one logical
+profile: the wire schema it derives and the static tokens a reservation prices. The profiles in
+force are untouched; `ai-operation-profile-views.ts` reads each as logical profile plus OpenAI
+pairing and builds it back with every digest intact (`ai-operation-profile-views.test.ts`),
+and is how the dark v3 profile (`review-analysis-v3-profile.ts`, with its prompt from the
+annotation guide) becomes a catalogue entry at activation. `defineProviderDeploymentEnvelope`
+names every provider of a deployment by attestation digest (`private-beta-global-v2` is built
+from both at activation, when the Anthropic attestation exists); choosing one of them is not an
+input to it.
+
+Cost follows the provider. A reservation is `maximumCostMicrosWith(adapter pricing, profile,
+payload bytes)` from the tokens the provider's pairing reserves; a settlement is
+`settledCostMicrosWith` over the price list of the provider recorded on the operation
+(`AI_PROVIDER_PRICE_CATALOGUES`; none recorded means OpenAI). The gateway checks the signed
+receipt against the same list, a provider with no list or no pairing is refused, and nothing
+falls back to OpenAI's.
+
+### Anthropic adapter (dark)
+
+`ai-provider-control/anthropic/` is the second adapter behind the seam. Nothing selects it: no
+environment variable, no runtime registration, no catalogue entry, no key. It never calls the
+real API, in code or in a test: `messages-stub.test-fixtures.ts` and the `/v1/messages` route of
+the e2e provider stub (`e2e/fixtures/ai-provider-stub.ts`) are Messages-shaped fakes.
+
+- The request (`request-profile.ts`, `request-builder.ts`) is one Messages call: model
+  `claude-haiku-5-5` (an alias, the provider publishes no dated id for the 5.x line, so the
+  evaluation harness and activation re-pin it), `anthropic-version 2026-10-21`, the versioned
+  developer prompt as `system`, the redacted data block as the only user message, the
+  per-Property `rk1_` safety identifier as `metadata.user_id`, and `output_config.format` (JSON
+  schema) with `effort`. Reasoning effort maps none to thinking disabled at low effort, and low,
+  medium, high to adaptive thinking at the same effort. No temperature, top_p, stop sequences,
+  tools, streaming, `cache_control` or beta header.
+- Structured outputs on this provider reject some JSON Schema keywords and enforce none of the
+  bounds, and enum casing is not guaranteed. `schema-transform.ts` keeps the supported keywords,
+  folds `maxItems`, `minimum`, `maxLength`, `pattern` and the rest into the description, and
+  refuses a schema over 24 optional or 16 union parameters. The connector therefore returns the
+  parsed JSON object as the provider wrote it, billed, and `acceptProviderResult` (the v3
+  normalizer) stays the single acceptance point (contract 1.3).
+- The transport is the OpenAI connector's boundary made provider-neutral
+  (`connector-boundary.ts`, used by both connectors; the OpenAI path is behaviour-identical and
+  `openai-v2-parity.test.ts` still passes unchanged): the grant and nonce gate, an exact header
+  allowlist for the SDK's own request, byte equality with the attested RFC 8785 bytes, pinned
+  name resolution to `api.anthropic.com`, HTTP/1.1 with one request per dispatcher, no redirects,
+  bounded reads, no SDK retries. The SDK sends `Authorization: Bearer`; the boundary sends five
+  fixed headers outbound with `x-api-key`. `@anthropic-ai/sdk` is an exact pin (1.3.0, held from
+  grouped dependabot bumps) imported and constructed only in `anthropic/connector.ts`
+  (`provider-client-singleton.test.ts`), and `ANTHROPIC_API_KEY` is named nowhere in production
+  code.
+- A 200 is read by `response-interpreter.ts` and `usage.ts`. A refusal is a billed
+  `provider_refused`; `max_tokens` and `model_context_window_exceeded` are `output_truncated`;
+  any other stop reason, or content other than exactly one text block (thinking blocks aside),
+  is a billed `output_invalid`. Input tokens are input plus cache reads plus cache writes,
+  thinking tokens come from `output_tokens_details`, and the usage is read independently of
+  every other field, so a billed answer keeps it whatever else is new in the body.
+- The error taxonomy (`dispositions.ts`): 529 and 500, 502, 503, 504 are a retryable
+  `provider_unavailable` with zero usage; 429 is `rate_limited` with the delay it names. A spend
+  limit or an empty credit balance is `quota_exhausted`, never retried and not a circuit
+  failure: status 402, a 400 `invalid_request_error` whose message opens with the documented
+  usage-limit or credit-balance sentence, and a 429 carrying
+  `details.error_code: enforced_spend_limit_reached`. Every other status follows OpenAI's table.
+- `attestation.ts` seals the Anthropic provider attestation and `anthropicPairingOf` carries a
+  logical profile (`REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING`). The posture claims (30-day API
+  retention, flagged content for up to two years, no zero-data-retention unless agreed, no
+  training on customer content under commercial terms) and the 1,024 tokens a reservation adds
+  for the provider's own structured-output prompt are provisional: 3.10 confirms the claims with
+  counsel and WP0 replaces the allowance with a measurement. The Haiku 5.5 price list ($0.10 input,
+  $0.01 cached input, $0.50 output per million tokens) is registered in
+  `AI_PROVIDER_PRICE_CATALOGUES` as a non-enumerable property: a settlement recorded against
+  Anthropic is priced by it, while the live catalogue's enumerable surface is unchanged.
+
+Left for the slices that need it, not done here: the
+`AI_OPERATION_PROFILES` entry, the runtime catalogue row, the notice, the `private-beta-global-v2`
+envelope, an Anthropic key, the adapter's registration in the egress runtime and a real-provider
+synthetic canary (3.10); `openai-usage.ts` resolving the input ceiling of a profile that is not in
+the live catalogue.
+
+One item of that list must be done before the first Anthropic call, because until then an
+operator cannot kill, drain or cap one provider alone, only the whole envelope or the capability:
+the `provider` execution-control head. Migration 0078 admits the scopes `provider:openai` and
+`provider:anthropic`, but the control port knows the global, deployment-profile and capability
+heads only: `resolveAiExecutionStopFence` and the budget admission check read the
+deployment-profile head (`provider:<deployment profile version>`), the fence holds exactly three
+heads, and no head is seeded for a concrete provider. It needs the binding schema in
+`ai-internal-transport-contract.ts` (at its file-length ceiling, to be split first), the stop
+fence, the claim and the admission check wired to it, a seeded head per provider (migration 0081
+or later, since 0078 to 0080 are taken) and a test that kills provider A while B stays eligible.
+Nothing can run on Anthropic while v3 is dark, so nothing is exposed today.
+
+### Analysing, storing and aggregating v3 (dark)
+
+`analyze-review-event.ts` is one skeleton (authorize, read the source, claim, call the provider,
+store, settle). The v2 and v3 analysis differ at six points of it, and a
+`ReviewAnalysisContract` (`review-analysis-contract.ts`) names them: the profile facts the binding
+and the authorization gate compare, whether the source read also returns the numbered sentences,
+what is prepared before the claim, what the provider request carries beyond the review, whether a
+Property's authorization was recorded under the contract this one serves, and how the answer is
+accepted and stored. The use case knows none of it. The v2 contract
+(`review-analysis-contract-v2.ts`) is everything that used to run inline there, moved without
+change (profile facts, answer schema, the issue-label refusal, the attention formula, the call
+that stores the analysis), and is the default of the use case: a v2 claim and provider request
+are byte-for-byte what they were. `review-analysis-runtime.ts` builds v3 only when the live
+runtime catalogue names `review-analysis-v3` for `review_analysis`; the catalogue holds v2 alone
+and its parser refuses anything else, so no build runs v3 until activation widens it.
+
+What the v3 contract (`review-analysis-contract-v3.ts`) does that v2 does not:
+
+- Before the claim it reads the Property's Google primary category through
+  `PropertyVocabularyContextPort`, resolves the vocabulary hints, and asks `AiProviderChoicePort`
+  which provider the operator has chosen. A category the hint resolver refuses, a review whose
+  sentences the source cannot give, or no provider are refusals the review waits out within its
+  horizon (`property_context_invalid`, `sentences_unavailable`, `provider_unavailable`,
+  `provider_selection_required`), never a verdict on the review. The port is declared and not
+  wired: `build.ts` hands the use case `unavailableProviderChoice`, so even a catalogue that
+  selected v3 would wait for the activation slice to name an operator choice.
+- The claim records the lineage the database requires of a v3 operation: the hint set, the
+  provider, model and request profile, and the normalizer. The request carries the numbered
+  sentences, the hints (never the Property's name) and the provider it was claimed under, so the
+  gateway can end it with `provider_profile_changed` after a switch.
+- The answer is the gateway's normalized one, checked by `reviewAnalysisV3GatewayResultSchema`
+  and never the provider's own. Attention is derived with the v2 formula
+  (`deriveReviewAttentionV2`) from the stored answer and the star rating, then the analysis is
+  stored through `AiOutputStorePort.storeAnalysisV3`. An answer that fails the schema is a
+  charged `output_invalid`, exactly as a v2 answer that fails its schema is.
+
+`storeAnalysisV3` writes, in the transaction the v2 write uses and under the same guards (the
+source epoch and revision, the authorization lineage, the review analysis epoch, the operation's
+attempt), one `ai_review_analyses` row (`ready`, no primary category, its Urgent reason when its
+attention is urgent), the mention rows and the sentence numbers each cites
+(`ai-review-analysis-mentions.ts`), and completes the operation with the closed normalization
+flags and the count of mentions dropped. `analysis_profile_version` and the shape of the row
+must agree (`analysisProfilePairValid`): a v2 profile with mentions or a v3 profile with a
+primary category is refused before it reaches the database check. The same transaction files the
+Property's aggregate contribution: a v3 contribution is a `ready` contribution with no primary
+category, described by a copy of the mentions
+(`ai_property_aggregate_contribution_mentions`) that retracts with it. The daily v2 cube is not
+touched by a v3 analysis (statistics read the latest effective contributions and their mentions
+directly), and the legacy window excludes v3 contributions, so a Property that moved between
+contracts never mixes the two in one number.
+
+Immediately after that copy, under the aggregate transaction's first-statement Property advisory
+lock, every mention is assigned to a stable Property issue group (migration 0079). Assignment
+uses a stored member, then an existing canonical group, then creates a group; the statements are
+set-based for the analysis. Its deadline only moves forward to the latest analysis expiry ever
+assigned to it.
+
+A current-analysis read answers `{ status: 'ready_v3', topics, urgent reason, ... }` for a v3
+row: topics, polarity, strength, the optional cause and the names flag, never a quote or a
+sentence. Nothing above the AI context consumes it yet: `composition.ts` maps it to `none` for the
+Inbox until the Inbox learns to read it.
+
+Left for the slices that need it, not done here: the `ai_property_review_population_daily`
+projection (it follows a review's observation, update and deletion whether or not the review is
+analysed, so this flow does not write it, and it needs a backfill of at least the earlier 12
+months of reviews before any percentage or "worth up to" figure reads it; PR-4, slice 4.1) and
+the statistics that read the mentions (the Guest voice read model, PR-4); wiring `AiProviderChoicePort` to the operator's provider choice, the
+runtime catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the
+deployment profile string) that activation flips (3.10); the Inbox reading `ready_v3`; including
+v3 derivatives in an organization export. Property issue grouping itself is complete below;
+publishing its manager commands and reads remains PR-4 work.
+
+### Property issue groups (dark)
+
+`ai_property_issue_groups` is one stable random UUID for a normalized `thing` under one Property
+and topic. `ai_property_issue_members` remembers observed normalized spellings. Resolution is
+deterministic and Property-local: stored member, canonical key, then insert. A topic-level mention
+uses `__topic__`. The governed `property-issue-normalization-v1` catalogue applies only explicit
+last-word singular forms and exact topic-scoped synonyms. A reviewed edit moves its digest but
+does not regroup history because stored members win. No model clusters, proposes or learns a
+group across Properties.
+
+An ID survives re-analysis, epochs and new spellings. Merge preserves the target and leaves the
+source as a redirect; redirects into the source are flattened to the target in the same
+transaction, so resolution is one hop. Cross-topic merge is refused by the application and by
+composite database foreign keys: a read-model issue has exactly one topic, and the contract
+permits only same-topic merge proposals. Assignment, rename, hide, show, merge and resolve carry
+Organization and Property predicates. Mutations take the aggregate writer's Property advisory
+lock before locking changed groups `FOR UPDATE`; `resolve` is a read that takes no lock, so
+showing an issue never waits for an analysis to be stored.
+
+`expires_at` is the greatest expiry of any analysis assigned to the group and never moves back.
+Rename, hide and merge do not extend it; merge only raises the target to the greater of target and
+source. The sweep runs `ai_review_analyses.v3_expired` first, then deletes an expired group only
+when no contribution mention references it; members and redirects cascade. Organization
+lifecycle removes contribution mentions before members and groups. A contribution mention's
+foreign key to its group is deferred to commit, because erasing a Property deletes groups and
+mentions along different cascade paths and an immediate check refused the erasure.
+
+The manager command factory is deliberately unwired. PR-4 must publish it behind its chosen
+permission, add the Guest voice read model and drawer, record the manager audit event, and map an
+Inbox mention to its surviving issue. `display_name` is manager text: it is a protected local fact
+and may reach none of provider input, logs or events.
+
+### Evaluation harness (dark)
+
+`pnpm eval:review-analysis-v3` (`scripts/evaluation/`) measures a provider against the synthetic
+test set in `test-fixtures/review-analysis-v3/` (400 invented reviews, 395 with a settled gold
+label; the owner still settles `cl-0021`, `cl-0054`, `cl-0163`, `cl-0174` and `cl-0188`, which no
+score includes). It asks the production question: each review goes through the Review context's
+source canonicalizer and sentence splitter, the deterministic redactor, the production prompt, answer
+schema and request payload (the Property's vocabulary hints chosen from the review's business), and
+the one place a provider answer becomes the stored contract (`acceptReviewAnalysisV3Answer`).
+Only the transport differs. An answer the production path would not accept, a refusal, a
+truncation, a failed call and a review the redactor refuses are scored as an empty answer: for
+Urgent that is a review whose danger nobody saw.
+
+The reference is the gold as the production normalizer accepts it, so a label the stored contract
+cannot hold (an `issue` such as "30 minutes") does not count against a provider; the report names
+the labels that changed (`cl-0090`, `cl-0147`, `cl-0179`). It also names the reviews the redactor
+changed (`cl-0041`, `cl-0138`, `cl-0184`: it reads "oil.For" and "working.Not", a missing space
+after a full stop, as web addresses) and any review the live path would not send. Causes are
+compared through `property-issue-normalization-v1`, so "ac" agrees with "air conditioning".
+
+The gates are decision 6 of the contract decisions (`docs/plan/guest-voice-2.md`), read for the
+whole set and for English, Bulgarian and Spanish: Urgent with zero safety or health misses, at
+least 95% recall and at most 2% of non-urgent reviews flagged; topic micro F1 at least 0.85 and no
+topic with gold support below 0.70; thing agreement at least 0.70. A gate over nothing is "not
+measurable", never a pass. The set holds no urgent case outside English, so Bulgarian and Spanish
+Urgent recall cannot be read until it does; a provider passes only if no measured gate fails and
+every gate over the whole set could be read. Sentiment, polarity, strength, evidence sentences,
+the names flag (with the count of named people the answer missed), robustness, run-to-run
+disagreement and the context slices (other languages, business family, length, sarcasm, rating
+conflicts, near misses) are reported, not gated.
+
+The providers the command can name are `fake-gold` (answers with the gold: the ceiling and a
+smoke test), `answers:<file>` (scores answers recorded by any governed tool) and `openai` and
+`anthropic`, which are declared and refuse to run. The tests and the package script reach no
+provider: nothing in `scripts/evaluation` imports an HTTP client or an SDK or reads a key, and a
+test pins that. Reports (`report.json`, `report.html`, one labels file per provider and run) go to
+`test-results/review-analysis-v3/`; they hold counts, rates, topic ids and review ids, never a
+review's text or a provider's raw answer.
+
+Left for the slices that need it: the evaluation transport for the real providers with their own
+evaluation keys and the dated model snapshots (decision 4), the live slice's evaluation table
+(ADR 0031, amended 2026-10-30) and urgent cases in Bulgarian and Spanish (3.10, the owner).
+
 ## Runtime
 
 Identity's merchant-AI fact drives one durable lifecycle command, which opens a
@@ -348,7 +720,7 @@ for an event that is gone.
 2. Every operation is fenced by Organization, Property, source epoch, source revision, authorization epoch, capability epoch, policy/profile versions, model/deployment, idempotency key, and lifecycle generation.
 3. Authorization is a maximum allowed capability set. A PropertyManager may operate only within the AccountAdmin-authorized set and current Property access; operating a feature never expands authorization.
 4. Disable fences new and in-flight work immediately and hides outputs. Erasure purges local derivatives within the policy window while retaining only content-free evidence. Re-enable reuses an output only when every lineage, policy, model, authorization, and freshness fence still matches. An adopted Reply draft is Review-owned, so the control, Authorization and profile transitions withdraw the unedited ones in their own transaction through the AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`; the rule is in the Review context's Model): a Reply nobody confirmed is deleted, and a confirmed one that has not been dispatched is cancelled and emptied while its publication authorization stays as evidence. A Reply whose publication already failed keeps its text, and Review's publish worker withdraws it the same way when a manager tries it again: its read of Google before the claim (an observation of the Review) withdraws it once the ten-minute adoption window has passed, and the claim refuses it when an input changed, claimed before or not.
-5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions.
+5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions. It starts no notification either, with one exception that is allowed and not built yet: an Urgent finding of review analysis v3 may raise one content-free alert per review revision, and that alert changes nothing about the review (ADR 0031, amended 2026-10-30).
 6. Reply Drafting is never cached as a generic suggestion detached from the Review revision or Brand Profile version. A manager must explicitly request it, may edit it, and must separately adopt, then Confirm & Publish through the Reply workflow.
 7. Review Analysis enrollment is exhaustive for the authorized eligible source population; internal batching controls work size but never becomes a product cap or silently drops older Reviews.
 8. Missing, stale, or unreadable data returns `preparing`/unavailable evidence rather than zero. Coverage-incomplete Property insight aggregates may expose exact applied results only with an explicit provisional marker and coverage counts; period comparisons remain absent until both windows are complete.

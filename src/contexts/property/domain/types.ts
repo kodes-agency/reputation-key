@@ -25,6 +25,15 @@ export type Property = Readonly<{
     'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
   /** Optional only during the expand/cutover window; constructors always set it. */
   googleReviewDestination?: PropertyGoogleReviewDestination
+  /**
+   * Google's display name for the location's primary category ("Hotel"). It picks
+   * the vocabulary a review analysis is steered with and is never shown or filtered
+   * by as a venue type (docs/BETA.md §3); changing it moves no version or epoch.
+   * Optional only so fixtures written before the column still compile.
+   */
+  googlePrimaryCategory?: string | null
+  /** When Google last gave that category; null while none has. */
+  googlePrimaryCategoryUpdatedAt?: Date | null
   profileSource: 'legacy' | 'tenant_confirmed'
   profileConfirmedAt: Date | null
   profileConfirmedBy: string | null

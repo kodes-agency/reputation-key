@@ -11,6 +11,9 @@ import {
 import type { AiInferencePort } from './application/ports/ai-inference.port'
 import type { AiAdmissionPort } from './application/ports/ai-admission.port'
 import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port'
+import type { AiProviderChoicePort } from './application/ports/ai-provider-choice.port'
+import { createReviewAnalysisContractV3 } from './application/review-analysis-contract-v3'
+import { selectedReviewAnalysisContractVersion } from './application/review-analysis-runtime'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
 import { createAiOperationExecutionReaper } from './application/ai-operation-execution-reaper'
 import { createAdvanceReviewAnalysisEnrollments } from './application/use-cases/advance-review-analysis-enrollments'
@@ -34,6 +37,7 @@ import { createAiAuthorizationAdapter } from './infrastructure/adapters/ai-autho
 import { createAiControlAdapter } from './infrastructure/adapters/ai-control.adapter'
 import { createAiOperationStoreAdapter } from './infrastructure/adapters/ai-operation-store.adapter'
 import { createAiOutputStoreAdapter } from './infrastructure/adapters/ai-output-store.adapter'
+import { createPropertyVocabularyContextAdapter } from './infrastructure/adapters/property-vocabulary-context.adapter'
 import { createAiPropertyCalendarAdapter } from './infrastructure/adapters/ai-property-calendar.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './infrastructure/adapters/ai-property-aggregate-store.adapter'
 import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai-property-trend-schedule-store.adapter'
@@ -96,6 +100,13 @@ const unavailableSubjectHmac: AiSubjectHmacPort = Object.freeze({
   },
 })
 
+const unavailableProviderChoice: AiProviderChoicePort = Object.freeze({
+  chooseForReviewAnalysis: async () => ({
+    status: 'unavailable' as const,
+    code: 'provider_selection_required' as const,
+  }),
+})
+
 export type AiContextBuildInput = Readonly<{
   db: Database
   outboxRepo: OutboxRepository
@@ -108,6 +119,12 @@ export type AiContextBuildInput = Readonly<{
   inference?: AiInferencePort
   admission?: AiAdmissionPort
   subjectHmac?: AiSubjectHmacPort
+  /**
+   * Which provider a v3 review analysis is claimed under. Read only when the
+   * runtime catalogue selects v3, which no build does yet; without it a v3
+   * analysis waits for an operator's choice.
+   */
+  providerChoice?: AiProviderChoicePort
   resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
   enqueuePropertyTrend?: RegisterAiConsumersInput['enqueuePropertyTrend']
   /** Hands one waiting review to the worker's on-demand analysis job. */
@@ -149,7 +166,18 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     (input.redis
       ? createRedisAiLaneAdmissionAdapter(input.redis, input.idGen)
       : unavailableAdmission)
+  // v2 is the default contract of the use case. v3 is built only when the live
+  // runtime catalogue selects it (`review-analysis-runtime.ts`).
+  const reviewAnalysisContract =
+    selectedReviewAnalysisContractVersion() === 'v3'
+      ? createReviewAnalysisContractV3({
+          outputs,
+          vocabularyContext: createPropertyVocabularyContextAdapter(input.db),
+          providerChoice: input.providerChoice ?? unavailableProviderChoice,
+        })
+      : undefined
   const analyzeReviewEvent = createAnalyzeReviewEvent({
+    ...(reviewAnalysisContract === undefined ? {} : { contract: reviewAnalysisContract }),
     authorization,
     control,
     inference,
@@ -230,6 +258,12 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     outputs,
     processingProfiles,
     nowEpochMillis,
+    ...(reviewAnalysisContract === undefined
+      ? {}
+      : {
+          reviewAnalysisProfileVersion:
+            reviewAnalysisContract.operationProfile.profileVersion,
+        }),
   }
   let replyLanguageDetector:
     Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>> | undefined

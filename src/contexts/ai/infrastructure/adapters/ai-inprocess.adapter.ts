@@ -34,6 +34,7 @@ import {
   AI_TREND_ROUTE_MAX_BYTES,
 } from '#/shared/ai-internal-transport-contract'
 import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
+import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
 import { createSensitiveSourceLease } from '#/shared/ai-provider-control/source-lease'
 import type { AiEgressGatewayService } from '#/shared/ai-provider-control/service'
 import type { AiInferencePort } from '../../application/ports/ai-inference.port'
@@ -49,6 +50,14 @@ const REQUEST_MAX_BYTES = Object.freeze({
   'reply-suggestion': AI_REVIEW_ROUTE_MAX_BYTES,
   'property-trend': AI_TREND_ROUTE_MAX_BYTES,
 } satisfies Readonly<Record<AiGatewayRouteRequestV1['route'], number>>)
+
+// A review-analysis v3 request carries its sentences beside its text, so it has
+// a bound of its own; a v2 request keeps the route's.
+export function aiGatewayRequestMaxBytes(request: AiGatewayRouteRequestV1): number {
+  return request.route === 'review-analysis' && request.source.sentences !== undefined
+    ? AI_REVIEW_V3_ROUTE_MAX_BYTES
+    : REQUEST_MAX_BYTES[request.route]
+}
 
 export type CreateAiInProcessInferenceInput = Readonly<{
   /** Resolved lazily: the gateway loads a language model on first construction. */
@@ -110,7 +119,7 @@ export const createAiInProcessInference = (
     // against its route bound; the gateway reads the object, not these bytes.
     const encoded = new TextEncoder().encode(JSON.stringify(request))
     try {
-      if (encoded.byteLength > REQUEST_MAX_BYTES[request.route]) {
+      if (encoded.byteLength > aiGatewayRequestMaxBytes(request)) {
         throw new TypeError('AI gateway request exceeded its route bound')
       }
     } finally {

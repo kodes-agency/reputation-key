@@ -16,6 +16,8 @@ export type GoogleImportV2ItemIntent = Readonly<{
   providerAccountSuffix: string
   providerLocationSuffix: string
   googleReviewUri?: string | null
+  /** The category discovery read for the location, in stored form (`normalizeGooglePrimaryCategory`). */
+  googlePrimaryCategory?: string | null
   expectedConnectionLifecycleVersion: number
   expectedConnectionAccessVersion: number
   expectedCredentialGeneration: number
@@ -50,6 +52,7 @@ export type GoogleImportV2ClaimedItem = Readonly<{
   providerAccountSuffix: string
   providerLocationSuffix: string
   googleReviewUri: string | null
+  googlePrimaryCategory: string | null
   expectedConnectionLifecycleVersion: number
   expectedConnectionAccessVersion: number
   expectedCredentialGeneration: number

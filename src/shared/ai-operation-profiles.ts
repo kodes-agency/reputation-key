@@ -17,7 +17,7 @@ import {
   AI_PROPERTY_TREND_CONTRACT_DIGEST,
   AI_TREND_RENDER_PROFILE_DIGEST,
 } from '#/shared/ai-property-trend-contract'
-import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/openai-route-output-schemas'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
 import {
   AI_PROVIDER_DEPLOYMENT_PROFILE_V1,
   OPENAI_REQUEST_SHAPE_V1_DIGEST,
@@ -64,7 +64,7 @@ const replySchema = AI_ROUTE_OUTPUT_JSON_SCHEMAS['reply-suggestion']
 const trendSchema = AI_ROUTE_OUTPUT_JSON_SCHEMAS['property-trend']
 const syntheticCanarySchema = AI_ROUTE_OUTPUT_JSON_SCHEMAS['synthetic-canary']
 
-const PROPERTY_CALENDAR_ATTESTATION = Object.freeze({
+export const PROPERTY_CALENDAR_ATTESTATION = Object.freeze({
   profileVersion: 'property-calendar-v1',
   epochMillisFunction: 'ai_epoch_millis_v1',
   localCalendarFunction: 'ai_property_local_date_v1',
@@ -73,13 +73,13 @@ const PROPERTY_CALENDAR_ATTESTATION = Object.freeze({
   testedPostgresMajorVersions: Object.freeze([16]),
 })
 
-const SDK_ATTESTATION = Object.freeze({
+export const SDK_ATTESTATION = Object.freeze({
   requestShapeVersion: 'openai-responses-request-shape-v1',
   requestShapeDigest: OPENAI_REQUEST_SHAPE_V1_DIGEST,
   providerTransportProfile: 'openai-provider-transport-v1',
 })
 
-const REVIEW_SOURCE_ATTESTATION = Object.freeze({
+export const REVIEW_SOURCE_ATTESTATION = Object.freeze({
   ...AI_SOURCE_CANONICALIZER_PROFILE_V1,
   redactionProfileVersion: 'gbp-review-global-v1',
   redactionProfileDigest: AI_REDACTION_PROFILE_DIGEST,
@@ -118,6 +118,9 @@ export type AiOperationArtifactAttestations = Readonly<Record<string, unknown>>
 export type AiOperationProfile = Readonly<{
   profileVersion:
     | 'review-analysis-v2'
+    // Dark: no entry of `AI_OPERATION_PROFILES` has it. It is the name a catalogue
+    // entry derived from the v3 logical profile will carry (`ai-operation-profile-views.ts`).
+    | 'review-analysis-v3'
     | 'reply-suggestion-v1'
     | 'property-trend-v1'
     | 'synthetic-canary-v1'
@@ -133,7 +136,7 @@ export type AiOperationProfile = Readonly<{
     | 'internal:synthetic-canary'
   callerRole: 'web' | 'worker' | 'release_canary'
   capabilityRuntimeProfileVersion: string | null
-  providerDeploymentProfileVersion: 'private-beta-global-v1'
+  providerDeploymentProfileVersion: 'private-beta-global-v1' | 'private-beta-global-v2'
   outputSchemaName: string
   outputSchema: Readonly<Record<string, unknown>>
   outputSchemaDigest: string
@@ -156,7 +159,7 @@ export type AiOperationProfile = Readonly<{
   profileDigest: string
 }>
 
-type OperationProfileSource = Omit<
+export type OperationProfileSource = Omit<
   AiOperationProfile,
   | 'outputSchemaDigest'
   | 'promptDigest'
@@ -167,7 +170,9 @@ type OperationProfileSource = Omit<
   | 'profileDigest'
 >
 
-function defineOperationProfile(source: OperationProfileSource): AiOperationProfile {
+export function defineOperationProfile(
+  source: OperationProfileSource,
+): AiOperationProfile {
   const outputSchema = JSON.parse(canonicalizeRfc8785(source.outputSchema)) as Readonly<
     Record<string, unknown>
   >

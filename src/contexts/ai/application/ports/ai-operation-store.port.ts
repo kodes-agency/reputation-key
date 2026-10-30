@@ -1,4 +1,6 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import type { AiProviderId } from '#/shared/ai-provider-ids'
+import type { VocabularyHintIdentity } from '#/shared/review-vocabulary-hints'
 import type { AiError } from '../../domain/errors'
 import type {
   AiOperationBinding,
@@ -14,6 +16,26 @@ export type AiOperationState =
   | 'failed'
   | 'cancelled'
 
+/**
+ * The provider an operation was claimed under and the request profile it was
+ * shaped by (contract sections 3.1 and 7.1). A v3 operation records it before any
+ * call, from the same adapter and attestation the gateway will use; an operation
+ * claimed under one provider is never executed under another, so switching the
+ * operator's choice reaches only operations claimed afterwards.
+ */
+export type AiOperationProviderLineage = Readonly<{
+  providerId: AiProviderId
+  model: string
+  requestProfileVersion: string
+  requestProfileDigest: string
+}>
+
+/** The normalizer an operation's answer is accepted through: version and rule digest. */
+export type AiOperationNormalizationLineage = Readonly<{
+  version: string
+  digest: string
+}>
+
 export type AiOperationRecord = Readonly<{
   id: AiOperationId
   identity: AiOperationIdentity
@@ -21,6 +43,16 @@ export type AiOperationRecord = Readonly<{
   idempotencyKey: string
   requestFingerprint: string
   sourceProvenance: Readonly<{ digest: string; byteCount: number }> | null
+  /**
+   * The vocabulary hint set the request carried (Review Analysis v3): its id,
+   * version and digest. Null on every operation without hints. Hints are request
+   * context, so this is a record of what was sent, not a fence a profile change
+   * moves.
+   */
+  vocabularyHints?: VocabularyHintIdentity | null
+  /** Null on every operation claimed before review-analysis v3: those ran on OpenAI. */
+  providerLineage?: AiOperationProviderLineage | null
+  normalization?: AiOperationNormalizationLineage | null
   state: AiOperationState
   executionAttempt: number
   executionPermitId: string | null
@@ -132,6 +164,20 @@ export type AiOperationStorePort = Readonly<{
       idempotencyKey: string
       requestFingerprint: string
       sourceProvenance: Readonly<{ digest: string; byteCount: number }> | null
+      /**
+       * The hints the request carries. A claim under the same key whose stored
+       * hints differ is a conflict, even when the caller left them out of the
+       * fingerprint: one operation cannot have sent two sets of hints.
+       */
+      vocabularyHints?: VocabularyHintIdentity | null
+      /**
+       * The provider and request profile the request will be sent under, and the
+       * normalizer its answer will pass through. A claim under the same key whose
+       * stored lineage differs is a conflict, as with the hints: an operation
+       * claimed under one provider is not adopted by a claim under another.
+       */
+      providerLineage?: AiOperationProviderLineage | null
+      normalization?: AiOperationNormalizationLineage | null
       nowEpochMillis: number
       expiresAtEpochMillis: number
     }>,

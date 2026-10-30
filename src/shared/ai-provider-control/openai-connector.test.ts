@@ -9,7 +9,7 @@ import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA,
-} from '#/shared/openai-route-output-schemas'
+} from '#/shared/ai-route-output-schemas'
 import {
   signAiExecutionGrant,
   type AiAdmissionDescriptorV1,

@@ -79,6 +79,44 @@ describe('buildProperty', () => {
     }
   })
 
+  describe('the Google primary category', () => {
+    const build = (googlePrimaryCategory?: string | null) =>
+      buildProperty({
+        id: FIXED_ID,
+        organizationId: FIXED_ORG,
+        name: 'Grand Hotel',
+        timezone: 'America/New_York',
+        googlePrimaryCategory,
+        now: FIXED_TIME,
+      })
+
+    it('is stored in its normalized form, stamped with the instant it was given', () => {
+      const result = build('  Boat   rental service ')
+
+      expect(result.isOk() && result.value.googlePrimaryCategory).toBe(
+        'Boat rental service',
+      )
+      expect(result.isOk() && result.value.googlePrimaryCategoryUpdatedAt).toBe(
+        FIXED_TIME,
+      )
+    })
+
+    it('is empty, with no instant, when none was given or what was given is not text', () => {
+      for (const given of [undefined, null, '', '   ', 'Hotel\u0000']) {
+        const result = build(given)
+
+        expect(
+          result.isOk() && result.value.googlePrimaryCategory,
+          String(given),
+        ).toBeNull()
+        expect(
+          result.isOk() && result.value.googlePrimaryCategoryUpdatedAt,
+          String(given),
+        ).toBeNull()
+      }
+    })
+  })
+
   it('rejects invalid name', () => {
     const result = buildProperty({
       id: FIXED_ID,

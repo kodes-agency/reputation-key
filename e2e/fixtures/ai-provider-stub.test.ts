@@ -4,12 +4,15 @@ import { parsePersonalizedReplyDraft } from '../../src/shared/ai-personalized-re
 import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
-} from '../../src/shared/openai-route-output-schemas'
+} from '../../src/shared/ai-route-output-schemas'
 
 let handle: AiProviderStubHandle | undefined
+const originalUnscriptedMode = process.env.AI_PROVIDER_STUB_UNSCRIPTED
 afterEach(async () => {
   await handle?.stop()
   handle = undefined
+  if (originalUnscriptedMode === undefined) delete process.env.AI_PROVIDER_STUB_UNSCRIPTED
+  else process.env.AI_PROVIDER_STUB_UNSCRIPTED = originalUnscriptedMode
 })
 
 async function arm(value: unknown): Promise<Response> {
@@ -26,6 +29,42 @@ function providerRequest(name: string): Readonly<Record<string, unknown>> {
     text: { format: { type: 'json_schema', name } },
   }
 }
+
+function anthropicRequest(rating = 5): Readonly<Record<string, unknown>> {
+  return {
+    model: 'claude-haiku-5-5',
+    max_tokens: 8192,
+    system: 'Synthetic developer prompt.',
+    messages: [
+      {
+        role: 'user',
+        content: JSON.stringify({ reviewText: 'Invented review.', rating }),
+      },
+    ],
+    metadata: { user_id: `rk1_${'a'.repeat(43)}` },
+    thinking: { type: 'adaptive' },
+    output_config: {
+      effort: 'medium',
+      format: {
+        type: 'json_schema',
+        schema: {
+          type: 'object',
+          properties: { sentiment: {}, mentions: {}, urgent: {} },
+          required: ['sentiment', 'mentions', 'urgent'],
+          additionalProperties: false,
+        },
+      },
+    },
+  }
+}
+
+const anthropicHeaders = Object.freeze({
+  accept: 'application/json',
+  'anthropic-version': '2026-10-21',
+  'content-type': 'application/json',
+  'user-agent': 'repkey-ai-egress-gateway/1.0',
+  'x-api-key': 'synthetic-local-key',
+})
 
 describe('AI Responses provider stub', () => {
   it('serves one ordered scripted response without recording provider input', async () => {
@@ -167,6 +206,88 @@ describe('AI Responses provider stub', () => {
         reviewText: '',
       })
       expect(result.status).toBe(503)
+    })
+  })
+})
+
+describe('Anthropic Messages provider stub', () => {
+  it('serves a scripted Messages response and preserves the shared call log', async () => {
+    handle = await startAiProviderStub(0)
+    expect(
+      (
+        await arm({
+          operationKind: 'analysis',
+          parsed: { sentiment: 'mixed', mentions: [], urgent: null },
+        })
+      ).status,
+    ).toBe(201)
+
+    const response = await fetch(`${handle.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: anthropicHeaders,
+      body: JSON.stringify(anthropicRequest()),
+    })
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      stop_reason: string
+      content: readonly Readonly<{ text: string }>[]
+    }
+    expect(body.stop_reason).toBe('end_turn')
+    expect(JSON.parse(body.content[0]?.text ?? '')).toEqual({
+      sentiment: 'mixed',
+      mentions: [],
+      urgent: null,
+    })
+    expect(
+      await fetch(`${handle.baseUrl}/__control/calls`).then(async (value) =>
+        value.json(),
+      ),
+    ).toEqual([
+      { ordinal: 1, operationKind: 'analysis', outcome: 'response', status: 200 },
+    ])
+  })
+
+  it('synthesizes the v3 analysis shape from the request rating', async () => {
+    process.env.AI_PROVIDER_STUB_UNSCRIPTED = 'respond'
+    handle = await startAiProviderStub(0)
+    const response = await fetch(`${handle.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: anthropicHeaders,
+      body: JSON.stringify(anthropicRequest(2)),
+    })
+    const body = (await response.json()) as {
+      content?: readonly Readonly<{ text: string }>[]
+    }
+    expect(response.status).toBe(200)
+    expect(JSON.parse(body.content?.[0]?.text ?? 'null')).toEqual({
+      sentiment: 'negative',
+      mentions: [],
+      urgent: null,
+    })
+  })
+
+  it('returns an Anthropic error body with the scripted retry delay', async () => {
+    handle = await startAiProviderStub(0)
+    expect(
+      (
+        await arm({
+          operationKind: 'analysis',
+          status: 529,
+          retryAfterSeconds: 4,
+        })
+      ).status,
+    ).toBe(201)
+    const response = await fetch(`${handle.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: anthropicHeaders,
+      body: JSON.stringify(anthropicRequest()),
+    })
+    expect(response.status).toBe(529)
+    expect(response.headers.get('retry-after')).toBe('4')
+    expect(await response.json()).toEqual({
+      type: 'error',
+      error: { type: 'overloaded_error', message: 'Synthetic overloaded_error' },
+      request_id: 'synthetic-anthropic-request-id',
     })
   })
 })

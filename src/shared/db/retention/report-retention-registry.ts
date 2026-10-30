@@ -122,9 +122,11 @@ export async function buildRetentionRegistryReport(
       resolved.countable && rule.sourceKind === 'table' && anchorColumn !== null
     const notCountableReason = countable
       ? null
-      : resolved.countable
-        ? `${rule.sourceKind} sources are not countable from PostgreSQL`
-        : resolved.reason
+      : !resolved.countable
+        ? resolved.reason
+        : rule.sourceKind === 'table'
+          ? 'a table with no age column of its own is counted through the rule that deletes its parent'
+          : `${rule.sourceKind} sources are not countable from PostgreSQL`
 
     rules.push({
       ruleId: rule.id,

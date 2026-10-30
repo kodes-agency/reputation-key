@@ -185,6 +185,42 @@ export type ReviewAnalysisCurrentnessV1 = Readonly<{
   analysisProfileVersion: string
 }>
 
+/**
+ * One mention of a v3 analysis: a topic, how the review feels about it, how
+ * strongly, the cause (a thing and what is wrong with it, each up to three
+ * lowercase words), the one-based numbers of the sentences that state it, and
+ * whether it names a team member or someone else. Nothing here is review text;
+ * a sentence is a number the live display resolves against the original.
+ */
+export type ReviewAnalysisMentionV3 = Readonly<{
+  topic: ReviewAnalysisTopicV3
+  polarity: 'positive' | 'neutral' | 'negative'
+  strength: 'mild' | 'clear' | 'strong'
+  thing: string | null
+  issue: string | null
+  sentences: readonly number[]
+  namesPerson: 'team_member' | 'other' | null
+}>
+
+/**
+ * The twelve topics of `review-topic-taxonomy-v3`. Spelled here because the
+ * domain imports nothing but its own kernel; `review-analysis-runtime.test.ts`
+ * proves this union and the taxonomy's are the same type.
+ */
+export type ReviewAnalysisTopicV3 =
+  | 'staff_service'
+  | 'speed_waiting'
+  | 'booking_arrival'
+  | 'main_service'
+  | 'food_drink'
+  | 'cleanliness'
+  | 'facilities_equipment'
+  | 'price_billing'
+  | 'atmosphere_noise'
+  | 'location_access'
+  | 'safety'
+  | 'communication'
+
 export type ReviewAnalysisReadV1 =
   | Readonly<{ status: 'disabled' }>
   | Readonly<ReviewAnalysisCurrentnessV1 & { status: 'none' }>
@@ -206,6 +242,21 @@ export type ReviewAnalysisReadV1 =
         }>[]
         issueLabel: string | null
         attention: 'urgent' | 'high' | 'medium' | 'low'
+        generatedAtEpochMillis: number
+      }
+    >
+  /**
+   * A v3 analysis (contract section 3.1): topics with causes and evidence instead
+   * of one primary category and aspects. It is a status of its own so that every
+   * reader of the v2 shape keeps compiling until it learns the v3 one.
+   */
+  | Readonly<
+      ReviewAnalysisCurrentnessV1 & {
+        status: 'ready_v3'
+        sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
+        attention: 'urgent' | 'high' | 'medium' | 'low'
+        urgentReason: 'safety' | 'health' | 'discrimination' | 'legal_threat' | null
+        mentions: readonly ReviewAnalysisMentionV3[]
         generatedAtEpochMillis: number
       }
     >

@@ -230,6 +230,10 @@ export const gbpImportRequestItems = pgTable(
     providerAccountSuffix: varchar('provider_account_suffix', { length: 255 }),
     providerLocationSuffix: varchar('provider_location_suffix', { length: 255 }),
     googleReviewUri: varchar('google_review_uri', { length: 2048 }),
+    // The location's primary category as discovery read it, carried to the
+    // Property the item creates or relinks (migration 0078). Provider content:
+    // scrubbed with the other provider state when the item is terminal.
+    googlePrimaryCategory: varchar('google_primary_category', { length: 512 }),
     expectedConnectionLifecycleVersion: integer('expected_connection_lifecycle_version'),
     expectedConnectionAccessVersion: integer('expected_connection_access_version'),
     expectedCredentialGeneration: integer('expected_credential_generation'),
@@ -435,6 +439,10 @@ export const gbpImportRequestItems = pgTable(
     check(
       'gbp_import_request_items_google_review_uri_valid',
       sql`${t.googleReviewUri} IS NULL OR ${t.googleReviewUri} ~ '^https://'`,
+    ),
+    check(
+      'gbp_import_request_items_google_primary_category_valid',
+      sql`${t.googlePrimaryCategory} IS NULL OR (char_length(${t.googlePrimaryCategory}) BETWEEN 1 AND 512 AND ${t.googlePrimaryCategory} = btrim(${t.googlePrimaryCategory}))`,
     ),
   ],
 )

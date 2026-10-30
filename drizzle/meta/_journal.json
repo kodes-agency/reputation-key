@@ -547,6 +547,20 @@
       "when": 1795800000000,
       "tag": "0077_inbox_manager_priority",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1795900000000,
+      "tag": "0078_review_analysis_v3",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1796000000000,
+      "tag": "0079_property_issue_groups",
+      "breakpoints": true
     }
   ]
 }

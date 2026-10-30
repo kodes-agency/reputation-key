@@ -1,4 +1,5 @@
 import { AI_UNICODE_CASE_FOLDING_V17 } from './generated/ai-unicode-case-folding-v17'
+import { splitReviewSentences } from './review-sentences'
 
 export const AI_REVIEW_SOURCE_CONTRACT_VERSION = 'ai-source-v1' as const
 export const MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 = 16_384
@@ -333,10 +334,14 @@ function escapeRawPlaceholders(value: string): string {
   )
 }
 
-function minimizeReviewerIdentity(text: string, reviewerDisplayName: string): string {
-  const nameFolded = fold(reviewerDisplayName)
-  if (nameFolded.length === 0) return escapeRawPlaceholders(text)
+type SourceSpan = Readonly<{ start: number; end: number }>
 
+/**
+ * Where the folded reviewer name occurs in `text`, as UTF-16 spans of `text`
+ * itself. A match must start and end on a complete scalar of the folded text, so
+ * an expanding fold never matches half of a character.
+ */
+function reviewerNameSpans(text: string, nameFolded: string): readonly SourceSpan[] {
   const foldedText = foldWithIntervals(text)
   const startBoundaries = new Map<number, number>()
   const endBoundaries = new Map<number, number>()
@@ -345,8 +350,7 @@ function minimizeReviewerIdentity(text: string, reviewerDisplayName: string): st
     endBoundaries.set(scalar.foldedEnd, index)
   }
 
-  const rendered: string[] = []
-  let sourceCursor = 0
+  const spans: SourceSpan[] = []
   let foldedCursor = 0
   while (foldedCursor <= foldedText.folded.length - nameFolded.length) {
     const matchStart = foldedText.folded.indexOf(nameFolded, foldedCursor)
@@ -360,15 +364,67 @@ function minimizeReviewerIdentity(text: string, reviewerDisplayName: string): st
     }
     const firstScalar = foldedText.scalars[firstScalarIndex]!
     const lastScalar = foldedText.scalars[lastScalarIndex]!
-    rendered.push(
-      escapeRawPlaceholders(text.slice(sourceCursor, firstScalar.sourceStart)),
-    )
-    rendered.push('[PERSON]')
-    sourceCursor = lastScalar.sourceEnd
+    spans.push({ start: firstScalar.sourceStart, end: lastScalar.sourceEnd })
     foldedCursor = lastScalar.foldedEnd
+  }
+  return spans
+}
+
+function minimizeReviewerIdentity(text: string, reviewerDisplayName: string): string {
+  const nameFolded = fold(reviewerDisplayName)
+  if (nameFolded.length === 0) return escapeRawPlaceholders(text)
+
+  const rendered: string[] = []
+  let sourceCursor = 0
+  for (const span of reviewerNameSpans(text, nameFolded)) {
+    rendered.push(escapeRawPlaceholders(text.slice(sourceCursor, span.start)))
+    rendered.push('[PERSON]')
+    sourceCursor = span.end
   }
   rendered.push(escapeRawPlaceholders(text.slice(sourceCursor)))
   return rendered.join('')
+}
+
+/**
+ * `minimizeReviewerIdentity` for a text already cut into sentences. The name is
+ * looked for in the sentences joined by the one space the whole text would carry
+ * between them, so a name that holds a sentence-ending stop ("Dr. Smith", "J.
+ * Kim") is masked exactly as it is in the whole text. Sentence numbering must not
+ * move, so a match that crosses a sentence boundary leaves one `[PERSON]` in
+ * each sentence it touches.
+ */
+function minimizeReviewerIdentityAcrossSentences(
+  sentences: readonly string[],
+  reviewerDisplayName: string | null,
+): readonly string[] {
+  const nameFolded = reviewerDisplayName === null ? '' : fold(reviewerDisplayName)
+  if (nameFolded.length === 0) return sentences.map(escapeRawPlaceholders)
+
+  const joined = sentences.join(' ')
+  const spans = reviewerNameSpans(joined, nameFolded)
+  const rendered: string[] = []
+  let sentenceStart = 0
+  let firstOpenSpan = 0
+  for (const sentence of sentences) {
+    const sentenceEnd = sentenceStart + sentence.length
+    while (firstOpenSpan < spans.length && spans[firstOpenSpan]!.end <= sentenceStart) {
+      firstOpenSpan += 1
+    }
+    let cursor = sentenceStart
+    let text = ''
+    for (let index = firstOpenSpan; index < spans.length; index += 1) {
+      const span = spans[index]!
+      if (span.start >= sentenceEnd) break
+      text += escapeRawPlaceholders(
+        joined.slice(cursor, Math.max(span.start, sentenceStart)),
+      )
+      text += '[PERSON]'
+      cursor = Math.min(span.end, sentenceEnd)
+    }
+    rendered.push(text + escapeRawPlaceholders(joined.slice(cursor, sentenceEnd)))
+    sentenceStart = sentenceEnd + 1
+  }
+  return rendered
 }
 
 function encodeNullableString(value: string | null): Uint8Array {
@@ -419,10 +475,8 @@ function finalize(
   }) as CanonicalAiReviewSource
 }
 
-function canonicalizeRaw(
-  input: RawAiReviewSource,
-  revision: SourceTextRevision,
-): CanonicalAiReviewSource {
+/** The scalar and size checks every raw source passes before it is normalized. */
+function assertRawSourceWithinLimits(input: RawAiReviewSource): void {
   if (input.text !== null) assertScalarString(input.text, 'text')
   if (input.languageCode !== null) assertScalarString(input.languageCode, 'languageCode')
   if (input.reviewerDisplayName !== null) {
@@ -437,6 +491,13 @@ function canonicalizeRaw(
   if (rawByteLength > MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1) {
     fail('raw source exceeds the materialization byte limit')
   }
+}
+
+function canonicalizeRaw(
+  input: RawAiReviewSource,
+  revision: SourceTextRevision,
+): CanonicalAiReviewSource {
+  assertRawSourceWithinLimits(input)
   const text = input.text === null ? null : normalizeRawText(input.text, 'text', revision)
   const displayName =
     input.text === null || input.reviewerDisplayName === null
@@ -471,6 +532,71 @@ export function canonicalizeRawAiReviewSource(
   input: RawAiReviewSource,
 ): CanonicalAiReviewSource {
   return canonicalizeRaw(input, AI_SOURCE_TEXT_REVISION)
+}
+
+/**
+ * More sentences than the longest review Google accepts (4,000 characters) can
+ * hold at the shortest a sentence gets. Past it the text is not a review, and the
+ * numbered list a v3 request carries would outgrow its route bound.
+ */
+export const MAX_AI_REVIEW_SENTENCES_V1 = 512
+
+export type CanonicalAiReviewSentence = Readonly<{
+  /** One-based, by `review-sentences-v1` over the RAW text. */
+  number: number
+  /** Identity-minimized and normalized like the whole canonical text; may be empty. */
+  text: string
+}>
+
+/**
+ * The numbered sentences a review-analysis v3 request carries (contract §6.1).
+ *
+ * The text is split BEFORE it is canonicalized, because canonicalization turns a
+ * line break into a space and the live display (`locateReviewSentences`) splits
+ * the raw text: numbering the flattened text would number other sentences. Each
+ * sentence is then normalized exactly as the whole text is, and the reviewer's
+ * name is masked across the sentences (see `minimizeReviewerIdentityAcrossSentences`).
+ *
+ * A sentence that normalizes to nothing (it held only control characters) keeps
+ * its number with an empty text, so `sentences[n - 1]` is sentence `n` and the
+ * numbers the provider cites are the numbers the display resolves.
+ */
+export function canonicalizeRawAiReviewSentences(
+  input: RawAiReviewSource,
+): readonly CanonicalAiReviewSentence[] {
+  assertRawSourceWithinLimits(input)
+  if (input.text === null) return Object.freeze([])
+  const pieces = splitReviewSentences(input.text)
+  if (pieces.length > MAX_AI_REVIEW_SENTENCES_V1) {
+    fail('text holds more sentences than an evidence request carries')
+  }
+  const normalized = pieces.map((piece) =>
+    normalizeRawText(piece, 'text', AI_SOURCE_TEXT_REVISION),
+  )
+  const displayName =
+    input.reviewerDisplayName === null
+      ? null
+      : normalizeRawText(
+          input.reviewerDisplayName,
+          'reviewerDisplayName',
+          AI_SOURCE_TEXT_REVISION,
+        ).trim()
+  let byteLength = 0
+  const sentences = minimizeReviewerIdentityAcrossSentences(normalized, displayName).map(
+    (minimized, index) => {
+      const text = minimized.trim()
+      validateCanonicalString(text, 'text', AI_SOURCE_TEXT_REVISION)
+      if (FORBIDDEN_CANONICAL_PLACEHOLDER.test(text)) {
+        fail('identity-minimized sentence contains a forbidden closed placeholder')
+      }
+      byteLength += encoder.encode(text).byteLength
+      return Object.freeze({ number: index + 1, text })
+    },
+  )
+  if (byteLength > MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1) {
+    fail('canonical sentences exceed the operation byte limit')
+  }
+  return Object.freeze(sentences)
 }
 
 /**
