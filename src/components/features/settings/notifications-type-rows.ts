@@ -6,7 +6,7 @@ import {
   type ConfigurableNotificationCategory,
   type NotificationCategory,
 } from '#/contexts/feed/application/public-api'
-import { REVIEW_ANALYSIS_V3_LIVE } from '#/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_LIVE } from '#/shared/review-analysis-live'
 
 export type NotificationCategoryCopy = Readonly<{
   label: string

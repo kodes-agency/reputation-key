@@ -10,7 +10,7 @@ import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   RECORDED_RUNTIME_PROFILE_VERSIONS,
 } from './domain/merchant-ai-capability'
-import { REVIEW_ANALYSIS_V3_LIVE } from './review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_LIVE } from './review-analysis-live'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
