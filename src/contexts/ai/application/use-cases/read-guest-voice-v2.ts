@@ -32,16 +32,19 @@ import {
   type GuestVoiceV2Draft,
   type LatestReviewReference,
 } from '../read-models/guest-voice-v2-evidence'
-import { joinPeriod, reviewVersionKey } from '../read-models/guest-voice-v2-join'
+import {
+  joinPeriod,
+  joinWindows,
+  reviewVersionKey,
+} from '../read-models/guest-voice-v2-join'
 import {
   BASELINE_DAYS,
-  POPULATION_QUERY_LIMIT,
   choosePopulation,
   textReviewsSince,
   windowStart,
   type PopulationChoice,
-  type PopulationScope,
 } from '../read-models/guest-voice-v2-population'
+import { guestVoiceScopes } from '../read-models/guest-voice-v2-scopes'
 
 /** The windows a manager can ask for: Guest voice 2.0 has no "All time". */
 const GUEST_VOICE_V2_RANGES = ['auto', '30d', '90d', '180d', '365d'] as const
@@ -134,15 +137,12 @@ async function readPage(
     return { status: 'preparing' }
   }
 
-  const now = joinPeriod(window, choice.reviews, facts.reviews, facts.unavailable)
-  const earlier =
-    before === null
-      ? null
-      : joinPeriod(before, choice.reviews, facts.reviews, facts.unavailable)
-  const provisional =
-    facts.coverage.awaitingAnalysisCount > 0 ||
-    now.awaitingAnalysis > 0 ||
-    (earlier?.awaitingAnalysis ?? 0) > 0
+  const { now, earlier, provisional } = joinWindows({
+    window,
+    before,
+    population: choice.reviews,
+    facts,
+  })
 
   const built = assembleGuestVoiceV2({
     propertyId: input.propertyId,
@@ -240,24 +240,13 @@ export function createReadGuestVoiceV2(
     })
     if (endLocalDate === null) return { status: 'preparing' }
 
-    const scope: GuestVoiceFactsScope = {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      sourceEpoch: gate.authorization.authorizedSourceEpoch,
-      reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
-      propertyProfileVersion: gate.profile.profileVersion,
-    }
+    const { facts: scope, population: populationScope } = guestVoiceScopes(
+      input,
+      gate,
+      endLocalDate,
+    )
     if (!(await dependencies.facts.hasV3Analyses(scope))) return { status: 'not_v3' }
 
-    const populationScope: PopulationScope = {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      sourceEpoch: scope.sourceEpoch,
-      timezone: gate.profile.timezone,
-      calendarProfileVersion: 'property-calendar-v1',
-      endLocalDate,
-      limit: POPULATION_QUERY_LIMIT,
-    }
     const choice = await choosePopulation(
       dependencies.reviewSources,
       populationScope,

@@ -8,8 +8,8 @@ import type { GuestVoiceReview } from './guest-voice-v2-facts'
 import type { GuestVoiceV2Ready } from './guest-voice-v2'
 
 /** The Property-local hours the summary may go out in: 08:00 and the two hours after it. */
-export const SUMMARY_FIRST_LOCAL_HOUR = 8
-export const SUMMARY_LAST_LOCAL_HOUR = 10
+const SUMMARY_FIRST_LOCAL_HOUR = 8
+const SUMMARY_LAST_LOCAL_HOUR = 10
 
 /** How many days back "this week" reaches: the days since the same weekday last week. */
 export const SUMMARY_WEEK_DAYS = 7

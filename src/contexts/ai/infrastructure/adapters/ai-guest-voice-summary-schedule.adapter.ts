@@ -4,7 +4,6 @@
 // The list is a tenant-cross enumeration of ids and timezones, nothing more. Whether it
 // is a Property's Monday morning is decided here, in the runtime, rather than in SQL: a
 // timezone this runtime does not recognise then drops that Property and not the sweep.
-import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { organizationId, propertyId } from '#/shared/domain/ids'
@@ -15,34 +14,22 @@ import type {
 } from '../../application/ports/ai-guest-voice-summary-schedule.port'
 import { isSummaryMorning } from '../../application/read-models/guest-voice-v2-summary'
 import { aiGuestVoiceSummaryReady } from '../../domain/events'
+import { derivedFactId } from './derived-fact-id'
 
 type Row = Readonly<{ organization_id: string; property_id: string; timezone: string }>
 
 /**
- * A version-5-shaped UUID derived from the Property and its Monday, so the same Monday
- * has the same fact id however often the sweep finds the Property due.
+ * A UUID derived from the Property and its Monday, so the same Monday has the same fact id
+ * however often the sweep finds the Property due.
  */
 export function guestVoiceSummaryEventId(
   summary: Readonly<{ organizationId: string; propertyId: string; localDate: string }>,
 ): string {
-  const hex = createHash('sha256')
-    .update(
-      [
-        'repkey:ai.guest_voice_summary.ready:v1',
-        summary.organizationId,
-        summary.propertyId,
-        summary.localDate,
-      ].join('\u0000'),
-    )
-    .digest('hex')
-  const variant = ((Number.parseInt(hex.charAt(16), 16) & 0x3) | 0x8).toString(16)
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    `5${hex.slice(13, 16)}`,
-    `${variant}${hex.slice(17, 20)}`,
-    hex.slice(20, 32),
-  ].join('-')
+  return derivedFactId('repkey:ai.guest_voice_summary.ready:v1', [
+    summary.organizationId,
+    summary.propertyId,
+    summary.localDate,
+  ])
 }
 
 export const createAiGuestVoiceSummaryScheduleAdapter = (

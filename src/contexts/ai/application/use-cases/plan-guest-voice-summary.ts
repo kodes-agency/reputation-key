@@ -22,20 +22,18 @@ import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type {
   AiGuestVoiceFactsPort,
   GuestVoiceFactsRead,
-  GuestVoiceFactsScope,
 } from '../ports/ai-guest-voice-facts.port'
 import type { AiPropertyCalendarPort } from '../ports/ai-property-calendar.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import type { GuestVoiceV2Ready, Window } from '../read-models/guest-voice-v2'
 import { assembleGuestVoiceV2 } from '../read-models/guest-voice-v2-build'
-import { joinPeriod } from '../read-models/guest-voice-v2-join'
+import { joinWindows } from '../read-models/guest-voice-v2-join'
 import {
   BASELINE_DAYS,
-  POPULATION_QUERY_LIMIT,
   choosePopulation,
   type PopulationChoice,
-  type PopulationScope,
 } from '../read-models/guest-voice-v2-population'
+import { guestVoiceScopes } from '../read-models/guest-voice-v2-scopes'
 import {
   SUMMARY_WEEK_DAYS,
   hasUrgentReviewThisWeek,
@@ -106,15 +104,12 @@ function readEndingOn(
         endLocalDate: addDays(window.startLocalDate, -1),
       }
     : null
-  const now = joinPeriod(window, choice.reviews, facts.reviews, facts.unavailable)
-  const earlier =
-    before === null
-      ? null
-      : joinPeriod(before, choice.reviews, facts.reviews, facts.unavailable)
-  const provisional =
-    facts.coverage.awaitingAnalysisCount > 0 ||
-    now.awaitingAnalysis > 0 ||
-    (earlier?.awaitingAnalysis ?? 0) > 0
+  const { now, earlier, provisional } = joinWindows({
+    window,
+    before,
+    population: choice.reviews,
+    facts,
+  })
   return assembleGuestVoiceV2({
     propertyId: input.propertyId,
     window: choice.window,
@@ -144,26 +139,15 @@ export function createPlanGuestVoiceSummary(
     // The sweep asks at the Property's Monday morning; this is the rule it asks under.
     if (!isMonday(endLocalDate)) return { status: 'skipped', why: 'not_monday' }
 
-    const scope: GuestVoiceFactsScope = {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      sourceEpoch: gate.authorization.authorizedSourceEpoch,
-      reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
-      propertyProfileVersion: gate.profile.profileVersion,
-    }
+    const { facts: scope, population: populationScope } = guestVoiceScopes(
+      input,
+      gate,
+      endLocalDate,
+    )
     if (!(await dependencies.facts.hasV3Analyses(scope))) {
       return { status: 'skipped', why: 'not_v3' }
     }
 
-    const populationScope: PopulationScope = {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      sourceEpoch: scope.sourceEpoch,
-      timezone: gate.profile.timezone,
-      calendarProfileVersion: 'property-calendar-v1',
-      endLocalDate,
-      limit: POPULATION_QUERY_LIMIT,
-    }
     const choice = await choosePopulation(
       dependencies.reviewSources,
       populationScope,

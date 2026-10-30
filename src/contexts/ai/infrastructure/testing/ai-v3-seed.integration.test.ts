@@ -5,6 +5,7 @@
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getDb, type Database } from '#/shared/db'
+import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import { createV3Seed, mentionOf, seededReviewId } from './ai-v3-seed'
 
 const IDS = {
@@ -50,7 +51,7 @@ describe.sequential(
 
     beforeAll(async () => {
       await removeProperty()
-      await db.execute(sql`DELETE FROM organization WHERE id = ${IDS.organizationId}`)
+      await deleteTestOrganizationsWithExecutor(db, [IDS.organizationId])
       await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
       VALUES (${IDS.organizationId}, 'Adopted', ${IDS.organizationId}, now())
@@ -59,7 +60,7 @@ describe.sequential(
 
     afterAll(async () => {
       await removeProperty()
-      await db.execute(sql`DELETE FROM organization WHERE id = ${IDS.organizationId}`)
+      await deleteTestOrganizationsWithExecutor(db, [IDS.organizationId])
     })
 
     it('adds AI rows to the Property it was given and, removing them, leaves the Organization and the Property standing', async () => {

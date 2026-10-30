@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reviewVersionKey, joinPeriod } from './guest-voice-v2-join'
+import { reviewVersionKey, joinPeriod, joinWindows } from './guest-voice-v2-join'
 import type { GuestVoiceReview } from './guest-voice-v2-facts'
 
 const PERIOD = { startLocalDate: '2026-10-01', endLocalDate: '2026-10-31' } as const
@@ -133,5 +133,66 @@ describe('joinPeriod', () => {
 
     expect(joined.awaitingAnalysis).toBe(0)
     expect(joined.population).toEqual({ stars: [0, 0, 0, 0, 1], textReviews: 0 })
+  })
+})
+
+describe('joinWindows', () => {
+  const BEFORE = { startLocalDate: '2026-09-01', endLocalDate: '2026-09-30' } as const
+  const COVERED = {
+    settledAnalysisCount: 2,
+    expectedAnalysisCount: 2,
+    awaitingAnalysisCount: 0,
+  }
+
+  function windows(
+    over: Readonly<{
+      before?: typeof BEFORE | null
+      coverage?: typeof COVERED
+      analysedIds?: readonly string[]
+    }> = {},
+  ) {
+    const analysedIds = over.analysedIds ?? ['a', 'b']
+    return joinWindows({
+      window: PERIOD,
+      before: over.before === undefined ? BEFORE : over.before,
+      population: [counted('a', '2026-10-05'), counted('b', '2026-09-12')],
+      facts: {
+        reviews: [
+          ...(analysedIds.includes('a') ? [analysed('a', '2026-10-05')] : []),
+          ...(analysedIds.includes('b') ? [analysed('b', '2026-09-12')] : []),
+        ],
+        unavailable: [],
+        coverage: over.coverage ?? COVERED,
+      },
+    })
+  }
+
+  it('joins the window and the period before it, each from its own days', () => {
+    const joined = windows()
+
+    expect(joined.now.analysed.map((review) => review.reviewId)).toEqual(['a'])
+    expect(joined.earlier?.analysed.map((review) => review.reviewId)).toEqual(['b'])
+    expect(joined.provisional).toBe(false)
+  })
+
+  it('has no earlier period where the year before the window is too much to read', () => {
+    const joined = windows({ before: null })
+
+    expect(joined.earlier).toBeNull()
+    expect(joined.provisional).toBe(false)
+  })
+
+  it('is provisional while a review with text in the window waits for its analysis', () => {
+    expect(windows({ analysedIds: ['b'] }).provisional).toBe(true)
+  })
+
+  it('is provisional while a review with text in the period before waits for its analysis', () => {
+    expect(windows({ analysedIds: ['a'] }).provisional).toBe(true)
+  })
+
+  it('is provisional while the analysis itself says reviews wait, wherever they are', () => {
+    expect(
+      windows({ coverage: { ...COVERED, awaitingAnalysisCount: 1 } }).provisional,
+    ).toBe(true)
   })
 })

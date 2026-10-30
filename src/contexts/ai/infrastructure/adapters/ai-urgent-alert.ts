@@ -19,13 +19,13 @@
 //     the analyses themselves, which live for 24 months.
 //
 // A new revision of the review is a new alert: the guest wrote something else.
-import { createHash } from 'node:crypto'
 import { and, eq, isNotNull, ne } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiReviewAnalyses } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { insertOutboxRowIfNew } from '#/shared/outbox/commit'
 import { aiReviewUrgentDetected } from '../../domain/events'
+import { derivedFactId } from './derived-fact-id'
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
@@ -45,8 +45,7 @@ export type UrgentAnalysisFacts = Readonly<{
 
 /**
  * A UUID derived from the review revision, so the same revision always has the same
- * fact id. Shaped as a version-5 UUID (RFC 9562) over SHA-256, the way a name-based id
- * is, with its own namespace so no other derived id can collide with it.
+ * fact id, with a namespace of its own so no other derived id can collide with it.
  */
 export function urgentAlertEventId(
   revision: Pick<
@@ -54,27 +53,13 @@ export function urgentAlertEventId(
     'organizationId' | 'propertyId' | 'reviewId' | 'sourceEpoch' | 'sourceRevision'
   >,
 ): string {
-  const hex = createHash('sha256')
-    .update(
-      [
-        'repkey:ai.review_analysis.urgent_detected:v1',
-        revision.organizationId,
-        revision.propertyId,
-        revision.reviewId,
-        revision.sourceEpoch,
-        revision.sourceRevision,
-      ].join('\u0000'),
-    )
-    .digest('hex')
-  // Version 5 in the third group; the variant bits (10xx) on the fourth.
-  const variant = ((Number.parseInt(hex.charAt(16), 16) & 0x3) | 0x8).toString(16)
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    `5${hex.slice(13, 16)}`,
-    `${variant}${hex.slice(17, 20)}`,
-    hex.slice(20, 32),
-  ].join('-')
+  return derivedFactId('repkey:ai.review_analysis.urgent_detected:v1', [
+    revision.organizationId,
+    revision.propertyId,
+    revision.reviewId,
+    revision.sourceEpoch,
+    revision.sourceRevision,
+  ])
 }
 
 /** Whether another ready analysis of this very revision was already Urgent. */

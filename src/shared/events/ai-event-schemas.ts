@@ -18,13 +18,12 @@ const aiPropertyTrendGenerationRequestedSchema = z.object({
 
 // Envelope metadata is reattached after producer-side allowlist validation
 // and stripped from the delivered fact payload before consumer-side validation.
-// First-enablement Review Analysis enrollment replay. Identifier-only, with
-// the same field set the AI review consumer already validates — `analysisSequence`
-// is the FRESH sequence allocated for the replay, not the review's stored one.
-// Not `.strict()`, matching the review event schemas: the outbox re-attaches
-// `correlationId` after allowlist validation and the dispatcher re-runs this
-// same schema on delivery.
-const aiReviewAnalysisBackfillRequestedSchema = z.object({
+//
+// What a fact about one review revision names: which revision, which analysis, and when.
+// Identifier-only, with the field set the AI review consumer already validates. Not
+// `.strict()`, matching the review event schemas: the outbox re-attaches `correlationId`
+// after allowlist validation and the dispatcher re-runs the same schema on delivery.
+const reviewRevisionFact = {
   reviewId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
@@ -32,21 +31,17 @@ const aiReviewAnalysisBackfillRequestedSchema = z.object({
   sourceRevision: z.number().int().positive(),
   analysisSequence: z.number().int().positive(),
   occurredAt: z.string(),
-})
+}
 
-// A v3 review analysis found the review Urgent. The same field set as the replay
-// request above, and for the same reason: the fact says which revision was analysed
-// and by which analysis, and says nothing of why. The reason stays beside the analysis
-// and is read in the app; the alert's email names none (ADR 0046 r.8).
-const aiReviewUrgentDetectedSchema = z.object({
-  reviewId: z.string(),
-  organizationId: z.string(),
-  propertyId: z.string(),
-  sourceEpoch: z.number().int().nonnegative(),
-  sourceRevision: z.number().int().positive(),
-  analysisSequence: z.number().int().positive(),
-  occurredAt: z.string(),
-})
+// First-enablement Review Analysis enrollment replay. `analysisSequence` is the FRESH
+// sequence allocated for the replay, not the review's stored one.
+const aiReviewAnalysisBackfillRequestedSchema = z.object(reviewRevisionFact)
+
+// A v3 review analysis found the review Urgent. The same field set as the replay request
+// above, and for the same reason: the fact says which revision was analysed and by which
+// analysis, and says nothing of why. The reason stays beside the analysis and is read in
+// the app; the alert's email names none (ADR 0046 r.8).
+const aiReviewUrgentDetectedSchema = z.object(reviewRevisionFact)
 
 // A Property's Guest voice summary is due to be mailed. Governed facts only: the twelve
 // fixed topics, counts, a window, the stars a problem may be worth, and the issue a line

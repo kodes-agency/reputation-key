@@ -6,7 +6,10 @@
 // never counted as though it still stood.
 import type { AiTrendPopulationReview } from '#/contexts/review/application/public-api'
 import { ratingCountsOf } from '../aspect-review-evidence'
-import type { GuestVoiceUnavailableReview } from '../ports/ai-guest-voice-facts.port'
+import type {
+  GuestVoiceFactsRead,
+  GuestVoiceUnavailableReview,
+} from '../ports/ai-guest-voice-facts.port'
 import type { WindowPopulation } from './guest-voice-v2-build'
 import type { GuestVoiceReview } from './guest-voice-v2-facts'
 
@@ -63,4 +66,31 @@ export function joinPeriod(
     awaitingAnalysis: withText.filter((review) => !settled.has(reviewVersionKey(review)))
       .length,
   }
+}
+
+/**
+ * A window and the period before it, joined with Review's answer, and whether the figures
+ * are provisional: some review with text, in either period or anywhere the analysis reads,
+ * still waits for its analysis.
+ */
+export function joinWindows(
+  input: Readonly<{
+    window: Period
+    /** The period before the window; null where a year before it is too much to read. */
+    before: Period | null
+    population: readonly AiTrendPopulationReview[]
+    facts: Pick<GuestVoiceFactsRead, 'reviews' | 'unavailable' | 'coverage'>
+  }>,
+): Readonly<{ now: JoinedPeriod; earlier: JoinedPeriod | null; provisional: boolean }> {
+  const { window, before, population, facts } = input
+  const now = joinPeriod(window, population, facts.reviews, facts.unavailable)
+  const earlier =
+    before === null
+      ? null
+      : joinPeriod(before, population, facts.reviews, facts.unavailable)
+  const provisional =
+    facts.coverage.awaitingAnalysisCount > 0 ||
+    now.awaitingAnalysis > 0 ||
+    (earlier?.awaitingAnalysis ?? 0) > 0
+  return { now, earlier, provisional }
 }
