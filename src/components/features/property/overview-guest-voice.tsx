@@ -1,11 +1,9 @@
 // The Guest voice row of Overview (redesign rows 4, 12).
 //
-// One sentence and two chips, not a section. The old overview carried two full
-// AI blocks — a trend narrative with its coverage line, and a three-panel
-// "what guests talk about" with a bar list, an issues list and a 318 × 220 px
-// sentiment chart. Both moved to the Guest voice page; what stays on the front
-// page is the single most useful thing the analysis produces: what guests are
-// praising most and complaining about most, in a line.
+// One sentence and two chips, not a section. What stays on the front page is the
+// single most useful thing the analysis produces: the problem to fix first and what
+// guests love most, in a line. Both come from the Guest voice page's own read (the v3
+// analysis), the same query entry, so opening the page from here finds it warm.
 //
 // Self-fetching and failure-isolated, like the sections it replaces. Unlike
 // them it never renders nothing: a property with the capability off gets the
@@ -14,8 +12,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { MessagesSquare } from 'lucide-react'
-import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
-import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
+import type { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { ROW_FIGURE_LINK } from '#/components/ui/row-link'
@@ -23,16 +20,18 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { cn } from '#/lib/utils'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { topComplaint, topicCountText, topPraise } from './overview-guest-voice-topics'
+import { issueReviewsSearch } from './guest-voice/guest-voice-links'
+import {
+  OVERVIEW_GUEST_VOICE_RANGE,
+  overviewIssueCountText,
+  overviewTopIssues,
+  type OverviewGuestVoiceReady,
+  type OverviewIssue,
+} from './overview-guest-voice-issues'
 
 export type OverviewGuestVoiceServerFns = Readonly<{
-  getTrend: typeof getPropertyAiTrendFn
-  getAggregates: typeof getPropertyAiAggregatesFn
+  getGuestVoice: typeof getGuestVoiceV2Fn
 }>
-
-type Aggregates = Awaited<ReturnType<typeof getPropertyAiAggregatesFn>>
-type ReadyAggregates = Extract<Aggregates, { status: 'ready' }>
-type AiAspectAggregate = ReadyAggregates['aspects'][number]
 
 function Row({
   children,
@@ -95,33 +94,32 @@ function AnalysisOff({ propertyId }: Readonly<{ propertyId: string }>) {
 }
 
 /**
- * One topic and how many of the reviews name it, opened in the Inbox on the same
- * 30 days the figure counts. The Inbox opens its Needs reply queue, so a review
- * that has been replied to is in Replied, one click away with the topic and the
- * days kept.
+ * One issue and how many of the reviews that name it, opened in the Inbox on the same
+ * days the figure counts: a problem's reviews are the ones that complain of it, praise's
+ * the ones that praise it.
  */
-function TopicChip({
+function IssueChip({
   tone,
-  entry,
+  issue,
   read,
   propertyId,
 }: Readonly<{
   tone: 'praise' | 'complaint'
-  entry: AiAspectAggregate
-  read: ReadyAggregates
+  issue: OverviewIssue
+  read: OverviewGuestVoiceReady
   propertyId: string
 }>) {
-  const text = topicCountText(entry, read.analyzedReviewCount)
+  const text = overviewIssueCountText(issue)
   return (
     <Link
       to="/inbox"
-      search={{
+      search={issueReviewsSearch({
         propertyId,
-        aspect: entry.aspect,
-        polarity: tone === 'praise' ? 'positive' : 'negative',
-        since: read.startLocalDate,
-        until: read.endLocalDate,
-      }}
+        startLocalDate: read.startLocalDate,
+        endLocalDate: read.endLocalDate,
+        issueId: issue.issueId,
+        sense: tone,
+      })}
       aria-label={`${tone === 'praise' ? 'Praise' : 'Complaints'}: ${text}; open in inbox`}
       className={cn('flex min-h-11 items-center gap-1.5 md:min-h-0', ROW_FIGURE_LINK)}
     >
@@ -133,26 +131,17 @@ function TopicChip({
   )
 }
 
-function TopicSummary({
+function IssueSummary({
   read,
-  headline,
   propertyId,
-}: Readonly<{
-  read: ReadyAggregates
-  /** The trend narrative's sentence, when there is one. */
-  headline: string | null | undefined
-  propertyId: string
-}>) {
-  const praise = topPraise(read.aspects)
-  const complaint = topComplaint(read.aspects)
+}: Readonly<{ read: OverviewGuestVoiceReady; propertyId: string }>) {
+  const { complaint, praise, sentence } = overviewTopIssues(read)
 
   if (!praise && !complaint) {
     return (
       <Row action={<ReadMore propertyId={propertyId} />}>
         <p className="text-sm">
-          {read.analyzedReviewCount === 0
-            ? 'No reviews with text have been analysed yet, so there are no topics to report.'
-            : 'No topics were mentioned often enough to report yet.'}
+          No issue or praise stands out in the reviews analysed so far.
         </p>
       </Row>
     )
@@ -160,15 +149,15 @@ function TopicSummary({
 
   return (
     <Row action={<ReadMore propertyId={propertyId} />}>
-      {headline === null ? null : <p className="text-sm font-medium">{headline}</p>}
+      {sentence === null ? null : <p className="text-sm font-medium">{sentence}</p>}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         {praise ? (
-          <TopicChip tone="praise" entry={praise} read={read} propertyId={propertyId} />
+          <IssueChip tone="praise" issue={praise} read={read} propertyId={propertyId} />
         ) : null}
         {complaint ? (
-          <TopicChip
+          <IssueChip
             tone="complaint"
-            entry={complaint}
+            issue={complaint}
             read={read}
             propertyId={propertyId}
           />
@@ -182,20 +171,17 @@ export function OverviewGuestVoice({
   propertyId,
   serverFns,
 }: Readonly<{ propertyId: string; serverFns: OverviewGuestVoiceServerFns }>) {
-  const trend = useQuery({
-    queryKey: aiKeys.propertyTrend(propertyId),
-    queryFn: () => serverFns.getTrend({ data: { propertyId } }),
-    staleTime: 60_000,
-    retry: false,
-  })
-  const aggregates = useQuery({
-    queryKey: aiKeys.propertyAggregates(propertyId),
-    queryFn: () => serverFns.getAggregates({ data: { propertyId } }),
+  const reading = useQuery({
+    queryKey: aiKeys.guestVoiceV2(propertyId, OVERVIEW_GUEST_VOICE_RANGE),
+    queryFn: () =>
+      serverFns.getGuestVoice({
+        data: { propertyId, range: OVERVIEW_GUEST_VOICE_RANGE },
+      }),
     staleTime: 60_000,
     retry: false,
   })
 
-  if (trend.isPending && aggregates.isPending) {
+  if (reading.isPending) {
     return (
       // The action's height is held: the answer this strip most often gives
       // ("Turn on AI analysis") has a button, and a card without one is 16 px
@@ -206,7 +192,7 @@ export function OverviewGuestVoice({
     )
   }
 
-  if (trend.isError && aggregates.isError) {
+  if (reading.isError) {
     return (
       <Row>
         <p className="text-sm text-muted-foreground">
@@ -217,12 +203,22 @@ export function OverviewGuestVoice({
     )
   }
 
-  const read = aggregates.data
-  if (read?.status === 'disabled' || trend.data?.status === 'disabled') {
-    return <AnalysisOff propertyId={propertyId} />
+  const read = reading.data
+  if (read.status === 'disabled') return <AnalysisOff propertyId={propertyId} />
+
+  if (read.status === 'not_enough_reviews') {
+    return (
+      <Row action={<ReadMore propertyId={propertyId} />}>
+        <p className="text-sm">
+          Too few reviews with text yet to spot patterns. The latest ones are on the Guest
+          voice page.
+        </p>
+      </Row>
+    )
   }
 
-  if (read?.status !== 'ready') {
+  // Not analysed under v3 yet (the replay is still running, or nothing is analysable).
+  if (read.status !== 'ready') {
     return (
       <Row action={<ReadMore propertyId={propertyId} />}>
         <p className="text-sm">
@@ -232,11 +228,5 @@ export function OverviewGuestVoice({
     )
   }
 
-  return (
-    <TopicSummary
-      read={read}
-      headline={trend.data?.status === 'ready' ? trend.data.report.headline : null}
-      propertyId={propertyId}
-    />
-  )
+  return <IssueSummary read={read} propertyId={propertyId} />
 }

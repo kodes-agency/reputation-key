@@ -32,19 +32,10 @@ import {
   REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
 } from '#/shared/review-analysis-v3-profile'
 
-export {
-  OPENAI_REQUEST_SHAPE_V1,
-  OPENAI_REQUEST_SHAPE_V1_DIGEST,
-} from '#/shared/ai-openai-provider-profile'
-// The parts every profile is made of live in `ai-operation-profile-core.ts`; they are
-// re-exported so this stays the one place a catalogue consumer imports from.
-export {
-  AI_SOURCE_CANONICALIZER_PROFILE_V1,
-  PROPERTY_CALENDAR_ATTESTATION,
-  REVIEW_SOURCE_ATTESTATION,
-  SDK_ATTESTATION,
-  defineOperationProfile,
-} from '#/shared/ai-operation-profile-core'
+export { OPENAI_REQUEST_SHAPE_V1_DIGEST } from '#/shared/ai-openai-provider-profile'
+// The parts every profile is made of live in `ai-operation-profile-core.ts`; what a
+// catalogue consumer imports from here is re-exported so this stays its one place.
+export { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation-profile-core'
 export type {
   AiOperationArtifactAttestations,
   AiOperationProfile,

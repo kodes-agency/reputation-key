@@ -1,8 +1,8 @@
-// Which Guest voice a Property is drawn: 2.0 where its reviews have a v3 analysis, today's
-// page everywhere else. The server decides (`getGuestVoiceV2Fn`); the route only reads
-// what it answered. A Property that answers anything but a page, whether it has no v3
-// analysis, AI is off, or the analysis is not ready, is drawn as it has always been, and
-// today's page says what it always said about those states.
+// What Guest voice draws for a Property: the page where its reviews have a v3 analysis,
+// and otherwise the reason there is none. The server decides (`getGuestVoiceV2Fn`); the
+// route only reads what it answered. Since the switch-on (2026-10-30) v3 is the only
+// analysis, so an answer that is not a page is not a cue to read the page that was drawn
+// from the v2 analysis: it is drawn as "AI is off" or "being prepared".
 import type {
   GuestVoiceV2Read,
   GuestVoiceV2Response,
@@ -12,11 +12,11 @@ import type { GuestVoiceV2View } from '#/components/features/property/guest-voic
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { GuestVoiceRange } from '#/shared/dashboard-range'
 
-/** What the server function answers: the page, or why today's page is the one to draw. */
+/** What the server function answers: the page, or why there is none to draw. */
 export type GuestVoiceV2Answer =
   Exclude<GuestVoiceV2Response, Readonly<{ status: 'drafted' }>> | GuestVoiceV2Read
 
-/** The Guest voice 2.0 page in an answer, or null when today's page is the one to draw. */
+/** The Guest voice page in an answer, or null when the answer is a reason, not a page. */
 export function guestVoiceV2PageOf(
   answer: GuestVoiceV2Answer | undefined,
 ): GuestVoiceV2Read | null {
@@ -24,6 +24,19 @@ export function guestVoiceV2PageOf(
   return answer.status === 'ready' || answer.status === 'not_enough_reviews'
     ? answer
     : null
+}
+
+/**
+ * What the page says in place of itself, for an answer that is not a page: AI analysis is
+ * off, or it is still being prepared (nothing is analysed under v3 yet counts as being
+ * prepared: the replay has not reached this Property, or it has no review with text).
+ * Null for an answer that is a page, and for no answer yet.
+ */
+export function guestVoiceReasonOf(
+  answer: GuestVoiceV2Answer | undefined,
+): 'disabled' | 'preparing' | null {
+  if (answer === undefined || guestVoiceV2PageOf(answer) !== null) return null
+  return answer.status === 'disabled' ? 'disabled' : 'preparing'
 }
 
 /**

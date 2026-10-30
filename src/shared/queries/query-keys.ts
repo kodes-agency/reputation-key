@@ -208,11 +208,6 @@ export const aiKeys = {
   all: ['ai'] as const,
   propertyTrend: (propertyId: string) =>
     [...aiKeys.all, 'property-trend', propertyId] as const,
-  propertyAggregates: (propertyId: string) =>
-    [...aiKeys.all, 'property-aggregates', propertyId] as const,
-  /** `range` is the page's own word for the window: `auto`, `30d`, ... `all`. */
-  propertyInsights: (propertyId: string, range: string) =>
-    [...aiKeys.all, 'property-insights', propertyId, range] as const,
   /** Every window of the Guest voice 2.0 read for one Property: what a correction refreshes. */
   guestVoiceV2Property: (propertyId: string) =>
     [...aiKeys.all, 'guest-voice-v2', propertyId] as const,

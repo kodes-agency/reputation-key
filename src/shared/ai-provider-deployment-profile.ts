@@ -26,7 +26,7 @@ import { defineProviderDeploymentEnvelope } from './ai-provider-attestations'
 // OpenAI alone, the egress runtime registers no Anthropic adapter and the
 // deployment has no Anthropic key.
 
-export const AI_PROVIDER_DEPLOYMENT_ENVELOPE_V2 = defineProviderDeploymentEnvelope({
+const AI_PROVIDER_DEPLOYMENT_ENVELOPE_V2 = defineProviderDeploymentEnvelope({
   profileVersion: 'private-beta-global-v2',
   region: 'global',
   attestations: [OPENAI_PROVIDER_ATTESTATION_V1, ANTHROPIC_PROVIDER_ATTESTATION_V1],

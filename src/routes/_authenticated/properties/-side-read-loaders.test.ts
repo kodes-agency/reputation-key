@@ -1,4 +1,4 @@
-// The four loaders that hold the page for a side read at most a grace, and what
+// The three loaders that hold the page for a side read at most a grace, and what
 // each leaves in the request's QueryClient when a read misses it (see
 // `#/routes/-queries/prime-within-grace.ts`).
 //
@@ -13,7 +13,6 @@ import { dashboardKeys, goalKeys, propertyKeys } from '#/shared/queries/query-ke
 const mocks = vi.hoisted(() => ({
   getProperty: vi.fn(),
   getPropertyOverviewFn: vi.fn(),
-  getPropertyInsightsFn: vi.fn(),
 }))
 
 // The reads a page needs before it can draw: these answer. Its side reads do not
@@ -24,9 +23,6 @@ vi.mock('#/contexts/property/server/properties', () => ({
 vi.mock('#/contexts/reporting/server/dashboard', () => ({
   getPropertyOverviewFn: mocks.getPropertyOverviewFn,
 }))
-vi.mock('#/contexts/ai/server/property-insights', () => ({
-  getPropertyInsightsFn: mocks.getPropertyInsightsFn,
-}))
 
 // The modules the loaders load on demand, loaded now: a grace of fake time would
 // otherwise end while they are still being read from disk.
@@ -35,7 +31,6 @@ import './$propertyId/goals/-goals-page-prefetch'
 import { Route as ListRoute } from './index'
 import { Route as OverviewRoute } from './$propertyId/index'
 import { Route as SettingsRoute } from './$propertyId/settings'
-import { Route as GuestsRoute, propertyGuestsQuery } from './$propertyId/guests'
 
 const PROPERTY = '10000000-0000-4000-8000-000000000001'
 const GRACE_MS = 300
@@ -105,7 +100,6 @@ describe('the loaders that hold the page for a side read', () => {
     vi.clearAllMocks()
     mocks.getProperty.mockResolvedValue({ property: { id: PROPERTY, name: 'Hotel' } })
     mocks.getPropertyOverviewFn.mockResolvedValue({ dashboard: {} })
-    mocks.getPropertyInsightsFn.mockResolvedValue({ status: 'ready' })
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -188,22 +182,6 @@ describe('the loaders that hold the page for a side read', () => {
       expect(queryClient.getQueryData(propertyKeys.detail(PROPERTY))).toEqual({
         property: { id: PROPERTY, name: 'Hotel' },
       })
-      expect(pending(queryClient)).toEqual([])
-    })
-
-    it('Guest voice drops the headline and keeps the topics', async () => {
-      const { queryClient, started } = requestClient()
-
-      await loaded(GuestsRoute, {
-        params: { propertyId: PROPERTY },
-        location: { search: {} },
-        context: { queryClient },
-      })
-
-      expect(started).toHaveLength(1)
-      expect(
-        queryClient.getQueryData(propertyGuestsQuery(PROPERTY, 'auto').queryKey),
-      ).toEqual({ status: 'ready' })
       expect(pending(queryClient)).toEqual([])
     })
   })
