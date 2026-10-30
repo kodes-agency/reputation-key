@@ -18,6 +18,15 @@ import type {
   getPropertyPortalExperience,
   savePropertyPublicDisplayName,
 } from '#/contexts/portal/server/portals'
+import type { getPropertySetupFn } from '#/contexts/reporting/server/property-setup'
+import type {
+  getReplyLibraryFn,
+  saveReplyVoiceFn,
+} from '#/contexts/review/server/reply-library'
+
+type ServerCall<T> = T extends (...args: infer Args) => infer Result
+  ? (...args: Args) => Result
+  : never
 
 /**
  * The reads and writes of the "Set up properties" step. The route binds them
@@ -36,6 +45,9 @@ export type PropertySetupFns = Readonly<{
   updatePropertyResponsibleManagers: typeof updatePropertyResponsibleManagers
   enableMerchantAiForProperties: typeof enableMerchantAiForPropertiesFn
   deferMerchantAiDecision: typeof deferMerchantAiDecisionFn
+  getPropertySetup: ServerCall<typeof getPropertySetupFn>
+  getReplyLibrary: ServerCall<typeof getReplyLibraryFn>
+  saveReplyVoice: ServerCall<typeof saveReplyVoiceFn>
 }>
 
 /** A property the import produced, as the import progress names it. */

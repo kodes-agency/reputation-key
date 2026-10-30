@@ -16,7 +16,7 @@ import type { ReplyData, ReplyEditTarget } from './reply-status-view'
 import type { ReplyActions } from './use-reply-actions'
 import type { ReviewLanguageReadiness } from './reply-language-options'
 
-import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
+import type { GenerateReplySuggestionCall } from './types'
 export type { ReplyData } from './reply-status-view'
 
 type ReplyEditorProps = Readonly<{
@@ -38,7 +38,7 @@ type ReplyEditorProps = Readonly<{
   /** The pane's single reply command family — never rebuilt here. */
   actions: ReplyActions
   onEditDone: () => void
-  generateReplySuggestion?: typeof generateReplySuggestionFn
+  generateReplySuggestion?: GenerateReplySuggestionCall
 }>
 
 export function ReplyEditor({
@@ -79,6 +79,7 @@ export function ReplyEditor({
       onEditDone={onEditDone}
       onListTemplates={actions.listTemplates}
       onLoadTemplate={actions.loadTemplate}
+      onCheckDraft={actions.checkDraft}
       onGenerateSuggestion={
         generateReplySuggestion
           ? (tone, targetLanguage, templateOnly, idempotencyKey) =>

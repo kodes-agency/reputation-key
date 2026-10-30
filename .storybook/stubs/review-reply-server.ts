@@ -32,6 +32,7 @@ type ReplyCommandName =
   | 'editPublishedReplyFn'
   | 'listReplyTemplatesFn'
   | 'loadReplyTemplateFn'
+  | 'checkReplyDraftFn'
 
 const noop: ReplyCommand = async () => undefined
 
@@ -67,3 +68,4 @@ export const checkReplyPublicationFn = command('checkReplyPublicationFn')
 export const editPublishedReplyFn = command('editPublishedReplyFn')
 export const listReplyTemplatesFn = command('listReplyTemplatesFn')
 export const loadReplyTemplateFn = command('loadReplyTemplateFn')
+export const checkReplyDraftFn = command('checkReplyDraftFn')

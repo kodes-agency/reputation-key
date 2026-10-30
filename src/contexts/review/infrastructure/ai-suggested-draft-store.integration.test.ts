@@ -175,6 +175,7 @@ function groundedProvenanceToken(
       replyProfileDigest: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
       replyBrandProfileVersion: 7,
       replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
+      replyVoiceDigest: 'f'.repeat(64),
       modelSnapshot: 'gpt-5.4-mini-2026-03-17',
       promptVersion: 'reply-suggestion-prompt-v1',
       outputLeakageProfileVersion: 'ai-output-leakage-v1',
@@ -232,13 +233,26 @@ function reviewFixture(
 describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
   const db = getDb()
   let brandProfileCurrent = true
+  let voiceCurrent = true
   const brandAuthorityCalls: Array<Readonly<Record<string, unknown>>> = []
-  const store = createAiSuggestedDraftStore(db, new Map([['provenance-v1', publicKey]]), {
-    isCurrentAiReplyBrandProfile: async (_tx, input) => {
-      brandAuthorityCalls.push(input)
-      return brandProfileCurrent
+  const voiceAuthorityCalls: Array<Readonly<Record<string, unknown>>> = []
+  const store = createAiSuggestedDraftStore(
+    db,
+    new Map([['provenance-v1', publicKey]]),
+    {
+      isCurrentAiReplyBrandProfile: async (_tx, input) => {
+        brandAuthorityCalls.push(input)
+        return brandProfileCurrent
+      },
     },
-  })
+    {
+      resolveLocalFrame: async () => null,
+      isCurrentVoice: async (_tx, input) => {
+        voiceAuthorityCalls.push(input)
+        return voiceCurrent
+      },
+    },
+  )
 
   let initialReplyControl:
     | Readonly<{
@@ -786,6 +800,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
 
   it('atomically invalidates a grounded suggestion when Portal says its Brand Profile changed', async () => {
     brandProfileCurrent = false
+    voiceCurrent = true
     const token = groundedProvenanceToken()
 
     await expect(
@@ -839,6 +854,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
 
   it('keeps an adopted Review-owned draft usable after a later Brand Profile change', async () => {
     brandProfileCurrent = true
+    voiceCurrent = true
     const token = groundedProvenanceToken({
       operationId: '74000000-0000-4000-8000-000000000008',
     })
@@ -858,6 +874,12 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     if (accepted.status !== 'accepted') {
       throw new Error('Expected the grounded suggestion to be adopted')
     }
+    expect(voiceAuthorityCalls.at(-1)).toEqual({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      languageGroup: 'en-Latn',
+      voiceDigest: 'f'.repeat(64),
+    })
 
     const authorityCallCount = brandAuthorityCalls.length
     brandProfileCurrent = false

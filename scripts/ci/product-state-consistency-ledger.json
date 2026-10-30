@@ -484,6 +484,18 @@
       "policy": "Freezes the first ready setup facts for the session and never synchronizes: saving invalidates the property, manager and AI caches, and the refreshed facts would otherwise withdraw the answered questions and results from under the merchant. Leaving the import route is the reset boundary."
     },
     {
+      "id": "src/components/features/property/reply-voice-card.tsx:useState(draft)",
+      "classification": "server_draft",
+      "owner": "Property reply voice settings",
+      "policy": "Seeded once from the resolved reply voice for this Property and advanced only by the manager's controls. A later query refresh never overwrites edits in progress; the Property settings route remount is the reset boundary and Save is the only write."
+    },
+    {
+      "id": "src/components/features/property/reply-voice-card.tsx:useState(saved)",
+      "classification": "server_snapshot",
+      "owner": "Property reply voice settings",
+      "policy": "The reset and dirty-comparison baseline starts from the resolved server voice and advances only after the voice command succeeds, to the exact draft that command accepted. A Property settings route remount takes a fresh server baseline."
+    },
+    {
       "id": "src/components/features/property/google-performance-report.tsx:useState(now)",
       "classification": "local_runtime",
       "owner": "Google performance freshness clock",

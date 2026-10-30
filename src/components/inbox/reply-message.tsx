@@ -16,7 +16,12 @@ import { INBOX_CHIP_STATIC_CLASS } from './inbox-chip'
 import { personInitials } from './person-initials'
 import { ReplyCheckStatus } from './reply-check-status'
 import { ReplyMessageActions, type ReplyOnScreen } from './reply-message-actions'
-import { presentReplyMessage, type ReplyMessageTone } from './reply-message-view'
+import {
+  presentReplyMessage,
+  type ReplyMessageTone,
+  type ReplyMessageView,
+} from './reply-message-view'
+import { useReplyDraftChecks } from './use-reply-draft-checks'
 import { resolveReplyView, type ReplyData } from './reply-status-view'
 import { useReplyCheckRun, useReplyFocusReturn } from './use-reply-check-run'
 import { formatExactTime, formatRelativeTime } from './utils'
@@ -122,6 +127,67 @@ function shownReply(reply: NonNullable<ReplyData>): ReplyOnScreen | null {
     : null
 }
 
+function ReplyHeader({
+  author,
+  view,
+}: Readonly<{ author: string; view: ReplyMessageView }>): ReactNode {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="min-w-0 truncate text-sm font-medium text-foreground">
+        {author}
+      </span>
+      <Badge
+        variant={CHIP_VARIANT[view.tone]}
+        className={cn(
+          INBOX_CHIP_STATIC_CLASS,
+          'font-normal',
+          view.tone === 'accent' && INVERTED_CHIP_CLASS,
+        )}
+      >
+        {view.chip}
+      </Badge>
+    </div>
+  )
+}
+
+function ReplyMeta({ meta }: Readonly<{ meta: ReplyMessageView['meta'] }>): ReactNode {
+  if (!meta) return null
+  return (
+    <p className="mt-0.5 text-xs text-muted-foreground">
+      {meta.label} ·{' '}
+      <time dateTime={meta.at.toISOString()} title={formatExactTime(meta.at)}>
+        {formatRelativeTime(meta.at)}
+      </time>
+    </p>
+  )
+}
+
+function ReplyDetail({
+  detail,
+  googleLink,
+}: Readonly<{
+  detail: ReplyMessageView['detail']
+  googleLink: GoogleReviewLink | null
+}>): ReactNode {
+  if (!detail) return null
+  return (
+    <p className={cn(MESSAGE_PROSE_CLASS, 'mt-2 text-xs text-muted-foreground')}>
+      <GoogleLinkedText text={detail} link={googleLink} />
+    </p>
+  )
+}
+
+function ReplyReason({
+  reason,
+}: Readonly<{ reason: ReplyMessageView['reason'] }>): ReactNode {
+  if (!reason) return null
+  return (
+    <p className={cn(MESSAGE_PROSE_CLASS, 'mt-2 text-xs text-muted-foreground')}>
+      <span className="font-medium text-foreground">Reason:</span> {reason}
+    </p>
+  )
+}
+
 type Props = Readonly<{
   reply: ReplyData
   propertyName: string | null
@@ -135,6 +201,11 @@ type Props = Readonly<{
   isEditing: boolean
   /** Confirms the reply this message shows, at the state revision it shows. */
   onApprove: (expectedReply: ReplyOnScreen) => Promise<unknown>
+  onCheckDraft?: (
+    text: string,
+  ) => Promise<
+    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
+  >
   onReject: (reason?: string) => Promise<unknown>
   /** Resolves what the check found; see `useReplyCheckRun`. */
   onCheck: () => Promise<ReplyPublicationCheckResult>
@@ -191,6 +262,7 @@ export function ReplyMessage({
   isSaving,
   isEditing,
   onApprove,
+  onCheckDraft,
   onReject,
   onCheck,
   onRetry,
@@ -198,6 +270,11 @@ export function ReplyMessage({
   onEditRejected,
 }: Props): ReactNode {
   const view = presentReplyMessage(resolveReplyView(reply))
+  const approvable = view?.actions.includes('approve') === true
+  const draftChecks = useReplyDraftChecks(
+    reply?.text ?? '',
+    approvable ? onCheckDraft : undefined,
+  )
   const articleRef = useRef<HTMLElement>(null)
   const checkRun = useReplyCheckRun(reply, onCheck, articleRef)
   const focusAfterReject = useReplyFocusReturn(
@@ -237,33 +314,8 @@ export function ReplyMessage({
           aria-label={`Reply from ${author}`}
           className="min-w-0 rounded-lg border bg-muted/30 px-4 py-3"
         >
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="min-w-0 truncate text-sm font-medium text-foreground">
-              {author}
-            </span>
-            <Badge
-              variant={CHIP_VARIANT[view.tone]}
-              className={cn(
-                INBOX_CHIP_STATIC_CLASS,
-                'font-normal',
-                view.tone === 'accent' && INVERTED_CHIP_CLASS,
-              )}
-            >
-              {view.chip}
-            </Badge>
-          </div>
-
-          {view.meta && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {view.meta.label} ·{' '}
-              <time
-                dateTime={view.meta.at.toISOString()}
-                title={formatExactTime(view.meta.at)}
-              >
-                {formatRelativeTime(view.meta.at)}
-              </time>
-            </p>
-          )}
+          <ReplyHeader author={author} view={view} />
+          <ReplyMeta meta={view.meta} />
 
           {/* `text-sm` carries its own line-height, so the caller that sets the
             type scale restates the leading the shared measure asks for. */}
@@ -276,20 +328,12 @@ export function ReplyMessage({
             {reply.text}
           </p>
 
-          {view.detail && (
-            <p className={cn(MESSAGE_PROSE_CLASS, 'mt-2 text-xs text-muted-foreground')}>
-              <GoogleLinkedText text={view.detail} link={googleLink} />
-            </p>
-          )}
+          <ReplyDetail detail={view.detail} googleLink={googleLink} />
 
           {/* A colleague's words, labelled as such. Unprefixed, an authored
             reason sits in the same muted slot and the same type as RepKey's own
             failure sentences, and a reader cannot tell person from product. */}
-          {view.reason && (
-            <p className={cn(MESSAGE_PROSE_CLASS, 'mt-2 text-xs text-muted-foreground')}>
-              <span className="font-medium text-foreground">Reason:</span> {view.reason}
-            </p>
-          )}
+          <ReplyReason reason={view.reason} />
 
           <ReplyMessageActions
             key={actionRowKey(reply.id, reply.status)}
@@ -300,6 +344,7 @@ export function ReplyMessage({
             isChecking={checkRun.isChecking}
             isEditing={isEditing}
             onApprove={onApprove}
+            draftChecks={draftChecks}
             onReject={reject}
             onCheck={checkRun.check}
             onRetry={onRetry}

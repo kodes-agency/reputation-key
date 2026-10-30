@@ -93,6 +93,7 @@ import {
   type PreparedReviewEvidence,
 } from './review-evidence-request'
 import { digestRenderedReply, signAiReplyProvenance } from '#/shared/ai-reply-provenance'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 const analysisAnswerSchema = AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA
 const personalizedReplySchema = AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA
@@ -348,6 +349,7 @@ export type AiReplyOutputRefusal = Readonly<{
     | 'prohibited_content'
     | 'profile_version_mismatch'
     | 'language_verification'
+    | 'reply_limits'
     | 'adoption_window_elapsed'
 }>
 
@@ -427,6 +429,10 @@ export function createAiGatewayRoutePreparer(
             replyBrandProfileVersion: number
             replyBrandDisplayNameDigest: string
             brandDisplayName: string
+            replyLocalFrame: Extract<
+              AiGatewayRouteRequestV1,
+              { route: 'reply-suggestion' }
+            >['replyLocalFrame']
             providerDeploymentProfileVersion: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion
             operationProfileVersion: 'reply-suggestion-v1'
             modelSnapshot: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V1.modelSnapshot
@@ -539,7 +545,6 @@ export function createAiGatewayRoutePreparer(
             throw new GatewayPreparationError('policy_unavailable')
           providerPayload = {
             replyProfileVersion: request.replyProfileVersion,
-            propertyDisplayName: request.brandProfile.displayName,
             reviewText: text,
             rating: request.source.rating,
             languageCode: concrete.tag,
@@ -563,6 +568,7 @@ export function createAiGatewayRoutePreparer(
             replyBrandProfileVersion: request.binding.replyBrandProfileVersion,
             replyBrandDisplayNameDigest: request.binding.replyBrandDisplayNameDigest,
             brandDisplayName: request.brandProfile.displayName,
+            replyLocalFrame: request.replyLocalFrame,
             providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
             operationProfileVersion: profile.profileVersion,
             modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE_V1.modelSnapshot,
@@ -626,6 +632,7 @@ export function createAiGatewayRoutePreparer(
         providerId: provider.providerId,
         invocation,
         outputSchema,
+        // fallow-ignore-next-line complexity -- exhaustive provider-result validation preserves one fail-closed acceptance boundary
         acceptProviderResult: (rawResult: unknown) => {
           if (responseContext.route === 'review-analysis-v3') {
             const accepted = acceptReviewAnalysisV3Answer(rawResult, responseContext)
@@ -704,13 +711,33 @@ export function createAiGatewayRoutePreparer(
             })
             return null
           }
-          const replyText = result.draft.replyText
+          const bodyText = result.draft.replyText
+          const frame = responseContext.replyLocalFrame
+          const replyText = frame
+            ? [frame.prefix.trim(), bodyText.trim(), frame.suffix.trim()]
+                .filter(Boolean)
+                .join('\n\n')
+            : bodyText
+          if (replyCommentProblem(replyText) !== null) {
+            dependencies.onOutputRefused?.({
+              route: 'reply-suggestion',
+              reason: 'reply_limits',
+            })
+            return null
+          }
           if (
             verifyReplyLanguageOutput(
               replyText,
               responseContext.concreteLanguage,
               dependencies.replyLanguageDetector,
-              [responseContext.brandDisplayName],
+              [
+                responseContext.brandDisplayName,
+                frame?.reviewerDisplayName ?? '',
+                frame?.contact ?? '',
+                frame?.signerName ?? '',
+                frame?.signerTitle ?? '',
+                frame?.businessName ?? '',
+              ].filter((span) => span.length >= 3),
             ).status !== 'valid'
           ) {
             dependencies.onOutputRefused?.({
@@ -759,6 +786,7 @@ export function createAiGatewayRoutePreparer(
                   replyBrandProfileVersion: responseContext.replyBrandProfileVersion,
                   replyBrandDisplayNameDigest:
                     responseContext.replyBrandDisplayNameDigest,
+                  replyVoiceDigest: frame?.voiceDigest ?? null,
                   modelSnapshot: responseContext.modelSnapshot,
                   promptVersion: responseContext.promptVersion,
                   outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,

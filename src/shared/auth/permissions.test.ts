@@ -21,6 +21,7 @@ describe('permissions statement', () => {
     expect(resources).toContain('integration')
     expect(resources).toContain('inbox')
     expect(resources).toContain('goal')
+    expect(resources).toContain('reply_library')
     expect(resources).toContain('ai')
   })
 
@@ -54,6 +55,7 @@ describe('permissions statement', () => {
     expect(statement.goal).toContain('update')
     expect(statement.goal).toContain('cancel')
     expect(statement.ai).toEqual(['reply.generate', 'trends.read', 'manage'])
+    expect(statement.reply_library).toEqual(['manage'])
   })
 })
 
@@ -89,6 +91,7 @@ describe('owner role (AccountAdmin)', () => {
     'portal.read',
     'review.read',
     'reply.manage',
+    'reply_library.manage',
     'feedback.read',
     'feedback.handle',
     'feedback.respond',
@@ -100,6 +103,7 @@ describe('owner role (AccountAdmin)', () => {
     'ai.reply.generate',
     'ai.trends.read',
     'ai.manage',
+    'reply_library.manage',
     'dashboard.read',
     'dashboard.fleet_read',
     'goal.read',

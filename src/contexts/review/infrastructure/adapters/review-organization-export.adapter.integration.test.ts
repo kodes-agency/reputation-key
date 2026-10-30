@@ -239,7 +239,7 @@ async function seedManagerReplyWork(): Promise<void> {
        submitted_at, approved_at, published_at, created_at, updated_at
      ) VALUES ($1, $2, $3, $4, 'en-Latn-US', 'published', 'internal',
                'user-review-export-author', 'user-review-export-approver',
-               true, 'ai_assisted', 1, $5, 0, 1, 0, 1, 1, 'reply-draft-v2',
+               true, 'ai_assisted', 1, $5, 0, 1, 0, 1, 1, 'reply-draft-v3',
                'en-Latn', 'en-Latn', $6, 'published', 1, 1, $7, $7, $7, $7, $7)`,
     [
       INTERNAL_REPLY_ID,
@@ -352,6 +352,8 @@ describe.sequential('Review Organization Export contributor (PostgreSQL)', () =>
       'review/replies.json',
       'review/reply-authorizations.csv',
       'review/reply-authorizations.json',
+      'review/reply-library.csv',
+      'review/reply-library.json',
       'review/reply-publication-attempts.csv',
       'review/reply-publication-attempts.json',
     ])
@@ -380,7 +382,7 @@ describe.sequential('Review Organization Export contributor (PostgreSQL)', () =>
       source: 'internal',
       ai_generated: true,
       authorship: 'ai_assisted',
-      origin_ai_profile_version: 'reply-draft-v2',
+      origin_ai_profile_version: 'reply-draft-v3',
       origin_reply_drafting_epoch: 1,
       origin_property_profile_version: 1,
       origin_template_group: 'en-Latn',

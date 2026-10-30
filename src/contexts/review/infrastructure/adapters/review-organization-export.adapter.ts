@@ -169,6 +169,12 @@ type ReviewExportTables = Readonly<{
   replies: readonly ExportRecord[]
   authorizations: readonly ExportRecord[]
   attempts: readonly ExportRecord[]
+  organizationReplyVoices: readonly ExportRecord[]
+  propertyReplyVoices: readonly ExportRecord[]
+  replyTemplates: readonly ExportRecord[]
+  replyTemplateRevisions: readonly ExportRecord[]
+  replyTemplateWordings: readonly ExportRecord[]
+  replyTemplateVisibility: readonly ExportRecord[]
 }>
 
 async function readTables(
@@ -191,6 +197,12 @@ async function readTables(
           review_id,
           text,
           reply_language_tag,
+          template_layer,
+          template_ref,
+          template_revision,
+          template_wording_key,
+          voice_digest,
+          voice_choices::text AS voice_choices,
           status,
           source,
           created_by,
@@ -271,7 +283,85 @@ async function readTables(
           AND reply.source = 'internal'
         ORDER BY attempt.reply_id, attempt.publication_cycle, attempt.attempt_number`,
   )
-  return { replies, authorizations, attempts }
+  const organizationReplyVoices = await readRows(
+    snapshot,
+    sql`SELECT organization_id, use_first_name, privacy_mode, greeting_positive,
+          greeting_negative, contact, emoji_mode, array_to_json(emoji_set)::text AS emoji_set,
+          signer_name, signer_title, business_name_short, visit_word_key,
+          localized::text AS localized, array_to_json(overridden_fields)::text AS overridden_fields,
+          version, updated_by,
+          to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
+          to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
+        FROM organization_reply_voices
+        WHERE organization_id = ${organizationId}
+        ORDER BY organization_id`,
+  )
+  const propertyReplyVoices = await readRows(
+    snapshot,
+    sql`SELECT organization_id, property_id, use_first_name, privacy_mode,
+          greeting_positive, greeting_negative, contact, emoji_mode,
+          array_to_json(emoji_set)::text AS emoji_set, signer_name, signer_title,
+          business_name_short, visit_word_key, localized::text AS localized,
+          array_to_json(overridden_fields)::text AS overridden_fields, version, updated_by,
+          to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
+          to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
+        FROM property_reply_voices
+        WHERE organization_id = ${organizationId}
+        ORDER BY property_id`,
+  )
+  const replyTemplates = await readRows(
+    snapshot,
+    sql`SELECT id, organization_id, property_id, builtin_key, based_on_template_id,
+          based_on_builtin_version, current_revision_id,
+          to_char(archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archived_at,
+          created_by, updated_by,
+          to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
+          to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
+        FROM reply_templates
+        WHERE organization_id = ${organizationId}
+        ORDER BY id`,
+  )
+  const replyTemplateRevisions = await readRows(
+    snapshot,
+    sql`SELECT revision.id, revision.template_id, revision.number, revision.title,
+          revision.stars_min, revision.stars_max, revision.review_kind, revision.topic,
+          revision.created_by,
+          to_char(revision.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
+        FROM reply_template_revisions revision
+        JOIN reply_templates template ON template.id = revision.template_id
+        WHERE template.organization_id = ${organizationId}
+        ORDER BY revision.template_id, revision.number`,
+  )
+  const replyTemplateWordings = await readRows(
+    snapshot,
+    sql`SELECT wording.revision_id, wording.wording_key,
+          wording.language_group, wording.body
+        FROM reply_template_wordings wording
+        JOIN reply_template_revisions revision ON revision.id = wording.revision_id
+        JOIN reply_templates template ON template.id = revision.template_id
+        WHERE template.organization_id = ${organizationId}
+        ORDER BY wording.revision_id, wording.wording_key, wording.language_group`,
+  )
+  const replyTemplateVisibility = await readRows(
+    snapshot,
+    sql`SELECT id, organization_id, property_id, builtin_key, template_id, created_by,
+          to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
+        FROM reply_template_visibility
+        WHERE organization_id = ${organizationId}
+      ORDER BY id`,
+  )
+  // fallow-ignore-next-line code-duplication -- every bounded-context export uses the same snapshot fence contract
+  return {
+    replies,
+    authorizations,
+    attempts,
+    organizationReplyVoices,
+    propertyReplyVoices,
+    replyTemplates,
+    replyTemplateRevisions,
+    replyTemplateWordings,
+    replyTemplateVisibility,
+  }
 }
 
 async function assertBoundedSnapshot(snapshot: Snapshot, asOf: Date): Promise<void> {
@@ -322,6 +412,23 @@ function buildEntries(
       ...base,
       attempts: tables.attempts,
     }),
+    csvEntry('review/reply-library.csv', [
+      ['organization_reply_voice', tables.organizationReplyVoices],
+      ['property_reply_voice', tables.propertyReplyVoices],
+      ['reply_template', tables.replyTemplates],
+      ['reply_template_revision', tables.replyTemplateRevisions],
+      ['reply_template_wording', tables.replyTemplateWordings],
+      ['reply_template_visibility', tables.replyTemplateVisibility],
+    ]),
+    jsonEntry('review/reply-library.json', {
+      ...base,
+      organizationReplyVoices: tables.organizationReplyVoices,
+      propertyReplyVoices: tables.propertyReplyVoices,
+      replyTemplates: tables.replyTemplates,
+      replyTemplateRevisions: tables.replyTemplateRevisions,
+      replyTemplateWordings: tables.replyTemplateWordings,
+      replyTemplateVisibility: tables.replyTemplateVisibility,
+    }),
   ].sort((left, right) =>
     Buffer.compare(Buffer.from(left.path, 'utf8'), Buffer.from(right.path, 'utf8')),
   )
@@ -331,10 +438,11 @@ function buildEntries(
  * Concrete Review-owned Organization Export contribution.
  *
  * Reads: `replies` (only `source = 'internal'`),
- * `reply_publication_authorizations`, `reply_publication_attempts`.
+ * `reply_publication_authorizations`, `reply_publication_attempts`, and the
+ * six layered reply-library tables.
  *
- * Reads nothing else. An Organization with no manager-authored reply work
- * answers `no_data`; an empty replies CSV is never fabricated.
+ * An Organization with neither manager-authored reply work nor reply-library
+ * configuration answers `no_data`; an empty replies CSV is never fabricated.
  */
 export const createReviewOrganizationExportContributor = (
   db: Database,

@@ -185,7 +185,7 @@ const detailFns = {
   generateReplySuggestion: mockServerFn(
     async ({ data }: Parameters<typeof generateReplySuggestionFn>[0]) => ({
       status: 'ready' as const,
-      profileVersion: 'reply-draft-v2' as const,
+      profileVersion: 'reply-draft-v3' as const,
       replyText:
         data.targetLanguage.kind === 'review_language'
           ? 'Благодарим Ви за отзива. Радваме се, че престоят Ви е бил приятен.'

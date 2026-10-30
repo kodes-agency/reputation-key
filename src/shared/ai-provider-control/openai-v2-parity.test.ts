@@ -62,17 +62,19 @@ const PINNED_PROFILES = [
   },
   {
     profileVersion: 'reply-suggestion-v1',
-    profileDigest: '177d558263f0e60db1eb3b0a4073e3b7730545e580c887108fc5675c65b4a616',
+    profileDigest: '84a553c194c77dd802e4188821a672703b536291c2e3de1c4eea190ea90c68bd',
     outputSchemaDigest:
       'e8c29f4e2fd80391fbb483390e671dd0c4c5b639b1d1ec85e9d018ab90c33d35',
-    promptDigest: '4900b67b179ad3f2c9515dd107692399e3e7841aa4f01b243a413dfcf3b3282b',
+    promptDigest: '8e6c3e5f88d43c83098763e29cb0d159a0d23fd520fa9e7105e7e6adbc527b0d',
     artifactAttestationsDigest:
-      '08978a4ab1095266b2ff40f8dfad15d504a72f9b103e55d7a2f4303bf75efda7',
+      'bfe5c405b2d2400571dbe06f094deff74ecac25f618941459b36b0910255c073',
     sdkRequestShapeDigest:
       '69d4c82156308030119f7c5a7ce31d201dbfbbc68e0bc7b568f585e4ff1d09fd',
-    staticTokenBearingBytes: 2115,
+    // ADR 0073: the reply prompt asks for the body only and no longer carries the
+    // business name, so its prompt, profile and request pins moved on purpose.
+    staticTokenBearingBytes: 1890,
     staticTokenBearingDigest:
-      '50c614c52ec43e3dca20078d3fcb55efa71bd32d8f0a22928485ca3c3b5f6e93',
+      '6200bdab5c207fdd30999ba9d74a5faaf59db358d86a74e78c09f8148abea8ac',
   },
   {
     profileVersion: 'property-trend-v1',
@@ -137,10 +139,10 @@ const PINNED_ROUTES = {
   },
   reply: {
     sourceDigest: '916622962728c9a3a2ad6c2e44fc2e47e777d9420a0b13c66c8ae576a596d14d',
-    preparedDigest: 'fbf251d887c38c25d42cc4a7723c76265b4b5050a17d9e71ee2f27a2cf53e94f',
+    preparedDigest: 'd05e0e59c41ae9d86701f134c78132dc89f4b6100f619d879f35ca61d3264c5c',
     sourceByteCount: 86,
-    preparedByteCount: 2710,
-    providerPayloadByteCount: 216,
+    preparedByteCount: 2443,
+    providerPayloadByteCount: 178,
     promptCacheShard: 15,
     limits: {
       sourceBytes: 16384,
@@ -148,13 +150,13 @@ const PINNED_ROUTES = {
       preparedRequestBytes: 65536,
       responseBytes: 131072,
       outputTokens: 1024,
-      costMicros: 1695,
+      costMicros: 1643,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'UP2vxaB1FGWoFUMmhESUBxR8iGv7GoMzAoyB0XvNrZk',
+    requestBindingHmac: 'gS1_WTKowPuySorY5VUEYppzLdqh9qSlQCr0ZY37D9A',
     canonicalProviderBytesSha256:
-      'e3dd149066502b4d8f87ddd0ee340c18db69459c057952988b4a08add8ac3721',
-    canonicalProviderByteLength: 2710,
+      'fe47756e6caf8d92ed3fa409de4a26c1ea45977184858a5391230a34bdeb8990',
+    canonicalProviderByteLength: 2443,
   },
   trend: {
     sourceDigest: 'c42fb3d5198ee5e97b829f07bcccfb36ab0b823de3538d2971b29397780289db',

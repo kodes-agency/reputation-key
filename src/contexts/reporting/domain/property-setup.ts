@@ -120,7 +120,7 @@ const STEP_DEFINITIONS = {
   reply_language: { asked: true, section: 'replies' },
   ai_decision: { asked: true, section: 'ai' },
   responsible_manager: { asked: true, section: 'people' },
-  reply_voice: { asked: false, section: 'replies' },
+  reply_voice: { asked: true, section: 'replies' },
   portal_published: { asked: false, section: 'portals' },
   rating_goal: { asked: false, section: 'goals' },
 } as const satisfies Readonly<Record<PropertySetupStepKey, StepDefinition>>

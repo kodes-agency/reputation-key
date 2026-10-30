@@ -4,6 +4,7 @@
 import { fn } from 'storybook/test'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { PropertySetupFns, SetupMember } from './property-setup-contract'
+import { replyLibraryFixture } from '../property/reply-library.stories.fixtures'
 
 export const STORY_ADMIN: SetupMember = {
   userId: 'user-admin',
@@ -142,6 +143,19 @@ export function createSetupFnsFixture(options: Options): Spied<PropertySetupFns>
         }
       },
     ),
+    getPropertySetup: fn(async ({ data }: { data: { propertyId: string } }) => ({
+      propertyId: data.propertyId,
+      steps: [
+        {
+          key: 'reply_voice',
+          status: 'complete',
+          asked: true,
+          section: 'replies',
+        },
+      ],
+      attentionCount: 0,
+    })),
+    getReplyLibrary: fn(async () => replyLibraryFixture()),
     savePropertyPublicDisplayName: fn(
       async ({ data }: { data: { propertyId: string; displayName: string } }) => {
         const property = properties.get(data.propertyId)
@@ -200,6 +214,7 @@ export function createSetupFnsFixture(options: Options): Spied<PropertySetupFns>
       propertyId: data.propertyId,
       decisionDeferredAt: '2026-09-15T08:00:00.000Z',
     })),
+    saveReplyVoice: fn(async () => replyLibraryFixture()),
   }
   return fixture as unknown as Spied<PropertySetupFns>
 }

@@ -21,6 +21,7 @@ import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/appli
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { replyFromRow } from './mappers/reply.mapper'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding'
+import type { AiReplyVoicePublicApi } from '../application/ai-reply-voice-frame'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
 
@@ -66,6 +67,7 @@ export const createAiSuggestedDraftStore = (
     PortalAiReplyBrandProfilePublicApi,
     'isCurrentAiReplyBrandProfile'
   >,
+  replyVoices?: AiReplyVoicePublicApi,
 ): AiSuggestedDraftStore => {
   return {
     async accept(input) {
@@ -82,6 +84,7 @@ export const createAiSuggestedDraftStore = (
       }
       const personalized = provenance.version !== 'ai-reply-provenance-v1'
       const grounded = provenance.version === 'ai-reply-provenance-v3'
+      const replyVoiceDigest = grounded ? provenance.replyVoiceDigest : undefined
       const replyProfileVersion = personalized
         ? provenance.replyProfileVersion
         : provenance.operationProfileVersion
@@ -251,15 +254,29 @@ export const createAiSuggestedDraftStore = (
           return { status: 'rejected', reason: 'invalidated' } as const
         }
 
-        if (
-          grounded &&
-          operation.replyAdoptionDisposition === 'none' &&
-          !(await replyBrandProfiles.isCurrentAiReplyBrandProfile(tx, {
+        const brandProfileCurrent =
+          operation.replyAdoptionDisposition !== 'none' ||
+          !grounded ||
+          (await replyBrandProfiles.isCurrentAiReplyBrandProfile(tx, {
             organizationId: input.organizationId,
             propertyId: input.propertyId,
             version: provenance.replyBrandProfileVersion,
             displayNameDigest: provenance.replyBrandDisplayNameDigest,
           }))
+        const voiceCurrent =
+          operation.replyAdoptionDisposition !== 'none' ||
+          replyVoiceDigest == null ||
+          (replyVoices !== undefined &&
+            (await replyVoices.isCurrentVoice(tx, {
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+              languageGroup: provenance.templateGroup,
+              voiceDigest: replyVoiceDigest,
+            })))
+        if (
+          grounded &&
+          operation.replyAdoptionDisposition === 'none' &&
+          (!brandProfileCurrent || !voiceCurrent)
         ) {
           const invalidatedRows = await tx
             .update(aiOperations)
@@ -338,6 +355,7 @@ export const createAiSuggestedDraftStore = (
               replyTemplateProvenance.catalogueDigest &&
             existing.originConcreteLanguageTag === provenance.concreteLanguageTag &&
             existing.originTemplateGroup === provenance.templateGroup &&
+            existing.voiceDigest === (replyVoiceDigest ?? null) &&
             existing.aiDraftExpiresAt?.getTime() === provenance.draftExpiresAtEpochMillis
           return exactReplay
             ? ({ status: 'accepted', reply: replyFromRow(existing) } as const)
@@ -362,6 +380,12 @@ export const createAiSuggestedDraftStore = (
               replyLanguageTag: provenance.concreteLanguageTag,
               templateId: null,
               templateVersion: null,
+              templateLayer: null,
+              templateRef: null,
+              templateRevision: null,
+              templateWordingKey: null,
+              voiceDigest: replyVoiceDigest ?? null,
+              voiceChoices: null,
               status: 'draft',
               aiGenerated: true,
               authorship: 'ai_assisted',
@@ -400,6 +424,7 @@ export const createAiSuggestedDraftStore = (
               replyLanguageTag: provenance.concreteLanguageTag,
               templateId: null,
               templateVersion: null,
+              voiceDigest: replyVoiceDigest ?? null,
               status: 'draft',
               source: 'internal',
               createdBy: input.actorUserId,

@@ -44,8 +44,12 @@ import {
 } from '#/contexts/inbox/server/inbox'
 import { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
-import { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
+
+const generateReplySuggestionLazily: NonNullable<
+  InboxServerFns['generateReplySuggestion']
+> = async (input) =>
+  (await import('#/contexts/ai/server/reply-suggestion')).generateReplySuggestionFn(input)
 
 // Fetched with its first use, not imported. Only the empty To handle queue asks,
 // and a server-function module that two entries share is grouped with the stubs
@@ -117,7 +121,7 @@ export const inboxFns: InboxServerFns = {
     return checkReviewOnGoogleFn
   },
   get generateReplySuggestion() {
-    return generateReplySuggestionFn
+    return generateReplySuggestionLazily
   },
   get requestReviewAnalysisNow() {
     return requestReviewAnalysisNowFn

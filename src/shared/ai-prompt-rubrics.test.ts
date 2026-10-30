@@ -108,15 +108,17 @@ describe('reply prompt states the grounded personalized-draft contract', () => {
   const prompt = promptFor('reply-suggestion-v1')
 
   it('requires exact evidence and prohibits invented operational commitments', () => {
-    expect(AI_PERSONALIZED_REPLY_PROFILE_VERSION).toBe('reply-draft-v2')
+    expect(AI_PERSONALIZED_REPLY_PROFILE_VERSION).toBe('reply-draft-v3')
     expect(prompt.toLowerCase()).toContain('exact source excerpts')
     expect(prompt.toLowerCase()).toContain('exact reply excerpts')
     expect(prompt.toLowerCase()).toContain('do not invent')
     expect(prompt.toLowerCase()).toContain('compensation')
     expect(prompt.toLowerCase()).toContain('admissions')
     expect(prompt.toLowerCase()).toContain('untrusted data')
-    expect(prompt).toContain('exact Property display name')
-    expect(prompt).toContain('approved public Brand Profile data')
+    expect(prompt).toContain('Write only the reply body')
+    expect(prompt).toContain(
+      'no greeting, no sign-off, no business name, no contact details',
+    )
   })
 
   // Probed, not restated: whatever the scanner refuses, the prompt has to say.

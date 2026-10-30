@@ -134,6 +134,8 @@ const groundedPersonalizedPayloadSchema = z
     replyProfileDigest: z.literal(AI_PERSONALIZED_REPLY_PROFILE_DIGEST),
     replyBrandProfileVersion: positive,
     replyBrandDisplayNameDigest: digest,
+    /** Present for v3 suggestions produced after reply-voice framing shipped. */
+    replyVoiceDigest: digest.nullable().optional(),
   })
   .strict()
   .superRefine(personalizedRefinement)

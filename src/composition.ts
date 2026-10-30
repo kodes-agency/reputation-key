@@ -469,6 +469,7 @@ function buildContainer(
         property.publicApi.getPropertyReplyLanguage(orgId, pid),
     },
     replyBrandProfiles: portal.publicApi.portal,
+    replyVoices: review.publicApi.aiReplyVoice,
     inference: aiRuntime.inference,
     subjectHmac: aiRuntime.subjectHmac,
     enqueuePropertyTrend: infra.jobQueue

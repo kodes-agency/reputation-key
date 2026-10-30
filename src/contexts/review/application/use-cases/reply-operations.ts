@@ -8,6 +8,7 @@ import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../ports/reply-publication-dispatch-evidence.port'
 import type { AiSuggestedDraftStore } from '../ports/ai-suggested-draft-store.port'
+import type { ReplyLibraryRepository } from '../ports/reply-library.repository'
 import type {
   PropertyPublicationScopePort,
   ReviewPropertyPublicationLifecycle,
@@ -21,6 +22,12 @@ import {
   requireReplyManager as requireManager,
 } from './reply-access'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
+import { checkReplyText } from '#/shared/reply-library/reply-checks'
+import { BUILTIN_REPLY_VOICE, resolveVoice } from '#/shared/reply-library/reply-voice'
+import {
+  mapReplyLanguageMetadata,
+  parseCanonicalReplyLanguageTag,
+} from '#/shared/reply-language-catalogue'
 import { assertReplySlotsFilled, replyTextProblemMessage } from '../../domain/rules'
 import { assertReplyCommandMayStart } from '../../domain/reply-command-preconditions'
 import {
@@ -50,6 +57,8 @@ export type ReplyDeps = Readonly<{
   commandStore: ReplyCommandStore
   /** Atomic verification and persistence seam for browser-held AI suggestions. */
   aiSuggestedDraftStore?: AiSuggestedDraftStore
+  /** Effective voice used by the final privacy/style safety fence. */
+  replyLibrary?: Pick<ReplyLibraryRepository, 'loadSnapshot'>
   /**
    * D4: the only evidence that lets retryPublish send an uncertain attempt
    * again. Reply commands hold no Google client: checking Google is
@@ -307,6 +316,43 @@ function assertReplyTextSendable(text: string): void {
     throw reviewError('invalid_reply', replyTextProblemMessage(problem))
 }
 
+async function assertReplyTextSafe(
+  deps: ReplyDeps,
+  reply: Reply,
+  review: Review,
+): Promise<void> {
+  const mappedReviewLanguage = mapReplyLanguageMetadata(review.languageCode)
+  const languageGroup =
+    (reply.replyLanguageTag
+      ? parseCanonicalReplyLanguageTag(reply.replyLanguageTag)?.templateGroup
+      : undefined) ??
+    (mappedReviewLanguage.status === 'supported'
+      ? mappedReviewLanguage.language?.templateGroup
+      : undefined) ??
+    'en-Latn'
+  const snapshot = await deps.replyLibrary?.loadSnapshot(
+    review.organizationId,
+    review.propertyId,
+  )
+  const voice = snapshot
+    ? resolveVoice(BUILTIN_REPLY_VOICE, snapshot.accountVoice, snapshot.propertyVoice)
+    : null
+  const findings = checkReplyText({
+    text: reply.text,
+    kind: 'final_reply',
+    rating: review.rating,
+    reviewKind: review.text == null || review.text.trim() === '' ? 'rating_only' : 'text',
+    languageGroup,
+    privacyMode: voice?.privacyMode.value ?? false,
+    emojiAllowed: voice?.emojiMode.value === 'positive',
+  }).blocks
+  if (findings.length > 0) {
+    throw reviewError('invalid_reply', 'Reply failed required safety checks', {
+      findingCodes: findings.map(({ code }) => code),
+    })
+  }
+}
+
 export type DraftReply = ReturnType<typeof draftReply>
 export type SubmitReply = ReturnType<typeof submitReply>
 export type ApproveReply = ReturnType<typeof approveReply>
@@ -322,6 +368,12 @@ export type DraftReplyInput = Readonly<{
   /** Internal-only provenance set by the property template loader. */
   templateId?: string
   templateVersion?: number
+  templateLayer?: 'builtin' | 'account' | 'property'
+  templateRef?: string
+  templateRevision?: number
+  templateWordingKey?: string
+  voiceDigest?: string
+  voiceChoices?: NonNullable<Reply['voiceChoices']>
 }>
 
 export const draftReply =
@@ -337,6 +389,20 @@ export const draftReply =
       (input.templateVersion !== undefined && input.templateVersion < 1)
     ) {
       throw reviewError('invalid_input', 'Template provenance is incomplete')
+    }
+    const layeredTemplateParts = [
+      input.templateLayer,
+      input.templateRef,
+      input.templateRevision,
+      input.templateWordingKey,
+    ]
+    const suppliedLayeredParts = layeredTemplateParts.filter((part) => part !== undefined)
+    if (
+      (suppliedLayeredParts.length !== 0 &&
+        suppliedLayeredParts.length !== layeredTemplateParts.length) ||
+      (input.templateRevision !== undefined && input.templateRevision < 1)
+    ) {
+      throw reviewError('invalid_input', 'Layered template provenance is incomplete')
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
@@ -398,6 +464,17 @@ export const draftReply =
                 templateVersion: input.templateVersion,
               }
             : {}),
+          ...(input.templateRef !== undefined
+            ? {
+                templateLayer: input.templateLayer,
+                templateRef: input.templateRef,
+                templateRevision: input.templateRevision,
+                templateWordingKey: input.templateWordingKey,
+              }
+            : {}),
+          ...(input.voiceDigest !== undefined
+            ? { voiceDigest: input.voiceDigest, voiceChoices: input.voiceChoices ?? null }
+            : {}),
         },
         now,
       )
@@ -413,6 +490,12 @@ export const draftReply =
       replyLanguageTag: input.replyLanguageTag ?? null,
       templateId: input.templateId ?? null,
       templateVersion: input.templateVersion ?? null,
+      templateLayer: input.templateLayer ?? null,
+      templateRef: input.templateRef ?? null,
+      templateRevision: input.templateRevision ?? null,
+      templateWordingKey: input.templateWordingKey ?? null,
+      voiceDigest: input.voiceDigest ?? null,
+      voiceChoices: input.voiceChoices ?? null,
       status: 'draft',
       source: 'internal',
       createdBy: ctx.userId,
@@ -458,6 +541,7 @@ export const submitReply =
     // can still be too long in bytes.
     assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
+    await assertReplyTextSafe(deps, reply, review)
     await assertCurrentAiDraftBinding(deps, ctx, reply, 'submit')
 
     const now = deps.clock()
@@ -531,6 +615,7 @@ export const approveReply =
     await assertPropertyAcceptsPublication(deps, review)
     assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
+    await assertReplyTextSafe(deps, reply, review)
     await assertCurrentAiDraftBinding(deps, ctx, reply, 'approve')
 
     return authorizeAndEnqueuePublication(

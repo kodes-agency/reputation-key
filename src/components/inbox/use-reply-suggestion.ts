@@ -192,7 +192,7 @@ export function useReplySuggestion(input: Input) {
             !result.replyText ||
             replyCommentProblem(result.replyText) !== null ||
             (result.status === 'ready' &&
-              (result.profileVersion !== 'reply-draft-v2' ||
+              (result.profileVersion !== 'reply-draft-v3' ||
                 result.expiresAtEpochMillis <= Date.now())) ||
             verifiedLanguageTag === null
           ) {

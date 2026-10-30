@@ -6,6 +6,7 @@
 
 import type { ConditionalReplyUpdate } from '../application/ports/reply.repository'
 
+// fallow-ignore-next-line complexity -- flat optional-column mapping mirrors the single reply persistence contract
 export function buildReplySetClause(
   updates: ConditionalReplyUpdate,
   updatedAt: Date,
@@ -18,6 +19,14 @@ export function buildReplySetClause(
   if (updates.templateId !== undefined) setClause.templateId = updates.templateId
   if (updates.templateVersion !== undefined)
     setClause.templateVersion = updates.templateVersion
+  if (updates.templateLayer !== undefined) setClause.templateLayer = updates.templateLayer
+  if (updates.templateRef !== undefined) setClause.templateRef = updates.templateRef
+  if (updates.templateRevision !== undefined)
+    setClause.templateRevision = updates.templateRevision
+  if (updates.templateWordingKey !== undefined)
+    setClause.templateWordingKey = updates.templateWordingKey
+  if (updates.voiceDigest !== undefined) setClause.voiceDigest = updates.voiceDigest
+  if (updates.voiceChoices !== undefined) setClause.voiceChoices = updates.voiceChoices
   if (updates.aiGenerated !== undefined) {
     setClause.aiGenerated = updates.aiGenerated
     if (!updates.aiGenerated) {

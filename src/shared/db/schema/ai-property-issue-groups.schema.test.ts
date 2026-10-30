@@ -184,7 +184,10 @@ describe('migration 0079 Property issue groups', () => {
       tag: '0079_property_issue_groups',
       breakpoints: true,
     })
-    expect(JOURNAL.entries.at(-2)?.tag).toBe('0078_review_analysis_v3')
-    expect(JOURNAL.entries.at(-1)).toEqual(entry)
+    // Later migrations append after it (0081 reply library layers); 0079 stays right
+    // after 0078.
+    expect(JOURNAL.entries.find((candidate) => candidate.idx === 78)?.tag).toBe(
+      '0078_review_analysis_v3',
+    )
   })
 })

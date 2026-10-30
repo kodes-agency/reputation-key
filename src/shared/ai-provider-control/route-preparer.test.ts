@@ -108,7 +108,7 @@ function replyRequest() {
     ...analysis,
     route: 'reply-suggestion',
     actorId: 'better-auth-user_01',
-    replyProfileVersion: 'reply-draft-v2',
+    replyProfileVersion: 'reply-draft-v3',
     brandProfile: { displayName: 'Example Hotel' },
     tone: 'professional',
     binding: {
@@ -307,7 +307,7 @@ describe('gateway route-preparer source lifetime', () => {
       (refusal) => refusals.push(refusal),
     ).prepare(request)
 
-    // Never names the business, so the brand rule refuses.
+    // The provider writes only the body, so the business name is not required.
     expect(
       prepared.acceptProviderResult({
         languageCode: 'bg-Cyrl-BG',
@@ -320,7 +320,7 @@ describe('gateway route-preparer source lifetime', () => {
           },
         ],
       }),
-    ).toBeNull()
+    ).not.toBeNull()
 
     // Quotes words the review never contained, so the grounding anchor refuses.
     expect(
@@ -337,10 +337,7 @@ describe('gateway route-preparer source lifetime', () => {
       }),
     ).toBeNull()
 
-    expect(refusals).toEqual([
-      { route: 'reply-suggestion', reason: 'brand' },
-      { route: 'reply-suggestion', reason: 'grounding' },
-    ])
+    expect(refusals).toEqual([{ route: 'reply-suggestion', reason: 'grounding' }])
     // Identifiers only: no review text, no reply text, no excerpt.
     expect(JSON.stringify(refusals)).not.toMatch(/благодар|persone|rooftop/i)
   })
@@ -388,21 +385,13 @@ describe('gateway route-preparer source lifetime', () => {
     })).prepare(request)
 
     expect(JSON.parse(openAiRequestOf(prepared).input[1].content)).toMatchObject({
-      propertyDisplayName: 'Example Hotel',
       reviewText: request.source.text,
       languageCode: 'bg-Cyrl-BG',
       tone: 'professional',
     })
     expect(
       Object.keys(JSON.parse(openAiRequestOf(prepared).input[1].content)).sort(),
-    ).toEqual([
-      'languageCode',
-      'propertyDisplayName',
-      'rating',
-      'replyProfileVersion',
-      'reviewText',
-      'tone',
-    ])
+    ).toEqual(['languageCode', 'rating', 'replyProfileVersion', 'reviewText', 'tone'])
     expect(prepared.invocation.descriptor.binding).toMatchObject({
       evaluatedLanguage: 'tr-Latn',
       concreteReplyLanguage: {
@@ -432,10 +421,36 @@ describe('gateway route-preparer source lifetime', () => {
       route: 'reply-suggestion',
       status: 'success',
       result: {
-        profileVersion: 'reply-draft-v2',
+        profileVersion: 'reply-draft-v3',
         concreteLanguageTag: 'bg-Cyrl-BG',
         templateGroup: 'bg-Cyrl',
       },
     })
+  })
+
+  it('keeps local voice and reviewer framing out of the provider payload', () => {
+    const request = parseAiGatewayRouteRequest({
+      ...replyRequest(),
+      replyLocalFrame: {
+        prefix: 'Hi Maria,',
+        suffix: 'Please contact private@example.test.\n\nWarmly,\nAna, Manager',
+        voiceDigest: 'a'.repeat(64),
+        reviewerDisplayName: 'Maria Private',
+        contact: 'private@example.test',
+        signerName: 'Ana Private',
+        signerTitle: 'Manager',
+        businessName: 'Private Hotel',
+      },
+    })
+    const prepared = preparer((text) => ({
+      language: /[\u0400-\u04ff]/u.test(text) ? 'bg' : 'tr',
+      probability: 1,
+      reliable: true,
+    })).prepare(request)
+    const payload = openAiRequestOf(prepared).input[1].content
+    expect(payload).not.toContain('Maria Private')
+    expect(payload).not.toContain('private@example.test')
+    expect(payload).not.toContain('Ana Private')
+    expect(payload).not.toContain('Private Hotel')
   })
 })

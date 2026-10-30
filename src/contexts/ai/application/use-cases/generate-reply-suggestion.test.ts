@@ -122,6 +122,16 @@ function createHarness(
      * in-process inference adapter does before anything else.
      */
     checksGatewayRequest?: boolean
+    replyLocalFrame?: null | Readonly<{
+      prefix: string
+      suffix: string
+      voiceDigest: string
+      reviewerDisplayName: string | null
+      contact: string | null
+      signerName: string | null
+      signerTitle: string | null
+      businessName: string
+    }>
   }> = {},
 ) {
   let admissionCalls = 0
@@ -205,7 +215,7 @@ function createHarness(
           route: 'reply-suggestion' as const,
           status: 'success' as const,
           result: {
-            profileVersion: 'reply-draft-v2' as const,
+            profileVersion: 'reply-draft-v3' as const,
             replyText: 'Thank you for your thoughtful review.',
             provenanceToken: 'signed-provenance-token',
             expiresAtEpochMillis: NOW + 5 * 60_000,
@@ -394,6 +404,13 @@ function createHarness(
       readDefaultReplyLanguage: vi.fn(async () => options.propertyReplyLanguage ?? null),
     },
     replyBrandProfiles: { readCurrentAiReplyBrandProfile },
+    ...(options.replyLocalFrame === undefined
+      ? {}
+      : {
+          replyVoices: {
+            resolveLocalFrame: vi.fn(async () => options.replyLocalFrame ?? null),
+          },
+        }),
     resolveReplyLanguage: vi.fn(
       async () =>
         options.replyLanguage ?? {
@@ -472,6 +489,60 @@ describe('generate reply suggestion', () => {
       harness.mocks.generateReply,
       harness.mocks.settleEphemeralReply,
       harness.mocks.markDelivered,
+    )
+  })
+
+  it('keeps an Arabic catalogue fallback unframed when no local voice exists', async () => {
+    const harness = createHarness({
+      reviewText: null,
+      propertyReplyLanguage: 'ar-Arab',
+      replyLocalFrame: null,
+    })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'fallback',
+      kind: 'local_safe_template',
+      reason: 'no_review_text',
+      languageSource: 'property_default',
+      replyText:
+        'شكرًا لمشاركة هذا التقييم الإيجابي. يسعدنا أن تجربتك كانت ممتعة وتركت لديك انطباعًا طيبًا.',
+      concreteLanguageTag: 'ar-Arab',
+    })
+  })
+
+  it('frames an English catalogue fallback when a local voice exists', async () => {
+    const harness = createHarness({
+      reviewText: null,
+      propertyReplyLanguage: 'en-Latn',
+      replyLocalFrame: {
+        prefix: 'Hi Maria,',
+        suffix: 'Warm regards,\nHarbor House Team',
+        voiceDigest: SHA,
+        reviewerDisplayName: 'Maria Lopez',
+        contact: null,
+        signerName: null,
+        signerTitle: null,
+        businessName: 'Harbor House',
+      },
+    })
+
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({
+      status: 'fallback',
+      replyText:
+        'Hi Maria,\n\nThank you for sharing this positive review. We are pleased that your experience was enjoyable.\n\nWarm regards,\nHarbor House Team',
+    })
+  })
+
+  it('keeps a personalized reply body unframed when no local voice exists', async () => {
+    const harness = createHarness({ replyLocalFrame: null })
+
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({
+      status: 'ready',
+      replyText: 'Thank you for your thoughtful review.',
+    })
+    expect(harness.mocks.generateReply).toHaveBeenCalledWith(
+      expect.objectContaining({ replyLocalFrame: null }),
+      expect.any(AbortSignal),
     )
   })
   it('serves an explicit catalogue request without merchant AI admission or execution', async () => {
@@ -644,7 +715,7 @@ describe('generate reply suggestion', () => {
 
     await expect(harness.generate(INPUT)).resolves.toEqual({
       status: 'ready',
-      profileVersion: 'reply-draft-v2',
+      profileVersion: 'reply-draft-v3',
       replyText: 'Thank you for your thoughtful review.',
       provenanceToken: 'signed-provenance-token',
       expiresAtEpochMillis: NOW + 5 * 60_000,
@@ -658,7 +729,7 @@ describe('generate reply suggestion', () => {
         baseReplyStateRevision: 3,
         replyDraftingEpoch: 7,
         operationProfileVersion: 'reply-suggestion-v1',
-        replyProfileVersion: 'reply-draft-v2',
+        replyProfileVersion: 'reply-draft-v3',
       }),
     )
     expect(harness.mocks.markDelivered).toHaveBeenCalledWith({
@@ -670,7 +741,7 @@ describe('generate reply suggestion', () => {
     expect(harness.mocks.release).toHaveBeenCalledWith({ admissionId: 'admission-1' })
     expect(harness.mocks.generateReply).toHaveBeenCalledWith(
       expect.objectContaining({
-        replyProfileVersion: 'reply-draft-v2',
+        replyProfileVersion: 'reply-draft-v3',
         brandProfile: { displayName: 'Example Hotel' },
         binding: expect.objectContaining({
           replyBrandProfileVersion: 7,

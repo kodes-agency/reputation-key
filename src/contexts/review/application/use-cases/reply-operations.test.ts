@@ -834,6 +834,39 @@ describe('submitReply', () => {
     expect(deps.outbox.facts).toHaveLength(0)
   })
 
+  it('uses the effective privacy voice for the final block-level fence', async () => {
+    const draft = makeReply({ text: 'Thank you for being our patient.' })
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(draft),
+      replyLibrary: {
+        loadSnapshot: vi.fn(async () => ({
+          propertyName: 'Harbor House',
+          defaultReplyLanguage: 'en-Latn-US',
+          accountVoice: {
+            organizationId: ORG_ID,
+            propertyId: null,
+            overriddenFields: ['privacyMode'] as const,
+            localized: {},
+            version: 1,
+            privacyMode: true,
+          },
+          propertyVoice: null,
+          accountTemplates: [],
+          propertyTemplates: [],
+          visibility: [],
+        })),
+      },
+    })
+
+    await expect(
+      submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({
+      code: 'invalid_reply',
+      context: { findingCodes: expect.arrayContaining(['privacy_content']) },
+    })
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+  })
+
   it('treats a lost race (conditionalUpdate returns null) as invalid_transition', async () => {
     const draft = makeReply({ status: 'draft' })
     const deps = makeDeps({

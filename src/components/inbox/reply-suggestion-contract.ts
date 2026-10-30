@@ -15,6 +15,8 @@ import type { ReplyDraftSnapshot } from './use-reply-autosave'
 
 export type ReplyTone = GenerateReplySuggestionInput['tone']
 export type ReplySuggestionResult = GenerateReplySuggestionResult
+export type ComposerReplyTemplateListResult = ReplyTemplateListResult &
+  Readonly<{ recommendedReason?: string | null }>
 
 /**
  * One assist request. `idempotencyKey` belongs to the compose session: the
@@ -48,8 +50,10 @@ export type PendingReplySuggestion =
 export type LoadedReplyTemplateDraft = Readonly<{
   text: string
   replyLanguageTag?: string | null
-  templateId: string | null
-  templateVersion: number | null
+  templateRef?: string | null
+  templateRevision?: number | null
+  templateWordingKey?: string | null
+  hasAlternativeWording?: boolean
 }>
 
 export type ReplyComposerInput = Readonly<{
@@ -66,11 +70,19 @@ export type ReplyComposerInput = Readonly<{
   ) => Promise<unknown>
   onSubmit: () => Promise<unknown>
   onGenerate?: ReplySuggestionGenerate
-  onListTemplates?: (target: ReplyLanguageTarget) => Promise<ReplyTemplateListResult>
+  onListTemplates?: (
+    target: ReplyLanguageTarget,
+  ) => Promise<ComposerReplyTemplateListResult>
   onLoadTemplate?: (
     templateId: string,
     target: ReplyLanguageTarget,
+    excludeWordingKeys?: readonly string[],
   ) => Promise<LoadedReplyTemplateDraft>
+  onCheckDraft?: (
+    text: string,
+  ) => Promise<
+    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
+  >
 }>
 
 export type ReplySuggestionFixTarget = 'public_display_name' | 'ai_settings' | 'ai_notice'

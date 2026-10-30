@@ -79,6 +79,10 @@ const PRESENCE_PROBE_TABLES = Object.freeze([
   'review_google_reputation_snapshot_facts',
   'property_reply_profiles',
   'property_reply_templates',
+  'organization_reply_voices',
+  'property_reply_voices',
+  'reply_templates',
+  'reply_template_visibility',
 ] as const)
 
 function phaseEvidenceRef(
@@ -469,10 +473,43 @@ async function purge(
         WHERE property_id IN (SELECT property_id FROM ${propertyScope(organizationId)} AS scope)`,
   )
 
-  // The Property's reply library: greeting, sign-offs, an escalation contact
-  // and template text a manager wrote. Nothing references the rows, and both
-  // tables RESTRICT the Property's own delete, so they have to go here for the
-  // Property phase to finish.
+  // The layered reply library is deleted child-first; immutable revisions are
+  // retained only while their owning template exists.
+  const replyTemplateVisibility = await countAffected(
+    tx,
+    sql`DELETE FROM reply_template_visibility WHERE organization_id = ${organizationId}`,
+  )
+  const replyTemplateWordings = await countAffected(
+    tx,
+    sql`DELETE FROM reply_template_wordings
+        WHERE revision_id IN (
+          SELECT revision.id FROM reply_template_revisions revision
+          JOIN reply_templates template ON template.id = revision.template_id
+          WHERE template.organization_id = ${organizationId}
+        )`,
+  )
+  await countAffected(
+    tx,
+    sql`UPDATE reply_templates SET current_revision_id = NULL WHERE organization_id = ${organizationId}`,
+  )
+  const replyTemplateRevisions = await countAffected(
+    tx,
+    sql`DELETE FROM reply_template_revisions
+        WHERE template_id IN (SELECT id FROM reply_templates WHERE organization_id = ${organizationId})`,
+  )
+  const layeredReplyTemplates = await countAffected(
+    tx,
+    sql`DELETE FROM reply_templates WHERE organization_id = ${organizationId}`,
+  )
+  const propertyReplyVoices = await countAffected(
+    tx,
+    sql`DELETE FROM property_reply_voices WHERE organization_id = ${organizationId}`,
+  )
+  const organizationReplyVoices = await countAffected(
+    tx,
+    sql`DELETE FROM organization_reply_voices WHERE organization_id = ${organizationId}`,
+  )
+  // Legacy rows remain until the later cleanup migration.
   const replyTemplates = await countAffected(
     tx,
     sql`DELETE FROM property_reply_templates WHERE organization_id = ${organizationId}`,
@@ -504,6 +541,12 @@ async function purge(
     { step: 'sync_state_deleted', rows: syncState },
     { step: 'reply_templates_deleted', rows: replyTemplates },
     { step: 'reply_profiles_deleted', rows: replyProfiles },
+    { step: 'reply_template_visibility_deleted', rows: replyTemplateVisibility },
+    { step: 'reply_template_wordings_deleted', rows: replyTemplateWordings },
+    { step: 'reply_template_revisions_deleted', rows: replyTemplateRevisions },
+    { step: 'layered_reply_templates_deleted', rows: layeredReplyTemplates },
+    { step: 'property_reply_voices_deleted', rows: propertyReplyVoices },
+    { step: 'organization_reply_voices_deleted', rows: organizationReplyVoices },
   ])
 }
 

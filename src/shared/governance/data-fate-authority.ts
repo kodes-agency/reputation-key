@@ -680,7 +680,16 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'reply-library.schema.ts',
-    exportNames: ['propertyReplyProfiles', 'propertyReplyTemplates'],
+    exportNames: [
+      'organizationReplyVoices',
+      'propertyReplyProfiles',
+      'propertyReplyTemplates',
+      'propertyReplyVoices',
+      'replyTemplateRevisions',
+      'replyTemplates',
+      'replyTemplateVisibility',
+      'replyTemplateWordings',
+    ],
     owner: 'review',
     disposition: 'active_authority',
     authority: 'RPL-01/LIF-01',

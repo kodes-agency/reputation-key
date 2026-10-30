@@ -18,6 +18,7 @@ const TASK_LABEL: Readonly<Record<SetupTaskKind, string>> = {
   language: 'Reply language',
   managers: 'Responsible manager',
   ai: 'AI features',
+  replyVoice: 'Reply voice',
 }
 
 export function SetupResults({

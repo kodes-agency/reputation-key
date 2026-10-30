@@ -69,7 +69,7 @@ const POPULATED_TABLES: StubTables = {
       origin_base_reply_state_revision: 0,
       origin_reply_drafting_epoch: 1,
       origin_property_profile_version: 1,
-      origin_ai_profile_version: 'reply-draft-v2',
+      origin_ai_profile_version: 'reply-draft-v3',
       origin_reply_template_id: null,
       origin_concrete_language_tag: 'en-Latn-US',
       origin_template_group: 'en-Latn',

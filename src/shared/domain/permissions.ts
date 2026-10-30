@@ -49,6 +49,7 @@ export type Permission =
   | 'portal.read'
   | 'review.read'
   | 'reply.manage'
+  | 'reply_library.manage'
   | 'inbox.read'
   | 'inbox.write'
   | 'inbox.manage'

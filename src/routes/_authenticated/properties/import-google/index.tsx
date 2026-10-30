@@ -4,7 +4,7 @@ import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
-import { importFns, importSetupFns } from './-import-fns'
+import { importFns, importReplySetupFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { CONNECTION_CALLBACK_ERRORS } from '#/components/features/integration/google-import-manager/google-import-callback-errors'
 import { PageShell } from '#/components/layout/page-shell'
@@ -65,7 +65,7 @@ function ImportPage() {
         initialRequestId={search.requestId}
         initialError={search.error}
         importFns={importFns}
-        setupFns={importSetupFns}
+        setupFns={importReplySetupFns}
         viewerUserId={user.id}
         ratingGoalStep={(propertyId) => <ImportRatingGoalStep propertyId={propertyId} />}
       />

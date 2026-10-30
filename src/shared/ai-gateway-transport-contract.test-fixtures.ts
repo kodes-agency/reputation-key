@@ -164,7 +164,7 @@ export function replyRequest(): ReplySuggestionGatewayRequestV1 {
     ...analysis,
     route: 'reply-suggestion',
     actorId: 'better-auth-user_01',
-    replyProfileVersion: 'reply-draft-v2',
+    replyProfileVersion: 'reply-draft-v3',
     brandProfile: { displayName: 'Example Hotel' },
     tone: 'professional',
     binding: {

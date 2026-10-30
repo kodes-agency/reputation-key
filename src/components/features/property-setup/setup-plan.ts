@@ -1,5 +1,6 @@
 import type { CurrentMerchantAiCapability } from '#/contexts/identity/application/public-api'
 import { suggestedReplyLanguageForCountry } from '#/shared/country-reply-language'
+import type { ResolvedReplyVoice } from '#/shared/reply-library/reply-voice'
 
 /**
  * What the "Set up properties" step knows about one Property the import
@@ -20,6 +21,10 @@ export type SetupPropertyFacts = Readonly<{
   aiDecided: boolean
   managerIds: readonly string[]
   eligibleManagerIds: readonly string[]
+  replyVoiceConfigured?: boolean
+  replyVoice?: ResolvedReplyVoice
+  replyVoiceVersion?: Readonly<{ account: number; property: number }>
+  propertyCount?: number
 }>
 
 /**
@@ -58,12 +63,21 @@ export type AiAnswer =
     }>
   | Readonly<{ kind: 'defer' }>
 
+export type ReplyVoiceAnswer = Readonly<{
+  useFirstName: boolean
+  signerName: string
+  signerTitle: string
+  contact: string
+  emojiMode: 'off' | 'positive'
+}>
+
 /** A skipped question is null: its step stays pending on every property. */
 export type SetupAnswers = Readonly<{
   displayName: DisplayNameAnswer | null
   language: LanguageAnswer | null
   managers: ManagerAnswer | null
   ai: AiAnswer | null
+  replyVoice?: ReplyVoiceAnswer | null
 }>
 
 export type PropertySetupPlan = Readonly<{
@@ -75,6 +89,9 @@ export type PropertySetupPlan = Readonly<{
   language: string | null
   managerIds: readonly string[] | null
   ai: 'enable' | 'defer' | null
+  replyVoice?: ReplyVoiceAnswer | null
+  replyVoiceExpectedVersion?: number
+  replyVoiceScope?: 'account' | 'property'
 }>
 
 export type SetupPlan = Readonly<{
@@ -117,6 +134,10 @@ export function propertiesAskedAi(
   return facts.filter((property) => !property.aiDecided)
 }
 
+export function propertiesAskedReplyVoice(facts: readonly SetupPropertyFacts[]) {
+  return facts.filter((property) => property.replyVoiceConfigured === false)
+}
+
 export function suggestedLanguageFor(property: SetupPropertyFacts): string {
   return suggestedReplyLanguageForCountry(property.countryCode)
 }
@@ -154,6 +175,16 @@ export function initialSetupAnswers(
         ? { applyToAll: true, managerIds, overrides: {} }
         : null,
     ai: null,
+    replyVoice:
+      propertiesAskedReplyVoice(facts).length > 0
+        ? {
+            useFirstName: true,
+            signerName: '',
+            signerTitle: '',
+            contact: '',
+            emojiMode: 'off',
+          }
+        : null,
   }
 }
 
@@ -204,14 +235,27 @@ export function buildSetupPlan(
   facts: readonly SetupPropertyFacts[],
   answers: SetupAnswers,
 ): SetupPlan {
-  const properties = facts.map((property) => ({
-    propertyId: property.propertyId,
-    propertyName: property.propertyName,
-    displayName: plannedDisplayName(property, answers.displayName),
-    language: plannedLanguage(property, answers.language),
-    managerIds: plannedManagers(property, answers.managers),
-    ai: plannedAi(property, answers.ai),
-  }))
+  const properties = facts.map((property) => {
+    const replyVoice = property.replyVoiceConfigured === false ? answers.replyVoice : null
+    const propertyScope = (property.propertyCount ?? 1) > 1
+    return {
+      propertyId: property.propertyId,
+      propertyName: property.propertyName,
+      displayName: plannedDisplayName(property, answers.displayName),
+      language: plannedLanguage(property, answers.language),
+      managerIds: plannedManagers(property, answers.managers),
+      ai: plannedAi(property, answers.ai),
+      ...(replyVoice
+        ? {
+            replyVoice,
+            replyVoiceExpectedVersion: propertyScope
+              ? (property.replyVoiceVersion?.property ?? 0)
+              : (property.replyVoiceVersion?.account ?? 0),
+            replyVoiceScope: propertyScope ? ('property' as const) : ('account' as const),
+          }
+        : {}),
+    }
+  })
   const enables = properties.some((property) => property.ai === 'enable')
   return {
     properties,

@@ -31,6 +31,7 @@ import {
 import type { ReplyLanguageChoices } from './use-reply-composer'
 import type { ReplyAssistScope } from './use-reply-suggestion'
 import { IconButton } from '#/components/ui/icon-button'
+import { cn } from '#/lib/utils'
 
 type TemplateOption = Readonly<{ id: string; title: string }>
 
@@ -47,6 +48,8 @@ export type ReplyTemplateMenuProps = Readonly<{
   propertyId: string
   /** The library for the CURRENT language target (`useReplyTemplate().templates`). */
   templates: ReadonlyArray<TemplateOption>
+  recommendedTemplateId: string | null
+  recommendedReason: string | null
   /**
    * The language group the server returned that library in
    * (`ReplyTemplateListResult.groups[0].languageGroup`), or `null` while none
@@ -105,7 +108,10 @@ function TemplateLanguageSwitch({ entries, onSwitch }: SwitchProps) {
           disabled={entry.disabledReason !== null}
           aria-current={entry.isSelected ? 'true' : undefined}
           aria-label={replyLanguageEntryText(entry)}
-          className="flex-1 justify-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-xs"
+          className={cn(
+            'flex-1 justify-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground',
+            entry.isSelected && 'bg-background text-foreground shadow-xs',
+          )}
           onSelect={(event) => {
             event.preventDefault()
             if (!entry.isSelected) onSwitch(entry.tag)
@@ -173,6 +179,13 @@ export function ReplyTemplateMenu(props: ReplyTemplateMenuProps) {
   const describedBy = props.templateUnavailableReason ? reasonId : undefined
   const switchLanguage = (languageTag: string) =>
     props.onPrepareTemplateMenu(languageChoices.updateLanguage(languageTag))
+  const templates = [...props.templates].sort((left, right) =>
+    left.id === props.recommendedTemplateId
+      ? -1
+      : right.id === props.recommendedTemplateId
+        ? 1
+        : 0,
+  )
 
   return (
     <>
@@ -246,15 +259,26 @@ export function ReplyTemplateMenu(props: ReplyTemplateMenuProps) {
               {!hasSwitch && listLanguage !== null && (
                 <AssistSectionLabel id={listLabelId}>{listName}</AssistSectionLabel>
               )}
-              {props.templates.map((template) => (
+              {templates.map((template) => (
                 <DropdownMenuItem
                   key={template.id}
+                  aria-label={
+                    template.id === props.recommendedTemplateId && props.recommendedReason
+                      ? `${template.title} · ${props.recommendedReason}`
+                      : undefined
+                  }
                   onSelect={() => void props.onLoadTemplate(template.id, template.title)}
                 >
-                  {template.title}
+                  <span className="min-w-0 flex-1">{template.title}</span>
+                  {template.id === props.recommendedTemplateId &&
+                  props.recommendedReason ? (
+                    <span className="text-xs text-muted-foreground">
+                      · {props.recommendedReason}
+                    </span>
+                  ) : null}
                 </DropdownMenuItem>
               ))}
-              {props.templates.length === 0 && (
+              {templates.length === 0 && (
                 <DropdownMenuItem disabled>
                   {props.isLoadingTemplate
                     ? 'Loading property templates…'

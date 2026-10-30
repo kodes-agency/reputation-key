@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
+import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from './reply-suggestion-contract'
 import type { ReplyLanguageTarget } from './reply-language-options'
 import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
@@ -11,7 +11,7 @@ import type { ReplyAssistScope } from './use-reply-suggestion'
  * data behind row 18's `Template · <title> · Bulgarian`.
  *
  * `LoadedReplyTemplateDraft` (the load command's result,
- * `reply-suggestion-contract.ts`) carries `templateId` and `templateVersion`
+ * `reply-suggestion-contract.ts`) carries `templateRef` and `templateRevision`
  * and no title; the only titles the client holds are the list's
  * (`ReplyTemplateListItem`, `{ id, title, … }`). So the title is resolved by
  * looking the verified id up in that list — see `templateTitleIn`.
@@ -20,6 +20,9 @@ export type LoadedReplyTemplate = Readonly<{
   templateId: string
   /** `null` when the id is not in the list the load was made from. */
   title: string | null
+  wordingKey?: string | null
+  originalText?: string
+  hasAlternativeWording?: boolean
 }>
 
 /**
@@ -33,7 +36,7 @@ export type LoadedReplyTemplate = Readonly<{
  * list for the new language, and a render-time lookup would drop the title
  * from a tag whose text had not changed. The id is never trusted from the
  * caller's arguments: `load` only records an id the server echoed back
- * (`reply.templateId !== templateId` is refused below).
+ * (`reply.templateRef !== templateId` is refused below).
  */
 export function templateTitleIn(
   library: ReplyTemplateListResult | null,
@@ -46,6 +49,18 @@ export function templateTitleIn(
   return match?.title ?? null
 }
 
+export function isVerifiedLoadedReplyTemplate(
+  reply: LoadedReplyTemplateDraft,
+  requestedRef: string,
+): boolean {
+  return (
+    replyCommentProblem(reply.text) === null &&
+    Boolean(reply.replyLanguageTag) &&
+    reply.templateRef === requestedRef &&
+    typeof reply.templateRevision === 'number'
+  )
+}
+
 type Input = Readonly<{
   target: ReplyLanguageTarget | null
   revision: React.RefObject<number>
@@ -53,6 +68,7 @@ type Input = Readonly<{
   onLoad?: (
     templateId: string,
     target: ReplyLanguageTarget,
+    excludeWordingKeys?: readonly string[],
   ) => Promise<LoadedReplyTemplateDraft>
   onAccept: (draft: ReplyDraftSnapshot) => Promise<void>
   /** The server's draft is about to be written outside the autosave path. */
@@ -232,7 +248,7 @@ export function useReplyTemplate(input: Input) {
   )
 
   const load = useCallback(
-    async (templateId: string, title: string) => {
+    async (templateId: string, title: string, excludeWordingKeys?: readonly string[]) => {
       if (!target || !onLoad || isLoading) return
       const requestSequence = begin(target.kind)
       const baseRevision = revision.current
@@ -245,21 +261,19 @@ export function useReplyTemplate(input: Input) {
         // whether or not its answer ever reaches us, so from here on the
         // coordinator must not trust its last confirmed copy.
         onServerDraftUnknown()
-        const reply = await onLoad(templateId, target)
+        const reply = await onLoad(templateId, target, excludeWordingKeys)
         if (!isLive(requestSequence) || baseRevision !== revision.current) return
-        if (
-          replyCommentProblem(reply.text) !== null ||
-          !reply.replyLanguageTag ||
-          reply.templateId !== templateId ||
-          reply.templateVersion === null
-        ) {
+        if (!isVerifiedLoadedReplyTemplate(reply, templateId)) {
           setErrorState({
             targetKind: target.kind,
             value: 'The loaded template could not be verified.',
           })
           return
         }
-        const nextDraft = { text: reply.text, languageTag: reply.replyLanguageTag }
+        const nextDraft = {
+          text: reply.text,
+          languageTag: reply.replyLanguageTag ?? null,
+        }
         const library =
           cache.current?.targetKind === target.kind ? cache.current.value : null
         // ADOPT FIRST, then save. `onLoad` has already succeeded, and its
@@ -270,7 +284,13 @@ export function useReplyTemplate(input: Input) {
         // the adopt: the box kept the OLD text while the server held the new
         // one, the manager was told the template had not loaded, and reopening
         // the item changed the words under them.
-        onAdopt(nextDraft, { templateId, title: templateTitleIn(library, templateId) })
+        onAdopt(nextDraft, {
+          templateId,
+          title: templateTitleIn(library, templateId),
+          wordingKey: reply.templateWordingKey ?? null,
+          originalText: reply.text,
+          hasAlternativeWording: reply.hasAlternativeWording === true,
+        })
         setLoadedState({
           targetKind: target.kind,
           value: `Template loaded: ${title}`,
@@ -353,6 +373,13 @@ export function useReplyTemplate(input: Input) {
     },
     loadRecommended,
     load,
+    loadAnother: async (template: LoadedReplyTemplate) => {
+      await load(
+        template.templateId,
+        template.title ?? 'Template',
+        template.wordingKey ? [template.wordingKey] : undefined,
+      )
+    },
     loadLocalSafe,
   }
 }

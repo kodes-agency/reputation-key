@@ -121,9 +121,11 @@ type ReplyStatusViewProps = Readonly<{
   onGenerateSuggestion?: ReplySuggestionGenerate
   onListTemplates: NonNullable<ReplyComposeProps['onListTemplates']>
   onLoadTemplate: NonNullable<ReplyComposeProps['onLoadTemplate']>
+  onCheckDraft?: ReplyComposeProps['onCheckDraft']
 }>
 
 /** Renders the reply's writable surface: the composer, or an open editor. */
+// fallow-ignore-next-line complexity -- exhaustive reply status rendering keeps one accessible state boundary
 export function ReplyStatusView({
   propertyId,
   view,
@@ -141,6 +143,7 @@ export function ReplyStatusView({
   onGenerateSuggestion,
   onListTemplates,
   onLoadTemplate,
+  onCheckDraft,
 }: ReplyStatusViewProps) {
   const composeRef = useRef<HTMLDivElement>(null)
   /**
@@ -193,6 +196,7 @@ export function ReplyStatusView({
             onGenerateSuggestion={onGenerateSuggestion}
             onListTemplates={onListTemplates}
             onLoadTemplate={onLoadTemplate}
+            onCheckDraft={onCheckDraft}
           />
         </div>
       )

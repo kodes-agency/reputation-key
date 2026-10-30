@@ -116,6 +116,7 @@ export type AiContextBuildInput = Readonly<{
   propertyAccess: AiPropertyAccess
   propertyReplyLanguages: GenerateReplySuggestionDependencies['propertyReplyLanguages']
   replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
+  replyVoices: GenerateReplySuggestionDependencies['replyVoices']
   inference?: AiInferencePort
   admission?: AiAdmissionPort
   subjectHmac?: AiSubjectHmacPort
@@ -309,6 +310,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         processingProfiles,
         propertyReplyLanguages: input.propertyReplyLanguages,
         replyBrandProfiles: input.replyBrandProfiles,
+        replyVoices: input.replyVoices,
         resolveReplyLanguage,
         nowEpochMillis,
       }),

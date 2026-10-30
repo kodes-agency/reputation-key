@@ -35,6 +35,7 @@ import type {
   InboxNoteView,
 } from '#/contexts/inbox/application/public-api'
 import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
+import type { ReplyDraftCheckDto } from '#/contexts/review/application/dto/reply-library.dto'
 
 // The thread is ONE rail (plan v2.1 rows 9–13). v1 split the guest's review off
 // as a `subject` above the stream, at `gap-6`, then hung events, notes and the
@@ -66,6 +67,8 @@ export type ThreadReplyActions = Readonly<{
   isEditing: boolean
   /** Confirms the reply the message showed, at the state revision it showed. */
   onApprove: (expectedReply: ReplyOnScreen) => Promise<unknown>
+  /** Checks the exact submitted text before confirmation is offered. */
+  onCheckDraft?: (text: string) => Promise<ReplyDraftCheckDto>
   onReject: (reason?: string) => Promise<unknown>
   /** Resolves what "Check Google again" found (`ReplyPublicationCheckResult`). */
   onCheck: () => Promise<ReplyPublicationCheckResult>

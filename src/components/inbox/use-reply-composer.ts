@@ -16,6 +16,7 @@ import type { ReplyComposerInput } from './reply-suggestion-contract'
 import { useReplyAutosave, type ReplyDraftSnapshot } from './use-reply-autosave'
 import { useReplySuggestion, type ReplyAssistScope } from './use-reply-suggestion'
 import { useReplyTemplate, type LoadedReplyTemplate } from './use-reply-template'
+import { useReplyDraftChecks } from './use-reply-draft-checks'
 import { replyDraftOrigin, type ReplyDraftAdoption } from './reply-draft-origin'
 import {
   hasPropertyDefaultOption,
@@ -106,6 +107,7 @@ export type ReplyLanguageChoices = Readonly<{
   updateLanguage: (languageTag: string) => ReplyAssistScope
 }>
 
+// fallow-ignore-next-line complexity -- cohesive composer state machine owns draft, template, AI, and stale-check transitions
 export function useReplyComposer(input: ReplyComposerInput) {
   const [effectiveReviewLanguage, setEffectiveReviewLanguage] = useState<string | null>(
     () => {
@@ -149,6 +151,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
   // seed, so the product-state ledger has nothing to classify. Why it is not
   // seeded from the saved reply is `replyDraftOrigin`'s comment.
   const [adoption, setAdoption] = useState<ReplyDraftAdoption | null>(null)
+  const draftChecks = useReplyDraftChecks(draft.text, input.onCheckDraft)
   const history = useReplyComposerHistory()
   const options = useMemo(
     () =>
@@ -278,6 +281,9 @@ export function useReplyComposer(input: ReplyComposerInput) {
   // `unresolvedLanguageSubmitReason`. Only once there is text: an empty box is
   // already refused by `validDraft`, and a reason under it would be noise.
   const submitBlockedReason =
+    (draftChecks && draftChecks.blocks.length > 0
+      ? 'Fix the blocked reply checks before submitting.'
+      : null) ??
     unfilledReplySlotsMessage(draft.text) ??
     (isAutoDetectingLanguage && validDraft(draft)
       ? unresolvedLanguageSubmitReason(hasPropertyDefaultOption(options))
@@ -301,6 +307,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
     autosave,
     ai,
     templates,
+    draftChecks,
     target,
     hasAiDraft,
     historyCount: history.count,
@@ -319,6 +326,16 @@ export function useReplyComposer(input: ReplyComposerInput) {
         void autosave.flush(draft).catch(() => undefined)
     },
     undo,
+    anotherWording:
+      adoption?.kind === 'library_template' &&
+      adoption.template?.hasAlternativeWording === true
+        ? () => templates.loadAnother(adoption.template!)
+        : null,
+    anotherWordingNeedsConfirmation:
+      adoption?.kind === 'library_template' &&
+      adoption.template?.originalText !== undefined
+        ? draft.text !== adoption.template.originalText
+        : false,
     // Row 18's regenerate: asks in `languageTag` without selecting it — the
     // language commits only if the preview is adopted (`regenerateScope`).
     regenerateIn: (languageTag: string) =>

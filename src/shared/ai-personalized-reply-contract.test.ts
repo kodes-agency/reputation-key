@@ -96,16 +96,6 @@ describe('personalized reply draft contract', () => {
     ],
     ['ungrounded output', { output: { ...ENGLISH.output, grounding: [] } }, 'shape'],
     [
-      'missing exact public Brand display name',
-      {
-        output: {
-          ...ENGLISH.output,
-          replyText: ENGLISH.output.replyText.replace('Example Hotel', 'our hotel'),
-        },
-      },
-      'brand',
-    ],
-    [
       'compensation promise',
       {
         output: {
@@ -296,7 +286,7 @@ describe('personalized reply draft contract', () => {
     expect(result.status).toBe('accepted')
   })
 
-  it('still refuses a reply that never names the business', () => {
+  it('accepts a body that does not name the business', () => {
     expect(
       parsePersonalizedReplyDraft({
         ...ENGLISH,
@@ -307,7 +297,7 @@ describe('personalized reply draft contract', () => {
           grounding: [{ sourceExcerpt: 'room was quiet', replyExcerpt: 'quiet room' }],
         },
       }),
-    ).toEqual({ status: 'rejected', reason: 'brand' })
+    ).toMatchObject({ status: 'accepted' })
   })
 
   // 4 of the 20 real reviews carry U+2019; one carries a newline inside the
