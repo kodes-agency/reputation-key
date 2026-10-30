@@ -73,7 +73,7 @@ export const renderNotificationEmail = (input: NotificationEmailInput): Rendered
     }),
     text: composeText(
       rendered.title,
-      rendered.body,
+      rendered.lines === undefined ? rendered.body : rendered.lines.join('\n'),
       toPlainFacts(rendered.summary),
       `${rendered.actionLabel}: ${actionUrl}`,
       preferencesUrl === null ? '' : preferencesLine(preferencesUrl),

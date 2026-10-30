@@ -77,6 +77,7 @@ import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bul
 import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
+import { registerAiGuestVoiceSummaryNoticeConsumer } from './infrastructure/ai-guest-voice-summary-notice-consumers'
 import { registerAiUrgentReviewNoticeConsumer } from './infrastructure/ai-urgent-review-notice-consumers'
 import { registerRatingGoalNoticeConsumer } from './infrastructure/rating-goal-notice-consumers'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
@@ -813,6 +814,16 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     registerAiUrgentReviewNoticeConsumer(consumerRegistry, {
       ...fanoutReads,
       queue,
+      receipts: input.outboxRepo,
+    })
+    // The Monday email: a Property's Guest voice in three lines, to the managers who asked.
+    registerAiGuestVoiceSummaryNoticeConsumer(consumerRegistry, {
+      queue,
+      userLookup,
+      responsibleManagers: input.responsibleManagers,
+      activeProperty: fanoutReads.activeProperty,
+      displayNames,
+      logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerPortalNotificationConsumers(consumerRegistry, {

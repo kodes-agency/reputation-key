@@ -52,6 +52,9 @@ const DEFAULT_POLICY: Readonly<
   workflow_collaboration: { in_app: true, email: false },
   recognition: { in_app: true, email: false },
   portal_goals: { in_app: true, email: false },
+  // Opt-in on both channels: a Monday email nobody asked for is the kind of mail this
+  // product does not send (v3 contract decision 11).
+  guest_voice: { in_app: false, email: false },
 }
 
 export function getDefaultEnabled(
@@ -70,7 +73,9 @@ export const DEFAULT_NOTIFICATION_LOCALE = 'en'
 export function getDefaultCadence(category: NotificationCategory): NotificationCadence {
   return category === 'mandatory' ||
     category === 'urgent_operational' ||
-    category === 'low_ratings'
+    category === 'low_ratings' ||
+    // Sent on its Monday morning as a message of its own, never folded into a digest.
+    category === 'guest_voice'
     ? 'immediate'
     : 'daily'
 }

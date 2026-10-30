@@ -69,6 +69,11 @@ const REGISTER: Readonly<Record<string, string>> = {
   'InboxHandlingCycleReopened.reopenReason': 'closed ManualReopenReason enum fact',
   'InboxAssignmentsReleased.releaseReason':
     'closed InboxAssignmentReleaseReason enum fact',
+  // The Monday email's governed facts (v3 contract decision 11): a closed
+  // weekly-or-monthly enum, and a count of the window's reviews that have text.
+  'AiGuestVoiceSummaryReady.summaryKind': 'closed weekly or monthly enum fact',
+  'GuestVoiceSummaryFactLine.textReviewCount':
+    'count of reviews with text in the window, never the text',
   // Monotonic numeric working-copy version, not the localized brand content.
   'PortalPropertyBrandContentUpdated.contentVersion': 'positive numeric version fact',
 }

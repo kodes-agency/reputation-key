@@ -258,6 +258,86 @@ describe('renderNotificationEmail — ADR 0046 r.8 content boundary', () => {
   })
 })
 
+describe('renderNotificationEmail — the Urgent alert', () => {
+  const alert = renderNotification('review.ai_urgent_detected', {
+    propertyName: 'Seaview Hotel',
+    platform: 'google',
+    waitedHours: 2,
+  })
+  const email = urgent(alert)
+
+  it('says that an urgent review needs the reader, and where, and nothing else', () => {
+    expect(email.subject).toBe('An urgent review needs you at Seaview Hotel')
+    expect(email.html).toContain('An urgent review needs you at Seaview Hotel')
+    expect(email.text).toContain('An urgent review needs you at Seaview Hotel')
+    expect(email.text).toContain(`Open review: ${ACTION_URL}`)
+  })
+
+  it('marks urgency with the pill, and carries no reason, topic, rating or review text (r.8)', () => {
+    expect(email.html).toContain('Needs attention')
+    const wire = `${email.subject}\n${email.html}\n${email.text}`
+    expect(wire).not.toMatch(
+      /safety|health|discriminat|legal|threat|stars?\b|rating|reason|said|wrote/i,
+    )
+  })
+})
+
+describe('renderNotificationEmail — the Guest voice summary', () => {
+  const summary = renderNotification('guest_voice.summary', {
+    propertyName: 'Seaview Hotel',
+    guestVoiceKind: 'weekly',
+    guestVoiceWindow: '90d',
+    guestVoiceLines: [
+      {
+        kind: 'fix_first',
+        topic: 'facilities_equipment',
+        reviewCount: 19,
+        textReviewCount: 128,
+        upToHundredths: 20,
+      },
+      { kind: 'protect', topic: 'staff_service', reviewCount: 61, textReviewCount: 128 },
+    ],
+  })
+  const email = renderNotificationEmail({
+    rendered: summary,
+    actionUrl: 'https://app.test/properties/p-1/guests',
+    preferencesUrl: PREFERENCES_URL,
+    priority: 'normal',
+  })
+
+  it('lists each line as a paragraph of its own, in the html and as lines in the text', () => {
+    for (const line of summary.lines ?? []) {
+      expect(email.html).toContain(line)
+      expect(email.text).toContain(line)
+    }
+    expect(email.text).toContain(`${summary.lines?.join('\n')}`)
+    // The body repeats the same sentences run together: it must not be printed as well.
+    expect(email.html).not.toContain(summary.body)
+  })
+
+  it('is not marked urgent, opens Guest voice, and points at the preference that turned it on', () => {
+    expect(email.html).not.toContain('Needs attention')
+    expect(email.text).toContain(
+      'Open Guest voice: https://app.test/properties/p-1/guests',
+    )
+    expect(email.text).toContain(PREFERENCES_URL)
+  })
+
+  it('has a subject that names the week and the Property', () => {
+    expect(email.subject).toBe('Your Guest voice this week at Seaview Hotel')
+  })
+
+  it('carries topics and counts, and never the cause or the words of a review', () => {
+    const wire = `${email.html}\n${email.text}`
+    expect(wire).not.toMatch(/air conditioning|not working|quote|rude|dirty/i)
+  })
+
+  it('still prints the body of a notice that has no lines', () => {
+    const plain = urgent(pendingApproval)
+    expect(plain.html).toContain(pendingApproval.body)
+  })
+})
+
 describe('renderDigestEmail', () => {
   const groups = [
     digestGroup('Riverside Hotel', ['a', 'b']),

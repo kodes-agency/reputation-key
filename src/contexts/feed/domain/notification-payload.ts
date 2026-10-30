@@ -33,7 +33,12 @@
 //             ratings; ADR 0046, amended 2026-10-14), and, for a site waiting for
 //             an account admin, the site's HOST (never its address), the name
 //             and id of the Portal to decide it on, and how many others open
-//             it (ADR 0046, amended 2026-10-26).
+//             it (ADR 0046, amended 2026-10-26), and, for a Guest voice
+//             summary, the page's three lines as fixed facts: one of the twelve
+//             topics, counts of reviews, the window, and the stars a problem
+//             may be worth on the Property's own average (`guestVoice*`, in
+//             ./notification-payload-guest-voice.ts; ADR 0046, amended
+//             2026-10-30). Never the issue's name, a cause, a quote or a review.
 //   FORBIDDEN a Google/provider review's rating and any review content, reply
 //             text, guest/reviewer name, media URLs, sentiment or any other
 //             derived score (including an average RepKey works out from
@@ -45,6 +50,9 @@
 // fails when the parser misses one. PROTECTED_FIELD_REGISTRY governs the
 // `notifications.payload` COLUMN as a whole (protected-field-registry.ts), so
 // it has no per-key entry to add.
+
+import type { GuestVoiceSummaryPayloadFields } from './notification-payload-guest-voice'
+import { parseGuestVoiceSummaryFields } from './notification-payload-guest-voice'
 
 /** Star rating collected locally through a RepKey guest Portal. */
 export type NotificationGuestRating = 1 | 2 | 3 | 4 | 5
@@ -238,7 +246,8 @@ export type NotificationPayload = Readonly<{
   portalName?: string
   portalId?: string
   otherPortalCount?: number
-}>
+}> &
+  GuestVoiceSummaryPayloadFields
 
 export type NotificationRatingGoalMode = 'climb' | 'keep'
 
@@ -580,7 +589,11 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   setRatingGoalFigures(raw, set)
   setWaitingSiteFacts(raw, set)
 
-  return parsed as NotificationPayload
+  // The Guest voice summary's kind, window and at most three lines (ADR 0046 r.8).
+  return {
+    ...parsed,
+    ...parseGuestVoiceSummaryFields(raw as Readonly<Record<string, unknown>>),
+  } as NotificationPayload
 }
 
 /**

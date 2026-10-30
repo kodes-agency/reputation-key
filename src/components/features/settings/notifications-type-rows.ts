@@ -46,6 +46,12 @@ export const CATEGORY_COPY: Readonly<
     label: 'Portal goals',
     description: 'Monthly results of your portal goals.',
   },
+  // Opt-in on both channels (v3 contract decision 11).
+  guest_voice: {
+    label: 'Guest voice summary',
+    description:
+      'Mondays at 8:00: what to fix first, what guests love and what changed. Nothing in a quiet week; a roundup on the first Monday of the month.',
+  },
 }
 
 /**

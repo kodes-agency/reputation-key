@@ -354,6 +354,16 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     eventCondition:
       'the Inbox item is open at this review revision, is not imported history, and has waited under seven days',
   },
+  // The Monday email (v3 contract decision 11; ADR 0046, amended 2026-10-30): the AI
+  // context records one governed fact per Property per Monday it has something to say,
+  // and every manager who may use the Property is a candidate. Whether one asked for it
+  // is the preference's answer, and the category is opt-in on both channels.
+  route(
+    'ai.guest_voice_summary.ready',
+    'notification.on-ai-guest-voice-summary-ready',
+    ['guest_voice.summary'],
+    ['property_operator'],
+  ),
   // ── Routes that settle, rather than raise, a notice ────────────────
   settles('review.reply.approved', 'notification.settle-on-review-reply-approved', [
     'reply.pending_approval',

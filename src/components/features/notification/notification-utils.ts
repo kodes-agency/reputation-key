@@ -146,7 +146,7 @@ export function formatAbsoluteTime(
  * first-paint bytes, which have almost no headroom, and a site waiting for
  * approval is one row type.
  */
-type BellType = 'portal.link_approval'
+type BellType = 'portal.link_approval' | 'guest_voice.summary'
 
 const typeIconMap: Record<Exclude<NotificationType, BellType>, LucideIcon> = {
   'account.organization_access_granted': ShieldCheck,

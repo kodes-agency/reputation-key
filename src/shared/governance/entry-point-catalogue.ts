@@ -92,6 +92,7 @@ export type SystemAction =
   | 'system:ai.execution_reap'
   | 'system:ai.review_analysis_enrollment_sweep'
   | 'system:ai.review_analysis_backlog_drain'
+  | 'system:ai.guest_voice_summary'
   | 'system:ai.review_analysis_on_demand'
   | 'system:ai.review_analysis_event'
   | 'system:ai.review_analysis_enrollment'
@@ -207,6 +208,12 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   job(
     'ai-review-analysis-backlog-drain',
     'system:ai.review_analysis_backlog_drain',
+    'ai.analyze',
+    'tenant_cross',
+  ),
+  job(
+    'ai-guest-voice-summary-sweep',
+    'system:ai.guest_voice_summary',
     'ai.analyze',
     'tenant_cross',
   ),
@@ -500,15 +507,24 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'goal.use',
     'property',
   ),
+  // The Monday email: one notice per Property per Monday the AI context found something to
+  // say. It reads the Property's managers and queues the insert, so it is ungated and
+  // Organization-scoped like its siblings.
+  consumer(
+    'notification.ai-guest-voice-summary-notice-consumers',
+    'system:notification.insert',
+    'none',
+    'organization',
+  ),
   // The Urgent alert: one notice per review revision an AI analysis found Urgent. It
   // reads the Inbox and queues the insert; the analysis behind it has passed every AI
-  // gate already, so the route itself is ungated like its siblings. The fact carries
-  // the Property.
+  // gate already, so the route itself is ungated and Organization-scoped like its
+  // siblings.
   consumer(
     'notification.ai-urgent-review-notice-consumers',
     'system:notification.insert',
     'none',
-    'property',
+    'organization',
   ),
   consumer(
     'notification.on-google-reauthorization-required',
@@ -697,6 +713,12 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'ai-review-analysis-backlog-drain-recurring',
     'system:ai.review_analysis_backlog_drain',
+    'ai.analyze',
+    'tenant_cross',
+  ),
+  schedule(
+    'ai-guest-voice-summary-sweep-recurring',
+    'system:ai.guest_voice_summary',
     'ai.analyze',
     'tenant_cross',
   ),

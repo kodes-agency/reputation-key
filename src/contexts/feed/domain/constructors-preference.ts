@@ -37,6 +37,7 @@ const CATEGORIES: Readonly<Record<NotificationCategory, true>> = {
   workflow_collaboration: true,
   recognition: true,
   portal_goals: true,
+  guest_voice: true,
 }
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
 
@@ -72,7 +73,12 @@ const configurableRowRefusal = (
     input.channel === 'email' &&
     !offeredEmailCadences(input.category).includes(input.cadence)
   ) {
-    return notificationError('invalid_input', 'Goal email is sent once a day')
+    return notificationError(
+      'invalid_input',
+      input.category === 'guest_voice'
+        ? 'Guest voice email is sent on its Monday morning'
+        : 'Goal email is sent once a day',
+    )
   }
   if (!isPreferenceDisableable(input.category, input.channel) && !input.enabled) {
     return notificationError(

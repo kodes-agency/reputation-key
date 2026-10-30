@@ -6,6 +6,7 @@
 // (./../outbox/event-adapter.ts) in any case.
 
 import { z } from 'zod/v4'
+import { REVIEW_TOPICS_V3 } from '../review-topic-taxonomy'
 import { registerEventSchema } from './schema-registry'
 
 const aiPropertyTrendGenerationRequestedSchema = z.object({
@@ -47,6 +48,36 @@ const aiReviewUrgentDetectedSchema = z.object({
   occurredAt: z.string(),
 })
 
+// A Property's Guest voice summary is due to be mailed. Governed facts only: the twelve
+// fixed topics, counts, a window, the stars a problem may be worth, and the issue a line
+// links to by its opaque id. No cause, quote, person, review or Inbox item, and not the
+// issue's name, which is the guests' words boiled down (ADR 0046 r.8; ADR 0031). Bounded:
+// at most three lines, one per kind the page's "In short" has.
+const guestVoiceSummaryLineSchema = z.object({
+  kind: z.enum(['fix_first', 'protect', 'change']),
+  topic: z.enum(REVIEW_TOPICS_V3),
+  issueId: z.string().min(1).max(64).nullable(),
+  reviewCount: z.number().int().min(0).max(1_000_000),
+  textReviewCount: z.number().int().min(0).max(1_000_000),
+  upTo: z.number().min(0).max(5).nullable(),
+  change: z.enum(['rising', 'falling']).nullable(),
+  polarity: z.enum(['complaint', 'praise']).nullable(),
+})
+
+const localDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+const aiGuestVoiceSummaryReadySchema = z.object({
+  organizationId: z.string(),
+  propertyId: z.string(),
+  summaryKind: z.enum(['weekly', 'monthly']),
+  localDate: localDateSchema,
+  window: z.enum(['30d', '90d', '180d', '365d']),
+  startLocalDate: localDateSchema,
+  endLocalDate: localDateSchema,
+  lines: z.array(guestVoiceSummaryLineSchema).max(3),
+  occurredAt: z.string(),
+})
+
 export function registerAiEventSchemas(version: number): void {
   registerEventSchema({
     type: 'ai.property_trend.generation_requested',
@@ -62,5 +93,10 @@ export function registerAiEventSchemas(version: number): void {
     type: 'ai.review_analysis.urgent_detected',
     version,
     schema: aiReviewUrgentDetectedSchema,
+  })
+  registerEventSchema({
+    type: 'ai.guest_voice_summary.ready',
+    version,
+    schema: aiGuestVoiceSummaryReadySchema,
   })
 }

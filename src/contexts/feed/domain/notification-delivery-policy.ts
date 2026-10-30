@@ -130,6 +130,10 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // The reporter's own report was accepted, not planned, or resolved. It is
   // collaboration on something they raised: in-app by default, never mailed.
   'beta_feedback.outcome': 'workflow_collaboration',
+  // Its own opt-in category, never `recognition` or `workflow_collaboration`: a
+  // manager who asked for the Monday email asked for it, and nothing else's answer
+  // may switch it on (v3 contract decision 11; ADR 0046, amended 2026-10-30).
+  'guest_voice.summary': 'guest_voice',
 }
 
 /**
@@ -241,6 +245,7 @@ export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
   'workflow_collaboration',
   'recognition',
   'portal_goals',
+  'guest_voice',
 ]
 
 /**
@@ -258,6 +263,7 @@ export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<ConfigurableNotific
     'workflow_collaboration',
     'recognition',
     'portal_goals',
+    'guest_voice',
   ]
 
 /**

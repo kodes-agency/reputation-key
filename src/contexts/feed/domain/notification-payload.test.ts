@@ -127,6 +127,17 @@ describe('parseNotificationPayload', () => {
       ratingPaceTenthsPerWeek: 105,
       ratingRecentPaceTenths: 65,
       ratingPaceWindow: 'last_4_weeks',
+      guestVoiceKind: 'weekly',
+      guestVoiceWindow: '90d',
+      guestVoiceLines: [
+        {
+          kind: 'fix_first',
+          topic: 'facilities_equipment',
+          reviewCount: 19,
+          textReviewCount: 128,
+          upToHundredths: 20,
+        },
+      ],
     }
 
     const parsed = parseNotificationPayload(everyField)

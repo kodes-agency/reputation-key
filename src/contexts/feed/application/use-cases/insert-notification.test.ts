@@ -549,6 +549,147 @@ describe('insertNotification', () => {
     expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
   })
 
+  // ── The Guest voice summary and the Urgent alert (ADR 0046, amended 2026-10-30) ──
+
+  const summaryInput = {
+    userId: USER_ID,
+    organizationId: ORG_ID,
+    propertyId: PROPERTY_ID,
+    type: 'guest_voice.summary' as const,
+    resourceType: 'property' as const,
+    resourceId: `${PROPERTY_ID}:2026-11-09`,
+    eventId: 'event-summary-1',
+    payload: {
+      propertyName: 'Seaview Hotel',
+      guestVoiceKind: 'weekly' as const,
+      guestVoiceWindow: '90d' as const,
+      guestVoiceLines: [
+        {
+          kind: 'protect' as const,
+          topic: 'staff_service' as const,
+          reviewCount: 61,
+          textReviewCount: 128,
+        },
+      ],
+    },
+  }
+
+  it('persists nothing, and mails nothing, for a manager who never asked for the Monday email', async () => {
+    const result = await insertNotification(deps)(summaryInput)
+
+    expect(result).toBeNull()
+    expect(deps.preferenceRepo.resolveForDelivery).toHaveBeenCalledWith(
+      USER_ID,
+      ORG_ID,
+      PROPERTY_ID,
+      'guest_voice',
+      'email',
+    )
+    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+    expect(deps.emailRepo.insert).not.toHaveBeenCalled()
+  })
+
+  it('mails the Monday email at once, as a message of its own, to a manager who turned email on', async () => {
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(storedRows({ email: preference('email', true, 'immediate') }))
+
+    const result = await insertNotification(deps)(summaryInput)
+
+    // Email only: nothing is returned for the app, and the row the queue anchors on is
+    // stored already read, so it never holds the unread key.
+    expect(result).toBeNull()
+    expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'guest_voice', status: 'read', readAt: null }),
+    )
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'guest_voice',
+        cadence: 'immediate',
+        priority: 'normal',
+      }),
+    )
+    expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
+  })
+
+  it('never folds the Monday email into the daily digest, even from a stored row that says daily', async () => {
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(storedRows({ email: preference('email', true, 'daily') }))
+
+    await insertNotification(deps)(summaryInput)
+
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'guest_voice', cadence: 'immediate' }),
+    )
+  })
+
+  it('shows the Monday row in the app only for a manager who turned the app on', async () => {
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(storedRows({ in_app: preference('in_app', true) }))
+
+    const result = await insertNotification(deps)(summaryInput)
+
+    expect(result).toMatchObject({ category: 'guest_voice', status: 'unread' })
+    expect(deps.emailRepo.insert).not.toHaveBeenCalled()
+  })
+
+  it('files the Urgent alert under Action needed, urgent, and mails it at once by default', async () => {
+    const result = await insertNotification(deps)({
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      type: 'review.ai_urgent_detected',
+      resourceType: 'inbox_item',
+      resourceId: 'item-1',
+      eventId: 'event-urgent-1',
+      payload: { propertyName: 'Seaview Hotel', platform: 'google' },
+    })
+
+    // The existing urgent channel and the reader's existing preferences, nothing new.
+    expect(deps.preferenceRepo.resolveForDelivery).toHaveBeenCalledWith(
+      USER_ID,
+      ORG_ID,
+      PROPERTY_ID,
+      'urgent_operational',
+      'email',
+    )
+    expect(result).toMatchObject({
+      category: 'urgent_operational',
+      priority: 'urgent',
+      title: 'An urgent review needs you at Seaview Hotel',
+    })
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'urgent_operational',
+        cadence: 'immediate',
+        priority: 'urgent',
+      }),
+    )
+    expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
+  })
+
+  it('mails the Urgent alert to nobody who switched urgent email off, and still shows it in the app', async () => {
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(storedRows({ email: preference('email', false, 'immediate') }))
+
+    const result = await insertNotification(deps)({
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      type: 'review.ai_urgent_detected',
+      resourceType: 'inbox_item',
+      resourceId: 'item-1',
+      eventId: 'event-urgent-2',
+      payload: { propertyName: 'Seaview Hotel' },
+    })
+
+    expect(result).toMatchObject({ category: 'urgent_operational', status: 'unread' })
+    expect(deps.emailRepo.insert).not.toHaveBeenCalled()
+  })
+
   it('defaults Action Required email to immediate while respecting quiet hours', async () => {
     const result = await insertNotification(deps)({
       userId: USER_ID,

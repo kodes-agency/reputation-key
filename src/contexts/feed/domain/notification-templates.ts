@@ -35,7 +35,10 @@ import {
   renderOrganizationPurgePending,
   renderOrganizationRoleChanged,
 } from './notification-templates-account'
-import { renderReviewAiUrgentDetected } from './notification-templates-guest-voice'
+import {
+  renderGuestVoiceSummary,
+  renderReviewAiUrgentDetected,
+} from './notification-templates-guest-voice'
 import {
   renderPortalGoalCompleted,
   renderPortalGoalResultRevised,
@@ -79,6 +82,12 @@ export type RenderedNotification = Readonly<{
    * the row shows how often a notice repeated as a fact.
    */
   detail: string
+  /**
+   * A notice that states several facts, one sentence each: the email lists them as
+   * paragraphs instead of running them together (`body` is the same sentences in a row).
+   * Absent for every notice that is one sentence.
+   */
+  lines?: readonly string[]
   /** Primary action label, imperative, <= 3 words. */
   actionLabel: string
   /** Extra context line for email only (digest rows and the urgent preheader). */
@@ -847,6 +856,7 @@ const RENDERERS: Record<
   'goal.rating_too_low': renderRatingGoalTooLow,
   'goal.rating_keep_dropped': renderRatingGoalKeepDropped,
   'beta_feedback.outcome': renderBetaFeedbackOutcome,
+  'guest_voice.summary': renderGuestVoiceSummary,
 }
 
 /**
@@ -863,6 +873,8 @@ const REPEATED: Partial<Record<NotificationType, string | null>> = {
   'inbox.escalated': 'Escalated # times.',
   'review.updated': 'Updated # times.',
   'beta_feedback.outcome': null,
+  // Each Monday is a row of its own, so a repeat is a replay and says nothing.
+  'guest_voice.summary': null,
   'property.review_import_finished': null,
   // A rating goal row states where the goal stands now, from its latest change.
   'goal.rating_changed': null,
@@ -1009,6 +1021,8 @@ export const notificationLink = (
             section: 'linktree',
           })
     case 'property':
+      // The Monday email opens the page it summarises.
+      if (type === 'guest_voice.summary') return propertyLink(propertyId, '/guests')
       // An imported history is a queue of reviews to answer, so its notice
       // opens the Property's open Inbox queue rather than the Property page.
       // The other Property notice asks for a manager, and the picker is here.

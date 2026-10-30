@@ -319,3 +319,101 @@ export const PortalGoalNoLongerMet: Story = {
     'A correction changed November to 39 of 40.',
   ),
 }
+
+/**
+ * The Urgent alert (v3 contract decision 10): "An urgent review needs you" at the Property,
+ * the attention pill and one button. No reason, topic, rating or review text — the reason is
+ * read in the app, where the button goes (ADR 0046 r.8).
+ */
+export const UrgentReview: Story = {
+  args: single('review.ai_urgent_detected', {
+    propertyName: 'Harbour Lodge',
+    platform: 'google',
+    waitedHours: 2,
+  }),
+  play: async ({ args }) => {
+    expect(args.subject).toBe('An urgent review needs you at Harbour Lodge')
+    expect(args.html).toContain('Needs attention')
+    expect(args.html).toContain('Open review')
+    expect(args.text).not.toMatch(/safety|health|discriminat|legal|star|rating/i)
+    expect(args.html).not.toMatch(/safety|health|discriminat|legal threat|stars?\b/i)
+  },
+}
+
+export const UrgentReviewPhone: Story = {
+  ...UrgentReview,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
+
+const SUMMARY_LINES = [
+  {
+    kind: 'fix_first',
+    topic: 'facilities_equipment',
+    reviewCount: 19,
+    textReviewCount: 128,
+    upToHundredths: 20,
+  },
+  { kind: 'protect', topic: 'staff_service', reviewCount: 61, textReviewCount: 128 },
+  {
+    kind: 'change',
+    topic: 'cleanliness',
+    reviewCount: 12,
+    textReviewCount: 128,
+    change: 'rising',
+    polarity: 'complaint',
+  },
+] as const
+
+/**
+ * The Monday email (v3 contract decision 11): the page's three lines as paragraphs, one
+ * button into Guest voice, the footer pointing at the preference that turned it on. Topics
+ * and counts only: no cause, quote, person or review.
+ */
+export const GuestVoiceMonday: Story = {
+  args: single(
+    'guest_voice.summary',
+    {
+      propertyName: 'Harbour Lodge',
+      guestVoiceKind: 'weekly',
+      guestVoiceWindow: '90d',
+      guestVoiceLines: SUMMARY_LINES,
+    },
+    'normal',
+  ),
+  play: async ({ args }) => {
+    expect(args.subject).toBe('Your Guest voice this week at Harbour Lodge')
+    expect(args.html).not.toContain('Needs attention')
+    expect(args.html).toContain('Open Guest voice')
+    for (const line of [
+      'Fix first: Facilities and equipment, in 19 of 128 reviews, worth up to about 0.2★ on your 90-day average.',
+      'Guests love: Staff and service, in 61 of 128 reviews.',
+      'Cleanliness complaints are rising.',
+    ]) {
+      expect(args.html).toContain(line)
+      expect(args.text).toContain(line)
+    }
+  },
+}
+
+export const GuestVoiceMondayPhone: Story = {
+  ...GuestVoiceMonday,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
+
+/** The first Monday of the month: the roundup, even when the page has nothing to name. */
+export const GuestVoiceMonthlyRoundup: Story = {
+  args: single(
+    'guest_voice.summary',
+    {
+      propertyName: 'Harbour Lodge',
+      guestVoiceKind: 'monthly',
+      guestVoiceWindow: '30d',
+      guestVoiceLines: [],
+    },
+    'normal',
+  ),
+  play: async ({ args }) => {
+    expect(args.subject).toBe('Your Guest voice this month at Harbour Lodge')
+    expect(args.html).toContain('Nothing stands out. Open it for every topic.')
+  },
+}

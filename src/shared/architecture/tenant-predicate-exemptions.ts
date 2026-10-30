@@ -684,6 +684,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/ai/infrastructure/adapters/ai-guest-voice-summary-schedule.adapter.ts',
+    symbol: 'listDue',
+    reason:
+      "The hourly Monday-email sweep intentionally lists every Property with Review Analysis enabled across tenants, in Property id order, and keeps those whose own clock reads Monday morning; it returns only each Property's id and Organization, and every one is authorized under its own Organization and Property before anything of it is read.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/review/infrastructure/repositories/publication-reconciliation-candidate.repository.ts',
     symbol: 'findAmbiguousCandidates',
     reason:

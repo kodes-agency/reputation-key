@@ -723,6 +723,24 @@ again). A new revision of the review is a new alert. Feed owns the rest (its CON
 recipients, the words, the silence for old or handled reviews, and the delivery. Nothing here
 changes the review: no status, assignment, escalation or priority.
 
+The Monday email (v3 contract decision 11; ADR 0046, amended 2026-10-30) is decided here and
+mailed by Feed. An hourly sweep (`ai-guest-voice-summary-sweep`, `runGuestVoiceSummarySweep`,
+tenant-cross, each Property decided under the schedule's own action) lists the Properties with
+Review Analysis enabled whose own clock reads Monday 08:00 to 10:59 (`isSummaryMorning`, in
+the runtime and not in SQL, so a timezone it does not know drops one Property and not the
+sweep), asks `planGuestVoiceSummary` and records one governed fact,
+`ai.guest_voice_summary.ready`, for each that has something to say (id derived from the
+Property and the day, so the later runs of the morning write nothing). The plan is the Guest
+voice read worked out for today and for a week ago over one read of the analysis: a week is
+quiet when Fix first held its order and members, no issue is new to Fix first or Watch and no
+review was Urgent in the last seven days (`isQuietWeek`), and a quiet week sends nothing; the
+first Monday of the month (`isFirstMondayOfMonth`) sends the roundup whatever the week held. A
+Property with no v3 analysis, or too few reviews with text to show patterns, sends nothing,
+and one too full to read a year before its window has no last week to compare with and is
+never called quiet. The fact is the page's three "In short" lines as topic, counts, the stars a
+problem may be worth, which way a change went and the issue's id (`summaryLines`); no issue
+name, cause, quote or review is in it.
+
 A manager corrects what the AI said of a review in the Inbox ("Not right?", `correctReviewMention`,
 migration 0080, decision Q11), and the correction takes effect at once. The kept answer is never
 changed: a correction is one row beside a mention (`ai_review_analysis_mention_corrections`, at most

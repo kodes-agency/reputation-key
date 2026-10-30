@@ -380,6 +380,7 @@ describe('notification delivery policy', () => {
       'workflow_collaboration',
       'recognition',
       'portal_goals',
+      'guest_voice',
     ])
     // Low ratings governs no type by itself (a rating decides it per reader),
     // so it is not a filter.
@@ -390,6 +391,7 @@ describe('notification delivery policy', () => {
       'workflow_collaboration',
       'recognition',
       'portal_goals',
+      'guest_voice',
     ])
   })
 
@@ -431,9 +433,14 @@ describe('notification delivery policy', () => {
     // 2026-09-30): the Inbox is where new reviews are worked, and announcing
     // each one buried the notices that ask for a decision. Their urgency
     // reaches people through the Response Target reminders.
+    //
+    // The Guest voice summary is opt-in on both channels by the owner's decision (v3
+    // contract decision 11, ADR 0046 amended 2026-10-30): a Monday email nobody asked
+    // for is not sent, and a manager who wants it turns it on, in the app or by email.
     const DELIBERATELY_IN_APP_OPT_IN: ReadonlyArray<string> = [
       'review.created',
       'review.updated',
+      'guest_voice.summary',
     ]
 
     for (const type of NOTIFICATION_TYPES) {

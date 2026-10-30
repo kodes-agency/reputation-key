@@ -1611,6 +1611,68 @@ analysis is Urgent, so nothing below fires; it ships dark with the rest of v3.
 No migration: the Property-scoped shape and the content-free check already admit
 the type, the resource and the payload.
 
+## Amended 2026-10-30 — a Property's Guest voice, mailed on Monday mornings to the managers who ask
+
+Guest voice 2.0 gives a manager the page's three lines (what to fix first, what guests
+love, what changed). The owner decided on 2026-10-29 that they may also arrive by email, on
+Monday mornings, to managers who asked (v3 contract decision 11). Until review analysis v3
+is activated no Property has a v3 analysis, so nothing below fires; it ships dark with the
+rest of v3.
+
+1. **One new type, `guest_voice.summary`**, raised by one governed fact,
+   `ai.guest_voice_summary.ready`, which the AI context records at most once per Property
+   per Property-local Monday (its id is derived from the Property and the day). It is filed
+   under the Property and the day (`resourceType: property`, `resourceId: <property>:<day>`),
+   so each Monday is a row of its own and an unread row from last week never absorbs this
+   week's email (r.2).
+2. **Its own category, `guest_voice`** ("Guest voice summary"), opt-in on both channels:
+   in-app off and email off until the person turns them on, per Property or as their
+   default. No other category's answer switches it on. Its email is one message on its
+   Monday morning, so `immediate` is the only cadence it offers: it is never a line of the
+   daily digest. A reader's quiet hours still hold it back to the end of their window; it is
+   not urgent.
+3. **When.** An hourly sweep (`ai-guest-voice-summary-sweep`, five minutes past the hour,
+   under the AI capability and the schedule's own action) lists the Properties with Review
+   Analysis enabled whose own clock reads Monday between 08:00 and 10:59. The first hour is
+   the target, the two after it catch a sweep that ran late, and the fact's id keeps it to
+   one. Each Property is decided again under current platform policy before anything of it
+   is read.
+4. **What sends.** The same read the Guest voice page is drawn from, for today and for a
+   week ago. A Monday sends when the week held something: Fix first moved (a different
+   order, an issue in or out), an issue is new to Fix first or Watch, or a review was Urgent
+   in the last seven days. **A quiet week sends nothing.** The first Monday of the month
+   (a Monday on the 1st to the 7th) sends the monthly roundup whatever the week held, and
+   says when the page has nothing to name. A Property with no v3 analysis, or with under
+   about ten reviews with text in twelve months, sends nothing; a Property too full to read
+   a year before its window cannot be compared with last week, so it is never called quiet.
+5. **Recipients.** The Organization's AccountAdmins and PropertyManagers who are eligible
+   for the Property (`property_operator`, read again at delivery). Whether one asked is the
+   preference's answer, not the list's: the insert path persists nothing for a category that
+   is off on both channels.
+6. **r.8, widened.** ALLOWED gains the Guest voice summary's facts: the summary's kind
+   (weekly or monthly), the window, and at most three lines, each one of the page's "In
+   short" kinds with one of the twelve fixed topics, counts of reviews ("19 of 128"), which
+   way it moved and whether the reviews that moved praise it or complain of it, and, on the
+   fix-first line, the stars it may be worth on the Property's own average to the nearest
+   0.05 (`upToHundredths`). That last figure is an association over the Property's own
+   reviews, the one the page prints beside it as "worth up to about 0.2★ on your 90-day
+   average"; it is the one rating-derived figure a notice carries, and the owner may drop it
+   from the email without any other change. FORBIDDEN is unchanged: no issue name (the
+   guests' words boiled down), cause, quote, sentence, review, Inbox item or person, and no
+   review's own rating. The page's links to an issue are not in the payload.
+7. **The words.** Title "Your Guest voice this week at <Property>" ("this month" for the
+   roundup); one sentence per line from fixed words ("Fix first: Facilities and equipment,
+   in 19 of 128 reviews, worth up to about 0.2★ on your 90-day average."); the button
+   "Open Guest voice" opens the Property's page. The email lists the sentences as
+   paragraphs (`RenderedNotification.lines`); every other surface reads the same sentences
+   run together in the body.
+8. **Not actionable.** It reports; nothing settles it.
+
+No migration and no new table: the Property-scoped shape and the content-free check admit
+the type and the payload, the preference rows already hold any category name, and the
+sweep keeps no state of its own (the fact in the outbox is its record, and the notice
+follows the notifications' retention).
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

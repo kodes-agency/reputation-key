@@ -207,7 +207,11 @@ export const EachGoalHasItsOwnRow: Story = {
     const headings = canvas
       .getAllByRole('heading', { level: 3 })
       .map((h) => h.textContent)
-    expect(headings.slice(-2)).toEqual(['Google rating goal', 'Portal goals'])
+    expect(headings.slice(-3)).toEqual([
+      'Google rating goal',
+      'Portal goals',
+      'Guest voice summary',
+    ])
     expect(canvas.queryByText(/past awards/i)).toBeNull()
   },
 }
@@ -304,6 +308,62 @@ export const GoalEmailIsDailyOnly: Story = {
       }),
     })
   },
+}
+
+/**
+ * The Monday email is opt-in on both channels (v3 contract decision 11; ADR 0046,
+ * amended 2026-10-30): a manager who never asked has both switches off, and turning
+ * email on saves the one cadence it has, on its own row and nothing else's.
+ */
+export const GuestVoiceSummaryIsOptIn: Story = {
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+    const row = within(canvas.getByRole('group', { name: 'Guest voice summary' }))
+
+    expect(
+      row.getByText(/Mondays at 8:00: what to fix first, what guests love/),
+    ).toBeVisible()
+    expect(
+      canvas.getByRole('switch', { name: 'Guest voice summary: In-app' }),
+    ).not.toBeChecked()
+    expect(
+      canvas.getByRole('switch', { name: 'Guest voice summary: Email' }),
+    ).not.toBeChecked()
+    // One message on its Monday morning: nothing to choose, and it says when.
+    expect(
+      canvas.getByLabelText('Cadence', { selector: '#guest_voice-cadence' }),
+    ).toBeDisabled()
+    expect(
+      row.getByText(
+        'Emailed on Monday mornings, Property time, and on the first Monday of the month.',
+      ),
+    ).toBeVisible()
+
+    await userEvent.click(
+      canvas.getByRole('switch', { name: 'Guest voice summary: Email' }),
+    )
+
+    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledOnce())
+    expect(updatePreferenceMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        propertyId: PROPERTY_ID,
+        category: 'guest_voice',
+        channel: 'email',
+        enabled: true,
+        cadence: 'immediate',
+      }),
+    })
+    // The other rows' answers did not move.
+    expect(
+      canvas.getByRole('switch', { name: 'Google rating goal: In-app' }),
+    ).toBeChecked()
+  },
+}
+
+export const GuestVoiceSummaryIsOptInPhone: Story = {
+  ...GuestVoiceSummaryIsOptIn,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
 }
 
 export const TitleColumnKeepsItsWidth: Story = {
