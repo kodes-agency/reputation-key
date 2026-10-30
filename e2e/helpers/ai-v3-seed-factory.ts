@@ -10,6 +10,7 @@ import {
   seededReviewId,
   type SeededIds,
 } from '../../src/contexts/ai/infrastructure/testing/ai-v3-seed'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '../../test-fixtures/generated/google-provider-identifiers-v1'
 
 export { seededReviewId }
 
@@ -23,7 +24,10 @@ export function openV3Seed(databaseUrl: string, ids: SeededIds) {
     allowExitOnIdle: true,
   })
   return {
-    seed: createV3Seed(drizzle(pool), ids, { adopt: true }),
+    seed: createV3Seed(drizzle(pool), ids, {
+      adopt: true,
+      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+    }),
     close: () => pool.end(),
   }
 }

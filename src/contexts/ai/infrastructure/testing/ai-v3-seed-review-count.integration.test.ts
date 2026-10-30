@@ -1,21 +1,25 @@
 // The v3 seed in `adopt` mode, read the way an end-to-end stack reads it (PostgreSQL): Review
-// counts the Property's reviews for Guest voice 2.0 from its own source cache, so the seed
-// writes that cache beside every review it adds, and the page is drawn from reviews Review
-// itself counts. Without the cache row Review counts none, and a Property with twelve
-// reviews with text is told it has too few to spot patterns. Every value is invented.
+// counts the Property's reviews for Guest voice 2.0 from its own source cache, and serves a
+// review's words only from a row that holds a location and a retention date. So the seed
+// writes the whole row and the cache row beside every review it adds, and the page is drawn
+// from reviews Review itself counts and opens. Without them Review counts none (a Property
+// with twelve reviews with text is told it has too few to spot patterns), or refuses to
+// open them (the page falls back to today's). Every value is invented.
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { getDb, type Database } from '#/shared/db'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
-import { organizationId, propertyId, userId } from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createReadGuestVoiceV2 } from '../../application/use-cases/read-guest-voice-v2'
+import { createEligibleReads } from '#/contexts/review/application/eligible-reads'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createAiAuthorizationAdapter } from '../adapters/ai-authorization.adapter'
 import { createAiGuestVoiceFactsAdapter } from '../adapters/ai-guest-voice-facts.adapter'
 import { createAiPropertyCalendarAdapter } from '../adapters/ai-property-calendar.adapter'
 import { createPropertyProcessingProfileAdapter } from '../adapters/property-processing-profile.adapter'
-import { createV3Seed, mentionOf, type SeededReview } from './ai-v3-seed'
+import { createV3Seed, mentionOf, seededReviewId, type SeededReview } from './ai-v3-seed'
 
 const IDS = {
   organizationId: 'ai-v3-seed-count-test-org',
@@ -78,7 +82,10 @@ describe.sequential(
   'Guest voice 2.0 over reviews Review itself counts, seeded in adopt mode (PostgreSQL)',
   () => {
     const db: Database = getDb()
-    const seed = createV3Seed(db, IDS, { adopt: true })
+    const seed = createV3Seed(db, IDS, {
+      adopt: true,
+      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+    })
     const reviewsStore = createReviewRepository(db, () => new Date())
 
     async function removeProperty(): Promise<void> {
@@ -131,6 +138,21 @@ describe.sequential(
         throw new Error(`expected a count: ${result.status}`)
       expect(result.reviews).toHaveLength(REVIEWS.length)
       expect(result.reviews.every((review) => review.hasText)).toBe(true)
+    })
+
+    it('serves every seeded review’s words through Review’s eligible reads', async () => {
+      const eligible = createEligibleReads({
+        reviewRepo: reviewsStore,
+        clock: () => new Date(),
+      })
+
+      const snippets = await eligible.getReviewSnippetsByIds(
+        REVIEWS.map((review) => reviewId(seededReviewId(IDS, review.index))),
+        organizationId(IDS.organizationId),
+      )
+
+      expect(snippets.size).toBe(REVIEWS.length)
+      expect([...snippets.values()].every((snippet) => snippet.text !== null)).toBe(true)
     })
 
     it('draws the page from them: the air conditioning first, four reviews', async () => {

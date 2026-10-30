@@ -4,6 +4,7 @@
 // cleanup does, with nothing of the seed left to refuse it. Every value is invented.
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { getDb, type Database } from '#/shared/db'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import { createV3Seed, mentionOf, seededReviewId } from './ai-v3-seed'
@@ -29,7 +30,10 @@ describe.sequential(
   'the v3 seed adopting an Organization and a Property (PostgreSQL)',
   () => {
     const db: Database = getDb()
-    const seed = createV3Seed(db, IDS, { adopt: true })
+    const seed = createV3Seed(db, IDS, {
+      adopt: true,
+      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+    })
 
     async function removeProperty(): Promise<void> {
       await db.execute(

@@ -10,10 +10,11 @@
 // made for the spec the way every other spec makes one. For that, `{ adopt: true }` adds
 // the AI rows to the Organization and Property the caller made and leaves both alone: the
 // seed neither creates nor deletes them, and `tearDown()` removes only what it wrote. The
-// stack's web and worker also serve Review's own reads, and Review counts a Property's
-// reviews for Guest voice from the source cache the product writes beside every review
-// (`review_source_contents`); the integration suites stand that count in, so `adopt` writes
-// the cache row too.
+// stack's web and worker also serve Review's own reads: they open a review only if its row
+// holds a location and a retention date, and Review counts a Property's reviews for Guest
+// voice from the source cache the product writes beside every review
+// (`review_source_contents`). The integration suites stand those reads in, so `adopt`
+// writes the whole row and the cache row too, the two mirroring each other.
 import { randomUUID } from 'node:crypto'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -64,7 +65,6 @@ const REVIEW_ANALYSIS_EPOCH = 1
 const PROPERTY_PROFILE_VERSION = 1
 const DIGEST = 'a'.repeat(64)
 const SOURCE_BYTE_COUNT = 24
-const ADOPTED_LOCATION = 'accounts/ai-v3-seed/locations/ai-v3-seed'
 const ACTOR_USER_ID = 'ai-v3-seed-actor'
 const TIMEZONE = 'America/New_York'
 
@@ -130,10 +130,21 @@ export function mentionOf(
 export type SeedOptions = Readonly<{
   /** The Organization and the Property exist already and are the caller's to remove. */
   adopt?: boolean
+  /**
+   * The Google location resource the seeded reviews carry, which a stack's Review reads
+   * need in the row. Required with `adopt`. The caller supplies it, from the generated
+   * provider fixtures, because this file is not a place for a provider identifier.
+   */
+  externalLocationId?: string
 }>
 
 export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions = {}) {
   const adopt = options.adopt === true
+  // Set only when adopting: the location the stack's reviews carry.
+  const adoptedLocation = adopt ? options.externalLocationId : undefined
+  if (adopt && adoptedLocation === undefined) {
+    throw new Error('An adopting v3 seed needs the externalLocationId its reviews carry')
+  }
   const outputs = createAiOutputStoreAdapter(db)
   const aggregates = createAiPropertyAggregateStoreAdapter(db)
   let initialControls: ReadonlyArray<{
@@ -341,6 +352,17 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
     })
   }
 
+  /** What a fetched review holds beyond the words, as a stack's Review reads need it. */
+  function fetchedContent(review: SeededReview, externalLocationId: string) {
+    return {
+      externalLocationId,
+      sourceCreatedAt: review.reviewedAt,
+      sourceUpdatedAt: review.reviewedAt,
+      firstFetchedAt: review.reviewedAt,
+      lastFetchedAt: review.reviewedAt,
+    }
+  }
+
   async function insertReview(review: SeededReview): Promise<void> {
     const id = seededReviewId(ids, review.index)
     await db.insert(reviews).values({
@@ -360,22 +382,23 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
       analysisSequence: sequenceOf(review),
       aiSourceByteLength: SOURCE_BYTE_COUNT,
       aiSourceDigest: DIGEST,
-      ...(adopt ? { externalLocationId: ADOPTED_LOCATION } : {}),
+      ...(adoptedLocation === undefined
+        ? {}
+        : { ...fetchedContent(review, adoptedLocation), expiresAt: CONTENT_EXPIRES_AT }),
     })
-    if (adopt) {
+    if (adoptedLocation !== undefined) {
       await db.insert(reviewSourceContents).values({
         reviewId: id,
         organizationId: ids.organizationId,
         propertyId: ids.propertyId,
         platform: 'google',
         externalId: `ai-v3-seed-${id}`,
-        externalLocationId: ADOPTED_LOCATION,
+        ...fetchedContent(review, adoptedLocation),
         reviewerName: 'Synthetic reviewer',
         rating: review.rating,
         text: 'Synthetic review',
         languageCode: 'en',
         reviewedAt: review.reviewedAt,
-        lastFetchedAt: review.reviewedAt,
         contentExpiresAt: CONTENT_EXPIRES_AT,
         sourceEpoch: SOURCE_EPOCH,
         sourceRevision: SOURCE_REVISION,
