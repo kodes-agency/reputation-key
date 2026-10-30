@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Fallow audit
-        uses: fallow-rs/fallow@6605f96806787f85124bfc144124ff7e44733b06 # v3.34.1
+        uses: fallow-rs/fallow@85fa32733e951df85966842f2bb6a3f2720a940c # v3.37.0
         with:
           # Combined dead-code + complexity + duplication verdict.
           # gate: new-only fails ONLY on issues the PR introduces. The issues
