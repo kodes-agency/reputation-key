@@ -2361,11 +2361,34 @@ egress runtime registers no Anthropic adapter, so nothing here may set one. The
 model is `gpt-6-luna` at low reasoning, pinned by its plain id (the account lists
 no dated snapshot).
 
+**Before the deploy (read-only, three checks that belong to the person releasing):**
+
+- Size of `ai_operations` on the beta: its row count and `pg_relation_size`.
+  Migration 0082 drops and restates a validated CHECK on that table inside the one
+  migration transaction, so it scans the table under an ACCESS EXCLUSIVE lock; its
+  header expects a short scan at beta size, but no row count was taken when it was
+  written. A few hundred thousand rows or fewer is fine. Above that, add the CHECK
+  `NOT VALID` and validate it in a later step before this release goes out.
+- The price list in `OPENAI_PRICE_CATALOGUE_V2` ($0.10 uncached input, $0.01
+  cached input, $0.50 output per million tokens) comes from third-party lists of
+  2026-10-30. Read OpenAI's own pricing page. In the same pass: the OpenAI
+  deployment contract still names `undici@8.10.0` as its dispatcher (the lockfile
+  pins 8.12.3) and `2026-08-19` as the day its provider evidence was read. All
+  three are attested facts, so a change to any of them moves the deployment
+  profile and asks the owners to confirm AI again: settle them before they do.
+- The provider head of the earlier profile, read with
+  `pnpm ops ai-control inspect provider private-beta-global-v1`. Migration 0083
+  seeds the head of the new profile as enabled and accepting, whatever the earlier
+  head holds, so a stop put on the earlier profile on purpose (an incident, a
+  drain) is not carried over. If it is stopped, kill `provider private-beta-global-v2`
+  right after the migration (Kill switch, below).
+
 **Release:** Web before the worker, as on 2026-10-17: a worker built before this
 change refuses the new notice. Migration 0083 widens the Merchant AI CHECKs and
 seeds the control head `provider:private-beta-global-v2` as enabled and accepting.
-It leaves the global and capability heads alone, so an operator's stop survives
-the release. Nobody enables AI while web and the worker deploy.
+It leaves the global and capability heads alone, so an operator's stop on either
+survives the release (a stop on the earlier profile's provider head does not: see
+the check above). Nobody enables AI while web and the worker deploy.
 
 **Re-consent (the owner, after the deploy):** For each Organization, Settings,
 then AI, then "Enable AI features" (one ceremony can cover several Properties).
@@ -2390,7 +2413,13 @@ only:
   `AI operation recovery reaper completed` lines count failures
   (`enrollmentsFailed`, `candidatesFailed`); no Sentry issue should name a refused
   consent after the Property is confirmed, a 429 or `quota_exhausted` (see the
-  OpenAI credits note in section 22), or a schema refusal.
+  OpenAI credits note in section 22), or a schema refusal;
+- a large history: a Property whose history crosses the fixed 10,000-revision
+  safety ceiling is paused, not dropped, and waits for an operator (AI context
+  invariant 11). If the largest hotel stays on "being prepared" with no errors,
+  inspect it with
+  `pnpm ops ai-approve-enrollment --operator <id> --org <id> --property <uuid>`;
+  approving it adds `--reason <text> --ticket <ref> --apply --yes ops:ai-approve-enrollment`.
 
 Spot-check the largest hotel's Guest voice when its replay has finished: the
 numbers on the page equal the Inbox counts behind each "See all N reviews" link,
@@ -2427,6 +2456,13 @@ once a Property is confirmed, the way back is forward, not a restore.
 a new review is analysed under `review-analysis-v3` on `gpt-6-luna` (the operation
 row names the profile, the model and a cost); a killed capability answers
 "stopped" and an `inspect` shows `killed`/`draining`; Guest voice and the Overview
-row draw from the same read.
+row draw from the same read. Reply drafting and property trends moved to
+`gpt-6-luna` with the deployment profile although only review analysis was
+evaluated: after the first Property re-consents, request one reply draft for a
+test review and confirm it returns a draft, not `operation_ambiguous`, and compare
+the first day's settled cost with the invoice. The notice says the pinned model
+does not support volatile in-memory prompt caching; that was observed for
+`gpt-5.6-luna`, and the quality check of `gpt-6-luna` proved only that the
+24-hour setting works, so the clause is not verified for the new model.
 
 **Escalation:** Bozhidar Denev.

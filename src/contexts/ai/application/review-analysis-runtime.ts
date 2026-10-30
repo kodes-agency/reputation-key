@@ -1,12 +1,11 @@
 // AI context — which review-analysis contract a build runs (contract section 2.2).
 //
 // The runtime capability catalogue names, for review analysis, the operation
-// profile this build serves. v2 is the only one it can hold today: its parser
-// refuses any other entry, so v3 is unreachable until the activation slice widens
-// the catalogue and changes this row. This reads the row, not a flag, so the
-// moment it names `review-analysis-v3` the composition root builds the v3
-// contract and every check that compares against the catalogue (the notice in
-// force, the served deployment profile) already agrees with it.
+// profile this build serves. Since the switch-on (2026-10-30) v3 is the only one
+// it can hold: its parser refuses any other entry. This reads the row, not a
+// flag, so the composition root builds the contract the row names, and every
+// check that compares against the catalogue (the notice in force, the served
+// deployment profile) agrees with it.
 
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/review-analysis-v3'

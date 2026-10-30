@@ -49,7 +49,7 @@ export const AI_REVIEW_ANALYSIS_V3_RULES: ReadonlyArray<RetentionRegistryRule> =
         predicate: V3_ANALYSIS_PREDICATE,
         query: `SELECT review_id FROM ai_review_analyses WHERE expires_at < now() AND ${V3_ANALYSIS_PREDICATE}. expires_at is stamped when the analysis is generated (completion plus 730 days) and is never recomputed: not by a read, a manager correction, an aggregate or a re-analysis, which each write other rows. The mention rows, their sentence numbers, the aggregate contribution and its mention rows cascade from the deleted row.`,
         implementedBoundary:
-          'Live as the scheduled subject ai_review_analyses.v3_expired. Nothing selects a v3 analysis yet, so it deletes nothing until activation; the rule and its cascade are tested against PostgreSQL (ai-review-analysis-v3-retention.integration.test.ts). A v2 analysis is not reached: see ai.local_derivatives.',
+          'Live as the scheduled subject ai_review_analyses.v3_expired. The runtime has written v3 analyses since the switch-on (2026-10-30) and each expires 730 days after it is generated, so the first deletion is due in October 2028; the rule and its cascade are tested against PostgreSQL (ai-review-analysis-v3-retention.integration.test.ts). A v2 analysis is not reached: see ai.local_derivatives.',
       },
       evidenceSubject: 'ai_review_analyses.v3_expired',
       restoreImplication: RESTORE_REPLAYS_DELETION,

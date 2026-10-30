@@ -13,7 +13,7 @@
 // The use case knows none of that. It asks the contract it was given, and the
 // default is v2 exactly as it ran before the contract existed. v3 is built only
 // when the live runtime catalogue selects it (`selectedReviewAnalysisRuntime`),
-// which no build does until activation.
+// which every build does since the switch-on (2026-10-30).
 
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { ReviewPropertyContext } from '#/shared/review-vocabulary-hints'

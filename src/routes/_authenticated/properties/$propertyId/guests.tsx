@@ -15,7 +15,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { guestVoiceRangeSearch, type GuestVoiceRange } from '#/shared/dashboard-range'
-import { guestVoiceRangeOfLocation } from './-dashboard-range-read'
+import { guestVoiceRangeOfLocation, keptData } from './-dashboard-range-read'
 import {
   guestVoiceGoalOf,
   guestVoiceReasonOf,
@@ -74,7 +74,11 @@ function PropertyGuestsRoute() {
     ...propertyGuestVoiceV2Query(propertyId, range),
     placeholderData: keepPreviousData,
   })
-  const answer = reading.data
+  // A later range is read here, in the browser, after the loader's one read of the first
+  // window. When that read fails nothing is left to draw and no reason to show, so the
+  // failure is the route's error with its Try again (`keptData` throws it); without this
+  // the page would sit on its loading frame for good.
+  const answer = keptData(reading) ?? undefined
   const v2 = guestVoiceV2PageOf(answer)
   // 2.0 has no "All time": a bookmark that still says so is the automatic window, on the
   // page and in the address.

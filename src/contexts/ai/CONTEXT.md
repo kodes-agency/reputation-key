@@ -50,9 +50,13 @@ in force, or under another provider deployment profile than the one this build
 serves, is refused before an operation is claimed
 (`isAiAuthorizationUnderServedContract`, `application/ai-workflow-support.ts`).
 The notices in force are the served one and each earlier notice whose data use
-it repeats word for word (`MERCHANT_AI_NOTICES_IN_FORCE`): since 2026-10-17, which
-changed only the call to action, a consent under 2026-09-15 keeps AI running and
-binds its operations under its own version. A reply draft under a lapsed notice
+it repeats word for word (`MERCHANT_AI_NOTICES_IN_FORCE`). Today that is the
+2026-10-30 notice alone: it changed what a merchant agrees to (a second named
+provider, a fuller analysis record, the Urgent alert), so consent recorded under
+2026-09-09, 2026-09-15 and 2026-10-17 lapsed at the switch-on and every enabled
+Property re-consents. An earlier notice is carried only by a successor that
+changes how consent is asked and nothing else (2026-10-17 did that for
+2026-09-15). A reply draft under a lapsed notice
 answers `consent_renewal_required`, which the composer shows as the notice
 needing an AccountAdmin's confirmation. A review is settled as not analysable,
 with no operation: re-consent bumps the Review Analysis epoch and the enrollment
@@ -300,11 +304,13 @@ request's prompt, which forbids names, brands and places in a cause, is the othe
 exists only when the provider reports one of its four reasons. `aspect-taxonomy-v1` and
 every v2 schema stay as they are for history.
 
-Storage for it exists and stays empty until activation (migration 0078, `ai-review-analysis-v3.schema.ts`; the analysis flow below writes it behind the runtime selection):
+Storage for it (migration 0078, `ai-review-analysis-v3.schema.ts`) is written by the analysis flow
+below, which the runtime catalogue has selected since the switch-on (2026-10-30):
 `ai_review_analysis_mentions` and `ai_review_analysis_mention_sentences` for the analysis,
 `ai_property_aggregate_contribution_mentions` for the same mentions under the contribution
 that retracts with them, `ai_property_review_population_daily` for the reviews of a local
-day by stars (star-only reviews included), `ai_review_analyses.urgent_reason`, and lineage
+day by stars (star-only reviews included; nothing writes it yet, see "Not built" below),
+`ai_review_analyses.urgent_reason`, and lineage
 columns on `ai_operations` (provider, model, request profile, vocabulary hint set,
 normalizer, and once settled the closed flags it raised). `ai_review_analyses_result_valid`
 tells the two shapes apart by `analysis_profile_version`: a v3 row has no primary category
@@ -343,9 +349,10 @@ so sentence `n` is the sentence the live display underlines for a stored pointer
 request's `source.text` stays the whole canonical text, so the operation's source digest is
 the one v2 computes and the gateway checks that the sentences are that text, cut and
 numbered from one (`reviewSentencesMatchText`). Only a binding that names
-`review-analysis-v3` may carry sentences and a `propertyContext`, and the live catalogue
-holds no such entry, so the transport refuses a v3 request as cross-wired until activation;
-a v2 request that carries either is refused too. The property context must be what
+`review-analysis-v3` may carry sentences and a `propertyContext`. Since the switch-on
+the live catalogue serves that binding for review analysis, so the transport accepts it
+and refuses the v2 form as cross-wired (the retired form); a v2 request that carries
+either is refused too. The property context must be what
 `resolveReviewPropertyContext` yields for its category.
 
 The preparer sends `{ rating, languageCode, propertyContext, sentences: [{ number, text }] }`
@@ -382,8 +389,8 @@ the commit before the seam and after it.
 
 Switching providers is an operator's act and nothing else (decision 7,
 `provider-selection.ts`). The operator names a provider per capability
-(`createAiEgressRuntime({ providerSelection })`; there is no environment variable until
-activation needs one). A profile attested for one provider is served by it and ignores the
+(`createAiEgressRuntime({ providerSelection })`; the switch-on kept it a constant,
+`OPERATOR_PROVIDER_SELECTION`, with no environment variable). A profile attested for one provider is served by it and ignores the
 choice, so naming Anthropic moves no v2 operation. A profile attested for several is served by
 the provider named and by nothing else: when its adapter is missing or not ready the answer is
 a closed refusal (`policy_unavailable`, or `provider_unavailable` for a provider that is down),
@@ -509,8 +516,10 @@ accepted and stored. The use case knows none of it. The v2 contract
 change (profile facts, answer schema, the issue-label refusal, the attention formula, the call
 that stores the analysis), and is the default of the use case: a v2 claim and provider request
 are byte-for-byte what they were. `review-analysis-runtime.ts` builds v3 only when the live
-runtime catalogue names `review-analysis-v3` for `review_analysis`; the catalogue holds v2 alone
-and its parser refuses anything else, so no build runs v3 until activation widens it.
+runtime catalogue names `review-analysis-v3` for `review_analysis`; since the switch-on
+(2026-10-30) the catalogue holds v3 alone and its parser refuses anything else, so every build
+runs v3 and the v2 contract is the retired form, kept so an operation claimed before the deploy
+can still be read and settled.
 
 What the v3 contract (`review-analysis-contract-v3.ts`) does that v2 does not:
 
@@ -519,9 +528,9 @@ What the v3 contract (`review-analysis-contract-v3.ts`) does that v2 does not:
   which provider the operator has chosen. A category the hint resolver refuses, a review whose
   sentences the source cannot give, or no provider are refusals the review waits out within its
   horizon (`property_context_invalid`, `sentences_unavailable`, `provider_unavailable`,
-  `provider_selection_required`), never a verdict on the review. The port is declared and not
-  wired: `build.ts` hands the use case `unavailableProviderChoice`, so even a catalogue that
-  selected v3 would wait for the activation slice to name an operator choice.
+  `provider_selection_required`), never a verdict on the review. Since the switch-on the port is
+  wired: `build.ts` hands the use case `createOperatorProviderChoice()`, which answers
+  `OPERATOR_PROVIDER_SELECTION` (OpenAI alone).
 - The claim records the lineage the database requires of a v3 operation: the hint set, the
   provider, model and request profile, and the normalizer. The request carries the numbered
   sentences, the hints (never the Property's name) and the provider it was claimed under, so the
@@ -560,15 +569,19 @@ sentence. The Inbox reads it: `composition/inbox-ai-insights.ts` turns it into t
 manager's correction beside it), which the pane draws as cause chips and underlines in the guest's
 own words (`src/contexts/inbox/CONTEXT.md`).
 
-Left for the slices that need it, not done here: the `ai_property_review_population_daily`
-projection (it follows a review's observation, update and deletion whether or not the review is
-analysed, so this flow does not write it, and it needs a backfill of at least the earlier 12
-months of reviews before any percentage or "worth up to" figure reads it; PR-4, slice 4.1) and
-the statistics that read the mentions (the Guest voice read model, PR-4); wiring `AiProviderChoicePort` to the operator's provider choice, the
-runtime catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the
-deployment profile string) that activation flips (3.10); including
-v3 derivatives in an organization export. Property issue grouping itself is complete below;
-publishing its manager commands and reads remains PR-4 work.
+Not built: the `ai_property_review_population_daily` projection. Nothing writes the table; the
+turn-off, revoke and erasure paths and the 24-month sweep delete from it. It would follow a
+review's observation, update and deletion whether or not the review is analysed, so the analysis
+flow does not write it, and it needs a backfill of at least the earlier 12 months of reviews
+before any percentage or "worth up to" figure reads it. Guest voice does not read it: it counts
+from the live review population (`readTrendPopulation`), so no figure on a page is wrong for want
+of it. The merchant notice of 2026-10-30 and Privacy Notice 3.0 nevertheless say that daily
+counts of reviews by star rating are kept for 24 months, which holds only once this projector
+exists. Also left: including v3 derivatives in an organization export. The statistics that read
+the mentions (the Guest voice read model) and the wiring of `AiProviderChoicePort`, the runtime
+catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the deployment
+profile string) shipped with PR-4 and the switch-on (2026-10-30). Property issue grouping itself
+is complete below; publishing its manager commands and reads remains PR-4 work.
 
 ### Property issue groups
 
@@ -733,10 +746,11 @@ too full to read is answered with 90 days. A recurring issue is a label two or m
 Reviews carry. Topics still come from the v2 analysis (taxonomy v1), where Staff and
 Service overlap, so a Review about the front desk can count under both.
 
-Guest voice 2.0 (`readGuestVoiceV2`, v3 contract section 9) is the page of the agreed design for
-a Property whose reviews have a v3 analysis; the route draws today's page everywhere else
-(`hasV3Analyses`: a ready v3 contribution under the Property's current epochs, and nothing selects
-v3 yet, so no Property is drawn as 2.0 until activation). Its types are
+Guest voice 2.0 (`readGuestVoiceV2`, v3 contract section 9) is the Guest voice page, and since the
+switch-on (2026-10-30) the only one: the route reads it once. A Property whose reviews have a v3
+analysis gets the page; any other gets a reason instead (`hasV3Analyses`: a ready v3 contribution
+under the Property's current epochs): "being prepared", or "AI analysis is off" when AI is off or
+the consent was recorded under a notice or deployment profile no longer in force. Its types are
 `application/read-models/guest-voice-v2.ts`, content-free except `LiveEvidence`. The read joins two
 answers (`read-models/guest-voice-v2-join.ts`). Review says which reviews the Property has now
 (`readTrendPopulation`, as the insights read: two years in one read, the last year alone and no
@@ -767,12 +781,13 @@ counts, not the name out of the text, so the review stays unquotable. The delive
 under the reader's own access, which Inbox Item opens each review and what the review says now
 (`resolveDraftReviews`), and `withLiveEvidence` cuts that text with `review-sentences-v1`, the rule
 the analysis used. A review the reader cannot open, whose text has gone, or that now has fewer
-sentences than the analysis numbered is not quoted, and the card keeps its figures. The text is
-read by review id and not re-checked against the revision the analysis was made on (contract 6.2
-step 2): the population read already pins every counted review to Review's current revision, so
-what is left is the sub-second gap before the text read, in which an edit could underline the
-wrong sentences until the next read. Confirming the revision at the text read is owed before
-activation. Nothing is stored. A Property with under about 10 reviews with text in 12 months gets `not_enough_reviews`
+sentences than the analysis numbered is not quoted, and the card keeps its figures. Review's
+eligible snippet carries the revision of the words it serves, and a candidate is quoted only
+when that equals the revision the analysis was made on (contract 6.2 step 2); a young
+Property's latest-review row shows words only at the revision it was counted and checked for
+names at. The population read already pins every counted review to Review's current revision,
+so this closes the gap before the text read, in which an edit could have underlined the wrong
+sentences. Nothing is stored. A Property with under about 10 reviews with text in 12 months gets `not_enough_reviews`
 and its latest reviews, with words only where the analysis is in and names nobody.
 
 An Urgent review whose analysis named no problem to put under an issue is counted
@@ -820,10 +835,12 @@ Property with no v3 analysis, or too few reviews with text to show patterns, sen
 and one too full to read a year before its window has no last week to compare with and is
 never called quiet. The fact is the page's three "In short" lines as topic, counts, the stars a
 problem may be worth, which way a change went and the issue's id (`summaryLines`); no issue
-name, cause, quote or review is in it. Known limit, owed before activation: one sweep looks at
-the first 500 due Properties by id (`GUEST_VOICE_SUMMARY_SWEEP_LIMIT`), and the two catch-up
+name, cause, quote or review is in it. Known limit, deferred past the switch-on: one sweep looks
+at the first 500 due Properties by id (`GUEST_VOICE_SUMMARY_SWEEP_LIMIT`), and the two catch-up
 runs of the morning take the same 500, so above that many Properties due at once the later ones
-are not reached; a keyset page over the due set fixes it.
+are never reached; a keyset page over the due set (consent filtered before the paging) fixes it.
+The trigger is 250 Properties enabled for the summary, half the limit; the beta has two
+Organizations, so nobody is missed today.
 
 A manager corrects what the AI said of a review in the Inbox ("Not right?", `correctReviewMention`,
 migration 0080, decision Q11), and the correction takes effect at once. The kept answer is never
