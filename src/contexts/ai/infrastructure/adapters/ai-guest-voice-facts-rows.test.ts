@@ -14,6 +14,7 @@ function row(over: Partial<FactsRow> = {}): FactsRow {
     rating: 2,
     status: 'ready',
     urgentReason: null,
+    namesAPerson: false,
     mentions: [
       {
         ordinal: 0,
@@ -41,6 +42,7 @@ describe('mapFactsRow', () => {
         localDate: '2026-10-05',
         rating: 2,
         urgentReason: 'safety',
+        namesAPerson: false,
         mentions: [
           {
             mentionOrdinal: 0,
@@ -65,6 +67,18 @@ describe('mapFactsRow', () => {
     })
   })
 
+  it('reads the names flag as the row gives it, whatever the mentions left show', () => {
+    // The mention that carried the name was set aside by a manager, so none of the
+    // effective mentions names anyone; the review still does.
+    const mapped = mapFactsRow(row({ namesAPerson: true }), 0)
+
+    expect(mapped.kind === 'ready' && mapped.review.namesAPerson).toBe(true)
+    expect(
+      mapped.kind === 'ready' &&
+        mapped.review.mentions.every((mention) => mention.namesPerson === null),
+    ).toBe(true)
+  })
+
   it('reads a review the analysis could not read as only its version and day', () => {
     expect(mapFactsRow(row({ status: 'unavailable', mentions: [] }), 0)).toEqual({
       kind: 'unavailable',
@@ -82,6 +96,7 @@ describe('mapFactsRow', () => {
     ['a rating outside one to five', { rating: 7 }, /invalid rating/],
     ['an Urgent reason outside the four', { urgentReason: 'fire' }, /invalid reason/],
     ['a negative version', { sourceRevision: -1 }, /invalid version/],
+    ['a row with no names flag', { namesAPerson: undefined }, ZodError],
     [
       'a topic outside the twelve',
       {

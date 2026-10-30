@@ -39,6 +39,8 @@ export type FactsRow = Readonly<{
   rating: number
   status: string
   urgentReason: string | null
+  /** Any mention of the answer names a person, counting one a manager set aside. */
+  namesAPerson: boolean
   mentions: unknown
 }>
 
@@ -95,6 +97,7 @@ export function mapFactsRow(row: FactsRow, sourceEpoch: number): MappedFactsRow 
       localDate: row.localDate,
       rating: star(row.rating),
       urgentReason: urgentReason(row.urgentReason),
+      namesAPerson: z.boolean().parse(row.namesAPerson),
       mentions: mentions.map((mention) => ({
         mentionOrdinal: mention.ordinal,
         topic: mention.topic,

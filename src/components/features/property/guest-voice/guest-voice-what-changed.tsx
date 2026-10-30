@@ -12,17 +12,21 @@ function ChangedRow({ item }: Readonly<{ item: ChangedItem }>) {
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
       {pill === null ? null : <ChangeBadge pill={pill} />}
       <span className="min-w-0 text-sm">
-        <Button
-          type="button"
-          variant="link"
-          size="inline"
-          touch
-          aria-haspopup="dialog"
-          className="font-semibold whitespace-normal"
-          onClick={() => onOpenIssue(item.issueId)}
-        >
-          {item.title}
-        </Button>
+        {onOpenIssue === undefined ? (
+          <span className="font-semibold">{item.title}</span>
+        ) : (
+          <Button
+            type="button"
+            variant="link"
+            size="inline"
+            touch
+            aria-haspopup="dialog"
+            className="font-semibold whitespace-normal"
+            onClick={() => onOpenIssue(item.issueId)}
+          >
+            {item.title}
+          </Button>
+        )}
         {item.title === topicLabel(item.topic) ? null : (
           <span className="text-muted-foreground"> · {topicLabel(item.topic)}</span>
         )}

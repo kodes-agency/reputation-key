@@ -697,17 +697,26 @@ every figure is final, and for each card it names which reviews could be quoted 
 numbers their mention cites (`EvidenceSlot`, at most three, strongest then most recent). A review
 that names a person (any mention's `names_person`) is never offered: a quote shows the whole review,
 so a name flagged anywhere in it would be on the page (decision 2 wrote "any mention citing that
-sentence"; this is the stricter reading). The delivery layer (`server/guest-voice-v2.ts`) then reads,
+sentence"; this is the stricter reading). The flag is read from the answer as the provider gave it
+(`GuestVoiceReview.namesAPerson`, an `EXISTS` over the stored mentions), not from the mentions left
+after a manager's corrections: removing the mention that carried a name takes a topic out of the
+counts, not the name out of the text, so the review stays unquotable. The delivery layer (`server/guest-voice-v2.ts`) then reads,
 under the reader's own access, which Inbox Item opens each review and what the review says now
 (`resolveDraftReviews`), and `withLiveEvidence` cuts that text with `review-sentences-v1`, the rule
 the analysis used. A review the reader cannot open, whose text has gone, or that now has fewer
-sentences than the analysis numbered is not quoted, and the card keeps its figures. Nothing is
-stored. A Property with under about 10 reviews with text in 12 months gets `not_enough_reviews`
+sentences than the analysis numbered is not quoted, and the card keeps its figures. The text is
+read by review id and not re-checked against the revision the analysis was made on (contract 6.2
+step 2): the population read already pins every counted review to Review's current revision, so
+what is left is the sub-second gap before the text read, in which an edit could underline the
+wrong sentences until the next read. Confirming the revision at the text read is owed before
+activation. Nothing is stored. A Property with under about 10 reviews with text in 12 months gets `not_enough_reviews`
 and its latest reviews, with words only where the analysis is in and names nobody.
 
 An Urgent review whose analysis named no problem to put under an issue is counted
 (`urgentOtherCount`) and not dropped. The drawer's own read and the manager's issue commands
-(rename, hide, merge) are not wired yet (slice 4.3).
+(rename, hide, merge) are not wired yet (slice 4.3): until they are the route passes the page no
+drawer (`GuestVoiceV2View.drawer` is absent), so an issue's name is plain text, not a button that
+announces a dialog and opens nothing.
 
 The page names the Property's Google rating goal beside the top problem, and AI knows nothing
 of it: the route reads the goal card (`ratingGoalCardQuery`, the Reporting context's read) and
@@ -748,7 +757,10 @@ Property with no v3 analysis, or too few reviews with text to show patterns, sen
 and one too full to read a year before its window has no last week to compare with and is
 never called quiet. The fact is the page's three "In short" lines as topic, counts, the stars a
 problem may be worth, which way a change went and the issue's id (`summaryLines`); no issue
-name, cause, quote or review is in it.
+name, cause, quote or review is in it. Known limit, owed before activation: one sweep looks at
+the first 500 due Properties by id (`GUEST_VOICE_SUMMARY_SWEEP_LIMIT`), and the two catch-up
+runs of the morning take the same 500, so above that many Properties due at once the later ones
+are not reached; a keyset page over the due set fixes it.
 
 A manager corrects what the AI said of a review in the Inbox ("Not right?", `correctReviewMention`,
 migration 0080, decision Q11), and the correction takes effect at once. The kept answer is never

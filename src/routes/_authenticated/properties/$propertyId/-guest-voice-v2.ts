@@ -10,6 +10,7 @@ import type {
 import type { GuestVoiceGoalFacts } from '#/components/features/property/guest-voice/guest-voice-rating-goal-words'
 import type { GuestVoiceV2View } from '#/components/features/property/guest-voice/guest-voice-v2-body'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
+import type { GuestVoiceRange } from '#/shared/dashboard-range'
 
 /** What the server function answers: the page, or why today's page is the one to draw. */
 export type GuestVoiceV2Answer =
@@ -26,21 +27,24 @@ export function guestVoiceV2PageOf(
 }
 
 /**
+ * The range Guest voice 2.0 draws for the address's. It has no "All time": a bookmark that
+ * still says so is read as the automatic window, as the server reads it, and the page
+ * shows (and the address then says) that window rather than a control with nothing chosen.
+ */
+export function guestVoiceV2RangeOf(range: GuestVoiceRange): GuestVoiceRange {
+  return range === 'all' ? 'auto' : range
+}
+
+/**
  * The drawer of an issue is the next slice's (4.3): it needs its own read. Until it lands
- * no issue is open and naming one opens nothing, so the page offers no door to an empty
- * drawer; the figures, the quotes and the way into the Inbox are all there.
+ * the view has no drawer, so an issue's name is plain text and the page offers no door to
+ * an empty one; the figures, the quotes and the way into the Inbox are all there.
  */
 export function guestVoiceV2View(
   read: GuestVoiceV2Read,
   ratingGoal: GuestVoiceGoalFacts | null = null,
 ): GuestVoiceV2View {
-  return {
-    read,
-    openIssueId: null,
-    onOpenIssueChange: () => undefined,
-    drawer: { status: 'pending' },
-    ratingGoal,
-  }
+  return { read, ratingGoal }
 }
 
 /**

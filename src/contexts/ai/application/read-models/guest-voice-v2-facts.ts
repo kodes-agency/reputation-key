@@ -43,6 +43,13 @@ export type GuestVoiceReview = Readonly<{
   localDate: string
   rating: StarValue
   urgentReason: ReviewUrgentReasonV3 | null
+  /**
+   * The analysis flagged a mention of this review as naming a person (a guest or a team
+   * member). It is read from the answer as the provider gave it, so a manager setting a
+   * mention aside does not clear it: that takes the topic out of the counts, not the
+   * name out of the review's text. A review with this flag is never quoted.
+   */
+  namesAPerson: boolean
   mentions: readonly GuestVoiceMention[]
 }>
 

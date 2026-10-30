@@ -20,18 +20,26 @@ import { GuestVoiceUrgent } from './guest-voice-urgent'
 import { GuestVoiceWatch } from './guest-voice-watch'
 import { GuestVoiceWhatChanged } from './guest-voice-what-changed'
 
-/**
- * What the page needs of the world to draw Guest voice 2.0: the read, which issue's
- * drawer is open and what it holds, and what "Not right?" does. The route owns all of
- * it; the page only draws.
- */
-export type GuestVoiceV2View = Readonly<{
-  read: GuestVoiceV2Read
+/** An issue's drawer: which issue is open, how to open or close one, and what it holds. */
+type GuestVoiceDrawerView = Readonly<{
   /** The issue whose drawer is open, or null. Kept in the address by the route. */
   openIssueId: string | null
   onOpenIssueChange: (issueId: string | null) => void
   /** What the open drawer holds. */
-  drawer: GuestVoiceDrawerRead
+  read: GuestVoiceDrawerRead
+}>
+
+/**
+ * What the page needs of the world to draw Guest voice 2.0: the read, the drawer of an
+ * issue, and what "Not right?" does. The route owns all of it; the page only draws.
+ */
+export type GuestVoiceV2View = Readonly<{
+  read: GuestVoiceV2Read
+  /**
+   * Absent while the drawer has no read behind it. Then no issue's name is a button and
+   * no drawer is drawn: the page offers no door to an empty drawer.
+   */
+  drawer?: GuestVoiceDrawerView
   /** The manager says an issue is wrong. Absent: "Not right?" is not drawn. */
   onNotRight?: (issueId: string) => void
   /**
@@ -66,7 +74,7 @@ export function GuestVoiceV2Body({
   range,
   view,
 }: Readonly<{ propertyId: string; range: GuestVoiceRange; view: GuestVoiceV2View }>) {
-  const { read, openIssueId, onOpenIssueChange, drawer, onNotRight, ratingGoal } = view
+  const { read, drawer, onNotRight, ratingGoal } = view
   if (read.status === 'not_enough_reviews') {
     return <GuestVoiceNotEnough read={read} propertyId={propertyId} />
   }
@@ -77,7 +85,7 @@ export function GuestVoiceV2Body({
         window: read.window,
         startLocalDate: read.startLocalDate,
         endLocalDate: read.endLocalDate,
-        onOpenIssue: onOpenIssueChange,
+        onOpenIssue: drawer?.onOpenIssueChange,
         onNotRight,
       }}
     >
@@ -94,12 +102,14 @@ export function GuestVoiceV2Body({
         <GuestVoiceWhatChanged items={read.whatChanged} provisional={read.provisional} />
         <GuestVoiceEveryTopic rows={read.everyTopic} />
       </div>
-      <GuestVoiceIssueDrawer
-        openIssueId={openIssueId}
-        knownTitle={titleOf(read, openIssueId)}
-        read={drawer}
-        onClose={() => onOpenIssueChange(null)}
-      />
+      {drawer === undefined ? null : (
+        <GuestVoiceIssueDrawer
+          openIssueId={drawer.openIssueId}
+          knownTitle={titleOf(read, drawer.openIssueId)}
+          read={drawer.read}
+          onClose={() => drawer.onOpenIssueChange(null)}
+        />
+      )}
     </GuestVoiceProvider>
   )
 }

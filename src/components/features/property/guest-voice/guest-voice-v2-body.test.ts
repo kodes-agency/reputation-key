@@ -33,7 +33,8 @@ function body(
   {
     range = 'auto',
     notRight = false,
-  }: { range?: GuestVoiceRange; notRight?: boolean } = {},
+    drawer = true,
+  }: { range?: GuestVoiceRange; notRight?: boolean; drawer?: boolean } = {},
 ): string {
   return render(
     createElement(GuestVoiceV2Body, {
@@ -41,14 +42,20 @@ function body(
       range,
       view: {
         read,
-        openIssueId: null,
-        onOpenIssueChange: noop,
-        drawer: { status: 'pending' },
+        drawer: drawer
+          ? { openIssueId: null, onOpenIssueChange: noop, read: { status: 'pending' } }
+          : undefined,
         onNotRight: notRight ? noop : undefined,
       },
     }),
   )
 }
+
+/** The buttons that announce a dialog, but the glossary's, which do open one. */
+const issueOpeners = (markup: string) =>
+  [...markup.matchAll(/<button[^>]*aria-haspopup="dialog"[^>]*>/gu)]
+    .map((match) => match[0])
+    .filter((tag) => !tag.includes('data-slot="explain-trigger"'))
 
 const headings = (markup: string) =>
   [...markup.matchAll(/<h2[^>]*>(.*?)<\/h2>/gu)].map((match) => match[1])
@@ -148,7 +155,9 @@ describe('the hotel page', () => {
 
   it('says staff praise in one neutral line that names no one', () => {
     expect(markup).toContain('4 reviews praise a team member by name')
-    expect(markup).toContain('read them')
+    // The Inbox cannot narrow to named praise, so the link says it opens the period.
+    expect(markup).toContain('Open this period’s reviews')
+    expect(markup).not.toContain('read them')
     expect(
       body({ ...LARGE_READ, staffPraise: { reviewCount: 1, inboxHref: '/inbox' } }),
     ).toContain('1 review praises a team member by name')
@@ -169,6 +178,32 @@ describe('the hotel page', () => {
     expect(row).not.toContain('data-slot="topic-bar"')
     expect(row).toContain('too few')
     expect(markup.match(/data-slot="topic-bar"/gu)?.length).toBe(11)
+  })
+})
+
+describe('the page as the route draws it until a drawer has a read behind it', () => {
+  const markup = body(LARGE_READ, { drawer: false })
+  const urgent = body(URGENT_READ, { drawer: false })
+
+  it('announces no dialog for an issue, because nothing opens one', () => {
+    // With a drawer the same page has a button for every issue it names...
+    expect(issueOpeners(body(LARGE_READ)).length).toBeGreaterThan(0)
+    expect(issueOpeners(body(URGENT_READ)).length).toBeGreaterThan(0)
+    // ...and without one it has none.
+    expect(issueOpeners(markup)).toEqual([])
+    expect(issueOpeners(urgent)).toEqual([])
+    expect(markup).not.toMatch(/<button[^>]*>Facilities and equipment<\/button>/u)
+  })
+
+  it('still names every issue, in text', () => {
+    expect(markup).toMatch(/<h3[^>]*>Facilities and equipment<\/h3>/u)
+    expect(markup).toContain('Noise')
+    expect(urgent).toContain('Balcony railing')
+    expect(headings(markup)).toEqual(headings(body(LARGE_READ)))
+  })
+
+  it('keeps the way into the Inbox from every issue', () => {
+    expect(markup).toMatch(/<a [^>]*href="\/inbox\?[^"]*"[^>]*>See all 19 reviews<\/a>/u)
   })
 })
 

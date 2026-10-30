@@ -11,7 +11,9 @@
 // A review that names a person is never quoted here (decisions 2 and 17). The flag is
 // the analysis's, per mention; because a quote shows the whole review and not only the
 // sentences it underlines, a name flagged anywhere in the review would be on the page,
-// so one flagged mention keeps the whole review out.
+// so one flagged mention keeps the whole review out. It is read from the answer as given,
+// not from the mentions left after a manager's corrections: setting the mention that
+// carried the name aside takes a topic out of the counts, not the name out of the text.
 import {
   REVIEW_STRENGTH_RANK_V3,
   type ReviewStrengthV3,
@@ -64,7 +66,7 @@ export type GuestVoiceV2Draft = Readonly<{
 }>
 
 export function reviewNamesAPerson(review: GuestVoiceReview): boolean {
-  return review.mentions.some((mention) => mention.namesPerson !== null)
+  return review.namesAPerson
 }
 
 function strengthRank(strength: ReviewStrengthV3): number {

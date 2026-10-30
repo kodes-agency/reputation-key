@@ -44,8 +44,10 @@ function GuestsLoveCard({ item }: Readonly<{ item: GuestsLoveItem }>) {
 
 /**
  * One neutral line about staff praise: how many reviews praise a team member by name,
- * and the way to read them. No name, no count for a person, no ranking, and never the
- * other side of it (decision Q13).
+ * and the way to the period's reviews. The Inbox has no filter for named praise and
+ * making one would be a per-person surface, so the link says what it opens: all of the
+ * period's reviews. No name, no count for a person, no ranking, and never the other side
+ * of it (decision Q13).
  */
 function StaffPraise({ line }: Readonly<{ line: NonNullable<StaffPraiseLine> }>) {
   const verb = line.reviewCount === 1 ? 'praises' : 'praise'
@@ -54,7 +56,7 @@ function StaffPraise({ line }: Readonly<{ line: NonNullable<StaffPraiseLine> }>)
       {reviewsPhrase(line.reviewCount)} {verb} a team member by name
       {' · '}
       <a href={line.inboxHref} className={inlineLinkClass({ underline: 'always' })}>
-        read them
+        Open this period’s reviews
       </a>
     </p>
   )

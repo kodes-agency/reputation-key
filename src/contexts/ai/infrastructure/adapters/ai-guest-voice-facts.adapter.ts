@@ -115,6 +115,28 @@ function mentionsOf(contribution: SQL) {
   `
 }
 
+/**
+ * Whether the answer flagged any mention of the review as naming a person, counting a
+ * mention a manager has set aside. A correction changes what the page counts; it does not
+ * change the guest's words, so a name the analysis found is still in the review whatever
+ * the manager did to the topic that carried it. The one guard behind every quote reads this.
+ */
+function namesAPerson(contribution: SQL) {
+  return sql`
+    EXISTS (
+      SELECT 1
+      FROM ai_property_aggregate_contribution_mentions AS named
+      WHERE named.organization_id = ${contribution}.organization_id
+        AND named.property_id = ${contribution}.property_id
+        AND named.review_id = ${contribution}.review_id
+        AND named.source_epoch = ${contribution}.source_epoch
+        AND named.source_revision = ${contribution}.source_revision
+        AND named.analysis_sequence = ${contribution}.analysis_sequence
+        AND named.names_person IS NOT NULL
+    )
+  `
+}
+
 async function readFactsRows(
   tx: Tx,
   scope: GuestVoiceFactsScope,
@@ -131,6 +153,7 @@ async function readFactsRows(
       latest.rating AS rating,
       analysis.status AS status,
       analysis.urgent_reason AS "urgentReason",
+      ${namesAPerson(latest)} AS "namesAPerson",
       ${mentionsOf(latest)} AS mentions
     FROM latest
     INNER JOIN ai_review_analyses AS analysis

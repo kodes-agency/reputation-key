@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import {
@@ -18,7 +19,12 @@ import { can } from '#/shared/domain/permissions'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { guestVoiceRangeSearch, type GuestVoiceRange } from '#/shared/dashboard-range'
 import { guestVoiceRangeOfLocation, keptData } from './-dashboard-range-read'
-import { guestVoiceGoalOf, guestVoiceV2PageOf, guestVoiceV2View } from './-guest-voice-v2'
+import {
+  guestVoiceGoalOf,
+  guestVoiceV2PageOf,
+  guestVoiceV2RangeOf,
+  guestVoiceV2View,
+} from './-guest-voice-v2'
 import { ratingGoalCardQuery } from './goals/-rating-goal-queries'
 import { RoutePending } from '#/components/layout/route-page-state'
 
@@ -113,6 +119,16 @@ function PropertyGuestsRoute() {
     placeholderData: keepPreviousData,
   })
   const v2 = guestVoiceV2PageOf(v2Reading.data)
+  // 2.0 has no "All time": a bookmark that still says so is the automatic window, on the
+  // page and in the address.
+  const v2Range = guestVoiceV2RangeOf(range)
+  useEffect(() => {
+    if (v2 === null || range === v2Range) return
+    void navigate({
+      search: (previous) => ({ ...previous, range: v2Range }),
+      replace: true,
+    })
+  }, [v2, range, v2Range, navigate])
   // The Google rating goal is named beside the top problem. A read that fails (no goal, no
   // permission, the capability off) leaves the page without the line, never in an error.
   const goalCard = useQuery({
@@ -143,7 +159,7 @@ function PropertyGuestsRoute() {
       <PropertyGuestVoicePage
         propertyId={propertyId}
         propertyName={propertyData.property.name}
-        range={range}
+        range={v2Range}
         onRangeChange={onRangeChange}
         v2={guestVoiceV2View(v2, guestVoiceGoalOf(goalCard.data))}
         busy={v2Reading.isPlaceholderData}

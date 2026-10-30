@@ -21,17 +21,21 @@ function UrgentItem({ item }: Readonly<{ item: FixFirstItem }>) {
             : ` · ${urgentReasonWords(item.urgentReason)}`}
         </strong>
         {' · '}
-        <Button
-          type="button"
-          variant="link"
-          size="inline"
-          touch
-          aria-haspopup="dialog"
-          className="whitespace-normal"
-          onClick={() => onOpenIssue(item.issueId)}
-        >
-          {item.title}
-        </Button>
+        {onOpenIssue === undefined ? (
+          <span className="font-medium">{item.title}</span>
+        ) : (
+          <Button
+            type="button"
+            variant="link"
+            size="inline"
+            touch
+            aria-haspopup="dialog"
+            className="whitespace-normal"
+            onClick={() => onOpenIssue(item.issueId)}
+          >
+            {item.title}
+          </Button>
+        )}
         <span className="text-muted-foreground"> · {topicLabel(item.topic)}</span>
       </p>
       {item.quote == null ? null : (

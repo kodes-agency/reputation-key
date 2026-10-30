@@ -130,7 +130,7 @@ describe('outcomeOf', () => {
 
   it.each([
     ['not_applicable', 'Only a complaint'],
-    ['invalid_cause', 'one to three plain words'],
+    ['invalid_cause', 'one to three English words'],
     ['disabled', 'switched off'],
   ] as const)('refuses %s in words', (status, words) => {
     const outcome = outcomeOf(

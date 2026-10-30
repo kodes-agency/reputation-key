@@ -91,7 +91,7 @@ export function outcomeOf(
       return {
         kind: 'refused',
         sentence:
-          'Use one to three plain words in each box: letters and hyphens only, no names or numbers.',
+          'Use one to three English words in each box: letters a to z and hyphens only, no names or numbers.',
       }
     case 'disabled':
       return {

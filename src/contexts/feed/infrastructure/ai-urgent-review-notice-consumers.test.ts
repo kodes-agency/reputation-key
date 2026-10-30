@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { ZodError } from 'zod/v4'
 import { inboxItemId, organizationId, userId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -416,7 +417,7 @@ describe('the Urgent alert route', () => {
 
       await expect(
         handleAiReviewUrgentDetected(deps, event({ sourceRevision: 0 })),
-      ).rejects.toThrow()
+      ).rejects.toThrow(ZodError)
     })
   })
 

@@ -72,7 +72,7 @@ export function ReviewCauseForm({
             maxLength={80}
             placeholder="not working"
             disabled={mutation.isPending}
-            description="One to three plain words in each box. No names or numbers."
+            description="One to three English words in each box, letters a to z and hyphens. No names or numbers."
           />
         )}
       </form.Field>

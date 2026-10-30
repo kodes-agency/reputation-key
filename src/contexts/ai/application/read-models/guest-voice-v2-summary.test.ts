@@ -310,6 +310,7 @@ describe('an Urgent review this week', () => {
       localDate,
       rating: 1,
       urgentReason,
+      namesAPerson: false,
       mentions: [],
     }) satisfies GuestVoiceReview
 

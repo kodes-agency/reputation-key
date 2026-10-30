@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { GuestVoiceV2Read } from '#/contexts/ai/application/public-api'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { guestVoiceGoalOf, guestVoiceV2PageOf, guestVoiceV2View } from './-guest-voice-v2'
+import {
+  guestVoiceGoalOf,
+  guestVoiceV2PageOf,
+  guestVoiceV2RangeOf,
+  guestVoiceV2View,
+} from './-guest-voice-v2'
 
 const NOT_ENOUGH: GuestVoiceV2Read = {
   status: 'not_enough_reviews',
@@ -27,13 +32,22 @@ describe('guestVoiceV2PageOf', () => {
   })
 })
 
+describe('guestVoiceV2RangeOf', () => {
+  it('reads a bookmark that still says "All time" as the automatic window', () => {
+    expect(guestVoiceV2RangeOf('all')).toBe('auto')
+  })
+
+  it.each(['auto', '30d', '90d', '180d', '365d'] as const)('keeps %s', (range) => {
+    expect(guestVoiceV2RangeOf(range)).toBe(range)
+  })
+})
+
 describe('guestVoiceV2View', () => {
-  it('opens no drawer until the drawer has a read to show', () => {
+  it('has no drawer until the drawer has a read to show', () => {
     const view = guestVoiceV2View(NOT_ENOUGH)
 
     expect(view.read).toBe(NOT_ENOUGH)
-    expect(view.openIssueId).toBeNull()
-    expect(view.onOpenIssueChange('any')).toBeUndefined()
+    expect(view.drawer).toBeUndefined()
     expect(view.onNotRight).toBeUndefined()
   })
 

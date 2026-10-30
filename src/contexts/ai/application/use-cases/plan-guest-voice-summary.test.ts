@@ -90,6 +90,7 @@ function reviewsOf(specs: readonly Spec[]) {
       localDate: spec.localDate,
       rating: spec.rating ?? 5,
       urgentReason: spec.urgent ?? null,
+      namesAPerson: false,
       mentions,
     }
   })

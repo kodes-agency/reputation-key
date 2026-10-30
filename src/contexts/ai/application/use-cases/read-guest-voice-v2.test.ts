@@ -74,6 +74,7 @@ function analysed(
     localDate,
     rating: 5,
     urgentReason: null,
+    namesAPerson: mentions.some((mention) => (mention.namesPerson ?? null) !== null),
     mentions: mentions.map((mention, index) => ({
       mentionOrdinal: index,
       topic: 'facilities_equipment',
@@ -461,6 +462,29 @@ describe('readGuestVoiceV2 a Property too young for patterns', () => {
       { reviewId: id(2), reviewedAt: '2026-08-17', rating: 4, mayShowText: false },
       { reviewId: id(3), reviewedAt: '2026-08-16', rating: 2, mayShowText: false },
       { reviewId: id(4), reviewedAt: '2026-08-15', rating: 5, mayShowText: false },
+    ])
+  })
+
+  it('lists no words of a review whose name a manager set aside with its mention', async () => {
+    const { read } = harness({
+      population: few,
+      facts: {
+        reviews: [
+          // The mention that named a team member is gone from the mentions left, but the
+          // review's text still holds the name: the flag stands.
+          analysed(1, '2026-08-18', [{ polarity: 'positive' }], { namesAPerson: true }),
+          analysed(3, '2026-08-16', [{ polarity: 'negative' }]),
+        ],
+      },
+    })
+
+    const draft = drafted(await read(input))
+
+    expect(draft.latest.map((review) => [review.reviewId, review.mayShowText])).toEqual([
+      [id(1), false],
+      [id(2), false],
+      [id(3), true],
+      [id(4), false],
     ])
   })
 

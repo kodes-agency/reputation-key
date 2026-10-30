@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ZodError } from 'zod/v4'
 import { userId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -313,7 +314,7 @@ describe('the Monday email route', () => {
           deps as never,
           event({ lines: [{ ...FACT_LINES[0], topic: 'air_conditioning' }] }),
         ),
-      ).rejects.toThrow()
+      ).rejects.toThrow(ZodError)
     })
 
     it('rejects more than three lines', async () => {
@@ -324,7 +325,7 @@ describe('the Monday email route', () => {
           deps as never,
           event({ lines: [...FACT_LINES, FACT_LINES[0]] }),
         ),
-      ).rejects.toThrow()
+      ).rejects.toThrow(ZodError)
     })
   })
 })

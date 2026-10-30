@@ -37,6 +37,7 @@ function analysed(
     localDate,
     rating: 5,
     urgentReason: null,
+    namesAPerson: false,
     mentions: [],
     ...over,
   }

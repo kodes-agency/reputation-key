@@ -1,5 +1,6 @@
 import type { Job } from 'bullmq'
 import { describe, expect, it, vi } from 'vitest'
+import { ZodError } from 'zod/v4'
 import { GuestVoiceSummarySweepError } from '../../application/use-cases/run-guest-voice-summary-sweep'
 import {
   createGuestVoiceSummarySweepJobHandler,
@@ -83,7 +84,7 @@ describe('the Monday sweep job', () => {
   it('refuses job data that carries anything beyond what a quarantine redrive adds', async () => {
     const { handler, sweep } = harness()
 
-    await expect(handler(job({ organizationId: 'org-1' }))).rejects.toThrow()
+    await expect(handler(job({ organizationId: 'org-1' }))).rejects.toThrow(ZodError)
     expect(sweep).not.toHaveBeenCalled()
   })
 

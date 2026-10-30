@@ -29,6 +29,8 @@ type StoryProps = Readonly<{
   onNotRight: (issueId: string) => void
   /** Where the Property's Google rating goal stands, if it has an active one. */
   ratingGoal?: GuestVoiceGoalFacts | null
+  /** False draws the page as the route does until the drawer has a read: no issue opens. */
+  withDrawer?: boolean
 }>
 
 /** The route's part: keeps which drawer is open, and answers it from the fixture. */
@@ -40,6 +42,7 @@ function GuestVoiceV2Story({
   onRangeChange,
   onNotRight,
   ratingGoal = null,
+  withDrawer = true,
 }: StoryProps) {
   const [open, setOpen] = useState<string | null>(openIssueId ?? null)
   const issue =
@@ -56,9 +59,9 @@ function GuestVoiceV2Story({
       onRangeChange={onRangeChange}
       v2={{
         read,
-        openIssueId: open,
-        onOpenIssueChange: setOpen,
-        drawer,
+        drawer: withDrawer
+          ? { openIssueId: open, onOpenIssueChange: setOpen, read: drawer }
+          : undefined,
         onNotRight,
         ratingGoal,
       }}
@@ -208,6 +211,28 @@ export const LargePropertyWithoutAGoal: Story = {
     expect(
       canvas.queryByRole('region', { name: 'Your Google rating goal' }),
     ).not.toBeInTheDocument()
+  },
+}
+
+/**
+ * The page as the route draws it until the drawer has a read behind it: every issue is
+ * named in text, none is a button that announces a dialog and opens nothing.
+ */
+export const LargePropertyWithoutADrawer: Story = {
+  args: { withDrawer: false },
+  play: async ({ canvas }) => {
+    expect(
+      canvas.getByRole('heading', { level: 3, name: 'Facilities and equipment' }),
+    ).toBeVisible()
+    expect(
+      canvas.queryAllByRole('button', { name: /Facilities and equipment/u }),
+    ).toEqual([])
+    expect(canvas.getByText('Noise')).toBeVisible()
+    expect(canvas.queryByRole('button', { name: /Noise/u })).not.toBeInTheDocument()
+    // The way into the Inbox is still there.
+    expect(
+      canvas.getAllByRole('link', { name: /See all \d+ reviews/u }).length,
+    ).toBeGreaterThan(0)
   },
 }
 

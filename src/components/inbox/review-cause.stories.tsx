@@ -436,7 +436,7 @@ export const RefusesWordsItCannotKeep: Story = {
     await userEvent.click(form.getByRole('button', { name: 'Save cause' }))
 
     const banner = within(await dialog.findByRole('alert'))
-    await expect(banner.getByText(/letters and hyphens only/)).toBeVisible()
+    await expect(banner.getByText(/letters a to z and hyphens only/)).toBeVisible()
     await expect(form.getByRole('button', { name: 'Save cause' })).toBeInTheDocument()
   },
 }

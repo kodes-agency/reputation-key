@@ -75,6 +75,7 @@ function review(
     localDate: '2026-10-10',
     rating,
     urgentReason: null,
+    namesAPerson: mentions.some((spec) => (spec.namesPerson ?? null) !== null),
     mentions: mentions.map((spec, index) => ({
       mentionOrdinal: index,
       topic: spec.topic,
@@ -543,6 +544,35 @@ describe('assembleGuestVoiceV2', () => {
       named.reviewId,
     )
     expect(slot?.candidates).toHaveLength(2)
+  })
+
+  it('keeps a review out of every quote when the mention that named a person was set aside', () => {
+    // A manager removed the staff mention that carried the name, so the mentions left
+    // name no one; the review's text still holds the name, and a quote shows it whole.
+    const setAside = review(
+      1,
+      [
+        complaint(RAILING, 'safety', 'loose', 'strong'),
+        complaint(AC, 'facilities_equipment', 'not working'),
+      ],
+      { urgentReason: 'safety', namesAPerson: true },
+    )
+    const clean = [1, 2].map(() =>
+      review(1, [complaint(AC, 'facilities_equipment', 'not working')]),
+    )
+    const { evidence } = assembleGuestVoiceV2(input({ current: [setAside, ...clean] }))
+
+    // Three reviews complain of the air conditioning, so it is in Fix first; the one whose
+    // name was set aside still counts, and is not among the reviews put forward to quote.
+    const fixFirst = evidence.find(
+      (entry) => entry.section === 'fixFirst' && entry.issueId === AC,
+    )
+    expect(fixFirst?.candidates.map((candidate) => candidate.reviewId).sort()).toEqual(
+      clean.map((entry) => entry.reviewId).sort(),
+    )
+    const urgent = evidence.find((entry) => entry.section === 'urgent')
+    expect(urgent).toBeDefined()
+    expect(urgent?.candidates).toEqual([])
   })
 
   it('offers the strongest, then the most recent review as the quote, at most three', () => {
