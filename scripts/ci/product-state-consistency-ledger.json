@@ -91,15 +91,13 @@
       "members": [
         "all",
         "propertyTrend",
-        "propertyAggregates",
-        "propertyInsights",
         "guestVoiceV2Property",
         "guestVoiceV2",
         "reviewAnalysisProgress",
         "organizationSpend"
       ],
       "owner": "AI read-model query lifecycle",
-      "policy": "Trend, aggregate, and insights projections are independent property-scoped siblings under the AI root; insights also keys the selected day range, and globally unique propertyId prevents cross-property reuse. Guest voice 2.0 is another property-scoped sibling: guestVoiceV2Property is the prefix of every window (guestVoiceV2 adds the page's range word), so a manager's correction in the Inbox refreshes all of a property's windows by that one prefix. Review-analysis progress is another property-scoped sibling: it polls only while analysis is running and is invalidated when the property's AI authorization changes. Organization spend is the one organization-scoped leaf: a monthly amount read by the AI overview, stale after a minute and never mutated by the client."
+      "policy": "The trend projection is a property-scoped sibling under the AI root, and globally unique propertyId prevents cross-property reuse (the aggregate and insights projections left with the v2 read model at the switch-on of review analysis v3). Guest voice 2.0, which the Guest voice page and the Overview row both read, is another property-scoped sibling: guestVoiceV2Property is the prefix of every window (guestVoiceV2 adds the page's range word), so a manager's correction in the Inbox refreshes all of a property's windows by that one prefix. Review-analysis progress is another property-scoped sibling: it polls only while analysis is running and is invalidated when the property's AI authorization changes. Organization spend is the one organization-scoped leaf: a monthly amount read by the AI overview, stale after a minute and never mutated by the client."
     },
     {
       "id": "goalKeys",
