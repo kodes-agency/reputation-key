@@ -529,10 +529,15 @@ publishing its manager commands and reads remains PR-4 work.
 `ai_property_issue_groups` is one stable random UUID for a normalized `thing` under one Property
 and topic. `ai_property_issue_members` remembers observed normalized spellings. Resolution is
 deterministic and Property-local: stored member, canonical key, then insert. A topic-level mention
-uses `__topic__`. The governed `property-issue-normalization-v1` catalogue applies only explicit
-last-word singular forms and exact topic-scoped synonyms. A reviewed edit moves its digest but
-does not regroup history because stored members win. No model clusters, proposes or learns a
-group across Properties.
+uses `__topic__`. The governed `property-issue-normalization-v1` catalogue (rules v2) singularizes
+the last word of a phrase (the explicit forms it lists first, then one rule: `ies` after a
+consonant to `y`, `es` dropped after `ss`, `ch`, `sh` and `x`, any other final `s` dropped; a word
+of three letters or fewer, a word ending `ss`, `us` or `is`, and the words it keeps as written,
+such as `stairs` and `news`, stay) and applies exact topic-scoped synonyms (`server` to `waiter`,
+`outboard motor` to `engine`, `front desk clerk` to `front desk`). The evaluation scorer passes
+the gold and the answer through the same function. A reviewed edit moves its digest but does not
+regroup history because stored members win. No model clusters, proposes or learns a group across
+Properties.
 
 An ID survives re-analysis, epochs and new spellings. Merge preserves the target and leaves the
 source as a redirect; redirects into the source are flattened to the target in the same
