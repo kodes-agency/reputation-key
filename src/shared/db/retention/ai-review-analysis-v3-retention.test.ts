@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import * as schema from '#/shared/db/schema'
 import * as v3Schema from '#/shared/db/schema/ai-review-analysis-v3.schema'
 import * as issueSchema from '#/shared/db/schema/ai-property-issue-groups.schema'
+import * as correctionSchema from '#/shared/db/schema/ai-review-analysis-corrections.schema'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import { RETENTION_REGISTRY } from './retention-registry'
 
@@ -18,7 +19,11 @@ function tablesOf(module: Record<string, unknown>): PgTable[] {
   return Object.values(module).filter((value): value is PgTable => isTable(value))
 }
 
-const V3_TABLES = [...tablesOf(v3Schema), ...tablesOf(issueSchema)]
+const V3_TABLES = [
+  ...tablesOf(v3Schema),
+  ...tablesOf(issueSchema),
+  ...tablesOf(correctionSchema),
+]
 
 const tablesByName = new Map<string, PgTable>(
   tablesOf(schema).map((table) => [getTableName(table), table]),
@@ -47,12 +52,13 @@ function deletedBy(name: string, seen: ReadonlySet<string> = new Set()): string 
 }
 
 describe('Review Analysis v3 retention', () => {
-  it('finds every v3 analysis and issue-group table in the schema modules', () => {
+  it('finds every v3 analysis, issue-group and correction table in the schema modules', () => {
     expect(V3_TABLES.map(getTableName).sort()).toEqual([
       'ai_property_aggregate_contribution_mentions',
       'ai_property_issue_groups',
       'ai_property_issue_members',
       'ai_property_review_population_daily',
+      'ai_review_analysis_mention_corrections',
       'ai_review_analysis_mention_sentences',
       'ai_review_analysis_mentions',
     ])
@@ -76,6 +82,7 @@ describe('Review Analysis v3 retention', () => {
       ai_property_issue_groups: 'ai_property_issue_groups',
       ai_property_issue_members: 'ai_property_issue_groups',
       ai_property_review_population_daily: 'ai_property_review_population_daily',
+      ai_review_analysis_mention_corrections: 'ai_review_analyses',
       ai_review_analysis_mention_sentences: 'ai_review_analyses',
       ai_review_analysis_mentions: 'ai_review_analyses',
     })

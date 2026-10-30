@@ -202,6 +202,31 @@ export type ReviewAnalysisMentionV3 = Readonly<{
   namesPerson: 'team_member' | 'other' | null
 }>
 
+/** A manager's word on one mention, as the current-analysis read gives it back. */
+export type ReviewAnalysisMentionCorrectionV3 =
+  | Readonly<{ kind: 'remove_topic'; correctedAtEpochMillis: number }>
+  | Readonly<{ kind: 'not_a_problem'; correctedAtEpochMillis: number }>
+  | Readonly<{
+      kind: 'change_cause'
+      /** The cause the manager gave, in place of the answer's `thing` and `issue`. */
+      thing: string | null
+      issue: string | null
+      correctedAtEpochMillis: number
+    }>
+
+/**
+ * A mention as the current-analysis read gives it: the kept answer's, with the place it
+ * has in the answer (the handle a correction names), the Property issue it belongs to
+ * now (a changed cause's, or the answer's followed through a merge), and the manager's
+ * correction if there is one. The answer's own fields are never changed by a correction.
+ */
+export type ReviewAnalysisMentionReadV3 = ReviewAnalysisMentionV3 &
+  Readonly<{
+    mentionOrdinal: number
+    issueGroupId: string | null
+    correction: ReviewAnalysisMentionCorrectionV3 | null
+  }>
+
 /**
  * The twelve topics of `review-topic-taxonomy-v3`. Spelled here because the
  * domain imports nothing but its own kernel; `review-analysis-runtime.test.ts`
@@ -256,7 +281,7 @@ export type ReviewAnalysisReadV1 =
         sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
         attention: 'urgent' | 'high' | 'medium' | 'low'
         urgentReason: 'safety' | 'health' | 'discrimination' | 'legal_threat' | null
-        mentions: readonly ReviewAnalysisMentionV3[]
+        mentions: readonly ReviewAnalysisMentionReadV3[]
         generatedAtEpochMillis: number
       }
     >

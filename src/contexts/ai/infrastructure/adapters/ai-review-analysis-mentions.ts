@@ -9,6 +9,7 @@ import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiPropertyAggregateContributionMentions,
+  aiReviewAnalysisMentionCorrections,
   aiReviewAnalysisMentionSentences,
   aiReviewAnalysisMentions,
 } from '#/shared/db/schema'
@@ -27,6 +28,8 @@ import {
 } from '#/shared/review-analysis-v3'
 import type {
   ReviewAnalysisCurrentnessV1,
+  ReviewAnalysisMentionCorrectionV3,
+  ReviewAnalysisMentionReadV3,
   ReviewAnalysisMentionV3,
   ReviewAnalysisReadV1,
 } from '../../domain/types'
@@ -74,7 +77,10 @@ export async function insertAnalysisMentions(
 }
 
 function keyMatches(
-  table: typeof aiReviewAnalysisMentions | typeof aiReviewAnalysisMentionSentences,
+  table:
+    | typeof aiReviewAnalysisMentions
+    | typeof aiReviewAnalysisMentionSentences
+    | typeof aiReviewAnalysisMentionCorrections,
   key: AnalysisKey,
 ) {
   return and(
@@ -95,14 +101,91 @@ function oneOf<Value extends string>(
 }
 
 /**
+ * The issue each mention belongs to now, by its place in the answer: the issue a manager
+ * moved a changed cause to, else the one the mention was assigned, in both cases followed
+ * through a merge once. Null for a mention written before grouping.
+ */
+async function readEffectiveIssueGroups(
+  tx: Transaction,
+  key: AnalysisKey,
+): Promise<ReadonlyMap<number, string | null>> {
+  const result = await tx.execute<{ ordinal: number; issueGroupId: string | null }>(sql`
+    SELECT
+      mention.mention_ordinal AS ordinal,
+      CASE WHEN correction.kind = 'change_cause'
+        THEN COALESCE(replacement_group.merged_into_issue_id, correction.replacement_issue_group_id)
+        ELSE COALESCE(issue_group.merged_into_issue_id, mention.issue_group_id) END::text AS "issueGroupId"
+    FROM ai_property_aggregate_contribution_mentions AS mention
+    LEFT JOIN ai_property_issue_groups AS issue_group
+      ON issue_group.organization_id = mention.organization_id
+     AND issue_group.property_id = mention.property_id
+     AND issue_group.id = mention.issue_group_id
+    LEFT JOIN ai_review_analysis_mention_corrections AS correction
+      ON correction.organization_id = mention.organization_id
+     AND correction.property_id = mention.property_id
+     AND correction.review_id = mention.review_id
+     AND correction.source_epoch = mention.source_epoch
+     AND correction.source_revision = mention.source_revision
+     AND correction.analysis_sequence = mention.analysis_sequence
+     AND correction.mention_ordinal = mention.mention_ordinal
+    LEFT JOIN ai_property_issue_groups AS replacement_group
+      ON replacement_group.organization_id = correction.organization_id
+     AND replacement_group.property_id = correction.property_id
+     AND replacement_group.id = correction.replacement_issue_group_id
+    WHERE mention.organization_id = ${key.organizationId}
+      AND mention.property_id = ${key.propertyId}::uuid
+      AND mention.review_id = ${key.reviewId}::uuid
+      AND mention.source_epoch = ${key.sourceEpoch}
+      AND mention.source_revision = ${key.sourceRevision}
+      AND mention.analysis_sequence = ${key.analysisSequence}
+  `)
+  return new Map(result.rows.map((row) => [Number(row.ordinal), row.issueGroupId]))
+}
+
+async function readCorrections(
+  tx: Transaction,
+  key: AnalysisKey,
+): Promise<ReadonlyMap<number, ReviewAnalysisMentionCorrectionV3>> {
+  const rows = await tx
+    .select({
+      ordinal: aiReviewAnalysisMentionCorrections.mentionOrdinal,
+      kind: aiReviewAnalysisMentionCorrections.kind,
+      thing: aiReviewAnalysisMentionCorrections.replacementThing,
+      issue: aiReviewAnalysisMentionCorrections.replacementIssue,
+      updatedAt: aiReviewAnalysisMentionCorrections.updatedAt,
+    })
+    .from(aiReviewAnalysisMentionCorrections)
+    .where(keyMatches(aiReviewAnalysisMentionCorrections, key))
+    .for('share')
+  const corrections = new Map<number, ReviewAnalysisMentionCorrectionV3>()
+  for (const row of rows) {
+    const correctedAtEpochMillis = row.updatedAt.getTime()
+    if (row.kind === 'remove_topic' || row.kind === 'not_a_problem') {
+      corrections.set(row.ordinal, { kind: row.kind, correctedAtEpochMillis })
+    } else if (row.kind === 'change_cause') {
+      corrections.set(row.ordinal, {
+        kind: 'change_cause',
+        thing: row.thing,
+        issue: row.issue,
+        correctedAtEpochMillis,
+      })
+    } else {
+      throw new Error('Review analysis correction has an unknown kind')
+    }
+  }
+  return corrections
+}
+
+/**
  * The mentions of one analysis, in answer order, each with the sentence numbers
- * it cites. A row the checks of 0078 would have refused is an invariant breach
- * and throws, like every other stored derivative that fails to read back.
+ * it cites, the issue it belongs to and a manager's correction beside it. A row the
+ * checks of 0078 would have refused is an invariant breach and throws, like every other
+ * stored derivative that fails to read back.
  */
 async function readAnalysisMentions(
   tx: Transaction,
   key: AnalysisKey,
-): Promise<readonly ReviewAnalysisMentionV3[]> {
+): Promise<readonly ReviewAnalysisMentionReadV3[]> {
   const rows = await tx
     .select({
       ordinal: aiReviewAnalysisMentions.mentionOrdinal,
@@ -129,6 +212,8 @@ async function readAnalysisMentions(
       asc(aiReviewAnalysisMentionSentences.sentenceNumber),
     )
     .for('share')
+  const groups = await readEffectiveIssueGroups(tx, key)
+  const corrections = await readCorrections(tx, key)
   if (rows.length > REVIEW_ANALYSIS_V3_MAX_MENTIONS) {
     throw new Error('Ready v3 analysis has too many mentions')
   }
@@ -151,6 +236,7 @@ async function readAnalysisMentions(
         throw new Error('Ready v3 analysis mention is invalid')
       }
       return Object.freeze({
+        mentionOrdinal: row.ordinal,
         topic: row.topic,
         polarity,
         strength,
@@ -158,6 +244,8 @@ async function readAnalysisMentions(
         issue: row.issue,
         sentences: Object.freeze(sentences),
         namesPerson: oneOf(REVIEW_NAMES_PERSON_V3, row.namesPerson),
+        issueGroupId: groups.get(row.ordinal) ?? null,
+        correction: corrections.get(row.ordinal) ?? null,
       })
     }),
   )

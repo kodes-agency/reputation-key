@@ -244,7 +244,9 @@ those reports does not migrate, archive or delete their source rows.
      nothing deletes it, and the daily aggregates have no age to measure. The
      Review Analysis v3 tables are not in this list: `ai_review_analyses.v3_expired`
      deletes a v3 analysis on its `expires_at` with every row that cascades from
-     it, `ai_property_issue_groups.expired` then deletes an expired group only
+     it (its mentions, their sentence numbers, a manager's corrections beside
+     them, its contribution and that contribution's mentions),
+     `ai_property_issue_groups.expired` then deletes an expired group only
      after no contribution mention references it (members and redirects
      cascade), and `ai_property_review_population_daily.expired` deletes the
      daily star counts 24 UTC calendar months after the day they count

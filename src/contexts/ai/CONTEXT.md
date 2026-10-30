@@ -707,6 +707,25 @@ An Urgent review whose analysis named no problem to put under an issue is counte
 (`urgentOtherCount`) and not dropped. The drawer's own read and the manager's issue commands
 (rename, hide, merge) are not wired yet (slice 4.3).
 
+A manager corrects what the AI said of a review in the Inbox ("Not right?", `correctReviewMention`,
+migration 0080, decision Q11), and the correction takes effect at once. The kept answer is never
+changed: a correction is one row beside a mention (`ai_review_analysis_mention_corrections`, at most
+one per mention) that every read lays over the answer before it counts anything
+(`ai-guest-voice-facts.adapter.ts`, the Inbox's current-analysis read, the Inbox's issue filter).
+Three kinds. `remove_topic` sets aside every mention of that topic in the analysis, written and
+given back together. `not_a_problem` is for a complaint and counts as neutral. `change_cause`
+gives the thing and what was wrong as one or two short lowercase phrases (the stored contract's
+own: `normalizeCausePhrase`; a thing needs its issue) and moves the mention to the issue of that
+thing, found or made as an analysis's mentions are (`resolveIssueGroupForThing`, under the
+Property lock, keeping the issue at least as long as the analysis). A correction is written only
+for the review's current ready v3 analysis under the authorization's fences, so a review that has
+changed since the Inbox read it answers not found; a new revision is a new analysis, starts with
+none, and leaves the old correction beside the old answer, where it is no longer effective. An
+undo deletes the row. The row holds a kind, two phrases a manager chose and the manager's id, never
+a quote or a name; it goes with its analysis at 24 months (cascade from the mention) and with the
+issue it moved to. Nothing is learned from it: it changes no prompt, hint or catalogue, and the
+correction rate per topic (corrections over the topic's mentions) is a count over this table.
+
 The aggregate head counts every sequence the settlement ledger settles for its
 profile generation, including one a newer sequence of the same review had
 already superseded, so coverage can complete. A head that is the only head of

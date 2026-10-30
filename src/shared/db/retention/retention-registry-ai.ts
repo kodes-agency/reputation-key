@@ -4,7 +4,7 @@
  * decision 16 of the v3 contract is that nothing v3 stores goes active without
  * a deletion rule that is executed and tested.
  *
- * Seven tables, three executing rules:
+ * Eight tables, three executing rules:
  *
  * - `ai_review_analyses.v3_expired` deletes a v3 analysis on the `expires_at`
  *   it stamped at generation. Everything else v3 stores about an analysis
@@ -105,6 +105,25 @@ export const AI_REVIEW_ANALYSIS_V3_RULES: ReadonlyArray<RetentionRegistryRule> =
         predicate: 'the aggregate contribution the mention belongs to has been deleted',
         query:
           "No query of its own. A contribution mention is deleted with its aggregate contribution through the contribution foreign key (ON DELETE CASCADE), and that contribution goes with its analysis, so 24 months after the analysis was generated. It repeats the analysis's mention fields and nothing else.",
+        implementedBoundary:
+          'Live through the scheduled ai_review_analyses.v3_expired subject, by cascade.',
+      },
+      evidenceSubject: 'ai_review_analyses.v3_expired',
+      restoreImplication: CASCADE_RESTORE_IMPLICATION,
+    }),
+    rule({
+      id: 'ai.review_analysis_v3_mention_corrections',
+      dataClass: 'ai_derivatives',
+      ownerContext: 'ai',
+      ownerRole: 'AI context owner with the authorizing AccountAdmin',
+      sourceKind: 'table',
+      source: 'ai_review_analysis_mention_corrections',
+      eligibility: {
+        anchorColumn: null,
+        horizon: { kind: 'months', months: 24 },
+        predicate: 'the mention the correction belongs to has been deleted',
+        query:
+          'No query of its own. A manager correction is deleted with the mention it sits beside through the mention foreign key (ON DELETE CASCADE), so with its analysis 24 months after the analysis was generated, and also with the issue group it moved a cause to. It holds a kind and, for a changed cause, two short lowercase phrases the manager chose, and no quote, sentence, name or provider response. A new revision of a review is a new analysis and has none.',
         implementedBoundary:
           'Live through the scheduled ai_review_analyses.v3_expired subject, by cascade.',
       },

@@ -71,8 +71,10 @@ export type SeededIds = Readonly<{
 
 /** One review to seed, with the analysis the store holds for it. */
 export type SeededReview = Readonly<{
-  /** 1-based; also the review's analysis sequence at the Property. */
+  /** 1-based; also the review's analysis sequence at the Property unless `sequence` says. */
   index: number
+  /** A later analysis of the same review: its sequence at the Property, above every earlier one. */
+  sequence?: number
   rating: 1 | 2 | 3 | 4 | 5
   /** The instant the review was left; its Property-local day follows the Property's timezone. */
   reviewedAt: Date
@@ -86,8 +88,12 @@ export function seededReviewId(ids: SeededIds, index: number): string {
   return `${ids.idPrefix}-0000-4000-8000-${String(index).padStart(12, '0')}`
 }
 
-function seededOperationId(ids: SeededIds, index: number): AiOperationId {
-  return `${ids.idPrefix}-0001-4000-8000-${String(index).padStart(12, '0')}` as AiOperationId
+function seededOperationId(ids: SeededIds, sequence: number): AiOperationId {
+  return `${ids.idPrefix}-0001-4000-8000-${String(sequence).padStart(12, '0')}` as AiOperationId
+}
+
+function sequenceOf(review: SeededReview): number {
+  return review.sequence ?? review.index
 }
 
 function lineageId(ids: SeededIds): string {
@@ -174,7 +180,14 @@ export function createV3Seed(db: Database, ids: SeededIds) {
   }
 
   async function clear(): Promise<void> {
-    await db.delete(properties).where(eq(properties.id, ids.propertyId))
+    await db
+      .delete(properties)
+      .where(
+        and(
+          eq(properties.organizationId, ids.organizationId),
+          eq(properties.id, ids.propertyId),
+        ),
+      )
     await deleteTestOrganizationsWithExecutor(db, [ids.organizationId])
   }
 
@@ -226,7 +239,11 @@ export function createV3Seed(db: Database, ids: SeededIds) {
     })
   }
 
-  async function insertOperation(index: number, reviewedAt: Date): Promise<void> {
+  async function insertOperation(
+    review: Pick<SeededReview, 'index' | 'sequence'>,
+    reviewedAt: Date,
+  ): Promise<void> {
+    const sequence = review.sequence ?? review.index
     const heads = await db
       .select({
         scopeKey: aiExecutionControlHeads.scopeKey,
@@ -243,7 +260,7 @@ export function createV3Seed(db: Database, ids: SeededIds) {
     const global = control(CONTROL_SCOPE_KEYS[0])
     const provider = control(CONTROL_SCOPE_KEYS[1])
     const capability = control(CONTROL_SCOPE_KEYS[2])
-    const operationId = seededOperationId(ids, index)
+    const operationId = seededOperationId(ids, sequence)
     await db.insert(aiOperations).values({
       id: operationId,
       idempotencyScope: `analysis:${operationId}`,
@@ -257,14 +274,14 @@ export function createV3Seed(db: Database, ids: SeededIds) {
       propertyId: ids.propertyId,
       actorUserId: null,
       systemPrincipal: 'review_event_consumer',
-      reviewId: seededReviewId(ids, index),
+      reviewId: seededReviewId(ids, review.index),
       originEventId: randomUUID(),
       subjectHmac: 'd'.repeat(64),
       subjectHmacKeyVersion: 'ai-v3-seed-v1',
       sourceEpoch: SOURCE_EPOCH,
       sourceRevision: SOURCE_REVISION,
       reviewedAtEpochMillis: reviewedAt.getTime(),
-      analysisSequence: index,
+      analysisSequence: sequence,
       authorizationLineageId: lineageId(ids),
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
@@ -321,7 +338,7 @@ export function createV3Seed(db: Database, ids: SeededIds) {
       contentExpiresAt: CONTENT_EXPIRES_AT,
       sourceEpoch: SOURCE_EPOCH,
       sourceRevision: SOURCE_REVISION,
-      analysisSequence: review.index,
+      analysisSequence: sequenceOf(review),
       aiSourceByteLength: SOURCE_BYTE_COUNT,
       aiSourceDigest: DIGEST,
     })
@@ -338,8 +355,9 @@ export function createV3Seed(db: Database, ids: SeededIds) {
   }
 
   async function storeAnalysis(review: SeededReview): Promise<void> {
+    const sequence = sequenceOf(review)
     const write = {
-      operationId: seededOperationId(ids, review.index),
+      operationId: seededOperationId(ids, sequence),
       providerCompletion: {
         expectedAttempt: 1,
         modelSnapshot: 'synthetic-model-2026-10-01',
@@ -352,7 +370,7 @@ export function createV3Seed(db: Database, ids: SeededIds) {
       reviewId: reviewId(seededReviewId(ids, review.index)),
       sourceEpoch: SOURCE_EPOCH,
       sourceRevision: SOURCE_REVISION,
-      analysisSequence: review.index,
+      analysisSequence: sequence,
       authorizationLineageId: lineageId(ids),
       reviewAnalysisEpoch: REVIEW_ANALYSIS_EPOCH,
       propertyProfileVersion: PROPERTY_PROFILE_VERSION,
@@ -378,7 +396,7 @@ export function createV3Seed(db: Database, ids: SeededIds) {
       reviewId: reviewId(seededReviewId(ids, review.index)),
       sourceEpoch: SOURCE_EPOCH,
       sourceRevision: SOURCE_REVISION,
-      analysisSequence: review.index,
+      analysisSequence: sequence,
       reviewAnalysisEpoch: REVIEW_ANALYSIS_EPOCH,
       propertyProfileVersion: PROPERTY_PROFILE_VERSION,
       calendarProfileVersion: 'property-calendar-v1',
@@ -386,6 +404,19 @@ export function createV3Seed(db: Database, ids: SeededIds) {
     if (applied.status !== 'applied') {
       throw new Error(`The seed could not file review ${review.index}: ${applied.status}`)
     }
+  }
+
+  /** Lets the Property's analysis read as complete: its head is where the last review is. */
+  async function seal(headSequence = lastIndex): Promise<void> {
+    await db
+      .update(reviewAiAnalysisHeads)
+      .set({ headSequence })
+      .where(
+        and(
+          eq(reviewAiAnalysisHeads.organizationId, ids.organizationId),
+          eq(reviewAiAnalysisHeads.propertyId, ids.propertyId),
+        ),
+      )
   }
 
   return {
@@ -462,41 +493,89 @@ export function createV3Seed(db: Database, ids: SeededIds) {
 
     /** Seeds one review and files its analysis. */
     async addReview(review: SeededReview): Promise<void> {
-      lastIndex = Math.max(lastIndex, review.index)
+      lastIndex = Math.max(lastIndex, sequenceOf(review))
       await insertReview(review)
-      await insertOperation(review.index, review.reviewedAt)
+      await insertOperation(review, review.reviewedAt)
       await storeAnalysis(review)
     },
 
-    /** Lets the Property's analysis read as complete: its head is where the last review is. */
-    async seal(headSequence = lastIndex): Promise<void> {
+    /**
+     * A newer analysis of a review already seeded, under a higher sequence: the review's
+     * current analysis from then on, and the older one a superseded answer beside which
+     * a correction may still sit.
+     */
+    async reanalyze(
+      review: SeededReview & Readonly<{ sequence: number }>,
+    ): Promise<void> {
+      lastIndex = Math.max(lastIndex, review.sequence)
       await db
-        .update(reviewAiAnalysisHeads)
-        .set({ headSequence })
-        .where(eq(reviewAiAnalysisHeads.propertyId, ids.propertyId))
+        .update(reviews)
+        .set({ analysisSequence: review.sequence })
+        .where(
+          and(
+            eq(reviews.organizationId, ids.organizationId),
+            eq(reviews.id, seededReviewId(ids, review.index)),
+          ),
+        )
+      await insertOperation(review, review.reviewedAt)
+      await storeAnalysis(review)
+      // The Property's head is where its newest analysis is, so coverage stays whole.
+      await seal()
     },
+
+    seal,
 
     /** Removes what the seed wrote and puts the execution controls back. */
     async tearDown(): Promise<void> {
       try {
         await db
           .delete(aiPropertyAggregateContributions)
-          .where(eq(aiPropertyAggregateContributions.propertyId, ids.propertyId))
+          .where(
+            and(
+              eq(aiPropertyAggregateContributions.organizationId, ids.organizationId),
+              eq(aiPropertyAggregateContributions.propertyId, ids.propertyId),
+            ),
+          )
         await db
           .delete(aiReviewAnalyses)
-          .where(eq(aiReviewAnalyses.propertyId, ids.propertyId))
+          .where(
+            and(
+              eq(aiReviewAnalyses.organizationId, ids.organizationId),
+              eq(aiReviewAnalyses.propertyId, ids.propertyId),
+            ),
+          )
         await db
           .delete(aiPropertyDailyAggregates)
-          .where(eq(aiPropertyDailyAggregates.propertyId, ids.propertyId))
+          .where(
+            and(
+              eq(aiPropertyDailyAggregates.organizationId, ids.organizationId),
+              eq(aiPropertyDailyAggregates.propertyId, ids.propertyId),
+            ),
+          )
         await db
           .delete(aiPropertyAggregateHeads)
-          .where(eq(aiPropertyAggregateHeads.propertyId, ids.propertyId))
+          .where(
+            and(
+              eq(aiPropertyAggregateHeads.organizationId, ids.organizationId),
+              eq(aiPropertyAggregateHeads.propertyId, ids.propertyId),
+            ),
+          )
         await db
           .delete(aiPropertyAggregateSettlements)
-          .where(eq(aiPropertyAggregateSettlements.propertyId, ids.propertyId))
+          .where(
+            and(
+              eq(aiPropertyAggregateSettlements.organizationId, ids.organizationId),
+              eq(aiPropertyAggregateSettlements.propertyId, ids.propertyId),
+            ),
+          )
         await db
           .delete(aiPropertyIssueGroups)
-          .where(eq(aiPropertyIssueGroups.propertyId, ids.propertyId))
+          .where(
+            and(
+              eq(aiPropertyIssueGroups.organizationId, ids.organizationId),
+              eq(aiPropertyIssueGroups.propertyId, ids.propertyId),
+            ),
+          )
         await db.delete(reviews).where(eq(reviews.organizationId, ids.organizationId))
         await db
           .delete(aiOperations)

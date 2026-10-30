@@ -34,6 +34,7 @@ import { createReadPropertyAggregates } from './application/use-cases/read-prope
 import type { AiPropertyAccess } from './application/ai-property-read-access'
 import { createReadPropertyInsights } from './application/use-cases/read-property-insights'
 import { createReadGuestVoiceV2 } from './application/use-cases/read-guest-voice-v2'
+import { createCorrectReviewMention } from './application/use-cases/correct-review-mention'
 import { createAiAuthorizationAdapter } from './infrastructure/adapters/ai-authorization.adapter'
 import { createAiControlAdapter } from './infrastructure/adapters/ai-control.adapter'
 import { createAiOperationStoreAdapter } from './infrastructure/adapters/ai-operation-store.adapter'
@@ -42,6 +43,8 @@ import { createPropertyVocabularyContextAdapter } from './infrastructure/adapter
 import { createAiPropertyCalendarAdapter } from './infrastructure/adapters/ai-property-calendar.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './infrastructure/adapters/ai-property-aggregate-store.adapter'
 import { createAiGuestVoiceFactsAdapter } from './infrastructure/adapters/ai-guest-voice-facts.adapter'
+import { createAiMentionCorrectionStoreAdapter } from './infrastructure/adapters/ai-mention-correction-store.adapter'
+import { findCurrentReviewIdsByIssue } from './infrastructure/adapters/ai-current-issue-review-ids'
 import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai-property-trend-schedule-store.adapter'
 import { createAiReviewAnalysisReceiptWriter } from './infrastructure/adapters/ai-review-analysis-receipt.adapter'
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
@@ -345,6 +348,23 @@ export const buildAiContext = (input: AiContextBuildInput) => {
           ...request,
           nowEpochMillis: nowEpochMillis(),
         }),
+      findCurrentReviewIdsByIssue: (
+        request: Omit<
+          Parameters<typeof findCurrentReviewIdsByIssue>[1],
+          'nowEpochMillis'
+        >,
+      ) =>
+        findCurrentReviewIdsByIssue(input.db, {
+          ...request,
+          nowEpochMillis: nowEpochMillis(),
+        }),
+      correctReviewMention: createCorrectReviewMention({
+        propertyAccess: input.propertyAccess,
+        authorization,
+        processingProfiles,
+        corrections: createAiMentionCorrectionStoreAdapter(input.db),
+        nowEpochMillis,
+      }),
       readPropertyAggregates: createReadPropertyAggregates({
         ...readDependencies,
         aggregates,

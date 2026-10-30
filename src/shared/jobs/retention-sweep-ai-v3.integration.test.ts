@@ -64,7 +64,10 @@ async function seedAnalysis(
   })
 }
 
-/** Two mentions with two sentence numbers each, on the analysis and on its contribution. */
+/**
+ * Two mentions with two sentence numbers each, on the analysis and on its contribution,
+ * and a manager's correction beside each.
+ */
 async function seedMentions(key: AiAnalysisKey): Promise<void> {
   const keyValues = [
     key.organizationId,
@@ -88,6 +91,16 @@ async function seedMentions(key: AiAnalysisKey): Promise<void> {
       )
     }
   }
+  // A manager's word beside each of the two mentions.
+  for (const [ordinal, kind] of ['remove_topic', 'not_a_problem'].entries()) {
+    await lease.pool.query(
+      `INSERT INTO ai_review_analysis_mention_corrections
+         (organization_id, property_id, review_id, source_epoch, source_revision,
+          analysis_sequence, mention_ordinal, topic, kind, corrected_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'facilities_equipment', $8, 'a-manager', $9, $9)`,
+      [...keyValues, ordinal, kind, GENERATED_AT],
+    )
+  }
   for (const ordinal of [0, 1]) {
     for (const sentence of [1, 2]) {
       await lease.pool.query(
@@ -105,6 +118,7 @@ const TABLES = [
   'ai_review_analyses',
   'ai_review_analysis_mentions',
   'ai_review_analysis_mention_sentences',
+  'ai_review_analysis_mention_corrections',
   'ai_property_aggregate_contributions',
   'ai_property_aggregate_contribution_mentions',
 ] as const
@@ -126,6 +140,7 @@ const WHOLE = {
   ai_review_analyses: 1,
   ai_review_analysis_mentions: 2,
   ai_review_analysis_mention_sentences: 4,
+  ai_review_analysis_mention_corrections: 2,
   ai_property_aggregate_contributions: 1,
   ai_property_aggregate_contribution_mentions: 2,
 } as const

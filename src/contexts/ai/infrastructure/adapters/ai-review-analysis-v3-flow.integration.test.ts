@@ -678,7 +678,14 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       sentiment: 'mixed',
       attention: 'high',
       urgentReason: null,
-      mentions: DERIVATIVE.mentions,
+      // The answer's own fields, each with its place in the answer, and (before the
+      // aggregate has filed it under an issue, and with no manager's word) neither.
+      mentions: DERIVATIVE.mentions.map((mention, mentionOrdinal) => ({
+        ...mention,
+        mentionOrdinal,
+        issueGroupId: null,
+        correction: null,
+      })),
       generatedAtEpochMillis: COMPLETED_AT.getTime(),
     })
   })

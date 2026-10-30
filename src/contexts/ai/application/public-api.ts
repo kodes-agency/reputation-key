@@ -65,6 +65,11 @@ export type {
   GenerateReplySuggestionResult,
 } from './use-cases/generate-reply-suggestion'
 
+export type {
+  CorrectReviewMentionResult,
+  MentionCorrectionAction,
+} from './use-cases/correct-review-mention'
+
 export type { AiTrendReportRead } from './ports/ai-output-store.port'
 export type { AiTrendReportView, AiTrendSupportingReviewView } from './trend-report-view'
 

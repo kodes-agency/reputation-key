@@ -27,11 +27,12 @@ export type AiPropertyAccess = PropertyAccessLookup
  * The permission each reader-facing read asks for. There is no analysis-read
  * permission: the aggregate, insights and progress reports are dashboard
  * reads, the trend has its own, and one review's analysis is read where the
- * review is, in the Inbox.
+ * review is, in the Inbox. A manager's correction to that analysis is an Inbox
+ * action on the review, so it asks for the Inbox's own write permission.
  */
 export type AiReadPermission = Extract<
   Permission,
-  'dashboard.read' | 'ai.trends.read' | 'inbox.read'
+  'dashboard.read' | 'ai.trends.read' | 'inbox.read' | 'inbox.write'
 >
 
 /** Refuse, as a tagged `forbidden`, a reader who may not read this Property. */

@@ -3,7 +3,7 @@
 // of the Property's aggregate (the head is share-locked, as the insights read does), in
 // the time budget of every AI dashboard read. Content-free: no sentence leaves this file
 // except as the number the analysis cited.
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql, type SQL } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { aiPropertyIssueGroups } from '#/shared/db/schema'
 import type {
@@ -63,20 +63,26 @@ async function readHasV3(tx: Tx, scope: GuestVoiceFactsScope): Promise<boolean> 
 }
 
 /**
- * The effective mentions of a review as JSON, in the order the answer gave them. This
- * is the one place a manager's correction will change what the page counts.
+ * The effective mentions of a review as JSON, in the order the answer gave them: the
+ * answer with a manager's corrections laid over it, which is the one place a correction
+ * changes what the page counts. A removed topic's mentions are not there; a complaint
+ * marked "not a problem" is there as neutral; a changed cause is there under its new
+ * phrase and the issue it moved to (followed through a merge once, as every issue is).
+ * The answer itself, and the evidence it cites, are untouched.
  */
-function mentionsOf(contribution: ReturnType<typeof sql.raw>) {
+function mentionsOf(contribution: SQL) {
   return sql`
     COALESCE((
       SELECT jsonb_agg(
         jsonb_build_object(
           'ordinal', mention.mention_ordinal,
           'topic', mention.topic,
-          'polarity', mention.polarity,
+          'polarity', CASE WHEN correction.kind = 'not_a_problem' THEN 'neutral' ELSE mention.polarity END,
           'strength', mention.strength,
-          'cause', mention.issue,
-          'group', COALESCE(issue_group.merged_into_issue_id, mention.issue_group_id),
+          'cause', CASE WHEN correction.kind = 'change_cause' THEN correction.replacement_issue ELSE mention.issue END,
+          'group', CASE WHEN correction.kind = 'change_cause'
+            THEN COALESCE(replacement_group.merged_into_issue_id, correction.replacement_issue_group_id)
+            ELSE COALESCE(issue_group.merged_into_issue_id, mention.issue_group_id) END,
           'names', mention.names_person
         )
         ORDER BY mention.mention_ordinal
@@ -86,12 +92,25 @@ function mentionsOf(contribution: ReturnType<typeof sql.raw>) {
         ON issue_group.organization_id = mention.organization_id
        AND issue_group.property_id = mention.property_id
        AND issue_group.id = mention.issue_group_id
+      LEFT JOIN ai_review_analysis_mention_corrections AS correction
+        ON correction.organization_id = mention.organization_id
+       AND correction.property_id = mention.property_id
+       AND correction.review_id = mention.review_id
+       AND correction.source_epoch = mention.source_epoch
+       AND correction.source_revision = mention.source_revision
+       AND correction.analysis_sequence = mention.analysis_sequence
+       AND correction.mention_ordinal = mention.mention_ordinal
+      LEFT JOIN ai_property_issue_groups AS replacement_group
+        ON replacement_group.organization_id = correction.organization_id
+       AND replacement_group.property_id = correction.property_id
+       AND replacement_group.id = correction.replacement_issue_group_id
       WHERE mention.organization_id = ${contribution}.organization_id
         AND mention.property_id = ${contribution}.property_id
         AND mention.review_id = ${contribution}.review_id
         AND mention.source_epoch = ${contribution}.source_epoch
         AND mention.source_revision = ${contribution}.source_revision
         AND mention.analysis_sequence = ${contribution}.analysis_sequence
+        AND correction.kind IS DISTINCT FROM 'remove_topic'
     ), '[]'::jsonb)
   `
 }

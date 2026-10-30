@@ -419,3 +419,49 @@ export async function assignContributionIssueGroups(
   )
   return finalPlan.assignments.length
 }
+
+/**
+ * The issue a thing belongs to under a topic at a Property, found or created the way an
+ * analysis's mentions are, and kept at least as long as the analysis that now points at
+ * it. For a manager's changed cause: the caller holds the Property advisory lock.
+ */
+export async function resolveIssueGroupForThing(
+  tx: Transaction,
+  key: AnalysisKey,
+  topic: ReviewTopicV3,
+  thing: string | null,
+  assignedAt: Date,
+  expiresAt: Date,
+): Promise<string> {
+  const mention: IssueAssignmentMention = {
+    mentionOrdinal: 0,
+    topic,
+    normalized: normalizeIssueThing(topic, thing),
+    candidateGroupId: randomUUID(),
+  }
+  const plan = async () =>
+    planIssueGroupAssignments({
+      mentions: [mention],
+      ...(await loadSnapshot(tx, key, [mention])),
+    })
+  await insertPlannedGroups(tx, key, await plan(), assignedAt, expiresAt)
+  await insertPlannedMembers(tx, key, await plan(), assignedAt)
+  const assignment = (await plan()).assignments.at(0)
+  if (assignment === undefined) {
+    throw new Error('Property issue assignment did not resolve the changed cause')
+  }
+  await tx
+    .update(aiPropertyIssueGroups)
+    .set({
+      lastSeenAt: assignedAt,
+      expiresAt: sql`GREATEST(${aiPropertyIssueGroups.expiresAt}, ${expiresAt})`,
+    })
+    .where(
+      and(
+        eq(aiPropertyIssueGroups.organizationId, key.organizationId),
+        eq(aiPropertyIssueGroups.propertyId, key.propertyId),
+        eq(aiPropertyIssueGroups.id, assignment.issueGroupId),
+      ),
+    )
+  return assignment.issueGroupId
+}
