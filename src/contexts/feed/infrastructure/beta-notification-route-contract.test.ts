@@ -75,6 +75,10 @@ import {
   inboxResponseTargetReminderDue,
 } from '#/contexts/inbox/domain/events'
 import {
+  aiGuestVoiceSummaryReady,
+  aiReviewUrgentDetected,
+} from '#/contexts/ai/domain/events'
+import {
   reviewPropertyHistoryImportFinished,
   reviewReplyApproved,
   reviewReplyPublicationCancelled,
@@ -124,6 +128,8 @@ import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-ou
 import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
+import { registerAiGuestVoiceSummaryNoticeConsumer } from './ai-guest-voice-summary-notice-consumers'
+import { registerAiUrgentReviewNoticeConsumer } from './ai-urgent-review-notice-consumers'
 import { registerRatingGoalNoticeConsumer } from './rating-goal-notice-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
@@ -518,6 +524,41 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       availabilityChanged: false,
       occurredAt: OCCURRED_AT,
     }),
+  // A review analysis found the review Urgent: the revision the Inbox item stands at.
+  'ai.review_analysis.urgent_detected': () =>
+    aiReviewUrgentDetected({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      reviewId: REVIEW,
+      sourceEpoch: 0,
+      sourceRevision: handlingCycleScope.sourceRevision,
+      analysisSequence: 5,
+      occurredAt: OCCURRED_AT,
+    }),
+  // The Monday email: the page's lines as governed facts, for a Property's Monday.
+  'ai.guest_voice_summary.ready': () =>
+    aiGuestVoiceSummaryReady({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      summaryKind: 'weekly',
+      localDate: '2026-09-07',
+      window: '90d',
+      startLocalDate: '2026-06-10',
+      endLocalDate: '2026-09-07',
+      lines: [
+        {
+          kind: 'fix_first',
+          topic: 'facilities_equipment',
+          issueId: '4d1f0c1e-2b7a-4c55-9a51-000000000030',
+          reviewCount: 19,
+          textReviewCount: 128,
+          upTo: 0.2,
+          change: null,
+          polarity: null,
+        },
+      ],
+      occurredAt: OCCURRED_AT,
+    }),
   'goal.rating_goal.transitioned': () =>
     goalRatingGoalTransitioned({
       organizationId: ORG,
@@ -640,6 +681,8 @@ function registerNotificationRoutes(
   registerResponseTargetNotificationConsumer(registry, deps)
   registerGoalNotificationConsumer(registry, deps)
   registerRatingGoalNoticeConsumer(registry, deps)
+  registerAiUrgentReviewNoticeConsumer(registry, deps)
+  registerAiGuestVoiceSummaryNoticeConsumer(registry, deps)
   registerPortalNotificationConsumers(registry, deps)
   registerPortalDestinationNotificationConsumer(registry, deps)
   registerPortalHealthNotificationConsumer(registry, deps)
@@ -1125,6 +1168,26 @@ const NO_NOTICE: Readonly<
         occurredAt: OCCURRED_AT,
       }),
     status: 'obsolete',
+  },
+  // Somebody handled the review before the alert was read: nothing is left to ask.
+  'ai.review_analysis.urgent_detected': {
+    fact: () => PRODUCED_FACTS['ai.review_analysis.urgent_detected']!(),
+    status: 'obsolete',
+    arrange: (deps) =>
+      deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue({
+        propertyId: PROPERTY,
+        portalId: null,
+        assignedTo: null,
+        propertyName: 'Riverside Hotel',
+        guestRating: null,
+        sourceType: 'review',
+        createdAt: OCCURRED_AT,
+        sourceId: REVIEW,
+        currentCycleNumber: handlingCycleScope.cycleNumber,
+        currentSourceRevision: handlingCycleScope.sourceRevision,
+        stateRevision: handlingCycleScope.stateRevision,
+        status: 'closed',
+      }),
   },
   'goal.monthly_result.closed': {
     fact: () =>

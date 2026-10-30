@@ -11,9 +11,14 @@ import { cn } from '#/lib/utils'
 import { presentGuestReviewBody } from './guest-message-view'
 import { personInitials } from './person-initials'
 import { languageDisplayName } from './reply-language-options'
+import { ReviewCorrectionControl } from './review-correction-control'
+import { reviewEvidenceOf, type ReviewEvidence } from './review-evidence-view'
+import { ReviewProse } from './review-prose'
 import { TopicChips } from './topic-chips'
+import { useMatchedIssue } from './use-matched-issue'
 import { useMatchedTopic } from './use-matched-topic'
 import { formatExactTime, formatInboxDay } from './utils'
+import type { InboxServerFns } from './types'
 import type { GuestReviewBodyView, GuestReviewDisclosure } from './guest-message-view'
 import type { ReactNode } from 'react'
 import type {
@@ -270,7 +275,11 @@ function UnavailableReview({ status }: Readonly<{ status: string | null }>): Rea
  */
 function ReviewDisclosure({
   disclosure,
-}: Readonly<{ disclosure: GuestReviewDisclosure }>): ReactNode {
+  evidence,
+}: Readonly<{
+  disclosure: GuestReviewDisclosure
+  evidence: ReviewEvidence | null
+}>): ReactNode {
   return (
     <details className="w-fit max-w-full text-muted-foreground">
       <summary className="flex min-h-9 cursor-pointer items-center text-sm font-medium focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring">
@@ -281,7 +290,7 @@ function ReviewDisclosure({
         dir="auto"
         className={cn(MESSAGE_PROSE_CLASS, 'pb-1 text-base leading-relaxed')}
       >
-        {disclosure.text}
+        <ReviewProse text={disclosure.text} evidence={evidence} />
       </p>
     </details>
   )
@@ -303,7 +312,11 @@ function ReviewDisclosure({
  */
 function ReviewBody({
   view,
-}: Readonly<{ view: Exclude<GuestReviewBodyView, { kind: 'no_text' }> }>): ReactNode {
+  evidence,
+}: Readonly<{
+  view: Exclude<GuestReviewBodyView, { kind: 'no_text' }>
+  evidence: ReviewEvidence | null
+}>): ReactNode {
   return (
     <>
       <div className="flex min-w-0 flex-col gap-1">
@@ -318,10 +331,12 @@ function ReviewBody({
           dir="auto"
           className={cn(MESSAGE_PROSE_CLASS, 'text-base leading-relaxed')}
         >
-          {view.body}
+          <ReviewProse text={view.body} evidence={evidence} />
         </p>
       </div>
-      {view.disclosure && <ReviewDisclosure disclosure={view.disclosure} />}
+      {view.disclosure && (
+        <ReviewDisclosure disclosure={view.disclosure} evidence={evidence} />
+      )}
     </>
   )
 }
@@ -330,6 +345,8 @@ type Props = Readonly<{
   item: InboxItem
   detail: InboxItemDetailResult | null
   reviewReplyLanguage?: string | null
+  /** "Not right?": absent where the Inbox offers no corrections. */
+  correctReviewMention?: InboxServerFns['correctReviewMention']
 }>
 
 /**
@@ -345,9 +362,15 @@ type Props = Readonly<{
  * holds exactly what it held before minus the avatar: header, the plan row 8
  * body, and the topic chips.
  */
-export function GuestMessage({ item, detail, reviewReplyLanguage }: Props): ReactNode {
+export function GuestMessage({
+  item,
+  detail,
+  reviewReplyLanguage,
+  correctReviewMention,
+}: Props): ReactNode {
   // Read before any early return: a hook runs on every render or on none.
   const matchedTopic = useMatchedTopic()
+  const matchedIssue = useMatchedIssue()
   if (!detail) return null
 
   if (item.sourceType === 'feedback') {
@@ -460,13 +483,24 @@ export function GuestMessage({ item, detail, reviewReplyLanguage }: Props): Reac
            and a rating-only available review earns none at all. */
           <UnavailableReview status={detail.reviewContentStatus} />
         ) : (
-          <ReviewBody view={body} />
+          <ReviewBody
+            view={body}
+            evidence={reviewEvidenceOf(detail.analysis, detail.reviewText, matchedIssue)}
+          />
         )}
 
         <TopicChips
           analysis={detail.analysis}
           managerPriority={detail.item.managerPriority ?? null}
           matched={matchedTopic}
+          matchedIssue={matchedIssue}
+          corrections={
+            <ReviewCorrectionControl
+              item={item}
+              analysis={detail.analysis}
+              correct={correctReviewMention}
+            />
+          }
         />
       </article>
     </GuestNode>

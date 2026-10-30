@@ -37,6 +37,11 @@ export const NOTIFICATION_TYPES = [
   // Review events
   'review.created',
   'review.updated',
+  // A review analysis v3 found a review Urgent: a reported risk to safety or
+  // health, discrimination or a legal threat. The one notice an AI finding
+  // starts (ADR 0046, amended 2026-10-30). It says that an urgent review needs
+  // its reader and opens the item; the reason is read in the app, never here.
+  'review.ai_urgent_detected',
   // Inbox events (feedback only — reviews use review.created)
   'feedback.created',
   // Reply lifecycle
@@ -93,6 +98,10 @@ export const NOTIFICATION_TYPES = [
   'goal.rating_keep_dropped',
   // A beta report the recipient filed reached an outcome (ADR 0059).
   'beta_feedback.outcome',
+  // A Property's Guest voice in three lines: the Monday email, and the roundup of
+  // the first Monday of a month (v3 contract decision 11; ADR 0046, amended
+  // 2026-10-30). Opt-in, and its own category.
+  'guest_voice.summary',
 ] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
@@ -126,6 +135,10 @@ export type NotificationCategory =
   // A Monthly portal goal's results, shown as "Portal goals" (ADR 0046,
   // amended 2026-10-17). Migration 0063 gave it every "Goals" answer.
   | 'portal_goals'
+  // The Monday Guest voice email, shown as "Guest voice summary": opt-in on both
+  // channels, and its own row so nothing else's consent carries it (ADR 0046,
+  // amended 2026-10-30).
+  | 'guest_voice'
 /** Categories a user may configure for a Property. Mandatory is Organization policy. */
 export type ConfigurableNotificationCategory = Exclude<NotificationCategory, 'mandatory'>
 export type NotificationChannel = 'in_app' | 'email'
@@ -339,6 +352,10 @@ export const URGENT_TYPES: ReadonlySet<NotificationType> = new Set([
   'portal.responsibility_needed',
   'property.responsibility_needed',
   'integration.reauthorization_required',
+  // A guest reports a risk to safety or health, discrimination or a legal
+  // threat: the review's reader is told at once, quiet hours bypass included
+  // where the reader chose it (ADR 0046, amended 2026-10-30).
+  'review.ai_urgent_detected',
   // The last chance anybody has to stop an irreversible erasure. The other
   // account notices report something already done and stay calm; this one asks
   // for an answer, so it carries the Urgent badge and appears under the Urgent

@@ -1545,6 +1545,134 @@ action history).
 No migration: the Property-scoped shape and the content-free check already
 admit the type, the resource and the payload.
 
+## Amended 2026-10-30 — an Urgent review raises one alert
+
+Review analysis v3 can find a review Urgent: a guest reports a risk to safety or
+health, discrimination or a legal threat (annotation guide v3; about one review
+in a hundred). ADR 0031 (amended 2026-10-30) allowed exactly one AI-triggered
+message for it and left this ADR to say how it is delivered. The owner decided it
+on 2026-10-29 (v3 contract decision 10). Until review analysis v3 is activated no
+analysis is Urgent, so nothing below fires; it ships dark with the rest of v3.
+
+1. **One new type, `review.ai_urgent_detected`**, raised by one identifier-only
+   fact, `ai.review_analysis.urgent_detected`, which the AI context writes in the
+   transaction that stores the Urgent analysis. The fact names the review
+   revision and the analysis and nothing else. It carries no reason, and could
+   not: a field called `reason` is stripped from an outbox payload as content.
+2. **One alert per review revision.** The fact's id is derived from the Organization,
+   Property, review, source epoch and source revision, and an existing fact is not
+   written again, so a re-analysis of the same revision (a new epoch after a
+   re-consent, a reopened analysis, the replay of history) is the same alert.
+   A fact that has since left the outbox (the retention sweep deletes a published
+   fact after 30 days) is not written again either: the earlier Urgent analysis of
+   that revision, which lives 24 months, says the alert was raised. A guest
+   changing the review is a new revision and a new alert.
+3. **The existing urgent channel and the reader's existing preferences.** Category
+   `urgent_operational` ("Action needed"), priority `urgent`: in the app always,
+   by email immediately unless the reader turned that off, and past quiet hours
+   where the reader chose the urgent bypass (`URGENT_TYPES`). There is no category,
+   preference row or default of its own, so a reader who already receives Action
+   needed notices needs to change nothing and one who muted its email hears
+   nothing by email.
+4. **Recipients: whoever receives this Property's review notifications.** The
+   Property's responsible managers, AccountAdmins when none is eligible, under the
+   same `responsible_scope` audience as `review.created`. The assignee and the
+   people who wrote notes are not added: the alert is not about who is working on
+   the item. Eligibility is asked again at delivery, as for every notice.
+5. **The words.** The title is "An urgent review needs you", followed by "at" and
+   the Property's name where it is known; the body says to open the review and
+   decide what to do. The email's subject is the title, its pill says "Needs
+   attention", and it has one button, "Open review". **No reason, topic, rating,
+   person or word of the review appears in the notice or its email** (r.8). The
+   reason shows in the app, where the notice opens the Inbox item
+   (`/inbox?itemId=`): the item's reading says "Urgent" and the guide's sentence for
+   its reason, and Guest voice's Urgent strip says it beside the issue.
+6. **Actionable, settled by the handling of the review.** It stands while the Inbox
+   item's cycle is open, is retired with the others when the cycle closes or its
+   Property is archived, and is held back from email once read, dismissed or
+   retired (`ACTIONABLE_NOTIFICATION_TYPES`). Inbox answers whether the item is
+   still open before the notice is written, before its mail leaves and before a
+   closing fact retires it.
+7. **When the route stays silent.** It raises none, and records an `obsolete`
+   receipt, when the item is gone, is closed, stands at a later revision than the
+   fact (that revision has its own analysis and its own alert), arrived as imported
+   Google history (never announced, above), is private feedback, or has waited
+   more than seven days. The last rule is what stops the replay of history after a
+   re-consent from announcing a year of old reviews as urgent. An item the Inbox
+   has not projected yet, or still holds at an earlier revision, is waited for by
+   retrying the dispatch for 15 minutes and then dropped.
+8. **It changes nothing about the review.** The route reads the Inbox and writes
+   nothing there: no status, assignment, escalation or priority, and a manager's
+   own priority still wins (ADR 0071).
+9. **r.8 is unchanged.** The payload gains no field. It carries what every Inbox
+   notice carries: the Property's name, the platform and, as a fact beside the
+   sentence, how long the item has waited.
+
+No migration: the Property-scoped shape and the content-free check already admit
+the type, the resource and the payload.
+
+## Amended 2026-10-30 — a Property's Guest voice, mailed on Monday mornings to the managers who ask
+
+Guest voice 2.0 gives a manager the page's three lines (what to fix first, what guests
+love, what changed). The owner decided on 2026-10-29 that they may also arrive by email, on
+Monday mornings, to managers who asked (v3 contract decision 11). Until review analysis v3
+is activated no Property has a v3 analysis, so nothing below fires; it ships dark with the
+rest of v3.
+
+1. **One new type, `guest_voice.summary`**, raised by one governed fact,
+   `ai.guest_voice_summary.ready`, which the AI context records at most once per Property
+   per Property-local Monday (its id is derived from the Property and the day). It is filed
+   under the Property and the day (`resourceType: property`, `resourceId: <property>:<day>`),
+   so each Monday is a row of its own and an unread row from last week never absorbs this
+   week's email (r.2).
+2. **Its own category, `guest_voice`** ("Guest voice summary"), opt-in on both channels:
+   in-app off and email off until the person turns them on, per Property or as their
+   default. No other category's answer switches it on. Its email is one message on its
+   Monday morning, so `immediate` is the only cadence it offers: it is never a line of the
+   daily digest. A reader's quiet hours still hold it back to the end of their window; it is
+   not urgent.
+3. **When.** An hourly sweep (`ai-guest-voice-summary-sweep`, five minutes past the hour,
+   under the AI capability and the schedule's own action) lists the Properties with Review
+   Analysis enabled whose own clock reads Monday between 08:00 and 10:59. The first hour is
+   the target, the two after it catch a sweep that ran late, and the fact's id keeps it to
+   one. Each Property is decided again under current platform policy before anything of it
+   is read.
+4. **What sends.** The same read the Guest voice page is drawn from, for today and for a
+   week ago. A Monday sends when the week held something: Fix first moved (a different
+   order, an issue in or out), an issue is new to Fix first or Watch, or a review was Urgent
+   in the last seven days. **A quiet week sends nothing.** The first Monday of the month
+   (a Monday on the 1st to the 7th) sends the monthly roundup whatever the week held, and
+   says when the page has nothing to name. A Property with no v3 analysis, or with under
+   about ten reviews with text in twelve months, sends nothing; a Property too full to read
+   a year before its window cannot be compared with last week, so it is never called quiet.
+5. **Recipients.** The Organization's AccountAdmins and PropertyManagers who are eligible
+   for the Property (`property_operator`, read again at delivery). Whether one asked is the
+   preference's answer, not the list's: the insert path persists nothing for a category that
+   is off on both channels.
+6. **r.8, widened.** ALLOWED gains the Guest voice summary's facts: the summary's kind
+   (weekly or monthly), the window, and at most three lines, each one of the page's "In
+   short" kinds with one of the twelve fixed topics, counts of reviews ("19 of 128"), which
+   way it moved and whether the reviews that moved praise it or complain of it, and, on the
+   fix-first line, the stars it may be worth on the Property's own average to the nearest
+   0.05 (`upToHundredths`). That last figure is an association over the Property's own
+   reviews, the one the page prints beside it as "worth up to about 0.2★ on your 90-day
+   average"; it is the one rating-derived figure a notice carries, and the owner may drop it
+   from the email without any other change. FORBIDDEN is unchanged: no issue name (the
+   guests' words boiled down), cause, quote, sentence, review, Inbox item or person, and no
+   review's own rating. The page's links to an issue are not in the payload.
+7. **The words.** Title "Your Guest voice this week at <Property>" ("this month" for the
+   roundup); one sentence per line from fixed words ("Fix first: Facilities and equipment,
+   in 19 of 128 reviews, worth up to about 0.2★ on your 90-day average."); the button
+   "Open Guest voice" opens the Property's page. The email lists the sentences as
+   paragraphs (`RenderedNotification.lines`); every other surface reads the same sentences
+   run together in the body.
+8. **Not actionable.** It reports; nothing settles it.
+
+No migration and no new table: the Property-scoped shape and the content-free check admit
+the type and the payload, the preference rows already hold any category name, and the
+sweep keeps no state of its own (the fact in the outbox is its record, and the notice
+follows the notifications' retention).
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

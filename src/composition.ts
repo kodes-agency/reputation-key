@@ -70,6 +70,7 @@ import {
   GOOGLE_PROVIDER_ENDPOINTS,
 } from './composition/provider-runtime'
 import { buildInfrastructure } from './composition/infrastructure'
+import { inboxReadyV3Of } from './composition/inbox-ai-insights'
 import { notificationEmailWebConfigProblems } from '#/contexts/feed/application/notification-email-web-config'
 import { isCapabilityJobEnabled, isOrgInAllowlist } from '#/shared/auth/beta-capabilities'
 import {
@@ -518,9 +519,7 @@ function buildContainer(
           sourceRevision: current.source.sourceRevision,
           analysisSequence: current.source.analysisSequence,
         })
-        // A v3 analysis has topics, not aspects: Inbox learns to read it in the
-        // slice that builds its chips, and until then sees no analysis.
-        if (analysis.status === 'ready_v3') return { status: 'none' } as const
+        if (analysis.status === 'ready_v3') return inboxReadyV3Of(analysis)
         if (analysis.status !== 'ready') return analysis
         return {
           status: 'ready',
@@ -534,6 +533,7 @@ function buildContainer(
       },
       findCurrentReviewIdsByAttention: ai.publicApi.findCurrentReviewIdsByAttention,
       findCurrentReviewIdsByAspect: ai.publicApi.findCurrentReviewIdsByAspect,
+      findCurrentReviewIdsByIssue: ai.publicApi.findCurrentReviewIdsByIssue,
     },
     // Foreign read sources the inbox build adapts into its lookup ports.
     sources: {

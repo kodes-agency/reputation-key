@@ -54,7 +54,9 @@ const UrgentNotificationEmail = ({
   >
     {priority === 'urgent' && <EmailPill>Needs attention</EmailPill>}
     <EmailHeadline>{rendered.title}</EmailHeadline>
-    {rendered.body !== '' && <EmailParagraph>{rendered.body}</EmailParagraph>}
+    {rendered.lines === undefined
+      ? rendered.body !== '' && <EmailParagraph>{rendered.body}</EmailParagraph>
+      : rendered.lines.map((line) => <EmailParagraph key={line}>{line}</EmailParagraph>)}
     <FactsStrip summary={rendered.summary} />
     <EmailButton href={actionUrl}>{rendered.actionLabel}</EmailButton>
     <EmailFallbackUrl href={actionUrl} />

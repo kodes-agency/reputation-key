@@ -146,7 +146,7 @@ export function formatAbsoluteTime(
  * first-paint bytes, which have almost no headroom, and a site waiting for
  * approval is one row type.
  */
-type BellType = 'portal.link_approval'
+type BellType = 'portal.link_approval' | 'guest_voice.summary'
 
 const typeIconMap: Record<Exclude<NotificationType, BellType>, LucideIcon> = {
   'account.organization_access_granted': ShieldCheck,
@@ -162,6 +162,8 @@ const typeIconMap: Record<Exclude<NotificationType, BellType>, LucideIcon> = {
   'account.organization_purge_pending': Trash2,
   'review.created': MessageSquare,
   'review.updated': MessageSquare,
+  // Asks for attention like the other warnings; no glyph of its own.
+  'review.ai_urgent_detected': TriangleAlert,
   'feedback.created': MessageSquare,
   'reply.pending_approval': TriangleAlert,
   'reply.approved': CheckCircle,

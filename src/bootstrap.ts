@@ -71,6 +71,10 @@ import {
   DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME,
 } from '#/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job'
 import {
+  createGuestVoiceSummarySweepJobHandler,
+  GUEST_VOICE_SUMMARY_SWEEP_JOB_NAME,
+} from '#/contexts/ai/infrastructure/jobs/guest-voice-summary-sweep.job'
+import {
   ANALYZE_REVIEW_NOW_JOB_NAME,
   createAnalyzeReviewNowJobHandler,
 } from '#/contexts/ai/infrastructure/jobs/analyze-review-now.job'
@@ -445,6 +449,19 @@ export async function bootstrap(
       authorizeScope: createScheduledScopeAuthorizer(
         'system:ai.review_analysis_backlog_drain',
       ),
+      logger,
+    }),
+  )
+  // ── The Monday email (decision 11 of the v3 contract) ────────────────
+  // Hourly and tenant-cross: it enumerates the Properties whose Monday morning it is,
+  // and decides each one's Organization and Property under the schedule's own action
+  // before it reads anything of theirs. Feed mails what it records.
+  registerCapabilityGatedJob(
+    GUEST_VOICE_SUMMARY_SWEEP_JOB_NAME,
+    'ai.analyze',
+    createGuestVoiceSummarySweepJobHandler({
+      sweep: container.aiWorkerRuntime.runGuestVoiceSummarySweep,
+      authorizeScope: createScheduledScopeAuthorizer('system:ai.guest_voice_summary'),
       logger,
     }),
   )

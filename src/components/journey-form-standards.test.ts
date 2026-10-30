@@ -64,6 +64,7 @@ describe('Guest, Inbox, and notification journey-form standards', () => {
       'src/components/features/settings/notification-formatting-form.tsx',
       'src/components/inbox/feedback-handling-form.tsx',
       'src/components/inbox/inbox-notes-thread.tsx',
+      'src/components/inbox/review-cause-form.tsx',
     ])
 
     const violations = formFiles.flatMap((path) =>

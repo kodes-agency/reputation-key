@@ -174,7 +174,7 @@ describe('activeInboxFilterChips', () => {
     ])
   })
 
-  it('orders chips source, priority, rating, polarity, aspect, dates, sort', () => {
+  it('orders chips source, priority, rating, polarity, aspect, issue, dates, sort', () => {
     const chips = activeInboxFilterChips(
       {
         sourceType: 'feedback',
@@ -183,6 +183,7 @@ describe('activeInboxFilterChips', () => {
         ratingMax: 3,
         polarity: 'positive',
         aspect: 'staff',
+        issue: 'a0000000-0000-4000-8000-000000000001',
         since: '2026-06-13',
         until: '2026-09-10',
       },
@@ -194,6 +195,7 @@ describe('activeInboxFilterChips', () => {
       'rating',
       'polarity',
       'aspect',
+      'issue',
       'dates',
       'sort',
     ])
@@ -203,8 +205,24 @@ describe('activeInboxFilterChips', () => {
       '3 stars and below',
       'Praise',
       'Staff',
+      'One issue',
       'Jun 13, 2026 to Sep 10, 2026',
       'Oldest first',
+    ])
+  })
+
+  it('offers the issue a link named as a chip that lifts it', () => {
+    const chips = activeInboxFilterChips(
+      { ...CLEARED_INBOX_LIST_FILTERS, issue: 'a0000000-0000-4000-8000-000000000001' },
+      'newest',
+    )
+
+    expect(chips).toStrictEqual([
+      {
+        key: 'issue',
+        label: 'One issue',
+        clear: { filters: { issue: undefined } },
+      },
     ])
   })
 })

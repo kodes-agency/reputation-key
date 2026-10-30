@@ -220,6 +220,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'Property-local Review Analysis v3 issue identities, bounded member phrases and manager presentation metadata. Organization lifecycle erases them; the retention sweep removes expired unreferenced groups and their members after 24 months.',
   }),
   ...rows({
+    schemaFile: 'ai-review-analysis-corrections.schema.ts',
+    exportNames: ['aiReviewAnalysisMentionCorrections'],
+    owner: 'ai',
+    disposition: 'erasable_source_content',
+    authority: 'AI-01/AI-02/AI-04',
+    exitCriteria:
+      'Manager corrections to Review Analysis v3 mentions: a kind and, for a changed cause, two short lowercase phrases the manager chose, never a quote or a name. They sit beside the kept answer, cascade with the analysis, and so are erased by Organization lifecycle and deleted by the retention sweep 24 months after the analysis.',
+  }),
+  ...rows({
     schemaFile: 'audit.ts',
     exportNames: ['auditLogs'],
     owner: 'feed',

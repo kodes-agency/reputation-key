@@ -506,8 +506,10 @@ assigned to it.
 
 A current-analysis read answers `{ status: 'ready_v3', topics, urgent reason, ... }` for a v3
 row: topics, polarity, strength, the optional cause and the names flag, never a quote or a
-sentence. Nothing above the AI context consumes it yet: `composition.ts` maps it to `none` for the
-Inbox until the Inbox learns to read it.
+sentence. The Inbox reads it: `composition/inbox-ai-insights.ts` turns it into the Inbox's own
+`ready_v3` (the numbers of the cited sentences, the Property issue each mention belongs to now, a
+manager's correction beside it), which the pane draws as cause chips and underlines in the guest's
+own words (`src/contexts/inbox/CONTEXT.md`).
 
 Left for the slices that need it, not done here: the `ai_property_review_population_daily`
 projection (it follows a review's observation, update and deletion whether or not the review is
@@ -515,7 +517,7 @@ analysed, so this flow does not write it, and it needs a backfill of at least th
 months of reviews before any percentage or "worth up to" figure reads it; PR-4, slice 4.1) and
 the statistics that read the mentions (the Guest voice read model, PR-4); wiring `AiProviderChoicePort` to the operator's provider choice, the
 runtime catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the
-deployment profile string) that activation flips (3.10); the Inbox reading `ready_v3`; including
+deployment profile string) that activation flips (3.10); including
 v3 derivatives in an organization export. Property issue grouping itself is complete below;
 publishing its manager commands and reads remains PR-4 work.
 
@@ -668,6 +670,123 @@ too full to read is answered with 90 days. A recurring issue is a label two or m
 Reviews carry. Topics still come from the v2 analysis (taxonomy v1), where Staff and
 Service overlap, so a Review about the front desk can count under both.
 
+Guest voice 2.0 (`readGuestVoiceV2`, v3 contract section 9) is the page of the agreed design for
+a Property whose reviews have a v3 analysis; the route draws today's page everywhere else
+(`hasV3Analyses`: a ready v3 contribution under the Property's current epochs, and nothing selects
+v3 yet, so no Property is drawn as 2.0 until activation). Its types are
+`application/read-models/guest-voice-v2.ts`, content-free except `LiveEvidence`. The read joins two
+answers (`read-models/guest-voice-v2-join.ts`). Review says which reviews the Property has now
+(`readTrendPopulation`, as the insights read: two years in one read, the last year alone and no
+change claimed when that is too full, 90 days when the year is). The analysis side
+(`AiGuestVoiceFactsPort`, `infrastructure/adapters/ai-guest-voice-facts.adapter.ts`) gives each
+review's latest ready v3 contribution and its effective mentions in one statement under the
+aggregate head's share lock, with the Property's issues. A review is counted only where both agree
+on its revision, analysis sequence and day, so an analysis of a review that has since gone or
+changed is never counted; a review with text that has no analysis yet makes the figures
+`provisional`, which also withdraws any claim of change. Every figure is `issueStatistics`'
+(`read-models/issue-statistics.ts`), the PR-1 engine's: an issue is one thing under one topic
+(`ai_property_issue_groups`), counted in reviews, not mentions; three complaint reviews enter Fix
+first, ranked Urgent first, then by stars at stake; one or two are Watch; praise is Guests love;
+What changed has only moves the engine calls likely, bad news first; a topic with no issue of its
+own is the topic-level issue. A manager's hiding keeps an issue out of every ranking and out of
+nothing else (Every topic still counts it, the Inbox still shows it), and never hides an Urgent
+review. "In short" is three fixed sentence patterns over those lists.
+
+The guests' words are the one thing the read does not hold. It is a draft (`GuestVoiceV2Draft`):
+every figure is final, and for each card it names which reviews could be quoted and the sentence
+numbers their mention cites (`EvidenceSlot`, at most three, strongest then most recent). A review
+that names a person (any mention's `names_person`) is never offered: a quote shows the whole review,
+so a name flagged anywhere in it would be on the page (decision 2 wrote "any mention citing that
+sentence"; this is the stricter reading). The flag is read from the answer as the provider gave it
+(`GuestVoiceReview.namesAPerson`, an `EXISTS` over the stored mentions), not from the mentions left
+after a manager's corrections: removing the mention that carried a name takes a topic out of the
+counts, not the name out of the text, so the review stays unquotable. The delivery layer (`server/guest-voice-v2.ts`) then reads,
+under the reader's own access, which Inbox Item opens each review and what the review says now
+(`resolveDraftReviews`), and `withLiveEvidence` cuts that text with `review-sentences-v1`, the rule
+the analysis used. A review the reader cannot open, whose text has gone, or that now has fewer
+sentences than the analysis numbered is not quoted, and the card keeps its figures. The text is
+read by review id and not re-checked against the revision the analysis was made on (contract 6.2
+step 2): the population read already pins every counted review to Review's current revision, so
+what is left is the sub-second gap before the text read, in which an edit could underline the
+wrong sentences until the next read. Confirming the revision at the text read is owed before
+activation. Nothing is stored. A Property with under about 10 reviews with text in 12 months gets `not_enough_reviews`
+and its latest reviews, with words only where the analysis is in and names nobody.
+
+An Urgent review whose analysis named no problem to put under an issue is counted
+(`urgentOtherCount`) and not dropped. The drawer's own read and the manager's issue commands
+(rename, hide, merge) are not wired yet (slice 4.3): until they are the route passes the page no
+drawer (`GuestVoiceV2View.drawer` is absent), so an issue's name is plain text, not a button that
+announces a dialog and opens nothing.
+
+The page names the Property's Google rating goal beside the top problem, and AI knows nothing
+of it: the route reads the goal card (`ratingGoalCardQuery`, the Reporting context's read) and
+passes the active goal's facts to the page (`guestVoiceGoalOf` in
+`routes/_authenticated/properties/$propertyId/-guest-voice-v2.ts`). A Property with no active
+goal, or a reader who cannot read it, draws no line, and a failed read is never an error on the
+page. The line says where the goal stands in the goal's own words and, when Fix first has a top
+problem, what it could be worth (`upTo` of its statistics, on the page's own window); it links to
+the goal's page and never promises that fixing the problem reaches the goal.
+
+An Urgent analysis raises the one alert an AI finding may start (v3 contract decision 10;
+ADR 0031 and ADR 0046, amended 2026-10-30). `storeAnalysisV3` writes it in the transaction
+that stores the analysis (`infrastructure/adapters/ai-urgent-alert.ts`): one identifier-only
+fact, `ai.review_analysis.urgent_detected`, naming the Organization, Property, review, source
+epoch, source revision and the analysis, and nothing of why (the reason stays in
+`ai_review_analyses.urgent_reason` and is read in the app; a payload field called `reason`
+would be stripped as content). It is one fact per review REVISION: the fact's id is derived
+from the revision and an existing fact is not written again, and an earlier ready analysis of
+the same revision that was already Urgent means it was raised even if its fact has left the
+outbox (a re-consent's new epoch, a reopen and the replay of history all analyse a revision
+again). A new revision of the review is a new alert. Feed owns the rest (its CONTEXT.md): the
+recipients, the words, the silence for old or handled reviews, and the delivery. Nothing here
+changes the review: no status, assignment, escalation or priority.
+
+The Monday email (v3 contract decision 11; ADR 0046, amended 2026-10-30) is decided here and
+mailed by Feed. An hourly sweep (`ai-guest-voice-summary-sweep`, `runGuestVoiceSummarySweep`,
+tenant-cross, each Property decided under the schedule's own action) lists the Properties with
+Review Analysis enabled whose own clock reads Monday 08:00 to 10:59 (`isSummaryMorning`, in
+the runtime and not in SQL, so a timezone it does not know drops one Property and not the
+sweep), asks `planGuestVoiceSummary` and records one governed fact,
+`ai.guest_voice_summary.ready`, for each that has something to say (id derived from the
+Property and the day, so the later runs of the morning write nothing). The plan is the Guest
+voice read worked out for today and for a week ago over one read of the analysis: a week is
+quiet when Fix first held its order and members, no issue is new to Fix first or Watch and no
+review was Urgent in the last seven days (`isQuietWeek`), and a quiet week sends nothing; the
+first Monday of the month (`isFirstMondayOfMonth`) sends the roundup whatever the week held. A
+Property with no v3 analysis, or too few reviews with text to show patterns, sends nothing,
+and one too full to read a year before its window has no last week to compare with and is
+never called quiet. The fact is the page's three "In short" lines as topic, counts, the stars a
+problem may be worth, which way a change went and the issue's id (`summaryLines`); no issue
+name, cause, quote or review is in it. Known limit, owed before activation: one sweep looks at
+the first 500 due Properties by id (`GUEST_VOICE_SUMMARY_SWEEP_LIMIT`), and the two catch-up
+runs of the morning take the same 500, so above that many Properties due at once the later ones
+are not reached; a keyset page over the due set fixes it.
+
+A manager corrects what the AI said of a review in the Inbox ("Not right?", `correctReviewMention`,
+migration 0080, decision Q11), and the correction takes effect at once. The kept answer is never
+changed: a correction is one row beside a mention (`ai_review_analysis_mention_corrections`, at most
+one per mention) that every read lays over the answer before it counts anything
+(`ai-guest-voice-facts.adapter.ts`, the Inbox's current-analysis read, the Inbox's issue filter).
+Three kinds. `remove_topic` sets aside every mention of that topic in the analysis, written and
+given back together. `not_a_problem` is for a complaint and counts as neutral. `change_cause`
+gives the thing and what was wrong as one or two short lowercase phrases (the stored contract's
+own: `normalizeCausePhrase`; a thing needs its issue) and moves the mention to the issue of that
+thing, found or made as an analysis's mentions are (`resolveIssueGroupForThing`, under the
+Property lock, keeping the issue at least as long as the analysis). A correction is written only
+for the review's current ready v3 analysis under the authorization's fences, so a review that has
+changed since the Inbox read it answers not found; a new revision is a new analysis, starts with
+none, and leaves the old correction beside the old answer, where it is no longer effective. An
+undo deletes the row. The row holds a kind, two phrases a manager chose and the manager's id, never
+a quote or a name; it goes with its analysis at 24 months (cascade from the mention) and with the
+issue it moved to. Nothing is learned from it: it changes no prompt, hint or catalogue, and the
+correction rate per topic (corrections over the topic's mentions) is a count over this table.
+
+The server function names the reading the manager saw (`analysisSequence`): a mention number only
+means something inside the analysis it came from, so a call that names another sequence than the
+review's current one answers not found, writing nothing, even before the use case runs. The Inbox
+asks through a plain function fetched with its first use (`routes/_authenticated/-inbox-fns.ts`),
+so the stub stays out of the first-paint closure.
+
 The aggregate head counts every sequence the settlement ledger settles for its
 profile generation, including one a newer sequence of the same review had
 already superseded, so coverage can complete. A head that is the only head of
@@ -720,7 +839,7 @@ for an event that is gone.
 2. Every operation is fenced by Organization, Property, source epoch, source revision, authorization epoch, capability epoch, policy/profile versions, model/deployment, idempotency key, and lifecycle generation.
 3. Authorization is a maximum allowed capability set. A PropertyManager may operate only within the AccountAdmin-authorized set and current Property access; operating a feature never expands authorization.
 4. Disable fences new and in-flight work immediately and hides outputs. Erasure purges local derivatives within the policy window while retaining only content-free evidence. Re-enable reuses an output only when every lineage, policy, model, authorization, and freshness fence still matches. An adopted Reply draft is Review-owned, so the control, Authorization and profile transitions withdraw the unedited ones in their own transaction through the AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`; the rule is in the Review context's Model): a Reply nobody confirmed is deleted, and a confirmed one that has not been dispatched is cancelled and emptied while its publication authorization stays as evidence. A Reply whose publication already failed keeps its text, and Review's publish worker withdraws it the same way when a manager tries it again: its read of Google before the claim (an observation of the Review) withdraws it once the ten-minute adoption window has passed, and the claim refuses it when an input changed, claimed before or not.
-5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions. It starts no notification either, with one exception that is allowed and not built yet: an Urgent finding of review analysis v3 may raise one content-free alert per review revision, and that alert changes nothing about the review (ADR 0031, amended 2026-10-30).
+5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions. It starts no notification either, with one exception: an Urgent finding of review analysis v3 raises one content-free alert per review revision (`ai.review_analysis.urgent_detected`, below), and that alert changes nothing about the review (ADR 0031 and ADR 0046, amended 2026-10-30).
 6. Reply Drafting is never cached as a generic suggestion detached from the Review revision or Brand Profile version. A manager must explicitly request it, may edit it, and must separately adopt, then Confirm & Publish through the Reply workflow.
 7. Review Analysis enrollment is exhaustive for the authorized eligible source population; internal batching controls work size but never becomes a product cap or silently drops older Reviews.
 8. Missing, stale, or unreadable data returns `preparing`/unavailable evidence rather than zero. Coverage-incomplete Property insight aggregates may expose exact applied results only with an explicit provisional marker and coverage counts; period comparisons remain absent until both windows are complete.

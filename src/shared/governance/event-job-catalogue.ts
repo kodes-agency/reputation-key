@@ -474,6 +474,21 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
     { retryBackoff: 'fixed:5000', timeoutMs: 120_000 },
   ),
+  // The Monday email's sweep (decision 11): hourly, it records a Guest voice summary for
+  // each Property whose Monday morning it is and that has something to say. Five minutes
+  // past the hour, so it does not meet the hour's other recurring work.
+  job(
+    'ai-guest-voice-summary-sweep',
+    'src/contexts/ai/infrastructure/jobs/guest-voice-summary-sweep.job.ts',
+    {
+      queue: 'background',
+      capability: 'ai.analyze',
+      action: 'system:ai.guest_voice_summary',
+      schedule: 'every:3600000,offset:300000',
+      registration: 'enabled',
+    },
+    { retryBackoff: 'exponential:30000', timeoutMs: 300_000 },
+  ),
   job(
     'ai-review-analysis-on-demand',
     'src/contexts/ai/infrastructure/jobs/analyze-review-now.job.ts',

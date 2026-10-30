@@ -124,6 +124,9 @@ const scopeAuthorizer = (offAllowlist: 'refused' | 'allowed'): CandidateDecision
 const CANDIDATE_DECISIONS: Readonly<Record<string, CandidateDecision>> = {
   'portal-approved-destination-revalidation': scopeAuthorizer('refused'),
   'ai-review-analysis-backlog-drain': scopeAuthorizer('refused'),
+  // The Monday email's sweep lists due Properties by id and decides each one's
+  // Organization and Property under its own action before the plan reads anything.
+  'ai-guest-voice-summary-sweep': scopeAuthorizer('refused'),
   // property.connect_gbp is core: suspension and the kill switch stop it, the
   // allowlist does not.
   'reconcile-gbp-notification-subscriptions': scopeAuthorizer('allowed'),

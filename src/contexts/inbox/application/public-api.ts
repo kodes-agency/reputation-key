@@ -60,6 +60,8 @@ export { INBOX_QUEUES, replyQueueStage, type InboxQueue } from './inbox-queues'
 export type { InboxQueueCounts } from './use-cases/get-inbox-queue-counts'
 export type { InboxPropertyCounts } from './use-cases/get-inbox-property-counts'
 export type {
+  InboxMentionCorrection,
+  InboxMentionV3,
   InboxReviewAnalysis,
   ReviewAnalysisAspect,
   ReviewAspect,

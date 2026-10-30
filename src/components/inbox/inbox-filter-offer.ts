@@ -48,6 +48,7 @@ export function offeredListFilters(
     attention: offer.priority ? filters.attention : undefined,
     aspect: offer.topics ? filters.aspect : undefined,
     polarity: offer.topics ? filters.polarity : undefined,
+    issue: offer.topics ? filters.issue : undefined,
     // Dates narrow every queue: they are the window a number was counted over.
     since: filters.since,
     until: filters.until,

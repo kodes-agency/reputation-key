@@ -153,6 +153,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
                     ? data.polarity
                     : [data.polarity]
                   : undefined,
+                issueId: data.issue,
                 sourceDateFrom: sourceDates.sourceDateFrom ?? data.sourceDateFrom,
                 sourceDateTo: sourceDates.sourceDateTo ?? data.sourceDateTo,
                 q: data.q,

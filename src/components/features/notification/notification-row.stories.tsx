@@ -875,3 +875,70 @@ export const ReportOutcomeLight: Story = {
   args: { notification: reportResolved },
   parameters: { theme: 'light' },
 }
+
+/**
+ * An Urgent review (v3 contract decision 10): the sentence the owner chose with the
+ * Property in the facts, how long it has waited, and nothing of why. The reason, the topic,
+ * the stars and any word of the review are read in the app, where the row opens the item.
+ */
+export const UrgentReview: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000100',
+    type: 'review.ai_urgent_detected',
+    priority: 'urgent',
+    payload: { propertyName: 'Harbour Lodge', platform: 'google', waitedHours: 2 },
+  },
+  title: 'An urgent review needs you',
+  facts: ['Harbour Lodge'],
+  detail: null,
+  name: /^An urgent review needs you at Harbour Lodge, waited 2h, \d+ minutes? ago, unread$/,
+  neverSays: /safety|health|discriminat|legal|stars?\b|rating/i,
+})
+
+export const UrgentReviewPhone: Story = {
+  ...UrgentReview,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
+
+/**
+ * The Monday email's in-app twin, for a manager who turned the app channel on (it is off by
+ * default): the page's three lines as topics and counts, and the way into Guest voice.
+ */
+export const GuestVoiceSummary: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000101',
+    type: 'guest_voice.summary',
+    resourceType: 'property',
+    payload: {
+      propertyName: 'Harbour Lodge',
+      guestVoiceKind: 'weekly',
+      guestVoiceWindow: '90d',
+      guestVoiceLines: [
+        {
+          kind: 'fix_first',
+          topic: 'facilities_equipment',
+          reviewCount: 19,
+          textReviewCount: 128,
+          upToHundredths: 20,
+        },
+        {
+          kind: 'protect',
+          topic: 'staff_service',
+          reviewCount: 61,
+          textReviewCount: 128,
+        },
+      ],
+    },
+  },
+  title: 'Your Guest voice this week',
+  facts: ['Harbour Lodge'],
+  detail:
+    'Fix first: Facilities and equipment, in 19 of 128 reviews, worth up to about 0.2★ on your 90-day average. Guests love: Staff and service, in 61 of 128 reviews.',
+  name: /^Your Guest voice this week at Harbour Lodge, \d+ minutes? ago, unread$/,
+  neverSays: /air conditioning|not working|quote/i,
+})
+
+export const GuestVoiceSummaryPhone: Story = {
+  ...GuestVoiceSummary,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}

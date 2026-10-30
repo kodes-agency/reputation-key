@@ -29,6 +29,7 @@ export const moveToInboxQueue = (queue: InboxQueue): Parameters<InboxPageNav>[0]
       attention: previous.attention,
       aspect: previous.aspect,
       polarity: previous.polarity,
+      issue: previous.issue,
       since: previous.since,
       until: previous.until,
     }),

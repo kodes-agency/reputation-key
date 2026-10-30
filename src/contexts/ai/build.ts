@@ -33,6 +33,10 @@ import {
 import { createReadPropertyAggregates } from './application/use-cases/read-property-aggregates'
 import type { AiPropertyAccess } from './application/ai-property-read-access'
 import { createReadPropertyInsights } from './application/use-cases/read-property-insights'
+import { createReadGuestVoiceV2 } from './application/use-cases/read-guest-voice-v2'
+import { createPlanGuestVoiceSummary } from './application/use-cases/plan-guest-voice-summary'
+import { createRunGuestVoiceSummarySweep } from './application/use-cases/run-guest-voice-summary-sweep'
+import { createCorrectReviewMention } from './application/use-cases/correct-review-mention'
 import { createAiAuthorizationAdapter } from './infrastructure/adapters/ai-authorization.adapter'
 import { createAiControlAdapter } from './infrastructure/adapters/ai-control.adapter'
 import { createAiOperationStoreAdapter } from './infrastructure/adapters/ai-operation-store.adapter'
@@ -40,6 +44,10 @@ import { createAiOutputStoreAdapter } from './infrastructure/adapters/ai-output-
 import { createPropertyVocabularyContextAdapter } from './infrastructure/adapters/property-vocabulary-context.adapter'
 import { createAiPropertyCalendarAdapter } from './infrastructure/adapters/ai-property-calendar.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './infrastructure/adapters/ai-property-aggregate-store.adapter'
+import { createAiGuestVoiceFactsAdapter } from './infrastructure/adapters/ai-guest-voice-facts.adapter'
+import { createAiGuestVoiceSummaryScheduleAdapter } from './infrastructure/adapters/ai-guest-voice-summary-schedule.adapter'
+import { createAiMentionCorrectionStoreAdapter } from './infrastructure/adapters/ai-mention-correction-store.adapter'
+import { findCurrentReviewIdsByIssue } from './infrastructure/adapters/ai-current-issue-review-ids'
 import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai-property-trend-schedule-store.adapter'
 import { createAiReviewAnalysisReceiptWriter } from './infrastructure/adapters/ai-review-analysis-receipt.adapter'
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
@@ -244,6 +252,21 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         throw new Error('AI on-demand review analysis queue is unavailable')
       }),
   })
+  // The Monday email (decision 11 of the v3 contract): the same read the Guest voice page
+  // is drawn from, planned for the Properties whose Monday morning it is.
+  const runGuestVoiceSummarySweep = createRunGuestVoiceSummarySweep({
+    schedule: createAiGuestVoiceSummaryScheduleAdapter(input.db),
+    plan: createPlanGuestVoiceSummary({
+      authorization,
+      processingProfiles,
+      calendar,
+      facts: createAiGuestVoiceFactsAdapter(input.db),
+      reviewSources: input.reviewSources,
+      nowEpochMillis,
+    }),
+    nowEpochMillis,
+    logger: input.logger ?? { warn: () => {} },
+  })
   const generatePropertyTrend = createGeneratePropertyTrend({
     authorization,
     aggregates,
@@ -343,6 +366,23 @@ export const buildAiContext = (input: AiContextBuildInput) => {
           ...request,
           nowEpochMillis: nowEpochMillis(),
         }),
+      findCurrentReviewIdsByIssue: (
+        request: Omit<
+          Parameters<typeof findCurrentReviewIdsByIssue>[1],
+          'nowEpochMillis'
+        >,
+      ) =>
+        findCurrentReviewIdsByIssue(input.db, {
+          ...request,
+          nowEpochMillis: nowEpochMillis(),
+        }),
+      correctReviewMention: createCorrectReviewMention({
+        propertyAccess: input.propertyAccess,
+        authorization,
+        processingProfiles,
+        corrections: createAiMentionCorrectionStoreAdapter(input.db),
+        nowEpochMillis,
+      }),
       readPropertyAggregates: createReadPropertyAggregates({
         ...readDependencies,
         aggregates,
@@ -354,6 +394,12 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         calendar,
         reviewSources: input.reviewSources,
       }),
+      readGuestVoiceV2: createReadGuestVoiceV2({
+        ...readDependencies,
+        facts: createAiGuestVoiceFactsAdapter(input.db),
+        calendar,
+        reviewSources: input.reviewSources,
+      }),
     }),
     worker: Object.freeze({
       registerOutboxConsumers,
@@ -361,6 +407,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       schedulePropertyTrends,
       advanceReviewAnalysisEnrollments,
       drainReviewAnalysisBacklog,
+      runGuestVoiceSummarySweep,
       reapAiOperations,
     }),
     internal: Object.freeze({

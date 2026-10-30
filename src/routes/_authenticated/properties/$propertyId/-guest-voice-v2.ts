@@ -1,0 +1,66 @@
+// Which Guest voice a Property is drawn: 2.0 where its reviews have a v3 analysis, today's
+// page everywhere else. The server decides (`getGuestVoiceV2Fn`); the route only reads
+// what it answered. A Property that answers anything but a page, whether it has no v3
+// analysis, AI is off, or the analysis is not ready, is drawn as it has always been, and
+// today's page says what it always said about those states.
+import type {
+  GuestVoiceV2Read,
+  GuestVoiceV2Response,
+} from '#/contexts/ai/application/public-api'
+import type { GuestVoiceGoalFacts } from '#/components/features/property/guest-voice/guest-voice-rating-goal-words'
+import type { GuestVoiceV2View } from '#/components/features/property/guest-voice/guest-voice-v2-body'
+import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
+import type { GuestVoiceRange } from '#/shared/dashboard-range'
+
+/** What the server function answers: the page, or why today's page is the one to draw. */
+export type GuestVoiceV2Answer =
+  Exclude<GuestVoiceV2Response, Readonly<{ status: 'drafted' }>> | GuestVoiceV2Read
+
+/** The Guest voice 2.0 page in an answer, or null when today's page is the one to draw. */
+export function guestVoiceV2PageOf(
+  answer: GuestVoiceV2Answer | undefined,
+): GuestVoiceV2Read | null {
+  if (answer === undefined) return null
+  return answer.status === 'ready' || answer.status === 'not_enough_reviews'
+    ? answer
+    : null
+}
+
+/**
+ * The range Guest voice 2.0 draws for the address's. It has no "All time": a bookmark that
+ * still says so is read as the automatic window, as the server reads it, and the page
+ * shows (and the address then says) that window rather than a control with nothing chosen.
+ */
+export function guestVoiceV2RangeOf(range: GuestVoiceRange): GuestVoiceRange {
+  return range === 'all' ? 'auto' : range
+}
+
+/**
+ * The drawer of an issue is the next slice's (4.3): it needs its own read. Until it lands
+ * the view has no drawer, so an issue's name is plain text and the page offers no door to
+ * an empty one; the figures, the quotes and the way into the Inbox are all there.
+ */
+export function guestVoiceV2View(
+  read: GuestVoiceV2Read,
+  ratingGoal: GuestVoiceGoalFacts | null = null,
+): GuestVoiceV2View {
+  return { read, ratingGoal }
+}
+
+/**
+ * Where the Property's Google rating goal stands, for the line beside the top problem.
+ * Only an active goal is named: one reached, ended or not yet read is not a goal the page
+ * has anything to say about, and a card that could not be read (no goal, no permission,
+ * the capability off) is `undefined` and says nothing.
+ */
+export function guestVoiceGoalOf(
+  card: RatingGoalCardView | null | undefined,
+): GuestVoiceGoalFacts | null {
+  if (card === null || card === undefined || card.state !== 'active') return null
+  return {
+    mode: card.mode,
+    target: card.target,
+    shows: card.google?.shows ?? null,
+    status: card.status,
+  }
+}

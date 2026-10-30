@@ -168,6 +168,7 @@ describe('a settling fact retires the notices that asked for the work', () => {
       types: [
         'review.created',
         'review.updated',
+        'review.ai_urgent_detected',
         'feedback.created',
         'inbox.reopened',
         'inbox.response_target_halfway',

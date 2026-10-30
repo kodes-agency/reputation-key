@@ -96,6 +96,7 @@ export function InboxPageV2({
       attention: s.filters.attention,
       aspect: s.filters.aspect,
       polarity: s.filters.polarity,
+      issue: s.filters.issue,
       since: s.filters.since,
       until: s.filters.until,
     },

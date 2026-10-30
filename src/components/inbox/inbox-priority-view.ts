@@ -25,14 +25,16 @@ export const PRIORITY_WORD: Readonly<Record<InboxPriority, string>> = {
 }
 
 /**
- * The AI suggestion the pane may show. Only a ready analysis carries one; a
+ * The AI suggestion the pane may show. Only a ready analysis (v2 or v3) carries one; a
  * disabled, unavailable or absent analysis is no suggestion, so the item reads
  * "Not set" rather than a made-up level (AI invariant 8).
  */
 export function prioritySuggestion(
   analysis: InboxReviewAnalysis | null | undefined,
 ): InboxPriority | null {
-  return analysis?.status === 'ready' ? analysis.attention : null
+  return analysis?.status === 'ready' || analysis?.status === 'ready_v3'
+    ? analysis.attention
+    : null
 }
 
 export type InboxPriorityView = Readonly<{

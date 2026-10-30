@@ -9,6 +9,8 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   aiExecutionControlHeads,
@@ -33,6 +35,7 @@ import {
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -43,6 +46,7 @@ import type { AiOperationId } from '../../domain/types'
 import type { AiAnalysisDerivativeV3 } from '../../application/ports/ai-output-store.port'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
+import { urgentAlertEventId } from './ai-urgent-alert'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')
 const COMPLETED_AT = new Date('2026-10-20T10:05:00.000Z')
@@ -174,6 +178,7 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     options: Readonly<{
       profile?: 'review-analysis-v2' | 'review-analysis-v3'
       reviewAnalysisEpoch?: number
+      sourceRevision?: number
     }> = {},
   ): Promise<void> {
     const heads = await db
@@ -194,6 +199,7 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     const capability = control(CONTROL_SCOPE_KEYS[2])
     const v3 = (options.profile ?? 'review-analysis-v3') === 'review-analysis-v3'
     const reviewAnalysisEpoch = options.reviewAnalysisEpoch ?? 1
+    const sourceRevision = options.sourceRevision ?? SOURCE_REVISION
     await db
       .insert(reviews)
       .values({
@@ -209,20 +215,20 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
         reviewedAt: REVIEWED_AT,
         contentExpiresAt: CONTENT_EXPIRES_AT,
         sourceEpoch: SOURCE_EPOCH,
-        sourceRevision: SOURCE_REVISION,
+        sourceRevision,
         analysisSequence,
         aiSourceByteLength: SOURCE_BYTE_COUNT,
         aiSourceDigest: DIGEST,
       })
       .onConflictDoUpdate({
         target: reviews.id,
-        set: { analysisSequence },
+        set: { analysisSequence, sourceRevision },
       })
     await db
       .insert(materialReviewRevisions)
       .values({
         reviewId: id,
-        revision: SOURCE_REVISION,
+        revision: sourceRevision,
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
         sourceEpoch: SOURCE_EPOCH,
@@ -249,7 +255,7 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       subjectHmac: 'd'.repeat(64),
       subjectHmacKeyVersion: 'ai-v3-flow-test-v1',
       sourceEpoch: SOURCE_EPOCH,
-      sourceRevision: SOURCE_REVISION,
+      sourceRevision,
       reviewedAtEpochMillis: REVIEWED_AT.getTime(),
       analysisSequence,
       authorizationLineageId: LINEAGE_ID,
@@ -356,6 +362,9 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     )
 
   beforeAll(async () => {
+    // An Urgent analysis writes an identifier-only fact to the outbox, which admits only
+    // registered facts; the app registers them at boot.
+    registerAllEventSchemas()
     await clear()
     initialControls = (
       await db
@@ -485,6 +494,7 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     try {
       await clear()
     } finally {
+      clearEventSchemas()
       for (const control of initialControls) {
         await transitionControl(control.scopeKey, control)
       }
@@ -664,6 +674,158 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     await expect(store()).resolves.toBe(false)
   })
 
+  describe('the Urgent alert fact', () => {
+    const URGENT: AiAnalysisDerivativeV3 = {
+      sentiment: 'negative',
+      attention: 'urgent',
+      urgentReason: 'health',
+      mentions: [],
+      normalization: { flags: [], droppedMentionCount: 0 },
+    }
+
+    const alerts = () =>
+      db
+        .select({
+          id: outboxEvents.id,
+          eventType: outboxEvents.eventType,
+          propertyId: outboxEvents.propertyId,
+          payload: outboxEvents.payload,
+        })
+        .from(outboxEvents)
+        .where(
+          and(
+            eq(outboxEvents.organizationId, ORGANIZATION_ID),
+            eq(outboxEvents.eventType, 'ai.review_analysis.urgent_detected'),
+          ),
+        )
+
+    beforeEach(async () => {
+      await db
+        .delete(outboxEvents)
+        .where(eq(outboxEvents.organizationId, ORGANIZATION_ID))
+    })
+
+    it('records one identifier-only fact for an Urgent analysis, with no reason in it', async () => {
+      await expect(store({ derivative: URGENT })).resolves.toBe(true)
+
+      const found = await alerts()
+      expect(found).toHaveLength(1)
+      expect(found[0]).toMatchObject({
+        id: urgentAlertEventId({
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+          reviewId: REVIEW_ID,
+          sourceEpoch: SOURCE_EPOCH,
+          sourceRevision: SOURCE_REVISION,
+        }),
+        propertyId: PROPERTY_ID,
+        payload: {
+          reviewId: REVIEW_ID,
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+          sourceEpoch: SOURCE_EPOCH,
+          sourceRevision: SOURCE_REVISION,
+          analysisSequence: 1,
+          occurredAt: COMPLETED_AT.toISOString(),
+          correlationId: OPERATION_ID,
+        },
+      })
+      // The fact says which revision and nothing of why: the reason is read in the app.
+      expect(JSON.stringify(found[0]?.payload)).not.toContain('health')
+      expect(Object.keys(found[0]?.payload as object).sort()).toEqual([
+        'analysisSequence',
+        'correlationId',
+        'occurredAt',
+        'organizationId',
+        'propertyId',
+        'reviewId',
+        'sourceEpoch',
+        'sourceRevision',
+      ])
+    })
+
+    it('records nothing for an analysis that is not Urgent', async () => {
+      await expect(store()).resolves.toBe(true)
+
+      await expect(alerts()).resolves.toEqual([])
+    })
+
+    it('records nothing when the analysis is refused', async () => {
+      await expect(store({ derivative: URGENT, analysisSequence: 2 })).resolves.toBe(
+        false,
+      )
+
+      await expect(alerts()).resolves.toEqual([])
+    })
+
+    it('raises one alert for a review revision however often it is found Urgent', async () => {
+      await store({ derivative: URGENT })
+      // The same revision analysed again: a re-consent's new epoch, a reopen, a replay.
+      await seedReviewWithOperation(REVIEW_ID, SECOND_OPERATION_ID, 2)
+      await expect(
+        store({
+          operationId: SECOND_OPERATION_ID,
+          analysisSequence: 2,
+          derivative: URGENT,
+        }),
+      ).resolves.toBe(true)
+
+      await expect(alerts()).resolves.toHaveLength(1)
+    })
+
+    it('does not raise it again when the first fact has left the outbox', async () => {
+      await store({ derivative: URGENT })
+      // The retention sweep deletes a published fact 30 days after publication; the
+      // analyses live for 24 months and remember that the revision was Urgent.
+      await db
+        .delete(outboxEvents)
+        .where(eq(outboxEvents.organizationId, ORGANIZATION_ID))
+      await seedReviewWithOperation(REVIEW_ID, SECOND_OPERATION_ID, 2)
+      await store({
+        operationId: SECOND_OPERATION_ID,
+        analysisSequence: 2,
+        derivative: URGENT,
+      })
+
+      await expect(alerts()).resolves.toEqual([])
+    })
+
+    it('raises a second alert when the guest changes the review', async () => {
+      await store({ derivative: URGENT })
+      await seedReviewWithOperation(REVIEW_ID, SECOND_OPERATION_ID, 2, {
+        sourceRevision: 2,
+      })
+      await expect(
+        store({
+          operationId: SECOND_OPERATION_ID,
+          analysisSequence: 2,
+          sourceRevision: 2,
+          derivative: URGENT,
+        }),
+      ).resolves.toBe(true)
+
+      const found = await alerts()
+      expect(
+        found
+          .map(({ payload }) => (payload as { sourceRevision: number }).sourceRevision)
+          .sort(),
+      ).toEqual([1, 2])
+    })
+
+    it('raises one alert for each review', async () => {
+      await store({ derivative: URGENT })
+      await seedReviewWithOperation(SECOND_REVIEW_ID, SECOND_OPERATION_ID, 2)
+      await store({
+        operationId: SECOND_OPERATION_ID,
+        reviewId: SECOND_REVIEW_ID,
+        analysisSequence: 2,
+        derivative: URGENT,
+      })
+
+      await expect(alerts()).resolves.toHaveLength(2)
+    })
+  })
+
   it('reads the stored analysis back as the v3 shape', async () => {
     await store()
 
@@ -678,7 +840,14 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       sentiment: 'mixed',
       attention: 'high',
       urgentReason: null,
-      mentions: DERIVATIVE.mentions,
+      // The answer's own fields, each with its place in the answer, and (before the
+      // aggregate has filed it under an issue, and with no manager's word) neither.
+      mentions: DERIVATIVE.mentions.map((mention, mentionOrdinal) => ({
+        ...mention,
+        mentionOrdinal,
+        issueGroupId: null,
+        correction: null,
+      })),
       generatedAtEpochMillis: COMPLETED_AT.getTime(),
     })
   })

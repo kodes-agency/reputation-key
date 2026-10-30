@@ -341,6 +341,29 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ],
     ['responsible_scope'],
   ),
+  // The one notice an AI finding starts (ADR 0046, amended 2026-10-30): a review
+  // analysis v3 found a review Urgent. The route reads the Inbox for whether the
+  // review still waits and to whom it is told; the event says only which revision.
+  {
+    ...route(
+      'ai.review_analysis.urgent_detected',
+      'notification.on-ai-review-urgent-detected',
+      ['review.ai_urgent_detected'],
+      ['responsible_scope'],
+    ),
+    eventCondition:
+      'the Inbox item is open at this review revision, is not imported history, and has waited under seven days',
+  },
+  // The Monday email (v3 contract decision 11; ADR 0046, amended 2026-10-30): the AI
+  // context records one governed fact per Property per Monday it has something to say,
+  // and every manager who may use the Property is a candidate. Whether one asked for it
+  // is the preference's answer, and the category is opt-in on both channels.
+  route(
+    'ai.guest_voice_summary.ready',
+    'notification.on-ai-guest-voice-summary-ready',
+    ['guest_voice.summary'],
+    ['property_operator'],
+  ),
   // ── Routes that settle, rather than raise, a notice ────────────────
   settles('review.reply.approved', 'notification.settle-on-review-reply-approved', [
     'reply.pending_approval',
@@ -371,6 +394,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     [
       'review.created',
       'review.updated',
+      'review.ai_urgent_detected',
       'feedback.created',
       'inbox.reopened',
       'inbox.response_target_halfway',
@@ -419,6 +443,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
   settles('property.archived', 'notification.settle-on-property-archived', [
     'review.created',
     'review.updated',
+    'review.ai_urgent_detected',
     'feedback.created',
     'reply.pending_approval',
     'reply.publish_failed',

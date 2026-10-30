@@ -18,7 +18,7 @@ export const CATEGORY_COPY: Readonly<
   urgent_operational: {
     label: 'Action needed',
     description:
-      'Private feedback without a rating, escalations, and delivery issues that may need attention.',
+      'Urgent reviews, private feedback without a rating, escalations, and delivery issues that may need attention.',
   },
   // ADR 0046, amended 2026-09-30: "how low" is the person's, per channel.
   low_ratings: {
@@ -45,6 +45,12 @@ export const CATEGORY_COPY: Readonly<
   portal_goals: {
     label: 'Portal goals',
     description: 'Monthly results of your portal goals.',
+  },
+  // Opt-in on both channels (v3 contract decision 11).
+  guest_voice: {
+    label: 'Guest voice summary',
+    description:
+      'Mondays at 8:00: what to fix first, what guests love and what changed. Nothing in a quiet week; a roundup on the first Monday of the month.',
   },
 }
 

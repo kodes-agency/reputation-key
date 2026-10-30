@@ -1,18 +1,15 @@
 import { and, desc, eq, gte, isNotNull, lte, sql } from 'drizzle-orm'
-import type { Database, Tx } from '#/shared/db'
+import type { Database } from '#/shared/db'
 import {
   aiPropertyAggregateContributionAspects,
   aiPropertyAggregateContributions,
-  aiPropertyAggregateHeads,
   aiPropertyAggregateSettlements,
   aiPropertyDailyAspectAggregates,
   aiPropertyDailyAggregates,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
   aiReviewAnalysisAspects,
-  merchantAiEnablement,
   reviews,
-  reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-openai-request-contract'
@@ -23,7 +20,8 @@ import type {
   AiPropertyDailyAspectCount,
   AiPropertyUnavailableReview,
 } from '../../application/ports/ai-property-aggregate-store.port'
-import { readAnalysisCoverage } from './ai-property-aggregate-coverage'
+import { readLockedAggregateHead } from './ai-property-aggregate-coverage'
+import { AI_INSIGHTS_READ_BUDGET_MS, withStatementTimeout } from './ai-read-timeout'
 import {
   mapAnalyzedReview,
   mapDaily,
@@ -48,45 +46,6 @@ import {
   type Contribution,
   type ContributionAspect,
 } from './ai-property-aggregate-contributions'
-
-const AI_INSIGHTS_READ_BUDGET_MS = 5_000
-
-function isPgStatementTimeout(error: unknown): boolean {
-  let current: unknown = error
-  for (
-    let depth = 0;
-    depth < 3 && typeof current === 'object' && current !== null;
-    depth += 1
-  ) {
-    if ('code' in current && current.code === '57014') return true
-    current = 'cause' in current ? current.cause : undefined
-  }
-  return false
-}
-
-async function withStatementTimeout<T>(
-  db: Database,
-  budgetMs: number,
-  read: (transaction: Tx) => Promise<T>,
-): Promise<T> {
-  try {
-    return await db.transaction(async (transaction) => {
-      await transaction.execute(
-        sql`SELECT set_config('statement_timeout', ${String(budgetMs)}, true)`,
-      )
-      return read(transaction)
-    })
-  } catch (error) {
-    if (isPgStatementTimeout(error)) {
-      throw {
-        _tag: 'AiInsightsReadTimeout',
-        budgetMs,
-        message: `AI insights read exceeded ${budgetMs}ms budget`,
-      }
-    }
-    throw error
-  }
-}
 
 type ApplyReviewAnalysisInput = Parameters<
   AiPropertyAggregateStorePort['applyReviewAnalysis']
@@ -475,64 +434,9 @@ export const createAiPropertyAggregateStoreAdapter = (
 
     async readWindow(input) {
       return withStatementTimeout(db, AI_INSIGHTS_READ_BUDGET_MS, async (tx) => {
-        const [authorization] = await tx
-          .select({
-            analysisStartSequence: merchantAiEnablement.analysisStartSequence,
-          })
-          .from(merchantAiEnablement)
-          .where(
-            and(
-              eq(merchantAiEnablement.organizationId, input.organizationId),
-              eq(merchantAiEnablement.propertyId, input.propertyId),
-              eq(merchantAiEnablement.authorizedSourceEpoch, input.sourceEpoch),
-              eq(merchantAiEnablement.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-            ),
-          )
-          .limit(1)
-          .for('share')
-        const [reviewHead] = await tx
-          .select({ headSequence: reviewAiAnalysisHeads.headSequence })
-          .from(reviewAiAnalysisHeads)
-          .where(
-            and(
-              eq(reviewAiAnalysisHeads.organizationId, input.organizationId),
-              eq(reviewAiAnalysisHeads.propertyId, input.propertyId),
-              eq(reviewAiAnalysisHeads.sourceEpoch, input.sourceEpoch),
-            ),
-          )
-          .limit(1)
-          .for('share')
-        const [head] = await tx
-          .select()
-          .from(aiPropertyAggregateHeads)
-          .where(
-            and(
-              eq(aiPropertyAggregateHeads.organizationId, input.organizationId),
-              eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
-              eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
-              eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(
-                aiPropertyAggregateHeads.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
-            ),
-          )
-          .limit(1)
-          .for('share')
-        if (!authorization || !reviewHead || !head) return null
-        // Coverage is read from THIS head, not from the profile-independent
-        // settlement ledger: the days below are profile-scoped, so a ledger
-        // count would declare a freshly rolled profile complete over an empty
-        // window.
-        const analysisCoverage = await readAnalysisCoverage(tx, {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          sourceEpoch: input.sourceEpoch,
-          reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-          settledAnalysisCount: head.settledAnalysisCount,
-          headSequence: reviewHead.headSequence,
-          analysisStartSequence: authorization.analysisStartSequence,
-        })
+        const locked = await readLockedAggregateHead(tx, input)
+        if (locked === null) return null
+        const { head, coverage: analysisCoverage } = locked
         const days = await tx
           .select()
           .from(aiPropertyDailyAggregates)

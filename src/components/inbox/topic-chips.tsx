@@ -4,6 +4,7 @@ import { cn } from '#/lib/utils'
 import { ASPECT_LABELS } from '#/shared/aspect-labels'
 import { INBOX_CHIP_STATIC_CLASS } from './inbox-chip'
 import { prioritySuggestion, prioritySuggestionHint } from './inbox-priority-view'
+import { ReviewCauseChips } from './review-cause-chips'
 import type { ReactNode } from 'react'
 import type {
   InboxPriority,
@@ -11,6 +12,7 @@ import type {
   ReviewAnalysisAspect,
   ReviewAspectPolarity,
 } from '#/contexts/inbox/application/public-api'
+import type { MatchedIssue } from './use-matched-issue'
 import type { MatchedTopic } from './use-matched-topic'
 
 /**
@@ -104,12 +106,18 @@ export function TopicChips({
   analysis,
   managerPriority = null,
   matched = null,
+  matchedIssue = null,
+  corrections = null,
 }: Readonly<{
   analysis: InboxReviewAnalysis | null
   /** The level a person set on the item, if any (ADR 0071). */
   managerPriority?: InboxPriority | null
   /** The topic the Inbox was opened on (a Guest voice link), to mark where it is here. */
   matched?: MatchedTopic | null
+  /** The issue the Inbox was opened on (a Guest voice 2.0 link): marks a v3 reading's chips. */
+  matchedIssue?: MatchedIssue | null
+  /** The way to correct a v3 reading, which comes after its chips. */
+  corrections?: ReactNode
 }>): ReactNode {
   if (!analysis || analysis.status === 'disabled') return null
 
@@ -125,6 +133,18 @@ export function TopicChips({
           ? 'No review signals for this review.'
           : 'Review signals are unavailable for this language.'}
       </p>
+    )
+  }
+
+  // A v3 reading names causes, not aspects: its chips are their own component.
+  if (analysis.status === 'ready_v3') {
+    return (
+      <ReviewCauseChips
+        analysis={analysis}
+        managerPriority={managerPriority}
+        matchedIssue={matchedIssue}
+        trailing={corrections}
+      />
     )
   }
 

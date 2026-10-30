@@ -85,6 +85,11 @@ function invalidThing(): never {
   throw new Error('Property issue thing does not fit the stored cause phrase contract')
 }
 
+/**
+ * A phrase as the stored cause contract holds it: Unicode-folded, lowercase, one space
+ * between words, no surrounding punctuation, one to three words. It throws on one that
+ * does not fit. A manager's words for a cause pass through it too.
+ */
 function normalizeStoredPhrase(thing: string): string {
   let normalized = thing
     .normalize('NFKC')
@@ -139,4 +144,16 @@ export function normalizeIssueThing(
     throw new Error('Property issue catalogue produced an invalid canonical key')
   }
   return Object.freeze({ memberKey, canonicalKey, canonicalThing: canonicalKey })
+}
+
+/**
+ * A cause phrase a person typed, as the stored contract holds it; null when it does not
+ * fit (empty, more than three words, or anything but letters and hyphens).
+ */
+export function normalizeCausePhrase(text: string): string | null {
+  try {
+    return normalizeStoredPhrase(text)
+  } catch {
+    return null
+  }
 }

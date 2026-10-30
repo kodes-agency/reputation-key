@@ -126,6 +126,8 @@ export type {
   AiEvent,
   AiPropertyTrendGenerationRequested,
   AiReviewAnalysisBackfillRequested,
+  AiReviewUrgentDetected,
+  AiGuestVoiceSummaryReady,
 } from '#/contexts/ai/domain/events'
 
 // Master union — adding a new context's events requires extending this.

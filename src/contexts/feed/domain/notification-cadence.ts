@@ -10,6 +10,7 @@ import { getDefaultCadence } from './notification-policy'
 
 const EVERY_EMAIL_CADENCE: readonly NotificationCadence[] = ['immediate', 'daily']
 const DAILY_EMAIL_ONLY: readonly NotificationCadence[] = ['daily']
+const IMMEDIATE_EMAIL_ONLY: readonly NotificationCadence[] = ['immediate']
 
 /**
  * Email cadences a person may choose for a category. Both goals are a daily
@@ -21,9 +22,10 @@ const DAILY_EMAIL_ONLY: readonly NotificationCadence[] = ['daily']
 export function offeredEmailCadences(
   category: NotificationCategory,
 ): readonly NotificationCadence[] {
-  return category === 'recognition' || category === 'portal_goals'
-    ? DAILY_EMAIL_ONLY
-    : EVERY_EMAIL_CADENCE
+  if (category === 'recognition' || category === 'portal_goals') return DAILY_EMAIL_ONLY
+  // The Guest voice summary is one message on its Monday morning; a digest would carry
+  // it to the next morning, and the roundup is the only collection it needs.
+  return category === 'guest_voice' ? IMMEDIATE_EMAIL_ONLY : EVERY_EMAIL_CADENCE
 }
 
 /**

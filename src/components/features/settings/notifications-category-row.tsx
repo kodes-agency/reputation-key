@@ -28,6 +28,25 @@ const CADENCE_LABELS: Readonly<Record<NotificationCadence, string>> = {
   daily: 'Daily at 08:00',
 }
 
+/**
+ * A category with one offered cadence that "Immediate" would misname: the Guest voice
+ * summary is a message of its own on a Property's Monday morning, never a digest line.
+ */
+const ONLY_CADENCE_WORDS: Partial<
+  Record<ConfigurableNotificationCategory, Readonly<{ label: string; sentence: string }>>
+> = {
+  guest_voice: {
+    label: 'Mondays at 08:00',
+    sentence:
+      'Emailed on Monday mornings, Property time, and on the first Monday of the month.',
+  },
+}
+
+const cadenceLabel = (
+  category: ConfigurableNotificationCategory,
+  cadence: NotificationCadence,
+): string => ONLY_CADENCE_WORDS[category]?.label ?? CADENCE_LABELS[cadence]
+
 type SavePreference = (
   category: ConfigurableNotificationCategory,
   channel: 'in_app' | 'email',
@@ -100,7 +119,7 @@ function CadenceSelect({
           <SelectGroup>
             {cadences.map((option) => (
               <SelectItem key={option} value={option}>
-                {CADENCE_LABELS[option]}
+                {cadenceLabel(category, option)}
               </SelectItem>
             ))}
           </SelectGroup>
@@ -139,7 +158,8 @@ function EmailTiming({
           id={`${control.category}-cadence-fixed`}
           className="basis-full text-sm text-muted-foreground"
         >
-          Always emailed {CADENCE_LABELS[only].toLowerCase()}.
+          {ONLY_CADENCE_WORDS[control.category]?.sentence ??
+            `Always emailed ${CADENCE_LABELS[only].toLowerCase()}.`}
         </p>
       ) : emailSwitchedOff ? (
         <p className="basis-full text-sm text-muted-foreground">

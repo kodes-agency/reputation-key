@@ -24,6 +24,10 @@ const GOAL_RATING_GOAL_OUTBOX =
   'src/contexts/reporting/infrastructure/rating-goal-outbox-consumers.ts'
 const NOTIFICATION_REVIEW_IMPORT_OUTBOX =
   'src/contexts/feed/infrastructure/review-import-outbox-consumers.ts'
+const NOTIFICATION_AI_URGENT_OUTBOX =
+  'src/contexts/feed/infrastructure/ai-urgent-review-notice-consumers.ts'
+const NOTIFICATION_AI_GUEST_VOICE_SUMMARY_OUTBOX =
+  'src/contexts/feed/infrastructure/ai-guest-voice-summary-notice-consumers.ts'
 const NOTIFICATION_WORKFLOW_OUTBOX =
   'src/contexts/feed/infrastructure/workflow-outbox-consumers.ts'
 const NOTIFICATION_SETTLEMENT_OUTBOX =
@@ -63,6 +67,19 @@ export const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ]),
   ev('ai.review_analysis.backfill_requested', [
     durable('ai.analyze-review-event', AI_OUTBOX),
+  ]),
+  // The one finding of an AI answer that starts a notification (ADR 0031, amended
+  // 2026-10-30): a review analysis v3 found a review Urgent. Content-free.
+  ev('ai.review_analysis.urgent_detected', [
+    durable('notification.on-ai-review-urgent-detected', NOTIFICATION_AI_URGENT_OUTBOX),
+  ]),
+  // The Monday email (decision 11): a Property's Guest voice summary is due to be mailed.
+  // Governed facts only: topics, counts and links.
+  ev('ai.guest_voice_summary.ready', [
+    durable(
+      'notification.on-ai-guest-voice-summary-ready',
+      NOTIFICATION_AI_GUEST_VOICE_SUMMARY_OUTBOX,
+    ),
   ]),
   ev('review.expired', [durable('inbox.on-review-expired', INBOX_OUTBOX)]),
   ev('review.reply.submitted', [

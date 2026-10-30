@@ -32,6 +32,10 @@ import type {
 import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
+import type {
+  CorrectReviewMentionResult,
+  MentionCorrectionAction,
+} from '#/contexts/ai/application/public-api'
 
 type ServerCall<T> = T extends (...args: infer Args) => infer Result
   ? (...args: Args) => Result
@@ -63,6 +67,15 @@ export type InboxServerFns = Readonly<{
   generateReplySuggestion?: GenerateReplySuggestionCall
   requestReviewAnalysisNow?: typeof requestReviewAnalysisNowFn
   /**
+   * "Not right?": a manager's word on what the analysis said of one review. A plain
+   * function, not a server function's type, because the route fetches the server
+   * function with its first use (`routes/_authenticated/-inbox-fns.ts` says why).
+   * Absent where the Inbox offers no corrections.
+   */
+  correctReviewMention?: (
+    input: Readonly<{ data: ReviewMentionCorrectionRequest }>,
+  ) => Promise<CorrectReviewMentionResult>
+  /**
    * Whether a scope has a Portal: the empty To handle queue offers a feedback
    * page only where there is none. A plain function, not a server function's
    * type, because the route fetches the server function with its first use
@@ -71,6 +84,14 @@ export type InboxServerFns = Readonly<{
   getPortalPresence?: (
     input: Readonly<{ data: { propertyId?: string } }>,
   ) => Promise<PortalPresence>
+}>
+
+/** What a correction names: the review, the reading it was made on, the mention, and the word. */
+export type ReviewMentionCorrectionRequest = Readonly<{
+  reviewId: string
+  analysisSequence: number
+  mentionOrdinal: number
+  action: MentionCorrectionAction
 }>
 
 /** The answer to "does this scope have a Portal?": a yes or a no, nothing of any Portal. */
@@ -85,4 +106,5 @@ export type InboxDetailFns = Pick<
   | 'addInboxNote'
   | 'generateReplySuggestion'
   | 'requestReviewAnalysisNow'
+  | 'correctReviewMention'
 >

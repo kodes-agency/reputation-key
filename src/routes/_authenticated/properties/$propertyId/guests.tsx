@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import {
@@ -8,6 +9,7 @@ import {
 } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { PropertyGuestVoicePage } from '#/components/features/property/property-guest-voice-page'
+import { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
 import { getPropertyInsightsFn } from '#/contexts/ai/server/property-insights'
 import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
@@ -17,6 +19,13 @@ import { can } from '#/shared/domain/permissions'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { guestVoiceRangeSearch, type GuestVoiceRange } from '#/shared/dashboard-range'
 import { guestVoiceRangeOfLocation, keptData } from './-dashboard-range-read'
+import {
+  guestVoiceGoalOf,
+  guestVoiceV2PageOf,
+  guestVoiceV2RangeOf,
+  guestVoiceV2View,
+} from './-guest-voice-v2'
+import { ratingGoalCardQuery } from './goals/-rating-goal-queries'
 import { RoutePending } from '#/components/layout/route-page-state'
 
 export const propertyGuestsSearchSchema = z.object({ range: guestVoiceRangeSearch })
@@ -28,6 +37,18 @@ export const propertyGuestsQuery = (propertyId: string, range: GuestVoiceRange) 
     staleTime: 60_000,
     // A capability denial is a permanent answer for this render, not a
     // transient fault: retrying would only delay the disabled state.
+    retry: false,
+  })
+
+/**
+ * Guest voice 2.0, which a Property whose reviews have a v3 analysis is drawn as. The
+ * answer says so, or says why today's page is the one to draw.
+ */
+export const propertyGuestVoiceV2Query = (propertyId: string, range: GuestVoiceRange) =>
+  queryOptions({
+    queryKey: aiKeys.guestVoiceV2(propertyId, range),
+    queryFn: () => getGuestVoiceV2Fn({ data: { propertyId, range } }),
+    staleTime: 60_000,
     retry: false,
   })
 
@@ -62,11 +83,19 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/gue
   // skeleton.
   loader: async ({ params: { propertyId }, location, context }) => {
     const { queryClient } = context
+    const range = guestVoiceRangeOfLocation(location)
+    // A Property whose reviews have a v3 analysis is drawn as Guest voice 2.0 and needs
+    // nothing of today's page. Any other answer (no v3 analysis, AI off, not ready, or a
+    // read that failed) leaves today's page to be primed as it always was.
+    const v2 = await queryClient
+      .ensureQueryData(propertyGuestVoiceV2Query(propertyId, range))
+      .catch(() => undefined)
+    if (guestVoiceV2PageOf(v2) !== null) return
     // The headline starts with the topics. A property with AI off has none, so
     // the read fails or says so; either way it is settled, never thrown.
     const trend = queryClient.prefetchQuery(trendQuery(propertyId))
     const result = await queryClient.ensureQueryData(
-      propertyGuestsQuery(propertyId, guestVoiceRangeOfLocation(location)),
+      propertyGuestsQuery(propertyId, range),
     )
     if (result.status === 'ready') {
       await primeWithinGrace(
@@ -85,11 +114,36 @@ function PropertyGuestsRoute() {
   const { range } = Route.useSearch()
   const navigate = Route.useNavigate()
   const { data: propertyData } = useSuspenseQuery(propertyQuery(propertyId))
+  const v2Reading = useQuery({
+    ...propertyGuestVoiceV2Query(propertyId, range),
+    placeholderData: keepPreviousData,
+  })
+  const v2 = guestVoiceV2PageOf(v2Reading.data)
+  // 2.0 has no "All time": a bookmark that still says so is the automatic window, on the
+  // page and in the address.
+  const v2Range = guestVoiceV2RangeOf(range)
+  useEffect(() => {
+    if (v2 === null || range === v2Range) return
+    void navigate({
+      search: (previous) => ({ ...previous, range: v2Range }),
+      replace: true,
+    })
+  }, [v2, range, v2Range, navigate])
+  // The Google rating goal is named beside the top problem. A read that fails (no goal, no
+  // permission, the capability off) leaves the page without the line, never in an error.
+  const goalCard = useQuery({
+    ...ratingGoalCardQuery(propertyId),
+    retry: false,
+    enabled: v2 !== null,
+  })
+  // Today's page is read only where 2.0 is not drawn. A failed 2.0 read is today's page,
+  // not an error page: 2.0 is the newer of the two.
   const reading = useQuery({
     ...propertyGuestsQuery(propertyId, range),
     placeholderData: keepPreviousData,
+    enabled: v2 === null && !v2Reading.isPending,
   })
-  const result = keptData(reading)
+  const result = v2 === null ? keptData(reading) : null
 
   const onRangeChange = (value: GuestVoiceRange) => {
     // A window on the page, not a place: replace, so arrowing through the
@@ -98,6 +152,19 @@ function PropertyGuestsRoute() {
       search: (previous) => ({ ...previous, range: value }),
       replace: true,
     })
+  }
+
+  if (v2 !== null) {
+    return (
+      <PropertyGuestVoicePage
+        propertyId={propertyId}
+        propertyName={propertyData.property.name}
+        range={v2Range}
+        onRangeChange={onRangeChange}
+        v2={guestVoiceV2View(v2, guestVoiceGoalOf(goalCard.data))}
+        busy={v2Reading.isPlaceholderData}
+      />
+    )
   }
 
   // Entered at a range nothing has read yet (the loader is not re-run within its

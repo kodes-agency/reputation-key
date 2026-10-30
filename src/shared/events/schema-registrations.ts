@@ -14,6 +14,7 @@
 import { z } from 'zod/v4'
 import { registerEventSchema, isEventRegistered } from './schema-registry'
 import { additionalGuestLocalesSchema, guestLocaleSchema } from '../guest-locale-schemas'
+import { registerAiEventSchemas } from './ai-event-schemas'
 import { registerGoalEventSchemas } from './goal-event-schemas'
 import {
   reviewGoogleReputationSnapshotVerifiedSchema,
@@ -683,29 +684,6 @@ const integrationPropertyImportRetentionReleasedSchema = z
     ...(importJobId ? { importJobId } : {}),
     idempotencyKeys,
   }))
-const aiPropertyTrendGenerationRequestedSchema = z.object({
-  scheduleId: z.uuid(),
-  organizationId: z.string().min(1),
-  propertyId: z.uuid(),
-  occurredAt: z.string(),
-})
-// Envelope metadata is reattached after producer-side allowlist validation
-// and stripped from the delivered fact payload before consumer-side validation.
-// First-enablement Review Analysis enrollment replay. Identifier-only, with
-// the same field set the AI review consumer already validates — `analysisSequence`
-// is the FRESH sequence allocated for the replay, not the review's stored one.
-// Not `.strict()`, matching the review event schemas: the outbox re-attaches
-// `correlationId` after allowlist validation and the dispatcher re-runs this
-// same schema on delivery.
-const aiReviewAnalysisBackfillRequestedSchema = z.object({
-  reviewId: z.string(),
-  organizationId: z.string(),
-  propertyId: z.string(),
-  sourceEpoch: z.number().int().nonnegative(),
-  sourceRevision: z.number().int().positive(),
-  analysisSequence: z.number().int().positive(),
-  occurredAt: z.string(),
-})
 const integrationPropertyImportRequestedSchema = z
   .object({
     _tag: z.literal('integration.property_import.requested').optional(),
@@ -1450,16 +1428,7 @@ export function registerAllEventSchemas(): void {
     version: EVENT_VERSION,
     schema: integrationPropertyImportRetentionReleasedSchema,
   })
-  registerEventSchema({
-    type: 'ai.property_trend.generation_requested',
-    version: EVENT_VERSION,
-    schema: aiPropertyTrendGenerationRequestedSchema,
-  })
-  registerEventSchema({
-    type: 'ai.review_analysis.backfill_requested',
-    version: EVENT_VERSION,
-    schema: aiReviewAnalysisBackfillRequestedSchema,
-  })
+  registerAiEventSchemas(EVENT_VERSION)
 
   // Guest events (consumed by metric). Corrected in place at v1: the three
   // legacy names below were never emitted, while the four domain tags here
