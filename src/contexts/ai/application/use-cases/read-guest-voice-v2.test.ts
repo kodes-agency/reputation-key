@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '#/shared/merchant-ai-notice-contract'
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type {
   AiGuestVoiceFactsPort,
@@ -93,6 +98,12 @@ type Options = Readonly<{
   capabilities?: readonly string[]
   localDate?: string | null
   hasV3?: boolean
+  /** What the consent was recorded under, where it is not the served contract. */
+  consent?: Partial<{
+    noticeVersion: string
+    noticeDigest: string
+    providerDeploymentProfileVersion: string
+  }>
   population?: readonly ReturnType<typeof counted>[]
   populationFor?: (request: Readonly<{ startLocalDate: string }>) => unknown
   facts?: Partial<GuestVoiceFactsRead> | null
@@ -107,6 +118,11 @@ function harness(options: Options = {}) {
     capabilities: options.capabilities ?? ['review_analysis'],
     authorizedSourceEpoch: 7,
     capabilityEpochs: { review_analysis: { epoch: 4 }, property_trends: { epoch: 9 } },
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    providerDeploymentProfileVersion:
+      getAiRuntimeCapability('review_analysis').providerDeploymentProfileVersion,
+    ...options.consent,
   }))
   const readTrendPopulation = vi.fn(async (request: { startLocalDate: string }) => {
     if (options.populationFor !== undefined) return options.populationFor(request)
@@ -221,6 +237,30 @@ describe('readGuestVoiceV2 authorization and gates', () => {
     expect(facts.hasV3Analyses).not.toHaveBeenCalled()
     expect(readTrendPopulation).not.toHaveBeenCalled()
   })
+
+  // The switch-on (2026-10-30): a consent recorded before it lapses at the deploy. Nothing is
+  // analysed for the Property until an AccountAdmin confirms the served notice, so Guest voice
+  // says AI is off (and the AI settings are where it is confirmed), not "being prepared".
+  it.each([
+    [
+      'a notice no longer in force',
+      { noticeVersion: 'merchant-ai-notice-2026-10-17.v1' },
+    ],
+    ['a digest that is not the notice’s', { noticeDigest: 'f'.repeat(64) }],
+    [
+      'the deployment profile that was replaced',
+      { providerDeploymentProfileVersion: 'private-beta-global-v1' },
+    ],
+  ])(
+    'answers disabled, reading no data, for a consent recorded under %s',
+    async (_name, consent) => {
+      const { read, facts, readTrendPopulation } = harness({ consent })
+
+      await expect(read(input)).resolves.toEqual({ status: 'disabled' })
+      expect(facts.hasV3Analyses).not.toHaveBeenCalled()
+      expect(readTrendPopulation).not.toHaveBeenCalled()
+    },
+  )
 
   it('answers not_v3, reading no reviews, for a Property with no v3 analysis', async () => {
     const { read, facts, readTrendPopulation } = harness({ hasV3: false })

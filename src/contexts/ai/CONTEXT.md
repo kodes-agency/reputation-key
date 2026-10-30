@@ -256,7 +256,9 @@ the daily star counts (`eraseReviewAnalysisV3Remainder`;
 rollback are `docs/operations/runbooks.md` section 32.
 
 What reads analysis data, after the switch-on: Guest voice reads one thing, the v3 read, and
-says "AI analysis is off" or "being prepared" where there is no page; a live quote is shown
+says "AI analysis is off" or "being prepared" where there is no page (a consent recorded under a
+notice or deployment profile no longer in force reads as off, because nothing is being prepared
+for it until an AccountAdmin confirms the served one); a live quote is shown
 only when the review's current source revision equals the analysed revision; the Overview row
 reads the same v3 read; a manager-typed cause passes the same name and four-word guards as an
 AI cause (`managerCauseRefusal`); the Inbox reads mentions, and an old `?aspect=` link finds
