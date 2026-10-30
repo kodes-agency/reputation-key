@@ -877,7 +877,10 @@ never set from the ledger, which spans generations. A review whose newest
 sequence settles without an analysis (deleted at Google, expired, its text
 removed, its analysis abandoned) is withdrawn from the daily aggregates, so a
 day counts only reviews analysed at their current sequence. A Trend schedule the
-head has moved past is stale, not retried. Two kinds of data written before
+head has moved past is stale, not retried. The Trend scheduler, the Trend store
+and the Trend report read take coverage from the head's count too, as the Trend
+run does, never from the ledger: a rolled generation is not scheduled and does
+not read caught up until it is rebuilt. Two kinds of data written before
 those corrections are not repaired by the code: a head short of the ledger, and
 a review that stayed in its days after it was deleted. `docs/operations/runbooks.md`
 §22 gives a read-only statement that finds each, and a statement that recounts

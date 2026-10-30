@@ -20,6 +20,11 @@ export type AggregateCoverageInput = Readonly<{
  * sequence after the authorization's start up to the review head, less the ones
  * the Review writer gave back; the aggregate is complete when `settledCount`
  * equals it.
+ *
+ * `settledCount` is the head's own `settled_analysis_count`, as the aggregate
+ * read and the trend scheduler count it, not the settlement ledger: the ledger
+ * spans profile versions and would call a rolled profile generation caught up
+ * while its head still waits for a rebuild.
  */
 export async function readAggregateCoverageFence(
   tx: Pick<Database, 'execute'>,
@@ -54,15 +59,7 @@ export async function readAggregateCoverageFence(
            )::float8 AS "expectedSettlementCount",
            aggregate."terminal_analysis_sequence"::float8 AS "terminalAnalysisSequence",
            aggregate."aggregate_revision"::float8 AS "aggregateRevision",
-           (
-             SELECT count(*)::float8
-             FROM "ai_property_aggregate_settlements" AS settlement
-             WHERE settlement."organization_id" = aggregate."organization_id"
-               AND settlement."property_id" = aggregate."property_id"
-               AND settlement."source_epoch" = aggregate."source_epoch"
-               AND settlement."review_analysis_epoch" =
-                 aggregate."review_analysis_epoch"
-           ) AS "settledCount"
+           aggregate."settled_analysis_count"::float8 AS "settledCount"
     FROM "review_ai_analysis_heads" AS review_head
     INNER JOIN "ai_property_aggregate_heads" AS aggregate
       ON aggregate."organization_id" = review_head."organization_id"
