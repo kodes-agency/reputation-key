@@ -195,7 +195,7 @@ describe('review analysis v3 schemas', () => {
   })
 
   it('sends the cause pattern to the provider as part of the strict wire schema', () => {
-    const wire = AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v3'] as {
+    const wire = AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v3'] as unknown as {
       properties: {
         mentions: {
           items: {
