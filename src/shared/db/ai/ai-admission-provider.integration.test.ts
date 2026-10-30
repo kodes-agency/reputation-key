@@ -1,7 +1,8 @@
 // Admission and settlement price an operation by the provider it was claimed under
 // (contract section 7.1). An operation that records none is a v2 operation and is
-// priced exactly as before; a provider with no price list and no pairing is not
-// priced at all, and nothing falls back to OpenAI's list for it. Real PostgreSQL.
+// priced exactly as before; one recorded under Anthropic is priced by Anthropic's
+// list, never OpenAI's (a provider with no list at all is refused and priced by
+// nothing: ai-provider-pricing.test.ts). Real PostgreSQL.
 
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
@@ -12,6 +13,8 @@ import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { maximumCostMicros, settledCostMicros } from '#/shared/ai-openai-provider-profile'
+import { settledCostMicrosWith } from '#/shared/ai-provider-pricing'
+import { priceCatalogueOfProvider } from '#/shared/ai-provider-pricing-registry'
 import type {
   AiAdmissionDescriptorV1,
   AiSettlementRequestV1,
@@ -322,15 +325,25 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
       })
     })
 
-    it('settles a call at no price list for nothing, but always lets a withheld dispatch release', async () => {
-      const subject = await granted()
-      await record(subject.operationId, ANTHROPIC)
+    it('prices an operation recorded under Anthropic by Anthropic’s list, and always lets a withheld dispatch release', async () => {
+      const anthropicList = priceCatalogueOfProvider('anthropic')
+      if (anthropicList === null) throw new Error('Anthropic has no price list')
+      const priced = await granted()
+      const withheld = await granted()
+      await record(priced.operationId, ANTHROPIC)
+      await record(withheld.operationId, ANTHROPIC)
 
       await expect(
-        authority.settle(settlement(subject, 'success', usage), SIGNING_KID),
-      ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
+        authority.settle(settlement(priced, 'success', usage), SIGNING_KID),
+      ).resolves.toMatchObject({
+        status: 'settled',
+        costMicros: Number(settledCostMicrosWith(anthropicList, usage)),
+      })
+      expect(settledCostMicrosWith(anthropicList, usage)).not.toBe(
+        settledCostMicros(usage),
+      )
       await expect(
-        authority.settle(settlement(subject, 'no_dispatch', usage), SIGNING_KID),
+        authority.settle(settlement(withheld, 'no_dispatch', usage), SIGNING_KID),
       ).resolves.toMatchObject({
         status: 'settled',
         costMicros: 0,
