@@ -16,7 +16,7 @@ describe('Anthropic attestation and operation pairing', () => {
       '92d66d958eef54038eff7e46116415a8ca114e3545757a2ca365f77b718b7a47',
     )
     expect(REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING.digest).toBe(
-      'e51d4daf192b53249d9cdd2189a537d8b2baec208cb72c2b1d813f0e18cd2731',
+      '5ca7a3cd91023082b119a237dd35b39d1f38d3b9c96b47f230e445c636b8c461',
     )
   })
 

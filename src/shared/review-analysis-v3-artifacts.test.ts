@@ -41,12 +41,12 @@ describe('review analysis v3 logical artifacts', () => {
       attentionFormulaDigest:
         '42473e84ab5b376cd06940ac4060b7e8c875100507247c91e70450d220bed687',
       providerAnswerSchemaDigest:
-        'dec7c35b4ab98677c64f5b74016af70f6a6192bc59a291044a6c264ea3ac6ef4',
+        '8c72e79976c6b784c679f671b798c41b71e78795542c7d80571e48cebde40154',
       storedSchemaDigest:
         '27eb2a788d851796e5e9a11ae69768f4981e7f2b1722154893cac51a9c10b685',
     })
     expect(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS_DIGEST).toBe(
-      '17c78ab9e0367e4f334055a88052a5c7f4d226103c80154342ada40edb9655c9',
+      '52f607fc4c80191d364f9fdd3436bc8bc1bc2315bf5173c5610f09de461d7177',
     )
     expect(Object.isFrozen(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS)).toBe(true)
   })

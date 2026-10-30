@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
+import { REVIEW_CAUSE_PHRASE_PATTERN } from '#/shared/review-analysis-v3'
 import { anthropicWireSchemaOf } from './schema-transform'
+
+// A cause phrase's bounds as the transform writes them into its description: the pattern
+// is not a keyword Anthropic's structured outputs enforce, so it travels as text.
+const CAUSE_DESCRIPTION = `{maxLength: 80, pattern: ${JSON.stringify(REVIEW_CAUSE_PHRASE_PATTERN.source)}}`
 
 const UNSUPPORTED = new Set([
   '$schema',
@@ -70,13 +75,13 @@ describe('Anthropic structured-output schema transform', () => {
               strength: { type: 'string', enum: ['mild', 'clear', 'strong'] },
               thing: {
                 anyOf: [
-                  { type: 'string', description: '{maxLength: 80}' },
+                  { type: 'string', description: CAUSE_DESCRIPTION },
                   { type: 'null' },
                 ],
               },
               issue: {
                 anyOf: [
-                  { type: 'string', description: '{maxLength: 80}' },
+                  { type: 'string', description: CAUSE_DESCRIPTION },
                   { type: 'null' },
                 ],
               },
@@ -130,7 +135,7 @@ describe('Anthropic structured-output schema transform', () => {
       additionalProperties: false,
     })
     expect(mentions.description).toBe('{maxItems: 48}')
-    expect(thing?.[0]?.description).toBe('{maxLength: 80}')
+    expect(thing?.[0]?.description).toBe(CAUSE_DESCRIPTION)
     expect(sentences?.description).toBe('{maxItems: 16}')
     expect((sentences?.items as Record<string, unknown>).description).toBe(
       '{maximum: 10000, minimum: 1}',
