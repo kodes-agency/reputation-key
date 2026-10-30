@@ -564,9 +564,10 @@ and may reach none of provider input, logs or events.
 ### Evaluation harness (dark)
 
 `pnpm eval:review-analysis-v3` (`scripts/evaluation/`) measures a provider against the synthetic
-test set in `test-fixtures/review-analysis-v3/` (400 invented reviews, 395 with a settled gold
-label; the owner still settles `cl-0021`, `cl-0054`, `cl-0163`, `cl-0174` and `cl-0188`, which no
-score includes). It asks the production question: each review goes through the Review context's
+test set in `test-fixtures/review-analysis-v3/` (424 invented reviews, 419 with a settled gold
+label in `gold-v1.1.jsonl`; the owner still settles `cl-0021`, `cl-0054`, `cl-0163`, `cl-0174` and
+`cl-0188`, which no score includes). 24 of the reviews are Bulgarian and Spanish Urgent and near-miss
+items, so Urgent recall can be read in all three languages (44 Urgent cases: 30 English, 7 each). It asks the production question: each review goes through the Review context's
 source canonicalizer and sentence splitter, the deterministic redactor, the production prompt, answer
 schema and request payload (the Property's vocabulary hints chosen from the review's business), and
 the one place a provider answer becomes the stored contract (`acceptReviewAnalysisV3Answer`).
@@ -576,18 +577,24 @@ Urgent that is a review whose danger nobody saw.
 
 The reference is the gold as the production normalizer accepts it, so a label the stored contract
 cannot hold (an `issue` such as "30 minutes") does not count against a provider; the report names
-the labels that changed (`cl-0090`, `cl-0147`, `cl-0179`). It also names the reviews the redactor
+the labels that changed (none in gold v1.1, which words the three that changed in v1 so the contract
+holds them). The loader refuses a gold label whose `thing` is a generic word (annotation guide v3.3,
+rule 3: place, staff, team, welcome, price, location...; `src/shared/review-generic-things.ts`, the
+list the prompt gives the model). The report also names the reviews the redactor
 changed (`cl-0041`, `cl-0138`, `cl-0184`: it reads "oil.For" and "working.Not", a missing space
 after a full stop, as web addresses) and any review the live path would not send. Causes are
 compared through `property-issue-normalization-v1`, so "ac" agrees with "air conditioning".
 
-The gates are decision 6 of the contract decisions (`docs/plan/guest-voice-2.md`), read for the
-whole set and for English, Bulgarian and Spanish: Urgent with zero safety or health misses, at
-least 95% recall and at most 2% of non-urgent reviews flagged; topic micro F1 at least 0.85 and no
-topic with gold support below 0.70; thing agreement at least 0.70. A gate over nothing is "not
-measurable", never a pass. The set holds no urgent case outside English, so Bulgarian and Spanish
-Urgent recall cannot be read until it does; a provider passes only if no measured gate fails and
-every gate over the whole set could be read. Sentiment, polarity, strength, evidence sentences,
+The gates are decision 6 of the contract decisions (`docs/plan/guest-voice-2.md`), as gates v2
+(`review-analysis-gates-v2`) read them after the first OpenAI measurement, for the whole set and
+for English, Bulgarian and Spanish: Urgent with zero safety or health misses, at least 95% recall
+and at most 2% of non-urgent reviews flagged; topic micro F1 at least 0.85 and no topic below 0.70
+in a slice that holds at least 10 gold reviews of it (a smaller topic is scored and named in the
+gate's note, not held to the floor); thing agreement at least 0.60, after the same normalisation of
+the gold and the answer (the two labelling families agree with each other at 0.59 by this metric).
+The reasons are in ADR 0031, amendment of 2026-10-30, part (b), and in the header of
+`review-analysis-v3-gates.ts`. A gate over nothing is "not measurable", never a pass; a provider
+passes only if no measured gate fails and every gate over the whole set could be read. Sentiment, polarity, strength, evidence sentences,
 the names flag (with the count of named people the answer missed), robustness, run-to-run
 disagreement and the context slices (other languages, business family, length, sarcasm, rating
 conflicts, near misses) are reported, not gated.
@@ -601,8 +608,10 @@ test pins that. Reports (`report.json`, `report.html`, one labels file per provi
 review's text or a provider's raw answer.
 
 Left for the slices that need it: the evaluation transport for the real providers with their own
-evaluation keys and the dated model snapshots (decision 4), the live slice's evaluation table
-(ADR 0031, amended 2026-10-30) and urgent cases in Bulgarian and Spanish (3.10, the owner).
+evaluation keys and the dated model snapshots (decision 4), and the live slice's evaluation table
+(ADR 0031, amended 2026-10-30). The first quality check against OpenAI ran outside this command: a
+bundle of the harness's own preparation, prompt, schema and normalizer ran inside the beta worker
+with synthetic items and wrote nothing; its answers were scored here with `answers:<file>`.
 
 ## Runtime
 
