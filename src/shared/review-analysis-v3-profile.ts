@@ -1,6 +1,7 @@
 import '@tanstack/react-start/server-only'
 import { defineLogicalOperationProfile } from './ai-logical-operation-profile'
 import { openAiPairingOf } from './ai-openai-provider-attestation'
+import { anthropicPairingOf } from './ai-provider-control/anthropic/attestation'
 import {
   PROPERTY_CALENDAR_ATTESTATION,
   REVIEW_SOURCE_ATTESTATION,
@@ -69,5 +70,10 @@ export const REVIEW_ANALYSIS_V3_LOGICAL_PROFILE = defineLogicalOperationProfile(
 
 /** The v3 profile as OpenAI carries it: the pairing an OpenAI-served v3 operation would use. */
 export const REVIEW_ANALYSIS_V3_OPENAI_PAIRING = openAiPairingOf(
+  REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
+)
+
+/** The dark v3 profile as Anthropic carries it; activation does not happen here. */
+export const REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING = anthropicPairingOf(
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
 )

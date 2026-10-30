@@ -17,9 +17,28 @@ export type OpenAiStatusDisposition = Readonly<{
   circuitFailure: boolean
 }>
 
-export function classifyOpenAiStatus(status: number): OpenAiStatusDisposition {
+export type ProviderStatusDispositionBase = Readonly<{
+  status: number
+  disposition:
+    | 'success'
+    | 'rate_limited'
+    | 'quota_exhausted'
+    | 'provider_unavailable'
+    | 'provider_refused'
+  retryable: boolean
+  circuitFailure: boolean
+}>
+
+export function classifyProviderStatusBase(
+  status: number,
+  input: Readonly<{
+    label: string
+    retryableUnavailableStatuses: readonly number[]
+    quotaStatuses?: readonly number[]
+  }>,
+): ProviderStatusDispositionBase {
   if (!Number.isSafeInteger(status) || status < 100 || status > 599) {
-    throw new TypeError('Invalid OpenAI HTTP status')
+    throw new TypeError(`Invalid ${input.label} HTTP status`)
   }
   if (status === 200) {
     return Object.freeze({
@@ -37,7 +56,7 @@ export function classifyOpenAiStatus(status: number): OpenAiStatusDisposition {
       circuitFailure: true,
     })
   }
-  if (status === 500 || status === 502 || status === 503 || status === 504) {
+  if (input.retryableUnavailableStatuses.includes(status)) {
     return Object.freeze({
       status,
       disposition: 'provider_unavailable',
@@ -45,15 +64,15 @@ export function classifyOpenAiStatus(status: number): OpenAiStatusDisposition {
       circuitFailure: true,
     })
   }
-  if (
-    status >= 400 &&
-    status <= 499 &&
-    status !== 401 &&
-    status !== 403 &&
-    status !== 404 &&
-    status !== 408 &&
-    status !== 409
-  ) {
+  if (input.quotaStatuses?.includes(status) === true) {
+    return Object.freeze({
+      status,
+      disposition: 'quota_exhausted',
+      retryable: false,
+      circuitFailure: false,
+    })
+  }
+  if (status >= 400 && status <= 499 && ![401, 403, 404, 408, 409].includes(status)) {
     return Object.freeze({
       status,
       disposition: 'provider_refused',
@@ -67,6 +86,13 @@ export function classifyOpenAiStatus(status: number): OpenAiStatusDisposition {
     retryable: false,
     circuitFailure: true,
   })
+}
+
+export function classifyOpenAiStatus(status: number): OpenAiStatusDisposition {
+  return classifyProviderStatusBase(status, {
+    label: 'OpenAI',
+    retryableUnavailableStatuses: [500, 502, 503, 504],
+  }) as OpenAiStatusDisposition
 }
 
 const OPENAI_QUOTA_ERROR = 'insufficient_quota'
@@ -106,6 +132,47 @@ export type OpenAiRefusal = Readonly<{
   retryAfterSeconds: number | null
 }>
 
+export type ProviderRefusalBase = Readonly<{
+  disposition:
+    'rate_limited' | 'quota_exhausted' | 'provider_unavailable' | 'provider_refused'
+  providerRetryable: boolean
+  usageKnown: boolean
+  retryAfterSeconds: number | null
+}>
+
+export function classifyProviderRefusalBase(
+  response: Readonly<{
+    completeStatus: number | null
+    decodedResponseBytes: Uint8Array | null
+    retryAfterSeconds: number | null
+  }>,
+  input: Readonly<{
+    incompleteMessage: string
+    successMessage: string
+    classifyStatus(status: number): ProviderStatusDispositionBase
+    isQuota(status: number, bytes: Uint8Array | null): boolean
+  }>,
+): ProviderRefusalBase {
+  const status = response.completeStatus
+  if (status === null) throw new TypeError(input.incompleteMessage)
+  const classified = input.classifyStatus(status)
+  if (classified.disposition === 'success') throw new TypeError(input.successMessage)
+  if (input.isQuota(status, response.decodedResponseBytes)) {
+    return Object.freeze({
+      disposition: 'quota_exhausted',
+      providerRetryable: false,
+      usageKnown: true,
+      retryAfterSeconds: null,
+    })
+  }
+  return Object.freeze({
+    disposition: classified.disposition,
+    providerRetryable: classified.retryable,
+    usageKnown: classified.retryable,
+    retryAfterSeconds: classified.retryable ? response.retryAfterSeconds : null,
+  })
+}
+
 /**
  * A complete answer other than 200, as the connector's one-shot fetch recorded
  * it: the outcome fields the connector reports for it. A 429 or a 500, 502, 503 or 504 is a
@@ -125,27 +192,13 @@ export function classifyOpenAiRefusal(
   }>,
   maxBytes: number,
 ): OpenAiRefusal {
-  const status = response.completeStatus
-  if (status === null) throw new TypeError('An incomplete answer is no refusal')
-  const classified = classifyOpenAiStatus(status)
-  if (classified.disposition === 'success') throw new TypeError('A 200 is no refusal')
-  if (
-    status === 429 &&
-    isOpenAiQuotaExhaustedBody(response.decodedResponseBytes, maxBytes)
-  ) {
-    return Object.freeze({
-      disposition: 'quota_exhausted',
-      providerRetryable: false,
-      usageKnown: true,
-      retryAfterSeconds: null,
-    })
-  }
-  return Object.freeze({
-    disposition: classified.disposition,
-    providerRetryable: classified.retryable,
-    usageKnown: classified.retryable,
-    retryAfterSeconds: classified.retryable ? response.retryAfterSeconds : null,
-  })
+  return classifyProviderRefusalBase(response, {
+    incompleteMessage: 'An incomplete answer is no refusal',
+    successMessage: 'A 200 is no refusal',
+    classifyStatus: classifyOpenAiStatus,
+    isQuota: (status, bytes) =>
+      status === 429 && isOpenAiQuotaExhaustedBody(bytes, maxBytes),
+  }) as OpenAiRefusal
 }
 
 // Normalize-then-compare rather than one regex. The regex this replaced nested

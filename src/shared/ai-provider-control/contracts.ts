@@ -14,6 +14,7 @@ import type {
   AiProviderId,
   AiProviderOutcome,
   AiProviderUsage,
+  PreparedInvocationBase,
 } from './provider-contracts'
 export type { PreparedAiInvocation } from './prepared-invocation'
 export type { ProductAiGatewayRoute } from './provider-contracts'
@@ -95,7 +96,9 @@ export type PreparedGatewayRouteExecution = Readonly<{
    * gateway may hand it to. Absent on a v2 route: every v2 route is OpenAI's.
    */
   providerId?: AiProviderId
-  invocation: PreparedAiInvocation
+  // Orchestration reads only the provider-neutral fields; the request itself is
+  // the adapter's own (`sdkRequest` has one shape per provider).
+  invocation: PreparedInvocationBase
   outputSchema: z.ZodTypeAny
   acceptProviderResult(result: unknown): AcceptedGatewayResult | null
 }>

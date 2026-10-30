@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import type { OpenAiUsageV1, PreparedAiInvocation } from './contracts'
+import { providerUsageOfDecodedBody } from './connector-boundary'
 
 function inputTokenCeiling(invocation: PreparedAiInvocation): number | null {
   const operationProfileVersion =
@@ -114,13 +115,5 @@ export function usageOfDecodedBody(
   bytes: Uint8Array | null,
   invocation: PreparedAiInvocation,
 ): OpenAiUsageV1 | null {
-  if (bytes === null) return null
-  let body: unknown
-  try {
-    body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
-  } catch {
-    return null
-  }
-  if (typeof body !== 'object' || body === null) return null
-  return parseUsage((body as Readonly<{ usage?: unknown }>).usage, invocation)
+  return providerUsageOfDecodedBody(bytes, invocation, parseUsage)
 }

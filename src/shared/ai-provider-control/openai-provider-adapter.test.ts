@@ -11,7 +11,7 @@ import {
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
 import type { OpenAiConnector, OpenAiConnectorOutcome } from './contracts'
-import { evidencePreparer } from './review-evidence.test-fixtures'
+import { evidencePreparer, openAiRequestOf } from './review-evidence.test-fixtures'
 import {
   createOpenAiProviderAdapter,
   createOpenAiProviderPreparation,
@@ -155,7 +155,7 @@ describe('OpenAI behind the provider seam', () => {
     expect(Buffer.from(again.canonicalProviderBytes)).toEqual(
       Buffer.from(prepared.invocation.canonicalProviderBytes),
     )
-    expect(again.sdkRequest).toEqual(prepared.invocation.sdkRequest)
+    expect(again.sdkRequest).toEqual(openAiRequestOf(prepared))
     expect(again.descriptor.preparedDigest).toBe(
       prepared.invocation.descriptor.preparedDigest,
     )
@@ -185,7 +185,7 @@ describe('OpenAI behind the provider seam', () => {
       ]),
     }).prepare(request)
     const { logical } = recorded[0]!
-    const sdkRequest = prepared.invocation.sdkRequest
+    const sdkRequest = openAiRequestOf(prepared)
 
     expect(sdkRequest).toMatchObject({
       model: 'gpt-5.6-luna',

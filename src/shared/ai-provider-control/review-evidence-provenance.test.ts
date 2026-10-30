@@ -23,6 +23,7 @@ import {
   evidencePreparer,
   fakeGrant,
   fakeSettlementReceipt,
+  openAiRequestOf,
   preparableV3Request,
   v3TestProfile,
 } from './review-evidence.test-fixtures'
@@ -58,7 +59,7 @@ function runThroughTheGateway(
   const request = preparableV3Request({ rawText, reviewerDisplayName })
   const prepared = preparer().prepare(request)
   const payload = JSON.parse(
-    prepared.invocation.sdkRequest.input[1].content,
+    openAiRequestOf(prepared).input[1].content,
   ) as ProviderPayload
   // A provider that cites, for every sentence it read, exactly that sentence.
   const mentions = payload.sentences.map((sentence) => ({

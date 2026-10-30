@@ -149,7 +149,10 @@ describe('the price list of each provider', () => {
   })
 
   it('prices no provider it holds no list for, and falls back to nothing', () => {
-    expect(priceCatalogueOfProvider('anthropic')).toBeNull()
+    expect(priceCatalogueOfProvider('anthropic')).toMatchObject({
+      catalogueId: 'anthropic-claude-haiku-5-5-standard-2026-10-30',
+      modelSnapshot: 'claude-haiku-5-5',
+    })
     for (const unknown of [
       '',
       'google',

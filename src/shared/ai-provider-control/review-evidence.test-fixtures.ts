@@ -17,10 +17,19 @@ import {
   REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
 } from '#/shared/review-analysis-v3-profile'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import type { PreparedGatewayRouteExecution } from './contracts'
+import type { PreparedAiInvocation } from './prepared-invocation'
 import {
   createAiGatewayRoutePreparer,
   type RoutePreparationProfile,
 } from './route-preparer'
+
+/** The OpenAI request a route prepared; another provider's request has its own shape. */
+export function openAiRequestOf(
+  prepared: Pick<PreparedGatewayRouteExecution, 'invocation'>,
+): PreparedAiInvocation['sdkRequest'] {
+  return (prepared.invocation as PreparedAiInvocation).sdkRequest
+}
 
 /** The dark v3 profile as a catalogue entry served by OpenAI. */
 export function v3TestProfile(): RoutePreparationProfile {

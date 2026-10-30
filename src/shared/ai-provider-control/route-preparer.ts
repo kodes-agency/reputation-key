@@ -76,7 +76,7 @@ import {
   type AiGatewayRoutePreparer,
   type PreparedGatewayRouteExecution,
 } from './contracts'
-import type { DerivedDescriptorFacts, PreparedAiInvocation } from './prepared-invocation'
+import type { DerivedDescriptorFacts } from './prepared-invocation'
 import { createOpenAiProviderPreparation } from './openai-provider-adapter'
 import type { AiProviderId, AiProviderPreparation } from './provider-contracts'
 import {
@@ -173,9 +173,9 @@ function reservationMicros(
  * never answered by another provider (`provider-selection.ts`).
  */
 function providerFor(
-  registry: AiProviderRegistry<AiProviderPreparation<PreparedAiInvocation>>,
+  registry: AiProviderRegistry<AiProviderPreparation>,
   profile: RoutePreparationProfile,
-): AiProviderPreparation<PreparedAiInvocation> {
+): AiProviderPreparation {
   try {
     return selectAiProvider(registry, {
       capability: profile.capability,
@@ -202,7 +202,7 @@ function providerFor(
 function assertClaimedProvider(
   request: AiGatewayRouteRequestV1,
   profile: RoutePreparationProfile,
-  provider: AiProviderPreparation<PreparedAiInvocation>,
+  provider: AiProviderPreparation,
 ): void {
   const claimed = request.route === 'review-analysis' ? request.provider : undefined
   if (claimed === undefined) {
@@ -365,7 +365,7 @@ export function createAiGatewayRoutePreparer(
      * The providers that can shape a request, and the operator's choice among
      * them. Defaults to OpenAI alone, which is every v2 route.
      */
-    providers?: AiProviderRegistry<AiProviderPreparation<PreparedAiInvocation>>
+    providers?: AiProviderRegistry<AiProviderPreparation>
     /**
      * Content-free notice of WHICH output rule refused a reply draft.
      *

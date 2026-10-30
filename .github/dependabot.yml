@@ -59,13 +59,25 @@ updates:
         # confirming it sends the same header set and request body, then moving
         # the pin, the contract and the fixtures together (#606).
         #
+        # `@anthropic-ai/sdk` is held the same way, for the same reason, while the
+        # Anthropic adapter is dark. 1.3.0 appears in
+        # `ANTHROPIC_PROVIDER_DEPLOYMENT_CONTRACT_V1.sdkVersion` and in the
+        # exact-header allowlist `expectedPinnedAnthropicSdkHeaders`
+        # (src/shared/ai-provider-control/anthropic/), which refuses dispatch unless
+        # the SDK's `user-agent`, `x-stainless-package-version` and
+        # `anthropic-version` match the attested values byte for byte. Landing a new
+        # one means probing it against a capturing `fetch`, then moving the pin, the
+        # contract and the fixtures together.
+        #
         # No pattern uses a wildcard, so `vite` matches only vite (vitest and
         # @vitejs/* stay grouped), `better-auth` only better-auth
-        # (@better-auth/* stay grouped), and `openai` only openai.
+        # (@better-auth/* stay grouped), `openai` only openai, and `@anthropic-ai/sdk`
+        # only that package.
         exclude-patterns:
           - vite
           - better-auth
           - openai
+          - '@anthropic-ai/sdk'
     # Held on purpose; each lands as deliberate work, not as a chore bump.
     #
     # React 19.3 alone adds ~8.6 KB gzip to `vendor-react`, which takes the

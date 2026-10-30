@@ -14,6 +14,7 @@ import {
 import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from './review-analysis-v3-artifacts'
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from './review-analysis-v3-prompt'
 import {
+  REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
   REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
 } from './review-analysis-v3-profile'
@@ -196,7 +197,9 @@ describe('the v3 profile as OpenAI would serve it', () => {
     expect(operationProviderPairing('review-analysis-v3', 'openai')).toBe(
       REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
     )
-    expect(operationProviderPairing('review-analysis-v3', 'anthropic')).toBeNull()
+    expect(operationProviderPairing('review-analysis-v3', 'anthropic')).toBe(
+      REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,
+    )
     for (const live of AI_OPERATION_PROFILES) {
       expect(operationProviderPairing(live.profileVersion, 'openai')).toMatchObject({
         staticTokenBearing: {

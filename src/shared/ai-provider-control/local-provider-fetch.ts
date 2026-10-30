@@ -1,18 +1,11 @@
-import { request as undiciRequest } from 'undici'
 import {
   OPENAI_RESPONSES_URL,
   OPENAI_USER_AGENT,
 } from '#/shared/ai-provider-control/contracts'
+import { createProviderForwardFetch } from './connector-boundary'
 
 const LOCAL_PROVIDER_RESPONSES_URL = 'http://ai-provider-stub:4102/v1/responses'
 const CLIENT_REQUEST_ID = /^rk_ai_[A-Za-z0-9_-]{43}$/u
-
-function bodyBytes(body: BodyInit | null | undefined): Buffer {
-  if (typeof body === 'string') return Buffer.from(body, 'utf8')
-  if (body instanceof Uint8Array) return Buffer.from(body)
-  if (body instanceof ArrayBuffer) return Buffer.from(new Uint8Array(body))
-  throw new TypeError('Local AI provider request body is invalid')
-}
 
 function assertHeaders(headers: Headers): void {
   const entries = [...headers.entries()]
@@ -26,16 +19,6 @@ function assertHeaders(headers: Headers): void {
   ) {
     throw new TypeError('Local AI provider request headers are invalid')
   }
-}
-
-function responseHeader(
-  headers: Record<string, string | string[] | undefined>,
-  name: string,
-): string | null {
-  const value = headers[name]
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value.join(', ')
-  return null
 }
 
 /**
@@ -54,63 +37,11 @@ function responseHeader(
  * refuses even that choice in a deployed cell.
  */
 export function createLocalAiProviderFetch(): typeof fetch {
-  return (async (requestInfo: string | URL | Request, init?: RequestInit) => {
-    const logicalUrl =
-      typeof requestInfo === 'string' || requestInfo instanceof URL
-        ? new URL(requestInfo)
-        : new URL(requestInfo.url)
-    const method =
-      init?.method ?? (requestInfo instanceof Request ? requestInfo.method : 'GET')
-    if (
-      logicalUrl.href !== OPENAI_RESPONSES_URL ||
-      method !== 'POST' ||
-      init?.redirect !== 'manual'
-    ) {
-      throw new TypeError('Local AI provider destination is invalid')
-    }
-    const headers = new Headers(
-      init?.headers ?? (requestInfo instanceof Request ? requestInfo.headers : undefined),
-    )
-    assertHeaders(headers)
-    const ownedBodyBytes = bodyBytes(
-      init?.body ?? (requestInfo instanceof Request ? requestInfo.body : null),
-    )
-    let response: Awaited<ReturnType<typeof undiciRequest>>
-    try {
-      response = await undiciRequest(LOCAL_PROVIDER_RESPONSES_URL, {
-        method: 'POST',
-        headers: Object.fromEntries(headers.entries()),
-        body: ownedBodyBytes,
-        signal: init?.signal ?? undefined,
-      })
-    } finally {
-      ownedBodyBytes.fill(0)
-    }
-    const sanitizedHeaders = new Headers()
-    for (const name of ['content-type', 'content-encoding', 'retry-after'] as const) {
-      const value = responseHeader(response.headers, name)
-      if (value !== null) sanitizedHeaders.set(name, value)
-    }
-    const iterator = response.body[Symbol.asyncIterator]()
-    const body = new ReadableStream<Uint8Array>({
-      async pull(controller) {
-        try {
-          const next = await iterator.next()
-          if (next.done) controller.close()
-          else controller.enqueue(next.value)
-        } catch (error) {
-          response.body.destroy()
-          controller.error(error)
-        }
-      },
-      async cancel() {
-        response.body.destroy()
-        await iterator.return?.()
-      },
-    })
-    return new Response(body, {
-      status: response.statusCode,
-      headers: sanitizedHeaders,
-    })
-  }) as typeof fetch
+  return createProviderForwardFetch({
+    logicalUrl: OPENAI_RESPONSES_URL,
+    destinationUrl: LOCAL_PROVIDER_RESPONSES_URL,
+    assertHeaders,
+    invalidError: () => new TypeError('Local AI provider destination is invalid'),
+    invalidBodyError: () => new TypeError('Local AI provider request body is invalid'),
+  })
 }

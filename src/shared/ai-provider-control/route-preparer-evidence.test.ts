@@ -19,6 +19,7 @@ import {
   evidencePreparer,
   fakeGrant,
   fakeSettlementReceipt,
+  openAiRequestOf,
   preparableV3Request,
   v3TestProfile,
 } from './review-evidence.test-fixtures'
@@ -54,7 +55,7 @@ function refusal(action: () => unknown): string {
 }
 
 function providerPayload(prepared: ReturnType<ReturnType<typeof v3Preparer>['prepare']>) {
-  return JSON.parse(prepared.invocation.sdkRequest.input[1].content) as {
+  return JSON.parse(openAiRequestOf(prepared).input[1].content) as {
     rating: number
     languageCode: string
     propertyContext: unknown
@@ -101,8 +102,8 @@ describe('review-analysis v3 request preparation', () => {
       { number: 2, text: 'Check-in took an hour.' },
       { number: 3, text: 'Nobody answered the phone!' },
     ])
-    expect(prepared.invocation.sdkRequest.input[1].content).not.toContain('reviewText')
-    expect(prepared.invocation.sdkRequest.input[1].content).not.toContain(
+    expect(openAiRequestOf(prepared).input[1].content).not.toContain('reviewText')
+    expect(openAiRequestOf(prepared).input[1].content).not.toContain(
       request.source.text ?? 'unreachable',
     )
   })
@@ -114,8 +115,8 @@ describe('review-analysis v3 request preparation', () => {
     )
 
     expect(prepared.outputSchema).toBe(REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA)
-    expect(prepared.invocation.sdkRequest.text.format.name).toBe('review_analysis_v3')
-    expect(prepared.invocation.sdkRequest.input[0].content).toBe(profile.developerPrompt)
+    expect(openAiRequestOf(prepared).text.format.name).toBe('review_analysis_v3')
+    expect(openAiRequestOf(prepared).input[0].content).toBe(profile.developerPrompt)
     expect(prepared.invocation.descriptor.limits).toMatchObject({
       sourceBytes: profile.sourceByteLimit,
       providerPayloadBytes: profile.providerPayloadByteLimit,

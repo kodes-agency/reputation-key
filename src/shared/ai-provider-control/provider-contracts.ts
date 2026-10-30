@@ -121,6 +121,11 @@ export type AiProviderPreparation<
 export type AiProviderConnection<
   Invocation extends PreparedInvocationBase = PreparedInvocationBase,
 > = Readonly<{
+  /**
+   * The connector does not apply the route's strict answer schema when a provider
+   * enforces only part of it on the wire. A billed answer that is merely out of
+   * range is repaired by `acceptProviderResult`, the single acceptance point.
+   */
   invoke(
     invocation: Invocation,
     grant: AiExecutionGrantV1,

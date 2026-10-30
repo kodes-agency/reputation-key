@@ -29,6 +29,7 @@ import {
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
 import { type AiReplyOutputRefusal, createAiGatewayRoutePreparer } from './route-preparer'
+import { openAiRequestOf } from './review-evidence.test-fixtures'
 import { createSensitiveSourceLease } from './source-lease'
 
 const UUID = {
@@ -386,14 +387,14 @@ describe('gateway route-preparer source lifetime', () => {
       reliable: true,
     })).prepare(request)
 
-    expect(JSON.parse(prepared.invocation.sdkRequest.input[1].content)).toMatchObject({
+    expect(JSON.parse(openAiRequestOf(prepared).input[1].content)).toMatchObject({
       propertyDisplayName: 'Example Hotel',
       reviewText: request.source.text,
       languageCode: 'bg-Cyrl-BG',
       tone: 'professional',
     })
     expect(
-      Object.keys(JSON.parse(prepared.invocation.sdkRequest.input[1].content)).sort(),
+      Object.keys(JSON.parse(openAiRequestOf(prepared).input[1].content)).sort(),
     ).toEqual([
       'languageCode',
       'propertyDisplayName',

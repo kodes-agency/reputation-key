@@ -60,16 +60,16 @@ export type AiProviderAttestationFacts = Readonly<{
 export type AiProviderAttestation = AiProviderAttestationFacts &
   Readonly<{ attestationVersion: typeof AI_PROVIDER_ATTESTATION_VERSION; digest: string }>
 
-function digestOf(domain: string, value: unknown): string {
+export function digestProviderAttestationValue(domain: string, value: unknown): string {
   return createHash('sha256')
     .update(domain, 'utf8')
     .update(canonicalizeRfc8785(value), 'utf8')
     .digest('hex')
 }
 
-function deepFreeze<Value>(value: Value): Value {
+export function deepFreezeProviderContract<Value>(value: Value): Value {
   if (typeof value === 'object' && value !== null) {
-    for (const child of Object.values(value)) deepFreeze(child)
+    for (const child of Object.values(value)) deepFreezeProviderContract(child)
     Object.freeze(value)
   }
   return value
@@ -80,10 +80,84 @@ export function defineProviderAttestation(
   facts: AiProviderAttestationFacts,
 ): AiProviderAttestation {
   const body = { attestationVersion: AI_PROVIDER_ATTESTATION_VERSION, ...facts }
-  return deepFreeze({
+  return deepFreezeProviderContract({
     ...body,
-    digest: digestOf('repkey-ai-provider-attestation-v1\0', body),
+    digest: digestProviderAttestationValue('repkey-ai-provider-attestation-v1\0', body),
   })
+}
+
+export function providerDeploymentAttestationFacts(
+  input: Readonly<{
+    providerId: AiProviderId
+    requestProfileVersion: string
+    model: string
+    adapterName: string
+    sdkName: string
+    sdkVersion: string
+    requestShapeVersion: string
+    requestShapeDigest: string
+    dnsPolicy: string
+    headerProfile: string
+    usageProfile: string
+    claimsDigest: string
+    pricing: AiProviderPriceCatalogue
+    deployment: Readonly<{
+      endpoint: string
+      dispatcherVersion: string
+      redirectMode: string
+      sdkMaxRetries: number
+      maxHttpRequestsPerPermit: number
+      possibleDispatchBoundary: string
+      successStatus: number
+      successMediaTypeProfile: string
+      clientRequestIdProfile: string
+      statusDispositionProfile: string
+      retryableCompleteStatuses: readonly number[]
+      retryAfterProfile: string
+      evidence: Readonly<{ retrievalDate: string }>
+    }>
+  }>,
+): AiProviderAttestationFacts {
+  const deployment = input.deployment
+  return {
+    providerId: input.providerId,
+    requestProfileVersion: input.requestProfileVersion,
+    model: input.model,
+    adapter: { name: input.adapterName, version: 'v1' },
+    sdk: { name: input.sdkName, version: input.sdkVersion },
+    requestShape: {
+      version: input.requestShapeVersion,
+      digest: input.requestShapeDigest,
+    },
+    transport: {
+      endpoint: deployment.endpoint,
+      dnsPolicy: input.dnsPolicy,
+      headerProfile: input.headerProfile,
+      dispatcher: deployment.dispatcherVersion,
+      redirectMode: deployment.redirectMode,
+      sdkMaxRetries: deployment.sdkMaxRetries,
+      maxHttpRequestsPerPermit: deployment.maxHttpRequestsPerPermit,
+      possibleDispatchBoundary: deployment.possibleDispatchBoundary,
+      successStatus: deployment.successStatus,
+      successMediaTypeProfile: deployment.successMediaTypeProfile,
+      clientRequestIdProfile: deployment.clientRequestIdProfile,
+    },
+    usage: { profile: input.usageProfile },
+    dispositions: {
+      profile: deployment.statusDispositionProfile,
+      retryableCompleteStatuses: [...deployment.retryableCompleteStatuses],
+      retryAfterProfile: deployment.retryAfterProfile,
+    },
+    pricing: input.pricing,
+    rateLimit: {
+      admission: 'ai-lane-admission-adr-0058',
+      retryAfterProfile: deployment.retryAfterProfile,
+    },
+    posture: {
+      claimsDigest: input.claimsDigest,
+      retrievalDate: deployment.evidence.retrievalDate,
+    },
+  }
 }
 
 /** What an operation row records about the request: model, kind and exact digest. */
@@ -114,9 +188,12 @@ export type AiOperationProviderPairing = Readonly<{
 export function defineOperationProviderPairing(
   input: Omit<AiOperationProviderPairing, 'digest'>,
 ): AiOperationProviderPairing {
-  return deepFreeze({
+  return deepFreezeProviderContract({
     ...input,
-    digest: digestOf('repkey-ai-operation-provider-pairing-v1\0', input),
+    digest: digestProviderAttestationValue(
+      'repkey-ai-operation-provider-pairing-v1\0',
+      input,
+    ),
   })
 }
 
@@ -148,7 +225,10 @@ export function defineProviderDeploymentEnvelope(
       throw new TypeError(`provider ${attestation.providerId} is attested twice`)
     }
     const { digest, ...facts } = attestation
-    if (digestOf('repkey-ai-provider-attestation-v1\0', facts) !== digest) {
+    if (
+      digestProviderAttestationValue('repkey-ai-provider-attestation-v1\0', facts) !==
+      digest
+    ) {
       throw new TypeError(`the attestation of ${attestation.providerId} is not sealed`)
     }
     providers[attestation.providerId] = digest
@@ -158,8 +238,11 @@ export function defineProviderDeploymentEnvelope(
     region: input.region,
     providers,
   }
-  return deepFreeze({
+  return deepFreezeProviderContract({
     ...body,
-    profileDigest: digestOf('repkey-ai-provider-deployment-envelope-v1\0', body),
+    profileDigest: digestProviderAttestationValue(
+      'repkey-ai-provider-deployment-envelope-v1\0',
+      body,
+    ),
   })
 }

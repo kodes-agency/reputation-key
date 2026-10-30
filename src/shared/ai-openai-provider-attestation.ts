@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto'
-import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import {
   OPENAI_MODEL_SNAPSHOT,
   renderOpenAiStaticTokenBearingMaterial,
@@ -11,8 +9,10 @@ import {
   OPENAI_REQUEST_SHAPE_V1_DIGEST,
 } from './ai-openai-provider-profile'
 import {
+  digestProviderAttestationValue,
   defineOperationProviderPairing,
   defineProviderAttestation,
+  providerDeploymentAttestationFacts,
   type AiOperationProviderPairing,
 } from './ai-provider-attestations'
 
@@ -31,52 +31,24 @@ import {
 
 const CONTRACT = OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1
 
-export const OPENAI_PROVIDER_ATTESTATION_V1 = defineProviderAttestation({
-  providerId: 'openai',
-  requestProfileVersion: 'openai-responses-request-profile-v1',
-  model: OPENAI_MODEL_SNAPSHOT,
-  adapter: { name: 'openai-responses-adapter', version: 'v1' },
-  sdk: { name: 'openai', version: CONTRACT.sdkVersion },
-  requestShape: {
-    version: 'openai-responses-request-shape-v1',
-    digest: OPENAI_REQUEST_SHAPE_V1_DIGEST,
-  },
-  transport: {
-    endpoint: CONTRACT.endpoint,
+export const OPENAI_PROVIDER_ATTESTATION_V1 = defineProviderAttestation(
+  providerDeploymentAttestationFacts({
+    providerId: 'openai',
+    requestProfileVersion: 'openai-responses-request-profile-v1',
+    model: OPENAI_MODEL_SNAPSHOT,
+    adapterName: 'openai-responses-adapter',
+    sdkName: 'openai',
+    sdkVersion: CONTRACT.sdkVersion,
+    requestShapeVersion: 'openai-responses-request-shape-v1',
+    requestShapeDigest: OPENAI_REQUEST_SHAPE_V1_DIGEST,
     dnsPolicy: 'openai-restricted-lookup-v1',
     headerProfile: 'openai-pinned-sdk-headers-v1',
-    dispatcher: CONTRACT.dispatcherVersion,
-    redirectMode: CONTRACT.redirectMode,
-    sdkMaxRetries: CONTRACT.sdkMaxRetries,
-    maxHttpRequestsPerPermit: CONTRACT.maxHttpRequestsPerPermit,
-    possibleDispatchBoundary: CONTRACT.possibleDispatchBoundary,
-    successStatus: CONTRACT.successStatus,
-    successMediaTypeProfile: CONTRACT.successMediaTypeProfile,
-    clientRequestIdProfile: CONTRACT.clientRequestIdProfile,
-  },
-  usage: { profile: 'openai-responses-usage-v1' },
-  dispositions: {
-    profile: CONTRACT.statusDispositionProfile,
-    retryableCompleteStatuses: [...CONTRACT.retryableCompleteStatuses],
-    retryAfterProfile: CONTRACT.retryAfterProfile,
-  },
-  pricing: OPENAI_PRICE_CATALOGUE_V1,
-  rateLimit: {
-    admission: 'ai-lane-admission-adr-0058',
-    retryAfterProfile: CONTRACT.retryAfterProfile,
-  },
-  posture: {
+    usageProfile: 'openai-responses-usage-v1',
     claimsDigest: OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1,
-    retrievalDate: CONTRACT.evidence.retrievalDate,
-  },
-})
-
-function digestOf(domain: string, value: unknown): string {
-  return createHash('sha256')
-    .update(domain, 'utf8')
-    .update(canonicalizeRfc8785(value), 'utf8')
-    .digest('hex')
-}
+    pricing: OPENAI_PRICE_CATALOGUE_V1,
+    deployment: CONTRACT,
+  }),
+)
 
 /**
  * What the Responses API is sent of a logical profile before any payload byte:
@@ -108,7 +80,10 @@ export function openAiPairingOf(
     attestationDigest: OPENAI_PROVIDER_ATTESTATION_V1.digest,
     schemaTransform: {
       version: 'openai-strict-json-schema-identity-v1',
-      digest: digestOf('repkey-openai-wire-schema-v1\0', profile.outputSchema),
+      digest: digestProviderAttestationValue(
+        'repkey-openai-wire-schema-v1\0',
+        profile.outputSchema,
+      ),
     },
     staticTokenBearing: {
       bytes: staticMaterial.byteLength,

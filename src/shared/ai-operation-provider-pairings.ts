@@ -5,6 +5,7 @@ import type { AiProviderId } from './ai-provider-ids'
 import type { AiOperationProviderPairing } from './ai-provider-attestations'
 import {
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
+  REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,
   REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
 } from './review-analysis-v3-profile'
 
@@ -25,6 +26,10 @@ const PAIRINGS: ReadonlyMap<string, AiOperationProviderPairing> = new Map([
   [
     `${REVIEW_ANALYSIS_V3_LOGICAL_PROFILE.profileVersion}:${REVIEW_ANALYSIS_V3_OPENAI_PAIRING.providerId}`,
     REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
+  ],
+  [
+    `${REVIEW_ANALYSIS_V3_LOGICAL_PROFILE.profileVersion}:${REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING.providerId}`,
+    REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,
   ],
 ])
 

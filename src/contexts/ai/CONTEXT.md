@@ -370,14 +370,67 @@ payload bytes)` from the tokens the provider's pairing reserves; a settlement is
 receipt against the same list, a provider with no list or no pairing is refused, and nothing
 falls back to OpenAI's.
 
-Left for the slices that need it, not done here: the Anthropic adapter, attestation, pairing and
-price list (3.6); the analysis use case choosing the provider before the claim, building the
-v3 request and storing the normalized result (3.7); the `AI_OPERATION_PROFILES` entry, the
-runtime catalogue row, the notice and the `private-beta-global-v2` envelope (3.10); a
-`provider` execution-control head and its place in the stop fence (the binding schema lives in
-`ai-internal-transport-contract.ts`, which is at its file-length ceiling and must be split first,
-and PR-3 has no migration number left to seed heads); `openai-usage.ts` resolving the input
-ceiling of a profile that is not in the live catalogue.
+### Anthropic adapter (dark)
+
+`ai-provider-control/anthropic/` is the second adapter behind the seam. Nothing selects it: no
+environment variable, no runtime registration, no catalogue entry, no key. It never calls the
+real API, in code or in a test: `messages-stub.test-fixtures.ts` and the `/v1/messages` route of
+the e2e provider stub (`e2e/fixtures/ai-provider-stub.ts`) are Messages-shaped fakes.
+
+- The request (`request-profile.ts`, `request-builder.ts`) is one Messages call: model
+  `claude-haiku-5-5` (an alias, the provider publishes no dated id for the 5.x line, so the
+  evaluation harness and activation re-pin it), `anthropic-version 2026-10-21`, the versioned
+  developer prompt as `system`, the redacted data block as the only user message, the
+  per-Property `rk1_` safety identifier as `metadata.user_id`, and `output_config.format` (JSON
+  schema) with `effort`. Reasoning effort maps none to thinking disabled at low effort, and low,
+  medium, high to adaptive thinking at the same effort. No temperature, top_p, stop sequences,
+  tools, streaming, `cache_control` or beta header.
+- Structured outputs on this provider reject some JSON Schema keywords and enforce none of the
+  bounds, and enum casing is not guaranteed. `schema-transform.ts` keeps the supported keywords,
+  folds `maxItems`, `minimum`, `maxLength`, `pattern` and the rest into the description, and
+  refuses a schema over 24 optional or 16 union parameters. The connector therefore returns the
+  parsed JSON object as the provider wrote it, billed, and `acceptProviderResult` (the v3
+  normalizer) stays the single acceptance point (contract 1.3).
+- The transport is the OpenAI connector's boundary made provider-neutral
+  (`connector-boundary.ts`, used by both connectors; the OpenAI path is behaviour-identical and
+  `openai-v2-parity.test.ts` still passes unchanged): the grant and nonce gate, an exact header
+  allowlist for the SDK's own request, byte equality with the attested RFC 8785 bytes, pinned
+  name resolution to `api.anthropic.com`, HTTP/1.1 with one request per dispatcher, no redirects,
+  bounded reads, no SDK retries. The SDK sends `Authorization: Bearer`; the boundary sends five
+  fixed headers outbound with `x-api-key`. `@anthropic-ai/sdk` is an exact pin (1.3.0, held from
+  grouped dependabot bumps) imported and constructed only in `anthropic/connector.ts`
+  (`provider-client-singleton.test.ts`), and `ANTHROPIC_API_KEY` is named nowhere in production
+  code.
+- A 200 is read by `response-interpreter.ts` and `usage.ts`. A refusal is a billed
+  `provider_refused`; `max_tokens` and `model_context_window_exceeded` are `output_truncated`;
+  any other stop reason, or content other than exactly one text block (thinking blocks aside),
+  is a billed `output_invalid`. Input tokens are input plus cache reads plus cache writes,
+  thinking tokens come from `output_tokens_details`, and the usage is read independently of
+  every other field, so a billed answer keeps it whatever else is new in the body.
+- The error taxonomy (`dispositions.ts`): 529 and 500, 502, 503, 504 are a retryable
+  `provider_unavailable` with zero usage; 429 is `rate_limited` with the delay it names. A spend
+  limit or an empty credit balance is `quota_exhausted`, never retried and not a circuit
+  failure: status 402, a 400 `invalid_request_error` whose message opens with the documented
+  usage-limit or credit-balance sentence, and a 429 carrying
+  `details.error_code: enforced_spend_limit_reached`. Every other status follows OpenAI's table.
+- `attestation.ts` seals the Anthropic provider attestation and `anthropicPairingOf` carries a
+  logical profile (`REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING`). The posture claims (30-day API
+  retention, flagged content for up to two years, no zero-data-retention unless agreed, no
+  training on customer content under commercial terms) and the 1,024 tokens a reservation adds
+  for the provider's own structured-output prompt are provisional: 3.10 confirms the claims with
+  counsel and WP0 replaces the allowance with a measurement. The Haiku 5.5 price list ($0.10 input,
+  $0.01 cached input, $0.50 output per million tokens) is registered in
+  `AI_PROVIDER_PRICE_CATALOGUES` as a non-enumerable property: a settlement recorded against
+  Anthropic is priced by it, while the live catalogue's enumerable surface is unchanged.
+
+Left for the slices that need it, not done here: the analysis use case choosing the provider
+before the claim, building the v3 request and storing the normalized result (3.7); the
+`AI_OPERATION_PROFILES` entry, the runtime catalogue row, the notice, the `private-beta-global-v2`
+envelope, an Anthropic key, the adapter's registration in the egress runtime and a real-provider
+synthetic canary (3.10); a `provider` execution-control head and its place in the stop fence (the
+binding schema lives in `ai-internal-transport-contract.ts`, which is at its file-length ceiling
+and must be split first, and PR-3 has no migration number left to seed heads); `openai-usage.ts`
+resolving the input ceiling of a profile that is not in the live catalogue.
 
 ## Runtime
 
