@@ -263,6 +263,40 @@ async function eraseRetiredDerivatives(
         OR review_analysis_epoch <> ${reviewEpoch}
       )
   `)
+  if (!reviewEnabled) await eraseReviewAnalysisV3Remainder(tx, input)
+}
+
+/**
+ * What review analysis v3 keeps for a Property beside its analyses, and keeps across a
+ * re-analysis: the per-Property issue groups (with their spellings, merges and
+ * managers' names and hides) and the daily counts of reviews by star rating. A new
+ * epoch leaves both alone, on purpose: a group is stable across epochs so a manager's
+ * rename, merge or hide survives a re-analysis, and a day's count follows the reviews,
+ * not an analysis. Turning review analysis off, revoking, or removing the capability
+ * ends them with the rest: the merchant notice says turning a capability off and
+ * erasure "cover everything listed under 'What review analysis keeps'".
+ *
+ * Runs in the transaction that deletes the analyses. The analyses' mentions go with
+ * them (cascade), and so do the manager corrections beside those, so by the time the
+ * groups go no mention names one; a mention's foreign key to its group is deferred to
+ * commit for this reason. A group goes with its members and its merge redirects
+ * (cascade). Re-enabling starts from nothing: the groups are made again by the
+ * analysis, and the star counts by the Review projection and its backfill.
+ */
+async function eraseReviewAnalysisV3Remainder(
+  tx: Tx,
+  input: AiAuthorizationLifecycleTrigger,
+) {
+  await tx.execute(sql`
+    DELETE FROM ai_property_issue_groups
+    WHERE organization_id = ${input.organizationId}
+      AND property_id = ${input.propertyId}::uuid
+  `)
+  await tx.execute(sql`
+    DELETE FROM ai_property_review_population_daily
+    WHERE organization_id = ${input.organizationId}
+      AND property_id = ${input.propertyId}::uuid
+  `)
 }
 
 function obsoleteReason(
