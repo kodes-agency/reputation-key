@@ -208,7 +208,7 @@ describe('drainReviewAnalysisBacklog', () => {
   })
 
   it('runs at most its concurrency of analyses at once', async () => {
-    const entries = Array.from({ length: 10 }, (_, index) =>
+    const entries = Array.from({ length: AI_BACKLOG_DRAIN_CONCURRENCY + 2 }, (_, index) =>
       entry(index + 1, { propertyId: property(index + 1) }),
     )
     let running = 0
@@ -221,7 +221,9 @@ describe('drainReviewAnalysisBacklog', () => {
       return { status: 'completed' }
     })
 
-    await expect(test.drainer.drain()).resolves.toMatchObject({ completed: 10 })
+    await expect(test.drainer.drain()).resolves.toMatchObject({
+      completed: entries.length,
+    })
     expect(mostAtOnce).toBe(AI_BACKLOG_DRAIN_CONCURRENCY)
   })
 

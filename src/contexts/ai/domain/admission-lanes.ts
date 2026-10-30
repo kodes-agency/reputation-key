@@ -29,34 +29,44 @@ export const AI_ADMISSION_RATE_WINDOW_MILLIS = 60_000
 export const AI_ADMISSION_LEASE_MILLIS = 90_000
 
 /**
- * The provider account's per-minute limits for the pinned model, read from its
- * rate-limit headers on 2026-09-28. The provider counts a request's output
- * ceiling against the token limit before it answers.
+ * The provider account's per-minute limits for the pinned model (`gpt-6-luna`),
+ * read on 2026-10-30 from the `x-ratelimit-limit-requests` and
+ * `x-ratelimit-limit-tokens` headers on the beta key. The provider counts a
+ * request's output ceiling against the token limit before it answers.
  */
 export const AI_PROVIDER_ACCOUNT_LIMITS_PER_MINUTE = Object.freeze({
-  requests: 500,
-  tokens: 500_000,
+  requests: 5_000,
+  tokens: 2_000_000,
 })
 
 /**
  * Admissions per sliding minute. The background lane is sized against the
- * provider account, not against drafts, which have their own lane: an analysis
- * counts about 1,600 tokens (its input plus the 1,024-token output ceiling),
- * and both global lanes together stay under half of either account limit. One
- * property may use its organization's whole background budget, so a single
- * import runs as fast as the account allows.
+ * provider account, not against drafts, which have their own lane: a v3
+ * analysis counts about 7,900 tokens (about 3,800 of input plus the
+ * 4,096-token output ceiling), and both global lanes together stay under half
+ * of either account limit. Half of the token limit is 126 analyses a minute, so
+ * the global background lane admits 125. One property may use its
+ * organization's whole background budget, so a single import runs as fast as
+ * the account allows.
  */
 export const AI_ADMISSION_RATE_PER_MINUTE: ScopeBudget = Object.freeze({
-  global: Object.freeze({ interactive: 8, background: 150 }),
+  global: Object.freeze({ interactive: 8, background: 125 }),
   organization: Object.freeze({ interactive: 4, background: 120 }),
   property: Object.freeze({ interactive: 3, background: 120 }),
 })
 
-/** Concurrent provider calls. */
+/**
+ * Concurrent provider calls. For history these, not the rates, set the pace: an
+ * analysis takes about 5 s (p50 4.8 s, p90 9.3 s end to end on the beta,
+ * 2026-10-30), so 8 at a time ran 45 to 60 a minute against a rate budget of
+ * 120. A drain runs as many at once as an organization may have in flight
+ * (`AI_BACKLOG_DRAIN_CONCURRENCY`); the global 24 leaves the rest of the lane to
+ * reviews analysed on delivery.
+ */
 export const AI_ADMISSION_IN_FLIGHT: ScopeBudget = Object.freeze({
-  global: Object.freeze({ interactive: 8, background: 16 }),
-  organization: Object.freeze({ interactive: 4, background: 8 }),
-  property: Object.freeze({ interactive: 2, background: 8 }),
+  global: Object.freeze({ interactive: 8, background: 24 }),
+  organization: Object.freeze({ interactive: 4, background: 16 }),
+  property: Object.freeze({ interactive: 2, background: 16 }),
 })
 
 /**
