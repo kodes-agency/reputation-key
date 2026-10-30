@@ -233,60 +233,79 @@ describe('no fallback, over every case the selection can meet', () => {
   const choices: readonly (AiProviderId | undefined)[] = [undefined, ...AI_PROVIDER_IDS]
   const readiness: readonly (boolean | undefined)[] = [undefined, true, false]
 
+  type SelectionCase = Readonly<{
+    eligible: readonly AiProviderId[]
+    registered: readonly AiProviderId[]
+    chosen: AiProviderId | undefined
+    openAiReady: boolean | undefined
+    anthropicReady: boolean | undefined
+  }>
+
+  const everyCase: readonly SelectionCase[] = subsets.flatMap((eligible) =>
+    subsets.flatMap((registered) =>
+      choices.flatMap((chosen) =>
+        readiness.flatMap((openAiReady) =>
+          readiness.map((anthropicReady) => ({
+            eligible,
+            registered,
+            chosen,
+            openAiReady,
+            anthropicReady,
+          })),
+        ),
+      ),
+    ),
+  )
+
+  /** The provider the selection returns for a case, or null when it says why not. */
+  function attempt(testCase: SelectionCase): FakeAdapter | null {
+    const adapters = testCase.registered.map((providerId) =>
+      adapter(
+        providerId,
+        providerId === 'openai' ? testCase.openAiReady : testCase.anthropicReady,
+      ),
+    )
+    const registry = createAiProviderRegistry(
+      adapters,
+      testCase.chosen === undefined ? {} : { review_analysis: testCase.chosen },
+    )
+    try {
+      return selectAiProvider(registry, {
+        capability: 'review_analysis',
+        eligible: testCase.eligible,
+      })
+    } catch (error) {
+      expect(error, JSON.stringify(testCase)).toBeInstanceOf(AiProviderSelectionError)
+      return null
+    }
+  }
+
+  function expectNoOtherProvider(testCase: SelectionCase, result: FakeAdapter): void {
+    const where = JSON.stringify(testCase)
+    // Whatever was returned is a provider the profile is attested for ...
+    expect(testCase.eligible, where).toContain(result.providerId)
+    // ... that this process holds an adapter for ...
+    expect(testCase.registered, where).toContain(result.providerId)
+    // ... and when the operator had a say it is the provider they named.
+    if (testCase.eligible.length > 1) {
+      expect(result.providerId, where).toBe(testCase.chosen)
+      expect(result.readiness?.() ?? true, where).toBe(true)
+    } else {
+      expect(result.providerId, where).toBe(testCase.eligible[0])
+    }
+  }
+
   it('returns the one provider the profile names or the one the operator chose, and never another', () => {
     let selected = 0
     let refused = 0
-    for (const eligible of subsets) {
-      for (const registered of subsets) {
-        for (const chosen of choices) {
-          for (const openAiReady of readiness) {
-            for (const anthropicReady of readiness) {
-              const adapters = registered.map((providerId) =>
-                adapter(
-                  providerId,
-                  providerId === 'openai' ? openAiReady : anthropicReady,
-                ),
-              )
-              const registry = createAiProviderRegistry(
-                adapters,
-                chosen === undefined ? {} : { review_analysis: chosen },
-              )
-              const where = JSON.stringify({
-                eligible,
-                registered,
-                chosen,
-                openAiReady,
-                anthropicReady,
-              })
-              let result: FakeAdapter | null = null
-              try {
-                result = selectAiProvider(registry, {
-                  capability: 'review_analysis',
-                  eligible,
-                })
-              } catch (error) {
-                expect(error, where).toBeInstanceOf(AiProviderSelectionError)
-              }
-              if (result === null) {
-                refused += 1
-                continue
-              }
-              selected += 1
-              // Whatever was returned is a provider the profile is attested for ...
-              expect(eligible, where).toContain(result.providerId)
-              // ... that this process holds an adapter for ...
-              expect(registered, where).toContain(result.providerId)
-              // ... and when the operator had a say it is the provider they named.
-              if (eligible.length > 1) {
-                expect(result.providerId, where).toBe(chosen)
-                expect(result.readiness?.() ?? true, where).toBe(true)
-              } else {
-                expect(result.providerId, where).toBe(eligible[0])
-              }
-            }
-          }
-        }
+    for (const testCase of everyCase) {
+      const result = attempt(testCase)
+      if (result === null) {
+        refused += 1
+        continue
       }
+      selected += 1
+      expectNoOtherProvider(testCase, result)
     }
     expect(selected).toBeGreaterThan(0)
     expect(refused).toBeGreaterThan(0)

@@ -491,10 +491,28 @@ function scopeDigest(identity: AiOperationIdentity): string {
     .digest('hex')
 }
 
-function insertionValues(
-  input: Parameters<AiOperationStorePort['claim']>[0],
-  idGen: () => string,
-) {
+type ClaimInput = Parameters<AiOperationStorePort['claim']>[0]
+
+/**
+ * What a v3 analysis operation records about the request it makes (the hint set,
+ * the provider and the normalizer, migration 0078). Every other operation records
+ * none of it.
+ */
+function lineageValues(input: ClaimInput) {
+  return {
+    vocabularyHintSetId: input.vocabularyHints?.setId ?? null,
+    vocabularyHintSetVersion: input.vocabularyHints?.setVersion ?? null,
+    vocabularyHintSetDigest: input.vocabularyHints?.digest ?? null,
+    providerId: input.providerLineage?.providerId ?? null,
+    providerModel: input.providerLineage?.model ?? null,
+    providerRequestProfileVersion: input.providerLineage?.requestProfileVersion ?? null,
+    providerRequestProfileDigest: input.providerLineage?.requestProfileDigest ?? null,
+    normalizationProfileVersion: input.normalization?.version ?? null,
+    normalizationProfileDigest: input.normalization?.digest ?? null,
+  } as const
+}
+
+function insertionValues(input: ClaimInput, idGen: () => string) {
   assertAligned(input.identity, input.binding)
   assertSourceProvenance(input.sourceProvenance)
   const identity = input.identity
@@ -554,15 +572,7 @@ function insertionValues(
     outputLeakageProfileDigest: binding.outputLeakageProfileDigest,
     replyTemplateCatalogueVersion: binding.replyTemplateCatalogueVersion,
     replyTemplateCatalogueDigest: binding.replyTemplateCatalogueDigest,
-    vocabularyHintSetId: input.vocabularyHints?.setId ?? null,
-    vocabularyHintSetVersion: input.vocabularyHints?.setVersion ?? null,
-    vocabularyHintSetDigest: input.vocabularyHints?.digest ?? null,
-    providerId: input.providerLineage?.providerId ?? null,
-    providerModel: input.providerLineage?.model ?? null,
-    providerRequestProfileVersion: input.providerLineage?.requestProfileVersion ?? null,
-    providerRequestProfileDigest: input.providerLineage?.requestProfileDigest ?? null,
-    normalizationProfileVersion: input.normalization?.version ?? null,
-    normalizationProfileDigest: input.normalization?.digest ?? null,
+    ...lineageValues(input),
     globalControlId: binding.stopFence.globalControlId,
     globalControlGeneration: binding.stopFence.globalGeneration,
     providerControlId: binding.stopFence.providerControlId,

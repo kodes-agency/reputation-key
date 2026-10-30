@@ -342,6 +342,21 @@ function reviewEvidenceIssue(
     : 'analysis v3 property context is not the catalogue hint set for its category'
 }
 
+type GatewayRouteValue =
+  | z.infer<typeof reviewAnalysisGatewayRequestSchema>
+  | z.infer<typeof replySuggestionGatewayRequestSchema>
+  | z.infer<typeof propertyTrendGatewayRequestSchema>
+
+/** A review-analysis request must carry the evidence its operation profile asks for. */
+function addReviewEvidenceIssue(
+  value: GatewayRouteValue,
+  context: z.RefinementCtx,
+): void {
+  if (value.route !== 'review-analysis') return
+  const evidenceIssue = reviewEvidenceIssue(value)
+  if (evidenceIssue !== null) context.addIssue({ code: 'custom', message: evidenceIssue })
+}
+
 export const aiGatewayRouteRequestSchema = z
   .discriminatedUnion('route', [
     reviewAnalysisGatewayRequestSchema,
@@ -386,12 +401,7 @@ export const aiGatewayRouteRequestSchema = z
         message: 'review route source binding is inconsistent',
       })
     }
-    if (value.route === 'review-analysis') {
-      const evidenceIssue = reviewEvidenceIssue(value)
-      if (evidenceIssue !== null) {
-        context.addIssue({ code: 'custom', message: evidenceIssue })
-      }
-    }
+    addReviewEvidenceIssue(value, context)
     if (value.route === 'reply-suggestion') {
       const language = value.binding.concreteReplyLanguage
       if (
