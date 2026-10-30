@@ -1,3 +1,5 @@
+import { GuestVoiceHowWeCount } from './guest-voice/guest-voice-how-we-count'
+import { GuestVoiceRatingGoal } from './guest-voice/guest-voice-rating-goal'
 import { useQuery } from '@tanstack/react-query'
 import { RangeBusyRegion } from '#/components/features/dashboard/range-busy-region'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
@@ -133,6 +135,20 @@ export function PropertyGuestVoicePage(props: Props) {
       <PageHeader
         title="Guest voice"
         description="What guests praise, what needs attention, and how the picture is changing."
+        meta={
+          props.v2
+            ? [
+                propertyName,
+                <GuestVoiceRatingGoal
+                  key="rating"
+                  propertyId={propertyId}
+                  goal={props.v2.ratingGoal}
+                  google={props.v2.googleNumbers}
+                />,
+                <GuestVoiceHowWeCount key="count" read={props.v2.read} range={range} />,
+              ]
+            : undefined
+        }
         breadcrumbs={trailCrumbs(
           'property',
           { propertyId, propertyName },
@@ -156,7 +172,12 @@ export function PropertyGuestVoicePage(props: Props) {
 
       <RangeBusyRegion busy={busy}>
         {props.v2 !== undefined ? (
-          <GuestVoiceV2Body propertyId={propertyId} range={range} view={props.v2} />
+          <GuestVoiceV2Body
+            propertyId={propertyId}
+            range={range}
+            view={props.v2}
+            busy={busy}
+          />
         ) : props.state !== undefined ? (
           <GuestVoiceState
             result={{ status: props.state }}

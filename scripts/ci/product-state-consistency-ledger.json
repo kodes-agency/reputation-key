@@ -81,10 +81,11 @@
         "staff",
         "property",
         "googlePerformance",
-        "googlePerformanceLease"
+        "googlePerformanceLease",
+        "googleNumbers"
       ],
       "owner": "Dashboard query lifecycle",
-      "policy": "Fleet is a real prefix above range-specific infinite entries. Staff/property callers include their property and view filters in the argument object. Google performance is isolated by property, preset, catalogue version, and view epoch; an authorization lease adds leaseRef beneath that exact report."
+      "policy": "Fleet is a real prefix above range-specific infinite entries. Staff/property callers include their property and view filters in the argument object. Google performance is isolated by property, preset, catalogue version, and view epoch; an authorization lease adds leaseRef beneath that exact report. The independent Google snapshot header read is keyed by propertyId under googleNumbers, apart from goal permission and goal state, and its failure never replaces the Guest voice page."
     },
     {
       "id": "aiKeys",
@@ -94,10 +95,11 @@
         "guestVoiceV2Property",
         "guestVoiceV2",
         "reviewAnalysisProgress",
-        "organizationSpend"
+        "organizationSpend",
+        "guestVoiceV2Detail"
       ],
       "owner": "AI read-model query lifecycle",
-      "policy": "The trend projection is a property-scoped sibling under the AI root, and globally unique propertyId prevents cross-property reuse (the aggregate and insights projections left with the v2 read model at the switch-on of review analysis v3). Guest voice 2.0, which the Guest voice page and the Overview row both read, is another property-scoped sibling: guestVoiceV2Property is the prefix of every window (guestVoiceV2 adds the page's range word), so a manager's correction in the Inbox refreshes all of a property's windows by that one prefix. Review-analysis progress is another property-scoped sibling: it polls only while analysis is running and is invalidated when the property's AI authorization changes. Organization spend is the one organization-scoped leaf: a monthly amount read by the AI overview, stale after a minute and never mutated by the client."
+      "policy": "The trend projection is a property-scoped sibling under the AI root, and globally unique propertyId prevents cross-property reuse (the aggregate and insights projections left with the v2 read model at the switch-on of review analysis v3). Guest voice 2.0, which the Guest voice page and the Overview row both read, is another property-scoped sibling: guestVoiceV2Property is the prefix of every window (guestVoiceV2 adds the page's range word), so a manager's correction in the Inbox refreshes all of a property's windows by that one prefix. Review-analysis progress is another property-scoped sibling: it polls only while analysis is running and is invalidated when the property's AI authorization changes. Organization spend is the one organization-scoped leaf: a monthly amount read by the AI overview, stale after a minute and never mutated by the client. Live Guest voice details are sibling leaves below guestVoiceV2Property, keyed by range, both exact local-day bounds and complete target (including sense or reason); a correction refreshes them through the same property prefix. Live words have staleTime and gcTime zero."
     },
     {
       "id": "goalKeys",
@@ -295,7 +297,7 @@
       "id": "src/components/features/beta-feedback/beta-feedback-dialog-body.tsx:useState(panel)",
       "classification": "synchronized_prop_copy",
       "owner": "Beta feedback reporting",
-      "policy": "Seeded once from initialPanel — 'reports' only when a report-outcome notification opened the dialog — and never synchronized afterwards, so the reporter's own tab choice is not overridden. The dialog body mounts per open, which is the reset boundary."
+      "policy": "Seeded once from initialPanel \u2014 'reports' only when a report-outcome notification opened the dialog \u2014 and never synchronized afterwards, so the reporter's own tab choice is not overridden. The dialog body mounts per open, which is the reset boundary."
     },
     {
       "id": "src/components/features/beta-feedback/beta-feedback-form.tsx:useState(maskedLayout)",
@@ -565,7 +567,7 @@
       "id": "src/components/inbox/inbox-case-toolbar.tsx:useState(now)",
       "classification": "local_runtime",
       "owner": "Inbox case toolbar reply-due countdown",
-      "policy": "A minute-granularity wall clock: the lazy initializer reads the mounting instant and a 60 s interval advances it only while the target is active and the caller supplied no clock. It holds no server-owned record — the deadline itself comes from the response-target payload and is only formatted against this value."
+      "policy": "A minute-granularity wall clock: the lazy initializer reads the mounting instant and a 60 s interval advances it only while the target is active and the caller supplied no clock. It holds no server-owned record \u2014 the deadline itself comes from the response-target payload and is only formatted against this value."
     },
     {
       "id": "src/components/inbox/inbox-detail-content.tsx:useState(noteDraft)",
@@ -577,7 +579,7 @@
       "id": "src/components/inbox/inbox-detail-sheet.tsx:useState(lastItem)",
       "classification": "synchronized_prop_copy",
       "owner": "Inbox mobile detail sheet exit animation",
-      "policy": "A one-frame copy of the `item` prop, advanced during render whenever a non-null item differs from the copy, and read only when `item` is null. It is not a server authority and never outlives the prop: dismissal drops `itemId` from the search, so `item` goes null in the same commit `open` goes false, and returning null on `item` alone tore the Radix dialog out of the tree while it was still open — the closing sheet had nothing left to animate. This holds the last item just long enough for the exit, and a reopen overwrites it before anything renders. A ref cannot do the job (`react-hooks/refs` forbids both the write and the read, and the exit frame is a render that has to see the old item); an effect is too late, because the null render has already committed."
+      "policy": "A one-frame copy of the `item` prop, advanced during render whenever a non-null item differs from the copy, and read only when `item` is null. It is not a server authority and never outlives the prop: dismissal drops `itemId` from the search, so `item` goes null in the same commit `open` goes false, and returning null on `item` alone tore the Radix dialog out of the tree while it was still open \u2014 the closing sheet had nothing left to animate. This holds the last item just long enough for the exit, and a reopen overwrites it before anything renders. A ref cannot do the job (`react-hooks/refs` forbids both the write and the read, and the exit frame is a render that has to see the old item); an effect is too late, because the null render has already committed."
     },
     {
       "id": "src/components/inbox/reply-editor-views.tsx:useState(text)",
@@ -595,7 +597,7 @@
       "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(caret)",
       "classification": "local_runtime",
       "owner": "Inbox detail pane composer caret request",
-      "policy": "A request counter — `{ itemId, mode, seq }` — meaning \"put the caret in this composer surface of this item\", raised by the `r` / `n` shortcuts and by the thread's Edit actions. It holds no server-owned record of any kind: `seq` is a monotonic tally of asks, `mode` names a client surface and `itemId` names the selection that asked. A counter rather than a flag because a latched boolean fires its effect only on the rising edge, which would let each shortcut work exactly once per mounted pane; `seq: 0` is the initial \"nobody has asked\". `itemId` is what keeps a change of selection from stealing the caret, and it is load-bearing rather than descriptive: the two consuming effects (`reply-status-view.tsx`, `inbox-notes-thread.tsx`) are keyed by item and fire on MOUNT whenever the counter they are handed is non-zero, so a `seq === 0` early-return alone does not bound them — the pane outlives the selection change, and without the fence one `r` followed by a `j` down the list handed the caret to the next item's reply box and autosaved the following keystrokes onto a review nobody had opened. The reader (`caretFor`) therefore hands a surface `seq` only while `itemId` matches the current item, and `0` otherwise."
+      "policy": "A request counter \u2014 `{ itemId, mode, seq }` \u2014 meaning \"put the caret in this composer surface of this item\", raised by the `r` / `n` shortcuts and by the thread's Edit actions. It holds no server-owned record of any kind: `seq` is a monotonic tally of asks, `mode` names a client surface and `itemId` names the selection that asked. A counter rather than a flag because a latched boolean fires its effect only on the rising edge, which would let each shortcut work exactly once per mounted pane; `seq: 0` is the initial \"nobody has asked\". `itemId` is what keeps a change of selection from stealing the caret, and it is load-bearing rather than descriptive: the two consuming effects (`reply-status-view.tsx`, `inbox-notes-thread.tsx`) are keyed by item and fire on MOUNT whenever the counter they are handed is non-zero, so a `seq === 0` early-return alone does not bound them \u2014 the pane outlives the selection change, and without the fence one `r` followed by a `j` down the list handed the caret to the next item's reply box and autosaved the following keystrokes onto a review nobody had opened. The reader (`caretFor`) therefore hands a surface `seq` only while `itemId` matches the current item, and `0` otherwise."
     },
     {
       "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(replyEdit)",
@@ -842,6 +844,12 @@
       "classification": "local_runtime",
       "owner": "Share tab final Print cards section",
       "policy": "What the manager has chosen for a print (the piece, each piece's orientation, the look, who prints, the paper, the quantity as typed, the spares, the count a sheet, the languages and the call to action), starting on the board's wide table tent. It is the manager's own choice, not server state: the read's languages and the property's country are applied when the choice is resolved, never written into it, and a remount of the tab is its reset boundary. The one server fact it takes in is the wording Share opens on (the saved wording, else the last print's, else the default): applied once, when the read first arrives (`usePrintFinalWording`), so a later read never overwrites words on show; it is written back only by the manager's own \"Save wording\" and by a download."
+    },
+    {
+      "id": "src/components/features/property/guest-voice/guest-voice-rating-chart.tsx:useState(selected)",
+      "classification": "local_runtime",
+      "owner": "Guest voice monthly chart",
+      "policy": "The inspected month index starts at the last plotted month and changes only through pointer or keyboard inspection. It never copies or writes Query data; remount on a changed period resets it."
     }
   ],
   "classificationDefinitions": {

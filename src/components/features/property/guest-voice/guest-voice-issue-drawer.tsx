@@ -1,110 +1,87 @@
-import { EyeOff } from 'lucide-react'
-import { useRef } from 'react'
-import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { useEffect, useEffectEvent, useRef } from 'react'
+import { BackButton } from '#/components/ui/back-link'
 import { RegionError } from '#/components/ui/region-error'
 import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from '#/components/ui/sheet'
 import { Skeleton } from '#/components/ui/skeleton'
-import type { IssueDrawer } from '#/contexts/ai/application/public-api'
-import { GuestVoiceCauses } from './guest-voice-causes'
-import { useGuestVoice } from './guest-voice-context'
-import { GuestVoiceEvidence } from './guest-voice-evidence'
+import type {
+  GuestVoiceDetailRead,
+  GuestVoiceDetailTarget,
+} from '#/contexts/ai/application/public-api'
+import { GuestVoiceIssueDetails } from './guest-voice-issue-details'
+import { GuestVoiceConcernDetails } from './guest-voice-concern-details'
+import { GuestVoiceTopicDetails } from './guest-voice-topic-details'
 import { GuestVoiceIssueActions } from './guest-voice-issue-actions'
-import { GuestVoiceIssueFacts } from './guest-voice-issue-facts'
-import { GuestVoiceMonthBars } from './guest-voice-month-bars'
 import { topicLabel } from './guest-voice-words'
+import type { GuestVoiceDetailNavigation } from './use-guest-voice-detail-navigation'
 
-/** What the drawer holds while it is open: being read, could not be read, or read. */
 export type GuestVoiceDrawerRead =
+  | GuestVoiceDetailRead
   | Readonly<{ status: 'pending' }>
   | Readonly<{ status: 'error'; onRetry: () => void; retrying: boolean }>
-  | Readonly<{ status: 'ready'; drawer: IssueDrawer }>
-
-/** Everything under the header: the facts, the year, the causes, the guests' words, the actions. */
-export function GuestVoiceIssueDetails({ drawer }: Readonly<{ drawer: IssueDrawer }>) {
-  const { window } = useGuestVoice()
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 md:p-5">
-      {drawer.hidden ? (
-        <Alert variant="info">
-          <EyeOff aria-hidden="true" />
-          <AlertTitle>Hidden from the page</AlertTitle>
-          <AlertDescription>
-            <p>
-              It is not ranked or counted on the page. Its reviews are still in the inbox.
-            </p>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      <GuestVoiceIssueFacts
-        statistics={drawer.statistics}
-        window={window}
-        sense="complaint"
-      />
-      <GuestVoiceMonthBars series={drawer.twelveMonthSeries} />
-      <GuestVoiceCauses causes={drawer.causes} label="Causes" />
-      <GuestVoiceEvidence drawer={drawer} />
-      <GuestVoiceIssueActions
-        issueId={drawer.issueId}
-        reviewCount={drawer.statistics.reviewCount}
-      />
-    </div>
-  )
-}
-
-function DrawerPending() {
-  return (
-    <div
-      role="status"
-      aria-label="Reading the reviews behind this issue"
-      className="flex flex-col gap-4 p-4 md:p-5"
-    >
-      <Skeleton className="h-4 w-3/4" />
-      <Skeleton className="h-4 w-1/2" />
-      <Skeleton className="h-28 w-full" />
-      <Skeleton className="h-16 w-full" />
-    </div>
-  )
-}
-
-/**
- * The drawer of one issue: what it is, how it has gone over the year, what was wrong
- * and, in the guests' own words, read live from their reviews. It opens from a title
- * on the page; the page decides which issue and brings its answer.
- */
 export function GuestVoiceIssueDrawer({
-  openIssueId,
-  knownTitle,
+  target,
   read,
   onClose,
+  navigation,
 }: Readonly<{
-  openIssueId: string | null
-  /** The issue's name as the page already shows it, for while the drawer is being read. */
-  knownTitle: string | null
+  target: GuestVoiceDetailTarget
   read: GuestVoiceDrawerRead
   onClose: () => void
+  navigation?: GuestVoiceDetailNavigation
 }>) {
   const titleRef = useRef<HTMLHeadingElement>(null)
   const ready = read.status === 'ready' ? read.drawer : null
-  const title = ready?.title ?? knownTitle ?? 'Issue details'
+  const title = ready
+    ? ready.kind === 'topic'
+      ? topicLabel(ready.topic)
+      : ready.title
+    : target.kind === 'topic'
+      ? topicLabel(target.topic)
+      : 'Review details'
+  const restoreDetail = useEffectEvent(() => navigation?.ready(title))
+  useEffect(() => {
+    if (!ready) return
+    restoreDetail()
+    titleRef.current?.focus({ preventScroll: true })
+  }, [ready, title])
+  const back = navigation?.backLabel()
   return (
-    <Sheet open={openIssueId !== null} onOpenChange={(open) => !open && onClose()}>
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}
+    >
       <SheetContent
-        side="right"
-        // Focus lands on the name of what opened, not on the first control in it (an
-        // explainer, or Try again), and a screen reader starts at the top.
+        layout="responsive-detail"
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           titleRef.current?.focus()
         }}
-        className="flex w-full flex-col gap-0 overflow-hidden max-sm:border-l-0 sm:max-w-xl"
+        onCloseAutoFocus={(event) => {
+          if (navigation) {
+            event.preventDefault()
+            navigation.restorePage()
+          }
+        }}
       >
-        <SheetHeader className="gap-1 border-b p-4 pr-14 md:p-5 md:pr-16">
+        <SheetHeader className="shrink-0 border-b pr-14">
+          {back ? (
+            <BackButton
+              label={`Back to ${back}`}
+              onClick={navigation?.back}
+              className="self-start"
+            />
+          ) : null}
           <SheetTitle
             ref={titleRef}
             tabIndex={-1}
@@ -112,25 +89,64 @@ export function GuestVoiceIssueDrawer({
           >
             {title}
           </SheetTitle>
-          {ready !== null && ready.title !== topicLabel(ready.topic) ? (
-            <p className="text-sm text-muted-foreground">{topicLabel(ready.topic)}</p>
-          ) : null}
           <SheetDescription>
-            {ready?.definition ?? 'The reviews behind one issue, read live.'}
+            {ready?.kind === 'issue'
+              ? topicLabel(ready.topic)
+              : ready?.kind === 'concern'
+                ? 'Serious concern reported by guests'
+                : 'Counts and evidence from this period'}
           </SheetDescription>
         </SheetHeader>
-        {read.status === 'pending' ? <DrawerPending /> : null}
-        {read.status === 'error' ? (
-          <div className="p-4 md:p-5">
+        <div
+          data-slot="guest-voice-detail-body"
+          ref={navigation?.scrollRef}
+          className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 md:p-5"
+        >
+          {read.status === 'pending' ? (
+            <div
+              role="status"
+              aria-label="Reading review details"
+              className="flex flex-col gap-4"
+            >
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-28 w-full" />
+            </div>
+          ) : null}
+          {read.status === 'error' ? (
             <RegionError
               size="compact"
-              message="The reviews behind this issue couldn’t be loaded."
+              message="These review details couldn’t be loaded."
               onRetry={read.onRetry}
               retrying={read.retrying}
             />
-          </div>
+          ) : null}
+          {read.status !== 'pending' &&
+          read.status !== 'error' &&
+          read.status !== 'ready' ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              {read.status === 'refresh_required'
+                ? 'The period has changed. Refreshing the page…'
+                : 'These details are no longer available for this property and period.'}
+            </p>
+          ) : null}
+          {ready?.kind === 'issue' ? (
+            <GuestVoiceIssueDetails drawer={ready} />
+          ) : ready?.kind === 'concern' ? (
+            <GuestVoiceConcernDetails drawer={ready} />
+          ) : ready?.kind === 'topic' ? (
+            <GuestVoiceTopicDetails drawer={ready} />
+          ) : null}
+        </div>
+        {ready && ready.kind !== 'topic' ? (
+          <SheetFooter variant="safe-area-actions">
+            <GuestVoiceIssueActions
+              scope={ready.matchingReviews}
+              reviewCount={
+                ready.kind === 'issue' ? ready.statistics.reviewCount : ready.reviewCount
+              }
+            />
+          </SheetFooter>
         ) : null}
-        {ready === null ? null : <GuestVoiceIssueDetails drawer={ready} />}
       </SheetContent>
     </Sheet>
   )

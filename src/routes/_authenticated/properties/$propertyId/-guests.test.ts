@@ -1,3 +1,4 @@
+import { propertyGuestVoiceV2Query } from './-guest-voice-queries'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as PermissionsModule from '#/shared/domain/permissions'
 
@@ -19,7 +20,7 @@ vi.mock('#/shared/domain/permissions', async (importOriginal) => ({
   can: permissions.can,
 }))
 
-import { propertyGuestsSearchSchema, propertyGuestVoiceV2Query, Route } from './guests'
+import { propertyGuestsSearchSchema, Route } from './guests'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
 

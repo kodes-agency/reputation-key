@@ -1,40 +1,59 @@
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
+import { Popover, PopoverContent } from '#/components/ui/popover'
+import { ExplainTrigger } from '#/components/ui/explain-trigger'
+import { InlineLink } from '#/components/ui/inline-link'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+import type { GuestVoiceMatchingReviewScope } from '#/contexts/ai/application/public-api'
 import { useGuestVoice } from './guest-voice-context'
-import { issueReviewsSearch } from './guest-voice-links'
-import { reviewsPhrase } from './guest-voice-words'
+import { issueReviewsSearch, urgentReviewsSearch } from './guest-voice-links'
 
-/** What can be done with an issue: read every review behind it, or say it is wrong. */
 export function GuestVoiceIssueActions({
-  issueId,
+  scope,
   reviewCount,
-}: Readonly<{ issueId: string; reviewCount: number }>) {
-  const { propertyId, startLocalDate, endLocalDate, onNotRight } = useGuestVoice()
+}: Readonly<{ scope: GuestVoiceMatchingReviewScope; reviewCount: number }>) {
+  const { propertyId } = useGuestVoice()
+  const { can } = usePermissions()
+  if (!can('inbox.read')) return null
+  const search =
+    scope.issueId === null
+      ? {
+          ...urgentReviewsSearch(propertyId),
+          since: scope.startLocalDate,
+          until: scope.endLocalDate,
+        }
+      : issueReviewsSearch({
+          propertyId,
+          ...scope,
+          issueId: scope.issueId,
+          sense: scope.sense ?? 'complaint',
+        })
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button asChild variant="outline" size="sm">
+      <Button asChild size="sm" className="flex-1 whitespace-normal">
         <Link
           to="/inbox"
-          search={issueReviewsSearch({
-            propertyId,
-            startLocalDate,
-            endLocalDate,
-            issueId,
-          })}
+          search={search}
+          aria-label={`Open these reviews in the Inbox · ${reviewCount} reviews counted here`}
         >
-          {reviewCount === 1 ? 'See the review' : `See all ${reviewsPhrase(reviewCount)}`}
+          Open these reviews in the Inbox
         </Link>
       </Button>
-      {onNotRight === undefined ? null : (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => onNotRight(issueId)}
-        >
-          Not right?
-        </Button>
-      )}
+      <Popover>
+        <ExplainTrigger asChild>
+          <Button type="button" variant="ghost" size="sm">
+            Not right?
+          </Button>
+        </ExplainTrigger>
+        <PopoverContent>
+          <p className="text-sm">
+            Choose a review in the Inbox, then correct its reading.{' '}
+            <InlineLink to="/inbox" search={search}>
+              Open the inbox
+            </InlineLink>
+          </p>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

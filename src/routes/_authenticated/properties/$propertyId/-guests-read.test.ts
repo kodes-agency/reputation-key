@@ -1,3 +1,4 @@
+import { propertyGuestVoiceV2Query } from './-guest-voice-queries'
 // Guest voice reads one analysis. The loader reads the first window; a later range is read
 // in the browser, through the cache, with the previous page kept on screen meanwhile. When
 // that read fails there is no page and no reason to show, and until the route asked for the
@@ -58,7 +59,7 @@ vi.mock('#/components/layout/route-page-state', () => ({
 }))
 
 import { propertyQuery } from '#/routes/-queries/route-queries'
-import { propertyGuestVoiceV2Query, Route } from './guests'
+import { Route } from './guests'
 
 let client: QueryClient
 

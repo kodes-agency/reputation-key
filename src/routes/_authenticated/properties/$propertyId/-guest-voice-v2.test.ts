@@ -88,7 +88,6 @@ describe('guestVoiceV2View', () => {
 
     expect(view.read).toBe(NOT_ENOUGH)
     expect(view.drawer).toBeUndefined()
-    expect(view.onNotRight).toBeUndefined()
   })
 
   it('carries where the Google rating goal stands, and none by default', () => {

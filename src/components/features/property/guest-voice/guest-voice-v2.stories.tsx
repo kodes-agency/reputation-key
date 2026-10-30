@@ -1,346 +1,191 @@
-// Guest voice 2.0 on fixtures: the page as agreed, for a hotel with 128 reviews with
-// text, a guesthouse with about three a month, a hotel with an Urgent review and a
-// property with too few reviews to show patterns. Each is drawn at the width of a
-// laptop and of a phone. Nothing here reads the v3 analysis: it does not exist yet.
-import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, userEvent, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
-import type { GuestVoiceV2Read } from '#/contexts/ai/application/public-api'
-import type { WindowFacts } from '#/contexts/ai/application/read-models/issue-statistics'
-import type { GuestVoiceRange } from '#/shared/dashboard-range'
+import type {
+  GuestVoiceDetailTarget,
+  GuestVoiceV2Read,
+} from '#/contexts/ai/application/public-api'
 import { PropertyGuestVoicePage } from '../property-guest-voice-page'
-import type { GuestVoiceDrawerRead } from './guest-voice-issue-drawer'
-import type { GuestVoiceGoalFacts } from './guest-voice-rating-goal-words'
-import { PROPERTY_ID } from './guest-voice-fixtures-build'
-import { drawerForIssue } from './guest-voice-fixtures-drawer-for'
-import { FACILITIES_ID, LARGE_READ, LARGE_WINDOW } from './guest-voice-fixtures-large'
-import { PROVISIONAL_READ, URGENT_READ } from './guest-voice-fixtures-states'
-import { NOT_ENOUGH_READ, SMALL_READ, SMALL_WINDOW } from './guest-voice-fixtures-small'
+import { useGuestVoiceDetailNavigation } from './use-guest-voice-detail-navigation'
+import {
+  HAMPTON_READ,
+  CHECK_IN_RENAMED,
+  CHECK_IN_RENAMED_INPUT,
+  CHECK_IN_STEADY,
+  CHECK_IN_SLIPPING,
+  CHECK_IN_INSUFFICIENT,
+  QUIET_READ,
+  CHECK_IN_SMALL,
+  CHECK_IN_SMALL_CONCERN,
+  CHECK_IN_PROVISIONAL,
+  checkInDetail,
+} from './guest-voice-fixtures-check-in'
+import { PROPERTY_ID, fixtureId } from './guest-voice-fixtures-build'
 
-type StoryProps = Readonly<{
-  read: GuestVoiceV2Read
-  /** What the read's figures were worked out over, for the drawers of the fixture. */
-  window: WindowFacts
-  range: GuestVoiceRange
-  /** The issue whose drawer is open when the story starts. */
-  openIssueId?: string
-  onRangeChange: (range: GuestVoiceRange) => void
-  onNotRight: (issueId: string) => void
-  /** Where the Property's Google rating goal stands, if it has an active one. */
-  ratingGoal?: GuestVoiceGoalFacts | null
-  /** False draws the page as the route does until the drawer has a read: no issue opens. */
-  withDrawer?: boolean
-}>
-
-/** The route's part: keeps which drawer is open, and answers it from the fixture. */
-function GuestVoiceV2Story({
+function CheckInStory({
   read,
-  window,
-  range,
-  openIssueId = undefined,
-  onRangeChange,
-  onNotRight,
-  ratingGoal = null,
-  withDrawer = true,
-}: StoryProps) {
-  const [open, setOpen] = useState<string | null>(openIssueId ?? null)
-  const issue =
-    open === null || read.status !== 'ready'
-      ? undefined
-      : drawerForIssue(read, open, window)
-  const drawer: GuestVoiceDrawerRead =
-    issue === undefined ? { status: 'pending' } : { status: 'ready', drawer: issue }
+  initialTarget = null,
+  detailState = 'ready',
+  google = true,
+  goal = true,
+  renamed = false,
+}: Readonly<{
+  read: GuestVoiceV2Read
+  initialTarget?: GuestVoiceDetailTarget | null
+  detailState?: 'ready' | 'pending' | 'error'
+  google?: boolean
+  goal?: boolean
+  renamed?: boolean
+}>) {
+  const [target, setTarget] = useState(initialTarget)
+  const [range, setRange] = useState<'auto' | '30d' | '90d' | '180d' | '365d' | 'all'>(
+    'auto',
+  )
+  const navigation = useGuestVoiceDetailNavigation(target, setTarget)
   return (
     <PropertyGuestVoicePage
       propertyId={PROPERTY_ID}
-      propertyName="Harbour House Hotel"
+      propertyName="Hampton-like demonstration property"
       range={range}
-      onRangeChange={onRangeChange}
+      onRangeChange={(value) => {
+        setRange(value)
+        setTarget(null)
+      }}
       v2={{
         read,
-        drawer: withDrawer
-          ? { openIssueId: open, onOpenIssueChange: setOpen, read: drawer }
-          : undefined,
-        onNotRight,
-        ratingGoal,
+        googleNumbers: google
+          ? {
+              shows: 3.9,
+              asOf: '2026-10-01T12:00:00.000Z',
+              current: false,
+              reviewCount: 132,
+            }
+          : null,
+        ratingGoal: goal
+          ? { mode: 'climb', target: 4.2, shows: 3.9, status: 'below_pace' }
+          : null,
+        drawer: {
+          target,
+          onTargetChange: navigation.open,
+          navigation,
+          read:
+            detailState === 'pending'
+              ? { status: 'pending' }
+              : detailState === 'error'
+                ? { status: 'error', onRetry: () => undefined, retrying: false }
+                : target
+                  ? checkInDetail(target, renamed ? CHECK_IN_RENAMED_INPUT : undefined)
+                  : { status: 'pending' },
+        },
       }}
     />
   )
 }
-
 const meta = {
-  title: 'Property/GuestVoice2',
-  component: GuestVoiceV2Story,
-  tags: ['autodocs'],
+  title: 'Property/GuestVoice2/Check-in',
+  component: CheckInStory,
   decorators: [AuthedRouterDecorator],
-  parameters: {
-    layout: 'padded',
-    viewport: { defaultViewport: 'desktopManager' },
-  },
-  args: {
-    read: LARGE_READ,
-    window: LARGE_WINDOW,
-    range: 'auto',
-    onRangeChange: fn(),
-    onNotRight: fn(),
-  },
-} satisfies Meta<typeof GuestVoiceV2Story>
-
+  parameters: { layout: 'fullscreen', viewport: { defaultViewport: 'desktopManager' } },
+  args: { read: HAMPTON_READ },
+} satisfies Meta<typeof CheckInStory>
 export default meta
 type Story = StoryObj<typeof meta>
-
-const PHONE = { viewport: { defaultViewport: 'mobileStaff' } } as const
-
-/** 128 reviews with text in 90 days: the window the page chose, problems ranked by stars at stake. */
-export const LargeProperty: Story = {
-  play: async ({ canvas, args }) => {
+const PHONE = { viewport: { defaultViewport: 'mobileStaff' } }
+export const HamptonLike: Story = {
+  play: async ({ canvas }) => {
+    expect(canvas.getByRole('heading', { name: 'Anything urgent?' })).toBeVisible()
+    expect(
+      canvas.getByRole('heading', { name: 'What should we fix first?' }),
+    ).toBeVisible()
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Every part of your property' }),
+    )
     expect(
       canvas.getByText(
-        'Last 90 days, chosen because it holds 128 reviews with text (plus 96 without text).',
+        'Grouped by how guests feel, with the parts needing attention first. Fewer than six reviews stays unjudged.',
       ),
     ).toBeVisible()
-
-    // The sections, in the order a manager reads them.
-    const headings = canvas
-      .getAllByRole('heading', { level: 2 })
-      .map((heading) => heading.textContent)
-    expect(headings).toEqual([
-      'In short',
-      'Fix first',
-      'Watch',
-      'Guests love',
-      'What changed',
-      'Every topic',
-    ])
-
-    // The top problem, with the stars it could be costing, said as association.
-    const fixFirst = within(canvas.getByRole('region', { name: 'Fix first' }))
-    const cards = fixFirst.getAllByRole('article')
-    expect(cards).toHaveLength(4)
-    const top = within(cards[0] as HTMLElement)
-    expect(top.getByRole('heading', { name: 'Facilities and equipment' })).toBeVisible()
-    expect(top.getByText('19 of 128')).toBeVisible()
-    expect(top.getByText('Rising, likely real')).toBeVisible()
-    expect(top.getByText(/worth up to about/u)).toHaveTextContent(
-      'worth up to about 0.2★ on your 90-day average',
+    await userEvent.click(
+      canvas.getByRole('button', { name: '2 more things guests love' }),
     )
-    expect(top.getByRole('link', { name: 'See all 19 reviews' })).toBeVisible()
-
-    // "Not right?" is the manager's to press; the page only passes it on.
-    await userEvent.click(top.getByRole('button', { name: 'Not right?' }))
-    expect(args.onNotRight).toHaveBeenCalledWith(FACILITIES_ID)
-
-    // The guests' words are underlined, not repeated in a colour.
-    const marked = canvas.getAllByText(/air conditioning didn't work/u, {
-      selector: 'mark',
-    })
-    expect(marked.length).toBeGreaterThan(0)
-
-    // One neutral line about staff praise: no names, no complaint version.
-    expect(canvas.getByText(/4 reviews praise a team member by name/u)).toBeVisible()
+    expect(
+      canvas.getByRole('button', { name: /Show less.*2 more things guests love/u }),
+    ).toBeVisible()
+    await userEvent.click(
+      canvas.getByRole('button', { name: /Show less.*2 more things guests love/u }),
+    )
+    expect(
+      canvas.getByRole('button', { name: '2 more things guests love' }),
+    ).toBeVisible()
+    await userEvent.click(
+      canvas.getByRole('button', { name: '2 other concerns guests raised' }),
+    )
+    expect(canvas.getByText('Mentioned once or twice. Not a pattern yet.')).toBeVisible()
   },
 }
-
-/** The same page on a phone. */
-export const LargePropertyPhone: Story = { parameters: PHONE }
-
-const BELOW_PACE_GOAL: GuestVoiceGoalFacts = {
-  mode: 'climb',
-  target: 4.6,
-  shows: 4.4,
-  status: 'below_pace',
-}
-
-/**
- * The Google rating goal beside the top problem: where the goal stands in Google's own
- * number and its pace, the problem the reviews tie most to a lower rating, and the way into
- * the goal. An association, said as the Fix first card says it.
- */
-export const LargePropertyWithGoal: Story = {
-  args: { ratingGoal: BELOW_PACE_GOAL },
-  play: async ({ canvas }) => {
-    const goal = within(canvas.getByRole('region', { name: 'Your Google rating goal' }))
-    expect(
-      goal.getByText(
-        'Your Google rating goal is 4.6. Google shows 4.4 and it is below pace.',
-      ),
-    ).toBeVisible()
-    expect(
-      goal.getByText(
-        /is the top problem on this page, worth up to about 0\.2★ on your 90-day average\./u,
-      ),
-    ).toBeVisible()
-    expect(goal.getByRole('link', { name: 'Open the goal' })).toHaveAttribute(
-      'href',
-      `/properties/${PROPERTY_ID}/goals/google-rating`,
-    )
-    // It sits with Fix first: after its list, before Watch.
-    const headings = canvas
-      .getAllByRole('heading', { level: 2 })
-      .map((heading) => heading.textContent)
-    expect(headings.indexOf('Fix first')).toBeLessThan(headings.indexOf('Watch'))
-  },
-}
-
-export const LargePropertyWithGoalPhone: Story = {
-  ...LargePropertyWithGoal,
+export const HamptonLikePhone: Story = { parameters: PHONE }
+export const Dark: Story = { parameters: { theme: 'dark' } }
+export const DarkPhone: Story = { parameters: { ...PHONE, theme: 'dark' } }
+export const Quiet: Story = { args: { read: QUIET_READ } }
+export const Small: Story = { args: { read: CHECK_IN_SMALL } }
+export const SmallPhone: Story = { args: { read: CHECK_IN_SMALL }, parameters: PHONE }
+export const SmallWithConcern: Story = { args: { read: CHECK_IN_SMALL_CONCERN } }
+export const SmallWithConcernPhone: Story = {
+  args: { read: CHECK_IN_SMALL_CONCERN },
   parameters: PHONE,
 }
-
-/** A goal being kept names no pace to miss; it says it is held. */
-export const SmallPropertyKeepingAGoal: Story = {
+export const Provisional: Story = { args: { read: CHECK_IN_PROVISIONAL } }
+export const NoGoal: Story = { args: { goal: false } }
+export const NoGoogleSnapshot: Story = { args: { google: false } }
+export const SheetOpen: Story = {
   args: {
-    read: SMALL_READ,
-    window: SMALL_WINDOW,
-    ratingGoal: { mode: 'keep', target: 4.8, shows: 4.8, status: 'holding' },
+    initialTarget: { kind: 'issue', issueId: fixtureId('a', 1), sense: 'complaint' },
   },
-  play: async ({ canvas }) => {
-    const goal = within(canvas.getByRole('region', { name: 'Your Google rating goal' }))
-    expect(
-      goal.getByText(
-        'You are keeping 4.8 on Google. Google shows 4.8 and it is holding.',
-      ),
-    ).toBeVisible()
-  },
-}
-
-/** No active goal, or none the reader can read: the page draws nothing of it. */
-export const LargePropertyWithoutAGoal: Story = {
-  play: async ({ canvas }) => {
-    expect(
-      canvas.queryByRole('region', { name: 'Your Google rating goal' }),
-    ).not.toBeInTheDocument()
-  },
-}
-
-/**
- * The page as the route draws it until the drawer has a read behind it: every issue is
- * named in text, none is a button that announces a dialog and opens nothing.
- */
-export const LargePropertyWithoutADrawer: Story = {
-  args: { withDrawer: false },
-  play: async ({ canvas }) => {
-    expect(
-      canvas.getByRole('heading', { level: 3, name: 'Facilities and equipment' }),
-    ).toBeVisible()
-    expect(
-      canvas.queryAllByRole('button', { name: /Facilities and equipment/u }),
-    ).toEqual([])
-    expect(canvas.getByText('Noise')).toBeVisible()
-    expect(canvas.queryByRole('button', { name: /Noise/u })).not.toBeInTheDocument()
-    // The way into the Inbox is still there.
-    expect(
-      canvas.getAllByRole('link', { name: /See all \d+ reviews/u }).length,
-    ).toBeGreaterThan(0)
-  },
-}
-
-/** A title opens its drawer: definition, the year in bars, causes and the guests' words. */
-export const LargePropertyDrawer: Story = {
-  args: { openIssueId: FACILITIES_ID },
   play: async () => {
     const body = within(document.body)
-    const drawer = await body.findByRole('dialog', { name: 'Facilities and equipment' })
-    const inDrawer = within(drawer)
-    expect(inDrawer.getByText(/Something the guest used was broken/u)).toBeVisible()
-    expect(inDrawer.getByRole('list', { name: 'Causes' })).toBeVisible()
-    expect(inDrawer.getByText('Air conditioning')).toBeVisible()
-    // Three quotes, and the figure of the year's bars.
-    expect(inDrawer.getAllByRole('figure')).toHaveLength(4)
-    expect(inDrawer.getByRole('link', { name: 'See all 19 reviews' })).toBeVisible()
-    await userEvent.click(inDrawer.getByRole('button', { name: 'Close' }))
+    const sheet = within(await body.findByRole('dialog'))
+    expect(sheet.getByText('These guests')).toBeVisible()
+    await userEvent.click(sheet.getByRole('button', { name: /Linked serious concern/u }))
+    const concern = within(await body.findByRole('dialog'))
+    await userEvent.click(await concern.findByRole('button', { name: /Back to Room/u }))
+    expect(
+      await within(await body.findByRole('dialog')).findByText('These guests'),
+    ).toBeVisible()
+    await userEvent.keyboard('{Escape}')
     expect(body.queryByRole('dialog')).not.toBeInTheDocument()
   },
 }
+export const SheetPhone: Story = { args: SheetOpen.args, parameters: PHONE }
+export const SheetLoading: Story = { args: { ...SheetOpen.args, detailState: 'pending' } }
+export const SheetError: Story = { args: { ...SheetOpen.args, detailState: 'error' } }
+export const TopicUnjudged: Story = {
+  args: { initialTarget: { kind: 'topic', topic: 'safety' } },
+}
+export const PraiseSheet: Story = {
+  args: { initialTarget: { kind: 'issue', issueId: fixtureId('a', 5), sense: 'praise' } },
+}
 
-export const LargePropertyDrawerPhone: Story = {
-  args: { openIssueId: FACILITIES_ID },
+export const Steady: Story = { args: { read: CHECK_IN_STEADY } }
+export const Slipping: Story = { args: { read: CHECK_IN_SLIPPING } }
+export const InsufficientTrend: Story = { args: { read: CHECK_IN_INSUFFICIENT } }
+export const MissingQuote: Story = { args: PraiseSheet.args }
+export const LongManagerRename: Story = {
+  args: { read: CHECK_IN_RENAMED, renamed: true },
   parameters: PHONE,
 }
 
-/** About three reviews with text a month: the year, counts and early signals, no trend claimed. */
-export const SmallProperty: Story = {
-  args: { read: SMALL_READ, window: SMALL_WINDOW },
-  play: async ({ canvas }) => {
-    expect(
-      canvas.getByText(
-        'Last 12 months, chosen because no shorter period holds enough reviews with text. It holds 36 reviews with text (plus 14 without text).',
-      ),
-    ).toBeVisible()
-    // The 12 months before hold too few reviews to say what is usual.
-    expect(canvas.getAllByText('Too few reviews for a trend').length).toBeGreaterThan(0)
-    expect(
-      canvas.getByText('Nothing has changed by more than its usual ups and downs.'),
-    ).toBeVisible()
-    // Under three reviews a topic prints no average.
-    const topics = within(canvas.getByRole('table', { name: 'Every topic' }))
-    const communication = topics.getByText('Communication').closest('tr')
-    if (!communication) throw new Error('Communication row is missing')
-    expect(within(communication).getByText('too few')).toBeVisible()
-  },
-}
-
-export const SmallPropertyPhone: Story = {
-  args: { read: SMALL_READ, window: SMALL_WINDOW },
+export const MonthKeyboard: Story = {
   parameters: PHONE,
-}
-
-/** A guest reported a loose balcony railing with children on it: Urgent, with its reason. */
-export const UrgentReview: Story = {
-  args: { read: URGENT_READ },
   play: async ({ canvas }) => {
-    const urgent = within(
-      canvas.getByRole('region', { name: 'An urgent review needs you' }),
-    )
-    expect(urgent.getByText('Urgent · safety')).toBeVisible()
-    expect(urgent.getByText(/balcony railing was loose/u)).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'See each month' }))
+    const chart = canvas.getByRole('group', { name: /Monthly ratings/u })
+    chart.focus()
+    await userEvent.keyboard('{Home}{ArrowRight}{End}')
+    expect(canvas.getByText('Oct: 1 review · through Oct 1 · 5.0★')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Hide each month' }))
     expect(
-      urgent.getByRole('link', { name: 'Open urgent reviews in the inbox' }),
-    ).toHaveAttribute('href', expect.stringContaining('attention=urgent'))
-    // It is the first thing on the page.
-    const regions = canvas
-      .getAllByRole('region')
-      .map((region) => region.getAttribute('aria-labelledby'))
-    expect(regions[0]).toBe(urgent.getByRole('heading', { level: 2 }).id)
-  },
-}
-
-export const UrgentReviewPhone: Story = {
-  args: { read: URGENT_READ },
-  parameters: PHONE,
-}
-
-/** Under about 10 reviews with text in 12 months there are no patterns: the latest reviews instead. */
-export const NotEnoughReviews: Story = {
-  args: { read: NOT_ENOUGH_READ },
-  play: async ({ canvas }) => {
-    expect(canvas.getByText('Not enough reviews yet to spot patterns')).toBeVisible()
-    expect(canvas.queryByRole('heading', { name: 'Fix first' })).not.toBeInTheDocument()
-    const latest = within(canvas.getByRole('region', { name: 'Latest reviews' }))
-    expect(latest.getAllByRole('listitem')).toHaveLength(4)
-    // A review that names a person shows its stars and day and the way to the Inbox.
-    expect(latest.getAllByRole('link', { name: 'Open in the inbox' })).toHaveLength(4)
-    expect(latest.queryByText(/Maria/u)).not.toBeInTheDocument()
-  },
-}
-
-export const NotEnoughReviewsPhone: Story = {
-  args: { read: NOT_ENOUGH_READ },
-  parameters: PHONE,
-}
-
-/** Reviews are still being analysed: the figures stand, no change is claimed. */
-export const StillAnalysing: Story = {
-  args: { read: PROVISIONAL_READ },
-  play: async ({ canvas }) => {
-    expect(
-      canvas.getByText(
-        /Some reviews are still being analysed, so these figures can still move/u,
-      ),
-    ).toBeVisible()
-    expect(
-      canvas.getByText('Changes appear once your reviews are analysed.'),
-    ).toBeVisible()
+      canvas.queryByRole('group', { name: /Monthly ratings/u }),
+    ).not.toBeInTheDocument()
   },
 }

@@ -1,4 +1,4 @@
-import type { IssueDrawer } from '#/contexts/ai/application/public-api'
+import type { GuestVoiceHistoryMonth } from '#/contexts/ai/application/public-api'
 import { formatNumber } from '#/lib/format'
 import { monthLabel } from './guest-voice-words'
 
@@ -13,12 +13,12 @@ const BAR_AREA_PX = 64
  */
 export function GuestVoiceMonthBars({
   series,
-}: Readonly<{ series: IssueDrawer['twelveMonthSeries'] }>) {
-  const peak = Math.max(0, ...series.map((point) => point.complaintReviews))
+}: Readonly<{ series: readonly GuestVoiceHistoryMonth[] }>) {
+  const peak = Math.max(0, ...series.map((point) => point.reviewCount))
   return (
     <figure className="flex flex-col gap-2">
       <figcaption className="text-sm font-medium">
-        Reviews that name it, by month
+        Guests who brought it up, each month
       </figcaption>
       <div aria-hidden="true" className="flex flex-col gap-1">
         <div
@@ -31,18 +31,15 @@ export function GuestVoiceMonthBars({
               className="flex flex-1 flex-col items-center justify-end gap-0.5"
             >
               <span className="text-[11px] leading-none text-muted-foreground tabular-nums">
-                {point.complaintReviews === 0 ? '' : formatNumber(point.complaintReviews)}
+                {point.reviewCount === 0 ? '' : formatNumber(point.reviewCount)}
               </span>
               <span
                 className="w-full rounded-t-sm bg-muted-foreground/60"
                 style={{
                   height:
-                    point.complaintReviews === 0
+                    point.reviewCount === 0
                       ? 0
-                      : Math.max(
-                          2,
-                          Math.round((point.complaintReviews / peak) * BAR_AREA_PX),
-                        ),
+                      : Math.max(2, Math.round((point.reviewCount / peak) * BAR_AREA_PX)),
                 }}
               />
             </div>
@@ -56,11 +53,22 @@ export function GuestVoiceMonthBars({
           ))}
         </div>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Available history: {series.at(0)?.startLocalDate} to {series.at(-1)?.endLocalDate}
+        .{' '}
+        {series.at(-1)?.partialEnd
+          ? `The last month covers through ${series.at(-1)?.endLocalDate}.`
+          : null}
+        {series.at(0)?.partialStart
+          ? ` The first month starts ${series.at(0)?.startLocalDate}.`
+          : null}
+      </p>
       <ul className="sr-only">
         {series.map((point) => (
           <li key={point.month}>
-            {monthLabel(point.month).long}: {formatNumber(point.complaintReviews)} of{' '}
-            {formatNumber(point.textReviews)} reviews with text
+            {monthLabel(point.month).long}: {formatNumber(point.reviewCount)} of{' '}
+            {formatNumber(point.textReviews)} reviews with text · {point.startLocalDate}{' '}
+            to {point.endLocalDate}
           </li>
         ))}
       </ul>

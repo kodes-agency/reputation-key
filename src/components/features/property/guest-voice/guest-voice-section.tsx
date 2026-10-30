@@ -1,31 +1,63 @@
 import { useId, type ReactNode } from 'react'
+import { SectionTitle } from '#/components/ui/section-title'
+import { TONE_FILL, TONE_INK, type Tone } from '#/components/ui/tone'
+import { cn } from '#/lib/utils'
 
-/**
- * One section of the page: a region named by its h2, with a line under it that says
- * what the section is for. The sections are not cards of their own; what is in them is.
- */
+/** Answer first in the DOM; evidence stacks below it in a narrow page container. */
 export function GuestVoiceSection({
   title,
   hint,
+  answer,
+  aside,
+  footer,
+  tone = 'neutral',
   children,
-}: Readonly<{ title: string; hint?: string; children: ReactNode }>) {
+}: Readonly<{
+  title: string
+  hint?: string
+  answer?: string
+  aside?: ReactNode
+  footer?: ReactNode
+  tone?: Tone
+  children: ReactNode
+}>) {
   const headingId = useId()
-  return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-3">
-      <div className="flex flex-col gap-0.5">
-        <h2 id={headingId} className="text-lg font-semibold tracking-tight">
+  if (answer === undefined)
+    return (
+      <section aria-labelledby={headingId} className="flex flex-col gap-3">
+        <SectionTitle id={headingId} tabIndex={-1}>
           {title}
-        </h2>
-        {hint === undefined ? null : (
-          <p className="text-sm text-muted-foreground">{hint}</p>
+        </SectionTitle>
+        {hint ? <p className="text-sm text-muted-foreground">{hint}</p> : null}
+        {children}
+      </section>
+    )
+  return (
+    <section
+      style={{ gridTemplateColumns: '2fr 5fr' }}
+      aria-labelledby={headingId}
+      className="overflow-hidden rounded-xl border bg-card shadow-xs @3xl:grid"
+    >
+      <div
+        className={cn(
+          'flex flex-col items-start min-w-0 gap-3 p-4 border-r',
+          TONE_FILL[tone],
         )}
+      >
+        <SectionTitle id={headingId} tabIndex={-1} className={TONE_INK[tone]}>
+          {title}
+        </SectionTitle>
+        <p className="text-xl leading-tight font-semibold tracking-tight @3xl:text-2xl">
+          {answer}
+        </p>
+        {hint ? <p className="text-sm text-muted-foreground">{hint}</p> : null}
+        {aside}
+        {footer}
       </div>
-      {children}
+      <div className="min-w-0 px-4 py-2">{children}</div>
     </section>
   )
 }
-
-/** A line that says a section has nothing in it, in the section's place. */
 export function GuestVoiceNothingHere({ children }: Readonly<{ children: ReactNode }>) {
-  return <p className="text-sm text-muted-foreground">{children}</p>
+  return <p className="py-2 text-sm text-muted-foreground">{children}</p>
 }

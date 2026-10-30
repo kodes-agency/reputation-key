@@ -77,6 +77,8 @@ const PROPER_WORDS: ReadonlySet<string> = new Set([
 
 /** A label the sweep leaves, and why. */
 const ALLOWED_LABELS: Readonly<Record<string, string>> = {
+  'Open these reviews in the Inbox':
+    'the owner-approved Guest voice detail action; Inbox is the named destination',
   'Review language · Detect automatically':
     'two labels joined by a dot: the select’s name, then its option',
   'Use “How did we do?”':

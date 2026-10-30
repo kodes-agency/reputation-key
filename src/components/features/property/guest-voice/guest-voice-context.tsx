@@ -1,5 +1,8 @@
 import { createContext, use, type ReactNode } from 'react'
-import type { GuestVoiceWindow } from '#/contexts/ai/application/public-api'
+import type {
+  GuestVoiceWindow,
+  GuestVoiceDetailTarget,
+} from '#/contexts/ai/application/public-api'
 
 /**
  * What every part of the page shares: which property and which days it is about, and what
@@ -11,13 +14,8 @@ type GuestVoiceContextValue = Readonly<{
   window: GuestVoiceWindow
   startLocalDate: string
   endLocalDate: string
-  /**
-   * Open an issue's drawer. Absent while no drawer has a read behind it: an issue's name
-   * is then plain text, not a button that announces a dialog and opens nothing.
-   */
-  onOpenIssue?: (issueId: string) => void
-  /** "Not right?": the manager says an issue is wrong. Absent: the control is not drawn. */
-  onNotRight?: (issueId: string) => void
+  /** The URL-backed detail host owns opening all three target kinds. */
+  onOpenDetail?: (target: GuestVoiceDetailTarget) => void
 }>
 
 const GuestVoiceContext = createContext<GuestVoiceContextValue | null>(null)

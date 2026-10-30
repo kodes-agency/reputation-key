@@ -247,3 +247,14 @@ describe('the checks catch the spellings the scan found', () => {
     )
   })
 })
+
+describe('responsive detail sheet', () => {
+  it('owns its shape and safe-area footer in the shared primitive', () => {
+    const sheet =
+      FILES.find((file) => file.path === 'src/components/ui/sheet.tsx')?.text ?? ''
+    expect(sheet).toContain("layout?: 'side' | 'responsive-detail'")
+    expect(sheet).toContain('calc(100dvh-2rem)')
+    expect(sheet).toContain('safe-area-inset-bottom')
+    expect(sheet).toContain('shrink-0')
+  })
+})

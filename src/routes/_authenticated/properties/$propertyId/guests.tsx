@@ -1,19 +1,12 @@
 import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import {
-  keepPreviousData,
-  queryOptions,
-  useQuery,
-  useSuspenseQuery,
-} from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { PropertyGuestVoicePage } from '#/components/features/property/property-guest-voice-page'
-import { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { aiKeys } from '#/shared/queries/query-keys'
 import { guestVoiceRangeSearch, type GuestVoiceRange } from '#/shared/dashboard-range'
 import { guestVoiceRangeOfLocation, keptData } from './-dashboard-range-read'
 import {
@@ -24,23 +17,26 @@ import {
   guestVoiceV2View,
 } from './-guest-voice-v2'
 import { ratingGoalCardQuery } from './goals/-rating-goal-queries'
+import { guestVoiceDetailSearch } from './-guest-voice-search'
+import { guestVoiceDetailTarget, guestVoiceDetailParams } from './-guest-voice-details'
+import {
+  propertyGuestVoiceV2Query,
+  propertyGuestVoiceGoogleQuery,
+} from './-guest-voice-queries'
+import { GuestVoiceRouteDetails } from './-guest-voice-route-details'
+import { useGuestVoiceDetailNavigation } from '#/components/features/property/guest-voice/use-guest-voice-detail-navigation'
 import { RoutePending } from '#/components/layout/route-page-state'
 
-export const propertyGuestsSearchSchema = z.object({ range: guestVoiceRangeSearch })
+export const propertyGuestsSearchSchema = z.object({
+  range: guestVoiceRangeSearch,
+  ...guestVoiceDetailSearch,
+})
 
 /**
  * Guest voice, read from the v3 analysis, the only analysis there is since the switch-on
  * (2026-10-30). The answer is the page, or says why there is none to draw yet: AI is off,
  * or nothing is analysed so far (the page says which).
  */
-export const propertyGuestVoiceV2Query = (propertyId: string, range: GuestVoiceRange) =>
-  queryOptions({
-    queryKey: aiKeys.guestVoiceV2(propertyId, range),
-    queryFn: () => getGuestVoiceV2Fn({ data: { propertyId, range } }),
-    staleTime: 60_000,
-    retry: false,
-  })
-
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/guests')({
   staticData: { page: { title: 'Guest voice', tier: 'dashboard', under: 'property' } },
   validateSearch: propertyGuestsSearchSchema,
@@ -59,7 +55,10 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/gue
     // waited on it before today's page was read too; v3 is the only analysis now.) A read
     // that fails is the route's error, not a page that says the analysis is being prepared.
     await context.queryClient.ensureQueryData(
-      propertyGuestVoiceV2Query(propertyId, guestVoiceRangeOfLocation(location)),
+      (await import('./-guest-voice-queries')).propertyGuestVoiceV2Query(
+        propertyId,
+        guestVoiceRangeOfLocation(location),
+      ),
     )
   },
   component: PropertyGuestsRoute,
@@ -67,8 +66,29 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/gue
 
 function PropertyGuestsRoute() {
   const { propertyId } = Route.useParams()
-  const { range } = Route.useSearch()
+  const search = Route.useSearch()
+  const { range } = search
+  const target = guestVoiceDetailTarget(search)
   const navigate = Route.useNavigate()
+  const detailChange = (next: typeof target) => {
+    void navigate({
+      search: (previous) => ({ ...previous, ...guestVoiceDetailParams(next) }),
+    })
+  }
+  const navigation = useGuestVoiceDetailNavigation(target, detailChange)
+  useEffect(() => {
+    const normalized = guestVoiceDetailParams(target)
+    if (
+      Object.entries(normalized).some(
+        ([key, value]) => search[key as keyof typeof normalized] !== value,
+      )
+    ) {
+      void navigate({
+        search: (previous) => ({ ...previous, ...normalized }),
+        replace: true,
+      })
+    }
+  }, [target, search, navigate])
   const { data: propertyData } = useSuspenseQuery(propertyQuery(propertyId))
   const reading = useQuery({
     ...propertyGuestVoiceV2Query(propertyId, range),
@@ -98,25 +118,50 @@ function PropertyGuestsRoute() {
     enabled: v2 !== null,
   })
 
+  const google = useQuery({
+    ...propertyGuestVoiceGoogleQuery(propertyId),
+    enabled: v2 !== null,
+  })
+
   const onRangeChange = (value: GuestVoiceRange) => {
     // A window on the page, not a place: replace, so arrowing through the
     // segments (a radio group chooses on focus) is no history entry per step.
     void navigate({
-      search: (previous) => ({ ...previous, range: value }),
+      search: (previous) => ({
+        ...previous,
+        range: value,
+        ...guestVoiceDetailParams(null),
+      }),
       replace: true,
     })
   }
 
   if (v2 !== null) {
     return (
-      <PropertyGuestVoicePage
+      <GuestVoiceRouteDetails
         propertyId={propertyId}
-        propertyName={propertyData.property.name}
         range={v2Range}
-        onRangeChange={onRangeChange}
-        v2={guestVoiceV2View(v2, guestVoiceGoalOf(goalCard.data))}
+        read={v2}
+        target={target}
         busy={reading.isPlaceholderData}
-      />
+        navigation={navigation}
+        refreshPage={reading.refetch}
+      >
+        {(drawer) => (
+          <PropertyGuestVoicePage
+            propertyId={propertyId}
+            propertyName={propertyData.property.name}
+            range={v2Range}
+            onRangeChange={onRangeChange}
+            v2={{
+              ...guestVoiceV2View(v2, guestVoiceGoalOf(goalCard.data)),
+              googleNumbers: google.data,
+              drawer,
+            }}
+            busy={reading.isPlaceholderData}
+          />
+        )}
+      </GuestVoiceRouteDetails>
     )
   }
 

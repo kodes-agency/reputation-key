@@ -109,3 +109,40 @@ underlining, the Inbox All reviews view, new topic/concern id filters and issue
 redirect metadata are deferred. Use existing issue/polarity/day or urgent Inbox
 searches and say "Open these reviews in the Inbox"; area sheets have no Inbox
 link. Manager issue commands stay dormant; correction remains in the Inbox.
+
+## Frontend delivery amendment — 2026-10-31
+
+The H composition now uses the four question/answer bands, with a compact quiet line
+in place of an empty urgent band. Answers use the approved friendly topic phrases,
+while rows retain specific manager-first titles. Other recurring issues and one/two-review
+concerns are separate disclosures inside Fix; praise starts with three rows. Universal
+parts are collapsed, ordered by status and remain unjudged below six mentioning reviews.
+The month chart is the only page chart, initially closed on phones and open on desktop;
+its keyboard inspection and accessible list include empty and partial calendar months.
+
+The period control remains the shared `RangeControl` in `PageHeader.actions`, as on
+Ratings, Google and Portal results. Google’s dated number and the permitted active goal
+are independent header facts. “How we count” distinguishes review records from people,
+Google’s number from comment means, and explains analysis coverage, the fixed split,
+95% happy-share test and 0.20-star agreement rule. It makes no confidence claim for a mean.
+
+One lazy responsive Sheet hosts issue, concern and topic targets. Linked Back restores
+scroll and initiating-control focus; closing restores the page row, or the question
+heading if that row disappeared. Phone actions are outside the scrolling body in the
+shared safe-area footer. A topic opens issue evidence from liked/disliked causes and
+has no Inbox action. Other detail actions say “Open these reviews in the Inbox”: existing
+issue/polarity/day or effective-priority urgent filters can omit handled reviews, so
+there is no promise of “all N”, new archive queue, topic filter or concern-id filter.
+“Not right?” explains the existing per-review Inbox correction workflow; group mutation
+commands remain dormant. Safe quotes retain the whole cited sentence, with the approved
+sentence caption; clause underlining is deferred.
+
+Small reads retain selected-period concerns, three safe expandable previews and the
+permission/capability-gated Portals invitation destination. Copy team summary is manual,
+uses only fixed topic labels and unique topic/polarity totals, and offers selected text
+for manual copy when the clipboard fails. No guest words, issue titles, causes or manager
+renames enter the note. It does not change Monday mail or send a notice.
+
+Acceptance fixtures use entirely invented dated review/fact populations and production
+builders, including a two-group/five-report busy state and partial edge month. Browser,
+Storybook interaction and integration acceptance still run on the disposable CI stack.

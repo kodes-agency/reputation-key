@@ -1,0 +1,28 @@
+[00:56:43.117] [INFO] storybook v10.6.2
+[00:56:44.073] [DEBUG] Getting package.json info for /Users/bozhidardenev/kodes/worktrees/rk-gv-checkin/package.json...
+[00:56:44.219] [DEBUG] Could not determine @babel/preset-env version in use. In case of runtime errors with @babel/preset-env, you may need to set the babelRemoveBugfixes feature flag in your `main.ts` file.
+[00:56:45.978] [WARN] 🚨 Unable to index ./src/components/features/property/guest-voice/guest-voice-issue-drawer.stories.tsx:
+  NoMetaError: CSF: missing default export /Users/bozhidardenev/kodes/worktrees/rk-gv-checkin/src/components/features/property/guest-voice/guest-voice-issue-drawer.stories.tsx (line 1, col 0)
+
+More info: https://storybook.js.org/docs/writing-stories?ref=error#default-export
+    at CsfFile.parse (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/_node-chunks/chunk-RFQS5KZR.js:545:13)
+    at Object.createIndex (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/presets/common-preset.js:2232:154)
+    at async _StoryIndexGenerator.extractStories (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/index.js:16873:23)
+    at async file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/index.js:16794:39
+    at async Promise.all (index 96)
+    at async Promise.all (index 0)
+    at async _StoryIndexGenerator.updateExtracted (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/index.js:16782:5)
+    at async _StoryIndexGenerator.ensureExtracted (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/index.js:16817:5)
+    at async _StoryIndexGenerator.initialize (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/index.js:16778:5)
+    at async file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/presets/common-preset.js:2347:10
+[00:56:45.983] [ERROR] Error: Unable to index ./src/components/features/property/guest-voice/guest-voice-issue-drawer.stories.tsx
+    at _StoryIndexGenerator.getIndexAndStats (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/index.js:17054:15)
+    at async _StoryIndexGenerator.getIndex (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/index.js:17043:13)
+    at async createTestRunnerStore (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/@storybook+addon-vitest@10.6.2_@vitest+browser-playwright@4.1.11_@vitest+browser@4.1.11_3e77570fb7d68b587a9e2099cd2ca76f/node_modules/@storybook/addon-vitest/dist/preset.js:459:14)
+    at async Object.experimental_serverChannel (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/@storybook+addon-vitest@10.6.2_@vitest+browser-playwright@4.1.11_@vitest+browser@4.1.11_3e77570fb7d68b587a9e2099cd2ca76f/node_modules/@storybook/addon-vitest/dist/preset.js:1554:176)
+    at async buildDevStandalone (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/core-server/index.js:9539:72)
+    at async withTelemetry (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/_node-chunks/chunk-JL3YXRU7.js:142:12)
+    at async dev (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/bin/core.js:4877:3)
+    at async _Command.<anonymous> (file:///Users/bozhidardenev/kodes/worktrees/rk-v3-switch-on/node_modules/.pnpm/storybook@10.6.2_@types+react@19.2.18_prettier@3.9.8_react@19.2.8/node_modules/storybook/dist/bin/core.js:4985:3)
+[00:56:45.985] [WARN] Broken build, fix the error above.
+You may need to refresh the browser.

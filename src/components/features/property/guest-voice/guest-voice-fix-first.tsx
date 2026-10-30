@@ -1,91 +1,60 @@
-import type { FixFirstItem } from '#/contexts/ai/application/public-api'
-import { GuestVoiceCauses } from './guest-voice-causes'
-import { useGuestVoice } from './guest-voice-context'
-import { GuestVoiceIssueActions } from './guest-voice-issue-actions'
-import { GuestVoiceIssueFacts } from './guest-voice-issue-facts'
+import type { GuestVoiceV2Ready } from '#/contexts/ai/application/public-api'
 import { GuestVoiceIssueTitle } from './guest-voice-issue-title'
-import { GuestVoiceQuote } from './guest-voice-quote'
 import { GuestVoiceNothingHere, GuestVoiceSection } from './guest-voice-section'
+import { GuestVoiceDisclosure } from './guest-voice-disclosure'
+import { GuestVoiceWatch } from './guest-voice-watch'
+import { fixAnswer, lastMentionedText } from './guest-voice-check-in-words'
+import { GuestVoiceOverflow } from './guest-voice-overflow'
+import { starsText } from './guest-voice-words'
 
-function FixFirstCard({ item, rank }: Readonly<{ item: FixFirstItem; rank: number }>) {
-  const { propertyId, window } = useGuestVoice()
-  return (
-    <li>
-      <article className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-3 rounded-xl border bg-card p-4 md:p-5">
-        <span
-          aria-hidden="true"
-          className="pt-0.5 text-base font-semibold text-muted-foreground tabular-nums"
-        >
-          {rank}
-        </span>
-        <div
-          className={
-            item.quote == null
-              ? 'flex min-w-0 flex-col gap-3'
-              : 'grid min-w-0 gap-3 @3xl:grid-cols-[minmax(0,1fr)_22rem] @3xl:gap-x-8'
-          }
-        >
-          <div className="flex min-w-0 flex-col gap-3 @3xl:col-start-1 @3xl:row-start-1">
-            <GuestVoiceIssueTitle
-              issueId={item.issueId}
-              title={item.title}
-              topic={item.topic}
-            />
-            <GuestVoiceIssueFacts
-              statistics={item.statistics}
-              window={window}
-              sense="complaint"
-            />
-            <GuestVoiceCauses
-              causes={item.causes.map((cause) => ({ cause }))}
-              label={`Causes of ${item.title}`}
-            />
-          </div>
-          {item.quote == null ? null : (
-            <div className="min-w-0 @3xl:col-start-2 @3xl:row-span-2 @3xl:row-start-1">
-              <GuestVoiceQuote
-                evidence={item.quote}
-                sense="complaint"
-                propertyId={propertyId}
-              />
-            </div>
-          )}
-          <div className="@3xl:col-start-1 @3xl:row-start-2">
-            <GuestVoiceIssueActions
-              issueId={item.issueId}
-              reviewCount={item.statistics.reviewCount}
-            />
-          </div>
-        </div>
-      </article>
-    </li>
+export function GuestVoiceFixFirst({ read }: Readonly<{ read: GuestVoiceV2Ready }>) {
+  const rows = (items: GuestVoiceV2Ready['fixFirst']) => (
+    <ol className="divide-y">
+      {items.map((item) => (
+        <li key={item.issueId}>
+          <GuestVoiceIssueTitle
+            issueId={item.issueId}
+            title={item.title}
+            topic={item.topic}
+          >
+            <span className="font-normal text-muted-foreground">
+              {item.statistics.reviewCount} guests ·{' '}
+              {item.statistics.mentionedAverage === null
+                ? 'Average not available'
+                : `${starsText(item.statistics.mentionedAverage)} average`}{' '}
+              · {lastMentionedText(item.lastMentionedLocalDate)}
+            </span>
+          </GuestVoiceIssueTitle>
+        </li>
+      ))}
+    </ol>
   )
-}
-
-/**
- * The problems that need fixing first, the one with the most stars at stake on top.
- * Only a problem named in three or more reviews is ranked here; fewer is on the Watch
- * list, and an Urgent review is above the page.
- */
-export function GuestVoiceFixFirst({
-  items,
-}: Readonly<{ items: readonly FixFirstItem[] }>) {
   return (
     <GuestVoiceSection
-      title="Fix first"
-      hint="Ranked by how much each problem could be costing your rating"
+      title="What should we fix first?"
+      answer={fixAnswer(read.fixFirst)}
+      hint="These recurring concerns are worth looking at first."
+      tone="warn"
     >
-      {items.length === 0 ? (
+      {read.fixFirst.length ? (
+        rows(read.fixFirst.slice(0, 3))
+      ) : (
         <GuestVoiceNothingHere>
           No problem is named in three or more reviews in this period.
         </GuestVoiceNothingHere>
-      ) : (
-        <ol className="flex flex-col gap-3">
-          {items.map((item, index) => (
-            <FixFirstCard key={item.issueId} item={item} rank={index + 1} />
-          ))}
-        </ol>
       )}
+      {read.fixFirst.length > 3 ? (
+        <GuestVoiceDisclosure
+          label={`${read.fixFirst.length - 3} more recurring concerns`}
+        >
+          {rows(read.fixFirst.slice(3))}
+        </GuestVoiceDisclosure>
+      ) : null}
+      <GuestVoiceOverflow
+        count={read.remainingCounts.fixFirst}
+        label="more recurring concerns"
+      />
+      <GuestVoiceWatch items={read.watch} remaining={read.remainingCounts.watch} />
     </GuestVoiceSection>
   )
 }

@@ -134,3 +134,32 @@ export async function setUpV3Fixture(input: {
     },
   }
 }
+
+/** Six dated comments, including a concern below the pattern eligibility threshold. */
+export async function seedSmallCheckIn(fixture: V3Fixture): Promise<void> {
+  for (let index = 101; index <= 106; index += 1) {
+    await fixture.seed.addReview({
+      index,
+      rating: index === 101 ? 1 : 4,
+      reviewedAt: daysAgo(index - 100),
+      sentiment: index === 101 ? 'negative' : 'positive',
+      attention: index === 101 ? 'urgent' : 'low',
+      urgentReason: index === 101 ? 'health' : undefined,
+      mentions:
+        index === 101
+          ? [
+              {
+                topic: 'cleanliness',
+                polarity: 'negative',
+                strength: 'strong',
+                thing: 'room',
+                issue: 'reported mould',
+                sentences: [1],
+                namesPerson: null,
+              },
+            ]
+          : [],
+    })
+  }
+  await fixture.seed.seal()
+}

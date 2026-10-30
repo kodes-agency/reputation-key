@@ -1,4 +1,4 @@
-import type { GuestVoiceV2Ready } from '#/contexts/ai/application/public-api'
+import type { GuestVoiceWindowContext } from '#/contexts/ai/application/public-api'
 import type { GuestVoiceRange } from '#/shared/dashboard-range'
 import { windowDates, windowSentence } from './guest-voice-words'
 
@@ -10,7 +10,7 @@ import { windowDates, windowSentence } from './guest-voice-words'
 export function GuestVoiceBasis({
   read,
   range,
-}: Readonly<{ read: GuestVoiceV2Ready; range: GuestVoiceRange }>) {
+}: Readonly<{ read: GuestVoiceWindowContext; range: GuestVoiceRange }>) {
   const dates = windowDates(read.startLocalDate, read.endLocalDate)
   return (
     <div className="flex flex-col gap-1 text-sm text-muted-foreground">
@@ -23,6 +23,7 @@ export function GuestVoiceBasis({
         })}
       </p>
       {dates === null ? null : <p>{dates}</p>}
+      <p>Through {read.dataThroughLocalDate} (Property-local date).</p>
       {read.provisional ? (
         <p>
           Some reviews are still being analysed, so these figures can still move. Changes
