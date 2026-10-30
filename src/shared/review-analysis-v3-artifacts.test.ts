@@ -36,17 +36,17 @@ describe('review analysis v3 logical artifacts', () => {
         'b7e81ba1117905c6ef567418dba1696af46fa11ab0b2a87c33100214b8fc451a',
       normalizerVersion: 'review-analysis-normalization-v1',
       normalizerDigest:
-        '793a9d95b421469ed9794fb92e922366770736454cd9ef78aea1b7c5df1a1fd2',
+        'b786e88567c1121c9e4ddc38c8db1b0a0f58de3d5905453bb26f3e21435767a9',
       attentionFormulaVersion: 'review-attention-v2',
       attentionFormulaDigest:
         '42473e84ab5b376cd06940ac4060b7e8c875100507247c91e70450d220bed687',
       providerAnswerSchemaDigest:
-        'dec7c35b4ab98677c64f5b74016af70f6a6192bc59a291044a6c264ea3ac6ef4',
+        '8c72e79976c6b784c679f671b798c41b71e78795542c7d80571e48cebde40154',
       storedSchemaDigest:
         '27eb2a788d851796e5e9a11ae69768f4981e7f2b1722154893cac51a9c10b685',
     })
     expect(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS_DIGEST).toBe(
-      '3e1aa101b347f90fc14e037b357602537c6972f8fb0c7eca9267034efcdbb3e2',
+      '52f607fc4c80191d364f9fdd3436bc8bc1bc2315bf5173c5610f09de461d7177',
     )
     expect(Object.isFrozen(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS)).toBe(true)
   })

@@ -1551,8 +1551,9 @@ Review analysis v3 can find a review Urgent: a guest reports a risk to safety or
 health, discrimination or a legal threat (annotation guide v3; about one review
 in a hundred). ADR 0031 (amended 2026-10-30) allowed exactly one AI-triggered
 message for it and left this ADR to say how it is delivered. The owner decided it
-on 2026-10-29 (v3 contract decision 10). Until review analysis v3 is activated no
-analysis is Urgent, so nothing below fires; it ships dark with the rest of v3.
+on 2026-10-29 (v3 contract decision 10). It shipped dark with the rest of v3 and has
+been live since the switch-on of 2026-10-30: nothing fires for a Property until its
+history has been analysed again.
 
 1. **One new type, `review.ai_urgent_detected`**, raised by one identifier-only
    fact, `ai.review_analysis.urgent_detected`, which the AI context writes in the
@@ -1615,9 +1616,9 @@ the type, the resource and the payload.
 
 Guest voice 2.0 gives a manager the page's three lines (what to fix first, what guests
 love, what changed). The owner decided on 2026-10-29 that they may also arrive by email, on
-Monday mornings, to managers who asked (v3 contract decision 11). Until review analysis v3
-is activated no Property has a v3 analysis, so nothing below fires; it ships dark with the
-rest of v3.
+Monday mornings, to managers who asked (v3 contract decision 11). It shipped dark with the
+rest of v3 and has been live since the switch-on of 2026-10-30; the preference is offered
+in Settings while review analysis v3 is on (`REVIEW_ANALYSIS_V3_LIVE`).
 
 1. **One new type, `guest_voice.summary`**, raised by one governed fact,
    `ai.guest_voice_summary.ready`, which the AI context records at most once per Property

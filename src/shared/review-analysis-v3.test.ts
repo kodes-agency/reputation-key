@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod/v4'
-import { AI_OPERATION_PROFILES } from './ai-operation-profiles'
+import {
+  AI_OPERATION_PROFILES,
+  AI_PROVIDER_DEPLOYMENT_PROFILE,
+} from './ai-operation-profiles'
+import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from './ai-route-output-schemas'
 import { AI_RUNTIME_CAPABILITIES_V1 } from './ai-runtime-capability-contract'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import {
@@ -137,23 +141,78 @@ describe('review analysis v3 schemas', () => {
     ).toBe(false)
   })
 
-  it('keeps provider validation structural while stored validation enforces causes', () => {
-    const cases = [
+  it('holds a provider cause to the stored shape, and leaves the cross-field rules to the stored schema', () => {
+    const badShape = [
       { ...cleanMention, thing: 'Air Conditioning' },
       { ...cleanMention, thing: 'room 2' },
       { ...cleanMention, thing: 'one two three four' },
       { ...cleanMention, thing: 'a'.repeat(81) },
+      { ...cleanMention, issue: "didn't work" },
+      { ...cleanMention, issue: 'cold, wet' },
+      { ...cleanMention, issue: '30-minute wait' },
+      { ...cleanMention, issue: 'failed/broken' },
+      { ...cleanMention, issue: '' },
+    ]
+    for (const mention of badShape) {
+      const answer = { ...cleanAnswer, mentions: [mention] }
+      expect(REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA.safeParse(answer).success).toBe(
+        false,
+      )
+      expect(REVIEW_ANALYSIS_V3_STORED_SCHEMA.safeParse(answer).success).toBe(false)
+    }
+    // What a provider can express and the stored contract refuses: a thing with no issue,
+    // and sentence numbers out of order or repeated. The normalizer repairs these.
+    const structural = [
       { ...cleanMention, issue: null },
       { ...cleanMention, sentences: [2, 1] },
       { ...cleanMention, sentences: [1, 1] },
     ]
-    for (const mention of cases) {
+    for (const mention of structural) {
       const answer = { ...cleanAnswer, mentions: [mention] }
-      const providerCanExpress = mention.thing !== 'a'.repeat(81)
       expect(REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA.safeParse(answer).success).toBe(
-        providerCanExpress,
+        true,
       )
       expect(REVIEW_ANALYSIS_V3_STORED_SCHEMA.safeParse(answer).success).toBe(false)
+    }
+  })
+
+  it('accepts the phrases the pattern allows: hyphenated words, one to three words, or null', () => {
+    for (const phrase of [
+      'engine',
+      'check-in',
+      'check-in desk',
+      'air conditioning',
+      'self-service check-in desk',
+      null,
+    ]) {
+      const answer = {
+        ...cleanAnswer,
+        mentions: [
+          { ...cleanMention, thing: phrase, issue: phrase === null ? null : 'slow' },
+        ],
+      }
+      expect(REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA.safeParse(answer).success).toBe(
+        true,
+      )
+    }
+  })
+
+  it('sends the cause pattern to the provider as part of the strict wire schema', () => {
+    const wire = AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v3'] as unknown as {
+      properties: {
+        mentions: {
+          items: {
+            properties: Record<string, { anyOf: readonly Record<string, unknown>[] }>
+          }
+        }
+      }
+    }
+    const mention = wire.properties.mentions.items.properties
+    for (const field of ['thing', 'issue'] as const) {
+      expect(mention[field]?.anyOf).toEqual([
+        { type: 'string', maxLength: 80, pattern: REVIEW_CAUSE_PHRASE_PATTERN.source },
+        { type: 'null' },
+      ])
     }
   })
 
@@ -436,7 +495,7 @@ describe('review attention v2', () => {
   })
 })
 
-describe('review analysis v3 version set stays dark', () => {
+describe('review analysis v3 version set is the served one', () => {
   it('pins every new logical identifier and agrees with sibling contracts', () => {
     expect(REVIEW_ANALYSIS_V3_VERSIONS).toEqual({
       topicTaxonomy: 'review-topic-taxonomy-v3',
@@ -457,22 +516,26 @@ describe('review analysis v3 version set stays dark', () => {
     expect(Object.isFrozen(REVIEW_ANALYSIS_V3_VERSIONS)).toBe(true)
   })
 
-  it('does not register v3 in either live catalogue', () => {
+  it('is what both live catalogues serve for review analysis, under the deployment profile that names both providers', () => {
     expect(
-      AI_OPERATION_PROFILES.some(
-        (profile) => profile.profileVersion === ('review-analysis-v3' as string),
+      AI_OPERATION_PROFILES.filter(
+        (profile) =>
+          profile.profileVersion === REVIEW_ANALYSIS_V3_VERSIONS.analysisOperation,
       ),
-    ).toBe(false)
+    ).toHaveLength(1)
     const live = AI_RUNTIME_CAPABILITIES_V1.find(
       (entry) => entry.capability === 'review_analysis',
     )
     expect(live).toMatchObject({
-      runtimeProfileVersion: 'review-analysis-runtime-v1',
-      operationProfileVersion: 'review-analysis-v2',
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      runtimeProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.capabilityRuntime,
+      gatewayProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.gatewayProfile,
+      operationProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.analysisOperation,
+      providerDeploymentProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.providerDeployment,
     })
-    expect(REVIEW_ANALYSIS_V3_VERSIONS.providerDeployment).not.toBe(
-      live?.providerDeploymentProfileVersion,
+    // The version set, the catalogue and the deployment profile are three spellings of
+    // one name; the identity context spells it a fourth time for the browser.
+    expect(AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion).toBe(
+      REVIEW_ANALYSIS_V3_VERSIONS.providerDeployment,
     )
   })
 

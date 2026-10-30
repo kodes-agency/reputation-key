@@ -16,7 +16,7 @@ describe('Anthropic attestation and operation pairing', () => {
       '92d66d958eef54038eff7e46116415a8ca114e3545757a2ca365f77b718b7a47',
     )
     expect(REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING.digest).toBe(
-      '89a5e1757cf270574bb7ebd644301d221f9bcb179ee5f429f54073be27f50c38',
+      '1e7e9c3779f626c5a8f22b18130a12a9667e50701c157c13a1bfb9953ff4d165',
     )
   })
 
@@ -34,9 +34,17 @@ describe('Anthropic attestation and operation pairing', () => {
     )
   })
 
-  it('gives no live v2 profile an Anthropic pairing', () => {
+  // Anthropic is attested for review analysis v3 alone, and nothing selects it
+  // (`operator-provider-selection.ts`): the reply, trend and canary profiles and the
+  // retired v2 analysis profile have no Anthropic pairing at all.
+  it('gives no live profile but review analysis v3 an Anthropic pairing', () => {
     for (const profile of AI_OPERATION_PROFILES) {
-      expect(operationProviderPairing(profile.profileVersion, 'anthropic')).toBeNull()
+      const pairing = operationProviderPairing(profile.profileVersion, 'anthropic')
+      if (profile.profileVersion === 'review-analysis-v3') {
+        expect(pairing).not.toBeNull()
+      } else {
+        expect(pairing).toBeNull()
+      }
     }
   })
 })

@@ -15,6 +15,7 @@ import {
   REVIEW_STRENGTHS_V3,
   REVIEW_URGENT_REASONS_V3,
 } from '#/shared/review-analysis-v3'
+import { isGenericThingWord } from '#/shared/review-generic-things'
 import { splitReviewSentences } from '#/shared/review-sentences'
 import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
 
@@ -167,6 +168,11 @@ function goldProblems(gold: GoldLabel, sentenceCount: number): readonly string[]
     }
     if (mention.thing !== null && mention.issue === null) {
       problems.push(`${gold.id}: mention ${index} has a thing and no issue`)
+    }
+    if (isGenericThingWord(mention.thing)) {
+      problems.push(
+        `${gold.id}: mention ${index} names a generic word as its thing (guide v3.3, rule 3)`,
+      )
     }
   })
   return problems

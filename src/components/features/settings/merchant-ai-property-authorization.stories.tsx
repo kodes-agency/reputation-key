@@ -317,16 +317,16 @@ export const ReconsentAfterNoticeReversion: Story = {
   },
 }
 
-// The 2026-10-17 notice changed only its call to action, so a Property
-// consented under 2026-09-15 is in force: nothing asks it to consent again, and
-// Save waits for a capability change exactly as it does under the served
-// notice (EnabledSelectiveControls saves one, consented under the served one).
-export const NoReconsentUnderANoticeInForce: Story = {
+// The switch-on of review analysis v3 (2026-10-30) put every earlier notice out of force on
+// purpose: nothing carries forward. A Property consented under the notice before it
+// (2026-10-17) is asked to consent again, and ticking the acknowledgement alone is enough to
+// save: its capabilities are untouched.
+export const ReconsentUnderTheNoticeBeforeTheSwitchOn: Story = {
   args: {
     snapshot: {
       ...enabled,
-      noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
-      noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+      noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+      noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
     },
   },
   play: async ({ canvasElement }) => {
@@ -337,9 +337,6 @@ export const NoReconsentUnderANoticeInForce: Story = {
     })
 
     await userEvent.click(acknowledgement)
-    // Ticked, with nothing changed: there is nothing to consent to again.
-    await expect(save).toBeDisabled()
-    await userEvent.click(canvas.getByLabelText(/property trends/i))
     await expect(save).toBeEnabled()
   },
 }

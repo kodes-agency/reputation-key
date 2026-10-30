@@ -87,7 +87,6 @@
           "hair dryer"
         ],
         "price_billing": [
-          "price",
           "bill",
           "deposit",
           "tip",
@@ -108,7 +107,6 @@
           "crowd"
         ],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -257,7 +255,6 @@
           "fan"
         ],
         "price_billing": [
-          "price",
           "bill",
           "tip",
           "service charge",
@@ -277,7 +274,6 @@
           "smoke"
         ],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -357,16 +353,7 @@
           "nail polish"
         ],
         "food_drink": ["coffee", "tea", "drink", "water", "snack"],
-        "cleanliness": [
-          "salon",
-          "chair",
-          "towel",
-          "tools",
-          "brush",
-          "basin",
-          "floor",
-          "toilet"
-        ],
+        "cleanliness": ["chair", "towel", "tools", "brush", "basin", "floor", "toilet"],
         "facilities_equipment": [
           "hair dryer",
           "chair",
@@ -378,7 +365,6 @@
           "lighting"
         ],
         "price_billing": [
-          "price",
           "bill",
           "deposit",
           "tip",
@@ -389,7 +375,6 @@
         ],
         "atmosphere_noise": ["music", "noise", "decor", "smell", "lighting", "crowd"],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -488,7 +473,6 @@
           "hair dryer"
         ],
         "price_billing": [
-          "price",
           "bill",
           "deposit",
           "tip",
@@ -498,17 +482,8 @@
           "extra charge",
           "membership"
         ],
-        "atmosphere_noise": [
-          "music",
-          "noise",
-          "lighting",
-          "scent",
-          "crowd",
-          "decor",
-          "ambience"
-        ],
+        "atmosphere_noise": ["music", "noise", "lighting", "scent", "crowd", "decor"],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -618,7 +593,6 @@
           "music system"
         ],
         "price_billing": [
-          "price",
           "bill",
           "deposit",
           "fuel charge",
@@ -708,7 +682,6 @@
           "excursion",
           "stop",
           "day trip",
-          "visit",
           "activity"
         ],
         "food_drink": [
@@ -734,7 +707,6 @@
           "heating"
         ],
         "price_billing": [
-          "price",
           "bill",
           "deposit",
           "tip",
@@ -866,7 +838,6 @@
         ],
         "price_billing": [
           "membership",
-          "price",
           "fee",
           "joining fee",
           "cancellation fee",
@@ -876,9 +847,8 @@
           "discount",
           "billing"
         ],
-        "atmosphere_noise": ["music", "noise", "crowd", "lighting", "vibe", "decor"],
+        "atmosphere_noise": ["music", "noise", "crowd", "lighting", "decor"],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -911,7 +881,7 @@
       "id": "generic-service",
       "categoryAliases": [],
       "hints": {
-        "staff_service": ["staff", "receptionist", "manager", "front desk"],
+        "staff_service": ["receptionist", "manager", "front desk"],
         "speed_waiting": ["queue", "waiting time", "appointment", "check-in"],
         "booking_arrival": ["booking", "reservation", "appointment", "cancellation"],
         "food_drink": ["food", "drink", "coffee", "menu"],
@@ -924,9 +894,9 @@
           "equipment",
           "lift"
         ],
-        "price_billing": ["price", "bill", "refund", "fee"],
+        "price_billing": ["bill", "refund", "fee"],
         "atmosphere_noise": ["noise", "music", "decor", "crowd"],
-        "location_access": ["parking", "entrance", "location", "wheelchair access"],
+        "location_access": ["parking", "entrance", "wheelchair access"],
         "safety": ["stairs", "lock", "security", "wet floor"],
         "communication": ["phone", "email", "website", "reply"]
       }

@@ -15,6 +15,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
+import { RECORDED_RUNTIME_PROFILE_VERSIONS } from '../../domain/merchant-ai-capability'
 import { properties } from './property.schema'
 import { reviewAiAnalysisHeads } from './review.schema'
 
@@ -35,25 +36,67 @@ const validCapabilitySet = (state: { name: string }, capabilities: { name: strin
     OR ("${state.name}" IN ('disabled', 'revoked') AND "${capabilities.name}" = ARRAY[]::text[])
   )`)
 
+// The runtime profile each capability is recorded under. Review analysis has two:
+// v1 is what every consent before the switch-on of v3 (2026-10-30) recorded and stays
+// valid at its own version; v2 is what a consent records since. The set is an
+// append-only OR-chain, like the notice versions below.
+const REVIEW_ANALYSIS_RUNTIME_VERSIONS = RECORDED_RUNTIME_PROFILE_VERSIONS.review_analysis
+
 const validRuntimeProfileMap = (
   capabilities: { name: string },
   runtimeProfiles: { name: string },
-) =>
-  sql.raw(`(
-    ("${capabilities.name}" = ARRAY[]::text[] AND "${runtimeProfiles.name}" = '{}'::jsonb)
-    OR ("${capabilities.name}" = ARRAY['review_analysis']::text[] AND "${runtimeProfiles.name}" = '{"review_analysis": "review-analysis-runtime-v1"}'::jsonb)
-    OR ("${capabilities.name}" = ARRAY['reply_drafting']::text[] AND "${runtimeProfiles.name}" = '{"reply_drafting": "reply-drafting-runtime-v1"}'::jsonb)
-    OR ("${capabilities.name}" = ARRAY['review_analysis', 'reply_drafting']::text[] AND "${runtimeProfiles.name}" = '{"reply_drafting": "reply-drafting-runtime-v1", "review_analysis": "review-analysis-runtime-v1"}'::jsonb)
-    OR ("${capabilities.name}" = ARRAY['review_analysis', 'property_trends']::text[] AND "${runtimeProfiles.name}" = '{"property_trends": "property-trends-runtime-v1", "review_analysis": "review-analysis-runtime-v1"}'::jsonb)
-    OR ("${capabilities.name}" = ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[] AND "${runtimeProfiles.name}" = '{"reply_drafting": "reply-drafting-runtime-v1", "property_trends": "property-trends-runtime-v1", "review_analysis": "review-analysis-runtime-v1"}'::jsonb)
-  )`)
+) => {
+  const caps = `"${capabilities.name}"`
+  const map = `"${runtimeProfiles.name}"`
+  const arms = [`(${caps} = ARRAY[]::text[] AND ${map} = '{}'::jsonb)`]
+  const withReviewAnalysis = (
+    capabilitySet: string,
+    others: string,
+    reviewAnalysisRuntime: string,
+  ) =>
+    `(${caps} = ARRAY[${capabilitySet}]::text[] AND ${map} = '{${others}"review_analysis": "${reviewAnalysisRuntime}"}'::jsonb)`
+  for (const runtime of REVIEW_ANALYSIS_RUNTIME_VERSIONS) {
+    arms.push(withReviewAnalysis("'review_analysis'", '', runtime))
+  }
+  arms.push(
+    `(${caps} = ARRAY['reply_drafting']::text[] AND ${map} = '{"reply_drafting": "reply-drafting-runtime-v1"}'::jsonb)`,
+  )
+  for (const runtime of REVIEW_ANALYSIS_RUNTIME_VERSIONS) {
+    arms.push(
+      withReviewAnalysis(
+        "'review_analysis', 'reply_drafting'",
+        '"reply_drafting": "reply-drafting-runtime-v1", ',
+        runtime,
+      ),
+    )
+  }
+  for (const runtime of REVIEW_ANALYSIS_RUNTIME_VERSIONS) {
+    arms.push(
+      withReviewAnalysis(
+        "'review_analysis', 'property_trends'",
+        '"property_trends": "property-trends-runtime-v1", ',
+        runtime,
+      ),
+    )
+  }
+  for (const runtime of REVIEW_ANALYSIS_RUNTIME_VERSIONS) {
+    arms.push(
+      withReviewAnalysis(
+        "'review_analysis', 'reply_drafting', 'property_trends'",
+        '"reply_drafting": "reply-drafting-runtime-v1", "property_trends": "property-trends-runtime-v1", ',
+        runtime,
+      ),
+    )
+  }
+  return sql.raw(`(\n    ${arms.join('\n    OR ')}\n  )`)
+}
 
 /**
  * The execution contract a consent row or enablement head may record. Each
  * known notice version is pinned to its own digest, so a row may never mix a
  * version with another version's digest, and the source, routing and redaction
  * profiles are fixed. The set grows by one arm per notice version (0016 for
- * 2026-09-15, 0064 for 2026-10-17); the constants live in
+ * 2026-09-15, 0064 for 2026-10-17, 0083 for 2026-10-30); the constants live in
  * merchant-ai-notice-contract.ts. A valid row is not an admitted one: which
  * notices still admit AI work is `isMerchantAiNoticeInForce`. Both tables
  * admit exactly this set, so it is declared once. Column references render
@@ -86,6 +129,8 @@ const validExecutionContract = (
             AND ${t.noticeDigest} = '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c')
           OR (${t.noticeVersion} = 'merchant-ai-notice-2026-10-17.v1'
             AND ${t.noticeDigest} = '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-10-30.v1'
+            AND ${t.noticeDigest} = 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e')
         )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1
@@ -189,7 +234,7 @@ export const merchantAiConsentEvidence = pgTable(
     ),
     check(
       'merchant_ai_consent_evidence_profile_valid',
-      sql`${t.providerDeploymentProfileVersion} = 'private-beta-global-v1'`,
+      sql`${t.providerDeploymentProfileVersion} IN ('private-beta-global-v1', 'private-beta-global-v2')`,
     ),
     check(
       'merchant_ai_consent_evidence_notice_digest_valid',
@@ -290,7 +335,7 @@ export const merchantAiEnablement = pgTable(
     check('merchant_ai_enablement_region_valid', sql`${t.processingRegion} = 'global'`),
     check(
       'merchant_ai_enablement_profile_valid',
-      sql`${t.providerDeploymentProfileVersion} = 'private-beta-global-v1'`,
+      sql`${t.providerDeploymentProfileVersion} IN ('private-beta-global-v1', 'private-beta-global-v2')`,
     ),
     check(
       'merchant_ai_enablement_notice_digest_valid',

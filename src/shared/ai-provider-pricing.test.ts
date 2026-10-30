@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  OPENAI_PRICE_CATALOGUE_V1,
+  OPENAI_PRICE_CATALOGUE_V2,
   maximumCostMicros,
   settledCostMicros,
 } from './ai-openai-provider-profile'
@@ -43,13 +43,13 @@ describe('provider price formulas', () => {
   it("gives OpenAI's catalogue exactly the numbers OpenAI's own functions always gave", () => {
     for (const profile of profiles) {
       for (const bytes of payloads) {
-        expect(maximumCostMicrosWith(OPENAI_PRICE_CATALOGUE_V1, profile, bytes)).toBe(
+        expect(maximumCostMicrosWith(OPENAI_PRICE_CATALOGUE_V2, profile, bytes)).toBe(
           maximumCostMicros(profile, bytes),
         )
       }
     }
     for (const usage of usages) {
-      expect(settledCostMicrosWith(OPENAI_PRICE_CATALOGUE_V1, usage)).toBe(
+      expect(settledCostMicrosWith(OPENAI_PRICE_CATALOGUE_V2, usage)).toBe(
         settledCostMicros(usage),
       )
     }
@@ -60,10 +60,10 @@ describe('provider price formulas', () => {
     // in the descriptors themselves).
     expect(
       maximumCostMicros({ staticTokenBearingBytes: 2_193, maxOutputTokens: 1_024 }, 80),
-    ).toBe(1_684)
+    ).toBe(740)
     expect(
       settledCostMicros({ inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 }),
-    ).toBe(2n)
+    ).toBe(1n)
   })
 
   it('prices a call with the catalogue it is given and no other', () => {
@@ -79,7 +79,7 @@ describe('provider price formulas', () => {
       18_000n + 1_200n + 7_500n,
     )
     expect(settledCostMicrosWith(SYNTHETIC, usage)).not.toBe(
-      settledCostMicrosWith(OPENAI_PRICE_CATALOGUE_V1, usage),
+      settledCostMicrosWith(OPENAI_PRICE_CATALOGUE_V2, usage),
     )
   })
 
@@ -142,8 +142,8 @@ describe('provider price formulas', () => {
 
 describe('the price list of each provider', () => {
   it('holds OpenAI, and an operation that records no provider is OpenAI', () => {
-    expect(priceCatalogueOfProvider('openai')).toBe(OPENAI_PRICE_CATALOGUE_V1)
-    expect(priceCatalogueOfProvider(null)).toBe(OPENAI_PRICE_CATALOGUE_V1)
+    expect(priceCatalogueOfProvider('openai')).toBe(OPENAI_PRICE_CATALOGUE_V2)
+    expect(priceCatalogueOfProvider(null)).toBe(OPENAI_PRICE_CATALOGUE_V2)
     expect(Object.keys(AI_PROVIDER_PRICE_CATALOGUES)).toEqual(['openai'])
     expect(Object.isFrozen(AI_PROVIDER_PRICE_CATALOGUES)).toBe(true)
   })

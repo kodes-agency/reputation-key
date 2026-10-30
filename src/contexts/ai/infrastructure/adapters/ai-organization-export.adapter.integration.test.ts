@@ -67,7 +67,7 @@ async function controlHeads(): Promise<
   }>(
     `SELECT scope_key, control_id, generation
      FROM ai_execution_control_heads
-     WHERE scope_key IN ('global', 'provider:private-beta-global-v1',
+     WHERE scope_key IN ('global', 'provider:private-beta-global-v2',
                          'capability:review_analysis')`,
   )
   return Object.fromEntries(
@@ -87,7 +87,7 @@ async function seedOperation(
 ): Promise<void> {
   const heads = await controlHeads()
   const global = heads.global!
-  const provider = heads['provider:private-beta-global-v1']!
+  const provider = heads['provider:private-beta-global-v2']!
   const capability = heads['capability:review_analysis']!
   await lease.pool.query(
     `INSERT INTO ai_operations (
@@ -105,7 +105,7 @@ async function seedOperation(
      ) VALUES (
        $1, 'ai-export-test', $2, $3, $4, 20, 'analysis', 'review_analysis',
        $5, $6, 'review_event_consumer', $7, $8, $9, 'test-v1', 0, 1, $10, $11,
-       $12, 1, 'private-beta-global-v1', 'review-analysis-v1',
+       $12, 1, 'private-beta-global-v2', 'review-analysis-v1',
        'review-analysis-runtime-v1', $13, $14, $15, $16, $17, $18,
        '{"capability":"review_analysis","reviewAnalysisEpoch":"1"}'::jsonb,
        'succeeded', 1, $19, $19, $20
@@ -274,7 +274,7 @@ async function seedFixture(): Promise<Fixture> {
        property_id, organization_id, country_code, timezone, processing_region,
        routing_policy_version, provider_deployment_profile_version, source_epoch,
        profile_version, lifecycle_state, updated_at
-     ) VALUES ($1, $2, 'US', 'UTC', 'global', 1, 'private-beta-global-v1', 0, 1,
+     ) VALUES ($1, $2, 'US', 'UTC', 'global', 1, 'private-beta-global-v2', 0, 1,
                'active', now())`,
     [fixture.propertyId, fixture.organizationId],
   )
@@ -286,7 +286,7 @@ async function seedFixture(): Promise<Fixture> {
          ARRAY['review_analysis', 'property_trends']::text[],
          '{"review_analysis":"review-analysis-runtime-v1","property_trends":"property-trends-runtime-v1"}'::jsonb,
          1, 1, 1, 0, 0, $4, $5, 'google-business-profile-source-policy-v1', 1,
-         'global', 'private-beta-global-v1', 'gbp-review-global-v1', $6,
+         'global', 'private-beta-global-v2', 'gbp-review-global-v1', $6,
          'merchant_enabled', $7, $8, now()
        )
      ).*`,
@@ -617,7 +617,7 @@ describe.sequential('AI Organization Export contributor', () => {
            $1::uuid, 1, 2, $2, $3::uuid, 'revoke', 'revoked', ARRAY[]::text[],
            '{}'::jsonb, 2, 2, 2, 0, 0, $4, $5,
            'google-business-profile-source-policy-v1', 1, 'global',
-           'private-beta-global-v1', 'gbp-review-global-v1', $6,
+           'private-beta-global-v2', 'gbp-review-global-v1', $6,
            'merchant_revoked', $7, $8, now()
          )
        ).*`,

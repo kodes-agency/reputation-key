@@ -219,21 +219,6 @@ describe('review analysis v3 mention repairs and drops', () => {
     ['unknown topic', mention({ topic: 'room' }), 'mention_dropped_enum'],
     ['unknown polarity', mention({ polarity: 'complaint' }), 'mention_dropped_enum'],
     ['unknown strength', mention({ strength: 'severe' }), 'mention_dropped_enum'],
-    ['non-string thing', mention({ thing: 9 }), 'mention_dropped_cause'],
-    ['overlong thing', mention({ thing: 'a'.repeat(81) }), 'mention_dropped_cause'],
-    [
-      'four-word thing',
-      mention({ thing: 'one two three four' }),
-      'mention_dropped_cause',
-    ],
-    ['digit in issue', mention({ issue: 'failed 2 times' }), 'mention_dropped_cause'],
-    [
-      'punctuation in issue',
-      mention({ issue: 'failed/broken' }),
-      'mention_dropped_cause',
-    ],
-    ['empty issue', mention({ issue: '' }), 'mention_dropped_cause'],
-    ['thing without issue', mention({ issue: null }), 'mention_dropped_cause'],
     ['non-array sentences', mention({ sentences: 1 }), 'mention_dropped_sentences'],
     [
       'no valid sentences',
@@ -246,6 +231,81 @@ describe('review analysis v3 mention repairs and drops', () => {
     expect(result.answer.mentions).toEqual([])
     expect(result.flags).toContain(flag)
     expect(result.droppedMentionCount).toBe(1)
+  })
+
+  it.each([
+    ['non-string thing', mention({ thing: 9 })],
+    ['overlong thing', mention({ thing: 'a'.repeat(81) })],
+    ['four-word thing', mention({ thing: 'one two three four' })],
+    ['digit in thing', mention({ thing: '30-minute wait', issue: 'long' })],
+    ['digit in issue', mention({ issue: 'failed 2 times' })],
+    ['comma in issue', mention({ issue: 'cold, wet' })],
+    ['apostrophe in issue', mention({ issue: "didn't work" })],
+    ['punctuation in issue', mention({ issue: 'failed/broken' })],
+    ['empty issue', mention({ issue: '' })],
+    ['thing without issue', mention({ issue: null })],
+  ] as const)(
+    'keeps a mention with %s and empties its cause instead of dropping it',
+    (_name, rawMention) => {
+      const result = normalizeReviewAnalysisV3(answer([rawMention]), context)
+      expectNormalized(result)
+      expect(result.answer.mentions).toEqual([
+        {
+          topic: 'facilities_equipment',
+          polarity: 'negative',
+          strength: 'clear',
+          thing: null,
+          issue: null,
+          sentences: [1],
+          names_person: null,
+        },
+      ])
+      expect(result.flags).toEqual(['cause_refused_shape'])
+      expect(result.droppedMentionCount).toBe(0)
+    },
+  )
+
+  it('empties both parts of the cause when only one of them is invalid', () => {
+    const result = normalizeReviewAnalysisV3(
+      answer([mention({ thing: 'shower', issue: 'cold after 2 minutes' })]),
+      context,
+    )
+    expectNormalized(result)
+    expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
+    expect(result.flags).toEqual(['cause_refused_shape'])
+  })
+
+  it('merges two mentions whose invalid causes were emptied, as it does for a refused name', () => {
+    const result = normalizeReviewAnalysisV3(
+      answer([
+        mention({ thing: '30 minute wait', issue: 'long', sentences: [1] }),
+        mention({ thing: '45 minute wait', issue: 'long', sentences: [2] }),
+      ]),
+      context,
+    )
+    expectNormalized(result)
+    expect(result.answer.mentions).toEqual([
+      {
+        topic: 'facilities_equipment',
+        polarity: 'negative',
+        strength: 'clear',
+        thing: null,
+        issue: null,
+        sentences: [1, 2],
+        names_person: null,
+      },
+    ])
+    expect(result.flags).toEqual(['cause_refused_shape', 'mentions_merged'])
+  })
+
+  it('leaves a valid cause alone and raises no shape flag', () => {
+    const result = normalizeReviewAnalysisV3(
+      answer([mention({ thing: 'check-in', issue: 'slow' })]),
+      context,
+    )
+    expectNormalized(result)
+    expect(result.answer.mentions[0]).toMatchObject({ thing: 'check-in', issue: 'slow' })
+    expect(result.flags).toEqual([])
   })
 
   it('normalizes invalid names_person to null without dropping the mention', () => {
@@ -839,7 +899,7 @@ describe('review analysis v3 normalization governance', () => {
   it('pins the full manifest and computed digest', () => {
     expect(REVIEW_ANALYSIS_NORMALIZATION_VERSION).toBe('review-analysis-normalization-v1')
     expect(REVIEW_ANALYSIS_NORMALIZATION_DIGEST).toBe(
-      '793a9d95b421469ed9794fb92e922366770736454cd9ef78aea1b7c5df1a1fd2',
+      'b786e88567c1121c9e4ddc38c8db1b0a0f58de3d5905453bb26f3e21435767a9',
     )
     expect(REVIEW_ANALYSIS_NORMALIZATION_DIGEST).toBe(
       createHash('sha256')
@@ -853,6 +913,7 @@ describe('review analysis v3 normalization governance', () => {
       causePatternSource: '^[a-z]+(?:-[a-z]+)*(?: [a-z]+(?:-[a-z]+)*){0,2}$',
       causePhraseMaximumWords: 3,
       causePhraseMaximumLength: 80,
+      invalidCausePolicy: 'empty-cause-keep-mention',
       quotationRunLength: 4,
       personMarker: '[PERSON]',
       commonWordCatalogueVersion: 'review-cause-common-words-v1',
@@ -908,6 +969,7 @@ describe('review analysis v3 normalization governance', () => {
       'sentence_refs_repaired',
       'cause_refused_name',
       'cause_refused_quotation',
+      'cause_refused_shape',
       'names_person_invalid',
       'names_person_raised',
       'mentions_merged',

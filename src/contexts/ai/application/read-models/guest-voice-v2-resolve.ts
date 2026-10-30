@@ -11,9 +11,17 @@ const RESOLVE_LIMIT = 100
 export type DraftReviewReaders = Readonly<{
   /** The Inbox Items that open these reviews for the reader. A review not in it cannot be opened. */
   inboxItemIds(reviewIds: readonly string[]): Promise<ReadonlyMap<string, string>>
-  /** What these reviews say now; absent or null where the words are not servable. */
-  reviewTexts(reviewIds: readonly string[]): Promise<ReadonlyMap<string, string | null>>
+  /**
+   * What these reviews say now, and the Review revision those words are; absent or a
+   * null text where the words are not servable.
+   */
+  reviewTexts(
+    reviewIds: readonly string[],
+  ): Promise<ReadonlyMap<string, ReviewWords | null>>
 }>
+
+/** A review's words as Review serves them now, with the revision they are. */
+export type ReviewWords = Readonly<{ text: string | null; sourceRevision: number }>
 
 /** The reviews a draft wants to quote or list, and the ones whose words it will print. */
 function wantedReviews(draft: GuestVoiceV2Draft): Readonly<{
@@ -45,13 +53,18 @@ export async function resolveDraftReviews(
   const openable = wanted.withText.filter((reviewId) => items.has(reviewId))
   const texts =
     openable.length === 0
-      ? new Map<string, string | null>()
+      ? new Map<string, ReviewWords | null>()
       : await readers.reviewTexts(openable)
   const resolved = new Map<string, ResolvedReview>()
   for (const reviewId of wanted.all) {
     const inboxItemId = items.get(reviewId)
     if (inboxItemId === undefined) continue
-    resolved.set(reviewId, { inboxItemId, text: texts.get(reviewId) ?? null })
+    const words = texts.get(reviewId)
+    resolved.set(reviewId, {
+      inboxItemId,
+      text: words?.text ?? null,
+      sourceRevision: words?.sourceRevision ?? null,
+    })
   }
   return resolved
 }

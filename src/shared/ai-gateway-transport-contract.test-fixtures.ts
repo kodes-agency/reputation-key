@@ -19,6 +19,7 @@ import {
   canonicalizeRawAiReviewSource,
 } from './ai-review-source-contract'
 import { OPENAI_PROVIDER_ATTESTATION_V1 } from './ai-openai-provider-attestation'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 as AI_PROVIDER_DEPLOYMENT_PROFILE } from './ai-provider-deployment-profile'
 import { providerRequestProfileOf } from './ai-provider-attestations'
 import { resolveReviewPropertyContext } from './review-vocabulary-hints'
 import { computeDeterministicTrendCandidates } from './ai-property-trend-contract'
@@ -39,7 +40,14 @@ const UUIDS = {
 } as const
 const SHA = 'a'.repeat(64)
 
-export function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
+/**
+ * The v2-form review-analysis request, with the binding the live catalogue serves for
+ * the routes that did not change at the switch-on. Reply and trend requests are built
+ * on its binding (the deployment profile, the notice) and overwrite what is theirs;
+ * review analysis itself is no longer served in this form (`analysisRequest` is), so
+ * the live transport refuses it as cross-wired: it is the retired form.
+ */
+export function v2FormAnalysisRequest(): ReviewAnalysisGatewayRequestV1 {
   return {
     route: 'review-analysis',
     operationId: UUIDS.operation,
@@ -72,7 +80,7 @@ export function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
       outputLeakageProfileDigest: null,
       replyTemplateCatalogueVersion: null,
       replyTemplateCatalogueDigest: null,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
       operationProfileVersion: 'review-analysis-v2',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
       aiSubjectHmacKeyVersion: 'v1',
@@ -110,10 +118,10 @@ function claimedProvider() {
 }
 
 /**
- * A review-analysis request in the v3 evidence form (dark): the raw text is cut
- * into numbered sentences before it is canonicalized, as the Review context does
- * it, and the property context is the catalogue's for the category. The binding
- * names the v3 profiles, which the live catalogue refuses until activation.
+ * A review-analysis request in the v3 evidence form, the one the live catalogue
+ * serves: the raw text is cut into numbered sentences before it is canonicalized, as
+ * the Review context does it, and the property context is the catalogue's for the
+ * category. The binding names the v3 profiles.
  */
 export function analysisV3Request(
   input: Readonly<{
@@ -122,7 +130,7 @@ export function analysisV3Request(
     googlePrimaryCategory?: string | null
   }> = {},
 ): ReviewAnalysisGatewayRequestV1 {
-  const base = analysisRequest()
+  const base = v2FormAnalysisRequest()
   const raw = {
     text:
       input.rawText ??
@@ -136,7 +144,6 @@ export function analysisV3Request(
     ...base,
     binding: {
       ...base.binding,
-      providerDeploymentProfileVersion: 'private-beta-global-v2',
       operationProfileVersion: 'review-analysis-v3',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
     },
@@ -158,8 +165,13 @@ export function analysisV3Request(
   }
 }
 
+/** The generic review-analysis request: the live form, with its default review. */
+export function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
+  return analysisV3Request()
+}
+
 export function replyRequest(): ReplySuggestionGatewayRequestV1 {
-  const analysis = analysisRequest()
+  const analysis = v2FormAnalysisRequest()
   return {
     ...analysis,
     route: 'reply-suggestion',
@@ -214,7 +226,7 @@ const currentWindow = {
 } as const
 
 export function trendRequest(): PropertyTrendGatewayRequestV1 {
-  const analysis = analysisRequest()
+  const analysis = v2FormAnalysisRequest()
   const candidates = computeDeterministicTrendCandidates({
     currentWindow,
     baselineWindow,

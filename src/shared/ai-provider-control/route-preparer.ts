@@ -53,7 +53,7 @@ import {
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
   parsePersonalizedReplyDraft,
 } from '#/shared/ai-personalized-reply-contract'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE_V1 } from '#/shared/ai-openai-provider-profile'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-deployment-profile'
 import { maximumCostMicrosWith } from '#/shared/ai-provider-pricing'
 import type { AiOperationProviderPairing } from '#/shared/ai-provider-attestations'
 import {
@@ -433,9 +433,9 @@ export function createAiGatewayRoutePreparer(
               AiGatewayRouteRequestV1,
               { route: 'reply-suggestion' }
             >['replyLocalFrame']
-            providerDeploymentProfileVersion: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion
+            providerDeploymentProfileVersion: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V2.profileVersion
             operationProfileVersion: 'reply-suggestion-v1'
-            modelSnapshot: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V1.modelSnapshot
+            modelSnapshot: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V2.modelSnapshot
             promptVersion: (typeof OPENAI_PROMPT_VERSIONS)['reply-suggestion']
             replyProfileVersion: typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
             concreteLanguage: ConcreteReplyLanguage
@@ -527,7 +527,7 @@ export function createAiGatewayRoutePreparer(
           if (
             profile.profileVersion !== 'reply-suggestion-v1' ||
             profile.providerDeploymentProfileVersion !==
-              AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion
+              AI_PROVIDER_DEPLOYMENT_PROFILE_V2.profileVersion
           ) {
             throw new GatewayPreparationError('policy_unavailable')
           }
@@ -571,7 +571,7 @@ export function createAiGatewayRoutePreparer(
             replyLocalFrame: request.replyLocalFrame,
             providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
             operationProfileVersion: profile.profileVersion,
-            modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE_V1.modelSnapshot,
+            modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE_V2.modelSnapshot,
             promptVersion: OPENAI_PROMPT_VERSIONS['reply-suggestion'],
             replyProfileVersion: request.replyProfileVersion,
             concreteLanguage: concrete,

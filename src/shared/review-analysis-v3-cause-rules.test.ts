@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   collectReviewNameTokens,
   collectVocabularyHintWords,
+  managerCauseRefusal,
   normalizeReviewCausePhrase,
   reviewCauseContainsRefusedName,
   reviewCauseReproducesQuotation,
@@ -240,5 +241,110 @@ describe('review cause quotation refusal', () => {
         reviewText: 'It was not working.',
       }),
     ).toBe(false)
+  })
+})
+
+// S5 (switch-on): a cause a manager types passes the guards an AI's cause passes.
+describe('manager-typed cause refusal', () => {
+  const REVIEW = 'The room was lovely but Maria at reception was slow with the keys.'
+  const allowedWords = new Set(['the', 'room', 'slow', 'front', 'desk'])
+
+  it.each([
+    ['a name typed with a capital', ['Maria', 'slow'], 'maria', 'slow'],
+    [
+      'a name typed with a capital in the second box',
+      ['desk', 'Petrova'],
+      'desk',
+      'petrova',
+    ],
+    ['a name inside a longer phrase', ['rude Maria', null], 'rude maria', null],
+  ])('refuses %s as a name, with or without the review', (_name, typed, thing, issue) => {
+    for (const reviewText of [null, REVIEW]) {
+      expect(managerCauseRefusal({ typed, thing, issue, reviewText, allowedWords })).toBe(
+        'name',
+      )
+    }
+  })
+
+  it('refuses the name the review writes with a capital, typed in lowercase', () => {
+    expect(
+      managerCauseRefusal({
+        typed: ['maria', 'slow'],
+        thing: 'maria',
+        issue: 'slow',
+        reviewText: REVIEW,
+        allowedWords,
+      }),
+    ).toBe('name')
+  })
+
+  it('lets a lowercase word through when the review is not readable and no capital was typed', () => {
+    // The raw text is served for 30 days; once gone, only the capitals rule applies.
+    expect(
+      managerCauseRefusal({
+        typed: ['maria', 'slow'],
+        thing: 'maria',
+        issue: 'slow',
+        reviewText: null,
+        allowedWords,
+      }),
+    ).toBeNull()
+  })
+
+  it('lets a capitalised common word through, the way a person starts a sentence', () => {
+    expect(
+      managerCauseRefusal({
+        typed: ['Front desk', 'Slow'],
+        thing: 'front desk',
+        issue: 'slow',
+        reviewText: REVIEW,
+        allowedWords,
+      }),
+    ).toBeNull()
+  })
+
+  it('refuses four or more contiguous words of the review across the two boxes', () => {
+    expect(
+      managerCauseRefusal({
+        typed: ['reception was', 'slow with'],
+        thing: 'reception was',
+        issue: 'slow with',
+        reviewText: REVIEW,
+        allowedWords: new Set(['reception', 'was', 'slow', 'with']),
+      }),
+    ).toBe('quotation')
+  })
+
+  it('allows three words of the review, and any cause when the review is not readable', () => {
+    expect(
+      managerCauseRefusal({
+        typed: ['reception', 'was slow'],
+        thing: 'reception',
+        issue: 'was slow',
+        reviewText: REVIEW,
+        allowedWords: new Set(['reception', 'was', 'slow']),
+      }),
+    ).toBeNull()
+    expect(
+      managerCauseRefusal({
+        typed: ['reception was', 'slow with'],
+        thing: 'reception was',
+        issue: 'slow with',
+        reviewText: null,
+        allowedWords: new Set(['reception', 'was', 'slow', 'with']),
+      }),
+    ).toBeNull()
+  })
+
+  it('accepts an empty cause', () => {
+    expect(
+      managerCauseRefusal({
+        typed: [null, null],
+        thing: null,
+        issue: null,
+        reviewText: REVIEW,
+        allowedWords,
+      }),
+    ).toBeNull()
   })
 })

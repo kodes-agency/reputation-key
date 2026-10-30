@@ -1,6 +1,7 @@
 // Which review-analysis contract a build runs, and what each contract says about
-// itself. The v3 contract is dark: the live catalogue selects v2, and the facts
-// the v3 contract states are the ones the v3 profile and versions state.
+// itself. The live catalogue selects v3 since the switch-on (2026-10-30); the v2
+// contract is retired and stays in the code, and the facts the v3 contract states are
+// the ones the v3 profile and versions state.
 
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
@@ -64,8 +65,8 @@ describe('the v3 vocabulary the domain spells for itself', () => {
 })
 
 describe('the review analysis contract a build runs', () => {
-  it('is v2 while the live runtime catalogue selects v2', () => {
-    expect(selectedReviewAnalysisContractVersion()).toBe('v2')
+  it('is v3, which the live runtime catalogue selects', () => {
+    expect(selectedReviewAnalysisContractVersion()).toBe('v3')
   })
 
   it('states the v2 profile exactly as the catalogue holds it', () => {
@@ -83,17 +84,20 @@ describe('the review analysis contract a build runs', () => {
     expect(v2.sourceRead).toEqual({})
   })
 
-  it('serves a consent recorded under the v2 deployment, and none recorded under v3', () => {
+  it('serves no consent recorded under the deployment profile it ran under: v2 is retired', () => {
+    // The retired contract still compares against the live catalogue, so it can only
+    // agree with what the catalogue serves now, and a consent recorded before the
+    // switch-on (deployment profile v1) is served by neither contract.
     expect(
       v2.isServedContract({
         ...SERVED_NOTICE,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
       }),
-    ).toBe(true)
+    ).toBe(false)
     expect(
-      v2.isServedContract({
+      v3.isServedContract({
         ...SERVED_NOTICE,
-        providerDeploymentProfileVersion: 'private-beta-global-v2',
+        providerDeploymentProfileVersion: 'private-beta-global-v1',
       }),
     ).toBe(false)
   })

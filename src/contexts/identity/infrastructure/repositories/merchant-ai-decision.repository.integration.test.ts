@@ -50,7 +50,7 @@ function enableCommand(propertyId: string, idempotencyKey: string) {
     noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     sourcePolicyId: 'google-business-profile-source-policy-v1',
     routingPolicyVersion: 1,
-    providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
+    providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
     redactionProfileFamily: 'gbp-review-global-v1',
     ceremonyId: randomUUID(),
     now: FIRST_DEFERRAL,

@@ -82,7 +82,7 @@ async function controlHeads(db: Database) {
   }
   return {
     global: find('global'),
-    provider: find('provider:private-beta-global-v1'),
+    provider: find('provider:private-beta-global-v2'),
     capability: find('capability:review_analysis'),
   }
 }
@@ -190,7 +190,7 @@ export async function installAiAnalysisFixture(
         evaluatedLanguage: 'en',
         propertyProfileVersion: PROPERTY_PROFILE_VERSION,
         routingPolicyVersion: 1,
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
         operationProfileVersion: seed.profile,
         capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
         sourcePolicyId: 'google-business-profile-source-policy-v1',

@@ -56,6 +56,8 @@ export type LatestReviewReference = Readonly<{
   rating: StarValue
   /** False for a review with only stars, one that names a person, or one not analysed yet. */
   mayShowText: boolean
+  /** The revision the review was counted at, and the one its analysis was made on. */
+  sourceRevision: number
 }>
 
 /** What the use case hands the delivery layer: a read without quotes, and where they go. */
@@ -166,18 +168,23 @@ export type ResolvedReview = Readonly<{
   inboxItemId: string
   /** The review's own words as they stand, or null when they cannot be read. */
   text: string | null
+  /** The Review revision those words are, or null when they were not read. */
+  sourceRevision: number | null
 }>
 
 /**
  * Cuts a review's live text at the sentences an analysis cites. Null when the text is
- * gone, or has fewer sentences than the analysis numbered (it has changed since), or
- * the analysis cited none: better no quote than a quote that underlines the wrong words.
+ * gone, or is not the revision the analysis was made on (the review was edited after
+ * it: sentence numbers of one text point at nothing in another), or has fewer sentences
+ * than the analysis numbered, or the analysis cited none: better no quote than a quote
+ * that underlines the wrong words.
  */
 export function liveEvidenceOf(
   candidate: EvidenceCandidate,
   resolved: ResolvedReview | undefined,
 ): LiveEvidence | null {
   if (resolved === undefined || resolved.text === null) return null
+  if (resolved.sourceRevision !== candidate.sourceRevision) return null
   if (candidate.sentenceNumbers.length === 0) return null
   const sentences = locateReviewSentences(resolved.text)
   const ranges: Array<Readonly<{ start: number; end: number }>> = []
@@ -224,7 +231,12 @@ function latestReviewsOf(
       inboxItemId: found.inboxItemId,
       reviewedAt: reference.reviewedAt,
       rating: reference.rating,
-      text: reference.mayShowText ? found.text : null,
+      // The words of a review edited since it was counted are not the ones its
+      // analysis (and the check that it names nobody) was made on.
+      text:
+        reference.mayShowText && found.sourceRevision === reference.sourceRevision
+          ? found.text
+          : null,
     })
   }
   return reviews

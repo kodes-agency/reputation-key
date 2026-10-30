@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-contract'
 import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
+  RECORDED_RUNTIME_PROFILE_VERSIONS,
   type CapabilityRuntimeProfileVersions,
   type MerchantAiCapability,
 } from '#/shared/domain/merchant-ai-capability'
@@ -110,11 +111,30 @@ function readRuntimeProfiles(
   if (!actual || typeof actual !== 'object' || Array.isArray(actual)) {
     failInvalidRecord('Invalid capability runtime profile row')
   }
-  const expected = runtimeProfilesFor(capabilities)
-  if (canonicalizeRfc8785(actual) !== canonicalizeRfc8785(expected)) {
+  // The recorded map is what the grant was made under, which may be an earlier
+  // profile than the one served (RECORDED_RUNTIME_PROFILE_VERSIONS): it must name
+  // exactly the grant's capabilities, each under a version some grant has held. The
+  // served map is `runtimeProfilesFor`, and a grant that differs from it is the one
+  // an AccountAdmin's next consent replaces.
+  const recorded = actual as Readonly<Record<string, unknown>>
+  const keys = Object.keys(recorded)
+  if (
+    keys.length !== capabilities.length ||
+    capabilities.some((capability) => {
+      const version = recorded[capability]
+      return (
+        typeof version !== 'string' ||
+        !RECORDED_RUNTIME_PROFILE_VERSIONS[capability].includes(version)
+      )
+    })
+  ) {
     failInvalidRecord('Invalid capability runtime profile row')
   }
-  return expected
+  return Object.freeze(
+    Object.fromEntries(
+      capabilities.map((capability) => [capability, String(recorded[capability])]),
+    ),
+  ) as CapabilityRuntimeProfileVersions
 }
 
 /** A revoke carries no capabilities; the resolver refuses an empty set. */
@@ -131,7 +151,11 @@ export function mapSnapshot(row: SnapshotRow): MerchantAiSnapshot {
   if (state !== 'disabled' && state !== 'enabled' && state !== 'revoked') {
     failInvalidRecord('Invalid Merchant AI state row')
   }
-  if (row.provider_deployment_profile_version !== 'private-beta-global-v1') {
+  const providerDeploymentProfileVersion = row.provider_deployment_profile_version
+  if (
+    providerDeploymentProfileVersion !== 'private-beta-global-v1' &&
+    providerDeploymentProfileVersion !== 'private-beta-global-v2'
+  ) {
     failInvalidRecord('Invalid Merchant AI deployment profile row')
   }
   if (row.processing_region !== 'global') {
@@ -163,7 +187,7 @@ export function mapSnapshot(row: SnapshotRow): MerchantAiSnapshot {
     sourcePolicyId: readNonEmptyString(row, 'source_policy_id'),
     routingPolicyVersion: readInteger(row, 'routing_policy_version', 1),
     processingRegion: 'global',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion,
     redactionProfileFamily: readNonEmptyString(row, 'redaction_profile_family'),
   })
 }

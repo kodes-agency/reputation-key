@@ -14,7 +14,7 @@ import {
 } from './ai-operation-profiles'
 import {
   OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1,
-  OPENAI_PRICE_CATALOGUE_V1,
+  OPENAI_PRICE_CATALOGUE_V2,
 } from './ai-openai-provider-profile'
 
 const {
@@ -35,7 +35,7 @@ const SECOND_FACTS: AiProviderAttestationFacts = {
     version: 'synthetic-messages-request-shape-v1',
     digest: 'b'.repeat(64),
   },
-  pricing: { ...OPENAI_PRICE_CATALOGUE_V1, catalogueId: 'synthetic-prices' },
+  pricing: { ...OPENAI_PRICE_CATALOGUE_V2, catalogueId: 'synthetic-prices' },
 }
 
 describe('OpenAI attestation', () => {
@@ -63,7 +63,7 @@ describe('OpenAI attestation', () => {
       retryableCompleteStatuses: [429, 500, 502, 503, 504],
       retryAfterProfile: 'delta-seconds-1-to-300-v1',
     })
-    expect(attestation.pricing).toBe(OPENAI_PRICE_CATALOGUE_V1)
+    expect(attestation.pricing).toBe(OPENAI_PRICE_CATALOGUE_V2)
     expect(attestation.posture.claimsDigest).toBe(
       OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1,
     )
@@ -74,7 +74,7 @@ describe('OpenAI attestation', () => {
 
   it('records the model, the kind of request profile and its exact digest on an operation', () => {
     expect(providerRequestProfileOf(OPENAI_PROVIDER_ATTESTATION_V1)).toEqual({
-      model: 'gpt-5.6-luna',
+      model: 'gpt-6-luna',
       version: 'openai-responses-request-profile-v1',
       digest: OPENAI_PROVIDER_ATTESTATION_V1.digest,
     })

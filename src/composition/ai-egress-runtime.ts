@@ -65,6 +65,7 @@ import {
   createAiProviderRegistry,
   type AiProviderSelectionConfig,
 } from '#/shared/ai-provider-control/provider-selection'
+import { OPERATOR_PROVIDER_SELECTION } from '#/shared/ai-provider-control/operator-provider-selection'
 import { createLocalAiProviderFetch } from '#/shared/ai-provider-control/local-provider-fetch'
 import {
   loadEd25519PrivateKey,
@@ -163,8 +164,10 @@ export function createAiEgressRuntime(
     runtimeEnvironment: Readonly<Record<string, string | undefined>>
     /**
      * The operator's choice of provider per capability (contract section 7.3). It
-     * only matters to a profile attested for more than one provider; every profile
-     * in the live catalogue is OpenAI's alone, so leaving it out changes nothing.
+     * only matters to a profile attested for more than one provider, which is review
+     * analysis v3. Left out, it is `OPERATOR_PROVIDER_SELECTION`, which names OpenAI
+     * alone: a construction that forgot the choice must not leave review analysis
+     * waiting for one, and no construction names another provider but a test.
      */
     providerSelection?: AiProviderSelectionConfig
   }>,
@@ -263,7 +266,7 @@ export function createAiEgressRuntime(
     // one that sends it.
     const providers = createAiProviderRegistry(
       [createOpenAiProviderAdapter(connector)],
-      input.providerSelection,
+      input.providerSelection ?? OPERATOR_PROVIDER_SELECTION,
     )
 
     const preparer = createAiGatewayRoutePreparer({

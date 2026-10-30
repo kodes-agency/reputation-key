@@ -39,7 +39,7 @@ import {
   REVIEW_VOCABULARY_HINTS_CATALOGUE_DIGEST,
   selectVocabularyHintSet,
 } from '#/shared/review-vocabulary-hints'
-import { RELEASE_GATES_V1 } from './review-analysis-v3-gates'
+import { RELEASE_GATES } from './review-analysis-v3-gates'
 import type { CauseKey } from './review-analysis-v3-mention-metrics'
 import type { ScoredRun } from './review-analysis-v3-metrics'
 import {
@@ -76,8 +76,9 @@ const FIXTURE_DIRECTORY = 'test-fixtures/review-analysis-v3'
 const DEFAULT_ITEMS = Object.freeze([
   `${FIXTURE_DIRECTORY}/items-codex.jsonl`,
   `${FIXTURE_DIRECTORY}/items-claude.jsonl`,
+  `${FIXTURE_DIRECTORY}/items-urgent.jsonl`,
 ])
-const DEFAULT_GOLD = `${FIXTURE_DIRECTORY}/gold-v1.jsonl`
+const DEFAULT_GOLD = `${FIXTURE_DIRECTORY}/gold-v1.1.jsonl`
 const DEFAULT_OUT = 'test-results/review-analysis-v3'
 const MAX_RUNS = 5
 const COUNTRY_PATTERN = /^[A-Z]{2}$/
@@ -236,7 +237,7 @@ function referenceOf(scored: ScoredItem, prepared: PreparedEvaluationItem): Refe
 function versionsOf(): Readonly<Record<string, string>> {
   return Object.freeze({
     harness: EVALUATION_HARNESS_VERSION,
-    gates: RELEASE_GATES_V1.version,
+    gates: RELEASE_GATES.version,
     operationProfile: REVIEW_ANALYSIS_V3_LOGICAL_PROFILE.logicalDigest,
     normalizer: REVIEW_ANALYSIS_NORMALIZATION_VERSION,
     normalizerDigest: REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
@@ -343,7 +344,7 @@ async function evaluate(
         ),
       }),
     }),
-    thresholds: RELEASE_GATES_V1,
+    thresholds: RELEASE_GATES,
     providers: Object.freeze(reports),
     verdict: worstVerdict(reports.map((report) => report.verdict)),
   })

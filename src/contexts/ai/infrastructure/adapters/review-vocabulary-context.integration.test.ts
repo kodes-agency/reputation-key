@@ -70,8 +70,8 @@ async function currentStopFence(): Promise<AiExecutionStopFence> {
   return {
     globalControlId: head('global').controlId,
     globalGeneration: head('global').generation,
-    providerControlId: head('provider:private-beta-global-v1').controlId,
-    providerGeneration: head('provider:private-beta-global-v1').generation,
+    providerControlId: head('provider:private-beta-global-v2').controlId,
+    providerGeneration: head('provider:private-beta-global-v2').generation,
     capabilityControlId: head('capability:review_analysis').controlId,
     capabilityGeneration: head('capability:review_analysis').generation,
   }
@@ -96,7 +96,7 @@ async function analysisRequest() {
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       redactionProfileFamily: 'gbp-review-global-v1',
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
     },
     authorizationLineageId: randomUUID(),
     operationProfile: {

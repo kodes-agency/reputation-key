@@ -3,6 +3,7 @@ import type { GuestVoiceV2Read } from '#/contexts/ai/application/public-api'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import {
   guestVoiceGoalOf,
+  guestVoiceReasonOf,
   guestVoiceV2PageOf,
   guestVoiceV2RangeOf,
   guestVoiceV2View,
@@ -21,14 +22,34 @@ describe('guestVoiceV2PageOf', () => {
   })
 
   it.each(['disabled', 'preparing', 'not_v3'] as const)(
-    'leaves today’s page to draw when the answer is %s',
+    'draws no page when the answer is %s',
     (status) => {
       expect(guestVoiceV2PageOf({ status })).toBeNull()
     },
   )
 
-  it('leaves today’s page to draw when there is no answer', () => {
+  it('draws no page when there is no answer', () => {
     expect(guestVoiceV2PageOf(undefined)).toBeNull()
+  })
+})
+
+describe('guestVoiceReasonOf', () => {
+  it('says AI is off when it is', () => {
+    expect(guestVoiceReasonOf({ status: 'disabled' })).toBe('disabled')
+  })
+
+  // Nothing analysed under v3 yet is the replay not having reached the Property: the same
+  // thing to a manager as an analysis still being prepared.
+  it.each(['preparing', 'not_v3'] as const)(
+    'says it is being prepared when %s',
+    (status) => {
+      expect(guestVoiceReasonOf({ status })).toBe('preparing')
+    },
+  )
+
+  it('says nothing for a page, whatever it holds, and for no answer yet', () => {
+    expect(guestVoiceReasonOf(NOT_ENOUGH)).toBeNull()
+    expect(guestVoiceReasonOf(undefined)).toBeNull()
   })
 })
 

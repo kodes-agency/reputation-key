@@ -6,11 +6,17 @@ import {
   isMerchantAiNoticeInForce,
   type MerchantAiNoticeReference,
 } from './merchant-ai-notice-contract'
+import { REVIEW_ANALYSIS_V3_VERSIONS } from './review-analysis-v3'
 import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   type CapabilityRuntimeProfileVersions,
   type MerchantAiCapability,
 } from './domain/merchant-ai-capability'
+
+// The deployment profile this catalogue serves, for every capability: a Property's
+// consent records one deployment profile, so all three capabilities move together
+// (`private-beta-global-v2`, `ai-provider-deployment-profile.ts`).
+const SERVED_PROVIDER_DEPLOYMENT_PROFILE = REVIEW_ANALYSIS_V3_VERSIONS.providerDeployment
 
 const noticeInForceSchema = z
   .object({
@@ -23,7 +29,7 @@ const runtimeEntrySchema = z
   .object({
     capability: z.enum(CURRENT_MERCHANT_AI_CAPABILITIES),
     runtimeProfileVersion: z.enum([
-      'review-analysis-runtime-v1',
+      'review-analysis-runtime-v2',
       'reply-drafting-runtime-v1',
       'property-trends-runtime-v1',
     ]),
@@ -35,17 +41,17 @@ const runtimeEntrySchema = z
       '/v1/property-trend',
     ]),
     gatewayProfileVersion: z.enum([
-      'review-analysis-gateway-v1',
+      'review-analysis-gateway-v2',
       'reply-suggestion-gateway-v1',
       'property-trend-gateway-v1',
     ]),
     caller: z.enum(['web', 'worker']),
     operationProfileVersion: z.enum([
-      'review-analysis-v2',
+      'review-analysis-v3',
       'reply-suggestion-v1',
       'property-trend-v1',
     ]),
-    providerDeploymentProfileVersion: z.literal('private-beta-global-v1'),
+    providerDeploymentProfileVersion: z.literal(SERVED_PROVIDER_DEPLOYMENT_PROFILE),
     // The notices whose consent admits this capability: the served one first,
     // then each earlier one it keeps in force (merchant-ai-notice-contract.ts).
     noticesInForce: z.array(noticeInForceSchema).min(1),
@@ -61,14 +67,14 @@ export type AiRuntimeCapabilityV1 = Readonly<
 const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
   Object.freeze({
     capability: 'review_analysis',
-    runtimeProfileVersion: 'review-analysis-runtime-v1',
+    runtimeProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.capabilityRuntime,
     purpose: 'ai.analyze',
     sourceRoute: 'review-analysis',
     gatewayPath: '/v1/review-analysis',
-    gatewayProfileVersion: 'review-analysis-gateway-v1',
+    gatewayProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.gatewayProfile,
     caller: 'worker',
-    operationProfileVersion: 'review-analysis-v2',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    operationProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.analysisOperation,
+    providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
     noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
   }),
   Object.freeze({
@@ -80,7 +86,7 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     gatewayProfileVersion: 'reply-suggestion-gateway-v1',
     caller: 'web',
     operationProfileVersion: 'reply-suggestion-v1',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
     noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
   }),
   Object.freeze({
@@ -92,7 +98,7 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     gatewayProfileVersion: 'property-trend-gateway-v1',
     caller: 'worker',
     operationProfileVersion: 'property-trend-v1',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
     noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
   }),
 ] as const)

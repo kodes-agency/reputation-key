@@ -4,7 +4,7 @@ import {
 } from './ai-openai-request-contract'
 import {
   OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1,
-  OPENAI_PRICE_CATALOGUE_V1,
+  OPENAI_PRICE_CATALOGUE_V2,
   OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1,
   OPENAI_REQUEST_SHAPE_V1_DIGEST,
 } from './ai-openai-provider-profile'
@@ -45,7 +45,7 @@ export const OPENAI_PROVIDER_ATTESTATION_V1 = defineProviderAttestation(
     headerProfile: 'openai-pinned-sdk-headers-v1',
     usageProfile: 'openai-responses-usage-v1',
     claimsDigest: OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1,
-    pricing: OPENAI_PRICE_CATALOGUE_V1,
+    pricing: OPENAI_PRICE_CATALOGUE_V2,
     deployment: CONTRACT,
   }),
 )

@@ -16,6 +16,7 @@ import {
   type AiPropertyAccess,
 } from '../ai-property-read-access'
 import { resolveAiReadGate } from '../ai-read-gate'
+import { isAiAuthorizationUnderServedContract } from '../ai-workflow-support'
 import { addDays } from '../local-date'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type {
@@ -198,6 +199,7 @@ async function readNotEnough(
         reviewedAt: review.localDate,
         rating: review.rating,
         mayShowText: review.hasText && found !== undefined && !reviewNamesAPerson(found),
+        sourceRevision: review.sourceRevision,
       }
     })
   return {
@@ -232,6 +234,14 @@ export function createReadGuestVoiceV2(
     // fallow-ignore-next-line code-duplication
     const gate = await resolveAiReadGate(dependencies, input, 'review_analysis')
     if (gate.status === 'disabled') return { status: 'disabled' }
+    // A consent recorded under a notice or a deployment profile that is no longer in force
+    // admits no analysis until an AccountAdmin confirms the served one (docs/BETA.md
+    // section 2, RE-CONSENTED 2026-10-30). Nothing is being prepared for it, so the page
+    // says AI is off and points to the AI settings, where "being prepared" would be true
+    // of no work that will ever run.
+    if (!isAiAuthorizationUnderServedContract(gate.authorization, 'review_analysis')) {
+      return { status: 'disabled' }
+    }
 
     const endLocalDate = await dependencies.calendar.resolveLocalDate({
       reviewedAtEpochMillis: dependencies.nowEpochMillis(),

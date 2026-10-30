@@ -12,10 +12,7 @@ import {
   parseAiGatewayRouteRequest,
   type AiGatewayRouteRequestV1,
 } from '#/shared/ai-gateway-transport-contract'
-import {
-  MERCHANT_AI_NOTICE_DIGEST,
-  MERCHANT_AI_NOTICE_VERSION,
-} from '#/shared/merchant-ai-notice-contract'
+import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import type {
   AiAdmissionClient,
   AiGatewayRoutePreparer,
@@ -29,69 +26,14 @@ import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
 
 const NOW = 1_780_000_000_000
 const SHA = 'a'.repeat(64)
-const OPERATION_ID = '10000000-0000-4000-8000-000000000001'
-const PERMIT_ID = '10000000-0000-4000-8000-000000000002'
 const REQUEST_BINDING_HMAC = Buffer.alloc(32, 0x31).toString('base64url')
 const signingKeys = generateKeyPairSync('ed25519')
 const forgedKeys = generateKeyPairSync('ed25519')
 
+// The live review-analysis request (v3 form): the gateway's orchestration does not
+// care which form it carries, but only a binding the catalogue serves parses.
 function routeRequest(): AiGatewayRouteRequestV1 {
-  return parseAiGatewayRouteRequest({
-    route: 'review-analysis',
-    operationId: OPERATION_ID,
-    permitId: PERMIT_ID,
-    attemptNumber: 1,
-    organizationId: 'better-auth-org_01',
-    propertyId: '10000000-0000-4000-8000-000000000004',
-    internalSubjectId: 'review_subject_01',
-    actorId: null,
-    binding: {
-      authorizationLineageId: '10000000-0000-4000-8000-000000000005',
-      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-      capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
-      sourceEpoch: 1,
-      evaluatedLanguage: 'en-Latn',
-      concreteReplyLanguage: null,
-      languageCatalogueDigest: SHA,
-      replyLanguageVerifierDigest: null,
-      languageScriptConsistencyDigest: null,
-      zhOrthographyVerifierDigest: null,
-      sourceRevision: 1,
-      reviewedAtEpochMillis: NOW,
-      propertyProfileVersion: 1,
-      routingPolicyVersion: 1,
-      sourcePolicyId: 'ai-source-v1',
-      sourceCanonicalizerDigest: SHA,
-      redactionProfileVersion: 'gbp-review-global-v1',
-      outputLeakageProfileVersion: null,
-      outputLeakageProfileDigest: null,
-      replyTemplateCatalogueVersion: null,
-      replyTemplateCatalogueDigest: null,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
-      operationProfileVersion: 'review-analysis-v2',
-      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
-      aiSubjectHmacKeyVersion: 'v1',
-      stopFence: {
-        globalControlId: '10000000-0000-4000-8000-000000000006',
-        globalGeneration: 1,
-        providerControlId: '10000000-0000-4000-8000-000000000007',
-        providerGeneration: 1,
-        capabilityControlId: '10000000-0000-4000-8000-000000000008',
-        capabilityGeneration: 1,
-      },
-    },
-    deadlineEpochMillis: NOW + 70_000,
-    redactionCountry: 'US',
-    observedContentExpiresAtEpochMillis: NOW + 600_000,
-    source: {
-      kind: 'review',
-      text: 'A bounded synthetic review.',
-      rating: 5,
-      languageCode: 'en-Latn',
-      reviewedAtEpochMillis: NOW,
-    },
-  })
+  return parseAiGatewayRouteRequest(analysisRequest())
 }
 
 function descriptorFor(request: AiGatewayRouteRequestV1): AiAdmissionDescriptorV1 {
@@ -115,7 +57,7 @@ function descriptorFor(request: AiGatewayRouteRequestV1): AiAdmissionDescriptorV
       preparedRequestBytes: 65_536,
       responseBytes: 131_072,
       outputTokens: 4_096,
-      costMicros: 100_000,
+      costMicros: 250_000,
     },
     callerDeadlineEpochMillis: request.deadlineEpochMillis,
     organizationId: request.organizationId,
@@ -316,6 +258,7 @@ describe('AI gateway execution orchestration', () => {
         rating: null,
         languageCode: null,
         reviewedAtEpochMillis: null,
+        sentences: null,
       })
       return { status: 'authorized', grant: value.grant }
     })

@@ -14,7 +14,7 @@
 
 import type { Database } from '#/shared/db'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE_V1 } from '#/shared/ai-openai-provider-profile'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-deployment-profile'
 import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import {
@@ -75,7 +75,7 @@ export function declaredPostureAiTransition(
 ): AiTransitionInput {
   return {
     scope: { kind: 'capability', capability: input.capability },
-    providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion,
+    providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE_V2.profileVersion,
     expectedControlId: input.head.controlId,
     expectedGeneration: input.head.generation,
     executionState: 'enabled',
@@ -117,7 +117,7 @@ async function applyGooglePosture(
 
 async function readAiDecision(control: AiControlPort, capability: MerchantAiCapability) {
   const heads = await control.readHeads({
-    providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion,
+    providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE_V2.profileVersion,
     capability,
   })
   const head = heads.find((entry) => entry.scope.kind === 'capability')

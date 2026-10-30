@@ -55,7 +55,7 @@ export async function seedEnabledReviewAnalysis(
     sourcePolicyId: 'google-business-profile-source-policy-v1',
     routingPolicyVersion: 1,
     processingRegion: 'global' as const,
-    providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
+    providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
     redactionProfileFamily: 'gbp-review-global-v1',
   }
   await db.transaction(async (tx) => {

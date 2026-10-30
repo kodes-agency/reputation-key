@@ -10,6 +10,17 @@ export {
 } from '#/shared/domain/merchant-ai-capability'
 
 export type CurrentMerchantAiCapability = MerchantAiCapability
+
+/**
+ * The provider deployment profiles a recorded grant may name. A grant records the
+ * profile it was consented under: `private-beta-global-v2` since the switch-on of
+ * review analysis v3 (2026-10-30), `private-beta-global-v1` for every consent before
+ * it. A v1 grant is still read, so the settings page can ask for the confirmation
+ * again, but it is never served (`isMerchantAiExecutionContractCurrent`).
+ */
+export type MerchantAiProviderDeploymentProfile =
+  'private-beta-global-v1' | 'private-beta-global-v2'
+
 export type MerchantAiState = 'disabled' | 'enabled' | 'revoked'
 
 export type MerchantAiCapabilityEpochs = Readonly<Record<MerchantAiCapability, number>>
@@ -30,7 +41,7 @@ export type MerchantAiSnapshot = Readonly<{
   sourcePolicyId: string
   routingPolicyVersion: number
   processingRegion: 'global'
-  providerDeploymentProfileVersion: 'private-beta-global-v1'
+  providerDeploymentProfileVersion: MerchantAiProviderDeploymentProfile
   redactionProfileFamily: string
   /**
    * ISO-8601 instant of the standing "not now" AI decision for this Property,
@@ -47,7 +58,7 @@ export type MerchantAiExecutionContract = Readonly<{
   noticeDigest: string
   sourcePolicyId: string
   routingPolicyVersion: number
-  providerDeploymentProfileVersion: 'private-beta-global-v1'
+  providerDeploymentProfileVersion: MerchantAiProviderDeploymentProfile
   redactionProfileFamily: string
 }>
 

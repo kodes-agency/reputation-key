@@ -61,11 +61,13 @@ export const REVIEW_CAUSE_PHRASE_PATTERN =
   // eslint-disable-next-line security/detect-unsafe-regex -- Input is bounded by the 80-character check that always runs first.
   /^[a-z]+(?:-[a-z]+)*(?: [a-z]+(?:-[a-z]+)*){0,2}$/
 
-const nullableProviderCauseSchema = z.union([
-  z.string().max(REVIEW_CAUSE_PHRASE_MAX_LENGTH),
-  z.null(),
-])
-const nullableStoredCauseSchema = z.union([
+// One cause phrase for the answer a provider is asked for and the one that is stored. The
+// pattern is in the strict format a provider receives, so Structured Outputs hold `thing`
+// and `issue` to it while decoding (the live v2 schema ships `issueLabel` the same way): a
+// guest's "30-minute wait" arrives as "long wait", never as a phrase the normalizer must
+// refuse. A provider that does not enforce patterns is not validated by this schema; its
+// answer goes to the normalizer, which empties an invalid cause and keeps the mention.
+const nullableCauseSchema = z.union([
   z
     .string()
     .max(REVIEW_CAUSE_PHRASE_MAX_LENGTH, { abort: true })
@@ -83,8 +85,8 @@ const providerMentionSchema = z
     topic: z.enum(REVIEW_TOPICS_V3),
     polarity: z.enum(REVIEW_POLARITIES_V3),
     strength: z.enum(REVIEW_STRENGTHS_V3),
-    thing: nullableProviderCauseSchema,
-    issue: nullableProviderCauseSchema,
+    thing: nullableCauseSchema,
+    issue: nullableCauseSchema,
     sentences: z
       .array(sentenceNumberSchema)
       .min(1)
@@ -141,8 +143,8 @@ const storedMentionSchema = z
     topic: z.enum(REVIEW_TOPICS_V3),
     polarity: z.enum(REVIEW_POLARITIES_V3),
     strength: z.enum(REVIEW_STRENGTHS_V3),
-    thing: nullableStoredCauseSchema,
-    issue: nullableStoredCauseSchema,
+    thing: nullableCauseSchema,
+    issue: nullableCauseSchema,
     sentences: z
       .array(sentenceNumberSchema)
       .min(1)

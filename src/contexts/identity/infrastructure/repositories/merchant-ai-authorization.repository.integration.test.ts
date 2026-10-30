@@ -32,6 +32,10 @@ import {
   withLastOwnerGuardDisabled,
 } from '#/shared/db/disable-guard-triggers'
 import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
+import {
+  getAiRuntimeCapability,
+  isAiRuntimeNoticeInForce,
+} from '#/shared/ai-runtime-capability-contract'
 
 const db = getDb()
 let cleanupPool: Pool
@@ -43,9 +47,9 @@ const NOW = new Date('2026-08-15T12:00:00.000Z')
 const PREVIOUS_NOTICE_VERSION = 'merchant-ai-notice-2026-09-08.v1'
 const PREVIOUS_NOTICE_DIGEST =
   'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865'
-const NOTICE_2026_09_15 = {
-  noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
-  noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+const NOTICE_2026_10_17 = {
+  noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+  noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
 } as const
 
 const store = createMerchantAiAuthorizationStore(db, randomUUID)
@@ -65,12 +69,81 @@ function command(overrides: Record<string, unknown> = {}) {
     noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     sourcePolicyId: 'google-business-profile-source-policy-v1',
     routingPolicyVersion: 1,
-    providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
+    providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
     redactionProfileFamily: 'gbp-review-global-v1',
     now: NOW,
     ceremonyId: randomUUID(),
     ...overrides,
   }
+}
+
+/**
+ * Whether a recorded grant is one the build serves for a capability: the notice in the
+ * runtime catalogue's list and the deployment profile it names. The AI context asks the
+ * same two questions (`isAiAuthorizationUnderServedContract`) before it claims work.
+ */
+function underServedContract(
+  snapshot: MerchantAiSnapshot,
+  capability: keyof MerchantAiSnapshot['capabilityEpochs'],
+): boolean {
+  const served = getAiRuntimeCapability(capability)
+  return (
+    isAiRuntimeNoticeInForce(served, snapshot) &&
+    snapshot.providerDeploymentProfileVersion === served.providerDeploymentProfileVersion
+  )
+}
+
+/**
+ * A Property enabled the day before the switch-on of review analysis v3: all three
+ * capabilities, granted under the 2026-10-17 notice, the deployment profile
+ * `private-beta-global-v1` and the review analysis runtime profile v1. It is written
+ * through the database function the application uses, with the values that deploy
+ * left behind, because the application can no longer write them.
+ */
+async function enableAsBeforeTheSwitchOn(): Promise<MerchantAiSnapshot> {
+  const head = await db.execute(sql`
+    SELECT head_sequence
+    FROM review_ai_analysis_heads
+    WHERE organization_id = ${ORG} AND property_id = ${PROPERTY}::uuid AND source_epoch = 3
+  `)
+  await db.execute(sql`
+    SELECT apply_merchant_ai_transition_v1(
+      ${randomUUID()}::uuid,
+      0,
+      1,
+      ${ORG},
+      ${PROPERTY}::uuid,
+      'enable',
+      'enabled',
+      ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[],
+      ${JSON.stringify({
+        review_analysis: 'review-analysis-runtime-v1',
+        reply_drafting: 'reply-drafting-runtime-v1',
+        property_trends: 'property-trends-runtime-v1',
+      })}::jsonb,
+      1,
+      1,
+      1,
+      3,
+      ${Number(head.rows[0]?.head_sequence)},
+      ${NOTICE_2026_10_17.noticeVersion},
+      ${NOTICE_2026_10_17.noticeDigest},
+      'google-business-profile-source-policy-v1',
+      1,
+      'global',
+      'private-beta-global-v1',
+      'gbp-review-global-v1',
+      ${USER},
+      'merchant_enabled',
+      'enabled-before-the-switch-on',
+      ${'e'.repeat(64)},
+      ${NOW},
+      ${randomUUID()}::uuid
+    )
+  `)
+  const snapshot = await store.getSnapshot({ organizationId: ORG, propertyId: PROPERTY })
+  if (snapshot === null) throw new Error('The grant before the switch-on was not written')
+  return snapshot
 }
 
 function fence(
@@ -238,7 +311,7 @@ describe('Merchant AI authorization store', () => {
       },
       capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
     })
     expect(snapshot.authorizationLineageId).toMatch(/^[0-9a-f-]{36}$/)
 
@@ -479,9 +552,9 @@ describe('Merchant AI authorization store', () => {
         (SELECT notice_version FROM merchant_ai_consent_evidence WHERE organization_id = ${ORG}) AS evidence_version
     `)
     expect(recorded.rows[0]).toEqual({
-      head_version: 'merchant-ai-notice-2026-10-17.v1',
+      head_version: MERCHANT_AI_NOTICE_VERSION,
       head_digest: MERCHANT_AI_NOTICE_DIGEST,
-      evidence_version: 'merchant-ai-notice-2026-10-17.v1',
+      evidence_version: MERCHANT_AI_NOTICE_VERSION,
     })
 
     const refusedPairs = [
@@ -512,7 +585,7 @@ describe('Merchant AI authorization store', () => {
             'google-business-profile-source-policy-v1',
             1,
             'global',
-            'private-beta-global-v1',
+            'private-beta-global-v2',
             'gbp-review-global-v1',
             ${USER},
             'capabilities_changed',
@@ -559,100 +632,122 @@ describe('Merchant AI authorization store', () => {
     expect(guard.rows).toEqual([{ tgenabled: 'O' }])
   })
 
-  // The 2026-10-17 notice changed only its call to action, and a deploy
-  // rewrites no head: one granted under 2026-09-15 stays valid in both CHECKs,
-  // keeps every capability's consent active, and is in force, so nobody
-  // re-consents. The next consent a manager gives is the served notice's.
+  // The switch-on of review analysis v3 (2026-10-30). A deploy rewrites no head: a
+  // Property enabled the day before holds the 2026-10-17 notice, the deployment profile
+  // `private-beta-global-v1` and the review analysis runtime profile v1. The head stays a
+  // valid row in both CHECKs, and the application serves none of it: the notice is not in
+  // force, so every capability's consent lapses and AI work is refused before it is claimed.
   //
-  // That next consent moves the head off 2026-09-15, and every analysis stored
-  // under 2026-09-15 is bound to that notice: the output store reads none under
-  // another notice than the head's (`readAnalysisForDelivery`). So the move is a
-  // contract change, as `apply_merchant_ai_transition_v1` counts it: every
-  // capability the Property had or keeps advances its epoch, and the Review
-  // Analysis watermark resets so the enrollment replay analyses the history
-  // again under the served notice. Pinned here so that one-time replay is a
-  // tested contract rather than a side effect (docs/BETA.md §2, 2026-10-17).
-  it('keeps a grant under the 2026-09-15 notice active; its next consent records the served notice and advances every epoch once', async () => {
-    const enabled = await store.mutate(command(NOTICE_2026_09_15))
-    expect(enabled).toMatchObject({ state: 'enabled', ...NOTICE_2026_09_15 })
-    expect(isMerchantAiNoticeInForce(enabled)).toBe(true)
-    for (const [purpose, capability] of [
-      ['ai.analyze', 'review_analysis'],
-      ['ai.generate_reply', 'reply_drafting'],
-      ['ai.detect_trends', 'property_trends'],
-    ] as const) {
-      await expect(
-        hasActiveMerchantAiConsent(db, {
-          organizationId: ORG,
-          propertyId: PROPERTY,
-          purpose,
-          expectedFence: fence(enabled, capability),
-        }),
-      ).resolves.toBe(true)
+  // The next consent an AccountAdmin gives is the served contract's, and it is a contract
+  // change as `apply_merchant_ai_transition_v1` counts it: the notice, the deployment
+  // profile and the review analysis runtime profile all differ, so every capability the
+  // Property had or keeps advances its epoch ONCE (the review analysis epoch included:
+  // that is what makes the enrollment replay analyse the history again under v3), and the
+  // review analysis watermark resets to the Review head, so a review that arrived under
+  // the old consent is analysed too. Pinned here so that one-time replay is a tested
+  // contract and not a side effect (docs/BETA.md §2, 2026-10-30).
+  it('lapses a grant recorded before the switch-on; its next consent records the served contract, advances every epoch once and resets the watermark', async () => {
+    const before = await enableAsBeforeTheSwitchOn()
+    expect(before).toMatchObject({
+      state: 'enabled',
+      ...NOTICE_2026_10_17,
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      capabilityRuntimeProfileVersions: {
+        review_analysis: 'review-analysis-runtime-v1',
+      },
+    })
+    expect(isMerchantAiNoticeInForce(before)).toBe(false)
+    for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
+      expect(underServedContract(before, capability)).toBe(false)
     }
 
-    // A review arrives under the 2026-09-15 consent, after its watermark.
-    const arrivedUnder0915 = await advanceAnalysisHead()
-    expect(arrivedUnder0915).toBeGreaterThan(enabled.analysisStartSequence)
-    const changed = await store.mutate(
+    // A review arrives under the old consent, after its watermark.
+    const arrivedUnderOldConsent = await advanceAnalysisHead()
+    expect(arrivedUnderOldConsent).toBeGreaterThan(before.analysisStartSequence)
+    const reconsented = await store.mutate(
       command({
         operation: 'change',
-        idempotencyKey: 'served-notice-change',
-        expectedStateVersion: enabled.stateVersion,
+        idempotencyKey: 'served-contract-reconsent',
+        expectedStateVersion: before.stateVersion,
+        capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+        reasonCode: 'capabilities_changed',
+      }),
+    )
+    expect(reconsented).toMatchObject({
+      authorizationLineageId: before.authorizationLineageId,
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
+      capabilityRuntimeProfileVersions: {
+        review_analysis: 'review-analysis-runtime-v2',
+      },
+      capabilityEpochs: {
+        review_analysis: before.capabilityEpochs.review_analysis + 1,
+        reply_drafting: before.capabilityEpochs.reply_drafting + 1,
+        property_trends: before.capabilityEpochs.property_trends + 1,
+      },
+    })
+    expect(isMerchantAiNoticeInForce(reconsented)).toBe(true)
+    for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
+      expect(underServedContract(reconsented, capability)).toBe(true)
+    }
+    // The watermark moved to the head: the replay covers that review too.
+    expect(reconsented.analysisStartSequence).toBe(arrivedUnderOldConsent)
+
+    // Under the served contract the same kind of change moves only the capability it
+    // adds, and the analysis watermark stays where the replay started.
+    await advanceAnalysisHead()
+    const reduced = await store.mutate(
+      command({
+        operation: 'change',
+        idempotencyKey: 'served-contract-reduce',
+        expectedStateVersion: reconsented.stateVersion,
         capabilities: ['review_analysis', 'reply_drafting'],
         reasonCode: 'capabilities_changed',
       }),
     )
-    expect(changed).toMatchObject({
-      authorizationLineageId: enabled.authorizationLineageId,
-      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-      capabilityEpochs: {
-        review_analysis: enabled.capabilityEpochs.review_analysis + 1,
-        reply_drafting: enabled.capabilityEpochs.reply_drafting + 1,
-        property_trends: enabled.capabilityEpochs.property_trends + 1,
-      },
-    })
-    // The watermark moved to the head: the replay covers that review too.
-    expect(changed.analysisStartSequence).toBe(arrivedUnder0915)
-
-    // Under the served notice the same kind of change moves only the capability
-    // it adds, and the analysis watermark stays where the replay started.
-    await advanceAnalysisHead()
     const readded = await store.mutate(
       command({
         operation: 'change',
-        idempotencyKey: 'served-notice-readd',
-        expectedStateVersion: changed.stateVersion,
+        idempotencyKey: 'served-contract-readd',
+        expectedStateVersion: reduced.stateVersion,
         capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
         reasonCode: 'capabilities_changed',
       }),
     )
     expect(readded).toMatchObject({
       capabilityEpochs: {
-        ...changed.capabilityEpochs,
-        property_trends: changed.capabilityEpochs.property_trends + 1,
+        ...reduced.capabilityEpochs,
+        property_trends: reduced.capabilityEpochs.property_trends + 1,
       },
-      analysisStartSequence: changed.analysisStartSequence,
+      analysisStartSequence: reconsented.analysisStartSequence,
     })
     const evidence = await db.execute(sql`
-      SELECT notice_version, notice_digest
+      SELECT notice_version, notice_digest, provider_deployment_profile_version
       FROM merchant_ai_consent_evidence
       WHERE organization_id = ${ORG}
       ORDER BY state_version
     `)
     expect(evidence.rows).toEqual([
       {
-        notice_version: NOTICE_2026_09_15.noticeVersion,
-        notice_digest: NOTICE_2026_09_15.noticeDigest,
+        notice_version: NOTICE_2026_10_17.noticeVersion,
+        notice_digest: NOTICE_2026_10_17.noticeDigest,
+        provider_deployment_profile_version: 'private-beta-global-v1',
       },
       {
-        notice_version: 'merchant-ai-notice-2026-10-17.v1',
+        notice_version: MERCHANT_AI_NOTICE_VERSION,
         notice_digest: MERCHANT_AI_NOTICE_DIGEST,
+        provider_deployment_profile_version: 'private-beta-global-v2',
       },
       {
-        notice_version: 'merchant-ai-notice-2026-10-17.v1',
+        notice_version: MERCHANT_AI_NOTICE_VERSION,
         notice_digest: MERCHANT_AI_NOTICE_DIGEST,
+        provider_deployment_profile_version: 'private-beta-global-v2',
+      },
+      {
+        notice_version: MERCHANT_AI_NOTICE_VERSION,
+        notice_digest: MERCHANT_AI_NOTICE_DIGEST,
+        provider_deployment_profile_version: 'private-beta-global-v2',
       },
     ])
   })
@@ -870,7 +965,7 @@ describe('Merchant AI authorization store', () => {
           'enabled',
           ARRAY['review_analysis', 'property_trends']::text[],
           ${JSON.stringify({
-            review_analysis: 'review-analysis-runtime-v1',
+            review_analysis: 'review-analysis-runtime-v2',
             property_trends: 'property-trends-runtime-v1',
           })}::jsonb,
           ${enabled.capabilityEpochs.review_analysis},
@@ -883,7 +978,7 @@ describe('Merchant AI authorization store', () => {
           'google-business-profile-source-policy-v1',
           1,
           'global',
-          'private-beta-global-v1',
+          'private-beta-global-v2',
           'gbp-review-global-v1',
           ${USER},
           'capabilities_changed',
@@ -1113,7 +1208,7 @@ describe('Merchant AI authorization store', () => {
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       routingPolicyVersion: 1,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
       redactionProfileFamily: 'gbp-review-global-v1',
       now: NOW,
     })
@@ -1285,7 +1380,7 @@ describe('Merchant AI authorization store at source epoch 0', () => {
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       routingPolicyVersion: 1,
-      providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
+      providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
       redactionProfileFamily: 'gbp-review-global-v1',
       now: EPOCH_ZERO_NOW,
       ceremonyId: randomUUID(),

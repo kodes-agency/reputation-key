@@ -14,7 +14,7 @@ import {
   AI_STRUCTURED_MARKER_DETECTORS_VERSION,
 } from './ai-structured-marker-detectors'
 import { parseAiGatewayRouteRequest } from './ai-gateway-transport-contract'
-import { analysisRequest } from './ai-gateway-transport-contract.test-fixtures'
+import { analysisV3Request } from './ai-gateway-transport-contract.test-fixtures'
 
 function raw(
   text: string | null,
@@ -108,15 +108,12 @@ describe('ai-source-v1 text revision 2: text the gateway can carry', () => {
   })
 
   it('produces text the gateway request parser accepts', () => {
-    const request = analysisRequest()
-    const text = canonicalizeRawAiReviewSource(
-      raw('Lovely stay\u{1ffff}, would return'),
-    ).text
-    const parsed = parseAiGatewayRouteRequest({
-      ...request,
-      source: { ...request.source, text },
-    })
+    const parsed = parseAiGatewayRouteRequest(
+      analysisV3Request({ rawText: 'Lovely stay\u{1ffff}, would return' }),
+    )
     expect(parsed.route).toBe('review-analysis')
+    if (parsed.route === 'property-trend') throw new Error('expected a source')
+    expect(parsed.source.text).toContain('\uFFFD')
   })
 })
 

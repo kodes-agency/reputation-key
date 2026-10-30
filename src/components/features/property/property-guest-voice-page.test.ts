@@ -6,16 +6,23 @@ import {
   createRouter,
   RouterContextProvider,
 } from '@tanstack/react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type {
   AiPropertyInsightsPresetReady,
   AiTrendSupportingReviewView,
 } from '#/contexts/ai/application/public-api'
 import { inboxItemId, reviewId } from '#/shared/domain/ids'
 import { PropertyGuestVoiceBasis } from './property-guest-voice-basis'
+import { RANGE_CONTROL_LABEL } from '#/components/ui/range-control'
+import { PropertyGuestVoicePage } from './property-guest-voice-page'
 import { TrendSupportingReviews } from './property-guest-voice-trend'
 import { PropertyInsightsRecurringIssues } from './property-insights-recurring-issues'
 import { LARGE_PROPERTY } from './property-guest-voice-stories-data'
+
+// The AI-off state offers the account admin's button, which asks who may manage AI.
+vi.mock('#/shared/hooks/usePermissions', () => ({
+  usePermissions: () => ({ can: () => true }),
+}))
 
 const DISAGREEING_SOURCE_FIELDS: AiPropertyInsightsPresetReady = {
   status: 'ready',
@@ -198,5 +205,42 @@ describe('PropertyInsightsRecurringIssues', () => {
     )
 
     expect(markup).toContain('No issue was named in more than one review in this period.')
+  })
+})
+
+// S3 (switch-on): where there is no page yet, the page says why and offers no window to
+// choose, and reads nothing of the analysis that was drawn from v2.
+function renderPage(state: 'disabled' | 'preparing') {
+  const router = createRouter({
+    routeTree: createRootRoute(),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  return renderToStaticMarkup(
+    createElement(RouterContextProvider, {
+      router,
+      children: createElement(PropertyGuestVoicePage, {
+        propertyId: PROPERTY_ID,
+        propertyName: 'Hotel',
+        range: 'auto',
+        onRangeChange: () => undefined,
+        state,
+      }),
+    }),
+  )
+}
+
+describe('PropertyGuestVoicePage without a page to draw', () => {
+  it('says AI analysis is off, with no window to choose', () => {
+    const markup = renderPage('disabled')
+
+    expect(markup).toContain('AI analysis is off for this property')
+    expect(markup).not.toContain(RANGE_CONTROL_LABEL)
+  })
+
+  it('says the analysis is being prepared, with no window to choose', () => {
+    const markup = renderPage('preparing')
+
+    expect(markup).toContain('Guest voice is being prepared')
+    expect(markup).not.toContain(RANGE_CONTROL_LABEL)
   })
 })

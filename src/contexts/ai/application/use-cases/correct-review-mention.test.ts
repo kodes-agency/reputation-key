@@ -239,6 +239,87 @@ describe('correctReviewMention a changed cause', () => {
     )
   })
 
+  // S5: the guards an AI's cause passes hold for a cause a manager types. Names stay out of
+  // a stored cause whoever writes it.
+  describe('holds a typed cause to the guards of an AI cause', () => {
+    const REVIEW = 'The room was lovely but Maria at reception was slow with the keys.'
+
+    it.each([
+      ['a name typed with a capital', 'Maria', 'slow'],
+      ['a brand typed with a capital', 'Hilton lobby', 'noisy'],
+      ['a name inside a longer phrase', 'rude Maria', 'ignored'],
+      ['a capitalised name in the second box', 'desk', 'Petrova unhelpful'],
+    ] as const)('refuses %s, writing nothing', async (_name, thing, issue) => {
+      const { correct, apply } = harness()
+
+      await expect(
+        correct(input({ kind: 'change_cause', thing, issue })),
+      ).resolves.toEqual({ status: 'invalid_cause' })
+      expect(apply).not.toHaveBeenCalled()
+    })
+
+    it('refuses the name the review itself writes with a capital, even typed in lowercase', async () => {
+      const { correct, apply } = harness()
+
+      await expect(
+        correct(
+          input(
+            { kind: 'change_cause', thing: 'maria', issue: 'slow' },
+            { reviewText: REVIEW },
+          ),
+        ),
+      ).resolves.toEqual({ status: 'invalid_cause' })
+      expect(apply).not.toHaveBeenCalled()
+    })
+
+    it('refuses four or more words of the review in a row across the two boxes', async () => {
+      const { correct, apply } = harness()
+
+      await expect(
+        correct(
+          input(
+            { kind: 'change_cause', thing: 'reception was', issue: 'slow with' },
+            { reviewText: REVIEW },
+          ),
+        ),
+      ).resolves.toEqual({ status: 'invalid_cause' })
+      expect(apply).not.toHaveBeenCalled()
+    })
+
+    it('lets plain words through, capitalised the way a person types them, and plain causes of the review', async () => {
+      const { correct, apply } = harness()
+
+      await correct(
+        input(
+          { kind: 'change_cause', thing: 'Front desk', issue: 'Slow check-in' },
+          { reviewText: REVIEW },
+        ),
+      )
+      await correct(
+        input(
+          { kind: 'change_cause', thing: 'keys', issue: 'slow' },
+          { reviewText: REVIEW },
+        ),
+      )
+
+      expect(apply).toHaveBeenCalledTimes(2)
+    })
+
+    it('still refuses a typed capital name when the review’s words cannot be read', async () => {
+      const { correct, apply } = harness()
+
+      await expect(
+        correct(
+          input(
+            { kind: 'change_cause', thing: 'Maria', issue: 'slow' },
+            { reviewText: null },
+          ),
+        ),
+      ).resolves.toEqual({ status: 'invalid_cause' })
+      expect(apply).not.toHaveBeenCalled()
+    })
+  })
+
   it.each([
     ['a thing with nothing said of it', 'lift', null],
     ['neither phrase', null, null],

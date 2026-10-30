@@ -31,9 +31,15 @@ function candidate(over: Partial<EvidenceCandidate> = {}): EvidenceCandidate {
   }
 }
 
-const opened = (text: string | null, inboxItemId = 'item-1'): ResolvedReview => ({
+/** A review as the delivery layer found it, at the revision the candidates are made on. */
+const opened = (
+  text: string | null,
+  inboxItemId = 'item-1',
+  sourceRevision: number | null = 1,
+): ResolvedReview => ({
   inboxItemId,
   text,
+  sourceRevision,
 })
 
 describe('liveEvidenceOf', () => {
@@ -65,6 +71,42 @@ describe('liveEvidenceOf', () => {
   it('has no quote when the text cannot be read, so the card shows its figures alone', () => {
     expect(liveEvidenceOf(candidate(), undefined)).toBeNull()
     expect(liveEvidenceOf(candidate(), opened(null))).toBeNull()
+  })
+
+  // S2: the sentence numbers an analysis cites count the sentences of the text it read.
+  // A review edited since is another text, and the same numbers can point at other
+  // sentences, so a quote needs the revision the analysis was made on.
+  it('has no quote when the review is not at the revision the analysis was made on', () => {
+    const edited = TEXT.replace('Lovely room', 'Dreadful room')
+    for (const current of [2, 7]) {
+      expect(
+        liveEvidenceOf(
+          candidate({ sourceRevision: 1 }),
+          opened(edited, 'item-1', current),
+        ),
+      ).toBeNull()
+    }
+    // And the revision is not the only thing that decides: the same revision with
+    // fewer sentences than were numbered is still no quote.
+    expect(
+      liveEvidenceOf(
+        candidate({ sentenceNumbers: [6] }),
+        opened('Good. Fine.', 'item-1', 1),
+      ),
+    ).toBeNull()
+  })
+
+  it('has no quote for a review whose revision was not read', () => {
+    expect(liveEvidenceOf(candidate(), opened(TEXT, 'item-1', null))).toBeNull()
+  })
+
+  it('quotes a review at the revision the analysis was made on', () => {
+    expect(
+      liveEvidenceOf(
+        candidate({ sourceRevision: 4, sentenceNumbers: [2] }),
+        opened(TEXT, 'item-1', 4),
+      ),
+    ).not.toBeNull()
   })
 
   it('has no quote when the review now has fewer sentences than the analysis numbered', () => {
@@ -217,18 +259,34 @@ describe('withLiveEvidence', () => {
       read: notEnough,
       evidence: [],
       latest: [
-        { reviewId: 'plain', reviewedAt: '2026-10-28', rating: 5, mayShowText: true },
+        {
+          reviewId: 'plain',
+          reviewedAt: '2026-10-28',
+          rating: 5,
+          mayShowText: true,
+          sourceRevision: 1,
+        },
         {
           reviewId: 'names-someone',
           reviewedAt: '2026-10-27',
           rating: 4,
           mayShowText: false,
+          sourceRevision: 1,
         },
         {
           reviewId: 'cannot-open',
           reviewedAt: '2026-10-26',
           rating: 3,
           mayShowText: true,
+          sourceRevision: 1,
+        },
+        {
+          // Edited after it was counted and checked for names: listed, without words.
+          reviewId: 'edited-since',
+          reviewedAt: '2026-10-25',
+          rating: 2,
+          mayShowText: true,
+          sourceRevision: 1,
         },
       ],
     }
@@ -238,6 +296,7 @@ describe('withLiveEvidence', () => {
       new Map([
         ['plain', opened('Great stay.', 'item-a')],
         ['names-someone', opened('Maria was lovely.', 'item-b')],
+        ['edited-since', opened('Now it names Maria.', 'item-d', 2)],
       ]),
     )
 
@@ -251,6 +310,7 @@ describe('withLiveEvidence', () => {
           text: 'Great stay.',
         },
         { inboxItemId: 'item-b', reviewedAt: '2026-10-27', rating: 4, text: null },
+        { inboxItemId: 'item-d', reviewedAt: '2026-10-25', rating: 2, text: null },
       ],
     })
   })

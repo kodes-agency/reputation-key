@@ -29,18 +29,27 @@ export type PropertyGuestVoiceServerFns = Readonly<{
 }>
 
 /**
- * Today's page reads the v2 analysis (`result`) and draws the topics and recurring
- * issues. Guest voice 2.0 (`v2`) reads the v3 analysis and draws the fix-first page;
- * a property is shown one or the other. Which is decided where the read model is, in a
- * later slice: until then the caller passes `v2`, or does not.
+ * Guest voice 2.0 (`v2`) reads the v3 analysis and draws the fix-first page; it is the
+ * page. Where there is none yet, `state` says why: AI analysis is off, or the analysis is
+ * still being prepared. The page that was drawn from the v2 analysis (`result`: topics,
+ * recurring issues and the trend headline) is no longer reached by the route, since v3
+ * is the only analysis; it stays here for the cleanup that removes it with the aspect
+ * read model.
  */
 type Guest = Readonly<
   | {
       result: AiPropertyInsightsRead
       serverFns: PropertyGuestVoiceServerFns
       v2?: undefined
+      state?: undefined
     }
-  | { v2: GuestVoiceV2View; result?: undefined; serverFns?: undefined }
+  | { v2: GuestVoiceV2View; result?: undefined; serverFns?: undefined; state?: undefined }
+  | {
+      state: 'disabled' | 'preparing'
+      v2?: undefined
+      result?: undefined
+      serverFns?: undefined
+    }
 >
 
 type Props = Guest &
@@ -129,29 +138,38 @@ export function PropertyGuestVoicePage(props: Props) {
           { propertyId, propertyName },
           NAV_LABEL.guests,
         )}
+        // A page that says why it has no figures yet has nothing to choose a window for.
         actions={
-          <RangeControl
-            value={range}
-            onValueChange={onRangeChange}
-            options={
-              props.v2 === undefined
-                ? GUEST_VOICE_RANGE_OPTIONS
-                : GUEST_VOICE_V2_RANGE_OPTIONS
-            }
-          />
+          props.state === undefined ? (
+            <RangeControl
+              value={range}
+              onValueChange={onRangeChange}
+              options={
+                props.v2 === undefined
+                  ? GUEST_VOICE_RANGE_OPTIONS
+                  : GUEST_VOICE_V2_RANGE_OPTIONS
+              }
+            />
+          ) : undefined
         }
       />
 
       <RangeBusyRegion busy={busy}>
-        {props.v2 === undefined ? (
+        {props.v2 !== undefined ? (
+          <GuestVoiceV2Body propertyId={propertyId} range={range} view={props.v2} />
+        ) : props.state !== undefined ? (
+          <GuestVoiceState
+            result={{ status: props.state }}
+            range={range}
+            propertyId={propertyId}
+          />
+        ) : (
           <GuestVoiceV1Body
             propertyId={propertyId}
             range={range}
             result={props.result}
             serverFns={props.serverFns}
           />
-        ) : (
-          <GuestVoiceV2Body propertyId={propertyId} range={range} view={props.v2} />
         )}
       </RangeBusyRegion>
     </PageShell>

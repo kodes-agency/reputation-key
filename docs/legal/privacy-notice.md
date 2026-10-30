@@ -3,14 +3,14 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
-amended_on: 2026-10-16
+amended_on: 2026-10-30
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-10-16
-**Version:** 2.5
+**Effective date:** 2026-10-30
+**Version:** 3.0
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -130,13 +130,20 @@ the provider table.
 
 The Service uses the following providers:
 
-| Provider | Purpose                                        | Processing location and retention or use controls                                                                                                                                                                                                                                                         |
-| -------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Railway  | Hosting, PostgreSQL, Redis, and object storage | United States, US West                                                                                                                                                                                                                                                                                    |
-| OpenAI   | AI inference                                   | Global API endpoint with no residency commitment; prompt cache up to 24 hours; ordinary abuse-monitoring retention generally no more than 30 days, subject to documented legal or safety exceptions; API data is not used for training unless Reputation Key's OpenAI organization opts in                |
-| Google   | Business Profile APIs and OAuth                | Independent controller of Business Profile data                                                                                                                                                                                                                                                           |
-| Resend   | Transactional email                            | United States                                                                                                                                                                                                                                                                                             |
-| Sentry   | Error monitoring and beta feedback reports     | United States; required: the deployed Service does not start unless it is configured; receives error, timing, and health reports from its servers, error reports from Participant and Guest browsers, and beta feedback reports with any screenshot a Participant attaches, as explained below this table |
+| Provider  | Purpose                                        | Processing location and retention or use controls                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Railway   | Hosting, PostgreSQL, Redis, and object storage | United States, US West                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| OpenAI    | AI inference                                   | Global API endpoint with no residency commitment; prompt cache up to 24 hours; ordinary abuse-monitoring retention generally no more than 30 days, subject to documented legal or safety exceptions; API data is not used for training unless Reputation Key's OpenAI organization opts in                                                                                                                                                                                 |
+| Anthropic | AI inference                                   | Not used before the date section 9 sets. Then used through an account held by Mission Morph LLC, which has Anthropic's data-processing agreement. No processing-location promise; no prompt caching requested; inputs and outputs deleted by the provider within 30 days, except content it flags for policy violations (up to 2 years) and its safety scores (up to 7 years); not used for training under the provider's commercial terms; no zero-data-retention promise |
+| Google    | Business Profile APIs and OAuth                | Independent controller of Business Profile data                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Resend    | Transactional email                            | United States                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Sentry    | Error monitoring and beta feedback reports     | United States; required: the deployed Service does not start unless it is configured; receives error, timing, and health reports from its servers, error reports from Participant and Guest browsers, and beta feedback reports with any screenshot a Participant attaches, as explained below this table                                                                                                                                                                  |
+
+OpenAI receives minimized and redacted review text for the AI features an
+Organization administrator has enabled. Once the date in section 9 has passed,
+Anthropic may receive it too. Redaction removes contact details, addresses,
+financial details, identifiers, secrets and the reviewer's own name. It does not
+remove other names written in a review. Section 5 says more.
 
 Error monitoring is part of the deployed Service. Its web and worker processes
 do not start unless error monitoring is configured, and they accept only the
@@ -200,6 +207,8 @@ The Service uses information to:
   average;
 - deliver required and configured notifications to the appropriate responsible
   managers;
+- test the quality of AI analysis on a set of reviews that can include reviews
+  of Properties that enabled AI features;
 - prevent abuse, diagnose failures, recover durable work, and protect tenants;
   and
 - improve the closed beta using deliberately submitted feedback.
@@ -210,7 +219,9 @@ controller roles and legal bases stated in section 1 apply to these uses.
 
 Portal and staff-attribution metrics are decision-support evidence. The beta
 does not provide competitive rankings, bottom lists, automatic employment
-decisions, or review-derived staff scoring.
+decisions, or review-derived staff scoring. Guest voice may say how many
+reviews praise a team member by name. It does not say who, it has no such line
+for complaints, and it does not count per person.
 
 ## 4. Who can see information
 
@@ -228,10 +239,10 @@ decisions, or review-derived staff scoring.
 - Service providers receive only the data required for their accepted purpose
   and configuration.
 
-All providers in the schedule process personal data in the United States.
-The beta has no EU deployment. OpenAI uses a global API endpoint and gives no
-provider residency commitment, so this notice makes no US-only provider
-processing promise.
+Railway, Resend and Sentry process personal data in the United States. The beta
+has no EU deployment. OpenAI uses a global API endpoint and gives no provider
+residency commitment. This notice makes no US-only processing promise for OpenAI
+or for Anthropic.
 
 For transfers from the EU or UK, Reputation Key relies on each provider's
 data-processing terms incorporating the EU Standard Contractual Clauses and,
@@ -242,6 +253,11 @@ where the provider is certified, the EU-U.S. Data Privacy Framework.
 Review Analysis, Reply Drafting, and Property Trends are independent
 Property-level controlled capabilities. Property Trends depends on Review
 Analysis. None becomes available merely because code exists.
+
+Two providers, OpenAI and Anthropic, can run Review Analysis and Reply Drafting.
+Reputation Key chooses which handles each kind of work and changes the choice
+only by its own decision. The Merchant AI notice names both. Anthropic receives
+no Google review before the date section 9 sets.
 
 Each capability requires current Property authorization, an accepted notice
 version, an approved provider/deployment and region, a current source-content
@@ -254,6 +270,29 @@ Provider output is advisory. It cannot publish a Google reply, change Inbox
 state, determine metrics/goals, change the Guest journey, or make an employment
 decision. A Reply Draft remains editable and is followed by a separate human
 Confirm & Publish action.
+
+The only message it can send without a person is an Urgent alert to the managers
+who receive a Property's review notifications. The alert email says only that an
+urgent review needs the manager, with a link. It carries no review text and no
+reason. The reason shows only inside the Service.
+
+Review Analysis keeps topics, how strongly a guest felt, a short cause, the
+numbers of the sentences each result comes from, a flag for whether those
+sentences name a team member or someone else (never the name), an Urgent reason,
+daily counts of reviews by star rating, and the business category Google lists
+for the Property, as a hint only. It does not copy the review text. Guest voice
+reads guests' words from the review text the Service holds when a manager opens
+the page. It does not store them or send them by email.
+
+Reputation Key tests the quality of its AI analysis on a set of reviews that can
+include reviews of Properties whose Organization has enabled AI features under
+the current Merchant AI notice. A test can send a review, minimized and
+redacted, to both providers (Anthropic only once the date section 9 sets has
+passed), and a person may read it inside the Service to settle a disagreement
+between answers. The Service keeps the review's own internal identifier, the
+checked answers and how they were produced, never the text. A review leaves the
+set when Google no longer has it, when the Service no longer holds its text, or
+when AI features are turned off for the Property.
 
 Cross-Property AI summaries, automatic AI reply publication, and provider
 training on submitted Google content have no activation path.
@@ -313,8 +352,12 @@ The accepted rules for the remaining information classes are:
   history are kept for the life of the Organization and purged at closure;
 - Contact Requests are disabled;
 - provider reply content follows the 30-day source-content policy;
-- de-identified AI derivatives are kept for 24 months and withheld immediately
-  when authorization is withdrawn;
+- de-identified AI derivatives are used and shown for no more than 24 months and
+  are withheld immediately when authorization is withdrawn. The results listed in
+  section 5 are deleted from the Service when they are 24 months old;
+- the answers kept for quality testing (an internal review identifier, checked
+  answers and how they were produced) are removed when the review leaves the test
+  set, as section 5 describes, and in any case when they are 24 months old;
 - application logs are content-minimized and held by the hosting provider for
   no more than 30 days;
 - there is no quarantine retention class because no quarantine tables remain;
@@ -363,14 +406,26 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-10-16 and is version 2.5. It replaces version
-2.4, which took effect on 2026-10-16 and had replaced version 2.3, which took
+This notice takes effect on 2026-10-30 and is version 3.0. It replaces version
+2.5, which took effect on 2026-10-16 and had replaced version 2.4, which took
+effect on 2026-10-16 and had replaced version 2.3, which took
 effect on 2026-10-16 and had replaced version 2.2, which took effect on
 2026-10-13 and had replaced version 2.1, which took effect on 2026-10-12 and had
 replaced version 2.0, which took effect on 2026-09-08.
 Material changes will be announced to Participants by email at least 14 days
 before they take effect. The version and effective date will remain shown on
 this page.
+
+Version 3.0 adds Anthropic as a second AI provider (sections 2, 4 and 5).
+Participants are told by email on the day this version is published. Anthropic
+receives no Google review before the 14th day after that email, and until then
+OpenAI is the only AI provider that does. The rest of version 3.0 takes effect
+when the new Merchant AI notice does, on the accountable owner's decision for the
+closed beta: what Review Analysis keeps and the Urgent alert (section 5), and
+quality testing (sections 3, 5 and 6). An Organization administrator then
+confirms AI features again for each Property. Version 3.0 also corrects a
+sentence in section 4 that said all providers process personal data in the
+United States. Nothing else about the Service changes with version 3.0.
 
 Version 2.5 adds the Participant's name and email address to a beta feedback
 report (section 2). Until version 2.5 a report named the Participant only by a

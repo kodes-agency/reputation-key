@@ -8,7 +8,7 @@ import {
   evaluateGates,
   GATE_IDS,
   GATING_SLICES,
-  RELEASE_GATES_V1,
+  RELEASE_GATES,
   type GateReport,
   type GateResult,
   type GateVerdict,
@@ -57,7 +57,7 @@ export type EvaluationReport = Readonly<{
       droppedMentions: number
     }>
   }>
-  thresholds: typeof RELEASE_GATES_V1
+  thresholds: typeof RELEASE_GATES
   providers: readonly ProviderReport[]
   verdict: GateVerdict
 }>

@@ -16,6 +16,7 @@ type StandardValidator = Readonly<{
 const mocks = vi.hoisted(() => ({
   correctReviewMention: vi.fn(),
   readCurrentSource: vi.fn(),
+  getReviewSnippetsByIds: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
   headersFromContext: vi.fn(),
@@ -57,7 +58,10 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     aiPublicApi: { correctReviewMention: mocks.correctReviewMention },
-    reviewPublicApi: { aiReviewSource: { readCurrentSource: mocks.readCurrentSource } },
+    reviewPublicApi: {
+      aiReviewSource: { readCurrentSource: mocks.readCurrentSource },
+      getReviewSnippetsByIds: mocks.getReviewSnippetsByIds,
+    },
   }),
 }))
 vi.mock('#/shared/auth/headers', () => ({ headersFromContext: mocks.headersFromContext }))
@@ -115,6 +119,9 @@ beforeEach(() => {
     status: 'applied',
     mentionOrdinals: [1],
   })
+  mocks.getReviewSnippetsByIds.mockResolvedValue(
+    new Map([[REVIEW_ID, { text: 'Lovely room. Maria was kind.', sourceRevision: 5 }]]),
+  )
 })
 
 describe('correctReviewMentionFn', () => {
@@ -145,7 +152,10 @@ describe('correctReviewMentionFn', () => {
       mentionOrdinal: 1,
       action: { kind: 'remove_topic' },
       actor: ACTOR,
+      // Only a changed cause is held to the guards that read the review's words.
+      reviewText: null,
     })
+    expect(mocks.getReviewSnippetsByIds).not.toHaveBeenCalled()
   })
 
   it('passes a changed cause through for the use case to fold and check', async () => {
@@ -160,6 +170,46 @@ describe('correctReviewMentionFn', () => {
       expect.objectContaining({
         action: { kind: 'change_cause', thing: 'Air Con', issue: null },
       }),
+    )
+  })
+
+  // S5: a typed cause is held to the guards an AI's cause passes, and the quotation guard
+  // needs the review's words. They are handed over only at the revision the correction
+  // sits beside; the words of another revision are not what the cause was typed about.
+  it('hands the use case the review’s words, at the current revision, to check a changed cause against', async () => {
+    await call({
+      reviewId: REVIEW_ID,
+      analysisSequence: 8,
+      mentionOrdinal: 0,
+      action: { kind: 'change_cause', thing: 'room', issue: 'lovely' },
+    })
+
+    expect(mocks.getReviewSnippetsByIds).toHaveBeenCalledWith(
+      [REVIEW_ID],
+      ORGANIZATION_ID,
+    )
+    expect(mocks.correctReviewMention).toHaveBeenCalledWith(
+      expect.objectContaining({ reviewText: 'Lovely room. Maria was kind.' }),
+    )
+  })
+
+  it.each([
+    ['another revision', { text: 'Edited words.', sourceRevision: 6 }],
+    ['no words served', undefined],
+  ])('hands over no words for %s', async (_case, snippet) => {
+    mocks.getReviewSnippetsByIds.mockResolvedValue(
+      new Map(snippet === undefined ? [] : [[REVIEW_ID, snippet]]),
+    )
+
+    await call({
+      reviewId: REVIEW_ID,
+      analysisSequence: 8,
+      mentionOrdinal: 0,
+      action: { kind: 'change_cause', thing: 'room', issue: 'lovely' },
+    })
+
+    expect(mocks.correctReviewMention).toHaveBeenCalledWith(
+      expect.objectContaining({ reviewText: null }),
     )
   })
 

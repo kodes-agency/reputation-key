@@ -5,8 +5,7 @@ import {
   getPropertyGooglePerformance,
   renewPropertyGooglePerformanceLease,
 } from '#/contexts/integration/server/google-performance'
-import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
-import { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
+import { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
 import { PropertyOverview } from '#/components/features/property/property-overview'
 import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
 import { primeWithinGrace } from '#/routes/-queries/prime-within-grace'
@@ -142,10 +141,7 @@ function PropertyOverviewRoute() {
         ) : null
       }
       portalGoal={goals ? <OverviewPortalGoal propertyId={propertyId} /> : null}
-      guestVoiceFns={{
-        getTrend: getPropertyAiTrendFn,
-        getAggregates: getPropertyAiAggregatesFn,
-      }}
+      guestVoiceFns={{ getGuestVoice: getGuestVoiceV2Fn }}
       profileViewsFns={{
         getPerformance: getPropertyGooglePerformance,
         renewLease: renewPropertyGooglePerformanceLease,

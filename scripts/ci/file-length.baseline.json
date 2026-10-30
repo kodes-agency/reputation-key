@@ -10,7 +10,7 @@
   "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts": 1400,
   "src/shared/ai-internal-transport-contract.ts": 1055,
   "src/shared/db/schema-drift.ts": 947,
-  "src/shared/db/schema/ai.schema.ts": 1190,
+  "src/shared/db/schema/ai.schema.ts": 1175,
   "src/shared/db/schema/inbox.schema.ts": 842,
   "src/shared/db/schema/review.schema.ts": 1470,
   "src/shared/events/schema-registrations.ts": 1555,

@@ -19,7 +19,7 @@ export const PROPERTY_ISSUE_NORMALIZATION_VERSION =
   'property-issue-normalization-v1' as const
 export const TOPIC_LEVEL_ISSUE_KEY = '__topic__' as const
 
-const RULE_VERSION = 'property-issue-normalization-rules-v1' as const
+const RULE_VERSION = 'property-issue-normalization-rules-v2' as const
 const DIGEST_DOMAIN = 'repkey-property-issue-normalization-catalogue-v1\0'
 const INPUT_LENGTH_BOUND = 256
 const APOSTROPHE_VARIANTS = /[\u2018\u2019\u02bc\uff07]/gu
@@ -31,11 +31,16 @@ const phraseSchema = z
   .max(REVIEW_CAUSE_PHRASE_MAX_LENGTH)
   .regex(REVIEW_CAUSE_PHRASE_PATTERN)
 
+const keptPluralSchema = z.string().regex(/^[a-z]+$/u)
+
 const catalogueSchema = z
   .object({
     version: z.literal(PROPERTY_ISSUE_NORMALIZATION_VERSION),
     ruleVersion: z.literal(RULE_VERSION),
+    // Plural forms the rule below would get wrong, written out: `buses`, `menus`, `knives`.
     singularization: z.record(phraseSchema, phraseSchema),
+    // Words that end in `s` and are not plurals of a thing the guest names: `stairs`, `news`.
+    pluralKeep: z.array(keptPluralSchema),
     synonyms: z.partialRecord(
       z.enum(REVIEW_TOPICS_V3),
       z.record(phraseSchema, phraseSchema),
@@ -52,6 +57,15 @@ function deepFreeze<Value>(value: Value): Value {
 }
 
 function validateCatalogue(catalogue: Catalogue): Catalogue {
+  const kept = new Set(catalogue.pluralKeep)
+  if (kept.size !== catalogue.pluralKeep.length) {
+    throw new Error('property issue plural keep list repeats a word')
+  }
+  for (const plural of Object.keys(catalogue.singularization)) {
+    if (kept.has(plural)) {
+      throw new Error(`property issue plural ${plural} is both kept and singularized`)
+    }
+  }
   for (const [topic, entries] of Object.entries(catalogue.synonyms)) {
     for (const [alias, canonical] of Object.entries(entries ?? {})) {
       if (entries?.[canonical] !== undefined) {
@@ -109,14 +123,41 @@ function normalizeStoredPhrase(thing: string): string {
   return normalized
 }
 
+const PLURAL_KEPT_WORDS: ReadonlySet<string> = new Set(CATALOGUE.pluralKeep)
+// A word that ends like a singular, not a plural: `glass`, `bus`, `tennis`, `wellness`.
+const SINGULAR_ENDING = /(?:ss|us|is)$/u
+// A consonant before `ies` makes `facilities` of `facility`; a vowel makes `cookies` of `cookie`.
+const IES_PLURAL = /[^aeiou]ies$/u
+// Endings that take `es`: `dishes`, `sandwiches`, `boxes`, `glasses`.
+const ES_PLURAL = /(?:sses|ches|shes|xes)$/u
+const SHORTEST_PLURAL = 4
+const SHORTEST_IES_PLURAL = 5
+
+/**
+ * The singular of one word. The explicit forms of the catalogue come first, then the words
+ * it keeps as written, then a plain rule: `ies` after a consonant becomes `y`, `es` is
+ * dropped after `ss`, `ch`, `sh` and `x`, any other final `s` is dropped. A word of three
+ * letters or fewer, and a word that ends in `ss`, `us` or `is`, is left alone. The rule is
+ * the same for the gold and for an answer, so it only has to be the same, not perfect.
+ */
+function singularWord(word: string): string {
+  const explicit = CATALOGUE.singularization[word]
+  if (explicit !== undefined) return explicit
+  if (PLURAL_KEPT_WORDS.has(word) || word.length < SHORTEST_PLURAL) return word
+  if (SINGULAR_ENDING.test(word)) return word
+  if (word.length >= SHORTEST_IES_PLURAL && IES_PLURAL.test(word)) {
+    return `${word.slice(0, -3)}y`
+  }
+  if (ES_PLURAL.test(word)) return word.slice(0, -2)
+  return word.endsWith('s') ? word.slice(0, -1) : word
+}
+
 function singularizeLastWord(phrase: string): string {
   const words = phrase.split(' ')
   const lastIndex = words.length - 1
   const lastWord = words[lastIndex]
   if (lastWord === undefined) return phrase
-  const singular = CATALOGUE.singularization[lastWord]
-  if (singular === undefined) return phrase
-  return [...words.slice(0, lastIndex), singular].join(' ')
+  return [...words.slice(0, lastIndex), singularWord(lastWord)].join(' ')
 }
 
 /**

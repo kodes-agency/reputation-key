@@ -6,7 +6,7 @@ import {
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import { v2FormAnalysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import { canonicalizeRawAiReviewSource } from '#/shared/ai-review-source-contract'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
@@ -320,15 +320,24 @@ describe('review-analysis v3 request preparation', () => {
     ).toBe('policy_unavailable')
   })
 
-  describe('dark', () => {
-    it('does not prepare a v3 request under the live catalogue', () => {
+  describe('the live catalogue', () => {
+    it('prepares a v3 request: the catalogue serves review analysis as v3', () => {
       expect(refusal(() => evidencePreparer().prepare(preparableV3Request()))).toBe(
+        'prepared',
+      )
+    })
+
+    it('does not prepare the retired v2 form, with the retired profile still in the catalogue', () => {
+      // The v2 profile stays in the catalogue so an operation claimed under it can be
+      // read and settled; a request in its form carries the deployment profile now
+      // served, which that profile does not, so nothing new is prepared under it.
+      expect(refusal(() => evidencePreparer().prepare(v2FormAnalysisRequest()))).toBe(
         'policy_unavailable',
       )
     })
 
     it('does not prepare a v2 request under a catalogue that holds only v3', () => {
-      expect(refusal(() => v3Preparer().prepare(analysisRequest()))).toBe(
+      expect(refusal(() => v3Preparer().prepare(v2FormAnalysisRequest()))).toBe(
         'policy_unavailable',
       )
     })

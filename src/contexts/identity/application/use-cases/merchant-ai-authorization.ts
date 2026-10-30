@@ -6,6 +6,7 @@ import type { MerchantAiPurpose } from '#/shared/domain/merchant-ai-capability'
 import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   type MerchantAiCapability,
+  type MerchantAiProviderDeploymentProfile,
   type MerchantAiSnapshot,
   type MerchantAiState,
 } from '../../domain/merchant-ai-authorization'
@@ -36,7 +37,7 @@ export type MerchantAiMutationInput = Readonly<{
   noticeDigest: string
   sourcePolicyId: string
   routingPolicyVersion: number
-  providerDeploymentProfileVersion: 'private-beta-global-v1'
+  providerDeploymentProfileVersion: MerchantAiProviderDeploymentProfile
   redactionProfileFamily: string
   now: Date
   /** The consent ceremony that asked for this transition; not part of replay identity. */
@@ -53,7 +54,7 @@ export type MerchantAiRestoreResetInput = Readonly<{
   noticeDigest: string
   sourcePolicyId: string
   routingPolicyVersion: number
-  providerDeploymentProfileVersion: 'private-beta-global-v1'
+  providerDeploymentProfileVersion: MerchantAiProviderDeploymentProfile
   redactionProfileFamily: string
   now: Date
 }>
@@ -86,7 +87,7 @@ export type MerchantAiConsentCeremonyInput = Readonly<{
   noticeDigest: string
   sourcePolicyId: string
   routingPolicyVersion: number
-  providerDeploymentProfileVersion: 'private-beta-global-v1'
+  providerDeploymentProfileVersion: MerchantAiProviderDeploymentProfile
   redactionProfileFamily: string
   now: Date
   ceremonyId: string
@@ -200,7 +201,7 @@ export type MerchantAiAuthorizationDeps = Readonly<{
   noticeDigest: string
   sourcePolicyId: string
   routingPolicyVersion: number
-  providerDeploymentProfileVersion: 'private-beta-global-v1'
+  providerDeploymentProfileVersion: MerchantAiProviderDeploymentProfile
   redactionProfileFamily: string
 }>
 

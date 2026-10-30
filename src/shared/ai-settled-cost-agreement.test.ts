@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
-  OPENAI_PRICE_CATALOGUE_V1,
+  OPENAI_PRICE_CATALOGUE_V2,
   settledCostMicros,
 } from './ai-openai-provider-profile'
 
@@ -26,15 +26,26 @@ const COST_CRITICAL_SOURCES = [
 
 /** Every per-million rate in the catalogue, in the spellings TS allows. */
 const CATALOGUE_RATES = [
-  OPENAI_PRICE_CATALOGUE_V1.uncachedInputMicros,
-  OPENAI_PRICE_CATALOGUE_V1.cachedInputMicros,
-  OPENAI_PRICE_CATALOGUE_V1.outputMicros,
-  OPENAI_PRICE_CATALOGUE_V1.unitTokens,
+  OPENAI_PRICE_CATALOGUE_V2.uncachedInputMicros,
+  OPENAI_PRICE_CATALOGUE_V2.cachedInputMicros,
+  OPENAI_PRICE_CATALOGUE_V2.outputMicros,
+  OPENAI_PRICE_CATALOGUE_V2.unitTokens,
   // The pre-Luna rates, named so a revert is caught as loudly as a drift.
   750_000,
   75_000,
   4_500_000,
 ] as const
+
+/**
+ * A number that is also a rate, and means something else in that file. The input rate
+ * of `gpt-6-luna` ($0.10 per million, 100_000 micros) is the gateway's outer horizon for
+ * a trend attempt in milliseconds (`isGatewayOuterDeadlineValid`), which the notice
+ * states as "a 100-second outer attempt deadline". Name each one, with its meaning, so
+ * a real price literal in the same file still fails.
+ */
+const COINCIDENCES: Readonly<Partial<Record<string, readonly number[]>>> = {
+  'src/shared/ai-provider-control/service.ts': [100_000],
+}
 
 describe('settled cost agreement', () => {
   it('derives the charge from the catalogue, not from copied literals', () => {
@@ -46,8 +57,8 @@ describe('settled cost agreement', () => {
         outputTokens: 1_000_000,
       }),
     ).toBe(
-      BigInt(OPENAI_PRICE_CATALOGUE_V1.uncachedInputMicros) +
-        BigInt(OPENAI_PRICE_CATALOGUE_V1.outputMicros),
+      BigInt(OPENAI_PRICE_CATALOGUE_V2.uncachedInputMicros) +
+        BigInt(OPENAI_PRICE_CATALOGUE_V2.outputMicros),
     )
   })
 
@@ -62,8 +73,8 @@ describe('settled cost agreement', () => {
       cachedInputTokens: 1_000_000,
       outputTokens: 0,
     })
-    expect(allUncached).toBe(BigInt(OPENAI_PRICE_CATALOGUE_V1.uncachedInputMicros))
-    expect(allCached).toBe(BigInt(OPENAI_PRICE_CATALOGUE_V1.cachedInputMicros))
+    expect(allUncached).toBe(BigInt(OPENAI_PRICE_CATALOGUE_V2.uncachedInputMicros))
+    expect(allCached).toBe(BigInt(OPENAI_PRICE_CATALOGUE_V2.cachedInputMicros))
     expect(allCached).toBeLessThan(allUncached)
   })
 
@@ -87,9 +98,10 @@ describe('settled cost agreement', () => {
     (file) => {
       const source = readFileSync(file, 'utf8')
       // Any bare per-million rate here is a second source of truth. The rates
-      // live in OPENAI_PRICE_CATALOGUE_V1 and reach these files only through
+      // live in OPENAI_PRICE_CATALOGUE_V2 and reach these files only through
       // settledCostMicros.
       const found = CATALOGUE_RATES.filter((rate) => {
+        if (COINCIDENCES[file]?.includes(rate)) return false
         const grouped = rate.toLocaleString('en-US').replaceAll(',', '_')
         return (
           new RegExp(`\\b${grouped}n?\\b`).test(source) ||

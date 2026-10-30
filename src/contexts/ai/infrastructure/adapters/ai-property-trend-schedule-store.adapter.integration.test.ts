@@ -200,7 +200,7 @@ async function applyAuthorization(
     sourcePolicyId: 'google-business-profile-source-policy-v1',
     routingPolicyVersion: 1,
     processingRegion: 'global' as const,
-    providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
+    providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
     redactionProfileFamily: 'gbp-review-global-v1',
   }
   const occurredAt = new Date()
@@ -308,7 +308,7 @@ async function seedCaughtUpEnrollment(
     sourceEpoch: 0,
     reviewAnalysisEpoch: authorization.epochs.reviewAnalysis,
     analysisStartSequence: 0,
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: 'private-beta-global-v2',
     triggerEventEnvelopeId: uuid(`5${authorization.stateVersion}`, index),
     state: 'caught_up',
     snapshotRevisionCount: 0,
@@ -368,7 +368,7 @@ async function seedProperty(
     timezone: options.timezone,
     processingRegion: 'global',
     routingPolicyVersion: 1,
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: 'private-beta-global-v2',
     sourceEpoch: 0,
     profileVersion: 1,
     lifecycleState: 'active',

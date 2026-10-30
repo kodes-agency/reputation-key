@@ -2,7 +2,7 @@ import { z } from 'zod/v4'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
 import { providerRequestProfileOf } from '#/shared/ai-provider-attestations'
-import { OPENAI_PRICE_CATALOGUE_V1 } from '#/shared/ai-openai-provider-profile'
+import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
 import {
   OPENAI_PROMPT_VERSIONS,
   type ClosedJsonSchemaFormat,
@@ -78,7 +78,7 @@ export function createOpenAiProviderPreparation(): AiProviderPreparation<Prepare
   return Object.freeze({
     providerId: 'openai',
     requestProfile: providerRequestProfileOf(OPENAI_PROVIDER_ATTESTATION_V1),
-    pricing: OPENAI_PRICE_CATALOGUE_V1,
+    pricing: OPENAI_PRICE_CATALOGUE_V2,
     prepare: prepareOpenAiInvocation,
   })
 }

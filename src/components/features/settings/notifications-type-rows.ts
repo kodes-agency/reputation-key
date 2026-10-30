@@ -1,7 +1,12 @@
 // Human copy for the notification categories, keyed by category so every
 // active surface shares one source. Category ordering and exposure live in the
 // domain; only wording lives here.
-import type { NotificationCategory } from '#/contexts/feed/application/public-api'
+import {
+  NOTIFICATION_SETTINGS_CATEGORIES,
+  type ConfigurableNotificationCategory,
+  type NotificationCategory,
+} from '#/contexts/feed/application/public-api'
+import { REVIEW_ANALYSIS_V3_LIVE } from '#/shared/review-analysis-live'
 
 export type NotificationCategoryCopy = Readonly<{
   label: string
@@ -62,3 +67,33 @@ export const categoryInSentence = (category: NotificationCategory): string =>
   category === 'recognition'
     ? CATEGORY_COPY[category].label
     : CATEGORY_COPY[category].label.toLowerCase()
+
+/**
+ * The categories Settings offers. Those that only review analysis v3 produces (the
+ * Monday Guest voice summary) are offered only once v3 is on: a preference for something
+ * the product does not send is a switch that does nothing.
+ */
+export function settingsCategoriesFor(
+  reviewAnalysisV3Live: boolean = REVIEW_ANALYSIS_V3_LIVE,
+): ReadonlyArray<ConfigurableNotificationCategory> {
+  return NOTIFICATION_SETTINGS_CATEGORIES.filter(
+    (category) => category !== 'guest_voice' || reviewAnalysisV3Live,
+  )
+}
+
+const WITHOUT_URGENT_REVIEWS =
+  'Private feedback without a rating, escalations, and delivery issues that may need attention.'
+
+/**
+ * A category's description in Settings. "Action needed" names Urgent reviews (the v3
+ * analysis finds them) only once v3 is on.
+ */
+export function categoryDescription(
+  category: NotificationCategory,
+  reviewAnalysisV3Live: boolean = REVIEW_ANALYSIS_V3_LIVE,
+): string {
+  if (category === 'urgent_operational' && !reviewAnalysisV3Live) {
+    return WITHOUT_URGENT_REVIEWS
+  }
+  return CATEGORY_COPY[category].description
+}

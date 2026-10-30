@@ -56,7 +56,7 @@ import { createAiSuggestedDraftStore } from '../ai-suggested-draft-store'
 const KEY_ID = 'reply-workflow-provenance'
 const LINEAGE_ID = '4f000000-0000-4000-8000-000000000041'
 const COST_WINDOW_ID = '4f000000-0000-4000-8000-000000000042'
-const DEPLOYMENT_PROFILE = 'private-beta-global-v1'
+const DEPLOYMENT_PROFILE = 'private-beta-global-v2'
 const RUNTIME_PROFILES = { reply_drafting: 'reply-drafting-runtime-v1' } as const
 const SOURCE_POLICY = 'google-business-profile-source-policy-v1'
 const REDACTION_PROFILE = 'gbp-review-global-v1'

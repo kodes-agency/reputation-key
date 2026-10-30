@@ -14,9 +14,9 @@ import type {
   GoogleNumbersView,
 } from '#/contexts/reporting/application/public-api'
 import type { getPropertyGooglePerformance } from '#/contexts/integration/server/google-performance'
-import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
-import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
+import type { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
 import { reviewId } from '#/shared/domain/ids'
+import { LARGE_READ } from './guest-voice/guest-voice-fixtures-large'
 import { PropertyOverview } from './property-overview'
 import { RatingGoalCard } from '#/components/goals/rating-goal-card'
 import { PortalGoalOverview } from '#/components/goals/portal-goal-overview'
@@ -114,66 +114,19 @@ const googleReady = {
 }
 
 const aiReady = {
-  getTrend: (async () => ({
-    status: 'ready',
-    report: { headline: 'Staff praised more often this month' },
-  })) as unknown as typeof getPropertyAiTrendFn,
-  getAggregates: (async () => ({
-    status: 'ready',
-    provisional: false,
-    coverage: {
-      settledAnalysisCount: 48,
-      expectedAnalysisCount: 48,
-      awaitingAnalysisCount: 0,
-    },
-    startLocalDate: '2026-06-01',
-    endLocalDate: '2026-06-30',
-    reviewCount: 48,
-    analyzedReviewCount: 48,
-    preAspectAnalysisCount: 0,
-    impactVersion: 'aspect-impact-v1',
-    aspects: [
-      {
-        aspect: 'staff',
-        polarity: 'positive',
-        mentionCount: 11,
-        reviewCount: 11,
-        ratingCounts: [0, 0, 0, 3, 8],
-        stars: { mentionedAverage: 4.7, othersAverage: 4.1, gap: -0.6, upTo: 0 },
-        impact: 7.1,
-      },
-      {
-        aspect: 'parking',
-        polarity: 'negative',
-        mentionCount: 4,
-        reviewCount: 4,
-        ratingCounts: [1, 1, 2, 0, 0],
-        stars: { mentionedAverage: 2.3, othersAverage: 4.3, gap: 2, upTo: 0.15 },
-        impact: -2.8,
-      },
-    ],
-    emergingIssues: [],
-    sentimentByDay: [],
-    sentimentTotals: { positive: 30, neutral: 10, negative: 6, mixed: 2 },
-  })) as unknown as typeof getPropertyAiAggregatesFn,
+  getGuestVoice: (async () => LARGE_READ) as unknown as typeof getGuestVoiceV2Fn,
 }
 
 const aiOff = {
-  getTrend: (async () => ({
+  getGuestVoice: (async () => ({
     status: 'disabled',
-  })) as unknown as typeof getPropertyAiTrendFn,
-  getAggregates: (async () => ({
-    status: 'disabled',
-  })) as unknown as typeof getPropertyAiAggregatesFn,
+  })) as unknown as typeof getGuestVoiceV2Fn,
 }
 
 const aiPreparing = {
-  getTrend: (async () => ({
+  getGuestVoice: (async () => ({
     status: 'preparing',
-  })) as unknown as typeof getPropertyAiTrendFn,
-  getAggregates: (async () => ({
-    status: 'preparing',
-  })) as unknown as typeof getPropertyAiAggregatesFn,
+  })) as unknown as typeof getGuestVoiceV2Fn,
 }
 
 /** Week one: two reviews, both this month, no Google, no AI. */
@@ -307,7 +260,10 @@ export const Ready: Story = {
       }),
     ).toBeVisible()
 
-    expect(await canvas.findByText('Staff praised more often this month')).toBeVisible()
+    // The Guest voice row: the page's first "In short" line, from the v3 analysis.
+    const firstLine = LARGE_READ.inShort[0]
+    if (firstLine === undefined) throw new Error('The large fixture has an In short line')
+    expect(await canvas.findByText(firstLine.text)).toBeVisible()
 
     // No charts, and nothing that was moved to a topic page.
     expect(canvas.queryByRole('img', { name: /rating/i })).toBeNull()

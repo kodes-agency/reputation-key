@@ -618,8 +618,10 @@ describe.sequential('Review Analysis v3 storage (real PostgreSQL)', () => {
       const ordinary = await inRolledBackTransaction(async (client) => {
         await insertTransition(client, {
           kind: 'provider_deployment_profile',
-          value: 'private-beta-global-v2',
-          key: 'provider:private-beta-global-v2',
+          // Not a profile the database holds: private-beta-global-v2 has its own
+          // head since migration 0083, and a second one under its key is refused.
+          value: 'private-beta-global-v9',
+          key: 'provider:private-beta-global-v9',
         })
       })
 

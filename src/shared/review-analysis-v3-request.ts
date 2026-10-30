@@ -16,8 +16,8 @@ import {
 // gateway transport contract and the route preparer: how a request names its
 // operation profile, which sentences it carries, what the provider is sent and
 // what the gateway answers with. Nothing here selects a v3 analysis: the live
-// runtime catalogue holds no v3 entry, so a request that names this profile is
-// refused as cross-wired before it is prepared.
+// runtime catalogue does (since the switch-on, 2026-10-30), and a request whose
+// binding does not match its entry is refused as cross-wired before it is prepared.
 
 /** The operation profile a request names to carry sentences and a property context. */
 export const REVIEW_ANALYSIS_V3_OPERATION_PROFILE = 'review-analysis-v3' as const
