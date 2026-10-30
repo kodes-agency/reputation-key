@@ -16,9 +16,11 @@ import { resolveDraftReviews } from '../application/read-models/guest-voice-v2-r
 import { isAiError } from '../domain/errors'
 import { guestVoiceEvidenceReaders } from './guest-voice-evidence.server'
 
+import { GUEST_VOICE_RANGES } from '../application/read-models/guest-voice-v2-population'
+
 const detailDto = z.strictObject({
   propertyId: z.uuid(),
-  range: z.enum(['auto', '30d', '90d', '180d', '365d']),
+  range: z.enum(GUEST_VOICE_RANGES),
   startLocalDate: z.iso.date(),
   endLocalDate: z.iso.date(),
   target: z.discriminatedUnion('kind', [

@@ -29,14 +29,8 @@ export type GuestVoiceDetailResponse =
 
 function validTarget(target: GuestVoiceDetailTarget): boolean {
   if (target.kind === 'topic') return REVIEW_TOPICS_V3.includes(target.topic)
-  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (target.kind === 'issue')
-    return uuid.test(target.issueId) && ['complaint', 'praise'].includes(target.sense)
-  return (
-    target.kind === 'concern' &&
-    (target.issueId === null || uuid.test(target.issueId)) &&
-    REVIEW_URGENT_REASONS_V3.includes(target.reason)
-  )
+  if (target.kind === 'issue') return ['complaint', 'praise'].includes(target.sense)
+  return target.kind === 'concern' && REVIEW_URGENT_REASONS_V3.includes(target.reason)
 }
 function validBounds(input: ReadGuestVoiceDetailInput): boolean {
   try {
@@ -54,15 +48,14 @@ export function createReadGuestVoiceDetail(deps: ReadGuestVoiceDetailDeps) {
   return async (input: ReadGuestVoiceDetailInput): Promise<GuestVoiceDetailResponse> => {
     // Validation is inside the shared authorization path; direct application callers
     // receive exactly the same Property admission as an RPC caller.
-    const context = await loadGuestVoiceReadContext(
-      deps,
-      input,
-      (window) =>
+    const context = await loadGuestVoiceReadContext(deps, input, {
+      withHistory: input.target.kind === 'issue',
+      acceptsWindow: (window) =>
         validBounds(input) &&
         validTarget(input.target) &&
         window.startLocalDate === input.startLocalDate &&
         window.endLocalDate === input.endLocalDate,
-    )
+    })
     if (context.status !== 'loaded')
       return { status: context.status === 'not_v3' ? 'preparing' : context.status }
     const draft = buildGuestVoiceDetail({

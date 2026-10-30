@@ -26,7 +26,7 @@ import {
   twelveMonthStart,
 } from './guest-voice-v2-recency'
 import { causeCounts } from './guest-voice-v2-causes'
-import { issueTitles, mentionCauseTitle } from './guest-voice-v2-titles'
+import { mentionCauseTitle } from './guest-voice-v2-titles'
 import {
   countReviews,
   everyTopicRows,
@@ -134,93 +134,111 @@ function topicCauses(
     )
 }
 
-/** All drafts are content-free. Only delivery can attach reader-authorized live words. */
-export function buildGuestVoiceDetail(
-  input: GuestVoiceDetailBuildInput,
-): GuestVoiceDetailDraft | null {
-  const { build, target } = input
+function detailContext(build: GuestVoiceBuildInput) {
   const context = guestVoiceWindowContext(build)
   const sections = sectionInput(build)
   const counted = countReviews(sections)
   const concerns = groupSeriousConcerns(build.current, build.groups)
-  const matchingReviews = {
-    startLocalDate: build.startLocalDate,
-    endLocalDate: build.endLocalDate,
-  }
-  if (target.kind === 'topic') {
-    const row = everyTopicRows(sections).find((r) => r.topic === target.topic)
-    if (!row) return null
-    const members = build.current.filter((r) =>
-      r.mentions.some((m) => m.topic === target.topic),
-    )
-    return {
-      read: {
-        status: 'ready',
-        drawer: {
-          kind: 'topic',
-          topic: target.topic,
-          assessment: row.assessment,
-          context,
-          likedCauses: topicCauses(build, target, 'praise', counted.titles.get('praise')),
-          dislikedCauses: topicCauses(
-            build,
-            target,
-            'complaint',
-            counted.titles.get('complaint'),
-          ),
-          linkedConcerns: linkedConcerns(members, concerns),
-        },
-      },
-      evidence: [],
-      latest: [],
-    }
-  }
-  if (target.kind === 'concern') {
-    const concern = concerns.find(
-      (c) => c.item.issueId === target.issueId && c.item.urgentReason === target.reason,
-    )
-    if (!concern) return null
-    const members = new Set(concern.reviews.map((r) => r.reviewId))
-    const candidates =
-      target.issueId === null
-        ? []
-        : pickUrgentEvidenceCandidates(concern.reviews, target.issueId)
-    const monthlySeries = calendarMonths(build).map((m) => ({
-      ...m,
-      reviewCount: concern.reviews.filter(
-        (r) =>
-          r.localDate >= m.startLocalDate &&
-          r.localDate <= m.endLocalDate &&
-          members.has(r.reviewId),
-      ).length,
-      textReviews: build.current.filter(
-        (r) => r.localDate >= m.startLocalDate && r.localDate <= m.endLocalDate,
-      ).length,
-    }))
-    return {
-      read: {
-        status: 'ready',
-        drawer: {
-          kind: 'concern',
+  return { context, sections, counted, concerns }
+}
+type DetailContext = ReturnType<typeof detailContext>
+
+function buildTopicDetail(
+  input: GuestVoiceDetailBuildInput,
+  target: Extract<GuestVoiceDetailTarget, { kind: 'topic' }>,
+  shared: DetailContext,
+): GuestVoiceDetailDraft | null {
+  const { build } = input
+  const { context, sections, counted, concerns } = shared
+  const row = everyTopicRows(sections).find((r) => r.topic === target.topic)
+  if (!row) return null
+  const members = build.current.filter((r) =>
+    r.mentions.some((m) => m.topic === target.topic),
+  )
+  return {
+    read: {
+      status: 'ready',
+      drawer: {
+        kind: 'topic',
+        topic: target.topic,
+        assessment: row.assessment,
+        context,
+        likedCauses: topicCauses(build, target, 'praise', counted.titles.get('praise')),
+        dislikedCauses: topicCauses(
+          build,
           target,
-          title: concern.item.title,
-          reason: target.reason,
-          reviewCount: concern.item.reviewCount,
-          lastReportedLocalDate: concern.item.lastReportedLocalDate,
-          context,
-          liveEvidence: [],
-          monthlySeries,
-          matchingReviews: {
-            ...matchingReviews,
-            issueId: target.issueId,
-            sense: target.issueId === null ? null : 'complaint',
-          },
+          'complaint',
+          counted.titles.get('complaint'),
+        ),
+        linkedConcerns: linkedConcerns(members, concerns),
+      },
+    },
+    evidence: [],
+    latest: [],
+  }
+}
+
+function buildConcernDetail(
+  input: GuestVoiceDetailBuildInput,
+  target: Extract<GuestVoiceDetailTarget, { kind: 'concern' }>,
+  shared: DetailContext,
+): GuestVoiceDetailDraft | null {
+  const { build } = input
+  const { context, concerns } = shared
+  const concern = concerns.find(
+    (c) => c.item.issueId === target.issueId && c.item.urgentReason === target.reason,
+  )
+  if (!concern) return null
+  const members = new Set(concern.reviews.map((r) => r.reviewId))
+  const candidates =
+    target.issueId === null
+      ? []
+      : pickUrgentEvidenceCandidates(concern.reviews, target.issueId)
+  const monthlySeries = calendarMonths(build).map((m) => ({
+    ...m,
+    reviewCount: concern.reviews.filter(
+      (r) =>
+        r.localDate >= m.startLocalDate &&
+        r.localDate <= m.endLocalDate &&
+        members.has(r.reviewId),
+    ).length,
+    textReviews: build.current.filter(
+      (r) => r.localDate >= m.startLocalDate && r.localDate <= m.endLocalDate,
+    ).length,
+  }))
+  return {
+    read: {
+      status: 'ready',
+      drawer: {
+        kind: 'concern',
+        target,
+        title: concern.item.title,
+        reason: target.reason,
+        reviewCount: concern.item.reviewCount,
+        lastReportedLocalDate: concern.item.lastReportedLocalDate,
+        context,
+        liveEvidence: [],
+        monthlySeries,
+        matchingReviews: {
+          startLocalDate: build.startLocalDate,
+          endLocalDate: build.endLocalDate,
+          issueId: target.issueId,
+          sense: target.issueId === null ? null : 'complaint',
         },
       },
-      evidence: [{ section: 'urgent', issueId: concern.item.key, candidates }],
-      latest: [],
-    }
+    },
+    evidence: [{ section: 'urgent', issueId: concern.item.key, candidates }],
+    latest: [],
   }
+}
+
+function buildIssueDetail(
+  input: GuestVoiceDetailBuildInput,
+  target: Extract<GuestVoiceDetailTarget, { kind: 'issue' }>,
+  shared: DetailContext,
+): GuestVoiceDetailDraft | null {
+  const { build } = input
+  const { context, sections, counted, concerns } = shared
   const group = build.groups.get(target.issueId)
   const tally = counted.issues.get(issueSenseKey(target.issueId, target.sense))
   if (!group || !tally) return null
@@ -237,17 +255,15 @@ export function buildGuestVoiceDetail(
       .map((r) => r.reviewId),
   )
   const history = historyMonths(input, historyMembers)
-  const titles = issueTitles(
-    [...counted.issues.values()].filter((t) => t.sense === target.sense),
-    build.groups,
-  )
   return {
     read: {
       status: 'ready',
       drawer: {
         kind: 'issue',
         issueId: group.id,
-        title: titles.get(group.id) ?? REVIEW_TOPIC_LABELS_V3[group.topic],
+        title:
+          counted.titles.get(target.sense)?.get(group.id) ??
+          REVIEW_TOPIC_LABELS_V3[group.topic],
         topic: group.topic,
         sense: target.sense,
         definition: group.canonicalThing ?? REVIEW_TOPIC_LABELS_V3[group.topic],
@@ -264,7 +280,12 @@ export function buildGuestVoiceDetail(
           othersAverage: mean(others),
         },
         linkedConcerns: linkedConcerns(tally.reviews, concerns),
-        matchingReviews: { ...matchingReviews, issueId: group.id, sense: target.sense },
+        matchingReviews: {
+          startLocalDate: build.startLocalDate,
+          endLocalDate: build.endLocalDate,
+          issueId: group.id,
+          sense: target.sense,
+        },
         historyCoverage: history.historyCoverage,
         // complaintReviews remains a compatibility alias for the existing drawer consumer.
         twelveMonthSeries: history.months.map((m) => ({
@@ -283,6 +304,22 @@ export function buildGuestVoiceDetail(
       },
     ],
     latest: [],
+  }
+}
+
+/** All drafts are content-free. Only delivery attaches reader-authorized live words. */
+export function buildGuestVoiceDetail(
+  input: GuestVoiceDetailBuildInput,
+): GuestVoiceDetailDraft | null {
+  const shared = detailContext(input.build)
+  const { target } = input
+  switch (target.kind) {
+    case 'topic':
+      return buildTopicDetail(input, target, shared)
+    case 'concern':
+      return buildConcernDetail(input, target, shared)
+    case 'issue':
+      return buildIssueDetail(input, target, shared)
   }
 }
 

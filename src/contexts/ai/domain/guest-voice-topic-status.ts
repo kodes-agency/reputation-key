@@ -1,3 +1,8 @@
+const TOPIC_MIN_MENTIONED_REVIEWS = 6
+const TOPIC_MIXED_MIN_HAPPY_SHARE = 0.45
+const TOPIC_DOING_WELL_MIN_HAPPY_SHARE = 0.65
+const TOPIC_GREAT_MIN_HAPPY_SHARE = 0.8
+
 export type GuestVoiceTopicStatus =
   'needs_attention' | 'mixed' | 'doing_well' | 'great' | 'unjudged'
 
@@ -8,16 +13,17 @@ export function guestVoiceTopicStatus(
     happyReviews: number
   }>,
 ): Readonly<{ status: GuestVoiceTopicStatus; happyShare: number | null }> {
-  if (input.mentionedReviews < 6) return { status: 'unjudged', happyShare: null }
+  if (input.mentionedReviews < TOPIC_MIN_MENTIONED_REVIEWS)
+    return { status: 'unjudged', happyShare: null }
   const happyShare = input.happyReviews / input.mentionedReviews
   return {
     happyShare,
     status:
-      happyShare < 0.45
+      happyShare < TOPIC_MIXED_MIN_HAPPY_SHARE
         ? 'needs_attention'
-        : happyShare < 0.65
+        : happyShare < TOPIC_DOING_WELL_MIN_HAPPY_SHARE
           ? 'mixed'
-          : happyShare < 0.8
+          : happyShare < TOPIC_GREAT_MIN_HAPPY_SHARE
             ? 'doing_well'
             : 'great',
   }

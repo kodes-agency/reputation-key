@@ -4,6 +4,8 @@
 // reviews is the one thing stood in for. Every row is invented; no guest's words exist
 // here, only ids, stars, topics and the numbers of sentences.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
+import { aiPropertyIssueGroups, properties } from '#/shared/db/schema'
 import { getDb, type Database } from '#/shared/db'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
@@ -402,6 +404,61 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
         'Balcony railing — loose',
         'Staff and service — slow',
       ])
+    })
+
+    it('returns not_found for an existing issue at another Property in the same Organization', async () => {
+      const [ownProperty] = await db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, IDS.propertyId))
+      const [ownIssue] = await db
+        .select()
+        .from(aiPropertyIssueGroups)
+        .where(eq(aiPropertyIssueGroups.propertyId, IDS.propertyId))
+      if (!ownProperty || !ownIssue) throw new Error('expected seeded Property and issue')
+      const otherPropertyId = '77000000-0000-4000-8000-000000000002'
+      const otherIssueId = '77000000-0000-4000-8000-000000000099'
+      await db.insert(properties).values({
+        ...ownProperty,
+        id: otherPropertyId,
+        slug: 'ai-gv2-facts-other-property',
+      })
+      try {
+        await db.insert(aiPropertyIssueGroups).values({
+          ...ownIssue,
+          id: otherIssueId,
+          propertyId: otherPropertyId,
+          mergedIntoIssueId: null,
+        })
+        const issues = createAiIssueGroupStoreAdapter(db)
+        expect(
+          await issues.resolve(
+            { organizationId: IDS.organizationId, propertyId: otherPropertyId },
+            otherIssueId,
+          ),
+        ).toMatchObject({
+          status: 'found',
+          issue: {
+            id: otherIssueId,
+            organizationId: IDS.organizationId,
+            propertyId: otherPropertyId,
+          },
+        })
+        const readDetail = createReadGuestVoiceDetail(pageDependencies())
+        expect(
+          await readDetail({
+            ...pageInput('30d'),
+            startLocalDate: '2026-09-26',
+            endLocalDate: '2026-10-25',
+            target: { kind: 'issue', issueId: otherIssueId, sense: 'complaint' },
+          }),
+        ).toEqual({ status: 'not_found' })
+      } finally {
+        await db
+          .delete(aiPropertyIssueGroups)
+          .where(eq(aiPropertyIssueGroups.propertyId, otherPropertyId))
+        await db.delete(properties).where(eq(properties.id, otherPropertyId))
+      }
     })
 
     it('reads issue, topic and concern details from the same live facts with dated counts', async () => {

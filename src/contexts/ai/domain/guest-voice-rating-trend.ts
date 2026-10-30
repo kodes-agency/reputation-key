@@ -1,4 +1,8 @@
-import { likelyChange } from './guest-voice-statistics'
+import {
+  CHANGE_BASELINE_MIN_REVIEWS,
+  CHANGE_WINDOW_MIN_REVIEWS,
+  likelyChange,
+} from './guest-voice-statistics'
 
 export const GUEST_VOICE_RATING_TREND_VERSION = 'guest-voice-rating-trend-v1' as const
 export type RatingTrendStars = readonly [number, number, number, number, number]
@@ -20,7 +24,7 @@ export function ratingTrendVerdict(
   const before = input.beforeStars.reduce((sum, count) => sum + count, 0)
   const recent = input.recentStars.reduce((sum, count) => sum + count, 0)
   if (input.provisional) return { verdict: 'not_enough', reason: 'analysis_incomplete' }
-  if (before < 20 || recent < 10)
+  if (before < CHANGE_BASELINE_MIN_REVIEWS || recent < CHANGE_WINDOW_MIN_REVIEWS)
     return { verdict: 'not_enough', reason: 'too_few_reviews' }
   const change = likelyChange({
     mentions: input.recentStars[3] + input.recentStars[4],

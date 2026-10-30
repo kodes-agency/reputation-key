@@ -24,8 +24,7 @@ import {
 } from './guest-voice-v2-sections'
 import { issueSenseKey } from './guest-voice-v2-tally'
 
-/** At most this many Urgent cards: more than this is a Property that needs a person, not a page. */
-const MAX_URGENT = 10
+import { MAX_URGENT } from './guest-voice-v2-limits'
 
 export type UrgentSection = Readonly<{
   items: readonly FixFirstItem[]
@@ -72,7 +71,9 @@ export function urgentSection(
       day: latestDay(reviews),
       item: {
         issueId: groupId,
-        title: issueDisplayTitle(group, tally),
+        title:
+          counted.titles.get('complaint')?.get(groupId) ??
+          issueDisplayTitle(group, tally),
         answerName: issueAnswerName(group, tally),
         lastMentionedLocalDate: lastMentionedLocalDate(reviews) ?? '',
         topic: group.topic,

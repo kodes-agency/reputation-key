@@ -30,7 +30,8 @@ export type PopulationScope = Omit<
   'startLocalDate' | 'detectEvidenceBeforeStart'
 >
 
-export type PopulationRange = 'auto' | Window
+export const GUEST_VOICE_RANGES = ['auto', '30d', '90d', '180d', '365d'] as const
+export type PopulationRange = (typeof GUEST_VOICE_RANGES)[number]
 
 export type PopulationChoice = Readonly<{
   window: Window

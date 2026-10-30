@@ -12,52 +12,22 @@ import type {
   GuestVoiceSeriousConcerns,
   GuestVoiceRatingTrend,
   GuestVoiceTopicAssessment,
-  GuestVoiceMatchingReviewScope,
-  GuestVoiceHistoryMonth,
-  UrgentConcernItem,
 } from './guest-voice-v2-check-in'
 
-/** The windows the statistics engine chooses between. */
-export type Window = '30d' | '90d' | '180d' | '365d'
-export type Change = 'rising' | 'falling' | 'steady' | 'unknown'
-export type EvidenceLevel = 'not_enough' | 'early' | 'likely'
-
-/** What is known of one issue (or one topic) over the window, worked out by the engine. */
-export type IssueStatistics = Readonly<{
-  /** Reviews with text that name it. */
-  reviewCount: number
-  /** Reviews with text in the window: the "of 128" in "19 of 128". */
-  textReviewCount: number
-  /** Every review in the window, those with only stars included. */
-  allReviewCount: number
-  /** "19 of 128" (`shareText`). */
-  shareText: string
-  /** Null under 20 reviews with text: counts first, percentages only above that. */
-  sharePercent: number | null
-  /** Average stars of the reviews that name it, and of every other review. */
-  mentionedAverage: number | null
-  othersAverage: number | null
-  gap: number | null
-  /** "Worth up to": share of every review x the gap, to the nearest 0.05 stars. */
-  upTo: number | null
-  change: Change
-  evidenceLevel: EvidenceLevel
-}>
-
-/**
- * One quote, read live: the text and where, in it, the cited sentences are. A review whose
- * original analysis names a person anywhere is never one: the read leaves it out, so
- * nothing here can be asked to hide a name.
- */
-export type LiveEvidence = Readonly<{
-  inboxItemId: string
-  /** A day (`2026-10-18`) or an instant; the page prints the day. */
-  reviewedAt: string
-  rating: 1 | 2 | 3 | 4 | 5
-  text: string
-  /** Character offsets into `text`, one range per cited sentence. */
-  sentenceRanges: readonly Readonly<{ start: number; end: number }>[]
-}> // response-only; never persisted in AI storage
+import type {
+  Window,
+  Change,
+  IssueStatistics,
+  LiveEvidence,
+} from './guest-voice-v2-common'
+export type {
+  Window,
+  Change,
+  EvidenceLevel,
+  IssueStatistics,
+  LiveEvidence,
+} from './guest-voice-v2-common'
+export type { IssueDrawer } from './guest-voice-v2-check-in'
 
 export type InShortLine = Readonly<{
   kind: 'fix_first' | 'protect' | 'change'
@@ -203,31 +173,3 @@ export type GuestVoiceV2NotEnough = Readonly<{
 }>
 
 export type GuestVoiceV2Read = GuestVoiceV2Ready | GuestVoiceV2NotEnough
-
-export type IssueDrawer = Readonly<{
-  kind: 'issue'
-  sense: 'complaint' | 'praise'
-  context: GuestVoiceWindowContext
-  lastMentionedLocalDate: string
-  commentComparison: Readonly<{
-    population: 'current_analysed_comments'
-    mentionedCount: number
-    otherCount: number
-    mentionedAverage: number | null
-    othersAverage: number | null
-  }>
-  linkedConcerns: readonly UrgentConcernItem[]
-  matchingReviews: GuestVoiceMatchingReviewScope
-  historyCoverage: 'twelve_months' | 'window_only'
-  issueId: string
-  title: string
-  topic: ReviewTopicV3
-  definition: string
-  hidden: boolean
-  statistics: IssueStatistics
-  /** Available history, oldest first; window-only when a bounded read cannot cover twelve months. */
-  twelveMonthSeries: readonly (GuestVoiceHistoryMonth &
-    Readonly<{ complaintReviews: number }>)[]
-  causes: readonly Readonly<{ cause: string; reviewCount: number }>[]
-  liveEvidence: readonly LiveEvidence[]
-}>

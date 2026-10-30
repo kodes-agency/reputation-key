@@ -5,13 +5,20 @@
 // analysis of a review that has since gone, or changed and awaits a new analysis, is
 // never counted as though it still stood.
 import type { AiTrendPopulationReview } from '#/contexts/review/application/public-api'
-import { ratingCountsOf } from '../aspect-review-evidence'
+import { ratingCountsOf, type RatingCounts } from '../aspect-review-evidence'
 import type {
   GuestVoiceFactsRead,
   GuestVoiceUnavailableReview,
 } from '../ports/ai-guest-voice-facts.port'
-import type { WindowPopulation } from './guest-voice-v2-build'
 import type { GuestVoiceReview } from './guest-voice-v2-facts'
+
+/** What Review counted for the window: every review, those with only stars included. */
+export type WindowPopulation = Readonly<{
+  /** How many of them gave 1, 2, 3, 4 and 5 stars. */
+  stars: RatingCounts
+  /** Of those, the ones with text. */
+  textReviews: number
+}>
 
 export type Period = Readonly<{ startLocalDate: string; endLocalDate: string }>
 

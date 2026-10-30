@@ -9,7 +9,7 @@ import { buildRatingTrend } from './guest-voice-v2-rating-trend'
 import { groupSeriousConcerns, seriousConcerns } from './guest-voice-v2-concerns'
 import { GUEST_VOICE_STATISTICS_VERSION } from '../../domain/guest-voice-statistics'
 import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/review-analysis-v3'
-import type { RatingCounts } from '../aspect-review-evidence'
+import type { WindowPopulation } from './guest-voice-v2-join'
 import type { GuestVoiceV2Ready, Window } from './guest-voice-v2'
 import { pickEvidenceCandidates, type EvidenceSlot } from './guest-voice-v2-evidence'
 import type { GuestVoiceIssueGroup, GuestVoiceReview } from './guest-voice-v2-facts'
@@ -29,14 +29,6 @@ import {
 } from './guest-voice-v2-sections'
 import { issueSenseKey } from './guest-voice-v2-tally'
 import { urgentSection } from './guest-voice-v2-urgent'
-
-/** What Review counted for the window: every review, those with only stars included. */
-export type WindowPopulation = Readonly<{
-  /** How many of them gave 1, 2, 3, 4 and 5 stars. */
-  stars: RatingCounts
-  /** Of those, the ones with text. */
-  textReviews: number
-}>
 
 export type GuestVoiceBuildInput = Readonly<{
   propertyId: string
@@ -154,7 +146,7 @@ export function assembleGuestVoiceV2(input: GuestVoiceBuildInput): GuestVoiceBui
     readModelVersion: REVIEW_ANALYSIS_V3_VERSIONS.guestVoiceReadModel,
     statisticsVersion: GUEST_VOICE_STATISTICS_VERSION,
     ...guestVoiceWindowContext(input),
-    inShort: inShortLines({ fixFirst, guestsLove, whatChanged }),
+    inShort: inShortLines({ fixFirst, guestsLove, whatChanged }, input.groups),
     urgent: urgent.items,
     ...(urgent.otherCount === 0 ? {} : { urgentOtherCount: urgent.otherCount }),
     fixFirst,

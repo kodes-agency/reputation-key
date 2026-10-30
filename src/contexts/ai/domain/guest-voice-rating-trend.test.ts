@@ -55,3 +55,22 @@ describe('ratingTrendVerdict', () => {
     ).toBe('improving')
   })
 })
+
+it.each([
+  [
+    [0, 0, 300, 0, 700],
+    [0, 0, 0, 401, 599],
+  ],
+  [
+    [0, 0, 0, 401, 599],
+    [0, 0, 300, 0, 700],
+  ],
+] as const)(
+  'withholds a claim just under .20 mean movement despite a decisive happy-share change',
+  (beforeStars, recentStars) => {
+    expect(ratingTrendVerdict({ beforeStars, recentStars, provisional: false })).toEqual({
+      verdict: 'steady',
+      reason: 'assessed',
+    })
+  },
+)

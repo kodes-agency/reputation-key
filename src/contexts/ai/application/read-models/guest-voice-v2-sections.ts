@@ -5,7 +5,7 @@
 // quiet count; praise is protected; a move is reported only when the engine calls it
 // likely. Every figure is `issueStatistics`' (the engine's), so a page cannot print a
 // number the engine would not.
-import { REVIEW_TOPIC_LABELS_V3, REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
+import { REVIEW_TOPICS_V3 } from '#/shared/review-topic-taxonomy'
 import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
 import type {
   ChangedItem,
@@ -17,7 +17,12 @@ import type {
 } from './guest-voice-v2'
 import type { GuestVoiceIssueGroup, GuestVoiceReview } from './guest-voice-v2-facts'
 import { causeCounts } from './guest-voice-v2-causes'
-import { issueAnswerName, issueTitles } from './guest-voice-v2-titles'
+import {
+  capitalized,
+  issueAnswerName,
+  issueTitle,
+  issueTitles,
+} from './guest-voice-v2-titles'
 import { lastMentionedLocalDate } from './guest-voice-v2-recency'
 import { issueStatistics, type WindowFacts } from './issue-statistics'
 import {
@@ -70,19 +75,6 @@ export function countReviews(input: SectionInput): CountedReviews {
     issues,
     precedingIssues: countIssueReviews(input.baseline),
   }
-}
-
-/** "air conditioning" as a title or a chip: its first letter in capitals. */
-function capitalized(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1)
-}
-
-/** An issue's name: what a manager called it, else the thing, else the topic itself. */
-export function issueTitle(group: GuestVoiceIssueGroup): string {
-  if (group.displayName !== null) return group.displayName
-  return group.canonicalThing === null
-    ? REVIEW_TOPIC_LABELS_V3[group.topic]
-    : capitalized(group.canonicalThing)
 }
 
 export function statisticsOfIssue(
@@ -258,7 +250,7 @@ export function whatChangedItems(
     .slice(0, MAX_WHAT_CHANGED)
 }
 
-/** Every topic named in the window, the most named first; the taxonomy's order breaks ties. */
+/** All topics, lowest assessed happy share first; unjudged last, taxonomy order breaks ties. */
 export function everyTopicRows(input: SectionInput): readonly TopicRow[] {
   const topics = tallyTopics(input.current)
   const preceding = countTopicReviews(input.baseline)

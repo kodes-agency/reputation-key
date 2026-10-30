@@ -1,7 +1,7 @@
 import type { ReviewUrgentReasonV3 } from '#/shared/review-analysis-v3'
 import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
 import type { GuestVoiceTopicStatus } from '../../domain/guest-voice-topic-status'
-import type { IssueDrawer, LiveEvidence, Window } from './guest-voice-v2'
+import type { IssueStatistics, LiveEvidence, Window } from './guest-voice-v2-common'
 export type { GuestVoiceTopicStatus } from '../../domain/guest-voice-topic-status'
 
 export type GuestVoiceBasis = Readonly<{
@@ -119,3 +119,31 @@ export type GuestVoiceDetailRead =
       drawer: IssueDrawer | GuestVoiceConcernDrawer | GuestVoiceTopicDrawer
     }>
   | Readonly<{ status: 'not_found' | 'disabled' | 'preparing' | 'refresh_required' }>
+
+export type IssueDrawer = Readonly<{
+  kind: 'issue'
+  sense: 'complaint' | 'praise'
+  context: GuestVoiceWindowContext
+  lastMentionedLocalDate: string
+  commentComparison: Readonly<{
+    population: 'current_analysed_comments'
+    mentionedCount: number
+    otherCount: number
+    mentionedAverage: number | null
+    othersAverage: number | null
+  }>
+  linkedConcerns: readonly UrgentConcernItem[]
+  matchingReviews: GuestVoiceMatchingReviewScope
+  historyCoverage: 'twelve_months' | 'window_only'
+  issueId: string
+  title: string
+  topic: ReviewTopicV3
+  definition: string
+  hidden: boolean
+  statistics: IssueStatistics
+  /** Available history, oldest first; window-only when a bounded read cannot cover twelve months. */
+  twelveMonthSeries: readonly (GuestVoiceHistoryMonth &
+    Readonly<{ complaintReviews: number }>)[]
+  causes: readonly Readonly<{ cause: string; reviewCount: number }>[]
+  liveEvidence: readonly LiveEvidence[]
+}>

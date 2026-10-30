@@ -3,15 +3,25 @@ import type { GuestVoiceIssueGroup, GuestVoiceMention } from './guest-voice-v2-f
 import type { IssueTally } from './guest-voice-v2-tally'
 import { causeCounts } from './guest-voice-v2-causes'
 
+/** Capitalize the first character of a thing or cause, preserving the rest. */
+export function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/** The manager's name, else the thing alone, else the topic. */
+export function issueTitle(group: GuestVoiceIssueGroup): string {
+  if (group.displayName?.trim()) return group.displayName
+  return group.canonicalThing
+    ? capitalized(group.canonicalThing)
+    : REVIEW_TOPIC_LABELS_V3[group.topic]
+}
+
 export function issueDisplayTitle(
   group: GuestVoiceIssueGroup,
   tally: IssueTally,
 ): string {
   if (group.displayName?.trim()) return group.displayName
-  const thing = group.canonicalThing
-  const name = thing
-    ? thing.charAt(0).toUpperCase() + thing.slice(1)
-    : REVIEW_TOPIC_LABELS_V3[group.topic]
+  const name = issueTitle(group)
   const cause = causeCounts(tally).at(0)?.cause
   return cause ? `${name} — ${cause}` : name
 }
@@ -63,9 +73,7 @@ export function mentionCauseTitle(
 ): string {
   if (group?.displayName?.trim()) return group.displayName
   const thing = group?.canonicalThing ?? mention.thing
-  const name = thing
-    ? thing.charAt(0).toUpperCase() + thing.slice(1)
-    : REVIEW_TOPIC_LABELS_V3[mention.topic]
+  const name = thing ? capitalized(thing) : REVIEW_TOPIC_LABELS_V3[mention.topic]
   const cause = mention.cause?.trim().toLowerCase()
   return cause ? `${name} — ${cause}` : name
 }

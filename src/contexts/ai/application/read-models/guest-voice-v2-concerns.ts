@@ -1,3 +1,4 @@
+import { MAX_URGENT } from './guest-voice-v2-limits'
 import type { ReviewUrgentReasonV3 } from '#/shared/review-analysis-v3'
 import type {
   GuestVoiceSeriousConcerns,
@@ -85,11 +86,13 @@ export function seriousConcerns(
   provisional: boolean,
 ): GuestVoiceSeriousConcerns {
   return {
-    items: groups.slice(0, 10).map((g) => g.item),
+    items: groups.slice(0, MAX_URGENT).map((g) => g.item),
     groupCount: groups.length,
     reviewCount: groups.reduce((n, g) => n + g.item.reviewCount, 0),
-    remainingGroupCount: Math.max(0, groups.length - 10),
-    remainingReviewCount: groups.slice(10).reduce((n, g) => n + g.item.reviewCount, 0),
+    remainingGroupCount: Math.max(0, groups.length - MAX_URGENT),
+    remainingReviewCount: groups
+      .slice(MAX_URGENT)
+      .reduce((n, g) => n + g.item.reviewCount, 0),
     coverage: provisional ? 'provisional' : 'complete',
   }
 }

@@ -10,7 +10,7 @@ export const PERCENT_MIN_REVIEWS = 20 as const
  */
 export const CHANGE_BASELINE_MIN_REVIEWS = 20 as const
 /** Analysed text reviews the window itself must hold before a change is claimed. */
-const CHANGE_WINDOW_MIN_REVIEWS = 10
+export const CHANGE_WINDOW_MIN_REVIEWS = 10
 
 type EvidenceWindow = '30d' | '90d' | '180d' | '365d'
 

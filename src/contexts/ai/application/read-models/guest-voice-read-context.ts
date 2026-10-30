@@ -19,6 +19,7 @@ import { twelveMonthStart } from './guest-voice-v2-recency'
 import { joinPeriod, joinWindows } from './guest-voice-v2-join'
 import {
   BASELINE_DAYS,
+  GUEST_VOICE_RANGES,
   choosePopulation,
   type PopulationChoice,
   type PopulationRange,
@@ -54,24 +55,91 @@ export type GuestVoiceReadContext = Readonly<{
   historyStartLocalDate: string
 }>
 
-/** Admission is identical for page and detail, before any tenant-derived facts. */
+type GuestVoiceReadOptions = Readonly<{
+  withHistory?: boolean
+  acceptsWindow?: (
+    window: Readonly<{ startLocalDate: string; endLocalDate: string }>,
+  ) => boolean
+}>
+type GuestVoiceReadResult =
+  | GuestVoiceReadContext
+  | Readonly<{
+      status: 'disabled' | 'preparing' | 'not_v3' | 'refresh_required'
+    }>
+
+/** Facts and joins are bounded by the page window/baseline unless issue history is requested. */
+async function loadGuestVoiceFacts(
+  deps: GuestVoiceReadDependencies,
+  input: GuestVoiceReadInput,
+  scope: GuestVoiceFactsScope,
+  choice: PopulationChoice,
+  endLocalDate: string,
+  withHistory: boolean,
+): Promise<GuestVoiceReadResult> {
+  const window = { startLocalDate: choice.startLocalDate, endLocalDate }
+  const before = choice.hasBaseline
+    ? {
+        startLocalDate: addDays(choice.startLocalDate, -BASELINE_DAYS),
+        endLocalDate: addDays(choice.startLocalDate, -1),
+      }
+    : null
+  const requiredStart = before?.startLocalDate ?? choice.startLocalDate
+  // Coverage follows the population query policy, never the earliest returned row.
+  const availableHistoryStart =
+    choice.coveredStartLocalDate > twelveMonthStart(endLocalDate)
+      ? choice.coveredStartLocalDate
+      : twelveMonthStart(endLocalDate)
+  const historyStartLocalDate =
+    withHistory && availableHistoryStart < requiredStart
+      ? availableHistoryStart
+      : requiredStart
+  const facts = await deps.facts.readFacts(scope, {
+    startLocalDate: historyStartLocalDate,
+    endLocalDate,
+  })
+  if (facts === null || facts.coverage.settledAnalysisCount === 0)
+    return { status: 'preparing' }
+  const joined = joinWindows({ window, before, population: choice.reviews, facts })
+  return {
+    status: 'loaded',
+    scope,
+    choice,
+    historyStartLocalDate,
+    history: withHistory
+      ? joinPeriod(
+          { startLocalDate: historyStartLocalDate, endLocalDate },
+          choice.reviews,
+          facts.reviews,
+          facts.unavailable,
+        ).analysed
+      : [],
+    build: {
+      propertyId: input.propertyId,
+      window: choice.window,
+      ...window,
+      provisional: joined.provisional,
+      population: joined.now.population,
+      currentPopulation: joined.now.currentPopulation,
+      groups: new Map(facts.groups.map((g) => [g.id, g])),
+      current: joined.now.analysed,
+      baseline: joined.earlier?.analysed ?? [],
+    },
+  }
+}
+
+/** Shared Property admission and population selection, before tenant facts are read. */
 export async function loadGuestVoiceReadContext(
   deps: GuestVoiceReadDependencies,
   input: GuestVoiceReadInput,
-  acceptsWindow?: (
-    window: Readonly<{ startLocalDate: string; endLocalDate: string }>,
-  ) => boolean,
-): Promise<
-  | GuestVoiceReadContext
-  | Readonly<{ status: 'disabled' | 'preparing' | 'not_v3' | 'refresh_required' }>
-> {
+  options: GuestVoiceReadOptions = {},
+): Promise<GuestVoiceReadResult> {
   await requireAiPropertyReadAccess(
     deps.propertyAccess,
     input.actor,
     'dashboard.read',
     input,
   )
-  if (!['auto', '30d', '90d', '180d', '365d'].includes(input.range))
+  if (!GUEST_VOICE_RANGES.includes(input.range))
     throw new TypeError('Invalid Guest voice range')
   const gate = await resolveAiReadGate(deps, input, 'review_analysis')
   if (
@@ -94,51 +162,14 @@ export async function loadGuestVoiceReadContext(
   )
   if (choice === null) return { status: 'preparing' }
   const window = { startLocalDate: choice.startLocalDate, endLocalDate }
-  if (acceptsWindow && !acceptsWindow(window)) return { status: 'refresh_required' }
-  const before = choice.hasBaseline
-    ? {
-        startLocalDate: addDays(choice.startLocalDate, -BASELINE_DAYS),
-        endLocalDate: addDays(choice.startLocalDate, -1),
-      }
-    : null
-  // A bounded year read may cover history even when it could not cover a baseline.
-  // The earliest returned row is not a coverage boundary; use the query policy.
-  const historyStart = twelveMonthStart(endLocalDate)
-  const availableHistoryStart =
-    choice.coveredStartLocalDate > historyStart
-      ? choice.coveredStartLocalDate
-      : historyStart
-  const requiredStart = before?.startLocalDate ?? choice.startLocalDate
-  const historyStartLocalDate =
-    availableHistoryStart < requiredStart ? availableHistoryStart : requiredStart
-  const facts = await deps.facts.readFacts(scopes.facts, {
-    startLocalDate: historyStartLocalDate,
-    endLocalDate,
-  })
-  if (facts === null || facts.coverage.settledAnalysisCount === 0)
-    return { status: 'preparing' }
-  const joined = joinWindows({ window, before, population: choice.reviews, facts })
-  return {
-    status: 'loaded',
-    scope: scopes.facts,
+  if (options.acceptsWindow && !options.acceptsWindow(window))
+    return { status: 'refresh_required' }
+  return loadGuestVoiceFacts(
+    deps,
+    input,
+    scopes.facts,
     choice,
-    historyStartLocalDate,
-    history: joinPeriod(
-      { startLocalDate: historyStartLocalDate, endLocalDate },
-      choice.reviews,
-      facts.reviews,
-      facts.unavailable,
-    ).analysed,
-    build: {
-      propertyId: input.propertyId,
-      window: choice.window,
-      ...window,
-      provisional: joined.provisional,
-      population: joined.now.population,
-      currentPopulation: joined.now.currentPopulation,
-      groups: new Map(facts.groups.map((g) => [g.id, g])),
-      current: joined.now.analysed,
-      baseline: joined.earlier?.analysed ?? [],
-    },
-  }
+    endLocalDate,
+    options.withHistory ?? false,
+  )
 }
