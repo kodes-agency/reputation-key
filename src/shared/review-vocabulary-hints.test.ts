@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import catalogue from './review-vocabulary-hints-v1.json'
 import manifest from './review-vocabulary-hints-v1.manifest.json'
 import { collectVocabularyHintWords } from './review-analysis-v3-cause-rules'
+import { REVIEW_GENERIC_THING_WORDS } from './review-generic-things'
 import {
   GENERIC_VOCABULARY_HINT_SET_ID,
   REVIEW_PROPERTY_CONTEXT_MAX_BYTES,
@@ -58,6 +59,19 @@ describe('the vocabulary hint catalogue', () => {
     expect(JSON.stringify(manifest, null, 2), JSON.stringify(computed, null, 2)).toBe(
       JSON.stringify(computed, null, 2),
     )
+  })
+
+  it('suggests no generic word as a thing, which the prompt tells the model to leave null', () => {
+    const generic = new Set(Object.values(REVIEW_GENERIC_THING_WORDS).flat())
+    const found = VOCABULARY_HINT_SETS.flatMap((set) =>
+      Object.entries(set.hints).flatMap(([topic, phrases]) =>
+        phrases
+          .filter((phrase) => generic.has(phrase))
+          .map((phrase) => `${set.id}/${topic}/${phrase}`),
+      ),
+    )
+    // A hotel's restaurant is another facility than the business reviewed (the guide, rule 3).
+    expect(found).toEqual(['lodging/food_drink/restaurant'])
   })
 
   it('keeps every set inside the prompt budget', () => {

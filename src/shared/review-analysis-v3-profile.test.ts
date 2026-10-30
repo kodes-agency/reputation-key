@@ -13,6 +13,7 @@ import {
 } from './review-analysis-v3'
 import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from './review-analysis-v3-artifacts'
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from './review-analysis-v3-prompt'
+import { REVIEW_GENERIC_THING_WORDS } from './review-generic-things'
 import {
   REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING,
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
@@ -150,6 +151,73 @@ describe('the review-analysis v3 developer prompt', () => {
     expect(prompt).toContain('do not add a mention because a hint exists')
     expect(prompt).toContain('Stars alone never create a mention')
     expect(prompt).toContain('never copy a run of four or more words from the review')
+  })
+
+  it('states the cause shape: letters and hyphens, one to three words, a number as a word, an issue for every thing', () => {
+    expect(prompt).toContain('made only of letters and hyphens')
+    expect(prompt).toContain('no digit, comma, apostrophe or other mark')
+    expect(prompt).toContain('"30-minute wait" becomes "long wait"')
+    expect(prompt).toContain('If thing is set, issue is set')
+    expect(prompt).toContain('the plain singular object')
+    expect(prompt).toContain('with no role and no quantity')
+    expect(prompt).toContain('"front desk", not "front desk clerk"')
+  })
+
+  it('names every generic word that is no thing, and keeps a part or an item a thing', () => {
+    for (const word of Object.values(REVIEW_GENERIC_THING_WORDS).flat()) {
+      expect(prompt, word).toContain(word)
+    }
+    expect(prompt).toContain('A generic word is no thing')
+    expect(prompt).toContain(
+      'so thing is null and issue still says what was wrong or right',
+    )
+    expect(prompt).toContain('A part or an item is a thing')
+  })
+
+  it('makes a speed_waiting thing what was waited for, and gives timing cues their own mention', () => {
+    expect(prompt).toContain('thing is what was waited for')
+    expect(prompt).toContain('never the waiting itself')
+    expect(prompt).toContain('Timing cues are speed_waiting mentions of their own')
+    for (const cue of [
+      'right away',
+      'immediately',
+      'enseguida',
+      'веднага',
+      'finally',
+      'por fin',
+      'най-после',
+      'dragged',
+    ]) {
+      expect(prompt, cue).toContain(`"${cue}"`)
+    }
+  })
+
+  it('keeps booking_arrival narrow', () => {
+    for (const excluded of [
+      'the timing of a pickup or handover',
+      'paperwork or forms',
+      'opening hours',
+      'an "easy visit"',
+    ]) {
+      expect(prompt, excluded).toContain(excluded)
+    }
+  })
+
+  it('tells a hazard that is only a possibility from one that is there now, and equipment injury from illness', () => {
+    expect(prompt).toContain('A hazard that is only a possibility')
+    expect(prompt).toContain('negative, mild safety mention and never urgent')
+    expect(prompt).toContain('a hazard that is there now')
+    expect(prompt).toContain('too little supervision is staff_service')
+    expect(prompt).toContain('An injury from equipment')
+    expect(prompt).toContain(
+      'is urgent safety; urgent health is illness or harm from food, hygiene',
+    )
+  })
+
+  it('sets the names flag on every mention that cites the name', () => {
+    expect(prompt).toContain(
+      'Set it on every mention whose cited sentences contain the name',
+    )
   })
 
   it('names no provider, holds no unfilled template and fits the static token budget', () => {
