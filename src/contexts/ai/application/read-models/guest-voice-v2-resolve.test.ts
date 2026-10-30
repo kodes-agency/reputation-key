@@ -21,6 +21,25 @@ function draftOf(
   return {
     read: {
       status: 'not_enough_reviews',
+      checkInVersion: 'guest-voice-check-in-v1',
+      context: {
+        window: '365d',
+        startLocalDate: '2025-10-30',
+        endLocalDate: '2026-10-29',
+        dataThroughLocalDate: '2026-10-29',
+        provisional: false,
+        basis: { textReviewCount: 4, starOnlyCount: 0, analysedTextReviewCount: 4 },
+      },
+      seriousConcerns: {
+        items: [],
+        groupCount: 0,
+        reviewCount: 0,
+        remainingGroupCount: 0,
+        remainingReviewCount: 0,
+        coverage: 'complete',
+      },
+      allReviewCount: 4,
+      latestReviewCount: 0,
       readModelVersion: 'guest-voice-read-v2',
       textReviewCount: 0,
       latestReviews: [],

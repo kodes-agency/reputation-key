@@ -1,3 +1,4 @@
+import { FIXTURE_WINDOW_CONTEXT } from './guest-voice-fixtures-build'
 // The drawers the stories open: the hotel's Facilities and equipment (the agreed design's
 // own example), an Urgent review, and the guesthouse's Cleanliness, which has more
 // reviews than it can quote.
@@ -30,6 +31,11 @@ const MONTHS = [
 const series = (complaints: readonly number[], texts: readonly number[]) =>
   MONTHS.map((month, index) => ({
     month,
+    startLocalDate: `${month}-01`,
+    endLocalDate: `${month}-28`,
+    partialStart: false,
+    partialEnd: true,
+    reviewCount: complaints[index] ?? 0,
     complaintReviews: complaints[index] ?? 0,
     textReviews: texts[index] ?? 0,
   }))
@@ -41,6 +47,25 @@ export const FACILITIES_DRAWER: IssueDrawer = {
   issueId: FACILITIES_ID,
   title: 'Facilities and equipment',
   topic: 'facilities_equipment',
+  kind: 'issue',
+  sense: 'complaint',
+  context: FIXTURE_WINDOW_CONTEXT,
+  lastMentionedLocalDate: '2026-10-29',
+  commentComparison: {
+    population: 'current_analysed_comments',
+    mentionedCount: 0,
+    otherCount: 0,
+    mentionedAverage: null,
+    othersAverage: null,
+  },
+  linkedConcerns: [],
+  historyCoverage: 'twelve_months',
+  matchingReviews: {
+    startLocalDate: '2025-10-30',
+    endLocalDate: '2026-10-29',
+    issueId: null,
+    sense: 'complaint',
+  },
   definition: TOPIC_DEFINITION,
   hidden: false,
   statistics: LARGE_STATISTICS.facilities,
@@ -107,6 +132,25 @@ export const URGENT_DRAWER: IssueDrawer = {
   issueId: RAILING_ISSUE.issueId,
   title: 'Balcony railing',
   topic: 'safety',
+  kind: 'issue',
+  sense: 'complaint',
+  context: FIXTURE_WINDOW_CONTEXT,
+  lastMentionedLocalDate: '2026-10-29',
+  commentComparison: {
+    population: 'current_analysed_comments',
+    mentionedCount: 0,
+    otherCount: 0,
+    mentionedAverage: null,
+    othersAverage: null,
+  },
+  linkedConcerns: [],
+  historyCoverage: 'twelve_months',
+  matchingReviews: {
+    startLocalDate: '2025-10-30',
+    endLocalDate: '2026-10-29',
+    issueId: null,
+    sense: 'complaint',
+  },
   definition:
     'Physical safety and security: injuries, hazards, theft, feeling safe or unsafe. A guest who felt safe is praise. The same topic for every kind of business.',
   hidden: false,
@@ -124,6 +168,25 @@ export const SMALL_DRAWER: IssueDrawer = {
   issueId: SMALL_CLEANLINESS_ID,
   title: 'Cleanliness',
   topic: 'cleanliness',
+  kind: 'issue',
+  sense: 'complaint',
+  context: FIXTURE_WINDOW_CONTEXT,
+  lastMentionedLocalDate: '2026-10-29',
+  commentComparison: {
+    population: 'current_analysed_comments',
+    mentionedCount: 0,
+    otherCount: 0,
+    mentionedAverage: null,
+    othersAverage: null,
+  },
+  linkedConcerns: [],
+  historyCoverage: 'twelve_months',
+  matchingReviews: {
+    startLocalDate: '2025-10-30',
+    endLocalDate: '2026-10-29',
+    issueId: null,
+    sense: 'complaint',
+  },
   definition:
     'Dirt, hygiene, smells from dirt, stains, pests, unclean equipment. Something broken belongs to Facilities and equipment. The same topic for every kind of business.',
   hidden: false,

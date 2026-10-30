@@ -60,3 +60,52 @@ These settle the open questions of the technical contract. Where the contract an
 18. **Legacy trends.** The v1 trend schedules and daily aggregate tables retire in PR-4's cleanup, once "What changed" runs on the statistics engine.
 19. **Performance.** Measure on the 128-review fixture and a 20,000-review scale fixture before adding any materialised projection.
 20. **Activation.** The owner re-consents. The release lead runs the activation deploy, watches re-analysis cost and coverage, holds the kill switch and writes the runbook entry.
+
+## Amended 2026-10-30 — weekly check-in display and read contract
+
+The H check-in asks, in order, about serious concerns, happier guests, recurring
+fixes and praise, followed by the twelve universal topics. Keep the shared
+`RangeControl` in header actions and the existing `auto|30d|90d|180d|365d`
+values. This amendment supersedes the older page order and 90% statement above.
+The read family remains `guest-voice-read-v2`, with required
+`checkInVersion: guest-voice-check-in-v1` for ready and small results.
+
+Rating comparison uses current servable comments, including those awaiting
+analysis, excluding star-only reviews. Split the inclusive window before
+looking at ratings: recent is min(90, max(7, floor(days/4))) days ending today;
+before is the rest. No verdict with fewer than 20 before or 10 recent comments,
+or while analysis is provisional. Reuse independent Beta(1,1) posteriors with
+the existing .05 happy-share margin and central 95% threshold (2.5% per tail).
+A rising/falling happy share also needs an unrounded mean difference of at
+least .20 stars in the same direction. Steady means no clear change under
+this rule, not statistical equivalence. Monthly means are weighted raw stars,
+with gaps and all overlapping edge months (up to thirteen), in Property days.
+These are comment ratings, never the Google headline rating.
+
+Topic status counts each mentioning review once, partitioned into happy,
+unhappy, mixed and neutral-only. Fewer than six mentions is unjudged; otherwise
+happy share cut-offs are .45/.65/.80. Mixed and neutral reviews stay in the
+denominator. Issue rankings keep their existing three-review floor and impact
+statistics. Row titles honor manager names, otherwise thing plus top cause;
+answer lines name deduplicated friendly areas in rank order. Manual summaries
+use only fixed topic labels and their unique review counts, never issue labels.
+
+Serious concerns group one urgent review by primary surviving issue and reason,
+with reason-only fallback groups. Hidden issues remain. Counts/dates use urgent
+members only; group totals and report totals are separate, including overflow.
+Small-state eligibility is the year's text count, but selected-window counts,
+concerns and at most three latest previews use the selected range. Provisional
+empty coverage cannot make an absolute absence claim.
+
+Page and issue/concern/topic detail reads share authorization, gates and current
+Review joins. Detail requests pin actual ISO bounds to the currently selected
+window and return `refresh_required` when stale. Comment bars use analysed
+comments and set difference; impact statistics retain the all-review population.
+Linked concerns mean overlapping current reviews, not causation. Twelve-month
+history is supplied only when read coverage permits it; bounded fallback
+history is explicitly window-only. Evidence remains reader-authorized live
+sentence ranges, with the review-wide original names safeguard. Clause-level
+underlining, the Inbox All reviews view, new topic/concern id filters and issue
+redirect metadata are deferred. Use existing issue/polarity/day or urgent Inbox
+searches and say "Open these reviews in the Inbox"; area sheets have no Inbox
+link. Manager issue commands stay dormant; correction remains in the Inbox.

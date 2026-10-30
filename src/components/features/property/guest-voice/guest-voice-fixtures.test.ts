@@ -110,7 +110,11 @@ describe('the hotel', () => {
 
   it('holds 128 reviews with text and 224 in all', () => {
     expect(LARGE_WINDOW).toMatchObject({ textReviews: 128, allReviews: 224 })
-    expect(LARGE_READ.basis).toEqual({ textReviewCount: 128, starOnlyCount: 96 })
+    expect(LARGE_READ.basis).toEqual({
+      textReviewCount: 128,
+      starOnlyCount: 96,
+      analysedTextReviewCount: 128,
+    })
   })
 
   it('reports an Urgent review with its reason and its quote', () => {

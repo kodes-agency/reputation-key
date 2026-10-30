@@ -50,3 +50,48 @@ export function quoteOf(
 export function fixtureId(prefix: 'a' | 'b', number: number): string {
   return `${prefix}0000000-0000-4000-8000-${String(number).padStart(12, '0')}`
 }
+
+/** Compatibility metadata for existing stories; check-in stories supply dated populations. */
+export const FIXTURE_CHECK_IN = {
+  checkInVersion: 'guest-voice-check-in-v1',
+  ratingTrend: {
+    methodVersion: 'guest-voice-rating-trend-v1',
+    population: 'current_reviews_with_text',
+    months: [],
+    before: {
+      startLocalDate: '2026-08-01',
+      endLocalDate: '2026-10-07',
+      reviewCount: 0,
+      averageStars: null,
+      happyReviewCount: 0,
+    },
+    recent: {
+      startLocalDate: '2026-10-08',
+      endLocalDate: '2026-10-29',
+      reviewCount: 0,
+      averageStars: null,
+      happyReviewCount: 0,
+    },
+    verdict: 'not_enough',
+    reason: 'too_few_reviews',
+  },
+  seriousConcerns: {
+    items: [],
+    groupCount: 0,
+    reviewCount: 0,
+    remainingGroupCount: 0,
+    remainingReviewCount: 0,
+    coverage: 'complete',
+  },
+  sectionTotals: { fixFirst: 0, guestsLove: 0, watch: 0 },
+  remainingCounts: { fixFirst: 0, guestsLove: 0, watch: 0 },
+} as const
+
+export const FIXTURE_WINDOW_CONTEXT = {
+  window: '365d',
+  startLocalDate: '2025-10-30',
+  endLocalDate: '2026-10-29',
+  dataThroughLocalDate: '2026-10-29',
+  provisional: false,
+  basis: { textReviewCount: 4, starOnlyCount: 0, analysedTextReviewCount: 4 },
+} as const

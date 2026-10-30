@@ -156,6 +156,8 @@ describe('changeSentence', () => {
   const item: ChangedItem = {
     issueId: 'issue-1',
     title: 'Facilities and equipment',
+    answerName: 'Facilities and equipment',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'facilities_equipment',
     change: 'rising',
     evidenceLevel: 'likely',

@@ -83,3 +83,27 @@ export type {
 export type { ReviewAnalysisProgress } from './use-cases/read-review-analysis-progress'
 export type { RequestReviewAnalysisNowResult } from './use-cases/request-review-analysis-now'
 export type { AiOrganizationMonthSpend } from './ports/ai-organization-spend.port'
+
+export type {
+  GuestVoiceBasis,
+  GuestVoiceWindowContext,
+  UrgentConcernItem,
+  GuestVoiceSeriousConcerns,
+  RatingTrendPeriod,
+  GuestVoiceRatingMonth,
+  GuestVoiceRatingTrend,
+  GuestVoiceTopicStatus,
+  GuestVoiceTopicAssessment,
+  GuestVoiceDetailTarget,
+  GuestVoiceDetailRead,
+  GuestVoiceConcernDrawer,
+  GuestVoiceTopicDrawer,
+  GuestVoiceCauseRow,
+  GuestVoiceMatchingReviewScope,
+  GuestVoiceHistoryMonth,
+} from './read-models/guest-voice-v2-check-in'
+export type {
+  ReadGuestVoiceDetailInput,
+  ReadGuestVoiceDetail,
+  GuestVoiceDetailResponse,
+} from './use-cases/read-guest-voice-detail'

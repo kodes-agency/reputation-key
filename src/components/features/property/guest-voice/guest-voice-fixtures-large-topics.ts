@@ -120,6 +120,15 @@ const TOPIC_SPECS: readonly TopicSpec[] = [
 export function largeTopicRows(window: WindowFacts): readonly TopicRow[] {
   return TOPIC_SPECS.map((spec) => ({
     topic: spec.topic,
+    assessment: {
+      status: 'unjudged',
+      mentionedReviewCount: spec.stars.reduce((n, c) => n + c, 0),
+      happyReviewCount: spec.praise,
+      mixedReviewCount: 0,
+      unhappyReviewCount: spec.complaints,
+      neutralOnlyReviewCount: spec.neutral,
+      happyShare: null,
+    },
     praiseReviews: spec.praise,
     complaintReviews: spec.complaints,
     neutralReviews: spec.neutral,

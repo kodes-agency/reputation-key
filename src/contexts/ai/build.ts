@@ -33,6 +33,7 @@ import {
 import { createReadPropertyAggregates } from './application/use-cases/read-property-aggregates'
 import type { AiPropertyAccess } from './application/ai-property-read-access'
 import { createReadPropertyInsights } from './application/use-cases/read-property-insights'
+import { createReadGuestVoiceDetail } from './application/use-cases/read-guest-voice-detail'
 import { createReadGuestVoiceV2 } from './application/use-cases/read-guest-voice-v2'
 import { createPlanGuestVoiceSummary } from './application/use-cases/plan-guest-voice-summary'
 import { createRunGuestVoiceSummarySweep } from './application/use-cases/run-guest-voice-summary-sweep'
@@ -389,6 +390,12 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         reviewSources: input.reviewSources,
       }),
       readGuestVoiceV2: createReadGuestVoiceV2({
+        ...readDependencies,
+        facts: createAiGuestVoiceFactsAdapter(input.db),
+        calendar,
+        reviewSources: input.reviewSources,
+      }),
+      readGuestVoiceDetail: createReadGuestVoiceDetail({
         ...readDependencies,
         facts: createAiGuestVoiceFactsAdapter(input.db),
         calendar,

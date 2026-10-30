@@ -26,6 +26,8 @@ export const RAILING_QUOTE = quoteOf({
 export const RAILING_ISSUE: FixFirstItem = {
   issueId: fixtureId('a', 11),
   title: 'Balcony railing',
+  answerName: 'Balcony railing',
+  lastMentionedLocalDate: '2026-10-29',
   topic: 'safety',
   causes: ['Loose'],
   urgentReason: 'safety',

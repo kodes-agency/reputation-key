@@ -15,12 +15,10 @@ import type {
   TopicRow,
   WatchItem,
 } from './guest-voice-v2'
-import type {
-  GuestVoiceIssueGroup,
-  GuestVoiceMention,
-  GuestVoiceReview,
-} from './guest-voice-v2-facts'
-import { senseOf } from './guest-voice-v2-facts'
+import type { GuestVoiceIssueGroup, GuestVoiceReview } from './guest-voice-v2-facts'
+import { causeCounts } from './guest-voice-v2-causes'
+import { issueAnswerName, issueTitles } from './guest-voice-v2-titles'
+import { lastMentionedLocalDate } from './guest-voice-v2-recency'
 import { issueStatistics, type WindowFacts } from './issue-statistics'
 import {
   countIssueReviews,
@@ -36,9 +34,9 @@ const FIX_FIRST_MIN_REVIEWS = 3
 /** Praise is reported from this many reviews. */
 const GUESTS_LOVE_MIN_REVIEWS = 3
 /** The lists are a guide, not a table: "Every topic" holds the rest. */
-const MAX_FIX_FIRST = 8
-const MAX_GUESTS_LOVE = 5
-const MAX_WATCH = 12
+export const MAX_FIX_FIRST = 8
+export const MAX_GUESTS_LOVE = 5
+export const MAX_WATCH = 12
 const MAX_WHAT_CHANGED = 6
 /** How many causes a card names. */
 export const MAX_CAUSES = 4
@@ -52,13 +50,24 @@ export type SectionInput = Readonly<{
 }>
 
 export type CountedReviews = Readonly<{
+  titles: ReadonlyMap<string, ReadonlyMap<string, string>>
   issues: ReadonlyMap<string, IssueTally>
   precedingIssues: ReadonlyMap<string, number>
 }>
 
 export function countReviews(input: SectionInput): CountedReviews {
+  const issues = tallyIssues(input.current)
   return {
-    issues: tallyIssues(input.current),
+    titles: new Map(
+      (['complaint', 'praise'] as const).map((sense) => [
+        sense,
+        issueTitles(
+          [...issues.values()].filter((t) => t.sense === sense),
+          input.groups,
+        ),
+      ]),
+    ),
+    issues,
     precedingIssues: countIssueReviews(input.baseline),
   }
 }
@@ -87,33 +96,11 @@ export function statisticsOfIssue(
   })
 }
 
-function mentionsOfIssue(
-  review: GuestVoiceReview,
-  tally: IssueTally,
-): readonly GuestVoiceMention[] {
-  return review.mentions.filter(
-    (mention) =>
-      mention.issueGroupId === tally.groupId && senseOf(mention.polarity) === tally.sense,
-  )
-}
-
-/** The causes named most often in the reviews of an issue, each counted once per review. */
+/** The same normalized cause ordering titles and detail use. */
 export function topCauses(tally: IssueTally, limit: number): readonly string[] {
-  const counts = new Map<string, number>()
-  for (const review of tally.reviews) {
-    const causes = new Set<string>()
-    for (const mention of mentionsOfIssue(review, tally)) {
-      if (mention.cause !== null) causes.add(mention.cause)
-    }
-    for (const cause of causes) counts.set(cause, (counts.get(cause) ?? 0) + 1)
-  }
-  return [...counts]
-    .sort(
-      ([left, leftCount], [right, rightCount]) =>
-        rightCount - leftCount || left.localeCompare(right),
-    )
+  return causeCounts(tally)
     .slice(0, limit)
-    .map(([cause]) => capitalized(cause))
+    .map(({ cause }) => capitalized(cause))
 }
 
 /** The tallies of one sense, with the issues a manager has hidden left out. */
@@ -155,33 +142,48 @@ export function mostSevereUrgentReason(
   return null
 }
 
+function presentation(
+  counted: CountedReviews,
+  tally: IssueTally,
+  group: GuestVoiceIssueGroup,
+) {
+  const titles = counted.titles.get(tally.sense)
+  return {
+    title: titles?.get(group.id) ?? issueTitle(group),
+    answerName: issueAnswerName(group, tally),
+    lastMentionedLocalDate: lastMentionedLocalDate(tally.reviews) ?? '',
+  }
+}
+
 export function fixFirstItems(
   input: SectionInput,
   counted: CountedReviews,
+  limit = MAX_FIX_FIRST,
 ): readonly FixFirstItem[] {
   return visibleTallies(input, counted, 'complaint')
     .filter(({ tally }) => tally.reviews.length >= FIX_FIRST_MIN_REVIEWS)
     .map(({ tally, group }) => ({
       issueId: group.id,
-      title: issueTitle(group),
+      ...presentation(counted, tally, group),
       topic: group.topic,
       causes: topCauses(tally, MAX_CAUSES),
       urgentReason: mostSevereUrgentReason(tally.reviews),
       statistics: statisticsOfIssue(input, counted, tally),
     }))
     .sort(byFixFirstOrder)
-    .slice(0, MAX_FIX_FIRST)
+    .slice(0, limit)
 }
 
 export function watchItems(
   input: SectionInput,
   counted: CountedReviews,
+  limit = MAX_WATCH,
 ): readonly WatchItem[] {
   return visibleTallies(input, counted, 'complaint')
     .filter(({ tally }) => tally.reviews.length < FIX_FIRST_MIN_REVIEWS)
     .map(({ tally, group }) => ({
       issueId: group.id,
-      title: issueTitle(group),
+      ...presentation(counted, tally, group),
       topic: group.topic,
       reviewCount: (tally.reviews.length === 1 ? 1 : 2) as 1 | 2,
     }))
@@ -191,18 +193,19 @@ export function watchItems(
         left.title.localeCompare(right.title) ||
         byIssueIdThen(left.issueId, right.issueId),
     )
-    .slice(0, MAX_WATCH)
+    .slice(0, limit)
 }
 
 export function guestsLoveItems(
   input: SectionInput,
   counted: CountedReviews,
+  limit = MAX_GUESTS_LOVE,
 ): readonly GuestsLoveItem[] {
   return visibleTallies(input, counted, 'praise')
     .filter(({ tally }) => tally.reviews.length >= GUESTS_LOVE_MIN_REVIEWS)
     .map(({ tally, group }) => ({
       issueId: group.id,
-      title: issueTitle(group),
+      ...presentation(counted, tally, group),
       topic: group.topic,
       statistics: statisticsOfIssue(input, counted, tally),
     }))
@@ -211,7 +214,7 @@ export function guestsLoveItems(
         right.statistics.reviewCount - left.statistics.reviewCount ||
         byIssueIdThen(left.issueId, right.issueId),
     )
-    .slice(0, MAX_GUESTS_LOVE)
+    .slice(0, limit)
 }
 
 /** Bad news first: a problem rising, praise falling, then a problem falling, praise rising. */
@@ -236,7 +239,7 @@ export function whatChangedItems(
       }
       items.push({
         issueId: group.id,
-        title: issueTitle(group),
+        ...presentation(counted, tally, group),
         topic: group.topic,
         change: statistics.change,
         evidenceLevel: 'likely',
@@ -262,8 +265,27 @@ export function everyTopicRows(input: SectionInput): readonly TopicRow[] {
   const order = new Map<ReviewTopicV3, number>(
     REVIEW_TOPICS_V3.map((topic, index) => [topic, index]),
   )
-  return [...topics.values()]
+  return REVIEW_TOPICS_V3.map(
+    (topic) =>
+      topics.get(topic) ?? {
+        topic,
+        praise: 0,
+        complaint: 0,
+        neutral: 0,
+        stars: [0, 0, 0, 0, 0] as const,
+        assessment: {
+          status: 'unjudged' as const,
+          mentionedReviewCount: 0,
+          happyReviewCount: 0,
+          mixedReviewCount: 0,
+          unhappyReviewCount: 0,
+          neutralOnlyReviewCount: 0,
+          happyShare: null,
+        },
+      },
+  )
     .map((tally) => ({
+      assessment: tally.assessment,
       topic: tally.topic,
       praiseReviews: tally.praise,
       complaintReviews: tally.complaint,
@@ -275,7 +297,13 @@ export function everyTopicRows(input: SectionInput): readonly TopicRow[] {
     }))
     .sort(
       (left, right) =>
-        right.statistics.reviewCount - left.statistics.reviewCount ||
+        ['needs_attention', 'mixed', 'doing_well', 'great', 'unjudged'].indexOf(
+          left.assessment.status,
+        ) -
+          ['needs_attention', 'mixed', 'doing_well', 'great', 'unjudged'].indexOf(
+            right.assessment.status,
+          ) ||
+        (left.assessment.happyShare ?? 1) - (right.assessment.happyShare ?? 1) ||
         (order.get(left.topic) ?? 0) - (order.get(right.topic) ?? 0),
     )
 }

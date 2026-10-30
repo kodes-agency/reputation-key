@@ -1,3 +1,4 @@
+import { FIXTURE_WINDOW_CONTEXT } from './guest-voice-fixtures-build'
 // A drawer for any issue on a fixture page, so that every title a story shows opens
 // something. The hand-written drawers (the agreed design's own example, the Urgent
 // review) come first; the rest are worked out from the card they open from.
@@ -64,6 +65,11 @@ function yearOf(total: number, textReviewsPerMonth: number) {
   const recent = [third, third, total - 2 * third]
   return MONTHS.map((month, index) => ({
     month,
+    startLocalDate: `${month}-01`,
+    endLocalDate: `${month}-28`,
+    partialStart: false,
+    partialEnd: true,
+    reviewCount: index >= 9 ? (recent[index - 9] ?? 0) : index % 4 === 0 ? 1 : 0,
     complaintReviews: index >= 9 ? (recent[index - 9] ?? 0) : index % 4 === 0 ? 1 : 0,
     textReviews: textReviewsPerMonth,
   }))
@@ -103,6 +109,25 @@ export function drawerForIssue(
       issueId,
       title: card.title,
       topic: card.topic,
+      kind: 'issue',
+      sense: 'complaint',
+      context: FIXTURE_WINDOW_CONTEXT,
+      lastMentionedLocalDate: '2026-10-29',
+      commentComparison: {
+        population: 'current_analysed_comments',
+        mentionedCount: 0,
+        otherCount: 0,
+        mentionedAverage: null,
+        othersAverage: null,
+      },
+      linkedConcerns: [],
+      historyCoverage: 'twelve_months',
+      matchingReviews: {
+        startLocalDate: '2025-10-30',
+        endLocalDate: '2026-10-29',
+        issueId: null,
+        sense: 'complaint',
+      },
       definition: DEFINITIONS[card.topic],
       hidden: false,
       statistics: card.statistics,
@@ -122,6 +147,25 @@ export function drawerForIssue(
     issueId,
     title: watched.title,
     topic: watched.topic,
+    kind: 'issue',
+    sense: 'complaint',
+    context: FIXTURE_WINDOW_CONTEXT,
+    lastMentionedLocalDate: '2026-10-29',
+    commentComparison: {
+      population: 'current_analysed_comments',
+      mentionedCount: 0,
+      otherCount: 0,
+      mentionedAverage: null,
+      othersAverage: null,
+    },
+    linkedConcerns: [],
+    historyCoverage: 'twelve_months',
+    matchingReviews: {
+      startLocalDate: '2025-10-30',
+      endLocalDate: '2026-10-29',
+      issueId: null,
+      sense: 'complaint',
+    },
     definition: DEFINITIONS[watched.topic],
     hidden: false,
     statistics: issueStatistics(window, { stars }),

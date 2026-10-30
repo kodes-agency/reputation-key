@@ -1,3 +1,4 @@
+import { assembleGuestVoiceV2 } from './guest-voice-v2-build'
 import { describe, expect, it } from 'vitest'
 import type {
   FixFirstItem,
@@ -134,6 +135,8 @@ function item(issueId: string): FixFirstItem {
   return {
     issueId,
     title: 'Air conditioning',
+    answerName: 'Air conditioning',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'facilities_equipment',
     causes: [],
     urgentReason: null,
@@ -143,6 +146,18 @@ function item(issueId: string): FixFirstItem {
 
 function ready(over: Partial<GuestVoiceV2Ready> = {}): GuestVoiceV2Ready {
   return {
+    ...assembleGuestVoiceV2({
+      propertyId: 'fixture',
+      window: '90d',
+      startLocalDate: '2026-08-02',
+      endLocalDate: '2026-10-30',
+      provisional: false,
+      population: { stars: [0, 0, 0, 0, 0], textReviews: 0 },
+      currentPopulation: [],
+      current: [],
+      baseline: [],
+      groups: new Map(),
+    }).read,
     status: 'ready',
     readModelVersion: 'guest-voice-read-v2',
     statisticsVersion: 'guest-voice-statistics-v2',
@@ -151,7 +166,7 @@ function ready(over: Partial<GuestVoiceV2Ready> = {}): GuestVoiceV2Ready {
     endLocalDate: '2026-10-30',
     dataThroughLocalDate: '2026-10-30',
     provisional: false,
-    basis: { textReviewCount: 40, starOnlyCount: 20 },
+    basis: { textReviewCount: 40, starOnlyCount: 20, analysedTextReviewCount: 40 },
     inShort: [],
     urgent: [],
     fixFirst: [],
@@ -220,6 +235,8 @@ describe('withLiveEvidence', () => {
           {
             issueId: 'issue-1',
             title: 'Air conditioning',
+            answerName: 'Air conditioning',
+            lastMentionedLocalDate: '2026-10-29',
             topic: 'facilities_equipment',
             statistics: STATISTICS,
           },
@@ -251,6 +268,25 @@ describe('withLiveEvidence', () => {
   it('lists a young Property’s latest reviews, with words only where the analysis allows them', () => {
     const notEnough: GuestVoiceV2NotEnough = {
       status: 'not_enough_reviews',
+      checkInVersion: 'guest-voice-check-in-v1',
+      context: {
+        window: '365d',
+        startLocalDate: '2025-10-30',
+        endLocalDate: '2026-10-29',
+        dataThroughLocalDate: '2026-10-29',
+        provisional: false,
+        basis: { textReviewCount: 4, starOnlyCount: 0, analysedTextReviewCount: 4 },
+      },
+      seriousConcerns: {
+        items: [],
+        groupCount: 0,
+        reviewCount: 0,
+        remainingGroupCount: 0,
+        remainingReviewCount: 0,
+        coverage: 'complete',
+      },
+      allReviewCount: 4,
+      latestReviewCount: 0,
       readModelVersion: 'guest-voice-read-v2',
       textReviewCount: 4,
       latestReviews: [],
@@ -302,6 +338,7 @@ describe('withLiveEvidence', () => {
 
     expect(read).toEqual({
       ...notEnough,
+      latestReviewCount: 3,
       latestReviews: [
         {
           inboxItemId: 'item-a',

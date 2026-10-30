@@ -12,6 +12,8 @@ import {
   createReadGuestVoiceV2,
   type GuestVoiceV2Response,
 } from '../../application/use-cases/read-guest-voice-v2'
+import { createReadGuestVoiceDetail } from '../../application/use-cases/read-guest-voice-detail'
+import type { ReadGuestVoiceV2Dependencies } from '../../application/use-cases/read-guest-voice-v2'
 import { createAiIssueGroupStoreAdapter } from './ai-issue-group-store.adapter'
 import { createAiAuthorizationAdapter } from './ai-authorization.adapter'
 import { createAiPropertyCalendarAdapter } from './ai-property-calendar.adapter'
@@ -188,6 +190,7 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
         topic: 'facilities_equipment',
         polarity: 'negative',
         strength: 'clear',
+        thing: 'air conditioning',
         cause: 'not working',
         issueGroupId: expect.any(String),
         namesPerson: null,
@@ -319,7 +322,7 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
   })
 
   describe('as the page', () => {
-    function readPage(range: 'auto' | '30d' = 'auto') {
+    function pageDependencies(): ReadGuestVoiceV2Dependencies {
       // Review's count of the Property's reviews: every seeded review, with text, on its day.
       const population = REVIEWS.map((review) => ({
         reviewId: reviewId(seededReviewId(IDS, review.index)),
@@ -329,7 +332,7 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
         hasText: true,
         rating: review.rating,
       })).sort((left, right) => left.localDate.localeCompare(right.localDate))
-      const read = createReadGuestVoiceV2({
+      return {
         propertyAccess: async () => [],
         authorization: createAiAuthorizationAdapter(db),
         processingProfiles: createPropertyProcessingProfileAdapter(db, () => new Date()),
@@ -347,8 +350,10 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
           }),
         },
         nowEpochMillis: () => Date.UTC(2026, 9, 25, 16, 0, 0),
-      })
-      return read({
+      }
+    }
+    function pageInput(range: 'auto' | '30d' = 'auto') {
+      return {
         organizationId: organizationId(IDS.organizationId),
         propertyId: propertyId(IDS.propertyId),
         actor: buildTestAuthContext({
@@ -357,7 +362,10 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
           role: 'AccountAdmin',
         }),
         range,
-      })
+      }
+    }
+    function readPage(range: 'auto' | '30d' = 'auto') {
+      return createReadGuestVoiceV2(pageDependencies())(pageInput(range))
     }
 
     function draftOf(response: GuestVoiceV2Response) {
@@ -383,17 +391,97 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
       // stars, and the fourth too, each counted once.
       expect(
         page.fixFirst.map((item) => [item.title, item.statistics.reviewCount]),
-      ).toEqual([['Air conditioning', 4]])
+      ).toEqual([['Air conditioning — not working', 4]])
       expect(page.fixFirst[0]?.causes).toEqual(['Not working'])
       expect(page.urgent.map((item) => [item.title, item.urgentReason])).toEqual([
-        ['Balcony railing', 'safety'],
+        ['Balcony railing — loose', 'safety'],
       ])
       expect(page.staffPraise?.reviewCount).toBe(1)
       // One review each, so by name.
       expect(page.watch.map((item) => item.title)).toEqual([
-        'Balcony railing',
-        'Staff and service',
+        'Balcony railing — loose',
+        'Staff and service — slow',
       ])
+    })
+
+    it('reads issue, topic and concern details from the same live facts with dated counts', async () => {
+      const page = draftOf(await readPage('30d')).read
+      if (page.status !== 'ready') throw new Error('expected ready page')
+      const readDetail = createReadGuestVoiceDetail(pageDependencies())
+      const base = {
+        ...pageInput('30d'),
+        startLocalDate: page.startLocalDate,
+        endLocalDate: page.endLocalDate,
+      }
+      const issueId = page.fixFirst[0]?.issueId
+      if (!issueId) throw new Error('expected issue')
+      const issue = await readDetail({
+        ...base,
+        target: { kind: 'issue', issueId, sense: 'complaint' },
+      })
+      if (issue.status !== 'drafted') throw new Error('expected detail')
+      expect(issue.draft.read.drawer).toMatchObject({
+        kind: 'issue',
+        title: 'Air conditioning — not working',
+        lastMentionedLocalDate: '2026-10-17',
+        commentComparison: {
+          population: 'current_analysed_comments',
+          mentionedCount: 4,
+          otherCount: 5,
+        },
+        historyCoverage: 'twelve_months',
+        liveEvidence: [],
+      })
+      expect(
+        issue.draft.evidence[0]?.candidates[0]?.sentenceNumbers.length,
+      ).toBeGreaterThan(0)
+      const topic = await readDetail({
+        ...base,
+        target: { kind: 'topic', topic: 'staff_service' },
+      })
+      if (topic.status !== 'drafted') throw new Error('expected topic')
+      expect(topic.draft.read.drawer).toMatchObject({
+        kind: 'topic',
+        assessment: {
+          mentionedReviewCount: 2,
+          mixedReviewCount: 1,
+          happyReviewCount: 1,
+          status: 'unjudged',
+        },
+      })
+      const concern = page.seriousConcerns.items[0]
+      if (!concern) throw new Error('expected concern')
+      const detail = await readDetail({
+        ...base,
+        target: {
+          kind: 'concern',
+          issueId: concern.issueId,
+          reason: concern.urgentReason,
+        },
+      })
+      if (detail.status !== 'drafted') throw new Error('expected concern detail')
+      expect(detail.draft.read.drawer).toMatchObject({
+        kind: 'concern',
+        reviewCount: 1,
+        lastReportedLocalDate: '2026-10-14',
+      })
+      expect(
+        await readDetail({
+          ...base,
+          endLocalDate: '2026-10-24',
+          target: { kind: 'topic', topic: 'safety' },
+        }),
+      ).toEqual({ status: 'refresh_required' })
+      expect(
+        await readDetail({
+          ...base,
+          target: {
+            kind: 'issue',
+            issueId: '77000000-0000-4000-8000-000000000099',
+            sense: 'complaint',
+          },
+        }),
+      ).toEqual({ status: 'not_found' })
     })
 
     it('offers as the quote for a card only reviews that name nobody, with the sentences they cite', async () => {

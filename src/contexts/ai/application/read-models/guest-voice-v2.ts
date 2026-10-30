@@ -1,13 +1,21 @@
 // The Guest voice 2.0 read model: what the page and the issue drawer are drawn from
 // (v3 contract, section 9). Content-free except the quotes: a quote is `LiveEvidence`,
 // read from the live review text for one response, and never stored.
-//
-// The names and shapes are the contract's. A field the agreed design needs and the
-// contract does not have is marked `ADDED`: the read (`use-cases/read-guest-voice-v2.ts`)
-// fills each, and each is optional or a new variant so a page without it still draws.
+// Check-in additions are required and transient; legacy page/Monday fields remain.
 import type { ReviewUrgentReasonV3 as UrgentReasonV3 } from '#/shared/review-analysis-v3'
 import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
 import type { GUEST_VOICE_STATISTICS_VERSION } from '../../domain/guest-voice-statistics'
+
+import type {
+  GuestVoiceBasis,
+  GuestVoiceWindowContext,
+  GuestVoiceSeriousConcerns,
+  GuestVoiceRatingTrend,
+  GuestVoiceTopicAssessment,
+  GuestVoiceMatchingReviewScope,
+  GuestVoiceHistoryMonth,
+  UrgentConcernItem,
+} from './guest-voice-v2-check-in'
 
 /** The windows the statistics engine chooses between. */
 export type Window = '30d' | '90d' | '180d' | '365d'
@@ -38,7 +46,7 @@ export type IssueStatistics = Readonly<{
 
 /**
  * One quote, read live: the text and where, in it, the cited sentences are. A review whose
- * cited sentences name a person is never one (decision Q5): the read leaves it out, so
+ * original analysis names a person anywhere is never one: the read leaves it out, so
  * nothing here can be asked to hide a name.
  */
 export type LiveEvidence = Readonly<{
@@ -59,6 +67,8 @@ export type InShortLine = Readonly<{
 }>
 
 export type FixFirstItem = Readonly<{
+  answerName: string
+  lastMentionedLocalDate: string
   issueId: string
   title: string
   topic: ReviewTopicV3
@@ -75,6 +85,8 @@ export type FixFirstItem = Readonly<{
 }>
 
 export type GuestsLoveItem = Readonly<{
+  answerName: string
+  lastMentionedLocalDate: string
   issueId: string
   title: string
   topic: ReviewTopicV3
@@ -89,6 +101,8 @@ export type StaffPraiseLine = Readonly<{
 }> | null
 
 export type WatchItem = Readonly<{
+  answerName: string
+  lastMentionedLocalDate: string
   issueId: string
   title: string
   topic: ReviewTopicV3
@@ -96,6 +110,8 @@ export type WatchItem = Readonly<{
 }>
 
 export type ChangedItem = Readonly<{
+  answerName: string
+  lastMentionedLocalDate: string
   issueId: string
   title: string
   topic: ReviewTopicV3
@@ -110,6 +126,7 @@ export type ChangedItem = Readonly<{
 }>
 
 export type TopicRow = Readonly<{
+  assessment: GuestVoiceTopicAssessment
   topic: ReviewTopicV3
   praiseReviews: number
   complaintReviews: number
@@ -120,6 +137,7 @@ export type TopicRow = Readonly<{
 export type GuestVoiceV2Ready = Readonly<{
   status: 'ready'
   readModelVersion: 'guest-voice-read-v2'
+  checkInVersion: 'guest-voice-check-in-v1'
   /** The engine that worked the figures out (`GUEST_VOICE_STATISTICS_VERSION`). */
   statisticsVersion: typeof GUEST_VOICE_STATISTICS_VERSION
   window: Window
@@ -132,7 +150,11 @@ export type GuestVoiceV2Ready = Readonly<{
    * it holds 128 reviews with text". The statistics carry these per issue, and a page with
    * no issue at all still has to say them.
    */
-  basis: Readonly<{ textReviewCount: number; starOnlyCount: number }>
+  basis: GuestVoiceBasis
+  ratingTrend: GuestVoiceRatingTrend
+  seriousConcerns: GuestVoiceSeriousConcerns
+  sectionTotals: Readonly<{ fixFirst: number; guestsLove: number; watch: number }>
+  remainingCounts: Readonly<{ fixFirst: number; guestsLove: number; watch: number }>
   inShort: readonly InShortLine[]
   urgent: readonly FixFirstItem[]
   /**
@@ -168,7 +190,13 @@ export type LatestReview = Readonly<{
  */
 export type GuestVoiceV2NotEnough = Readonly<{
   status: 'not_enough_reviews'
+  context: GuestVoiceWindowContext
+  seriousConcerns: GuestVoiceSeriousConcerns
+  allReviewCount: number
+  /** Number of previews actually accessible after live resolution, at most three. */
+  latestReviewCount: number
   readModelVersion: 'guest-voice-read-v2'
+  checkInVersion: 'guest-voice-check-in-v1'
   /** Reviews with text in the last 12 months. */
   textReviewCount: number
   latestReviews: readonly LatestReview[]
@@ -177,18 +205,29 @@ export type GuestVoiceV2NotEnough = Readonly<{
 export type GuestVoiceV2Read = GuestVoiceV2Ready | GuestVoiceV2NotEnough
 
 export type IssueDrawer = Readonly<{
+  kind: 'issue'
+  sense: 'complaint' | 'praise'
+  context: GuestVoiceWindowContext
+  lastMentionedLocalDate: string
+  commentComparison: Readonly<{
+    population: 'current_analysed_comments'
+    mentionedCount: number
+    otherCount: number
+    mentionedAverage: number | null
+    othersAverage: number | null
+  }>
+  linkedConcerns: readonly UrgentConcernItem[]
+  matchingReviews: GuestVoiceMatchingReviewScope
+  historyCoverage: 'twelve_months' | 'window_only'
   issueId: string
   title: string
   topic: ReviewTopicV3
   definition: string
   hidden: boolean
   statistics: IssueStatistics
-  /** The last 12 months, oldest first; `month` is `2026-10`. */
-  twelveMonthSeries: readonly Readonly<{
-    month: string
-    complaintReviews: number
-    textReviews: number
-  }>[]
+  /** Available history, oldest first; window-only when a bounded read cannot cover twelve months. */
+  twelveMonthSeries: readonly (GuestVoiceHistoryMonth &
+    Readonly<{ complaintReviews: number }>)[]
   causes: readonly Readonly<{ cause: string; reviewCount: number }>[]
   liveEvidence: readonly LiveEvidence[]
 }>

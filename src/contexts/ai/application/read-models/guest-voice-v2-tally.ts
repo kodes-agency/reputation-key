@@ -4,6 +4,8 @@
 // Pure functions of the reviews they are given.
 import type { ReviewPolarityV3 } from '#/shared/review-analysis-v3'
 import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import { guestVoiceTopicStatus } from '../../domain/guest-voice-topic-status'
+import type { GuestVoiceTopicAssessment } from './guest-voice-v2-check-in'
 import { ratingCountsOf, type RatingCounts } from '../aspect-review-evidence'
 import { senseOf, type GuestVoiceReview, type Sense } from './guest-voice-v2-facts'
 
@@ -77,6 +79,7 @@ export function countIssueReviews(
 /** The reviews that name one topic, how they feel about it, and the stars they gave. */
 export type TopicTally = Readonly<{
   topic: ReviewTopicV3
+  assessment: GuestVoiceTopicAssessment
   praise: number
   complaint: number
   neutral: number
@@ -102,16 +105,35 @@ export function tallyTopics(
 ): ReadonlyMap<ReviewTopicV3, TopicTally> {
   const collected = new Map<
     ReviewTopicV3,
-    { praise: number; complaint: number; neutral: number; reviews: GuestVoiceReview[] }
+    {
+      praise: number
+      complaint: number
+      neutral: number
+      happy: number
+      mixed: number
+      unhappy: number
+      neutralOnly: number
+      reviews: GuestVoiceReview[]
+    }
   >()
   for (const review of reviews) {
     for (const [topic, polarities] of topicPolaritiesOf(review)) {
       const entry = collected.get(topic) ?? {
+        happy: 0,
+        mixed: 0,
+        unhappy: 0,
+        neutralOnly: 0,
         praise: 0,
         complaint: 0,
         neutral: 0,
         reviews: [],
       }
+      const positive = polarities.has('positive')
+      const negative = polarities.has('negative')
+      if (positive && negative) entry.mixed += 1
+      else if (positive) entry.happy += 1
+      else if (negative) entry.unhappy += 1
+      else entry.neutralOnly += 1
       if (polarities.has('positive')) entry.praise += 1
       if (polarities.has('negative')) entry.complaint += 1
       if (polarities.has('neutral')) entry.neutral += 1
@@ -124,6 +146,17 @@ export function tallyTopics(
       topic,
       Object.freeze({
         topic,
+        assessment: {
+          ...guestVoiceTopicStatus({
+            mentionedReviews: entry.reviews.length,
+            happyReviews: entry.happy,
+          }),
+          mentionedReviewCount: entry.reviews.length,
+          happyReviewCount: entry.happy,
+          mixedReviewCount: entry.mixed,
+          unhappyReviewCount: entry.unhappy,
+          neutralOnlyReviewCount: entry.neutralOnly,
+        },
         praise: entry.praise,
         complaint: entry.complaint,
         neutral: entry.neutral,

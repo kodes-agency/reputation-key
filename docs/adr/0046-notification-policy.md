@@ -1695,3 +1695,14 @@ follows the notifications' retention).
 
 - Default-on optional email sends without deliberate consent.
 - Event-ID uniqueness defeats resource-level coalescing.
+
+## Amended 2026-10-30 — manual Guest voice team summary
+
+Copy team summary is a deliberate local clipboard action. Its template uses
+only fixed universal topic labels, topic-level distinct review counts, period
+days and serious-concern group/report totals; incomplete analysis is stated.
+It contains no guest text, cause, issue title, manager rename, person, individual
+rating or Inbox URL. It sends no notice and creates no event or notification
+type. The Monday fact, opt-in schedule, recipient rules and rule 8 payload
+whitelist remain as written. The page retains `inShort` and `whatChanged` for
+the existing identifier/topic-only Monday summary.

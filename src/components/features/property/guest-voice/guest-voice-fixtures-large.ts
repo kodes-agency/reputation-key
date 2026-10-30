@@ -1,3 +1,4 @@
+import { FIXTURE_CHECK_IN } from './guest-voice-fixtures-build'
 // A hotel that gets about 128 reviews with text in 90 days (and 96 with only stars):
 // the shape of the largest beta hotel, with invented guests. The figures come from the
 // engine through `issueStatistics`; the quotes are invented.
@@ -53,6 +54,8 @@ const fixFirst: readonly FixFirstItem[] = [
   {
     issueId: FACILITIES_ID,
     title: 'Facilities and equipment',
+    answerName: 'Facilities and equipment',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'facilities_equipment',
     causes: ['Air conditioning', 'Shower', 'Furniture', 'Lift'],
     urgentReason: null,
@@ -62,6 +65,8 @@ const fixFirst: readonly FixFirstItem[] = [
   {
     issueId: CLEANLINESS_ID,
     title: 'Cleanliness',
+    answerName: 'Cleanliness',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'cleanliness',
     causes: ['Bathroom', 'Bedding', 'Floors', 'Smell'],
     urgentReason: null,
@@ -77,6 +82,8 @@ const fixFirst: readonly FixFirstItem[] = [
   {
     issueId: SPEED_ID,
     title: 'Speed and waiting',
+    answerName: 'Speed and waiting',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'speed_waiting',
     causes: ['Breakfast', 'Check-in queue', 'Room service'],
     urgentReason: null,
@@ -92,6 +99,8 @@ const fixFirst: readonly FixFirstItem[] = [
   {
     issueId: PRICE_ID,
     title: 'Price and billing',
+    answerName: 'Price and billing',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'price_billing',
     causes: ['Deposit', 'Checkout charges'],
     urgentReason: null,
@@ -110,18 +119,24 @@ const watch: readonly WatchItem[] = [
   {
     issueId: fixtureId('a', 8),
     title: 'Noise',
+    answerName: 'Noise',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'atmosphere_noise',
     reviewCount: 2,
   },
   {
     issueId: fixtureId('a', 9),
     title: 'Parking',
+    answerName: 'Parking',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'location_access',
     reviewCount: 1,
   },
   {
     issueId: fixtureId('a', 10),
     title: 'Wi-Fi',
+    answerName: 'Wi-Fi',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'facilities_equipment',
     reviewCount: 1,
   },
@@ -131,6 +146,8 @@ const guestsLove: readonly GuestsLoveItem[] = [
   {
     issueId: STAFF_ID,
     title: 'Staff and service',
+    answerName: 'Staff and service',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'staff_service',
     statistics: staff,
     quote: quoteOf({
@@ -144,6 +161,8 @@ const guestsLove: readonly GuestsLoveItem[] = [
   {
     issueId: LOCATION_ID,
     title: 'Location and access',
+    answerName: 'Location and access',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'location_access',
     statistics: location,
     quote: quoteOf({
@@ -157,6 +176,8 @@ const guestsLove: readonly GuestsLoveItem[] = [
   {
     issueId: FOOD_ID,
     title: 'Food and drink',
+    answerName: 'Food and drink',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'food_drink',
     statistics: food,
     quote: quoteOf({
@@ -173,6 +194,8 @@ const whatChanged: readonly ChangedItem[] = [
   {
     issueId: FACILITIES_ID,
     title: 'Facilities and equipment',
+    answerName: 'Facilities and equipment',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'facilities_equipment',
     change: 'rising',
     evidenceLevel: 'likely',
@@ -182,6 +205,8 @@ const whatChanged: readonly ChangedItem[] = [
   {
     issueId: SPEED_ID,
     title: 'Speed and waiting',
+    answerName: 'Speed and waiting',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'speed_waiting',
     change: 'falling',
     evidenceLevel: 'likely',
@@ -213,6 +238,7 @@ const inShort: readonly InShortLine[] = [
 
 /** Guest voice 2.0 for the hotel: 128 reviews with text in the 90 days the page chose. */
 export const LARGE_READ: GuestVoiceV2Ready = {
+  ...FIXTURE_CHECK_IN,
   status: 'ready',
   readModelVersion: 'guest-voice-read-v2',
   statisticsVersion: 'guest-voice-statistics-v2',
@@ -221,7 +247,7 @@ export const LARGE_READ: GuestVoiceV2Ready = {
   endLocalDate: '2026-10-29',
   dataThroughLocalDate: '2026-10-29',
   provisional: false,
-  basis: { textReviewCount: 128, starOnlyCount: 96 },
+  basis: { textReviewCount: 128, starOnlyCount: 96, analysedTextReviewCount: 128 },
   inShort,
   urgent: [],
   fixFirst,

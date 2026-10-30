@@ -35,6 +35,7 @@ export type PopulationRange = 'auto' | Window
 export type PopulationChoice = Readonly<{
   window: Window
   startLocalDate: string
+  coveredStartLocalDate: string
   /** Every review from (at least) the window's start to its end. */
   reviews: readonly AiTrendPopulationReview[]
   /** Whether `reviews` also holds the 12 months before the window. */
@@ -91,6 +92,7 @@ async function chooseAutomatically(
       window: choice.window,
       startLocalDate: windowStart(end, choice.window),
       reviews: full.reviews,
+      coveredStartLocalDate: addDays(end, -(2 * BASELINE_DAYS - 1)),
       hasBaseline: true,
       enough: choice.enough,
     }
@@ -104,6 +106,7 @@ async function chooseAutomatically(
     return {
       window: choice.window,
       startLocalDate: windowStart(end, choice.window),
+      coveredStartLocalDate: windowStart(end, '365d'),
       reviews: year.reviews,
       hasBaseline: false,
       enough: choice.enough,
@@ -118,6 +121,7 @@ async function chooseAutomatically(
   return {
     window: '90d',
     startLocalDate: windowStart(end, '90d'),
+    coveredStartLocalDate: windowStart(end, '90d'),
     reviews: quarter.reviews,
     hasBaseline: false,
     enough: true,
@@ -136,6 +140,7 @@ async function chooseExplicitly(
     return {
       window,
       startLocalDate: start,
+      coveredStartLocalDate: addDays(start, -BASELINE_DAYS),
       reviews: full.reviews,
       hasBaseline: true,
       enough: chooseFrom(full.reviews, end).enough,
@@ -144,9 +149,24 @@ async function chooseExplicitly(
   if (full.status !== 'limit_exceeded') return null
   const only = await read(reader, scope, start)
   if (only.status !== 'complete') return null
+  // Star-only volume cannot prove pattern eligibility. If this bounded window
+  // is small, ask the bounded year rather than reporting its count as a year.
+  if (textReviewsSince(only.reviews, start) < 10) {
+    const year = await read(reader, scope, windowStart(end, '365d'))
+    if (year.status !== 'complete') return null
+    return {
+      window,
+      startLocalDate: start,
+      coveredStartLocalDate: windowStart(end, '365d'),
+      reviews: year.reviews,
+      hasBaseline: false,
+      enough: chooseFrom(year.reviews, end).enough,
+    }
+  }
   return {
     window,
     startLocalDate: start,
+    coveredStartLocalDate: start,
     reviews: only.reviews,
     hasBaseline: false,
     enough: true,

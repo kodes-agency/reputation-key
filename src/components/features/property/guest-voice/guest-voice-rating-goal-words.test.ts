@@ -18,6 +18,8 @@ const goal = (over: Partial<GuestVoiceGoalFacts> = {}): GuestVoiceGoalFacts => (
 const problem = (over: Partial<FixFirstItem['statistics']> = {}): FixFirstItem => ({
   issueId: 'a0000000-0000-4000-8000-000000000001',
   title: 'Air conditioning',
+  answerName: 'Air conditioning',
+  lastMentionedLocalDate: '2026-10-29',
   topic: 'facilities_equipment',
   causes: ['not working'],
   urgentReason: null,

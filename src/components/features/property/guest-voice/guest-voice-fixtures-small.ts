@@ -1,3 +1,4 @@
+import { FIXTURE_CHECK_IN, FIXTURE_WINDOW_CONTEXT } from './guest-voice-fixtures-build'
 // A small guesthouse: about three reviews with text a month, so the page has chosen the
 // whole year (36 reviews with text, 14 with only stars). The 12 months before the window
 // hold too few reviews for the engine to judge a change, so no issue has a trend.
@@ -39,6 +40,8 @@ const fixFirst: readonly FixFirstItem[] = [
   {
     issueId: SMALL_CLEANLINESS_ID,
     title: 'Cleanliness',
+    answerName: 'Cleanliness',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'cleanliness',
     causes: ['Bathroom', 'Bedding'],
     urgentReason: null,
@@ -54,6 +57,8 @@ const fixFirst: readonly FixFirstItem[] = [
   {
     issueId: SPEED_ID,
     title: 'Speed and waiting',
+    answerName: 'Speed and waiting',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'speed_waiting',
     causes: ['Breakfast'],
     urgentReason: null,
@@ -66,12 +71,16 @@ const watch: readonly WatchItem[] = [
   {
     issueId: fixtureId('a', 25),
     title: 'Parking',
+    answerName: 'Parking',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'location_access',
     reviewCount: 1,
   },
   {
     issueId: fixtureId('a', 26),
     title: 'Wi-Fi',
+    answerName: 'Wi-Fi',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'facilities_equipment',
     reviewCount: 2,
   },
@@ -81,6 +90,8 @@ const guestsLove: readonly GuestsLoveItem[] = [
   {
     issueId: STAFF_ID,
     title: 'Staff and service',
+    answerName: 'Staff and service',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'staff_service',
     statistics: staff,
     quote: quoteOf({
@@ -94,6 +105,8 @@ const guestsLove: readonly GuestsLoveItem[] = [
   {
     issueId: FOOD_ID,
     title: 'Food and drink',
+    answerName: 'Food and drink',
+    lastMentionedLocalDate: '2026-10-29',
     topic: 'food_drink',
     statistics: food,
     quote: null,
@@ -134,6 +147,27 @@ const TOPIC_SPECS: readonly TopicSpec[] = [
 
 const everyTopic: readonly TopicRow[] = TOPIC_SPECS.map((spec) => ({
   topic: spec.topic,
+  assessment: {
+    status:
+      spec.praise + spec.complaints < 6
+        ? 'unjudged'
+        : spec.praise / (spec.praise + spec.complaints) < 0.45
+          ? 'needs_attention'
+          : spec.praise / (spec.praise + spec.complaints) < 0.65
+            ? 'mixed'
+            : spec.praise / (spec.praise + spec.complaints) < 0.8
+              ? 'doing_well'
+              : 'great',
+    mentionedReviewCount: spec.praise + spec.complaints,
+    happyReviewCount: spec.praise,
+    mixedReviewCount: 0,
+    unhappyReviewCount: spec.complaints,
+    neutralOnlyReviewCount: 0,
+    happyShare:
+      spec.praise + spec.complaints < 6
+        ? null
+        : spec.praise / (spec.praise + spec.complaints),
+  },
   praiseReviews: spec.praise,
   complaintReviews: spec.complaints,
   neutralReviews: 0,
@@ -142,6 +176,7 @@ const everyTopic: readonly TopicRow[] = TOPIC_SPECS.map((spec) => ({
 
 /** Guest voice 2.0 for the guesthouse: counts and early signals, with no trend to claim. */
 export const SMALL_READ: GuestVoiceV2Ready = {
+  ...FIXTURE_CHECK_IN,
   status: 'ready',
   readModelVersion: 'guest-voice-read-v2',
   statisticsVersion: 'guest-voice-statistics-v2',
@@ -150,7 +185,7 @@ export const SMALL_READ: GuestVoiceV2Ready = {
   endLocalDate: '2026-10-29',
   dataThroughLocalDate: '2026-10-29',
   provisional: false,
-  basis: { textReviewCount: 36, starOnlyCount: 14 },
+  basis: { textReviewCount: 36, starOnlyCount: 14, analysedTextReviewCount: 36 },
   inShort,
   urgent: [],
   fixFirst,
@@ -163,6 +198,11 @@ export const SMALL_READ: GuestVoiceV2Ready = {
 
 /** A guesthouse with four reviews with text in a year: nothing to rank, so the latest. */
 export const NOT_ENOUGH_READ: GuestVoiceV2NotEnough = {
+  checkInVersion: 'guest-voice-check-in-v1',
+  context: FIXTURE_WINDOW_CONTEXT,
+  seriousConcerns: FIXTURE_CHECK_IN.seriousConcerns,
+  allReviewCount: 4,
+  latestReviewCount: 3,
   status: 'not_enough_reviews',
   readModelVersion: 'guest-voice-read-v2',
   textReviewCount: 4,

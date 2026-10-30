@@ -19,6 +19,7 @@ export type JoinedPeriod = Readonly<{
   /** Reviews of the period with a current analysis. */
   analysed: readonly GuestVoiceReview[]
   /** What Review counted in the period: its stars, and how many have text. */
+  currentPopulation: readonly AiTrendPopulationReview[]
   population: WindowPopulation
   /** Reviews with text that have no analysis yet, and so make a figure provisional. */
   awaitingAnalysis: number
@@ -62,6 +63,7 @@ export function joinPeriod(
   const withText = here.filter((review) => review.hasText)
   return {
     analysed: counted,
+    currentPopulation: here,
     population: { stars: ratingCountsOf(here), textReviews: withText.length },
     awaitingAnalysis: withText.filter((review) => !settled.has(reviewVersionKey(review)))
       .length,

@@ -159,3 +159,8 @@ export type {
   PropertyGooglePerformanceResultV1,
   PropertyPerformancePreset,
 } from '../../../shared/google-performance-report-contract'
+
+export type {
+  ReadPropertyGoogleNumbersInput,
+  ReadPropertyGoogleNumbers,
+} from './use-cases/read-property-google-numbers'

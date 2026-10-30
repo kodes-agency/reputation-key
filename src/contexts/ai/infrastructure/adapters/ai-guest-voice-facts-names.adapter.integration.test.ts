@@ -140,6 +140,29 @@ describe.sequential(
       await expect(reviewIdsOffered()).resolves.toEqual([seededReviewId(IDS, 2)])
     })
 
+    it('maps corrected thing and cause without clearing the review-wide names safeguard', async () => {
+      await corrections.apply({
+        key: keyOf(1),
+        fences: FENCES,
+        mentionOrdinal: 1,
+        command: { kind: 'change_cause', thing: 'shower', issue: 'cold' },
+        correctedBy: 'a-manager',
+        correctedAt: new Date('2026-10-30T12:00:00Z'),
+      })
+      try {
+        const { reviews } = await readReviews()
+        const named = reviews.find((r) => r.reviewId === seededReviewId(IDS, 1))
+        expect(named).toMatchObject({ namesAPerson: true })
+        expect(named?.mentions.find((m) => m.mentionOrdinal === 1)).toMatchObject({
+          thing: 'shower',
+          cause: 'cold',
+        })
+        expect(await reviewIdsOffered()).not.toContain(seededReviewId(IDS, 1))
+      } finally {
+        await corrections.clear({ key: keyOf(1), fences: FENCES, mentionOrdinal: 1 })
+      }
+    })
+
     it('is the same once the correction is taken away', async () => {
       await expect(
         corrections.clear({ key: keyOf(1), fences: FENCES, mentionOrdinal: 0 }),

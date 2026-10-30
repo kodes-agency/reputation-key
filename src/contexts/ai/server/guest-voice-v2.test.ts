@@ -16,6 +16,7 @@ type StandardValidator = Readonly<{
 
 const mocks = vi.hoisted(() => ({
   readGuestVoiceV2: vi.fn(),
+  readGuestVoiceDetail: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
   headersFromContext: vi.fn(),
@@ -62,7 +63,10 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     clock: () => new Date('2026-10-30T10:00:00.000Z'),
-    aiPublicApi: { readGuestVoiceV2: mocks.readGuestVoiceV2 },
+    aiPublicApi: {
+      readGuestVoiceV2: mocks.readGuestVoiceV2,
+      readGuestVoiceDetail: mocks.readGuestVoiceDetail,
+    },
     inboxPublicApi: { getReviewInboxItemIds: mocks.getReviewInboxItemIds },
     reviewPublicApi: { getReviewSnippetsByIds: mocks.getReviewSnippetsByIds },
   }),
@@ -82,6 +86,7 @@ vi.mock('#/shared/auth/execution-policy', async (importOriginal) => {
   }
 })
 
+import { getGuestVoiceDetailFn } from './guest-voice-details'
 import { getGuestVoiceV2Fn } from './guest-voice-v2'
 import { aiError } from '../domain/errors'
 
@@ -335,5 +340,134 @@ describe('getGuestVoiceV2Fn answers', () => {
     expect(mocks.getReviewSnippetsByIds).not.toHaveBeenCalled()
     if (page === undefined || !('fixFirst' in page)) throw new Error('expected the page')
     expect(page.fixFirst[0]?.quote).toBeNull()
+  })
+})
+
+describe('getGuestVoiceDetailFn', () => {
+  const data = {
+    propertyId: PROPERTY_ID,
+    range: '30d' as const,
+    startLocalDate: '2026-10-01',
+    endLocalDate: '2026-10-30',
+    target: { kind: 'topic' as const, topic: 'cleanliness' as const },
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveTenantContext.mockResolvedValue(ACTOR)
+    mocks.headersFromContext.mockResolvedValue(new Headers())
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+    mocks.readGuestVoiceDetail.mockResolvedValue({ status: 'not_found' })
+  })
+  it('passes only the session Organization and actor to the dashboard-authorized read', async () => {
+    expect(await getGuestVoiceDetailFn({ data })).toEqual({ status: 'not_found' })
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledExactlyOnceWith({
+      actor: ACTOR,
+      action: 'dashboard.read',
+      propertyId: PROPERTY_ID,
+    })
+    expect(mocks.readGuestVoiceDetail).toHaveBeenCalledExactlyOnceWith({
+      ...data,
+      organizationId: ORGANIZATION_ID,
+      actor: ACTOR,
+    })
+  })
+  it('validates targets and real ISO dates, and rejects browser-supplied tenant/actor fields', async () => {
+    for (const invalid of [
+      { ...data, organizationId: ORGANIZATION_ID },
+      { ...data, startLocalDate: '2026-02-30' },
+      { ...data, target: { kind: 'issue', issueId: 'bad', sense: 'praise' } },
+    ]) {
+      await expect(
+        getGuestVoiceDetailFn({ data: invalid } as unknown as Parameters<
+          typeof getGuestVoiceDetailFn
+        >[0]),
+      ).rejects.toThrow(/unrecognized_keys|invalid_format/)
+    }
+    expect(mocks.readGuestVoiceDetail).not.toHaveBeenCalled()
+  })
+  it('does not resolve any live words for unavailable or stale results', async () => {
+    for (const status of ['disabled', 'preparing', 'refresh_required', 'not_found']) {
+      mocks.readGuestVoiceDetail.mockResolvedValue({ status })
+      expect(await getGuestVoiceDetailFn({ data })).toEqual({ status })
+    }
+    expect(mocks.getReviewSnippetsByIds).not.toHaveBeenCalled()
+  })
+  it('resolves concern sentences live and withholds changed or inaccessible words', async () => {
+    const pageDraft = draft().draft
+    const response = {
+      status: 'drafted',
+      draft: {
+        read: {
+          status: 'ready',
+          drawer: {
+            kind: 'concern',
+            target: { kind: 'concern', issueId: null, reason: 'health' },
+            title: 'Reported health concerns',
+            reason: 'health',
+            reviewCount: 1,
+            lastReportedLocalDate: '2026-10-18',
+            context: {
+              window: '30d',
+              startLocalDate: data.startLocalDate,
+              endLocalDate: data.endLocalDate,
+              dataThroughLocalDate: data.endLocalDate,
+              provisional: false,
+              basis: { textReviewCount: 1, starOnlyCount: 0, analysedTextReviewCount: 1 },
+            },
+            liveEvidence: [],
+            monthlySeries: [],
+            matchingReviews: {
+              startLocalDate: data.startLocalDate,
+              endLocalDate: data.endLocalDate,
+              issueId: null,
+              sense: null,
+            },
+          },
+        },
+        evidence: pageDraft.evidence,
+        latest: [],
+      },
+    }
+    mocks.readGuestVoiceDetail.mockResolvedValue(response)
+    const result = await getGuestVoiceDetailFn({ data })
+    if (result.status !== 'ready' || result.drawer.kind !== 'concern')
+      throw new Error('expected concern')
+    expect(result.drawer.liveEvidence[0]?.text).toBe(
+      'Lovely room. The air conditioning broke. Fine.',
+    )
+    expect(
+      result.drawer.liveEvidence[0]?.sentenceRanges.map((r) =>
+        result.drawer.kind === 'concern'
+          ? result.drawer.liveEvidence[0]?.text.slice(r.start, r.end)
+          : '',
+      ),
+    ).toEqual(['The air conditioning broke.'])
+    mocks.getReviewSnippetsByIds.mockResolvedValue(
+      new Map([[REVIEW_ID, { text: 'Changed words.', sourceRevision: 2 }]]),
+    )
+    const changed = await getGuestVoiceDetailFn({ data })
+    expect(changed).toMatchObject({
+      status: 'ready',
+      drawer: { reviewCount: 1, liveEvidence: [] },
+    })
+    mocks.getReviewSnippetsByIds.mockClear()
+    mocks.decide.mockResolvedValue({ allowed: false })
+    expect(await getGuestVoiceDetailFn({ data })).toMatchObject({
+      status: 'ready',
+      drawer: { reviewCount: 1, liveEvidence: [] },
+    })
+    expect(mocks.getReviewSnippetsByIds).not.toHaveBeenCalled()
+  })
+
+  it('maps the application Property refusal and sanitizes unexpected failures', async () => {
+    mocks.readGuestVoiceDetail.mockRejectedValue(aiError('forbidden', 'not granted'))
+    await expect(getGuestVoiceDetailFn({ data })).rejects.toMatchObject({
+      status: 403,
+      code: 'forbidden',
+    })
+    mocks.readGuestVoiceDetail.mockRejectedValue(new Error('private diagnostic'))
+    await expect(getGuestVoiceDetailFn({ data })).rejects.not.toMatchObject({
+      message: 'private diagnostic',
+    })
   })
 })
