@@ -2328,3 +2328,105 @@ answers 409 `feature_unavailable`. A taken-down own photo is §27.
 **Escalation/Evidence:** Bozhidar Denev. Record the SHA, the step reached, the count
 of own looks at each step and the time the flag changed. No look values, photo
 descriptions or image bytes.
+
+---
+
+## 32. Switch-On of Review Analysis v3 (Re-Consent, Watching the Replay, Kill Switch, Rollback)
+
+**Trigger/Symptoms:** Releasing the switch-on of 2026-10-30 (merchant AI notice
+`merchant-ai-notice-2026-10-30.v1`, provider deployment profile
+`private-beta-global-v2`, review analysis runtime profile
+`review-analysis-runtime-v2`, migration 0083); or a Property enabled before it
+answers AI work with `consent_renewal_required`, or Guest voice says "AI analysis
+is off for this property"; or the replay that follows re-consent looks stalled,
+too dear or wrong; or v3 has to be stopped.
+
+**Impact:** At the deploy no row is rewritten and nothing is deleted. Every
+Property enabled before it holds a consent under a notice that is no longer in
+force, so AI work for it, every capability, is refused before it is claimed until
+an AccountAdmin confirms the new notice. Reviews, the Inbox, replies written by
+hand, Portals and every notification that does not come from AI go on. Guest
+voice and the Overview row say AI analysis is off. After a Property re-consents
+the review analysis epoch moves; the retired v2 derivatives and the previous
+epoch's manager corrections are deleted when that transition is processed, and
+the enrollment replays the history through the v3 contract. A Property that has
+not re-consented keeps its v2 derivatives, hidden.
+
+**Prerequisites:** The green `main` SHA, fetched first (`git fetch`, or the SHA is
+not found). Name both operating roles. Both beta Organizations belong to the
+owner (BETA.md section 2, WAIVED 2026-10-29): re-consent for any other
+Organization needs its own decision. Provider choice is OpenAI alone
+(`OPERATOR_PROVIDER_SELECTION`): the deployment has no Anthropic key and the
+egress runtime registers no Anthropic adapter, so nothing here may set one. The
+model is `gpt-6-luna` at low reasoning, pinned by its plain id (the account lists
+no dated snapshot).
+
+**Release:** Web before the worker, as on 2026-10-17: a worker built before this
+change refuses the new notice. Migration 0083 widens the Merchant AI CHECKs and
+seeds the control head `provider:private-beta-global-v2` as enabled and accepting.
+It leaves the global and capability heads alone, so an operator's stop survives
+the release. Nobody enables AI while web and the worker deploy.
+
+**Re-consent (the owner, after the deploy):** For each Organization, Settings,
+then AI, then "Enable AI features" (one ceremony can cover several Properties).
+Check what it did, read-only: the Property's enablement head reads the new
+notice version, `private-beta-global-v2` and `review-analysis-runtime-v2`, and its
+review analysis epoch is one higher than before. Confirm with a test Property
+first if you want to see the replay on a small history.
+
+**Watching the replay:** The replay is the enrollment pass (ADR 0058: paced, one
+Property at a time within the admission lanes). Watch, per Property and as counts
+only:
+
+- coverage: the Property's AI page (Settings, AI) shows the paced Review Analysis
+  counts, and Guest voice moves from "being prepared" to the page as reviews are
+  analysed; section 22 gives the exact comparison of settlements against the head
+  sequence when it looks stalled (`ai.review-analysis-stalled`);
+- cost: the Organization's AI overview (Settings, AI overview) shows spend; the
+  quality check cost about $0.0002 per review at `gpt-6-luna` prices (mean 284
+  output tokens, 1.38M of 1.60M input tokens cached), so the replay costs about
+  that per review of history, more if the cache misses;
+- errors: the worker's `AI Review Analysis enrollment sweep completed` and
+  `AI operation recovery reaper completed` lines count failures
+  (`enrollmentsFailed`, `candidatesFailed`); no Sentry issue should name a refused
+  consent after the Property is confirmed, a 429 or `quota_exhausted` (see the
+  OpenAI credits note in section 22), or a schema refusal.
+
+Spot-check the largest hotel's Guest voice when its replay has finished: the
+numbers on the page equal the Inbox counts behind each "See all N reviews" link,
+and no quote shows a person's name.
+
+**Kill switch (no data loss, no deployment):** The controls are database rows
+(ADR 0032; section 25), so they take effect at once and delete nothing. From
+inside Railway's network, with `--operator <id> --reason <text> --ticket <ref>
+--apply --yes ops:ai-control` after the positional arguments:
+
+- one capability: `pnpm ops ai-control kill capability review_analysis private-beta-global-v2 ...`
+  (also `reply_drafting`, `property_trends`);
+- the whole profile: `pnpm ops ai-control kill provider private-beta-global-v2 ...`;
+- everything: `pnpm ops ai-control kill global ...`;
+- read the state first or afterwards: `pnpm ops ai-control inspect global`,
+  `inspect provider private-beta-global-v2`, `inspect capability review_analysis private-beta-global-v2`.
+
+A killed capability refuses new work before it is claimed; analyses already stored
+stay and are still read (Guest voice, Inbox chips). Reverse it with `restore`
+(section 25 gives its arguments). The `BETA_CAPABILITIES_OFF` list of section 11 is
+the other stop.
+
+**Rollback:** Recovery is forward-only (section 28): an earlier image is refused
+by the migrated schema, and the attempt is not free. To go back to v2 behaviour
+without data loss, kill the capability (above), then ship a code-only revert as a
+new forward commit that keeps `drizzle/` and the schema and restores the previous
+profile, notice and runtime constants. Two things a revert cannot undo: a Property
+that re-consented has had its v2 derivatives and its previous-epoch corrections
+deleted, and consent recorded under the new notice is invalid under the old
+constants, so every Property confirms again. Decide before the owner re-consents:
+once a Property is confirmed, the way back is forward, not a restore.
+
+**Verification:** A confirmed Property's enablement head reads the new contract;
+a new review is analysed under `review-analysis-v3` on `gpt-6-luna` (the operation
+row names the profile, the model and a cost); a killed capability answers
+"stopped" and an `inspect` shows `killed`/`draining`; Guest voice and the Overview
+row draw from the same read.
+
+**Escalation:** Bozhidar Denev.

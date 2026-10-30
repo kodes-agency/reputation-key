@@ -222,11 +222,55 @@ stop (`hotel.Staff`, `Dr.Smith`) as a domain, because nothing separates it from
 `example.Com`. Taking any of the rest is a change to the detectors' digest and a
 decision, not a patch.
 
-## Review analysis v3 contracts (dark)
+## Review analysis switch-on (2026-10-30)
 
-The shape of a v3 analysis lives in `src/shared` and nothing selects it: no operation
-profile, runtime catalogue row, merchant notice or deployment profile serves it
-(`review-analysis-v3.test.ts` fails if a profile or the catalogue does). It replaces the
+Review analysis v3 is the analysis the product runs. The catalogue selects the operation
+profile `review-analysis-v3` (`ai-operation-profiles.ts`) on OpenAI `gpt-6-luna` at low
+reasoning, pinned by its plain id because the account lists no dated snapshot
+(`ai-openai-request-contract.ts`; the quality check of 2026-10-30 is the evidence, ADR 0031).
+The price list is `ai-openai-provider-profile.ts` ($0.10 input, $0.01 cached input, $0.50
+output per million tokens, from third-party lists of 2026-10-30; OpenAI's pricing page is the
+authority). The deployment profile is `private-beta-global-v2` (`ai-provider-deployment-profile.ts`:
+the envelope names OpenAI and Anthropic; the provider every capability runs on is OpenAI), the
+runtime profile `review-analysis-runtime-v2`, and the served notice
+`merchant-ai-notice-2026-10-30.v1`, the only one in force. The v2 profile stays in the
+catalogue as retired so that pending and historical v2 operations can still be read and
+settled; no new work is claimed on it. Reply drafting and property trends run on the same
+deployment profile, so they run on `gpt-6-luna` too.
+
+The provider choice is `OPERATOR_PROVIDER_SELECTION` (`ai-provider-control/operator-provider-selection.ts`),
+a constant and not an environment value, and it names OpenAI alone. `createOperatorProviderChoice`
+(`ai-provider-choice.adapter.ts`) is the port the build wires; the egress runtime registers
+no Anthropic adapter. Moving to Anthropic needs a registered adapter, a key, a provider
+control head (migration 0083 seeded `provider:private-beta-global-v2` only), a change of the
+constant and the owner's date from the Privacy Notice (docs/BETA.md section 2). It needs no
+new deployment profile and no new consent.
+
+Consent: a consent recorded under any earlier notice is refused before work is claimed, and
+re-consent moves the notice and the deployment profile, which advances the capability epochs
+(`apply_merchant_ai_transition_v1`). The review analysis epoch bump makes the enrollment
+replay analyse the history again, and `eraseRetiredDerivatives` deletes the retired epoch's
+derivatives. Turning AI off, revoking or erasing also deletes the per-Property issue groups and
+the daily star counts (`eraseReviewAnalysisV3Remainder`;
+`ai-review-analysis-v3-turn-off.integration.test.ts`). Operating it, killing it and the limits of a
+rollback are `docs/operations/runbooks.md` section 32.
+
+What reads analysis data, after the switch-on: Guest voice reads one thing, the v3 read, and
+says "AI analysis is off" or "being prepared" where there is no page; a live quote is shown
+only when the review's current source revision equals the analysed revision; the Overview row
+reads the same v3 read; a manager-typed cause passes the same name and four-word guards as an
+AI cause (`managerCauseRefusal`); the Inbox reads mentions, and an old `?aspect=` link finds
+nothing without an error because a v3 analysis has no aspects; the Priority suggestion is the
+v3 attention; reply drafting reads no analysis topics; Settings offer the Guest voice summary
+and the Urgent reviews wording while `REVIEW_ANALYSIS_V3_LIVE` holds, a constant a test pins to
+the runtime catalogue. The pages and server functions that read the v2 aspect aggregates
+(`property-insights.ts`, `property-aggregates.ts`, `property-trend.ts`) are no longer called by
+any route; they are kept for the cleanup that removes the aspect read model.
+
+## Review analysis v3 contracts
+
+The shape of a v3 analysis lives in `src/shared` (`review-analysis-v3.test.ts` fails if a
+profile or the catalogue does not select it as above). It replaces the
 eighteen aspects, the -100 to 100 intensities and the issue label with twelve universal
 topics (`review-topic-taxonomy.ts`) and one mention per topic, thing and polarity: a strength
 (`mild | clear | strong`), an optional cause (`thing` and `issue`, lowercase, at most
@@ -288,7 +332,7 @@ a hint reaches the next request and re-analyses nothing. The catalogue is pinned
 manifest so an edit is a reviewed change; a hint change that needs a new topic, cause shape
 or normalizer rule is not a hint change.
 
-### Evidence request path (dark)
+### Evidence request path
 
 A v3 request carries the review as numbered sentences (`review-analysis-v3-request.ts`,
 `ai-provider-control/review-evidence-request.ts`). Review cuts the RAW text with
@@ -317,12 +361,12 @@ independently" would leak a phone number or an email broken across lines; this d
 `{ contract: 'review-analysis-v3', answer, normalization: { version, digest, flags,
 droppedMentionCount } }`, which the response schema accepts beside a v2 answer. Only a
 top level that is not usable is a billed `output_invalid`. `AiGatewayRoutePreparer` takes its
-profiles as a dependency (the live catalogue by default), which is how the dark path is
+profiles as a dependency (the live catalogue by default), which is how a path is
 exercised without a live entry. The in-process adapter gives a v3 request a bound of
 98,304 bytes (v2 keeps 65,536): 512 sentences of 30 characters, all needing a JSON escape,
 are the largest request the Review limits allow and fit under it.
 
-### Provider seam (dark)
+### Provider seam
 
 Providers sit behind one interface (`ai-provider-control/provider-contracts.ts`): an adapter
 shapes the exact request (`prepare`, no credential), makes the one call (`invoke`) and says
@@ -366,10 +410,10 @@ own digest. A pairing (`AiOperationProviderPairing`) is one provider's carrying 
 profile: the wire schema it derives and the static tokens a reservation prices. The profiles in
 force are untouched; `ai-operation-profile-views.ts` reads each as logical profile plus OpenAI
 pairing and builds it back with every digest intact (`ai-operation-profile-views.test.ts`),
-and is how the dark v3 profile (`review-analysis-v3-profile.ts`, with its prompt from the
-annotation guide) becomes a catalogue entry at activation. `defineProviderDeploymentEnvelope`
+and is how the v3 profile (`review-analysis-v3-profile.ts`, with its prompt from the
+annotation guide) became a catalogue entry at the switch-on. `defineProviderDeploymentEnvelope`
 names every provider of a deployment by attestation digest (`private-beta-global-v2` is built
-from both at activation, when the Anthropic attestation exists); choosing one of them is not an
+from both since the switch-on); choosing one of them is not an
 input to it.
 
 Cost follows the provider. A reservation is `maximumCostMicrosWith(adapter pricing, profile,
@@ -446,11 +490,11 @@ heads only: `resolveAiExecutionStopFence` and the budget admission check read th
 deployment-profile head (`provider:<deployment profile version>`), the fence holds exactly three
 heads, and no head is seeded for a concrete provider. It needs the binding schema in
 `ai-internal-transport-contract.ts` (at its file-length ceiling, to be split first), the stop
-fence, the claim and the admission check wired to it, a seeded head per provider (migration 0081
-or later, since 0078 to 0080 are taken) and a test that kills provider A while B stays eligible.
-Nothing can run on Anthropic while v3 is dark, so nothing is exposed today.
+fence, the claim and the admission check wired to it, a seeded head per provider (migration 0084
+or later, since 0078 to 0083 are taken) and a test that kills provider A while B stays eligible.
+Nothing can run on Anthropic until it is selected, so nothing is exposed today.
 
-### Analysing, storing and aggregating v3 (dark)
+### Analysing, storing and aggregating v3
 
 `analyze-review-event.ts` is one skeleton (authorize, read the source, claim, call the provider,
 store, settle). The v2 and v3 analysis differ at six points of it, and a
@@ -524,7 +568,7 @@ deployment profile string) that activation flips (3.10); including
 v3 derivatives in an organization export. Property issue grouping itself is complete below;
 publishing its manager commands and reads remains PR-4 work.
 
-### Property issue groups (dark)
+### Property issue groups
 
 `ai_property_issue_groups` is one stable random UUID for a normalized `thing` under one Property
 and topic. `ai_property_issue_members` remembers observed normalized spellings. Resolution is

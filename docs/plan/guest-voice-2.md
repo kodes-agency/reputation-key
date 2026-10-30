@@ -1,6 +1,6 @@
 # Guest voice 2.0: decisions
 
-Date: 2026-10-30. Status: the owner's decisions of 2026-10-29 and the contract decisions built from them. Review analysis v3 (PR-3) ships dark; the Guest voice page, the issue drawer, Inbox corrections, the Urgent alert and the Monday email (PR-4) read what it stores. The legal record of what is stored and why is the amendment of 2026-10-30 in [ADR 0031](../adr/0031-google-source-content-and-ai-processing-boundary.md). Paths are relative to the repository root.
+Date: 2026-10-30. Status: the owner's decisions of 2026-10-29 and the contract decisions built from them. Review analysis v3 (PR-3) shipped dark and was switched on on 2026-10-30 (the switch-on PR: `docs/operations/runbooks.md` section 32); the Guest voice page, the issue drawer, Inbox corrections, the Urgent alert and the Monday email (PR-4) read what it stores. The legal record of what is stored and why is the amendment of 2026-10-30 in [ADR 0031](../adr/0031-google-source-content-and-ai-processing-boundary.md). Paths are relative to the repository root.
 
 ## What Guest voice is for
 
