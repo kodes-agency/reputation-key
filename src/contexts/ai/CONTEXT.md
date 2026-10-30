@@ -246,7 +246,7 @@ refused and its mention stays as a topic-level mention. Attention v2
 exists only when the provider reports one of its four reasons. `aspect-taxonomy-v1` and
 every v2 schema stay as they are for history.
 
-Storage for it exists and is empty (migration 0078, `ai-review-analysis-v3.schema.ts`):
+Storage for it exists and stays empty until activation (migration 0078, `ai-review-analysis-v3.schema.ts`; the analysis flow below writes it behind the runtime selection):
 `ai_review_analysis_mentions` and `ai_review_analysis_mention_sentences` for the analysis,
 `ai_property_aggregate_contribution_mentions` for the same mentions under the contribution
 that retracts with them, `ai_property_review_population_daily` for the reviews of a local
@@ -423,14 +423,77 @@ the e2e provider stub (`e2e/fixtures/ai-provider-stub.ts`) are Messages-shaped f
   `AI_PROVIDER_PRICE_CATALOGUES` as a non-enumerable property: a settlement recorded against
   Anthropic is priced by it, while the live catalogue's enumerable surface is unchanged.
 
-Left for the slices that need it, not done here: the analysis use case choosing the provider
-before the claim, building the v3 request and storing the normalized result (3.7); the
+Left for the slices that need it, not done here: the
 `AI_OPERATION_PROFILES` entry, the runtime catalogue row, the notice, the `private-beta-global-v2`
 envelope, an Anthropic key, the adapter's registration in the egress runtime and a real-provider
 synthetic canary (3.10); a `provider` execution-control head and its place in the stop fence (the
 binding schema lives in `ai-internal-transport-contract.ts`, which is at its file-length ceiling
 and must be split first, and PR-3 has no migration number left to seed heads); `openai-usage.ts`
 resolving the input ceiling of a profile that is not in the live catalogue.
+
+### Analysing, storing and aggregating v3 (dark)
+
+`analyze-review-event.ts` is one skeleton (authorize, read the source, claim, call the provider,
+store, settle). The v2 and v3 analysis differ at six points of it, and a
+`ReviewAnalysisContract` (`review-analysis-contract.ts`) names them: the profile facts the binding
+and the authorization gate compare, whether the source read also returns the numbered sentences,
+what is prepared before the claim, what the provider request carries beyond the review, whether a
+Property's authorization was recorded under the contract this one serves, and how the answer is
+accepted and stored. The use case knows none of it. The v2 contract
+(`review-analysis-contract-v2.ts`) is everything that used to run inline there, moved without
+change (profile facts, answer schema, the issue-label refusal, the attention formula, the call
+that stores the analysis), and is the default of the use case: a v2 claim and provider request
+are byte-for-byte what they were. `review-analysis-runtime.ts` builds v3 only when the live
+runtime catalogue names `review-analysis-v3` for `review_analysis`; the catalogue holds v2 alone
+and its parser refuses anything else, so no build runs v3 until activation widens it.
+
+What the v3 contract (`review-analysis-contract-v3.ts`) does that v2 does not:
+
+- Before the claim it reads the Property's Google primary category through
+  `PropertyVocabularyContextPort`, resolves the vocabulary hints, and asks `AiProviderChoicePort`
+  which provider the operator has chosen. A category the hint resolver refuses, a review whose
+  sentences the source cannot give, or no provider are refusals the review waits out within its
+  horizon (`property_context_invalid`, `sentences_unavailable`, `provider_unavailable`,
+  `provider_selection_required`), never a verdict on the review. The port is declared and not
+  wired: `build.ts` hands the use case `unavailableProviderChoice`, so even a catalogue that
+  selected v3 would wait for the activation slice to name an operator choice.
+- The claim records the lineage the database requires of a v3 operation: the hint set, the
+  provider, model and request profile, and the normalizer. The request carries the numbered
+  sentences, the hints (never the Property's name) and the provider it was claimed under, so the
+  gateway can end it with `provider_profile_changed` after a switch.
+- The answer is the gateway's normalized one, checked by `reviewAnalysisV3GatewayResultSchema`
+  and never the provider's own. Attention is derived with the v2 formula
+  (`deriveReviewAttentionV2`) from the stored answer and the star rating, then the analysis is
+  stored through `AiOutputStorePort.storeAnalysisV3`. An answer that fails the schema is a
+  charged `output_invalid`, exactly as a v2 answer that fails its schema is.
+
+`storeAnalysisV3` writes, in the transaction the v2 write uses and under the same guards (the
+source epoch and revision, the authorization lineage, the review analysis epoch, the operation's
+attempt), one `ai_review_analyses` row (`ready`, no primary category, its Urgent reason when its
+attention is urgent), the mention rows and the sentence numbers each cites
+(`ai-review-analysis-mentions.ts`), and completes the operation with the closed normalization
+flags and the count of mentions dropped. `analysis_profile_version` and the shape of the row
+must agree (`analysisProfilePairValid`): a v2 profile with mentions or a v3 profile with a
+primary category is refused before it reaches the database check. The same transaction files the
+Property's aggregate contribution: a v3 contribution is a `ready` contribution with no primary
+category, described by a copy of the mentions
+(`ai_property_aggregate_contribution_mentions`) that retracts with it. The daily v2 cube is not
+touched by a v3 analysis (statistics read the latest effective contributions and their mentions
+directly), and the legacy window excludes v3 contributions, so a Property that moved between
+contracts never mixes the two in one number.
+
+A current-analysis read answers `{ status: 'ready_v3', topics, urgent reason, ... }` for a v3
+row: topics, polarity, strength, the optional cause and the names flag, never a quote or a
+sentence. Nothing above the AI context consumes it yet: `composition.ts` maps it to `none` for the
+Inbox until the Inbox learns to read it.
+
+Left for the slices that need it, not done here: the `ai_property_review_population_daily`
+projection (it follows a review's observation, update and deletion whether or not the review is
+analysed, so this flow does not write it) and the statistics that read the mentions (the Guest
+voice read model, PR-4); wiring `AiProviderChoicePort` to the operator's provider choice, the
+runtime catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the
+deployment profile string) that activation flips (3.10); the Inbox reading `ready_v3`; including
+v3 derivatives in an organization export.
 
 ## Runtime
 

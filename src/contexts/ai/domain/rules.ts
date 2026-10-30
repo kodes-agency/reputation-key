@@ -397,6 +397,21 @@ function allNull(
   return keys.every((key) => value[key] === null)
 }
 
+/**
+ * The operation profile and the runtime profile an analysis binding names go
+ * together: the two live generations, and v3 beside them (dark until its
+ * activation slice selects it, `review-analysis-runtime-v2`).
+ */
+function analysisProfilePairValid(value: Readonly<Record<string, unknown>>): boolean {
+  return (
+    ((value.operationProfileVersion === 'review-analysis-v1' ||
+      value.operationProfileVersion === 'review-analysis-v2') &&
+      value.capabilityRuntimeProfileVersion === 'review-analysis-runtime-v1') ||
+    (value.operationProfileVersion === 'review-analysis-v3' &&
+      value.capabilityRuntimeProfileVersion === 'review-analysis-runtime-v2')
+  )
+}
+
 function analysisBindingValid(
   value: Readonly<Record<string, unknown>>,
   fence: Readonly<Record<string, unknown>>,
@@ -408,9 +423,7 @@ function analysisBindingValid(
     isPositiveSafeInteger(value.sourceRevision) &&
     isNonnegativeSafeInteger(value.reviewedAtEpochMillis) &&
     nonEmptyString(value.aiSubjectHmacKeyVersion, 100) &&
-    (value.operationProfileVersion === 'review-analysis-v1' ||
-      value.operationProfileVersion === 'review-analysis-v2') &&
-    value.capabilityRuntimeProfileVersion === 'review-analysis-runtime-v1' &&
+    analysisProfilePairValid(value) &&
     allNull(value, [
       'concreteReplyLanguage',
       'replyLanguageVerifierDigest',

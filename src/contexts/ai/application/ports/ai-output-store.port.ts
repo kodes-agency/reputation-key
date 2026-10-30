@@ -1,6 +1,16 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
-import type { AiOperationId, ReviewAnalysisReadV1 } from '../../domain/types'
+import type { ReviewAnalysisNormalizationFlag } from '#/shared/review-analysis-v3-normalizer'
+import type {
+  ReviewAttentionLevelV2,
+  ReviewSentimentV3,
+  ReviewUrgentReasonV3,
+} from '#/shared/review-analysis-v3'
+import type {
+  AiOperationId,
+  ReviewAnalysisMentionV3,
+  ReviewAnalysisReadV1,
+} from '../../domain/types'
 import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 
 export type AiAnalysisAspect = Readonly<{
@@ -15,6 +25,23 @@ export type AiAnalysisDerivative = Readonly<{
   attention: 'urgent' | 'high' | 'medium' | 'low'
   aspects: readonly AiAnalysisAspect[]
   issueLabel: string | null
+}>
+
+/**
+ * What a v3 analysis stores (contract section 3.1): the normalized answer and
+ * the attention derived from it, never the provider's own response. `normalization`
+ * is what the normalizer did to get there, as the closed content-free flags and
+ * how many mentions it dropped, kept on the operation for audit.
+ */
+export type AiAnalysisDerivativeV3 = Readonly<{
+  sentiment: ReviewSentimentV3
+  attention: ReviewAttentionLevelV2
+  urgentReason: ReviewUrgentReasonV3 | null
+  mentions: readonly ReviewAnalysisMentionV3[]
+  normalization: Readonly<{
+    flags: readonly ReviewAnalysisNormalizationFlag[]
+    droppedMentionCount: number
+  }>
 }>
 
 export type AiAnalysisResult =
@@ -151,25 +178,36 @@ export type AiTrendReportRead<SupportingReview = AiTrendSupportingReview> =
       generatedAtEpochMillis: number
     }>
 
+/** What every analysis write carries, whichever contract produced the answer. */
+type AiAnalysisWrite = Readonly<{
+  operationId: AiOperationId
+  providerCompletion: AiProviderCompletion
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  reviewId: ReviewId
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+  authorizationLineageId: string
+  reviewAnalysisEpoch: number
+  propertyProfileVersion: number
+  analysisProfileVersion: string
+  generatedAtEpochMillis: number
+  expiresAtEpochMillis: number
+}>
+
 export type AiOutputStorePort = Readonly<{
   storeAnalysis(
-    input: Readonly<{
-      operationId: AiOperationId
-      providerCompletion: AiProviderCompletion
-      organizationId: OrganizationId
-      propertyId: PropertyId
-      reviewId: ReviewId
-      sourceEpoch: number
-      sourceRevision: number
-      analysisSequence: number
-      authorizationLineageId: string
-      reviewAnalysisEpoch: number
-      propertyProfileVersion: number
-      analysisProfileVersion: string
-      result: AiAnalysisResult
-      generatedAtEpochMillis: number
-      expiresAtEpochMillis: number
-    }>,
+    input: AiAnalysisWrite & Readonly<{ result: AiAnalysisResult }>,
+  ): Promise<boolean>
+
+  /**
+   * The v3 counterpart of `storeAnalysis`: the same fences and the same atomic
+   * commit with the operation, writing the analysis root, its mentions and the
+   * sentence numbers each cites. False when a fence no longer holds.
+   */
+  storeAnalysisV3(
+    input: AiAnalysisWrite & Readonly<{ derivative: AiAnalysisDerivativeV3 }>,
   ): Promise<boolean>
 
   /**

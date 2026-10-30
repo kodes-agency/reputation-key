@@ -243,6 +243,26 @@ describe('AI execution binding and operation identity', () => {
     expect(rejected.isErr() && rejected.error.message).toMatch(/analysis binding/i)
   })
 
+  it.each([
+    ['review-analysis-v1', 'review-analysis-runtime-v1', true],
+    ['review-analysis-v2', 'review-analysis-runtime-v1', true],
+    ['review-analysis-v3', 'review-analysis-runtime-v2', true],
+    ['review-analysis-v3', 'review-analysis-runtime-v1', false],
+    ['review-analysis-v2', 'review-analysis-runtime-v2', false],
+    ['review-analysis-v4', 'review-analysis-runtime-v2', false],
+  ])(
+    'pairs the analysis operation profile %s with the runtime profile %s: %s',
+    (operationProfileVersion, capabilityRuntimeProfileVersion, accepted) => {
+      const parsed = parseAiExecutionBinding({
+        ...makeAnalysisBinding(),
+        operationProfileVersion,
+        capabilityRuntimeProfileVersion,
+      })
+
+      expect(parsed.isOk()).toBe(accepted)
+    },
+  )
+
   it('enforces the four-branch operation identity matrix', () => {
     const analysis = createAiOperationIdentity({
       command: 'analysis',

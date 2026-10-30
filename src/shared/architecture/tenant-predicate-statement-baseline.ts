@@ -22,8 +22,6 @@
 import type { CallableReport } from './tenant-predicate-constraint'
 
 export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> = {
-  'src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts#settleEphemeralReply': 1,
-  'src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts#storeAnalysis': 1,
   'src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts#storeTrendReport': 3,
   'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts#applyAuthorizationLifecycle': 1,
   'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts#approveAssistedReplay': 1,

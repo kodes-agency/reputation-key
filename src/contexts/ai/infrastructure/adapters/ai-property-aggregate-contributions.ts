@@ -61,6 +61,18 @@ type PreviousContribution = Readonly<{
   previousAspects: readonly ContributionAspect[]
 }>
 
+/**
+ * A contribution of a v3 analysis: ready, with no primary category (migration
+ * 0078). It is described by its mentions (`ai_property_aggregate_contribution_mentions`)
+ * and never counted on a day, because statistics read the latest effective
+ * contribution rows and mentions directly rather than a daily cube.
+ */
+function isMentionContribution(
+  contribution: Pick<StoredContribution, 'status' | 'primaryCategory'>,
+): boolean {
+  return contribution.status === 'ready' && contribution.primaryCategory === null
+}
+
 const SENTIMENT_COLUMNS = {
   positive: 'positiveCount',
   neutral: 'neutralCount',
@@ -231,7 +243,7 @@ async function persistAspectDelta(
   }
 }
 
-export async function updateDailyAggregates(input: {
+export async function updateDailyAggregates(request: {
   tx: AggregateTransaction
   command: AggregateIdentityInput
   head: AggregateHead
@@ -242,6 +254,11 @@ export async function updateDailyAggregates(input: {
   aggregateRevision: number
   appliedAt: Date
 }): Promise<void> {
+  // A v3 contribution never stood on a day, so there is nothing to take off one.
+  const input =
+    request.previous !== undefined && isMentionContribution(request.previous)
+      ? { ...request, previous: undefined, previousAspects: [] }
+      : request
   const nextReady = input.next?.contribution.status === 'ready' ? input.next : null
   const dates = Array.from(
     new Set([
@@ -359,7 +376,7 @@ export async function readPreviousContribution(
     .orderBy(desc(aiPropertyAggregateContributions.analysisSequence))
     .limit(1)
   const previousAspects: readonly ContributionAspect[] =
-    previous?.status === 'ready'
+    previous?.status === 'ready' && !isMentionContribution(previous)
       ? await tx
           .select({
             aspect: aiPropertyAggregateContributionAspects.aspect,
@@ -394,6 +411,7 @@ export async function readPreviousContribution(
       : []
   const validPreviousAspectCount =
     previous?.status !== 'ready' ||
+    isMentionContribution(previous) ||
     (previousAspects.length >= 1 && previousAspects.length <= 5)
   if (!validPreviousAspectCount) {
     throw new Error('Previous aggregate contribution aspects are invalid')
