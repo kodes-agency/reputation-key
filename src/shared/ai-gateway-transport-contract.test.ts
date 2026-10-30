@@ -114,7 +114,7 @@ describe('AI gateway caller-wire contract', () => {
   it('carries only the distinct personalized profile on the reply route', () => {
     expect(parseAiGatewayRouteRequest(replyRequest())).toMatchObject({
       route: 'reply-suggestion',
-      replyProfileVersion: 'reply-draft-v2',
+      replyProfileVersion: 'reply-draft-v3',
       brandProfile: { displayName: 'Example Hotel' },
     })
     expect(() =>
@@ -137,7 +137,7 @@ describe('AI gateway caller-wire contract', () => {
       route: 'reply-suggestion',
       status: 'success',
       result: {
-        profileVersion: 'reply-draft-v2',
+        profileVersion: 'reply-draft-v3',
         replyText: 'Thank you for sharing that the room was quiet during your stay.',
         provenanceToken: 'signed-personalized-provenance',
         expiresAtEpochMillis: 1_780_000_010_000,

@@ -30,6 +30,11 @@ const asyncHooksStub = fileURLToPath(new URL('./stubs/async-hooks.ts', import.me
 const reviewReplyStub = fileURLToPath(
   new URL('./stubs/review-reply-server.ts', import.meta.url),
 )
+// Stub for #/contexts/review/server/reply-templates, loaded lazily by
+// use-reply-actions; it leaks the same server runtime. See the stub file.
+const reviewReplyTemplatesStub = fileURLToPath(
+  new URL('./stubs/review-reply-templates-server.ts', import.meta.url),
+)
 // Stub for #/shared/observability/logger — pino pulls Node builtins that crash
 // the preview if a throwing event handler loads it. See ./stubs/observability-logger.ts.
 const observabilityLoggerStub = fileURLToPath(
@@ -77,6 +82,10 @@ const config: StorybookConfig = {
       ...existingAlias,
       { find: 'node:async_hooks', replacement: asyncHooksStub },
       { find: 'async_hooks', replacement: asyncHooksStub },
+      {
+        find: '#/contexts/review/server/reply-templates',
+        replacement: reviewReplyTemplatesStub,
+      },
       { find: '#/contexts/review/server/reply', replacement: reviewReplyStub },
       { find: '#/shared/observability/logger', replacement: observabilityLoggerStub },
       { find: '#/contexts/portal/server/portal-links', replacement: portalLinksStub },

@@ -33,6 +33,9 @@ import type {
   GoogleImportSetupFns,
 } from '#/components/features/integration/google-import-manager/google-import-manager-contract'
 
+type PropertySetupServer = typeof import('#/contexts/reporting/server/property-setup')
+type ReplyLibraryServer = typeof import('#/contexts/review/server/reply-library')
+
 export const importFns: GoogleImportFns = {
   get getGoogleAuthUrl() {
     return getGoogleAuthUrl
@@ -63,7 +66,10 @@ export const importFns: GoogleImportFns = {
   },
 }
 
-export const importSetupFns: GoogleImportSetupFns = {
+const importSetupFns: Omit<
+  GoogleImportSetupFns,
+  'getPropertySetup' | 'getReplyLibrary' | 'saveReplyVoice'
+> = {
   get listProperties() {
     return listProperties
   },
@@ -100,4 +106,20 @@ export const importSetupFns: GoogleImportSetupFns = {
   get deferMerchantAiDecision() {
     return deferMerchantAiDecisionFn
   },
+}
+
+export const importReplySetupFns: GoogleImportSetupFns = {
+  ...importSetupFns,
+  getPropertySetup: (input: Parameters<PropertySetupServer['getPropertySetupFn']>[0]) =>
+    import('#/contexts/reporting/server/property-setup').then(({ getPropertySetupFn }) =>
+      getPropertySetupFn(input),
+    ),
+  getReplyLibrary: (input: Parameters<ReplyLibraryServer['getReplyLibraryFn']>[0]) =>
+    import('#/contexts/review/server/reply-library').then(({ getReplyLibraryFn }) =>
+      getReplyLibraryFn(input),
+    ),
+  saveReplyVoice: (input: Parameters<ReplyLibraryServer['saveReplyVoiceFn']>[0]) =>
+    import('#/contexts/review/server/reply-library').then(({ saveReplyVoiceFn }) =>
+      saveReplyVoiceFn(input),
+    ),
 }

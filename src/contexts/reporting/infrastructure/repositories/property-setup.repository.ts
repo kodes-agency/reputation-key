@@ -10,7 +10,8 @@ import {
   properties,
   propertyRatingGoalDeferrals,
   propertyRatingGoals,
-  propertyReplyProfiles,
+  organizationReplyVoices,
+  propertyReplyVoices,
   propertyResponsibleManagers,
   reviewProviderSnapshotRuns,
 } from '#/shared/db/schema'
@@ -153,9 +154,13 @@ function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
       ) AS responsible_manager_assigned,
       EXISTS (
         SELECT 1
-        FROM ${propertyReplyProfiles} profile
-        WHERE profile.organization_id = ${organizationId}
-          AND profile.property_id = p.id
+        FROM ${propertyReplyVoices} property_voice
+        WHERE property_voice.organization_id = ${organizationId}
+          AND property_voice.property_id = p.id
+      ) OR EXISTS (
+        SELECT 1
+        FROM ${organizationReplyVoices} organization_voice
+        WHERE organization_voice.organization_id = ${organizationId}
       ) AS reply_voice_configured,
       EXISTS (
         SELECT 1

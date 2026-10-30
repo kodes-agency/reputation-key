@@ -24,6 +24,7 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'property.import_gbp_v2': 'property.import_gbp_v2',
   'property.read_gbp_performance': 'property.read_gbp_performance',
   'reply.manage': 'property.publish_reply',
+  'reply_library.manage': 'property.publish_reply',
   'review.read': 'review.use',
   'inbox.read': 'inbox.use',
   'inbox.write': 'inbox.use',

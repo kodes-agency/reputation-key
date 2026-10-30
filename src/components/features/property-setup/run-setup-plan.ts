@@ -2,7 +2,7 @@ import type { CurrentMerchantAiCapability } from '#/contexts/identity/applicatio
 import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
 import type { SetupPlan } from './setup-plan'
 
-export type SetupTaskKind = 'displayName' | 'language' | 'managers' | 'ai'
+export type SetupTaskKind = 'displayName' | 'language' | 'managers' | 'ai' | 'replyVoice'
 
 /** The writes the step performs, bound by the caller to the server functions. */
 export type SetupWriteFns = Readonly<{
@@ -24,6 +24,14 @@ export type SetupWriteFns = Readonly<{
   ) => Promise<unknown>
   setManagers: (
     input: Readonly<{ propertyId: string; managerIds: readonly string[] }>,
+  ) => Promise<unknown>
+  setReplyVoice?: (
+    input: Readonly<{
+      propertyId: string
+      scope: 'account' | 'property'
+      expectedVersion: number
+      voice: NonNullable<import('./setup-plan').PropertySetupPlan['replyVoice']>
+    }>,
   ) => Promise<unknown>
 }>
 
@@ -156,6 +164,22 @@ export async function runSetupPlan(
       tasks.push(() =>
         settle({ propertyId, kind: 'managers' }, () =>
           fns.setManagers({ propertyId, managerIds }),
+        ),
+      )
+    }
+    if (
+      property.replyVoice != null &&
+      fns.setReplyVoice &&
+      include(propertyId, 'replyVoice')
+    ) {
+      tasks.push(() =>
+        settle({ propertyId, kind: 'replyVoice' }, () =>
+          fns.setReplyVoice!({
+            propertyId,
+            scope: property.replyVoiceScope ?? 'property',
+            expectedVersion: property.replyVoiceExpectedVersion ?? 0,
+            voice: property.replyVoice!,
+          }),
         ),
       )
     }

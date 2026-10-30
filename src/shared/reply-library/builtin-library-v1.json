@@ -1,0 +1,1156 @@
+{
+  "version": "reply-library-builtin-v1",
+  "source": "drafts/library-en-v1.md + drafts/library-es-v1.md (owner copy pass 2026-10-29)",
+  "languages": {
+    "en-Latn": "US English",
+    "es-Latn": "US Spanish"
+  },
+  "voice": {
+    "en-Latn": {
+      "greeting": {
+        "positive": "Hi {first_name},",
+        "negative": "Hello {first_name},",
+        "formal": "Dear {first_name},",
+        "fallback": "Hello,"
+      },
+      "closings": {
+        "positiveText": [
+          "We hope to see you again soon.",
+          "We look forward to your next {visit_word}.",
+          "We'd love to welcome you back."
+        ],
+        "positiveRatingOnly": [
+          "We hope to see you again soon.",
+          "We look forward to your next {visit_word}.",
+          "We hope to welcome you back before long."
+        ],
+        "threeStar": [
+          "Thank you for helping us improve.",
+          "We hope to welcome you back for a better {visit_word}.",
+          "We appreciate you letting us know."
+        ],
+        "negative": [
+          "Thank you for letting us know.",
+          "We would welcome the chance to do better.",
+          "We appreciate the chance to learn from this."
+        ]
+      },
+      "contactSentences": [
+        "Please contact us at {contact} so we can look into this.",
+        "We'd like to hear more. You can reach us at {contact}.",
+        "If you're open to it, please get in touch at {contact}."
+      ],
+      "signOffWords": {
+        "positive": ["Warm regards,", "Best wishes,", "All the best,"],
+        "negative": ["Sincerely,", "Kind regards,", "Best regards,"]
+      },
+      "signer": {
+        "positive": "{business_name} Team",
+        "negativeNamed": "{signer_name}, {signer_title}",
+        "negativeFallback": "{business_name} Management"
+      },
+      "visitWords": {
+        "visit": "visit",
+        "stay": "stay",
+        "appointment": "appointment",
+        "meal": "meal",
+        "trip": "trip",
+        "session": "session"
+      }
+    },
+    "es-Latn": {
+      "greeting": {
+        "positive": "Hola {first_name},",
+        "negative": "Hola {first_name},",
+        "formal": "Hola {first_name},",
+        "fallback": "Hola,"
+      },
+      "closings": {
+        "positiveText": [
+          "Esperamos verle de nuevo pronto.",
+          "Será un placer atenderle de nuevo.",
+          "Nos dará mucho gusto recibirle nuevamente."
+        ],
+        "positiveRatingOnly": [
+          "Esperamos verle de nuevo pronto.",
+          "Será un placer atenderle de nuevo.",
+          "Esperamos recibirle nuevamente dentro de poco."
+        ],
+        "threeStar": [
+          "Gracias por ayudarnos a mejorar.",
+          "Esperamos ofrecerle una mejor experiencia la próxima vez.",
+          "Agradecemos que nos lo haya comunicado."
+        ],
+        "negative": [
+          "Gracias por informarnos.",
+          "Agradeceríamos la oportunidad de ofrecerle una experiencia mejor.",
+          "Agradecemos la oportunidad de aprender de lo ocurrido."
+        ]
+      },
+      "contactSentences": [
+        "Comuníquese con nosotros en {contact} para conversar sobre lo ocurrido.",
+        "Nos gustaría conocer más detalles. Puede comunicarse con nosotros en {contact}.",
+        "Si le parece bien, comuníquese con nosotros en {contact}."
+      ],
+      "signOffWords": {
+        "positive": ["Saludos cordiales,", "Un cordial saludo,", "Un saludo afectuoso,"],
+        "negative": ["Atentamente,", "Saludos cordiales,", "Un cordial saludo,"]
+      },
+      "signer": {
+        "positive": "Equipo de {business_name}",
+        "negativeNamed": "{signer_name}, {signer_title}",
+        "negativeFallback": "Gerencia de {business_name}"
+      },
+      "visitWords": {
+        "visit": "visita",
+        "stay": "estadía",
+        "appointment": "cita",
+        "meal": "comida",
+        "trip": "viaje",
+        "session": "sesión"
+      }
+    },
+    "bg-Cyrl": {
+      "greeting": {
+        "positive": "Здравейте, {first_name},",
+        "negative": "Здравейте, {first_name},",
+        "formal": "Здравейте, {first_name},",
+        "fallback": "Здравейте,"
+      },
+      "closings": {
+        "positiveText": [
+          "Ще се радваме да Ви видим отново.",
+          "Очакваме Ви отново при нас.",
+          "Ще се радваме да Ви посрещнем отново."
+        ],
+        "positiveRatingOnly": [
+          "Ще се радваме да Ви видим отново.",
+          "Очакваме Ви отново при нас.",
+          "Надяваме се скоро да Ви посрещнем отново."
+        ],
+        "threeStar": [
+          "Благодарим Ви, че ни помагате да ставаме по-добри.",
+          "Надяваме се следващия път да Ви предложим по-добро изживяване.",
+          "Благодарим Ви, че ни уведомихте."
+        ],
+        "negative": [
+          "Благодарим Ви, че ни уведомихте.",
+          "Ще се радваме на възможност да се поправим.",
+          "Ценим възможността да се поучим от това."
+        ]
+      },
+      "contactSentences": [
+        "Моля, свържете се с нас на {contact}, за да можем да проверим случая.",
+        "Бихме искали да научим повече. Можете да се свържете с нас на {contact}.",
+        "Ако желаете, свържете се с нас на {contact}."
+      ],
+      "signOffWords": {
+        "positive": ["Поздрави,", "Сърдечни поздрави,", "С благодарност,"],
+        "negative": ["С уважение,", "Поздрави,", "С уважение и благодарност,"]
+      },
+      "signer": {
+        "positive": "Екипът на {business_name}",
+        "negativeNamed": "{signer_name}, {signer_title}",
+        "negativeFallback": "Ръководството на {business_name}"
+      },
+      "visitWords": {
+        "visit": "посещение",
+        "stay": "престой",
+        "appointment": "час",
+        "meal": "посещение",
+        "trip": "пътуване",
+        "session": "сесия"
+      }
+    }
+  },
+  "templates": [
+    {
+      "key": "RO5",
+      "group": "rating_only",
+      "title": "5 stars, no text",
+      "essential": true,
+      "starsMin": 5,
+      "starsMax": 5,
+      "reviewKind": "rating_only",
+      "topic": null,
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "Thank you for the five-star rating.",
+            "es-Latn": "Gracias por la calificación de cinco estrellas."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Your five-star rating means a lot to our team.",
+            "es-Latn": "Su calificación de cinco estrellas significa mucho para nuestro equipo."
+          }
+        },
+        {
+          "key": "3",
+          "text": {
+            "en-Latn": "Five stars made our day. Thank you for taking a moment to rate us.",
+            "es-Latn": "Las cinco estrellas nos alegraron el día. Gracias por dedicar un momento a calificarnos."
+          }
+        },
+        {
+          "key": "4",
+          "text": {
+            "en-Latn": "We really appreciate the five stars and your support.",
+            "es-Latn": "Agradecemos mucho las cinco estrellas y su apoyo."
+          }
+        },
+        {
+          "key": "5",
+          "text": {
+            "en-Latn": "Thank you for rating us so highly.",
+            "es-Latn": "Gracias por otorgarnos una calificación tan alta."
+          }
+        }
+      ]
+    },
+    {
+      "key": "RO4",
+      "group": "rating_only",
+      "title": "4 stars, no text",
+      "essential": true,
+      "starsMin": 4,
+      "starsMax": 4,
+      "reviewKind": "rating_only",
+      "topic": null,
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "Four stars is lovely to see, and we're grateful you took a moment to rate us.",
+            "es-Latn": "Nos da gusto ver las cuatro estrellas. Gracias por dedicar un momento a calificarnos."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We appreciate the four stars and your support.",
+            "es-Latn": "Agradecemos las cuatro estrellas y su apoyo."
+          }
+        },
+        {
+          "key": "3",
+          "text": {
+            "en-Latn": "Thank you for the four stars. We'll keep working to earn the fifth.",
+            "es-Latn": "Gracias por las cuatro estrellas. Esperamos ganarnos la quinta en otra ocasión."
+          }
+        }
+      ]
+    },
+    {
+      "key": "RO3",
+      "group": "rating_only",
+      "title": "3 stars, no text",
+      "essential": true,
+      "starsMin": 3,
+      "starsMax": 3,
+      "reviewKind": "rating_only",
+      "topic": null,
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "Thank you for your rating.",
+            "es-Latn": "Gracias por su calificación."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We appreciate you taking a moment to rate us.",
+            "es-Latn": "Agradecemos que haya dedicado un momento a calificarnos."
+          }
+        },
+        {
+          "key": "3",
+          "text": {
+            "en-Latn": "We appreciate the three-star rating. It tells us there is room to do better.",
+            "es-Latn": "Agradecemos la calificación de tres estrellas. Nos indica que aún podemos mejorar."
+          }
+        }
+      ]
+    },
+    {
+      "key": "RO2",
+      "group": "rating_only",
+      "title": "2 stars, no text",
+      "essential": true,
+      "starsMin": 2,
+      "starsMax": 2,
+      "reviewKind": "rating_only",
+      "topic": null,
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry your experience earned only two stars.",
+            "es-Latn": "Lamentamos que su experiencia solo haya merecido dos estrellas."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Thank you for your rating. We're sorry we fell short.",
+            "es-Latn": "Gracias por su calificación. Lamentamos no haber estado a la altura."
+          }
+        },
+        {
+          "key": "3",
+          "text": {
+            "en-Latn": "A two-star rating tells us we missed the mark, and we're sorry.",
+            "es-Latn": "Una calificación de dos estrellas nos indica que no cumplimos con lo esperado, y lo lamentamos."
+          }
+        }
+      ]
+    },
+    {
+      "key": "RO1",
+      "group": "rating_only",
+      "title": "1 star, no text",
+      "essential": true,
+      "starsMin": 1,
+      "starsMax": 1,
+      "reviewKind": "rating_only",
+      "topic": null,
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry your experience led to a one-star rating.",
+            "es-Latn": "Lamentamos que su experiencia haya dado lugar a una calificación de una estrella."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Thank you for your rating. We're sorry we let you down.",
+            "es-Latn": "Gracias por su calificación. Lamentamos haberle decepcionado."
+          }
+        },
+        {
+          "key": "3",
+          "text": {
+            "en-Latn": "We regret that we fell so far short this time.",
+            "es-Latn": "Lamentamos haber quedado tan lejos de lo esperado esta vez."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-GEN",
+      "group": "positive",
+      "title": "Positive review",
+      "essential": true,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": null,
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "Thank you for sharing your experience. We're glad your {visit_word} went well, and we'll pass your review on to the team.",
+            "es-Latn": "Gracias por compartir su experiencia. Nos alegra saber que su {visit_word} salió bien, y compartiremos su reseña con el equipo."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We're so glad you enjoyed your {visit_word}. Reviews like yours mean a lot to everyone here.",
+            "es-Latn": "Nos alegra mucho saber que disfrutó su {visit_word}. Reseñas como la suya significan mucho para todo el equipo."
+          }
+        },
+        {
+          "key": "3",
+          "text": {
+            "en-Latn": "Thank you for the lovely review. It's good to know everything came together for you.",
+            "es-Latn": "Gracias por tan buena reseña. Nos da gusto saber que todo salió bien."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-STAFF",
+      "group": "positive",
+      "title": "Praise for the team",
+      "essential": true,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "staff_service",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "Thank you for recognizing our team. We'll make sure they hear how much their care meant to you.",
+            "es-Latn": "Gracias por reconocer a nuestro equipo. Nos aseguraremos de que sepan cuánto valoró la atención que recibió."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We're glad our team made your {visit_word} easy and welcoming. We'll pass your words on to them.",
+            "es-Latn": "Nos alegra saber que nuestro equipo hizo que su {visit_word} fuera fácil y agradable. Les haremos llegar sus palabras."
+          }
+        }
+      ]
+    },
+    {
+      "key": "MIX",
+      "group": "mixed",
+      "title": "Mixed review",
+      "essential": true,
+      "starsMin": 3,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": null,
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "Thank you for the honest review. We're glad parts of your {visit_word} went well, and we're sorry the rest did not.",
+            "es-Latn": "Gracias por su reseña sincera. Nos alegra que algunos aspectos de su {visit_word} salieran bien y lamentamos que otros no."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We appreciate you sharing both what worked and what didn't. Your notes help us improve.",
+            "es-Latn": "Agradecemos que haya compartido tanto lo que funcionó como lo que no. Sus observaciones nos ayudan a mejorar."
+          }
+        },
+        {
+          "key": "3",
+          "text": {
+            "en-Latn": "Thank you for the balanced review. We're sorry some of your {visit_word} fell short, and we're glad other parts made up for it.",
+            "es-Latn": "Gracias por su reseña equilibrada. Lamentamos que algunos aspectos de su {visit_word} no estuvieran a la altura y nos alegra que otros lo compensaran."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-GEN",
+      "group": "negative",
+      "title": "Negative review",
+      "essential": true,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": null,
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "This isn't the experience we want anyone to have, and we're sorry your {visit_word} fell short.",
+            "es-Latn": "Esta no es la experiencia que queremos para nadie, y lamentamos que su {visit_word} no estuviera a la altura."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Thank you for telling us about your experience. We're sorry we disappointed you.",
+            "es-Latn": "Gracias por contarnos su experiencia. Lamentamos haberle decepcionado."
+          }
+        },
+        {
+          "key": "3",
+          "text": {
+            "en-Latn": "We regret that your {visit_word} did not go the way it should have, and we take your review seriously.",
+            "es-Latn": "Lamentamos que su {visit_word} no saliera como debía. Tomamos su reseña muy en serio."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-NAMED",
+      "group": "positive",
+      "title": "A team member named",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "staff_service",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "Thank you for mentioning {staff_name} by name. We'll make sure your words reach them.",
+            "es-Latn": "Gracias por mencionar a {staff_name} por su nombre. Nos aseguraremos de que reciba sus palabras."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We're glad {staff_name} made such a difference to your {visit_word}. We'll share your review with the whole team.",
+            "es-Latn": "Nos alegra saber que {staff_name} marcó una gran diferencia durante su {visit_word}. Compartiremos su reseña con todo el equipo."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-MAIN",
+      "group": "positive",
+      "title": "The main service",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "main_service",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're glad you enjoyed the {thing}. Our team takes real care with every detail, and it's good to know that came through.",
+            "es-Latn": "Nos alegra saber que el servicio cumplió con sus expectativas. Nuestro equipo cuida cada detalle y nos da gusto que se haya notado."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "It's great to hear we delivered what you came for. Thank you for taking the time to say so.",
+            "es-Latn": "Nos da mucho gusto saber que recibió lo que buscaba. Gracias por dedicar tiempo a compartirlo."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-FOOD",
+      "group": "positive",
+      "title": "Food and drink",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "food_drink",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're glad you enjoyed the {thing}. We'll pass your compliments along.",
+            "es-Latn": "Nos alegra saber que disfrutó de la comida y las bebidas. Haremos llegar sus elogios a la cocina."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Good food and drink can make the whole {visit_word}, so we're happy ours hit the spot.",
+            "es-Latn": "La buena comida y las buenas bebidas pueden realzar su {visit_word}, y nos da gusto que las nuestras hayan cumplido con lo esperado."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-CLEAN",
+      "group": "positive",
+      "title": "Cleanliness",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "cleanliness",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "It's good to hear everything felt clean. Our team works hard to keep it that way.",
+            "es-Latn": "Nos da gusto saber que encontró todo limpio. Nuestro equipo se esfuerza por mantenerlo así."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We're glad the space felt fresh and well kept. We'll share your review with the team who looks after it.",
+            "es-Latn": "Nos alegra saber que el espacio se sintió fresco y bien cuidado. Agradecemos que haya reconocido el trabajo del equipo que lo mantiene."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-FAC",
+      "group": "positive",
+      "title": "Facilities and equipment",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "facilities_equipment",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're glad you enjoyed the {thing} during your {visit_word}.",
+            "es-Latn": "Nos alegra saber que pudo disfrutar de nuestras instalaciones durante su {visit_word}."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "It's good to know our facilities worked well for you. Thank you for mentioning them.",
+            "es-Latn": "Nos da gusto saber que nuestras instalaciones funcionaron bien para usted. Gracias por mencionarlas."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-ATM",
+      "group": "positive",
+      "title": "Atmosphere",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "atmosphere_noise",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're glad you enjoyed the atmosphere. Creating a comfortable space matters a lot to us.",
+            "es-Latn": "Nos alegra saber que disfrutó del ambiente. Para nosotros es muy importante crear un espacio agradable."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "It's lovely to hear the setting added to your {visit_word}.",
+            "es-Latn": "Nos da gusto saber que el entorno enriqueció su {visit_word}."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-LOC",
+      "group": "positive",
+      "title": "Location and access",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "location_access",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're glad our location made things easy for you.",
+            "es-Latn": "Nos alegra saber que nuestra ubicación le facilitó las cosas."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Being easy to reach matters, and it's good to know our location helped.",
+            "es-Latn": "Para nosotros es importante ofrecer un acceso fácil, y nos da gusto saber que nuestra ubicación le resultó conveniente."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-SPEED",
+      "group": "positive",
+      "title": "Quick service",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "speed_waiting",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're glad everything moved quickly without feeling rushed.",
+            "es-Latn": "Nos alegra saber que todo fue ágil y sin contratiempos."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Smooth and on time is what we aim for, and we know your time matters.",
+            "es-Latn": "Buscamos que todo fluya y se mantenga puntual, porque sabemos que su tiempo es importante."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-VALUE",
+      "group": "positive",
+      "title": "Good value",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "price_billing",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're glad you felt you got good value. Thank you for saying so.",
+            "es-Latn": "Nos alegra saber que el precio le pareció justo por lo que recibió. Gracias por mencionarlo."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "It's great to hear the experience felt worth it.",
+            "es-Latn": "Nos da mucho gusto saber que la experiencia valió la pena."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-BOOK",
+      "group": "positive",
+      "title": "Easy booking and arrival",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": "booking_arrival",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're glad booking and arriving went smoothly for you.",
+            "es-Latn": "Nos alegra saber que tanto la reservación como la llegada fueron sencillas."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "A good start sets the tone, so we're happy yours was an easy one.",
+            "es-Latn": "Un buen comienzo marca la pauta, y nos da gusto que el suyo fuera fácil."
+          }
+        }
+      ]
+    },
+    {
+      "key": "P-RETURN",
+      "group": "positive",
+      "title": "Returning customer",
+      "essential": false,
+      "starsMin": 4,
+      "starsMax": 5,
+      "reviewKind": "text",
+      "topic": null,
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "It's always good to see you again. Thank you for coming back to us.",
+            "es-Latn": "Siempre nos da gusto verle de nuevo. Gracias por regresar."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Thank you for choosing us again and again. Your loyalty means a lot to our team.",
+            "es-Latn": "Gracias por elegirnos una y otra vez. Su lealtad significa mucho para nuestro equipo."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-SPEED",
+      "group": "negative",
+      "title": "Waiting",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "speed_waiting",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry about the wait. We know how frustrating it is when time runs short.",
+            "es-Latn": "Lamentamos la espera. Sabemos lo frustrante que es cuando el tiempo apremia."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Your time matters, and we're sorry the pace let you down.",
+            "es-Latn": "Su tiempo es importante, y lamentamos que el ritmo del servicio no cumpliera con lo esperado."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-STAFF",
+      "group": "negative",
+      "title": "Service from the team",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "staff_service",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "Good service is at the heart of what we do, so we're sorry yours fell short.",
+            "es-Latn": "Un buen servicio es fundamental para nosotros, y lamentamos que el que recibió no estuviera a la altura."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We're sorry your experience with our team was disappointing. That is not how we want anyone to feel.",
+            "es-Latn": "Lamentamos que su experiencia con nuestro equipo fuera decepcionante. No queremos que nadie se lleve esa impresión."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-CLEAN",
+      "group": "negative",
+      "title": "Cleanliness",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "cleanliness",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry the cleanliness fell short of what you expected. We're sharing your review with the team responsible.",
+            "es-Latn": "Lamentamos que la limpieza no cumpliera con sus expectativas. Compartiremos su reseña con el equipo responsable."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "A clean space is the least you should expect, and we're sorry we missed that.",
+            "es-Latn": "Un espacio limpio es lo mínimo que debe esperar, y lamentamos no haber cumplido."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-VALUE",
+      "group": "negative",
+      "title": "Price and billing",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "price_billing",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "Thank you for being upfront about the price. We're sorry it didn't feel right for what you received.",
+            "es-Latn": "Gracias por expresar con claridad su opinión sobre el precio. Lamentamos que no le pareciera adecuado para lo que recibió."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We're sorry the charges caused frustration. Questions about a bill deserve a clear answer, and we'd like to give you one.",
+            "es-Latn": "Lamentamos que los cargos causaran frustración. Las preguntas sobre una cuenta merecen una respuesta clara."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-MAIN",
+      "group": "negative",
+      "title": "The main service",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "main_service",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry the {thing} did not meet your expectations.",
+            "es-Latn": "Lamentamos que lo que recibió no cumpliera con sus expectativas."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We didn't deliver what you came for, and we're sorry. We'll use your review to do better.",
+            "es-Latn": "No brindamos lo que usted buscaba, y lo lamentamos. Tomamos su reseña como una oportunidad para mejorar."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-FOOD",
+      "group": "negative",
+      "title": "Food and drink",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "food_drink",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry the {thing} disappointed you. We'll share your comments with the kitchen.",
+            "es-Latn": "Lamentamos que la comida y las bebidas no cumplieran con sus expectativas. Lo que señala merece nuestra atención."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Food and drink should be a highlight, and we're sorry ours did not live up to your expectations.",
+            "es-Latn": "La comida y las bebidas deberían ser uno de los mejores aspectos de la experiencia, y lamentamos que las nuestras no estuvieran a la altura."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-BOOK",
+      "group": "negative",
+      "title": "Booking and arrival",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "booking_arrival",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry booking and arriving were harder than they should have been.",
+            "es-Latn": "Lamentamos que reservar y llegar haya sido más difícil de lo debido."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "A smooth start matters, and we're sorry yours wasn't.",
+            "es-Latn": "Un comienzo sencillo es importante, y lamentamos que el suyo no lo fuera."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-FAC",
+      "group": "negative",
+      "title": "Facilities and equipment",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "facilities_equipment",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry the {thing} let you down during your {visit_word}.",
+            "es-Latn": "Lamentamos que nuestras instalaciones no estuvieran a la altura durante su {visit_word}."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Our facilities should work the way they're meant to, and we're sorry they didn't. We're passing this on to the team that looks after them.",
+            "es-Latn": "Nuestras instalaciones deberían funcionar correctamente, y lamentamos que no fuera así. Se lo haremos saber al equipo que se encarga de ellas."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-COMM",
+      "group": "negative",
+      "title": "Communication",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "communication",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry our communication left you without the answers you needed.",
+            "es-Latn": "Lamentamos que nuestra comunicación no le proporcionara las respuestas que necesitaba."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Clear information matters, and we're sorry we didn't give you what you needed.",
+            "es-Latn": "La información clara es importante, y lamentamos no haberle dado lo que necesitaba."
+          }
+        }
+      ]
+    },
+    {
+      "key": "N-NOISE",
+      "group": "negative",
+      "title": "Noise and atmosphere",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 2,
+      "reviewKind": "text",
+      "topic": "atmosphere_noise",
+      "guidance": null,
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry the noise affected your {visit_word}.",
+            "es-Latn": "Lamentamos que el ruido afectara su {visit_word}."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Everyone deserves a comfortable setting, and we're sorry the atmosphere fell short.",
+            "es-Latn": "Toda persona merece un entorno agradable, y lamentamos que el ambiente no estuviera a la altura."
+          }
+        }
+      ]
+    },
+    {
+      "key": "S-UNVERIFIED",
+      "group": "special",
+      "title": "We can't tell what happened",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 3,
+      "reviewKind": "text",
+      "topic": null,
+      "guidance": "never accuse, never confirm or deny that the reviewer was a customer",
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We take every review seriously and would like to understand what happened. We'd welcome any details you're comfortable sharing.",
+            "es-Latn": "Tomamos todas las reseñas en serio y nos gustaría entender qué ocurrió. Agradeceríamos cualquier detalle que desee compartir."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "We'd like to learn more about the experience you describe so we can look into it properly.",
+            "es-Latn": "Nos gustaría saber más sobre la experiencia que describe para comprenderla adecuadamente."
+          }
+        }
+      ]
+    },
+    {
+      "key": "S-SAFETY",
+      "group": "special",
+      "title": "Safety or health concern",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 3,
+      "reviewKind": "text",
+      "topic": "safety",
+      "guidance": "a manager should read the reply before it goes out",
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're very sorry to read this. Your safety and well-being matter to us, and we want to look into what happened.",
+            "es-Latn": "Lamentamos mucho leer esto. Su seguridad y bienestar son importantes para nosotros, y queremos entender qué ocurrió."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Thank you for telling us. Concerns like this get our full attention, and we'd like to understand more.",
+            "es-Latn": "Gracias por informarnos. Una inquietud como esta merece toda nuestra atención, y nos gustaría conocer más detalles."
+          }
+        }
+      ]
+    },
+    {
+      "key": "S-EMPLOYEE",
+      "group": "special",
+      "title": "A team member named in a complaint",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 3,
+      "reviewKind": "text",
+      "topic": "staff_service",
+      "guidance": "never repeat the name",
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We're sorry about the interaction you describe. We don't discuss team members publicly, but we take this seriously.",
+            "es-Latn": "Lamentamos la interacción que describe. No comentamos públicamente asuntos relacionados con integrantes del equipo, pero tomamos esto en serio."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Thank you for raising this. We'd like to understand what happened and will handle it privately.",
+            "es-Latn": "Gracias por señalarlo. Nos gustaría entender qué ocurrió y, por respeto a la privacidad de todos, lo trataremos en privado."
+          }
+        }
+      ]
+    },
+    {
+      "key": "S-REFUND",
+      "group": "special",
+      "title": "Refund asked for in public",
+      "essential": false,
+      "starsMin": 1,
+      "starsMax": 3,
+      "reviewKind": "text",
+      "topic": "price_billing",
+      "guidance": "never promise a refund",
+      "wordings": [
+        {
+          "key": "1",
+          "text": {
+            "en-Latn": "We understand you're asking for a refund. We can't discuss payments here, but we want to review this with you.",
+            "es-Latn": "Entendemos que solicita un reembolso. No podemos tratar cuestiones de pago aquí; para revisarlas se necesita una conversación privada."
+          }
+        },
+        {
+          "key": "2",
+          "text": {
+            "en-Latn": "Payment matters are best handled privately, and we want to make sure your request is looked at properly.",
+            "es-Latn": "Las cuestiones de pago se tratan mejor en privado, ya que aquí no podemos revisar su solicitud con el debido cuidado."
+          }
+        }
+      ]
+    }
+  ]
+}

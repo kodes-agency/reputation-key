@@ -80,6 +80,14 @@ the presence of a route, table, or retained legacy module.
 | **PropertyAccessGrant** | Identity-owned explicit Property scope for an interactive manager. It never implies Staff participation, attribution, or notification responsibility. AccountAdmins edit it from Members. |
 | **Org-wide role**       | AccountAdmin is Organization-wide; PropertyManager actions are scoped by current PropertyAccessGrant.                                                                                     |
 
+### Reply library
+
+| Term                 | Definition                                                                                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Reply voice**      | Field-by-field Organization and Property settings that locally frame template and AI reply bodies with greeting, contact, closing, sign-off, signer, and optional positive emoji. |
+| **Built-in library** | Versioned, code-owned multilingual reply bodies available to every Property; built-ins are not tenant data.                                                                       |
+| **Template layers**  | Effective templates resolved in order from built-ins through Organization customizations/hides and then Property customizations/hides.                                            |
+
 ### People, Attribution, and Responsibility
 
 | Term                             | Definition                                                                                                                          |

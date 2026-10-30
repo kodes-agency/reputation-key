@@ -42,6 +42,7 @@ export const statement = {
   portal: ['read', 'create', 'update', 'delete', 'admin'],
   review: ['read'],
   reply: ['manage'],
+  reply_library: ['manage'],
   // `beta_report` is the in-app Bug/Suggestion channel. It is deliberately
   // separate from the guest-feedback actions above: reporting a problem must
   // not depend on a Portal capability that may be off for the Organization.

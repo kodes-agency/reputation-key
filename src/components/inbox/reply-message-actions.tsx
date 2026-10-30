@@ -7,14 +7,17 @@
 // mounts in a different subtree at the foot of the pane's scroller.
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
 import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
 import type { ReplyMessageAction } from './reply-message-view'
-import { useReplyConfirmationHold } from './use-reply-confirmation-hold'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
+import type { ReplyDraftCheckDto } from '#/contexts/review/application/dto/reply-library.dto'
+import {
+  ReplyMessagePublishAction,
+  ReplyMessagePublishFeedback,
+} from './reply-message-publish-action'
 
 /**
  * Which reply a confirmation is for: the reply, and the state revision of the
@@ -34,6 +37,7 @@ export type ReplyMessageActionsProps = Readonly<{
    */
   shown: ReplyOnScreen | null
   isSaving: boolean
+  draftChecks: ReplyDraftCheckDto | null
   /**
    * This reply's check is in flight. Separate from `isSaving`, which is true
    * while ANY reply write in the pane is: only the check itself may say
@@ -141,6 +145,86 @@ function SimpleAction({
   }
 }
 
+function RejectAction({
+  canReject,
+  isSaving,
+  expanded,
+  triggerRef,
+  onOpen,
+}: Readonly<{
+  canReject: boolean
+  isSaving: boolean
+  expanded: boolean
+  triggerRef: RefObject<HTMLButtonElement | null>
+  onOpen: () => void
+}>): ReactNode {
+  if (!canReject) return null
+  return (
+    <Button
+      size="sm"
+      variant="destructive"
+      disabled={isSaving}
+      aria-expanded={expanded}
+      ref={triggerRef}
+      onClick={onOpen}
+    >
+      Reject
+    </Button>
+  )
+}
+
+function RejectPanel({
+  shown,
+  canReject,
+  isSaving,
+  reason,
+  reasonId,
+  reasonRef,
+  onReasonChange,
+  onReject,
+  onCancel,
+}: Readonly<{
+  shown: boolean
+  canReject: boolean
+  isSaving: boolean
+  reason: string
+  reasonId: string
+  reasonRef: RefObject<HTMLTextAreaElement | null>
+  onReasonChange: (reason: string) => void
+  onReject: ReplyMessageActionsProps['onReject']
+  onCancel: () => void
+}>): ReactNode {
+  if (!shown || !canReject) return null
+  return (
+    <div className="mt-3 space-y-2">
+      <Label htmlFor={reasonId} className="text-xs font-medium">
+        Reason for rejection (optional)
+      </Label>
+      <Textarea
+        id={reasonId}
+        ref={reasonRef}
+        placeholder="Reason for rejection (optional)..."
+        value={reason}
+        onChange={(event) => onReasonChange(event.target.value)}
+        rows={2}
+      />
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={isSaving}
+          onClick={() => void onReject(reason || undefined).catch(() => undefined)}
+        >
+          Confirm rejection
+        </Button>
+        <Button size="sm" variant="ghost" disabled={isSaving} onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /**
  * The action row, plus the two things that must be said next to it: why a
  * publish is blocked, and the reason a reject is being given.
@@ -158,31 +242,19 @@ function SimpleAction({
  * the rejection it performed, and across a change of item.
  */
 export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode {
-  const { actions, text, shown, isSaving, onApprove, onReject } = props
+  const { actions, text, shown, isSaving, draftChecks, onApprove, onReject } = props
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
-  /**
-   * The reply the manager is confirming: the one this row showed when the
-   * confirmation OPENED, not when its button is pressed. The row is keyed by
-   * reply and status, so a reply that was rejected, rewritten and submitted
-   * again re-renders here in place, under a dialog that is still open, with
-   * new text the manager has not read. Sending the reply and revision they
-   * opened the dialog on makes the server refuse that confirmation; reopening
-   * it confirms the reply that is on the screen then.
-   *
-   * The Inbox pane also keeps the reply it shows while this dialog is open
-   * (`holdReply` below), so there nothing re-renders under it. That is about
-   * what is SHOWN, and it is the pane's to give or not; this is about what is
-   * SENT, and holds under any host.
-   */
-  const confirming = useRef<ReplyOnScreen | null>(null)
-  const holdReply = useReplyConfirmationHold()
   const approvable = actions.includes('approve') ? shown : null
-  const canApprove = approvable !== null
   const canReject = actions.includes('reject')
   // The fence reads the reply as the SERVER holds it, not any local text: this
   // message never owns an editor, and `approveReply` re-runs the same check.
-  const publishBlockedReason = canApprove ? unfilledReplySlotsMessage(text) : null
+  const publishBlockedReason =
+    approvable !== null
+      ? draftChecks && draftChecks.blocks.length > 0
+        ? 'Fix the blocked reply checks before publishing.'
+        : unfilledReplySlotsMessage(text)
+      : null
   const publishBlockedReasonId = useId()
   const rejectReasonId = useId()
   const rejectReasonRef = useRef<HTMLTextAreaElement>(null)
@@ -219,116 +291,41 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
           that a check's answer or a reject took away by unmounting the
           focused button. */}
       <div data-reply-actions className="mt-3 flex flex-wrap items-center gap-2">
-        {canApprove && (
-          // A portal leaves the Inbox's compact density behind, so it says so.
-          <ConfirmationDialog
-            density="compact"
-            trigger={
-              <Button
-                size="sm"
-                // A natively disabled button leaves the tab order and takes its
-                // description with it, so the one sentence that says why
-                // publishing is blocked can never be reached. Blocked stays
-                // focusable and refuses the click; `isSaving` keeps the native
-                // attribute, because it has nothing to explain.
-                disabled={isSaving}
-                aria-disabled={publishBlockedReason !== null}
-                aria-describedby={
-                  publishBlockedReason !== null ? publishBlockedReasonId : undefined
-                }
-                // `AlertDialogTrigger` composes this ahead of its own handler
-                // and honours a prevented default, so the dialog stays shut.
-                onClick={(event) => {
-                  if (publishBlockedReason !== null) event.preventDefault()
-                }}
-              >
-                Confirm &amp; publish
-              </Button>
-            }
-            title="Confirm and publish this reply?"
-            description="This records your confirmation and starts publishing the exact reply shown here to Google. RepKey keeps it pending until Google confirms that it is live."
-            cancelLabel="Keep reviewing"
-            confirmLabel="Confirm & publish"
-            pendingLabel="Confirming…"
-            confirmDisabled={isSaving || publishBlockedReason !== null}
-            onOpenChange={(open) => {
-              confirming.current = open ? approvable : null
-              holdReply(open)
-            }}
-            // A refusal stays in the dialog (the approve mutation passes no
-            // toast), so the manager reads it where they pressed the button.
-            // The refusal re-reads the reply, and that read would remount this
-            // row under the reply's new status: `holdReply` is what keeps the
-            // dialog, and the sentence in it, there until it is dismissed.
-            onConfirm={() => onApprove(confirming.current ?? approvable)}
-          />
-        )}
-        {canReject && (
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={isSaving}
-            aria-expanded={showRejectInput}
-            ref={rejectTriggerRef}
-            onClick={() => setShowRejectInput(true)}
-          >
-            Reject
-          </Button>
-        )}
+        <ReplyMessagePublishAction
+          approvable={approvable}
+          isSaving={isSaving}
+          blockedReason={publishBlockedReason}
+          blockedReasonId={publishBlockedReasonId}
+          onApprove={onApprove}
+        />
+        <RejectAction
+          canReject={canReject}
+          isSaving={isSaving}
+          expanded={showRejectInput}
+          triggerRef={rejectTriggerRef}
+          onOpen={() => setShowRejectInput(true)}
+        />
         {actions.map((action) => (
           <SimpleAction key={action} action={action} {...props} />
         ))}
       </div>
-
-      {publishBlockedReason !== null && (
-        <p id={publishBlockedReasonId} className="mt-2 text-xs text-negative">
-          {publishBlockedReason}
-        </p>
-      )}
-
-      {showRejectInput && canReject && (
-        <div className="mt-3 space-y-2">
-          <Label htmlFor={rejectReasonId} className="text-xs font-medium">
-            Reason for rejection (optional)
-          </Label>
-          <Textarea
-            id={rejectReasonId}
-            ref={rejectReasonRef}
-            placeholder="Reason for rejection (optional)..."
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            rows={2}
-          />
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={isSaving}
-              // `Action` is `mutateAsync`, so an unguarded call turns a server
-              // error into an unhandled rejection. The catch only guards: the
-              // reject mutation's `errorMessage` (use-reply-actions.ts) is what
-              // reports the refusal — before it, nothing did.
-              onClick={() =>
-                void onReject(rejectReason || undefined).catch(() => undefined)
-              }
-            >
-              Confirm rejection
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              // Disabled with its siblings: the Reject trigger is natively
-              // disabled while a write is in flight, so it cannot take focus,
-              // and a Cancel allowed then would drop focus to `<body>` — the
-              // exact loss `closeRejectPanel` exists to prevent.
-              disabled={isSaving}
-              onClick={closeRejectPanel}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
+      <ReplyMessagePublishFeedback
+        approvable={approvable}
+        blockedReason={publishBlockedReason}
+        blockedReasonId={publishBlockedReasonId}
+        draftChecks={draftChecks}
+      />
+      <RejectPanel
+        shown={showRejectInput}
+        canReject={canReject}
+        isSaving={isSaving}
+        reason={rejectReason}
+        reasonId={rejectReasonId}
+        reasonRef={rejectReasonRef}
+        onReasonChange={setRejectReason}
+        onReject={onReject}
+        onCancel={closeRejectPanel}
+      />
     </>
   )
 }

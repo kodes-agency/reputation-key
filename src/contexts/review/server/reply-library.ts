@@ -7,10 +7,11 @@ import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import {
-  propertyReplyLibraryInputSchema,
-  savePropertyReplyProfileInputSchema,
-  savePropertyReplyTemplateInputSchema,
-  setPropertyReplyTemplateEnabledInputSchema,
+  getReplyLibraryInputSchema,
+  resetReplyTemplateInputSchema,
+  saveReplyTemplateInputSchema,
+  saveReplyVoiceInputSchema,
+  setReplyTemplateHiddenInputSchema,
 } from '../application/dto/reply-library.dto'
 import { isReviewError } from '../domain/errors'
 import { reviewErrorStatus } from './reply-read'
@@ -27,6 +28,18 @@ async function authorizeReplyLibrary(
   })
 }
 
+async function authorizeLayeredReplyLibrary(
+  actor: AuthContext,
+  propertyId: string,
+): Promise<void> {
+  await requireExecutionAllowed({
+    actor,
+    action: 'reply_library.manage',
+    capability: 'property.publish_reply',
+    propertyId,
+  })
+}
+
 async function runReplyLibraryCommand<T>(command: () => Promise<T>): Promise<T> {
   try {
     return await command()
@@ -38,66 +51,85 @@ async function runReplyLibraryCommand<T>(command: () => Promise<T>): Promise<T> 
   }
 }
 
-export const getPropertyReplyLibraryFn = createServerFn({ method: 'GET' })
-  .validator(propertyReplyLibraryInputSchema)
+export const getReplyLibraryFn = createServerFn({ method: 'GET' })
+  .validator(getReplyLibraryInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const actor = await resolveTenantContext(await headersFromContext())
         await authorizeReplyLibrary(actor, data.propertyId)
         return runReplyLibraryCommand(() =>
-          getContainer().reviewPublicApi.reply.getPropertyLibrary(data, actor),
+          getContainer().reviewPublicApi.reply.getLibrary(data, actor),
         )
       },
       'GET',
-      'review.getPropertyReplyLibrary',
+      'review.getReplyLibrary',
     ),
   )
 
-export const savePropertyReplyProfileFn = createServerFn({ method: 'POST' })
-  .validator(savePropertyReplyProfileInputSchema)
+export const saveReplyVoiceFn = createServerFn({ method: 'POST' })
+  .validator(saveReplyVoiceInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const actor = await resolveTenantContext(await headersFromContext())
-        await authorizeReplyLibrary(actor, data.propertyId)
+        await authorizeLayeredReplyLibrary(actor, data.propertyId)
         return runReplyLibraryCommand(() =>
-          getContainer().reviewPublicApi.reply.savePropertyProfile(data, actor),
+          getContainer().reviewPublicApi.reply.saveVoice(data, actor),
         )
       },
       'POST',
-      'review.savePropertyReplyProfile',
+      'review.saveReplyVoice',
     ),
   )
 
-export const savePropertyReplyTemplateFn = createServerFn({ method: 'POST' })
-  .validator(savePropertyReplyTemplateInputSchema)
+// fallow-ignore-next-line unused-export -- resolved by a route-level dynamic import
+export const saveReplyTemplateFn = createServerFn({ method: 'POST' })
+  .validator(saveReplyTemplateInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const actor = await resolveTenantContext(await headersFromContext())
-        await authorizeReplyLibrary(actor, data.propertyId)
+        await authorizeLayeredReplyLibrary(actor, data.propertyId)
         return runReplyLibraryCommand(() =>
-          getContainer().reviewPublicApi.reply.savePropertyTemplate(data, actor),
+          getContainer().reviewPublicApi.reply.saveTemplate(data, actor),
         )
       },
       'POST',
-      'review.savePropertyReplyTemplate',
+      'review.saveReplyTemplate',
     ),
   )
 
-export const setPropertyReplyTemplateEnabledFn = createServerFn({ method: 'POST' })
-  .validator(setPropertyReplyTemplateEnabledInputSchema)
+// fallow-ignore-next-line unused-export -- resolved by a route-level dynamic import
+export const setReplyTemplateHiddenFn = createServerFn({ method: 'POST' })
+  .validator(setReplyTemplateHiddenInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const actor = await resolveTenantContext(await headersFromContext())
-        await authorizeReplyLibrary(actor, data.propertyId)
+        await authorizeLayeredReplyLibrary(actor, data.propertyId)
         return runReplyLibraryCommand(() =>
-          getContainer().reviewPublicApi.reply.setPropertyTemplateEnabled(data, actor),
+          getContainer().reviewPublicApi.reply.setTemplateHidden(data, actor),
         )
       },
       'POST',
-      'review.setPropertyReplyTemplateEnabled',
+      'review.setReplyTemplateHidden',
+    ),
+  )
+
+// fallow-ignore-next-line unused-export -- resolved by a route-level dynamic import
+export const resetReplyTemplateFn = createServerFn({ method: 'POST' })
+  .validator(resetReplyTemplateInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const actor = await resolveTenantContext(await headersFromContext())
+        await authorizeLayeredReplyLibrary(actor, data.propertyId)
+        return runReplyLibraryCommand(() =>
+          getContainer().reviewPublicApi.reply.resetTemplate(data, actor),
+        )
+      },
+      'POST',
+      'review.resetReplyTemplate',
     ),
   )

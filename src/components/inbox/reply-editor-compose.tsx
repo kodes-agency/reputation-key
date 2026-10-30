@@ -4,7 +4,7 @@ import {
   GOOGLE_REPLY_COMMENT_MAX_BYTES,
   replyCommentByteLength,
 } from '#/shared/google-provider-control/reply-comment'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
+import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from './reply-suggestion-contract'
 import { cn } from '#/lib/utils'
 import {
   DOCK_FOOT_ROW_CLASS,
@@ -25,6 +25,7 @@ import type {
   LoadedReplyTemplateDraft,
   ReplySuggestionGenerate,
 } from './reply-suggestion-contract'
+import { ReplyDraftCheckAlerts } from './reply-draft-check-alerts'
 
 export type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
 
@@ -50,7 +51,13 @@ export type ReplyComposeProps = Readonly<{
   onLoadTemplate?: (
     templateId: string,
     target: ReplyLanguageTarget,
+    excludeWordingKeys?: readonly string[],
   ) => Promise<LoadedReplyTemplateDraft>
+  onCheckDraft?: (
+    text: string,
+  ) => Promise<
+    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
+  >
 }>
 
 const PRIMARY_EXPLANATIONS: Readonly<Record<ReviewLanguageReadiness, string>> = {
@@ -95,6 +102,7 @@ function aiUnavailableReason(
 // note form and the published-reply editor — draws the same two rows, so the
 // geometry that keeps the primary pinned is spelled once.
 
+// fallow-ignore-next-line complexity -- the composer coordinates mutually exclusive product states behind one public surface
 export function ReplyCompose(props: ReplyComposeProps) {
   const state = useReplyComposer({
     initialText: props.initialText,
@@ -108,6 +116,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
     onGenerate: props.onGenerateSuggestion,
     onListTemplates: props.onListTemplates,
     onLoadTemplate: props.onLoadTemplate,
+    onCheckDraft: props.onCheckDraft,
   })
   // Row 16: the autosave status is produced HERE and printed in the dock's
   // head, which this component does not render. The hook reports it up through
@@ -203,6 +212,8 @@ export function ReplyCompose(props: ReplyComposeProps) {
             // its text, tag and saved language until the preview is adopted
             // (`regenerateScope`, `reply-composer-transitions.ts`).
             onRegenerate={(languageTag) => void state.regenerateIn(languageTag)}
+            onAnotherWording={state.anotherWording ?? undefined}
+            anotherWordingNeedsConfirmation={state.anotherWordingNeedsConfirmation}
           />
         )}
         {/* Announced, not printed: the tag above already SHOWS which template
@@ -225,6 +236,11 @@ export function ReplyCompose(props: ReplyComposeProps) {
           onChange={(event) => state.updateText(event.target.value)}
           onBlur={state.flushOnBlur}
         />
+        {state.draftChecks ? (
+          <div className="flex flex-col gap-2 px-3 pb-2">
+            <ReplyDraftCheckAlerts checks={state.draftChecks} />
+          </div>
+        ) : null}
       </div>
       <div className={DOCK_FOOT_ROW_CLASS}>
         {/* `flex-auto`, not the controls' own `flex-1`: `flex-1` is a ZERO
@@ -258,6 +274,8 @@ export function ReplyCompose(props: ReplyComposeProps) {
             errorFixTarget={state.ai.errorFixTarget}
             propertyId={props.propertyId}
             templates={state.templates.templates}
+            recommendedTemplateId={state.templates.library?.recommendedTemplateId ?? null}
+            recommendedReason={state.templates.library?.recommendedReason ?? null}
             templateLanguageTag={
               state.templates.library?.groups[0]?.languageGroup ?? null
             }

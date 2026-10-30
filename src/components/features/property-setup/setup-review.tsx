@@ -78,6 +78,15 @@ function aiCell(
   return facts?.aiDecided ? 'Already decided' : SKIPPED
 }
 
+function replyVoiceCell(entry: PropertySetupPlan, facts: SetupPropertyFacts | undefined) {
+  if (entry.replyVoice) {
+    return entry.replyVoice.emojiMode === 'positive'
+      ? 'Set · emoji in positive replies'
+      : 'Set · emoji off'
+  }
+  return facts?.replyVoiceConfigured ? NOT_ASKED : SKIPPED
+}
+
 /**
  * The one acknowledgement of a consent ceremony, naming every property it
  * covers: one in its sentence, several as a list under it. The call to action
@@ -143,7 +152,8 @@ export function SetupReview({
       entry.displayName === null &&
       entry.language === null &&
       entry.managerIds === null &&
-      entry.ai === null,
+      entry.ai === null &&
+      entry.replyVoice == null,
   )
 
   return (
@@ -166,6 +176,7 @@ export function SetupReview({
               <TableHead scope="col">Reply language</TableHead>
               <TableHead scope="col">Responsible manager</TableHead>
               <TableHead scope="col">AI features</TableHead>
+              <TableHead scope="col">Reply voice</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -185,6 +196,9 @@ export function SetupReview({
                   </TableCell>
                   <TableCell className="whitespace-normal">
                     {aiCell(entry, property, plan, notice)}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    {replyVoiceCell(entry, property)}
                   </TableCell>
                 </TableRow>
               )

@@ -3,13 +3,11 @@ import { getMerchantAiAuthorizationFn } from '#/contexts/identity/server/merchan
 import { listPropertyResponsibleManagers } from '#/contexts/property/server/property-responsible-managers'
 import { getResponseTargetPolicySettingsFn } from '#/contexts/inbox/server/inbox'
 import { getPropertyPortalExperience } from '#/contexts/portal/server/portals'
-import { getPropertyReplyLibraryFn } from '#/contexts/review/server/reply'
 import {
   identityKeys,
   inboxKeys,
   portalKeys,
   propertyKeys,
-  reviewKeys,
 } from '#/shared/queries/query-keys'
 
 /** Queries the property settings sections share; each section loads only its own. */
@@ -31,13 +29,6 @@ export const propertyPortalExperienceQuery = (propertyId: string) =>
   queryOptions({
     queryKey: portalKeys.propertyExperience(propertyId),
     queryFn: () => getPropertyPortalExperience({ data: { propertyId } }),
-    staleTime: 30_000,
-  })
-
-export const propertyReplyLibraryQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: reviewKeys.replyLibrary(propertyId),
-    queryFn: () => getPropertyReplyLibraryFn({ data: { propertyId } }),
     staleTime: 30_000,
   })
 

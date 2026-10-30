@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
 import {
   INITIAL_TEMPLATE_REQUESTS,
+  isVerifiedLoadedReplyTemplate,
   isLiveTemplateRequest,
   retargetTemplateRequests,
   settleTemplateRequest,
@@ -11,6 +12,28 @@ import {
 
 const APPRECIATION_ID = '73000000-0000-4000-8000-000000000001'
 const APOLOGY_ID = '73000000-0000-4000-8000-000000000002'
+
+describe('loaded template verification', () => {
+  const loaded = {
+    text: 'Thank you for your kind review.',
+    replyLanguageTag: 'en-Latn',
+    templateRef: 'builtin:RO5',
+    templateRevision: 3,
+    templateWordingKey: '3',
+    hasAlternativeWording: true,
+  }
+
+  it('accepts the layered load result using its real ref and revision fields', () => {
+    expect(isVerifiedLoadedReplyTemplate(loaded, 'builtin:RO5')).toBe(true)
+  })
+
+  it('refuses a different ref or a missing layered revision', () => {
+    expect(isVerifiedLoadedReplyTemplate(loaded, 'builtin:RO4')).toBe(false)
+    expect(
+      isVerifiedLoadedReplyTemplate({ ...loaded, templateRevision: null }, 'builtin:RO5'),
+    ).toBe(false)
+  })
+})
 
 const library: ReplyTemplateListResult = {
   profile: null,

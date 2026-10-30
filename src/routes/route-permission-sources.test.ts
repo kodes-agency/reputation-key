@@ -81,6 +81,8 @@ describe('route permission checks', () => {
    * that calls it. A helper a component calls takes the hook's answer instead.
    */
   const LOADER_HELPERS: Readonly<Record<string, string>> = {
+    '_authenticated/properties/$propertyId/settings/-gate.ts':
+      'loadReplySettings, called by the Reply settings loader before prefetching the protected library',
     '_authenticated/properties/import-google/-route-access.ts':
       'requireGoogleImportRole, called by the beforeLoad of both import routes',
     '_authenticated/properties/$propertyId/goals/-goals-page-prefetch.ts':

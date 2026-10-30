@@ -13,11 +13,13 @@ import { SetupAiQuestion } from './setup-ai-question'
 import { SetupDisplayNameQuestion } from './setup-display-name-question'
 import { SetupLanguageQuestion } from './setup-language-question'
 import { SetupManagerQuestion } from './setup-manager-question'
+import { SetupReplyVoiceQuestion } from './setup-reply-voice-question'
 import {
   propertiesAskedAi,
   propertiesAskedDisplayName,
   propertiesAskedLanguage,
   propertiesAskedManagers,
+  propertiesAskedReplyVoice,
   type SetupAnswers,
   type SetupPropertyFacts,
 } from './setup-plan'
@@ -49,6 +51,7 @@ export function SetupQuestionnaire({
   const languageProperties = propertiesAskedLanguage(facts)
   const managerProperties = propertiesAskedManagers(facts)
   const aiProperties = propertiesAskedAi(facts)
+  const replyVoiceProperties = propertiesAskedReplyVoice(facts)
 
   return (
     <Questionnaire
@@ -94,6 +97,14 @@ export function SetupQuestionnaire({
           onAnswerChange={(ai) => onAnswersChange({ ...answers, ai })}
         />
       ) : null}
+      {replyVoiceProperties.length > 0 ? (
+        <SetupReplyVoiceQuestion
+          properties={replyVoiceProperties}
+          answer={answers.replyVoice ?? null}
+          disabled={false}
+          onAnswerChange={(replyVoice) => onAnswersChange({ ...answers, replyVoice })}
+        />
+      ) : null}
       <QuestionnaireActions>
         <QuestionnairePrevious />
         <QuestionnaireSkip>Skip for now</QuestionnaireSkip>
@@ -110,5 +121,6 @@ export function setupQuestionCount(facts: readonly SetupPropertyFacts[]): number
     propertiesAskedLanguage(facts),
     propertiesAskedManagers(facts),
     propertiesAskedAi(facts),
+    propertiesAskedReplyVoice(facts),
   ].filter((asked) => asked.length > 0).length
 }

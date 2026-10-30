@@ -278,7 +278,7 @@ const approvedFns: InboxServerFns = {
     const useReviewLanguage = data.targetLanguage.kind === 'review_language'
     return {
       status: 'ready' as const,
-      profileVersion: 'reply-draft-v2' as const,
+      profileVersion: 'reply-draft-v3' as const,
       replyText: useReviewLanguage
         ? 'Thank you for your kind review. We are glad you enjoyed the stay and breakfast.'
         : approvedDetail.reply!.text,

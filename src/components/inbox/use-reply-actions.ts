@@ -14,8 +14,6 @@ import {
   retryPublishFn,
   checkReplyPublicationFn,
   editPublishedReplyFn,
-  listReplyTemplatesFn,
-  loadReplyTemplateFn,
 } from '#/contexts/review/server/reply'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -23,12 +21,29 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
+import type { ComposerReplyTemplateListResult as ReplyTemplateListResult } from './reply-suggestion-contract'
 import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
 import { replyCheckMutationOptions } from './reply-check-feedback'
 import type { ReplyLanguageTarget } from './reply-language-options'
 import type { ReplyOnScreen } from './reply-message-actions'
 import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
+
+type ReplyTemplateServer = typeof import('#/contexts/review/server/reply-templates')
+
+const listReplyTemplatesLazily = async (
+  input: Parameters<ReplyTemplateServer['listReplyTemplatesFn']>[0],
+): Promise<Awaited<ReturnType<ReplyTemplateServer['listReplyTemplatesFn']>>> =>
+  (await import('#/contexts/review/server/reply-templates')).listReplyTemplatesFn(input)
+
+const loadReplyTemplateLazily = async (
+  input: Parameters<ReplyTemplateServer['loadReplyTemplateFn']>[0],
+): Promise<Awaited<ReturnType<ReplyTemplateServer['loadReplyTemplateFn']>>> =>
+  (await import('#/contexts/review/server/reply-templates')).loadReplyTemplateFn(input)
+
+const checkReplyDraftLazily = async (
+  input: Parameters<ReplyTemplateServer['checkReplyDraftFn']>[0],
+): Promise<Awaited<ReturnType<ReplyTemplateServer['checkReplyDraftFn']>>> =>
+  (await import('#/contexts/review/server/reply-templates')).checkReplyDraftFn(input)
 
 export type ReplyActions = Readonly<{
   isSaving: boolean
@@ -54,7 +69,13 @@ export type ReplyActions = Readonly<{
   loadTemplate: (
     templateId: string,
     targetLanguage: ReplyLanguageTarget,
+    excludeWordingKeys?: readonly string[],
   ) => Promise<LoadedReplyTemplateDraft>
+  checkDraft: (
+    text: string,
+  ) => Promise<
+    import('#/contexts/review/application/dto/reply-library.dto').ReplyDraftCheckDto
+  >
 }>
 
 type CommandInput = Readonly<{ data: Readonly<{ reviewId: string }> }>
@@ -164,10 +185,11 @@ export function useReplyActions(input: Input): ReplyActions {
     onError: reread,
     onSuccess: changed('state_changed'),
   })
-  const listTemplates = useActionMutation(listReplyTemplatesFn)
-  const loadTemplate = useActionMutation(loadReplyTemplateFn, {
+  const listTemplates = useActionMutation(listReplyTemplatesLazily)
+  const loadTemplate = useActionMutation(loadReplyTemplateLazily, {
     onSuccess: changed('draft_saved'),
   })
+  const checkDraft = useActionMutation(checkReplyDraftLazily)
   const isSaving = [submit, approve, reject, del, check, retry, edit].some(
     (mutation) => mutation.isPending,
   )
@@ -192,7 +214,15 @@ export function useReplyActions(input: Input): ReplyActions {
     saveEdit: (text) => edit({ data: { reviewId, text } }),
     listTemplates: (targetLanguage) =>
       listTemplates({ data: { reviewId, targetLanguage } }),
-    loadTemplate: (templateId, targetLanguage) =>
-      loadTemplate({ data: { reviewId, templateId, targetLanguage } }),
+    loadTemplate: (templateId, targetLanguage, excludeWordingKeys) =>
+      loadTemplate({
+        data: {
+          reviewId,
+          templateId,
+          targetLanguage,
+          ...(excludeWordingKeys ? { excludeWordingKeys: [...excludeWordingKeys] } : {}),
+        },
+      }),
+    checkDraft: (text: string) => checkDraft({ data: { reviewId, text } }),
   }
 }

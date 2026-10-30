@@ -6,4 +6,8 @@ describe('capabilityForPermission', () => {
     expect(capabilityForPermission('feedback.handle')).toBe('inbox.use')
     expect(capabilityForPermission('feedback.read')).toBe('portal.guest_response')
   })
+
+  it('uses reply publication capability for library administration', () => {
+    expect(capabilityForPermission('reply_library.manage')).toBe('property.publish_reply')
+  })
 })

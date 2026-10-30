@@ -549,18 +549,24 @@ and its `publish_failed` fact carries cause `google_reauthorization_required` so
 the author is told to have Google reconnected rather than that Google rejected
 the reply.
 
-A Property reply library has at most one rendering profile and a retained set of
-enabled or disabled templates. Settings edits templates by ID, so a title rename
-updates in place, and creates by insert: a title another template of the
-Property already holds is refused as `invalid_input`, on create and on rename,
-and never overwrites that template. The operations importer deliberately
-remains title-keyed for repeatability: re-importing a manager-renamed
-template&rsquo;s former source title creates a separate row and never
-overwrites the renamed template. Both tables hang off the Property alone and
-RESTRICT its delete, so the Organization purge deletes them with the rest of
-Review&rsquo;s tenant content and the presence probe counts them: an
-Organization that holds only a library still gets `complete`, never `no_data`.
-The Organization Export does not carry the library yet.
+The reply library resolves one effective view in this order: versioned built-ins,
+Organization customizations and custom templates, Organization hides, Property
+customizations and custom templates, then Property hides. Template revisions and
+wordings are immutable; a save advances the current revision, while reset archives
+the scope's customization so published Reply provenance remains explainable. A
+Reply records the effective layer/ref/revision/wording plus the resolved voice
+digest and rotation choices. Legacy Property profile/template tables remain only
+for migration and current-UI compatibility and are scheduled for later cleanup.
+
+Reply voice resolves each field Property → Organization → built-in, using an
+explicit overridden-field mask so an intentional empty value differs from inherit.
+Both template and AI providers produce body text only; Review frames it locally
+with the reviewer-safe greeting, contact policy, closing, sign-off, signer and
+positive emoji. The voice and reviewer name never enter the AI provider payload.
+AccountAdmins alone hold `reply_library.manage`; Inbox use remains `reply.manage`.
+The Organization Export includes all tenant-owned voice/template layers, and purge
+deletes visibility, wordings, revisions, templates and voices child-first. Built-ins
+are code-owned and therefore neither exported nor purged.
 
 ## Runtime
 

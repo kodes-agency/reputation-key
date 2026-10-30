@@ -75,6 +75,12 @@ export type ConditionalReplyUpdate = Readonly<{
   replyLanguageTag?: string | null
   templateId?: string | null
   templateVersion?: number | null
+  templateLayer?: Reply['templateLayer']
+  templateRef?: string | null
+  templateRevision?: number | null
+  templateWordingKey?: string | null
+  voiceDigest?: string | null
+  voiceChoices?: Reply['voiceChoices']
   aiGenerated?: boolean
   submittedAt?: Date | null
   submittedBy?: string | null
@@ -99,6 +105,12 @@ export type DraftReplyContent = Readonly<{
   replyLanguageTag?: string | null
   templateId?: string | null
   templateVersion?: number | null
+  templateLayer?: Reply['templateLayer']
+  templateRef?: string | null
+  templateRevision?: number | null
+  templateWordingKey?: string | null
+  voiceDigest?: string | null
+  voiceChoices?: Reply['voiceChoices']
 }>
 
 export type ReplyRepository = Readonly<{

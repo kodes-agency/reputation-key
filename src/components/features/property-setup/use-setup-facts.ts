@@ -1,6 +1,11 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
-import { identityKeys, portalKeys, propertyKeys } from '#/shared/queries/query-keys'
+import {
+  identityKeys,
+  portalKeys,
+  propertyKeys,
+  reviewKeys,
+} from '#/shared/queries/query-keys'
 import type {
   PropertySetupFns,
   SetupImportedProperty,
@@ -66,10 +71,26 @@ export function useSetupFacts(
       staleTime: 0,
     })),
   })
+  const setups = useQueries({
+    queries: properties.map((property) => ({
+      queryKey: propertyKeys.setup(property.propertyId),
+      queryFn: () => fns.getPropertySetup({ data: { propertyId: property.propertyId } }),
+      staleTime: 0,
+    })),
+  })
+  const replyLibraries = useQueries({
+    queries: properties.map((property) => ({
+      queryKey: reviewKeys.replyLibrary(property.propertyId),
+      queryFn: () => fns.getReplyLibrary({ data: { propertyId: property.propertyId } }),
+      staleTime: 0,
+    })),
+  })
 
   const singles = [list, overview, notice, members]
   const managerStates = managers.map((read) => read.data)
   const experienceStates = experiences.map((read) => read.data)
+  const setupStates = setups.map((read) => read.data)
+  const replyLibraryStates = replyLibraries.map((read) => read.data)
   // Data outlives a failed background refetch, so once everything has loaded
   // the step stays ready; an error only matters before that.
   if (
@@ -78,12 +99,16 @@ export function useSetupFacts(
     !notice.data ||
     !members.data ||
     managerStates.some((state) => state === undefined) ||
-    experienceStates.some((state) => state === undefined)
+    experienceStates.some((state) => state === undefined) ||
+    setupStates.some((state) => state === undefined) ||
+    replyLibraryStates.some((state) => state === undefined)
   ) {
     if (
       singles.some((read) => hasFailed(read)) ||
       managers.some((read) => hasFailed(read)) ||
-      experiences.some((read) => hasFailed(read))
+      experiences.some((read) => hasFailed(read)) ||
+      setups.some((read) => hasFailed(read)) ||
+      replyLibraries.some((read) => hasFailed(read))
     ) {
       return {
         status: 'error',
@@ -91,8 +116,10 @@ export function useSetupFacts(
           for (const read of singles) if (read.isError) void read.refetch()
           for (const read of managers) if (read.isError) void read.refetch()
           for (const read of experiences) if (read.isError) void read.refetch()
+          for (const read of setups) if (read.isError) void read.refetch()
+          for (const read of replyLibraries) if (read.isError) void read.refetch()
         },
-        retrying: isRetrying(singles, managers, experiences),
+        retrying: isRetrying(singles, managers, experiences, setups, replyLibraries),
       }
     }
     return { status: 'loading' }
@@ -108,8 +135,10 @@ export function useSetupFacts(
     const property = propertyById.get(imported.propertyId)
     const managerState = managerStates[index]
     const experience = experienceStates[index]
+    const setup = setupStates[index]
+    const replyLibrary = replyLibraryStates[index]
     // Removed since the import finished: nothing left to set up.
-    if (!property || !managerState || !experience) return []
+    if (!property || !managerState || !experience || !setup || !replyLibrary) return []
     const ai = aiById.get(imported.propertyId)
     return [
       {
@@ -125,6 +154,12 @@ export function useSetupFacts(
         eligibleManagerIds: managerState.eligibleManagers.map(
           (manager) => manager.userId,
         ),
+        replyVoiceConfigured: setup.steps.some(
+          (step) => step.key === 'reply_voice' && step.status === 'complete',
+        ),
+        replyVoice: replyLibrary.voice,
+        replyVoiceVersion: replyLibrary.voiceVersion,
+        propertyCount: list.data.properties.length,
       },
     ]
   })

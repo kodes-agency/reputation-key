@@ -92,6 +92,7 @@ export function useInboxComposerController({
     isSaving: replyActions.isSaving || edit.reopen === 'pending',
     isEditing: editTarget !== null,
     onApprove: replyActions.approve,
+    onCheckDraft: replyActions.checkDraft,
     onReject: replyActions.reject,
     onCheck: replyActions.check,
     onRetry: replyActions.retry,

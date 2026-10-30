@@ -5,8 +5,25 @@ import type { replies } from '#/shared/db/schema/review.schema'
 import type { Reply } from '../../domain/types'
 import { unbrand, replyId, reviewId, organizationId, userId } from '#/shared/domain/ids'
 
-type ReplyRow = Omit<typeof replies.$inferSelect, 'replyLanguageTag'> &
-  Readonly<{ replyLanguageTag?: string | null }>
+type ReplyRow = Omit<
+  typeof replies.$inferSelect,
+  | 'replyLanguageTag'
+  | 'templateLayer'
+  | 'templateRef'
+  | 'templateRevision'
+  | 'templateWordingKey'
+  | 'voiceDigest'
+  | 'voiceChoices'
+> &
+  Readonly<{
+    replyLanguageTag?: string | null
+    templateLayer?: string | null
+    templateRef?: string | null
+    templateRevision?: number | null
+    templateWordingKey?: string | null
+    voiceDigest?: string | null
+    voiceChoices?: Reply['voiceChoices']
+  }>
 type ReplyInsertRow = typeof replies.$inferInsert
 
 export const replyFromRow = (row: ReplyRow): Reply => ({
@@ -17,6 +34,12 @@ export const replyFromRow = (row: ReplyRow): Reply => ({
   replyLanguageTag: row.replyLanguageTag ?? null,
   templateId: row.templateId,
   templateVersion: row.templateVersion,
+  templateLayer: (row.templateLayer ?? null) as Reply['templateLayer'],
+  templateRef: row.templateRef ?? null,
+  templateRevision: row.templateRevision ?? null,
+  templateWordingKey: row.templateWordingKey ?? null,
+  voiceDigest: row.voiceDigest ?? null,
+  voiceChoices: row.voiceChoices ?? null,
   status: row.status as Reply['status'],
   source: row.source as Reply['source'],
   createdBy: row.createdBy ? userId(row.createdBy) : null,
@@ -49,6 +72,12 @@ export const replyToRow = (
   replyLanguageTag: reply.replyLanguageTag ?? null,
   templateId: reply.templateId,
   templateVersion: reply.templateVersion,
+  templateLayer: reply.templateLayer ?? null,
+  templateRef: reply.templateRef ?? null,
+  templateRevision: reply.templateRevision ?? null,
+  templateWordingKey: reply.templateWordingKey ?? null,
+  voiceDigest: reply.voiceDigest ?? null,
+  voiceChoices: reply.voiceChoices ?? null,
   status: reply.status,
   source: reply.source,
   createdBy: reply.createdBy != null ? unbrand(reply.createdBy) : null,

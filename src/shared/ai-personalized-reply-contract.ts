@@ -74,12 +74,7 @@ const PROFILE_MANIFEST = Object.freeze({
     selfQuoteContentWordsMustAppearInReply: true,
     selfQuoteContentWordMinimumLength: 3,
   }),
-  brandGrounding: Object.freeze({
-    publicDisplayNameRequired: true,
-    foldedComparison: true,
-    repetitionAllowed: true,
-    exemptFromOutputLeakageScan: true,
-  }),
+  brandGrounding: Object.freeze({ publicDisplayNameRequired: false }),
   replyText: Object.freeze({ min: 24, max: 1_200 }),
   outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
   outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
@@ -205,11 +200,6 @@ function hasValidGrounding(reviewText: string, draft: PersonalizedReplyDraft): b
  * required. Neither is a safety property; the name is present either way, and a
  * human approves every reply before it reaches Google.
  */
-function usesPublicDisplayName(replyText: string, brandDisplayName: string): boolean {
-  const brand = folded(brandDisplayName)
-  return brand.length > 0 && folded(replyText).includes(brand)
-}
-
 /**
  * Blank out the approved display name before the leakage scan.
  *
@@ -280,9 +270,6 @@ export function parsePersonalizedReplyDraft(
   }
   if (!hasValidGrounding(input.reviewText, parsed.data)) {
     return { status: 'rejected', reason: 'grounding' }
-  }
-  if (!usesPublicDisplayName(parsed.data.replyText, input.brandDisplayName)) {
-    return { status: 'rejected', reason: 'brand' }
   }
   if (
     containsProhibitedContent(

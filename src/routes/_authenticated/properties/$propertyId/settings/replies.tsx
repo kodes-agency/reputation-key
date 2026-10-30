@@ -1,34 +1,45 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import {
   useActionMutation,
   actionErrorMessage,
 } from '#/components/hooks/use-action-mutation'
 import { PropertyReplyLanguageCard } from '#/components/features/settings/property-reply-language-card'
-import { PropertyReplyProfileCard } from '#/components/features/property/property-reply-profile-card'
-import { PropertyReplyTemplateLibraryCard } from '#/components/features/property/property-reply-template-library-card'
+import { ReplyVoiceCard } from '#/components/features/property/reply-voice-card'
+import { ReplyTemplateLibraryCard } from '#/components/features/property/reply-template-library-card'
 import { updateProperty } from '#/contexts/property/server/properties'
-import {
-  savePropertyReplyProfileFn,
-  savePropertyReplyTemplateFn,
-  setPropertyReplyTemplateEnabledFn,
-} from '#/contexts/review/server/reply'
-import type { AuthRouteContext } from '#/routes/_authenticated'
-import { propertyQuery } from '#/routes/-queries/route-queries'
-import { can } from '#/shared/domain/permissions'
+import { propertiesQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { inboxKeys, propertyKeys, reviewKeys } from '#/shared/queries/query-keys'
-import { propertyReplyLibraryQuery } from '../-settings-queries'
+import { propertyReplyLibraryQuery } from './-reply-library-query'
+
+type ReplyLibraryServer = typeof import('#/contexts/review/server/reply-library')
+
+const saveReplyVoiceLazily = async (
+  input: Parameters<ReplyLibraryServer['saveReplyVoiceFn']>[0],
+): Promise<Awaited<ReturnType<ReplyLibraryServer['saveReplyVoiceFn']>>> =>
+  (await import('#/contexts/review/server/reply-library')).saveReplyVoiceFn(input)
+
+const saveReplyTemplateLazily = async (
+  input: Parameters<ReplyLibraryServer['saveReplyTemplateFn']>[0],
+): Promise<Awaited<ReturnType<ReplyLibraryServer['saveReplyTemplateFn']>>> =>
+  (await import('#/contexts/review/server/reply-library')).saveReplyTemplateFn(input)
+
+const setReplyTemplateHiddenLazily = async (
+  input: Parameters<ReplyLibraryServer['setReplyTemplateHiddenFn']>[0],
+): Promise<Awaited<ReturnType<ReplyLibraryServer['setReplyTemplateHiddenFn']>>> =>
+  (await import('#/contexts/review/server/reply-library')).setReplyTemplateHiddenFn(input)
+
+const resetReplyTemplateLazily = async (
+  input: Parameters<ReplyLibraryServer['resetReplyTemplateFn']>[0],
+): Promise<Awaited<ReturnType<ReplyLibraryServer['resetReplyTemplateFn']>>> =>
+  (await import('#/contexts/review/server/reply-library')).resetReplyTemplateFn(input)
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/replies',
 )({
-  loader: async ({ params: { propertyId }, context }) => {
-    const { role } = context as AuthRouteContext
-    if (can(role, 'reply.manage')) {
-      await context.queryClient.ensureQueryData(propertyReplyLibraryQuery(propertyId))
-    }
-  },
+  loader: ({ params: { propertyId }, context }) =>
+    import('./-gate').then(({ default: load }) => load(context, propertyId)),
   component: PropertyRepliesSettings,
 })
 
@@ -36,11 +47,7 @@ function PropertyRepliesSettings() {
   const { propertyId } = Route.useParams()
   const { can: canDo } = usePermissions()
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
-  const canManageReplies = canDo('reply.manage')
-  const { data: library } = useQuery({
-    ...propertyReplyLibraryQuery(propertyId),
-    enabled: canManageReplies,
-  })
+  const { data: properties } = useSuspenseQuery(propertiesQuery)
   const updateReplyLanguage = useActionMutation(updateProperty, {
     successMessage: 'Reply language saved',
     invalidateKeys: [
@@ -49,52 +56,95 @@ function PropertyRepliesSettings() {
       inboxKeys.details(),
     ],
   })
+  const languageCard = canDo('property.update') ? (
+    <PropertyReplyLanguageCard
+      key={`${propertyId}:${data.property.defaultReplyLanguage ?? 'unconfigured'}`}
+      property={data.property}
+      updateProperty={updateReplyLanguage}
+    />
+  ) : null
+
+  if (!canDo('reply.manage')) return languageCard
+
+  return (
+    <>
+      {languageCard}
+      <ReplyLibrarySettings
+        propertyId={propertyId}
+        propertyName={data.property.name}
+        propertyCount={properties.properties.length}
+        canManage={canDo('reply_library.manage')}
+      />
+    </>
+  )
+}
+
+function ReplyLibrarySettings({
+  propertyId,
+  propertyName,
+  propertyCount,
+  canManage,
+}: Readonly<{
+  propertyId: string
+  propertyName: string
+  propertyCount: number
+  canManage: boolean
+}>) {
+  const queryClient = useQueryClient()
+  const { data: library } = useSuspenseQuery(propertyReplyLibraryQuery(propertyId))
   const libraryKeys = [
     reviewKeys.replyLibrary(propertyId),
     propertyKeys.setup(propertyId),
   ]
-  const saveProfile = useActionMutation(savePropertyReplyProfileFn, {
-    successMessage: 'Reply profile saved',
+  const rereadLibrary = () =>
+    void queryClient.invalidateQueries({ queryKey: reviewKeys.replyLibrary(propertyId) })
+  const saveVoice = useActionMutation(saveReplyVoiceLazily, {
+    successMessage: 'Reply voice saved',
     invalidateKeys: libraryKeys,
+    onError: rereadLibrary,
   })
-  const saveTemplate = useActionMutation(savePropertyReplyTemplateFn, {
+  const saveTemplate = useActionMutation(saveReplyTemplateLazily, {
     successMessage: 'Reply template saved',
     invalidateKeys: libraryKeys,
+    onError: rereadLibrary,
   })
-  // A switch is an immediate action: its refusal is a toast, not a banner.
-  const setTemplateEnabled = useActionMutation(setPropertyReplyTemplateEnabledFn, {
-    successMessage: 'Reply template availability updated',
+  const setTemplateHidden = useActionMutation(setReplyTemplateHiddenLazily, {
+    successMessage: 'Reply template visibility updated',
     errorMessage: actionErrorMessage,
     invalidateKeys: libraryKeys,
+    onError: rereadLibrary,
+  })
+  const resetTemplate = useActionMutation(resetReplyTemplateLazily, {
+    successMessage: 'Reply template reset',
+    invalidateKeys: libraryKeys,
+    onError: rereadLibrary,
   })
 
   return (
     <>
-      {canDo('property.update') ? (
-        <PropertyReplyLanguageCard
-          key={`${propertyId}:${data.property.defaultReplyLanguage ?? 'unconfigured'}`}
-          property={data.property}
-          updateProperty={updateReplyLanguage}
-        />
-      ) : null}
-      {canManageReplies ? (
-        <>
-          <PropertyReplyProfileCard
-            key={`${propertyId}:${library?.profile?.version ?? 0}`}
-            propertyId={propertyId}
-            profile={library?.profile ?? null}
-            action={saveProfile}
-          />
-          <PropertyReplyTemplateLibraryCard
-            propertyId={propertyId}
-            profile={library?.profile ?? null}
-            templates={library?.templates ?? []}
-            defaultLanguageTag={library?.defaultLanguageTag ?? null}
-            saveAction={saveTemplate}
-            toggleAction={setTemplateEnabled}
-          />
-        </>
-      ) : null}
+      <ReplyVoiceCard
+        key={`${propertyId}:${library.voiceVersion.account}:${library.voiceVersion.property}`}
+        propertyId={propertyId}
+        propertyName={propertyName}
+        propertyCount={propertyCount}
+        library={{
+          ...library,
+          canManage: library.canManage === true && canManage,
+        }}
+        action={saveVoice}
+      />
+      <ReplyTemplateLibraryCard
+        propertyId={propertyId}
+        propertyName={propertyName}
+        propertyCount={propertyCount}
+        library={{
+          ...library,
+          canManage: library.canManage === true && canManage,
+        }}
+        saveAction={saveTemplate}
+        hideAction={setTemplateHidden}
+        resetAction={resetTemplate}
+      />
     </>
   )
 }

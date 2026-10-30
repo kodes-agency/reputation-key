@@ -50,6 +50,7 @@ const GOOGLE_PAGE =
 const REPLY_LIBRARY_GREETING = 'LIBRARY_GREETING_MUST_NOT_SURVIVE'
 const REPLY_LIBRARY_CONTACT = 'LIBRARY_ESCALATION_CONTACT_MUST_NOT_SURVIVE'
 const REPLY_LIBRARY_BODY = 'LIBRARY_TEMPLATE_BODY_MUST_NOT_SURVIVE'
+const REPLY_LIBRARY_SIGNER = 'LIBRARY_SIGNER_MUST_NOT_SURVIVE'
 
 /** Every Organization-scoped Review table, in child-before-parent order. */
 const REVIEW_ORG_TABLES = Object.freeze([
@@ -173,6 +174,36 @@ async function clean(): Promise<void> {
          WHERE organization_id = $1 AND confirmed_observation_revision IS NOT NULL`,
         [org],
       )
+      await pool.query(
+        'DELETE FROM reply_template_visibility WHERE organization_id = $1',
+        [org],
+      )
+      await pool.query(
+        `DELETE FROM reply_template_wordings
+         WHERE revision_id IN (
+           SELECT revision.id FROM reply_template_revisions revision
+           JOIN reply_templates template ON template.id = revision.template_id
+           WHERE template.organization_id = $1
+         )`,
+        [org],
+      )
+      await pool.query(
+        'UPDATE reply_templates SET current_revision_id = NULL WHERE organization_id = $1',
+        [org],
+      )
+      await pool.query(
+        `DELETE FROM reply_template_revisions
+         WHERE template_id IN (SELECT id FROM reply_templates WHERE organization_id = $1)`,
+        [org],
+      )
+      await pool.query('DELETE FROM reply_templates WHERE organization_id = $1', [org])
+      await pool.query('DELETE FROM property_reply_voices WHERE organization_id = $1', [
+        org,
+      ])
+      await pool.query(
+        'DELETE FROM organization_reply_voices WHERE organization_id = $1',
+        [org],
+      )
       for (const table of REVIEW_ORG_TABLES) {
         await pool.query(`DELETE FROM ${table} WHERE organization_id = $1`, [org])
       }
@@ -290,6 +321,58 @@ async function insertReplyLibrary(org: string, propertyId: string): Promise<void
        language_tag, body, updated_by
      ) VALUES ($1, $2, 'Thanks for five stars', 5, 5, true, 'en-Latn', $3, $4)`,
     [org, propertyId, REPLY_LIBRARY_BODY, MANAGER_ID],
+  )
+  await pool.query(
+    `INSERT INTO organization_reply_voices (
+       organization_id, contact, overridden_fields, updated_by
+     ) VALUES ($1, $2, ARRAY['contact'], $3)`,
+    [org, REPLY_LIBRARY_CONTACT, MANAGER_ID],
+  )
+  await pool.query(
+    `INSERT INTO property_reply_voices (
+       organization_id, property_id, signer_name, localized,
+       overridden_fields, updated_by
+     ) VALUES ($1, $2, $3, $4::jsonb, ARRAY['signerName'], $5)`,
+    [
+      org,
+      propertyId,
+      REPLY_LIBRARY_SIGNER,
+      JSON.stringify({
+        'en-Latn': { closings: { negative: [REPLY_LIBRARY_BODY] } },
+      }),
+      MANAGER_ID,
+    ],
+  )
+  const templateId = randomUUID()
+  const revisionId = randomUUID()
+  await pool.query(
+    `INSERT INTO reply_templates (
+       id, organization_id, property_id, builtin_key, created_by, updated_by
+     ) VALUES ($1, $2, $3, 'P-GEN', $4, $4)`,
+    [templateId, org, propertyId, MANAGER_ID],
+  )
+  await pool.query(
+    `INSERT INTO reply_template_revisions (
+       id, template_id, number, title, stars_min, stars_max, review_kind,
+       created_by
+     ) VALUES ($1, $2, 1, $3, 4, 5, 'text', $4)`,
+    [revisionId, templateId, REPLY_LIBRARY_GREETING, MANAGER_ID],
+  )
+  await pool.query(
+    `INSERT INTO reply_template_wordings (
+       revision_id, wording_key, language_group, body
+     ) VALUES ($1, 'one', 'en-Latn', $2)`,
+    [revisionId, REPLY_LIBRARY_BODY],
+  )
+  await pool.query('UPDATE reply_templates SET current_revision_id = $1 WHERE id = $2', [
+    revisionId,
+    templateId,
+  ])
+  await pool.query(
+    `INSERT INTO reply_template_visibility (
+       organization_id, property_id, builtin_key, created_by
+     ) VALUES ($1, $2, 'N-GEN', $3)`,
+    [org, propertyId, MANAGER_ID],
   )
 }
 
@@ -530,6 +613,42 @@ async function rowCounts(organizationId: string): Promise<Record<string, number>
   return counts
 }
 
+async function layeredReplyLibraryCounts(
+  organizationId: string,
+): Promise<Record<string, number>> {
+  const directTables = [
+    'organization_reply_voices',
+    'property_reply_voices',
+    'reply_templates',
+    'reply_template_visibility',
+  ] as const
+  const counts: Record<string, number> = {}
+  for (const table of directTables) {
+    const result = await pool.query<{ total: string }>(
+      `SELECT count(*)::text AS total FROM ${table} WHERE organization_id = $1`,
+      [organizationId],
+    )
+    counts[table] = Number(result.rows[0]!.total)
+  }
+  for (const [table, join] of [
+    ['reply_template_revisions', 'revision.template_id = template.id'],
+    [
+      'reply_template_wordings',
+      'wording.revision_id = revision.id JOIN reply_templates template ON revision.template_id = template.id',
+    ],
+  ] as const) {
+    const alias = table === 'reply_template_revisions' ? 'revision' : 'wording'
+    const result = await pool.query<{ total: string }>(
+      `SELECT count(*)::text AS total FROM ${table} ${alias}
+       JOIN ${table === 'reply_template_revisions' ? 'reply_templates template' : 'reply_template_revisions revision'} ON ${join}
+       WHERE template.organization_id = $1`,
+      [organizationId],
+    )
+    counts[table] = Number(result.rows[0]!.total)
+  }
+  return counts
+}
+
 /** A stable content fingerprint of everything Review holds for the tenant. */
 async function contentSnapshot(organizationId: string): Promise<string> {
   const parts: string[] = []
@@ -550,6 +669,37 @@ async function contentSnapshot(organizationId: string): Promise<string> {
     [organizationId],
   )
   parts.push(`review_sync_state=${sync.rows[0]?.dump ?? ''}`)
+  for (const table of [
+    'organization_reply_voices',
+    'property_reply_voices',
+    'reply_templates',
+    'reply_template_visibility',
+  ]) {
+    const result = await pool.query<{ dump: string | null }>(
+      `SELECT string_agg(row_dump, '|' ORDER BY row_dump) AS dump
+       FROM (SELECT t::text AS row_dump FROM ${table} t
+             WHERE t.organization_id = $1) AS rows`,
+      [organizationId],
+    )
+    parts.push(`${table}=${result.rows[0]?.dump ?? ''}`)
+  }
+  const revisions = await pool.query<{ dump: string | null }>(
+    `SELECT string_agg(revision::text, '|' ORDER BY revision::text) AS dump
+     FROM reply_template_revisions revision
+     JOIN reply_templates template ON template.id = revision.template_id
+     WHERE template.organization_id = $1`,
+    [organizationId],
+  )
+  parts.push(`reply_template_revisions=${revisions.rows[0]?.dump ?? ''}`)
+  const wordings = await pool.query<{ dump: string | null }>(
+    `SELECT string_agg(wording::text, '|' ORDER BY wording::text) AS dump
+     FROM reply_template_wordings wording
+     JOIN reply_template_revisions revision ON revision.id = wording.revision_id
+     JOIN reply_templates template ON template.id = revision.template_id
+     WHERE template.organization_id = $1`,
+    [organizationId],
+  )
+  parts.push(`reply_template_wordings=${wordings.rows[0]?.dump ?? ''}`)
   return parts.join('\n')
 }
 
@@ -872,6 +1022,14 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     const after = await rowCounts(ORG_ID)
     expect(after.property_reply_profiles).toBe(0)
     expect(after.property_reply_templates).toBe(0)
+    expect(await layeredReplyLibraryCounts(ORG_ID)).toEqual({
+      organization_reply_voices: 0,
+      property_reply_voices: 0,
+      reply_templates: 0,
+      reply_template_visibility: 0,
+      reply_template_revisions: 0,
+      reply_template_wordings: 0,
+    })
     expect(await contentSnapshot(ORG_ID)).not.toContain(REPLY_LIBRARY_CONTACT)
     expect(await contentSnapshot(ORG_ID)).not.toContain(REPLY_LIBRARY_BODY)
     // The second tenant keeps its library.
@@ -913,9 +1071,25 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     const after = await rowCounts(ORG_ID)
     expect(after.property_reply_profiles).toBe(0)
     expect(after.property_reply_templates).toBe(0)
+    expect(await layeredReplyLibraryCounts(ORG_ID)).toEqual({
+      organization_reply_voices: 0,
+      property_reply_voices: 0,
+      reply_templates: 0,
+      reply_template_visibility: 0,
+      reply_template_revisions: 0,
+      reply_template_wordings: 0,
+    })
     const bystander = await rowCounts(OTHER_ORG_ID)
     expect(bystander.property_reply_profiles).toBe(1)
     expect(bystander.property_reply_templates).toBe(1)
+    expect(await layeredReplyLibraryCounts(OTHER_ORG_ID)).toEqual({
+      organization_reply_voices: 1,
+      property_reply_voices: 1,
+      reply_templates: 1,
+      reply_template_visibility: 1,
+      reply_template_revisions: 1,
+      reply_template_wordings: 1,
+    })
     await expect(
       pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG_ID]),
     ).resolves.toBeDefined()

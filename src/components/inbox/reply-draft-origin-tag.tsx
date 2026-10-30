@@ -14,6 +14,8 @@ import {
   type ReplyDraftOriginParts,
 } from './reply-draft-origin-view'
 import type { ReplyLanguageChoices } from './use-reply-composer'
+import { Button } from '#/components/ui/button'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 
 type Props = Readonly<{
   origin: ReplyDraftOrigin
@@ -34,6 +36,8 @@ type Props = Readonly<{
    * adopted (`regenerateScope`, `reply-composer-transitions.ts`).
    */
   onRegenerate: (languageTag: string) => void
+  onAnotherWording?: () => Promise<void>
+  anotherWordingNeedsConfirmation?: boolean
 }>
 
 /**
@@ -110,10 +114,42 @@ export function ReplyDraftOriginTag(props: Props) {
 
   if (!isMenu) {
     return (
-      <p className={`${TAG_CLASS} text-foreground`}>
-        <Glyph aria-hidden="true" className="size-3.5 shrink-0" />
-        <TagWords parts={parts} />
-      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className={`${TAG_CLASS} text-foreground`}>
+          <Glyph aria-hidden="true" className="size-3.5 shrink-0" />
+          <TagWords parts={parts} />
+        </p>
+        {props.origin.kind === 'template' &&
+        props.origin.templateId &&
+        props.onAnotherWording ? (
+          props.anotherWordingNeedsConfirmation ? (
+            <ConfirmationDialog
+              trigger={
+                <Button type="button" size="xs" variant="ghost" disabled={props.disabled}>
+                  Another wording
+                </Button>
+              }
+              title="Replace your edits?"
+              description="Loading another wording replaces the text you edited."
+              cancelLabel="Keep edits"
+              confirmLabel="Load another wording"
+              pendingLabel="Loading…"
+              tone="neutral"
+              onConfirm={props.onAnotherWording}
+            />
+          ) : (
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              disabled={props.disabled}
+              onClick={() => void props.onAnotherWording?.()}
+            >
+              Another wording
+            </Button>
+          )
+        ) : null}
+      </div>
     )
   }
 

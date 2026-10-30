@@ -26,6 +26,7 @@ import {
 import { properties } from './property.schema'
 import { googleConnections } from './google-connection.schema'
 import { REPLY_LANGUAGE_TAG_SQL_PATTERN } from '../../reply-language-catalogue'
+import { replyLibrarySchemaParts as replyParts } from './reply-library.schema'
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType: () => 'bytea',
 })
@@ -821,6 +822,7 @@ export const replies = pgTable(
     // fields do not make the reply AI-authored and are deliberately not fences.
     templateId: uuid('template_id'),
     templateVersion: integer('template_version'),
+    ...replyParts.columns(),
     status: replyStatusEnum('status').notNull(),
     source: replySourceEnum('source').notNull(),
     createdBy: varchar('created_by', { length: 255 }),
@@ -906,13 +908,9 @@ export const replies = pgTable(
       'replies_reply_language_tag_valid',
       sql`${t.replyLanguageTag} IS NULL OR ${t.replyLanguageTag} ~ ${sql.raw(`'${REPLY_LANGUAGE_TAG_SQL_PATTERN}'`)}`,
     ),
-    check(
-      'replies_template_provenance_valid',
-      sql`(
-        (${t.templateId} IS NULL AND ${t.templateVersion} IS NULL)
-        OR (${t.templateId} IS NOT NULL AND ${t.templateVersion} >= 1)
-      )`,
-    ),
+    check('replies_template_provenance_valid', replyParts.legacyProvenanceCheck),
+    check('replies_layered_template_provenance_valid', replyParts.layeredProvenanceCheck),
+    check('replies_voice_digest_valid', replyParts.voiceDigestCheck),
     uniqueIndex('replies_origin_operation_unique')
       .on(t.originOperationId)
       .where(sql`origin_operation_id IS NOT NULL`),
@@ -954,7 +952,7 @@ export const replies = pgTable(
               AND ${t.originReplyTemplateCatalogueDigest} = 'ff5f572e9c8ce06fc384bdc4cdd911457510fdd0daed571a53d2348faa8bd89f'
             )
             OR (
-              ${t.originAiProfileVersion} IN ('reply-draft-v1', 'reply-draft-v2')
+              ${t.originAiProfileVersion} IN ('reply-draft-v1', 'reply-draft-v2', 'reply-draft-v3')
               AND ${t.originReplyTemplateId} IS NULL
               AND ${t.originReplyTemplateCatalogueVersion} IS NULL
               AND ${t.originReplyTemplateCatalogueDigest} IS NULL

@@ -148,6 +148,19 @@ const replyBrandProfileSchema = z
   })
   .strict()
 
+const replyLocalFrameSchema = z
+  .object({
+    prefix: z.string().max(2_000),
+    suffix: z.string().max(4_096),
+    voiceDigest: z.string().regex(/^[0-9a-f]{64}$/),
+    reviewerDisplayName: z.string().max(200).nullable(),
+    contact: z.string().max(200).nullable(),
+    signerName: z.string().max(120).nullable(),
+    signerTitle: z.string().max(120).nullable(),
+    businessName: z.string().max(120),
+  })
+  .strict()
+
 type PropertyTrendProviderInputV1 = Readonly<{
   languageCode: 'en'
   currentWindow: DeterministicAggregateWindow
@@ -261,7 +274,7 @@ const commonShape = {
   deadlineEpochMillis: positiveSafeInteger,
 } as const
 
-export const reviewAnalysisGatewayRequestSchema = z
+const reviewAnalysisGatewayRequestSchema = z
   .object({
     ...commonShape,
     route: z.literal('review-analysis'),
@@ -276,7 +289,7 @@ export const reviewAnalysisGatewayRequestSchema = z
   })
   .strict()
 
-export const replySuggestionGatewayRequestSchema = z
+const replySuggestionGatewayRequestSchema = z
   .object({
     ...commonShape,
     route: z.literal('reply-suggestion'),
@@ -285,12 +298,14 @@ export const replySuggestionGatewayRequestSchema = z
     observedContentExpiresAtEpochMillis: positiveSafeInteger,
     replyProfileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
     brandProfile: replyBrandProfileSchema,
+    /** Local framing context. It is deliberately excluded from providerPayload. */
+    replyLocalFrame: replyLocalFrameSchema.nullable().optional(),
     tone: z.enum(['professional', 'friendly', 'casual']),
     source: reviewSourceSchema,
   })
   .strict()
 
-export const propertyTrendGatewayRequestSchema = z
+const propertyTrendGatewayRequestSchema = z
   .object({
     ...commonShape,
     route: z.literal('property-trend'),
@@ -566,7 +581,7 @@ const analysisErrorSchema = errorSchema('review-analysis')
 const replyErrorSchema = errorSchema('reply-suggestion')
 const trendErrorSchema = errorSchema('property-trend')
 
-export const aiGatewayRouteResponseSchema = z.union([
+const aiGatewayRouteResponseSchema = z.union([
   analysisSuccessSchema,
   analysisErrorSchema,
   replySuccessSchema,

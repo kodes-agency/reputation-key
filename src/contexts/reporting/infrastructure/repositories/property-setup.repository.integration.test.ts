@@ -315,10 +315,8 @@ beforeAll(async () => {
   })
   await insertManager(ORG, CONFIGURED, null)
   await pool.query(
-    `INSERT INTO property_reply_profiles (
-       organization_id, property_id, greeting, sign_off_positive, sign_off_negative,
-       updated_by
-     ) VALUES ($1, $2, 'Hello', 'Thank you', 'We are sorry', $3)`,
+    `INSERT INTO property_reply_voices (organization_id, property_id, updated_by)
+     VALUES ($1, $2, $3)`,
     [ORG, CONFIGURED, OWNER],
   )
   await insertPortal({

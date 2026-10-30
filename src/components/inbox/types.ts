@@ -33,6 +33,12 @@ import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
 
+type ServerCall<T> = T extends (...args: infer Args) => infer Result
+  ? (...args: Args) => Result
+  : never
+
+export type GenerateReplySuggestionCall = ServerCall<typeof generateReplySuggestionFn>
+
 export type InboxServerFns = Readonly<{
   getInboxItems: typeof getInboxItemsFn
   getInboxItemDetail: typeof getInboxItemDetailFn
@@ -54,7 +60,7 @@ export type InboxServerFns = Readonly<{
   correctFeedbackHandlingOutcome: typeof correctFeedbackHandlingOutcomeFn
   /** Absent where there is no Google to read (the action is then not offered). */
   checkReviewOnGoogle?: typeof checkReviewOnGoogleFn
-  generateReplySuggestion?: typeof generateReplySuggestionFn
+  generateReplySuggestion?: GenerateReplySuggestionCall
   requestReviewAnalysisNow?: typeof requestReviewAnalysisNowFn
   /**
    * Whether a scope has a Portal: the empty To handle queue offers a feedback

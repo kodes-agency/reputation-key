@@ -104,6 +104,19 @@ export type Reply = Readonly<{
   /** Informational provenance for a property-authored library template. */
   templateId: string | null
   templateVersion: number | null
+  /** Layered reply-library provenance. Legacy template fields remain separate. */
+  templateLayer?: 'builtin' | 'account' | 'property' | null
+  templateRef?: string | null
+  templateRevision?: number | null
+  templateWordingKey?: string | null
+  voiceDigest?: string | null
+  voiceChoices?: Readonly<{
+    closing: number
+    signOff: number
+    contactSentence: number
+    emoji: number
+    includeContact: boolean
+  }> | null
   status: ReplyStatus
   source: ReplySource
   createdBy: UserId | null

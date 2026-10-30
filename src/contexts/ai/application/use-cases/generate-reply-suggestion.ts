@@ -8,6 +8,7 @@ import {
   parseCanonicalReplyLanguageTag,
   type ConcreteReplyLanguage,
   type EvaluatedReviewLanguage,
+  type ReplyTemplateLanguageGroup,
 } from '#/shared/ai-review-language-catalogue'
 import type { ConcreteReplyLanguageResult } from '#/shared/ai-reply-language-verifier'
 import {
@@ -115,6 +116,7 @@ export type GenerateReplySuggestionResult =
         | 'target_language_unavailable'
         | 'brand_profile_unavailable'
         | 'brand_profile_changed'
+        | 'voice_changed'
         | 'policy_unavailable'
         | 'completed_without_delivery'
         | 'provider_unavailable'
@@ -144,6 +146,25 @@ export type GenerateReplySuggestionDependencies = Readonly<{
     PortalAiReplyBrandProfilePublicApi,
     'readCurrentAiReplyBrandProfile'
   >
+  replyVoices?: Readonly<{
+    resolveLocalFrame(
+      input: Readonly<{
+        organizationId: OrganizationId
+        propertyId: PropertyId
+        reviewId: ReviewId
+        languageGroup: ReplyTemplateLanguageGroup
+      }>,
+    ): Promise<Readonly<{
+      prefix: string
+      suffix: string
+      voiceDigest: string
+      reviewerDisplayName: string | null
+      contact: string | null
+      signerName: string | null
+      signerTitle: string | null
+      businessName: string
+    }> | null>
+  }>
   resolveReplyLanguage(
     input: Readonly<{
       text: string
@@ -306,7 +327,7 @@ async function resolveTargetReplyLanguage(
 async function isReplySuggestionStillCurrent(
   dependencies: Pick<
     GenerateReplySuggestionDependencies,
-    'authorization' | 'reviewSources' | 'replyBrandProfiles'
+    'authorization' | 'reviewSources' | 'replyBrandProfiles' | 'replyVoices'
   >,
   input: GenerateReplySuggestionInput,
   expected: Readonly<{
@@ -316,26 +337,35 @@ async function isReplySuggestionStillCurrent(
     replyBrandProfileVersion: number
     replyBrandDisplayName: string
     replyBrandDisplayNameDigest: string
+    voiceDigest: string | null
+    languageGroup: ReplyTemplateLanguageGroup
   }>,
-): Promise<'current' | 'source_changed' | 'brand_profile_changed'> {
-  const [authorization, source, replyStateRevision, brandProfile] = await Promise.all([
-    dependencies.authorization.readMerchantAuthorization(input),
-    dependencies.reviewSources.assertCurrent({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      reviewId: input.reviewId,
-      expected: {
-        kind: 'reply',
-        sourceEpoch: input.expectedSourceEpoch,
-        sourceRevision: input.expectedSourceRevision,
-      },
-    }),
-    dependencies.reviewSources.readReplyStateRevision(input),
-    dependencies.replyBrandProfiles.readCurrentAiReplyBrandProfile(
-      input.organizationId,
-      input.propertyId,
-    ),
-  ])
+): Promise<'current' | 'source_changed' | 'brand_profile_changed' | 'voice_changed'> {
+  const [authorization, source, replyStateRevision, brandProfile, localFrame] =
+    await Promise.all([
+      dependencies.authorization.readMerchantAuthorization(input),
+      dependencies.reviewSources.assertCurrent({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        reviewId: input.reviewId,
+        expected: {
+          kind: 'reply',
+          sourceEpoch: input.expectedSourceEpoch,
+          sourceRevision: input.expectedSourceRevision,
+        },
+      }),
+      dependencies.reviewSources.readReplyStateRevision(input),
+      dependencies.replyBrandProfiles.readCurrentAiReplyBrandProfile(
+        input.organizationId,
+        input.propertyId,
+      ),
+      dependencies.replyVoices?.resolveLocalFrame({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        reviewId: input.reviewId,
+        languageGroup: expected.languageGroup,
+      }) ?? Promise.resolve(null),
+    ])
   if (
     brandProfile === null ||
     brandProfile.version !== expected.replyBrandProfileVersion ||
@@ -344,6 +374,7 @@ async function isReplySuggestionStillCurrent(
   ) {
     return 'brand_profile_changed'
   }
+  if ((localFrame?.voiceDigest ?? null) !== expected.voiceDigest) return 'voice_changed'
   return authorization?.authorizationLineageId === expected.authorizationLineageId &&
     authorization.state === 'enabled' &&
     authorization.capabilityEpochs.reply_drafting.epoch === expected.replyDraftingEpoch &&
@@ -607,6 +638,7 @@ const hasProducedDraft = (state: AiOperationState): boolean =>
 export function createGenerateReplySuggestion(
   dependencies: GenerateReplySuggestionDependencies,
 ): (input: GenerateReplySuggestionInput) => Promise<GenerateReplySuggestionResult> {
+  // fallow-ignore-next-line complexity -- fail-closed AI operation lifecycle must settle every claimed state in one boundary
   return async (input) => {
     const [source, baseReplyStateRevision] = await Promise.all([
       dependencies.reviewSources.readForAi({
@@ -630,9 +662,36 @@ export function createGenerateReplySuggestion(
 
     const observation = source.observation
     const language = await resolveSuggestionLanguage(dependencies, input, observation)
-    if (language.kind === 'settled') return language.result
+    if (language.kind === 'settled') {
+      if (language.result.status !== 'fallback') return language.result
+      const fallbackLanguage = parseCanonicalReplyLanguageTag(
+        language.result.concreteLanguageTag,
+      )
+      const frame = fallbackLanguage
+        ? ((await dependencies.replyVoices?.resolveLocalFrame({
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            reviewId: input.reviewId,
+            languageGroup: fallbackLanguage.templateGroup,
+          })) ?? null)
+        : null
+      return frame === null
+        ? language.result
+        : {
+            ...language.result,
+            replyText: [frame.prefix, language.result.replyText, frame.suffix]
+              .filter(Boolean)
+              .join('\n\n'),
+          }
+    }
     const { reviewText, concreteReplyLanguage } = language
-
+    const replyLocalFrame =
+      (await dependencies.replyVoices?.resolveLocalFrame({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        reviewId: input.reviewId,
+        languageGroup: concreteReplyLanguage.templateGroup,
+      })) ?? null
     const grant = await resolveDraftingGrant(dependencies, input)
     if (grant.kind === 'refused') return grant.result
     const { authorization, profile, brandProfile, stopFence } = grant
@@ -654,6 +713,8 @@ export function createGenerateReplySuggestion(
       replyBrandProfileVersion: brandProfile.version,
       replyBrandDisplayName: brandProfile.displayName,
       replyBrandDisplayNameDigest: brandProfile.displayNameDigest,
+      voiceDigest: replyLocalFrame?.voiceDigest ?? null,
+      languageGroup: concreteReplyLanguage.templateGroup,
     }
     const identity = replyOperationIdentity(
       input,
@@ -722,6 +783,7 @@ export function createGenerateReplySuggestion(
           route: 'reply-suggestion',
           replyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
           brandProfile: { displayName: brandProfile.displayName },
+          replyLocalFrame,
           operationId: execution.id,
           permitId: execution.executionPermitId,
           attemptNumber: expectedAttempt,

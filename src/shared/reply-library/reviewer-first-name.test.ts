@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest'
+import { firstNameForGreeting } from './reviewer-first-name'
+
+describe('firstNameForGreeting', () => {
+  it.each([
+    ['Maria Lopez', 'en-Latn', 'Maria'],
+    ['maria l.', 'en-Latn', 'Maria'],
+    ['MARIA', 'en-Latn', 'Maria'],
+    ['MARIA LOPEZ', 'en-Latn', 'Maria'],
+    ['Maria Иванова', 'en-Latn', 'Maria'],
+    ['Tom Smith', 'en-Latn', 'Tom'],
+    ['Amy', 'en-Latn', 'Amy'],
+    ['Eva', 'en-Latn', 'Eva'],
+    ['Jo', 'en-Latn', 'Jo'],
+    ['Li', 'en-Latn', 'Li'],
+    ['Bo', 'en-Latn', 'Bo'],
+    ["DeShawn O'Neil", 'en-Latn', 'DeShawn'],
+    ["anne-marie o'neil", 'en-Latn', 'Anne-Marie'],
+    ['José Pérez', 'es-Latn', 'José'],
+    ['ÉLODIE', 'en-Latn', 'Élodie'],
+    ['sofia [local guide]', 'en-Latn', 'Sofia'],
+    ['💫 Maria Lopez', 'en-Latn', 'Maria'],
+    ['Maria ⭐', 'en-Latn', 'Maria'],
+    ['Анна Петрова', 'bg-Cyrl', 'Анна'],
+    ['АННА', 'bg-Cyrl', 'Анна'],
+    ['анна', 'bg-Cyrl', 'Анна'],
+    ['Иван-Петър', 'bg-Cyrl', 'Иван-Петър'],
+  ] as const)('returns %s for %s', (displayName, language, expected) => {
+    expect(firstNameForGreeting(displayName, language)).toBe(expected)
+  })
+
+  it.each([
+    ['', 'en-Latn'],
+    ['   ', 'en-Latn'],
+    ['A Google User', 'en-Latn'],
+    ['Google User', 'en-Latn'],
+    ['J.D.', 'en-Latn'],
+    ['JD', 'en-Latn'],
+    ['AB', 'en-Latn'],
+    ['AJ', 'en-Latn'],
+    ['ABC', 'en-Latn'],
+    ['K', 'en-Latn'],
+    ['user12345', 'en-Latn'],
+    ['user_name', 'en-Latn'],
+    ['@maria', 'en-Latn'],
+    ['maria.com', 'en-Latn'],
+    ['Dr. Smith', 'en-Latn'],
+    ['Mr Jones', 'en-Latn'],
+    ['Mrs Jones', 'en-Latn'],
+    ['Ms Jones', 'en-Latn'],
+    ['Miss Jones', 'en-Latn'],
+    ['Prof Jones', 'en-Latn'],
+    ['Sr Gomez', 'es-Latn'],
+    ['Sra Gomez', 'es-Latn'],
+    ["Joe's Pizza LLC", 'en-Latn'],
+    ['Sunrise Salon', 'en-Latn'],
+    ['Blue Spa', 'en-Latn'],
+    ['Roma Cafe', 'en-Latn'],
+    ['Roma Café', 'es-Latn'],
+    ['Grand Hotel', 'en-Latn'],
+    ['Best Services', 'en-Latn'],
+    ['Atenaa Group', 'en-Latn'],
+    ['North Studio', 'en-Latn'],
+    ['Smith & Sons', 'en-Latn'],
+    ['Official Maria', 'en-Latn'],
+    ['Анна', 'en-Latn'],
+    ['Maria', 'bg-Cyrl'],
+    ['李明', 'en-Latn'],
+    ['李明', 'bg-Cyrl'],
+    ['🎉✨', 'en-Latn'],
+    ['[Local Guide]', 'en-Latn'],
+    ['12345', 'en-Latn'],
+    ['Inc', 'en-Latn'],
+  ] as const)('returns no name for %s in %s', (displayName, language) => {
+    expect(firstNameForGreeting(displayName, language)).toBeNull()
+  })
+})

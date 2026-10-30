@@ -172,7 +172,14 @@ describe('reply-template server functions', () => {
       actor: ACTOR,
       action: 'reply.manage',
     })
-    expect(mocks.loadTemplate).toHaveBeenCalledWith(loadInput, ACTOR)
+    expect(mocks.loadTemplate).toHaveBeenCalledWith(
+      {
+        reviewId: REVIEW_ID,
+        ref: `template:${TEMPLATE_ID}`,
+        targetLanguage: TARGET_LANGUAGE,
+      },
+      ACTOR,
+    )
     expect(mocks.loadTemplate.mock.calls[0]?.[0]).not.toHaveProperty('reviewText')
   })
 

@@ -41,7 +41,7 @@ const FALLBACK_REPLY =
   'Thank you for sharing your feedback. We appreciate the opportunity to listen.'
 const readySuggestion = (): Extract<ReplySuggestionResult, { status: 'ready' }> => ({
   status: 'ready',
-  profileVersion: 'reply-draft-v2',
+  profileVersion: 'reply-draft-v3',
   replyText: SUGGESTED_REPLY,
   provenanceToken: 'test-provenance-token',
   expiresAtEpochMillis: Date.now() + 60_000,
@@ -101,8 +101,8 @@ const onListTemplates = fn(async () => noLibraryTemplates())
 const onLoadTemplate = fn(async (templateId: string) => ({
   text: 'Library template',
   replyLanguageTag: 'en-Latn',
-  templateId,
-  templateVersion: 1,
+  templateRef: templateId,
+  templateRevision: 1,
 }))
 const LIBRARY_TEMPLATE_ID = '73000000-0000-4000-8000-000000000001'
 const LIBRARY_REPLY =
@@ -136,8 +136,8 @@ const onListLibraryTemplates = fn(async (): Promise<ReplyTemplateListResult> => 
 const onLoadLibraryTemplate = fn(async (templateId: string) => ({
   text: LIBRARY_REPLY,
   replyLanguageTag: 'en-Latn-US',
-  templateId,
-  templateVersion: 3,
+  templateRef: templateId,
+  templateRevision: 3,
 }))
 const onGenerateMissingTemplateLanguage = fn(
   async (): Promise<ReplySuggestionResult> => ({
@@ -244,6 +244,41 @@ type Story = StoryObj<typeof ReplyCompose>
 // No existing reply → bare composer (no Delete, no "Draft" badge).
 export const NewReply: Story = {}
 
+export const DraftChecksCallouts: Story = {
+  args: {
+    initialText: 'Thank you for sharing your visit with us.',
+    onCheckDraft: fn(async () => ({
+      blocks: [
+        {
+          code: 'offer_or_solicitation' as const,
+          message: 'Remove offers, discounts, and booking prompts.',
+        },
+      ],
+      warnings: [
+        {
+          code: 'stock_phrases' as const,
+          message: 'Replace stock phrases with specific, natural wording.',
+        },
+      ],
+      maxSimilarity: 0.86,
+      similar: true,
+    })),
+  },
+  play: async ({ canvas }) => {
+    await canvas.findByText(
+      'Remove offers, discounts, and booking prompts.',
+      {},
+      { timeout: 1_500 },
+    )
+    await canvas.findByText('Similar to a recent reply on your Google profile (86%).')
+    // Disabled with its reason announced: the house pattern is aria-disabled.
+    expect(canvas.getByRole('button', { name: /submit for approval/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+  },
+}
+
 // Editing an existing draft → Delete affordance + "Draft" badge appear.
 export const EditingDraft: Story = {
   args: { initialText: 'Thank you for your feedback!', onDelete },
@@ -320,8 +355,8 @@ export const AiDraftOverTheByteLimitIsRefused: Story = {
 const onLoadOverByteLimit = fn(async (templateId: string) => ({
   text: CYRILLIC_OVER_LIMIT,
   replyLanguageTag: 'en-Latn-US',
-  templateId,
-  templateVersion: 3,
+  templateRef: templateId,
+  templateRevision: 3,
 }))
 
 export const TemplateOverTheByteLimitIsRefused: Story = {
@@ -883,9 +918,12 @@ export const LibraryTemplateLoadsAsManualDraft: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Template' }))
 
     await waitFor(() =>
-      expect(onLoadLibraryTemplate).toHaveBeenCalledWith(LIBRARY_TEMPLATE_ID, {
-        kind: 'property_default',
-      }),
+      // The third argument is the wordings to skip ("Another wording"); none here.
+      expect(onLoadLibraryTemplate).toHaveBeenCalledWith(
+        LIBRARY_TEMPLATE_ID,
+        { kind: 'property_default' },
+        undefined,
+      ),
     )
     await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(LIBRARY_REPLY))
     // Row 18: the tag names the template by the title it was loaded under, and
@@ -1394,8 +1432,8 @@ const onListFallsBackToProperty = fn(async () => bulgarianLibrary())
 const onLoadFallsBackToProperty = fn(async (templateId: string) => ({
   text: BULGARIAN_TEMPLATE,
   replyLanguageTag: 'bg-Cyrl',
-  templateId,
-  templateVersion: 1,
+  templateRef: templateId,
+  templateRevision: 1,
 }))
 
 /**

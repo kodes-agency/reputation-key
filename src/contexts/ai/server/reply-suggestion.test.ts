@@ -168,7 +168,7 @@ const NEVER_REPLIED_STATE_REVISION = 0
 
 const READY: GenerateReplySuggestionResult = {
   status: 'ready',
-  profileVersion: 'reply-draft-v2',
+  profileVersion: 'reply-draft-v3',
   replyText: 'Thank you for the detailed feedback.',
   provenanceToken: 'provenance-token-1',
   expiresAtEpochMillis: 0,
@@ -209,6 +209,7 @@ const UNAVAILABLE_RETRY_AFTER: Readonly<Record<UnavailableCode, number | null>> 
   source_changed: null,
   brand_profile_unavailable: null,
   brand_profile_changed: null,
+  voice_changed: null,
   language_not_supported: null,
   target_language_unavailable: null,
   busy: RETRY_AT,

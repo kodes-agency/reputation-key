@@ -8,6 +8,7 @@ import {
   identityKeys,
   portalKeys,
   propertyKeys,
+  reviewKeys,
 } from '#/shared/queries/query-keys'
 import type {
   PropertySetupFns,
@@ -65,6 +66,24 @@ function writeFnsFrom(fns: PropertySetupFns): SetupWriteFns {
         },
       })
     },
+    setReplyVoice: ({ propertyId, scope, expectedVersion, voice }) =>
+      fns.saveReplyVoice({
+        data: {
+          propertyId,
+          scope,
+          set: {
+            useFirstName: voice.useFirstName,
+            ...(voice.signerName.trim() ? { signerName: voice.signerName.trim() } : {}),
+            ...(voice.signerTitle.trim()
+              ? { signerTitle: voice.signerTitle.trim() }
+              : {}),
+            ...(voice.contact.trim() ? { contact: voice.contact.trim() } : {}),
+            emojiMode: voice.emojiMode,
+          },
+          reset: [],
+          expectedVersion,
+        },
+      }),
   }
 }
 
@@ -106,6 +125,9 @@ function SetupFlow({
         }),
         queryClient.invalidateQueries({
           queryKey: portalKeys.propertyExperience(property.propertyId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: reviewKeys.replyLibrary(property.propertyId),
         }),
       ]),
     ])

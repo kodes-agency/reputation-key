@@ -148,7 +148,7 @@ describe('derivePropertySetupSteps', () => {
       { key: 'reply_language', asked: true, section: 'replies' },
       { key: 'ai_decision', asked: true, section: 'ai' },
       { key: 'responsible_manager', asked: true, section: 'people' },
-      { key: 'reply_voice', asked: false, section: 'replies' },
+      { key: 'reply_voice', asked: true, section: 'replies' },
       { key: 'portal_published', asked: false, section: 'portals' },
     ])
   })
@@ -255,7 +255,7 @@ describe('derivePropertySetupSteps', () => {
 describe('propertySetupAttentionCount', () => {
   it('counts only steps someone still has to act on', () => {
     const step = (status: PropertySetupStepStatus) =>
-      ({ key: 'reply_voice', status, asked: false, section: 'replies' }) as const
+      ({ key: 'reply_voice', status, asked: true, section: 'replies' }) as const
 
     expect(
       propertySetupAttentionCount([

@@ -1,37 +1,23 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { reviewId } from '#/shared/domain/ids'
+import {
+  checkReplyDraftInputSchema,
+  listReplyTemplatesInputSchema,
+  loadReplyTemplateInputSchema,
+  replyLibraryRefSchema,
+  type ReplyLibraryRef,
+} from '../application/dto/reply-library.dto'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { isReviewError } from '../domain/errors'
 import { reviewErrorStatus } from './reply-read'
 
-const targetLanguageDto = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('property_default') }).strict(),
-  z.object({ kind: z.literal('review_language') }).strict(),
-])
-
-const listReplyTemplatesDto = z
-  .object({
-    reviewId: z.uuid(),
-    targetLanguage: targetLanguageDto,
-  })
-  .strict()
-
-const loadReplyTemplateDto = z
-  .object({
-    reviewId: z.uuid(),
-    templateId: z.uuid(),
-    targetLanguage: targetLanguageDto,
-  })
-  .strict()
-
 export const listReplyTemplatesFn = createServerFn({ method: 'POST' })
-  .validator(listReplyTemplatesDto)
+  .validator(listReplyTemplatesInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -59,7 +45,7 @@ export const listReplyTemplatesFn = createServerFn({ method: 'POST' })
   )
 
 export const loadReplyTemplateFn = createServerFn({ method: 'POST' })
-  .validator(loadReplyTemplateDto)
+  .validator(loadReplyTemplateInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -70,8 +56,16 @@ export const loadReplyTemplateFn = createServerFn({ method: 'POST' })
           return await getContainer().reviewPublicApi.reply.loadTemplate(
             {
               reviewId: reviewId(data.reviewId),
-              templateId: data.templateId,
+              ref: replyLibraryRefSchema.parse(
+                data.templateId.startsWith('builtin:') ||
+                  data.templateId.startsWith('template:')
+                  ? data.templateId
+                  : `template:${data.templateId}`,
+              ) as ReplyLibraryRef,
               targetLanguage: data.targetLanguage,
+              ...(data.excludeWordingKeys === undefined
+                ? {}
+                : { excludeWordingKeys: data.excludeWordingKeys }),
             },
             ctx,
           )
@@ -84,5 +78,31 @@ export const loadReplyTemplateFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'review.loadReplyTemplate',
+    ),
+  )
+
+// fallow-ignore-next-line unused-export -- resolved by the Inbox dynamic import
+export const checkReplyDraftFn = createServerFn({ method: 'POST' })
+  .validator(checkReplyDraftInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
+        try {
+          return await getContainer().reviewPublicApi.reply.checkDraft(
+            { reviewId: reviewId(data.reviewId), text: data.text },
+            ctx,
+          )
+        } catch (error) {
+          if (isReviewError(error)) {
+            throwContextError('ReviewError', error, reviewErrorStatus(error.code))
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'review.checkReplyDraft',
     ),
   )

@@ -235,12 +235,12 @@ const onListTemplates = fn(async () => emptyTemplateLibrary())
 const onLoadTemplate = fn(async (templateId: string) => ({
   text: 'Library template',
   replyLanguageTag: 'en-Latn',
-  templateId,
-  templateVersion: 1,
+  templateRef: templateId,
+  templateRevision: 1,
 }))
 const onGenerateSuggestion = fn(async (): Promise<ReplySuggestionResult> => ({
   status: 'ready',
-  profileVersion: 'reply-draft-v2',
+  profileVersion: 'reply-draft-v3',
   replyText: SUGGESTED_TEXT,
   provenanceToken: 'storybook-provenance-token',
   expiresAtEpochMillis: Date.now() + 60_000,
@@ -275,7 +275,7 @@ const onGenerateByTarget = fn(
     const inReviewLanguage = target.kind === 'review_language'
     return {
       status: 'ready',
-      profileVersion: 'reply-draft-v2',
+      profileVersion: 'reply-draft-v3',
       replyText: inReviewLanguage ? TR_AI_TEXT : BG_AI_TEXT,
       provenanceToken: 'storybook-provenance-token',
       expiresAtEpochMillis: Date.now() + 60_000,
@@ -310,8 +310,8 @@ const onListByTarget = fn(
 const onLoadByTarget = fn(async (templateId: string, target: ReplyLanguageTarget) => ({
   text: TEMPLATE_TEXT[templateId] ?? 'Template',
   replyLanguageTag: target.kind === 'review_language' ? TURKISH : BULGARIAN,
-  templateId,
-  templateVersion: 1,
+  templateRef: templateId,
+  templateRevision: 1,
 })).mockName('onLoadByTarget')
 
 // ── the pane, as much of it as region 4 can see ──────────────────────────────
@@ -2076,9 +2076,12 @@ export const LibraryTemplateTagAt720: Story = atPane({
     await userEvent.click(turkish)
 
     await waitFor(() =>
-      expect(onLoadByTarget).toHaveBeenCalledWith(TR_TEMPLATE.id, {
-        kind: 'review_language',
-      }),
+      // The third argument is the wordings to skip ("Another wording"); none here.
+      expect(onLoadByTarget).toHaveBeenCalledWith(
+        TR_TEMPLATE.id,
+        { kind: 'review_language' },
+        undefined,
+      ),
     )
     await waitFor(() =>
       expect(canvas.getByRole('textbox', { name: 'Public reply' })).toHaveValue(

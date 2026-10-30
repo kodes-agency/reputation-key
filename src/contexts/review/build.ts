@@ -3,6 +3,10 @@
 // Returns the public API surface of the review context.
 
 import { randomUUID } from 'node:crypto'
+import {
+  createCld3ReplyLanguageDetector,
+  resolveConcreteReplyLanguage,
+} from '#/shared/ai-reply-language-verifier'
 import { reviewError } from './domain/errors'
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
@@ -48,6 +52,11 @@ import { createReviewRepository } from './infrastructure/repositories/review.rep
 import { createReviewObservationRepository } from './infrastructure/repositories/review-observation.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { createReplyTemplateRepository } from './infrastructure/repositories/reply-template.repository'
+import { createReplyLibraryRepository } from './infrastructure/repositories/reply-library.repository'
+import {
+  createAiReplyVoicePublicApi,
+  type AiReplyVoicePublicApi,
+} from './application/ai-reply-voice-frame'
 import { createPublicationReconciliationCandidateQuery } from './infrastructure/repositories/publication-reconciliation-candidate.repository'
 import { createRestatedRevisionQuery } from './infrastructure/repositories/restated-revision.repository'
 import { createObservationRetention } from './infrastructure/repositories/observation-retention.repository'
@@ -115,21 +124,26 @@ import {
   editPublishedReply,
 } from './application/use-cases/reply-operations'
 import {
+  checkReplyDraft,
   listReplyTemplates,
   loadReplyTemplate,
+  type CheckReplyDraft,
   type ListReplyTemplates,
   type LoadReplyTemplate,
-} from './application/use-cases/reply-template-operations'
+  type ResolveReplyTemplateLanguage,
+} from './application/use-cases/layered-reply-template-operations'
 import {
-  getPropertyReplyLibrary,
-  savePropertyReplyProfile,
-  savePropertyReplyTemplate,
-  setPropertyReplyTemplateEnabled,
-  type GetPropertyReplyLibrary,
-  type SavePropertyReplyProfile,
-  type SavePropertyReplyTemplate,
-  type SetPropertyReplyTemplateEnabled,
-} from './application/use-cases/reply-library-operations'
+  getReplyLibrary,
+  resetReplyTemplate,
+  saveReplyTemplate,
+  saveReplyVoice,
+  setReplyTemplateHidden,
+  type GetReplyLibrary,
+  type ResetReplyTemplate,
+  type SaveReplyTemplate,
+  type SaveReplyVoice,
+  type SetReplyTemplateHidden,
+} from './application/use-cases/reply-library-layer-operations'
 import { reconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
 import {
   checkReplyPublication,
@@ -183,6 +197,7 @@ export type ReviewContextBuildInput = Readonly<{
     PortalAiReplyBrandProfilePublicApi,
     'isCurrentAiReplyBrandProfile'
   >
+  resolveReplyLanguage?: ResolveReplyTemplateLanguage
 }>
 
 /**
@@ -208,6 +223,8 @@ export type ReviewContextApi = Readonly<{
       checkReviewOnGoogle: CheckReviewOnGoogle
       /** Content-minimized Review source/version facts for authorized AI consumers. */
       aiReviewSource: AiReviewSourcePort
+      /** Consumer-safe local voice framing for AI reply bodies. */
+      aiReplyVoice: AiReplyVoicePublicApi
       /** Review-owned queue admission used by Integration import/push workflows. */
       syncAdmission: Readonly<
         Pick<ReviewQueuePort, 'addSyncJob'> &
@@ -226,10 +243,12 @@ export type ReviewContextApi = Readonly<{
         checkPublication: CheckReplyPublication
         listTemplates: ListReplyTemplates
         loadTemplate: LoadReplyTemplate
-        getPropertyLibrary: GetPropertyReplyLibrary
-        savePropertyProfile: SavePropertyReplyProfile
-        savePropertyTemplate: SavePropertyReplyTemplate
-        setPropertyTemplateEnabled: SetPropertyReplyTemplateEnabled
+        checkDraft: CheckReplyDraft
+        getLibrary: GetReplyLibrary
+        saveVoice: SaveReplyVoice
+        saveTemplate: SaveReplyTemplate
+        setTemplateHidden: SetReplyTemplateHidden
+        resetTemplate: ResetReplyTemplate
       }>
       /** Property-scoped Review activity query presented to Review HTTP adapters. */
       getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
@@ -302,10 +321,6 @@ export type ReviewContextApi = Readonly<{
       checkReplyPublication: CheckReplyPublication
       listReplyTemplates: ListReplyTemplates
       loadReplyTemplate: LoadReplyTemplate
-      getPropertyReplyLibrary: GetPropertyReplyLibrary
-      savePropertyReplyProfile: SavePropertyReplyProfile
-      savePropertyReplyTemplate: SavePropertyReplyTemplate
-      setPropertyReplyTemplateEnabled: SetPropertyReplyTemplateEnabled
       reconcileReplyPublication: ReturnType<typeof reconcileReplyPublication>
       getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
       runReviewSourceContentLifecycle: RunReviewSourceContentLifecycle
@@ -352,6 +367,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const observationRepo = createReviewObservationRepository(input.db)
   const replyRepo = createReplyRepository(input.db, input.clock)
   const replyTemplateRepo = createReplyTemplateRepository(input.db, input.clock)
+  const replyLibraryRepo = createReplyLibraryRepository(input.db, input.clock)
+  const aiReplyVoice = createAiReplyVoicePublicApi({
+    repository: replyLibraryRepo,
+    reviews: reviewRepo,
+  })
   const publicationCandidates = createPublicationReconciliationCandidateQuery(input.db)
   const sourceContentLifecycleStore = createReviewSourceContentLifecycleStore(input.db)
   const recoveryPlanning = createReviewLifecycleRecoveryPlanningQuery(input.db)
@@ -510,8 +530,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
           input.db,
           input.aiReplyProvenancePublicKeys,
           input.replyBrandProfiles,
+          aiReplyVoice,
         )
       : undefined,
+    replyLibrary: replyLibraryRepo,
     dispatchEvidence,
     googleReplyObservationStore,
     propertyPublicationScope,
@@ -520,9 +542,26 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     staffPublicApi: input.staffPublicApi,
   }
   const draftReplyUseCase = draftReply(replyDeps)
-  const replyTemplateDeps = {
-    repository: replyTemplateRepo,
+  let replyLanguageDetector:
+    Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>> | undefined
+  const resolveReplyLanguage =
+    input.resolveReplyLanguage ??
+    (async (request: Parameters<ResolveReplyTemplateLanguage>[0]) => {
+      replyLanguageDetector ??= await createCld3ReplyLanguageDetector()
+      return resolveConcreteReplyLanguage({
+        ...request,
+        detector: replyLanguageDetector,
+      })
+    })
+  const layeredReplyTemplateDeps = {
+    repository: replyLibraryRepo,
     reviewRepo,
+    staffPublicApi: input.staffPublicApi,
+    draftReply: draftReplyUseCase,
+    resolveReplyLanguage,
+  }
+  const replyLibraryDeps = {
+    repository: replyLibraryRepo,
     staffPublicApi: input.staffPublicApi,
   }
 
@@ -640,15 +679,14 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       logger: input.logger,
     }),
     editPublishedReply: editPublishedReply(replyDeps),
-    listReplyTemplates: listReplyTemplates(replyTemplateDeps),
-    loadReplyTemplate: loadReplyTemplate({
-      ...replyTemplateDeps,
-      draftReply: draftReplyUseCase,
-    }),
-    getPropertyReplyLibrary: getPropertyReplyLibrary(replyTemplateDeps),
-    savePropertyReplyProfile: savePropertyReplyProfile(replyTemplateDeps),
-    savePropertyReplyTemplate: savePropertyReplyTemplate(replyTemplateDeps),
-    setPropertyReplyTemplateEnabled: setPropertyReplyTemplateEnabled(replyTemplateDeps),
+    listReplyTemplates: listReplyTemplates(layeredReplyTemplateDeps),
+    loadReplyTemplate: loadReplyTemplate(layeredReplyTemplateDeps),
+    checkReplyDraft: checkReplyDraft(layeredReplyTemplateDeps),
+    getReplyLibrary: getReplyLibrary(replyLibraryDeps),
+    saveReplyVoice: saveReplyVoice(replyLibraryDeps),
+    saveReplyTemplate: saveReplyTemplate(replyLibraryDeps),
+    setReplyTemplateHidden: setReplyTemplateHidden(replyLibraryDeps),
+    resetReplyTemplate: resetReplyTemplate(replyLibraryDeps),
     reconcileReplyPublication: reconcileReplyPublicationUseCase,
     getStaffRecentActivity: getStaffRecentActivity({
       reviewRepo,
@@ -746,6 +784,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       sourceTransitionAuthority,
       checkReviewOnGoogle: useCases.checkReviewOnGoogle,
       aiReviewSource,
+      aiReplyVoice,
       syncAdmission: Object.freeze({
         // A Google import fixes its epoch's history cutoff before its sync is
         // queued, and so before the import settles.
@@ -767,10 +806,12 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         checkPublication: useCases.checkReplyPublication,
         listTemplates: useCases.listReplyTemplates,
         loadTemplate: useCases.loadReplyTemplate,
-        getPropertyLibrary: useCases.getPropertyReplyLibrary,
-        savePropertyProfile: useCases.savePropertyReplyProfile,
-        savePropertyTemplate: useCases.savePropertyReplyTemplate,
-        setPropertyTemplateEnabled: useCases.setPropertyReplyTemplateEnabled,
+        checkDraft: useCases.checkReplyDraft,
+        getLibrary: useCases.getReplyLibrary,
+        saveVoice: useCases.saveReplyVoice,
+        saveTemplate: useCases.saveReplyTemplate,
+        setTemplateHidden: useCases.setReplyTemplateHidden,
+        resetTemplate: useCases.resetReplyTemplate,
       }),
       getStaffRecentActivity: useCases.getStaffRecentActivity,
     },

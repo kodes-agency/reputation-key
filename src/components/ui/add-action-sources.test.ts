@@ -20,8 +20,6 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'the Google button draws the glyph for adding an account, as its own primitive',
   'src/components/features/portal/portal-new/portal-new-languages-field.tsx':
     'a chip that toggles a language on, not a button that adds',
-  'src/components/features/property/reply-template-editor.tsx':
-    'one trigger that is Add template, or Edit when a template is open',
   'src/components/layout/manager-property-switcher.tsx':
     'a menu item of the sidebar’s property menu, not a button',
   'src/components/features/portal/portal-overview/portal-list-header-actions.tsx':
