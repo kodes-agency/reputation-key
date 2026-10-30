@@ -15,7 +15,12 @@ export function GuestVoiceIssueActions({
       <Button asChild variant="outline" size="sm">
         <Link
           to="/inbox"
-          search={issueReviewsSearch({ propertyId, startLocalDate, endLocalDate })}
+          search={issueReviewsSearch({
+            propertyId,
+            startLocalDate,
+            endLocalDate,
+            issueId,
+          })}
         >
           {reviewCount === 1 ? 'See the review' : `See all ${reviewsPhrase(reviewCount)}`}
         </Link>

@@ -59,6 +59,8 @@ export type InboxFilters = Readonly<{
   attention?: ReadonlyArray<ReviewAttention>
   aspect?: ReadonlyArray<ReviewAspect>
   polarity?: ReadonlyArray<ReviewAspectPolarity>
+  /** A Property issue of the v3 analysis, by id: with `polarity`, the same mention. */
+  issueId?: string
   q?: string
   sort?: InboxSort
 }>

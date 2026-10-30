@@ -112,6 +112,15 @@ describe('the hotel page', () => {
     expect(link?.[1]).toContain('until=2026-10-29')
   })
 
+  it('narrows the Inbox to the issue, and to the reviews that complain of it', () => {
+    const link = markup.match(
+      /<a [^>]*href="(\/inbox\?[^"]*)"[^>]*>See all 19 reviews<\/a>/u,
+    )
+
+    expect(link?.[1]).toContain('issue=a0000000-0000-4000-8000-000000000001')
+    expect(link?.[1]).toContain('polarity=negative')
+  })
+
   it('underlines a complaint in the negative ink and praise in the positive', () => {
     const complaint = markup.match(/<mark class="([^"]*)">[^<]*air conditioning/u)
     const praise = markup.match(/<mark class="([^"]*)">The front desk team/u)

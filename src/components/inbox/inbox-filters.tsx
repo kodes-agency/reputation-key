@@ -14,6 +14,8 @@ export type InboxFilterValues = Readonly<{
   attention: InboxPriorityFilterValue | undefined
   aspect: ReviewAspect | undefined
   polarity: ReviewAspectPolarity | undefined
+  /** A Property issue of the v3 analysis, by id. */
+  issue: string | undefined
   /** First and last Property-local day of the reviews shown (`YYYY-MM-DD`). */
   since: string | undefined
   until: string | undefined
@@ -29,6 +31,7 @@ export type InboxListFilterValues = Pick<
   | 'attention'
   | 'aspect'
   | 'polarity'
+  | 'issue'
   | 'since'
   | 'until'
 >
@@ -40,6 +43,7 @@ export const CLEARED_INBOX_LIST_FILTERS: InboxListFilterValues = {
   attention: undefined,
   aspect: undefined,
   polarity: undefined,
+  issue: undefined,
   since: undefined,
   until: undefined,
 }
@@ -51,6 +55,7 @@ export function countActiveInboxFilters(value: InboxListFilterValues): number {
     Number(value.attention !== undefined) +
     Number(value.aspect !== undefined) +
     Number(value.polarity !== undefined) +
+    Number(value.issue !== undefined) +
     Number(value.since !== undefined || value.until !== undefined)
   )
 }

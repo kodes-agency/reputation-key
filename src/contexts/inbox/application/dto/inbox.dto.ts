@@ -52,6 +52,8 @@ export const getInboxItemsDto = z.object({
   polarity: z
     .union([z.enum(ASPECT_POLARITIES_V1), z.array(z.enum(ASPECT_POLARITIES_V1))])
     .optional(),
+  // One Property issue of the v3 analysis; `polarity` constrains the same mention.
+  issue: z.uuid().optional(),
   sourceDateFrom: z.coerce.date().optional(),
   sourceDateTo: z.coerce.date().optional(),
   // The Property's own calendar days a drill-down was counted over; the server

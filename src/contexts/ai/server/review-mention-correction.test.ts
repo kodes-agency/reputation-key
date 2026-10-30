@@ -122,7 +122,12 @@ describe('correctReviewMentionFn', () => {
     expect(seam.method).toBe('POST')
 
     await expect(
-      call({ reviewId: REVIEW_ID, mentionOrdinal: 1, action: { kind: 'remove_topic' } }),
+      call({
+        reviewId: REVIEW_ID,
+        analysisSequence: 8,
+        mentionOrdinal: 1,
+        action: { kind: 'remove_topic' },
+      }),
     ).resolves.toEqual({ status: 'applied', mentionOrdinals: [1] })
 
     expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
@@ -146,6 +151,7 @@ describe('correctReviewMentionFn', () => {
   it('passes a changed cause through for the use case to fold and check', async () => {
     await call({
       reviewId: REVIEW_ID,
+      analysisSequence: 8,
       mentionOrdinal: 0,
       action: { kind: 'change_cause', thing: 'Air Con', issue: null },
     })
@@ -162,10 +168,51 @@ describe('correctReviewMentionFn', () => {
 
     expect(
       await rejection(
-        call({ reviewId: REVIEW_ID, mentionOrdinal: 0, action: { kind: 'undo' } }),
+        call({
+          reviewId: REVIEW_ID,
+          analysisSequence: 8,
+          mentionOrdinal: 0,
+          action: { kind: 'undo' },
+        }),
       ),
     ).toMatchObject({ _tag: 'AiError', code: 'not_found', status: 404 })
     expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
+    expect(mocks.correctReviewMention).not.toHaveBeenCalled()
+  })
+
+  it('answers not found, writing nothing, when the review was read again since the manager looked', async () => {
+    await expect(
+      call({
+        reviewId: REVIEW_ID,
+        analysisSequence: 7,
+        mentionOrdinal: 1,
+        action: { kind: 'remove_topic' },
+      }),
+    ).resolves.toEqual({ status: 'not_found' })
+
+    expect(mocks.correctReviewMention).not.toHaveBeenCalled()
+  })
+
+  it('authorizes the Inbox write before it says anything about the reading', async () => {
+    mocks.requireExecutionAllowed.mockRejectedValue(new Error('denied'))
+
+    await rejection(
+      call({
+        reviewId: REVIEW_ID,
+        analysisSequence: 7,
+        mentionOrdinal: 1,
+        action: { kind: 'undo' },
+      }),
+    )
+
+    expect(mocks.correctReviewMention).not.toHaveBeenCalled()
+  })
+
+  it('refuses a call that names no reading', async () => {
+    await rejection(
+      call({ reviewId: REVIEW_ID, mentionOrdinal: 1, action: { kind: 'undo' } }),
+    )
+
     expect(mocks.correctReviewMention).not.toHaveBeenCalled()
   })
 
@@ -173,7 +220,12 @@ describe('correctReviewMentionFn', () => {
     mocks.requireExecutionAllowed.mockRejectedValue(new Error('denied'))
 
     await rejection(
-      call({ reviewId: REVIEW_ID, mentionOrdinal: 0, action: { kind: 'undo' } }),
+      call({
+        reviewId: REVIEW_ID,
+        analysisSequence: 8,
+        mentionOrdinal: 0,
+        action: { kind: 'undo' },
+      }),
     )
 
     expect(mocks.correctReviewMention).not.toHaveBeenCalled()
@@ -186,7 +238,12 @@ describe('correctReviewMentionFn', () => {
 
     expect(
       await rejection(
-        call({ reviewId: REVIEW_ID, mentionOrdinal: 0, action: { kind: 'undo' } }),
+        call({
+          reviewId: REVIEW_ID,
+          analysisSequence: 8,
+          mentionOrdinal: 0,
+          action: { kind: 'undo' },
+        }),
       ),
     ).toMatchObject({ _tag: 'AiError', code: 'forbidden', status: 403 })
   })
@@ -210,7 +267,7 @@ describe('correctReviewMentionFn', () => {
       },
     ],
   ])('refuses %s', async (_name, rest) => {
-    await rejection(call({ reviewId: REVIEW_ID, ...rest }))
+    await rejection(call({ reviewId: REVIEW_ID, analysisSequence: 8, ...rest }))
 
     expect(mocks.correctReviewMention).not.toHaveBeenCalled()
   })

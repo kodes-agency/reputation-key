@@ -245,6 +245,7 @@ export function InboxDetailContent({
         currentUserId={currentUser?.id}
         getInboxItemHistory={detailFns.getInboxItemHistory}
         replyActions={threadReplyActions}
+        correctReviewMention={detailFns.correctReviewMention}
         reopen={edit.reopen}
       />
 

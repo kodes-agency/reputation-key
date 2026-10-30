@@ -10,6 +10,7 @@ const EVERYTHING: InboxListFilterValues = {
   attention: 'urgent',
   aspect: 'service',
   polarity: 'negative',
+  issue: 'a0000000-0000-4000-8000-000000000001',
   since: '2026-06-13',
   until: '2026-09-10',
 }

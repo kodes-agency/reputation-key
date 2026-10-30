@@ -49,6 +49,24 @@ suggestions and the toolbar reads the detail's stricter delivery gate, so the
 two can briefly disagree after a notice or redaction change; the toolbar is
 authoritative for the open item.
 
+A Review item's detail reads the AI's current analysis through `aiInsights`. A v3 reading
+arrives as `ready_v3`: `mentions` (topic, polarity, strength, the thing and what was wrong with it,
+the Property issue each belongs to now, the one-based numbers of the sentences that state it, and a
+manager's correction if there is one) and `analysisSequence`, the reading's own number. The pane
+draws one chip per cause ("Air conditioning, not working · Complaint") and underlines the cited
+sentences in the guest's own words: the numbers are resolved in the browser with
+`review-sentences-v1` against the text the detail already holds, nothing is stored, a number the
+words no longer reach underlines nothing, and only the original text is marked (never a
+translation). A guest edit is a new analysis, so its corrections start empty. The Guest voice link
+`?issue=<issueId>` (with `polarity`) narrows the list to the Reviews whose current analysis names
+that issue, corrections laid over it (`findCurrentReviewIdsByIssue`; `polarity` then belongs to the
+issue and the topic filter is skipped), and the chips that are that issue wear a ring with one line
+saying in words which. "Not right?" is the manager's correction of a reading: Inbox holds no state
+for it and calls the AI context's `correctReviewMentionFn`. The control is offered to
+`inbox.write ∧ inbox.manage` on a Review whose reading names something; the server asks `inbox.write`
+and the Property grant again, and a correction refreshes the open review, the list and the
+Property's Guest voice at once.
+
 A Review item's detail carries the way to the review on Google: its own
 Business Profile page (`googleReviewUrl`, from Review's eligible snippet, so
 null whenever the words are not served) and, as the fallback, the Property's

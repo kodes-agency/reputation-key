@@ -76,8 +76,17 @@ export function activeInboxFilterChips(
   filters: InboxListFilterValues,
   sort: InboxSort,
 ): ReadonlyArray<InboxFilterChip> {
-  const { sourceType, attention, ratingMin, ratingMax, polarity, aspect, since, until } =
-    filters
+  const {
+    sourceType,
+    attention,
+    ratingMin,
+    ratingMax,
+    polarity,
+    aspect,
+    issue,
+    since,
+    until,
+  } = filters
   const chips: ReadonlyArray<InboxFilterChip | null> = [
     sourceType === undefined
       ? null
@@ -113,6 +122,15 @@ export function activeInboxFilterChips(
           key: 'aspect',
           label: labelOf(ASPECT_OPTIONS, aspect),
           clear: { filters: { aspect: undefined } },
+        },
+    issue === undefined
+      ? null
+      : {
+          // The issue's own name is Guest voice's; the Inbox holds only its id, and says
+          // so in sentence case rather than naming the page it came from.
+          key: 'issue',
+          label: 'One issue',
+          clear: { filters: { issue: undefined } },
         },
     since === undefined && until === undefined
       ? null

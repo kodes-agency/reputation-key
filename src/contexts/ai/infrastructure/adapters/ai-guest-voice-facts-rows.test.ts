@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ZodError } from 'zod/v4'
 import { mapFactsRow, mapGroupRow, type FactsRow } from './ai-guest-voice-facts-rows'
 
 const REVIEW_ID = '00000000-0000-4000-8000-000000000001'
@@ -77,10 +78,10 @@ describe('mapFactsRow', () => {
   })
 
   it.each([
-    ['a status the table never holds', { status: 'pending' }],
-    ['a rating outside one to five', { rating: 7 }],
-    ['an Urgent reason outside the four', { urgentReason: 'fire' }],
-    ['a negative version', { sourceRevision: -1 }],
+    ['a status the table never holds', { status: 'pending' }, /invalid status/],
+    ['a rating outside one to five', { rating: 7 }, /invalid rating/],
+    ['an Urgent reason outside the four', { urgentReason: 'fire' }, /invalid reason/],
+    ['a negative version', { sourceRevision: -1 }, /invalid version/],
     [
       'a topic outside the twelve',
       {
@@ -96,6 +97,7 @@ describe('mapFactsRow', () => {
           },
         ],
       },
+      ZodError,
     ],
     [
       'a mention with an unknown field',
@@ -113,9 +115,10 @@ describe('mapFactsRow', () => {
           },
         ],
       },
+      ZodError,
     ],
-  ] as const)('refuses %s', (_name, over) => {
-    expect(() => mapFactsRow(row(over as Partial<FactsRow>), 0)).toThrow()
+  ] as const)('refuses %s', (_name, over, refusal) => {
+    expect(() => mapFactsRow(row(over as Partial<FactsRow>), 0)).toThrow(refusal)
   })
 })
 
@@ -147,6 +150,6 @@ describe('mapGroupRow', () => {
         displayName: null,
         hidden: false,
       }),
-    ).toThrow()
+    ).toThrow(/invalid topic/)
   })
 })

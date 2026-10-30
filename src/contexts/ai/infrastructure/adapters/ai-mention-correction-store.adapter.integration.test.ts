@@ -363,7 +363,14 @@ describe.sequential('manager corrections through the real stores (PostgreSQL)', 
 
     await expect(
       apply(1, 0, { kind: 'change_cause', thing: 'Not Lowercase!', issue: 'x' }),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({
+      // The use case folds a manager's words before they get here; the table's own check
+      // is what refuses a phrase that was not, and the issue made on its way is rolled back.
+      cause: {
+        code: '23514',
+        constraint: 'ai_review_analysis_mention_corrections_kind_valid',
+      },
+    })
 
     expect((await facts.readFacts(seed.scope, PERIOD))?.groups.length).toBe(groupsBefore)
     await expect(

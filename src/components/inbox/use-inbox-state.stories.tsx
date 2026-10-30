@@ -43,6 +43,7 @@ const NO_FILTERS: InboxFilterValues = {
   attention: undefined,
   aspect: undefined,
   polarity: undefined,
+  issue: undefined,
   since: undefined,
   until: undefined,
   q: undefined,

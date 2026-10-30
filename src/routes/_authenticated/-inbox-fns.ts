@@ -62,6 +62,15 @@ const readPortalPresence: NonNullable<InboxServerFns['getPortalPresence']> = asy
   input,
 ) => (await import('#/contexts/portal/server/portal-presence')).getPortalPresence(input)
 
+// Fetched with its first use too: only the "Not right?" dialog calls it, and a
+// server-function stub imported here is a stub in the first-paint closure.
+const correctReviewMention: NonNullable<InboxServerFns['correctReviewMention']> = async (
+  input,
+) =>
+  (await import('#/contexts/ai/server/review-mention-correction')).correctReviewMentionFn(
+    input,
+  )
+
 export const inboxFns: InboxServerFns = {
   get getInboxItems() {
     return getInboxItemsFn
@@ -125,6 +134,9 @@ export const inboxFns: InboxServerFns = {
   },
   get requestReviewAnalysisNow() {
     return requestReviewAnalysisNowFn
+  },
+  get correctReviewMention() {
+    return correctReviewMention
   },
   get getPortalPresence() {
     return readPortalPresence

@@ -38,6 +38,9 @@ export const inboxSearchObjectSchema = z.object({
   // be widened without inventing a second composite vocabulary.
   aspect: readable(z.enum(ASPECT_TAXONOMY_V1)),
   polarity: readable(z.enum(ASPECT_POLARITIES_V1)),
+  // One Property issue of the v3 analysis (a Guest voice link): the reviews whose
+  // analysis names it, in the way `polarity` says. An address that is not an id is dropped.
+  issue: readable(z.uuid()),
   // The window a drill-down came from, as the Property's own calendar days
   // (`?since=2026-06-13&until=2026-09-10`). They narrow the list to the reviews
   // published in those days, the days the number that was followed counted; which

@@ -506,8 +506,10 @@ assigned to it.
 
 A current-analysis read answers `{ status: 'ready_v3', topics, urgent reason, ... }` for a v3
 row: topics, polarity, strength, the optional cause and the names flag, never a quote or a
-sentence. Nothing above the AI context consumes it yet: `composition.ts` maps it to `none` for the
-Inbox until the Inbox learns to read it.
+sentence. The Inbox reads it: `composition/inbox-ai-insights.ts` turns it into the Inbox's own
+`ready_v3` (the numbers of the cited sentences, the Property issue each mention belongs to now, a
+manager's correction beside it), which the pane draws as cause chips and underlines in the guest's
+own words (`src/contexts/inbox/CONTEXT.md`).
 
 Left for the slices that need it, not done here: the `ai_property_review_population_daily`
 projection (it follows a review's observation, update and deletion whether or not the review is
@@ -515,7 +517,7 @@ analysed, so this flow does not write it, and it needs a backfill of at least th
 months of reviews before any percentage or "worth up to" figure reads it; PR-4, slice 4.1) and
 the statistics that read the mentions (the Guest voice read model, PR-4); wiring `AiProviderChoicePort` to the operator's provider choice, the
 runtime catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the
-deployment profile string) that activation flips (3.10); the Inbox reading `ready_v3`; including
+deployment profile string) that activation flips (3.10); including
 v3 derivatives in an organization export. Property issue grouping itself is complete below;
 publishing its manager commands and reads remains PR-4 work.
 
@@ -725,6 +727,12 @@ undo deletes the row. The row holds a kind, two phrases a manager chose and the 
 a quote or a name; it goes with its analysis at 24 months (cascade from the mention) and with the
 issue it moved to. Nothing is learned from it: it changes no prompt, hint or catalogue, and the
 correction rate per topic (corrections over the topic's mentions) is a count over this table.
+
+The server function names the reading the manager saw (`analysisSequence`): a mention number only
+means something inside the analysis it came from, so a call that names another sequence than the
+review's current one answers not found, writing nothing, even before the use case runs. The Inbox
+asks through a plain function fetched with its first use (`routes/_authenticated/-inbox-fns.ts`),
+so the stub stays out of the first-paint closure.
 
 The aggregate head counts every sequence the settlement ledger settles for its
 profile generation, including one a newer sequence of the same review had

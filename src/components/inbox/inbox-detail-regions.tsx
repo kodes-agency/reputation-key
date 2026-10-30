@@ -27,6 +27,7 @@ export function DetailThreadRegion({
   currentUserId,
   getInboxItemHistory,
   replyActions,
+  correctReviewMention,
   reopen,
 }: Readonly<{
   currentItem: InboxItem
@@ -36,6 +37,7 @@ export function DetailThreadRegion({
   currentUserId: string | undefined
   getInboxItemHistory: InboxDetailFns['getInboxItemHistory']
   replyActions: ThreadReplyActions
+  correctReviewMention: InboxDetailFns['correctReviewMention']
   reopen: ReopenState
 }>): ReactNode {
   // Region 3, named and reachable by keyboard.
@@ -70,6 +72,7 @@ export function DetailThreadRegion({
           currentUserId={currentUserId}
           getInboxItemHistory={getInboxItemHistory}
           replyActions={replyActions}
+          correctReviewMention={correctReviewMention}
         />
         {reopen === 'failed' ? (
           <p role="alert" className="text-xs text-negative">

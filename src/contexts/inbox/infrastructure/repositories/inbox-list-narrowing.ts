@@ -144,21 +144,45 @@ async function resolveAspectNarrowing(
 }
 
 /**
- * The analysis-derived narrowing for the item list: priority and aspect
- * mentions. Neither the AI suggestion nor a mention is a column on
- * `inbox_items`; each active filter asks the AI context, in parallel, and
- * contributes its own predicate. Aspect and polarity constrain the same
- * mention; priority intersects that result. Returns `null` to mean "stop,
- * nothing can match". List and count share it (ADR 0057 decision 6).
+ * One Property issue of the v3 analysis resolves to the Review ids whose CURRENT
+ * analysis names it, with a manager's corrections laid over it; `polarity` constrains
+ * the same mention. Like the aspect filter it never matches feedback, and an absent AI
+ * port or an empty id set is "no review matches", never "no filter".
+ */
+async function resolveIssueNarrowing(
+  ports: LookupPorts,
+  scope: AnalysisScope,
+  filters: InboxFilters,
+  issueId: string,
+): Promise<SQL[] | null> {
+  const reviewIds = await ports.aiInsights?.findCurrentReviewIdsByIssue({
+    organizationId: scope.orgId,
+    propertyIds: scope.propertyIds,
+    issueId,
+    polarities: filters.polarity,
+  })
+  if (reviewIds === undefined || reviewIds.length === 0) return null
+  return [eq(inboxItems.sourceType, 'review'), inboxSourceIdMatchesAny(reviewIds)]
+}
+
+/**
+ * The analysis-derived narrowing for the item list: priority, aspect mentions and one
+ * issue. Neither the AI suggestion nor a mention is a column on `inbox_items`; each
+ * active filter asks the AI context, in parallel, and contributes its own predicate.
+ * Aspect and polarity constrain the same mention, and so do an issue and polarity (a v3
+ * analysis has issues, not aspects); priority intersects that result. Returns `null` to
+ * mean "stop, nothing can match". List and count share it (ADR 0057 decision 6).
  */
 export async function resolveAnalysisNarrowing(
   ports: LookupPorts,
   orgId: OrganizationId,
   filters: InboxFilters,
 ): Promise<SQL[] | null> {
-  const wantsAspect = Boolean(filters.aspect?.length || filters.polarity?.length)
+  const issueId = filters.issueId
+  const wantsAspect =
+    issueId === undefined && Boolean(filters.aspect?.length || filters.polarity?.length)
   const levels = filters.attention ?? []
-  if (levels.length === 0 && !wantsAspect) return []
+  if (levels.length === 0 && !wantsAspect && issueId === undefined) return []
   const scope: AnalysisScope = {
     orgId,
     propertyIds:
@@ -168,7 +192,11 @@ export async function resolveAnalysisNarrowing(
     levels.length > 0
       ? resolvePriorityNarrowing(ports, scope, levels, filters.sourceType)
       : null,
-    wantsAspect ? resolveAspectNarrowing(ports, scope, filters) : [],
+    issueId !== undefined
+      ? resolveIssueNarrowing(ports, scope, filters, issueId)
+      : wantsAspect
+        ? resolveAspectNarrowing(ports, scope, filters)
+        : [],
   ])
   if (aspect === null) return null
   return priority === null ? aspect : [priority, ...aspect]

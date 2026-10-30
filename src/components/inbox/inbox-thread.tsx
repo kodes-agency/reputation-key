@@ -90,6 +90,8 @@ type Props = Readonly<{
   currentUserId?: string
   getInboxItemHistory: InboxDetailFns['getInboxItemHistory']
   replyActions: ThreadReplyActions
+  /** "Not right?" on the review's reading; absent where the Inbox offers no corrections. */
+  correctReviewMention?: InboxDetailFns['correctReviewMention']
 }>
 
 /**
@@ -323,6 +325,7 @@ function ThreadRow({
   detail,
   currentUserId,
   replyActions,
+  correctReviewMention,
   fold,
 }: Readonly<{
   entry: LedgerEntry
@@ -330,6 +333,7 @@ function ThreadRow({
   detail: InboxItemDetailResult | null
   currentUserId?: string
   replyActions: ThreadReplyActions
+  correctReviewMention?: InboxDetailFns['correctReviewMention']
   fold: FoldControl
 }>): ReactNode {
   switch (entry.kind) {
@@ -369,6 +373,7 @@ function ThreadRow({
           item={item}
           detail={detail}
           reviewReplyLanguage={detail?.reviewReplyLanguage}
+          correctReviewMention={correctReviewMention}
         />
       )
     case 'fold':
@@ -399,6 +404,7 @@ export function InboxThread({
   currentUserId,
   getInboxItemHistory,
   replyActions,
+  correctReviewMention,
 }: Props): ReactNode {
   const { can } = usePermissions()
   // The pane started this read with the detail (`useInboxDetailQueries`).
@@ -452,6 +458,7 @@ export function InboxThread({
             detail={detail}
             currentUserId={currentUserId}
             replyActions={replyActions}
+            correctReviewMention={correctReviewMention}
             fold={fold}
           />
         ))}

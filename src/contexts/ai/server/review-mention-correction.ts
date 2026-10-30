@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -7,31 +6,9 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { reviewId } from '#/shared/domain/ids'
-import { REVIEW_ANALYSIS_V3_MAX_MENTIONS } from '#/shared/review-analysis-v3'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { correctReviewMentionDto } from '../application/dto/review-mention-correction.dto'
 import { isAiError } from '../domain/errors'
-
-/** A cause phrase is typed by a person: the use case folds and checks it, this only bounds it. */
-const causePhrase = z.string().max(80).nullable()
-
-const correctReviewMentionDto = z.strictObject({
-  reviewId: z.uuid(),
-  mentionOrdinal: z
-    .number()
-    .int()
-    .min(0)
-    .max(REVIEW_ANALYSIS_V3_MAX_MENTIONS - 1),
-  action: z.discriminatedUnion('kind', [
-    z.strictObject({ kind: z.literal('remove_topic') }),
-    z.strictObject({ kind: z.literal('not_a_problem') }),
-    z.strictObject({ kind: z.literal('undo') }),
-    z.strictObject({
-      kind: z.literal('change_cause'),
-      thing: causePhrase,
-      issue: causePhrase,
-    }),
-  ]),
-})
 
 /**
  * "Not right?": a manager reading a review in the Inbox says what the AI got wrong about
@@ -67,6 +44,9 @@ export const correctReviewMentionFn = createServerFn({ method: 'POST' })
             action: 'inbox.write',
             propertyId: current.source.propertyId,
           })
+          if (data.analysisSequence !== current.source.analysisSequence) {
+            return { status: 'not_found' as const }
+          }
           return await container.aiPublicApi.correctReviewMention({
             organizationId: ctx.organizationId,
             propertyId: current.source.propertyId,
