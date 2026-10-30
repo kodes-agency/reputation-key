@@ -88,6 +88,7 @@ export type GuestVoiceHistoryMonth = Readonly<{
 }>
 export type GuestVoiceCauseRow = Readonly<{
   issueId: string | null
+  cause: string | null
   title: string
   reviewCount: number
 }>

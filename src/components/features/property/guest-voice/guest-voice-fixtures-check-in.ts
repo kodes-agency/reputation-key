@@ -83,8 +83,14 @@ function syntheticReview(index: number, quiet = false): GuestVoiceReview {
           : addDays('2026-07-04', Math.floor(((index - 92) * 89) / 39)),
     rating: index < 92 ? (index % 2 ? 3 : 2) : 5,
     urgentReason: quiet ? null : index < 3 ? 'health' : index < 5 ? 'safety' : null,
-    namesAPerson: false,
-    mentions: issueIndexes.map(mention),
+    namesAPerson: index === 70,
+    mentions: issueIndexes
+      .map(mention)
+      .map((m) =>
+        index === 70 && m.topic === 'staff_service'
+          ? { ...m, namesPerson: 'team_member' }
+          : m,
+      ),
   }
 }
 function build(
@@ -99,7 +105,12 @@ function build(
     provisional,
     groups,
     current: reviews,
-    baseline: [],
+    baseline: Array.from({ length: 50 }, (_, index) => ({
+      ...syntheticReview(index, true),
+      reviewId: fixtureId('b', index + 500),
+      localDate: '2025-08-01',
+      mentions: [],
+    })),
     currentPopulation: reviews.map((r) => ({
       reviewId: reviewId(r.reviewId),
       sourceRevision: 1,
@@ -124,6 +135,7 @@ export const CHECK_IN_PROVISIONAL = assembleGuestVoiceV2(
 export function checkInDetail(
   target: GuestVoiceDetailTarget,
   input: GuestVoiceBuildInput = CHECK_IN_INPUT,
+  missingQuote = false,
 ) {
   const result = buildGuestVoiceDetail({
     build: input,
@@ -131,28 +143,38 @@ export function checkInDetail(
     historyStartLocalDate: input.startLocalDate,
     target,
   })?.read
-  if (
-    !result ||
-    result.drawer.kind === 'topic' ||
-    (target.kind === 'issue' &&
-      (target.issueId !== fixtureId('a', 1) || target.sense === 'praise')) ||
-    target.kind === 'concern'
-  )
+  if (!result || result.drawer.kind !== 'issue')
     return result ?? { status: 'not_found' as const }
+  const isRoom =
+    target.kind === 'issue' &&
+    target.issueId === fixtureId('a', 1) &&
+    target.sense === 'complaint'
+  const isTeam =
+    target.kind === 'issue' &&
+    target.issueId === fixtureId('a', 5) &&
+    target.sense === 'praise'
+  if (!isRoom && !isTeam) return result
   // Invented words only; the review-wide names rule is exercised by backend tests.
   return {
     ...result,
     drawer: {
       ...result.drawer,
-      liveEvidence: [
-        quoteOf({
-          id: fixtureId('b', 1),
-          rating: 2,
-          reviewedAt: CHECK_IN_INPUT.current[0]?.localDate ?? '2026-09-01',
-          text: 'The room had a musty smell. The window opened onto a quiet courtyard.',
-          cited: [1],
-        }),
-      ],
+      definition: isRoom
+        ? 'A musty smell in guest rooms.'
+        : 'Guests describe the team as friendly and helpful.',
+      liveEvidence: missingQuote
+        ? []
+        : [
+            quoteOf({
+              id: fixtureId('b', 1),
+              rating: 2,
+              reviewedAt: CHECK_IN_INPUT.current[0]?.localDate ?? '2026-09-01',
+              text: isRoom
+                ? 'The room had a musty smell. The window opened onto a quiet courtyard.'
+                : 'The team was friendly and helpful. Arrival was easy.',
+              cited: [1],
+            }),
+          ],
     },
   }
 }

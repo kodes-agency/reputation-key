@@ -15,7 +15,7 @@ function inlineLinkClass({
   className,
 }: InlineLinkOptions = {}): string {
   return cn(
-    'font-medium text-link underline-offset-4',
+    'font-medium text-link underline-offset-4 focus-ring',
     underline === 'always' ? 'underline' : 'hover:underline',
     className,
   )

@@ -5,7 +5,6 @@ import type {
 } from '#/contexts/ai/application/public-api'
 import type { GoogleNumbersView } from '#/contexts/reporting/application/public-api'
 import { windowDates } from './guest-voice-words'
-import type { GuestVoiceRange } from '#/shared/dashboard-range'
 import { GuestVoiceProvider } from './guest-voice-context'
 import { GuestVoiceEveryTopic } from './guest-voice-every-topic'
 import { GuestVoiceFixFirst } from './guest-voice-fix-first'
@@ -36,12 +35,10 @@ export type GuestVoiceV2View = Readonly<{
 
 export function GuestVoiceV2Body({
   propertyId,
-  range: _range,
   view,
   busy = false,
 }: Readonly<{
   propertyId: string
-  range: GuestVoiceRange
   view: GuestVoiceV2View
   busy?: boolean
 }>) {
@@ -87,6 +84,24 @@ export function GuestVoiceV2Body({
         <Suspense fallback={null}>
           <DetailSheet
             target={drawer.target}
+            knownTitle={
+              read.seriousConcerns.items.find(
+                (item) =>
+                  drawer.target?.kind === 'concern' &&
+                  item.issueId === drawer.target.issueId &&
+                  item.urgentReason === drawer.target.reason,
+              )?.title ??
+              (read.status === 'ready' && drawer.target.kind === 'issue'
+                ? (drawer.target.sense === 'praise'
+                    ? read.guestsLove
+                    : [...read.fixFirst, ...read.watch]
+                  ).find(
+                    (item) =>
+                      item.issueId ===
+                      (drawer.target?.kind === 'issue' ? drawer.target.issueId : null),
+                  )?.title
+                : undefined)
+            }
             read={drawer.read}
             onClose={() => drawer.onTargetChange(null)}
             navigation={drawer.navigation}

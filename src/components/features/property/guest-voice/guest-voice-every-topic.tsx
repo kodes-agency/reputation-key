@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { RowButton as Button } from '#/components/ui/button-layouts'
 import {
   Collapsible,
   CollapsibleContent,
@@ -14,6 +14,7 @@ import type {
 import { GuestVoiceDisclosure } from './guest-voice-disclosure'
 import { topicStatusWords } from './guest-voice-check-in-words'
 import { topicLabel } from './guest-voice-words'
+import { GuestVoiceTopicIcon } from './guest-voice-topic-icon'
 import { useGuestVoice } from './guest-voice-context'
 
 const TOPIC_STATUS: StatusMap<GuestVoiceTopicStatus> = {
@@ -45,14 +46,16 @@ export function GuestVoiceEveryTopic({ rows }: Readonly<{ rows: readonly TopicRo
           <Button
             type="button"
             variant="ghost"
-            className="w-full justify-between gap-2 py-3 text-left whitespace-normal"
-            size="inline"
-            touch
+            className="gap-2"
+
             disabled={!onOpenDetail}
             aria-haspopup={onOpenDetail ? 'dialog' : undefined}
             onClick={() => onOpenDetail?.({ kind: 'topic', topic: row.topic })}
           >
-            <span className="flex-1">{topicLabel(row.topic)}</span>
+            <GuestVoiceTopicIcon topic={row.topic} row />
+            <span className="flex-1 text-base font-semibold">
+              {topicLabel(row.topic)}
+            </span>
             <StatusBadge status={row.assessment.status} map={TOPIC_STATUS} />
             <ChevronRight aria-hidden="true" />
           </Button>
@@ -67,19 +70,23 @@ export function GuestVoiceEveryTopic({ rows }: Readonly<{ rows: readonly TopicRo
       className="rounded-xl border bg-card p-4"
     >
       <CollapsibleTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          className="w-full justify-between whitespace-normal text-left"
-        >
-          Every part of your property
-          <ChevronRight aria-hidden="true" className={open ? 'rotate-90' : undefined} />
+        <Button type="button" variant="ghost">
+          <span>
+            <span className="block text-base font-semibold">
+              Every part of your property
+            </span>
+            <span className="block font-normal text-muted-foreground">
+              How guests feel about {rows.length} parts, the ones that need attention
+              first
+            </span>
+          </span>
+          <ChevronDown aria-hidden="true" className={open ? 'rotate-180' : undefined} />
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <p className="py-2 text-sm text-muted-foreground">
           Grouped by how guests feel, with the parts needing attention first. Fewer than
-          six reviews stays unjudged.
+          six reviews means this part stays unjudged.
         </p>
         {list(sorted.slice(0, 3))}
         {sorted.length > 3 ? (

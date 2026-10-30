@@ -8,8 +8,10 @@ describe('Google and goal header words', () => {
       asOf: '2026-10-01T12:00:00.000Z',
       current: true,
     }
-    expect(googleRatingLine(google)).toBe('Google rating 3.9★ (as of Oct 1, 2026)')
-    expect(googleRatingLine({ ...google, current: false })).toContain('last known')
+    expect(googleRatingLine(google, '2026-10-31')).toBe('Google rating 3.9★ (1 Oct)')
+    expect(googleRatingLine({ ...google, current: false }, '2027-01-01')).toBe(
+      'Google rating 3.9★ (1 Oct 2026)',
+    )
     expect(googleRatingLine(null)).toBeNull()
     expect(googleRatingLine({ ...google, shows: null })).toBeNull()
   })
@@ -20,7 +22,7 @@ describe('Google and goal header words', () => {
       shows: null,
       status: 'waiting_for_google' as const,
     }
-    expect(goalTargetWords(goal)).toBe('Keeping 4.2★')
+    expect(goalTargetWords(goal)).toBe('Your goal 4.2★')
     expect(goalTargetWords({ ...goal, mode: 'climb' })).toBe('Your goal 4.2★')
   })
 })

@@ -392,7 +392,10 @@ describe('detail builders', () => {
     const drawer = draft?.read.drawer
     if (drawer?.kind !== 'topic') throw new Error('expected topic')
     expect(drawer.dislikedCauses).toHaveLength(2)
-    expect(drawer.dislikedCauses[0]?.title).toBe('Room — musty smell')
+    expect(drawer.dislikedCauses[0]?.title).toContain(
+      'Room — musty smell (Cleanliness) · ',
+    )
+    expect(drawer.dislikedCauses[0]?.cause).toBe('musty smell')
     expect(drawer.dislikedCauses.map((c) => c.reviewCount)).toEqual([1, 1])
     expect(drawer.likedCauses).toHaveLength(1)
     expect(drawer.assessment.mentionedReviewCount).toBe(1)

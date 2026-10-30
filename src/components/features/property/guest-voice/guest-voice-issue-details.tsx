@@ -7,7 +7,6 @@ import { GuestVoiceIssueActions } from './guest-voice-issue-actions'
 import { GuestVoiceMonthBars } from './guest-voice-month-bars'
 import { GuestVoiceRatingComparison } from './guest-voice-rating-comparison'
 import { GuestVoiceLinkedConcerns } from './guest-voice-linked-concerns'
-import { TOPIC_DEFINITIONS } from './guest-voice-topic-definitions'
 import { topicLabel, reviewDay } from './guest-voice-words'
 
 export function GuestVoiceIssueDetails({ drawer }: Readonly<{ drawer: IssueDrawer }>) {
@@ -20,9 +19,7 @@ export function GuestVoiceIssueDetails({ drawer }: Readonly<{ drawer: IssueDrawe
         mentioned {reviewDay(drawer.lastMentionedLocalDate)}
       </p>
       <GuestVoiceRatingComparison comparison={drawer.commentComparison} />
-      <p className="text-sm leading-relaxed">
-        {TOPIC_DEFINITIONS[drawer.topic]} {drawer.definition}
-      </p>
+      <p className="text-sm leading-relaxed">{drawer.definition}</p>
       <GuestVoiceCauses causes={drawer.causes} label="What guests mentioned" />
       {drawer.hidden ? (
         <p className="text-sm text-muted-foreground">
@@ -40,7 +37,7 @@ export function GuestVoiceIssueDetails({ drawer }: Readonly<{ drawer: IssueDrawe
       </div>
       <GuestVoiceMonthBars series={drawer.twelveMonthSeries} />
       {drawer.historyCoverage === 'window_only' ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Only this period’s history is available. Earlier months are unavailable, not
           zero.
         </p>

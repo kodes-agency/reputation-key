@@ -17,6 +17,7 @@ import { RANGE_CONTROL_LABEL } from '#/components/ui/range-control'
 import { PropertyGuestVoicePage } from './property-guest-voice-page'
 import { TrendSupportingReviews } from './property-guest-voice-trend'
 import { PropertyInsightsRecurringIssues } from './property-insights-recurring-issues'
+import { HAMPTON_READ } from './guest-voice/guest-voice-fixtures-check-in'
 import { LARGE_PROPERTY } from './property-guest-voice-stories-data'
 
 // The AI-off state offers the account admin's button, which asks who may manage AI.
@@ -243,4 +244,30 @@ describe('PropertyGuestVoicePage without a page to draw', () => {
     expect(markup).toContain('Guest voice is being prepared')
     expect(markup).not.toContain(RANGE_CONTROL_LABEL)
   })
+})
+
+it('renders the actual shared range inside PageHeader actions and the resolved caption', () => {
+  const router = createRouter({
+    routeTree: createRootRoute(),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  const html = renderToStaticMarkup(
+    createElement(RouterContextProvider, {
+      router,
+      children: createElement(PropertyGuestVoicePage, {
+        propertyId: PROPERTY_ID,
+        propertyName: 'Hotel',
+        range: 'auto',
+        onRangeChange: () => undefined,
+        v2: { read: HAMPTON_READ },
+      }),
+    }),
+  )
+  const actions = /data-slot="page-header-actions"[^>]*>([\s\S]*?)<\/div><\/div>/u.exec(
+    html,
+  )?.[1]
+  expect(actions).toContain('Time range')
+  expect(actions).toContain('Last 12 months')
+  expect(actions).toContain('132 reviews')
+  expect(html).not.toContain('page-header-meta')
 })

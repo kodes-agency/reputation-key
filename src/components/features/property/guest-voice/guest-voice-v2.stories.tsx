@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, within } from 'storybook/test'
+import { PageGutterDecorator } from '../../../../../.storybook/PageGutterDecorator'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import type {
   GuestVoiceDetailTarget,
@@ -21,6 +22,7 @@ import {
   CHECK_IN_PROVISIONAL,
   checkInDetail,
 } from './guest-voice-fixtures-check-in'
+import { GuestVoiceRatingChart } from './guest-voice-rating-chart'
 import { PROPERTY_ID, fixtureId } from './guest-voice-fixtures-build'
 
 function CheckInStory({
@@ -30,6 +32,7 @@ function CheckInStory({
   google = true,
   goal = true,
   renamed = false,
+  missingQuote = false,
 }: Readonly<{
   read: GuestVoiceV2Read
   initialTarget?: GuestVoiceDetailTarget | null
@@ -37,6 +40,7 @@ function CheckInStory({
   google?: boolean
   goal?: boolean
   renamed?: boolean
+  missingQuote?: boolean
 }>) {
   const [target, setTarget] = useState(initialTarget)
   const [range, setRange] = useState<'auto' | '30d' | '90d' | '180d' | '365d' | 'all'>(
@@ -75,7 +79,11 @@ function CheckInStory({
               : detailState === 'error'
                 ? { status: 'error', onRetry: () => undefined, retrying: false }
                 : target
-                  ? checkInDetail(target, renamed ? CHECK_IN_RENAMED_INPUT : undefined)
+                  ? checkInDetail(
+                      target,
+                      renamed ? CHECK_IN_RENAMED_INPUT : undefined,
+                      missingQuote,
+                    )
                   : { status: 'pending' },
         },
       }}
@@ -85,8 +93,12 @@ function CheckInStory({
 const meta = {
   title: 'Property/GuestVoice2/Check-in',
   component: CheckInStory,
-  decorators: [AuthedRouterDecorator],
-  parameters: { layout: 'fullscreen', viewport: { defaultViewport: 'desktopManager' } },
+  decorators: [AuthedRouterDecorator, PageGutterDecorator],
+  parameters: {
+    theme: 'light',
+    layout: 'fullscreen',
+    viewport: { defaultViewport: 'desktopManager' },
+  },
   args: { read: HAMPTON_READ },
 } satisfies Meta<typeof CheckInStory>
 export default meta
@@ -99,11 +111,11 @@ export const HamptonLike: Story = {
       canvas.getByRole('heading', { name: 'What should we fix first?' }),
     ).toBeVisible()
     await userEvent.click(
-      canvas.getByRole('button', { name: 'Every part of your property' }),
+      canvas.getByRole('button', { name: /Every part of your property/u }),
     )
     expect(
       canvas.getByText(
-        'Grouped by how guests feel, with the parts needing attention first. Fewer than six reviews stays unjudged.',
+        'Grouped by how guests feel, with the parts needing attention first. Fewer than six reviews means this part stays unjudged.',
       ),
     ).toBeVisible()
     await userEvent.click(
@@ -119,9 +131,9 @@ export const HamptonLike: Story = {
       canvas.getByRole('button', { name: '2 more things guests love' }),
     ).toBeVisible()
     await userEvent.click(
-      canvas.getByRole('button', { name: '2 other concerns guests raised' }),
+      canvas.getByRole('button', { name: '4 other concerns guests raised' }),
     )
-    expect(canvas.getByText('Mentioned once or twice. Not a pattern yet.')).toBeVisible()
+    expect(canvas.getByText('Raised once or twice')).toBeVisible()
   },
 }
 export const HamptonLikePhone: Story = { parameters: PHONE }
@@ -146,7 +158,9 @@ export const SheetOpen: Story = {
     const body = within(document.body)
     const sheet = within(await body.findByRole('dialog'))
     expect(sheet.getByText('These guests')).toBeVisible()
-    await userEvent.click(sheet.getByRole('button', { name: /Linked serious concern/u }))
+    await userEvent.click(
+      sheet.getByRole('button', { name: /Linked serious concern · Health risk/u }),
+    )
     const concern = within(await body.findByRole('dialog'))
     await userEvent.click(await concern.findByRole('button', { name: /Back to Room/u }))
     expect(
@@ -169,7 +183,7 @@ export const PraiseSheet: Story = {
 export const Steady: Story = { args: { read: CHECK_IN_STEADY } }
 export const Slipping: Story = { args: { read: CHECK_IN_SLIPPING } }
 export const InsufficientTrend: Story = { args: { read: CHECK_IN_INSUFFICIENT } }
-export const MissingQuote: Story = { args: PraiseSheet.args }
+export const MissingQuote: Story = { args: { ...SheetOpen.args, missingQuote: true } }
 export const LongManagerRename: Story = {
   args: { read: CHECK_IN_RENAMED, renamed: true },
   parameters: PHONE,
@@ -177,15 +191,19 @@ export const LongManagerRename: Story = {
 
 export const MonthKeyboard: Story = {
   parameters: PHONE,
+  render: () => (
+    <GuestVoiceRatingChart
+      months={HAMPTON_READ.ratingTrend.months}
+      recentStart={HAMPTON_READ.ratingTrend.recent.startLocalDate}
+      tone="positive"
+    />
+  ),
   play: async ({ canvas }) => {
-    await userEvent.click(canvas.getByRole('button', { name: 'See each month' }))
     const chart = canvas.getByRole('group', { name: /Monthly ratings/u })
     chart.focus()
     await userEvent.keyboard('{Home}{ArrowRight}{End}')
-    expect(canvas.getByText('Oct: 1 review · through Oct 1 · 5.0★')).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Hide each month' }))
-    expect(
-      canvas.queryByRole('group', { name: /Monthly ratings/u }),
-    ).not.toBeInTheDocument()
+    expect(canvas.getByText(/Oct: 1 review · through Oct 1/u)).toHaveTextContent(
+      '5.0 stars',
+    )
   },
 }

@@ -48,7 +48,7 @@ describe('live issue detail', () => {
     const order = [
       '9 guests brought it up',
       'These guests',
-      'How clean',
+      'A musty smell in guest rooms.',
       'Linked serious concern',
       'In guests’ own words',
       'Open these reviews in the Inbox',

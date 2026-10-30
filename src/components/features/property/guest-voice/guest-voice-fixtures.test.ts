@@ -37,6 +37,14 @@ describe('dated check-in fixtures', () => {
     )
     expect(HAMPTON_READ.guestsLove.length).toBeGreaterThanOrEqual(4)
     expect(HAMPTON_READ.watch.length).toBeGreaterThan(0)
+    expect(HAMPTON_READ.staffPraise?.reviewCount).toBeGreaterThan(0)
+    expect(
+      HAMPTON_READ.guestsLove.some(
+        (item) =>
+          item.statistics.change === 'rising' &&
+          item.statistics.evidenceLevel === 'likely',
+      ),
+    ).toBe(true)
   })
   it('keeps a long manager rename consistent between its page row and sheet', () => {
     const item = CHECK_IN_RENAMED.fixFirst.find((item) =>

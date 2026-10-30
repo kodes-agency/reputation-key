@@ -27,8 +27,10 @@ describe('honest chart scales and unavailable averages', () => {
         },
       }),
     )
-    expect(markup).toContain('These guests: 1.0 stars · 1 review')
-    expect(markup).toContain('Other guests: Not available · 0 reviews')
+    expect(markup).toContain('These guests<span class="sr-only">: 1.0 stars · 1 review')
+    expect(markup).toContain(
+      'Other guests<span class="sr-only">: Not available · 0 reviews',
+    )
     expect(markup).toContain('style="width:0%"')
     expect(markup).toContain('— Not available')
     expect(markup).not.toContain('0.0★')

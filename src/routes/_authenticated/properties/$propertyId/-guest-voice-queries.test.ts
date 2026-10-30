@@ -10,9 +10,11 @@ const fns = vi.hoisted(() => ({
   google: vi.fn(async () => null),
 }))
 vi.mock('./-guest-voice-fns', () => ({
-  getGuestVoiceDetail: fns.detail,
-  getGuestVoiceGoogle: fns.google,
-  getGuestVoicePage: vi.fn(),
+  guestVoiceFns: {
+    getGuestVoiceDetail: fns.detail,
+    getGuestVoiceGoogle: fns.google,
+    getGuestVoicePage: vi.fn(),
+  },
 }))
 const context = {
   window: '30d' as const,
@@ -76,7 +78,9 @@ describe('detail query lifecycle', () => {
   it('keeps Google numbers independent from goal reads', async () => {
     const client = new QueryClient()
     const query = propertyGuestVoiceGoogleQuery('property')
-    expect(query.queryKey).toEqual(dashboardKeys.googleNumbers('property'))
+    expect(query.queryKey).toEqual(
+      dashboardKeys.property({ propertyId: 'property', view: 'google-numbers' }),
+    )
     await expect(client.fetchQuery(query)).resolves.toBeNull()
     expect(fns.google).toHaveBeenCalledWith({ data: { propertyId: 'property' } })
     client.clear()

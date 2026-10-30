@@ -1,4 +1,5 @@
-import { Button } from '#/components/ui/button'
+import { HeartPulse, ChevronRight } from 'lucide-react'
+import { RowButton as Button } from '#/components/ui/button-layouts'
 import type { UrgentConcernItem } from '#/contexts/ai/application/public-api'
 import { useGuestVoice } from './guest-voice-context'
 import { CONCERN_WORDS } from './guest-voice-urgent'
@@ -15,7 +16,7 @@ export function GuestVoiceLinkedConcerns({
           key={item.key}
           type="button"
           variant="outline"
-          className="justify-start whitespace-normal text-left"
+
           data-detail-focus={item.key}
           onClick={() =>
             onOpenDetail?.({
@@ -25,17 +26,19 @@ export function GuestVoiceLinkedConcerns({
             })
           }
         >
-          <span>
-            <span className="block text-negative">
+          <HeartPulse aria-hidden="true" className="size-5 text-negative" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-bold text-negative">
               Linked serious concern · {CONCERN_WORDS[item.urgentReason]}
             </span>
             {item.title}
-            <span className="block text-xs font-normal text-muted-foreground">
-              Some reviews mention both; this is not proof of a cause.
-            </span>
           </span>
+          <ChevronRight aria-hidden="true" />
         </Button>
       ))}
+      <p className="text-sm text-muted-foreground">
+        Some reviews mention both; this is not proof of a cause.
+      </p>
     </div>
   )
 }

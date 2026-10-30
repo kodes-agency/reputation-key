@@ -1,4 +1,6 @@
 import { GuestVoiceHowWeCount } from './guest-voice/guest-voice-how-we-count'
+import { periodWords } from './guest-voice/guest-voice-check-in-words'
+import { reviewsPhrase } from './guest-voice/guest-voice-words'
 import { GuestVoiceRatingGoal } from './guest-voice/guest-voice-rating-goal'
 import { useQuery } from '@tanstack/react-query'
 import { RangeBusyRegion } from '#/components/features/dashboard/range-busy-region'
@@ -130,22 +132,29 @@ function GuestVoiceV1Body({
 
 export function PropertyGuestVoicePage(props: Props) {
   const { propertyId, propertyName, range, onRangeChange, busy = false } = props
+  const context = props.v2
+    ? props.v2.read.status === 'ready'
+      ? props.v2.read
+      : props.v2.read.context
+    : null
   return (
     <PageShell tier="dashboard">
       <PageHeader
         title="Guest voice"
-        description="What guests praise, what needs attention, and how the picture is changing."
+        titleAside={
+          props.v2 ? (
+            <GuestVoiceHowWeCount read={props.v2.read} range={range} />
+          ) : undefined
+        }
         meta={
-          props.v2
+          props.v2 && (props.v2.googleNumbers?.shows != null || props.v2.ratingGoal)
             ? [
-                propertyName,
                 <GuestVoiceRatingGoal
                   key="rating"
                   propertyId={propertyId}
                   goal={props.v2.ratingGoal}
                   google={props.v2.googleNumbers}
                 />,
-                <GuestVoiceHowWeCount key="count" read={props.v2.read} range={range} />,
               ]
             : undefined
         }
@@ -157,27 +166,30 @@ export function PropertyGuestVoicePage(props: Props) {
         // A page that says why it has no figures yet has nothing to choose a window for.
         actions={
           props.state === undefined ? (
-            <RangeControl
-              value={range}
-              onValueChange={onRangeChange}
-              options={
-                props.v2 === undefined
-                  ? GUEST_VOICE_RANGE_OPTIONS
-                  : GUEST_VOICE_V2_RANGE_OPTIONS
-              }
-            />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:flex-col md:items-start">
+              <RangeControl
+                value={range}
+                onValueChange={onRangeChange}
+                options={
+                  props.v2 === undefined
+                    ? GUEST_VOICE_RANGE_OPTIONS
+                    : GUEST_VOICE_V2_RANGE_OPTIONS
+                }
+              />
+              {context ? (
+                <p className="text-sm text-muted-foreground">
+                  {periodWords(context.window).replace(/^the /u, '').replace(/^l/u, 'L')}{' '}
+                  · {reviewsPhrase(context.basis.textReviewCount)}
+                </p>
+              ) : null}
+            </div>
           ) : undefined
         }
       />
 
       <RangeBusyRegion busy={busy}>
         {props.v2 !== undefined ? (
-          <GuestVoiceV2Body
-            propertyId={propertyId}
-            range={range}
-            view={props.v2}
-            busy={busy}
-          />
+          <GuestVoiceV2Body propertyId={propertyId} view={props.v2} busy={busy} />
         ) : props.state !== undefined ? (
           <GuestVoiceState
             result={{ status: props.state }}

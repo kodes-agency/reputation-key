@@ -1,4 +1,4 @@
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink as InlineLink } from '#/components/ui/inline-touch-link'
 import type { GoogleNumbersView } from '#/contexts/reporting/application/public-api'
 import {
   googleRatingLine,
@@ -26,11 +26,10 @@ export function GuestVoiceRatingGoal({
           <InlineLink
             to="/properties/$propertyId/goals/google-rating"
             params={{ propertyId }}
-            aria-label={`Open the goal · ${goal.mode === 'keep' ? 'keep' : 'reach'} ${goal.target.toFixed(1)} stars`}
           >
-            <span className="md:hidden">{goalTargetWords(goal)} ›</span>
-            <span className="hidden md:inline">
-              {goalTargetWords(goal)} · Open the goal
+            <span aria-hidden="true">{goalTargetWords(goal)} ›</span>
+            <span className="sr-only">
+              Your goal {goal.target.toFixed(1)} stars · open the goal
             </span>
           </InlineLink>
         </>

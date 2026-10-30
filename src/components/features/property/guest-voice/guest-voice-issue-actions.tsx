@@ -6,6 +6,7 @@ import { InlineLink } from '#/components/ui/inline-link'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { GuestVoiceMatchingReviewScope } from '#/contexts/ai/application/public-api'
 import { useGuestVoice } from './guest-voice-context'
+import { reviewsPhrase } from './guest-voice-words'
 import { issueReviewsSearch, urgentReviewsSearch } from './guest-voice-links'
 
 export function GuestVoiceIssueActions({
@@ -34,7 +35,7 @@ export function GuestVoiceIssueActions({
         <Link
           to="/inbox"
           search={search}
-          aria-label={`Open these reviews in the Inbox · ${reviewCount} reviews counted here`}
+          aria-label={`Open these reviews in the Inbox · ${reviewsPhrase(reviewCount)} counted here`}
         >
           Open these reviews in the Inbox
         </Link>
@@ -49,7 +50,7 @@ export function GuestVoiceIssueActions({
           <p className="text-sm">
             Choose a review in the Inbox, then correct its reading.{' '}
             <InlineLink to="/inbox" search={search}>
-              Open the inbox
+              Open the Inbox
             </InlineLink>
           </p>
         </PopoverContent>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { Copy, Check } from 'lucide-react'
+import { SummaryButton as Button } from '#/components/ui/button-layouts'
 import { Textarea } from '#/components/ui/textarea'
 import { copyToClipboard } from '#/lib/clipboard'
 import type { GuestVoiceV2Ready } from '#/contexts/ai/application/public-api'
@@ -25,19 +25,25 @@ export function GuestVoiceTeamSummaryButton({
     <div className="flex flex-col items-start gap-2">
       <Button
         type="button"
+
+        variant={outcome === 'copied' ? 'secondary' : 'default'}
         onClick={async () =>
           setOutcome((await copy(guestVoiceTeamSummary(read))) ? 'copied' : 'failed')
         }
       >
-        <Copy aria-hidden="true" />
+        {outcome === 'copied' ? (
+          <Check aria-hidden="true" className="text-positive" />
+        ) : (
+          <Copy aria-hidden="true" />
+        )}
         {outcome === 'copied' ? 'Copied' : 'Copy team summary'}
       </Button>
-      <p role="status" className="text-xs text-muted-foreground">
+      <p role="status" className="text-sm text-muted-foreground">
         {outcome === 'failed'
           ? 'Couldn’t copy. Select and copy the note below.'
           : outcome === 'copied'
             ? 'Team summary copied.'
-            : 'A short note for your team. No guests’ words.'}
+            : 'A short note on what guests love and what to work on. No guests’ words.'}
       </p>
       {outcome === 'failed' ? (
         <Textarea

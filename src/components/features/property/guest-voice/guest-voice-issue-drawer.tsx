@@ -7,8 +7,12 @@ import {
   SheetDescription,
   SheetFooter,
   SheetHeader,
-  SheetTitle,
 } from '#/components/ui/sheet'
+import {
+  RESPONSIVE_DETAIL_SHEET,
+  SheetDetailTitle as SheetTitle,
+} from '#/components/ui/sheet-layouts'
+import { ReadableBadge } from '#/components/ui/readable-badge'
 import { Skeleton } from '#/components/ui/skeleton'
 import type {
   GuestVoiceDetailRead,
@@ -18,6 +22,8 @@ import { GuestVoiceIssueDetails } from './guest-voice-issue-details'
 import { GuestVoiceConcernDetails } from './guest-voice-concern-details'
 import { GuestVoiceTopicDetails } from './guest-voice-topic-details'
 import { GuestVoiceIssueActions } from './guest-voice-issue-actions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+import { GuestVoiceTopicIcon } from './guest-voice-topic-icon'
 import { topicLabel } from './guest-voice-words'
 import type { GuestVoiceDetailNavigation } from './use-guest-voice-detail-navigation'
 
@@ -30,12 +36,15 @@ export function GuestVoiceIssueDrawer({
   read,
   onClose,
   navigation,
+  knownTitle,
 }: Readonly<{
   target: GuestVoiceDetailTarget
   read: GuestVoiceDrawerRead
   onClose: () => void
   navigation?: GuestVoiceDetailNavigation
+  knownTitle?: string
 }>) {
+  const { can } = usePermissions()
   const titleRef = useRef<HTMLHeadingElement>(null)
   const ready = read.status === 'ready' ? read.drawer : null
   const title = ready
@@ -44,7 +53,7 @@ export function GuestVoiceIssueDrawer({
       : ready.title
     : target.kind === 'topic'
       ? topicLabel(target.topic)
-      : 'Review details'
+      : (knownTitle ?? navigation?.knownTitle() ?? 'Review details')
   const restoreDetail = useEffectEvent(() => navigation?.ready(title))
   useEffect(() => {
     if (!ready) return
@@ -62,7 +71,7 @@ export function GuestVoiceIssueDrawer({
       }}
     >
       <SheetContent
-        layout="responsive-detail"
+        layout={RESPONSIVE_DETAIL_SHEET}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           titleRef.current?.focus()
@@ -82,16 +91,18 @@ export function GuestVoiceIssueDrawer({
               className="self-start"
             />
           ) : null}
-          <SheetTitle
-            ref={titleRef}
-            tabIndex={-1}
-            className="text-lg tracking-tight outline-none"
-          >
+          {ready && ready.kind !== 'concern' ? (
+            <ReadableBadge variant="neutral">
+              <GuestVoiceTopicIcon topic={ready.topic} />
+              {topicLabel(ready.topic)}
+            </ReadableBadge>
+          ) : null}
+          <SheetTitle ref={titleRef} tabIndex={-1}>
             {title}
           </SheetTitle>
           <SheetDescription>
             {ready?.kind === 'issue'
-              ? topicLabel(ready.topic)
+              ? 'Counts and evidence from this period'
               : ready?.kind === 'concern'
                 ? 'Serious concern reported by guests'
                 : 'Counts and evidence from this period'}
@@ -126,7 +137,11 @@ export function GuestVoiceIssueDrawer({
             <p role="status" className="text-sm text-muted-foreground">
               {read.status === 'refresh_required'
                 ? 'The period has changed. Refreshing the page…'
-                : 'These details are no longer available for this property and period.'}
+                : read.status === 'disabled'
+                  ? 'AI analysis is off for this property.'
+                  : read.status === 'preparing'
+                    ? 'These review details are still being prepared.'
+                    : 'These details are no longer available for this property and period.'}
             </p>
           ) : null}
           {ready?.kind === 'issue' ? (
@@ -137,7 +152,7 @@ export function GuestVoiceIssueDrawer({
             <GuestVoiceTopicDetails drawer={ready} />
           ) : null}
         </div>
-        {ready && ready.kind !== 'topic' ? (
+        {ready && ready.kind !== 'topic' && can('inbox.read') ? (
           <SheetFooter variant="safe-area-actions">
             <GuestVoiceIssueActions
               scope={ready.matchingReviews}

@@ -34,7 +34,6 @@ const body = (read: GuestVoiceV2Read, busy = false) =>
   render(
     createElement(GuestVoiceV2Body, {
       propertyId: 'property',
-      range: 'auto',
       busy,
       view: {
         read,
@@ -79,11 +78,11 @@ describe('H check-in', () => {
     expect(markup.indexOf('Anything urgent?')).toBeLessThan(
       markup.indexOf('Not enough reviews to spot patterns yet'),
     )
-    expect(markup).toContain('Your latest reviews')
-    expect(markup.match(/Open in the inbox<\/a>/gu)).toHaveLength(3)
+    expect(markup).toContain('What are guests saying?')
+    expect(markup).toContain('See all 6 reviews')
+    expect(markup).not.toContain('Open in the Inbox')
     expect(markup).toContain('Invite guests to review')
     expect(markup).not.toContain('What should we fix first?')
-    expect(markup).not.toContain('See all')
   })
   it('blocks row and clipboard interaction while showing a previous range', () => {
     const markup = body(HAMPTON_READ, true)

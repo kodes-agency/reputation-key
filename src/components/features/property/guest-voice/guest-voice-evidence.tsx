@@ -1,4 +1,4 @@
-import { SectionTitle } from '#/components/ui/section-title'
+import { StrongSectionTitle as SectionTitle } from '#/components/ui/section-title-strong'
 import type {
   IssueDrawer,
   GuestVoiceConcernDrawer,
@@ -31,10 +31,12 @@ export function GuestVoiceEvidence({
           ))}
         </ul>
       )}
-      <p className="text-xs text-muted-foreground">
-        The underlined sentence is the part we counted. A review that names a team member
-        is never quoted.
-      </p>
+      {drawer.liveEvidence.length ? (
+        <p className="text-sm text-muted-foreground">
+          The underlined sentence is the part we counted. A review that names a team
+          member is never quoted.
+        </p>
+      ) : null}
     </section>
   )
 }

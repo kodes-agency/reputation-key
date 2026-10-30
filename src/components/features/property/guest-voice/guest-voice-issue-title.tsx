@@ -1,8 +1,9 @@
 import { ChevronRight } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { RowButton as Button } from '#/components/ui/button-layouts'
 import type { ReactNode } from 'react'
 import type { ReviewTopicV3 } from '#/contexts/ai/application/public-api'
 import { useGuestVoice } from './guest-voice-context'
+import { GuestVoiceTopicIcon } from './guest-voice-topic-icon'
 import { topicLabel } from './guest-voice-words'
 
 export function GuestVoiceIssueTitle({
@@ -21,8 +22,15 @@ export function GuestVoiceIssueTitle({
   const { onOpenDetail } = useGuestVoice()
   const content = (
     <>
+      <GuestVoiceTopicIcon topic={topic} row />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="font-semibold [overflow-wrap:anywhere]">{title}</span>
+        <span
+          data-issue-title
+          className="text-base font-semibold [overflow-wrap:anywhere]"
+        >
+          {title}
+        </span>
+        <span className="sr-only">{topicLabel(topic)}</span>
         {children}
       </span>
       <ChevronRight aria-hidden="true" className="text-muted-foreground" />
@@ -32,11 +40,9 @@ export function GuestVoiceIssueTitle({
     <Button
       type="button"
       variant="ghost"
-      size="inline"
-      touch
+
       aria-haspopup="dialog"
-      aria-label={`${title} · ${topicLabel(topic)} · ${sense}`}
-      className="w-full justify-between gap-3 py-3 text-left whitespace-normal"
+      className="gap-3"
       onClick={() => onOpenDetail({ kind: 'issue', issueId, sense })}
     >
       {content}

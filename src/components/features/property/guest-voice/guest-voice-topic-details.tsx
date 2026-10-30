@@ -2,11 +2,12 @@ import type {
   GuestVoiceTopicDrawer,
   GuestVoiceCauseRow,
 } from '#/contexts/ai/application/public-api'
-import { SectionTitle } from '#/components/ui/section-title'
-import { Button } from '#/components/ui/button'
+import { StrongSectionTitle as SectionTitle } from '#/components/ui/section-title-strong'
+import { RowButton as Button } from '#/components/ui/button-layouts'
 import { useGuestVoice } from './guest-voice-context'
 import { TOPIC_DEFINITIONS } from './guest-voice-topic-definitions'
 import { topicStatusWords } from './guest-voice-check-in-words'
+import { reviewsPhrase } from './guest-voice-words'
 import { GuestVoiceLinkedConcerns } from './guest-voice-linked-concerns'
 
 export function GuestVoiceTopicDetails({
@@ -31,19 +32,29 @@ export function GuestVoiceTopicDetails({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="inline"
-                  touch
-                  className="w-full justify-between py-2 text-left whitespace-normal"
+
                   data-detail-focus={`${sense}:${row.issueId}`}
                   onClick={() =>
                     onOpenDetail?.({ kind: 'issue', issueId: row.issueId ?? '', sense })
                   }
                 >
-                  {row.title} · {row.reviewCount} reviews
+                  <span className="flex flex-col gap-1">
+                    <span className="text-base font-semibold">{row.title}</span>
+                    <span className="font-normal text-muted-foreground">
+                      {row.cause ? `${row.cause} · ` : ''}
+                      {reviewsPhrase(row.reviewCount)}
+                    </span>
+                  </span>
                 </Button>
               ) : (
                 <p className="py-2 text-sm">
-                  {row.title} · {row.reviewCount} reviews
+                  <span className="flex flex-col gap-1">
+                    <span className="text-base font-semibold">{row.title}</span>
+                    <span className="font-normal text-muted-foreground">
+                      {row.cause ? `${row.cause} · ` : ''}
+                      {reviewsPhrase(row.reviewCount)}
+                    </span>
+                  </span>
                 </p>
               )}
             </li>
@@ -59,9 +70,10 @@ export function GuestVoiceTopicDetails({
   return (
     <>
       <p className="text-sm">
-        {a.mentionedReviewCount} reviews mention this part: {a.happyReviewCount} happy,{' '}
-        {a.mixedReviewCount} mixed, {a.unhappyReviewCount} unhappy and{' '}
-        {a.neutralOnlyReviewCount} neutral.
+        {reviewsPhrase(a.mentionedReviewCount)}{' '}
+        {a.mentionedReviewCount === 1 ? 'mentions' : 'mention'} this part:{' '}
+        {a.happyReviewCount} happy, {a.mixedReviewCount} mixed, {a.unhappyReviewCount}{' '}
+        unhappy and {a.neutralOnlyReviewCount} neutral.
       </p>
       <p className="text-sm">
         {topicStatusWords[a.status]}

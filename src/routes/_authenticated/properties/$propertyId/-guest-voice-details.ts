@@ -15,29 +15,28 @@ const reason = (
   value === 'discrimination' ||
   value === 'legal_threat'
 export function guestVoiceDetailTarget(search: Search): GuestVoiceDetailTarget | null {
-  if ((search.concern === 'other' || uuid(search.concern)) && reason(search.reason))
+  const [kind, value, qualifier, extra] = search.detail?.split(':') ?? []
+  if (extra !== undefined) return null
+  if (kind === 'concern' && (value === 'other' || uuid(value)) && reason(qualifier))
     return {
       kind: 'concern',
-      issueId: search.concern === 'other' ? null : search.concern,
-      reason: search.reason,
+      issueId: value === 'other' ? null : value,
+      reason: qualifier,
     }
-  if (uuid(search.issue) && (search.sense === 'complaint' || search.sense === 'praise'))
-    return { kind: 'issue', issueId: search.issue, sense: search.sense }
-  if (search.topic && isReviewTopicV3(search.topic))
-    return { kind: 'topic', topic: search.topic }
+  if (
+    kind === 'issue' &&
+    uuid(value) &&
+    (qualifier === 'complaint' || qualifier === 'praise')
+  )
+    return { kind: 'issue', issueId: value, sense: qualifier }
+  if (kind === 'topic' && value && !qualifier && isReviewTopicV3(value))
+    return { kind: 'topic', topic: value }
   return null
 }
 export function guestVoiceDetailParams(target: GuestVoiceDetailTarget | null): Search {
-  const empty = {
-    issue: undefined,
-    sense: undefined,
-    concern: undefined,
-    reason: undefined,
-    topic: undefined,
-  }
-  if (!target) return empty
-  if (target.kind === 'topic') return { ...empty, topic: target.topic }
+  if (!target) return { detail: undefined }
+  if (target.kind === 'topic') return { detail: `topic:${target.topic}` }
   if (target.kind === 'issue')
-    return { ...empty, issue: target.issueId, sense: target.sense }
-  return { ...empty, concern: target.issueId ?? 'other', reason: target.reason }
+    return { detail: `issue:${target.issueId}:${target.sense}` }
+  return { detail: `concern:${target.issueId ?? 'other'}:${target.reason}` }
 }

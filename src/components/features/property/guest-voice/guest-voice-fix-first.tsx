@@ -3,7 +3,11 @@ import { GuestVoiceIssueTitle } from './guest-voice-issue-title'
 import { GuestVoiceNothingHere, GuestVoiceSection } from './guest-voice-section'
 import { GuestVoiceDisclosure } from './guest-voice-disclosure'
 import { GuestVoiceWatch } from './guest-voice-watch'
-import { fixAnswer, lastMentionedText } from './guest-voice-check-in-words'
+import {
+  fixAnswer,
+  lastMentionedText,
+  otherConcernsLabel,
+} from './guest-voice-check-in-words'
 import { GuestVoiceOverflow } from './guest-voice-overflow'
 import { starsText } from './guest-voice-words'
 
@@ -33,7 +37,13 @@ export function GuestVoiceFixFirst({ read }: Readonly<{ read: GuestVoiceV2Ready 
     <GuestVoiceSection
       title="What should we fix first?"
       answer={fixAnswer(read.fixFirst)}
-      hint="These recurring concerns are worth looking at first."
+      icon="flag"
+      compact={!read.fixFirst.length}
+      hint={
+        read.fixFirst.length
+          ? 'These recurring concerns are worth looking at first.'
+          : undefined
+      }
       tone="warn"
     >
       {read.fixFirst.length ? (
@@ -43,18 +53,26 @@ export function GuestVoiceFixFirst({ read }: Readonly<{ read: GuestVoiceV2Ready 
           No problem is named in three or more reviews in this period.
         </GuestVoiceNothingHere>
       )}
-      {read.fixFirst.length > 3 ? (
+      {read.fixFirst.length > 3 ||
+      read.watch.length ||
+      read.remainingCounts.fixFirst ||
+      read.remainingCounts.watch ? (
         <GuestVoiceDisclosure
-          label={`${read.fixFirst.length - 3} more recurring concerns`}
+          label={otherConcernsLabel(
+            Math.max(0, read.fixFirst.length - 3) +
+              read.remainingCounts.fixFirst +
+              read.watch.length +
+              read.remainingCounts.watch,
+          )}
         >
           {rows(read.fixFirst.slice(3))}
+          <GuestVoiceOverflow
+            count={read.remainingCounts.fixFirst}
+            label="more recurring concerns"
+          />
+          <GuestVoiceWatch items={read.watch} remaining={read.remainingCounts.watch} />
         </GuestVoiceDisclosure>
       ) : null}
-      <GuestVoiceOverflow
-        count={read.remainingCounts.fixFirst}
-        label="more recurring concerns"
-      />
-      <GuestVoiceWatch items={read.watch} remaining={read.remainingCounts.watch} />
     </GuestVoiceSection>
   )
 }

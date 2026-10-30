@@ -8,7 +8,6 @@ import { GuestVoiceTeamSummaryButton } from './guest-voice-team-summary-button'
 import { GuestVoiceOverflow } from './guest-voice-overflow'
 import { praiseAnswer, morePraiseLabel } from './guest-voice-check-in-words'
 import { useGuestVoice } from './guest-voice-context'
-import { reviewsPhrase } from './guest-voice-words'
 
 export function GuestVoiceGuestsLove({ read }: Readonly<{ read: GuestVoiceV2Ready }>) {
   const { can } = usePermissions()
@@ -43,9 +42,17 @@ export function GuestVoiceGuestsLove({ read }: Readonly<{ read: GuestVoiceV2Read
     <GuestVoiceSection
       title="What are we doing well?"
       answer={praiseAnswer(read.guestsLove)}
-      hint="Keep these going, and thank guests for them in your replies."
+      icon="praise"
+      compact={!read.guestsLove.length}
+      hint={
+        read.guestsLove.length
+          ? 'Keep these going, and thank guests for them in your replies.'
+          : undefined
+      }
       tone="positive"
-      footer={<GuestVoiceTeamSummaryButton read={read} />}
+      footer={
+        read.guestsLove.length ? <GuestVoiceTeamSummaryButton read={read} /> : undefined
+      }
     >
       {read.guestsLove.length ? (
         rows(read.guestsLove.slice(0, 3))
@@ -65,7 +72,8 @@ export function GuestVoiceGuestsLove({ read }: Readonly<{ read: GuestVoiceV2Read
       />
       {read.staffPraise ? (
         <p className="border-t py-3 text-sm text-muted-foreground">
-          {reviewsPhrase(read.staffPraise.reviewCount)}{' '}
+          {read.staffPraise.reviewCount}{' '}
+          {read.staffPraise.reviewCount === 1 ? 'guest' : 'guests'}{' '}
           {read.staffPraise.reviewCount === 1 ? 'praises' : 'praise'} a team member by
           name
           {can('inbox.read') ? (

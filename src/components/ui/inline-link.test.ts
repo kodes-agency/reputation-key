@@ -33,3 +33,7 @@ describe('inlineLinkClass', () => {
     expect(classes).not.toContain('font-medium')
   })
 })
+
+it('keeps the solid shared focus ring', () => {
+  expect(inlineLinkClass()).toContain('focus-ring')
+})

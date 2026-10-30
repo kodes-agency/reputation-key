@@ -273,10 +273,10 @@ files.
 ## Guest voice details
 
 The Guest voice page keeps its range in the URL and replaces history when the shared
-header RangeControl changes it. Optional detail tokens are bounded tolerantly in
+header RangeControl changes it. One optional `detail` token (kind, identifier and sense/reason) is bounded tolerantly in
 `-guest-voice-search.ts`; the lazy `-guest-voice-details.ts` validates the complete
 UUID/sense, concern/reason or taxonomy topic before requesting anything and normalizes
-the address to one target (concern, then issue, then topic). Direct links have no
+the address to that one complete target. Direct links have no
 invented Back step. Linked navigation keeps only transient focus and scroll snapshots.
 
 `-guest-voice-queries.ts` owns the shared page, exact-bounds detail and independent

@@ -1,4 +1,3 @@
-import { HAMPTON_READ } from './guest-voice/guest-voice-fixtures-check-in'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import {
@@ -652,14 +651,5 @@ export const Compact390: Story = {
     ).toBeVisible()
     await userEvent.click(canvas.getByText('Show all topics'))
     expect(canvas.getByText('Quality')).toBeVisible()
-  },
-}
-
-export const WeeklyCheckIn: Story = {
-  args: {
-    result: undefined,
-    serverFns: undefined,
-    v2: { read: HAMPTON_READ },
-    range: 'auto',
   },
 }

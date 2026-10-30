@@ -6,6 +6,7 @@ const meta = {
   title: 'Property/GuestVoice2/Team summary',
   component: GuestVoiceTeamSummaryButton,
   args: { read: HAMPTON_READ },
+  parameters: { theme: 'light' },
 } satisfies Meta<typeof GuestVoiceTeamSummaryButton>
 export default meta
 type Story = StoryObj<typeof meta>

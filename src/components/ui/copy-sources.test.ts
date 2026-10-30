@@ -69,6 +69,7 @@ const PROPER_NAMES = [
 /** Single words that stay capitalised: a provider, a file format, a key on the keyboard. */
 const PROPER_WORDS: ReadonlySet<string> = new Set([
   'Google',
+  'Inbox',
   'OpenAI',
   'WebP',
   'Up',

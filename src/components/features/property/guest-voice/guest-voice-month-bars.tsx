@@ -1,5 +1,5 @@
 import type { GuestVoiceHistoryMonth } from '#/contexts/ai/application/public-api'
-import { formatNumber } from '#/lib/format'
+import { formatNumber, formatLocalDate } from '#/lib/format'
 import { monthLabel } from './guest-voice-words'
 
 /** The tallest bar, in px; the count above it takes the rest of the column. */
@@ -17,7 +17,7 @@ export function GuestVoiceMonthBars({
   const peak = Math.max(0, ...series.map((point) => point.reviewCount))
   return (
     <figure className="flex flex-col gap-2">
-      <figcaption className="text-sm font-medium">
+      <figcaption className="text-base font-bold">
         Guests who brought it up, each month
       </figcaption>
       <div aria-hidden="true" className="flex flex-col gap-1">
@@ -30,7 +30,7 @@ export function GuestVoiceMonthBars({
               key={point.month}
               className="flex flex-1 flex-col items-center justify-end gap-0.5"
             >
-              <span className="text-[11px] leading-none text-muted-foreground tabular-nums">
+              <span className="text-sm leading-none text-muted-foreground tabular-nums">
                 {point.reviewCount === 0 ? '' : formatNumber(point.reviewCount)}
               </span>
               <span
@@ -45,7 +45,7 @@ export function GuestVoiceMonthBars({
             </div>
           ))}
         </div>
-        <div className="flex gap-1 text-[11px] text-muted-foreground">
+        <div className="flex gap-1 text-sm text-muted-foreground">
           {series.map((point) => (
             <span key={point.month} className="flex-1 text-center">
               {monthLabel(point.month).short}
@@ -53,22 +53,23 @@ export function GuestVoiceMonthBars({
           ))}
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Available history: {series.at(0)?.startLocalDate} to {series.at(-1)?.endLocalDate}
-        .{' '}
+      <p className="text-sm text-muted-foreground">
+        Available history: {formatLocalDate(series.at(0)?.startLocalDate ?? '')} to{' '}
+        {formatLocalDate(series.at(-1)?.endLocalDate ?? '')}.{' '}
         {series.at(-1)?.partialEnd
-          ? `The last month covers through ${series.at(-1)?.endLocalDate}.`
+          ? `The last month covers through ${formatLocalDate(series.at(-1)?.endLocalDate ?? '')}.`
           : null}
         {series.at(0)?.partialStart
-          ? ` The first month starts ${series.at(0)?.startLocalDate}.`
+          ? ` The first month starts ${formatLocalDate(series.at(0)?.startLocalDate ?? '')}.`
           : null}
       </p>
       <ul className="sr-only">
         {series.map((point) => (
           <li key={point.month}>
             {monthLabel(point.month).long}: {formatNumber(point.reviewCount)} of{' '}
-            {formatNumber(point.textReviews)} reviews with text · {point.startLocalDate}{' '}
-            to {point.endLocalDate}
+            {formatNumber(point.textReviews)} reviews with text ·{' '}
+            {formatLocalDate(point.startLocalDate)} to{' '}
+            {formatLocalDate(point.endLocalDate)}
           </li>
         ))}
       </ul>

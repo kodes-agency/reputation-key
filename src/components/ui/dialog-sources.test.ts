@@ -249,11 +249,31 @@ describe('the checks catch the spellings the scan found', () => {
 })
 
 describe('responsive detail sheet', () => {
+  it('does not let consumers override its position, bounds or scrolling', () => {
+    const consumers = FILES.filter((file) => file.path !== 'src/components/ui/sheet.tsx')
+    expect(
+      consumers.flatMap((file) =>
+        tagsNamed(file.text, 'SheetContent')
+          .filter(
+            (tag) =>
+              tag.includes('RESPONSIVE_DETAIL_SHEET') &&
+              /className=.*(?:fixed|inset-|max-h-|max-w-|overflow-)/u.test(tag),
+          )
+          .map(() => file.path),
+      ),
+    ).toEqual([])
+  })
   it('owns its shape and safe-area footer in the shared primitive', () => {
     const sheet =
       FILES.find((file) => file.path === 'src/components/ui/sheet.tsx')?.text ?? ''
-    expect(sheet).toContain("layout?: 'side' | 'responsive-detail'")
-    expect(sheet).toContain('calc(100dvh-2rem)')
+    expect(sheet).toContain('layout?: SheetLayout')
+    expect(sheet).toContain('transition ease-in-out')
+    const layout =
+      FILES.find((file) => file.path === 'src/components/ui/sheet-layouts.tsx')?.text ??
+      ''
+    expect(layout).toContain('@media(min-width:48rem)')
+    expect(layout).toContain('--tw-enter-translate-x:100%')
+    expect(layout).toContain('calc(100dvh-2rem)')
     expect(sheet).toContain('safe-area-inset-bottom')
     expect(sheet).toContain('shrink-0')
   })

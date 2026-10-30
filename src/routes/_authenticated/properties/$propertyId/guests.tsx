@@ -70,9 +70,10 @@ function PropertyGuestsRoute() {
   const { range } = search
   const target = guestVoiceDetailTarget(search)
   const navigate = Route.useNavigate()
-  const detailChange = (next: typeof target) => {
+  const detailChange = (next: typeof target, options?: { replace: boolean }) => {
     void navigate({
       search: (previous) => ({ ...previous, ...guestVoiceDetailParams(next) }),
+      replace: options?.replace,
     })
   }
   const navigation = useGuestVoiceDetailNavigation(target, detailChange)

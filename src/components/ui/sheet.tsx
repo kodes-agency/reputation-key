@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Dialog as SheetPrimitive } from 'radix-ui'
 
+import type { SheetLayout } from './sheet-layouts'
 import { cn } from '#/lib/utils'
 import { DialogCloseButton } from '#/components/ui/dialog-close-button'
 
@@ -47,19 +48,18 @@ function SheetContent({
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: 'top' | 'right' | 'bottom' | 'left'
-  layout?: 'side' | 'responsive-detail'
+  layout?: SheetLayout
   showCloseButton?: boolean
 }) {
-  const placement = layout === 'responsive-detail' ? layout : side
+  const placement = layout ? undefined : side
   return (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          'fixed z-50 flex flex-col gap-4 bg-background shadow-lg data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500',
-          placement === 'responsive-detail' &&
-            'right-0 bottom-0 max-h-[calc(100dvh-2rem)] w-full gap-0 overflow-hidden rounded-t-2xl md:inset-y-0 md:max-h-none max-w-xl md:rounded-none md:border-l',
+          'fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500',
+          layout?.className,
           placement === 'right' &&
             'inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm',
           placement === 'left' &&
@@ -72,6 +72,7 @@ function SheetContent({
         )}
         {...props}
       >
+        {layout?.decoration}
         {children}
         {showCloseButton && <DialogCloseButton />}
       </SheetPrimitive.Content>

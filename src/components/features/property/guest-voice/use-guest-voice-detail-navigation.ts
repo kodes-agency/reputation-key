@@ -9,13 +9,17 @@ import {
 /** URL targets are authoritative; only transient scroll/focus and their ancestors live here. */
 export function useGuestVoiceDetailNavigation(
   target: GuestVoiceDetailTarget | null,
-  change: (target: GuestVoiceDetailTarget | null) => void,
+  change: (target: GuestVoiceDetailTarget | null, options?: { replace: boolean }) => void,
 ) {
   const snapshots = useRef(new Map<string, DetailStep>())
   const parents = useRef(new Map<string, readonly DetailStep[]>())
   const currentTitle = useRef('Details')
   const scrollRef = useRef<HTMLDivElement>(null)
-  const page = useRef<{ opener: HTMLElement | null; scroll: number } | null>(null)
+  const page = useRef<{
+    opener: HTMLElement | null
+    band: string | null
+    scroll: number
+  } | null>(null)
   const seen = useRef('closed')
   const capture = () => {
     if (!target) return null
@@ -32,7 +36,7 @@ export function useGuestVoiceDetailNavigation(
   }
   const open = (next: GuestVoiceDetailTarget | null) => {
     if (!next) {
-      change(null)
+      change(null, { replace: true })
       return
     }
     const key = detailTargetKey(next)
@@ -40,6 +44,10 @@ export function useGuestVoiceDetailNavigation(
       page.current = {
         opener:
           document.activeElement instanceof HTMLElement ? document.activeElement : null,
+        band:
+          document.activeElement
+            ?.closest('section[aria-labelledby]')
+            ?.getAttribute('aria-labelledby') ?? null,
         scroll: window.scrollY,
       }
       parents.current.set(key, [])
@@ -53,7 +61,8 @@ export function useGuestVoiceDetailNavigation(
         known ? detailTrailFor(path, next) : [...path, ...(step ? [step] : [])],
       )
     }
-    change(next)
+    if (target) change(next, { replace: true })
+    else change(next)
   }
   const restorePage = () => {
     const saved = page.current
@@ -61,9 +70,10 @@ export function useGuestVoiceDetailNavigation(
       window.scrollTo({ top: saved?.scroll ?? window.scrollY })
       if (saved?.opener?.isConnected) saved.opener.focus({ preventScroll: true })
       else
-        document
-          .querySelector<HTMLElement>('[data-slot="section-title"]')
-          ?.focus({ preventScroll: true })
+        (saved?.band
+          ? document.getElementById(saved.band)
+          : document.querySelector<HTMLElement>('[data-slot="section-title"]')
+        )?.focus({ preventScroll: true })
     })
     page.current = null
     snapshots.current.clear()
@@ -86,6 +96,10 @@ export function useGuestVoiceDetailNavigation(
   }
   return {
     open,
+    knownTitle: () =>
+      snapshots.current.get(detailTargetKey(target))?.title ??
+      page.current?.opener?.querySelector('[data-issue-title]')?.textContent ??
+      null,
     scrollRef,
     ready,
     restorePage,
@@ -93,7 +107,7 @@ export function useGuestVoiceDetailNavigation(
     back: () => {
       const previous = parents.current.get(detailTargetKey(target))?.at(-1)
       capture()
-      if (previous) change(previous.target)
+      if (previous) change(previous.target, { replace: true })
     },
   }
 }

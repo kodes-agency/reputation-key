@@ -91,23 +91,27 @@ function topicCauses(
   input: GuestVoiceBuildInput,
   topic: GuestVoiceDetailTarget & { kind: 'topic' },
   sense: 'complaint' | 'praise',
+  titles: ReadonlyMap<string, string> | undefined,
 ): readonly GuestVoiceCauseRow[] {
   const rows = new Map<
     string,
-    { issueId: string | null; title: string; ids: Set<string> }
+    { issueId: string | null; title: string; cause: string | null; ids: Set<string> }
   >()
   for (const review of input.current) {
     for (const m of review.mentions) {
       if (m.topic !== topic.topic || senseOf(m.polarity) !== sense) continue
       const cause = m.cause?.trim().toLowerCase() ?? ''
-      const title = mentionCauseTitle(
-        m,
-        m.issueGroupId === null ? undefined : input.groups.get(m.issueGroupId),
-      )
+      const title =
+        (m.issueGroupId === null ? undefined : titles?.get(m.issueGroupId)) ??
+        mentionCauseTitle(
+          { ...m, cause: null },
+          m.issueGroupId === null ? undefined : input.groups.get(m.issueGroupId),
+        )
       const key = `${m.issueGroupId ?? 'other'}:${cause}`
       const row = rows.get(key) ?? {
         issueId: m.issueGroupId,
         title,
+        cause: cause || null,
         ids: new Set<string>(),
       }
       row.ids.add(review.reviewId)
@@ -115,11 +119,17 @@ function topicCauses(
     }
   }
   return [...rows.values()]
-    .map((r) => ({ issueId: r.issueId, title: r.title, reviewCount: r.ids.size }))
+    .map((r) => ({
+      issueId: r.issueId,
+      title: r.title,
+      cause: r.cause,
+      reviewCount: r.ids.size,
+    }))
     .sort(
       (a, b) =>
         b.reviewCount - a.reviewCount ||
         a.title.localeCompare(b.title) ||
+        (a.cause ?? '').localeCompare(b.cause ?? '') ||
         (a.issueId ?? '').localeCompare(b.issueId ?? ''),
     )
 }
@@ -151,8 +161,13 @@ export function buildGuestVoiceDetail(
           topic: target.topic,
           assessment: row.assessment,
           context,
-          likedCauses: topicCauses(build, target, 'praise'),
-          dislikedCauses: topicCauses(build, target, 'complaint'),
+          likedCauses: topicCauses(build, target, 'praise', counted.titles.get('praise')),
+          dislikedCauses: topicCauses(
+            build,
+            target,
+            'complaint',
+            counted.titles.get('complaint'),
+          ),
           linkedConcerns: linkedConcerns(members, concerns),
         },
       },

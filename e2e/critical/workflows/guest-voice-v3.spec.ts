@@ -184,7 +184,7 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
     await expect(page.getByRole('link', { name: /Open the goal/u })).toHaveCount(0)
     await assertNoAxeViolations(page, 'Guest voice check-in (desktop)')
     const opener = page
-      .getByRole('button', { name: /Air conditioning.*complaint/u })
+      .getByRole('button', { name: /Air conditioning.*4 guests/u })
       .first()
     await opener.click()
     const sheet = page.getByRole('dialog')
@@ -244,7 +244,7 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
       page.getByRole('heading', { name: 'What should we fix first?' }),
     ).toBeVisible()
     await page
-      .getByRole('button', { name: /Air conditioning.*complaint/u })
+      .getByRole('button', { name: /Air conditioning.*4 guests/u })
       .first()
       .click()
     await page
@@ -278,10 +278,12 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
       timeout: 20_000,
     })
     await expect(page.getByText('Not enough reviews to spot patterns yet')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Your latest reviews' })).toBeVisible()
     await expect(
-      page.getByRole('link', { name: 'Open in the inbox', exact: true }),
-    ).toHaveCount(3)
+      page.getByRole('heading', { name: 'What are guests saying?' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: 'See all 6 reviews', exact: true }),
+    ).toHaveCount(1)
     await expect(
       page.getByRole('heading', { name: 'What should we fix first?' }),
     ).toHaveCount(0)
@@ -295,7 +297,7 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
     page,
   }) => {
     await signIn(page, fixture.manager.email, fixture.manager.password, BASE_ORIGIN)
-    await page.goto(`/properties/${fixture.propertyId}/guests?topic=food_drink`)
+    await page.goto(`/properties/${fixture.propertyId}/guests?detail=topic:food_drink`)
     await expect(page.getByRole('dialog').getByText('What guests liked')).toBeVisible({
       timeout: 20_000,
     })
@@ -305,9 +307,9 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
     await page.keyboard.press('Escape')
     await page.getByRole('radio', { name: '30 days', exact: true }).click()
     await expect(page).toHaveURL(/range=30d/u)
-    await expect(page).not.toHaveURL(/topic=/u)
+    await expect(page).not.toHaveURL(/detail=/u)
     await page.goto(
-      `/properties/${fixture.propertyId}/guests?issue=00000000-0000-4000-8000-000000000000&sense=praise`,
+      `/properties/${fixture.propertyId}/guests?detail=issue:00000000-0000-4000-8000-000000000000:praise`,
     )
     await expect(
       page

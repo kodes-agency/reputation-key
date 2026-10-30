@@ -6,16 +6,12 @@ import type {
 import type { GuestVoiceRange } from '#/shared/dashboard-range'
 import { aiKeys, dashboardKeys } from '#/shared/queries/query-keys'
 import { detailTargetKey } from '#/components/features/property/guest-voice/guest-voice-detail-navigation'
-import {
-  getGuestVoicePage,
-  getGuestVoiceDetail,
-  getGuestVoiceGoogle,
-} from './-guest-voice-fns'
+import { guestVoiceFns } from './-guest-voice-fns'
 
 export const propertyGuestVoiceV2Query = (propertyId: string, range: GuestVoiceRange) =>
   queryOptions({
     queryKey: aiKeys.guestVoiceV2(propertyId, range),
-    queryFn: () => getGuestVoicePage({ data: { propertyId, range } }),
+    queryFn: () => guestVoiceFns.getGuestVoicePage({ data: { propertyId, range } }),
     staleTime: 60_000,
     retry: false,
   })
@@ -26,15 +22,16 @@ export const propertyGuestVoiceDetailQuery = (
   target: GuestVoiceDetailTarget,
 ) =>
   queryOptions({
-    queryKey: aiKeys.guestVoiceV2Detail(
+    queryKey: aiKeys.guestVoiceV2(
       propertyId,
+      'detail',
       range,
       context.startLocalDate,
       context.endLocalDate,
       detailTargetKey(target),
     ),
     queryFn: () =>
-      getGuestVoiceDetail({
+      guestVoiceFns.getGuestVoiceDetail({
         data: {
           propertyId,
           range: range === 'all' ? 'auto' : range,
@@ -49,8 +46,8 @@ export const propertyGuestVoiceDetailQuery = (
   })
 export const propertyGuestVoiceGoogleQuery = (propertyId: string) =>
   queryOptions({
-    queryKey: dashboardKeys.googleNumbers(propertyId),
-    queryFn: () => getGuestVoiceGoogle({ data: { propertyId } }),
+    queryKey: dashboardKeys.property({ propertyId, view: 'google-numbers' }),
+    queryFn: () => guestVoiceFns.getGuestVoiceGoogle({ data: { propertyId } }),
     staleTime: 30_000,
     retry: false,
   })

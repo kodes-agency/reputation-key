@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { RowButton as Button } from '#/components/ui/button-layouts'
 import {
   Collapsible,
   CollapsibleContent,
@@ -28,17 +28,24 @@ export function GuestVoiceRatingTrend({ trend }: Readonly<{ trend: Trend }>) {
             ['Since', trend.recent],
           ] as const
         ).map(([label, period], index) => (
-          <p
-            key={label}
-            aria-label={`${label}: ${ratingComparisonLabels(period)} · ${period.averageStars === null ? 'Not available' : `${period.averageStars.toFixed(1)} stars`}`}
-          >
+          <p key={label}>
             {index === 1 ? <span aria-hidden="true">→ </span> : null}
-            {label} {formatLocalDate(trend.recent.startLocalDate, { year: false })}{' '}
-            <strong className="font-semibold">
+            <span className="sr-only">
+              {label}: {ratingComparisonLabels(period)} ·{' '}
+            </span>
+            <span aria-hidden="true">
+              {label} {formatLocalDate(trend.recent.startLocalDate, { year: false })}{' '}
+              <strong className="font-semibold">
+                {period.averageStars === null
+                  ? 'Not available'
+                  : starsText(period.averageStars)}
+              </strong>
+            </span>
+            <span className="sr-only">
               {period.averageStars === null
                 ? 'Not available'
-                : starsText(period.averageStars)}
-            </strong>
+                : `${period.averageStars.toFixed(1)} stars`}
+            </span>
           </p>
         ))}
       </div>
@@ -47,6 +54,7 @@ export function GuestVoiceRatingTrend({ trend }: Readonly<{ trend: Trend }>) {
   return (
     <GuestVoiceSection
       title="Are guests happier lately?"
+      icon={trend.verdict === 'slipping' ? 'down' : 'up'}
       answer={trendAnswer(trend.verdict)}
       tone={
         trend.verdict === 'improving'
@@ -55,14 +63,24 @@ export function GuestVoiceRatingTrend({ trend }: Readonly<{ trend: Trend }>) {
             ? 'warn'
             : 'neutral'
       }
-      aside={comparison}
+      aside={trend.verdict === 'not_enough' ? undefined : comparison}
     >
       <Collapsible open={open} onOpenChange={setChosenOpen}>
         <CollapsibleContent>
-          <GuestVoiceRatingChart months={trend.months} />
+          <GuestVoiceRatingChart
+            months={trend.months}
+            recentStart={trend.recent.startLocalDate}
+            tone={
+              trend.verdict === 'improving'
+                ? 'positive'
+                : trend.verdict === 'slipping'
+                  ? 'warn'
+                  : 'neutral'
+            }
+          />
         </CollapsibleContent>
         <CollapsibleTrigger asChild>
-          <Button type="button" variant="ghost" className="w-full justify-between">
+          <Button type="button" variant="ghost">
             {open ? 'Hide each month' : 'See each month'}
             <ChevronDown aria-hidden="true" className={open ? 'rotate-180' : undefined} />
           </Button>

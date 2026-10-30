@@ -1,8 +1,6 @@
 import type { WatchItem } from '#/contexts/ai/application/public-api'
-import { GuestVoiceDisclosure } from './guest-voice-disclosure'
 import { GuestVoiceIssueTitle } from './guest-voice-issue-title'
 import { GuestVoiceOverflow } from './guest-voice-overflow'
-import { otherConcernsLabel } from './guest-voice-check-in-words'
 
 export function GuestVoiceWatch({
   items,
@@ -10,10 +8,8 @@ export function GuestVoiceWatch({
 }: Readonly<{ items: readonly WatchItem[]; remaining: number }>) {
   if (!items.length && !remaining) return null
   return (
-    <GuestVoiceDisclosure label={otherConcernsLabel(items.length + remaining)}>
-      <p className="py-2 text-sm text-muted-foreground">
-        Mentioned once or twice. Not a pattern yet.
-      </p>
+    <>
+      <p className="py-2 text-sm text-muted-foreground">Raised once or twice</p>
       <ul className="divide-y">
         {items.map((item) => (
           <li key={item.issueId}>
@@ -30,6 +26,6 @@ export function GuestVoiceWatch({
         ))}
       </ul>
       <GuestVoiceOverflow count={remaining} label="other concerns" />
-    </GuestVoiceDisclosure>
+    </>
   )
 }

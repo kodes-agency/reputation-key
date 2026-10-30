@@ -1,11 +1,13 @@
-import { ChevronRight, CircleCheck } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { InlineLink } from '#/components/ui/inline-link'
+import { ChevronRight } from 'lucide-react'
+import { RowButton as Button } from '#/components/ui/button-layouts'
+import { TouchInlineLink as InlineLink } from '#/components/ui/inline-touch-link'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { GuestVoiceSeriousConcerns } from '#/contexts/ai/application/public-api'
 import { useGuestVoice } from './guest-voice-context'
 import { GuestVoiceSection } from './guest-voice-section'
 import { lastReportedText, periodWords, urgentAnswer } from './guest-voice-check-in-words'
+import { reviewsPhrase } from './guest-voice-words'
+import { GuestVoiceTopicIcon } from './guest-voice-topic-icon'
 import { urgentReviewsSearch } from './guest-voice-links'
 
 export const CONCERN_WORDS = {
@@ -23,16 +25,28 @@ export function GuestVoiceUrgent({
   const { can } = usePermissions()
   if (!concerns.groupCount)
     return (
-      <p className="flex items-start gap-2 py-1 text-sm text-muted-foreground">
-        <CircleCheck aria-hidden="true" className="size-4 shrink-0 text-positive" />
-        {concerns.coverage === 'complete'
-          ? `No serious concerns reported in ${periodWords(window)}`
-          : 'No serious concerns found in the reviews analysed so far. Some reviews are still being analysed.'}
-      </p>
+      <GuestVoiceSection
+        title="Anything urgent?"
+        icon="quiet"
+        tone="positive"
+        compact
+        answer={
+          concerns.coverage === 'complete'
+            ? `No serious concerns reported in ${periodWords(window)}`
+            : 'No serious concerns found so far'
+        }
+      >
+        {concerns.coverage === 'provisional' ? (
+          <p className="py-2 text-sm text-muted-foreground">
+            Some reviews are still being analysed.
+          </p>
+        ) : null}
+      </GuestVoiceSection>
     )
   return (
     <GuestVoiceSection
       title="Anything urgent?"
+      icon="urgent"
       answer={urgentAnswer(concerns.groupCount)}
       tone="negative"
     >
@@ -42,9 +56,8 @@ export function GuestVoiceUrgent({
             <Button
               type="button"
               variant="ghost"
-              size="inline"
-              touch
-              className="w-full justify-between gap-3 py-3 text-left whitespace-normal"
+
+              className="gap-3"
               aria-haspopup={onOpenDetail ? 'dialog' : undefined}
               disabled={!onOpenDetail}
               onClick={() =>
@@ -55,8 +68,12 @@ export function GuestVoiceUrgent({
                 })
               }
             >
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="font-semibold">{item.title}</span>
+              {item.topic ? <GuestVoiceTopicIcon topic={item.topic} row /> : null}
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span data-issue-title className="text-base font-semibold">
+                  {item.title}{' '}
+                  <span className="whitespace-nowrap text-sm text-negative">Read ›</span>
+                </span>
                 <span className="font-normal text-muted-foreground">
                   <span className="font-medium text-negative">
                     {CONCERN_WORDS[item.urgentReason]}
@@ -72,8 +89,9 @@ export function GuestVoiceUrgent({
       </ul>
       {concerns.remainingGroupCount ? (
         <p className="py-2 text-sm text-muted-foreground">
-          {concerns.remainingGroupCount} more serious concerns ·{' '}
-          {concerns.remainingReviewCount} additional reviews.
+          {concerns.remainingGroupCount} more serious{' '}
+          {concerns.remainingGroupCount === 1 ? 'concern' : 'concerns'} ·{' '}
+          {reviewsPhrase(concerns.remainingReviewCount)} beyond this list.
           {can('inbox.read') ? (
             <>
               {' '}

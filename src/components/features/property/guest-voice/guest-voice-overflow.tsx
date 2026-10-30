@@ -11,7 +11,11 @@ export function GuestVoiceOverflow({
   if (!count) return null
   return (
     <p className="py-2 text-sm text-muted-foreground">
-      {count} {label} are beyond this list.
+      {count}{' '}
+      {count === 1
+        ? label.replace(/concerns$/u, 'concern').replace(/^things/u, 'thing')
+        : label}{' '}
+      {count === 1 ? 'is' : 'are'} beyond this list.
       {can('inbox.read') ? (
         <>
           {' '}

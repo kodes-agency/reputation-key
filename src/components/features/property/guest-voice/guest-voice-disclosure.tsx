@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { RowButton as Button } from '#/components/ui/button-layouts'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
 
-/** Show less follows the revealed content; closed descendants leave the tab order. */
+/** One stable trigger retains focus while its descendants enter or leave the tab order. */
 export function GuestVoiceDisclosure({
   label,
   children,
@@ -15,26 +15,19 @@ export function GuestVoiceDisclosure({
   const [open, setOpen] = useState(false)
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      {!open ? (
-        <CollapsibleTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full justify-between whitespace-normal text-left"
-          >
-            {label}
-            <ChevronDown aria-hidden="true" />
-          </Button>
-        </CollapsibleTrigger>
-      ) : null}
-      <CollapsibleContent>
-        {children}
-        <CollapsibleTrigger asChild>
-          <Button type="button" variant="ghost">
-            Show less<span className="sr-only"> · {label}</span>
-          </Button>
-        </CollapsibleTrigger>
-      </CollapsibleContent>
+      <CollapsibleTrigger asChild>
+        <Button type="button" variant="ghost" aria-expanded={open}>
+          {open ? (
+            <>
+              Show less<span className="sr-only"> · {label}</span>
+            </>
+          ) : (
+            label
+          )}
+          <ChevronDown aria-hidden="true" className={open ? 'rotate-180' : undefined} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>{children}</CollapsibleContent>
     </Collapsible>
   )
 }
