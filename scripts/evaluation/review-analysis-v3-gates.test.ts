@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
 import {
   GATE_IDS,
   GATING_SLICES,
-  RELEASE_GATES_V1,
+  RELEASE_GATES,
   evaluateGates,
   type GateId,
   type GatingSlice,
@@ -19,7 +20,13 @@ import {
 const air = mention({ topic: 'facilities_equipment', thing: 'air conditioning' })
 const staff = mention({ topic: 'staff_service', thing: 'waiter', polarity: 'positive' })
 
-/** A slice every gate can read and passes: two urgent reviews found, two quiet ones. */
+/** Reviews of each kind a slice holds, enough for the topic floor to read every topic in it. */
+const QUIET_REVIEWS = RELEASE_GATES.topicF1MinSupport
+
+/**
+ * A slice every gate can read and passes: two urgent reviews found, and quiet ones. The topics
+ * are facilities_equipment and staff_service, each in more reviews than the topic floor needs.
+ */
 function perfectSlice(): SliceMetrics {
   const safety = answer([air], { urgent: { reason: 'safety' } })
   const health = answer([staff], { urgent: { reason: 'health' } })
@@ -28,11 +35,31 @@ function perfectSlice(): SliceMetrics {
     [
       scoredRun('a', safety, acceptedResult('a', safety)),
       scoredRun('b', health, acceptedResult('b', health)),
-      scoredRun('c', quiet, acceptedResult('c', quiet)),
-      scoredRun('d', quiet, acceptedResult('d', quiet)),
+      ...Array.from({ length: QUIET_REVIEWS }, (_unused, index) =>
+        scoredRun(`q${index}`, quiet, acceptedResult(`q${index}`, quiet)),
+      ),
     ],
     simpleCauseKey,
   )
+}
+
+/** The slice with one topic's score and gold support set, as a provider's weak topic would leave it. */
+function withTopic(
+  slice: SliceMetrics,
+  topic: ReviewTopicV3,
+  f1: number,
+  support: number,
+): SliceMetrics {
+  return {
+    ...slice,
+    topics: {
+      ...slice.topics,
+      perTopic: {
+        ...slice.topics.perTopic,
+        [topic]: { ...slice.topics.perTopic[topic], f1, support },
+      },
+    },
+  }
 }
 
 function slicesOf(
@@ -59,14 +86,16 @@ const statusOf = (
     ?.status
 
 describe('the thresholds', () => {
-  it('are the numbers of decision 6', () => {
-    expect(RELEASE_GATES_V1).toMatchObject({
+  it('are the numbers of decision 6 as gates v2 read them', () => {
+    expect(RELEASE_GATES).toMatchObject({
+      version: 'review-analysis-gates-v2',
       urgentSafetyHealthMissesMax: 0,
       urgentRecallMin: 0.95,
       falseUrgentRateMax: 0.02,
       topicMicroF1Min: 0.85,
       topicF1Min: 0.7,
-      thingAgreementMin: 0.7,
+      topicF1MinSupport: 10,
+      thingAgreementMin: 0.6,
     })
   })
 
@@ -92,32 +121,29 @@ describe('a provider that does everything right', () => {
 describe('the boundary of each gate', () => {
   it('passes exactly on a threshold and fails just past it', () => {
     const exactly = slicesOf((slice) => ({
-      ...slice,
+      ...withTopic(slice, 'facilities_equipment', 0.7, 12),
       urgent: { ...slice.urgent, recall: 0.95, falseUrgentRate: 0.02 },
       topics: {
-        ...slice.topics,
+        ...withTopic(slice, 'facilities_equipment', 0.7, 12).topics,
         micro: { ...slice.topics.micro, f1: 0.85 },
-        weakest: { topic: 'safety', f1: 0.7 },
       },
       mentions: {
         ...slice.mentions,
-        causes: { ...slice.mentions.causes, thingAgreement: 0.7 },
+        causes: { ...slice.mentions.causes, thingAgreement: 0.6 },
       },
     }))
     const past = slicesOf((slice) => ({
-      ...slice,
+      ...withTopic(slice, 'facilities_equipment', 0.699, 12),
       urgent: { ...slice.urgent, recall: 0.949, falseUrgentRate: 0.0201 },
       topics: {
-        ...slice.topics,
+        ...withTopic(slice, 'facilities_equipment', 0.699, 12).topics,
         micro: { ...slice.topics.micro, f1: 0.849 },
-        weakest: { topic: 'safety', f1: 0.699 },
       },
       mentions: {
         ...slice.mentions,
-        causes: { ...slice.mentions.causes, thingAgreement: 0.699 },
+        causes: { ...slice.mentions.causes, thingAgreement: 0.599 },
       },
     }))
-
     expect(evaluateGates(exactly).verdict).toBe('pass')
     const failed = evaluateGates(past)
     expect(failed.verdict).toBe('fail')
@@ -144,17 +170,14 @@ describe('the boundary of each gate', () => {
   })
 
   it('names the weakest topic in the note of the topic gate', () => {
-    const slices = only('all', (slice) => ({
-      ...slice,
-      topics: { ...slice.topics, weakest: { topic: 'communication', f1: 0.5 } },
-    }))
+    const slices = only('all', (slice) => withTopic(slice, 'staff_service', 0.5, 14))
 
     const result = evaluateGates(slices).results.find(
       (one) => one.gate === 'topic_min_f1' && one.slice === 'all',
     )
 
     expect(result).toMatchObject({ status: 'fail', value: 0.5 })
-    expect(result?.note).toContain('communication')
+    expect(result?.note).toBe('weakest topic staff_service (14 gold reviews)')
   })
 
   it('reads a language on its own', () => {
@@ -166,6 +189,77 @@ describe('the boundary of each gate', () => {
     expect(statusOf(slices, 'topic_micro_f1', 'bg')).toBe('fail')
     expect(statusOf(slices, 'topic_micro_f1', 'en')).toBe('pass')
     expect(statusOf(slices, 'topic_micro_f1', 'all')).toBe('pass')
+  })
+})
+
+describe('the topic floor', () => {
+  const minimum = RELEASE_GATES.topicF1MinSupport
+
+  it('holds a topic that has exactly the minimum of gold reviews in the slice', () => {
+    const slices = only('bg', (slice) => withTopic(slice, 'staff_service', 0.4, minimum))
+
+    expect(statusOf(slices, 'topic_min_f1', 'bg')).toBe('fail')
+    expect(statusOf(slices, 'topic_min_f1', 'all')).toBe('pass')
+  })
+
+  it('does not hold a topic with one review fewer, and says so in the note', () => {
+    const slices = only('bg', (slice) =>
+      withTopic(slice, 'booking_arrival', 0.4, minimum - 1),
+    )
+
+    const result = evaluateGates(slices).results.find(
+      (one) => one.gate === 'topic_min_f1' && one.slice === 'bg',
+    )
+
+    expect(result).toMatchObject({ status: 'pass', value: 1 })
+    expect(result?.note).toContain(`under ${minimum} gold reviews, not held:`)
+    expect(result?.note).toContain(`booking_arrival ${minimum - 1}`)
+  })
+
+  it('is the case that failed the first OpenAI check: one gold review and one extra mention', () => {
+    // Bulgarian booking_arrival: 1 gold review, found, with 1 extra mention in another review.
+    const slices = only('bg', (slice) => withTopic(slice, 'booking_arrival', 2 / 3, 1))
+
+    expect(statusOf(slices, 'topic_min_f1', 'bg')).toBe('pass')
+    expect(evaluateGates(slices).verdict).toBe('pass')
+  })
+
+  it('reads the weakest of the held topics, not of all of them', () => {
+    const slices = only('es', (slice) =>
+      withTopic(
+        withTopic(slice, 'booking_arrival', 0, 2),
+        'staff_service',
+        0.8,
+        minimum + 5,
+      ),
+    )
+
+    const result = evaluateGates(slices).results.find(
+      (one) => one.gate === 'topic_min_f1' && one.slice === 'es',
+    )
+
+    expect(result).toMatchObject({ status: 'pass' })
+    expect(result?.value).toBeCloseTo(0.8)
+    expect(result?.note).toContain('weakest topic ')
+  })
+
+  it('cannot be read in a slice where no topic has the minimum, and that is not a pass', () => {
+    const slices = only('bg', (slice) => {
+      const sparse = withTopic(
+        withTopic(slice, 'staff_service', 1, minimum - 1),
+        'facilities_equipment',
+        1,
+        minimum - 1,
+      )
+      return sparse
+    })
+
+    const result = evaluateGates(slices).results.find(
+      (one) => one.gate === 'topic_min_f1' && one.slice === 'bg',
+    )
+
+    expect(result).toMatchObject({ status: 'not_measurable', value: null })
+    expect(result?.note).toContain(`no topic has ${minimum} gold reviews`)
   })
 })
 
@@ -198,6 +292,26 @@ describe('the thing agreement gate', () => {
     expect(result?.note).toBe(
       '4 of 8 mentions agree: 4 paired, 4 only in the gold, 0 only in the answer',
     )
+  })
+
+  it('passes at 0.60 and fails below it, the level the two labelling families reach with each other', () => {
+    const at = only('all', (slice) => ({
+      ...slice,
+      mentions: {
+        ...slice.mentions,
+        causes: { ...slice.mentions.causes, thingAgreement: 0.6 },
+      },
+    }))
+    const below = only('all', (slice) => ({
+      ...slice,
+      mentions: {
+        ...slice.mentions,
+        causes: { ...slice.mentions.causes, thingAgreement: 0.599 },
+      },
+    }))
+
+    expect(statusOf(at, 'thing_agreement', 'all')).toBe('pass')
+    expect(statusOf(below, 'thing_agreement', 'all')).toBe('fail')
   })
 
   it('fails an answer that adds a cause the gold lacks', () => {

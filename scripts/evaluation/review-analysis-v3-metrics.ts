@@ -54,7 +54,11 @@ export type TopicMetrics = Readonly<{
   micro: Prf
   macroF1: Rate
   perTopic: Readonly<Record<ReviewTopicV3, TopicStat>>
-  /** The weakest topic that has gold support: the "no topic below 0.70" gate reads it. */
+  /**
+   * The weakest topic that has any gold support. Informational: the "no topic below 0.70" gate
+   * reads `perTopic` and holds only the topics with enough gold reviews in the slice
+   * (`RELEASE_GATES.topicF1MinSupport`), so a topic with one gold review cannot fail it.
+   */
   weakest: Readonly<{ topic: ReviewTopicV3; f1: number }> | null
   /** Topics the answers named where the gold has none; they lower micro F1 only. */
   unsupportedTopicsPredicted: readonly ReviewTopicV3[]

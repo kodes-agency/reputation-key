@@ -9,7 +9,7 @@ import {
   worstVerdict,
   type EvaluationReport,
 } from './review-analysis-v3-report'
-import { RELEASE_GATES_V1 } from './review-analysis-v3-gates'
+import { RELEASE_GATES } from './review-analysis-v3-gates'
 import {
   acceptedResult,
   answer,
@@ -71,7 +71,7 @@ function reportOf(providers: EvaluationReport['providers']): EvaluationReport {
       notSentIds: [],
       goldChangedByNormalizer: { ids: ['cl-0090'], droppedMentions: 1 },
     },
-    thresholds: RELEASE_GATES_V1,
+    thresholds: RELEASE_GATES,
     providers,
     verdict: worstVerdict(providers.map((provider) => provider.verdict)),
   }

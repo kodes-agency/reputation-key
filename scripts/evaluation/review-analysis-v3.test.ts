@@ -23,7 +23,7 @@ const OUT = 'out'
 type Row = Record<string, unknown>
 
 const goldRows: readonly Row[] = readFileSync(
-  join(ROOT, 'test-fixtures/review-analysis-v3/gold-v1.jsonl'),
+  join(ROOT, 'test-fixtures/review-analysis-v3/gold-v1.1.jsonl'),
   'utf8',
 )
   .split('\n')
@@ -31,7 +31,7 @@ const goldRows: readonly Row[] = readFileSync(
   .map((line) => JSON.parse(line) as Row)
 
 const itemLanguage = new Map<string, string>(
-  ['items-codex.jsonl', 'items-claude.jsonl'].flatMap((name) =>
+  ['items-codex.jsonl', 'items-claude.jsonl', 'items-urgent.jsonl'].flatMap((name) =>
     readFileSync(join(ROOT, 'test-fixtures/review-analysis-v3', name), 'utf8')
       .split('\n')
       .filter((line) => line !== '')
@@ -104,13 +104,13 @@ describe('the fake provider that answers with the gold', () => {
     expect(printed.join('')).toContain('review analysis v3 evaluation: PASS')
   })
 
-  it('scores 395 of the 400 reviews and names the five still without a label', async () => {
+  it('scores 419 of the 424 reviews and names the five still without a label', async () => {
     const { io, files } = harness()
 
     await runEvaluationCli(['--out', OUT], io)
 
     const { testSet } = reportOf(files)
-    expect(testSet).toMatchObject({ items: 400, scored: 395 })
+    expect(testSet).toMatchObject({ items: 424, scored: 419 })
     expect(testSet.unsettledIds).toEqual([
       'cl-0021',
       'cl-0054',
@@ -121,16 +121,15 @@ describe('the fake provider that answers with the gold', () => {
     expect(testSet.digest).toMatch(/^[0-9a-f]{64}$/u)
   })
 
-  it('reports the gold labels the production normalizer would not accept as written', async () => {
+  it('finds no gold label the production normalizer would change', async () => {
     const { io, files } = harness()
 
     await runEvaluationCli(['--out', OUT], io)
 
-    // Two issues that are numbers of minutes ("30 minutes") lose their cause, and one cause
-    // repeats the review. The mentions stay: an invalid cause is emptied, never dropped.
-    // The scorer's reference is the label as it is accepted.
+    // Gold v1 had two issues that were numbers of minutes ("30 minutes") and one cause that
+    // repeated the review; v1.1 words them so the stored contract holds them as written.
     expect(reportOf(files).testSet.goldChangedByNormalizer).toEqual({
-      ids: ['cl-0090', 'cl-0147', 'cl-0179'],
+      ids: [],
       droppedMentions: 0,
     })
   })
@@ -147,27 +146,31 @@ describe('the fake provider that answers with the gold', () => {
     expect(all.mentions.causes.thingAgreement).toBe(1)
     expect(all.mentions.causes.fullAgreement).toBe(1)
     expect(all.mentions.evidence.f1).toBe(1)
-    expect(all.urgent).toMatchObject({ goldUrgent: 30, detected: 30, falseUrgent: 0 })
+    expect(all.urgent).toMatchObject({ goldUrgent: 44, detected: 44, falseUrgent: 0 })
     expect(all.urgent.recall).toBe(1)
     expect(all.robustness.usableRate).toBe(1)
   })
 
-  it('cannot read Bulgarian and Spanish Urgent recall, because the set has no such case', async () => {
+  it('reads Bulgarian and Spanish Urgent recall, because the set now has such cases', async () => {
     const { io, files } = harness()
 
     await runEvaluationCli(['--out', OUT], io)
 
-    const gates = reportOf(files).providers[0].runs[0].gates
-    const unmeasured = gates.unmeasured.map(
-      (result: { slice: string; gate: string }) => `${result.slice} ${result.gate}`,
-    )
-    expect(unmeasured).toEqual([
-      'bg urgent_safety_health_misses',
-      'bg urgent_recall',
-      'es urgent_safety_health_misses',
-      'es urgent_recall',
-    ])
-    expect(gates.verdict).toBe('pass')
+    const run = reportOf(files).providers[0].runs[0]
+    expect(run.gates.unmeasured).toEqual([])
+    expect(run.gates.verdict).toBe('pass')
+    for (const slice of ['bg', 'es']) {
+      const urgent = run.scores.gating[slice].urgent
+      expect(urgent).toMatchObject({
+        goldUrgent: 7,
+        detected: 7,
+        safetyHealthCases: 5,
+        safetyHealthMisses: 0,
+        nearMissFalseUrgent: 0,
+      })
+      // the five near misses added for this language, and those the generators wrote
+      expect(urgent.nearMissItems).toBeGreaterThanOrEqual(5)
+    }
   })
 
   it('writes the report, the page and the final label of every scored review', async () => {
@@ -183,7 +186,7 @@ describe('the fake provider that answers with the gold', () => {
     const labels = (files.get(join(OUT, 'labels-fake-gold-run1.jsonl')) ?? '')
       .trim()
       .split('\n')
-    expect(labels).toHaveLength(395)
+    expect(labels).toHaveLength(419)
     expect(files.get(join(OUT, 'report.html'))).toContain('<!doctype html>')
   })
 
@@ -210,7 +213,7 @@ describe('the fake provider that answers with the gold', () => {
       normalizer: 'review-analysis-normalization-v1',
       topicTaxonomy: 'review-topic-taxonomy-v3',
       sentenceRules: 'review-sentences-v1',
-      gates: 'review-analysis-gates-v1',
+      gates: 'review-analysis-gates-v2',
       issueNormalization: PROPERTY_ISSUE_NORMALIZATION_VERSION,
       issueNormalizationDigest: PROPERTY_ISSUE_NORMALIZATION_DIGEST,
     })
@@ -223,7 +226,7 @@ describe('the fake provider that answers with the gold', () => {
 
     const provider = reportOf(files).providers[0]
     expect(provider.runs).toHaveLength(2)
-    expect(provider.instability).toMatchObject({ items: 395, differentLabels: 0 })
+    expect(provider.instability).toMatchObject({ items: 419, differentLabels: 0 })
     expect(files.has(join(OUT, 'labels-fake-gold-run2.jsonl'))).toBe(true)
   })
 })
@@ -246,7 +249,7 @@ describe('a provider that gets Urgent wrong', () => {
           one.gate === gate && one.slice === slice,
       )
     expect(code).toBe(1)
-    expect(byGate('urgent_safety_health_misses', 'all')).toMatchObject({ value: 20 })
+    expect(byGate('urgent_safety_health_misses', 'all')).toMatchObject({ value: 30 })
     expect(byGate('urgent_recall', 'all')).toMatchObject({ value: 0 })
     expect(byGate('urgent_recall', 'en')).toMatchObject({ value: 0 })
     expect(printed.join('')).toContain('review analysis v3 evaluation: FAIL')
@@ -294,7 +297,8 @@ describe('a provider that gets topics wrong', () => {
         one.gate === 'topic_min_f1' && one.slice === 'all',
     )
     expect(code).toBe(1)
-    expect(failure).toMatchObject({ value: 0, note: 'weakest topic staff_service' })
+    expect(failure).toMatchObject({ value: 0 })
+    expect(failure.note).toContain('weakest topic staff_service')
   })
 
   it('is read in each language on its own', async () => {
@@ -364,7 +368,7 @@ describe('what the command refuses', () => {
 
     const all = reportOf(files).providers[0].runs[0].scores.gating.all
     expect(code).toBe(1)
-    expect(all.robustness.byStatus).toEqual({ failed: 395 })
+    expect(all.robustness.byStatus).toEqual({ failed: 419 })
     expect(all.robustness.usableRate).toBe(0)
   })
 })
@@ -378,8 +382,9 @@ describe('parseCliArguments', () => {
         items: [
           'test-fixtures/review-analysis-v3/items-codex.jsonl',
           'test-fixtures/review-analysis-v3/items-claude.jsonl',
+          'test-fixtures/review-analysis-v3/items-urgent.jsonl',
         ],
-        gold: 'test-fixtures/review-analysis-v3/gold-v1.jsonl',
+        gold: 'test-fixtures/review-analysis-v3/gold-v1.1.jsonl',
         out: 'test-results/review-analysis-v3',
         runs: 1,
         country: 'US',
