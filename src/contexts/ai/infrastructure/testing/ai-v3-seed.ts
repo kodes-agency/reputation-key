@@ -9,7 +9,11 @@
 // An end-to-end stack already has an Organization with people in it, and a Property is
 // made for the spec the way every other spec makes one. For that, `{ adopt: true }` adds
 // the AI rows to the Organization and Property the caller made and leaves both alone: the
-// seed neither creates nor deletes them, and `tearDown()` removes only what it wrote.
+// seed neither creates nor deletes them, and `tearDown()` removes only what it wrote. The
+// stack's web and worker also serve Review's own reads, and Review counts a Property's
+// reviews for Guest voice from the source cache the product writes beside every review
+// (`review_source_contents`); the integration suites stand that count in, so `adopt` writes
+// the cache row too.
 import { randomUUID } from 'node:crypto'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -30,6 +34,7 @@ import {
   properties,
   reviews,
   reviewAiAnalysisHeads,
+  reviewSourceContents,
 } from '#/shared/db/schema'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -59,6 +64,7 @@ const REVIEW_ANALYSIS_EPOCH = 1
 const PROPERTY_PROFILE_VERSION = 1
 const DIGEST = 'a'.repeat(64)
 const SOURCE_BYTE_COUNT = 24
+const ADOPTED_LOCATION = 'accounts/ai-v3-seed/locations/ai-v3-seed'
 const ACTOR_USER_ID = 'ai-v3-seed-actor'
 const TIMEZONE = 'America/New_York'
 
@@ -354,7 +360,29 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
       analysisSequence: sequenceOf(review),
       aiSourceByteLength: SOURCE_BYTE_COUNT,
       aiSourceDigest: DIGEST,
+      ...(adopt ? { externalLocationId: ADOPTED_LOCATION } : {}),
     })
+    if (adopt) {
+      await db.insert(reviewSourceContents).values({
+        reviewId: id,
+        organizationId: ids.organizationId,
+        propertyId: ids.propertyId,
+        platform: 'google',
+        externalId: `ai-v3-seed-${id}`,
+        externalLocationId: ADOPTED_LOCATION,
+        reviewerName: 'Synthetic reviewer',
+        rating: review.rating,
+        text: 'Synthetic review',
+        languageCode: 'en',
+        reviewedAt: review.reviewedAt,
+        lastFetchedAt: review.reviewedAt,
+        contentExpiresAt: CONTENT_EXPIRES_AT,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        aiSourceByteLength: SOURCE_BYTE_COUNT,
+        aiSourceDigest: DIGEST,
+      })
+    }
     await db.insert(materialReviewRevisions).values({
       reviewId: id,
       revision: SOURCE_REVISION,
