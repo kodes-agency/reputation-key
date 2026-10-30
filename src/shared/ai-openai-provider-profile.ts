@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { AI_GATEWAY_KEY_INVENTORY_V1 } from './ai-gateway-key-inventory'
+import { OPENAI_MODEL_SNAPSHOT } from './ai-openai-request-contract'
 import {
   maximumCostMicrosWith,
   settledCostMicrosWith,
@@ -17,7 +18,7 @@ function digest(domain: string, value: unknown): string {
     .digest('hex')
 }
 export const OPENAI_REQUEST_SHAPE_V1 = Object.freeze({
-  model: 'gpt-5.6-luna',
+  model: OPENAI_MODEL_SNAPSHOT,
   input: Object.freeze([
     Object.freeze({ role: 'developer', content: 'versioned-developer-message' }),
     Object.freeze({
@@ -60,7 +61,7 @@ export const OPENAI_REQUEST_SHAPE_V1_DIGEST = digest(
 )
 
 export const OPENAI_PROVIDER_PRIMARY_SOURCES_V1 = Object.freeze({
-  model: 'https://developers.openai.com/api/docs/models/gpt-5.6-luna',
+  model: `https://developers.openai.com/api/docs/models/${OPENAI_MODEL_SNAPSHOT}`,
   structuredOutputs: 'https://developers.openai.com/api/docs/guides/structured-outputs',
   responses: 'https://developers.openai.com/api/reference/resources/responses',
   apiOverview:
@@ -77,7 +78,7 @@ export const OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1 = Object.freeze({
   provider: 'openai',
   api: 'responses-v1',
   endpoint: 'https://api.openai.com/v1/responses',
-  modelSnapshot: 'gpt-5.6-luna',
+  modelSnapshot: OPENAI_MODEL_SNAPSHOT,
   structuredOutputs: 'strict-json-schema',
   // Delegated to the route profile. This sits among literal request parameters
   // (`serviceTier`, `store`), so a fixed value here would be a false claim about
@@ -103,23 +104,37 @@ export const OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1 = digest(
   OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1,
 )
 
-export const OPENAI_PRICE_CATALOGUE_V1 = Object.freeze({
-  catalogueId: 'openai-gpt-5.6-luna-standard-2026-08-19',
-  modelSnapshot: 'gpt-5.6-luna',
+/**
+ * The price list of the pinned model (`gpt-6-luna`, standard tier), in micro-dollars
+ * per million tokens: $0.10 uncached input, $0.01 cached input, $0.50 output.
+ *
+ * The figures come from third-party price lists of 2026-10-30, not from OpenAI's own
+ * page. OpenAI's pricing page (`OPENAI_PROVIDER_PRIMARY_SOURCES_V1.pricing`) is the
+ * authority: compare it with an invoice, and if they differ change this list and the
+ * deployment profile together, because the gateway and the admission authority must
+ * read one list (see `settledCostMicros`).
+ *
+ * It replaced the list of `gpt-5.6-luna` ($0.20, $0.02, $1.20), the model every
+ * operation before the switch-on ran on. Those operations are settled and carry their
+ * cost in micros; nothing prices an operation by the earlier list again.
+ */
+export const OPENAI_PRICE_CATALOGUE_V2 = Object.freeze({
+  catalogueId: 'openai-gpt-6-luna-standard-2026-10-30',
+  modelSnapshot: OPENAI_MODEL_SNAPSHOT,
   serviceTier: 'default',
   unitTokens: 1_000_000,
-  uncachedInputMicros: 200_000,
-  cachedInputMicros: 20_000,
-  outputMicros: 1_200_000,
+  uncachedInputMicros: 100_000,
+  cachedInputMicros: 10_000,
+  outputMicros: 500_000,
   sourceUrl: OPENAI_PROVIDER_PRIMARY_SOURCES_V1.pricing,
-  retrievalDate: '2026-08-19',
+  retrievalDate: '2026-10-30',
 })
 
 export function maximumCostMicros(
   profile: AiMaximumCostProfileV1,
   providerPayloadBytes: number,
 ): number {
-  return maximumCostMicrosWith(OPENAI_PRICE_CATALOGUE_V1, profile, providerPayloadBytes)
+  return maximumCostMicrosWith(OPENAI_PRICE_CATALOGUE_V2, profile, providerPayloadBytes)
 }
 
 /**
@@ -128,7 +143,7 @@ export function maximumCostMicros(
  *
  * The egress gateway used to keep its own copy of the per-million literals in
  * three places while the admission authority derived them from
- * OPENAI_PRICE_CATALOGUE_V1. Repricing the model to gpt-5.6-luna moved the
+ * OPENAI_PRICE_CATALOGUE_V2. Repricing the model to gpt-5.6-luna moved the
  * catalogue and left the gateway's copies behind, so admission signed a receipt
  * the gateway then recomputed differently, `receiptMatches` failed on
  * `costMicros`, and every successfully generated reply was discarded as an
@@ -140,7 +155,7 @@ export function maximumCostMicros(
  * provider is priced by that provider's own (`settledCostMicrosWith`).
  */
 export function settledCostMicros(usage: AiSettledUsageV1): bigint {
-  return settledCostMicrosWith(OPENAI_PRICE_CATALOGUE_V1, usage)
+  return settledCostMicrosWith(OPENAI_PRICE_CATALOGUE_V2, usage)
 }
 
 export const AI_SERVICE_DRAIN_SECONDS_V1 = 130
@@ -189,26 +204,6 @@ export const OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1 = Object.freeze({
     primarySources: OPENAI_PROVIDER_PRIMARY_SOURCES_V1,
     normalizedClaimsDigest: OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1,
   }),
-  pricing: OPENAI_PRICE_CATALOGUE_V1,
+  pricing: OPENAI_PRICE_CATALOGUE_V2,
   keyInventory: AI_GATEWAY_KEY_INVENTORY_V1,
-})
-
-const AI_PROVIDER_DEPLOYMENT_PROFILE_FIELDS_V1 = Object.freeze({
-  profileVersion: 'private-beta-global-v1',
-  region: 'global',
-  provider: 'openai',
-  modelSnapshot: 'gpt-5.6-luna',
-  reasoningEffort: 'route-profile-effort',
-  serviceTier: 'default',
-  store: false,
-  responseApiVersion: 'responses-v1',
-  deploymentContract: OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1,
-})
-
-export const AI_PROVIDER_DEPLOYMENT_PROFILE_V1 = Object.freeze({
-  ...AI_PROVIDER_DEPLOYMENT_PROFILE_FIELDS_V1,
-  profileDigest: digest(
-    'repkey-ai-provider-deployment-profile-v1\0',
-    AI_PROVIDER_DEPLOYMENT_PROFILE_FIELDS_V1,
-  ),
 })

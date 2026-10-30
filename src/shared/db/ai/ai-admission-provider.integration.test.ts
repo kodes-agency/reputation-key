@@ -12,7 +12,11 @@ import { getPool } from '#/shared/db/pool'
 import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import { maximumCostMicros, settledCostMicros } from '#/shared/ai-openai-provider-profile'
+import {
+  maximumCostMicros,
+  OPENAI_PRICE_CATALOGUE_V2,
+  settledCostMicros,
+} from '#/shared/ai-openai-provider-profile'
 import { settledCostMicrosWith } from '#/shared/ai-provider-pricing'
 import { priceCatalogueOfProvider } from '#/shared/ai-provider-pricing-registry'
 import type {
@@ -339,9 +343,12 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
         status: 'settled',
         costMicros: Number(settledCostMicrosWith(anthropicList, usage)),
       })
-      expect(settledCostMicrosWith(anthropicList, usage)).not.toBe(
-        settledCostMicros(usage),
-      )
+      // The two real lists carry the same per-million figures since the switch-on
+      // ($0.10 / $0.01 / $0.50 for gpt-6-luna and for claude-haiku-5-5), so the equality
+      // of the two settlements proves nothing here. That the list follows the provider
+      // is shown with a list that differs: `ai-provider-pricing.test.ts` and
+      // `service-providers.test.ts`.
+      expect(anthropicList.catalogueId).not.toBe(OPENAI_PRICE_CATALOGUE_V2.catalogueId)
       await expect(
         authority.settle(settlement(withheld, 'no_dispatch', usage), SIGNING_KID),
       ).resolves.toMatchObject({

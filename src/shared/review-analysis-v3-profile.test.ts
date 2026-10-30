@@ -28,7 +28,7 @@ import { REVIEW_TOPICS_V3, REVIEW_TOPIC_LABELS_V3 } from './review-topic-taxonom
 
 const profile = REVIEW_ANALYSIS_V3_LOGICAL_PROFILE
 
-describe('the review-analysis v3 operation profile (dark)', () => {
+describe('the review-analysis v3 operation profile', () => {
   it('is the v3 operation in the v3 versions and in no provider terms', () => {
     expect(profile).toMatchObject({
       profileVersion: 'review-analysis-v3',
@@ -70,21 +70,24 @@ describe('the review-analysis v3 operation profile (dark)', () => {
     }
   })
 
-  it('is in neither live catalogue, which is what keeps v3 dark', () => {
+  it('is in both live catalogues: the operation catalogue carries it and the runtime catalogue serves it', () => {
+    const entry = AI_OPERATION_PROFILES.find(
+      (candidate) => candidate.profileVersion === profile.profileVersion,
+    )
+    expect(entry).toMatchObject({
+      capability: 'review_analysis',
+      capabilityRuntimeProfileVersion: profile.capabilityRuntimeProfileVersion,
+      providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
+      promptDigest: profile.promptDigest,
+      outputSchemaDigest: profile.outputSchemaDigest,
+      maxOutputTokens: 4_096,
+      reasoningEffort: 'low',
+    })
     expect(
-      AI_OPERATION_PROFILES.some(
-        (entry) => entry.profileVersion === profile.profileVersion,
+      AI_RUNTIME_CAPABILITIES_V1.filter(
+        (candidate) => candidate.operationProfileVersion === profile.profileVersion,
       ),
-    ).toBe(false)
-    expect(
-      AI_RUNTIME_CAPABILITIES_V1.some(
-        (entry) =>
-          entry.operationProfileVersion === profile.profileVersion ||
-          entry.runtimeProfileVersion === profile.capabilityRuntimeProfileVersion ||
-          entry.providerDeploymentProfileVersion ===
-            profile.providerDeploymentProfileVersion,
-      ),
-    ).toBe(false)
+    ).toHaveLength(1)
   })
 
   it('bounds a request by what the Review limits allow and an answer by 48 mentions', () => {
@@ -272,7 +275,7 @@ describe('the v3 profile as OpenAI would serve it', () => {
     })
   })
 
-  it('becomes a catalogue entry in the shape every consumer already reads, once activation puts it there', () => {
+  it('is the catalogue entry in the shape every consumer reads', () => {
     const entry = operationProfileForCatalogue(profile, REVIEW_ANALYSIS_V3_OPENAI_PAIRING)
 
     expect(entry).toMatchObject({
@@ -298,7 +301,10 @@ describe('the v3 profile as OpenAI would serve it', () => {
           digest: live.staticTokenBearingDigest,
         },
       })
-      expect(operationProviderPairing(live.profileVersion, 'anthropic')).toBeNull()
+      // Only the v3 profile is attested for a second provider.
+      if (live.profileVersion !== 'review-analysis-v3') {
+        expect(operationProviderPairing(live.profileVersion, 'anthropic')).toBeNull()
+      }
     }
     expect(operationProviderPairing('review-analysis-v9', 'openai')).toBeNull()
   })

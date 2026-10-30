@@ -3,20 +3,29 @@ import type { AiAdmissionDescriptorV1 } from './ai-internal-transport-contract'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { assertClosedJsonAndFreeze } from './closed-json-contract'
 
-// `gpt-5.6-luna` has no dated snapshot: the provider publishes only this floating
-// alias (`gpt-5.6-luna-2026-06-23`, `-medium` and `-mini` all 404). Accepted
-// deliberately — see docs/archive/2026-09-lean/operations/model-switch-5-6-luna-2026-08-19.md (git history at 944895e91). The
-// consequence is that provider-side behaviour can change without any digest in this
-// repo moving, so the release canary is the only detector.
-export const OPENAI_MODEL_SNAPSHOT = 'gpt-5.6-luna' as const
+// `gpt-6-luna` is pinned by its plain id since the switch-on (2026-10-30): the account
+// has no dated snapshot of it (the id the quality check sent was the id the provider
+// answered with, `modelsSeen: { 'gpt-6-luna': 424 }`). The owner accepted the plain id
+// for that reason, against decision 4 of docs/plan/guest-voice-2.md ("exact dated
+// snapshots, never a floating alias"). The consequence is the one `gpt-5.6-luna` had
+// before it (docs/archive/2026-09-lean/operations/model-switch-5-6-luna-2026-08-19.md,
+// git history at 944895e91): provider-side behaviour can change without any digest in
+// this repo moving, so the release canary is the only detector. When the provider
+// publishes a dated id, pin it here, which moves the deployment profile and asks the
+// owner to confirm AI again.
+export const OPENAI_MODEL_SNAPSHOT = 'gpt-6-luna' as const
 
-// This model REJECTS `in_memory` with 400 "This model is compatible only with 24h
-// extended prompt caching". It is also a merchant-facing retention claim, mirrored in
-// OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1 and the deployment contract.
+// `gpt-5.6-luna` REJECTED `in_memory` with 400 "This model is compatible only with 24h
+// extended prompt caching", and the request keeps sending 24h for `gpt-6-luna`, which
+// the quality check of 2026-10-30 ran with. It is also a merchant-facing retention
+// claim, mirrored in OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1 and the deployment contract.
 //
-// Safe against the cost ceiling: caching requires >=1024 input tokens and every route
-// here sends 162-226, so no cache write can be billed. `maximumCostMicros` therefore
-// needs no cache-write term. Add one if any source byte limit is ever raised.
+// Safe against the cost ceiling: OpenAI bills no cache write (a cached input token is
+// only cheaper than an uncached one), and a reservation prices every byte of the static
+// request and the payload as an uncached input token, so it stays a ceiling for the v3
+// analysis route, whose static request caches (the quality check read 1,379,396 of
+// 1,599,608 input tokens from the cache). `maximumCostMicros` therefore needs no
+// cache-write term. Add one if the provider ever bills a cache write.
 export const OPENAI_PROMPT_CACHE_RETENTION = '24h' as const
 
 /**
@@ -31,6 +40,7 @@ export const OPENAI_PROMPT_CACHE_RETENTION = '24h' as const
  * Never remove an entry that could still appear in a stored row.
  */
 export const OPENAI_KNOWN_MODEL_SNAPSHOTS = Object.freeze([
+  'gpt-6-luna',
   'gpt-5.6-luna',
   'gpt-5.4-mini-2026-03-17',
 ] as const)

@@ -410,7 +410,7 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     })
     const authorization = {
       capabilities: ['review_analysis'],
-      capabilityRuntimeProfileVersions: { review_analysis: 'review-analysis-runtime-v1' },
+      capabilityRuntimeProfileVersions: { review_analysis: 'review-analysis-runtime-v2' },
       reviewAnalysisEpoch: 1,
       replyDraftingEpoch: 1,
       propertyTrendsEpoch: 1,

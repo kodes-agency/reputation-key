@@ -6,7 +6,7 @@ import {
   SDK_ATTESTATION,
   defineOperationProfile,
   type AiOperationProfile,
-} from './ai-operation-profiles'
+} from './ai-operation-profile-core'
 import type { AiOperationProviderPairing } from './ai-provider-attestations'
 
 // The two directions between an operation profile as the catalogue holds it today

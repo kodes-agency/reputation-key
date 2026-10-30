@@ -19,11 +19,8 @@ import {
   parseAiGatewayRouteRequest,
   type AiGatewayRouteRequestV1,
 } from '#/shared/ai-gateway-transport-contract'
-import {
-  MERCHANT_AI_NOTICE_DIGEST,
-  MERCHANT_AI_NOTICE_VERSION,
-} from '#/shared/merchant-ai-notice-contract'
-import { OPENAI_PRICE_CATALOGUE_V1 } from '#/shared/ai-openai-provider-profile'
+import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
+import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
 import {
   settledCostMicrosWith,
   type AiProviderPriceCatalogue,
@@ -46,70 +43,16 @@ const REQUEST_BINDING_HMAC = Buffer.alloc(32, 0x31).toString('base64url')
 const signingKeys = generateKeyPairSync('ed25519')
 
 const SECOND_PRICES: AiProviderPriceCatalogue = Object.freeze({
-  ...OPENAI_PRICE_CATALOGUE_V1,
+  ...OPENAI_PRICE_CATALOGUE_V2,
   catalogueId: 'synthetic-second-provider-prices',
   uncachedInputMicros: 3_000_000,
   cachedInputMicros: 300_000,
   outputMicros: 15_000_000,
 })
 
+// The live review-analysis request (v3 form): only a binding the catalogue serves parses.
 function routeRequest(): AiGatewayRouteRequestV1 {
-  return parseAiGatewayRouteRequest({
-    route: 'review-analysis',
-    operationId: '10000000-0000-4000-8000-000000000001',
-    permitId: '10000000-0000-4000-8000-000000000002',
-    attemptNumber: 1,
-    organizationId: 'better-auth-org_01',
-    propertyId: '10000000-0000-4000-8000-000000000004',
-    internalSubjectId: 'review_subject_01',
-    actorId: null,
-    binding: {
-      authorizationLineageId: '10000000-0000-4000-8000-000000000005',
-      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-      capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
-      sourceEpoch: 1,
-      evaluatedLanguage: 'en-Latn',
-      concreteReplyLanguage: null,
-      languageCatalogueDigest: SHA,
-      replyLanguageVerifierDigest: null,
-      languageScriptConsistencyDigest: null,
-      zhOrthographyVerifierDigest: null,
-      sourceRevision: 1,
-      reviewedAtEpochMillis: NOW,
-      propertyProfileVersion: 1,
-      routingPolicyVersion: 1,
-      sourcePolicyId: 'ai-source-v1',
-      sourceCanonicalizerDigest: SHA,
-      redactionProfileVersion: 'gbp-review-global-v1',
-      outputLeakageProfileVersion: null,
-      outputLeakageProfileDigest: null,
-      replyTemplateCatalogueVersion: null,
-      replyTemplateCatalogueDigest: null,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
-      operationProfileVersion: 'review-analysis-v2',
-      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
-      aiSubjectHmacKeyVersion: 'v1',
-      stopFence: {
-        globalControlId: '10000000-0000-4000-8000-000000000006',
-        globalGeneration: 1,
-        providerControlId: '10000000-0000-4000-8000-000000000007',
-        providerGeneration: 1,
-        capabilityControlId: '10000000-0000-4000-8000-000000000008',
-        capabilityGeneration: 1,
-      },
-    },
-    deadlineEpochMillis: NOW + 70_000,
-    redactionCountry: 'US',
-    observedContentExpiresAtEpochMillis: NOW + 600_000,
-    source: {
-      kind: 'review',
-      text: 'A bounded synthetic review.',
-      rating: 5,
-      languageCode: 'en-Latn',
-      reviewedAtEpochMillis: NOW,
-    },
-  })
+  return parseAiGatewayRouteRequest(analysisRequest())
 }
 
 function descriptorFor(request: AiGatewayRouteRequestV1): AiAdmissionDescriptorV1 {
@@ -372,15 +315,15 @@ describe('the registry wiring agrees with the single connector it replaces', () 
     const legacy = run({
       wiring: () => ({ connector: legacyConnector as unknown as OpenAiConnector }),
       adapters: [],
-      pricing: OPENAI_PRICE_CATALOGUE_V1,
+      pricing: OPENAI_PRICE_CATALOGUE_V2,
     })
-    const openAi = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V1, async () =>
+    const openAi = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V2, async () =>
       outcomeOf('success'),
     )
     const registry = run({
       wiring: registryWiring,
       adapters: [openAi],
-      pricing: OPENAI_PRICE_CATALOGUE_V1,
+      pricing: OPENAI_PRICE_CATALOGUE_V2,
     })
 
     const legacyResponse = await legacy.service.execute(
@@ -426,7 +369,7 @@ describe('the registry wiring agrees with the single connector it replaces', () 
 
 describe('a call goes to the provider that prepared it, and is priced by that provider', () => {
   it('calls only the second provider, and settles at the second provider’s prices', async () => {
-    const openAi = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V1, async () =>
+    const openAi = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V2, async () =>
       outcomeOf('success'),
     )
     const second = fakeAdapter('anthropic', SECOND_PRICES, async () =>
@@ -456,14 +399,14 @@ describe('a call goes to the provider that prepared it, and is priced by that pr
     const value = run({
       wiring: registryWiring,
       adapters: [
-        fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V1, async () =>
+        fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V2, async () =>
           outcomeOf('success'),
         ),
         second,
       ],
       preparedProvider: 'anthropic',
       // The authority priced it as OpenAI: the receipt cannot bind.
-      pricing: OPENAI_PRICE_CATALOGUE_V1,
+      pricing: OPENAI_PRICE_CATALOGUE_V2,
     })
 
     const response = await value.service.execute(
@@ -475,14 +418,14 @@ describe('a call goes to the provider that prepared it, and is priced by that pr
   })
 
   it('refuses a provider this process holds no adapter for before it asks admission for anything', async () => {
-    const openAi = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V1, async () =>
+    const openAi = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V2, async () =>
       outcomeOf('success'),
     )
     const value = run({
       wiring: registryWiring,
       adapters: [openAi],
       preparedProvider: 'anthropic',
-      pricing: OPENAI_PRICE_CATALOGUE_V1,
+      pricing: OPENAI_PRICE_CATALOGUE_V2,
     })
 
     const response = await value.service.execute(
@@ -524,19 +467,19 @@ describe('no fallback', () => {
           } as unknown as OpenAiConnector,
         }),
         adapters: [],
-        pricing: OPENAI_PRICE_CATALOGUE_V1,
+        pricing: OPENAI_PRICE_CATALOGUE_V2,
       })
-      const other = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V1, async () =>
+      const other = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V2, async () =>
         outcomeOf('success'),
       )
-      const chosen = fakeAdapter('anthropic', OPENAI_PRICE_CATALOGUE_V1, async () =>
+      const chosen = fakeAdapter('anthropic', OPENAI_PRICE_CATALOGUE_V2, async () =>
         outcomeOf(disposition),
       )
       const both = run({
         wiring: registryWiring,
         adapters: [other, chosen],
         preparedProvider: 'anthropic',
-        pricing: OPENAI_PRICE_CATALOGUE_V1,
+        pricing: OPENAI_PRICE_CATALOGUE_V2,
       })
 
       const aloneResponse = await alone.service.execute(
@@ -555,17 +498,17 @@ describe('no fallback', () => {
   )
 
   it('turns a connection that throws into an ambiguous outcome and still calls no other provider', async () => {
-    const other = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V1, async () =>
+    const other = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V2, async () =>
       outcomeOf('success'),
     )
-    const chosen = fakeAdapter('anthropic', OPENAI_PRICE_CATALOGUE_V1, async () => {
+    const chosen = fakeAdapter('anthropic', OPENAI_PRICE_CATALOGUE_V2, async () => {
       throw new Error('connection lost')
     })
     const value = run({
       wiring: registryWiring,
       adapters: [other, chosen],
       preparedProvider: 'anthropic',
-      pricing: OPENAI_PRICE_CATALOGUE_V1,
+      pricing: OPENAI_PRICE_CATALOGUE_V2,
     })
 
     const response = await value.service.execute(
@@ -581,7 +524,7 @@ describe('no fallback', () => {
 
 describe('readiness', () => {
   it('is the readiness of every adapter it holds and of admission', async () => {
-    const ready = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V1, async () =>
+    const ready = fakeAdapter('openai', OPENAI_PRICE_CATALOGUE_V2, async () =>
       outcomeOf('success'),
     )
     const unready = fakeAdapter(

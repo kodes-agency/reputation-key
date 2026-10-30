@@ -94,7 +94,7 @@ function provenanceToken(overrides: Partial<AiReplyProvenancePayloadV1> = {}): s
       baseReplyStateRevision: 0,
       replyDraftingEpoch: 1,
       propertyProfileVersion: 1,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
       operationProfileVersion: 'reply-suggestion-v1',
       modelSnapshot: 'gpt-5.4-mini-2026-03-17',
       promptVersion: 'reply-suggestion-prompt-v1',
@@ -132,7 +132,7 @@ function personalizedProvenanceToken(
       baseReplyStateRevision: 1,
       replyDraftingEpoch: 1,
       propertyProfileVersion: 1,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
       operationProfileVersion: 'reply-suggestion-v1',
       replyProfileVersion: 'reply-draft-v1',
       replyProfileDigest: LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST,
@@ -169,7 +169,7 @@ function groundedProvenanceToken(
       baseReplyStateRevision: 2,
       replyDraftingEpoch: 1,
       propertyProfileVersion: 1,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
       operationProfileVersion: 'reply-suggestion-v1',
       replyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
       replyProfileDigest: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
@@ -329,7 +329,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     const [providerControl] = await db
       .select()
       .from(aiExecutionControlHeads)
-      .where(eq(aiExecutionControlHeads.scopeKey, 'provider:private-beta-global-v1'))
+      .where(eq(aiExecutionControlHeads.scopeKey, 'provider:private-beta-global-v2'))
       .limit(1)
     const [capabilityControl] = await db
       .select()
@@ -377,7 +377,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       propertyProfileVersion: 1,
       routingPolicyVersion: 1,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
       operationProfileVersion: 'reply-suggestion-v1',
       capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
       replyBrandProfileVersion: input.replyBrandProfileVersion ?? null,
@@ -514,7 +514,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         ...CONSENT_CONTRACT_FACTS,
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
         redactionProfileFamily: 'gbp-review-global-v1',
         actorUserId: ACTOR_USER_ID,
         reasonCode: 'merchant_enabled',
@@ -539,7 +539,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         ...CONSENT_CONTRACT_FACTS,
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
         redactionProfileFamily: 'gbp-review-global-v1',
         updatedBy: ACTOR_USER_ID,
         updatedAt: NOW,

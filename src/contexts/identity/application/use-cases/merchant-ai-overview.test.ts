@@ -19,6 +19,10 @@ const NOTICE_2026_09_15 = {
   noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
   noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
 } as const
+const NOTICE_2026_10_17 = {
+  noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+  noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+} as const
 const input = { organizationId: 'org-overview', actorUserId: 'admin-1' } as const
 
 function record(
@@ -108,7 +112,11 @@ describe('listMerchantAiOverview', () => {
     }
     const { list } = harness([
       record('enabled-current', { authorization: authorization('enabled') }),
-      // The served notice changed only its call to action: nobody re-consents.
+      // The switch-on notice (2026-10-30) changed what a merchant agrees to, so the two
+      // before it lapsed with it: every Property enabled under them re-consents.
+      record('enabled-2026-10-17', {
+        authorization: authorization('enabled', NOTICE_2026_10_17),
+      }),
       record('enabled-2026-09-15', {
         authorization: authorization('enabled', NOTICE_2026_09_15),
       }),
@@ -133,7 +141,8 @@ describe('listMerchantAiOverview', () => {
       ),
     ).toEqual({
       'enabled-current': false,
-      'enabled-2026-09-15': false,
+      'enabled-2026-10-17': true,
+      'enabled-2026-09-15': true,
       'enabled-previous': true,
       'revoked-previous': true,
       'revoked-current': false,

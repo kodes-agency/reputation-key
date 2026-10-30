@@ -22,6 +22,10 @@ const NOTICE_2026_09_15 = Object.freeze({
   noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
   noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
 })
+const NOTICE_2026_10_17 = Object.freeze({
+  noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+  noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+})
 
 describe('Merchant AI notice contract', () => {
   it('canonicalizes the RFC 8785 primitive serialization vector', () => {
@@ -65,7 +69,7 @@ describe('Merchant AI notice contract', () => {
   })
 
   it('binds the immutable notice version and structured payload into the digest', () => {
-    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-10-17.v1')
+    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-10-30.v1')
     expect(MERCHANT_AI_NOTICE_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
       noticeDigestOf(
@@ -76,7 +80,7 @@ describe('Merchant AI notice contract', () => {
       ),
     )
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
-      '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+      'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
     )
   })
 
@@ -90,25 +94,74 @@ describe('Merchant AI notice contract', () => {
     expect(MERCHANT_AI_NOTICE_PAYLOAD.ctaTemplate).toBe('Enable AI features')
   })
 
-  it('differs from the 2026-09-15 notice in its call to action alone', () => {
-    // Put the old call to action back and the old digest comes out: the data
-    // use, capabilities, retention and risks a 2026-09-15 consent agreed to are
-    // word for word the ones served now.
+  it('is a material change: it names Anthropic, lists what review analysis keeps and asks for consent again', () => {
+    // The data use changed, so the notice before it cannot be carried forward: the text
+    // a 2026-10-17 consent agreed to is not the text served now (a second provider, the
+    // stored results, quality testing, the Urgent alert).
+    const titles = MERCHANT_AI_NOTICE_PAYLOAD.sections.map((section) => section.id)
+    expect(titles).toEqual([
+      'data_and_features',
+      'analysis_record',
+      'provider_posture',
+      'provider_posture_anthropic',
+      'provider_use',
+      'limits_and_retention',
+      'how_results_are_used',
+      'human_control_and_risk',
+    ])
+    expect(MERCHANT_AI_NOTICE_PAYLOAD.summary).toContain('OpenAI and Anthropic')
     expect(
       noticeDigestOf({
         ...MERCHANT_AI_NOTICE_PAYLOAD,
         ctaTemplate: 'Enable AI features for {propertyNames}',
       }),
-    ).toBe(NOTICE_2026_09_15.noticeDigest)
+    ).not.toBe(NOTICE_2026_09_15.noticeDigest)
+    expect(MERCHANT_AI_NOTICE_DIGEST).not.toBe(NOTICE_2026_10_17.noticeDigest)
   })
 
-  it('keeps consent recorded under the 2026-09-15 notice in force, and no earlier one', () => {
+  it('serves the three capabilities, three retention rows and six risks the owner approved', () => {
+    expect(MERCHANT_AI_NOTICE_PAYLOAD.capabilities.map((entry) => entry.id)).toEqual([
+      'review_analysis',
+      'reply_drafting',
+      'property_trends',
+    ])
+    expect(MERCHANT_AI_NOTICE_PAYLOAD.capabilities[0]?.description).toBe(
+      'Analyze new and materially updated eligible Google reviews, including marking a review Urgent.',
+    )
+    expect(
+      MERCHANT_AI_NOTICE_PAYLOAD.retentionAndRevocation.map((row) => row.label),
+    ).toEqual([
+      'RepKey raw review source',
+      'RepKey de-identified insights',
+      'Provider retention',
+    ])
+    expect(MERCHANT_AI_NOTICE_PAYLOAD.risks).toHaveLength(6)
+  })
+
+  it('serves no link without a target: the Anthropic subprocessor placeholder is not served', () => {
+    const anthropic = MERCHANT_AI_NOTICE_PAYLOAD.sections.find(
+      (section) => section.id === 'provider_posture_anthropic',
+    )
+    expect(anthropic?.links).toEqual([
+      {
+        label: 'Anthropic privacy centre, API data retention',
+        target: 'https://privacy.claude.com/en/articles/7996868',
+      },
+    ])
+    for (const section of MERCHANT_AI_NOTICE_PAYLOAD.sections) {
+      for (const link of section.links) {
+        expect(link.target).toMatch(/^(\/|https:\/\/)/)
+        expect(link.target).not.toMatch(/[[\]]/)
+      }
+    }
+  })
+
+  it('keeps the served notice in force alone: every earlier consent lapses', () => {
     expect(MERCHANT_AI_NOTICES_IN_FORCE).toEqual([
       {
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       },
-      NOTICE_2026_09_15,
     ])
     expect(
       isMerchantAiNoticeInForce({
@@ -116,20 +169,21 @@ describe('Merchant AI notice contract', () => {
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       }),
     ).toBe(true)
-    expect(isMerchantAiNoticeInForce(NOTICE_2026_09_15)).toBe(true)
 
     for (const lapsed of [
-      // 2026-09-15 changed the consent itself (no password, one ceremony for
-      // several Properties), so the consent before it re-consented.
+      // 2026-10-17 and 2026-09-15 agreed to a record of aspects and one issue label
+      // and to OpenAI alone; the served notice is not word for word the same use.
+      NOTICE_2026_10_17,
+      NOTICE_2026_09_15,
       {
         noticeVersion: 'merchant-ai-notice-2026-09-09.v1',
         noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
       },
       // A version is in force only with its own digest.
-      { ...NOTICE_2026_09_15, noticeDigest: MERCHANT_AI_NOTICE_DIGEST },
+      { ...NOTICE_2026_10_17, noticeDigest: MERCHANT_AI_NOTICE_DIGEST },
       {
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: NOTICE_2026_09_15.noticeDigest,
+        noticeDigest: NOTICE_2026_10_17.noticeDigest,
       },
     ]) {
       expect(isMerchantAiNoticeInForce(lapsed)).toBe(false)

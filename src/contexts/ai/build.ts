@@ -42,6 +42,7 @@ import { createAiControlAdapter } from './infrastructure/adapters/ai-control.ada
 import { createAiOperationStoreAdapter } from './infrastructure/adapters/ai-operation-store.adapter'
 import { createAiOutputStoreAdapter } from './infrastructure/adapters/ai-output-store.adapter'
 import { createPropertyVocabularyContextAdapter } from './infrastructure/adapters/property-vocabulary-context.adapter'
+import { createOperatorProviderChoice } from './infrastructure/adapters/ai-provider-choice.adapter'
 import { createAiPropertyCalendarAdapter } from './infrastructure/adapters/ai-property-calendar.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './infrastructure/adapters/ai-property-aggregate-store.adapter'
 import { createAiGuestVoiceFactsAdapter } from './infrastructure/adapters/ai-guest-voice-facts.adapter'
@@ -108,13 +109,6 @@ const unavailableSubjectHmac: AiSubjectHmacPort = Object.freeze({
   },
 })
 
-const unavailableProviderChoice: AiProviderChoicePort = Object.freeze({
-  chooseForReviewAnalysis: async () => ({
-    status: 'unavailable' as const,
-    code: 'provider_selection_required' as const,
-  }),
-})
-
 export type AiContextBuildInput = Readonly<{
   db: Database
   outboxRepo: OutboxRepository
@@ -129,9 +123,9 @@ export type AiContextBuildInput = Readonly<{
   admission?: AiAdmissionPort
   subjectHmac?: AiSubjectHmacPort
   /**
-   * Which provider a v3 review analysis is claimed under. Read only when the
-   * runtime catalogue selects v3, which no build does yet; without it a v3
-   * analysis waits for an operator's choice.
+   * Which provider a v3 review analysis is claimed under. Left out, it is the
+   * operator's choice, which names OpenAI alone (`OPERATOR_PROVIDER_SELECTION`);
+   * a test hands in its own.
    */
   providerChoice?: AiProviderChoicePort
   resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
@@ -182,7 +176,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       ? createReviewAnalysisContractV3({
           outputs,
           vocabularyContext: createPropertyVocabularyContextAdapter(input.db),
-          providerChoice: input.providerChoice ?? unavailableProviderChoice,
+          providerChoice: input.providerChoice ?? createOperatorProviderChoice(),
         })
       : undefined
   const analyzeReviewEvent = createAnalyzeReviewEvent({

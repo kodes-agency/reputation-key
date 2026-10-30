@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -134,7 +133,7 @@ const CONTROL_SCOPES: ReadonlyArray<ControlHeadFixture['scope']> = [
   { kind: 'global' },
   {
     kind: 'provider_deployment_profile',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: 'private-beta-global-v2',
   },
   { kind: 'capability', capability: 'review_analysis' },
 ]
@@ -198,11 +197,6 @@ function createHarness(
     authorizationState?: 'enabled' | 'disabled'
     /** The notice the Property's consent was recorded under. Defaults to the served one. */
     consentNotice?: Readonly<{ noticeVersion: string; noticeDigest: string }>
-    /**
-     * Run the gateway's own request check on what the use case sends, as the
-     * in-process inference adapter does before anything else.
-     */
-    checksGatewayRequest?: boolean
   }> = {},
 ) {
   let claimedOperation: AiOperationRecord | undefined
@@ -262,8 +256,7 @@ function createHarness(
     status: 'applied' as const,
     aggregateRevision: 4,
   }))
-  const analyzeReview = vi.fn(async (request: unknown) => {
-    if (options.checksGatewayRequest) parseAiGatewayRouteRequest(request)
+  const analyzeReview = vi.fn(async (_request: unknown) => {
     return options.providerError
       ? {
           route: 'review-analysis' as const,
@@ -377,7 +370,7 @@ function createHarness(
               sourcePolicyId: 'google-business-profile-source-policy-v1',
               sourceCanonicalizerDigest: SHA,
               redactionProfileFamily: 'gbp-review-global-v1',
-              providerDeploymentProfileVersion: 'private-beta-global-v1',
+              providerDeploymentProfileVersion: 'private-beta-global-v2',
             },
       ),
     },
@@ -1073,7 +1066,7 @@ describe('analyze review event: operation binding', () => {
       outputLeakageProfileDigest: null,
       replyTemplateCatalogueVersion: null,
       replyTemplateCatalogueDigest: null,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
       operationProfileVersion: 'review-analysis-v2',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
       aiSubjectHmacKeyVersion: 'ai-subject-hmac-v1',
@@ -1114,6 +1107,15 @@ describe('analyze review event: operation binding', () => {
 describe('analyze review event: a consent recorded under an earlier notice', () => {
   beforeEach(withPinnedLanguageRuntime)
 
+  // The switch-on notice (2026-10-30) changed what a merchant agrees to, so it is the
+  // only one in force: every notice before it, the two that were in force until the
+  // deploy included, settles the review as not analysable before an operation exists.
+  // The same is shown for the contract a build runs now in
+  // analyze-review-event.v3.test.ts.
+  const NOTICE_2026_10_17 = {
+    noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+    noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+  }
   const NOTICE_2026_09_15 = {
     noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
     noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
@@ -1123,31 +1125,16 @@ describe('analyze review event: a consent recorded under an earlier notice', () 
     noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
   }
 
-  it('sends a request the gateway accepts when the consent is under the served notice', async () => {
-    const harness = createHarness({ checksGatewayRequest: true })
+  it('analyses under the served notice', async () => {
+    const harness = createHarness()
 
     await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
     expect(harness.mocks.analyzeReview).toHaveBeenCalledOnce()
   })
 
-  // The 2026-10-17 notice changed only its call to action, so a Property
-  // consented under 2026-09-15 keeps its reviews analysed with no re-consent.
-  it('analyses under the 2026-09-15 notice, which the served one keeps in force', async () => {
-    const harness = createHarness({
-      checksGatewayRequest: true,
-      consentNotice: NOTICE_2026_09_15,
-    })
-
-    await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
-    expect(harness.mocks.analyzeReview).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        binding: expect.objectContaining(NOTICE_2026_09_15),
-      }),
-      expect.anything(),
-    )
-  })
-
   it.each([
+    ['the 2026-10-17 notice, in force until the switch-on', NOTICE_2026_10_17],
+    ['the 2026-09-15 notice, in force until the switch-on', NOTICE_2026_09_15],
     ['an earlier notice version', EARLIER_NOTICE],
     [
       'the served version with another text',
@@ -1156,7 +1143,7 @@ describe('analyze review event: a consent recorded under an earlier notice', () 
   ])(
     'settles the review as not analysable under %s, with no operation and no attempt',
     async (_case, consentNotice) => {
-      const harness = createHarness({ checksGatewayRequest: true, consentNotice })
+      const harness = createHarness({ consentNotice })
 
       await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
       expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(

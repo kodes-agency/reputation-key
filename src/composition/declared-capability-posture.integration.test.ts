@@ -20,7 +20,7 @@ import {
 } from '#/shared/db/testing/held-transaction'
 import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/domain/google-content-capability'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE_V1 } from '#/shared/ai-openai-provider-profile'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-deployment-profile'
 import type { DeclaredCapabilityPosture } from '#/shared/release/declared-capability-posture'
 import {
   applyDeclaredCapabilityPosture,
@@ -30,7 +30,7 @@ import {
 
 const NOW = new Date('2026-09-29T12:00:00.000Z')
 const SHA = 'd'.repeat(40)
-const PROFILE = AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion
+const PROFILE = AI_PROVIDER_DEPLOYMENT_PROFILE_V2.profileVersion
 const OPERATOR = 'owner:ops@example.com'
 
 let held: HeldTransaction

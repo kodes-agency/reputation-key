@@ -29,7 +29,7 @@ const HEAD: ReviewAnalysisEnrollmentHead = {
     reviewAnalysisEpoch: 3,
     analysisStartSequence: 40,
   },
-  providerDeploymentProfileVersion: 'private-beta-global-v1',
+  providerDeploymentProfileVersion: 'private-beta-global-v2',
   state: 'queued',
 }
 
@@ -47,7 +47,7 @@ function authorization(
     authorizedSourceEpoch: 2,
     capabilities: ['review_analysis'],
     capabilityRuntimeProfileVersions: {
-      review_analysis: 'review-analysis-runtime-v1',
+      review_analysis: 'review-analysis-runtime-v2',
     },
     capabilityEpochs: {
       review_analysis: { epoch: 3, changedAtEpochMillis: NOW.getTime() },
@@ -60,7 +60,7 @@ function authorization(
     sourcePolicyId: 'review-ai-source-v1',
     sourceCanonicalizerDigest: 'b'.repeat(64),
     redactionProfileFamily: 'review-redaction-v1',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: 'private-beta-global-v2',
     ...overrides,
   }
 }
@@ -122,7 +122,7 @@ function harness(
           {
             scope: {
               kind: 'provider_deployment_profile' as const,
-              providerDeploymentProfileVersion: 'private-beta-global-v1',
+              providerDeploymentProfileVersion: 'private-beta-global-v2',
             },
             controlId: '174c47b0-e9e8-4f90-97c2-fcb8b7a55f71',
             generation: 1,

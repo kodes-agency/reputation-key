@@ -1,8 +1,8 @@
-// The review analysis use case under the v3 contract (dark). The skeleton is the
-// one analyze-review-event.test.ts covers for v2; this file shows what a build
-// that the runtime catalogue points at v3 does differently, and that the v2
-// contract stays the default. Everything here is invented: no review text of a
-// real guest, no provider, no database.
+// The review analysis use case under the v3 contract, the one the live runtime
+// catalogue selects since the switch-on (2026-10-30). The skeleton is the one
+// analyze-review-event.test.ts covers for the retired v2 contract; this file shows
+// what the v3 contract does differently. Everything here is invented: no review text
+// of a real guest, no provider, no database.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -19,6 +19,7 @@ import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/review-analysis-v3-normalizer'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
 import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
 import type { AiOperationId } from '../../domain/types'
 import type {
@@ -138,6 +139,8 @@ function harness(
     sentences?: typeof SENTENCES | undefined
     runtimeProfile?: string
     providerDeployment?: string
+    /** The notice the Property's consent was recorded under. Defaults to the served one. */
+    consentNotice?: Readonly<{ noticeVersion: string; noticeDigest: string }>
     choice?: Awaited<ReturnType<AiProviderChoicePort['chooseForReviewAnalysis']>>
     stored?: boolean
     category?: string | null
@@ -189,9 +192,9 @@ function harness(
     status: 'applied' as const,
     aggregateRevision: 4,
   }))
-  // The live gateway refuses a v3 binding as cross-wired until activation puts
-  // the v3 profile in its catalogue, so this does not parse the request: the
-  // test reads what the use case put in it.
+  // The live gateway serves a v3 binding (`parseAiGatewayRouteRequest` accepts the
+  // request the use case builds: a test below parses it), so the mock reads what
+  // the use case put in the request and answers.
   const analyzeReview = vi.fn(async (_request: unknown) => {
     return {
       route: 'review-analysis' as const,
@@ -282,8 +285,8 @@ function harness(
           property_trends: { epoch: 1, changedAtEpochMillis: NOW },
         },
         reviewAnalysisStartSequence: 1,
-        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        noticeVersion: options.consentNotice?.noticeVersion ?? MERCHANT_AI_NOTICE_VERSION,
+        noticeDigest: options.consentNotice?.noticeDigest ?? MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         sourceCanonicalizerDigest: SHA,
         redactionProfileFamily: 'gbp-review-global-v1',
@@ -370,6 +373,15 @@ function harness(
 }
 
 describe('the review analysis use case under the v3 contract', () => {
+  it('sends a request the live gateway transport accepts: the catalogue serves it', async () => {
+    const { analyze, mocks } = harness()
+
+    expect(await analyze(input)).toEqual({ status: 'completed' })
+
+    const request = mocks.analyzeReview.mock.calls[0]?.[0]
+    expect(() => parseAiGatewayRouteRequest(request)).not.toThrow()
+  })
+
   it('claims the operation under the lineage v3 requires, calls the provider with the evidence request, and stores the derived analysis', async () => {
     const { analyze, mocks } = harness()
 
@@ -495,7 +507,32 @@ describe('the review analysis use case under the v3 contract', () => {
     })
   })
 
+  // The switch-on (2026-10-30): a consent recorded before it is under a notice, a
+  // deployment profile and a runtime profile the catalogue no longer serves, and none of
+  // the three keeps AI running. The review is settled as not analysable and nothing is
+  // claimed or sent until an AccountAdmin confirms the new notice and the epoch bump
+  // analyses the history again.
   it.each([
+    {
+      name: 'the 2026-10-17 notice, in force until the switch-on',
+      options: {
+        consentNotice: {
+          noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+          noticeDigest:
+            '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+        },
+      },
+    },
+    {
+      name: 'the 2026-09-15 notice, in force until the switch-on',
+      options: {
+        consentNotice: {
+          noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+          noticeDigest:
+            '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+        },
+      },
+    },
     {
       name: 'the v2 runtime profile',
       options: { runtimeProfile: 'review-analysis-runtime-v1' },

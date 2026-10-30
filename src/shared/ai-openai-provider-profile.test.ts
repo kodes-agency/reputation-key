@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AI_GATEWAY_KEY_INVENTORY_V1,
   OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1,
-  OPENAI_PRICE_CATALOGUE_V1,
+  OPENAI_PRICE_CATALOGUE_V2,
   OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1,
   OPENAI_PROVIDER_PRIMARY_SOURCES_V1,
   OPENAI_REQUEST_SHAPE_V1,
@@ -57,17 +57,17 @@ describe('OpenAI private-beta provider profile', () => {
         primarySources: OPENAI_PROVIDER_PRIMARY_SOURCES_V1,
         normalizedClaimsDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
       },
-      pricing: OPENAI_PRICE_CATALOGUE_V1,
+      pricing: OPENAI_PRICE_CATALOGUE_V2,
       keyInventory: AI_GATEWAY_KEY_INVENTORY_V1,
     })
     expect(OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1).toMatchObject({
-      modelSnapshot: 'gpt-5.6-luna',
+      modelSnapshot: 'gpt-6-luna',
       reasoningEffort: 'route-profile-effort',
       providerIdempotencyMode: 'none',
       abuseMonitoringRetention: 'generally-up-to-30-days-with-legal-safety-exceptions',
     })
     expect(OPENAI_REQUEST_SHAPE_V1).toMatchObject({
-      model: 'gpt-5.6-luna',
+      model: 'gpt-6-luna',
       reasoning: { effort: 'route-profile-effort' },
       serviceTier: 'default',
       promptCacheRetention: '24h',

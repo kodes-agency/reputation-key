@@ -224,7 +224,7 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
   async function seedAuthorization(): Promise<void> {
     const authorization = {
       capabilities: ['review_analysis'],
-      capabilityRuntimeProfileVersions: { review_analysis: 'review-analysis-runtime-v1' },
+      capabilityRuntimeProfileVersions: { review_analysis: 'review-analysis-runtime-v2' },
       reviewAnalysisEpoch: REVIEW_ANALYSIS_EPOCH,
       replyDraftingEpoch: 1,
       propertyTrendsEpoch: 1,

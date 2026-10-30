@@ -280,7 +280,7 @@ function createHarness(
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         sourceCanonicalizerDigest: SHA,
         redactionProfileFamily: 'gbp-review-global-v1',
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
       })),
     },
     control: {
@@ -296,7 +296,7 @@ function createHarness(
         {
           scope: {
             kind: 'provider_deployment_profile' as const,
-            providerDeploymentProfileVersion: 'private-beta-global-v1',
+            providerDeploymentProfileVersion: 'private-beta-global-v2',
           },
           controlId: '72000000-0000-4000-8000-000000000112',
           generation: 1,
@@ -1339,7 +1339,7 @@ describe('generate reply suggestion: operation binding', () => {
       outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
       replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
       replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
       operationProfileVersion: 'reply-suggestion-v1',
       capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
       aiSubjectHmacKeyVersion: null,
@@ -1379,6 +1379,13 @@ describe('generate reply suggestion: operation binding', () => {
 // after the operation and an execution attempt had been claimed, so the
 // manager got an unclassified server error.
 describe('generate reply suggestion: a consent recorded under an earlier notice', () => {
+  // The switch-on notice (2026-10-30) is the only one in force: a Property consented
+  // under 2026-10-17 or 2026-09-15 is told its consent needs renewing, and nothing is
+  // claimed, until an AccountAdmin confirms the new notice.
+  const NOTICE_2026_10_17 = {
+    noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+    noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+  }
   const NOTICE_2026_09_15 = {
     noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
     noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
@@ -1395,24 +1402,9 @@ describe('generate reply suggestion: a consent recorded under an earlier notice'
     expect(harness.mocks.generateReply).toHaveBeenCalledOnce()
   })
 
-  // The 2026-10-17 notice changed only its call to action, so a Property
-  // consented under 2026-09-15 keeps drafting and nobody re-consents.
-  it('drafts under the 2026-09-15 notice, which the served one keeps in force', async () => {
-    const harness = createHarness({
-      checksGatewayRequest: true,
-      consentNotice: NOTICE_2026_09_15,
-    })
-
-    await expect(harness.generate(INPUT)).resolves.toMatchObject({ status: 'ready' })
-    expect(harness.mocks.generateReply).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        binding: expect.objectContaining(NOTICE_2026_09_15),
-      }),
-      expect.anything(),
-    )
-  })
-
   it.each([
+    ['the 2026-10-17 notice, in force until the switch-on', NOTICE_2026_10_17],
+    ['the 2026-09-15 notice, in force until the switch-on', NOTICE_2026_09_15],
     ['an earlier notice version', EARLIER_NOTICE],
     [
       'the served version with another text',

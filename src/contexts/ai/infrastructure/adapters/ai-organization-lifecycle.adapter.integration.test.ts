@@ -121,7 +121,7 @@ async function controlHeads(): Promise<
   }>(
     `SELECT scope_key, control_id, generation
      FROM ai_execution_control_heads
-     WHERE scope_key IN ('global', 'provider:private-beta-global-v1',
+     WHERE scope_key IN ('global', 'provider:private-beta-global-v2',
                          'capability:review_analysis')`,
   )
   return Object.fromEntries(
@@ -210,7 +210,7 @@ async function seedFixture(): Promise<Fixture> {
        property_id, organization_id, country_code, timezone, processing_region,
        routing_policy_version, provider_deployment_profile_version, source_epoch,
        profile_version, lifecycle_state, updated_at
-     ) VALUES ($1, $2, 'US', 'UTC', 'global', 1, 'private-beta-global-v1', 0, 1,
+     ) VALUES ($1, $2, 'US', 'UTC', 'global', 1, 'private-beta-global-v2', 0, 1,
                'active', now())`,
     [fixture.propertyId, fixture.organizationId],
   )
@@ -221,7 +221,7 @@ async function seedFixture(): Promise<Fixture> {
          ARRAY['review_analysis', 'property_trends']::text[],
          '{"review_analysis":"review-analysis-runtime-v1","property_trends":"property-trends-runtime-v1"}'::jsonb,
          1, 1, 1, 0, 0, $4, $5, 'google-business-profile-source-policy-v1', 1,
-         'global', 'private-beta-global-v1', 'gbp-review-global-v1', $6,
+         'global', 'private-beta-global-v2', 'gbp-review-global-v1', $6,
          'merchant_enabled', $7, $8, now()
        )
      ).*`,
@@ -282,7 +282,7 @@ async function seedFixture(): Promise<Fixture> {
      ) VALUES (
        $1, 'ai-lifecycle-test', $2, $3, $4, 20, 'analysis', 'review_analysis',
        $5, $6, 'review_event_consumer', $7, $8, $9, 'test-v1', 0, 1, $10, 1,
-       $11, 1, 'private-beta-global-v1', 'review-analysis-v1',
+       $11, 1, 'private-beta-global-v2', 'review-analysis-v1',
        'review-analysis-runtime-v1', $12, $13, $14, $15, $16, $17,
        '{"capability":"review_analysis","reviewAnalysisEpoch":"1"}'::jsonb,
        'succeeded', 1, $18, $18, $19
@@ -301,8 +301,8 @@ async function seedFixture(): Promise<Fixture> {
       fixture.lineageId,
       heads.global!.controlId,
       heads.global!.generation,
-      heads['provider:private-beta-global-v1']!.controlId,
-      heads['provider:private-beta-global-v1']!.generation,
+      heads['provider:private-beta-global-v2']!.controlId,
+      heads['provider:private-beta-global-v2']!.generation,
       heads['capability:review_analysis']!.controlId,
       heads['capability:review_analysis']!.generation,
       ANALYZED_AT,
@@ -417,7 +417,7 @@ async function seedFixture(): Promise<Fixture> {
        analysis_start_sequence, provider_deployment_profile_version,
        trigger_event_envelope_id, state, snapshot_revision_count,
        snapshot_revision_set_digest, snapshot_captured_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 1, 0, 1, 0, 'private-beta-global-v1', $5,
+     ) VALUES ($1, $2, $3, $4, 1, 0, 1, 0, 'private-beta-global-v2', $5,
                'queued', 0, $6, $7, $7, $7)`,
     [
       fixture.enrollmentId,
@@ -440,7 +440,7 @@ async function revokeMerchantAuthorization(fixture: Fixture): Promise<void> {
          $1::uuid, 1, 2, $2, $3::uuid, 'revoke', 'revoked',
          ARRAY[]::text[], '{}'::jsonb, 2, 2, 2, 0, 0, $4, $5,
          'google-business-profile-source-policy-v1', 1, 'global',
-         'private-beta-global-v1', 'gbp-review-global-v1', $6,
+         'private-beta-global-v2', 'gbp-review-global-v1', $6,
          'organization_closing', $7, $8, now()
        )
      ).*`,

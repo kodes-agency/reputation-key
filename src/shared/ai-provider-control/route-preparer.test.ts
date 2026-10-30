@@ -2,6 +2,7 @@ import { generateKeyPairSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AI_OPERATION_PROFILES,
+  AI_PROVIDER_DEPLOYMENT_PROFILE,
   AI_SOURCE_CANONICALIZER_PROFILE_V1,
 } from '#/shared/ai-operation-profiles'
 import { AI_REDACTION_PROFILE_VERSION } from '#/shared/ai-deterministic-redactor'
@@ -29,7 +30,7 @@ import {
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
 import { type AiReplyOutputRefusal, createAiGatewayRoutePreparer } from './route-preparer'
-import { openAiRequestOf } from './review-evidence.test-fixtures'
+import { openAiRequestOf, preparableV3Request } from './review-evidence.test-fixtures'
 import { createSensitiveSourceLease } from './source-lease'
 
 const UUID = {
@@ -42,9 +43,12 @@ const UUID = {
   capability: '10000000-0000-4000-8000-000000000007',
 } as const
 
-function analysisRequest() {
-  return parseAiGatewayRouteRequest({
-    route: 'review-analysis',
+// The retired v2 form of a review-analysis request, kept only as the base of the reply
+// request below (review analysis is served as v3: `analysisV3Request`). Not parsed:
+// the live transport refuses it as cross-wired.
+function v2FormAnalysisInput() {
+  return {
+    route: 'review-analysis' as const,
     operationId: UUID.operation,
     permitId: UUID.permit,
     attemptNumber: 1,
@@ -76,7 +80,7 @@ function analysisRequest() {
       outputLeakageProfileDigest: null,
       replyTemplateCatalogueVersion: null,
       replyTemplateCatalogueDigest: null,
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
       operationProfileVersion: 'review-analysis-v2',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
       aiSubjectHmacKeyVersion: 'subject-v1',
@@ -99,11 +103,11 @@ function analysisRequest() {
       languageCode: 'en-Latn',
       reviewedAtEpochMillis: 1_780_000_000_000,
     },
-  })
+  }
 }
 
 function replyRequest() {
-  const analysis = analysisRequest()
+  const analysis = v2FormAnalysisInput()
   return parseAiGatewayRouteRequest({
     ...analysis,
     route: 'reply-suggestion',
@@ -166,14 +170,21 @@ function preparer(
   })
 }
 
+// A v3 provider answer: one complaint, stated by the first sentence of the review.
 const acceptedAnalysis = Object.freeze({
-  sentiment: 'positive',
-  sentimentValence: 80,
-  urgencySignals: Object.freeze([]),
-  aspects: Object.freeze([
-    Object.freeze({ aspect: 'service', polarity: 'positive', intensity: 80 }),
+  sentiment: 'negative',
+  mentions: Object.freeze([
+    Object.freeze({
+      topic: 'speed_waiting',
+      polarity: 'negative',
+      strength: 'clear',
+      thing: 'check-in',
+      issue: 'slow',
+      sentences: Object.freeze([2]),
+      names_person: null,
+    }),
   ]),
-  issueLabel: null,
+  urgent: null,
 })
 const fakeReceipt = () => ({ marker: 'settled-receipt' }) as never
 const fakeGrant = () => ({}) as never
@@ -196,7 +207,7 @@ afterEach(() => {
 
 describe('gateway route-preparer source lifetime', () => {
   it('keeps response closures source-free after the lease scrubs the original source root', () => {
-    const request = analysisRequest()
+    const request = preparableV3Request()
     const sourceReference = new WeakRef(request.source)
     const lease = createSensitiveSourceLease<typeof request>()
     lease.attachSource(request, (root) => root.source)
@@ -212,18 +223,19 @@ describe('gateway route-preparer source lifetime', () => {
       rating: null,
       languageCode: null,
       reviewedAtEpochMillis: null,
+      sentences: null,
     })
     const accepted = prepared.acceptProviderResult(acceptedAnalysis)
     expect(accepted).not.toBeNull()
     expect(accepted?.buildResponse(fakeReceipt(), fakeGrant())).toMatchObject({
       route: 'review-analysis',
       status: 'success',
-      result: acceptedAnalysis,
+      result: { contract: 'review-analysis-v3' },
     })
   })
 
   it('isolates result acceptance and response construction from later request mutation', () => {
-    const request = analysisRequest()
+    const request = preparableV3Request()
     const lease = createSensitiveSourceLease<typeof request>()
     lease.attachSource(request, (root) => root.source)
     const prepared = lease.read((leased) => preparer().prepare(leased))
@@ -242,41 +254,20 @@ describe('gateway route-preparer source lifetime', () => {
     expect(response).toMatchObject({
       route: 'review-analysis',
       status: 'success',
-      result: acceptedAnalysis,
+      result: { contract: 'review-analysis-v3' },
     })
     expect(JSON.stringify(response)).not.toContain('mutated')
   })
 
-  it('merges an aspect the provider listed twice instead of refusing the billed answer', () => {
-    const request = analysisRequest()
-    const lease = createSensitiveSourceLease<typeof request>()
-    lease.attachSource(request, (root) => root.source)
-    const prepared = lease.read((leased) => preparer().prepare(leased))
-    const accepted = prepared.acceptProviderResult({
-      ...acceptedAnalysis,
-      aspects: [
-        { aspect: 'service', polarity: 'positive', intensity: 40 },
-        { aspect: 'staff', polarity: 'positive', intensity: 60 },
-        { aspect: 'service', polarity: 'positive', intensity: 80 },
-      ],
-    })
-    const response = accepted?.buildResponse(fakeReceipt(), fakeGrant())
-    expect(response?.status === 'success' && response.result).toEqual({
-      ...acceptedAnalysis,
-      aspects: [
-        { aspect: 'service', polarity: 'positive', intensity: 80 },
-        { aspect: 'staff', polarity: 'positive', intensity: 60 },
-      ],
-    })
-  })
-
   it('derives preparation limits from the pinned operation catalogue', () => {
-    const request = analysisRequest()
+    const request = preparableV3Request()
     const lease = createSensitiveSourceLease<typeof request>()
     lease.attachSource(request, (root) => root.source)
     const prepared = lease.read((leased) => preparer().prepare(leased))
     const profile = AI_OPERATION_PROFILES.find(
-      (entry) => entry.sourceRoute === 'review-analysis',
+      (entry) =>
+        entry.sourceRoute === 'review-analysis' &&
+        entry.profileVersion === request.binding.operationProfileVersion,
     )
     expect(profile).toBeDefined()
     expect(prepared.invocation.descriptor.limits).toMatchObject({

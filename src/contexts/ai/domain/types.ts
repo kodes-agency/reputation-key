@@ -13,7 +13,7 @@ export type AiProcessingCellResult =
   | Readonly<{
       status: 'available'
       processingRegion: 'global'
-      providerDeploymentProfileVersion: 'private-beta-global-v1'
+      providerDeploymentProfileVersion: 'private-beta-global-v2'
       routingPolicyVersion: 1
     }>
   | Readonly<{ status: 'policy_unavailable' }>

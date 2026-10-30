@@ -85,8 +85,8 @@ async function currentStopFence(): Promise<AiExecutionStopFence> {
   return {
     globalControlId: head('global').controlId,
     globalGeneration: head('global').generation,
-    providerControlId: head('provider:private-beta-global-v1').controlId,
-    providerGeneration: head('provider:private-beta-global-v1').generation,
+    providerControlId: head('provider:private-beta-global-v2').controlId,
+    providerGeneration: head('provider:private-beta-global-v2').generation,
     capabilityControlId: head('capability:review_analysis').controlId,
     capabilityGeneration: head('capability:review_analysis').generation,
   }
@@ -110,7 +110,7 @@ async function analysisRequest() {
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       redactionProfileFamily: 'gbp-review-global-v1',
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
     },
     authorizationLineageId: randomUUID(),
     operationProfile: {
@@ -205,7 +205,7 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     expect(created.status).toBe('created')
     expect(await storedColumns()).toEqual({
       providerId: 'openai',
-      providerModel: 'gpt-5.6-luna',
+      providerModel: 'gpt-6-luna',
       providerRequestProfileVersion: 'openai-responses-request-profile-v1',
       providerRequestProfileDigest: OPENAI_PROVIDER_ATTESTATION_V1.digest,
       normalizationProfileVersion: 'review-analysis-normalization-v1',
@@ -231,6 +231,10 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     })
   })
 
+  // The switch-on retired review-analysis-v2 and left its profile in the catalogue
+  // for this: an operation claimed under it before the deploy is read back under the
+  // deployment profile it was claimed under (`private-beta-global-v1`), not under the one
+  // in force (`private-beta-global-v2`), so it can still be settled or abandoned.
   it('reads the profile versions the operation was claimed under, not those in force', async () => {
     const created = await claim(await analysisRequest())
 
@@ -316,7 +320,10 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
     }
   })
 
-  it('claims no v3 operation while the live catalogue holds no v3 profile', async () => {
+  // v3 is in the catalogue since the switch-on, so the profile is found; what a v3
+  // operation must record is enforced by the database: the hint set it was claimed
+  // under and the provider and normalizer (`ai_operations_v3_lineage_required`).
+  it('claims no v3 operation that records no hint set, and writes no row', async () => {
     const request = await analysisRequest()
 
     await expect(
@@ -327,7 +334,7 @@ describe.sequential('the provider lineage of an operation (real PostgreSQL)', ()
         },
         { providerLineage: OPENAI_LINEAGE, normalization: NORMALIZATION },
       ),
-    ).rejects.toThrow('operation profile is unavailable')
+    ).rejects.toThrow(/Failed query: insert into "ai_operations"/)
     const count = await db.execute(
       sql`SELECT count(*)::int AS count FROM ai_operations WHERE organization_id = ${ORGANIZATION_ID}`,
     )

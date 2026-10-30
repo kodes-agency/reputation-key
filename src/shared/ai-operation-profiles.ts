@@ -1,10 +1,6 @@
 import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
-import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
-import { AI_STRUCTURED_MARKER_DETECTORS_DIGEST } from '#/shared/ai-structured-marker-detectors'
-import { AI_REDACTION_PROFILE_DIGEST } from '#/shared/ai-deterministic-redactor'
 import { AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST } from '#/shared/ai-reply-output-leakage'
-import { LANGUAGE_CATALOGUE_DIGEST } from '#/shared/ai-review-language-catalogue'
 import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '#/shared/ai-reply-language-verifier'
 import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
 import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '#/shared/ai-zh-orthography-verifier'
@@ -18,24 +14,42 @@ import {
   AI_TREND_RENDER_PROFILE_DIGEST,
 } from '#/shared/ai-property-trend-contract'
 import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/ai-route-output-schemas'
-import {
-  AI_PROVIDER_DEPLOYMENT_PROFILE_V1,
-  OPENAI_REQUEST_SHAPE_V1_DIGEST,
-} from '#/shared/ai-openai-provider-profile'
-import {
-  renderOpenAiStaticTokenBearingMaterial,
-  type AiReasoningEffortV1,
-} from '#/shared/ai-openai-request-contract'
-import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-source-profile'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-deployment-profile'
 import {
   ASPECT_TAXONOMY_VERSION,
   ASPECT_TAXONOMY_V1_DIGEST,
 } from '#/shared/aspect-taxonomy'
+import {
+  PROPERTY_CALENDAR_ATTESTATION,
+  REVIEW_SOURCE_ATTESTATION,
+  SDK_ATTESTATION,
+  defineOperationProfile,
+  type AiOperationProfile,
+} from '#/shared/ai-operation-profile-core'
+import { operationProfileForCatalogue } from '#/shared/ai-operation-profile-views'
+import {
+  REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
+  REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
+} from '#/shared/review-analysis-v3-profile'
 
 export {
   OPENAI_REQUEST_SHAPE_V1,
   OPENAI_REQUEST_SHAPE_V1_DIGEST,
 } from '#/shared/ai-openai-provider-profile'
+// The parts every profile is made of live in `ai-operation-profile-core.ts`; they are
+// re-exported so this stays the one place a catalogue consumer imports from.
+export {
+  AI_SOURCE_CANONICALIZER_PROFILE_V1,
+  PROPERTY_CALENDAR_ATTESTATION,
+  REVIEW_SOURCE_ATTESTATION,
+  SDK_ATTESTATION,
+  defineOperationProfile,
+} from '#/shared/ai-operation-profile-core'
+export type {
+  AiOperationArtifactAttestations,
+  AiOperationProfile,
+  OperationProfileSource,
+} from '#/shared/ai-operation-profile-core'
 
 function digest(domain: string, value: unknown): string {
   return createHash('sha256')
@@ -44,14 +58,12 @@ function digest(domain: string, value: unknown): string {
     .digest('hex')
 }
 
-export { AI_SOURCE_CANONICALIZER_PROFILE_V1 }
-
-export const AI_PROVIDER_DEPLOYMENT_PROFILE = AI_PROVIDER_DEPLOYMENT_PROFILE_V1
+export const AI_PROVIDER_DEPLOYMENT_PROFILE = AI_PROVIDER_DEPLOYMENT_PROFILE_V2
 
 const ROUTING_POLICY_FIELDS = Object.freeze({
   version: 1,
   region: 'global',
-  providerDeploymentProfileVersion: 'private-beta-global-v1',
+  providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
 })
 
 export const AI_ROUTING_POLICY = Object.freeze({
@@ -63,31 +75,6 @@ const analysisSchema = AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v2']
 const replySchema = AI_ROUTE_OUTPUT_JSON_SCHEMAS['reply-suggestion']
 const trendSchema = AI_ROUTE_OUTPUT_JSON_SCHEMAS['property-trend']
 const syntheticCanarySchema = AI_ROUTE_OUTPUT_JSON_SCHEMAS['synthetic-canary']
-
-export const PROPERTY_CALENDAR_ATTESTATION = Object.freeze({
-  profileVersion: 'property-calendar-v1',
-  epochMillisFunction: 'ai_epoch_millis_v1',
-  localCalendarFunction: 'ai_property_local_date_v1',
-  localMidnightFunction: 'ai_property_local_midnight_v1',
-  databaseImageDigest: '33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20',
-  testedPostgresMajorVersions: Object.freeze([16]),
-})
-
-export const SDK_ATTESTATION = Object.freeze({
-  requestShapeVersion: 'openai-responses-request-shape-v1',
-  requestShapeDigest: OPENAI_REQUEST_SHAPE_V1_DIGEST,
-  providerTransportProfile: 'openai-provider-transport-v1',
-})
-
-export const REVIEW_SOURCE_ATTESTATION = Object.freeze({
-  ...AI_SOURCE_CANONICALIZER_PROFILE_V1,
-  redactionProfileVersion: 'gbp-review-global-v1',
-  redactionProfileDigest: AI_REDACTION_PROFILE_DIGEST,
-  structuredMarkerDetectorVersion: 'structured-marker-detectors-v1',
-  structuredMarkerDetectorDigest: AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
-  languageCatalogueVersion: 'ai-review-language-catalogue-v1',
-  languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
-})
 
 const REPLY_ATTESTATION = Object.freeze({
   ...REVIEW_SOURCE_ATTESTATION,
@@ -113,114 +100,17 @@ const TREND_ATTESTATION = Object.freeze({
   arithmetic: 'safe-integer-input-bigint-cross-products',
 })
 
-export type AiOperationArtifactAttestations = Readonly<Record<string, unknown>>
-
-export type AiOperationProfile = Readonly<{
-  profileVersion:
-    | 'review-analysis-v2'
-    // Dark: no entry of `AI_OPERATION_PROFILES` has it. It is the name a catalogue
-    // entry derived from the v3 logical profile will carry (`ai-operation-profile-views.ts`).
-    | 'review-analysis-v3'
-    | 'reply-suggestion-v1'
-    | 'property-trend-v1'
-    | 'synthetic-canary-v1'
-  command: 'analysis' | 'reply' | 'trend' | 'synthetic_canary'
-  capability: MerchantAiCapability | null
-  purpose: 'ai.analyze' | 'ai.generate_reply' | 'ai.detect_trends' | 'ai.synthetic_canary'
-  sourceRoute:
-    'review-analysis' | 'reply-suggestion' | 'property-trend' | 'synthetic-canary'
-  gatewayPath:
-    | '/v1/review-analysis'
-    | '/v1/reply-suggestion'
-    | '/v1/property-trend'
-    | 'internal:synthetic-canary'
-  callerRole: 'web' | 'worker' | 'release_canary'
-  capabilityRuntimeProfileVersion: string | null
-  providerDeploymentProfileVersion: 'private-beta-global-v1' | 'private-beta-global-v2'
-  outputSchemaName: string
-  outputSchema: Readonly<Record<string, unknown>>
-  outputSchemaDigest: string
-  developerPrompt: string
-  promptDigest: string
-  artifactAttestations: AiOperationArtifactAttestations
-  artifactAttestationsDigest: string
-  sdkRequestShapeDigest: string
-  staticTokenBearingBytes: number
-  staticTokenBearingDigest: string
-  sourceByteLimit: number
-  providerPayloadByteLimit: number
-  preparedRequestByteLimit: number
-  responseByteLimit: number
-  maxOutputTokens: number
-  reasoningEffort: AiReasoningEffortV1
-  providerDeadlineMs: number
-  requestDeadlineMs: number
-  executionLeaseMs: number
-  profileDigest: string
-}>
-
-export type OperationProfileSource = Omit<
-  AiOperationProfile,
-  | 'outputSchemaDigest'
-  | 'promptDigest'
-  | 'artifactAttestationsDigest'
-  | 'sdkRequestShapeDigest'
-  | 'staticTokenBearingBytes'
-  | 'staticTokenBearingDigest'
-  | 'profileDigest'
->
-
-export function defineOperationProfile(
-  source: OperationProfileSource,
-): AiOperationProfile {
-  const outputSchema = JSON.parse(canonicalizeRfc8785(source.outputSchema)) as Readonly<
-    Record<string, unknown>
-  >
-  const outputSchemaDigest = digest('repkey-ai-output-schema-v1\0', outputSchema)
-  const promptDigest = digest('repkey-ai-developer-prompt-v1\0', source.developerPrompt)
-  const artifactAttestationsDigest = digest(
-    'repkey-ai-operation-artifacts-v1\0',
-    source.artifactAttestations,
-  )
-  const staticTokenBearing = renderOpenAiStaticTokenBearingMaterial({
-    developerMessage: source.developerPrompt,
-    format: Object.freeze({
-      type: 'json_schema',
-      name: source.outputSchemaName,
-      strict: true,
-      schema: outputSchema,
-    }),
-  })
-  const staticTokenBearingBytes = staticTokenBearing.byteLength
-  const staticTokenBearingDigest = staticTokenBearing.digest
-  const sdkRequestShapeDigest = OPENAI_REQUEST_SHAPE_V1_DIGEST
-  const {
-    outputSchema: _outputSchema,
-    developerPrompt: _developerPrompt,
-    ...persisted
-  } = source
-  const profileDigest = digest('repkey-ai-operation-profile-v1\0', {
-    ...persisted,
-    outputSchemaDigest,
-    promptDigest,
-    artifactAttestationsDigest,
-    sdkRequestShapeDigest,
-    staticTokenBearingBytes,
-    staticTokenBearingDigest,
-  })
-  return Object.freeze({
-    ...source,
-    outputSchema,
-    outputSchemaDigest,
-    promptDigest,
-    artifactAttestationsDigest,
-    sdkRequestShapeDigest,
-    staticTokenBearingBytes,
-    staticTokenBearingDigest,
-    profileDigest,
-  })
-}
-
+// The operation profiles a build knows. The runtime catalogue
+// (`ai-runtime-capability-contract.ts`) names which of them each capability serves:
+// since the switch-on (2026-10-30) review analysis serves `review-analysis-v3`, and
+// the other routes serve their profiles under `private-beta-global-v2`.
+//
+// `review-analysis-v2` is retired and stays on purpose, exactly as it was, under the
+// deployment profile it was claimed under (`private-beta-global-v1`): an operation
+// that was pending when the switch deployed is still read, abandoned and its
+// reservation released through its own profile, and the derivatives it produced are
+// still described by it. No catalogue row names it, so nothing new is claimed under
+// it: the gateway refuses a binding that does not match the row.
 export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.freeze([
   defineOperationProfile({
     profileVersion: 'review-analysis-v2',
@@ -266,7 +156,7 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     gatewayPath: '/v1/reply-suggestion',
     callerRole: 'web',
     capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
     outputSchemaName: 'reply_draft_v1',
     outputSchema: replySchema,
     developerPrompt:
@@ -297,7 +187,7 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     gatewayPath: '/v1/property-trend',
     callerRole: 'worker',
     capabilityRuntimeProfileVersion: 'property-trends-runtime-v1',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
     outputSchemaName: 'property_trend_v1',
     outputSchema: trendSchema,
     developerPrompt:
@@ -328,7 +218,7 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     gatewayPath: 'internal:synthetic-canary',
     callerRole: 'release_canary',
     capabilityRuntimeProfileVersion: null,
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
     outputSchemaName: 'synthetic_canary_v1',
     outputSchema: syntheticCanarySchema,
     developerPrompt: 'Return the exact synthetic canary marker. Do not add text.',
@@ -356,4 +246,12 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     requestDeadlineMs: 70_000,
     executionLeaseMs: 120_000,
   }),
+  // Review analysis v3 as OpenAI carries it (`review-analysis-v3-profile.ts`): the
+  // entry the runtime catalogue serves for review analysis. The same profile is
+  // attested for Anthropic (`REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING`), but nothing
+  // selects that provider (`operator-provider-selection.ts`).
+  operationProfileForCatalogue(
+    REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
+    REVIEW_ANALYSIS_V3_OPENAI_PAIRING,
+  ),
 ])

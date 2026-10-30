@@ -17,7 +17,7 @@ import {
   maximumCostMicrosWith,
   type AiProviderPriceCatalogue,
 } from '#/shared/ai-provider-pricing'
-import { OPENAI_PRICE_CATALOGUE_V1 } from '#/shared/ai-openai-provider-profile'
+import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
@@ -58,7 +58,7 @@ afterEach(() => {
 })
 
 const SECOND_PRICES: AiProviderPriceCatalogue = Object.freeze({
-  ...OPENAI_PRICE_CATALOGUE_V1,
+  ...OPENAI_PRICE_CATALOGUE_V2,
   catalogueId: 'synthetic-second-provider-prices',
   uncachedInputMicros: 3_000_000,
   outputMicros: 15_000_000,
@@ -369,7 +369,7 @@ describe('what a request may cost', () => {
 
     expect(prepared.invocation.descriptor.limits.costMicros).toBe(
       maximumCostMicrosWith(
-        OPENAI_PRICE_CATALOGUE_V1,
+        OPENAI_PRICE_CATALOGUE_V2,
         {
           staticTokenBearingBytes: profile.staticTokenBearingBytes,
           maxOutputTokens: profile.maxOutputTokens,

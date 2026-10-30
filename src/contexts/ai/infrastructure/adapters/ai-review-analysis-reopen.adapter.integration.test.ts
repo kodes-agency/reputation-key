@@ -167,7 +167,7 @@ function authorizationHead(scope: Scope) {
     sourcePolicyId: 'google-business-profile-source-policy-v1',
     routingPolicyVersion: 1,
     processingRegion: 'global',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: 'private-beta-global-v2',
     redactionProfileFamily: 'gbp-review-global-v1',
   }
 }

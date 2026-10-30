@@ -9,6 +9,7 @@ import {
   analysisV3Request,
   receipt,
   replyRequest,
+  v2FormAnalysisRequest,
 } from './ai-gateway-transport-contract.test-fixtures'
 import { MAX_AI_REVIEW_SENTENCES_V1 } from './ai-review-source-contract'
 import {
@@ -31,11 +32,12 @@ function issuesOf(value: unknown): readonly string[] {
   }
 }
 
-describe('review-analysis v3 evidence request (dark)', () => {
-  it('is refused as cross-wired while the live catalogue holds no v3 entry, and for nothing else', () => {
-    // The sentences, the property context and their agreement with the text are
-    // all valid: the one thing wrong with this request is that nothing serves it.
-    expect(issuesOf(analysisV3Request())).toEqual([CROSS_WIRED])
+describe('review-analysis v3 evidence request', () => {
+  it('is what the live catalogue serves for review analysis, and nothing is wrong with it', () => {
+    // The sentences, the property context, the provider and their agreement with the
+    // text are all valid, and the binding is the catalogue's.
+    expect(issuesOf(analysisV3Request())).toEqual([])
+    expect(issuesOf(analysisRequest())).toEqual([])
   })
 
   it('keeps the v3 profile name in step with the version set', () => {
@@ -45,32 +47,39 @@ describe('review-analysis v3 evidence request (dark)', () => {
     )
   })
 
-  describe('v2', () => {
-    it('is unchanged: a v2 request has no sentences and no property context', () => {
-      expect(parseAiGatewayRouteRequest(analysisRequest())).toEqual(analysisRequest())
+  describe('the retired v2 form', () => {
+    it('is refused as cross-wired: the live catalogue serves review analysis as v3', () => {
+      expect(issuesOf(v2FormAnalysisRequest())).toEqual([CROSS_WIRED])
+    })
+
+    it('has no sentences and no property context', () => {
+      const v2 = v2FormAnalysisRequest()
+      expect(v2.source.sentences).toBeUndefined()
+      expect(v2.propertyContext).toBeUndefined()
+      expect(v2.provider).toBeUndefined()
     })
 
     it('refuses a v2 request that carries sentences', () => {
       const v3 = analysisV3Request()
-      const v2 = analysisRequest()
+      const v2 = v2FormAnalysisRequest()
       expect(
         issuesOf({ ...v2, source: { ...v2.source, sentences: v3.source.sentences } }),
-      ).toEqual(['analysis v2 route forbids an evidence request'])
+      ).toContain('analysis v2 route forbids an evidence request')
     })
 
     it('refuses a v2 request that names a provider', () => {
       expect(
-        issuesOf({ ...analysisRequest(), provider: analysisV3Request().provider }),
-      ).toEqual(['analysis v2 route forbids an evidence request'])
+        issuesOf({ ...v2FormAnalysisRequest(), provider: analysisV3Request().provider }),
+      ).toContain('analysis v2 route forbids an evidence request')
     })
 
     it('refuses a v2 request that carries a property context', () => {
       expect(
         issuesOf({
-          ...analysisRequest(),
+          ...v2FormAnalysisRequest(),
           propertyContext: analysisV3Request().propertyContext,
         }),
-      ).toEqual(['analysis v2 route forbids an evidence request'])
+      ).toContain('analysis v2 route forbids an evidence request')
     })
 
     it('refuses sentences on the reply route, which reads no evidence', () => {
@@ -106,7 +115,7 @@ describe('review-analysis v3 evidence request (dark)', () => {
       const request = analysisV3Request()
       const provider = request.provider!
 
-      expect(provider).toMatchObject({ id: 'openai', model: 'gpt-5.6-luna' })
+      expect(provider).toMatchObject({ id: 'openai', model: 'gpt-6-luna' })
       for (const wrong of [
         { ...provider, id: 'google' },
         { ...provider, id: 'OpenAI' },
@@ -164,7 +173,7 @@ describe('review-analysis v3 evidence request (dark)', () => {
         '[PERSON].',
         'He was kind.',
       ])
-      expect(issuesOf(request)).toEqual([CROSS_WIRED])
+      expect(issuesOf(request)).toEqual([])
     })
 
     it('keeps an empty sentence and its number', () => {
@@ -175,7 +184,7 @@ describe('review-analysis v3 evidence request (dark)', () => {
         { number: 2, text: '' },
         { number: 3, text: 'Third.' },
       ])
-      expect(issuesOf(request)).toEqual([CROSS_WIRED])
+      expect(issuesOf(request)).toEqual([])
     })
 
     it('bounds the sentences at the evidence limit', () => {
@@ -232,7 +241,7 @@ describe('review-analysis v3 evidence request (dark)', () => {
 
       expect(request.propertyContext?.googlePrimaryCategory).toBeNull()
       expect(request.propertyContext?.vocabularyHintSetId).toBe('generic-service')
-      expect(issuesOf(request)).toEqual([CROSS_WIRED])
+      expect(issuesOf(request)).toEqual([])
     })
 
     it('refuses unknown keys in the context and in a sentence', () => {

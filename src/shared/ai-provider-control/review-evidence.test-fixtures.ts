@@ -1,8 +1,8 @@
-// Fixtures for the review-analysis v3 evidence path, which is dark: the live
-// catalogue holds no v3 profile and refuses a v3 request. The preparer takes its
-// profiles as a dependency, so a test hands it one: the dark v3 profile itself,
-// as the catalogue entry it will become at activation (the logical profile served
-// by OpenAI), with the real prompt, schema and limits.
+// Fixtures for the review-analysis v3 evidence path. The live catalogue serves v3,
+// and the preparer also takes its profiles as a dependency, so a test can hand it
+// the v3 profile itself as the catalogue entry (the logical profile served by
+// OpenAI), with the real prompt, schema and limits, and add what a test needs, such
+// as a second attested provider.
 
 import { generateKeyPairSync } from 'node:crypto'
 import { operationProfileForCatalogue } from '#/shared/ai-operation-profile-views'
@@ -31,7 +31,7 @@ export function openAiRequestOf(
   return (prepared.invocation as PreparedAiInvocation).sdkRequest
 }
 
-/** The dark v3 profile as a catalogue entry served by OpenAI. */
+/** The v3 profile as a catalogue entry served by OpenAI. */
 export function v3TestProfile(): RoutePreparationProfile {
   return operationProfileForCatalogue(
     REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,

@@ -179,7 +179,7 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         routingPolicyVersion: 1,
         processingRegion: 'global',
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
         redactionProfileFamily: 'gbp-review-global-v1',
         actorUserId: 'ai-foundation-test-actor',
         reasonCode: 'merchant_enabled',
@@ -205,7 +205,7 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         routingPolicyVersion: 1,
         processingRegion: 'global',
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
         redactionProfileFamily: 'gbp-review-global-v1',
         updatedBy: 'ai-foundation-test-actor',
         updatedAt: NOW,
@@ -233,7 +233,7 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       redactionProfileFamily: 'gbp-review-global-v1',
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
     })
   })
 })

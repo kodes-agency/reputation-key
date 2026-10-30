@@ -19,7 +19,7 @@ export const AI_REPLY_OPERATION_PROFILE = Object.freeze({
   command: 'reply',
   capability: 'reply_drafting',
   profileVersion: 'reply-suggestion-v1',
-  providerDeploymentProfileVersion: 'private-beta-global-v1',
+  providerDeploymentProfileVersion: 'private-beta-global-v2',
   capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
   routeKey: 'reply-suggestion',
 })

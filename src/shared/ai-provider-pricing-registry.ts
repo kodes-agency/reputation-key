@@ -1,5 +1,5 @@
 import type { AiProviderId } from './ai-provider-ids'
-import { OPENAI_PRICE_CATALOGUE_V1 } from './ai-openai-provider-profile'
+import { OPENAI_PRICE_CATALOGUE_V2 } from './ai-openai-provider-profile'
 import { ANTHROPIC_PRICE_CATALOGUE_V1 } from './ai-provider-control/anthropic/request-profile'
 import type { AiProviderPriceCatalogue } from './ai-provider-pricing'
 
@@ -11,7 +11,7 @@ import type { AiProviderPriceCatalogue } from './ai-provider-pricing'
  * and every v2 operation ran on OpenAI.
  */
 const providerPriceCatalogues: Partial<Record<AiProviderId, AiProviderPriceCatalogue>> = {
-  openai: OPENAI_PRICE_CATALOGUE_V1,
+  openai: OPENAI_PRICE_CATALOGUE_V2,
 }
 
 // Keep the live v2 catalogue's enumerable surface byte-for-byte stable while the

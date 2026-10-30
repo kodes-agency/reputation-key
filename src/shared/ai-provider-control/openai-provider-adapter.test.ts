@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OPENAI_PROVIDER_ATTESTATION_V1 } from '#/shared/ai-openai-provider-attestation'
-import { OPENAI_PRICE_CATALOGUE_V1 } from '#/shared/ai-openai-provider-profile'
+import { OPENAI_PRICE_CATALOGUE_V2 } from '#/shared/ai-openai-provider-profile'
 import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
 import { analysisRequest } from '#/shared/ai-gateway-transport-contract.test-fixtures'
 import { LANGUAGE_CATALOGUE_DIGEST } from '#/shared/ai-review-language-catalogue'
@@ -64,8 +64,8 @@ describe('OpenAI behind the provider seam', () => {
     expect(preparation.requestProfile).toEqual(
       providerRequestProfileOf(OPENAI_PROVIDER_ATTESTATION_V1),
     )
-    expect(preparation.requestProfile.model).toBe('gpt-5.6-luna')
-    expect(preparation.pricing).toBe(OPENAI_PRICE_CATALOGUE_V1)
+    expect(preparation.requestProfile.model).toBe('gpt-6-luna')
+    expect(preparation.pricing).toBe(OPENAI_PRICE_CATALOGUE_V2)
     expect(Object.isFrozen(preparation)).toBe(true)
   })
 
@@ -188,7 +188,7 @@ describe('OpenAI behind the provider seam', () => {
     const sdkRequest = openAiRequestOf(prepared)
 
     expect(sdkRequest).toMatchObject({
-      model: 'gpt-5.6-luna',
+      model: 'gpt-6-luna',
       store: false,
       stream: false,
       background: false,

@@ -43,7 +43,7 @@ const PREVIOUS_NOTICE_DIGEST =
 const POLICY = {
   sourcePolicyId: 'google-business-profile-source-policy-v1',
   routingPolicyVersion: 1,
-  providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
+  providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
   redactionProfileFamily: 'gbp-review-global-v1',
 }
 

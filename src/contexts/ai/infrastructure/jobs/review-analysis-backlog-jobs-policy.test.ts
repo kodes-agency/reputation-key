@@ -398,6 +398,9 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
     authorizationLineageId: '7b000000-0000-4000-8000-000000000001',
     authorizedSourceEpoch: 2,
     capabilities: ['review_analysis'] as const,
+    // The retired v2 contract is the default of the use case, and it names its own
+    // runtime profile; the deployment profile below is the one now served. These
+    // tests are about the platform policy around an analysis, not about the contract.
     capabilityRuntimeProfileVersions: {
       review_analysis: 'review-analysis-runtime-v1',
     },
@@ -412,7 +415,7 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
     sourcePolicyId: 'google-business-profile-source-policy-v1',
     sourceCanonicalizerDigest: SHA,
     redactionProfileFamily: 'gbp-review-global-v1',
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    providerDeploymentProfileVersion: 'private-beta-global-v2',
   })
   const dependencies = {
     authorization: {
@@ -426,7 +429,7 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
         head(
           {
             kind: 'provider_deployment_profile',
-            providerDeploymentProfileVersion: 'private-beta-global-v1',
+            providerDeploymentProfileVersion: 'private-beta-global-v2',
           },
           2,
         ),

@@ -67,12 +67,19 @@ const sha256 = (domain: string, value: unknown): string =>
     .digest('hex')
 
 describe('PR5 immutable AI execution catalogues', () => {
-  it('pins the sole OpenAI SDK 7.43.0 deployment contract without fallback or stateful features', () => {
+  it('pins the OpenAI SDK 7.43.0 deployment contract without fallback or stateful features', () => {
     expect(AI_PROVIDER_DEPLOYMENT_PROFILE).toMatchObject({
-      profileVersion: 'private-beta-global-v1',
+      profileVersion: 'private-beta-global-v2',
       region: 'global',
       provider: 'openai',
-      modelSnapshot: 'gpt-5.6-luna',
+      // The plain id: the account has no dated snapshot of it.
+      modelSnapshot: 'gpt-6-luna',
+      // The envelope names both providers by attestation digest; the operator's
+      // choice (OpenAI alone) is not part of it.
+      providers: {
+        openai: expect.stringMatching(/^[0-9a-f]{64}$/),
+        anthropic: expect.stringMatching(/^[0-9a-f]{64}$/),
+      },
       reasoningEffort: 'route-profile-effort',
       serviceTier: 'default',
       store: false,
@@ -113,15 +120,15 @@ describe('PR5 immutable AI execution catalogues', () => {
     })
     const { profileDigest, ...profile } = AI_PROVIDER_DEPLOYMENT_PROFILE
     expect(profileDigest).toBe(
-      sha256('repkey-ai-provider-deployment-profile-v1\0', profile),
+      sha256('repkey-ai-provider-deployment-profile-v2\0', profile),
     )
   })
 
-  it('pins the one global routing row and exactly three normal plus isolated canary profiles', () => {
+  it('pins the one global routing row, the retired analysis profile, the three served ones and the isolated canary', () => {
     expect(AI_ROUTING_POLICY).toEqual({
       version: 1,
       region: 'global',
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
       policyDigest: AI_ROUTING_POLICY.policyDigest,
     })
     expect(AI_OPERATION_PROFILES.map((profile) => profile.profileVersion)).toEqual([
@@ -129,18 +136,35 @@ describe('PR5 immutable AI execution catalogues', () => {
       'reply-suggestion-v1',
       'property-trend-v1',
       'synthetic-canary-v1',
+      'review-analysis-v3',
     ])
     expect(AI_OPERATION_PROFILES.map((profile) => profile.capability)).toEqual([
       'review_analysis',
       'reply_drafting',
       'property_trends',
       null,
+      'review_analysis',
     ])
     expect(AI_OPERATION_PROFILES.map((profile) => profile.gatewayPath)).toEqual([
       '/v1/review-analysis',
       '/v1/reply-suggestion',
       '/v1/property-trend',
       'internal:synthetic-canary',
+      '/v1/review-analysis',
+    ])
+    // Every profile a runtime row serves is under the deployment profile now served;
+    // the retired analysis profile is the one left under the profile it was claimed under.
+    expect(
+      AI_OPERATION_PROFILES.map((profile) => [
+        profile.profileVersion,
+        profile.providerDeploymentProfileVersion,
+      ]),
+    ).toEqual([
+      ['review-analysis-v2', 'private-beta-global-v1'],
+      ['reply-suggestion-v1', 'private-beta-global-v2'],
+      ['property-trend-v1', 'private-beta-global-v2'],
+      ['synthetic-canary-v1', 'private-beta-global-v2'],
+      ['review-analysis-v3', 'private-beta-global-v2'],
     ])
   })
 
@@ -218,6 +242,20 @@ describe('PR5 immutable AI execution catalogues', () => {
         // canary marker), not to absorb runaway reasoning. A tight ceiling turns a
         // provider runaway into a fast failure instead of a ~55s one.
         maxOutputTokens: 512,
+        reasoningEffort: 'low',
+        providerDeadlineMs: 60_000,
+        requestDeadlineMs: 70_000,
+        executionLeaseMs: 120_000,
+      },
+      {
+        // 48 mentions of about 60 tokens each at 'low' effort; the quality check
+        // (424 invented reviews, gpt-6-luna) used a mean of 284 output tokens.
+        profileVersion: 'review-analysis-v3',
+        sourceByteLimit: 16_384,
+        providerPayloadByteLimit: 57_344,
+        preparedRequestByteLimit: 131_072,
+        responseByteLimit: 131_072,
+        maxOutputTokens: 4_096,
         reasoningEffort: 'low',
         providerDeadlineMs: 60_000,
         requestDeadlineMs: 70_000,

@@ -5,7 +5,7 @@ import { anthropicPairingOf } from './ai-provider-control/anthropic/attestation'
 import {
   PROPERTY_CALENDAR_ATTESTATION,
   REVIEW_SOURCE_ATTESTATION,
-} from './ai-operation-profiles'
+} from './ai-operation-profile-core'
 import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from './ai-route-output-schemas'
 import { MAX_AI_REVIEW_SENTENCES_V1 } from './ai-review-source-contract'
 import { REVIEW_ANALYSIS_V3_VERSIONS } from './review-analysis-v3'
@@ -13,12 +13,12 @@ import { REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS } from './review-analysis-v3-artif
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from './review-analysis-v3-prompt'
 import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from './review-analysis-v3-request'
 
-// The v3 operation profile, dark. It is NOT in `AI_OPERATION_PROFILES` and no
-// runtime catalogue row, merchant notice or deployment profile names it:
-// `review-analysis-v3.test.ts` fails if any does. Activation (slice 3.10) is what
-// registers it. Until then this is the object the evaluation harness reads for the
-// production prompt and schema, the Anthropic adapter reads to derive its pairing,
-// and the activation slice puts in the catalogue.
+// The v3 operation profile, in no provider's terms. Activation (slice 3.10, the
+// switch-on) registers it: `ai-operation-profiles.ts` carries it as the catalogue
+// entry `review-analysis-v3` (through the OpenAI pairing below), and the runtime
+// catalogue serves it for review analysis. It is also the object the evaluation
+// harness reads for the production prompt and schema and the Anthropic adapter reads
+// to derive its pairing.
 //
 // What the profile attests is the operation, in no provider's terms. Hints are not
 // here on purpose: they are request context, so adding a kind of business reaches
@@ -73,7 +73,7 @@ export const REVIEW_ANALYSIS_V3_OPENAI_PAIRING = openAiPairingOf(
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
 )
 
-/** The dark v3 profile as Anthropic carries it; activation does not happen here. */
+/** The v3 profile as Anthropic carries it: attested, and selected by no one (`operator-provider-selection.ts`). */
 export const REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING = anthropicPairingOf(
   REVIEW_ANALYSIS_V3_LOGICAL_PROFILE,
 )

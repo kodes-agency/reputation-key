@@ -13,8 +13,11 @@ export {
 
 export const MERCHANT_AI_SOURCE_POLICY_ID = AI_SOURCE_POLICY_ID_V1
 export const MERCHANT_AI_REDACTION_PROFILE_FAMILY = 'gbp-review-global-v1' as const
+// The provider deployment profile a consent is recorded under: the one this build
+// serves (`ai-provider-deployment-profile.ts`). Spelled out here because this module
+// ships to the browser; a test holds it equal to the profile.
 export const MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION =
-  'private-beta-global-v1' as const
+  'private-beta-global-v2' as const
 
 export type MerchantAiNoticeDto = MerchantAiNoticeCatalogueEntry
 

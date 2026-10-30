@@ -277,7 +277,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         state: 'enabled',
         capabilities: ['review_analysis'],
         capabilityRuntimeProfileVersions: {
-          review_analysis: 'review-analysis-runtime-v1',
+          review_analysis: 'review-analysis-runtime-v2',
         },
         reviewAnalysisEpoch: 1,
         replyDraftingEpoch: 1,
@@ -304,7 +304,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         state: 'enabled',
         capabilities: ['review_analysis'],
         capabilityRuntimeProfileVersions: {
-          review_analysis: 'review-analysis-runtime-v1',
+          review_analysis: 'review-analysis-runtime-v2',
         },
         reviewAnalysisEpoch: 1,
         replyDraftingEpoch: 1,

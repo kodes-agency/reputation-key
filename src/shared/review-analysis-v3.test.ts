@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod/v4'
-import { AI_OPERATION_PROFILES } from './ai-operation-profiles'
+import {
+  AI_OPERATION_PROFILES,
+  AI_PROVIDER_DEPLOYMENT_PROFILE,
+} from './ai-operation-profiles'
 import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from './ai-route-output-schemas'
 import { AI_RUNTIME_CAPABILITIES_V1 } from './ai-runtime-capability-contract'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
@@ -492,7 +495,7 @@ describe('review attention v2', () => {
   })
 })
 
-describe('review analysis v3 version set stays dark', () => {
+describe('review analysis v3 version set is the served one', () => {
   it('pins every new logical identifier and agrees with sibling contracts', () => {
     expect(REVIEW_ANALYSIS_V3_VERSIONS).toEqual({
       topicTaxonomy: 'review-topic-taxonomy-v3',
@@ -513,22 +516,26 @@ describe('review analysis v3 version set stays dark', () => {
     expect(Object.isFrozen(REVIEW_ANALYSIS_V3_VERSIONS)).toBe(true)
   })
 
-  it('does not register v3 in either live catalogue', () => {
+  it('is what both live catalogues serve for review analysis, under the deployment profile that names both providers', () => {
     expect(
-      AI_OPERATION_PROFILES.some(
-        (profile) => profile.profileVersion === ('review-analysis-v3' as string),
+      AI_OPERATION_PROFILES.filter(
+        (profile) =>
+          profile.profileVersion === REVIEW_ANALYSIS_V3_VERSIONS.analysisOperation,
       ),
-    ).toBe(false)
+    ).toHaveLength(1)
     const live = AI_RUNTIME_CAPABILITIES_V1.find(
       (entry) => entry.capability === 'review_analysis',
     )
     expect(live).toMatchObject({
-      runtimeProfileVersion: 'review-analysis-runtime-v1',
-      operationProfileVersion: 'review-analysis-v2',
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      runtimeProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.capabilityRuntime,
+      gatewayProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.gatewayProfile,
+      operationProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.analysisOperation,
+      providerDeploymentProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.providerDeployment,
     })
-    expect(REVIEW_ANALYSIS_V3_VERSIONS.providerDeployment).not.toBe(
-      live?.providerDeploymentProfileVersion,
+    // The version set, the catalogue and the deployment profile are three spellings of
+    // one name; the identity context spells it a fourth time for the browser.
+    expect(AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion).toBe(
+      REVIEW_ANALYSIS_V3_VERSIONS.providerDeployment,
     )
   })
 

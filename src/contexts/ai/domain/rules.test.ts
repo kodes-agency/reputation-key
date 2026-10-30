@@ -32,7 +32,7 @@ const commonBinding = {
   sourcePolicyId: 'google-business-profile-source-policy-v1',
   sourceCanonicalizerDigest: DIGEST,
   redactionProfileVersion: 'gbp-review-global-v1',
-  providerDeploymentProfileVersion: 'private-beta-global-v1',
+  providerDeploymentProfileVersion: 'private-beta-global-v2',
   stopFence,
 } as const
 
@@ -181,7 +181,7 @@ describe('AI processing cell routing', () => {
       expect(resolveAiProcessingCell({ countryCode, timezone })).toEqual({
         status: 'available',
         processingRegion: 'global',
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
         routingPolicyVersion: 1,
       })
     },

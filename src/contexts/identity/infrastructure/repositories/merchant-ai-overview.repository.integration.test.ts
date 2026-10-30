@@ -79,7 +79,7 @@ async function transitionMerchantAi(
          $1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::text[], $9::jsonb,
          $10, $10, $10, 0, 0, $11, $12,
          'google-business-profile-source-policy-v1', 1, 'global',
-         'private-beta-global-v1', 'gbp-review-global-v1', $13, $14, $15, $16, $17
+         'private-beta-global-v2', 'gbp-review-global-v1', $13, $14, $15, $16, $17
        )
      ).*`,
     [
