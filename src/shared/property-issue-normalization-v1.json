@@ -116,7 +116,6 @@
       "air con": "air conditioning",
       "air conditioner": "air conditioning",
       "aircon": "air conditioning",
-      "balcony railing": "railing",
       "electrical socket": "wall socket",
       "elevator": "lift",
       "hairdryer": "hair dryer",
@@ -142,9 +141,6 @@
       "playlist": "music",
       "scent": "smell",
       "vibe": "atmosphere"
-    },
-    "safety": {
-      "balcony railing": "railing"
     },
     "communication": {
       "allergen warning": "allergy warning",

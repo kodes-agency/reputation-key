@@ -179,8 +179,6 @@ describe('property issue normalization', () => {
     ['communication', 'questions', 'answer'],
     ['communication', 'staff answers', 'answer'],
     ['communication', 'response', 'answer'],
-    ['facilities_equipment', 'balcony railing', 'railing'],
-    ['safety', 'balcony railing', 'railing'],
   ] as const)(
     'folds %s "%s" into "%s" for the same thing named two ways',
     (topic, alias, canonical) => {
@@ -188,6 +186,15 @@ describe('property issue normalization', () => {
       expect(normalizeIssueThing(topic, canonical).canonicalKey).toBe(canonical)
     },
   )
+
+  it('does not fold a part into its whole: a balcony railing is not every railing', () => {
+    expect(normalizeIssueThing('safety', 'balcony railing').canonicalKey).toBe(
+      'balcony railing',
+    )
+    expect(
+      normalizeIssueThing('facilities_equipment', 'balcony railing').canonicalKey,
+    ).toBe('balcony railing')
+  })
 
   it('keeps a synonym inside its topic', () => {
     expect(normalizeIssueThing('communication', 'server').canonicalKey).toBe('server')
