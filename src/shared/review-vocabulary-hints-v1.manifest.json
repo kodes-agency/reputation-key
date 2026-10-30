@@ -1,22 +1,22 @@
 {
   "version": "review-vocabulary-hints-v1",
-  "catalogueDigest": "2293846fd2c181f2d3012bdc8592df36b17d76b49244cde3c4ff1274e7e39cf5",
+  "catalogueDigest": "bf76b989b7d0772a0a870c7a30d06767628e8ae0c4d7ae2d49d6a76b2fe8fda0",
   "sets": [
     {
       "id": "lodging",
-      "digest": "6d3907a6cd785ebfda3a9902f5de689782e4e7663776c57afe1f4a2a6787e9cc"
+      "digest": "65e51335c867241a41a3a8a840ee7b14d8ed60f3a15e65e83751b6af565030bc"
     },
     {
       "id": "food-service",
-      "digest": "d6c26b0ef23a8382f2f88542ae8cbceb2011a1cdff992ef0fad67a099614a03e"
+      "digest": "415f5519a4ccdd093ae6be46fb67fdf06d18062b306902a44d8167c412e47504"
     },
     {
       "id": "beauty",
-      "digest": "340274a81f2cd8aa4d808e524a71880c0872c2b842b9dcf5c8744a8aa276f488"
+      "digest": "80a3dd107e72d633c79d35c33a85d6b1bd6bccbe6d14cca178e033b805af95e7"
     },
     {
       "id": "spa-wellness",
-      "digest": "fef3afbabef4f52482d465e77209ebca78fc4d6031d9c26f574f38094a0de5ed"
+      "digest": "b7d3e9e289c735914042abc977b29095c0c3ac0de042fd14365b896e6782565a"
     },
     {
       "id": "boat-water-activities",
@@ -28,11 +28,11 @@
     },
     {
       "id": "gym-fitness",
-      "digest": "6dca0a2bb95e77d16b68fb47c2aec8a2565d8e1510a06dd233b6b8ac02f79293"
+      "digest": "275d0aee45050b1b8276bc6a49c419cad469f501638b4dc14565035533ea90f0"
     },
     {
       "id": "generic-service",
-      "digest": "d68f5569a3f4239745e6907f912d679d9f85db421c516f5e98434a61033486de"
+      "digest": "daea48eedd1ebf26250c3362d2504430193d2ed92f8fc0a901ff741949d8be26"
     }
   ]
 }

@@ -35,7 +35,7 @@ provider had left it null, which is what the guide's own rule for a `thing` asks
 object the guest names, null otherwise"). Guide v3.3 states that rule, with the rest of what the
 check found, and gold v1.1 applies it:
 
-- 275 generic `thing` values became null in 167 labels (the issue stays). The words are the
+- 297 generic `thing` values became null in 175 labels (the issue stays). The words are the
   list in `src/shared/review-generic-things.ts`, the same list the prompt gives the model. The
   loader refuses any gold label that names one, so the rule cannot drift back in. Four mentions
   that became identical (same topic, null thing, same polarity) were merged the way the

@@ -107,7 +107,7 @@ describe('Anthropic provider preparation', () => {
         },
         prepared.invocation.descriptor.providerPayloadByteCount,
       ),
-    ).toBe(3_829)
+    ).toBe(3_870)
   })
 
   it('forwards connector lifecycle and invocation through the provider adapter', async () => {

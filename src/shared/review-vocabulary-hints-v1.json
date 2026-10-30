@@ -107,7 +107,6 @@
           "crowd"
         ],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -275,7 +274,6 @@
           "smoke"
         ],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -377,7 +375,6 @@
         ],
         "atmosphere_noise": ["music", "noise", "decor", "smell", "lighting", "crowd"],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -487,7 +484,6 @@
         ],
         "atmosphere_noise": ["music", "noise", "lighting", "scent", "crowd", "decor"],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -853,7 +849,6 @@
         ],
         "atmosphere_noise": ["music", "noise", "crowd", "lighting", "decor"],
         "location_access": [
-          "location",
           "parking",
           "entrance",
           "stairs",
@@ -901,7 +896,7 @@
         ],
         "price_billing": ["bill", "refund", "fee"],
         "atmosphere_noise": ["noise", "music", "decor", "crowd"],
-        "location_access": ["parking", "entrance", "location", "wheelchair access"],
+        "location_access": ["parking", "entrance", "wheelchair access"],
         "safety": ["stairs", "lock", "security", "wet floor"],
         "communication": ["phone", "email", "website", "reply"]
       }

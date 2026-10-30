@@ -15,7 +15,15 @@ describe('the generic thing words', () => {
   })
 
   it('name the business, the visit, the people and the topic, as the guide does', () => {
-    for (const word of ['place', 'staff', 'team', 'welcome', 'visit', 'price']) {
+    for (const word of [
+      'place',
+      'staff',
+      'team',
+      'welcome',
+      'visit',
+      'price',
+      'location',
+    ]) {
       expect(isGenericThingWord(word), word).toBe(true)
     }
   })
@@ -31,7 +39,7 @@ describe('the generic thing words', () => {
       'hotel restaurant',
       'room service',
       'bar price',
-      'location',
+      'parking',
       'music',
     ]) {
       expect(isGenericThingWord(word), word).toBe(false)

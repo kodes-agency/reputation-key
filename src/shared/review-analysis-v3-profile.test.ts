@@ -159,8 +159,22 @@ describe('the review-analysis v3 developer prompt', () => {
     expect(prompt).toContain('"30-minute wait" becomes "long wait"')
     expect(prompt).toContain('If thing is set, issue is set')
     expect(prompt).toContain('the plain singular object')
-    expect(prompt).toContain('with no role and no quantity')
+    expect(prompt).toContain('with no quantity and no title added to an object')
     expect(prompt).toContain('"front desk", not "front desk clerk"')
+    expect(prompt).toContain('the thing is the role the guest names')
+    for (const role of [
+      'waiter',
+      'host',
+      'owner',
+      'manager',
+      'stylist',
+      'therapist',
+      'guide',
+    ]) {
+      expect(prompt, role).toContain(`"${role}"`)
+    }
+    expect(prompt).toContain('thing "bill" and issue "wrong charge"')
+    expect(prompt).toContain('(thing "answer")')
   })
 
   it('names every generic word that is no thing, and keeps a part or an item a thing', () => {
@@ -178,6 +192,7 @@ describe('the review-analysis v3 developer prompt', () => {
     expect(prompt).toContain('thing is what was waited for')
     expect(prompt).toContain('never the waiting itself')
     expect(prompt).toContain('Timing cues are speed_waiting mentions of their own')
+    expect(prompt).toContain('"the last part dragged" is speed_waiting (thing "ending"')
     for (const cue of [
       'right away',
       'immediately',

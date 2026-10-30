@@ -27,6 +27,7 @@ export const REVIEW_GENERIC_THING_WORDS = Object.freeze({
     'ambience',
     'vibe',
     'mood',
+    'location',
   ]),
 })
 
